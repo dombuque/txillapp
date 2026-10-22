@@ -43,16 +43,16 @@ export default function Layout() {
       <Outlet />
       <nav
         aria-label="Navegação principal"
-        className="fixed bottom-0 left-1/2 z-20 w-full max-w-xl -translate-x-1/2 border-t border-zinc-100 bg-white pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-6px_24px_rgba(0,0,0,0.05)]"
+        className="fixed bottom-0 left-1/2 z-20 w-full max-w-xl -translate-x-1/2 border-t border-zinc-100 bg-white pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 shadow-[0_-6px_24px_rgba(0,0,0,0.05)]"
       >
-        <div className="flex items-center justify-around px-3">
+        <div className="flex items-end justify-around px-3">
           <Item to="/" label="Início" end>{(a) => <HomeIcon filled={a} width={27} height={27} />}</Item>
           <Item to="/search" label="Pesquisar">{(a) => <SearchIcon width={27} height={27} strokeWidth={a ? 2.6 : 1.8} />}</Item>
-          {/* Nova publicação: na mesma linha dos outros ícones, só um pouco maior (não sobressai da barra). */}
+          {/* Nova publicação: base alinhada com os outros ícones, mas mais alto: ultrapassa a linha da barra (~8 px) para cima. */}
           <NavLink
             to="/new"
             aria-label="Nova publicação"
-            className={({ isActive }) => `flex h-12 w-12 items-center justify-center rounded-[14px] border-[2.5px] transition active:scale-90 ${isActive ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-700 text-zinc-700'}`}
+            className={({ isActive }) => `-mt-3 flex h-[60px] w-14 items-center justify-center rounded-[18px] border-[2.5px] transition active:scale-90 ${isActive ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-700 bg-white text-zinc-700'}`}
           >
             <PlusIcon width={24} height={24} strokeWidth={2.6} />
           </NavLink>
