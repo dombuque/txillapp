@@ -5,7 +5,30 @@
   --color-canvas: #ebebea;
 }
 
+/* App mobile-first: sem barra de scroll visível (o scroll continua a funcionar). */
+html {
+  scrollbar-width: none;
+}
+html::-webkit-scrollbar {
+  display: none;
+}
+
 body {
   @apply bg-white text-zinc-900 antialiased;
   padding-bottom: env(safe-area-inset-bottom);
+  -webkit-tap-highlight-color: transparent;
+}
+
+@keyframes pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.5) rotate(-12deg); }
+  100% { transform: scale(1); }
+}
+@keyframes rise {
+  from { transform: translateY(40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
 }

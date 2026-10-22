@@ -1,7 +1,24 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import PostCard from '../components/PostCard';
+import { btnGhost } from '../components/ui';
 import { api } from '../lib/api';
+
+function Skeleton() {
+  return (
+    <div className="mx-4 mb-6 animate-pulse rounded-[28px] bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]" aria-hidden>
+      <div className="flex items-center gap-3">
+        <div className="h-[52px] w-[52px] rounded-full bg-zinc-200" />
+        <div className="flex-1 space-y-2">
+          <div className="h-4 w-1/2 rounded-full bg-zinc-200" />
+          <div className="h-3 w-1/3 rounded-full bg-zinc-100" />
+        </div>
+      </div>
+      <div className="mt-5 h-4 w-3/4 rounded-full bg-zinc-200" />
+      <div className="mt-4 h-40 rounded-xl bg-zinc-100" />
+    </div>
+  );
+}
 
 export default function Feed() {
   const q = useInfiniteQuery({
@@ -13,14 +30,28 @@ export default function Feed() {
   const posts = q.data?.pages.flatMap((p) => p.items) ?? [];
 
   return (
-    <div className="space-y-4 px-3 py-3">
-      {q.isLoading && <p className="p-6 text-center text-zinc-400">A carregar…</p>}
-      {q.isError && <p role="alert" className="p-6 text-center text-red-600">Não foi possível carregar o feed.</p>}
+    <div className="pt-1">
+      {q.isLoading && (
+        <>
+          <Skeleton />
+          <Skeleton />
+        </>
+      )}
+      {q.isError && (
+        <div role="alert" className="mx-6 mt-10 text-center">
+          <p className="text-lg">Ups, a vibe falhou 😅</p>
+          <button onClick={() => q.refetch()} className={`${btnGhost} mt-4`}>
+            Tentar outra vez
+          </button>
+        </div>
+      )}
       {q.isSuccess && posts.length === 0 && (
-        <div className="p-10 text-center text-zinc-500">
-          Ainda ninguém brindou por aqui 🍻{' '}
-          <Link to="/new" className="font-semibold text-violet-700 underline">
-            Faz a primeira!
+        <div className="mx-6 mt-16 text-center">
+          <p className="text-6xl">🍻</p>
+          <p className="mt-4 text-2xl font-extrabold">Ainda ninguém brindou por aqui</p>
+          <p className="mt-2 text-lg font-light text-zinc-600">Sê tu a começar a festa!</p>
+          <Link to="/new" className="mt-6 inline-block rounded-full bg-brand px-8 py-3.5 font-semibold text-white active:scale-95">
+            Faz a primeira publicação
           </Link>
         </div>
       )}
@@ -28,13 +59,11 @@ export default function Feed() {
         <PostCard key={p.id} post={p} />
       ))}
       {q.hasNextPage && (
-        <button
-          onClick={() => q.fetchNextPage()}
-          disabled={q.isFetchingNextPage}
-          className="w-full rounded-xl bg-white py-3 font-medium text-zinc-600 shadow-sm"
-        >
-          {q.isFetchingNextPage ? 'A carregar…' : 'Ver mais'}
-        </button>
+        <div className="mb-6 text-center">
+          <button onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage} className={btnGhost}>
+            {q.isFetchingNextPage ? 'A buscar mais vibe…' : 'Mais vibe 🔥'}
+          </button>
+        </div>
       )}
     </div>
   );

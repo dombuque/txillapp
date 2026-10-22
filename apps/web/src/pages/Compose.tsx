@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { btnPrimary, inputCls } from '../components/ui';
+import { Page, btnPrimary, lineInput } from '../components/ui';
 import { api } from '../lib/api';
 
 const MAX = 8 * 1024 * 1024;
@@ -19,8 +19,8 @@ export default function Compose() {
   function pick(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(f.type)) return setErr('Use uma imagem JPEG, PNG ou WebP.');
-    if (f.size > MAX) return setErr('A imagem deve ter no máximo 8 MB.');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(f.type)) return setErr('Essa foto não serve. Usa JPEG, PNG ou WebP 🙃');
+    if (f.size > MAX) return setErr('Foto pesada demais! Máximo 8 MB 🏋️');
     setErr('');
     setFile(f);
     setPreview(URL.createObjectURL(f));
@@ -28,7 +28,7 @@ export default function Compose() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!body.trim()) return setErr('Escreva algo para publicar.');
+    if (!body.trim()) return setErr('Escreve alguma coisa, não fiques calado 🙃');
     setBusy(true);
     setErr('');
     try {
@@ -43,19 +43,35 @@ export default function Compose() {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4 p-4">
-      <h1 className="text-xl font-bold">Nova publicação</h1>
-      <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} rows={4} placeholder="O que está a acontecer?" className={inputCls} />
-      <input value={place} onChange={(e) => setPlace(e.target.value)} maxLength={80} placeholder="Local ou bairro (opcional)" className={inputCls} />
-      {preview && <img src={preview} alt="Pré-visualização" className="max-h-80 w-full rounded-2xl object-cover" />}
-      <label className="block cursor-pointer rounded-xl border border-dashed border-zinc-300 p-4 text-center text-zinc-500">
-        {file ? 'Trocar fotografia' : '📷 Adicionar fotografia'}
-        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={pick} className="sr-only" />
-      </label>
-      {err && <p role="alert" className="text-sm text-red-600">{err}</p>}
-      <button disabled={busy} className={`${btnPrimary} w-full`}>
-        {busy ? 'A publicar…' : 'Publicar'}
-      </button>
-    </form>
+    <Page title="O que se passa? 😎" sub="Conta à malta o que estás a viver">
+      <form onSubmit={submit} className="space-y-6" noValidate>
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          maxLength={2000}
+          rows={3}
+          placeholder="Escreve aqui…"
+          aria-label="Texto da publicação"
+          className={`${lineInput} resize-none text-xl`}
+        />
+        <input
+          value={place}
+          onChange={(e) => setPlace(e.target.value)}
+          maxLength={80}
+          placeholder="Onde estás? Bairro, praia, esquina… 📍"
+          aria-label="Local"
+          className={lineInput}
+        />
+        {preview && <img src={preview} alt="Pré-visualização" className="max-h-80 w-full rounded-2xl object-cover" />}
+        <label className="block cursor-pointer rounded-full border border-dashed border-zinc-400 py-3.5 text-center text-zinc-600 active:scale-[0.98]">
+          {file ? 'Trocar a foto 🔄' : '📷 Mete uma foto'}
+          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={pick} className="sr-only" />
+        </label>
+        <p role="alert" className="min-h-6 text-center text-red-600">{err}</p>
+        <button disabled={busy} className={`${btnPrimary} w-full py-5 text-lg`}>
+          {busy ? 'A publicar… 🚀' : 'Publicar'}
+        </button>
+      </form>
+    </Page>
   );
 }

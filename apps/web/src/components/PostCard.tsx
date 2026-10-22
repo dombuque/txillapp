@@ -3,7 +3,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { api, type Post } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { CommentIcon, GiftIcon } from './icons';
-import { Avatar, Sheet, btnPrimary, inputCls, timeAgo } from './ui';
+import { Avatar, Sheet, btnPrimary, pillInput, timeAgo } from './ui';
 
 type Feed = InfiniteData<{ items: Post[]; nextCursor: string | null }>;
 
@@ -54,7 +54,7 @@ export default function PostCard({ post }: { post: Post }) {
       </div>
       <div className="mt-4 flex border-t border-zinc-300">
         <button onClick={cheer} aria-pressed={post.cheered} className={`${action} ${post.cheered ? '!text-green-700' : ''}`}>
-          <span className="text-2xl">🍻</span> Brindou
+          <span key={String(post.cheered)} className={`text-2xl ${post.cheered ? "animate-[pop_.4s_ease-out]" : ""}`}>🍻</span> Brindou
         </button>
         <button onClick={() => setSheet('comments')} className={action}>
           <CommentIcon /> Comentar
@@ -103,7 +103,7 @@ function CommentsSheet({ post, onClose, onAdded }: { post: Post; onClose: () => 
         ))}
       </ul>
       <form onSubmit={submit} className="flex gap-2">
-        <input value={text} onChange={(e) => setText(e.target.value)} maxLength={1000} placeholder="Escreva um comentário…" className={inputCls} />
+        <input value={text} onChange={(e) => setText(e.target.value)} maxLength={1000} placeholder="Diz lá… 💬" className={pillInput} />
         <button className={btnPrimary}>Enviar</button>
       </form>
       {err && <p role="alert" className="mt-2 text-sm text-red-600">{err}</p>}
@@ -136,9 +136,9 @@ function GiftSheet({ post, onClose, onDone }: { post: Post; onClose: () => void;
     }
   }
   return (
-    <Sheet title={`Presentear ${post.author.displayName}`} onClose={onClose}>
+    <Sheet title={`Presentear ${post.author.displayName} 🎁`} onClose={onClose}>
       {sent ? (
-        <p className="py-6 text-center text-lg">🎁 Presente de {amount} Txills enviado!</p>
+        <p className="py-6 text-center text-lg">🎁 Mandaste {amount} Txills! Que generoso 😍</p>
       ) : (
         <div className="space-y-4">
           <div className="flex gap-2">
@@ -149,16 +149,16 @@ function GiftSheet({ post, onClose, onDone }: { post: Post; onClose: () => void;
                   setAmount(v);
                   keyRef.current = api.newKey();
                 }}
-                className={`flex-1 rounded-xl border py-2 font-semibold ${amount === v ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200'}`}
+                className={`flex-1 rounded-full border py-2.5 font-semibold transition active:scale-95 ${amount === v ? 'border-brand bg-brand text-white' : 'border-zinc-300'}`}
               >
                 {v}
               </button>
             ))}
           </div>
-          <p className="text-sm text-zinc-500">Txills de demonstração (sem valor real).</p>
+          <p className="text-sm text-zinc-500">Txills de brincadeira (sem valor real) 🎭</p>
           {err && <p role="alert" className="text-sm text-red-600">{err}</p>}
           <button disabled={busy} onClick={send} className={`${btnPrimary} w-full`}>
-            Enviar {amount} Txills
+            Mandar {amount} Txills
           </button>
         </div>
       )}

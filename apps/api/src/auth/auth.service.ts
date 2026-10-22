@@ -10,6 +10,7 @@ import { PG_POOL } from '../db/db.module';
 
 const ACCESS_TTL_S = 10 * 60;
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const REUSE_GRACE_MS = 10_000;
 const ARGON_OPTS = { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
 export interface Tokens {
@@ -99,14 +100,16 @@ export class AuthService {
       );
       const s = rows[0];
       if (!s) throw new UnauthorizedException();
-      if (s.used_at || s.revoked_at) {
+      // Tolerância curta: vários separadores/pedidos simultâneos com o mesmo cookie não são roubo.
+      const recentlyUsed = s.used_at && !s.revoked_at && Date.now() - new Date(s.used_at).getTime() < REUSE_GRACE_MS;
+      if ((s.used_at && !recentlyUsed) || s.revoked_at) {
         await client.query('UPDATE identity.sessions SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL', [s.family_id]);
         await this.audit(client, s.user_id, 'auth.refresh_reuse_detected', s.family_id);
         await client.query('COMMIT');
         throw new UnauthorizedException();
       }
       if (new Date(s.expires_at) < new Date() || s.status !== 'active') throw new UnauthorizedException();
-      await client.query('UPDATE identity.sessions SET used_at = now() WHERE id = $1', [s.id]);
+      await client.query('UPDATE identity.sessions SET used_at = COALESCE(used_at, now()) WHERE id = $1', [s.id]);
       const tokens = await this.issueSession(client, s.user_id, s.family_id, userAgent);
       await client.query('COMMIT');
       return { tokens, user: { id: s.user_id, username: s.username, displayName: s.display_name } as PublicUser };

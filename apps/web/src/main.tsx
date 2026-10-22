@@ -15,7 +15,7 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15
 
 function Private({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <p className="p-8 text-zinc-400">A carregar…</p>;
+  if (loading) return <p className="p-8 text-zinc-400">A carregar a vibe…</p>;
   return user ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
@@ -38,8 +38,8 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/new" element={<Compose />} />
               <Route path="/wallet" element={<Wallet />} />
               <Route path="/profile" element={<Profile />} />
-              <Route path="/favorites" element={<ComingSoon title="Favoritos" text="Os seus conteúdos guardados chegam em breve." />} />
-              <Route path="/messages" element={<ComingSoon title="Mensagens" text="Conversas privadas chegam na próxima fase." />} />
+              <Route path="/favorites" element={<ComingSoon emoji="⭐" title="Favoritos a caminho" text="Vais poder guardar o que mais gostas. Calma, ainda estamos a aquecer 🔥" />} />
+              <Route path="/messages" element={<ComingSoon emoji="✈️" title="Mensagens a caminho" text="Em breve podes cochichar com a malta 🤫" />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

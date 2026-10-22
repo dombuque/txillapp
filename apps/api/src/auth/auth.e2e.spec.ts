@@ -88,9 +88,25 @@ describeDb('auth (integração, PostgreSQL real)', () => {
     const c2 = (r1.headers['set-cookie'] as unknown as string[])[0].split(';')[0];
     expect(c2).not.toBe(c1);
 
-    // Reutilizar o token antigo revoga a família inteira.
+    // Dentro da margem de 10 s (vários separadores) o token antigo ainda é aceite.
+    await api.post('/api/v1/auth/refresh').set(csrf).set('Cookie', c1).expect(200);
+
+    // Fora da margem, reutilizar o token antigo revoga a família inteira.
+    await pool.query(
+      `UPDATE identity.sessions SET used_at = used_at - interval '1 minute'
+        WHERE used_at IS NOT NULL AND user_id = (SELECT id FROM identity.users WHERE email = $1)`,
+      [email],
+    );
     await api.post('/api/v1/auth/refresh').set(csrf).set('Cookie', c1).expect(401);
     await api.post('/api/v1/auth/refresh').set(csrf).set('Cookie', c2).expect(401);
+  });
+
+  it('refresh simultâneo com o mesmo cookie (vários separadores) não termina a sessão', async () => {
+    const api = request(app.getHttpServer());
+    const login = await api.post('/api/v1/auth/login').send({ identifier: email, password }).expect(200);
+    const c = (login.headers['set-cookie'] as unknown as string[])[0].split(';')[0];
+    const rs = await Promise.all([1, 2, 3].map(() => api.post('/api/v1/auth/refresh').set(csrf).set('Cookie', c)));
+    expect(rs.map((r) => r.status)).toEqual([200, 200, 200]);
   });
 
   it('audit_log é append-only', async () => {
