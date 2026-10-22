@@ -8,6 +8,8 @@ import { StoriesService } from './stories.service';
 type AuthedReq = Request & { userId?: string };
 const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(200).default('') });
 
+const replySchema = z.object({ body: z.string().trim().min(1).max(500) });
+
 @Controller('stories')
 @UseGuards(JwtAuthGuard)
 export class StoriesController {
@@ -32,6 +34,17 @@ export class StoriesController {
   @HttpCode(204)
   view(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
     return this.stories.view(req.userId!, id);
+  }
+
+  @Post(':id/replies')
+  @HttpCode(201)
+  reply(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(replySchema)) b: z.infer<typeof replySchema>) {
+    return this.stories.reply(req.userId!, id, b.body);
+  }
+
+  @Get(':id/replies')
+  replies(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.stories.replies(req.userId!, id);
   }
 
   @Get(':id/viewers')

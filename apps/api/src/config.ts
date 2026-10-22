@@ -5,6 +5,8 @@ const schema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET deve ter pelo menos 32 caracteres'),
   PORT: z.coerce.number().default(3000),
   MEDIA_DIR: z.string().default('./uploads'),
+  /** ID de cliente OAuth da Google (público). Sem ele, o login com Google fica desligado. */
+  GOOGLE_CLIENT_ID: z.string().min(10).optional(),
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });

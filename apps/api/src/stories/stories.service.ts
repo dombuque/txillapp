@@ -3,6 +3,8 @@ import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 
+const REACTIONS = new Set(['😂', '😮', '😍', '😢', '👏', '🔥', '🍻']);
+
 @Injectable()
 export class StoriesService {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
@@ -78,6 +80,35 @@ export class StoriesService {
       [storyId],
     );
     return rows.map((r) => ({ username: r.username, displayName: r.display_name, viewedAt: r.viewed_at }));
+  }
+
+  /** Responder a um story (ou reagir com emoji). Chega ao autor; não se responde ao próprio story nem a um expirado. */
+  async reply(userId: string, storyId: string, body: string) {
+    const s = await this.pool.query('SELECT author_id FROM content.stories WHERE id = $1 AND expires_at > now()', [storyId]);
+    if (!s.rows[0]) throw new NotFoundException('Story não encontrado ou já expirou');
+    if (s.rows[0].author_id === userId) throw new BadRequestException('Não podes responder ao teu próprio story');
+    const id = uuidv7();
+    const kind = REACTIONS.has(body) ? 'reaction' : 'reply';
+    await this.pool.query('INSERT INTO content.story_replies (id, story_id, author_id, body, kind) VALUES ($1, $2, $3, $4, $5)', [
+      id, storyId, userId, body, kind,
+    ]);
+    return { id, kind };
+  }
+
+  /** Respostas e reacções ao story: só o autor as vê. */
+  async replies(userId: string, storyId: string) {
+    const own = await this.pool.query('SELECT 1 FROM content.stories WHERE id = $1 AND author_id = $2', [storyId, userId]);
+    if (!own.rowCount) throw new NotFoundException('Story não encontrado');
+    const { rows } = await this.pool.query(
+      `SELECT r.id, r.body, r.kind, r.created_at, u.username, u.display_name
+         FROM content.story_replies r JOIN identity.users u ON u.id = r.author_id
+        WHERE r.story_id = $1 ORDER BY r.id DESC LIMIT 200`,
+      [storyId],
+    );
+    return rows.map((r) => ({
+      id: r.id, body: r.body, kind: r.kind, createdAt: r.created_at,
+      author: { username: r.username, displayName: r.display_name },
+    }));
   }
 
   async remove(userId: string, storyId: string) {

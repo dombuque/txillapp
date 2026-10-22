@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { api, type TrayUser } from '../lib/api';
+import { api, type Story, type TrayUser } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Avatar, timeAgo } from './ui';
 
@@ -110,7 +110,75 @@ const EyeIcon = () => (
   </svg>
 );
 
-/** Painel inferior dentro do visualizador (menu e lista de quem viu). */
+const REACTIONS = ['😂', '😮', '😍', '😢', '👏', '🔥', '🍻'];
+
+function expiresIn(iso: string) {
+  const h = Math.ceil((new Date(iso).getTime() - Date.now()) / 3_600_000);
+  return h <= 0 ? 'a expirar' : `expira em ${h} h`;
+}
+
+/** Responder ao story ou reagir com emoji, como no Instagram: a mensagem chega ao autor. */
+function ReplyBar({ story, username, onFocusChange }: { story: Story; username: string; onFocusChange: (v: boolean) => void }) {
+  const [text, setText] = useState('');
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function send(body: string) {
+    if (!body.trim() || busy) return;
+    setBusy(true);
+    try {
+      await api.replyStory(story.id, body.trim());
+      setText('');
+      setMsg(REACTIONS.includes(body) ? `${body} enviado!` : 'Mensagem enviada ✅');
+    } catch (x) {
+      setMsg((x as Error).message);
+    } finally {
+      setBusy(false);
+      setTimeout(() => setMsg(null), 2200);
+    }
+  }
+  const focus = (v: boolean) => {
+    setOpen(v);
+    onFocusChange(v);
+  };
+
+  return (
+    <div className="pointer-events-auto w-full" onPointerDown={(e) => e.stopPropagation()}>
+      {open && (
+        <div className="mb-3 flex justify-between px-1 text-3xl">
+          {REACTIONS.map((e) => (
+            <button key={e} type="button" onMouseDown={(ev) => ev.preventDefault()} onClick={() => send(e)} aria-label={`Reagir com ${e}`} className="transition active:scale-125">
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          send(text);
+        }}
+        className="flex items-center gap-3"
+      >
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onFocus={() => focus(true)}
+          onBlur={() => focus(false)}
+          maxLength={500}
+          placeholder={`Enviar mensagem a ${username}…`}
+          aria-label={`Responder ao story de ${username}`}
+          className="min-w-0 flex-1 rounded-full border border-white/60 bg-black/20 px-5 py-3 text-white outline-none backdrop-blur-sm placeholder:text-white/70 focus:border-white"
+        />
+        {text.trim() && <button className="font-semibold text-white">Enviar</button>}
+      </form>
+      {msg && <p role="status" className="mt-2 text-center text-sm font-medium text-white">{msg}</p>}
+    </div>
+  );
+}
+
+/** Painel inferior dentro do visualizador (menu e atividade do story). */
 function Panel({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="absolute inset-0 z-20 flex items-end bg-black/50" onClick={onClose} role="presentation">
@@ -130,15 +198,21 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
   const [pct, setPct] = useState(0);
   const [held, setHeld] = useState(false);
   const [panel, setPanel] = useState<null | 'menu' | 'viewers'>(null);
+  const [typing, setTyping] = useState(false);
   const downAt = useRef(0);
   const user = users[u];
   const q = useQuery({ queryKey: ['stories', user.username], queryFn: () => api.storiesOf(user.username) });
   const list = q.data ?? [];
   const story = list[s];
-  const paused = held || panel !== null;
+  const paused = held || typing || panel !== null;
   const viewers = useQuery({
     queryKey: ['story-viewers', story?.id],
     queryFn: () => api.storyViewers(story!.id),
+    enabled: panel === 'viewers' && !!story,
+  });
+  const replies = useQuery({
+    queryKey: ['story-replies', story?.id],
+    queryFn: () => api.storyReplies(story!.id),
     enabled: panel === 'viewers' && !!story,
   });
 
@@ -219,7 +293,10 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
             <Avatar name={user.displayName} size={40} ring={false} />
             <div className="min-w-0 flex-1 leading-tight">
               <p className="truncate font-semibold">{user.username}</p>
-              <p className="text-xs text-white/75">{story ? timeAgo(story.createdAt) : ''}</p>
+              <p className="text-xs text-white/75">
+                {story ? timeAgo(story.createdAt) : ''}
+                {user.isMe && story ? ` · ${expiresIn(story.expiresAt)}` : ''}
+              </p>
             </div>
             {user.isMe && story && (
               <button {...stop} onClick={() => setPanel('menu')} aria-label="Mais opções" className={circleBtn}>
@@ -244,6 +321,7 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
               <EyeIcon /> {story.viewCount ?? 0}
             </button>
           )}
+          {!user.isMe && story && <ReplyBar key={story.id} story={story} username={user.username} onFocusChange={setTyping} />}
         </div>
 
         {panel === 'menu' && (
@@ -253,9 +331,26 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
           </Panel>
         )}
         {panel === 'viewers' && (
-          <Panel title={`Quem viu ${story?.viewCount ? `(${story.viewCount})` : ''}`} onClose={() => setPanel(null)}>
+          <Panel title="Atividade do story" onClose={() => setPanel(null)}>
+            {replies.data && replies.data.length > 0 && (
+              <>
+                <p className="mb-1 mt-2 text-sm font-semibold text-zinc-500">Respostas ({replies.data.length})</p>
+                {replies.data.map((r) => (
+                  <div key={r.id} className="flex items-center gap-3 py-2.5">
+                    <Avatar name={r.author.displayName} size={40} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm text-zinc-500">
+                        <b className="text-zinc-900">{r.author.username}</b> · {timeAgo(r.createdAt)}
+                      </p>
+                      <p className={r.kind === 'reaction' ? 'text-3xl leading-tight' : 'break-words'}>{r.body}</p>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+            <p className="mb-1 mt-4 text-sm font-semibold text-zinc-500">Quem viu {story?.viewCount ? `(${story.viewCount})` : ''}</p>
             {viewers.isLoading && <p className="py-6 text-center text-zinc-500">A carregar…</p>}
-            {viewers.isSuccess && viewers.data.length === 0 && <p className="py-6 text-center text-zinc-500">Ainda ninguém viu 👀</p>}
+            {viewers.isSuccess && viewers.data.length === 0 && <p className="py-4 text-center text-zinc-500">Ainda ninguém viu 👀</p>}
             {viewers.data?.map((v) => (
               <div key={v.username} className="flex items-center gap-3 py-2.5">
                 <Avatar name={v.displayName} size={40} />

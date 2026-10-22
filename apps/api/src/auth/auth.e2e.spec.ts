@@ -93,7 +93,7 @@ describeDb('auth (integração, PostgreSQL real)', () => {
 
     // Fora da margem, reutilizar o token antigo revoga a família inteira.
     await pool.query(
-      `UPDATE identity.sessions SET used_at = used_at - interval '1 minute'
+      `UPDATE identity.sessions SET used_at = used_at - interval '5 minutes'
         WHERE used_at IS NOT NULL AND user_id = (SELECT id FROM identity.users WHERE email = $1)`,
       [email],
     );
@@ -107,6 +107,20 @@ describeDb('auth (integração, PostgreSQL real)', () => {
     const c = (login.headers['set-cookie'] as unknown as string[])[0].split(';')[0];
     const rs = await Promise.all([1, 2, 3].map(() => api.post('/api/v1/auth/refresh').set(csrf).set('Cookie', c)));
     expect(rs.map((r) => r.status)).toEqual([200, 200, 200]);
+  });
+
+  it('a sessão é deslizante: cada renovação estende a validade (~1 ano) e o cookie é persistente', async () => {
+    const api = request(app.getHttpServer());
+    const login = await api.post('/api/v1/auth/login').send({ identifier: email, password }).expect(200);
+    const c = (login.headers['set-cookie'] as unknown as string[])[0];
+    expect(c).toMatch(/Max-Age=31536000/);
+    const r = await api.post('/api/v1/auth/refresh').set(csrf).set('Cookie', c.split(';')[0]).expect(200);
+    expect((r.headers['set-cookie'] as unknown as string[])[0]).toMatch(/Max-Age=31536000/);
+    const { rows } = await pool.query(
+      `SELECT max(s.expires_at) - now() AS left FROM identity.sessions s JOIN identity.users u ON u.id = s.user_id WHERE u.email = $1`,
+      [email],
+    );
+    expect(rows[0].left.days).toBeGreaterThanOrEqual(364);
   });
 
   it('o limite do login não bloqueia a renovação de sessão, mas o login continua limitado', async () => {

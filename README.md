@@ -6,7 +6,9 @@ Plataforma social mobile-first (PWA) com feed, showoff e **Txills** — uma moed
 
 ## O que já funciona
 
-- Registo, login, sessões com refresh token rotativo (deteção de reutilização), Argon2id, auditoria append-only
+- Registo em passos com **validação em tempo real** do @ e do email (sugestões livres quando o @ já tem dono; nomes reservados bloqueados)
+- Login com utilizador ou email, **login com Google** (verificado no servidor), Argon2id, auditoria append-only
+- Sessão persistente e deslizante (rotação do refresh token, dura enquanto usar a app): só o logout leva ao login
 - Feed com publicações e **várias fotografias** (carrossel), paginação por cursor
 - **Brindar**, **Comentar** (com respostas, brindes nos comentários e menções, ao estilo Instagram) e **Presentear**
 - **Presentear alguém** com Txills, com post opcional "X presenteou Y" no feed
@@ -28,6 +30,12 @@ npm run migrate
 npm run dev:api                       # http://localhost:3000  (docs em /api/docs)
 npm run dev:web                       # http://localhost:5173
 ```
+
+## Login com Google (opcional)
+
+1. Google Cloud Console → Credenciais → *ID de cliente OAuth* (Aplicação Web); em *Origens JavaScript autorizadas* ponha `http://localhost:5173` (e o domínio de produção).
+2. Em `apps/api/.env`: `GOOGLE_CLIENT_ID=...apps.googleusercontent.com` e reinicie a API.
+3. O botão aparece sozinho. Contas novas escolhem o @ a seguir; uma conta existente com o mesmo email **não** é ligada automaticamente (entra com a senha).
 
 ## Testes
 

@@ -5,11 +5,12 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import type { JWTVerifyGetKey } from 'jose';
 import { AppModule } from './app.module';
 import { loadConfig } from './config';
 
-export async function createApp(config = loadConfig()) {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule.register(config));
+export async function createApp(config = loadConfig(), opts: { googleJwks?: JWTVerifyGetKey } = {}) {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule.register(config, opts));
   app.set('trust proxy', 1);
   app.use(helmet());
   app.use(cookieParser());

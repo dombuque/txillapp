@@ -3,14 +3,19 @@ import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { Pool, PoolClient } from 'pg';
-import { LoginInput, PublicUser, RegisterInput } from '@txillapp/shared';
+import { z } from 'zod';
+import { LoginInput, PublicUser, RegisterInput, usernameSchema } from '@txillapp/shared';
 import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
+import { GoogleService } from './google.service';
+import { isReservedUsername } from './reserved-usernames';
 
 const ACCESS_TTL_S = 10 * 60;
-const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const REUSE_GRACE_MS = 10_000;
+// Sessão deslizante: cada renovação estende a validade. Só termina com logout (ou após 1 ano sem usar a app).
+export const REFRESH_TTL_MS = 365 * 24 * 60 * 60 * 1000;
+// Redes móveis instáveis: uma resposta perdida e repetida não deve ser tomada por roubo de token.
+const REUSE_GRACE_MS = 120_000;
 const ARGON_OPTS = { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
 export interface Tokens {
@@ -29,11 +34,43 @@ export class AuthService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(CONFIG) config: AppConfig,
+    private readonly google: GoogleService,
   ) {
     this.secret = new TextEncoder().encode(config.JWT_ACCESS_SECRET);
   }
 
+  /** Disponibilidade de um @ (insensível a maiúsculas), incluindo nomes reservados. */
+  async usernameAvailable(
+    raw: string,
+  ): Promise<{ available: boolean; reason?: 'invalid' | 'reserved' | 'taken'; suggestions?: string[] }> {
+    const u = raw.trim().replace(/^@/, '');
+    if (!usernameSchema.safeParse(u).success) return { available: false, reason: 'invalid' };
+    if (isReservedUsername(u)) return { available: false, reason: 'reserved' };
+    const r = await this.pool.query('SELECT 1 FROM identity.users WHERE username = $1', [u]);
+    if (!r.rowCount) return { available: true };
+    return { available: false, reason: 'taken', suggestions: await this.alternatives(u) };
+  }
+
+  /** Alternativas livres para um @ que já tem dono. */
+  private async alternatives(base: string): Promise<string[]> {
+    const stem = base.slice(0, 24);
+    const n = () => Math.floor(10 + Math.random() * 90);
+    const candidates = [...new Set([`${stem}_${n()}`, `${stem}.mz`, `${stem}${new Date().getFullYear() % 100}`, `${stem}${n()}`, `o.${stem}`, `${stem}_oficial`])]
+      .filter((c) => c.length <= 30 && usernameSchema.safeParse(c).success && !isReservedUsername(c));
+    const taken = await this.pool.query('SELECT username FROM identity.users WHERE username = ANY($1)', [candidates]);
+    const used = new Set(taken.rows.map((r) => String(r.username).toLowerCase()));
+    return candidates.filter((c) => !used.has(c.toLowerCase())).slice(0, 3);
+  }
+
+  async emailAvailable(raw: string): Promise<{ available: boolean; reason?: 'invalid' | 'taken' }> {
+    const email = raw.trim().toLowerCase();
+    if (!z.string().email().max(254).safeParse(email).success) return { available: false, reason: 'invalid' };
+    const r = await this.pool.query('SELECT 1 FROM identity.users WHERE email = $1', [email]);
+    return r.rowCount ? { available: false, reason: 'taken' } : { available: true };
+  }
+
   async register(input: RegisterInput, userAgent?: string) {
+    if (isReservedUsername(input.username)) throw new ConflictException('Esse nome está reservado');
     const id = uuidv7();
     const hash = await argon2.hash(input.password, ARGON_OPTS);
     const client = await this.pool.connect();
@@ -51,7 +88,9 @@ export class AuthService {
     } catch (e) {
       await client.query('ROLLBACK');
       if ((e as { code?: string }).code === '23505') {
-        throw new ConflictException('Email ou nome de utilizador já em uso');
+        // Corrida rara (a verificação em tempo real já avisou antes): diz exactamente qual dos dois.
+        const which = String((e as { constraint?: string }).constraint ?? '');
+        throw new ConflictException(which.includes('email') ? 'Esse email já tem conta' : 'Esse nome de utilizador já tem dono');
       }
       throw e;
     } finally {
@@ -130,9 +169,100 @@ export class AuthService {
     );
   }
 
+  /** Login com Google: sessão directa se a conta já existe; caso contrário pede o @ (registo em 2 passos). */
+  async googleLogin(idToken: string, userAgent?: string) {
+    const p = await this.google.verify(idToken);
+    const found = await this.pool.query(
+      `SELECT id, username, display_name, status FROM identity.users WHERE google_sub = $1`,
+      [p.sub],
+    );
+    const u = found.rows[0];
+    if (u) {
+      if (u.status !== 'active') throw new UnauthorizedException('Conta indisponível');
+      const tokens = await this.sessionFor(u.id, 'auth.google_login', userAgent);
+      return { kind: 'session' as const, tokens, user: { id: u.id, username: u.username, displayName: u.display_name } };
+    }
+    // Não se liga automaticamente a uma conta existente com o mesmo email (evita tomadas de conta por email não verificado).
+    if ((await this.pool.query('SELECT 1 FROM identity.users WHERE email = $1', [p.email])).rowCount) {
+      throw new ConflictException('Já existe uma conta com este email. Entra com a tua senha.');
+    }
+    const signupToken = await new SignJWT({ email: p.email, name: p.name })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(p.sub)
+      .setIssuer('txillapp')
+      .setAudience('google-signup')
+      .setIssuedAt()
+      .setExpirationTime('15m')
+      .sign(this.secret);
+    return { kind: 'signup' as const, signupToken, displayName: p.name.slice(0, 60), suggestedUsername: await this.suggestUsername(p.email) };
+  }
+
+  async googleComplete(signupToken: string, rawUsername: string, userAgent?: string) {
+    let claims;
+    try {
+      claims = (await jwtVerify(signupToken, this.secret, { algorithms: ['HS256'], issuer: 'txillapp', audience: 'google-signup' })).payload;
+    } catch {
+      throw new UnauthorizedException('O pedido expirou. Entra com a Google outra vez.');
+    }
+    const username = rawUsername.trim().replace(/^@/, '');
+    const a = await this.usernameAvailable(username);
+    if (!a.available) {
+      throw new ConflictException(a.reason === 'invalid' ? 'Nome de utilizador inválido' : a.reason === 'reserved' ? 'Esse nome está reservado' : 'Esse já tem dono');
+    }
+    const id = uuidv7();
+    const displayName = String(claims.name ?? username).slice(0, 60);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('INSERT INTO identity.users (id, email, username, display_name, google_sub) VALUES ($1, $2, $3, $4, $5)', [
+        id, claims.email, username, displayName, claims.sub,
+      ]);
+      await this.audit(client, id, 'auth.google_register');
+      const tokens = await this.issueSession(client, id, uuidv7(), userAgent);
+      await client.query('COMMIT');
+      return { tokens, user: { id, username, displayName } };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      if ((e as { code?: string }).code === '23505') throw new ConflictException('Esse já tem dono, ou esta conta Google já está registada');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  get googleClientId() {
+    return this.google.clientIdPublic;
+  }
+
+  private async sessionFor(userId: string, action: string, userAgent?: string) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const tokens = await this.issueSession(client, userId, uuidv7(), userAgent);
+      await this.audit(client, userId, action);
+      await client.query('COMMIT');
+      return tokens;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async suggestUsername(email: string) {
+    let base = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_.]/g, '').slice(0, 20);
+    if (base.length < 3) base = 'user' + base;
+    for (let i = 0; i < 6; i++) {
+      const candidate = i === 0 ? base : `${base.slice(0, 24)}${Math.floor(100 + Math.random() * 900)}`;
+      if ((await this.usernameAvailable(candidate)).available) return candidate;
+    }
+    return '';
+  }
+
   async verifyAccessToken(token: string): Promise<string> {
     try {
-      const { payload } = await jwtVerify(token, this.secret, { algorithms: ['HS256'], issuer: 'txillapp' });
+      const { payload } = await jwtVerify(token, this.secret, { algorithms: ['HS256'], issuer: 'txillapp', audience: 'access' });
       if (!payload.sub) throw new Error('sem sub');
       return payload.sub;
     } catch {
@@ -164,6 +294,7 @@ export class AuthService {
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject(userId)
       .setIssuer('txillapp')
+      .setAudience('access')
       .setIssuedAt()
       .setExpirationTime(`${ACCESS_TTL_S}s`)
       .sign(this.secret);

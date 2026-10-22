@@ -40,6 +40,7 @@ export interface Comment {
   cheered: boolean;
   replyCount: number;
 }
+export type Availability<R extends string> = { available: true } | { available: false; reason: R };
 export interface Page<T> {
   items: T[];
   nextCursor: string | null;
@@ -81,12 +82,25 @@ export interface WalletView {
   }[];
 }
 
+/** Chamado só quando o servidor diz de forma definitiva que a sessão acabou (401). Falhas de rede/servidor não contam. */
+let onSessionExpired: (() => void) | null = null;
+export const setSessionExpiredHandler = (fn: (() => void) | null) => {
+  onSessionExpired = fn;
+};
+
 let refreshing: Promise<AuthResponse> | null = null;
 function refreshOnce() {
   return (refreshing ??= raw('/auth/refresh', { method: 'POST' }, false)
     .then((r: AuthResponse) => {
       accessToken = r.accessToken;
       return r;
+    })
+    .catch((e) => {
+      if (e instanceof ApiError && e.status === 401) {
+        accessToken = null;
+        onSessionExpired?.();
+      }
+      throw e;
     })
     .finally(() => {
       refreshing = null;
@@ -129,6 +143,15 @@ export const api = {
   refresh: (): Promise<AuthResponse> => refreshOnce(),
   logout: (): Promise<void> => raw('/auth/logout', { method: 'POST' }),
 
+  authConfig: (): Promise<{ googleClientId: string | null }> => raw('/auth/config'),
+  usernameAvailable: (u: string): Promise<Availability<'invalid' | 'reserved' | 'taken'> & { suggestions?: string[] }> =>
+    raw(`/auth/username-available?username=${encodeURIComponent(u)}`),
+  emailAvailable: (e: string): Promise<Availability<'invalid' | 'taken'>> => raw(`/auth/email-available?email=${encodeURIComponent(e)}`),
+  /** Devolve a sessão, ou `needsUsername` para contas novas (a pessoa escolhe o @ a seguir). */
+  googleLogin: (idToken: string): Promise<AuthResponse | { needsUsername: true; signupToken: string; displayName: string; suggestedUsername: string }> =>
+    raw('/auth/google', post({ idToken })),
+  googleComplete: (signupToken: string, username: string): Promise<AuthResponse> => raw('/auth/google/complete', post({ signupToken, username })),
+
   feed: (cursor?: string): Promise<Page<Post>> => raw(`/posts${qs(cursor, 10)}`),
   createPost: (b: { body: string; locationLabel?: string; mediaIds: string[] }): Promise<Post> => raw('/posts', post(b)),
   cheer: (id: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/posts/${id}/cheers`, post({})),
@@ -151,7 +174,10 @@ export const api = {
   createStory: (mediaId: string, caption: string): Promise<Story> => raw('/stories', post({ mediaId, caption })),
   viewStory: (id: string): Promise<void> => raw(`/stories/${id}/view`, post({})),
   deleteStory: (id: string): Promise<void> => raw(`/stories/${id}`, { method: 'DELETE' }),
-  storyViewers: (id: string): Promise<{ username: string; displayName: string; viewedAt: string }[]> => raw(`/stories/${id}/viewers`),
+  replyStory: (id: string, body: string): Promise<{ id: string; kind: 'reply' | 'reaction' }> => raw(`/stories/${id}/replies`, post({ body })),
+  storyReplies: (id: string): Promise<{ id: string; body: string; kind: 'reply' | 'reaction'; createdAt: string; author: { username: string; displayName: string } }[]> =>
+    raw(`/stories/${id}/replies`),
+  storyViewers:(id: string): Promise<{ username: string; displayName: string; viewedAt: string }[]> => raw(`/stories/${id}/viewers`),
 
   nearbyPlaces: (lat: number, lng: number): Promise<NearbyPlaces> => raw(`/places/nearby?lat=${lat}&lng=${lng}`),
 

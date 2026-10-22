@@ -250,11 +250,27 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
     expect(viewers.map((v: { username: string }) => v.username)).toEqual([ana.username]);
     await api().get(`/api/v1/stories/${s.id}/viewers`).set(auth(ana)).expect(404); // só o autor vê
 
+    // Responder / reagir: chega ao autor; só ele vê; não se responde ao próprio story.
+    const text = (await api().post(`/api/v1/stories/${s.id}/replies`).set(auth(ana)).send({ body: 'Que vista! 😍 Onde é?' }).expect(201)).body;
+    const emoji = (await api().post(`/api/v1/stories/${s.id}/replies`).set(auth(ana)).send({ body: '🔥' }).expect(201)).body;
+    expect([text.kind, emoji.kind]).toEqual(['reply', 'reaction']);
+    await api().post(`/api/v1/stories/${s.id}/replies`).set(auth(ana)).send({ body: '  ' }).expect(400);
+    await api().post(`/api/v1/stories/${s.id}/replies`).set(auth(bruno)).send({ body: 'eu mesmo' }).expect(400);
+    const inbox = (await api().get(`/api/v1/stories/${s.id}/replies`).set(auth(bruno)).expect(200)).body;
+    expect(inbox.map((r: { body: string }) => r.body)).toEqual(['🔥', 'Que vista! 😍 Onde é?']);
+    expect(inbox[0].author.username).toBe(ana.username);
+    await api().get(`/api/v1/stories/${s.id}/replies`).set(auth(ana)).expect(404);
+
+    // Dura 24 h.
+    const life = await pool.query('SELECT extract(epoch FROM (expires_at - created_at)) AS secs FROM content.stories WHERE id = $1', [s.id]);
+    expect(Math.round(Number(life.rows[0].secs))).toBe(24 * 3600);
+
     await api().delete(`/api/v1/stories/${s.id}`).set(auth(ana)).expect(404);
     await pool.query(`UPDATE content.stories SET expires_at = now() - interval '1 minute' WHERE id = $1`, [s.id]);
     tray = (await api().get('/api/v1/stories').set(auth(ana)).expect(200)).body;
     expect(tray.find((t: { username: string }) => t.username === bruno.username)).toBeUndefined();
     await api().post(`/api/v1/stories/${s.id}/view`).set(auth(ana)).expect(404);
+    await api().post(`/api/v1/stories/${s.id}/replies`).set(auth(ana)).send({ body: 'tarde demais' }).expect(404); // expirado
     await api().delete(`/api/v1/stories/${s.id}`).set(auth(bruno)).expect(204);
   });
 

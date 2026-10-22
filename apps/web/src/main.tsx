@@ -4,8 +4,9 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import './index.css';
 import Layout from './components/Layout';
+import { Wordmark } from './components/ui';
 import { AuthProvider, useAuth } from './lib/auth';
-import { Login, Register } from './pages/AuthForm';
+import { GoogleUsername, Login, Register } from './pages/AuthForm';
 import Compose from './pages/Compose';
 import Feed from './pages/Feed';
 import { ComingSoon, Profile } from './pages/Simple';
@@ -13,10 +14,28 @@ import Wallet from './pages/Wallet';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1 } } });
 
+function Splash() {
+  const { reconnecting } = useAuth();
+  return (
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-5 bg-white" aria-busy="true">
+      <Wordmark className="h-14" />
+      <p role="status" className="text-zinc-500">{reconnecting ? 'A reconectar… 📡' : 'A carregar a vibe…'}</p>
+    </main>
+  );
+}
+
+/** Só para quem já entrou. Sem sessão → login. */
 function Private({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <p className="p-8 text-zinc-400">A carregar a vibe…</p>;
+  if (loading) return <Splash />;
   return user ? <>{children}</> : <Navigate to="/login" replace />;
+}
+
+/** Login e registo só para quem ainda não entrou: com sessão iniciada vai direto ao feed (só o logout leva ao login). */
+function PublicOnly({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <Splash />;
+  return user ? <Navigate to="/" replace /> : <>{children}</>;
 }
 
 createRoot(document.getElementById('root')!).render(
@@ -25,8 +44,9 @@ createRoot(document.getElementById('root')!).render(
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
+            <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
+            <Route path="/google-username" element={<PublicOnly><GoogleUsername /></PublicOnly>} />
             <Route
               element={
                 <Private>
