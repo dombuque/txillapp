@@ -9,7 +9,11 @@ import { AuthProvider, useAuth } from './lib/auth';
 import { GoogleUsername, Login, Register } from './pages/AuthForm';
 import Compose from './pages/Compose';
 import Feed from './pages/Feed';
-import { ComingSoon, Profile } from './pages/Simple';
+import Notifications from './pages/Notifications';
+import Profile from './pages/Profile';
+import Search from './pages/Search';
+import Settings from './pages/Settings';
+import { ComingSoon } from './pages/Simple';
 import Wallet from './pages/Wallet';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1 } } });
@@ -47,6 +51,9 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
             <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
             <Route path="/google-username" element={<PublicOnly><GoogleUsername /></PublicOnly>} />
+            {/* Páginas próprias em ecrã inteiro (como a Atividade do Instagram): sem a barra de baixo. */}
+            <Route path="/notifications" element={<Private><Notifications /></Private>} />
+            <Route path="/settings" element={<Private><Settings /></Private>} />
             <Route
               element={
                 <Private>
@@ -58,7 +65,8 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/new" element={<Compose />} />
               <Route path="/wallet" element={<Wallet />} />
               <Route path="/profile" element={<Profile />} />
-              <Route path="/favorites" element={<ComingSoon emoji="⭐" title="Favoritos a caminho" text="Vais poder guardar o que mais gostas. Calma, ainda estamos a aquecer 🔥" />} />
+              <Route path="/u/:username" element={<Profile />} />
+              <Route path="/search" element={<Search />} />
               <Route path="/messages" element={<ComingSoon emoji="✈️" title="Mensagens a caminho" text="Em breve podes cochichar com a malta 🤫" />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

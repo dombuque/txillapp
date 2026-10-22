@@ -96,9 +96,9 @@ function Field({
 }) {
   const [shown, setShown] = useState(false);
   const isPassword = type === 'password';
-  const ring = status === 'ok' ? 'shadow-[0_0_0_2px_#22c55e]' : status === 'bad' ? 'shadow-[0_0_0_2px_#ef4444]' : 'shadow-[0_1px_10px_rgba(0,0,0,0.06)] focus-within:shadow-[0_0_0_2px_#e44460]';
+  const ring = status === 'ok' ? 'shadow-[0_0_0_2px_#22c55e]' : status === 'bad' ? 'shadow-[0_0_0_2px_#ef4444]' : 'shadow-[0_1px_10px_rgba(0,0,0,0.06)] focus-within:shadow-[0_0_0_2px_#d6334f]';
   return (
-    <label className={`flex items-center gap-3 rounded-2xl bg-white px-4 py-4 text-zinc-400 transition ${ring} ${status ? '' : 'focus-within:text-brand'}`}>
+    <label className={`flex items-center gap-3 rounded-2xl bg-white px-4 py-4 text-zinc-600 transition ${ring} ${status ? '' : 'focus-within:text-brand'}`}>
       {icon}
       <input
         ref={inputRef}
@@ -122,13 +122,13 @@ function Field({
         autoCapitalize={capitalize ?? 'none'}
         autoCorrect="off"
         spellCheck={false}
-        className="min-w-0 flex-1 bg-transparent text-lg text-zinc-900 outline-none placeholder:text-zinc-400" // 18px: o iOS não faz zoom ao focar
+        className="min-w-0 flex-1 bg-transparent text-lg text-zinc-900 outline-none placeholder:text-zinc-600" // 18px: o iOS não faz zoom ao focar
       />
-      {status === 'checking' && <span className="text-zinc-400"><Spinner /></span>}
+      {status === 'checking' && <span className="text-zinc-600"><Spinner /></span>}
       {status === 'ok' && <span className="text-green-500"><CheckIcon /></span>}
       {status === 'bad' && <span className="text-red-500"><CrossIcon /></span>}
       {isPassword && (
-        <button type="button" onClick={() => setShown(!shown)} aria-label={shown ? 'Esconder a senha' : 'Mostrar a senha'} className="-mr-1 p-1 text-zinc-400">
+        <button type="button" onClick={() => setShown(!shown)} aria-label={shown ? 'Esconder a senha' : 'Mostrar a senha'} className="-mr-1 p-1 text-zinc-600">
           {shown ? <EyeOffIcon /> : <EyeIcon />}
         </button>
       )}
@@ -137,7 +137,7 @@ function Field({
 }
 
 const cta =
-  'w-full rounded-full bg-gradient-to-r from-brand to-rose-400 py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(228,68,96,0.35)] transition active:scale-[0.98] disabled:opacity-50 disabled:shadow-none';
+  'w-full rounded-full bg-gradient-to-r from-brand to-brand-light py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(214,51,79,0.35)] transition active:scale-[0.98] disabled:opacity-50 disabled:shadow-none';
 
 /** Fundo cinzento claro com manchas de cor suaves, como num ecrã de rede social. */
 function Screen({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
@@ -163,15 +163,15 @@ function Alert({ children }: { children: ReactNode }) {
 function Availability({ check, okText, onPick, children }: { check: Check; okText: string; onPick?: (v: string) => void; children?: ReactNode }) {
   return (
     <div className="mt-3 min-h-[3.25rem] px-1" aria-live="polite">
-      {check.state === 'checking' && <p className="text-sm text-zinc-500">A verificar… ⏳</p>}
+      {check.state === 'checking' && <p className="text-sm text-zinc-600">A verificar… ⏳</p>}
       {check.state === 'ok' && <p className="text-sm font-medium text-green-600">{okText}</p>}
-      {check.state === 'error' && <p className="text-sm text-zinc-500">Sem rede para verificar agora 📡 — confirmamos no fim.</p>}
+      {check.state === 'error' && <p className="text-sm text-zinc-600">Sem rede para verificar agora 📡 — confirmamos no fim.</p>}
       {check.state === 'bad' && (
         <>
           <p className="text-sm font-medium text-red-600">{check.message}</p>
           {check.suggestions && check.suggestions.length > 0 && onPick && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="text-sm text-zinc-500">Experimenta:</span>
+              <span className="text-sm text-zinc-600">Experimenta:</span>
               {check.suggestions.map((s) => (
                 <button key={s} type="button" onClick={() => onPick(s)} className="rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-brand shadow-sm active:scale-95">
                   @{s}
@@ -258,7 +258,7 @@ function GoogleButton({ mode, onError }: { mode: 'login' | 'register'; onError: 
   if (!clientId) return null;
   return (
     <div className="mt-5">
-      <div className="mb-4 flex items-center gap-3 text-sm text-zinc-500" aria-hidden>
+      <div className="mb-4 flex items-center gap-3 text-sm text-zinc-600" aria-hidden>
         <span className="h-px flex-1 bg-zinc-300" /> ou <span className="h-px flex-1 bg-zinc-300" />
       </div>
       <div ref={holder} className="flex min-h-[44px] justify-center" />

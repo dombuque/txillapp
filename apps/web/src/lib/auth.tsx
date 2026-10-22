@@ -11,6 +11,8 @@ interface AuthCtx {
   reconnecting: boolean;
   signIn: (r: AuthResponse) => void;
   signOut: () => Promise<void>;
+  /** Atualiza o que a app mostra do utilizador (ex.: nome depois de editar o perfil). */
+  patchUser: (p: Partial<PublicUser>) => void;
 }
 const Ctx = createContext<AuthCtx>(null!);
 export const useAuth = () => useContext(Ctx);
@@ -64,5 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     qc.clear(); // a próxima pessoa não vê dados da anterior
   }, [qc]);
 
-  return <Ctx.Provider value={{ user, loading, reconnecting, signIn, signOut }}>{children}</Ctx.Provider>;
+  const patchUser = useCallback((p: Partial<PublicUser>) => setUser((u) => (u ? { ...u, ...p } : u)), []);
+
+  return <Ctx.Provider value={{ user, loading, reconnecting, signIn, signOut, patchUser }}>{children}</Ctx.Provider>;
 }

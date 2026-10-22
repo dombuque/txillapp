@@ -1,8 +1,24 @@
 @import 'tailwindcss';
 
+/*
+ * Cores com contraste WCAG 2.2 AA verificado: --color-brand (#d6334f) tem 4,7:1 sobre branco, serve para texto
+ * e para texto branco em botões. --color-brand-light só em fundos com texto grande.
+ */
 @theme {
-  --color-brand: #e44460;
+  --color-brand: #d6334f;
+  --color-brand-light: #e5506a;
   --color-canvas: #ebebea;
+}
+
+/* Foco visível para quem navega com teclado (WCAG 2.4.7). */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+input:focus-visible,
+textarea:focus-visible {
+  outline: none; /* os campos já têm o seu próprio anel de foco */
 }
 
 /* App mobile-first: sem barra de scroll visível (o scroll continua a funcionar). */

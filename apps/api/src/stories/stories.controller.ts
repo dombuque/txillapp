@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
@@ -9,6 +9,7 @@ type AuthedReq = Request & { userId?: string };
 const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(200).default('') });
 
 const replySchema = z.object({ body: z.string().trim().min(1).max(500) });
+const settingsSchema = z.object({ replies: z.enum(['everyone', 'following', 'off']) });
 
 @Controller('stories')
 @UseGuards(JwtAuthGuard)
@@ -23,6 +24,27 @@ export class StoriesController {
   @Get()
   tray(@Req() req: AuthedReq) {
     return this.stories.tray(req.userId!);
+  }
+
+  /** Definições dos meus stories: quem pode responder e a quem estão escondidos. */
+  @Get('settings')
+  settings(@Req() req: AuthedReq) {
+    return this.stories.settings(req.userId!);
+  }
+
+  @Patch('settings')
+  setSettings(@Req() req: AuthedReq, @Body(new ZodPipe(settingsSchema)) b: z.infer<typeof settingsSchema>) {
+    return this.stories.setReplies(req.userId!, b.replies);
+  }
+
+  @Put('hidden/:username')
+  hide(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.stories.hide(req.userId!, username);
+  }
+
+  @Delete('hidden/:username')
+  unhide(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.stories.unhide(req.userId!, username);
   }
 
   @Get('user/:username')

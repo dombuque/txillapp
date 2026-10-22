@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 
-const BRAND = '#e44460';
+const BRAND = '#d6334f';
 
 /** Logótipo "txillapp": traço grosso e arredondado, com o ponto do i a coral. */
 export const Wordmark = ({ className = 'h-8', accent = true }: { className?: string; accent?: boolean }) => (
@@ -37,7 +37,30 @@ export const Wordmark = ({ className = 'h-8', accent = true }: { className?: str
   </svg>
 );
 
-export function Avatar({ name, size = 40, ring = true }: { name: string; size?: number; ring?: boolean }) {
+/** Versão das fotos de perfil: ao mudar a minha, todas as que estão no ecrã são pedidas de novo. */
+let avatarVersion = Date.now();
+const avatarListeners = new Set<() => void>();
+export const bumpAvatars = () => {
+  avatarVersion = Date.now();
+  avatarListeners.forEach((l) => l());
+};
+const useAvatarVersion = () =>
+  useSyncExternalStore(
+    (cb) => {
+      avatarListeners.add(cb);
+      return () => avatarListeners.delete(cb);
+    },
+    () => avatarVersion,
+  );
+
+/**
+ * Foto de perfil. Com `username` tenta a foto (o servidor responde 204 se a pessoa não tiver) e, sem foto,
+ * mostra as iniciais. Imagens com texto alternativo vazio: o nome já está escrito ao lado.
+ */
+export function Avatar({ name, username, size = 40, ring = true }: { name: string; username?: string; size?: number; ring?: boolean }) {
+  const version = useAvatarVersion();
+  const [failed, setFailed] = useState<string | null>(null);
+  const src = username ? `/api/v1/avatars/${encodeURIComponent(username)}?v=${version}` : null;
   const initials = name
     .split(' ')
     .map((p) => p[0])
@@ -47,9 +70,9 @@ export function Avatar({ name, size = 40, ring = true }: { name: string; size?: 
   return (
     <span
       style={{ width: size, height: size, fontSize: Math.max(11, size * 0.3) }}
-      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-rose-50 font-bold text-brand ${ring ? "ring-[1.5px] ring-brand ring-offset-2" : ""}`}
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-rose-50 font-bold text-brand ${ring ? 'ring-[1.5px] ring-brand ring-offset-2' : ''}`}
     >
-      {initials}
+      {src && failed !== src ? <img src={src} alt="" onError={() => setFailed(src)} className="h-full w-full object-cover" draggable={false} /> : initials}
     </span>
   );
 }
@@ -63,9 +86,15 @@ export function timeAgo(iso: string) {
 }
 
 /** Folha inferior (bottom sheet) acessível, com pega de arrastar visual. */
-export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Sheet({ title, onClose, children, layer = 'z-50' }: { title: string; onClose: () => void; children: ReactNode; layer?: string }) {
+  // Esc fecha (teclado/acessibilidade).
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose} role="presentation">
+    <div className={`fixed inset-0 ${layer} flex items-end justify-center bg-black/40`} onClick={onClose} role="presentation">
       <div
         role="dialog"
         aria-modal="true"
@@ -76,7 +105,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
         <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-zinc-300" aria-hidden />
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold">{title}</h2>
-          <button onClick={onClose} aria-label="Fechar" className="rounded-full px-3 py-1 text-2xl text-zinc-400">
+          <button onClick={onClose} aria-label="Fechar" className="-mr-2 flex h-11 w-11 items-center justify-center rounded-full text-2xl text-zinc-600">
             ×
           </button>
         </div>
@@ -98,12 +127,12 @@ export function Page({ title, sub, children }: { title: string; sub?: string; ch
 }
 
 export const btnPrimary =
-  'rounded-full bg-brand px-4 py-3.5 font-semibold text-white transition active:scale-[0.97] disabled:opacity-50 hover:brightness-95';
+  'rounded-full bg-brand px-4 py-3.5 font-bold text-white transition active:scale-[0.97] disabled:opacity-50 hover:brightness-95';
 export const btnGhost =
   'rounded-full border border-zinc-300 bg-white px-6 py-3 font-semibold text-zinc-800 transition active:scale-[0.97]';
 export const lineInput =
-  'w-full border-0 border-b border-zinc-400 bg-transparent py-3 text-lg text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-brand';
+  'w-full border-0 border-b border-zinc-400 bg-transparent py-3 text-lg text-zinc-900 outline-none placeholder:text-zinc-500 focus:border-brand';
 export const fieldInput =
-  'w-full rounded-2xl bg-zinc-100 px-4 py-3.5 text-base text-zinc-900 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-brand';
+  'w-full rounded-2xl bg-zinc-100 px-4 py-3.5 text-base text-zinc-900 outline-none placeholder:text-zinc-500 focus:ring-2 focus:ring-brand';
 export const pillInput =
-  'w-full rounded-full bg-zinc-100 px-4 py-3 text-base outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-brand';
+  'w-full rounded-full bg-zinc-100 px-4 py-3 text-base outline-none placeholder:text-zinc-500 focus:ring-2 focus:ring-brand';

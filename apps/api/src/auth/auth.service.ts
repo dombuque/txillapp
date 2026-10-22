@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'crypto';
 import { SignJWT, jwtVerify } from 'jose';
@@ -24,6 +24,14 @@ export interface Tokens {
 }
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+
+/** "Chrome · Windows" a partir do user-agent (só para mostrar a lista de dispositivos). */
+function describeDevice(ua?: string | null): string {
+  if (!ua) return 'Dispositivo desconhecido';
+  const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+  const os = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad|iOS/.test(ua) ? 'iOS' : /Mac OS X|Macintosh/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : 'Dispositivo';
+  return `${browser} · ${os}`;
+}
 
 @Injectable()
 export class AuthService {
@@ -258,6 +266,112 @@ export class AuthService {
       if ((await this.usernameAvailable(candidate)).available) return candidate;
     }
     return '';
+  }
+
+  /** Altera a senha, termina todas as sessões e devolve uma sessão nova para o dispositivo actual. */
+  async changePassword(userId: string, current: string, next: string, userAgent?: string) {
+    const { rows } = await this.pool.query('SELECT password_hash FROM identity.credentials WHERE user_id = $1', [userId]);
+    if (!rows[0]) throw new BadRequestException('Esta conta entra com a Google e não tem senha');
+    if (!(await argon2.verify(rows[0].password_hash, current))) throw new UnauthorizedException('A senha atual não está certa');
+    if (current === next) throw new BadRequestException('A nova senha tem de ser diferente da atual');
+    const hash = await argon2.hash(next, ARGON_OPTS);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('UPDATE identity.credentials SET password_hash = $2, updated_at = now() WHERE user_id = $1', [userId, hash]);
+      await client.query('UPDATE identity.sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [userId]);
+      const tokens = await this.issueSession(client, userId, uuidv7(), userAgent);
+      await this.audit(client, userId, 'auth.password_changed');
+      await client.query('COMMIT');
+      return { tokens, user: await this.getUser(userId) };
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** Dispositivos com sessão iniciada (um por "família" de refresh tokens). */
+  async sessions(userId: string, currentRefreshToken?: string) {
+    const current = currentRefreshToken
+      ? (await this.pool.query('SELECT family_id FROM identity.sessions WHERE token_hash = $1 AND user_id = $2', [sha256(currentRefreshToken), userId])).rows[0]?.family_id
+      : undefined;
+    const { rows } = await this.pool.query(
+      `SELECT family_id, min(created_at) AS first_seen, max(created_at) AS last_used,
+              (array_agg(user_agent ORDER BY created_at DESC))[1] AS ua
+         FROM identity.sessions WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()
+        GROUP BY family_id ORDER BY max(created_at) DESC LIMIT 30`,
+      [userId],
+    );
+    return rows.map((r) => ({
+      id: r.family_id as string,
+      device: describeDevice(r.ua),
+      firstSeen: r.first_seen,
+      lastUsed: r.last_used,
+      current: r.family_id === current,
+    }));
+  }
+
+  async revokeSession(userId: string, familyId: string) {
+    await this.pool.query('UPDATE identity.sessions SET revoked_at = now() WHERE user_id = $1 AND family_id = $2 AND revoked_at IS NULL', [userId, familyId]);
+  }
+
+  /** "Terminar sessão em todos os outros dispositivos": mantém só o actual. */
+  async revokeOtherSessions(userId: string, currentRefreshToken?: string) {
+    const current = currentRefreshToken
+      ? (await this.pool.query('SELECT family_id FROM identity.sessions WHERE token_hash = $1 AND user_id = $2', [sha256(currentRefreshToken), userId])).rows[0]?.family_id
+      : null;
+    await this.pool.query(
+      'UPDATE identity.sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL AND ($2::uuid IS NULL OR family_id <> $2)',
+      [userId, current],
+    );
+  }
+
+  /**
+   * Eliminar a conta: anonimiza os dados pessoais, termina as sessões e remove ligações e stories.
+   * As publicações deixam de ser visíveis; os registos financeiros mantêm-se (auditoria), sem dados pessoais.
+   */
+  async deleteAccount(userId: string, confirmUsername: string, password?: string) {
+    const { rows } = await this.pool.query(
+      'SELECT u.username, c.password_hash FROM identity.users u LEFT JOIN identity.credentials c ON c.user_id = u.id WHERE u.id = $1 AND u.status = \'active\'',
+      [userId],
+    );
+    const u = rows[0];
+    if (!u) throw new UnauthorizedException();
+    if (confirmUsername.trim().replace(/^@/, '').toLowerCase() !== String(u.username).toLowerCase()) {
+      throw new BadRequestException('Escreve o teu @ exactamente para confirmar');
+    }
+    if (u.password_hash && !(password && (await argon2.verify(u.password_hash, password)))) {
+      throw new UnauthorizedException('A senha não está certa');
+    }
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `UPDATE identity.users SET status = 'deleted', username = 'eliminado_' || substr(replace(id::text, '-', ''), 1, 12),
+                display_name = 'Conta eliminada', email = 'deleted+' || id::text || '@invalid.local',
+                bio = NULL, google_sub = NULL, avatar_media_id = NULL, is_private = true
+          WHERE id = $1`,
+        [userId],
+      );
+      await client.query('DELETE FROM identity.credentials WHERE user_id = $1', [userId]);
+      await client.query('UPDATE identity.sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [userId]);
+      await client.query('DELETE FROM social.follows WHERE follower_id = $1 OR followee_id = $1', [userId]);
+      await client.query('DELETE FROM social.follow_requests WHERE requester_id = $1 OR target_id = $1', [userId]);
+      await client.query('DELETE FROM social.suggestion_dismissals WHERE user_id = $1 OR dismissed_id = $1', [userId]);
+      await client.query('DELETE FROM social.story_hidden WHERE owner_id = $1 OR hidden_id = $1', [userId]);
+      await client.query('DELETE FROM social.blocks WHERE blocker_id = $1 OR blocked_id = $1', [userId]);
+      await client.query('DELETE FROM social.notifications WHERE user_id = $1 OR actor_id = $1', [userId]);
+      await client.query('DELETE FROM content.stories WHERE author_id = $1', [userId]);
+      await this.audit(client, userId, 'account.deleted');
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 
   async verifyAccessToken(token: string): Promise<string> {

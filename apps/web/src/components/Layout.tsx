@@ -1,11 +1,14 @@
+import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { HomeIcon, PlaneIcon, PlusIcon, StarIcon, WalletIcon } from './icons';
-import { Wordmark } from './ui';
+import { BellIcon, HomeIcon, PlaneIcon, PlusIcon, SearchIcon, WalletIcon } from './icons';
+import { Avatar, Wordmark } from './ui';
 
+/** Áreas de toque de 48 px (acima dos 44 px recomendados), com ícones de tamanho moderado. */
 const tab = ({ isActive }: { isActive: boolean }) =>
-  `flex h-12 w-12 items-center justify-center ${isActive ? 'text-zinc-600' : 'text-zinc-500'}`;
+  `flex h-12 w-12 items-center justify-center ${isActive ? 'text-zinc-900' : 'text-zinc-600'}`;
 
 const Item = ({ to, label, children, end }: { to: string; label: string; children: (active: boolean) => ReactNode; end?: boolean }) => (
   <NavLink to={to} end={end} aria-label={label} className={tab}>
@@ -15,46 +18,52 @@ const Item = ({ to, label, children, end }: { to: string; label: string; childre
 
 export default function Layout() {
   const { user } = useAuth();
-  const initials = (user?.displayName ?? '?')
-    .split(' ')
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+  // Contador do sino: pergunta de tempos a tempos (e ao voltar à app).
+  const unread = useQuery({ queryKey: ['unread'], queryFn: api.unreadCount, refetchInterval: 30_000, staleTime: 10_000 });
+  const count = unread.data?.count ?? 0;
+
   return (
-    <div className="mx-auto min-h-dvh max-w-xl bg-white pb-32">
-      <header className="sticky top-0 z-10 flex items-center justify-center bg-white/95 py-4 backdrop-blur">
+    <div className="mx-auto min-h-dvh max-w-xl bg-white pb-24">
+      <header className="sticky top-0 z-10 flex items-center justify-center bg-white/95 py-3 backdrop-blur">
+        <NavLink to="/notifications" aria-label={count > 0 ? `Notificações (${count} por ler)` : 'Notificações'} className="absolute left-3 flex h-11 w-11 items-center justify-center text-zinc-900">
+          <span className="relative">
+            <BellIcon width={26} height={26} />
+            {count > 0 && (
+              <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white">
+                {count > 9 ? '9+' : count}
+              </span>
+            )}
+          </span>
+        </NavLink>
         <Wordmark className="h-8" />
-        <NavLink to="/messages" aria-label="Mensagens" className="absolute right-5 text-zinc-800">
-          <PlaneIcon width={28} height={28} />
+        <NavLink to="/messages" aria-label="Mensagens" className="absolute right-3 flex h-11 w-11 items-center justify-center text-zinc-900">
+          <PlaneIcon width={26} height={26} />
         </NavLink>
       </header>
       <Outlet />
       <nav
         aria-label="Navegação principal"
-        className="fixed bottom-0 left-1/2 z-20 w-full max-w-xl -translate-x-1/2 border-t border-zinc-100 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-6px_24px_rgba(0,0,0,0.05)]"
+        className="fixed bottom-0 left-1/2 z-20 w-full max-w-xl -translate-x-1/2 border-t border-zinc-100 bg-white pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-6px_24px_rgba(0,0,0,0.05)]"
       >
-        <div className="relative flex items-center justify-around px-3">
-          <Item to="/" label="Início" end>{(a) => <HomeIcon filled={a} width={34} height={34} />}</Item>
-          <Item to="/favorites" label="Favoritos">{() => <StarIcon width={32} height={32} />}</Item>
-          <span className="w-20" aria-hidden />
-          <Item to="/wallet" label="Carteira">{() => <WalletIcon width={32} height={32} />}</Item>
-          <Item to="/profile" label="Perfil">
-            {() => (
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-50 text-xs font-bold text-brand ring-2 ring-brand">
-                {initials}
-              </span>
-            )}
-          </Item>
+        <div className="flex items-center justify-around px-3">
+          <Item to="/" label="Início" end>{(a) => <HomeIcon filled={a} width={27} height={27} />}</Item>
+          <Item to="/search" label="Pesquisar">{(a) => <SearchIcon width={27} height={27} strokeWidth={a ? 2.6 : 1.8} />}</Item>
+          {/* Nova publicação: na mesma linha dos outros ícones, só um pouco maior (não sobressai da barra). */}
           <NavLink
             to="/new"
             aria-label="Nova publicação"
-            className="absolute -top-12 left-1/2 flex h-[76px] w-[76px] -translate-x-1/2 items-center justify-center rounded-[28px] bg-white shadow-[0_-4px_16px_rgba(0,0,0,0.08)]"
+            className={({ isActive }) => `flex h-12 w-12 items-center justify-center rounded-[14px] border-[2.5px] transition active:scale-90 ${isActive ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-700 text-zinc-700'}`}
           >
-            <span className="flex h-16 w-16 items-center justify-center rounded-2xl border-[5px] border-zinc-600 text-zinc-600">
-              <PlusIcon />
-            </span>
+            <PlusIcon width={24} height={24} strokeWidth={2.6} />
           </NavLink>
+          <Item to="/wallet" label="Carteira">{() => <WalletIcon width={27} height={27} />}</Item>
+          <Item to="/profile" label="Perfil">
+            {(a) => (
+              <span className={`rounded-full ${a ? 'ring-2 ring-zinc-900 ring-offset-1' : ''}`}>
+                <Avatar name={user?.displayName ?? '?'} username={user?.username} size={28} ring={false} />
+              </span>
+            )}
+          </Item>
         </div>
       </nav>
     </div>

@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { requireIdempotencyKey } from '../wallet/wallet.controller';
+import { visibilitySchema } from './gifts.controller';
 import { MAX_PHOTOS, PostsService } from './posts.service';
 
 type AuthedReq = Request & { userId?: string };
@@ -13,7 +14,12 @@ const createSchema = z.object({
   locationLabel: z.string().trim().max(80).optional(),
   mediaIds: z.array(z.string().uuid()).max(MAX_PHOTOS).default([]),
 });
-const giftSchema = z.object({ amount: z.number().int().positive() });
+const repostSchema = z.object({ body: z.string().trim().max(500).default('') });
+const giftSchema = z.object({
+  amount: z.number().int().positive(),
+  note: z.string().trim().max(280).default(''),
+  visibility: visibilitySchema,
+});
 
 @Controller('posts')
 @UseGuards(JwtAuthGuard)
@@ -37,6 +43,18 @@ export class PostsController {
     return this.posts.toggleCheer(req.userId!, id);
   }
 
+  /** Repostar (sozinho ou com comentário). */
+  @Post(':id/repost')
+  @HttpCode(201)
+  repost(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(repostSchema)) b: z.infer<typeof repostSchema>) {
+    return this.posts.repost(req.userId!, id, b.body);
+  }
+
+  @Delete(':id/repost')
+  unrepost(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.posts.unrepost(req.userId!, id);
+  }
+
   @Post(':id/gifts')
   @HttpCode(201)
   gift(
@@ -45,6 +63,6 @@ export class PostsController {
     @Body(new ZodPipe(giftSchema)) b: z.infer<typeof giftSchema>,
     @Headers('idempotency-key') key?: string,
   ) {
-    return this.posts.gift(req.userId!, id, b.amount, requireIdempotencyKey(key));
+    return this.posts.gift(req.userId!, id, b.amount, requireIdempotencyKey(key), b.note, b.visibility);
   }
 }

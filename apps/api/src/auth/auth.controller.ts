@@ -1,11 +1,11 @@
 import {
-  Body, CanActivate, Controller, ExecutionContext, Get, HttpCode, Injectable,
+  Body, CanActivate, Controller, Delete, ExecutionContext, Get, HttpCode, Injectable, Param, ParseUUIDPipe,
   Post, Query, Req, Res, UnauthorizedException, UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import { Request, Response } from 'express';
-import { AuthResponse, LoginInput, RegisterInput, loginSchema, registerSchema } from '@txillapp/shared';
+import { AuthResponse, LoginInput, RegisterInput, loginSchema, passwordSchema, registerSchema } from '@txillapp/shared';
 import { ZodPipe } from '../common/zod.pipe';
 import { AuthService, REFRESH_TTL_MS, Tokens } from './auth.service';
 
@@ -30,6 +30,8 @@ function requireCsrfHeader(req: Request) {
   if (req.headers['x-requested-with'] !== 'txillapp') throw new UnauthorizedException();
 }
 
+const passwordChangeSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: passwordSchema });
+const deleteSchema = z.object({ confirmUsername: z.string().min(1).max(60), password: z.string().max(128).optional() });
 const googleSchema = z.object({ idToken: z.string().min(20).max(4096) });
 const googleCompleteSchema = z.object({ signupToken: z.string().min(20).max(4096), username: z.string().min(1).max(60) });
 
@@ -129,6 +131,52 @@ export class AuthController {
     requireCsrfHeader(req);
     const token = req.cookies?.[COOKIE];
     if (token) await this.auth.logout(token);
+    res.clearCookie(COOKIE, { path: COOKIE_PATH });
+  }
+
+  /* ───── segurança da conta ───── */
+
+  @Post('password')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  async changePassword(
+    @Req() req: Request & { userId?: string },
+    @Body(new ZodPipe(passwordChangeSchema)) b: z.infer<typeof passwordChangeSchema>,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponse> {
+    const { tokens, user } = await this.auth.changePassword(req.userId!, b.currentPassword, b.newPassword, req.headers['user-agent']);
+    return this.respond(res, tokens, user); // sessão nova para este dispositivo; as outras terminam
+  }
+
+  @Get('sessions')
+  @UseGuards(JwtAuthGuard)
+  sessions(@Req() req: Request & { userId?: string }) {
+    return this.auth.sessions(req.userId!, req.cookies?.[COOKIE]);
+  }
+
+  @Post('sessions/revoke-others')
+  @HttpCode(204)
+  @UseGuards(JwtAuthGuard)
+  revokeOthers(@Req() req: Request & { userId?: string }) {
+    return this.auth.revokeOtherSessions(req.userId!, req.cookies?.[COOKIE]);
+  }
+
+  @Delete('sessions/:family')
+  @HttpCode(204)
+  @UseGuards(JwtAuthGuard)
+  revoke(@Req() req: Request & { userId?: string }, @Param('family', ParseUUIDPipe) family: string) {
+    return this.auth.revokeSession(req.userId!, family);
+  }
+
+  @Post('delete-account')
+  @HttpCode(204)
+  @UseGuards(JwtAuthGuard)
+  async deleteAccount(
+    @Req() req: Request & { userId?: string },
+    @Body(new ZodPipe(deleteSchema)) b: z.infer<typeof deleteSchema>,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.auth.deleteAccount(req.userId!, b.confirmUsername, b.password);
     res.clearCookie(COOKIE, { path: COOKIE_PATH });
   }
 

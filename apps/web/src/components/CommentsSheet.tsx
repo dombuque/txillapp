@@ -57,11 +57,11 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
 
   return (
     <div className="flex gap-3 py-2.5">
-      <Avatar name={c.author.displayName} size={isReply ? 28 : 36} />
+      <Avatar name={c.author.displayName} username={c.author.username} size={isReply ? 28 : 36} />
       <div className="min-w-0 flex-1">
         <p className="text-sm">
           <span className="font-semibold">{c.author.username}</span>{' '}
-          <span className="text-zinc-400">{timeAgo(c.createdAt)}</span>
+          <span className="text-zinc-500">{timeAgo(c.createdAt)}</span>
         </p>
         <Body text={c.body} />
         <div className="mt-1 flex gap-4 text-xs font-semibold text-zinc-500">
@@ -112,7 +112,7 @@ function Replies({ c, expanded, toggle, canDeleteFor, onReply, onRemoved }: Thre
           {items.map((r) => (
             <Row key={r.id} c={r} isReply canDelete={canDeleteFor(r)} onReply={onReply} onRemoved={onRemoved} />
           ))}
-          {q.isLoading && <div className="py-2 text-sm text-zinc-400">A carregar…</div>}
+          {q.isLoading && <div className="py-2 text-sm text-zinc-500">A carregar…</div>}
           {q.hasNextPage && (
             <div>
               <button onClick={() => q.fetchNextPage()} className="flex items-center gap-3 py-1 text-xs font-semibold text-zinc-500">
@@ -211,7 +211,7 @@ export default function CommentsSheet({ post, onClose, onDelta }: { post: Post; 
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-2">
-          {q.isLoading && <p className="py-10 text-center text-zinc-400">A carregar a conversa…</p>}
+          {q.isLoading && <p className="py-10 text-center text-zinc-500">A carregar a conversa…</p>}
           {q.isError && <p role="alert" className="py-10 text-center text-red-600">Ups, não consegui carregar 😅</p>}
           {q.isSuccess && items.length === 0 && (
             <div className="py-14 text-center">
@@ -242,6 +242,11 @@ export default function CommentsSheet({ post, onClose, onDelta }: { post: Post; 
           )}
         </div>
 
+        {!post.canComment && post.author.id !== user?.id ? (
+          <div className="border-t border-zinc-200 px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-center text-zinc-600">
+            <span aria-hidden>🔕</span> {post.author.displayName} desativou os comentários nesta publicação.
+          </div>
+        ) : (
         <div className="border-t border-zinc-200 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {replyTo && (
             <div className="flex items-center justify-between bg-zinc-100 px-4 py-2 text-sm text-zinc-600">
@@ -257,7 +262,7 @@ export default function CommentsSheet({ post, onClose, onDelta }: { post: Post; 
             ))}
           </div>
           <form onSubmit={submit} className="flex items-center gap-3 px-4 pt-2">
-            <Avatar name={user?.displayName ?? '?'} size={36} />
+            <Avatar name={user?.displayName ?? '?'} username={user?.username} size={36} />
             <div className="flex flex-1 items-center rounded-full border border-zinc-300 pl-4 pr-2">
               <input
                 ref={inputRef}
@@ -268,13 +273,14 @@ export default function CommentsSheet({ post, onClose, onDelta }: { post: Post; 
                 aria-label="Escrever comentário"
                 className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] outline-none"
               />
-              <button disabled={!text.trim() || busy} className="px-2 py-1 font-semibold text-brand disabled:opacity-40">
+              <button disabled={!text.trim() || busy} className="px-2 py-1 font-semibold text-brand disabled:opacity-60">
                 Publicar
               </button>
             </div>
           </form>
           <p role="alert" className="px-4 text-center text-sm text-red-600">{err}</p>
         </div>
+        )}
       </div>
     </div>
   );

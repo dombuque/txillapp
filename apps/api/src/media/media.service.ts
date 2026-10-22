@@ -98,6 +98,16 @@ export class MediaService {
     return { path: join(this.dir, id), mime: rows[0].mime as string };
   }
 
+  /** Ficheiro da foto de perfil de uma pessoa, se tiver. */
+  async avatarOf(username: string) {
+    const { rows } = await this.pool.query(
+      `SELECT m.id, m.mime FROM identity.users u JOIN content.media_assets m ON m.id = u.avatar_media_id
+        WHERE u.username = $1 AND u.status = 'active' AND m.status = 'ready'`,
+      [username],
+    );
+    return rows[0] ? { path: join(this.dir, rows[0].id as string), mime: rows[0].mime as string } : null;
+  }
+
   private sign(id: string, exp: number) {
     return createHmac('sha256', this.secret).update(`${id}.${exp}`).digest('base64url');
   }

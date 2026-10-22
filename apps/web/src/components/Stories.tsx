@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, type Story, type TrayUser } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Avatar, timeAgo } from './ui';
@@ -9,11 +10,33 @@ const TICK_MS = 50;
 const MAX_BYTES = 8 * 1024 * 1024;
 const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-/** Anel gradiente para stories por ver, cinzento para os já vistos (como no Instagram). */
-function Ring({ seen, children }: { seen: boolean; children: React.ReactNode }) {
+/**
+ * Anel dos stories, como no Instagram: gradiente para os por ver, cinzento para os vistos,
+ * e dividido em tantos segmentos quantos os stories dessa pessoa.
+ */
+function Ring({ count, seenCount = 0, children }: { count: number; seenCount?: number; children: React.ReactNode }) {
+  const n = Math.max(1, Math.min(count, 12));
+  const step = 100 / n;
+  const seg = n === 1 ? 100 : step - 3.2;
   return (
-    <span className={`inline-block rounded-full p-[3px] ${seen ? 'bg-zinc-300' : 'bg-gradient-to-tr from-brand to-amber-400'}`}>
-      <span className="block rounded-full bg-white p-[2px]">{children}</span>
+    <span className="relative inline-flex h-[72px] w-[72px] items-center justify-center">
+      <svg viewBox="0 0 72 72" className="absolute inset-0 -rotate-90" aria-hidden>
+        <defs>
+          <linearGradient id="story-ring" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0" stopColor="#d6334f" />
+            <stop offset="1" stopColor="#fbbf24" />
+          </linearGradient>
+        </defs>
+        {/* Um arco por story: os já vistos a cinzento, os novos a cores. */}
+        {Array.from({ length: n }, (_, i) => (
+          <circle
+            key={i} cx="36" cy="36" r="33" fill="none" strokeWidth="3.5" strokeLinecap="round" pathLength={100}
+            stroke={i < seenCount ? '#d4d4d8' : 'url(#story-ring)'}
+            strokeDasharray={`${seg} ${100 - seg}`} strokeDashoffset={-i * step}
+          />
+        ))}
+      </svg>
+      <span className="flex h-[62px] w-[62px] items-center justify-center rounded-full bg-white">{children}</span>
     </span>
   );
 }
@@ -42,7 +65,7 @@ export default function StoriesTray() {
   }
 
   const bubble = 'flex w-[76px] shrink-0 flex-col items-center gap-1.5';
-  const label = 'w-full truncate text-center text-xs text-zinc-700';
+  const label = 'w-full truncate text-center text-xs';
   return (
     <section aria-label="Stories" className="mb-4">
       <div className="flex gap-3 overflow-x-auto px-4 pb-1 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -50,11 +73,11 @@ export default function StoriesTray() {
           <div className="relative">
             {mine ? (
               <button onClick={() => setViewing(0)} aria-label="Ver o teu story">
-                <Ring seen><Avatar name={user?.displayName ?? '?'} size={60} ring={false} /></Ring>
+                <Ring count={mine.count}><Avatar name={user?.displayName ?? '?'} username={user?.username} size={56} ring={false} /></Ring>
               </button>
             ) : (
               <label className="block cursor-pointer" aria-label="Criar story">
-                <Ring seen><Avatar name={user?.displayName ?? '?'} size={60} ring={false} /></Ring>
+                <Ring count={1} seenCount={1}><Avatar name={user?.displayName ?? '?'} username={user?.username} size={56} ring={false} /></Ring>
                 <input type="file" accept={TYPES.join(',')} onChange={choose} className="sr-only" />
               </label>
             )}
@@ -63,15 +86,19 @@ export default function StoriesTray() {
               {mine && <input type="file" accept={TYPES.join(',')} onChange={choose} className="sr-only" />}
             </label>
           </div>
-          <span className={label}>O teu story</span>
+          <span className={`${label} font-medium text-zinc-800`}>O teu story</span>
         </div>
 
         {others.map((u, i) => (
-          <button key={u.username} onClick={() => setViewing(mine ? i + 1 : i)} className={bubble} aria-label={`Ver story de ${u.displayName}`}>
-            <Ring seen={u.seen}><Avatar name={u.displayName} size={60} ring={false} /></Ring>
-            <span className={label}>{u.username}</span>
+          // Não vistos: anel a cores, nome a negrito. Vistos: anel cinzento, avatar e nome mais apagados.
+          <button key={u.username} onClick={() => setViewing(mine ? i + 1 : i)} className={bubble} aria-label={`Ver story de ${u.displayName}${u.seen ? '' : ' (novo)'}`}>
+            <span className={u.seen ? 'opacity-60' : ''}>
+              <Ring count={u.count} seenCount={u.seenCount}><Avatar name={u.displayName} username={u.username} size={56} ring={false} /></Ring>
+            </span>
+            <span className={`${label} ${u.seen ? 'font-normal text-zinc-500' : 'font-bold text-zinc-900'}`}>{u.username}</span>
           </button>
         ))}
+        {others.length === 0 && <p className="self-center pr-4 text-sm text-zinc-500">Segue pessoas para ver os stories delas 👀</p>}
       </div>
       {err && <p role="alert" className="px-4 pt-2 text-sm text-red-600">{err}</p>}
 
@@ -193,6 +220,7 @@ function Panel({ title, onClose, children }: { title: string; onClose: () => voi
 
 function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; onClose: () => void }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [u, setU] = useState(start);
   const [s, setS] = useState(0);
   const [pct, setPct] = useState(0);
@@ -217,6 +245,15 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
   });
 
   useEffect(() => { setS(0); setPct(0); }, [u]);
+  // Como no Instagram: abre no primeiro story ainda não visto dessa pessoa (ou no primeiro, se já viu todos).
+  const startedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!q.isSuccess || startedFor.current === user.username) return;
+    startedFor.current = user.username;
+    const firstNew = list.findIndex((x) => !x.seen);
+    setS(firstNew === -1 ? 0 : firstNew);
+    setPct(0);
+  }, [q.isSuccess, user.username, list]);
   useEffect(() => setPct(0), [s]);
   useEffect(() => {
     if (story && !user.isMe) api.viewStory(story.id).catch(() => undefined);
@@ -290,7 +327,7 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
             ))}
           </div>
           <div className="mt-3 flex items-center gap-3 text-white">
-            <Avatar name={user.displayName} size={40} ring={false} />
+            <Avatar name={user.displayName} username={user.username} size={40} ring={false} />
             <div className="min-w-0 flex-1 leading-tight">
               <p className="truncate font-semibold">{user.username}</p>
               <p className="text-xs text-white/75">
@@ -317,15 +354,24 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
             <p className="max-w-full break-words rounded-2xl bg-black/40 px-4 py-2 text-center text-lg text-white backdrop-blur-sm">{story.caption}</p>
           )}
           {user.isMe && story && (
-            <button {...stop} onClick={() => setPanel('viewers')} className="pointer-events-auto flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
-              <EyeIcon /> {story.viewCount ?? 0}
-            </button>
+            <div className="pointer-events-auto flex gap-2">
+              <button {...stop} onClick={() => setPanel('viewers')} aria-label={`${story.viewCount ?? 0} visualizações`} className="flex min-h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
+                <EyeIcon /> {story.viewCount ?? 0}
+              </button>
+              <button {...stop} onClick={() => setPanel('viewers')} aria-label={`${story.replyCount ?? 0} respostas`} className="flex min-h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
+                <span aria-hidden>💬</span> {story.replyCount ?? 0}
+              </button>
+            </div>
           )}
-          {!user.isMe && story && <ReplyBar key={story.id} story={story} username={user.username} onFocusChange={setTyping} />}
+          {!user.isMe && story && story.canReply && <ReplyBar key={story.id} story={story} username={user.username} onFocusChange={setTyping} />}
+          {!user.isMe && story && !story.canReply && (
+            <p className="rounded-full bg-black/40 px-4 py-2 text-center text-sm text-white/90 backdrop-blur-sm">🔕 Este story não aceita respostas</p>
+          )}
         </div>
 
         {panel === 'menu' && (
           <Panel title="O teu story" onClose={() => setPanel(null)}>
+            <button onClick={() => { onClose(); navigate('/settings'); }} className="w-full rounded-xl py-3.5 text-lg active:bg-zinc-100">⚙️ Definições do story</button>
             <button onClick={remove} className="w-full rounded-xl py-3.5 text-lg font-semibold text-red-600 active:bg-zinc-100">Apagar story</button>
             <button onClick={() => setPanel(null)} className="w-full rounded-xl py-3.5 text-lg active:bg-zinc-100">Cancelar</button>
           </Panel>
@@ -337,7 +383,7 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
                 <p className="mb-1 mt-2 text-sm font-semibold text-zinc-500">Respostas ({replies.data.length})</p>
                 {replies.data.map((r) => (
                   <div key={r.id} className="flex items-center gap-3 py-2.5">
-                    <Avatar name={r.author.displayName} size={40} />
+                    <Avatar name={r.author.displayName} username={r.author.username} size={40} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm text-zinc-500">
                         <b className="text-zinc-900">{r.author.username}</b> · {timeAgo(r.createdAt)}
@@ -353,7 +399,7 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
             {viewers.isSuccess && viewers.data.length === 0 && <p className="py-4 text-center text-zinc-500">Ainda ninguém viu 👀</p>}
             {viewers.data?.map((v) => (
               <div key={v.username} className="flex items-center gap-3 py-2.5">
-                <Avatar name={v.displayName} size={40} />
+                <Avatar name={v.displayName} username={v.username} size={40} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{v.displayName}</p>
                   <p className="text-sm text-zinc-500">@{v.username} · {timeAgo(v.viewedAt)}</p>

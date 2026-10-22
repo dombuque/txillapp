@@ -9,8 +9,11 @@ import { CommentsModule } from './comments/comments.module';
 import { DbModule } from './db/db.module';
 import { HealthController } from './health/health.controller';
 import { MediaModule } from './media/media.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PlacesModule } from './places/places.module';
 import { PostsModule } from './posts/posts.module';
+import { SearchModule } from './search/search.module';
+import { SocialModule } from './social/social.module';
 import { StoriesModule } from './stories/stories.module';
 import { WalletModule } from './wallet/wallet.module';
 
@@ -28,10 +31,13 @@ export class AppModule {
         AuthModule,
         WalletModule,
         MediaModule,
+        NotificationsModule,
         PlacesModule,
         PostsModule,
         CommentsModule,
         StoriesModule,
+        SocialModule,
+        SearchModule,
       ],
       controllers: [HealthController],
       providers: [

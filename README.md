@@ -14,6 +14,11 @@ Plataforma social mobile-first (PWA) com feed, showoff e **Txills** — uma moed
 - **Presentear alguém** com Txills, com post opcional "X presenteou Y" no feed
 - **Stories** de 24 h, com quem viu (só o autor), apagar e bandeja com "não vistos"
 - **Onde estás?**: localização do dispositivo com sugestões de sítios próximos; só o nome escolhido é guardado, nunca o GPS
+- **Perfil** com foto (recorte quadrado), bio, público ou privado (pedidos para seguir), seguidores, bloqueios ao estilo do X com aviso à pessoa bloqueada
+- **Notificações** (bloqueio, seguidores, pedidos, presentes, comentários, respostas a stories, reposts) em página própria
+- **Pesquisa** de pessoas e publicações; **reposts** (simples e com comentário)
+- **Presentear** de qualquer sítio: discreto, mensagem privada ou no feed (ou publicar depois); só se presenteia quem se segue
+- **Definições e privacidade**: quem comenta, quem presenteia, quem vê as listas, sugestões, respostas e esconder stories, alterar senha, dispositivos, eliminar conta
 - Carteira com ledger de partidas dobradas, idempotência e protecção contra gasto duplo (testado com pedidos concorrentes)
 - PWA instalável
 

@@ -36,6 +36,8 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
     await app.init();
     ana = await signup('ana');
     bruno = await signup('bruno');
+    // Só se presenteia quem se segue: o Bruno segue a Ana (a Ana só passa a seguir o Bruno nos testes que o precisam).
+    await api().post(`/api/v1/users/${ana.username}/follow`).set(auth(bruno)).expect(200);
   }, 60_000);
 
   afterAll(async () => {
@@ -125,6 +127,10 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
 
     await api().post(`/api/v1/posts/${post.body.id}/comments`).set(auth(ana)).send({ body: 'Que lugar lindo!' }).expect(201);
 
+    // Sem seguir o autor não se presenteia; depois de seguir, sim.
+    await api().post(`/api/v1/posts/${post.body.id}/gifts`).set(auth(ana)).set('Idempotency-Key', `gift-${run}-nf`).send({ amount: 1 }).expect(403);
+    await api().post(`/api/v1/users/${bruno.username}/follow`).set(auth(ana)).expect(200);
+
     // Ana está sem saldo → presente rejeitado; Bruno não pode presentear o próprio post.
     await api().post(`/api/v1/posts/${post.body.id}/gifts`).set(auth(ana)).set('Idempotency-Key', `gift-${run}-0`).send({ amount: 10 }).expect(422);
     await api().post(`/api/v1/posts/${post.body.id}/gifts`).set(auth(bruno)).set('Idempotency-Key', `gift-${run}-1`).send({ amount: 10 }).expect(422);
@@ -193,23 +199,54 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
     // Apagar: o Bruno não apaga a resposta da Ana; a dona do post (Ana) apaga o comentário de topo e as respostas saem juntas.
     await api().delete(`/api/v1/comments/${R1.id}`).set(auth(bruno)).expect(404);
     await api().delete(`/api/v1/comments/${C.id}`).set(auth(ana)).expect(200);
-    await api().get(`/api/v1/comments/${C.id}/replies`).set(auth(ana)).expect(200).expect((r) => expect(r.body.items).toHaveLength(0));
+    await api().get(`/api/v1/comments/${C.id}/replies`).set(auth(ana)).expect(404); // o comentário (e as respostas) já não existem
     const feed = await api().get('/api/v1/posts?limit=20').set(auth(ana)).expect(200);
     expect(feed.body.items.find((x: { id: string }) => x.id === P.id).comments).toBe(4);
   });
 
   it('presentear alguém directamente, com ou sem post "X presenteou Y"; idempotente', async () => {
     const give = (key: string, b: object, u = bruno) => api().post('/api/v1/gifts').set(auth(u)).set('Idempotency-Key', key).send(b);
-    const a = await give(`dg-${run}-1`, { toUsername: `@${ana.username}`, amount: 10, note: 'Pela cerveja 🍻', publish: true }).expect(201);
+
+    // Regra: só se presenteia quem se segue (numa publicação ou directamente), e a publicação avisa o ecrã.
+    const rule = (await api().post('/api/v1/posts').set(auth(ana)).send({ body: 'regra dos presentes' }).expect(201)).body;
+    await api().delete(`/api/v1/users/${ana.username}/follow`).set(auth(bruno)).expect(200);
+    await give(`dg-${run}-0`, { toUsername: ana.username, amount: 1 }).expect(403);
+    await api().post(`/api/v1/posts/${rule.id}/gifts`).set(auth(bruno)).set('Idempotency-Key', `dg-${run}-0b`).send({ amount: 1 }).expect(403);
+    const seenBefore = (await api().get('/api/v1/posts?limit=50').set(auth(bruno)).expect(200)).body.items.find((x: { id: string }) => x.id === rule.id);
+    expect(seenBefore).toMatchObject({ canGift: false, authorFollowed: false });
+    await api().post(`/api/v1/users/${ana.username}/follow`).set(auth(bruno)).expect(200);
+    const seenAfter = (await api().get('/api/v1/posts?limit=50').set(auth(bruno)).expect(200)).body.items.find((x: { id: string }) => x.id === rule.id);
+    expect(seenAfter).toMatchObject({ canGift: true, authorFollowed: true });
+
+    // Público: post "X presenteou Y" no feed.
+    const a = await give(`dg-${run}-1`, { toUsername: `@${ana.username}`, amount: 10, note: 'Pela cerveja 🍻', visibility: 'public' }).expect(201);
     expect(a.body.post.gift).toEqual({ amount: 10, recipient: { username: ana.username, displayName: 'ana' } });
     expect(a.body.post.body).toBe('Pela cerveja 🍻');
 
-    const again = await give(`dg-${run}-1`, { toUsername: ana.username, amount: 10, note: 'Pela cerveja 🍻', publish: true }).expect(201);
+    const again = await give(`dg-${run}-1`, { toUsername: ana.username, amount: 10, note: 'Pela cerveja 🍻', visibility: 'public' }).expect(201);
     expect(again.body.replayed).toBe(true);
     expect(again.body.post.id).toBe(a.body.post.id); // nada duplicado
 
-    const quiet = await give(`dg-${run}-2`, { toUsername: ana.username, amount: 5 }).expect(201);
+    // Discreto: só o presente. Sem post e sem mensagem, mesmo que se envie texto.
+    const quiet = await give(`dg-${run}-2`, { toUsername: ana.username, amount: 5, note: 'isto não deve ficar' }).expect(201);
     expect(quiet.body.post).toBeNull();
+    const meta = await pool.query('SELECT metadata FROM ledger.transactions WHERE id = $1', [quiet.body.transactionId]);
+    expect(meta.rows[0].metadata.note).toBeUndefined();
+
+    // Privado: a mensagem fica só no movimento (o destinatário vê-a na carteira), sem post.
+    const priv = await give(`dg-${run}-6`, { toUsername: ana.username, amount: 3, note: 'só para ti 🤫', visibility: 'private' }).expect(201);
+    expect(priv.body.post).toBeNull();
+    const wallet = (await api().get('/api/v1/wallet').set(auth(ana)).expect(200)).body;
+    expect(wallet.history.some((h: { note: string | null }) => h.note === 'só para ti 🤫')).toBe(true);
+
+    // Publicar DEPOIS: só o remetente, uma única vez, em qualquer presente já enviado.
+    await api().post(`/api/v1/gifts/${priv.body.transactionId}/publish`).set(auth(ana)).send({}).expect(404); // não é o remetente
+    const later = await api().post(`/api/v1/gifts/${priv.body.transactionId}/publish`).set(auth(bruno)).send({}).expect(201);
+    expect(later.body.post.gift).toMatchObject({ amount: 3 });
+    expect(later.body.post.body).toBe('só para ti 🤫');
+    await api().post(`/api/v1/gifts/${priv.body.transactionId}/publish`).set(auth(bruno)).send({}).expect(409);
+    await api().post(`/api/v1/gifts/${a.body.transactionId}/publish`).set(auth(bruno)).send({}).expect(409); // já era público
+    await api().post(`/api/v1/gifts/${quiet.body.transactionId}/publish`).set(auth(bruno)).send({ note: 'afinal sim!' }).expect(201);
 
     await give(`dg-${run}-3`, { toUsername: bruno.username, amount: 5 }).expect(422); // a si próprio
     await give(`dg-${run}-4`, { toUsername: 'ninguem_assim', amount: 5 }).expect(404);
@@ -230,8 +267,13 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
     const s = (await api().post('/api/v1/stories').set(auth(bruno)).send({ mediaId, caption: 'Praia 🌊' }).expect(201)).body;
     await api().post('/api/v1/stories').set(auth(bruno)).send({ mediaId }).expect(400); // foto já usada
 
+    // A bandeja só mostra quem se segue: sem seguir, o Bruno não aparece.
+    await api().delete(`/api/v1/users/${bruno.username}/follow`).set(auth(ana)).expect(200);
     let tray = (await api().get('/api/v1/stories').set(auth(ana)).expect(200)).body;
-    expect(tray.find((t: { username: string }) => t.username === bruno.username)).toMatchObject({ seen: false, count: 1, isMe: false });
+    expect(tray.find((t: { username: string }) => t.username === bruno.username)).toBeUndefined();
+    await api().post(`/api/v1/users/${bruno.username}/follow`).set(auth(ana)).expect(200);
+    tray = (await api().get('/api/v1/stories').set(auth(ana)).expect(200)).body;
+    expect(tray.find((t: { username: string }) => t.username === bruno.username)).toMatchObject({ seen: false, count: 1, seenCount: 0, isMe: false });
 
     const list = (await api().get(`/api/v1/stories/user/${bruno.username}`).set(auth(ana)).expect(200)).body;
     expect(list).toHaveLength(1);
@@ -242,7 +284,7 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
     await api().post(`/api/v1/stories/${s.id}/view`).set(auth(ana)).expect(204); // idempotente
     await api().post(`/api/v1/stories/${s.id}/view`).set(auth(bruno)).expect(204); // o autor não conta
     tray = (await api().get('/api/v1/stories').set(auth(ana)).expect(200)).body;
-    expect(tray.find((t: { username: string }) => t.username === bruno.username).seen).toBe(true);
+    expect(tray.find((t: { username: string }) => t.username === bruno.username)).toMatchObject({ seen: true, seenCount: 1 });
 
     const own = (await api().get(`/api/v1/stories/user/${bruno.username}`).set(auth(bruno)).expect(200)).body;
     expect(own[0].viewCount).toBe(1);

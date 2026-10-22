@@ -1,7 +1,9 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
+import { NotificationsService } from '../notifications/notifications.service';
+import { allowedBy, canView } from '../social/visibility';
 
 const UUID = /^[0-9a-f-]{36}$/;
 
@@ -15,11 +17,14 @@ const SELECT = `
 
 @Injectable()
 export class CommentsService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   /** Comentários de topo, do mais recente para o mais antigo, com paginação por cursor. */
   async list(userId: string, postId: string, cursor: string | undefined, limit: number) {
-    await this.assertPost(postId);
+    await this.assertPost(userId, postId);
     this.assertCursor(cursor);
     const { rows } = await this.pool.query(
       `${SELECT} WHERE c.post_id = $2 AND c.parent_id IS NULL AND ($3::uuid IS NULL OR c.id < $3)
@@ -32,6 +37,7 @@ export class CommentsService {
   /** Respostas a um comentário, da mais antiga para a mais recente. */
   async replies(userId: string, commentId: string, cursor: string | undefined, limit: number) {
     this.assertCursor(cursor);
+    await this.assertComment(userId, commentId);
     const { rows } = await this.pool.query(
       `${SELECT} WHERE c.parent_id = $2 AND ($3::uuid IS NULL OR c.id > $3) ORDER BY c.id ASC LIMIT $4`,
       [userId, commentId, cursor ?? null, limit + 1],
@@ -40,24 +46,30 @@ export class CommentsService {
   }
 
   async create(userId: string, postId: string, body: string, parentId?: string) {
-    await this.assertPost(postId);
+    const postAuthorId = await this.assertCanComment(userId, postId);
     let threadParent: string | null = null;
+    let parentAuthorId: string | null = null;
     if (parentId) {
-      const p = await this.pool.query('SELECT id, post_id, parent_id FROM content.comments WHERE id = $1', [parentId]);
+      const p = await this.pool.query('SELECT id, post_id, parent_id, author_id FROM content.comments WHERE id = $1', [parentId]);
       if (!p.rows[0] || p.rows[0].post_id !== postId) throw new BadRequestException('Comentário a que respondes não existe');
       // Resposta a uma resposta: fica no mesmo fio, sob o comentário de topo.
       threadParent = p.rows[0].parent_id ?? p.rows[0].id;
+      parentAuthorId = p.rows[0].author_id;
     }
     const id = uuidv7();
     await this.pool.query(
       'INSERT INTO content.comments (id, post_id, author_id, body, parent_id) VALUES ($1, $2, $3, $4, $5)',
       [id, postId, userId, body, threadParent],
     );
+    const data = { postId, commentId: id, snippet: body.slice(0, 80) };
+    // Avisa quem foi respondido e, se for outra pessoa, o dono da publicação.
+    if (parentAuthorId) await this.notifications.notify({ userId: parentAuthorId, actorId: userId, kind: 'reply', data });
+    if (postAuthorId !== parentAuthorId) await this.notifications.notify({ userId: postAuthorId, actorId: userId, kind: 'comment', data });
     return this.getOne(userId, id);
   }
 
   async toggleCheer(userId: string, commentId: string) {
-    await this.assertComment(commentId);
+    await this.assertComment(userId, commentId);
     const del = await this.pool.query('DELETE FROM content.comment_cheers WHERE comment_id = $1 AND user_id = $2', [commentId, userId]);
     if (!del.rowCount) {
       await this.pool.query('INSERT INTO content.comment_cheers (comment_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [commentId, userId]);
@@ -93,16 +105,34 @@ export class CommentsService {
     if (cursor && !UUID.test(cursor)) throw new BadRequestException('cursor inválido');
   }
 
-  private async assertPost(postId: string) {
-    if (!(await this.pool.query('SELECT 1 FROM content.posts WHERE id = $1', [postId])).rowCount) {
-      throw new NotFoundException('Publicação não encontrada');
-    }
+  /** A publicação existe e é visível para este espectador (perfis privados só para seguidores). */
+  private async assertPost(viewerId: string, postId: string) {
+    const r = await this.pool.query(
+      `SELECT 1 FROM content.posts p JOIN identity.users u ON u.id = p.author_id WHERE p.id = $2 AND ${canView()}`,
+      [viewerId, postId],
+    );
+    if (!r.rowCount) throw new NotFoundException('Publicação não encontrada');
   }
 
-  private async assertComment(id: string) {
-    if (!(await this.pool.query('SELECT 1 FROM content.comments WHERE id = $1', [id])).rowCount) {
-      throw new NotFoundException('Comentário não encontrado');
-    }
+  /** Visível e com os comentários permitidos pelo autor (todos / quem ele segue / ninguém). Devolve o id do autor. */
+  private async assertCanComment(viewerId: string, postId: string): Promise<string> {
+    const r = await this.pool.query(
+      `SELECT u.id AS author_id, ${allowedBy('u', 'comments_allowed')} AS allowed
+         FROM content.posts p JOIN identity.users u ON u.id = p.author_id WHERE p.id = $2 AND ${canView()}`,
+      [viewerId, postId],
+    );
+    if (!r.rows[0]) throw new NotFoundException('Publicação não encontrada');
+    if (!r.rows[0].allowed) throw new ForbiddenException('Os comentários estão desativados nesta publicação 🔕');
+    return r.rows[0].author_id as string;
+  }
+
+  private async assertComment(viewerId: string, id: string) {
+    const r = await this.pool.query(
+      `SELECT 1 FROM content.comments c JOIN content.posts p ON p.id = c.post_id JOIN identity.users u ON u.id = p.author_id
+        WHERE c.id = $2 AND ${canView()}`,
+      [viewerId, id],
+    );
+    if (!r.rowCount) throw new NotFoundException('Comentário não encontrado');
   }
 
   private toDto = (r: Record<string, any>) => ({

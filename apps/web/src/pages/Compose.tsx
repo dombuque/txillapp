@@ -89,7 +89,7 @@ export default function Compose() {
 
       <div className="mx-4 rounded-[28px] bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
         <div className="flex items-center gap-3">
-          <Avatar name={user?.displayName ?? '?'} size={48} />
+          <Avatar name={user?.displayName ?? '?'} username={user?.username} size={48} />
           <div className="min-w-0">
             <p className="truncate text-lg font-semibold leading-tight">{user?.displayName}</p>
             {place ? (
@@ -98,7 +98,7 @@ export default function Compose() {
                 <button type="button" onClick={() => setPlace('')} aria-label="Tirar o local" className="px-1.5 text-base">×</button>
               </span>
             ) : (
-              <p className="text-sm text-zinc-400">@{user?.username}</p>
+              <p className="text-sm text-zinc-500">@{user?.username}</p>
             )}
           </div>
         </div>
@@ -109,7 +109,7 @@ export default function Compose() {
           maxLength={2000}
           placeholder={`O que se passa, ${first}? 😎`}
           aria-label="Texto da publicação"
-          className="mt-4 min-h-[120px] w-full resize-none bg-transparent text-xl outline-none placeholder:text-zinc-400"
+          className="mt-4 min-h-[120px] w-full resize-none bg-transparent text-xl outline-none placeholder:text-zinc-500"
         />
 
         {photos.length > 0 && (
