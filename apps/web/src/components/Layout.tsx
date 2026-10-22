@@ -24,7 +24,7 @@ export default function Layout() {
   return (
     <div className="mx-auto min-h-dvh max-w-xl bg-white pb-32">
       <header className="sticky top-0 z-10 flex items-center justify-center bg-white/95 py-4 backdrop-blur">
-        <Wordmark className="text-[32px]" />
+        <Wordmark className="h-8" />
         <NavLink to="/messages" aria-label="Mensagens" className="absolute right-5 text-zinc-800">
           <PlaneIcon width={28} height={28} />
         </NavLink>

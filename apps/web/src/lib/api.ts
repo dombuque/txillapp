@@ -88,7 +88,8 @@ const newKey = () => crypto.randomUUID();
 export const api = {
   register: (b: unknown): Promise<AuthResponse> => raw('/auth/register', post(b)),
   login: (b: unknown): Promise<AuthResponse> => raw('/auth/login', post(b)),
-  refresh: (): Promise<AuthResponse> => raw('/auth/refresh', { method: 'POST' }, false),
+  // Partilha o pedido em curso: dois refresh com o mesmo token (StrictMode, vários separadores) seriam tratados como reutilização.
+  refresh: (): Promise<AuthResponse> => refreshOnce(),
   logout: (): Promise<void> => raw('/auth/logout', { method: 'POST' }),
 
   feed: (cursor?: string): Promise<{ items: Post[]; nextCursor: string | null }> =>

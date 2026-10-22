@@ -1,7 +1,37 @@
 import type { ReactNode } from 'react';
 
-export const Wordmark = ({ className = 'text-3xl' }: { className?: string }) => (
-  <span className={`font-black lowercase tracking-tight ${className}`}>txilapp</span>
+/** Logótipo "txilapp" desenhado em vectores: traço grosso e arredondado, tal como no desenho original. */
+export const Wordmark = ({ className = 'h-8' }: { className?: string }) => (
+  <svg
+    viewBox="-4 -2 142 52"
+    role="img"
+    aria-label="txilapp"
+    className={`w-auto ${className}`}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={7}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    {/* t */}
+    <path d="M7 5V27Q7 34 14 34M0 14H14" />
+    {/* x */}
+    <path d="M20 14Q27 24 34 34M34 14Q27 24 20 34" />
+    {/* i */}
+    <path d="M42 14V34" />
+    <circle cx="42" cy="4.5" r="2.2" fill="currentColor" strokeWidth={3.5} />
+    {/* l */}
+    <path d="M51 3V34" />
+    {/* a */}
+    <circle cx="67" cy="24" r="9.5" />
+    <path d="M76.5 14V34" />
+    {/* p */}
+    <circle cx="96" cy="24" r="9.5" />
+    <path d="M86.5 14V46" />
+    {/* p */}
+    <circle cx="125" cy="24" r="9.5" />
+    <path d="M115.5 14V46" />
+  </svg>
 );
 
 export function Avatar({ name, size = 40 }: { name: string; size?: number }) {

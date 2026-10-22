@@ -40,7 +40,7 @@ export default function AuthForm({ mode }: { mode: Mode }) {
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 px-4">
       <h1 className="text-center">
-        <Wordmark className="text-5xl" />
+        <Wordmark className="mx-auto h-14" />
       </h1>
       <form onSubmit={onSubmit} className="space-y-4 rounded-3xl bg-white p-5 shadow-sm" noValidate>
         {mode === 'register' && field('displayName', 'Nome', 'text', 'name')}
