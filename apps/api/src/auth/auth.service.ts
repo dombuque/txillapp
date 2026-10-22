@@ -62,8 +62,8 @@ export class AuthService {
     const { rows } = await this.pool.query(
       `SELECT u.id, u.username, u.display_name, u.status, c.password_hash
          FROM identity.users u JOIN identity.credentials c ON c.user_id = u.id
-        WHERE u.email = $1`,
-      [input.email],
+        WHERE u.email = $1 OR u.username = $1`,
+      [input.identifier],
     );
     const row = rows[0];
     const ok = await argon2.verify(row?.password_hash ?? (await this.getDummyHash()), input.password);

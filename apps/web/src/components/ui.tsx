@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 /** Logótipo "txilapp" desenhado em vectores: traço grosso e arredondado, tal como no desenho original. */
-export const Wordmark = ({ className = 'h-8' }: { className?: string }) => (
+export const Wordmark = ({ className = 'h-8', accent = false }: { className?: string; accent?: boolean }) => (
   <svg
     viewBox="-4 -2 142 52"
     role="img"
@@ -19,7 +19,7 @@ export const Wordmark = ({ className = 'h-8' }: { className?: string }) => (
     <path d="M20 14Q27 24 34 34M34 14Q27 24 20 34" />
     {/* i */}
     <path d="M42 14V34" />
-    <circle cx="42" cy="4.5" r="2.2" fill="currentColor" strokeWidth={3.5} />
+    <circle cx="42" cy="4.5" r="2.2" strokeWidth={3.5} fill={accent ? '#e44460' : 'currentColor'} stroke={accent ? '#e44460' : 'currentColor'} />
     {/* l */}
     <path d="M51 3V34" />
     {/* a */}
@@ -83,6 +83,6 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
 }
 
 export const btnPrimary =
-  'rounded-xl bg-zinc-900 px-4 py-2.5 font-semibold text-white disabled:opacity-50 hover:bg-zinc-700';
+  'rounded-full bg-brand px-4 py-3.5 font-semibold text-white disabled:opacity-50 hover:brightness-95';
 export const inputCls =
   'w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-violet-500';

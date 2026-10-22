@@ -69,8 +69,8 @@ describeDb('auth (integração, PostgreSQL real)', () => {
 
   it('login falha com password errada e funciona com a certa; /me exige token', async () => {
     const api = request(app.getHttpServer());
-    await api.post('/api/v1/auth/login').send({ email, password: 'errada-errada-1' }).expect(401);
-    const ok = await api.post('/api/v1/auth/login').send({ email, password }).expect(200);
+    await api.post('/api/v1/auth/login').send({ identifier: email, password: 'errada-errada-1' }).expect(401);
+    const ok = await api.post('/api/v1/auth/login').send({ identifier: email, password }).expect(200);
     await api.get('/api/v1/auth/me').expect(401);
     const me = await api.get('/api/v1/auth/me').set('Authorization', `Bearer ${ok.body.accessToken}`).expect(200);
     expect(me.body.displayName).toBe('Teste');
@@ -78,7 +78,7 @@ describeDb('auth (integração, PostgreSQL real)', () => {
 
   it('rotação do refresh token e deteção de reutilização', async () => {
     const api = request(app.getHttpServer());
-    const login = await api.post('/api/v1/auth/login').send({ email, password }).expect(200);
+    const login = await api.post('/api/v1/auth/login').send({ identifier: email, password }).expect(200);
     const c1 = (login.headers['set-cookie'] as unknown as string[])[0].split(';')[0];
 
     await api.post('/api/v1/auth/refresh').set(csrf).expect(401); // sem cookie

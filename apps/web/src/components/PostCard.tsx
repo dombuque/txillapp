@@ -94,7 +94,7 @@ function CommentsSheet({ post, onClose, onAdded }: { post: Post; onClose: () => 
   return (
     <Sheet title="Comentários" onClose={onClose}>
       <ul className="mb-4 space-y-3">
-        {data?.length === 0 && <li className="text-zinc-400">Seja o primeiro a comentar.</li>}
+        {data?.length === 0 && <li className="text-zinc-400">Ninguém disse nada ainda… sê o primeiro 😏</li>}
         {data?.map((c) => (
           <li key={c.id}>
             <span className="font-semibold">{c.author.displayName}</span> <span className="text-zinc-400">{timeAgo(c.createdAt)}</span>

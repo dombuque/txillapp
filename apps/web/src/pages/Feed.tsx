@@ -18,9 +18,9 @@ export default function Feed() {
       {q.isError && <p role="alert" className="p-6 text-center text-red-600">Não foi possível carregar o feed.</p>}
       {q.isSuccess && posts.length === 0 && (
         <div className="p-10 text-center text-zinc-500">
-          Ainda não há publicações.{' '}
+          Ainda ninguém brindou por aqui 🍻{' '}
           <Link to="/new" className="font-semibold text-violet-700 underline">
-            Faça a primeira!
+            Faz a primeira!
           </Link>
         </div>
       )}

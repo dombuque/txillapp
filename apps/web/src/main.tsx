@@ -5,7 +5,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import './index.css';
 import Layout from './components/Layout';
 import { AuthProvider, useAuth } from './lib/auth';
-import AuthForm from './pages/AuthForm';
+import { Login, Register } from './pages/AuthForm';
 import Compose from './pages/Compose';
 import Feed from './pages/Feed';
 import { ComingSoon, Profile } from './pages/Simple';
@@ -25,8 +25,8 @@ createRoot(document.getElementById('root')!).render(
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/login" element={<AuthForm mode="login" />} />
-            <Route path="/register" element={<AuthForm mode="register" />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
             <Route
               element={
                 <Private>
