@@ -109,6 +109,17 @@ describeDb('auth (integração, PostgreSQL real)', () => {
     expect(rs.map((r) => r.status)).toEqual([200, 200, 200]);
   });
 
+  it('o limite do login não bloqueia a renovação de sessão, mas o login continua limitado', async () => {
+    const api = request(app.getHttpServer());
+    const login = await api.post('/api/v1/auth/login').send({ identifier: email, password }).expect(200);
+    const c = (login.headers['set-cookie'] as unknown as string[])[0].split(';')[0];
+    for (let i = 0; i < 15; i++) await api.post('/api/v1/auth/refresh').set(csrf).set('Cookie', c).expect(200);
+    const attempts = await Promise.all(
+      Array.from({ length: 12 }, () => api.post('/api/v1/auth/login').send({ identifier: email, password: 'errada-errada-1' })),
+    );
+    expect(attempts.some((r) => r.status === 429)).toBe(true);
+  });
+
   it('audit_log é append-only', async () => {
     await expect(pool.query('DELETE FROM audit.audit_log')).rejects.toThrow(/append-only/);
   });

@@ -2,12 +2,12 @@ import type { ReactNode } from 'react';
 
 const BRAND = '#e44460';
 
-/** Logótipo "txilapp" desenhado em vectores: traço grosso e arredondado, tal como no desenho original. */
-export const Wordmark = ({ className = 'h-8', accent = false }: { className?: string; accent?: boolean }) => (
+/** Logótipo "txillapp": traço grosso e arredondado, com o ponto do i a coral. */
+export const Wordmark = ({ className = 'h-8', accent = true }: { className?: string; accent?: boolean }) => (
   <svg
-    viewBox="-4 -2 142 52"
+    viewBox="-4 -3 154 54"
     role="img"
-    aria-label="txilapp"
+    aria-label="txillapp"
     className={`w-auto ${className}`}
     fill="none"
     stroke="currentColor"
@@ -21,22 +21,23 @@ export const Wordmark = ({ className = 'h-8', accent = false }: { className?: st
     <path d="M20 14Q27 24 34 34M34 14Q27 24 20 34" />
     {/* i */}
     <path d="M42 14V34" />
-    <circle cx="42" cy="4.5" r="2.2" strokeWidth={3.5} fill={accent ? BRAND : 'currentColor'} stroke={accent ? BRAND : 'currentColor'} />
-    {/* l */}
+    <circle cx="42" cy="3.5" r="4.2" strokeWidth={0} fill={accent ? BRAND : 'currentColor'} />
+    {/* l l */}
     <path d="M51 3V34" />
+    <path d="M61 3V34" />
     {/* a */}
-    <circle cx="67" cy="24" r="9.5" />
-    <path d="M76.5 14V34" />
+    <circle cx="77" cy="24" r="9.5" />
+    <path d="M86.5 14V34" />
     {/* p */}
-    <circle cx="96" cy="24" r="9.5" />
-    <path d="M86.5 14V46" />
+    <circle cx="106" cy="24" r="9.5" />
+    <path d="M96.5 14V46" />
     {/* p */}
-    <circle cx="125" cy="24" r="9.5" />
-    <path d="M115.5 14V46" />
+    <circle cx="135" cy="24" r="9.5" />
+    <path d="M125.5 14V46" />
   </svg>
 );
 
-export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
+export function Avatar({ name, size = 40, ring = true }: { name: string; size?: number; ring?: boolean }) {
   const initials = name
     .split(' ')
     .map((p) => p[0])
@@ -46,7 +47,7 @@ export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
   return (
     <span
       style={{ width: size, height: size, fontSize: Math.max(11, size * 0.3) }}
-      className="inline-flex shrink-0 items-center justify-center rounded-full bg-rose-50 font-bold text-brand ring-[1.5px] ring-brand ring-offset-2"
+      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-rose-50 font-bold text-brand ${ring ? "ring-[1.5px] ring-brand ring-offset-2" : ""}`}
     >
       {initials}
     </span>
@@ -102,5 +103,7 @@ export const btnGhost =
   'rounded-full border border-zinc-300 bg-white px-6 py-3 font-semibold text-zinc-800 transition active:scale-[0.97]';
 export const lineInput =
   'w-full border-0 border-b border-zinc-400 bg-transparent py-3 text-lg text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-brand';
+export const fieldInput =
+  'w-full rounded-2xl bg-zinc-100 px-4 py-3.5 text-base text-zinc-900 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-brand';
 export const pillInput =
   'w-full rounded-full bg-zinc-100 px-4 py-3 text-base outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-brand';

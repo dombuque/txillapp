@@ -1,6 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import PostCard from '../components/PostCard';
+import StoriesTray from '../components/Stories';
 import { btnGhost } from '../components/ui';
 import { api } from '../lib/api';
 
@@ -31,6 +32,7 @@ export default function Feed() {
 
   return (
     <div className="pt-1">
+      <StoriesTray />
       {q.isLoading && (
         <>
           <Skeleton />

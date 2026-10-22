@@ -45,7 +45,7 @@ export function Login() {
   return (
     <Screen footer={<>Não tem conta? <Link to="/register" className="text-brand">Criar uma</Link></>}>
       <h1 className="pt-24">
-        <Wordmark accent className="h-10" />
+        <Wordmark className="h-10" />
       </h1>
       <p className="mt-8 text-[36px] font-extrabold leading-tight">Qual é a Vibe ? 🤪</p>
       <form onSubmit={submit} className="mt-20" noValidate>

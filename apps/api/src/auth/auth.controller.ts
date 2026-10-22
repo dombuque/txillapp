@@ -55,7 +55,9 @@ export class AuthController {
     return this.respond(res, tokens, user);
   }
 
+  // A renovação corre sempre que se abre a app/separador: limite próprio, mais largo que o do login.
   @Post('refresh')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @HttpCode(200)
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<AuthResponse> {
     requireCsrfHeader(req);
@@ -71,6 +73,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @HttpCode(204)
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     requireCsrfHeader(req);

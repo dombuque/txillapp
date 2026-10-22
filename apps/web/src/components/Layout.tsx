@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { HomeIcon, PlaneIcon, PlusIcon, StarIcon, WalletIcon } from './icons';
 import { Wordmark } from './ui';
@@ -15,9 +15,6 @@ const Item = ({ to, label, children, end }: { to: string; label: string; childre
 
 export default function Layout() {
   const { user } = useAuth();
-  const home = useLocation().pathname === '/';
-  const bg = home ? 'bg-white' : 'bg-canvas';
-  const headerBg = home ? 'bg-white/95' : 'bg-canvas/95';
   const initials = (user?.displayName ?? '?')
     .split(' ')
     .map((p) => p[0])
@@ -25,8 +22,8 @@ export default function Layout() {
     .join('')
     .toUpperCase();
   return (
-    <div className={`mx-auto min-h-dvh max-w-xl ${bg} pb-32`}>
-      <header className={`sticky top-0 z-10 flex items-center justify-center ${headerBg} py-4 backdrop-blur`}>
+    <div className="mx-auto min-h-dvh max-w-xl bg-white pb-32">
+      <header className="sticky top-0 z-10 flex items-center justify-center bg-white/95 py-4 backdrop-blur">
         <Wordmark className="h-8" />
         <NavLink to="/messages" aria-label="Mensagens" className="absolute right-5 text-zinc-800">
           <PlaneIcon width={28} height={28} />

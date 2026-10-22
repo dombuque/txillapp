@@ -7,8 +7,11 @@ Plataforma social mobile-first (PWA) com feed, showoff e **Txills** — uma moed
 ## O que já funciona
 
 - Registo, login, sessões com refresh token rotativo (deteção de reutilização), Argon2id, auditoria append-only
-- Feed com publicações e fotografias, paginação por cursor
-- **Brindou**, **Comentar** e **Presentear** (envio de Txills ao autor)
+- Feed com publicações e **várias fotografias** (carrossel), paginação por cursor
+- **Brindar**, **Comentar** (com respostas, brindes nos comentários e menções, ao estilo Instagram) e **Presentear**
+- **Presentear alguém** com Txills, com post opcional "X presenteou Y" no feed
+- **Stories** de 24 h, com quem viu (só o autor), apagar e bandeja com "não vistos"
+- **Onde estás?**: localização do dispositivo com sugestões de sítios próximos; só o nome escolhido é guardado, nunca o GPS
 - Carteira com ledger de partidas dobradas, idempotência e protecção contra gasto duplo (testado com pedidos concorrentes)
 - PWA instalável
 

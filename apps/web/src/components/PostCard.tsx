@@ -1,11 +1,42 @@
-import { useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
-import { useRef, useState, type FormEvent } from 'react';
-import { api, type Post } from '../lib/api';
+import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
+import { api, type Page, type Post } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import CommentsSheet from './CommentsSheet';
 import { CommentIcon, GiftIcon } from './icons';
-import { Avatar, Sheet, btnPrimary, pillInput, timeAgo } from './ui';
+import { Avatar, Sheet, btnPrimary, timeAgo } from './ui';
 
-type Feed = InfiniteData<{ items: Post[]; nextCursor: string | null }>;
+type Feed = InfiniteData<Page<Post>>;
+
+/** Carrossel de fotos: deslizar na horizontal, com contador e pontos como no Instagram. */
+function Carousel({ media }: { media: Post['media'] }) {
+  const [i, setI] = useState(0);
+  if (media.length === 0) return null;
+  return (
+    <div className="relative mt-3">
+      <div
+        onScroll={(e) => setI(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}
+        className="flex snap-x snap-mandatory overflow-x-auto rounded-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {media.map((m, n) => (
+          <img key={m.url} src={m.url} alt={`Foto ${n + 1} de ${media.length}`} loading="lazy" className="max-h-[28rem] w-full shrink-0 snap-center object-cover" />
+        ))}
+      </div>
+      {media.length > 1 && (
+        <>
+          <span className="absolute right-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white">
+            {i + 1}/{media.length}
+          </span>
+          <div className="mt-2 flex justify-center gap-1.5" aria-hidden>
+            {media.map((_, n) => (
+              <span key={n} className={`h-1.5 w-1.5 rounded-full ${n === i ? 'bg-brand' : 'bg-zinc-300'}`} />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function PostCard({ post }: { post: Post }) {
   const { user } = useAuth();
@@ -26,35 +57,46 @@ export default function PostCard({ post }: { post: Post }) {
     }
   }
 
-  const action = 'flex flex-1 items-center justify-center gap-2 py-4 text-[17px] font-medium text-zinc-800';
+  const action = 'flex flex-1 items-center justify-center gap-2 py-4 text-[17px] font-medium text-zinc-800 transition active:scale-95';
+  const g = post.gift;
   return (
     <article className="mx-4 mb-6 rounded-[28px] bg-white px-5 pt-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
       <header className="flex items-center gap-3">
         <Avatar name={post.author.displayName} size={52} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[19px] font-medium leading-tight text-zinc-800">{post.author.displayName}</p>
+          {g ? (
+            <p className="text-[17px] leading-tight text-zinc-800">
+              <b>{post.author.displayName}</b> presenteou <b>{g.recipient.displayName}</b> 🎁
+            </p>
+          ) : (
+            <p className="truncate text-[19px] font-medium leading-tight text-zinc-800">{post.author.displayName}</p>
+          )}
           <p className="truncate text-[15px] text-zinc-400">{post.locationLabel ?? `@${post.author.username}`}</p>
         </div>
         <time className="self-start text-[15px] text-zinc-400" dateTime={post.createdAt}>
           {timeAgo(post.createdAt)}
         </time>
       </header>
-      <p className="mt-4 whitespace-pre-wrap break-words text-[19px] text-zinc-800">{post.body}</p>
-      {post.mediaUrl && (
-        <img src={post.mediaUrl} alt="" loading="lazy" className="mt-3 max-h-[28rem] w-full rounded-xl object-cover" />
+      {g && (
+        <p className="mt-4 rounded-2xl bg-gradient-to-r from-brand to-rose-400 py-3 text-center text-2xl font-extrabold text-white">
+          🎁 {g.amount.toLocaleString('pt-PT')} Txills
+        </p>
       )}
+      {post.body && <p className="mt-4 whitespace-pre-wrap break-words text-[19px] text-zinc-800">{post.body}</p>}
+      <Carousel media={post.media} />
       <div className="mt-4 flex items-center gap-5 text-[15px] text-zinc-800">
         <span className="flex items-center gap-1.5">🍻 {post.cheers}</span>
         <span className="flex items-center gap-1.5">
           <GiftIcon width={18} height={18} /> {post.gifts}
         </span>
         <button className="ml-auto" onClick={() => setSheet('comments')}>
-          {post.comments} Comentários
+          {post.comments} {post.comments === 1 ? 'Comentário' : 'Comentários'}
         </button>
       </div>
       <div className="mt-4 flex border-t border-zinc-300">
         <button onClick={cheer} aria-pressed={post.cheered} className={`${action} ${post.cheered ? '!text-green-700' : ''}`}>
-          <span key={String(post.cheered)} className={`text-2xl ${post.cheered ? "animate-[pop_.4s_ease-out]" : ""}`}>🍻</span> Brindou
+          <span key={String(post.cheered)} className={`text-2xl ${post.cheered ? 'animate-[pop_.4s_ease-out]' : ''}`}>🍻</span>
+          {post.cheered ? 'Brindou' : 'Brindar'}
         </button>
         <button onClick={() => setSheet('comments')} className={action}>
           <CommentIcon /> Comentar
@@ -65,53 +107,11 @@ export default function PostCard({ post }: { post: Post }) {
           </button>
         )}
       </div>
-      {sheet === 'comments' && <CommentsSheet post={post} onClose={() => setSheet(null)} onAdded={(n) => patch({ comments: n })} />}
+      {sheet === 'comments' && <CommentsSheet post={post} onClose={() => setSheet(null)} onDelta={(d) => patch({ comments: Math.max(0, post.comments + d) })} />}
       {sheet === 'gift' && <GiftSheet post={post} onClose={() => setSheet(null)} onDone={(p) => patch(p)} />}
     </article>
   );
 }
-
-function CommentsSheet({ post, onClose, onAdded }: { post: Post; onClose: () => void; onAdded: (n: number) => void }) {
-  const qc = useQueryClient();
-  const key = ['comments', post.id];
-  const { data, refetch } = useCommentsQuery(post.id);
-  const [text, setText] = useState('');
-  const [err, setErr] = useState('');
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (!text.trim()) return;
-    try {
-      const list = await api.addComment(post.id, text);
-      qc.setQueryData(key, list);
-      onAdded(list.length);
-      setText('');
-      refetch();
-    } catch (x) {
-      setErr((x as Error).message);
-    }
-  }
-  return (
-    <Sheet title="Comentários" onClose={onClose}>
-      <ul className="mb-4 space-y-3">
-        {data?.length === 0 && <li className="text-zinc-400">Ninguém disse nada ainda… sê o primeiro 😏</li>}
-        {data?.map((c) => (
-          <li key={c.id}>
-            <span className="font-semibold">{c.author.displayName}</span> <span className="text-zinc-400">{timeAgo(c.createdAt)}</span>
-            <p className="break-words">{c.body}</p>
-          </li>
-        ))}
-      </ul>
-      <form onSubmit={submit} className="flex gap-2">
-        <input value={text} onChange={(e) => setText(e.target.value)} maxLength={1000} placeholder="Diz lá… 💬" className={pillInput} />
-        <button className={btnPrimary}>Enviar</button>
-      </form>
-      {err && <p role="alert" className="mt-2 text-sm text-red-600">{err}</p>}
-    </Sheet>
-  );
-}
-
-const useCommentsQuery = (id: string) => useQuery({ queryKey: ['comments', id], queryFn: () => api.comments(id) });
 
 function GiftSheet({ post, onClose, onDone }: { post: Post; onClose: () => void; onDone: (p: Partial<Post>) => void }) {
   const qc = useQueryClient();
@@ -130,7 +130,8 @@ function GiftSheet({ post, onClose, onDone }: { post: Post; onClose: () => void;
       qc.invalidateQueries({ queryKey: ['wallet'] });
       setSent(true);
     } catch (x) {
-      setErr((x as Error).message);
+      const m = (x as Error).message;
+      setErr(m === 'Saldo insuficiente' ? 'Ups, o teu saldo não chega 😬' : m);
     } finally {
       setBusy(false);
     }
@@ -155,8 +156,7 @@ function GiftSheet({ post, onClose, onDone }: { post: Post; onClose: () => void;
               </button>
             ))}
           </div>
-          <p className="text-sm text-zinc-500">Txills de brincadeira (sem valor real) 🎭</p>
-          {err && <p role="alert" className="text-sm text-red-600">{err}</p>}
+          <p role="alert" className="min-h-5 text-sm text-red-600">{err}</p>
           <button disabled={busy} onClick={send} className={`${btnPrimary} w-full`}>
             Mandar {amount} Txills
           </button>

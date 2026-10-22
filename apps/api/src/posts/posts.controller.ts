@@ -4,16 +4,15 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { requireIdempotencyKey } from '../wallet/wallet.controller';
-import { PostsService } from './posts.service';
+import { MAX_PHOTOS, PostsService } from './posts.service';
 
 type AuthedReq = Request & { userId?: string };
 
 const createSchema = z.object({
-  body: z.string().trim().min(1).max(2000),
+  body: z.string().trim().max(2000).default(''),
   locationLabel: z.string().trim().max(80).optional(),
-  mediaId: z.string().uuid().optional(),
+  mediaIds: z.array(z.string().uuid()).max(MAX_PHOTOS).default([]),
 });
-const commentSchema = z.object({ body: z.string().trim().min(1).max(1000) });
 const giftSchema = z.object({ amount: z.number().int().positive() });
 
 @Controller('posts')
@@ -23,7 +22,7 @@ export class PostsController {
 
   @Post()
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
-    return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaId);
+    return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds);
   }
 
   @Get()
@@ -36,16 +35,6 @@ export class PostsController {
   @HttpCode(200)
   cheer(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
     return this.posts.toggleCheer(req.userId!, id);
-  }
-
-  @Get(':id/comments')
-  comments(@Param('id', ParseUUIDPipe) id: string) {
-    return this.posts.listComments(id);
-  }
-
-  @Post(':id/comments')
-  comment(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(commentSchema)) b: z.infer<typeof commentSchema>) {
-    return this.posts.addComment(req.userId!, id, b.body);
   }
 
   @Post(':id/gifts')

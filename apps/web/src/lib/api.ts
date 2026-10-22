@@ -19,19 +19,53 @@ export interface Post {
   id: string;
   body: string;
   locationLabel: string | null;
-  mediaUrl: string | null;
+  media: { url: string }[];
   createdAt: string;
   author: { id: string; username: string; displayName: string };
   cheers: number;
   comments: number;
   gifts: number;
   cheered: boolean;
+  /** Preenchido nos posts "X presenteou Y". */
+  gift: { amount: number; recipient: { username: string; displayName: string } } | null;
 }
 export interface Comment {
   id: string;
+  postId: string;
+  parentId: string | null;
   body: string;
   createdAt: string;
+  author: { id: string; username: string; displayName: string };
+  cheers: number;
+  cheered: boolean;
+  replyCount: number;
+}
+export interface Page<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+export interface TrayUser {
+  username: string;
+  displayName: string;
+  isMe: boolean;
+  count: number;
+  seen: boolean;
+  latestAt: string;
+}
+export interface Story {
+  id: string;
+  mediaUrl: string;
+  caption: string | null;
+  createdAt: string;
+  expiresAt: string;
   author: { username: string; displayName: string };
+  seen: boolean;
+  viewCount: number | null;
+}
+export interface NearbyPlaces {
+  area: string | null;
+  city: string | null;
+  places: { name: string; kind: string; distanceM: number }[];
 }
 export interface WalletView {
   currency: string;
@@ -79,11 +113,14 @@ async function raw(path: string, init: RequestInit = {}, retry = true): Promise<
     const body = await res.json().catch(() => ({}));
     throw new ApiError(res.status, body.message ?? 'Erro inesperado');
   }
-  return res.status === 204 ? undefined : res.json();
+  if (res.status === 204) return undefined;
+  const text = await res.text();
+  return text ? JSON.parse(text) : undefined;
 }
 
 const post = (b: unknown, extra: HeadersInit = {}): RequestInit => ({ method: 'POST', body: JSON.stringify(b), headers: extra });
 const newKey = () => crypto.randomUUID();
+const qs = (cursor?: string, limit?: number) => `?${limit ? `limit=${limit}&` : ''}${cursor ? `cursor=${cursor}` : ''}`;
 
 export const api = {
   register: (b: unknown): Promise<AuthResponse> => raw('/auth/register', post(b)),
@@ -92,18 +129,33 @@ export const api = {
   refresh: (): Promise<AuthResponse> => refreshOnce(),
   logout: (): Promise<void> => raw('/auth/logout', { method: 'POST' }),
 
-  feed: (cursor?: string): Promise<{ items: Post[]; nextCursor: string | null }> =>
-    raw(`/posts?limit=10${cursor ? `&cursor=${cursor}` : ''}`),
-  createPost: (b: { body: string; locationLabel?: string; mediaId?: string }): Promise<Post> => raw('/posts', post(b)),
+  feed: (cursor?: string): Promise<Page<Post>> => raw(`/posts${qs(cursor, 10)}`),
+  createPost: (b: { body: string; locationLabel?: string; mediaIds: string[] }): Promise<Post> => raw('/posts', post(b)),
   cheer: (id: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/posts/${id}/cheers`, post({})),
-  comments: (id: string): Promise<Comment[]> => raw(`/posts/${id}/comments`),
-  addComment: (id: string, body: string): Promise<Comment[]> => raw(`/posts/${id}/comments`, post({ body })),
   gift: (id: string, amount: number, key: string): Promise<{ post: Post }> =>
     raw(`/posts/${id}/gifts`, post({ amount }, { 'Idempotency-Key': key })),
 
+  comments: (postId: string, cursor?: string): Promise<Page<Comment>> => raw(`/posts/${postId}/comments${qs(cursor, 15)}`),
+  replies: (commentId: string, cursor?: string): Promise<Page<Comment>> => raw(`/comments/${commentId}/replies${qs(cursor, 10)}`),
+  addComment: (postId: string, body: string, parentId?: string): Promise<Comment> =>
+    raw(`/posts/${postId}/comments`, post({ body, parentId })),
+  cheerComment: (id: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/comments/${id}/cheers`, post({})),
+  deleteComment: (id: string): Promise<void> => raw(`/comments/${id}`, { method: 'DELETE' }),
+
+  /** Presentear alguém com Txills (demonstração), opcionalmente anunciando no feed. */
+  giftUser: (b: { toUsername: string; amount: number; note?: string; publish: boolean }, key: string): Promise<{ post: Post | null }> =>
+    raw('/gifts', post(b, { 'Idempotency-Key': key })),
+
+  stories: (): Promise<TrayUser[]> => raw('/stories'),
+  storiesOf: (username: string): Promise<Story[]> => raw(`/stories/user/${encodeURIComponent(username)}`),
+  createStory: (mediaId: string, caption: string): Promise<Story> => raw('/stories', post({ mediaId, caption })),
+  viewStory: (id: string): Promise<void> => raw(`/stories/${id}/view`, post({})),
+  deleteStory: (id: string): Promise<void> => raw(`/stories/${id}`, { method: 'DELETE' }),
+  storyViewers: (id: string): Promise<{ username: string; displayName: string; viewedAt: string }[]> => raw(`/stories/${id}/viewers`),
+
+  nearbyPlaces: (lat: number, lng: number): Promise<NearbyPlaces> => raw(`/places/nearby?lat=${lat}&lng=${lng}`),
+
   wallet: (): Promise<WalletView> => raw('/wallet'),
-  transfer: (toUsername: string, amount: number, note: string | undefined, key: string) =>
-    raw('/wallet/transfers', post({ toUsername, amount, note }, { 'Idempotency-Key': key })),
 
   /** Fluxo de upload pré-assinado: pede URL temporário e envia os bytes directamente para ele. */
   async uploadImage(file: File): Promise<string> {

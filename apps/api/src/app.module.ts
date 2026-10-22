@@ -3,10 +3,13 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppConfig, CONFIG } from './config';
 import { AuthModule } from './auth/auth.module';
+import { CommentsModule } from './comments/comments.module';
 import { DbModule } from './db/db.module';
 import { HealthController } from './health/health.controller';
 import { MediaModule } from './media/media.module';
+import { PlacesModule } from './places/places.module';
 import { PostsModule } from './posts/posts.module';
+import { StoriesModule } from './stories/stories.module';
 import { WalletModule } from './wallet/wallet.module';
 
 @Module({})
@@ -22,7 +25,10 @@ export class AppModule {
         AuthModule,
         WalletModule,
         MediaModule,
+        PlacesModule,
         PostsModule,
+        CommentsModule,
+        StoriesModule,
       ],
       controllers: [HealthController],
       providers: [

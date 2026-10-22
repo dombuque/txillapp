@@ -23,8 +23,8 @@ export function Profile() {
       <h1 className="mt-5 text-3xl font-extrabold">{user.displayName}</h1>
       <p className="text-lg text-zinc-600">@{user.username}</p>
       {data && (
-        <p className="mt-5 rounded-full bg-white px-5 py-2 font-semibold shadow-sm">
-          👛 {data.balance.toLocaleString('pt-PT')} Txills de brincadeira
+        <p className="mt-5 rounded-full bg-rose-50 px-5 py-2 font-semibold text-brand">
+          👛 {data.balance.toLocaleString('pt-PT')} Txills
         </p>
       )}
       <button onClick={signOut} className={`${btnGhost} mt-10`}>
