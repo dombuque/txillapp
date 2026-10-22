@@ -270,6 +270,8 @@ function GoogleButton({ mode, onError }: { mode: 'login' | 'register'; onError: 
 export function Login() {
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from ?? '/';
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -283,7 +285,7 @@ export function Login() {
     setError('');
     try {
       signIn(await api.login({ identifier: identifier.trim().replace(/^@/, ''), password }));
-      navigate('/');
+      navigate(from, { replace: true });
     } catch (x) {
       setError(x instanceof ApiError && x.status === 401 ? 'Hmm, essas credenciais não batem 🤨' : (x as Error).message);
     } finally {
@@ -292,7 +294,7 @@ export function Login() {
   }
 
   return (
-    <Screen footer={<>É novo no txillapp? <Link to="/register" className="font-semibold text-brand">Cria a tua conta</Link></>}>
+    <Screen footer={<>É novo no txillapp? <Link to="/register" state={location.state} className="font-semibold text-brand">Cria a tua conta</Link></>}>
       <h1 className="pt-10">
         <Wordmark className="h-11" />
       </h1>
@@ -335,6 +337,7 @@ function strength(p: string) {
 export function Register() {
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  const from = (useLocation().state as { from?: string } | null)?.from ?? '/';
   const [i, setI] = useState(0);
   const [data, setData] = useState<Partial<RegisterInput>>({});
   const [error, setError] = useState('');
@@ -354,7 +357,7 @@ export function Register() {
     setBusy(true);
     try {
       signIn(await api.register({ ...data, username: String(data.username).replace(/^@/, '') }));
-      navigate('/');
+      navigate(from, { replace: true });
     } catch (x) {
       const msg = (x as Error).message;
       if (x instanceof ApiError && x.status === 409) {

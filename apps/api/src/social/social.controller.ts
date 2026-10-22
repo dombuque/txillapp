@@ -97,13 +97,13 @@ export class SocialController {
   }
 
   @Get('users/:username/followers')
-  followers(@Req() req: AuthedReq, @Param('username') username: string, @Query('cursor') cursor?: string) {
-    return this.social.followers(req.userId!, username, cursor);
+  followers(@Req() req: AuthedReq, @Param('username') username: string, @Query('cursor') cursor?: string, @Query('q') q?: string) {
+    return this.social.followers(req.userId!, username, cursor, q);
   }
 
   @Get('users/:username/following')
-  following(@Req() req: AuthedReq, @Param('username') username: string, @Query('cursor') cursor?: string) {
-    return this.social.following(req.userId!, username, cursor);
+  following(@Req() req: AuthedReq, @Param('username') username: string, @Query('cursor') cursor?: string, @Query('q') q?: string) {
+    return this.social.following(req.userId!, username, cursor, q);
   }
 
   @Get('follow-requests')

@@ -45,8 +45,8 @@ export default function FollowButton({
       onClick={toggle}
       disabled={busy}
       aria-pressed={s.following}
-      className={`rounded-full font-semibold transition active:scale-95 disabled:opacity-70 ${large ? 'w-full whitespace-nowrap px-4 py-3 text-base' : 'w-full whitespace-nowrap px-3 py-2 text-sm'} ${
-        on ? 'border border-zinc-300 bg-white text-zinc-800' : 'bg-brand text-white shadow-[0_6px_16px_rgba(214,51,79,0.3)]'
+      className={`font-semibold transition active:scale-95 disabled:opacity-70 ${large ? 'h-9 w-full whitespace-nowrap rounded-xl px-4 text-sm' : 'w-full whitespace-nowrap rounded-full px-3 py-2 text-sm'} ${
+        on ? 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200' : 'bg-brand text-white'
       }`}
     >
       {s.following ? 'A seguir' : s.requested ? 'Pedido enviado' : 'Seguir'}

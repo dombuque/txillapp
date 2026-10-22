@@ -218,12 +218,12 @@ export class SocialService {
     if (!del.rowCount) throw new NotFoundException('Pedido não encontrado');
   }
 
-  async followers(viewerId: string, username: string, cursor?: string) {
-    return this.list(viewerId, username, 'followers', cursor);
+  async followers(viewerId: string, username: string, cursor?: string, q?: string) {
+    return this.list(viewerId, username, 'followers', cursor, q);
   }
 
-  async following(viewerId: string, username: string, cursor?: string) {
-    return this.list(viewerId, username, 'following', cursor);
+  async following(viewerId: string, username: string, cursor?: string, q?: string) {
+    return this.list(viewerId, username, 'following', cursor, q);
   }
 
   /* ───────────── bloqueios ───────────── */
@@ -344,8 +344,11 @@ export class SocialService {
 
   /* ───────────── internos ───────────── */
 
-  private async list(viewerId: string, username: string, kind: 'followers' | 'following', cursor?: string) {
+  private async list(viewerId: string, username: string, kind: 'followers' | 'following', cursor?: string, q?: string) {
     if (cursor && !UUID.test(cursor)) throw new BadRequestException('cursor inválido');
+    // Pesquisa dentro da lista (por @ ou nome); % _ \ do texto não viram padrão.
+    const term = (q ?? '').trim().replace(/^@/, '').slice(0, 50);
+    const like = term ? `%${term.replace(/[\\%_]/g, '\\$&')}%` : null;
     await this.assertVisible(viewerId, username);
     await this.assertConnections(viewerId, username);
     const target = (await this.target(username)).id;
@@ -357,8 +360,9 @@ export class SocialService {
               EXISTS (SELECT 1 FROM social.follows x WHERE x.follower_id = u.id AND x.followee_id = $1) AS follows_you
          FROM social.follows f JOIN identity.users u ON u.id = ${self}
         WHERE ${other} = $2 AND ($3::uuid IS NULL OR u.id < $3) AND u.status = 'active' AND NOT ${blockedBetween('u.id', '$1')}
+          AND ($5::text IS NULL OR u.username ILIKE $5 ESCAPE '\\' OR u.display_name ILIKE $5 ESCAPE '\\')
         ORDER BY u.id DESC LIMIT $4`,
-      [viewerId, target, cursor ?? null, limit + 1],
+      [viewerId, target, cursor ?? null, limit + 1, like],
     );
     const page = rows.slice(0, limit);
     return {

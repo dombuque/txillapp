@@ -227,7 +227,14 @@ async function raw(path: string, init: RequestInit = {}, retry = true): Promise<
 
 const post = (b: unknown, extra: HeadersInit = {}): RequestInit => ({ method: 'POST', body: JSON.stringify(b), headers: extra });
 const newKey = () => crypto.randomUUID();
-const qs = (cursor?: string, limit?: number) => `?${limit ? `limit=${limit}&` : ''}${cursor ? `cursor=${cursor}` : ''}`;
+const qs = (cursor?: string, limit?: number, q?: string) => {
+  const p = new URLSearchParams();
+  if (limit) p.set('limit', String(limit));
+  if (cursor) p.set('cursor', cursor);
+  if (q) p.set('q', q);
+  const s = p.toString();
+  return s ? `?${s}` : '';
+};
 
 export const api = {
   register: (b: unknown): Promise<AuthResponse> => raw('/auth/register', post(b)),
@@ -240,8 +247,8 @@ export const api = {
   userPosts: (username: string, cursor?: string): Promise<Page<Post>> => raw(`/users/${encodeURIComponent(username)}/posts${qs(cursor, 18)}`),
   follow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/follow`, post({})),
   unfollow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/follow`, { method: 'DELETE' }),
-  followers: (username: string, cursor?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/followers${qs(cursor)}`),
-  following: (username: string, cursor?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/following${qs(cursor)}`),
+  followers: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/followers${qs(cursor, undefined, q)}`),
+  following: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/following${qs(cursor, undefined, q)}`),
   updateMe: (b: { displayName?: string; bio?: string; isPrivate?: boolean }): Promise<{ id: string; username: string; displayName: string; bio: string | null; isPrivate: boolean }> =>
     raw('/users/me', { method: 'PATCH', body: JSON.stringify(b) }),
   suggestions: (): Promise<Suggestion[]> => raw('/suggestions/people'),

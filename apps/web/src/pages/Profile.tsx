@@ -6,11 +6,11 @@ import FollowButton from '../components/FollowButton';
 import GiftSheet from '../components/GiftSheet';
 import PostCard from '../components/PostCard';
 import { BackIcon } from '../components/icons';
-import { Avatar, Sheet, btnGhost, btnPrimary } from '../components/ui';
-import { ApiError, api, type Person, type Post } from '../lib/api';
+import { Avatar, Sheet, btnGhost, btnPrimary, btnSmall } from '../components/ui';
+import { ApiError, api, type Post } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
-type SheetName = null | 'edit' | 'followers' | 'following' | 'requests' | 'menu' | 'block' | 'gift';
+type SheetName = null | 'edit' | 'requests' | 'menu' | 'block' | 'gift';
 
 /** Perfil de qualquer pessoa (/u/:username) e o meu (/profile). */
 export default function ProfilePage() {
@@ -21,6 +21,7 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const [sheet, setSheet] = useState<SheetName>(null);
   const [openPost, setOpenPost] = useState<Post | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const close = () => setSheet(null);
 
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username), retry: false });
@@ -53,6 +54,29 @@ export default function ProfilePage() {
       <span className="text-sm text-zinc-600">{label}</span>
     </button>
   );
+
+  /** Partilhar o perfil: menu de partilha do telemóvel; sem ele, copia o link. */
+  async function share() {
+    const url = `${window.location.origin}/u/${p!.username}`;
+    const copy = async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+        flash('Link copiado ✅');
+      } catch {
+        flash('Não consegui copiar 😅');
+      }
+    };
+    if (!navigator.share) return copy();
+    try {
+      await navigator.share({ title: `${p!.displayName} no txillapp`, text: `Segue @${p!.username} no txillapp`, url });
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') await copy(); // cancelar a partilha não é erro
+    }
+  }
+  function flash(text: string) {
+    setToast(text);
+    setTimeout(() => setToast(null), 2200);
+  }
 
   async function unblock() {
     await api.unblock(p!.username);
@@ -104,8 +128,8 @@ export default function ProfilePage() {
 
         <div className="mt-5 flex border-y border-zinc-100 py-2">
           {stat(p.counts.posts, 'publicações')}
-          {stat(p.counts.followers, 'seguidores', p.canSeeConnections ? () => setSheet('followers') : undefined)}
-          {stat(p.counts.following, 'a seguir', p.canSeeConnections ? () => setSheet('following') : undefined)}
+          {stat(p.counts.followers, 'seguidores', p.canSeeConnections ? () => navigate('/u/' + p.username + '/connections', { state: { tab: 'followers' } }) : undefined)}
+          {stat(p.counts.following, 'a seguir', p.canSeeConnections ? () => navigate('/u/' + p.username + '/connections', { state: { tab: 'following' } }) : undefined)}
         </div>
 
         {/* Bloqueio ao estilo do X: o cabeçalho fica visível, com o aviso. */}
@@ -123,17 +147,26 @@ export default function ProfilePage() {
           </div>
         )}
 
+        {/* Botões compactos, como nas redes sociais. */}
         {!blocked && (
-          <div className="mt-4 flex justify-center gap-3">
+          <div className="mt-4 flex gap-2">
             {p.isMe ? (
-              <button onClick={() => setSheet('edit')} className={`${btnGhost} flex-1`}>Editar perfil</button>
+              <>
+                <button onClick={() => setSheet('edit')} className={`${btnSmall} flex-1`}>Editar perfil</button>
+                <button onClick={share} className={`${btnSmall} flex-1`}>Partilhar perfil</button>
+              </>
             ) : (
               <>
                 <div className="flex-1">
                   <FollowButton username={p.username} following={p.following} requested={p.requested} isPrivate={p.isPrivate} large />
                 </div>
                 {/* Só se presenteia quem se segue. */}
-                {p.following && <button onClick={() => setSheet('gift')} className={`${btnGhost} whitespace-nowrap !px-4`}>🎁 Presentear</button>}
+                {p.following && <button onClick={() => setSheet('gift')} className={`${btnSmall} flex-1`}>🎁 Presentear</button>}
+                <button onClick={share} aria-label="Partilhar perfil" className={`${btnSmall} w-11 shrink-0 !px-0`}>
+                  <svg className="mx-auto" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M12 16V4M7 9l5-5 5 5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
+                  </svg>
+                </button>
               </>
             )}
           </div>
@@ -194,9 +227,10 @@ export default function ProfilePage() {
         )
       )}
 
+      {toast && (
+        <div role="status" className="fixed bottom-24 left-1/2 z-40 -translate-x-1/2 rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white shadow-lg">{toast}</div>
+      )}
       {sheet === 'edit' && <EditProfileSheet profile={p} onClose={close} />}
-      {sheet === 'followers' && <PeopleSheet title="Seguidores" username={p.username} kind="followers" meUsername={user!.username} onClose={close} />}
-      {sheet === 'following' && <PeopleSheet title="A seguir" username={p.username} kind="following" meUsername={user!.username} onClose={close} />}
       {sheet === 'requests' && <RequestsSheet myUsername={p.username} onClose={close} />}
       {sheet === 'gift' && <GiftSheet recipient={{ username: p.username, displayName: p.displayName }} onClose={close} />}
       {sheet === 'menu' && (
@@ -228,38 +262,6 @@ export default function ProfilePage() {
         </Sheet>
       )}
     </div>
-  );
-}
-
-function PeopleSheet({ title, username, kind, meUsername, onClose }: { title: string; username: string; kind: 'followers' | 'following'; meUsername: string; onClose: () => void }) {
-  const navigate = useNavigate();
-  const q = useInfiniteQuery({
-    queryKey: ['people', kind, username],
-    queryFn: ({ pageParam }) => (kind === 'followers' ? api.followers(username, pageParam) : api.following(username, pageParam)),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (l) => l.nextCursor ?? undefined,
-  });
-  const people: Person[] = q.data?.pages.flatMap((x) => x.items) ?? [];
-  return (
-    <Sheet title={title} onClose={onClose}>
-      {q.isLoading && <p className="py-8 text-center text-zinc-600">A carregar…</p>}
-      {q.isSuccess && people.length === 0 && <p className="py-8 text-center text-zinc-600">{kind === 'followers' ? 'Ainda sem seguidores 🌱' : 'Ainda não segue ninguém 👀'}</p>}
-      {people.map((x) => (
-        <div key={x.username} className="flex items-center gap-3 py-2.5">
-          <button onClick={() => { onClose(); navigate(x.username === meUsername ? '/profile' : `/u/${x.username}`); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-            <Avatar name={x.displayName} username={x.username} size={44} />
-            <span className="min-w-0">
-              <span className="block truncate font-semibold">{x.displayName}</span>
-              <span className="block truncate text-sm text-zinc-600">@{x.username}{x.followsYou && x.username !== meUsername ? ' · segue-te' : ''}</span>
-            </span>
-          </button>
-          {x.username !== meUsername && (
-            <div className="w-28 shrink-0"><FollowButton username={x.username} following={x.following} requested={false} /></div>
-          )}
-        </div>
-      ))}
-      {q.hasNextPage && <button onClick={() => q.fetchNextPage()} className="mx-auto mt-2 block text-sm font-semibold text-zinc-600">Ver mais</button>}
-    </Sheet>
   );
 }
 

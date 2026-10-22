@@ -60,6 +60,15 @@ describe('rede social: seguir, sugestões, perfil e perfis privados (integraçã
     const following = (await api().get(`/api/v1/users/${a.username}/following`).set(auth(b)).expect(200)).body;
     expect(following.items[0]).toMatchObject({ username: b.username, following: false });
 
+    // Pesquisa dentro das listas (por @ ou nome); % não é padrão.
+    const inList = async (path: string, q: string) =>
+      (await api().get(`/api/v1/users/${path}?q=${encodeURIComponent(q)}`).set(auth(b)).expect(200)).body.items.map((x: { username: string }) => x.username);
+    expect(await inList(`${b.username}/followers`, a.username.slice(0, 5))).toEqual([a.username]);
+    expect(await inList(`${b.username}/followers`, '@' + a.username.toUpperCase())).toEqual([a.username]);
+    expect(await inList(`${b.username}/followers`, 'nada_assim')).toEqual([]);
+    expect(await inList(`${b.username}/followers`, '%')).toEqual([]);
+    expect(await inList(`${a.username}/following`, b.username)).toEqual([b.username]);
+
     expect((await api().delete(`/api/v1/users/${b.username}/follow`).set(auth(a)).expect(200)).body).toEqual({ following: false, requested: false, followers: 0 });
   });
 

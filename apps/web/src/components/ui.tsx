@@ -130,6 +130,9 @@ export const btnPrimary =
   'rounded-full bg-brand px-4 py-3.5 font-bold text-white transition active:scale-[0.97] disabled:opacity-50 hover:brightness-95';
 export const btnGhost =
   'rounded-full border border-zinc-300 bg-white px-6 py-3 font-semibold text-zinc-800 transition active:scale-[0.97]';
+/** Botão compacto (perfil): altura de 36 px, cantos suaves, como nas redes sociais. */
+export const btnSmall =
+  'h-9 whitespace-nowrap rounded-xl bg-zinc-100 px-4 text-sm font-semibold text-zinc-900 transition active:scale-[0.97] hover:bg-zinc-200';
 export const lineInput =
   'w-full border-0 border-b border-zinc-400 bg-transparent py-3 text-lg text-zinc-900 outline-none placeholder:text-zinc-500 focus:border-brand';
 export const fieldInput =

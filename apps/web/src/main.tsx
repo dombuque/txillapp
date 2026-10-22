@@ -1,13 +1,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import './index.css';
 import Layout from './components/Layout';
 import { Wordmark } from './components/ui';
 import { AuthProvider, useAuth } from './lib/auth';
 import { GoogleUsername, Login, Register } from './pages/AuthForm';
 import Compose from './pages/Compose';
+import Connections from './pages/Connections';
 import Feed from './pages/Feed';
 import Notifications from './pages/Notifications';
 import Profile from './pages/Profile';
@@ -31,8 +32,10 @@ function Splash() {
 /** Só para quem já entrou. Sem sessão → login. */
 function Private({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
+  const here = useLocation();
   if (loading) return <Splash />;
-  return user ? <>{children}</> : <Navigate to="/login" replace />;
+  // Guarda para onde ia (ex.: um perfil partilhado) e volta lá depois de entrar.
+  return user ? <>{children}</> : <Navigate to="/login" replace state={{ from: here.pathname + here.search }} />;
 }
 
 /** Login e registo só para quem ainda não entrou: com sessão iniciada vai direto ao feed (só o logout leva ao login). */
@@ -54,6 +57,7 @@ createRoot(document.getElementById('root')!).render(
             {/* Páginas próprias em ecrã inteiro (como a Atividade do Instagram): sem a barra de baixo. */}
             <Route path="/notifications" element={<Private><Notifications /></Private>} />
             <Route path="/settings" element={<Private><Settings /></Private>} />
+            <Route path="/u/:username/connections" element={<Private><Connections /></Private>} />
             <Route
               element={
                 <Private>
