@@ -38,7 +38,7 @@ describeDb('auth (integração, PostgreSQL real)', () => {
   const register = () =>
     request(app.getHttpServer())
       .post('/api/v1/auth/register')
-      .send({ email, username: `user${Date.now()}`, displayName: 'Teste', password });
+      .send({ email, username: `user${Date.now()}`, displayName: 'Teste', password, birthDate: '1990-06-15', acceptTerms: true });
 
   it('regista, devolve access token e cookie de refresh HttpOnly', async () => {
     const res = await register().expect(201);
@@ -141,5 +141,18 @@ describeDb('auth (integração, PostgreSQL real)', () => {
   it('health e readiness', async () => {
     await request(app.getHttpServer()).get('/api/v1/health').expect(200);
     await request(app.getHttpServer()).get('/api/v1/health/ready').expect(200);
+  });
+
+  it('idade mínima e termos: menores de 13, data impossível e sem aceitar os termos são recusados', async () => {
+    const base = { password, displayName: 'Idade' };
+    const reg = (b: object, n: string) =>
+      request(app.getHttpServer()).post('/api/v1/auth/register').send({ email: `${n}${Date.now()}@example.com`, username: `${n}${Date.now()}`.slice(0, 28), ...base, ...b });
+    const year = new Date().getUTCFullYear();
+    await reg({ birthDate: `${year - 12}-01-01`, acceptTerms: true }, 'menor').expect(400); // 12 anos
+    await reg({ birthDate: '2030-01-01', acceptTerms: true }, 'futuro').expect(400);
+    await reg({ birthDate: '1990-02-31', acceptTerms: true }, 'impossivel').expect(400);
+    await reg({ birthDate: '1990-06-15', acceptTerms: false }, 'semtermos').expect(400);
+    await reg({ birthDate: '1990-06-15' }, 'semaceite').expect(400);
+    await reg({ birthDate: `${year - 13 - 1}-01-01`, acceptTerms: true }, 'adulto').expect(201);
   });
 });

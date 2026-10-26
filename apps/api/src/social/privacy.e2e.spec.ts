@@ -22,7 +22,7 @@ describe('privacidade, bloqueios, notificações, pesquisa, foto e segurança da
 
   async function signup(name: string): Promise<U> {
     const username = `${name}${run}`.slice(0, 28);
-    const r = await api().post('/api/v1/auth/register').send({ email: `${username}@example.com`, username, displayName: `${name} Teste`, password: PASSWORD }).expect(201);
+    const r = await api().post('/api/v1/auth/register').send({ email: `${username}@example.com`, username, displayName: `${name} Teste`, password: PASSWORD , birthDate: '1990-06-15', acceptTerms: true}).expect(201);
     return { token: r.body.accessToken, id: r.body.user.id, username, cookie: (r.headers['set-cookie'] as unknown as string[])[0].split(';')[0] };
   }
   const profile = async (viewer: U, of: U) => (await api().get(`/api/v1/users/${of.username}`).set(auth(viewer)).expect(200)).body;
@@ -85,7 +85,8 @@ describe('privacidade, bloqueios, notificações, pesquisa, foto e segurança da
     const sug = (await api().get('/api/v1/suggestions/people').set(auth(blocked)).expect(200)).body.map((x: { username: string }) => x.username);
     expect(sug).not.toContain(blocker.username);
     const found = (await api().get(`/api/v1/search?q=${blocker.username}`).set(auth(blocked)).expect(200)).body;
-    expect(found.people).toEqual([]);
+    // (a pesquisa tolera erros de escrita, por isso podem aparecer nomes parecidos, mas nunca quem me bloqueou)
+    expect(found.people.map((x: { username: string }) => x.username)).not.toContain(blocker.username);
 
     // Desbloquear devolve a visibilidade (mas não os seguidores).
     await api().delete(`/api/v1/blocks/${blocked.username}`).set(auth(blocker)).expect(200);
@@ -202,7 +203,9 @@ describe('privacidade, bloqueios, notificações, pesquisa, foto e segurança da
     expect(mine.some((x: { id: string }) => x.id === first.body.id)).toBe(true); // aparece no perfil de quem repostou
 
     // Regras.
-    await rp(author, p.id).expect(400); // a própria
+    const own = await rp(author, p.id).expect(201); // o dono também pode repostar a própria publicação
+    expect(own.body.repostOf.id).toBe(p.id);
+    await api().delete(`/api/v1/posts/${p.id}/repost`).set(auth(author)).expect(200);
     await rp(viewer, first.body.id).expect(400); // repost de um repost
     await rp(viewer, '00000000-0000-7000-8000-00000000dead').expect(404);
     const kinds = (await notes(author)).filter((x) => x.kind === 'repost');
@@ -229,12 +232,48 @@ describe('privacidade, bloqueios, notificações, pesquisa, foto e segurança da
     expect(after.some((x) => x.id === quote.body.id)).toBe(true);
   });
 
+  it('género: definido pela pessoa, privado por defeito, e selo de verificado', async () => {
+    const name = `pg${run}`.slice(0, 28);
+    const reg = (b: object) => api().post('/api/v1/auth/register').send({ email: `${name}@example.com`, username: name, displayName: 'Género Teste', password: PASSWORD, birthDate: '1990-06-15', acceptTerms: true, ...b });
+    await reg({ gender: 'xyz' }).expect(400); // valor inválido
+    const r = await reg({ gender: 'female' }).expect(201);
+    const g: U = { token: r.body.accessToken, id: r.body.user.id, username: name, cookie: '' };
+
+    expect(await api().get('/api/v1/settings/privacy').set(auth(g)).expect(200).then((x) => x.body)).toMatchObject({ gender: 'female', showGender: false });
+    expect((await profile(g, g)).gender).toBe('female'); // a própria pessoa vê
+    expect((await profile(u.pa, g)).gender).toBeNull(); // os outros não, por defeito
+
+    await api().patch('/api/v1/settings/privacy').set(auth(g)).send({ showGender: true }).expect(200);
+    expect((await profile(u.pa, g)).gender).toBe('female'); // só depois de ela o ativar
+    await api().patch('/api/v1/settings/privacy').set(auth(g)).send({ gender: 'unspecified' }).expect(200); // "prefiro não dizer" é uma escolha
+    expect((await profile(u.pa, g)).gender).toBe('unspecified');
+    await api().patch('/api/v1/settings/privacy').set(auth(g)).send({ gender: 'xyz' }).expect(400);
+
+    // Contas sem género (antigas / API) ficam a null: a app pede-o uma vez.
+    expect((await api().get('/api/v1/settings/privacy').set(auth(u.pa)).expect(200)).body.gender).toBeNull();
+    await api().patch('/api/v1/settings/privacy').set(auth(u.pa)).send({ gender: 'other' }).expect(200);
+
+    // Selo de verificado (o processo fica para depois: por agora só o campo).
+    const pg = await post(g, 'post verificado');
+    const pa = await post(u.pa, 'post normal');
+    expect((await profile(u.pb, g)).verified).toBe(false);
+    await pool.query('UPDATE identity.users SET verified = true, verified_at = now() WHERE id = $1', [g.id]);
+    expect((await profile(u.pb, g)).verified).toBe(true);
+    expect((await profile(u.pb, u.pa)).verified).toBe(false);
+    const feed = (await api().get('/api/v1/posts?limit=50').set(auth(u.pb)).expect(200)).body.items as { id: string; author: { verified: boolean } }[];
+    expect(feed.find((x) => x.id === pg.id)!.author.verified).toBe(true);
+    expect(feed.find((x) => x.id === pa.id)!.author.verified).toBe(false);
+    const found = (await api().get(`/api/v1/search?q=${name}`).set(auth(u.pb)).expect(200)).body.people;
+    expect(found[0]).toMatchObject({ username: name, verified: true });
+  });
+
   it('pesquisa: pessoas por @ ou nome, publicações visíveis, escape de % e mínimo de 2 letras', async () => {
     const { pa: a, pb: b } = u;
     const q = async (viewer: U, term: string) => (await api().get(`/api/v1/search?q=${encodeURIComponent(term)}`).set(auth(viewer)).expect(200)).body;
 
     expect((await q(b, a.username)).people[0].username).toBe(a.username); // por @
-    expect((await q(b, 'pa Teste')).people.map((x: { username: string }) => x.username)).toContain(a.username); // por nome
+    await api().patch('/api/v1/users/me').set(auth(a)).send({ displayName: `Pessoa ${run}` }).expect(200); // nome único: a base de testes acumula "pa Teste"
+    expect((await q(b, `Pessoa ${run}`)).people.map((x: { username: string }) => x.username)).toContain(a.username); // por nome
     expect((await q(b, 'x')).people).toEqual([]); // curto demais
     expect((await q(b, '%%')).people).toEqual([]); // % não é padrão
     expect((await q(b, a.username)).people.every((x: { username: string }) => x.username !== b.username)).toBe(true); // sem o próprio
@@ -317,6 +356,6 @@ describe('privacidade, bloqueios, notificações, pesquisa, foto e segurança da
     expect(row.email).toMatch(/^deleted\+.*@invalid\.local$/); // sem dados pessoais
     expect((await profile(u.pa, u.pa)).counts.following).toBeGreaterThanOrEqual(0);
     // O email pode ser usado numa conta nova.
-    await api().post('/api/v1/auth/register').send({ email: `${x.username}@example.com`, username: `${x.username}n`.slice(0, 30), displayName: 'Novo', password: PASSWORD }).expect(201);
+    await api().post('/api/v1/auth/register').send({ email: `${x.username}@example.com`, username: `${x.username}n`.slice(0, 30), displayName: 'Novo', password: PASSWORD , birthDate: '1990-06-15', acceptTerms: true}).expect(201);
   });
 });

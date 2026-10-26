@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query
 import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
+import { birthDateSchema, genderSchema } from '@txillapp/shared';
 import { ZodPipe } from '../common/zod.pipe';
 import { PostsService } from '../posts/posts.service';
 import { SocialService } from './social.service';
@@ -14,14 +15,24 @@ const updateSchema = z.object({
   isPrivate: z.boolean().optional(),
 });
 
+const consentSchema = z.object({ birthDate: birthDateSchema, acceptTerms: z.literal(true) });
 const avatarSchema = z.object({ mediaId: z.string().uuid() });
 const who = z.enum(['everyone', 'following', 'off']);
+const viewers = z.enum(['everyone', 'followers', 'off']);
 const privacySchema = z.object({
+  repostsVisible: viewers.optional(),
+  cheersVisible: viewers.optional(),
+  giftsVisible: viewers.optional(),
   isPrivate: z.boolean().optional(),
   commentsAllowed: who.optional(),
   giftsAllowed: who.optional(),
+  mentionsAllowed: who.optional(),
+  dmsAllowed: who.optional(),
+  shareAnalytics: z.boolean().optional(),
   showConnections: z.enum(['everyone', 'followers', 'me']).optional(),
   suggestable: z.boolean().optional(),
+  gender: genderSchema.optional(),
+  showGender: z.boolean().optional(),
 });
 
 @Controller()
@@ -35,6 +46,12 @@ export class SocialController {
   @Patch('users/me')
   updateMe(@Req() req: AuthedReq, @Body(new ZodPipe(updateSchema)) b: z.infer<typeof updateSchema>) {
     return this.social.updateMe(req.userId!, b);
+  }
+
+  /** Contas antigas: completar a data de nascimento e aceitar os termos em vigor. */
+  @Put('users/me/consent')
+  consent(@Req() req: AuthedReq, @Body(new ZodPipe(consentSchema)) b: z.infer<typeof consentSchema>) {
+    return this.social.setConsent(req.userId!, b.birthDate);
   }
 
   @Put('users/me/avatar')
@@ -121,6 +138,12 @@ export class SocialController {
   @HttpCode(204)
   decline(@Req() req: AuthedReq, @Param('username') username: string) {
     return this.social.declineRequest(req.userId!, username);
+  }
+
+  /** Autocompletar de @menções: primeiro quem sigo, depois contas públicas que aceitam menções de todos. */
+  @Get('mentionable')
+  mentionable(@Req() req: AuthedReq, @Query('q') q?: string) {
+    return this.social.mentionable(req.userId!, (q ?? '').slice(0, 30));
   }
 
   @Get('suggestions/people')

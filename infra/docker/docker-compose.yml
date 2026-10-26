@@ -31,6 +31,21 @@ services:
       MINIO_ROOT_PASSWORD: txill_dev_secret
     ports: ['9000:9000', '9001:9001']
     volumes: ['miniodata:/data']
+  elasticsearch:
+    profiles: ['search'] # opcional: docker compose --profile search up elasticsearch  (depois SEARCH_BACKEND=elasticsearch)
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: 'false' # só para desenvolvimento local
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports: ['127.0.0.1:9200:9200']
+    volumes: ['esdata:/usr/share/elasticsearch/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -s http://localhost:9200/_cluster/health | grep -qE "green|yellow"']
+      interval: 10s
+      timeout: 5s
+      retries: 20
 volumes:
   pgdata:
   miniodata:
+  esdata:

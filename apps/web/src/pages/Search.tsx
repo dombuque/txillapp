@@ -1,3 +1,6 @@
+import { track } from '../lib/analytics';
+import { sized } from '../lib/media';
+import VerifiedBadge from '../components/VerifiedBadge';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -21,19 +24,24 @@ const readRecent = (): string[] => {
 export default function Search() {
   const [text, setText] = useState('');
   const [term, setTerm] = useState('');
-  const [tab, setTab] = useState<'people' | 'posts'>('people');
+  const [tab, setTab] = useState<'people' | 'tags' | 'posts'>('people');
+  const trending = useQuery({ queryKey: ['trending'], queryFn: api.trending, staleTime: 60_000 });
   const [recent, setRecent] = useState<string[]>(readRecent);
   const [open, setOpen] = useState<Post | null>(null);
 
   // Pausa de 300 ms depois de parar de escrever.
   useEffect(() => {
-    const t = setTimeout(() => setTerm(text.trim()), 300);
+    const t = setTimeout(() => {
+      setTerm(text.trim());
+      if (text.trim().startsWith('#')) setTab('tags');
+    }, 300);
     return () => clearTimeout(t);
   }, [text]);
 
   const q = useQuery({ queryKey: ['search', term], queryFn: () => api.search(term), enabled: term.length >= 2, staleTime: 30_000 });
 
   function remember(t: string) {
+    track('search', { length: t.length, hashtag: t.startsWith('#') });
     const next = [t, ...recent.filter((r) => r !== t)].slice(0, 8);
     setRecent(next);
     try {
@@ -51,6 +59,7 @@ export default function Search() {
     }
   }
 
+  const tags = q.data?.tags ?? [];
   const people = q.data?.people ?? [];
   const posts = q.data?.posts ?? [];
   const searching = term.length >= 2;
@@ -95,15 +104,36 @@ export default function Search() {
               </div>
             </section>
           )}
+          {(trending.data?.tags.length ?? 0) > 0 && (
+            <section className="px-5 pb-4" aria-label="Em alta">
+              <h2 className="mb-1 font-bold">Em alta 🔥</h2>
+              <ol>
+                {trending.data!.tags.map((t, i) => (
+                  <li key={t.tag}>
+                    <Link to={`/tag/${t.tag}`} className="flex items-center gap-3 rounded-xl py-2.5 active:bg-zinc-100">
+                      <span className="w-6 text-center text-sm font-bold text-zinc-400">{i + 1}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[17px] font-bold">#{t.tag}</span>
+                        <span className="block text-sm text-zinc-500">
+                          {t.posts} {t.posts === 1 ? 'publicação' : 'publicações'} · {t.authors} {t.authors === 1 ? 'pessoa' : 'pessoas'}
+                        </span>
+                      </span>
+                      {t.rising && <span className="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-700">A subir ↗</span>}
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
           <Suggestions />
-          <p className="px-6 pt-4 text-center text-zinc-500">Procura pessoas pelo @ ou pelo nome, e publicações por texto ou local.</p>
+          <p className="px-6 pt-4 text-center text-zinc-500">Procura pessoas pelo @ ou nome, #hashtags, e publicações por texto ou local.</p>
         </>
       )}
 
       {searching && (
         <>
           <div role="tablist" aria-label="Resultados" className="mx-4 mb-2 flex gap-2">
-            {([['people', `Pessoas${q.data ? ` (${people.length})` : ''}`], ['posts', `Publicações${q.data ? ` (${posts.length})` : ''}`]] as const).map(([k, label]) => (
+            {([['people', `Pessoas${q.data ? ` (${people.length})` : ''}`], ['tags', `#Tags${q.data ? ` (${tags.length})` : ''}`], ['posts', `Publicações${q.data ? ` (${posts.length})` : ''}`]] as const).map(([k, label]) => (
               <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`flex-1 rounded-full py-2.5 text-sm font-bold transition ${tab === k ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-700'}`}>
                 {label}
               </button>
@@ -126,13 +156,35 @@ export default function Search() {
                   <Link to={`/u/${p.username}`} onClick={() => remember(term)} className="flex min-w-0 flex-1 items-center gap-3">
                     <Avatar name={p.displayName} username={p.username} size={48} />
                     <span className="min-w-0">
-                      <span className="block truncate font-semibold">{p.displayName} {p.isPrivate && <span aria-label="Conta privada">🔒</span>}</span>
+                      <span className="block truncate font-semibold">{p.displayName} {p.verified && <VerifiedBadge size={15} />} {p.isPrivate && <span aria-label="Conta privada">🔒</span>}</span>
                       <span className="block truncate text-sm text-zinc-600">@{p.username}{p.followsYou ? ' · segue-te' : ''}</span>
                     </span>
                   </Link>
                   <div className="w-28 shrink-0">
                     <FollowButton username={p.username} following={p.following} requested={p.requested} isPrivate={p.isPrivate} />
                   </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {q.isSuccess && tab === 'tags' && (
+            <ul className="px-4">
+              {tags.length === 0 && (
+                <li className="py-10 text-center text-zinc-600">
+                  <p className="text-4xl">🏷️</p>
+                  <p className="mt-2 font-semibold">Nenhuma hashtag assim</p>
+                </li>
+              )}
+              {tags.map((t) => (
+                <li key={t.tag}>
+                  <Link to={`/tag/${t.tag}`} onClick={() => remember(term)} className="flex items-center gap-3 rounded-xl py-2.5 active:bg-zinc-100">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-50 text-xl font-bold text-brand" aria-hidden>#</span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-[17px] font-bold">#{t.tag}</span>
+                      <span className="block text-sm text-zinc-500">{t.posts} {t.posts === 1 ? 'publicação' : 'publicações'}</span>
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -150,7 +202,7 @@ export default function Search() {
                 <li key={p.id}>
                   <button onClick={() => { remember(term); setOpen(p); }} className="flex w-full items-center gap-3 rounded-2xl py-2.5 text-left active:bg-zinc-100">
                     {p.media[0] ? (
-                      <img src={p.media[0].url} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
+                      <img src={p.media[0].kind === 'video' ? p.media[0].posterUrl : sized(p.media[0].url, 160)} alt="" loading="lazy" decoding="async" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
                     ) : (
                       <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-2xl" aria-hidden>💬</span>
                     )}

@@ -5,7 +5,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import { Request, Response } from 'express';
-import { AuthResponse, LoginInput, RegisterInput, loginSchema, passwordSchema, registerSchema } from '@txillapp/shared';
+import { AuthResponse, LoginInput, RegisterInput, genderSchema, loginSchema, passwordSchema, registerSchema, birthDateSchema } from '@txillapp/shared';
 import { ZodPipe } from '../common/zod.pipe';
 import { AuthService, REFRESH_TTL_MS, Tokens } from './auth.service';
 
@@ -33,7 +33,7 @@ function requireCsrfHeader(req: Request) {
 const passwordChangeSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: passwordSchema });
 const deleteSchema = z.object({ confirmUsername: z.string().min(1).max(60), password: z.string().max(128).optional() });
 const googleSchema = z.object({ idToken: z.string().min(20).max(4096) });
-const googleCompleteSchema = z.object({ signupToken: z.string().min(20).max(4096), username: z.string().min(1).max(60) });
+const googleCompleteSchema = z.object({ signupToken: z.string().min(20).max(4096), username: z.string().min(1).max(60), gender: genderSchema.optional(), birthDate: birthDateSchema, acceptTerms: z.literal(true) });
 
 @Controller('auth')
 @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -120,7 +120,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    const { tokens, user } = await this.auth.googleComplete(body.signupToken, body.username, req.headers['user-agent']);
+    const { tokens, user } = await this.auth.googleComplete(body.signupToken, body.username, req.headers['user-agent'], body.gender, body.birthDate);
     return this.respond(res, tokens, user);
   }
 

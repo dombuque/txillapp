@@ -6,8 +6,9 @@ import { ZodPipe } from '../common/zod.pipe';
 import { StoriesService } from './stories.service';
 
 type AuthedReq = Request & { userId?: string };
-const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(200).default('') });
+const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all') });
 
+const shareSchema = z.object({ postId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all') });
 const replySchema = z.object({ body: z.string().trim().min(1).max(500) });
 const settingsSchema = z.object({ replies: z.enum(['everyone', 'following', 'off']) });
 
@@ -18,7 +19,31 @@ export class StoriesController {
 
   @Post()
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
-    return this.stories.create(req.userId!, b.mediaId, b.caption);
+    return this.stories.create(req.userId!, b.mediaId, b.caption, b.audience);
+  }
+
+  /** Partilhar uma publicação (foto ou reel) no meu status. */
+  @Post('share')
+  @HttpCode(201)
+  share(@Req() req: AuthedReq, @Body(new ZodPipe(shareSchema)) b: z.infer<typeof shareSchema>) {
+    return this.stories.share(req.userId!, b.postId, b.caption, b.audience);
+  }
+
+  @Get('close-friends')
+  closeFriends(@Req() req: AuthedReq) {
+    return this.stories.closeFriends(req.userId!);
+  }
+
+  @Put('close-friends/:username')
+  @HttpCode(204)
+  addCloseFriend(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.stories.addCloseFriend(req.userId!, username);
+  }
+
+  @Delete('close-friends/:username')
+  @HttpCode(204)
+  removeCloseFriend(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.stories.removeCloseFriend(req.userId!, username);
   }
 
   @Get()
@@ -62,6 +87,23 @@ export class StoriesController {
   @HttpCode(201)
   reply(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(replySchema)) b: z.infer<typeof replySchema>) {
     return this.stories.reply(req.userId!, id, b.body);
+  }
+
+  @Get(':id/comments')
+  comments(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.stories.comments(req.userId!, id);
+  }
+
+  @Post(':id/comments')
+  @HttpCode(201)
+  comment(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(replySchema)) b: z.infer<typeof replySchema>) {
+    return this.stories.comment(req.userId!, id, b.body);
+  }
+
+  @Delete('comments/:commentId')
+  @HttpCode(204)
+  deleteComment(@Req() req: AuthedReq, @Param('commentId', ParseUUIDPipe) commentId: string) {
+    return this.stories.deleteComment(req.userId!, commentId);
   }
 
   @Get(':id/replies')

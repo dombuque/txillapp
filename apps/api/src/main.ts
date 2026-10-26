@@ -4,15 +4,19 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
+import { metricsMiddleware } from './observability/metrics';
 import helmet from 'helmet';
 import type { JWTVerifyGetKey } from 'jose';
 import { AppModule } from './app.module';
 import { loadConfig } from './config';
 
-export async function createApp(config = loadConfig(), opts: { googleJwks?: JWTVerifyGetKey } = {}) {
+export async function createApp(config = loadConfig(), opts: { googleJwks?: JWTVerifyGetKey; imageClassifier?: import('./moderation/image-moderation.service').ImageClassifier; esClient?: import('@elastic/elasticsearch').Client } = {}) {
   const app = await NestFactory.create<NestExpressApplication>(AppModule.register(config, opts));
   app.set('trust proxy', 1);
   app.use(helmet());
+  app.use(metricsMiddleware);
+  app.use(compression()); // JSON e texto mais leves (as fotos já vêm comprimidas)
   app.use(cookieParser());
   app.enableCors({ origin: config.WEB_ORIGIN, credentials: true });
   app.setGlobalPrefix('api/v1');

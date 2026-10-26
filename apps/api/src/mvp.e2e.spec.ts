@@ -21,7 +21,7 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
     const username = `${name}${run}`.slice(0, 30);
     const r = await api()
       .post('/api/v1/auth/register')
-      .send({ email: `${username}@example.com`, username, displayName: name, password: 'password-bem-longa-1' })
+      .send({ email: `${username}@example.com`, username, displayName: name, password: 'password-bem-longa-1' , birthDate: '1990-06-15', acceptTerms: true})
       .expect(201);
     return { token: r.body.accessToken as string, id: r.body.user.id as string, username };
   }

@@ -21,3 +21,11 @@ export const canView = (author = 'u', viewer = '$1') =>
 export const allowedBy = (owner: string, column: string, viewer = '$1') =>
   `(${owner}.id = ${viewer} OR ${owner}.${column} = 'everyone' OR (${owner}.${column} = 'following' AND EXISTS (` +
   `SELECT 1 FROM social.follows af WHERE af.follower_id = ${owner}.id AND af.followee_id = ${viewer})))`;
+
+/**
+ * Lista de quem interagiu (reposts, brindes, presentes): "todos / só quem me segue / ninguém", segundo a definição do dono.
+ * O próprio dono vê sempre.
+ */
+export const listVisibleTo = (owner: string, column: string, viewer = '$1') =>
+  `(${owner}.id = ${viewer} OR ${owner}.${column} = 'everyone' OR (${owner}.${column} = 'followers' AND EXISTS (` +
+  `SELECT 1 FROM social.follows lf WHERE lf.follower_id = ${viewer} AND lf.followee_id = ${owner}.id)))`;

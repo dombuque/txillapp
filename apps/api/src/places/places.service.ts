@@ -1,9 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import type { Pool } from 'pg';
+import { PG_POOL } from '../db/db.module';
 
 export interface NearbyPlace {
   name: string;
   kind: string;
   distanceM: number;
+  /** Posição do sítio (dado público do OpenStreetMap) para o mapa. */
+  lat: number;
+  lng: number;
+}
+export interface PlaceHit {
+  name: string;
+  sub: string;
+  kind: string;
 }
 export interface NearbyPlaces {
   area: string | null;
@@ -40,6 +50,24 @@ function kindOf(tags: Record<string, string>): string {
 
 @Injectable()
 export class PlacesService {
+  constructor(@Optional() @Inject(PG_POOL) private readonly pool?: Pool) {}
+
+  /**
+   * Sítios "a bater": os que mais aparecem em publicações públicas nas últimas 48 h.
+   * Só contam contas públicas e ativas; devolve o nome e quantas publicações, nada de quem publicou.
+   */
+  async hot(): Promise<{ name: string; posts: number }[]> {
+    if (!this.pool) return [];
+    const { rows } = await this.pool.query(
+      `SELECT min(p.location_label) AS name, count(*)::int AS posts
+         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+        WHERE p.kind = 'post' AND p.location_label IS NOT NULL AND u.status = 'active' AND NOT u.is_private
+          AND p.created_at > now() - interval '48 hours'
+        GROUP BY lower(trim(p.location_label))
+        ORDER BY posts DESC, max(p.created_at) DESC LIMIT 8`,
+    );
+    return rows;
+  }
   private readonly cache = new Map<string, { exp: number; value: NearbyPlaces }>();
 
   async nearby(lat: number, lng: number): Promise<NearbyPlaces> {
@@ -59,6 +87,36 @@ export class PlacesService {
       this.cache.set(key, { exp: Date.now() + CACHE_TTL_MS, value });
     }
     return value;
+  }
+
+  private readonly searchCache = new Map<string, { exp: number; value: PlaceHit[] }>();
+
+  /** Pesquisa por nome (Photon, feito para sugestões ao escrever). Só nomes saem daqui; nada é guardado. */
+  async search(text: string, lat?: number, lng?: number): Promise<PlaceHit[]> {
+    const near = lat != null && lng != null ? `&lat=${round3(lat)}&lon=${round3(lng)}` : '';
+    const key = `${text.toLowerCase()}|${near}`;
+    const hit = this.searchCache.get(key);
+    if (hit && hit.exp > Date.now()) return hit.value;
+
+    const base = process.env.GEO_SEARCH_URL ?? 'https://photon.komoot.io/api/';
+    const data = await this.get(`${base}?q=${encodeURIComponent(text)}&limit=7&lang=en${near}`).catch(() => ({ features: [] }));
+    const seen = new Set<string>();
+    const out: PlaceHit[] = [];
+    for (const f of data.features ?? []) {
+      const p: Record<string, string> = f.properties ?? {};
+      const name = p.name ?? p.street;
+      if (!name) continue;
+      const sub = [p.district ?? p.locality, p.city ?? p.county, p.state, p.country].filter((x, i, a) => x && a.indexOf(x) === i && x !== name).slice(0, 3).join(', ');
+      const id = `${name}|${sub}`.toLowerCase();
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push({ name, sub, kind: kindOf({ [p.osm_key ?? '']: p.osm_value ?? '' }) });
+    }
+    if (out.length) {
+      if (this.searchCache.size >= CACHE_MAX) this.searchCache.delete(this.searchCache.keys().next().value!);
+      this.searchCache.set(key, { exp: Date.now() + CACHE_TTL_MS, value: out });
+    }
+    return out;
   }
 
   private async get(url: string, init: RequestInit = {}): Promise<any> {
@@ -108,7 +166,7 @@ export class PlacesService {
       const elng = el.lon ?? el.center?.lon;
       if (!name || elat == null || elng == null || seen.has(name.toLowerCase())) continue;
       seen.add(name.toLowerCase());
-      out.push({ name, kind: kindOf(el.tags), distanceM: distanceM(lat, lng, elat, elng) });
+      out.push({ name, kind: kindOf(el.tags), distanceM: distanceM(lat, lng, elat, elng), lat: elat, lng: elng });
     }
     return out.sort((x, y) => x.distanceM - y.distanceM).slice(0, 8);
   }

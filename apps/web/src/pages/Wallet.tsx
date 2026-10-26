@@ -1,3 +1,4 @@
+import Icon from '../components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -38,8 +39,8 @@ export default function Wallet() {
         </p>
       </section>
 
-      <button onClick={() => setGifting(true)} className={`${btnPrimary} mt-5 w-full py-4 text-lg`}>
-        🎁 Presentear alguém
+      <button onClick={() => setGifting(true)} className={`${btnPrimary} mt-5 flex w-full items-center justify-center gap-2 py-4 text-lg`}>
+        <Icon name="gift" size={20} /> Presentear alguém
       </button>
 
       <section className="mt-8 rounded-[28px] bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">

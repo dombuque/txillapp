@@ -1,3 +1,8 @@
+import MentionTextarea from './MentionTextarea';
+import { Link } from 'react-router-dom';
+import VerifiedBadge from './VerifiedBadge';
+import ReportSheet from './ReportSheet';
+import RichText from './RichText';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent, type TouchEvent } from 'react';
 import { api, type Comment, type Post } from '../lib/api';
@@ -6,19 +11,10 @@ import { Avatar, timeAgo } from './ui';
 
 const QUICK = ['🍻', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
 
-/** Menções (@utilizador) a destacar, como no Instagram. */
 function Body({ text }: { text: string }) {
   return (
     <p className="whitespace-pre-wrap break-words text-[15px] leading-snug text-zinc-800">
-      {text.split(/(@[\w.]+)/g).map((part, i) =>
-        part.startsWith('@') ? (
-          <span key={i} className="font-semibold text-brand">
-            {part}
-          </span>
-        ) : (
-          part
-        ),
-      )}
+      <RichText text={text} />
     </p>
   );
 }
@@ -34,6 +30,7 @@ interface RowProps {
 function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
   const [cheer, setCheer] = useState({ cheered: c.cheered, cheers: c.cheers });
   const [gone, setGone] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   async function toggle() {
     const prev = cheer;
@@ -54,19 +51,23 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
     }
   }
   if (gone) return null;
+  const reportSheet = reporting && <ReportSheet type="comment" id={c.id} layer="z-[60]" onClose={() => setReporting(false)} />;
 
   return (
     <div className="flex gap-3 py-2.5">
-      <Avatar name={c.author.displayName} username={c.author.username} size={isReply ? 28 : 36} />
+      <Link to={`/u/${c.author.username}`} aria-label={`Perfil de ${c.author.displayName}`} className="self-start">
+        <Avatar name={c.author.displayName} username={c.author.username} size={isReply ? 28 : 36} />
+      </Link>
       <div className="min-w-0 flex-1">
         <p className="text-sm">
-          <span className="font-semibold">{c.author.username}</span>{' '}
+          <Link to={`/u/${c.author.username}`} className="font-semibold">{c.author.username}{c.author.verified && <> <VerifiedBadge size={13} /></>}</Link>{' '}
           <span className="text-zinc-500">{timeAgo(c.createdAt)}</span>
         </p>
         <Body text={c.body} />
         <div className="mt-1 flex gap-4 text-xs font-semibold text-zinc-500">
           {cheer.cheers > 0 && <span>{cheer.cheers} {cheer.cheers === 1 ? 'brinde' : 'brindes'}</span>}
           <button onClick={() => onReply(c)}>Responder</button>
+          {!canDelete && <button onClick={() => setReporting(true)}>Denunciar</button>}
           {canDelete && <button onClick={remove}>Apagar</button>}
         </div>
       </div>
@@ -78,6 +79,7 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
       >
         🍻
       </button>
+      {reportSheet}
     </div>
   );
 }
@@ -127,7 +129,7 @@ function Replies({ c, expanded, toggle, canDeleteFor, onReply, onRemoved }: Thre
   );
 }
 
-export default function CommentsSheet({ post, onClose, onDelta }: { post: Post; onClose: () => void; onDelta: (n: number) => void }) {
+export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }: { post: Post; onClose: () => void; onDelta: (n: number) => void; layer?: string }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -196,7 +198,7 @@ export default function CommentsSheet({ post, onClose, onDelta }: { post: Post; 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose} role="presentation">
+    <div className={`fixed inset-0 ${layer} flex items-end justify-center bg-black/40`} onClick={onClose} role="presentation">
       <div
         role="dialog"
         aria-modal="true"
@@ -264,14 +266,17 @@ export default function CommentsSheet({ post, onClose, onDelta }: { post: Post; 
           <form onSubmit={submit} className="flex items-center gap-3 px-4 pt-2">
             <Avatar name={user?.displayName ?? '?'} username={user?.username} size={36} />
             <div className="flex flex-1 items-center rounded-full border border-zinc-300 pl-4 pr-2">
-              <input
-                ref={inputRef}
+              <MentionTextarea
+                single
+                up
+                wrapperClassName="min-w-0 flex-1"
+                inputRef={inputRef}
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={setText}
                 maxLength={1000}
                 placeholder={replyTo ? `Responder a ${replyTo.author.username}…` : 'Diz lá… 💬'}
                 aria-label="Escrever comentário"
-                className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] outline-none"
+                className="w-full bg-transparent py-2.5 text-[15px] outline-none"
               />
               <button disabled={!text.trim() || busy} className="px-2 py-1 font-semibold text-brand disabled:opacity-60">
                 Publicar

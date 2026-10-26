@@ -1,12 +1,25 @@
+import { useInstall } from '../lib/install';
+import PushToggle from '../components/PushToggle';
+import Icon from '../components/Icon';
+import { Link } from 'react-router-dom';
+import GenderPicker, { genderLabel } from '../components/GenderPicker';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent, type ReactNode } from 'react';
+import CloseFriendsSheet from '../components/CloseFriendsSheet';
 import EditProfileSheet from '../components/EditProfileSheet';
 import StackPage from '../components/StackPage';
 import { Avatar, Sheet, btnGhost, btnPrimary, fieldInput, timeAgo } from '../components/ui';
-import { ApiError, api, type PrivacySettings, type Who } from '../lib/api';
+import { ApiError, api, type PrivacySettings, type Who, type Viewers } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
-type SheetName = null | 'edit' | 'type' | 'comments' | 'gifts' | 'connections' | 'storyReplies' | 'hidden' | 'blocked' | 'password' | 'devices' | 'delete' | 'logout';
+type SheetName = null | 'gender' | 'edit' | 'type' | 'comments' | 'gifts' | 'connections' | 'storyReplies' | 'hidden' | 'mentions' | 'dms' | 'closeFriends' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'blocked' | 'password' | 'devices' | 'delete' | 'logout';
+
+const VIEWERS: { value: Viewers; title: string; text: string }[] = [
+  { value: 'everyone', title: 'Todos', text: 'Qualquer pessoa que veja a publicação.' },
+  { value: 'followers', title: 'Só os meus seguidores', text: 'Quem me segue.' },
+  { value: 'off', title: 'Só eu', text: 'Mais ninguém vê os nomes.' },
+];
+const viewersLabel = (v: Viewers) => VIEWERS.find((x) => x.value === v)!.title;
 
 const WHO: { value: Who; title: string; text: string }[] = [
   { value: 'everyone', title: 'Todos', text: 'Qualquer pessoa.' },
@@ -21,10 +34,10 @@ const CONNECTIONS = [
 ] as const;
 
 /** Linha de definição: ícone, nome, valor atual e seta. */
-function Row({ icon, label, value, onClick, danger }: { icon: string; label: string; value?: string; onClick: () => void; danger?: boolean }) {
+function Row({ icon, label, value, onClick, danger }: { icon: ReactNode; label: string; value?: string; onClick: () => void; danger?: boolean }) {
   return (
     <button onClick={onClick} className={`flex min-h-[56px] w-full items-center gap-3.5 px-4 py-3 text-left transition active:bg-zinc-50 ${danger ? 'text-red-700' : ''}`}>
-      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl ${danger ? 'bg-red-50' : 'bg-zinc-100'}`} aria-hidden>{icon}</span>
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${danger ? 'bg-red-50 text-red-700' : 'bg-zinc-100 text-zinc-800'}`} aria-hidden>{icon}</span>
       <span className="min-w-0 flex-1 text-[16px] font-medium">{label}</span>
       {value && <span className="max-w-[40%] truncate text-sm text-zinc-600">{value}</span>}
       <span className="text-xl text-zinc-400" aria-hidden>›</span>
@@ -32,10 +45,10 @@ function Row({ icon, label, value, onClick, danger }: { icon: string; label: str
   );
 }
 
-function Toggle({ icon, label, text, on, onChange }: { icon: string; label: string; text: string; on: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ icon, label, text, on, onChange }: { icon: ReactNode; label: string; text: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
     <div className="flex min-h-[56px] items-center gap-3.5 px-4 py-3">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xl" aria-hidden>{icon}</span>
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden>{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[16px] font-medium">{label}</span>
         <span className="block text-sm text-zinc-600">{text}</span>
@@ -82,6 +95,17 @@ function ChoiceSheet<T extends string>({ title, intro, options, value, onPick, o
   );
 }
 
+/** "Instalar a app" nas definições: botão no Android, instruções no iPhone, e "instalada" quando já está. */
+function InstallRow() {
+  const { installed, canPrompt, iosHint, iosOpenInSafari, install } = useInstall();
+  if (installed) return <Row icon={<Icon name="check-circle" />} label="App instalada" value="✓" onClick={() => undefined} />;
+  if (!canPrompt && !iosHint && !iosOpenInSafari) return null;
+  const how = iosHint
+    ? 'No Safari: toca em Partilhar (o quadrado com a seta) e depois em "Adicionar ao ecrã principal".'
+    : 'Para instalar no iPhone, abre este endereço no Safari.';
+  return <Row icon={<Icon name="phone" />} label="Instalar a app" onClick={() => (canPrompt ? void install() : window.alert(how))} />;
+}
+
 export default function Settings() {
   const qc = useQueryClient();
   const { user, signOut, signIn } = useAuth();
@@ -91,8 +115,28 @@ export default function Settings() {
   const profile = useQuery({ queryKey: ['profile', user!.username], queryFn: () => api.profile(user!.username) });
   const privacy = useQuery({ queryKey: ['privacy'], queryFn: api.privacy });
   const stories = useQuery({ queryKey: ['story-settings'], queryFn: api.storySettings });
+  const closeFriends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
   const blocked = useQuery({ queryKey: ['blocked'], queryFn: api.blocked });
   const p = privacy.data;
+
+  const [exporting, setExporting] = useState(false);
+  async function downloadData() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const blob = await api.exportData();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `txillapp-dados-${user!.username}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (x) {
+      window.alert((x as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function savePrivacy(patch: Partial<PrivacySettings>) {
     const prev = p;
@@ -122,33 +166,81 @@ export default function Settings() {
         </button>
       )}
 
+      <Section title="Carteira">
+        <Link to="/wallet" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="wallet" /></span>
+          <span className="flex-1 font-semibold">Txills e presentes</span>
+          <span className="text-xl text-zinc-400" aria-hidden>›</span>
+        </Link>
+      </Section>
+
       <Section title="Privacidade da conta">
-        <Row icon={p?.isPrivate ? '🔒' : '🌍'} label="Tipo de perfil" value={p ? (p.isPrivate ? 'Privado' : 'Público') : '…'} onClick={() => setSheet('type')} />
-        <Row icon="🚫" label="Contas bloqueadas" value={blocked.data ? String(blocked.data.length) : '…'} onClick={() => setSheet('blocked')} />
-        <Row icon="👥" label="Quem vê seguidores e a quem sigo" value={p ? CONNECTIONS.find((c) => c.value === p.showConnections)!.title : '…'} onClick={() => setSheet('connections')} />
-        {p && <Toggle icon="✨" label="Aparecer nas sugestões" text="Outras pessoas podem descobrir-te." on={p.suggestable} onChange={(v) => savePrivacy({ suggestable: v })} />}
+        <Row icon={<Icon name={p?.isPrivate ? 'lock' : 'globe'} />} label="Tipo de perfil" value={p ? (p.isPrivate ? 'Privado' : 'Público') : '…'} onClick={() => setSheet('type')} />
+        <Row icon={<Icon name="user-circle" />} label="Como me identifico" value={p ? (p.gender ? genderLabel(p.gender) : 'Por escolher') : '…'} onClick={() => setSheet('gender')} />
+        {p && p.gender && p.gender !== 'unspecified' && <Toggle icon={<Icon name="user" />} label="Mostrar no perfil" text="Quem vê o teu perfil vê também isto." on={p.showGender} onChange={(v) => savePrivacy({ showGender: v })} />}
+        <Row icon={<Icon name="block" />} label="Contas bloqueadas" value={blocked.data ? String(blocked.data.length) : '…'} onClick={() => setSheet('blocked')} />
+        <Row icon={<Icon name="users" />} label="Quem vê seguidores e a quem sigo" value={p ? CONNECTIONS.find((c) => c.value === p.showConnections)!.title : '…'} onClick={() => setSheet('connections')} />
+        {p && <Toggle icon={<Icon name="sparkles" />} label="Aparecer nas sugestões" text="Outras pessoas podem descobrir-te." on={p.suggestable} onChange={(v) => savePrivacy({ suggestable: v })} />}
       </Section>
 
       <Section title="Interações">
-        <Row icon="💬" label="Quem pode comentar" value={p ? whoLabel(p.commentsAllowed) : '…'} onClick={() => setSheet('comments')} />
-        <Row icon="🎁" label="Quem pode presentear-me" value={p ? whoLabel(p.giftsAllowed) : '…'} onClick={() => setSheet('gifts')} />
+        <Row icon={<Icon name="comment" />} label="Quem pode comentar" value={p ? whoLabel(p.commentsAllowed) : '…'} onClick={() => setSheet('comments')} />
+        <Row icon={<Icon name="repeat" />} label="Quem vê quem repostou" value={p ? viewersLabel(p.repostsVisible) : '…'} onClick={() => setSheet('repostsVisible')} />
+        <Row icon={<Icon name="cheers" />} label="Quem vê quem brindou" value={p ? viewersLabel(p.cheersVisible) : '…'} onClick={() => setSheet('cheersVisible')} />
+        <Row icon={<Icon name="gift" />} label="Quem vê quem presenteou" value={p ? viewersLabel(p.giftsVisible) : '…'} onClick={() => setSheet('giftsVisible')} />
+        <Row icon={<Icon name="mail" />} label="Quem pode enviar-me mensagens" value={p ? whoLabel(p.dmsAllowed) : '…'} onClick={() => setSheet('dms')} />
+        <Row icon={<Icon name="at" />} label="Quem pode mencionar-me" value={p ? whoLabel(p.mentionsAllowed) : '…'} onClick={() => setSheet('mentions')} />
+        <Row icon={<Icon name="gift" />} label="Quem pode presentear-me" value={p ? whoLabel(p.giftsAllowed) : '…'} onClick={() => setSheet('gifts')} />
       </Section>
 
       <Section title="Stories">
-        <Row icon="📸" label="Quem pode responder" value={stories.data ? whoLabel(stories.data.replies) : '…'} onClick={() => setSheet('storyReplies')} />
-        <Row icon="🙈" label="Esconder story de…" value={stories.data ? String(stories.data.hidden.length) : '…'} onClick={() => setSheet('hidden')} />
+        <Row icon={<Icon name="camera" />} label="Quem pode responder" value={stories.data ? whoLabel(stories.data.replies) : '…'} onClick={() => setSheet('storyReplies')} />
+        <Row icon={<Icon name="heart" />} label="Amigos próximos" value={closeFriends.data ? String(closeFriends.data.length) : '…'} onClick={() => setSheet('closeFriends')} />
+        <Row icon={<Icon name="eye-off" />} label="Esconder story de…" value={stories.data ? String(stories.data.hidden.length) : '…'} onClick={() => setSheet('hidden')} />
+      </Section>
+
+      <Section title="Notificações">
+        <InstallRow />
+        <PushToggle />
+      </Section>
+
+      <Section title="Privacidade dos dados">
+        {p && <Toggle icon={<Icon name="info" />} label="Ajudar a melhorar o Txillapp" text="Estatísticas de uso anónimas, só nossas (aberturas, ecrãs, erros). Nunca o conteúdo." on={p.shareAnalytics} onChange={(v) => savePrivacy({ shareAnalytics: v })} />}
       </Section>
 
       <Section title="Segurança">
-        <Row icon="🔑" label="Alterar senha" onClick={() => setSheet('password')} />
-        <Row icon="📱" label="Dispositivos com sessão iniciada" onClick={() => setSheet('devices')} />
+        <Row icon={<Icon name="key" />} label="Alterar senha" onClick={() => setSheet('password')} />
+        <Row icon={<Icon name="phone" />} label="Dispositivos com sessão iniciada" onClick={() => setSheet('devices')} />
       </Section>
+
+      {p?.isAdmin && (
+        <Section title="Moderação">
+          <Link to="/admin/stats" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="sparkles" /></span>
+            <span className="flex-1 font-semibold">Estatísticas</span>
+            <span className="text-xl text-zinc-400" aria-hidden>›</span>
+          </Link>
+          <Link to="/admin" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="shield" /></span>
+            <span className="flex-1 font-semibold">Fila de denúncias</span>
+            <span className="text-xl text-zinc-400" aria-hidden>›</span>
+          </Link>
+        </Section>
+      )}
+
+      <p className="mt-2 px-4 text-center text-xs text-zinc-500">Txillapp · versão de {__BUILD__}</p>
 
       <Section title="Conta">
-        <Row icon="🚪" label="Terminar sessão" onClick={() => setSheet('logout')} />
-        <Row icon="🗑️" label="Eliminar conta" danger onClick={() => setSheet('delete')} />
+        <Row icon={<Icon name="download" />} label={exporting ? 'A preparar…' : 'Descarregar os meus dados'} onClick={downloadData} />
+        <Row icon={<Icon name="logout" />} label="Terminar sessão" onClick={() => setSheet('logout')} />
+        <Row icon={<Icon name="trash" />} label="Eliminar conta" danger onClick={() => setSheet('delete')} />
       </Section>
 
+      {sheet === 'gender' && p && (
+        <Sheet title="Como te identificas? 🌈" onClose={close}>
+          <GenderPicker value={p.gender} onChange={(g) => { void savePrivacy({ gender: g, ...(g === 'unspecified' ? { showGender: false } : {}) }); close(); }} />
+        </Sheet>
+      )}
       {sheet === 'edit' && profile.data && <EditProfileSheet profile={profile.data} onClose={close} />}
       {sheet === 'type' && p && (
         <ChoiceSheet
@@ -161,6 +253,12 @@ export default function Settings() {
         />
       )}
       {sheet === 'comments' && p && <ChoiceSheet title="Quem pode comentar" intro="Aplica-se às tuas publicações. Os comentários que já existem mantêm-se." options={WHO} value={p.commentsAllowed} onPick={(v) => savePrivacy({ commentsAllowed: v })} onClose={close} />}
+      {sheet === 'mentions' && p && <ChoiceSheet title="Quem pode mencionar-me" intro="Quem escreve @{o teu nome} e te faz aparecer nas sugestões. Quem eu sigo mantém-se sempre disponível para mim; contas privadas só são mencionadas por quem as segue." options={WHO} value={p.mentionsAllowed} onPick={(v) => savePrivacy({ mentionsAllowed: v })} onClose={close} />}
+      {sheet === 'repostsVisible' && p && <ChoiceSheet title="Quem vê quem repostou" intro="Os números continuam visíveis; isto muda só quem pode ver os nomes." options={VIEWERS} value={p.repostsVisible} onPick={(v) => savePrivacy({ repostsVisible: v })} onClose={close} />}
+      {sheet === 'cheersVisible' && p && <ChoiceSheet title="Quem vê quem brindou" intro="Os números continuam visíveis; isto muda só quem pode ver os nomes." options={VIEWERS} value={p.cheersVisible} onPick={(v) => savePrivacy({ cheersVisible: v })} onClose={close} />}
+      {sheet === 'giftsVisible' && p && <ChoiceSheet title="Quem vê quem presenteou" intro="Os números continuam visíveis; isto muda só quem pode ver os nomes (nunca os valores)." options={VIEWERS} value={p.giftsVisible} onPick={(v) => savePrivacy({ giftsVisible: v })} onClose={close} />}
+      {sheet === 'dms' && p && <ChoiceSheet title="Quem pode enviar-me mensagens" intro="Só trava conversas novas: as que já existem continuam. As respostas aos teus stories seguem a definição dos stories." options={WHO} value={p.dmsAllowed} onPick={(v) => savePrivacy({ dmsAllowed: v })} onClose={close} />}
+      {sheet === 'closeFriends' && <CloseFriendsSheet onClose={close} />}
       {sheet === 'gifts' && p && <ChoiceSheet title="Quem pode presentear-me" options={WHO} value={p.giftsAllowed} onPick={(v) => savePrivacy({ giftsAllowed: v })} onClose={close} />}
       {sheet === 'connections' && p && <ChoiceSheet title="Quem vê seguidores e a quem sigo" intro="Os números continuam visíveis; muda só quem pode ver as listas." options={CONNECTIONS} value={p.showConnections} onPick={(v) => savePrivacy({ showConnections: v })} onClose={close} />}
       {sheet === 'storyReplies' && stories.data && <ChoiceSheet title="Respostas aos stories" intro="Quem pode responder ou reagir aos teus stories." options={WHO} value={stories.data.replies} onPick={saveStoryReplies} onClose={close} />}

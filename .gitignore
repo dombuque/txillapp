@@ -9,3 +9,5 @@ coverage/
 uploads/
 uploads-test/
 img/
+.models/
+*.tsbuildinfo

@@ -16,13 +16,15 @@ const OPTIONS: { value: GiftVisibility; emoji: string; title: string; text: stri
  * Escolhe-se como o dar (discreto, no privado, no feed) e, mesmo depois de enviado, pode-se publicar.
  */
 export default function GiftSheet({
-  recipient, postId, onClose,
+  recipient, postId, onClose, layer,
 }: {
   /** Destinatário já conhecido (publicação ou perfil). Sem ele, pede-se o @. */
   recipient?: { username: string; displayName: string };
   /** Presente dado a partir de uma publicação (conta no "presentes" dessa publicação). */
   postId?: string;
   onClose: () => void;
+  /** Camada (z-index) quando abre por cima de outro ecrã, ex.: o visualizador de fotos. */
+  layer?: string;
 }) {
   const qc = useQueryClient();
   const [to, setTo] = useState('');
@@ -78,7 +80,7 @@ export default function GiftSheet({
 
   if (sent) {
     return (
-      <Sheet title="Presente enviado 🎁" onClose={onClose}>
+      <Sheet title="Presente enviado 🎁" onClose={onClose} layer={layer}>
         <p className="py-3 text-center text-lg">Mandaste {custom || amount} Txills a {name}! Que generoso 😍</p>
         {sent.published ? (
           <p role="status" className="pb-2 text-center text-green-700">📣 Já está no feed.</p>
@@ -94,7 +96,7 @@ export default function GiftSheet({
   }
 
   return (
-    <Sheet title={`Presentear ${name} 🎁`} onClose={onClose}>
+    <Sheet title={`Presentear ${name} 🎁`} onClose={onClose} layer={layer}>
       <div className="space-y-4">
         {!recipient && (
           <input value={to} onChange={(e) => { setTo(e.target.value); fresh(); }} placeholder="@utilizador" aria-label="Utilizador" autoCapitalize="none" autoCorrect="off" className={fieldInput} />

@@ -1,3 +1,4 @@
+import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 const BRAND = '#d6334f';
@@ -93,13 +94,16 @@ export function Sheet({ title, onClose, children, layer = 'z-50' }: { title: str
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, [onClose]);
+  // iPhone: com o teclado aberto a folha sobe e fica na zona visível (o que escreves nunca fica tapado).
+  const vv = useVisualViewport();
   return (
-    <div className={`fixed inset-0 ${layer} flex items-end justify-center bg-black/40`} onClick={onClose} role="presentation">
+    <div className={`fixed inset-0 ${layer} flex items-end justify-center bg-black/40`} style={visibleStyle(vv)} onClick={onClose} role="presentation">
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
         className="animate-[rise_.25s_ease-out] max-h-[85dvh] w-full max-w-xl overflow-y-auto rounded-t-[28px] bg-white px-6 pb-8 pt-3"
+        style={vv ? { maxHeight: Math.round(vv.height * 0.94) } : undefined}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-zinc-300" aria-hidden />

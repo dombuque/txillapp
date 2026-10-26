@@ -1,9 +1,10 @@
-import { registerSchema, type RegisterInput } from '@txillapp/shared';
+import GenderPicker from '../components/GenderPicker';
+import { MIN_AGE, birthDateSchema, registerSchema, type RegisterInput } from '@txillapp/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type Ref, type SVGProps } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Wordmark } from '../components/ui';
-import { ApiError, api } from '../lib/api';
+import { ApiError, api, type Gender } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 /* ───────────── ícones ───────────── */
@@ -18,6 +19,7 @@ const LockIcon = () => (<svg {...svg({})}><rect x="5" y="11" width="14" height="
 const EyeIcon = () => (<svg {...svg({})}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>);
 const EyeOffIcon = () => (<svg {...svg({})}><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4M6.5 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.6 9.6 0 0 0 4-.9" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>);
 const BackIcon = () => (<svg {...svg({ width: 30, height: 30, strokeWidth: 2 })}><path d="M20 12H5M11 6l-6 6 6 6" /></svg>);
+const CalendarIcon = () => (<svg {...svg({})}><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>);
 const CheckIcon = () => (<svg {...svg({ strokeWidth: 2.4 })}><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>);
 const CrossIcon = () => (<svg {...svg({ strokeWidth: 2.4 })}><path d="M6 6l12 12M18 6 6 18" /></svg>);
 const Spinner = () => (<svg {...svg({})} className="animate-spin"><path d="M12 3a9 9 0 1 0 9 9" /></svg>);
@@ -35,6 +37,11 @@ function problemOf(key: FieldKey, raw: string): string | null {
     return registerSchema.shape.username.safeParse(v).success ? null : 'Só letras, números, "_" e "." — sem espaços 🙃';
   }
   if (key === 'email') return registerSchema.shape.email.safeParse(v).success ? null : 'Esse email não parece certo 🤔';
+  if (key === 'gender') return v ? null : 'Escolhe uma opção 🙂';
+  if (key === 'birthDate') {
+    const r = birthDateSchema.safeParse(v);
+    return r.success ? null : (r.error.issues[0]?.message ?? 'Data inválida');
+  }
   return raw.length >= 10 ? null : 'Mínimo 10 caracteres 🙃';
 }
 
@@ -323,6 +330,8 @@ const steps: { key: FieldKey; title: string; sub: string; placeholder: string; i
   { key: 'displayName', title: 'Como te chamas? 🤔', sub: 'Diz-nos o teu nome, não mordemos 😄', placeholder: 'Nome', icon: <UserIcon />, ac: 'name', cta: 'Próximo', hint: 'next' },
   { key: 'username', title: 'Qual vai ser o teu @? 😎', sub: 'É único: só tu o podes ter', placeholder: 'utilizador', icon: <AtIcon />, ac: 'username', cta: 'Próximo', hint: 'next' },
   { key: 'email', title: 'E o teu email? 📬', sub: 'Prometemos não fazer spam', placeholder: 'email@exemplo.com', icon: <MailIcon />, type: 'email', ac: 'email', cta: 'Próximo', hint: 'next' },
+  { key: 'birthDate', title: 'Quando nasceste? 🎂', sub: `Para confirmar que tens ${MIN_AGE}+ anos. Ninguém vê esta data`, placeholder: 'AAAA-MM-DD', icon: <CalendarIcon />, type: 'date', ac: 'bday', cta: 'Próximo', hint: 'next' },
+  { key: 'gender', title: 'Como te identificas? 🌈', sub: 'Só tu decides se isto aparece no teu perfil', placeholder: '', icon: null, ac: 'off', cta: 'Próximo', hint: 'next' },
   { key: 'password', title: 'Agora uma senha 🔐', sub: 'Mínimo 10 caracteres. Nada de "123456", ok?', placeholder: 'Senha', icon: <LockIcon />, type: 'password', ac: 'new-password', cta: 'Criar conta', hint: 'go' },
 ];
 
@@ -343,15 +352,16 @@ export function Register() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const step = steps[i];
-  const value = data[step.key] ?? '';
+  const value = String(data[step.key] ?? '');
   const kind = step.key === 'username' || step.key === 'email' ? step.key : null;
   const check = useAvailability(kind ?? 'username', value, kind !== null);
   const local = value ? problemOf(step.key, value) : null;
-  const blocked = !value.trim() || !!local || (kind !== null && (check.state === 'checking' || check.state === 'bad'));
+  const termsMissing = step.key === 'password' && !data.acceptTerms;
+  const blocked = termsMissing || !value.trim() || !!local || (kind !== null && (check.state === 'checking' || check.state === 'bad'));
 
   async function next(e: FormEvent) {
     e.preventDefault();
-    if (blocked) return setError(local ?? (check.state === 'bad' ? check.message : value ? 'Só um segundinho… ⏳' : 'Preenche este campo 🙂'));
+    if (blocked) return setError(termsMissing ? 'Tens de aceitar os Termos e a Política de Privacidade 🙂' : (local ?? (check.state === 'bad' ? check.message : value ? 'Só um segundinho… ⏳' : 'Preenche este campo 🙂')));
     setError('');
     if (i < steps.length - 1) return setI(i + 1);
     setBusy(true);
@@ -395,6 +405,9 @@ export function Register() {
         <h1 className="text-4xl font-light leading-tight">{step.title}</h1>
         <p className="mt-3 text-xl font-light text-zinc-600">{step.sub}</p>
         <div className="mt-8">
+          {step.key === 'gender' ? (
+            <GenderPicker value={data.gender} onChange={(g) => { setError(''); setData({ ...data, gender: g }); }} />
+          ) : (
           <Field
             key={step.key}
             autoFocus
@@ -402,7 +415,7 @@ export function Register() {
             value={value}
             onChange={(v) => {
               setError('');
-              setData({ ...data, [step.key]: v });
+              setData({ ...data, [step.key]: v } as Partial<RegisterInput>);
             }}
             placeholder={step.placeholder}
             type={step.type}
@@ -412,6 +425,7 @@ export function Register() {
             enterKeyHint={step.hint}
             status={status}
           />
+          )}
           {step.key === 'username' && (
             <Availability check={check} okText={`@${value.trim().replace(/^@/, '')} está livre 🎉`} onPick={(v) => setData({ ...data, username: v })} />
           )}
@@ -432,6 +446,20 @@ export function Register() {
               </div>
               <span className="text-sm font-medium text-zinc-600">{s.label}</span>
             </div>
+          )}
+          {step.key === 'password' && (
+            <label className="mt-6 flex cursor-pointer items-start gap-3 px-1 text-[15px] leading-snug text-zinc-700">
+              <input
+                type="checkbox"
+                checked={!!data.acceptTerms}
+                onChange={(e) => { setError(''); setData({ ...data, acceptTerms: e.target.checked as true }); }}
+                className="mt-0.5 h-5 w-5 shrink-0 accent-[#d6334f]"
+              />
+              <span>
+                Li e aceito os <Link to="/terms" target="_blank" className="font-semibold text-brand underline">Termos de Uso</Link> e a{' '}
+                <Link to="/privacy" target="_blank" className="font-semibold text-brand underline">Política de Privacidade</Link>.
+              </span>
+            </label>
           )}
         </div>
         <Alert>{error}</Alert>
@@ -457,6 +485,11 @@ export function GoogleUsername() {
   const navigate = useNavigate();
   const state = useLocation().state as GoogleSignup | null;
   const [username, setUsername] = useState(state?.suggestedUsername ?? '');
+  const [gender, setGender] = useState<Gender | null>(null);
+  const [birth, setBirth] = useState('');
+  const [terms, setTerms] = useState(false);
+  const birthProblem = birth ? problemOf('birthDate', birth) : null;
+  const ready = !!gender && !!birth && !birthProblem && terms;
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const check = useAvailability('username', username);
@@ -465,11 +498,11 @@ export function GoogleUsername() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (check.state !== 'ok' && check.state !== 'error') return;
+    if ((check.state !== 'ok' && check.state !== 'error') || !ready) return;
     setBusy(true);
     setError('');
     try {
-      signIn(await api.googleComplete(state!.signupToken, username));
+      signIn(await api.googleComplete(state!.signupToken, username, gender!, birth));
       navigate('/', { replace: true });
     } catch (x) {
       setError(x instanceof ApiError && x.status === 401 ? 'O pedido expirou. Volta atrás e entra com a Google outra vez 🔄' : (x as Error).message);
@@ -494,9 +527,21 @@ export function GoogleUsername() {
           />
           <Availability check={check} okText={`@${username.trim().replace(/^@/, '')} está livre 🎉`} onPick={setUsername} />
         </div>
+        <p className="mb-3 mt-8 text-lg font-semibold">Como te identificas? 🌈</p>
+        <GenderPicker value={gender} onChange={setGender} />
+        <p className="mb-3 mt-8 text-lg font-semibold">Quando nasceste? 🎂</p>
+        <Field icon={<CalendarIcon />} value={birth} onChange={(v) => { setError(''); setBirth(v); }} placeholder="AAAA-MM-DD" type="date" autoComplete="bday" status={birth ? (birthProblem ? 'bad' : 'ok') : undefined} />
+        {birthProblem && <p className="mt-2 px-1 text-sm font-medium text-red-600">{birthProblem}</p>}
+        <label className="mt-6 flex cursor-pointer items-start gap-3 px-1 text-[15px] leading-snug text-zinc-700">
+          <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-[#d6334f]" />
+          <span>
+            Li e aceito os <Link to="/terms" target="_blank" className="font-semibold text-brand underline">Termos de Uso</Link> e a{' '}
+            <Link to="/privacy" target="_blank" className="font-semibold text-brand underline">Política de Privacidade</Link>.
+          </span>
+        </label>
         <Alert>{error}</Alert>
-        <div className="mt-auto pb-6 pt-2">
-          <button disabled={busy || (check.state !== 'ok' && check.state !== 'error')} className={cta}>{busy ? 'A criar… 🚀' : 'Continuar'}</button>
+        <div className="mt-auto pb-6 pt-4">
+          <button disabled={busy || !ready || (check.state !== 'ok' && check.state !== 'error')} className={cta}>{busy ? 'A criar… 🚀' : 'Continuar'}</button>
         </div>
       </form>
     </Screen>

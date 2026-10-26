@@ -4,9 +4,10 @@ import { createHash, randomBytes } from 'crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { Pool, PoolClient } from 'pg';
 import { z } from 'zod';
-import { LoginInput, PublicUser, RegisterInput, usernameSchema } from '@txillapp/shared';
+import { LoginInput, PublicUser, RegisterInput, usernameSchema, TERMS_VERSION } from '@txillapp/shared';
 import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
+import { SearchIndexer } from '../search/search-index';
 import { PG_POOL } from '../db/db.module';
 import { GoogleService } from './google.service';
 import { isReservedUsername } from './reserved-usernames';
@@ -43,6 +44,7 @@ export class AuthService {
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(CONFIG) config: AppConfig,
     private readonly google: GoogleService,
+    private readonly indexer: SearchIndexer,
   ) {
     this.secret = new TextEncoder().encode(config.JWT_ACCESS_SECRET);
   }
@@ -85,13 +87,15 @@ export class AuthService {
     try {
       await client.query('BEGIN');
       await client.query(
-        'INSERT INTO identity.users (id, email, username, display_name) VALUES ($1, $2, $3, $4)',
-        [id, input.email, input.username, input.displayName],
+        `INSERT INTO identity.users (id, email, username, display_name, gender, birth_date, terms_accepted_at, terms_version)
+         VALUES ($1, $2, $3, $4, $5, $6, now(), $7)`,
+        [id, input.email, input.username, input.displayName, input.gender ?? null, input.birthDate, TERMS_VERSION],
       );
       await client.query('INSERT INTO identity.credentials (user_id, password_hash) VALUES ($1, $2)', [id, hash]);
       await this.audit(client, id, 'auth.register');
       const tokens = await this.issueSession(client, id, uuidv7(), userAgent);
       await client.query('COMMIT');
+      this.indexer.userChanged(id);
       return { tokens, user: { id, username: input.username, displayName: input.displayName } };
     } catch (e) {
       await client.query('ROLLBACK');
@@ -205,7 +209,7 @@ export class AuthService {
     return { kind: 'signup' as const, signupToken, displayName: p.name.slice(0, 60), suggestedUsername: await this.suggestUsername(p.email) };
   }
 
-  async googleComplete(signupToken: string, rawUsername: string, userAgent?: string) {
+  async googleComplete(signupToken: string, rawUsername: string, userAgent?: string, gender?: string, birthDate?: string) {
     let claims;
     try {
       claims = (await jwtVerify(signupToken, this.secret, { algorithms: ['HS256'], issuer: 'txillapp', audience: 'google-signup' })).payload;
@@ -222,12 +226,15 @@ export class AuthService {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query('INSERT INTO identity.users (id, email, username, display_name, google_sub) VALUES ($1, $2, $3, $4, $5)', [
-        id, claims.email, username, displayName, claims.sub,
-      ]);
+      await client.query(
+        `INSERT INTO identity.users (id, email, username, display_name, google_sub, gender, birth_date, terms_accepted_at, terms_version)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now(), $8)`,
+        [id, claims.email, username, displayName, claims.sub, gender ?? null, birthDate ?? null, TERMS_VERSION],
+      );
       await this.audit(client, id, 'auth.google_register');
       const tokens = await this.issueSession(client, id, uuidv7(), userAgent);
       await client.query('COMMIT');
+      this.indexer.userChanged(id);
       return { tokens, user: { id, username, displayName } };
     } catch (e) {
       await client.query('ROLLBACK');
@@ -351,7 +358,7 @@ export class AuthService {
       await client.query(
         `UPDATE identity.users SET status = 'deleted', username = 'eliminado_' || substr(replace(id::text, '-', ''), 1, 12),
                 display_name = 'Conta eliminada', email = 'deleted+' || id::text || '@invalid.local',
-                bio = NULL, google_sub = NULL, avatar_media_id = NULL, is_private = true
+                bio = NULL, google_sub = NULL, avatar_media_id = NULL, is_private = true, gender = NULL, birth_date = NULL
           WHERE id = $1`,
         [userId],
       );
@@ -364,8 +371,18 @@ export class AuthService {
       await client.query('DELETE FROM social.blocks WHERE blocker_id = $1 OR blocked_id = $1', [userId]);
       await client.query('DELETE FROM social.notifications WHERE user_id = $1 OR actor_id = $1', [userId]);
       await client.query('DELETE FROM content.stories WHERE author_id = $1', [userId]);
+      // Conversas (e as mensagens nelas), listas, subscrições de notificações e denúncias feitas por esta conta.
+      await client.query('DELETE FROM social.conversations WHERE user_a = $1 OR user_b = $1', [userId]);
+      await client.query('DELETE FROM social.close_friends WHERE owner_id = $1 OR friend_id = $1', [userId]);
+      await client.query('DELETE FROM social.push_subscriptions WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM analytics.events WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM content.story_comments WHERE author_id = $1', [userId]);
+      // Publicações deixam de existir para todos; as fotos passam a 'deleted' e são apagadas do armazenamento.
+      await client.query(`UPDATE content.posts SET removed_at = now(), removed_by = 'author' WHERE author_id = $1 AND removed_at IS NULL`, [userId]);
+      await client.query(`UPDATE content.media_assets SET status = 'deleted' WHERE owner_id = $1 AND status <> 'deleted'`, [userId]);
       await this.audit(client, userId, 'account.deleted');
       await client.query('COMMIT');
+      this.indexer.userRemoved(userId);
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw e;

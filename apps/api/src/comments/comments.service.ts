@@ -9,7 +9,7 @@ const UUID = /^[0-9a-f-]{36}$/;
 
 const SELECT = `
   SELECT c.id, c.post_id, c.parent_id, c.body, c.created_at,
-         u.id AS author_id, u.username, u.display_name,
+         u.id AS author_id, u.username, u.display_name, u.verified,
          (SELECT count(*) FROM content.comment_cheers x WHERE x.comment_id = c.id)::int AS cheers,
          EXISTS (SELECT 1 FROM content.comment_cheers x WHERE x.comment_id = c.id AND x.user_id = $1) AS cheered,
          (SELECT count(*) FROM content.comments r WHERE r.parent_id = c.id)::int AS reply_count
@@ -65,6 +65,7 @@ export class CommentsService {
     // Avisa quem foi respondido e, se for outra pessoa, o dono da publicação.
     if (parentAuthorId) await this.notifications.notify({ userId: parentAuthorId, actorId: userId, kind: 'reply', data });
     if (postAuthorId !== parentAuthorId) await this.notifications.notify({ userId: postAuthorId, actorId: userId, kind: 'comment', data });
+    void this.notifications.notifyMentions(userId, body, data);
     return this.getOne(userId, id);
   }
 
@@ -108,7 +109,7 @@ export class CommentsService {
   /** A publicação existe e é visível para este espectador (perfis privados só para seguidores). */
   private async assertPost(viewerId: string, postId: string) {
     const r = await this.pool.query(
-      `SELECT 1 FROM content.posts p JOIN identity.users u ON u.id = p.author_id WHERE p.id = $2 AND ${canView()}`,
+      `SELECT 1 FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL WHERE p.id = $2 AND ${canView()}`,
       [viewerId, postId],
     );
     if (!r.rowCount) throw new NotFoundException('Publicação não encontrada');
@@ -118,7 +119,7 @@ export class CommentsService {
   private async assertCanComment(viewerId: string, postId: string): Promise<string> {
     const r = await this.pool.query(
       `SELECT u.id AS author_id, ${allowedBy('u', 'comments_allowed')} AS allowed
-         FROM content.posts p JOIN identity.users u ON u.id = p.author_id WHERE p.id = $2 AND ${canView()}`,
+         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL WHERE p.id = $2 AND ${canView()}`,
       [viewerId, postId],
     );
     if (!r.rows[0]) throw new NotFoundException('Publicação não encontrada');
@@ -128,7 +129,7 @@ export class CommentsService {
 
   private async assertComment(viewerId: string, id: string) {
     const r = await this.pool.query(
-      `SELECT 1 FROM content.comments c JOIN content.posts p ON p.id = c.post_id JOIN identity.users u ON u.id = p.author_id
+      `SELECT 1 FROM content.comments c JOIN content.posts p ON p.id = c.post_id JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
         WHERE c.id = $2 AND ${canView()}`,
       [viewerId, id],
     );
@@ -141,7 +142,7 @@ export class CommentsService {
     parentId: r.parent_id,
     body: r.body,
     createdAt: r.created_at,
-    author: { id: r.author_id, username: r.username, displayName: r.display_name },
+    author: { id: r.author_id, username: r.username, displayName: r.display_name, verified: r.verified as boolean },
     cheers: r.cheers,
     cheered: r.cheered,
     replyCount: r.reply_count,

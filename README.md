@@ -68,3 +68,17 @@ docs           Arquitectura
 ## Licença
 
 Todos os direitos reservados © Erasmo Buque (dombuque), até ser definida uma licença.
+
+## Fotos: verificação automática
+
+Todas as fotos passam por um modelo local (ViT `AdamCodd/vit-base-nsfw-detector`, Apache-2.0) antes de ficarem visíveis. Nada sai do servidor.
+
+- `IMAGE_MODERATION=local` liga; `off` desliga (só desenvolvimento).
+- ≥ `NSFW_REJECT_THRESHOLD` (0.85): a foto é recusada. Entre `NSFW_REVIEW_THRESHOLD` (0.5) e 0.85: passa e vai para a fila de moderação (`/admin`).
+- Se o modelo falhar, a foto é recusada (falha fechada).
+- O modelo (~89 MB) descarrega-se na primeira análise para `.models/`. Para o testar com as tuas imagens:
+  `cd apps/api && npx ts-node scripts/check-nsfw.ts foto1.jpg foto2.png`
+  e, ponta a ponta com a API: `npx ts-node scripts/e2e-real-nsfw.ts foto.jpg`.
+- Nenhum detetor é perfeito: mantém-se a moderação humana e as denúncias.
+
+Contas de moderação: `UPDATE identity.users SET is_admin = true WHERE username = '...';`

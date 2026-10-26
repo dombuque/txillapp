@@ -22,7 +22,7 @@ describe('rede social: seguir, sugestões, perfil e perfis privados (integraçã
     const username = `${name}${run}`.slice(0, 28);
     const r = await api()
       .post('/api/v1/auth/register')
-      .send({ email: `${username}@example.com`, username, displayName: `${name} Teste`, password: 'password-bem-longa-1' })
+      .send({ email: `${username}@example.com`, username, displayName: `${name} Teste`, password: 'password-bem-longa-1' , birthDate: '1990-06-15', acceptTerms: true})
       .expect(201);
     return { token: r.body.accessToken, id: r.body.user.id, username };
   }

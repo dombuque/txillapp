@@ -1,16 +1,23 @@
+import { sized } from '../lib/media';
+import Icon from '../components/Icon';
+import ReportSheet from '../components/ReportSheet';
+import VerifiedBadge from '../components/VerifiedBadge';
+import { genderLabel } from '../components/GenderPicker';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import EditProfileSheet from '../components/EditProfileSheet';
 import FollowButton from '../components/FollowButton';
 import GiftSheet from '../components/GiftSheet';
+import RichText from '../components/RichText';
 import PostCard from '../components/PostCard';
+import { ProfileStoryAvatar } from '../components/Stories';
 import { BackIcon } from '../components/icons';
 import { Avatar, Sheet, btnGhost, btnPrimary, btnSmall } from '../components/ui';
 import { ApiError, api, type Post } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
-type SheetName = null | 'edit' | 'requests' | 'menu' | 'block' | 'gift';
+type SheetName = null | 'report' | 'edit' | 'requests' | 'menu' | 'block' | 'gift';
 
 /** Perfil de qualquer pessoa (/u/:username) e o meu (/profile). */
 export default function ProfilePage() {
@@ -112,15 +119,18 @@ export default function ProfilePage() {
 
       <section className="mx-4 rounded-[28px] bg-white px-5 pb-5 pt-6 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
         <div className="flex flex-col items-center text-center">
-          <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={96} />
+          <ProfileStoryAvatar username={p.username} displayName={p.displayName} isMe={p.isMe} hasAvatar={p.hasAvatar} />
           <h1 className="mt-4 text-2xl font-extrabold leading-tight">
-            {p.displayName} {p.isPrivate && <span title="Conta privada" aria-label="Conta privada">🔒</span>}
+            {p.displayName} {p.verified && <VerifiedBadge size={22} />} {p.isPrivate && <span title="Conta privada" aria-label="Conta privada">🔒</span>}
           </h1>
           <p className="text-zinc-600">
             @{p.username}
             {!p.isMe && p.followsYou && !blocked && <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700">Segue-te</span>}
           </p>
-          {p.bio && <p className="mt-3 max-w-sm whitespace-pre-wrap break-words text-[15px] text-zinc-800">{p.bio}</p>}
+          {p.gender && p.gender !== 'unspecified' && (
+            <span className="mt-2 rounded-full bg-zinc-100 px-3 py-0.5 text-xs font-semibold text-zinc-700">{genderLabel(p.gender)}</span>
+          )}
+          {p.bio && <p className="mt-3 max-w-sm whitespace-pre-wrap break-words text-[15px] text-zinc-800"><RichText text={p.bio} /></p>}
           {!p.bio && p.isMe && (
             <button onClick={() => setSheet('edit')} className="mt-3 text-sm font-medium text-zinc-600 underline">Adiciona uma bio ✍️</button>
           )}
@@ -154,6 +164,9 @@ export default function ProfilePage() {
               <>
                 <button onClick={() => setSheet('edit')} className={`${btnSmall} flex-1`}>Editar perfil</button>
                 <button onClick={share} className={`${btnSmall} flex-1`}>Partilhar perfil</button>
+                <button onClick={() => navigate('/wallet')} aria-label="Carteira de Txills" className={`${btnSmall} w-11 shrink-0 !px-0`}>
+                  <Icon name="wallet" size={18} className="mx-auto" />
+                </button>
               </>
             ) : (
               <>
@@ -161,7 +174,12 @@ export default function ProfilePage() {
                   <FollowButton username={p.username} following={p.following} requested={p.requested} isPrivate={p.isPrivate} large />
                 </div>
                 {/* Só se presenteia quem se segue. */}
-                {p.following && <button onClick={() => setSheet('gift')} className={`${btnSmall} flex-1`}>🎁 Presentear</button>}
+                {p.following && <button onClick={() => setSheet('gift')} className={`${btnSmall} flex flex-1 items-center justify-center gap-1.5`}><Icon name="gift" size={18} /> Presentear</button>}
+                <button onClick={() => navigate(`/messages/${p.username}`)} aria-label="Enviar mensagem" className={`${btnSmall} w-11 shrink-0 !px-0`}>
+                  <svg className="mx-auto" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z" />
+                  </svg>
+                </button>
                 <button onClick={share} aria-label="Partilhar perfil" className={`${btnSmall} w-11 shrink-0 !px-0`}>
                   <svg className="mx-auto" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     <path d="M12 16V4M7 9l5-5 5 5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
@@ -204,7 +222,7 @@ export default function ProfilePage() {
                 return (
                   <button key={post.id} onClick={() => setOpenPost(post)} aria-label={`Abrir publicação: ${post.body || shown.body || 'foto'}`} className="relative aspect-square overflow-hidden rounded-xl bg-rose-50 text-left active:opacity-80">
                     {shown.media[0] ? (
-                      <img src={shown.media[0].url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                      <img src={shown.media[0].kind === 'video' ? shown.media[0].posterUrl : sized(shown.media[0].url, 480)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center p-2 text-center text-xs font-medium leading-snug text-zinc-700">
                         {post.gift ? '🎁 ' : ''}{(post.body || shown.body).slice(0, 70)}
@@ -236,14 +254,22 @@ export default function ProfilePage() {
       {sheet === 'menu' && (
         <Sheet title={`@${p.username}`} onClose={close}>
           <button onClick={() => setSheet('block')} className="flex w-full items-center gap-4 rounded-2xl px-1 py-3 text-left text-red-700 transition active:bg-red-50">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-xl" aria-hidden>🚫</span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50" aria-hidden><Icon name="block" /></span>
             <span>
               <span className="block text-[17px] font-semibold">{p.blockedByMe ? 'Já bloqueaste esta conta' : `Bloquear @${p.username}`}</span>
               <span className="block text-sm text-zinc-600">Deixa de ver o teu conteúdo e de te poder seguir.</span>
             </span>
           </button>
+          <button onClick={() => setSheet('report')} className="flex w-full items-center gap-4 rounded-2xl px-1 py-3 text-left transition active:bg-zinc-100">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="flag" /></span>
+            <span>
+              <span className="block text-[17px] font-semibold">Denunciar @{p.username}</span>
+              <span className="block text-sm text-zinc-600">Avisa a moderação. A pessoa não sabe.</span>
+            </span>
+          </button>
         </Sheet>
       )}
+      {sheet === 'report' && <ReportSheet type="user" id={p.id} onClose={close} />}
       {sheet === 'block' && (
         <Sheet title={`Bloquear @${p.username}?`} onClose={close}>
           <ul className="mb-4 list-disc space-y-1 pl-5 text-[15px] text-zinc-700">

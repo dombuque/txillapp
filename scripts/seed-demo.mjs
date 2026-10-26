@@ -133,7 +133,7 @@ async function session(username, displayName) {
   let r = await call('POST', '/auth/login', { body: { identifier: username, password: DEV_PASSWORD } });
   if (r.status === 200) return { token: r.body.accessToken, created: false };
   if (username === ME) return null;
-  r = await call('POST', '/auth/register', { body: { email: `${username}@example.com`, username, displayName, password: DEV_PASSWORD } });
+  r = await call('POST', '/auth/register', { body: { email: `${username}@example.com`, username, displayName, password: DEV_PASSWORD, birthDate: '1990-06-15', acceptTerms: true } });
   if (r.status !== 201) throw new Error(`registo de ${username}: ${r.status} ${JSON.stringify(r.body)}`);
   return { token: r.body.accessToken, created: true };
 }

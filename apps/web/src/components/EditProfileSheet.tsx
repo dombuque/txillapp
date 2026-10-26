@@ -1,3 +1,4 @@
+import MentionTextarea from './MentionTextarea';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { api, type Profile } from '../lib/api';
@@ -138,7 +139,7 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
             <span>Bio</span>
             <span className={bio.length > 140 ? 'text-brand' : 'text-zinc-500'}>{bio.length}/150</span>
           </span>
-          <textarea value={bio} onChange={(e) => setBio(e.target.value)} maxLength={150} rows={3} placeholder="Conta à malta quem és… 😎" className={`${fieldInput} resize-none`} />
+          <MentionTextarea value={bio} onChange={setBio} maxLength={150} rows={3} placeholder="Conta à malta quem és… 😎" className={`${fieldInput} resize-none`} />
         </label>
         <div>
           <span className="mb-2 block text-sm font-semibold text-zinc-700">Tipo de perfil</span>

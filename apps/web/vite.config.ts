@@ -3,25 +3,48 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+
+const build = new Date().toISOString().slice(0, 16).replace('T', ' ');
+
 export default defineConfig({
+  define: { __BUILD__: JSON.stringify(build) },
   plugins: [
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // A versão nova descarrega sozinha em segundo plano; a pessoa escolhe quando atualizar (sem perder o que está a escrever).
+      registerType: 'prompt',
+      injectRegister: false,
       manifest: {
         name: 'Txillapp',
         short_name: 'Txillapp',
         description: 'Rede social, showoff e Txills',
-        theme_color: '#7c3aed',
-        background_color: '#0b0b12',
+        theme_color: '#d6334f',
+        background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
-        icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }],
+        id: '/',
+        scope: '/',
+        orientation: 'portrait',
+        lang: 'pt',
+        categories: ['social'],
+        icons: [
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
       },
       // Nunca fazer cache de respostas da API (podem ser privadas/financeiras).
-      workbox: { navigateFallbackDenylist: [/^\/api\//] },
+      workbox: { navigateFallbackDenylist: [/^\/api\//], importScripts: ['push-sw.js'] },
     }),
   ],
-  server: { proxy: { '/api': 'http://localhost:3000' } },
+  server: {
+    proxy: { '/api': 'http://localhost:3000' },
+    // Só em desenvolvimento: permite abrir a app por um túnel HTTPS (para testar no telemóvel).
+    allowedHosts: ['.trycloudflare.com', '.ngrok-free.app', '.ngrok.app', '.loca.lt'],
+  },
+  preview: {
+    proxy: { '/api': 'http://localhost:3000' },
+    allowedHosts: ['.trycloudflare.com', '.ngrok-free.app', '.ngrok.app', '.loca.lt'],
+  },
 });

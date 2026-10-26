@@ -56,7 +56,7 @@ describe('login com Google e validação do @/email em tempo real (integração)
     const name = `ocupado${run}`.slice(0, 20);
     await api()
       .post('/api/v1/auth/register')
-      .send({ email: `${name}@example.com`, username: name, displayName: 'Ocupado', password: 'password-bem-longa-1' })
+      .send({ email: `${name}@example.com`, username: name, displayName: 'Ocupado', password: 'password-bem-longa-1' , birthDate: '1990-06-15', acceptTerms: true})
       .expect(201);
     const check = (u: string) => api().get(`/api/v1/auth/username-available?username=${encodeURIComponent(u)}`).expect(200);
 
@@ -81,11 +81,11 @@ describe('login com Google e validação do @/email em tempo real (integração)
     expect((await check(`${name}@example.com`.toUpperCase())).body).toEqual({ available: false, reason: 'taken' });
     await api()
       .post('/api/v1/auth/register')
-      .send({ email: `res${run}@example.com`, username: `administrador${run}`.slice(0, 30), displayName: 'X', password: 'password-bem-longa-1' })
+      .send({ email: `res${run}@example.com`, username: `administrador${run}`.slice(0, 30), displayName: 'X', password: 'password-bem-longa-1' , birthDate: '1990-06-15', acceptTerms: true})
       .expect(201); // "administrador" não é reservado…
     await api()
       .post('/api/v1/auth/register')
-      .send({ email: `res2${run}@example.com`, username: 'admin', displayName: 'X', password: 'password-bem-longa-1' })
+      .send({ email: `res2${run}@example.com`, username: 'admin', displayName: 'X', password: 'password-bem-longa-1' , birthDate: '1990-06-15', acceptTerms: true})
       .expect(409); // …mas "admin" é
   });
 
@@ -102,7 +102,7 @@ describe('login com Google e validação do @/email em tempo real (integração)
     // O token de registo não é um access token.
     await api().get('/api/v1/auth/me').set('Authorization', `Bearer ${first.signupToken}`).expect(401);
 
-    const done = (u: string) => api().post('/api/v1/auth/google/complete').send({ signupToken: first.signupToken, username: u });
+    const done = (u: string) => api().post('/api/v1/auth/google/complete').send({ signupToken: first.signupToken, username: u, birthDate: '1990-06-15', acceptTerms: true });
     await done('admin').expect(409);
     await done('x').expect(409);
     const taken = `ocupado${run}`.slice(0, 20);

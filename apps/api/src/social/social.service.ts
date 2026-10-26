@@ -1,7 +1,10 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { TERMS_VERSION } from '@txillapp/shared';
 import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
+import { SearchIndexer } from '../search/search-index';
 import { NotificationsService } from '../notifications/notifications.service';
+import { mentionableBy } from '../notifications/notifications.service';
 import { blockedBetween, canView } from './visibility';
 
 const UUID = /^[0-9a-f-]{36}$/;
@@ -13,14 +16,18 @@ export interface PersonItem {
   followsYou: boolean;
 }
 
+export type Gender = 'female' | 'male' | 'other' | 'unspecified';
 export type Who = 'everyone' | 'following' | 'off';
 export type Connections = 'everyone' | 'followers' | 'me';
+
+type Viewers = 'everyone' | 'followers' | 'off';
 
 @Injectable()
 export class SocialService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly notifications: NotificationsService,
+    private readonly indexer: SearchIndexer,
   ) {}
 
   /* ───────────── perfil ───────────── */
@@ -28,8 +35,9 @@ export class SocialService {
   async profile(viewerId: string, username: string) {
     const { rows } = await this.pool.query(
       `SELECT u.id, u.username, u.display_name, u.bio, u.created_at, u.is_private, u.show_connections,
+              u.gender, u.show_gender, u.verified,
               (u.avatar_media_id IS NOT NULL) AS has_avatar,
-              (SELECT count(*) FROM content.posts p WHERE p.author_id = u.id)::int AS posts,
+              (SELECT count(*) FROM content.posts p WHERE p.author_id = u.id AND p.removed_at IS NULL)::int AS posts,
               (SELECT count(*) FROM social.follows f WHERE f.followee_id = u.id)::int AS followers,
               (SELECT count(*) FROM social.follows f WHERE f.follower_id = u.id)::int AS following,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS i_follow,
@@ -52,6 +60,10 @@ export class SocialService {
       displayName: r.display_name,
       bio: r.bio,
       hasAvatar: r.has_avatar,
+      /** Selo de perfil verificado (o processo de verificação fica para depois). */
+      verified: r.verified as boolean,
+      /** Género: só a própria pessoa o vê, a menos que tenha escolhido mostrá-lo no perfil. */
+      gender: isMe || (r.show_gender && !r.blocked_by_me && !r.blocked_me) ? (r.gender as string | null) : null,
       joinedAt: r.created_at,
       isMe,
       isPrivate: r.is_private,
@@ -120,6 +132,7 @@ export class SocialService {
         await client.query('DELETE FROM social.follow_requests WHERE target_id = $1', [userId]);
       }
       await client.query('COMMIT');
+      this.indexer.userChanged(userId);
       return { id: rows[0].id, username: rows[0].username, displayName: rows[0].display_name, bio: rows[0].bio, isPrivate: rows[0].is_private };
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);
@@ -267,18 +280,40 @@ export class SocialService {
     return rows.map((r) => ({ username: r.username, displayName: r.display_name }));
   }
 
+  /** Contas antigas: data de nascimento (só uma vez, não se altera) e aceitação dos termos em vigor. */
+  async setConsent(userId: string, birthDate: string) {
+    await this.pool.query(
+      `UPDATE identity.users SET birth_date = COALESCE(birth_date, $2), terms_accepted_at = now(), terms_version = $3 WHERE id = $1`,
+      [userId, birthDate, TERMS_VERSION],
+    );
+    return this.privacy(userId);
+  }
+
   /* ───────────── privacidade ───────────── */
 
   async privacy(userId: string) {
     const { rows } = await this.pool.query(
-      'SELECT is_private, comments_allowed, gifts_allowed, show_connections, suggestable FROM identity.users WHERE id = $1',
-      [userId],
+      'SELECT is_private, comments_allowed, gifts_allowed, mentions_allowed, dms_allowed, reposts_visible, cheers_visible, gifts_visible, show_connections, suggestable, gender, show_gender, (birth_date IS NOT NULL) AS birth_set, (terms_version = $2) AS terms_ok, is_admin, share_analytics FROM identity.users WHERE id = $1',
+      [userId, TERMS_VERSION],
     );
     const r = rows[0];
     return {
+      /** Falta a data de nascimento / aceitar os termos em vigor (contas antigas): a app pede uma vez. */
+      birthDateSet: r.birth_set as boolean,
+      termsAccepted: r.terms_ok === true,
+      isAdmin: r.is_admin as boolean,
+      shareAnalytics: r.share_analytics as boolean,
+      /** null = ainda não escolheu (a app pede-o uma vez). */
+      gender: r.gender as Gender | null,
+      showGender: r.show_gender as boolean,
       isPrivate: r.is_private as boolean,
       commentsAllowed: r.comments_allowed as Who,
       giftsAllowed: r.gifts_allowed as Who,
+      mentionsAllowed: r.mentions_allowed as Who,
+      dmsAllowed: r.dms_allowed as Who,
+      repostsVisible: r.reposts_visible as Viewers,
+      cheersVisible: r.cheers_visible as Viewers,
+      giftsVisible: r.gifts_visible as Viewers,
       showConnections: r.show_connections as Connections,
       suggestable: r.suggestable as boolean,
     };
@@ -286,17 +321,25 @@ export class SocialService {
 
   async setPrivacy(
     userId: string,
-    p: { isPrivate?: boolean; commentsAllowed?: Who; giftsAllowed?: Who; showConnections?: Connections; suggestable?: boolean },
+    p: { isPrivate?: boolean; commentsAllowed?: Who; giftsAllowed?: Who; mentionsAllowed?: Who; dmsAllowed?: Who; shareAnalytics?: boolean; repostsVisible?: Viewers; cheersVisible?: Viewers; giftsVisible?: Viewers; showConnections?: Connections; suggestable?: boolean; gender?: Gender; showGender?: boolean },
   ) {
     if (p.isPrivate !== undefined) await this.updateMe(userId, { isPrivate: p.isPrivate }); // aceita pedidos ao passar a público
     await this.pool.query(
       `UPDATE identity.users SET
           comments_allowed = COALESCE($2, comments_allowed),
           gifts_allowed = COALESCE($3, gifts_allowed),
+          mentions_allowed = COALESCE($8, mentions_allowed),
+          dms_allowed = COALESCE($12, dms_allowed),
+          share_analytics = COALESCE($13, share_analytics),
+          reposts_visible = COALESCE($9, reposts_visible),
+          cheers_visible = COALESCE($10, cheers_visible),
+          gifts_visible = COALESCE($11, gifts_visible),
           show_connections = COALESCE($4, show_connections),
-          suggestable = COALESCE($5, suggestable)
+          suggestable = COALESCE($5, suggestable),
+          gender = COALESCE($6, gender),
+          show_gender = COALESCE($7, show_gender)
         WHERE id = $1`,
-      [userId, p.commentsAllowed ?? null, p.giftsAllowed ?? null, p.showConnections ?? null, p.suggestable ?? null],
+      [userId, p.commentsAllowed ?? null, p.giftsAllowed ?? null, p.showConnections ?? null, p.suggestable ?? null, p.gender ?? null, p.showGender ?? null, p.mentionsAllowed ?? null, p.repostsVisible ?? null, p.cheersVisible ?? null, p.giftsVisible ?? null, p.dmsAllowed ?? null, p.shareAnalytics ?? null],
     );
     return this.privacy(userId);
   }
@@ -307,6 +350,20 @@ export class SocialService {
    * Sugestões de pessoas: quem eu não sigo, ainda não dispensei, não bloqueei, e que aceita ser sugerido;
    * ordenado por amigos em comum, depois por quem já me segue, depois popularidade.
    */
+  /** @menções: quem sigo primeiro; depois contas públicas que aceitam menções. Prefixo do @ ou do nome. */
+  async mentionable(userId: string, q: string) {
+    const term = q.replace(/^@/, '').replace(/[\\%_]/g, (c) => `\\${c}`);
+    const res = await this.pool.query(
+      `SELECT u.username, u.display_name, u.verified, (u.avatar_media_id IS NOT NULL) AS has_avatar,
+              EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS following
+         FROM identity.users u
+        WHERE ${mentionableBy('u', '$1')} AND ($2 = '' OR u.username ILIKE $2 || '%' ESCAPE '\\' OR u.display_name ILIKE '%' || $2 || '%' ESCAPE '\\')
+        ORDER BY following DESC, (lower(u.username) = lower($3)) DESC, u.username ASC LIMIT 8`,
+      [userId, term, q.replace(/^@/, '')],
+    );
+    return res.rows.map((r) => ({ username: r.username, displayName: r.display_name, verified: r.verified, hasAvatar: r.has_avatar, following: r.following }));
+  }
+
   async suggestions(viewerId: string, limit = 12) {
     const { rows } = await this.pool.query(
       `SELECT u.username, u.display_name, u.is_private,

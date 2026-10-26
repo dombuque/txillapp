@@ -1,8 +1,15 @@
+import VideoPlayer from './VideoPlayer';
+import { sized } from '../lib/media';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { api, type Story, type TrayUser } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
+import Icon from './Icon';
+import CloseFriendsSheet from './CloseFriendsSheet';
+import RichText from './RichText';
+import MentionTextarea from './MentionTextarea';
 import { Avatar, timeAgo } from './ui';
 
 const DURATION_MS = 5000;
@@ -14,7 +21,7 @@ const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
  * Anel dos stories, como no Instagram: gradiente para os por ver, cinzento para os vistos,
  * e dividido em tantos segmentos quantos os stories dessa pessoa.
  */
-function Ring({ count, seenCount = 0, children }: { count: number; seenCount?: number; children: React.ReactNode }) {
+function Ring({ count, seenCount = 0, green = false, children }: { count: number; seenCount?: number; green?: boolean; children: React.ReactNode }) {
   const n = Math.max(1, Math.min(count, 12));
   const step = 100 / n;
   const seg = n === 1 ? 100 : step - 3.2;
@@ -26,12 +33,16 @@ function Ring({ count, seenCount = 0, children }: { count: number; seenCount?: n
             <stop offset="0" stopColor="#d6334f" />
             <stop offset="1" stopColor="#fbbf24" />
           </linearGradient>
+          <linearGradient id="story-ring-green" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0" stopColor="#059669" />
+            <stop offset="1" stopColor="#4ade80" />
+          </linearGradient>
         </defs>
         {/* Um arco por story: os já vistos a cinzento, os novos a cores. */}
         {Array.from({ length: n }, (_, i) => (
           <circle
             key={i} cx="36" cy="36" r="33" fill="none" strokeWidth="3.5" strokeLinecap="round" pathLength={100}
-            stroke={i < seenCount ? '#d4d4d8' : 'url(#story-ring)'}
+            stroke={i < seenCount ? '#d4d4d8' : green ? 'url(#story-ring-green)' : 'url(#story-ring)'}
             strokeDasharray={`${seg} ${100 - seg}`} strokeDashoffset={-i * step}
           />
         ))}
@@ -39,6 +50,50 @@ function Ring({ count, seenCount = 0, children }: { count: number; seenCount?: n
       <span className="flex h-[62px] w-[62px] items-center justify-center rounded-full bg-white">{children}</span>
     </span>
   );
+}
+
+/** Foto do perfil com story: anel a cores/cinzento e, ao tocar, abre o story (o servidor só devolve se eu puder ver). */
+export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, size = 96 }: { username: string; displayName: string; isMe: boolean; hasAvatar: boolean; size?: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const q = useQuery({ queryKey: ['stories', username], queryFn: () => api.storiesOf(username), retry: false });
+  const list = q.data ?? [];
+  const avatar = <Avatar name={displayName} username={hasAvatar ? username : undefined} size={size} ring={list.length === 0} />;
+  if (list.length === 0) return avatar;
+  const ownSeen = isMe && readOwnSeen() === list[list.length - 1].createdAt;
+  const seenCount = isMe ? (ownSeen ? list.length : 0) : list.filter((x) => x.seen).length;
+  const tray: TrayUser = {
+    username, displayName, isMe, count: list.length, seenCount,
+    seen: seenCount === list.length, closeFriends: list.every((x) => x.audience === 'close_friends'), latestAt: list[list.length - 1].createdAt,
+  };
+  return (
+    <>
+      <button onClick={() => setOpen(true)} aria-label={`Ver story de ${displayName}`}>
+        {/* O anel mede 72px; amplia-se para acompanhar a foto grande do perfil. */}
+        <span className="block" style={{ width: size + 12, height: size + 12 }}>
+          <span className="block origin-top-left" style={{ transform: `scale(${(size + 12) / 72})` }}>
+            <Ring count={list.length} seenCount={seenCount} green={tray.closeFriends}><Avatar name={displayName} username={hasAvatar ? username : undefined} size={56} ring={false} /></Ring>
+          </span>
+        </span>
+      </button>
+      {open && (
+        <Viewer
+          users={[tray]}
+          start={0}
+          onOwnSeen={writeOwnSeen}
+          onClose={() => { setOpen(false); qc.invalidateQueries({ queryKey: ['stories'] }); }}
+        />
+      )}
+    </>
+  );
+}
+
+const OWN_SEEN_KEY = 'txill_own_story_seen';
+function readOwnSeen(): string {
+  try { return localStorage.getItem(OWN_SEEN_KEY) ?? ''; } catch { return ''; }
+}
+function writeOwnSeen(at: string) {
+  try { localStorage.setItem(OWN_SEEN_KEY, at); } catch { /* sem armazenamento: o anel volta a cores */ }
 }
 
 export default function StoriesTray() {
@@ -51,8 +106,11 @@ export default function StoriesTray() {
 
   // Ordem do visualizador: o próprio (se tiver) e depois os outros.
   const users = data ?? [];
-  const mine = users.find((u) => u.isMe);
   const others = users.filter((u) => !u.isMe);
+  // O servidor não conta o autor como espectador; "já vi os meus" fica guardado neste aparelho.
+  const [ownSeenAt, setOwnSeenAt] = useState(readOwnSeen);
+  const mineRaw = users.find((u) => u.isMe);
+  const mine = mineRaw && { ...mineRaw, seen: mineRaw.latestAt === ownSeenAt };
 
   function choose(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -73,7 +131,7 @@ export default function StoriesTray() {
           <div className="relative">
             {mine ? (
               <button onClick={() => setViewing(0)} aria-label="Ver o teu story">
-                <Ring count={mine.count}><Avatar name={user?.displayName ?? '?'} username={user?.username} size={56} ring={false} /></Ring>
+                <Ring count={mine.count} seenCount={mine.seen ? mine.count : 0} green={mine.closeFriends}><Avatar name={user?.displayName ?? '?'} username={user?.username} size={56} ring={false} /></Ring>
               </button>
             ) : (
               <label className="block cursor-pointer" aria-label="Criar story">
@@ -93,7 +151,7 @@ export default function StoriesTray() {
           // Não vistos: anel a cores, nome a negrito. Vistos: anel cinzento, avatar e nome mais apagados.
           <button key={u.username} onClick={() => setViewing(mine ? i + 1 : i)} className={bubble} aria-label={`Ver story de ${u.displayName}${u.seen ? '' : ' (novo)'}`}>
             <span className={u.seen ? 'opacity-60' : ''}>
-              <Ring count={u.count} seenCount={u.seenCount}><Avatar name={u.displayName} username={u.username} size={56} ring={false} /></Ring>
+              <Ring count={u.count} seenCount={u.seenCount} green={u.closeFriends}><Avatar name={u.displayName} username={u.username} size={56} ring={false} /></Ring>
             </span>
             <span className={`${label} ${u.seen ? 'font-normal text-zinc-500' : 'font-bold text-zinc-900'}`}>{u.username}</span>
           </button>
@@ -106,6 +164,7 @@ export default function StoriesTray() {
         <Viewer
           users={[...(mine ? [mine] : []), ...others]}
           start={viewing}
+          onOwnSeen={(at) => { writeOwnSeen(at); setOwnSeenAt(at); }}
           onClose={() => {
             setViewing(null);
             qc.invalidateQueries({ queryKey: ['stories'] });
@@ -188,15 +247,18 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
         }}
         className="flex items-center gap-3"
       >
-        <input
+        <MentionTextarea
+          single
+          up
+          wrapperClassName="min-w-0 flex-1"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={setText}
           onFocus={() => focus(true)}
           onBlur={() => focus(false)}
           maxLength={500}
           placeholder={`Enviar mensagem a ${username}…`}
           aria-label={`Responder ao story de ${username}`}
-          className="min-w-0 flex-1 rounded-full border border-white/60 bg-black/20 px-5 py-3 text-white outline-none backdrop-blur-sm placeholder:text-white/70 focus:border-white"
+          className="w-full rounded-full border border-white/60 bg-black/20 px-5 py-3 text-white outline-none backdrop-blur-sm placeholder:text-white/70 focus:border-white"
         />
         {text.trim() && <button className="font-semibold text-white">Enviar</button>}
       </form>
@@ -209,25 +271,114 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
 function Panel({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="absolute inset-0 z-20 flex items-end bg-black/50" onClick={onClose} role="presentation">
-      <div role="dialog" aria-label={title} className="animate-[rise_.2s_ease-out] max-h-[70%] w-full overflow-y-auto rounded-t-[24px] bg-white px-5 pb-6 pt-3 text-zinc-900" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-label={title} className="animate-[rise_.2s_ease-out] max-h-[72%] w-full overflow-y-auto rounded-t-[28px] bg-white px-5 pb-6 pt-3 text-left text-zinc-900" onClick={(e) => e.stopPropagation()}>
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-300" aria-hidden />
-        <h2 className="mb-2 text-center text-base font-bold">{title}</h2>
+        <h2 className="mb-3 text-center text-base font-bold">{title}</h2>
         {children}
       </div>
     </div>
   );
 }
 
-function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; onClose: () => void }) {
+/** Comentários públicos do story (visíveis a quem pode ver o story). Só se comenta se o autor deixar. */
+function CommentsPanel({ story, onClose, canComment, onTyping }: { story: Story; onClose: () => void; canComment: boolean; onTyping: (v: boolean) => void }) {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const key = ['story-comments', story.id];
+  const list = useQuery({ queryKey: key, queryFn: () => api.storyComments(story.id) });
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: key });
+    void qc.invalidateQueries({ queryKey: ['stories', story.author.username] });
+  };
+
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    const body = text.trim();
+    if (!body || busy) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await api.commentStory(story.id, body);
+      setText('');
+      refresh();
+    } catch (x) {
+      setErr((x as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel title={`Comentários${list.data ? ` (${list.data.length})` : ''}`} onClose={onClose}>
+      <ul className="min-h-[96px]">
+        {list.isLoading && <li className="py-6 text-center text-zinc-500">A carregar…</li>}
+        {list.isSuccess && list.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda sem comentários. Sê o primeiro 💬</li>}
+        {list.data?.map((c) => (
+          <li key={c.id} className="flex items-start gap-3 py-2.5">
+            <Avatar name={c.author.displayName} username={c.author.hasAvatar ? c.author.username : undefined} size={36} ring={false} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm text-zinc-500">
+                <b className="text-zinc-900">{c.author.username}</b> · {timeAgo(c.createdAt)}
+              </p>
+              <p className="break-words text-[15px] leading-snug"><RichText text={c.body} /></p>
+            </div>
+            {c.canDelete && (
+              <button
+                onClick={async () => { await api.deleteStoryComment(c.id).catch(() => undefined); refresh(); }}
+                aria-label="Apagar comentário"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 active:bg-zinc-100"
+              >
+                ✕
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {canComment ? (
+        <form onSubmit={send} className="mt-2 flex items-center gap-2 border-t border-zinc-100 pt-3">
+          <Avatar name={user?.displayName ?? '?'} username={user?.username} size={32} ring={false} />
+          <MentionTextarea
+            single
+            up
+            wrapperClassName="min-w-0 flex-1"
+            value={text}
+            onChange={setText}
+            onFocus={() => onTyping(true)}
+            onBlur={() => onTyping(false)}
+            maxLength={500}
+            placeholder="Adiciona um comentário…"
+            aria-label="Comentário"
+            className="h-11 w-full rounded-full bg-zinc-100 px-4 text-[15px] outline-none focus:ring-2 focus:ring-brand/50"
+          />
+          <button disabled={!text.trim() || busy} className="px-2 font-bold text-brand disabled:opacity-40">Publicar</button>
+        </form>
+      ) : (
+        <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2.5 text-center text-sm text-zinc-600">🔕 Este story não aceita comentários.</p>
+      )}
+      {err && <p role="alert" className="mt-1 text-center text-sm text-red-600">{err}</p>}
+    </Panel>
+  );
+}
+
+function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start: number; onClose: () => void; onOwnSeen: (latestAt: string) => void }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [u, setU] = useState(start);
   const [s, setS] = useState(0);
   const [pct, setPct] = useState(0);
   const [held, setHeld] = useState(false);
-  const [panel, setPanel] = useState<null | 'menu' | 'viewers'>(null);
+  const [panel, setPanel] = useState<null | 'menu' | 'viewers' | 'comments'>(null);
   const [typing, setTyping] = useState(false);
+  const [tab, setTab] = useState<'viewers' | 'replies'>('viewers');
   const downAt = useRef(0);
+  const vv = useVisualViewport();
+  // Tocar numa @menção leva a outro perfil: o story fecha.
+  const here = useLocation().pathname;
+  const openedAt = useRef(here);
+  useEffect(() => { if (here !== openedAt.current) onClose(); }, [here]); // eslint-disable-line react-hooks/exhaustive-deps
   const user = users[u];
   const q = useQuery({ queryKey: ['stories', user.username], queryFn: () => api.storiesOf(user.username) });
   const list = q.data ?? [];
@@ -256,11 +407,15 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
   }, [q.isSuccess, user.username, list]);
   useEffect(() => setPct(0), [s]);
   useEffect(() => {
-    if (story && !user.isMe) api.viewStory(story.id).catch(() => undefined);
+    if (!story) return;
+    if (!user.isMe) api.viewStory(story.id).catch(() => undefined);
+    else if (s === list.length - 1) onOwnSeen(user.latestAt); // chegou ao último dos meus: ficam como vistos
   }, [story?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!story || paused) return;
-    const t = setInterval(() => setPct((p) => p + (100 * TICK_MS) / DURATION_MS), TICK_MS);
+    // Reels partilhados duram o que dura o vídeo (até 30 s); fotos, 5 s.
+    const total = story.mediaKind === 'video' && story.durationMs ? Math.min(story.durationMs, 30_000) : DURATION_MS;
+    const t = setInterval(() => setPct((p) => p + (100 * TICK_MS) / total), TICK_MS);
     return () => clearInterval(t);
   }, [story?.id, paused]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (pct >= 100) next(); }); // eslint-disable-line react-hooks/exhaustive-deps
@@ -280,8 +435,12 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
 
   function next() {
     if (s < list.length - 1) setS(s + 1);
-    else if (u < users.length - 1) setU(u + 1);
-    else onClose();
+    else {
+      // Acabaram os não vistos: sai do modo stories em vez de passar pelos já vistos.
+      const nextNew = users.findIndex((x, i) => i > u && !x.seen);
+      if (nextNew === -1) onClose();
+      else setU(nextNew);
+    }
   }
   function prev() {
     if (s > 0) setS(s - 1);
@@ -303,7 +462,7 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
   const circleBtn = 'flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-sm transition active:scale-90';
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black" role="dialog" aria-modal="true" aria-label={`Story de ${user.displayName}`}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black" style={visibleStyle(vv)} role="dialog" aria-modal="true" aria-label={`Story de ${user.displayName}`}>
       <div
         className="relative h-full w-full max-w-[460px] select-none overflow-hidden bg-zinc-900 sm:h-[min(100dvh,860px)] sm:rounded-3xl"
         onPointerDown={() => { downAt.current = Date.now(); setHeld(true); }}
@@ -313,8 +472,14 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
         {story && (
           <>
             {/* Fundo desfocado da própria foto: a imagem aparece inteira, sem barras pretas */}
-            <img src={story.mediaUrl} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-125 object-cover opacity-70 blur-2xl" draggable={false} />
-            <img src={story.mediaUrl} alt={story.caption ?? `Story de ${user.displayName}`} className="relative h-full w-full object-contain" draggable={false} />
+            {story.mediaKind === 'video' ? (
+              <VideoPlayer key={story.id} src={story.mediaUrl} poster={`${story.mediaUrl}?poster=1`} active={!paused} cover className="relative h-full w-full" id={story.id} />
+            ) : (
+              <>
+                <img src={sized(story.mediaUrl, 160)} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-125 object-cover opacity-70 blur-2xl" draggable={false} />
+                <img src={sized(story.mediaUrl, 1080)} alt={story.caption ?? `Story de ${user.displayName}`} className="relative h-full w-full object-contain" draggable={false} />
+              </>
+            )}
           </>
         )}
 
@@ -350,18 +515,28 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
         <button aria-label="Seguinte" onClick={tap(next)} className="absolute bottom-28 right-0 top-28 w-2/3" />
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/70 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-16">
+          {story?.sharedFrom && (
+            <Link {...stop} to={`/p/${story.sharedFrom.postId}`} className="pointer-events-auto flex min-h-10 items-center gap-2 rounded-full bg-black/45 px-4 text-sm font-semibold text-white backdrop-blur-sm active:scale-95">
+              <Icon name={story.mediaKind === 'video' ? 'film' : 'image'} size={16} /> {story.mediaKind === 'video' ? 'Reel' : 'Publicação'} de @{story.sharedFrom.username} <span aria-hidden>›</span>
+            </Link>
+          )}
           {story?.caption && (
-            <p className="max-w-full break-words rounded-2xl bg-black/40 px-4 py-2 text-center text-lg text-white backdrop-blur-sm">{story.caption}</p>
+            <p {...stop} className="pointer-events-auto max-w-full break-words rounded-2xl bg-black/40 px-4 py-2 text-center text-lg text-white backdrop-blur-sm [&_a]:underline [&_a]:text-white"><RichText text={story.caption} /></p>
           )}
           {user.isMe && story && (
             <div className="pointer-events-auto flex gap-2">
-              <button {...stop} onClick={() => setPanel('viewers')} aria-label={`${story.viewCount ?? 0} visualizações`} className="flex min-h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
+              <button {...stop} onClick={() => { setTab('viewers'); setPanel('viewers'); }} aria-label={`${story.viewCount ?? 0} visualizações`} className="flex min-h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
                 <EyeIcon /> {story.viewCount ?? 0}
               </button>
-              <button {...stop} onClick={() => setPanel('viewers')} aria-label={`${story.replyCount ?? 0} respostas`} className="flex min-h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
-                <span aria-hidden>💬</span> {story.replyCount ?? 0}
+              <button {...stop} onClick={() => setPanel('comments')} aria-label={`${story.commentCount} comentários`} className="flex min-h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
+                <Icon name="comment" size={18} /> {story.commentCount}
               </button>
             </div>
+          )}
+          {!user.isMe && story && (
+            <button {...stop} onClick={() => setPanel('comments')} className="pointer-events-auto flex min-h-10 items-center gap-2 rounded-full bg-black/40 px-4 text-sm font-semibold text-white backdrop-blur-sm active:scale-95">
+              <Icon name="comment" size={18} /> {story.commentCount > 0 ? `${story.commentCount} ${story.commentCount === 1 ? 'comentário' : 'comentários'}` : 'Comentar'}
+            </button>
           )}
           {!user.isMe && story && story.canReply && <ReplyBar key={story.id} story={story} username={user.username} onFocusChange={setTyping} />}
           {!user.isMe && story && !story.canReply && (
@@ -376,36 +551,59 @@ function Viewer({ users, start, onClose }: { users: TrayUser[]; start: number; o
             <button onClick={() => setPanel(null)} className="w-full rounded-xl py-3.5 text-lg active:bg-zinc-100">Cancelar</button>
           </Panel>
         )}
+        {panel === 'comments' && story && (
+          <CommentsPanel story={story} canComment={user.isMe || story.canReply} onTyping={setTyping} onClose={() => setPanel(null)} />
+        )}
         {panel === 'viewers' && (
           <Panel title="Atividade do story" onClose={() => setPanel(null)}>
-            {replies.data && replies.data.length > 0 && (
-              <>
-                <p className="mb-1 mt-2 text-sm font-semibold text-zinc-500">Respostas ({replies.data.length})</p>
-                {replies.data.map((r) => (
-                  <div key={r.id} className="flex items-center gap-3 py-2.5">
-                    <Avatar name={r.author.displayName} username={r.author.username} size={40} />
+            <div role="tablist" className="mb-3 flex rounded-full bg-zinc-100 p-1">
+              {([['viewers', `👀 Visualizações${story?.viewCount ? ` (${story.viewCount})` : ''}`], ['replies', `💬 Respostas${replies.data ? ` (${replies.data.length})` : ''}`]] as const).map(([k, label]) => (
+                <button
+                  key={k}
+                  role="tab"
+                  aria-selected={tab === k}
+                  onClick={() => setTab(k)}
+                  className={`h-10 flex-1 rounded-full text-sm font-bold transition ${tab === k ? 'bg-white shadow-sm' : 'text-zinc-500'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {tab === 'replies' && (
+              <ul>
+                {replies.isLoading && <li className="py-6 text-center text-zinc-500">A carregar…</li>}
+                {replies.isSuccess && replies.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda sem respostas 💤</li>}
+                {replies.data?.map((r) => (
+                  <li key={r.id} className="flex items-start gap-3 py-2.5">
+                    <Avatar name={r.author.displayName} username={r.author.username} size={40} ring={false} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm text-zinc-500">
-                        <b className="text-zinc-900">{r.author.username}</b> · {timeAgo(r.createdAt)}
+                        <b className="text-zinc-900">{r.author.displayName}</b> · {timeAgo(r.createdAt)}
                       </p>
-                      <p className={r.kind === 'reaction' ? 'text-3xl leading-tight' : 'break-words'}>{r.body}</p>
+                      {r.kind === 'reaction' ? <p className="text-3xl leading-tight">{r.body}</p> : <p className="mt-0.5 break-words rounded-2xl rounded-tl-md bg-zinc-100 px-3.5 py-2">{r.body}</p>}
                     </div>
-                  </div>
+                  </li>
                 ))}
-              </>
+              </ul>
             )}
-            <p className="mb-1 mt-4 text-sm font-semibold text-zinc-500">Quem viu {story?.viewCount ? `(${story.viewCount})` : ''}</p>
-            {viewers.isLoading && <p className="py-6 text-center text-zinc-500">A carregar…</p>}
-            {viewers.isSuccess && viewers.data.length === 0 && <p className="py-4 text-center text-zinc-500">Ainda ninguém viu 👀</p>}
-            {viewers.data?.map((v) => (
-              <div key={v.username} className="flex items-center gap-3 py-2.5">
-                <Avatar name={v.displayName} username={v.username} size={40} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{v.displayName}</p>
-                  <p className="text-sm text-zinc-500">@{v.username} · {timeAgo(v.viewedAt)}</p>
-                </div>
-              </div>
-            ))}
+
+            {tab === 'viewers' && (
+              <ul>
+                {viewers.isLoading && <li className="py-6 text-center text-zinc-500">A carregar…</li>}
+                {viewers.isSuccess && viewers.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda ninguém viu 👀</li>}
+                {viewers.data?.map((v) => (
+                  <li key={v.username} className="flex items-center gap-3 py-2.5">
+                    <Avatar name={v.displayName} username={v.username} size={40} ring={false} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold">{v.displayName}</p>
+                      <p className="truncate text-sm text-zinc-500">@{v.username}</p>
+                    </div>
+                    <span className="shrink-0 text-sm text-zinc-500">{timeAgo(v.viewedAt)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Panel>
         )}
       </div>
@@ -417,6 +615,10 @@ function Creator({ file, onClose }: { file: File; onClose: () => void }) {
   const qc = useQueryClient();
   const [preview] = useState(() => URL.createObjectURL(file));
   const [caption, setCaption] = useState('');
+  const vv = useVisualViewport();
+  const [audience, setAudience] = useState<'all' | 'close_friends'>('all');
+  const [listOpen, setListOpen] = useState(false);
+  const friends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -426,7 +628,7 @@ function Creator({ file, onClose }: { file: File; onClose: () => void }) {
     setErr('');
     try {
       const mediaId = await api.uploadImage(file);
-      await api.createStory(mediaId, caption.trim());
+      await api.createStory(mediaId, caption.trim(), audience);
       await qc.invalidateQueries({ queryKey: ['stories'] });
       onClose();
     } catch (x) {
@@ -436,18 +638,38 @@ function Creator({ file, onClose }: { file: File; onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black" role="dialog" aria-modal="true" aria-label="Novo story">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black" style={visibleStyle(vv)} role="dialog" aria-modal="true" aria-label="Novo story">
       <form onSubmit={share} className="relative flex h-full w-full max-w-xl flex-col">
         <img src={preview} alt="Pré-visualização do story" className="min-h-0 flex-1 object-contain" />
         <button type="button" onClick={onClose} aria-label="Cancelar" className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] px-2 text-3xl leading-none text-white">×</button>
         <div className="space-y-3 bg-black px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
-          <input value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={200} placeholder="Escreve uma legenda… 💬" aria-label="Legenda" className="w-full rounded-full bg-white/15 px-4 py-3 text-white outline-none placeholder:text-white/60 focus:ring-2 focus:ring-brand" />
+          <MentionTextarea single up value={caption} onChange={setCaption} maxLength={200} placeholder="Escreve uma legenda… 💬" aria-label="Legenda" className="w-full rounded-full bg-white/15 px-4 py-3 text-white outline-none placeholder:text-white/60 focus:ring-2 focus:ring-brand" />
+          <div role="radiogroup" aria-label="Quem vê" className="flex gap-2">
+            {([['all', 'globe', 'Os teus stories'], ['close_friends', 'heart', 'Amigos próximos']] as const).map(([v, ic, label]) => (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={audience === v}
+                onClick={() => setAudience(v)}
+                className={`h-11 flex-1 rounded-full text-sm font-bold transition active:scale-95 ${audience === v ? (v === 'all' ? 'bg-white text-zinc-900' : 'bg-emerald-500 text-white') : 'bg-white/15 text-white'}`}
+              >
+                <Icon name={ic} size={18} className="mr-1.5 inline align-[-3px]" />{label}
+              </button>
+            ))}
+          </div>
+          {audience === 'close_friends' && (
+            <button type="button" onClick={() => setListOpen(true)} className="w-full text-center text-sm font-semibold text-emerald-300">
+              {friends.data?.length ? `${friends.data.length} na lista · gerir` : 'A tua lista está vazia · adicionar amigos'}
+            </button>
+          )}
           <p role="alert" className="min-h-5 text-center text-sm text-red-400">{err}</p>
-          <button disabled={busy} className="w-full rounded-full bg-brand py-3.5 text-lg font-semibold text-white transition active:scale-[0.98] disabled:opacity-50">
-            {busy ? 'A publicar… 🚀' : 'Partilhar no story'}
+          <button disabled={busy} className={`w-full rounded-full py-3.5 text-lg font-semibold text-white transition active:scale-[0.98] disabled:opacity-50 ${audience === 'close_friends' ? 'bg-emerald-600' : 'bg-brand'}`}>
+            {busy ? 'A publicar… 🚀' : audience === 'close_friends' ? 'Partilhar com amigos próximos' : 'Partilhar no story'}
           </button>
         </div>
       </form>
+      {listOpen && <CloseFriendsSheet layer="z-[70]" onClose={() => setListOpen(false)} />}
     </div>
   );
 }

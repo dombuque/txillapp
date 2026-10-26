@@ -1,11 +1,12 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Fragment } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import PostCard from '../components/PostCard';
 import StoriesTray from '../components/Stories';
 import Suggestions from '../components/Suggestions';
 import { btnGhost } from '../components/ui';
-import { api } from '../lib/api';
+import { api, type Post } from '../lib/api';
+import { trackSeen } from '../lib/seen';
 
 function Skeleton() {
   return (
@@ -23,6 +24,29 @@ function Skeleton() {
   );
 }
 
+/** Regista a publicação como vista quando está pelo menos 60% no ecrã durante 1 segundo. */
+function Impression({ id, children }: { id: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        clearTimeout(timer);
+        if (e.isIntersecting) timer = setTimeout(() => trackSeen(id), 1000);
+      },
+      { threshold: 0.6 },
+    );
+    io.observe(el);
+    return () => {
+      clearTimeout(timer);
+      io.disconnect();
+    };
+  }, [id]);
+  return <div ref={ref}>{children}</div>;
+}
+
 export default function Feed() {
   const q = useInfiniteQuery({
     queryKey: ['feed'],
@@ -30,7 +54,11 @@ export default function Feed() {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
-  const posts = q.data?.pages.flatMap((p) => p.items) ?? [];
+  // O mesmo post pode aparecer em duas páginas se a ordem mudou entre pedidos: mostra-se uma vez.
+  const seenIds = new Set<string>();
+  const posts = (q.data?.pages.flatMap((p) => p.items) ?? []).filter((p) => !seenIds.has(p.id) && !!seenIds.add(p.id));
+  const firstSeen = posts.findIndex((p: Post) => p.feed?.seen);
+
 
   return (
     <div className="pt-1">
@@ -61,7 +89,20 @@ export default function Feed() {
       )}
       {posts.map((p, i) => (
         <Fragment key={p.id}>
-          <PostCard post={p} />
+          {i === firstSeen && firstSeen > 0 && (
+            <div className="mx-6 mb-6 mt-2 text-center" role="note">
+              <p className="text-lg font-extrabold">Estás em dia ✨</p>
+              <p className="text-sm text-zinc-600">Daqui para baixo são publicações que já viste.</p>
+            </div>
+          )}
+          <Impression id={p.id}>
+            {p.feed?.source === 'discover' && (
+              <p className="mx-6 mb-1.5 text-sm font-semibold text-zinc-500">
+                <span aria-hidden>✨</span> Sugestão para ti
+              </p>
+            )}
+            <PostCard post={p} />
+          </Impression>
           {i === 1 && <Suggestions />}
         </Fragment>
       ))}

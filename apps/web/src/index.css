@@ -29,6 +29,21 @@ html::-webkit-scrollbar {
   display: none;
 }
 
+/* Sem "elástico" nem puxar-para-atualizar: a app deve parecer fixa, como uma app nativa. */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* iPhone: campos com menos de 16px fazem o Safari ampliar a página ao tocar. */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 body {
   @apply bg-white text-zinc-900 antialiased;
   padding-bottom: env(safe-area-inset-bottom);
