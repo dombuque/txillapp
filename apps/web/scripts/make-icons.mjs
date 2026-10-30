@@ -3,14 +3,15 @@ import sharp from 'sharp';
 import { writeFileSync } from 'fs';
 
 const BRAND = '#d6334f';
-// O logótipo "txillapp" (o mesmo da app), a branco sobre o coral, com o ponto do "i" em amarelo.
+const INK = '#18181b'; // o mesmo "preto" do texto da app (zinc-900)
+// O logótipo "txillapp" é um só em todo o lado: letras escuras e o ponto do "i" a coral, sobre fundo branco.
 // Fica dentro da zona segura (80%) para os ícones "maskable".
 const logo = `
-  <g transform="translate(76 192) scale(2.3)" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+  <g transform="translate(76 192) scale(2.3)" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
     <path d="M7 5V27Q7 34 14 34M0 14H14"/>
     <path d="M20 14Q27 24 34 34M34 14Q27 24 20 34"/>
     <path d="M42 14V34"/>
-    <circle cx="42" cy="3.5" r="4.6" stroke-width="0" fill="#ffd166"/>
+    <circle cx="42" cy="3.5" r="4.2" stroke-width="0" fill="${BRAND}"/>
     <path d="M51 3V34"/><path d="M61 3V34"/>
     <circle cx="77" cy="24" r="9.5"/><path d="M86.5 14V34"/>
     <circle cx="106" cy="24" r="9.5"/><path d="M96.5 14V46"/>
@@ -18,8 +19,8 @@ const logo = `
   </g>`;
 const art = (bg) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${bg}${logo}</svg>`;
 
-const rounded = art(`<rect width="512" height="512" rx="112" fill="${BRAND}"/>`);
-const full = art(`<rect width="512" height="512" fill="${BRAND}"/>`);
+const rounded = art(`<rect width="512" height="512" rx="112" fill="#fff"/><rect x="2" y="2" width="508" height="508" rx="110" fill="none" stroke="#e4e4e7" stroke-width="4"/>`);
+const full = art(`<rect width="512" height="512" fill="#fff"/>`);
 
 writeFileSync('public/icon.svg', rounded);
 await sharp(Buffer.from(rounded)).resize(192, 192).png().toFile('public/icon-192.png');
@@ -28,10 +29,11 @@ await sharp(Buffer.from(rounded)).resize(512, 512).png().toFile('public/icon-512
 await sharp(Buffer.from(full)).resize(512, 512).png().toFile('public/icon-maskable-512.png');
 await sharp(Buffer.from(full)).resize(180, 180).png().toFile('public/apple-touch-icon.png');
 
-// Favicon: o separador do navegador é minúsculo, por isso usa o monograma "tx" do logótipo (as duas primeiras letras), grande e legível.
-const mono = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="${BRAND}"/>
-  <g transform="translate(120 100) scale(8)" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+// Favicon: o separador do navegador é minúsculo, por isso usa o monograma "tx" do logótipo, no mesmo preto e com o ponto coral.
+const mono = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#fff"/><rect x="3" y="3" width="506" height="506" rx="109" fill="none" stroke="#d4d4d8" stroke-width="6"/>
+  <g transform="translate(112 118) scale(8)" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
     <path d="M7 5V27Q7 34 14 34M0 14H14"/><path d="M20 14Q27 24 34 34M34 14Q27 24 20 34"/>
+    <circle cx="43" cy="9" r="4.6" stroke-width="0" fill="${BRAND}"/>
   </g></svg>`;
 writeFileSync('public/favicon.svg', mono);
 const png = (n) => sharp(Buffer.from(mono)).resize(n, n).png().toBuffer();

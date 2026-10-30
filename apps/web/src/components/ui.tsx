@@ -4,7 +4,7 @@ import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react
 const BRAND = '#d6334f';
 
 /** Logótipo "txillapp": traço grosso e arredondado, com o ponto do i a coral. */
-export const Wordmark = ({ className = 'h-8', accent = true }: { className?: string; accent?: boolean }) => (
+export const Wordmark = ({ className = 'h-8' }: { className?: string }) => (
   <svg
     viewBox="-4 -3 154 54"
     role="img"
@@ -22,7 +22,7 @@ export const Wordmark = ({ className = 'h-8', accent = true }: { className?: str
     <path d="M20 14Q27 24 34 34M34 14Q27 24 20 34" />
     {/* i */}
     <path d="M42 14V34" />
-    <circle cx="42" cy="3.5" r="4.2" strokeWidth={0} fill={accent ? BRAND : 'currentColor'} />
+    <circle cx="42" cy="3.5" r="4.2" strokeWidth={0} fill={BRAND} />
     {/* l l */}
     <path d="M51 3V34" />
     <path d="M61 3V34" />

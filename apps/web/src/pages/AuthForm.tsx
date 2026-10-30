@@ -152,24 +152,24 @@ function BrandPanel() {
     { icon: 'shield', text: 'Tu decides quem te vê' },
   ] as const;
   return (
-    <aside className="relative hidden w-[46%] max-w-[640px] shrink-0 flex-col justify-between overflow-hidden bg-gradient-to-br from-brand to-brand-light p-14 text-white lg:flex">
-      <div className="pointer-events-none absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" aria-hidden />
-      <div className="pointer-events-none absolute -top-24 left-1/3 h-72 w-72 rounded-full bg-amber-300/20 blur-3xl" aria-hidden />
+    <aside className="relative hidden w-[46%] max-w-[640px] shrink-0 flex-col justify-between overflow-hidden bg-canvas p-14 lg:flex">
+      <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-brand/25 blur-3xl" aria-hidden />
+      <div className="pointer-events-none absolute -left-28 bottom-10 h-80 w-80 rounded-full bg-amber-300/30 blur-3xl" aria-hidden />
       <Link to="/" aria-label="Txillapp, página inicial" className="relative w-fit">
-        <Wordmark className="h-12" accent={false} />
+        <Wordmark className="h-12" />
       </Link>
       <div className="relative">
-        <p className="text-5xl font-extrabold leading-[1.05] tracking-tight">Posta. Mostra.<br />Txilla.</p>
-        <ul className="mt-10 space-y-4 text-xl">
+        <p className="text-5xl font-extrabold leading-[1.05] tracking-tight">Posta. Mostra.<br /><span className="text-brand">Txilla.</span></p>
+        <ul className="mt-10 space-y-4 text-xl text-zinc-800">
           {points.map((p) => (
             <li key={p.text} className="flex items-center gap-4">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15"><Icon name={p.icon} size={24} /></span>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-brand shadow-sm"><Icon name={p.icon} size={24} /></span>
               {p.text}
             </li>
           ))}
         </ul>
       </div>
-      <p className="relative text-sm text-white/80">
+      <p className="relative text-sm text-zinc-600">
         <Link to="/terms" className="hover:underline">Termos</Link> · <Link to="/privacy" className="hover:underline">Privacidade</Link> ·{' '}
         <a href="mailto:suporte@txillapp.com" className="hover:underline">suporte@txillapp.com</a>
       </p>

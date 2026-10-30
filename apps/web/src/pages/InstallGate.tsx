@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../components/Icon';
-import { Wordmark } from '../components/ui';
 import { BROWSER_OK_KEY, browserOk, mobileDevice, onAppHost, standalone, useInstall } from '../lib/install';
 
 /** Em app.txillapp.com, no telemóvel e fora da app instalada, a instalação é obrigatória: é isto que se mostra em vez da app. */
@@ -20,8 +19,8 @@ export default function InstallGate() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center bg-white px-7 py-10 text-center">
-      <img src="/favicon.svg?v=2" alt="" width={88} height={88} className="h-22 w-22 rounded-[22px] shadow-lg" />
-      <h1 className="mt-6"><Wordmark className="mx-auto h-10" /></h1>
+      <img src="/icon-192.png" alt="" width={88} height={88} className="h-22 w-22 rounded-[22px] shadow-lg" />
+      <h1 className="sr-only">Txillapp</h1>
 
       {installed ? (
         <>
