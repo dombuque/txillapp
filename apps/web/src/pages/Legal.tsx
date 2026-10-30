@@ -4,6 +4,13 @@ import { MIN_AGE, TERMS_VERSION } from '@txillapp/shared';
 import { BackIcon } from '../components/icons';
 import { Wordmark } from '../components/ui';
 
+const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+/** "2026-10" → "outubro de 2026". */
+const updated = (v: string) => {
+  const [y, m] = v.split('-');
+  return `${MONTHS[Number(m) - 1] ?? ''} de ${y}`;
+};
+
 function Page({ title, children }: { title: string; children: ReactNode }) {
   const navigate = useNavigate();
   return (
@@ -15,10 +22,7 @@ function Page({ title, children }: { title: string; children: ReactNode }) {
         <Wordmark className="h-7" />
       </header>
       <h1 className="mt-6 text-3xl font-extrabold">{title}</h1>
-      <p className="mt-1 text-sm text-zinc-500">Versão {TERMS_VERSION}</p>
-      <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-zinc-700">
-        Documento de trabalho em linguagem simples. Antes do lançamento público deve ser revisto por um advogado e completado com os dados da entidade responsável.
-      </p>
+      <p className="mt-1 text-sm text-zinc-500">Última atualização: {updated(TERMS_VERSION)}</p>
       <div className="mt-6 space-y-6 text-[16px] leading-relaxed text-zinc-800 [&_h2]:mb-2 [&_h2]:text-xl [&_h2]:font-bold [&_li]:ml-5 [&_li]:list-disc [&_ul]:space-y-1">{children}</div>
       <p className="mt-10 text-center text-sm text-zinc-500">
         <Link to="/terms" className="underline">Termos de Uso</Link> · <Link to="/privacy" className="underline">Política de Privacidade</Link>
@@ -33,8 +37,8 @@ export function Terms() {
       <section>
         <h2>1. O que é o Txillapp</h2>
         <p>
-          O Txillapp é uma rede social: publicas fotos e textos, segues pessoas, partilhas stories e trocas mensagens. Inclui uma carteira de <b>Txills, uma moeda fictícia de demonstração</b>:
-          não tem valor em dinheiro, não se compra, não se vende e não se levanta.
+          O Txillapp é uma rede social: publicas fotos e textos, segues pessoas, partilhas stories e trocas mensagens. Inclui uma carteira de <b>Txills</b>, pontos virtuais da app que se usam para oferecer presentes a quem segues.
+          Os Txills não são dinheiro: não têm valor monetário, não se compram, não se vendem, não se trocam por dinheiro e não se levantam.
         </p>
       </section>
       <section>
@@ -90,8 +94,11 @@ export function Terms() {
         <p>Se mudarmos estes termos de forma relevante, avisamos-te na app e pedimos-te para aceitar de novo.</p>
       </section>
       <section>
-        <h2>9. Contacto</h2>
-        <p>[Entidade responsável e contacto a preencher antes do lançamento]</p>
+        <h2>9. Lei aplicável e contacto</h2>
+        <p>
+          Estes termos regem-se pela lei da República de Moçambique. Para qualquer questão sobre o serviço, ajuda ou denúncias, escreve para{' '}
+          <a href="mailto:suporte@txillapp.com" className="font-semibold text-brand underline">suporte@txillapp.com</a>.
+        </p>
       </section>
     </Page>
   );
@@ -107,7 +114,7 @@ export function Privacy() {
           <li><b>O que publicas:</b> posts, fotos, stories, comentários, brindes, mensagens e as pessoas que identificas ou mencionas.</li>
           <li><b>Localização:</b> só o <i>nome do sítio</i> que escolheres. Nunca guardamos a tua posição exata.</li>
           <li><b>Segurança:</b> sessões e dispositivos com sessão iniciada (tipo de browser, datas de acesso) e registos de ações sensíveis.</li>
-          <li><b>Carteira de demonstração:</b> movimentos de Txills fictícios.</li>
+          <li><b>Carteira:</b> o teu saldo de Txills e os movimentos (presentes enviados e recebidos).</li>
           <li><b>Utilização:</b> aberturas da app, ecrãs vistos, desempenho e erros. São estatísticas nossas, sem terceiros, e podes desligá-las em Definições → «Ajudar a melhorar o Txillapp». Também guardamos o que já viste no feed, para não repetir sempre o mesmo.</li>
           <li><b>Fotos e vídeos:</b> são verificados automaticamente no nosso servidor (nudez e conteúdo sexual) antes de ficarem visíveis. Nada é enviado a terceiros.</li>
         </ul>
@@ -151,8 +158,19 @@ export function Privacy() {
         <p>O Txillapp não é para menores de {MIN_AGE} anos. Se descobrirmos uma conta abaixo dessa idade, removemo-la.</p>
       </section>
       <section>
-        <h2>8. Contacto</h2>
-        <p>[Responsável pelo tratamento de dados e contacto a preencher antes do lançamento]</p>
+        <h2>8. Quem trata os teus dados</h2>
+        <p>
+          Os dados são tratados pelo Txillapp e guardados em servidores de fornecedores de alojamento e de rede (por exemplo, o armazenamento das fotos e vídeos e a proteção do site),
+          que só os processam para nós. Se entrares com a Google, recebemos o teu nome e email dessa conta. Os mapas usam o OpenStreetMap, que vê o endereço de rede do teu aparelho ao carregar o mapa.
+        </p>
+      </section>
+      <section>
+        <h2>9. Contacto</h2>
+        <p>
+          Para exercer os teus direitos, pedir ajuda ou esclarecer dúvidas sobre os teus dados, escreve para{' '}
+          <a href="mailto:privacidade@txillapp.com" className="font-semibold text-brand underline">privacidade@txillapp.com</a>.
+          Respondemos o mais depressa possível.
+        </p>
       </section>
     </Page>
   );

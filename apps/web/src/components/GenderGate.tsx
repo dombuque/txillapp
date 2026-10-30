@@ -47,18 +47,18 @@ export default function GenderGate() {
   return (
     <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/50 sm:items-center" role="dialog" aria-modal="true" aria-label="Completa o teu perfil">
       <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-[28px] bg-white px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-6 sm:rounded-[28px]">
-        <h2 className="text-2xl font-extrabold">Só mais um passo 🙌</h2>
+        <h2 className="text-2xl font-extrabold">Só mais um passo</h2>
         <p className="mb-5 mt-1 text-zinc-600">Falta completar o teu perfil. É uma vez só e fica privado.</p>
 
         {needGender && (
           <>
-            <p className="mb-2 font-semibold">Como te identificas? 🌈</p>
+            <p className="mb-2 font-semibold">Como te identificas?</p>
             <GenderPicker value={gender} onChange={setGender} />
           </>
         )}
         {needBirth && (
           <>
-            <p className="mb-2 mt-5 font-semibold">Quando nasceste? 🎂</p>
+            <p className="mb-2 mt-5 font-semibold">Quando nasceste?</p>
             <input
               type="date"
               value={birth}

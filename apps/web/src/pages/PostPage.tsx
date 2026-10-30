@@ -1,3 +1,4 @@
+import Icon from '../components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import CommentsSheet from '../components/CommentsSheet';
@@ -17,7 +18,7 @@ export default function PostPage() {
         {q.isLoading && <p className="py-16 text-center text-zinc-500">A carregar…</p>}
         {q.isError && (
           <div className="mx-6 mt-12 text-center">
-            <p className="text-5xl">🕵️</p>
+            <p className="text-zinc-300" aria-hidden><Icon name="search" size={44} className="mx-auto" /></p>
             <p className="mt-3 text-xl font-bold">Esta publicação já não está disponível</p>
             <p className="mt-1 text-zinc-600">Pode ter sido apagada, ou a conta passou a privada.</p>
           </div>

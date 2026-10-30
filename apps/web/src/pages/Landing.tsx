@@ -35,7 +35,7 @@ export default function Landing() {
       <main>
         <section className="mx-auto grid max-w-6xl items-center gap-10 px-5 pb-16 pt-8 lg:grid-cols-2 lg:pt-16">
           <div>
-            <p className="inline-block rounded-full bg-rose-50 px-4 py-1.5 text-sm font-bold text-brand">Rede social made in Moçambique ❤️</p>
+            <p className="inline-block rounded-full bg-rose-50 px-4 py-1.5 text-sm font-bold text-brand">Rede social made in Moçambique</p>
             <h1 className="mt-5 text-5xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
               Posta. Mostra. <span className="text-brand">Txilla.</span>
             </h1>
@@ -99,7 +99,7 @@ export default function Landing() {
         </section>
 
         <section className="mx-auto max-w-3xl px-5 py-16 text-center">
-          <h2 className="text-3xl font-extrabold">Bora entrar na festa? 🎉</h2>
+          <h2 className="text-3xl font-extrabold">Bora entrar na festa?</h2>
           <p className="mt-3 text-lg text-zinc-600">É grátis e demora menos de um minuto.</p>
           <Link to="/register" className="mt-6 inline-block rounded-full bg-brand px-10 py-4 text-lg font-bold text-white transition hover:brightness-110 active:scale-95">
             Criar a minha conta

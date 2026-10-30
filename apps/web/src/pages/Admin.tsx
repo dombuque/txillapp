@@ -1,3 +1,4 @@
+import Icon from '../components/Icon';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -59,11 +60,11 @@ export default function Admin() {
   return (
     <StackPage title="Moderação">
       <div className="px-4 pt-4">
-        {q.isError && <p role="alert" className="py-10 text-center text-zinc-600">Sem acesso 🔒</p>}
+        {q.isError && <p role="alert" className="py-10 text-center text-zinc-600">Sem acesso</p>}
         {q.isLoading && <p className="py-10 text-center text-zinc-500">A carregar…</p>}
         {q.isSuccess && q.data.length === 0 && (
           <div className="py-16 text-center">
-            <p className="text-5xl">🎉</p>
+            <p className="text-zinc-300" aria-hidden><Icon name="sparkles" size={44} className="mx-auto" /></p>
             <p className="mt-3 text-xl font-bold">Fila vazia</p>
             <p className="text-zinc-600">Não há denúncias por analisar.</p>
           </div>

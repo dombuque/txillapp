@@ -1,3 +1,4 @@
+import Icon from './Icon';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 const TRIGGER = 76;
@@ -59,20 +60,7 @@ export default function PullToRefresh({ onRefresh, children }: { onRefresh: () =
   return (
     <div className="relative" style={{ transform: shown ? `translateY(${shown}px)` : undefined, transition: pull ? 'none' : 'transform .2s ease-out' }}>
       <div className="pointer-events-none absolute inset-x-0 -top-10 flex h-10 items-center justify-center" aria-hidden={!busy} role={busy ? 'status' : undefined}>
-        <svg
-          width="26"
-          height="26"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#d6334f"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          className={busy ? 'animate-spin' : ''}
-          style={busy ? undefined : { transform: `rotate(${Math.min(pull / TRIGGER, 1) * 270}deg)`, opacity: Math.min(pull / 40, 1) }}
-        >
-          <path d="M12 3a9 9 0 1 0 9 9" />
-          {ready && !busy && <path d="M12 3l3-2M12 3l3 2" />}
-        </svg>
+        <Icon name="loader" size={26} strokeWidth={2.4} className={busy ? 'animate-spin' : ''} style={busy ? { color: '#d6334f' } : { color: '#d6334f', transform: `rotate(${Math.min(pull / TRIGGER, 1) * 270}deg)`, opacity: Math.min(pull / 40, 1) }} />
         {busy && <span className="sr-only">A atualizar…</span>}
       </div>
       {children}

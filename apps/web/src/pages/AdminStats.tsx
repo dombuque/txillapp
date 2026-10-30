@@ -41,7 +41,7 @@ export default function AdminStats() {
             </button>
           ))}
         </div>
-        {q.isError && <p role="alert" className="py-10 text-center text-zinc-600">Sem acesso 🔒</p>}
+        {q.isError && <p role="alert" className="py-10 text-center text-zinc-600">Sem acesso</p>}
         {q.isLoading && <p className="py-10 text-center text-zinc-500">A carregar…</p>}
         {s && (
           <>
@@ -123,7 +123,7 @@ export default function AdminStats() {
               </ul>
               <h2 className="mt-4 font-bold">Erros no telemóvel</h2>
               <ul className="mt-2 text-sm">
-                {s.errors.length === 0 && <li className="text-zinc-500">Nenhum 🎉</li>}
+                {s.errors.length === 0 && <li className="text-zinc-500">Nenhum</li>}
                 {s.errors.map((x) => (
                   <li key={x.message} className="flex justify-between gap-3 border-t border-zinc-100 py-1.5 first:border-0"><span className="min-w-0 break-words">{x.message}</span><span className="tabular-nums text-zinc-600">{x.n}</span></li>
                 ))}

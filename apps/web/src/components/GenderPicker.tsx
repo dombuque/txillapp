@@ -1,10 +1,10 @@
 import type { Gender } from '../lib/api';
 
-export const GENDERS: { value: Gender; label: string; emoji: string }[] = [
-  { value: 'female', label: 'Feminino', emoji: '👩' },
-  { value: 'male', label: 'Masculino', emoji: '👨' },
-  { value: 'other', label: 'Outro', emoji: '🌈' },
-  { value: 'unspecified', label: 'Prefiro não dizer', emoji: '🤐' },
+export const GENDERS: { value: Gender; label: string }[] = [
+  { value: 'female', label: 'Feminino' },
+  { value: 'male', label: 'Masculino' },
+  { value: 'other', label: 'Outro' },
+  { value: 'unspecified', label: 'Prefiro não dizer' },
 ];
 
 export const genderLabel = (g: Gender) => GENDERS.find((x) => x.value === g)?.label ?? '';
@@ -26,7 +26,6 @@ export default function GenderPicker({ value, onChange, dark = false }: { value:
               on ? 'border-brand bg-rose-50 text-brand' : dark ? 'border-zinc-700 text-white' : 'border-zinc-200 bg-white text-zinc-800'
             }`}
           >
-            <span className="text-2xl" aria-hidden>{g.emoji}</span>
             <span className="text-[15px] font-bold leading-tight">{g.label}</span>
           </button>
         );

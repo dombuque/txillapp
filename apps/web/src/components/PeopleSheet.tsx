@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, type PeopleKind } from '../lib/api';
 import { Avatar, Sheet, timeAgo } from './ui';
 
-const TITLE: Record<PeopleKind, string> = { reposts: 'Quem repostou 🔁', cheers: 'Quem brindou 🍻', gifts: 'Quem presenteou 🎁' };
+const TITLE: Record<PeopleKind, string> = { reposts: 'Quem repostou', cheers: 'Quem brindou', gifts: 'Quem presenteou' };
 const EMPTY: Record<PeopleKind, string> = { reposts: 'Ainda ninguém repostou.', cheers: 'Ainda ninguém brindou.', gifts: 'Ainda ninguém presenteou.' };
 
 /** Lista de quem interagiu com uma publicação. O servidor só responde se o dono o permitir. */
@@ -12,7 +12,7 @@ export default function PeopleSheet({ postId, kind, onClose, layer }: { postId: 
   return (
     <Sheet title={TITLE[kind]} onClose={onClose} layer={layer}>
       {q.isLoading && <p className="py-6 text-center text-zinc-500">A carregar…</p>}
-      {q.isError && <p role="alert" className="py-6 text-center text-zinc-600">Esta lista não está disponível 🔒</p>}
+      {q.isError && <p role="alert" className="py-6 text-center text-zinc-600">Esta lista não está disponível</p>}
       {q.isSuccess && q.data.length === 0 && <p className="py-6 text-center text-zinc-500">{EMPTY[kind]}</p>}
       <ul>
         {q.data?.map((p) => (

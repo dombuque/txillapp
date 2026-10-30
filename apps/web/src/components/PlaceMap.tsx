@@ -1,9 +1,12 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+import Icon, { type IconName } from './Icon';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useRef, useState } from 'react';
 import { api, type NearbyPlaces } from '../lib/api';
 
-const emoji: Record<string, string> = { praia: '🏖️', bar: '🍻', restaurante: '🍽️', lazer: '🌳', turismo: '📸', local: '📍' };
+const kindIcon: Record<string, IconName> = { praia: 'waves', bar: 'cheers', restaurante: 'utensils', lazer: 'trees', turismo: 'camera', local: 'map-pin' };
+const markerSvg = (name: IconName) => renderToStaticMarkup(<Icon name={name} size={20} />);
 const MAPUTO = { lat: -25.9692, lng: 32.5732 };
 type Spot = NearbyPlaces['places'][number];
 
@@ -77,7 +80,7 @@ export default function PlaceMap({ start, onPick, onClose }: Props) {
         className: '',
         iconSize: [40, 40],
         iconAnchor: [20, 20],
-        html: `<div style="width:40px;height:40px;border-radius:9999px;background:#fff;border:3px solid ${on ? '#d6334f' : '#fff'};box-shadow:0 2px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:20px;transform:scale(${on ? 1.2 : 1})">${emoji[s.kind] ?? '📍'}</div>`,
+        html: `<div style="width:40px;height:40px;border-radius:9999px;background:#fff;border:3px solid ${on ? '#d6334f' : '#fff'};box-shadow:0 2px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:20px;transform:scale(${on ? 1.2 : 1})">${markerSvg(kindIcon[s.kind] ?? 'map-pin')}</div>`,
       });
       L.marker([s.lat, s.lng], { icon, keyboard: false, title: s.name })
         .on('click', (e) => {
@@ -101,7 +104,7 @@ export default function PlaceMap({ start, onPick, onClose }: Props) {
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex items-center justify-between gap-2 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
         <button type="button" onClick={onClose} aria-label="Fechar mapa" className={`${round} pointer-events-auto`}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6 6 18" /></svg>
+          <Icon name="x" size={22} strokeWidth={2.2} />
         </button>
         {(moved || loading) && (
           <button
@@ -110,7 +113,7 @@ export default function PlaceMap({ start, onPick, onClose }: Props) {
             onClick={() => map.current && void search(map.current.getCenter())}
             className="pointer-events-auto h-11 rounded-full bg-white px-5 font-bold text-brand shadow-lg active:scale-95"
           >
-            {loading ? 'A procurar… 🔎' : 'Procurar nesta zona'}
+            {loading ? 'A procurar…' : 'Procurar nesta zona'}
           </button>
         )}
         <span className="w-11" aria-hidden />
@@ -118,14 +121,14 @@ export default function PlaceMap({ start, onPick, onClose }: Props) {
 
       {empty && !loading && (
         <p role="status" className="absolute inset-x-6 top-24 z-[1000] rounded-2xl bg-white/95 px-4 py-3 text-center text-sm shadow-lg">
-          Nada por aqui 🤔 Mexe o mapa e procura noutra zona.
+          Nada por aqui. Mexe o mapa e procura noutra zona.
         </p>
       )}
 
       <div className="absolute inset-x-0 bottom-0 z-[1000] px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         {selected ? (
           <div className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-[0_4px_24px_rgba(0,0,0,0.25)]">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-2xl" aria-hidden>{emoji[selected.kind] ?? '📍'}</span>
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-100 " aria-hidden><Icon name={kindIcon[selected.kind] ?? 'map-pin'} size={24} /></span>
             <span className="min-w-0 flex-1">
               <span className="block truncate font-bold">{selected.name}</span>
               <span className="block truncate text-sm text-zinc-500">{area ?? 'Perto daqui'}</span>
@@ -135,7 +138,7 @@ export default function PlaceMap({ start, onPick, onClose }: Props) {
             </button>
           </div>
         ) : (
-          spots.length > 0 && <p className="mx-auto w-fit rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-lg">Toca num sítio para escolher 👆</p>
+          spots.length > 0 && <p className="mx-auto w-fit rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-lg">Toca num sítio para escolher</p>
         )}
       </div>
     </div>

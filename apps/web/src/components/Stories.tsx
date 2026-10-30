@@ -116,8 +116,8 @@ export default function StoriesTray() {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    if (!TYPES.includes(f.type)) return setErr('Essa foto não serve. Usa JPEG, PNG ou WebP 🙃');
-    if (f.size > MAX_BYTES) return setErr('Foto pesada demais! Máximo 8 MB 🏋️');
+    if (!TYPES.includes(f.type)) return setErr('Essa foto não serve. Usa JPEG, PNG ou WebP');
+    if (f.size > MAX_BYTES) return setErr('Foto pesada demais! Máximo 8 MB');
     setErr('');
     setFile(f);
   }
@@ -156,7 +156,7 @@ export default function StoriesTray() {
             <span className={`${label} ${u.seen ? 'font-normal text-zinc-500' : 'font-bold text-zinc-900'}`}>{u.username}</span>
           </button>
         ))}
-        {others.length === 0 && <p className="self-center pr-4 text-sm text-zinc-500">Segue pessoas para ver os stories delas 👀</p>}
+        {others.length === 0 && <p className="self-center pr-4 text-sm text-zinc-500">Segue pessoas para ver os stories delas</p>}
       </div>
       {err && <p role="alert" className="px-4 pt-2 text-sm text-red-600">{err}</p>}
 
@@ -176,27 +176,11 @@ export default function StoriesTray() {
   );
 }
 
-const iconProps = { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true } as const;
-const CloseIcon = () => (
-  <svg {...iconProps}>
-    <path d="M6 6l12 12M18 6 6 18" />
-  </svg>
-);
-const DotsIcon = () => (
-  <svg {...iconProps} fill="currentColor" stroke="none">
-    <circle cx="5" cy="12" r="2" />
-    <circle cx="12" cy="12" r="2" />
-    <circle cx="19" cy="12" r="2" />
-  </svg>
-);
-const EyeIcon = () => (
-  <svg {...iconProps} width={20} height={20}>
-    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
-    <circle cx="12" cy="12" r="3" />
-  </svg>
-);
+const CloseIcon = () => <Icon name="x" size={24} strokeWidth={2} />;
+const DotsIcon = () => <Icon name="more" size={24} strokeWidth={2.4} />;
+const EyeIcon = () => <Icon name="eye" size={20} strokeWidth={2} />;
 
-const REACTIONS = ['😂', '😮', '😍', '😢', '👏', '🔥', '🍻'];
+const REACTIONS = ['😂', '😮', '😍', '😢', '👏', '🔥', '🥂'];
 
 function expiresIn(iso: string) {
   const h = Math.ceil((new Date(iso).getTime() - Date.now()) / 3_600_000);
@@ -216,7 +200,7 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
     try {
       await api.replyStory(story.id, body.trim());
       setText('');
-      setMsg(REACTIONS.includes(body) ? `${body} enviado!` : 'Mensagem enviada ✅');
+      setMsg(REACTIONS.includes(body) ? `${body} enviado!` : 'Mensagem enviada');
     } catch (x) {
       setMsg((x as Error).message);
     } finally {
@@ -315,7 +299,7 @@ function CommentsPanel({ story, onClose, canComment, onTyping }: { story: Story;
     <Panel title={`Comentários${list.data ? ` (${list.data.length})` : ''}`} onClose={onClose}>
       <ul className="min-h-[96px]">
         {list.isLoading && <li className="py-6 text-center text-zinc-500">A carregar…</li>}
-        {list.isSuccess && list.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda sem comentários. Sê o primeiro 💬</li>}
+        {list.isSuccess && list.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda sem comentários. Sê o primeiro</li>}
         {list.data?.map((c) => (
           <li key={c.id} className="flex items-start gap-3 py-2.5">
             <Avatar name={c.author.displayName} username={c.author.hasAvatar ? c.author.username : undefined} size={36} ring={false} />
@@ -331,7 +315,7 @@ function CommentsPanel({ story, onClose, canComment, onTyping }: { story: Story;
                 aria-label="Apagar comentário"
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 active:bg-zinc-100"
               >
-                ✕
+                <Icon name="x" size={18} />
               </button>
             )}
           </li>
@@ -356,7 +340,7 @@ function CommentsPanel({ story, onClose, canComment, onTyping }: { story: Story;
           <button disabled={!text.trim() || busy} className="px-2 font-bold text-brand disabled:opacity-40">Publicar</button>
         </form>
       ) : (
-        <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2.5 text-center text-sm text-zinc-600">🔕 Este story não aceita comentários.</p>
+        <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2.5 text-center text-sm text-zinc-600">Este story não aceita comentários.</p>
       )}
       {err && <p role="alert" className="mt-1 text-center text-sm text-red-600">{err}</p>}
     </Panel>
@@ -540,13 +524,13 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
           )}
           {!user.isMe && story && story.canReply && <ReplyBar key={story.id} story={story} username={user.username} onFocusChange={setTyping} />}
           {!user.isMe && story && !story.canReply && (
-            <p className="rounded-full bg-black/40 px-4 py-2 text-center text-sm text-white/90 backdrop-blur-sm">🔕 Este story não aceita respostas</p>
+            <p className="rounded-full bg-black/40 px-4 py-2 text-center text-sm text-white/90 backdrop-blur-sm">Este story não aceita respostas</p>
           )}
         </div>
 
         {panel === 'menu' && (
           <Panel title="O teu story" onClose={() => setPanel(null)}>
-            <button onClick={() => { onClose(); navigate('/settings'); }} className="w-full rounded-xl py-3.5 text-lg active:bg-zinc-100">⚙️ Definições do story</button>
+            <button onClick={() => { onClose(); navigate('/settings'); }} className="w-full rounded-xl py-3.5 text-lg active:bg-zinc-100">Definições do story</button>
             <button onClick={remove} className="w-full rounded-xl py-3.5 text-lg font-semibold text-red-600 active:bg-zinc-100">Apagar story</button>
             <button onClick={() => setPanel(null)} className="w-full rounded-xl py-3.5 text-lg active:bg-zinc-100">Cancelar</button>
           </Panel>
@@ -557,7 +541,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
         {panel === 'viewers' && (
           <Panel title="Atividade do story" onClose={() => setPanel(null)}>
             <div role="tablist" className="mb-3 flex rounded-full bg-zinc-100 p-1">
-              {([['viewers', `👀 Visualizações${story?.viewCount ? ` (${story.viewCount})` : ''}`], ['replies', `💬 Respostas${replies.data ? ` (${replies.data.length})` : ''}`]] as const).map(([k, label]) => (
+              {([['viewers', `Visualizações${story?.viewCount ? ` (${story.viewCount})` : ''}`], ['replies', `Respostas${replies.data ? ` (${replies.data.length})` : ''}`]] as const).map(([k, label]) => (
                 <button
                   key={k}
                   role="tab"
@@ -573,7 +557,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
             {tab === 'replies' && (
               <ul>
                 {replies.isLoading && <li className="py-6 text-center text-zinc-500">A carregar…</li>}
-                {replies.isSuccess && replies.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda sem respostas 💤</li>}
+                {replies.isSuccess && replies.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda sem respostas</li>}
                 {replies.data?.map((r) => (
                   <li key={r.id} className="flex items-start gap-3 py-2.5">
                     <Avatar name={r.author.displayName} username={r.author.username} size={40} ring={false} />
@@ -591,7 +575,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
             {tab === 'viewers' && (
               <ul>
                 {viewers.isLoading && <li className="py-6 text-center text-zinc-500">A carregar…</li>}
-                {viewers.isSuccess && viewers.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda ninguém viu 👀</li>}
+                {viewers.isSuccess && viewers.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda ninguém viu</li>}
                 {viewers.data?.map((v) => (
                   <li key={v.username} className="flex items-center gap-3 py-2.5">
                     <Avatar name={v.displayName} username={v.username} size={40} ring={false} />
@@ -643,7 +627,7 @@ function Creator({ file, onClose }: { file: File; onClose: () => void }) {
         <img src={preview} alt="Pré-visualização do story" className="min-h-0 flex-1 object-contain" />
         <button type="button" onClick={onClose} aria-label="Cancelar" className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] px-2 text-3xl leading-none text-white">×</button>
         <div className="space-y-3 bg-black px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
-          <MentionTextarea single up value={caption} onChange={setCaption} maxLength={200} placeholder="Escreve uma legenda… 💬" aria-label="Legenda" className="w-full rounded-full bg-white/15 px-4 py-3 text-white outline-none placeholder:text-white/60 focus:ring-2 focus:ring-brand" />
+          <MentionTextarea single up value={caption} onChange={setCaption} maxLength={200} placeholder="Escreve uma legenda…" aria-label="Legenda" className="w-full rounded-full bg-white/15 px-4 py-3 text-white outline-none placeholder:text-white/60 focus:ring-2 focus:ring-brand" />
           <div role="radiogroup" aria-label="Quem vê" className="flex gap-2">
             {([['all', 'globe', 'Os teus stories'], ['close_friends', 'heart', 'Amigos próximos']] as const).map(([v, ic, label]) => (
               <button
@@ -665,7 +649,7 @@ function Creator({ file, onClose }: { file: File; onClose: () => void }) {
           )}
           <p role="alert" className="min-h-5 text-center text-sm text-red-400">{err}</p>
           <button disabled={busy} className={`w-full rounded-full py-3.5 text-lg font-semibold text-white transition active:scale-[0.98] disabled:opacity-50 ${audience === 'close_friends' ? 'bg-emerald-600' : 'bg-brand'}`}>
-            {busy ? 'A publicar… 🚀' : audience === 'close_friends' ? 'Partilhar com amigos próximos' : 'Partilhar no story'}
+            {busy ? 'A publicar…' : audience === 'close_friends' ? 'Partilhar com amigos próximos' : 'Partilhar no story'}
           </button>
         </div>
       </form>

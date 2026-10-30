@@ -1,3 +1,4 @@
+import Icon, { type IconName } from './Icon';
 import MentionTextarea from './MentionTextarea';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
@@ -15,7 +16,7 @@ async function cropSquare(file: File, side = 512): Promise<File> {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const i = new Image();
       i.onload = () => resolve(i);
-      i.onerror = () => reject(new Error('Não consegui abrir essa foto 😅'));
+      i.onerror = () => reject(new Error('Não consegui abrir essa foto'));
       i.src = url;
     });
     const s = Math.min(img.naturalWidth, img.naturalHeight);
@@ -23,7 +24,7 @@ async function cropSquare(file: File, side = 512): Promise<File> {
     canvas.width = canvas.height = Math.min(side, s);
     canvas.getContext('2d')!.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.9));
-    if (!blob) throw new Error('Não consegui preparar essa foto 😅');
+    if (!blob) throw new Error('Não consegui preparar essa foto');
     return new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
   } finally {
     URL.revokeObjectURL(url);
@@ -47,8 +48,8 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    if (!TYPES.includes(f.type)) return setErr('Essa foto não serve. Usa JPEG, PNG ou WebP 🙃');
-    if (f.size > MAX_BYTES) return setErr('Foto pesada demais! Máximo 12 MB 🏋️');
+    if (!TYPES.includes(f.type)) return setErr('Essa foto não serve. Usa JPEG, PNG ou WebP');
+    if (f.size > MAX_BYTES) return setErr('Foto pesada demais! Máximo 12 MB');
     setPhotoBusy(true);
     setErr('');
     try {
@@ -80,7 +81,7 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
 
   async function save(e: FormEvent) {
     e.preventDefault();
-    if (!displayName.trim()) return setErr('Diz-nos o teu nome 🙂');
+    if (!displayName.trim()) return setErr('Diz-nos o teu nome');
     setBusy(true);
     setErr('');
     try {
@@ -96,7 +97,7 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
     }
   }
 
-  const option = (value: boolean, emoji: string, title: string, text: string) => (
+  const option = (value: boolean, icon: IconName, title: string, text: string) => (
     <button
       type="button"
       role="radio"
@@ -104,7 +105,7 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
       onClick={() => setIsPrivate(value)}
       className={`flex flex-1 flex-col items-start rounded-2xl border-2 p-3.5 text-left transition active:scale-[0.98] ${isPrivate === value ? 'border-brand bg-rose-50' : 'border-zinc-200'}`}
     >
-      <span className="text-2xl">{emoji}</span>
+      <Icon name={icon} size={26} />
       <span className="mt-1 font-bold">{title}</span>
       <span className="mt-0.5 text-xs leading-4 text-zinc-600">{text}</span>
     </button>
@@ -116,7 +117,7 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
         <div className="flex flex-col items-center gap-3">
           <button type="button" onClick={() => fileRef.current?.click()} disabled={photoBusy} aria-label="Mudar foto de perfil" className="relative rounded-full transition active:scale-95">
             <Avatar name={displayName || profile.displayName} username={hasPhoto ? profile.username : undefined} size={96} />
-            <span className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-brand text-lg text-white" aria-hidden>📷</span>
+            <span className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-brand text-white" aria-hidden><Icon name="camera" size={18} /></span>
             {photoBusy && <span className="absolute inset-0 flex items-center justify-center rounded-full bg-white/70 text-sm font-semibold">…</span>}
           </button>
           <input ref={fileRef} type="file" accept={TYPES.join(',')} onChange={pickPhoto} className="sr-only" />
@@ -139,18 +140,18 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
             <span>Bio</span>
             <span className={bio.length > 140 ? 'text-brand' : 'text-zinc-500'}>{bio.length}/150</span>
           </span>
-          <MentionTextarea value={bio} onChange={setBio} maxLength={150} rows={3} placeholder="Conta à malta quem és… 😎" className={`${fieldInput} resize-none`} />
+          <MentionTextarea value={bio} onChange={setBio} maxLength={150} rows={3} placeholder="Conta à malta quem és…" className={`${fieldInput} resize-none`} />
         </label>
         <div>
           <span className="mb-2 block text-sm font-semibold text-zinc-700">Tipo de perfil</span>
           <div role="radiogroup" aria-label="Tipo de perfil" className="flex gap-3">
-            {option(false, '🌍', 'Público', 'Qualquer pessoa vê as tuas publicações e stories e pode seguir-te.')}
-            {option(true, '🔒', 'Privado', 'Só vê quem aprovares. Seguir passa a ser um pedido.')}
+            {option(false, 'globe', 'Público', 'Qualquer pessoa vê as tuas publicações e stories e pode seguir-te.')}
+            {option(true, 'lock', 'Privado', 'Só vê quem aprovares. Seguir passa a ser um pedido.')}
           </div>
           {profile.isPrivate && !isPrivate && <p className="mt-2 text-xs text-zinc-600">Ao passar a público, os pedidos pendentes são aceites.</p>}
         </div>
         <p role="alert" className="min-h-5 text-center text-sm text-red-600">{err}</p>
-        <button disabled={busy || photoBusy} className={`${btnPrimary} w-full py-4 text-lg`}>{busy ? 'A guardar… 🚀' : 'Guardar'}</button>
+        <button disabled={busy || photoBusy} className={`${btnPrimary} w-full py-4 text-lg`}>{busy ? 'A guardar…' : 'Guardar'}</button>
       </form>
     </Sheet>
   );

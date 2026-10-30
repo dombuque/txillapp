@@ -1,3 +1,4 @@
+import Icon from '../components/Icon';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -28,7 +29,7 @@ export default function TagPage() {
           </p>
         )}
         <div role="tablist" aria-label="Ordem" className="mb-4 flex gap-2">
-          {([['recent', 'Recentes'], ['top', 'Mais reagidas 🔥']] as const).map(([k, label]) => (
+          {([['recent', 'Recentes'], ['top', 'Mais reagidas']] as const).map(([k, label]) => (
             <button key={k} role="tab" aria-selected={sort === k} onClick={() => setSort(k)} className={`flex-1 rounded-full py-2.5 text-sm font-bold transition ${sort === k ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-700'}`}>
               {label}
             </button>
@@ -36,10 +37,10 @@ export default function TagPage() {
         </div>
       </div>
       {q.isLoading && <p className="py-16 text-center text-zinc-500">A carregar…</p>}
-      {q.isError && <p role="alert" className="py-16 text-center text-zinc-600">Esta hashtag não existe 🕵️</p>}
+      {q.isError && <p role="alert" className="py-16 text-center text-zinc-600">Esta hashtag não existe</p>}
       {q.isSuccess && items.length === 0 && (
         <div className="py-16 text-center">
-          <p className="text-5xl">🏷️</p>
+          <p className="text-zinc-300" aria-hidden><Icon name="tag" size={44} className="mx-auto" /></p>
           <p className="mt-3 text-xl font-bold">Ainda ninguém usou esta hashtag</p>
         </div>
       )}

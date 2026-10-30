@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useDesktop } from '../lib/useDesktop';
 import Icon from './Icon';
-import { BellIcon, HomeIcon, PlaneIcon, PlusIcon, SearchIcon, WalletIcon } from './icons';
+import { BellIcon, HomeIcon, MessagesIcon, PlusIcon, SearchIcon, WalletIcon } from './icons';
 import Suggestions from './Suggestions';
 import { Avatar, Wordmark } from './ui';
 
@@ -51,7 +51,7 @@ function LeftNav() {
         <Item to="/" end label="Início">{(a) => <HomeIcon filled={a} width={27} height={27} />}</Item>
         <Item to="/search" label="Pesquisar">{(a) => <SearchIcon width={27} height={27} strokeWidth={a ? 2.6 : 1.8} />}</Item>
         <Item to="/reels" label="Reels">{() => <Icon name="film" size={27} />}</Item>
-        <Item to="/messages" label="Mensagens" badge={chats.data?.conversations}>{() => <PlaneIcon width={27} height={27} />}</Item>
+        <Item to="/messages" label="Mensagens" badge={chats.data?.conversations}>{() => <MessagesIcon width={27} height={27} />}</Item>
         <Item to="/notifications" label="Notificações" badge={unread.data?.count}>{() => <BellIcon width={27} height={27} />}</Item>
         <Item to="/wallet" label="Carteira">{() => <WalletIcon width={27} height={27} />}</Item>
         <Item to="/profile" label="Perfil">
@@ -107,7 +107,7 @@ function RightPanel() {
       <Suggestions compact />
       {tags.length > 0 && (
         <section aria-label="Assuntos do momento" className="rounded-[28px] bg-zinc-50 py-4">
-          <h2 className="px-5 text-lg font-bold">O que está a bombar 🔥</h2>
+          <h2 className="px-5 text-lg font-bold">O que está a bombar</h2>
           <ul className="mt-2">
             {tags.map((t) => (
               <li key={t.tag}>

@@ -1,3 +1,4 @@
+import Icon from '../components/Icon';
 import GenderPicker from '../components/GenderPicker';
 import { MIN_AGE, birthDateSchema, registerSchema, type RegisterInput } from '@txillapp/shared';
 import { useQuery } from '@tanstack/react-query';
@@ -7,22 +8,18 @@ import { Wordmark } from '../components/ui';
 import { ApiError, api, type Gender } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
-/* ───────────── ícones ───────────── */
-const svg = (p: SVGProps<SVGSVGElement>) => ({
-  width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8,
-  strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true, ...p,
-});
-const UserIcon = () => (<svg {...svg({})}><circle cx="12" cy="8" r="4" /><path d="M4 20c1.5-4 4.5-5.5 8-5.5s6.5 1.5 8 5.5" /></svg>);
-const AtIcon = () => (<svg {...svg({})}><circle cx="12" cy="12" r="4" /><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" /></svg>);
-const MailIcon = () => (<svg {...svg({})}><rect x="3" y="5" width="18" height="14" rx="3" /><path d="m4 7 8 6 8-6" /></svg>);
-const LockIcon = () => (<svg {...svg({})}><rect x="5" y="11" width="14" height="9" rx="3" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>);
-const EyeIcon = () => (<svg {...svg({})}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>);
-const EyeOffIcon = () => (<svg {...svg({})}><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4M6.5 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.6 9.6 0 0 0 4-.9" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>);
-const BackIcon = () => (<svg {...svg({ width: 30, height: 30, strokeWidth: 2 })}><path d="M20 12H5M11 6l-6 6 6 6" /></svg>);
-const CalendarIcon = () => (<svg {...svg({})}><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>);
-const CheckIcon = () => (<svg {...svg({ strokeWidth: 2.4 })}><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>);
-const CrossIcon = () => (<svg {...svg({ strokeWidth: 2.4 })}><path d="M6 6l12 12M18 6 6 18" /></svg>);
-const Spinner = () => (<svg {...svg({})} className="animate-spin"><path d="M12 3a9 9 0 1 0 9 9" /></svg>);
+/* ───────────── ícones (conjunto único da app) ───────────── */
+const UserIcon = () => <Icon name="user" size={22} />;
+const AtIcon = () => <Icon name="at" size={22} />;
+const MailIcon = () => <Icon name="mail" size={22} />;
+const LockIcon = () => <Icon name="lock" size={22} />;
+const EyeIcon = () => <Icon name="eye" size={22} />;
+const EyeOffIcon = () => <Icon name="eye-off" size={22} />;
+const BackIcon = () => <Icon name="back" size={30} strokeWidth={2} />;
+const CalendarIcon = () => <Icon name="calendar" size={22} />;
+const CheckIcon = () => <Icon name="check" size={22} strokeWidth={2.4} />;
+const CrossIcon = () => <Icon name="x" size={22} strokeWidth={2.4} />;
+const Spinner = () => <Icon name="loader" size={22} className="animate-spin" />;
 
 /* ───────────── validação (mensagens em português, na hora) ───────────── */
 type FieldKey = keyof RegisterInput;
@@ -30,19 +27,19 @@ type FieldKey = keyof RegisterInput;
 /** Devolve o problema do valor ou null. Corre a cada tecla, sem esperar pelo servidor. */
 function problemOf(key: FieldKey, raw: string): string | null {
   const v = key === 'username' ? raw.trim().replace(/^@/, '') : raw.trim();
-  if (key === 'displayName') return v.length === 0 ? 'Diz-nos o teu nome 🙂' : v.length > 60 ? 'Nome demasiado comprido 😅' : null;
+  if (key === 'displayName') return v.length === 0 ? 'Diz-nos o teu nome' : v.length > 60 ? 'Nome demasiado comprido' : null;
   if (key === 'username') {
-    if (v.length < 3) return 'Mínimo 3 caracteres 🙂';
-    if (v.length > 30) return 'Máximo 30 caracteres 😅';
-    return registerSchema.shape.username.safeParse(v).success ? null : 'Só letras, números, "_" e "." — sem espaços 🙃';
+    if (v.length < 3) return 'Mínimo 3 caracteres';
+    if (v.length > 30) return 'Máximo 30 caracteres';
+    return registerSchema.shape.username.safeParse(v).success ? null : 'Só letras, números, "_" e "." — sem espaços';
   }
-  if (key === 'email') return registerSchema.shape.email.safeParse(v).success ? null : 'Esse email não parece certo 🤔';
-  if (key === 'gender') return v ? null : 'Escolhe uma opção 🙂';
+  if (key === 'email') return registerSchema.shape.email.safeParse(v).success ? null : 'Esse email não parece certo';
+  if (key === 'gender') return v ? null : 'Escolhe uma opção';
   if (key === 'birthDate') {
     const r = birthDateSchema.safeParse(v);
     return r.success ? null : (r.error.issues[0]?.message ?? 'Data inválida');
   }
-  return raw.length >= 10 ? null : 'Mínimo 10 caracteres 🙃';
+  return raw.length >= 10 ? null : 'Mínimo 10 caracteres';
 }
 
 type Check =
@@ -70,13 +67,13 @@ function useAvailability(kind: 'username' | 'email', raw: string, enabled = true
           if (r.available) return setCheck({ state: 'ok' });
           setCheck(
             r.reason === 'taken'
-              ? { state: 'bad', taken: true, message: `@${value} já tem dono 😬`, suggestions: r.suggestions }
-              : { state: 'bad', message: r.reason === 'reserved' ? 'Esse nome está reservado 🚫' : 'Nome de utilizador inválido 🙃' },
+              ? { state: 'bad', taken: true, message: `@${value} já tem dono`, suggestions: r.suggestions }
+              : { state: 'bad', message: r.reason === 'reserved' ? 'Esse nome está reservado' : 'Nome de utilizador inválido' },
           );
         } else {
           const r = await api.emailAvailable(value);
           if (stale) return;
-          setCheck(r.available ? { state: 'ok' } : { state: 'bad', taken: r.reason === 'taken', message: r.reason === 'taken' ? 'Este email já tem conta 😅' : 'Esse email não parece certo 🤔' });
+          setCheck(r.available ? { state: 'ok' } : { state: 'bad', taken: r.reason === 'taken', message: r.reason === 'taken' ? 'Este email já tem conta' : 'Esse email não parece certo' });
         }
       } catch {
         if (!stale) setCheck({ state: 'error' }); // sem rede: deixa continuar, o servidor valida no fim
@@ -91,7 +88,7 @@ function useAvailability(kind: 'username' | 'email', raw: string, enabled = true
 }
 
 /* ───────────── componentes base ───────────── */
-/** Campo arredondado e preenchido, com ícone, estado (✓ / ✗ / a verificar) e olho para a senha. */
+/** Campo arredondado e preenchido, com ícone, estado (certo / errado / a verificar) e olho para a senha. */
 function Field({
   icon, value, onChange, placeholder, type = 'text', autoComplete, autoFocus, name, capitalize, status,
   enterKeyHint, inputMode, inputRef, onEnter,
@@ -172,7 +169,7 @@ function Availability({ check, okText, onPick, children }: { check: Check; okTex
     <div className="mt-3 min-h-[3.25rem] px-1" aria-live="polite">
       {check.state === 'checking' && <p className="text-sm text-zinc-600">A verificar… ⏳</p>}
       {check.state === 'ok' && <p className="text-sm font-medium text-green-600">{okText}</p>}
-      {check.state === 'error' && <p className="text-sm text-zinc-600">Sem rede para verificar agora 📡 — confirmamos no fim.</p>}
+      {check.state === 'error' && <p className="text-sm text-zinc-600">Sem rede para verificar agora — confirmamos no fim.</p>}
       {check.state === 'bad' && (
         <>
           <p className="text-sm font-medium text-red-600">{check.message}</p>
@@ -245,7 +242,7 @@ function GoogleButton({ mode, onError }: { mode: 'login' | 'register'; onError: 
               signIn(r);
               navigate('/', { replace: true });
             } catch (x) {
-              onError(x instanceof ApiError ? x.message : 'Não consegui entrar com a Google 😅');
+              onError(x instanceof ApiError ? x.message : 'Não consegui entrar com a Google');
             }
           },
         });
@@ -287,14 +284,14 @@ export function Login() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!identifier.trim() || !password) return setError('Por favor preencha as suas credenciais 😌');
+    if (!identifier.trim() || !password) return setError('Por favor preencha as suas credenciais');
     setBusy(true);
     setError('');
     try {
       signIn(await api.login({ identifier: identifier.trim().replace(/^@/, ''), password }));
       navigate(from, { replace: true });
     } catch (x) {
-      setError(x instanceof ApiError && x.status === 401 ? 'Hmm, essas credenciais não batem 🤨' : (x as Error).message);
+      setError(x instanceof ApiError && x.status === 401 ? 'Hmm, essas credenciais não batem' : (x as Error).message);
     } finally {
       setBusy(false);
     }
@@ -305,19 +302,19 @@ export function Login() {
       <h1 className="pt-10">
         <Wordmark className="h-11" />
       </h1>
-      <p className="mt-7 text-[38px] font-extrabold leading-[1.05]">Qual é a<br />Vibe ? 🤪</p>
+      <p className="mt-7 text-[38px] font-extrabold leading-[1.05]">Qual é a<br />Vibe?</p>
       <p className="mt-2 text-lg font-light text-zinc-600">Entra e vê o que a malta anda a fazer</p>
 
       <form onSubmit={submit} className="mt-7 space-y-3" noValidate>
         <Field
-          icon={<AtIcon />} value={identifier} onChange={setIdentifier} placeholder="Usuário" name="username"
+          icon={<AtIcon />} value={identifier} onChange={setIdentifier} placeholder="Utilizador ou email" name="username"
           autoComplete="username" enterKeyHint="next"
           // "Seguinte" no teclado passa para a senha em vez de submeter.
           onEnter={(e) => { if (e.key === 'Enter') { e.preventDefault(); passRef.current?.focus(); } }}
         />
         <Field icon={<LockIcon />} value={password} onChange={setPassword} placeholder="Senha" type="password" name="password" autoComplete="current-password" enterKeyHint="go" inputRef={passRef} />
         <Alert>{error}</Alert>
-        <button disabled={busy} className={cta}>{busy ? 'A entrar… 🚀' : 'Entrar'}</button>
+        <button disabled={busy} className={cta}>{busy ? 'A entrar…' : 'Entrar'}</button>
       </form>
       <GoogleButton mode="login" onError={setError} />
       <div className="pb-6" />
@@ -327,20 +324,20 @@ export function Login() {
 
 /* ───────────── registo em passos ───────────── */
 const steps: { key: FieldKey; title: string; sub: string; placeholder: string; icon: ReactNode; type?: string; ac: string; cta: string; hint: 'next' | 'go' }[] = [
-  { key: 'displayName', title: 'Como te chamas? 🤔', sub: 'Diz-nos o teu nome, não mordemos 😄', placeholder: 'Nome', icon: <UserIcon />, ac: 'name', cta: 'Próximo', hint: 'next' },
-  { key: 'username', title: 'Qual vai ser o teu @? 😎', sub: 'É único: só tu o podes ter', placeholder: 'utilizador', icon: <AtIcon />, ac: 'username', cta: 'Próximo', hint: 'next' },
-  { key: 'email', title: 'E o teu email? 📬', sub: 'Prometemos não fazer spam', placeholder: 'email@exemplo.com', icon: <MailIcon />, type: 'email', ac: 'email', cta: 'Próximo', hint: 'next' },
-  { key: 'birthDate', title: 'Quando nasceste? 🎂', sub: `Para confirmar que tens ${MIN_AGE}+ anos. Ninguém vê esta data`, placeholder: 'AAAA-MM-DD', icon: <CalendarIcon />, type: 'date', ac: 'bday', cta: 'Próximo', hint: 'next' },
-  { key: 'gender', title: 'Como te identificas? 🌈', sub: 'Só tu decides se isto aparece no teu perfil', placeholder: '', icon: null, ac: 'off', cta: 'Próximo', hint: 'next' },
-  { key: 'password', title: 'Agora uma senha 🔐', sub: 'Mínimo 10 caracteres. Nada de "123456", ok?', placeholder: 'Senha', icon: <LockIcon />, type: 'password', ac: 'new-password', cta: 'Criar conta', hint: 'go' },
+  { key: 'displayName', title: 'Como te chamas?', sub: 'Diz-nos o teu nome, não mordemos', placeholder: 'Nome', icon: <UserIcon />, ac: 'name', cta: 'Próximo', hint: 'next' },
+  { key: 'username', title: 'Qual vai ser o teu @?', sub: 'É único: só tu o podes ter', placeholder: 'utilizador', icon: <AtIcon />, ac: 'username', cta: 'Próximo', hint: 'next' },
+  { key: 'email', title: 'E o teu email?', sub: 'Prometemos não fazer spam', placeholder: 'email@exemplo.com', icon: <MailIcon />, type: 'email', ac: 'email', cta: 'Próximo', hint: 'next' },
+  { key: 'birthDate', title: 'Quando nasceste?', sub: `Para confirmar que tens ${MIN_AGE}+ anos. Ninguém vê esta data`, placeholder: 'AAAA-MM-DD', icon: <CalendarIcon />, type: 'date', ac: 'bday', cta: 'Próximo', hint: 'next' },
+  { key: 'gender', title: 'Como te identificas?', sub: 'Só tu decides se isto aparece no teu perfil', placeholder: '', icon: null, ac: 'off', cta: 'Próximo', hint: 'next' },
+  { key: 'password', title: 'Agora uma senha', sub: 'Mínimo 10 caracteres. Nada de "123456", ok?', placeholder: 'Senha', icon: <LockIcon />, type: 'password', ac: 'new-password', cta: 'Criar conta', hint: 'go' },
 ];
 
 /** Força da senha, só para dar feedback simpático (a validação a sério é no servidor). */
 function strength(p: string) {
   const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^\w\s]/].filter((r) => r.test(p)).length;
-  if (p.length < 10) return { level: 1, label: 'Ainda fraca 😬', color: 'bg-red-400' };
-  if (p.length >= 14 || kinds >= 3) return { level: 3, label: 'Forte 💪', color: 'bg-green-500' };
-  return { level: 2, label: 'Boa 👍', color: 'bg-amber-400' };
+  if (p.length < 10) return { level: 1, label: 'Ainda fraca', color: 'bg-red-400' };
+  if (p.length >= 14 || kinds >= 3) return { level: 3, label: 'Forte', color: 'bg-green-500' };
+  return { level: 2, label: 'Boa', color: 'bg-amber-400' };
 }
 
 export function Register() {
@@ -361,7 +358,7 @@ export function Register() {
 
   async function next(e: FormEvent) {
     e.preventDefault();
-    if (blocked) return setError(termsMissing ? 'Tens de aceitar os Termos e a Política de Privacidade 🙂' : (local ?? (check.state === 'bad' ? check.message : value ? 'Só um segundinho… ⏳' : 'Preenche este campo 🙂')));
+    if (blocked) return setError(termsMissing ? 'Tens de aceitar os Termos e a Política de Privacidade' : (local ?? (check.state === 'bad' ? check.message : value ? 'Só um segundinho… ⏳' : 'Preenche este campo')));
     setError('');
     if (i < steps.length - 1) return setI(i + 1);
     setBusy(true);
@@ -373,7 +370,7 @@ export function Register() {
       if (x instanceof ApiError && x.status === 409) {
         // Raro (alguém ficou com ele entretanto): volta ao passo certo e mostra porquê.
         setI(/email/i.test(msg) ? 2 : 1);
-        setError(/email/i.test(msg) ? 'Esse email já tem conta 😅' : 'Esse @ acabou de ser escolhido por outra pessoa 😬');
+        setError(/email/i.test(msg) ? 'Esse email já tem conta' : 'Esse @ acabou de ser escolhido por outra pessoa');
       } else setError(msg);
     } finally {
       setBusy(false);
@@ -427,10 +424,10 @@ export function Register() {
           />
           )}
           {step.key === 'username' && (
-            <Availability check={check} okText={`@${value.trim().replace(/^@/, '')} está livre 🎉`} onPick={(v) => setData({ ...data, username: v })} />
+            <Availability check={check} okText={`@${value.trim().replace(/^@/, '')} está livre`} onPick={(v) => setData({ ...data, username: v })} />
           )}
           {step.key === 'email' && (
-            <Availability check={check} okText="Email livre ✅">
+            <Availability check={check} okText="Email livre">
               {check.state === 'bad' && check.taken && (
                 <Link to="/login" className="mt-1 inline-block text-sm font-semibold text-brand underline">Já tens conta? Entra aqui</Link>
               )}
@@ -464,7 +461,7 @@ export function Register() {
         </div>
         <Alert>{error}</Alert>
         <div className="mt-auto pb-6 pt-2">
-          <button disabled={busy || blocked} className={cta}>{busy ? 'A criar… 🚀' : step.cta}</button>
+          <button disabled={busy || blocked} className={cta}>{busy ? 'A criar…' : step.cta}</button>
           {i === 0 && <GoogleButton mode="register" onError={setError} />}
         </div>
       </form>
@@ -505,7 +502,7 @@ export function GoogleUsername() {
       signIn(await api.googleComplete(state!.signupToken, username, gender!, birth));
       navigate('/', { replace: true });
     } catch (x) {
-      setError(x instanceof ApiError && x.status === 401 ? 'O pedido expirou. Volta atrás e entra com a Google outra vez 🔄' : (x as Error).message);
+      setError(x instanceof ApiError && x.status === 401 ? 'O pedido expirou. Volta atrás e entra com a Google outra vez' : (x as Error).message);
     } finally {
       setBusy(false);
     }
@@ -517,7 +514,7 @@ export function GoogleUsername() {
         <button onClick={() => navigate('/login', { replace: true })} aria-label="Voltar" className="-ml-1 text-brand active:scale-90"><BackIcon /></button>
       </div>
       <form onSubmit={submit} className="mt-12 flex flex-1 flex-col" noValidate>
-        <h1 className="text-4xl font-light leading-tight">Quase lá, {first}! 🎉</h1>
+        <h1 className="text-4xl font-light leading-tight">Quase lá, {first}!</h1>
         <p className="mt-3 text-xl font-light text-zinc-600">Escolhe o teu @ — é único e é assim que a malta te encontra</p>
         <div className="mt-8">
           <Field
@@ -525,11 +522,11 @@ export function GoogleUsername() {
             placeholder="utilizador" autoComplete="username" enterKeyHint="go"
             status={check.state === 'ok' ? 'ok' : check.state === 'bad' ? 'bad' : check.state === 'checking' ? 'checking' : undefined}
           />
-          <Availability check={check} okText={`@${username.trim().replace(/^@/, '')} está livre 🎉`} onPick={setUsername} />
+          <Availability check={check} okText={`@${username.trim().replace(/^@/, '')} está livre`} onPick={setUsername} />
         </div>
-        <p className="mb-3 mt-8 text-lg font-semibold">Como te identificas? 🌈</p>
+        <p className="mb-3 mt-8 text-lg font-semibold">Como te identificas?</p>
         <GenderPicker value={gender} onChange={setGender} />
-        <p className="mb-3 mt-8 text-lg font-semibold">Quando nasceste? 🎂</p>
+        <p className="mb-3 mt-8 text-lg font-semibold">Quando nasceste?</p>
         <Field icon={<CalendarIcon />} value={birth} onChange={(v) => { setError(''); setBirth(v); }} placeholder="AAAA-MM-DD" type="date" autoComplete="bday" status={birth ? (birthProblem ? 'bad' : 'ok') : undefined} />
         {birthProblem && <p className="mt-2 px-1 text-sm font-medium text-red-600">{birthProblem}</p>}
         <label className="mt-6 flex cursor-pointer items-start gap-3 px-1 text-[15px] leading-snug text-zinc-700">
@@ -541,7 +538,7 @@ export function GoogleUsername() {
         </label>
         <Alert>{error}</Alert>
         <div className="mt-auto pb-6 pt-4">
-          <button disabled={busy || !ready || (check.state !== 'ok' && check.state !== 'error')} className={cta}>{busy ? 'A criar… 🚀' : 'Continuar'}</button>
+          <button disabled={busy || !ready || (check.state !== 'ok' && check.state !== 'error')} className={cta}>{busy ? 'A criar…' : 'Continuar'}</button>
         </div>
       </form>
     </Screen>

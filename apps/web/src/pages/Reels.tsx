@@ -148,16 +148,16 @@ export default function Reels() {
             <Reel post={p} active={p.id === current} onChange={(c) => patch(p.id, c)} />
           </div>
         ))}
-        {q.isLoading && <p className="flex h-full items-center justify-center text-white/80">A carregar… 🎬</p>}
+        {q.isLoading && <p className="flex h-full items-center justify-center text-white/80">A carregar…</p>}
         {q.isSuccess && items.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center px-8 text-center text-white">
-            <p className="text-6xl">🎬</p>
+            <Icon name="film" size={52} className="mx-auto text-white/70" />
             <p className="mt-4 text-2xl font-extrabold">Ainda sem reels</p>
             <p className="mt-2 text-white/75">Sê tu a começar: grava um vídeo até 60 segundos.</p>
             <Link to="/new" className="mt-6 rounded-full bg-brand px-8 py-3.5 font-bold active:scale-95">Publicar um vídeo</Link>
           </div>
         )}
-        {q.isError && <p role="alert" className="flex h-full items-center justify-center text-white/80">Ups, falhou 😅</p>}
+        {q.isError && <p role="alert" className="flex h-full items-center justify-center text-white/80">Ups, falhou</p>}
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 mx-auto flex max-w-xl items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">

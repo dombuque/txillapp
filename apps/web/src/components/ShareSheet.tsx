@@ -22,7 +22,7 @@ export default function ShareSheet({ post, onClose, layer }: { post: Post; onClo
     try {
       await api.shareToStory(post.id, audience);
       track('share', { where: 'story', video: post.media[0]?.kind === 'video' });
-      setNote(audience === 'all' ? 'Partilhado no teu status ✅' : 'Partilhado com amigos próximos 💚');
+      setNote(audience === 'all' ? 'Partilhado no teu status' : 'Partilhado com amigos próximos');
       setTimeout(onClose, 1100);
     } catch (e) {
       setNote((e as Error).message);
@@ -32,9 +32,9 @@ export default function ShareSheet({ post, onClose, layer }: { post: Post; onClo
   async function copy() {
     try {
       await navigator.clipboard.writeText(url);
-      setNote('Ligação copiada ✅');
+      setNote('Ligação copiada');
     } catch {
-      setNote('Não consegui copiar 😅');
+      setNote('Não consegui copiar');
     }
   }
   async function system() {

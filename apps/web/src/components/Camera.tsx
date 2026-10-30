@@ -1,3 +1,4 @@
+import Icon from './Icon';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 
 const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -110,11 +111,11 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
 
       <div className="relative z-10 flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))]">
         <button type="button" onClick={onClose} aria-label="Fechar câmara" className={round}>
-          <svg {...icon}><path d="M6 6l12 12M18 6 6 18" /></svg>
+          <Icon name="x" size={26} />
         </button>
         {canFlip && ready && (
           <button type="button" onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} aria-label="Virar câmara" className={round}>
-            <svg {...icon}><path d="M20 7h-9a5 5 0 0 0-5 5v1" /><path d="m17 4 3 3-3 3" /><path d="M4 17h9a5 5 0 0 0 5-5v-1" /><path d="m7 20-3-3 3-3" /></svg>
+            <Icon name="flip-camera" size={26} />
           </button>
         )}
       </div>
@@ -122,10 +123,10 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
       {!ready && (
         <div className="relative z-10 m-auto max-w-xs px-6 text-center">
           {problem === null ? (
-            <p className="text-white/80">A acordar a câmara… 📷</p>
+            <p className="text-white/80">A acordar a câmara…</p>
           ) : (
             <>
-              <p className="text-5xl">{problem === 'denied' ? '🙈' : '📵'}</p>
+              <Icon name="alert" size={48} className="mx-auto text-white/70" />
               <p className="mt-3 text-lg font-bold">
                 {problem === 'denied' ? 'Sem permissão para a câmara' : problem === 'unsupported' ? 'A câmara precisa de ligação segura' : 'Não consegui abrir a câmara'}
               </p>
@@ -144,7 +145,7 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
 
       <div className="relative z-10 flex items-center justify-between px-6 pb-[max(1.75rem,env(safe-area-inset-bottom))] pt-6">
         <label className={`${round} h-14 w-14 cursor-pointer rounded-2xl`} title="Galeria" aria-label="Galeria">
-          <svg {...icon}><rect x="3" y="4" width="18" height="16" rx="2.5" /><circle cx="9" cy="10" r="1.6" /><path d="m21 16-5-5-8 8" /></svg>
+          <Icon name="image" size={26} />
           {galleryInput}
         </label>
 
@@ -166,7 +167,7 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
           <span className="w-[92px]" aria-hidden />
         )}
       </div>
-      {full && <p role="status" className="absolute inset-x-0 bottom-32 text-center text-sm font-semibold">Máximo de {max} fotos 📸</p>}
+      {full && <p role="status" className="absolute inset-x-0 bottom-32 text-center text-sm font-semibold">Máximo de {max} fotos</p>}
     </div>
   );
 }

@@ -25,11 +25,11 @@ export default function CloseFriendsSheet({ onClose, layer }: { onClose: () => v
 
   const row = 'flex items-center gap-3 py-2';
   return (
-    <Sheet title="Amigos próximos 💚" onClose={onClose} layer={layer}>
+    <Sheet title="Amigos próximos" onClose={onClose} layer={layer}>
       <p className="-mt-2 mb-3 text-sm text-zinc-600">Só estas pessoas veem os stories que marcares para amigos próximos. Elas não sabem que estão na lista.</p>
 
       <p className="mb-1 text-sm font-semibold text-zinc-500">Na tua lista ({friends.data?.length ?? 0})</p>
-      {friends.data?.length === 0 && <p className="py-2 text-sm text-zinc-500">Ainda ninguém. Escolhe abaixo 👇</p>}
+      {friends.data?.length === 0 && <p className="py-2 text-sm text-zinc-500">Ainda ninguém. Escolhe abaixo</p>}
       <ul>
         {friends.data?.map((f) => (
           <li key={f.username} className={row}>
@@ -38,7 +38,7 @@ export default function CloseFriendsSheet({ onClose, layer }: { onClose: () => v
               <span className="block truncate font-semibold">{f.displayName}</span>
               <span className="block truncate text-sm text-zinc-500">@{f.username}</span>
             </span>
-            <button type="button" onClick={() => toggle(f.username, false)} className="rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-bold text-emerald-700 active:scale-95">Na lista ✓</button>
+            <button type="button" onClick={() => toggle(f.username, false)} className="rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-bold text-emerald-700 active:scale-95">Na lista</button>
           </li>
         ))}
       </ul>
@@ -56,7 +56,7 @@ export default function CloseFriendsSheet({ onClose, layer }: { onClose: () => v
             <button type="button" onClick={() => toggle(p.username, true)} className="rounded-full bg-brand px-4 py-1.5 text-sm font-bold text-white active:scale-95">Adicionar</button>
           </li>
         ))}
-        {followers.isSuccess && candidates.length === 0 && <li className="py-3 text-sm text-zinc-500">{q ? 'Ninguém com esse nome 🤔' : 'Não há mais seguidores para adicionar.'}</li>}
+        {followers.isSuccess && candidates.length === 0 && <li className="py-3 text-sm text-zinc-500">{q ? 'Ninguém com esse nome' : 'Não há mais seguidores para adicionar.'}</li>}
       </ul>
     </Sheet>
   );

@@ -1,3 +1,4 @@
+import Icon from './Icon';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { PhotoTag } from '../lib/api';
@@ -8,7 +9,7 @@ interface Props {
   tags: PhotoTag[];
   /** Quando existe, tocar na foto devolve a posição (0 a 1) — usado para identificar pessoas. */
   onPoint?: (x: number, y: number) => void;
-  /** Quando existe, cada etiqueta mostra um ✕ (modo de edição). */
+  /** Quando existe, cada etiqueta mostra um X (modo de edição). */
   onRemove?: (index: number) => void;
   /** Ponto onde se está a identificar alguém (ainda sem pessoa escolhida). */
   pending?: { x: number; y: number } | null;
@@ -61,7 +62,7 @@ export default function TaggedImage({ src, alt, tags, onPoint, onRemove, pending
                   {onRemove ? (
                     <>
                       {t.displayName}
-                      <button type="button" onClick={() => onRemove(i)} aria-label={`Tirar a identificação de ${t.displayName}`} className="-mr-1 flex h-6 w-6 items-center justify-center rounded-full text-white/80 active:bg-white/20">✕</button>
+                      <button type="button" onClick={() => onRemove(i)} aria-label={`Tirar a identificação de ${t.displayName}`} className="-mr-1 flex h-6 w-6 items-center justify-center rounded-full text-white/80 active:bg-white/20"><Icon name="x" size={14} strokeWidth={2.4} /></button>
                     </>
                   ) : (
                     <Link to={`/u/${t.username}`} onClick={(e) => e.stopPropagation()}>{t.displayName}</Link>

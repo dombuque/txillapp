@@ -1,16 +1,8 @@
+import Icon from './Icon';
 import { useInstall } from '../lib/install';
 
-const Share = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="inline align-[-4px]">
-    <path d="M12 15V3M8 7l4-4 4 4M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1" />
-  </svg>
-);
-const PlusSquare = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="inline align-[-4px]">
-    <rect x="3.5" y="3.5" width="17" height="17" rx="4" />
-    <path d="M12 8v8M8 12h8" />
-  </svg>
-);
+const Share = () => <Icon name="share" size={20} strokeWidth={2} className="inline align-[-4px]" />;
+const PlusSquare = () => <Icon name="square-plus" size={20} strokeWidth={2} className="inline align-[-4px]" />;
 
 /**
  * Convite para instalar a app, no sítio onde a pessoa está (sem ter de procurar menus):
@@ -32,7 +24,7 @@ export default function InstallPrompt({ className = 'bottom-24' }: { className?:
       <div className="flex items-start gap-3">
         <img src="/icon-192.png" alt="" width={48} height={48} className="h-12 w-12 shrink-0 rounded-2xl" />
         <div className="min-w-0 flex-1">
-          <p className="text-[17px] font-bold leading-tight">Instala o Txillapp 📲</p>
+          <p className="text-[17px] font-bold leading-tight">Instala o Txillapp</p>
           {canPrompt && <p className="mt-0.5 text-sm text-zinc-300">Ecrã inteiro, mais rápido e com o ícone no telemóvel.</p>}
           {iosHint && (
             <p className="mt-1 text-sm leading-relaxed text-zinc-200">
@@ -52,7 +44,7 @@ export default function InstallPrompt({ className = 'bottom-24' }: { className?:
       )}
       {iosHint && (
         <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-zinc-400">
-          A seta de Partilhar fica em baixo no ecrã <span aria-hidden>👇</span>
+          A seta de Partilhar fica em baixo no ecrã <span aria-hidden></span>
         </p>
       )}
     </aside>

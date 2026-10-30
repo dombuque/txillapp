@@ -52,7 +52,7 @@ function Carousel({ media, onOpen }: { media: Post['media']; onOpen: (index: num
       {tags.length > 0 && (
         <>
           <button onClick={() => setShowTags((v) => !v)} aria-label={`${tags.length} pessoa(s) identificadas`} aria-expanded={showTags} className="absolute bottom-3 left-3 flex h-8 items-center gap-1 rounded-full bg-black/60 px-2.5 text-sm font-semibold text-white backdrop-blur-sm active:scale-95">
-            👤 {tags.length}
+            <Icon name="users" size={16} /> {tags.length}
           </button>
           {showTags && (
             <div className="absolute bottom-14 left-3 right-3 flex flex-wrap gap-1.5">
@@ -131,7 +131,7 @@ function PostBody({ post }: { post: Post }) {
           {g ? (
             <p className="text-[17px] leading-tight text-zinc-800">
               <Link to={profilePath(post.author.username, user?.username)} className="font-bold">{post.author.displayName}</Link> presenteou{' '}
-              <Link to={profilePath(g.recipient.username, user?.username)} className="font-bold">{g.recipient.displayName}</Link> 🎁
+              <Link to={profilePath(g.recipient.username, user?.username)} className="font-bold">{g.recipient.displayName}</Link>
             </p>
           ) : (
             <Link to={profilePath(post.author.username, user?.username)} className="block truncate text-[19px] font-medium leading-tight text-zinc-800">
@@ -148,7 +148,7 @@ function PostBody({ post }: { post: Post }) {
       </header>
       {g && (
         <p className="mt-4 rounded-2xl bg-gradient-to-r from-brand to-brand-light py-3 text-center text-2xl font-extrabold text-white">
-          🎁 {g.amount.toLocaleString('pt-PT')} Txills
+          <Icon name="gift" size={16} className="inline align-[-3px]" /> {g.amount.toLocaleString('pt-PT')} Txills
         </p>
       )}
       {post.body && <p className="mt-4 whitespace-pre-wrap break-words text-[19px] text-zinc-800"><RichText text={post.body} /></p>}
@@ -254,7 +254,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
       )}
       <div className={`flex items-center border-t ${dark ? 'border-white/20' : shown.length || post.comments > 0 ? 'mt-1 border-zinc-200' : 'mt-3 border-zinc-200'}`}>
         <Item label={post.cheered ? 'Tirar o brinde' : 'Brindar'} onClick={cheer} pressed={post.cheered} className="flex-[1.6] justify-start">
-          <span key={String(post.cheered)} className={`text-2xl ${post.cheered ? 'animate-[pop_.4s_ease-out]' : ''}`}>🍻</span>
+          <span key={String(post.cheered)} className={`inline-flex ${post.cheered ? 'animate-[pop_.4s_ease-out]' : ''}`}><Icon name="cheers" size={26} /></span>
           <span className="hidden text-[16px] font-medium min-[380px]:inline">{post.cheered ? 'Brindou' : 'Brindar'}</span>
           {count(post.cheers)}
         </Item>
@@ -378,9 +378,9 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
   async function copy() {
     try {
       await navigator.clipboard.writeText(`${location.origin}/p/${post.id}`);
-      setNote('Ligação copiada ✅');
+      setNote('Ligação copiada');
     } catch {
-      setNote('Não consegui copiar 😅');
+      setNote('Não consegui copiar');
     }
     setTimeout(() => setNote(''), 1800);
   }
@@ -397,7 +397,7 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
   return (
     <>
       <button onClick={() => setOpen('menu')} aria-label="Mais opções da publicação" className={`-mr-2 flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-full transition active:bg-zinc-100 ${dark ? 'text-white active:bg-white/20' : 'text-zinc-600'}`}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden><circle cx="5" cy="12" r="1.9" /><circle cx="12" cy="12" r="1.9" /><circle cx="19" cy="12" r="1.9" /></svg>
+        <Icon name="more" size={20} strokeWidth={2.4} />
       </button>
       {open === 'menu' && (
         <Sheet title="Publicação" onClose={() => setOpen(null)}>
@@ -471,7 +471,7 @@ export function RepostSheet({ post, onChange, onClose, layer }: { post: Post; on
           }}
           className="space-y-3"
         >
-          <MentionTextarea value={text} onChange={setText} maxLength={500} rows={3} autoFocus placeholder="O que achas? ✍️" aria-label="Comentário" className={`${fieldInput} resize-none`} />
+          <MentionTextarea value={text} onChange={setText} maxLength={500} rows={3} autoFocus placeholder="O que achas?" aria-label="Comentário" className={`${fieldInput} resize-none`} />
           <p role="alert" className="min-h-5 text-center text-sm text-red-600">{err}</p>
           <button disabled={busy || !text.trim()} className={`${btnPrimary} w-full py-3.5`}>{busy ? 'A publicar…' : 'Publicar'}</button>
           <button type="button" onClick={() => setQuote(false)} className={`${btnGhost} w-full`}>Voltar</button>

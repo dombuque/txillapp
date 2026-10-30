@@ -56,7 +56,7 @@ export default function PhotoTagger({ src, tags, onDone }: { src: string; tags: 
 
       {!pending && (
         <p className="px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 text-center text-sm text-white/80">
-          {list.length >= MAX_TAGS ? `Máximo de ${MAX_TAGS} pessoas por foto.` : list.length ? 'Toca noutra pessoa para identificar, ou ✕ para tirar. 👆' : 'Toca na foto, em cima da pessoa que queres identificar. 👆'}
+          {list.length >= MAX_TAGS ? `Máximo de ${MAX_TAGS} pessoas por foto.` : list.length ? 'Toca noutra pessoa para identificar, ou no botão de remover.' : 'Toca na foto, em cima da pessoa que queres identificar.'}
         </p>
       )}
 
@@ -85,7 +85,7 @@ export default function PhotoTagger({ src, tags, onDone }: { src: string; tags: 
                 </button>
               </li>
             ))}
-            {found.isSuccess && people.length === 0 && <li className="py-3 text-sm text-zinc-500">Ninguém que possas identificar 🤔 Só podes identificar quem aceita menções.</li>}
+            {found.isSuccess && people.length === 0 && <li className="py-3 text-sm text-zinc-500">Ninguém que possas identificar. Só podes identificar quem aceita menções.</li>}
           </ul>
         </div>
       )}

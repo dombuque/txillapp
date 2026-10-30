@@ -87,7 +87,7 @@ function ChoiceSheet<T extends string>({ title, intro, options, value, onPick, o
               <span className="block font-bold">{o.title}</span>
               <span className="block text-sm text-zinc-600">{o.text}</span>
             </span>
-            <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${value === o.value ? 'border-brand bg-brand text-sm text-white' : 'border-zinc-300'}`} aria-hidden>{value === o.value ? '✓' : ''}</span>
+            <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${value === o.value ? 'border-brand bg-brand text-sm text-white' : 'border-zinc-300'}`} aria-hidden>{value === o.value && <Icon name="check" size={14} strokeWidth={3} />}</span>
           </button>
         ))}
       </div>
@@ -98,7 +98,7 @@ function ChoiceSheet<T extends string>({ title, intro, options, value, onPick, o
 /** "Instalar a app" nas definições: botão no Android, instruções no iPhone, e "instalada" quando já está. */
 function InstallRow() {
   const { installed, canPrompt, iosHint, iosOpenInSafari, install } = useInstall();
-  if (installed) return <Row icon={<Icon name="check-circle" />} label="App instalada" value="✓" onClick={() => undefined} />;
+  if (installed) return <Row icon={<Icon name="check-circle" />} label="App instalada" onClick={() => undefined} />;
   if (!canPrompt && !iosHint && !iosOpenInSafari) return null;
   const how = iosHint
     ? 'No Safari: toca em Partilhar (o quadrado com a seta) e depois em "Adicionar ao ecrã principal".'
@@ -237,7 +237,7 @@ export default function Settings() {
       </Section>
 
       {sheet === 'gender' && p && (
-        <Sheet title="Como te identificas? 🌈" onClose={close}>
+        <Sheet title="Como te identificas?" onClose={close}>
           <GenderPicker value={p.gender} onChange={(g) => { void savePrivacy({ gender: g, ...(g === 'unspecified' ? { showGender: false } : {}) }); close(); }} />
         </Sheet>
       )}
@@ -246,7 +246,7 @@ export default function Settings() {
         <ChoiceSheet
           title="Tipo de perfil"
           intro="Num perfil privado só vê o teu conteúdo quem aprovares; seguir passa a ser um pedido."
-          options={[{ value: 'public', title: '🌍 Público', text: 'Qualquer pessoa vê as tuas publicações e stories.' }, { value: 'private', title: '🔒 Privado', text: 'Só os seguidores aprovados.' }]}
+          options={[{ value: 'public', title: 'Público', text: 'Qualquer pessoa vê as tuas publicações e stories.' }, { value: 'private', title: 'Privado', text: 'Só os seguidores aprovados.' }]}
           value={p.isPrivate ? 'private' : 'public'}
           onPick={(v) => savePrivacy({ isPrivate: v === 'private' })}
           onClose={close}
@@ -269,10 +269,10 @@ export default function Settings() {
       {sheet === 'delete' && <DeleteSheet username={user!.username} onClose={close} onDeleted={() => signOut()} />}
       {sheet === 'logout' && (
         <Sheet title="Terminar sessão" onClose={close}>
-          <p className="py-2 text-center text-lg">Já vais? 😢</p>
+          <p className="py-2 text-center text-lg">Já vais?</p>
           <p className="mb-5 text-center text-zinc-600">Vais precisar de entrar outra vez para voltar.</p>
           <button onClick={signOut} className={`${btnPrimary} w-full py-4 text-lg`}>Sim, sair</button>
-          <button onClick={close} className={`${btnGhost} mt-3 w-full py-3.5`}>Fico por aqui 😎</button>
+          <button onClick={close} className={`${btnGhost} mt-3 w-full py-3.5`}>Fico por aqui</button>
         </Sheet>
       )}
     </StackPage>
@@ -294,7 +294,7 @@ function HiddenSheet({ onClose }: { onClose: () => void }) {
       qc.setQueryData(['story-settings'], await api.hideStoryFrom(u));
       setName('');
     } catch (x) {
-      setErr(x instanceof ApiError && x.status === 404 ? 'Esse utilizador não existe 🕵️' : (x as Error).message);
+      setErr(x instanceof ApiError && x.status === 404 ? 'Esse utilizador não existe' : (x as Error).message);
     }
   }
   return (
@@ -305,7 +305,7 @@ function HiddenSheet({ onClose }: { onClose: () => void }) {
         <button disabled={!name.trim()} className="rounded-full bg-brand px-5 font-bold text-white disabled:opacity-60">Esconder</button>
       </form>
       <p role="alert" className="min-h-5 pt-1 text-sm text-red-600">{err}</p>
-      {q.data?.hidden.length === 0 && <p className="py-6 text-center text-zinc-600">Ninguém escondido 👀</p>}
+      {q.data?.hidden.length === 0 && <p className="py-6 text-center text-zinc-600">Ninguém escondido</p>}
       {q.data?.hidden.map((h) => (
         <div key={h.username} className="flex items-center gap-3 py-2.5">
           <Avatar name={h.displayName} username={h.username} size={44} />
@@ -323,7 +323,7 @@ function BlockedSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet title="Contas bloqueadas" onClose={onClose}>
       <p className="-mt-2 mb-3 text-sm text-zinc-600">Quem bloqueias não vê o teu conteúdo, não te pode seguir nem interagir contigo. A pessoa é avisada de que foi bloqueada.</p>
-      {q.data?.length === 0 && <p className="py-6 text-center text-zinc-600">Não bloqueaste ninguém 😌</p>}
+      {q.data?.length === 0 && <p className="py-6 text-center text-zinc-600">Não bloqueaste ninguém</p>}
       {q.data?.map((b) => (
         <div key={b.username} className="flex items-center gap-3 py-2.5">
           <Avatar name={b.displayName} username={b.username} size={44} />
@@ -344,8 +344,8 @@ function PasswordSheet({ onClose, onDone }: { onClose: () => void; onDone: (r: A
   const [ok, setOk] = useState(false);
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (next.length < 10) return setErr('A nova senha precisa de pelo menos 10 caracteres 🙃');
-    if (next !== again) return setErr('As duas senhas novas não são iguais 🤔');
+    if (next.length < 10) return setErr('A nova senha precisa de pelo menos 10 caracteres');
+    if (next !== again) return setErr('As duas senhas novas não são iguais');
     setBusy(true);
     setErr('');
     try {
@@ -359,7 +359,7 @@ function PasswordSheet({ onClose, onDone }: { onClose: () => void; onDone: (r: A
   }
   if (ok) {
     return (
-      <Sheet title="Senha alterada ✅" onClose={onClose}>
+      <Sheet title="Senha alterada" onClose={onClose}>
         <p className="py-3 text-center text-zinc-700">As sessões nos outros dispositivos foram terminadas.</p>
         <button onClick={onClose} className={`${btnPrimary} w-full`}>Feito</button>
       </Sheet>
@@ -389,7 +389,7 @@ function DevicesSheet({ onClose }: { onClose: () => void }) {
       {q.isLoading && <p className="py-6 text-center text-zinc-600">A carregar…</p>}
       {q.data?.map((d) => (
         <div key={d.id} className="flex items-center gap-3 py-2.5">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xl" aria-hidden>{/Android|iOS/.test(d.device) ? '📱' : '💻'}</span>
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-100" aria-hidden><Icon name={/Android|iOS/.test(d.device) ? 'phone' : 'laptop'} size={22} /></span>
           <span className="min-w-0 flex-1">
             <span className="block truncate font-semibold">{d.device}{d.current && <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-bold text-green-800">Este dispositivo</span>}</span>
             <span className="block text-sm text-zinc-600">Última atividade {timeAgo(d.lastUsed).toLowerCase()}</span>

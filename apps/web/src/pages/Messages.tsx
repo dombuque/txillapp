@@ -1,3 +1,4 @@
+import Icon from '../components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Avatar, timeAgo } from '../components/ui';
@@ -5,8 +6,8 @@ import { api, type Conversation } from '../lib/api';
 
 function preview(c: Conversation) {
   const m = c.lastMessage;
-  if (m.kind === 'image') return `${m.fromMe ? 'Tu: ' : ''}📷 ${m.body || 'Foto'}`;
-  if (m.kind === 'voice') return `${m.fromMe ? 'Tu: ' : ''}🎤 Mensagem de voz`;
+  if (m.kind === 'image') return `${m.fromMe ? 'Tu: ' : ''}${m.body || 'Foto'}`;
+  if (m.kind === 'voice') return `${m.fromMe ? 'Tu: ' : ''}Mensagem de voz`;
   if (m.kind === 'story_reaction') return m.fromMe ? `Reagiste ao story ${m.body}` : `Reagiu ao teu story ${m.body}`;
   if (m.kind === 'story_reply') return `${m.fromMe ? 'Respondeste ao story' : 'Respondeu ao teu story'}: ${m.body}`;
   return `${m.fromMe ? 'Tu: ' : ''}${m.body}`;
@@ -21,7 +22,7 @@ export default function Messages() {
       {q.isLoading && <p className="py-10 text-center text-zinc-500">A carregar…</p>}
       {q.isSuccess && q.data.length === 0 && (
         <div className="mt-10 text-center">
-          <p className="text-5xl">🤫</p>
+          <p className="text-zinc-300" aria-hidden><Icon name="messages" size={44} className="mx-auto" /></p>
           <p className="mt-3 text-xl font-bold">Ainda sem cochichos</p>
           <p className="mx-auto mt-1 max-w-xs text-zinc-600">Abre o perfil de alguém e toca no envelope, ou responde a um story.</p>
         </div>

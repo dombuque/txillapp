@@ -1,3 +1,4 @@
+import Icon, { type IconName } from './Icon';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { ApiError, api, type GiftVisibility } from '../lib/api';
@@ -5,10 +6,10 @@ import { Sheet, btnGhost, btnPrimary, fieldInput } from './ui';
 
 const AMOUNTS = [5, 10, 50, 100];
 
-const OPTIONS: { value: GiftVisibility; emoji: string; title: string; text: string }[] = [
-  { value: 'silent', emoji: '🤫', title: 'Discreto', text: 'Só o presente. Sem mensagem, sem post.' },
-  { value: 'private', emoji: '💌', title: 'No privado', text: 'Uma mensagem que só a pessoa vê.' },
-  { value: 'public', emoji: '📣', title: 'No feed', text: 'Post "presenteou" para a malta ver.' },
+const OPTIONS: { value: GiftVisibility; icon: IconName; title: string; text: string }[] = [
+  { value: 'silent', icon: 'eye-off', title: 'Discreto', text: 'Só o presente. Sem mensagem, sem post.' },
+  { value: 'private', icon: 'mail', title: 'No privado', text: 'Uma mensagem que só a pessoa vê.' },
+  { value: 'public', icon: 'megaphone', title: 'No feed', text: 'Post "presenteou" para a malta ver.' },
 ];
 
 /**
@@ -44,8 +45,8 @@ export default function GiftSheet({
 
   async function send() {
     const n = custom ? Number(custom) : amount;
-    if (!target) return setErr('Diz-me para quem 🕵️');
-    if (!Number.isInteger(n) || n < 1) return setErr('O número de Txills tem de ser inteiro 🤓');
+    if (!target) return setErr('Diz-me para quem');
+    if (!Number.isInteger(n) || n < 1) return setErr('O número de Txills tem de ser inteiro');
     setBusy(true);
     setErr('');
     try {
@@ -57,7 +58,7 @@ export default function GiftSheet({
       for (const key of ['wallet', 'feed', 'profile-posts']) qc.invalidateQueries({ queryKey: [key] });
     } catch (x) {
       const m = (x as Error).message;
-      setErr(m === 'Saldo insuficiente' ? 'Ups, o teu saldo não chega 😬' : x instanceof ApiError && x.status === 404 ? 'Essa pessoa não existe. Confirma o @ 🕵️' : m);
+      setErr(m === 'Saldo insuficiente' ? 'Ups, o teu saldo não chega' : x instanceof ApiError && x.status === 404 ? 'Essa pessoa não existe. Confirma o @' : m);
     } finally {
       setBusy(false);
     }
@@ -80,13 +81,13 @@ export default function GiftSheet({
 
   if (sent) {
     return (
-      <Sheet title="Presente enviado 🎁" onClose={onClose} layer={layer}>
-        <p className="py-3 text-center text-lg">Mandaste {custom || amount} Txills a {name}! Que generoso 😍</p>
+      <Sheet title="Presente enviado" onClose={onClose} layer={layer}>
+        <p className="py-3 text-center text-lg">Mandaste {custom || amount} Txills a {name}! Que generoso</p>
         {sent.published ? (
-          <p role="status" className="pb-2 text-center text-green-700">📣 Já está no feed.</p>
+          <p role="status" className="pb-2 text-center text-green-700">Já está no feed.</p>
         ) : (
           <button onClick={publishNow} disabled={publishing} className={`${btnGhost} mt-2 w-full`}>
-            {publishing ? 'A publicar…' : '📣 Publicar no feed agora'}
+            {publishing ? 'A publicar…' : 'Publicar no feed agora'}
           </button>
         )}
         <p role="alert" className="mt-2 min-h-5 text-center text-sm text-red-600">{err}</p>
@@ -96,7 +97,7 @@ export default function GiftSheet({
   }
 
   return (
-    <Sheet title={`Presentear ${name} 🎁`} onClose={onClose} layer={layer}>
+    <Sheet title={`Presentear ${name}`} onClose={onClose} layer={layer}>
       <div className="space-y-4">
         {!recipient && (
           <input value={to} onChange={(e) => { setTo(e.target.value); fresh(); }} placeholder="@utilizador" aria-label="Utilizador" autoCapitalize="none" autoCorrect="off" className={fieldInput} />
@@ -128,7 +129,7 @@ export default function GiftSheet({
               onClick={() => { setVisibility(o.value); fresh(); }}
               className={`flex flex-col items-start rounded-2xl border-2 p-2.5 text-left transition active:scale-[0.98] ${visibility === o.value ? 'border-brand bg-rose-50' : 'border-zinc-200'}`}
             >
-              <span className="text-xl" aria-hidden>{o.emoji}</span>
+              <Icon name={o.icon} size={24} />
               <span className="mt-0.5 text-sm font-bold">{o.title}</span>
               <span className="mt-0.5 text-[11px] leading-3.5 text-zinc-600">{o.text}</span>
             </button>
@@ -141,7 +142,7 @@ export default function GiftSheet({
             onChange={(e) => { setNote(e.target.value); fresh(); }}
             maxLength={280}
             rows={2}
-            placeholder={visibility === 'private' ? 'Uma mensagem só para a pessoa… 💌' : 'Escreve algo para o post… 📣'}
+            placeholder={visibility === 'private' ? 'Uma mensagem só para a pessoa…' : 'Escreve algo para o post…'}
             aria-label="Mensagem"
             className={`${fieldInput} resize-none`}
           />
@@ -149,7 +150,7 @@ export default function GiftSheet({
 
         <p role="alert" className="min-h-5 text-center text-sm text-red-600">{err}</p>
         <button disabled={busy} onClick={send} className={`${btnPrimary} w-full py-4 text-lg`}>
-          {busy ? 'A enviar… 🚀' : `Mandar ${custom || amount} Txills`}
+          {busy ? 'A enviar…' : `Mandar ${custom || amount} Txills`}
         </button>
       </div>
     </Sheet>

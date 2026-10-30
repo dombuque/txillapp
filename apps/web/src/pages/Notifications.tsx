@@ -33,7 +33,7 @@ function describe(n: AppNotification): { text: ReactNode; sub?: string } {
     case 'request_accepted':
       return { text: <>aceitou o teu pedido para seguir</> };
     case 'gift':
-      return { text: <>presenteou-te com <b>{(n.data.amount ?? 0).toLocaleString('pt-PT')} Txills</b> 🎁</>, sub: n.data.note ? `💌 ${n.data.note}` : undefined };
+      return { text: <>presenteou-te com <b>{(n.data.amount ?? 0).toLocaleString('pt-PT')} Txills</b></>, sub: n.data.note ? `${n.data.note}` : undefined };
     case 'comment':
       return { text: <>comentou a tua publicação</>, sub: quote };
     case 'reply':
@@ -119,7 +119,7 @@ function Row({ n, fresh }: { n: AppNotification; fresh: boolean }) {
             <button disabled={busy} onClick={(e) => { e.stopPropagation(); respond(false); }} className="rounded-full border border-zinc-300 px-5 py-2 text-sm font-semibold transition active:scale-95">Recusar</button>
           </div>
         )}
-        {answer && <p role="status" className="mt-2 text-sm font-medium text-zinc-600">{answer === 'accepted' ? '✓ Pedido aceite' : 'Pedido recusado'}</p>}
+        {answer && <p role="status" className="mt-2 text-sm font-medium text-zinc-600">{answer === 'accepted' ? 'Pedido aceite' : 'Pedido recusado'}</p>}
       </div>
     </li>
   );
@@ -153,16 +153,16 @@ export default function Notifications() {
 
   return (
     <StackPage title="Notificações">
-      {q.isLoading && <p className="py-12 text-center text-zinc-500">A ver o que aconteceu… 👀</p>}
+      {q.isLoading && <p className="py-12 text-center text-zinc-500">A ver o que aconteceu…</p>}
       {q.isError && (
         <div role="alert" className="mx-6 mt-10 text-center">
-          <p className="text-lg">Ups, não consegui carregar 😅</p>
+          <p className="text-lg">Ups, não consegui carregar</p>
           <button onClick={() => q.refetch()} className={`${btnGhost} mt-4`}>Tentar outra vez</button>
         </div>
       )}
       {q.isSuccess && items.length === 0 && (
         <div className="mx-6 mt-16 text-center">
-          <p className="text-6xl" aria-hidden>🔕</p>
+          <p className="text-zinc-300" aria-hidden><Icon name="bell-off" size={52} className="mx-auto" /></p>
           <p className="mt-4 text-2xl font-extrabold">Tudo calmo por aqui</p>
           <p className="mt-2 text-lg font-light text-zinc-600">Quando alguém te seguir, comentar ou presentear, aparece aqui.</p>
         </div>

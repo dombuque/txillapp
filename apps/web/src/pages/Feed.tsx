@@ -1,3 +1,4 @@
+import Icon from '../components/Icon';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Fragment, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
@@ -71,7 +72,7 @@ export default function Feed() {
       )}
       {q.isError && (
         <div role="alert" className="mx-6 mt-10 text-center">
-          <p className="text-lg">Ups, a vibe falhou 😅</p>
+          <p className="text-lg">Ups, a vibe falhou</p>
           <button onClick={() => q.refetch()} className={`${btnGhost} mt-4`}>
             Tentar outra vez
           </button>
@@ -79,7 +80,7 @@ export default function Feed() {
       )}
       {q.isSuccess && posts.length === 0 && (
         <div className="mx-6 mt-16 text-center">
-          <p className="text-6xl">🍻</p>
+          <p className="text-zinc-300" aria-hidden><Icon name="cheers" size={52} className="mx-auto" /></p>
           <p className="mt-4 text-2xl font-extrabold">Ainda ninguém brindou por aqui</p>
           <p className="mt-2 text-lg font-light text-zinc-600">Sê tu a começar a festa!</p>
           <Link to="/new" className="mt-6 inline-block rounded-full bg-brand px-8 py-3.5 font-semibold text-white active:scale-95">
@@ -91,14 +92,14 @@ export default function Feed() {
         <Fragment key={p.id}>
           {i === firstSeen && firstSeen > 0 && (
             <div className="mx-6 mb-6 mt-2 text-center" role="note">
-              <p className="text-lg font-extrabold">Estás em dia ✨</p>
+              <p className="text-lg font-extrabold">Estás em dia</p>
               <p className="text-sm text-zinc-600">Daqui para baixo são publicações que já viste.</p>
             </div>
           )}
           <Impression id={p.id}>
             {p.feed?.source === 'discover' && (
               <p className="mx-6 mb-1.5 text-sm font-semibold text-zinc-500">
-                <span aria-hidden>✨</span> Sugestão para ti
+                <span aria-hidden><Icon name="sparkles" size={16} className="inline align-[-3px]" /></span> Sugestão para ti
               </p>
             )}
             <PostCard post={p} />
@@ -110,7 +111,7 @@ export default function Feed() {
       {q.hasNextPage && (
         <div className="mb-6 text-center">
           <button onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage} className={btnGhost}>
-            {q.isFetchingNextPage ? 'A buscar mais vibe…' : 'Mais vibe 🔥'}
+            {q.isFetchingNextPage ? 'A buscar mais vibe…' : 'Mais vibe'}
           </button>
         </div>
       )}

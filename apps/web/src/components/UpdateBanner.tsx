@@ -1,3 +1,4 @@
+import Icon from './Icon';
 import { useEffect, useState } from 'react';
 import { registerSW } from 'virtual:pwa-register';
 
@@ -32,7 +33,7 @@ export default function UpdateBanner() {
   if (!needRefresh) return null;
   return (
     <div role="status" className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[95] mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-zinc-900 px-4 py-3 text-white shadow-[0_8px_32px_rgba(0,0,0,0.35)]">
-      <span className="text-xl" aria-hidden>🎉</span>
+      <Icon name="sparkles" size={22} />
       <span className="min-w-0 flex-1 text-[15px] font-semibold leading-tight">Há uma versão nova do Txillapp</span>
       <button
         disabled={busy}

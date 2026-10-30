@@ -1,3 +1,4 @@
+import Icon from './Icon';
 import MentionTextarea from './MentionTextarea';
 import { Link } from 'react-router-dom';
 import VerifiedBadge from './VerifiedBadge';
@@ -9,7 +10,7 @@ import { api, type Comment, type Post } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Avatar, timeAgo } from './ui';
 
-const QUICK = ['🍻', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
+const QUICK = ['🥂', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
 
 function Body({ text }: { text: string }) {
   return (
@@ -75,9 +76,9 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
         onClick={toggle}
         aria-label={cheer.cheered ? 'Tirar o brinde' : 'Brindar comentário'}
         aria-pressed={cheer.cheered}
-        className={`self-start pt-1 text-lg transition active:scale-125 ${cheer.cheered ? '' : 'opacity-40 grayscale'}`}
+        className={`self-start pt-1 text-lg transition active:scale-125 ${cheer.cheered ? 'text-brand' : 'text-zinc-400'}`}
       >
-        🍻
+        <Icon name="cheers" size={20} />
       </button>
       {reportSheet}
     </div>
@@ -214,10 +215,10 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
 
         <div className="flex-1 overflow-y-auto px-4 py-2">
           {q.isLoading && <p className="py-10 text-center text-zinc-500">A carregar a conversa…</p>}
-          {q.isError && <p role="alert" className="py-10 text-center text-red-600">Ups, não consegui carregar 😅</p>}
+          {q.isError && <p role="alert" className="py-10 text-center text-red-600">Ups, não consegui carregar</p>}
           {q.isSuccess && items.length === 0 && (
             <div className="py-14 text-center">
-              <p className="text-4xl">🤐</p>
+              <p className="text-zinc-300" aria-hidden><Icon name="comment-off" size={36} className="mx-auto" /></p>
               <p className="mt-2 text-lg font-bold">Ainda ninguém disse nada</p>
               <p className="text-zinc-500">Sê o primeiro a puxar conversa</p>
             </div>
@@ -246,7 +247,7 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
 
         {!post.canComment && post.author.id !== user?.id ? (
           <div className="border-t border-zinc-200 px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-center text-zinc-600">
-            <span aria-hidden>🔕</span> {post.author.displayName} desativou os comentários nesta publicação.
+            <span aria-hidden><Icon name="bell-off" size={16} className="inline align-[-3px]" /></span> {post.author.displayName} desativou os comentários nesta publicação.
           </div>
         ) : (
         <div className="border-t border-zinc-200 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -274,7 +275,7 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
                 value={text}
                 onChange={setText}
                 maxLength={1000}
-                placeholder={replyTo ? `Responder a ${replyTo.author.username}…` : 'Diz lá… 💬'}
+                placeholder={replyTo ? `Responder a ${replyTo.author.username}…` : 'Diz lá…'}
                 aria-label="Escrever comentário"
                 className="w-full bg-transparent py-2.5 text-[15px] outline-none"
               />

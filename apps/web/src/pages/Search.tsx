@@ -1,3 +1,4 @@
+import Icon from '../components/Icon';
 import { track } from '../lib/analytics';
 import { sized } from '../lib/media';
 import VerifiedBadge from '../components/VerifiedBadge';
@@ -74,7 +75,7 @@ export default function Search() {
             type="search"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Procura malta e publicações… 🔎"
+            placeholder="Procura malta e publicações…"
             aria-label="Pesquisar"
             autoFocus
             enterKeyHint="search"
@@ -99,7 +100,7 @@ export default function Search() {
               <div className="flex flex-wrap gap-2">
                 {recent.map((r) => (
                   <button key={r} onClick={() => setText(r)} className="rounded-full bg-zinc-100 px-3.5 py-2 text-sm font-medium text-zinc-800 active:scale-95">
-                    🕘 {r}
+                    <Icon name="clock" size={14} className="mr-1 inline align-[-2px]" />{r}
                   </button>
                 ))}
               </div>
@@ -107,7 +108,7 @@ export default function Search() {
           )}
           {(trending.data?.tags.length ?? 0) > 0 && (
             <section className="px-5 pb-4" aria-label="Em alta">
-              <h2 className="mb-1 font-bold">Em alta 🔥</h2>
+              <h2 className="mb-1 font-bold">Em alta</h2>
               <ol>
                 {trending.data!.tags.map((t, i) => (
                   <li key={t.tag}>
@@ -141,14 +142,14 @@ export default function Search() {
             ))}
           </div>
 
-          {q.isLoading && <p className="py-10 text-center text-zinc-500">A procurar… 🔎</p>}
-          {q.isError && <p role="alert" className="py-10 text-center text-red-600">Ups, a pesquisa falhou 😅</p>}
+          {q.isLoading && <p className="py-10 text-center text-zinc-500">A procurar…</p>}
+          {q.isError && <p role="alert" className="py-10 text-center text-red-600">Ups, a pesquisa falhou</p>}
 
           {q.isSuccess && tab === 'people' && (
             <ul className="px-4">
               {people.length === 0 && (
                 <li className="py-10 text-center text-zinc-600">
-                  <p className="text-4xl">🕵️</p>
+                  <p className="text-zinc-300" aria-hidden><Icon name="search" size={36} className="mx-auto" /></p>
                   <p className="mt-2 font-semibold">Ninguém com esse nome</p>
                 </li>
               )}
@@ -157,7 +158,7 @@ export default function Search() {
                   <Link to={`/u/${p.username}`} onClick={() => remember(term)} className="flex min-w-0 flex-1 items-center gap-3">
                     <Avatar name={p.displayName} username={p.username} size={48} />
                     <span className="min-w-0">
-                      <span className="block truncate font-semibold">{p.displayName} {p.verified && <VerifiedBadge size={15} />} {p.isPrivate && <span aria-label="Conta privada">🔒</span>}</span>
+                      <span className="block truncate font-semibold">{p.displayName} {p.verified && <VerifiedBadge size={15} />} {p.isPrivate && <Icon name="lock" size={14} className="inline align-[-2px] text-zinc-500" aria-hidden={false} role="img" aria-label="Conta privada" />}</span>
                       <span className="block truncate text-sm text-zinc-600">@{p.username}{p.followsYou ? ' · segue-te' : ''}</span>
                     </span>
                   </Link>
@@ -173,7 +174,7 @@ export default function Search() {
             <ul className="px-4">
               {tags.length === 0 && (
                 <li className="py-10 text-center text-zinc-600">
-                  <p className="text-4xl">🏷️</p>
+                  <p className="text-zinc-300" aria-hidden><Icon name="tag" size={36} className="mx-auto" /></p>
                   <p className="mt-2 font-semibold">Nenhuma hashtag assim</p>
                 </li>
               )}
@@ -195,7 +196,7 @@ export default function Search() {
             <ul className="px-4">
               {posts.length === 0 && (
                 <li className="py-10 text-center text-zinc-600">
-                  <p className="text-4xl">📭</p>
+                  <p className="text-zinc-300" aria-hidden><Icon name="inbox" size={36} className="mx-auto" /></p>
                   <p className="mt-2 font-semibold">Nenhuma publicação encontrada</p>
                 </li>
               )}
@@ -205,12 +206,12 @@ export default function Search() {
                     {p.media[0] ? (
                       <img src={p.media[0].kind === 'video' ? p.media[0].posterUrl : sized(p.media[0].url, 160)} alt="" loading="lazy" decoding="async" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
                     ) : (
-                      <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-2xl" aria-hidden>💬</span>
+                      <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-rose-50" aria-hidden><Icon name="comment" size={24} className="inline align-[-3px]" /></span>
                     )}
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">{p.author.displayName}</span>
                       <span className="line-clamp-2 break-words text-sm text-zinc-700">{p.body || (p.media.length ? 'Foto' : '')}</span>
-                      <span className="text-xs text-zinc-500">{timeAgo(p.createdAt)}{p.locationLabel ? ` · 📍 ${p.locationLabel}` : ''}</span>
+                      <span className="text-xs text-zinc-500">{timeAgo(p.createdAt)}{p.locationLabel ? ` · ${p.locationLabel}` : ''}</span>
                     </span>
                   </button>
                 </li>

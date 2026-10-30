@@ -46,7 +46,7 @@ export default function ProfilePage() {
     const missing = q.error instanceof ApiError && q.error.status === 404;
     return (
       <div className="mx-6 mt-16 text-center">
-        <p className="text-5xl">{missing ? '🕵️' : '😅'}</p>
+        <Icon name={missing ? 'search' : 'alert'} size={44} className="mx-auto text-zinc-300" />
         <p className="mt-3 text-xl font-bold">{missing ? 'Essa pessoa não existe' : 'Não consegui abrir este perfil'}</p>
         <button onClick={() => navigate(-1)} className={`${btnGhost} mt-6`}>Voltar</button>
       </div>
@@ -68,9 +68,9 @@ export default function ProfilePage() {
     const copy = async () => {
       try {
         await navigator.clipboard.writeText(url);
-        flash('Link copiado ✅');
+        flash('Link copiado');
       } catch {
-        flash('Não consegui copiar 😅');
+        flash('Não consegui copiar');
       }
     };
     if (!navigator.share) return copy();
@@ -102,9 +102,7 @@ export default function ProfilePage() {
         <div className="flex items-center justify-between px-5 pb-2">
           <p className="font-semibold">@{p.username}</p>
           <button onClick={() => navigate('/settings')} aria-label="Definições e privacidade" className="-mr-2 flex h-11 w-11 items-center justify-center rounded-full text-zinc-900 transition active:scale-90">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-              <path d="M4 7h16M4 12h16M4 17h16" />
-            </svg>
+            <Icon name="menu" size={26} strokeWidth={2} />
           </button>
         </div>
       ) : (
@@ -112,7 +110,7 @@ export default function ProfilePage() {
           <button onClick={() => navigate(-1)} aria-label="Voltar" className="flex h-11 w-11 items-center justify-center text-zinc-900"><BackIcon /></button>
           <p className="min-w-0 flex-1 truncate font-semibold">@{p.username}</p>
           <button onClick={() => setSheet('menu')} aria-label="Mais opções" className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-900 transition active:bg-zinc-100">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+            <Icon name="more" size={24} strokeWidth={2.4} />
           </button>
         </div>
       )}
@@ -121,7 +119,7 @@ export default function ProfilePage() {
         <div className="flex flex-col items-center text-center">
           <ProfileStoryAvatar username={p.username} displayName={p.displayName} isMe={p.isMe} hasAvatar={p.hasAvatar} />
           <h1 className="mt-4 text-2xl font-extrabold leading-tight">
-            {p.displayName} {p.verified && <VerifiedBadge size={22} />} {p.isPrivate && <span title="Conta privada" aria-label="Conta privada">🔒</span>}
+            {p.displayName} {p.verified && <VerifiedBadge size={22} />} {p.isPrivate && <Icon name="lock" size={14} className="inline align-[-2px] text-zinc-500" aria-hidden={false} role="img" aria-label="Conta privada" />}
           </h1>
           <p className="text-zinc-600">
             @{p.username}
@@ -132,7 +130,7 @@ export default function ProfilePage() {
           )}
           {p.bio && <p className="mt-3 max-w-sm whitespace-pre-wrap break-words text-[15px] text-zinc-800"><RichText text={p.bio} /></p>}
           {!p.bio && p.isMe && (
-            <button onClick={() => setSheet('edit')} className="mt-3 text-sm font-medium text-zinc-600 underline">Adiciona uma bio ✍️</button>
+            <button onClick={() => setSheet('edit')} className="mt-3 text-sm font-medium text-zinc-600 underline">Adiciona uma bio</button>
           )}
         </div>
 
@@ -145,13 +143,13 @@ export default function ProfilePage() {
         {/* Bloqueio ao estilo do X: o cabeçalho fica visível, com o aviso. */}
         {p.blockedMe && (
           <div role="status" className="mt-4 rounded-2xl bg-zinc-100 p-4 text-center">
-            <p className="font-bold">🚫 Foste bloqueado por @{p.username}</p>
+            <p className="font-bold">Foste bloqueado por @{p.username}</p>
             <p className="mt-1 text-sm text-zinc-600">Não podes seguir esta conta nem ver as publicações e stories dela.</p>
           </div>
         )}
         {p.blockedByMe && !p.blockedMe && (
           <div className="mt-4 rounded-2xl bg-zinc-100 p-4 text-center">
-            <p className="font-bold">🚫 Bloqueaste @{p.username}</p>
+            <p className="font-bold">Bloqueaste @{p.username}</p>
             <p className="mt-1 text-sm text-zinc-600">A pessoa não vê o teu conteúdo nem te pode seguir.</p>
             <button onClick={unblock} className={`${btnGhost} mt-3 !py-2.5`}>Desbloquear</button>
           </div>
@@ -176,14 +174,10 @@ export default function ProfilePage() {
                 {/* Só se presenteia quem se segue. */}
                 {p.following && <button onClick={() => setSheet('gift')} className={`${btnSmall} flex flex-1 items-center justify-center gap-1.5`}><Icon name="gift" size={18} /> Presentear</button>}
                 <button onClick={() => navigate(`/messages/${p.username}`)} aria-label="Enviar mensagem" className={`${btnSmall} w-11 shrink-0 !px-0`}>
-                  <svg className="mx-auto" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z" />
-                  </svg>
+                  <Icon name="send" size={18} className="mx-auto" />
                 </button>
                 <button onClick={share} aria-label="Partilhar perfil" className={`${btnSmall} w-11 shrink-0 !px-0`}>
-                  <svg className="mx-auto" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M12 16V4M7 9l5-5 5 5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
-                  </svg>
+                  <Icon name="share" size={18} className="mx-auto" />
                 </button>
               </>
             )}
@@ -192,7 +186,7 @@ export default function ProfilePage() {
 
         {p.isMe && p.pendingRequests > 0 && (
           <button onClick={() => setSheet('requests')} className="mt-4 flex w-full items-center justify-between rounded-2xl bg-rose-50 px-4 py-3 font-semibold text-brand">
-            <span>👋 Pedidos para seguir</span>
+            <span>Pedidos para seguir</span>
             <span className="rounded-full bg-brand px-2.5 py-0.5 text-sm text-white">{p.pendingRequests}</span>
           </button>
         )}
@@ -200,7 +194,7 @@ export default function ProfilePage() {
 
       {!p.canView && !blocked ? (
         <div className="mx-4 mt-6 rounded-[28px] bg-white p-8 text-center shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
-          <p className="text-5xl">🔒</p>
+          <p className="text-zinc-300" aria-hidden><Icon name="lock" size={44} className="mx-auto" /></p>
           <p className="mt-3 text-xl font-extrabold">Esta conta é privada</p>
           <p className="mt-1 text-zinc-600">
             {p.requested ? 'Pedido enviado. Quando aceitar, vês as publicações e stories.' : 'Segue para ver as publicações e stories.'}
@@ -211,7 +205,7 @@ export default function ProfilePage() {
           <section className="mt-6 px-4" aria-label="Publicações">
             {posts.isSuccess && items.length === 0 && (
               <div className="mt-8 text-center text-zinc-600">
-                <p className="text-4xl">📷</p>
+                <p className="text-zinc-300" aria-hidden><Icon name="camera" size={36} className="mx-auto" /></p>
                 <p className="mt-2 font-semibold">{p.isMe ? 'Ainda não publicaste nada' : 'Ainda sem publicações'}</p>
                 {p.isMe && <Link to="/new" className="mt-3 inline-block font-semibold text-brand underline">Faz a primeira!</Link>}
               </div>
@@ -225,11 +219,11 @@ export default function ProfilePage() {
                       <img src={shown.media[0].kind === 'video' ? shown.media[0].posterUrl : sized(shown.media[0].url, 480)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center p-2 text-center text-xs font-medium leading-snug text-zinc-700">
-                        {post.gift ? '🎁 ' : ''}{(post.body || shown.body).slice(0, 70)}
+                        {post.gift ? '' : ''}{(post.body || shown.body).slice(0, 70)}
                       </span>
                     )}
                     {shown.media.length > 1 && <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-1.5 text-[10px] font-bold text-white">▣ {shown.media.length}</span>}
-                    {post.kind === 'repost' && <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-1.5 text-[10px] font-bold text-white">🔁</span>}
+                    {post.kind === 'repost' && <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-1.5 text-[10px] font-bold text-white"></span>}
                   </button>
                 );
               })}
@@ -302,7 +296,7 @@ function RequestsSheet({ myUsername, onClose }: { myUsername: string; onClose: (
   const list = q.data ?? [];
   return (
     <Sheet title="Pedidos para seguir" onClose={onClose}>
-      {q.isSuccess && list.length === 0 && <p className="py-8 text-center text-zinc-600">Sem pedidos pendentes 🎉</p>}
+      {q.isSuccess && list.length === 0 && <p className="py-8 text-center text-zinc-600">Sem pedidos pendentes</p>}
       {list.map((r) => (
         <div key={r.username} className="flex items-center gap-3 py-2.5">
           <Avatar name={r.displayName} username={r.username} size={44} />

@@ -1,3 +1,4 @@
+import Icon from '../components/Icon';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -50,10 +51,10 @@ function ConnectionList({ username, kind, meUsername }: { username: string; kind
       </form>
 
       {q.isLoading && <p className="py-10 text-center text-zinc-600">A carregar…</p>}
-      {q.isError && <p role="alert" className="py-10 text-center text-red-600">Ups, não consegui carregar 😅</p>}
+      {q.isError && <p role="alert" className="py-10 text-center text-red-600">Ups, não consegui carregar</p>}
       {q.isSuccess && people.length === 0 && (
         <div className="py-12 text-center text-zinc-600">
-          <p className="text-4xl" aria-hidden>{term ? '🕵️' : kind === 'followers' ? '🌱' : '👀'}</p>
+          <Icon name={term ? 'search' : kind === 'followers' ? 'sprout' : 'eye'} size={36} className="mx-auto text-zinc-300" />
           <p className="mt-2 font-semibold">
             {term ? 'Ninguém com esse nome' : kind === 'followers' ? 'Ainda sem seguidores' : 'Ainda não segue ninguém'}
           </p>
@@ -132,14 +133,14 @@ export default function Connections() {
     <StackPage title={`@${username}`}>
       {profile.isError && (
         <div className="mx-6 mt-16 text-center">
-          <p className="text-5xl">🕵️</p>
+          <p className="text-zinc-300" aria-hidden><Icon name="search" size={44} className="mx-auto" /></p>
           <p className="mt-3 text-xl font-bold">Essa pessoa não existe</p>
           <button onClick={() => navigate(-1)} className="mt-6 underline">Voltar</button>
         </div>
       )}
       {p && !p.canSeeConnections && (
         <div className="mx-6 mt-16 text-center">
-          <p className="text-5xl" aria-hidden>🔒</p>
+          <p className="text-zinc-300" aria-hidden><Icon name="lock" size={44} className="mx-auto" /></p>
           <p className="mt-3 text-xl font-extrabold">Estas listas são privadas</p>
           <p className="mt-1 text-zinc-600">{p.displayName} escolheu quem as pode ver.</p>
         </div>

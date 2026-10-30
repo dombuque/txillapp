@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { BellIcon, HomeIcon, PlaneIcon, PlusIcon, SearchIcon, WalletIcon } from './icons';
+import { BellIcon, HomeIcon, MessagesIcon, PlusIcon, SearchIcon, WalletIcon } from './icons';
 import { Avatar, Wordmark } from './ui';
 
 /** Áreas de toque de 48 px (acima dos 44 px recomendados), com ícones de tamanho moderado. */
@@ -58,7 +58,7 @@ export default function Layout() {
         <Wordmark className="h-8" />
         <NavLink to="/messages" aria-label={chatCount > 0 ? `Mensagens (${chatCount} por ler)` : 'Mensagens'} className="absolute right-3 flex h-11 w-11 items-center justify-center text-zinc-900">
           <span className="relative">
-            <PlaneIcon width={26} height={26} />
+            <MessagesIcon width={26} height={26} />
             {chatCount > 0 && (
               <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white">
                 {chatCount > 9 ? '9+' : chatCount}

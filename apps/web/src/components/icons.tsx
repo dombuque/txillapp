@@ -1,93 +1,21 @@
-import type { SVGProps } from 'react';
+import { ArrowLeft, Bell, Gift, House, MessageCircle, MessagesSquare, Pencil, Plus, Repeat2, Search, Star, Undo2, Wallet, type LucideProps } from 'lucide-react';
 
-const base = (p: SVGProps<SVGSVGElement>) => ({
-  width: 26,
-  height: 26,
-  viewBox: '0 0 24 24',
-  fill: 'none',
-  stroke: 'currentColor',
-  strokeWidth: 1.8,
-  strokeLinecap: 'round' as const,
-  strokeLinejoin: 'round' as const,
-  'aria-hidden': true,
-  ...p,
-});
+/**
+ * Ícones de navegação e de ações, todos do mesmo conjunto (Lucide) com o mesmo traço. Aceitam width/height/strokeWidth
+ * para os tamanhos de cada sítio. O conjunto completo está em Icon.tsx.
+ */
+const p = (size: number, extra: LucideProps) => ({ size, strokeWidth: 1.75, 'aria-hidden': true, ...extra });
 
-export const HomeIcon = ({ filled, ...p }: SVGProps<SVGSVGElement> & { filled?: boolean }) => (
-  <svg {...base(p)} fill={filled ? 'currentColor' : 'none'}>
-    <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />
-  </svg>
-);
-export const StarIcon = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base(p)}>
-    <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />
-  </svg>
-);
-export const WalletIcon = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base(p)}>
-    <path d="M4 7a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v1M4 7v10a2 2 0 0 0 2 2h13a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1H6a2 2 0 0 1-2-1z" />
-    <circle cx="16" cy="13.5" r="1.2" />
-  </svg>
-);
-export const PlaneIcon = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base(p)}>
-    <path d="M21 3 10 14M21 3l-7 18-4-7-7-4z" />
-  </svg>
-);
-export const PlusIcon = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base({ width: 34, height: 34, strokeWidth: 2.4, ...p })}>
-    <path d="M12 5v14M5 12h14" />
-  </svg>
-);
-export const CommentIcon = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base({ width: 22, height: 22, ...p })}>
-    <path d="M21 12a8 8 0 0 1-11.8 7L3 21l2-5.6A8 8 0 1 1 21 12z" />
-    <path d="M8.5 12h.01M12 12h.01M15.5 12h.01" strokeWidth={2.4} />
-  </svg>
-);
-/** Presentear: seta para cima dentro de um quadrado arredondado (como no desenho). */
-export const GiftIcon = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base({ width: 22, height: 22, ...p })}>
-    <rect x="3.5" y="3.5" width="17" height="17" rx="4" />
-    <path d="M12 16V8M8.5 11.5 12 8l3.5 3.5" />
-  </svg>
-);
-
-export const SearchIcon = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base(p)}>
-    <circle cx="11" cy="11" r="6.5" />
-    <path d="m16 16 4.5 4.5" />
-  </svg>
-);
-export const BellIcon = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base(p)}>
-    <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z" />
-    <path d="M10 21a2 2 0 0 0 4 0" />
-  </svg>
-);
-/** Repostar: duas setas em laço. */
-export const RepostIcon = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base({ width: 22, height: 22, ...p })}>
-    <path d="M17 3l3 3-3 3" />
-    <path d="M4 11V9a3 3 0 0 1 3-3h13" />
-    <path d="M7 21l-3-3 3-3" />
-    <path d="M20 13v2a3 3 0 0 1-3 3H4" />
-  </svg>
-);
-export const BackIcon = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base({ width: 26, height: 26, strokeWidth: 2, ...p })}>
-    <path d="M15 5l-7 7 7 7" />
-  </svg>
-);
-export const PencilIcon = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base({ width: 22, height: 22, ...p })}>
-    <path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z" />
-    <path d="m14.5 7.5 3 3" />
-  </svg>
-);
-export const UndoIcon = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base({ width: 22, height: 22, ...p })}>
-    <path d="M9 7 4 12l5 5" />
-    <path d="M4 12h10a6 6 0 0 1 0 12" transform="translate(0 -4)" />
-  </svg>
-);
+export const HomeIcon = ({ filled, ...r }: LucideProps & { filled?: boolean }) => <House {...p(26, r)} fill={filled ? 'currentColor' : 'none'} />;
+export const StarIcon = (r: LucideProps) => <Star {...p(26, r)} />;
+export const WalletIcon = (r: LucideProps) => <Wallet {...p(26, r)} />;
+export const MessagesIcon = (r: LucideProps) => <MessagesSquare {...p(26, r)} />;
+export const PlusIcon = (r: LucideProps) => <Plus {...p(34, { strokeWidth: 2.4, ...r })} />;
+export const CommentIcon = (r: LucideProps) => <MessageCircle {...p(22, r)} />;
+export const GiftIcon = (r: LucideProps) => <Gift {...p(22, r)} />;
+export const SearchIcon = (r: LucideProps) => <Search {...p(26, r)} />;
+export const BellIcon = (r: LucideProps) => <Bell {...p(26, r)} />;
+export const RepostIcon = (r: LucideProps) => <Repeat2 {...p(22, r)} />;
+export const BackIcon = (r: LucideProps) => <ArrowLeft {...p(26, { strokeWidth: 2, ...r })} />;
+export const PencilIcon = (r: LucideProps) => <Pencil {...p(22, r)} />;
+export const UndoIcon = (r: LucideProps) => <Undo2 {...p(22, r)} />;

@@ -45,9 +45,9 @@ function VoiceBubble({ m }: { m: ChatMessage }) {
         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${mine ? 'bg-white/25' : 'bg-white shadow-sm'}`}
       >
         {playing ? (
-          <svg {...icon} fill="currentColor" stroke="none"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+          <Icon name="pause" size={22} fill="currentColor" />
         ) : (
-          <svg {...icon} fill="currentColor" stroke="none"><path d="M8 5v14l11-7z" /></svg>
+          <Icon name="play" size={22} fill="currentColor" />
         )}
       </button>
       <div className="min-w-0 flex-1">
@@ -184,8 +184,8 @@ export default function Thread() {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    if (!IMAGE_TYPES.includes(f.type)) return setErr('Essa foto não serve. Usa JPEG, PNG ou WebP 🙃');
-    if (f.size > MAX_IMAGE) return setErr('Foto pesada demais! Máximo 8 MB 🏋️');
+    if (!IMAGE_TYPES.includes(f.type)) return setErr('Essa foto não serve. Usa JPEG, PNG ou WebP');
+    if (f.size > MAX_IMAGE) return setErr('Foto pesada demais! Máximo 8 MB');
     setBusy(true);
     setErr('');
     try {
@@ -238,7 +238,7 @@ export default function Thread() {
       mr.start();
       setRec({ ms: 0 });
     } catch {
-      setErr('Sem permissão para o microfone 🙈 Ativa-o no browser.');
+      setErr('Sem permissão para o microfone. Ativa-o no browser.');
     }
   }
 
@@ -270,7 +270,7 @@ export default function Thread() {
   if (q.isError) {
     return (
       <div className="mx-6 mt-16 text-center">
-        <p className="text-5xl">😅</p>
+        <p className="text-zinc-300" aria-hidden><Icon name="alert" size={44} className="mx-auto" /></p>
         <p className="mt-3 text-xl font-bold">Não consegui abrir esta conversa</p>
         <button onClick={() => navigate(-1)} className="mt-4 font-semibold text-brand">Voltar</button>
       </div>
@@ -309,7 +309,7 @@ export default function Thread() {
         {q.hasNextPage && (
           <button onClick={() => { stick.current = false; void q.fetchNextPage(); }} className="mx-auto block rounded-full bg-zinc-100 px-4 py-1.5 text-sm font-semibold text-zinc-700">Ver mensagens anteriores</button>
         )}
-        {q.isSuccess && items.length === 0 && <p className="py-16 text-center text-zinc-500">Diz olá a {person?.displayName.split(' ')[0] ?? 'esta pessoa'} 👋</p>}
+        {q.isSuccess && items.length === 0 && <p className="py-16 text-center text-zinc-500">Diz olá a {person?.displayName.split(' ')[0] ?? 'esta pessoa'}</p>}
         {items.map((m, i) => (
           <Bubble key={m.id} m={m} last={i === items.length - 1 || items[i + 1].fromMe !== m.fromMe} seen={seenUpTo(m)} onMenu={setMenuFor} />
         ))}
@@ -328,7 +328,7 @@ export default function Thread() {
       ) : rec ? (
         <div className="flex shrink-0 items-center gap-3 border-t border-zinc-100 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
           <button type="button" onClick={() => finishRecording(false)} aria-label="Cancelar gravação" className={`${tool} text-red-600`}>
-            <svg {...icon}><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14" /></svg>
+            <Icon name="trash" size={22} />
           </button>
           <span className="flex min-w-0 flex-1 items-center gap-2 text-red-600">
             <span className="h-3 w-3 animate-pulse rounded-full bg-red-600" aria-hidden />
@@ -342,7 +342,7 @@ export default function Thread() {
           {err && <p role="alert" className="px-2 pb-1 text-center text-sm text-red-600">{err}</p>}
           <div className="flex items-end gap-1.5">
             <label className={`${tool} cursor-pointer`} title="Foto" aria-label="Enviar foto">
-              <svg {...icon}><rect x="3" y="4" width="18" height="16" rx="2.5" /><circle cx="9" cy="10" r="1.6" /><path d="m21 16-5-5-8 8" /></svg>
+              <Icon name="image" size={22} />
               <input type="file" accept={IMAGE_TYPES.join(',')} onChange={pickPhoto} className="sr-only" disabled={busy} />
             </label>
             <textarea
@@ -361,7 +361,7 @@ export default function Thread() {
               <button disabled={busy} className="h-11 rounded-full bg-brand px-5 font-bold text-white transition active:scale-95 disabled:opacity-40">Enviar</button>
             ) : (
               <button type="button" onClick={startRecording} disabled={busy} className={tool} aria-label="Gravar mensagem de voz">
-                <svg {...icon}><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+                <Icon name="mic" size={22} />
               </button>
             )}
           </div>

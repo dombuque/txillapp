@@ -27,4 +27,20 @@ await sharp(Buffer.from(rounded)).resize(512, 512).png().toFile('public/icon-512
 // Maskable: fundo até às bordas (o sistema recorta). Android adapta; iOS usa o apple-touch-icon.
 await sharp(Buffer.from(full)).resize(512, 512).png().toFile('public/icon-maskable-512.png');
 await sharp(Buffer.from(full)).resize(180, 180).png().toFile('public/apple-touch-icon.png');
+
+// Favicon: o separador do navegador é minúsculo, por isso usa o monograma "tx" do logótipo (as duas primeiras letras), grande e legível.
+const mono = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="${BRAND}"/>
+  <g transform="translate(120 100) scale(8)" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 5V27Q7 34 14 34M0 14H14"/><path d="M20 14Q27 24 34 34M34 14Q27 24 20 34"/>
+  </g></svg>`;
+writeFileSync('public/favicon.svg', mono);
+const png = (n) => sharp(Buffer.from(mono)).resize(n, n).png().toBuffer();
+writeFileSync('public/favicon-32.png', await png(32));
+// favicon.ico com o PNG de 48 px lá dentro (formato aceite por todos os navegadores atuais).
+const p48 = await png(48);
+const head = Buffer.alloc(22);
+head.writeUInt16LE(0, 0); head.writeUInt16LE(1, 2); head.writeUInt16LE(1, 4);
+head[6] = 48; head[7] = 48; head.writeUInt16LE(1, 10); head.writeUInt16LE(32, 12);
+head.writeUInt32LE(p48.length, 14); head.writeUInt32LE(22, 18);
+writeFileSync('public/favicon.ico', Buffer.concat([head, p48]));
 console.log('ícones gerados');

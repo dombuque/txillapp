@@ -1,3 +1,4 @@
+import Icon from './Icon';
 import { useState } from 'react';
 import { api, type ReportReason, type ReportType } from '../lib/api';
 import { Sheet } from './ui';
@@ -39,7 +40,7 @@ export default function ReportSheet({ type, id, onClose, layer }: { type: Exclud
   if (done) {
     return (
       <Sheet title="Denúncia enviada" onClose={onClose} layer={layer}>
-        <p className="py-4 text-center text-5xl">🙏</p>
+        <p className="py-4 text-center text-zinc-300" aria-hidden><Icon name="check-circle" size={44} className="mx-auto" /></p>
         <p className="text-center text-lg font-semibold">Obrigado por avisares</p>
         <p className="mb-5 mt-1 text-center text-zinc-600">Vamos analisar. A outra pessoa não sabe que foste tu. Se quiseres, podes também bloqueá-la no perfil.</p>
         <button onClick={onClose} className="h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">Fechar</button>
@@ -62,7 +63,7 @@ export default function ReportSheet({ type, id, onClose, layer }: { type: Exclud
               <span className="block font-bold">{r.label}</span>
               <span className="block text-sm text-zinc-600">{r.text}</span>
             </span>
-            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${reason === r.value ? 'border-brand bg-brand text-sm text-white' : 'border-zinc-300'}`} aria-hidden>{reason === r.value ? '✓' : ''}</span>
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${reason === r.value ? 'border-brand bg-brand text-sm text-white' : 'border-zinc-300'}`} aria-hidden>{reason === r.value && <Icon name="check" size={14} strokeWidth={3} />}</span>
           </button>
         ))}
       </div>

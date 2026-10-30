@@ -1,9 +1,8 @@
 import Reels from './pages/Reels';
 import { api } from './lib/api';
 import { useQuery } from '@tanstack/react-query';
-import AdminStats from './pages/AdminStats';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StrictMode, type ReactNode, useEffect } from 'react';
+import { StrictMode, Suspense, lazy, type ReactNode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import './index.css';
@@ -23,7 +22,6 @@ import { screenOf, setAnalyticsEnabled, startAnalytics, track } from './lib/anal
 import InstallPrompt from './components/InstallPrompt';
 import ChatLive from './lib/chatLive';
 import TagPage from './pages/TagPage';
-import Admin from './pages/Admin';
 import PostPage from './pages/PostPage';
 import { Privacy, Terms } from './pages/Legal';
 import Messages from './pages/Messages';
@@ -34,6 +32,9 @@ import Settings from './pages/Settings';
 import { ComingSoon } from './pages/Simple';
 import Wallet from './pages/Wallet';
 
+const AdminStats = lazy(() => import('./pages/AdminStats'));
+const Admin = lazy(() => import('./pages/Admin'));
+
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1 } } });
 
 function Splash() {
@@ -41,7 +42,7 @@ function Splash() {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-5 bg-white" aria-busy="true">
       <Wordmark className="h-14" />
-      <p role="status" className="text-zinc-500">{reconnecting ? 'A reconectar… 📡' : 'A carregar a vibe…'}</p>
+      <p role="status" className="text-zinc-500">{reconnecting ? 'A reconectar…' : 'A carregar a vibe…'}</p>
     </main>
   );
 }
@@ -112,10 +113,10 @@ createRoot(document.getElementById('root')!).render(
               {/* Páginas próprias em ecrã inteiro (como a Atividade do Instagram): sem a barra de baixo. */}
               <Route path="/notifications" element={<Private><Notifications /></Private>} />
               <Route path="/settings" element={<Private><Settings /></Private>} />
-              <Route path="/admin/stats" element={<Private><AdminStats /></Private>} />
+              <Route path="/admin/stats" element={<Private><Suspense fallback={null}><AdminStats /></Suspense></Private>} />
               <Route path="/reels" element={<Private><Reels /></Private>} />
               <Route path="/tag/:tag" element={<Private><TagPage /></Private>} />
-              <Route path="/admin" element={<Private><Admin /></Private>} />
+              <Route path="/admin" element={<Private><Suspense fallback={null}><Admin /></Suspense></Private>} />
               <Route path="/p/:postId" element={<Private><PostPage /></Private>} />
               <Route path="/messages/:username" element={<Private><Thread /></Private>} />
               <Route path="/u/:username/connections" element={<Private><Connections /></Private>} />

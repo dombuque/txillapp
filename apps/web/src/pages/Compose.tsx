@@ -1,3 +1,4 @@
+import Icon from '../components/Icon';
 import { track } from '../lib/analytics';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -40,8 +41,8 @@ export default function Compose() {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    if (!f.type.startsWith('video/')) return setErr('Isso não é um vídeo 🎬');
-    if (f.size > 100 * 1024 * 1024) return setErr('Vídeo pesado demais! Máximo 100 MB 🏋️');
+    if (!f.type.startsWith('video/')) return setErr('Isso não é um vídeo');
+    if (f.size > 100 * 1024 * 1024) return setErr('Vídeo pesado demais! Máximo 100 MB');
     const url = URL.createObjectURL(f);
     const probe = document.createElement('video');
     probe.preload = 'metadata';
@@ -117,11 +118,11 @@ export default function Compose() {
     let problem = '';
     for (const f of files) {
       if (next.length >= MAX_PHOTOS) {
-        problem = `Máximo de ${MAX_PHOTOS} fotos por publicação 📸`;
+        problem = `Máximo de ${MAX_PHOTOS} fotos por publicação`;
         break;
       }
-      if (!TYPES.includes(f.type)) problem = 'Uma das fotos não serve. Usa JPEG, PNG ou WebP 🙃';
-      else if (f.size > MAX_BYTES) problem = 'Uma das fotos é pesada demais! Máximo 8 MB 🏋️';
+      if (!TYPES.includes(f.type)) problem = 'Uma das fotos não serve. Usa JPEG, PNG ou WebP';
+      else if (f.size > MAX_BYTES) problem = 'Uma das fotos é pesada demais! Máximo 8 MB';
       else next.push({ file: f, preview: URL.createObjectURL(f), tags: [] });
     }
     setErr(problem);
@@ -143,13 +144,13 @@ export default function Compose() {
       if (video) {
         mediaIds.push(
           await api.uploadVideo(video.file, {
-            progress: (f) => setProgress(`A enviar o vídeo… ${Math.round(f * 100)}% 📤`),
-            stage: (s) => setProgress(s === 'processing' ? 'A preparar o vídeo… 🎬 (pode demorar um pouco)' : 'A enviar o vídeo… 📤'),
+            progress: (f) => setProgress(`A enviar o vídeo… ${Math.round(f * 100)}%`),
+            stage: (s) => setProgress(s === 'processing' ? 'A preparar o vídeo… (pode demorar um pouco)' : 'A enviar o vídeo…'),
           }),
         );
       }
       for (const [i, p] of photos.entries()) {
-        setProgress(`A enviar foto ${i + 1} de ${photos.length}… 📤`);
+        setProgress(`A enviar foto ${i + 1} de ${photos.length}…`);
         mediaIds.push(await api.uploadImage(p.file));
       }
       setProgress(null);
@@ -179,7 +180,7 @@ export default function Compose() {
     <form onSubmit={submit} noValidate>
       <div className="flex items-center justify-between px-3 pb-3">
         <button type="button" onClick={leave} aria-label="Cancelar" className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-600 active:bg-zinc-100">
-          <svg {...icon} width={24} height={24}><path d="M6 6l12 12M18 6 6 18" /></svg>
+          <Icon name="x" size={24} />
         </button>
         <h1 className="text-lg font-bold">Nova publicação</h1>
         <button disabled={!canPost} className="h-10 rounded-full bg-brand px-5 font-bold text-white shadow-sm transition active:scale-95 disabled:bg-brand/40 disabled:shadow-none">
@@ -189,7 +190,7 @@ export default function Compose() {
 
       {restored && (
         <div className="mx-4 mb-3 flex items-center justify-between gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-sm">
-          <span className="font-semibold text-zinc-800">📝 Rascunho recuperado</span>
+          <span className="font-semibold text-zinc-800">Rascunho recuperado</span>
           <button
             type="button"
             onClick={() => { photos.forEach((p) => URL.revokeObjectURL(p.preview)); setBody(''); setPlace(''); setPhotos([]); setRestored(false); void clearDraft(draftKey); }}
@@ -207,7 +208,7 @@ export default function Compose() {
             <p className="truncate text-lg font-semibold leading-tight">{user?.displayName}</p>
             {place ? (
               <span className="mt-0.5 inline-flex max-w-full items-center gap-1 rounded-full bg-rose-50 py-0.5 pl-2.5 pr-1 text-sm font-semibold text-brand">
-                <button type="button" onClick={() => setPlaceOpen(true)} className="truncate">📍 {place}</button>
+                <button type="button" onClick={() => setPlaceOpen(true)} className="truncate"><Icon name="map-pin" size={16} className="mr-1 inline align-[-3px]" />{place}</button>
                 <button type="button" onClick={() => setPlace('')} aria-label="Tirar o local" className="px-1.5 text-base">×</button>
               </span>
             ) : (
@@ -222,7 +223,7 @@ export default function Compose() {
             value={body}
             onChange={setBody}
             maxLength={2000}
-            placeholder={`O que se passa, ${first}? 😎`}
+            placeholder={`O que se passa, ${first}?`}
             aria-label="Texto da publicação"
             className="min-h-[110px] w-full resize-none bg-transparent text-xl leading-snug outline-none placeholder:text-zinc-500"
           />
@@ -233,7 +234,7 @@ export default function Compose() {
           <div className="relative mx-5 mb-2 mt-1 overflow-hidden rounded-2xl bg-black">
             <video src={video.preview} controls playsInline muted preload="metadata" className="max-h-80 w-full object-contain" />
             <button type="button" onClick={() => { URL.revokeObjectURL(video.preview); setVideo(null); }} aria-label="Tirar o vídeo" className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm active:scale-90">
-              <svg {...icon} width={16} height={16}><path d="M6 6l12 12M18 6 6 18" /></svg>
+              <Icon name="x" size={16} />
             </button>
           </div>
         )}
@@ -252,7 +253,7 @@ export default function Compose() {
                   aria-label={`Identificar pessoas na foto ${i + 1}`}
                   className="absolute bottom-2 right-2 flex h-8 items-center gap-1 rounded-full bg-black/60 px-2.5 text-xs font-semibold text-white backdrop-blur-sm active:scale-95"
                 >
-                  👤 {p.tags.length ? p.tags.length : 'Identificar'}
+                  <Icon name="users" size={16} className="mr-1 inline align-[-3px]" />{p.tags.length ? p.tags.length : 'Identificar'}
                 </button>
                 <button
                   type="button"
@@ -260,7 +261,7 @@ export default function Compose() {
                   aria-label={`Tirar a foto ${i + 1}`}
                   className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm active:scale-90"
                 >
-                  <svg {...icon} width={16} height={16}><path d="M6 6l12 12M18 6 6 18" /></svg>
+                  <Icon name="x" size={16} />
                 </button>
               </li>
             ))}
@@ -271,16 +272,16 @@ export default function Compose() {
           <div className="flex gap-2">
             {/* Uma só entrada: abre a câmara do Txillapp, com a galeria lá dentro. */}
             <button type="button" onClick={() => setCameraOpen(true)} disabled={photos.length >= MAX_PHOTOS || !!video} title="Foto" className={`${chip} disabled:opacity-40`}>
-              <svg {...icon}><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" /><circle cx="12" cy="13.5" r="3.5" /></svg>
+              <Icon name="camera" size={20} />
               Foto
             </button>
             <label className={`${chip} cursor-pointer ${photos.length > 0 || video ? 'pointer-events-none opacity-40' : ''}`} title="Vídeo">
-              <svg {...icon}><path d="M3 7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM15 10l6-3v10l-6-3z" /></svg>
+              <Icon name="video" size={20} />
               Vídeo
               <input type="file" accept="video/*" onChange={pickVideo} className="sr-only" aria-label="Escolher ou gravar um vídeo" />
             </label>
             <button type="button" onClick={() => setPlaceOpen(true)} title="Local" className={chip}>
-              <svg {...icon}><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
+              <Icon name="map-pin" size={20} />
               Local
             </button>
           </div>
@@ -292,7 +293,7 @@ export default function Compose() {
       {progress && <p role="status" className="px-6 text-center text-zinc-600">{progress}</p>}
       {leaveOpen && (
         <Sheet title="Sair sem publicar?" onClose={() => setLeaveOpen(false)}>
-          <p className="mb-4 text-zinc-600">Podes guardar isto como rascunho e continuar mais tarde 📝</p>
+          <p className="mb-4 text-zinc-600">Podes guardar isto como rascunho e continuar mais tarde</p>
           <button type="button" onClick={keepDraft} className="h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">Guardar rascunho</button>
           <button type="button" onClick={discard} className="mt-2 h-12 w-full rounded-full font-bold text-red-600 active:bg-red-50">Descartar</button>
           <button type="button" onClick={() => setLeaveOpen(false)} className="mt-1 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">Continuar a editar</button>
