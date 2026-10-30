@@ -58,9 +58,9 @@ services:
       POSTGRES_USER: txill
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: txillapp
-    # Afinado para ~16 GB de RAM partilhada com a API; ajusta se o servidor for diferente.
+    # Afinado para ~11 GB de RAM partilhada com a API; ajusta se o servidor for diferente.
     command: >
-      postgres -c shared_buffers=2GB -c effective_cache_size=6GB -c work_mem=16MB -c maintenance_work_mem=512MB
+      postgres -c shared_buffers=2GB -c effective_cache_size=5GB -c work_mem=16MB -c maintenance_work_mem=512MB
       -c max_connections=100 -c wal_compression=on -c log_min_duration_statement=500
     volumes: ['pgdata:/var/lib/postgresql/data']
     healthcheck:
