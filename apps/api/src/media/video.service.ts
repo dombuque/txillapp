@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { mkdirSync } from 'fs';
 import ffmpegPath from 'ffmpeg-static';
 import ffprobe from 'ffprobe-static';
 import { execFile } from 'child_process';
@@ -18,6 +19,16 @@ const FFMPEG = (ffmpegPath as unknown as string | null) ?? 'ffmpeg';
 
 /** Erro com mensagem para a pessoa (em português) em vez de detalhes técnicos. */
 class VideoRejected extends Error {}
+
+/** Quando os ficheiros vivem na nuvem: como buscar o original e onde publicar o resultado. */
+export interface VideoStorageHooks {
+  /** Copia o original enviado para `dest` (disco local, temporário). */
+  fetchSource(dest: string): Promise<void>;
+  /** Publica o vídeo convertido e a capa; depois disto o servidor apaga os ficheiros temporários. */
+  publish(video: string, poster: string): Promise<void>;
+  /** Apaga o que tiver ficado na nuvem se a conversão falhar ou for recusada. */
+  cleanup(): Promise<void>;
+}
 
 export type VideoSniff = 'video/mp4' | 'video/webm' | null;
 /** MP4/MOV ("ftyp" nos bytes 4 a 8) e WebM (cabeçalho EBML). O conteúdo real é que conta, não o Content-Type. */
@@ -44,6 +55,7 @@ export class VideoService {
     private readonly imageModeration: ImageModerationService,
   ) {
     this.dir = resolve(config.MEDIA_DIR);
+    mkdirSync(this.dir, { recursive: true }); // pasta temporária (com a nuvem, só aqui se converte)
   }
 
   /** Ficheiros do vídeo no disco: original enviado, versão final e capa. */
@@ -51,8 +63,8 @@ export class VideoService {
     return { src: join(this.dir, `${id}.src`), out: join(this.dir, id), poster: join(this.dir, `${id}.poster.jpg`) };
   }
 
-  enqueue(id: string, owner: string) {
-    this.chain = this.chain.then(() => this.process(id, owner)).catch(() => undefined);
+  enqueue(id: string, owner: string, hooks?: VideoStorageHooks) {
+    this.chain = this.chain.then(() => this.process(id, owner, hooks)).catch(() => undefined);
     return this.chain;
   }
 
@@ -65,9 +77,10 @@ export class VideoService {
     return { seconds, width: v.width, height: v.height };
   }
 
-  private async process(id: string, owner: string) {
+  private async process(id: string, owner: string, hooks?: VideoStorageHooks) {
     const f = this.paths(id);
     try {
+      if (hooks) await hooks.fetchSource(f.src);
       const meta = await this.probe(f.src);
       if (meta.seconds > MAX_VIDEO_SECONDS + 0.5) throw new VideoRejected(`O vídeo tem de ter até ${MAX_VIDEO_SECONDS} segundos.`);
 
@@ -92,16 +105,19 @@ export class VideoService {
       if (verdict === 'reject') throw new VideoRejected('Este vídeo parece ter nudez ou conteúdo sexual e não pode ser publicado 🚫');
 
       const size = (await stat(f.out)).size;
+      if (hooks) await hooks.publish(f.out, f.poster);
       await this.pool.query(
         `UPDATE content.media_assets SET status = 'ready', mime = 'video/mp4', size_bytes = $2, duration_ms = $3, width = $4, height = $5 WHERE id = $1`,
         [id, size, Math.round(final.seconds * 1000), final.width, final.height],
       );
       await rm(f.src, { force: true });
+      if (hooks) await Promise.all([rm(f.out, { force: true }), rm(f.poster, { force: true })]); // já está na nuvem
     } catch (e) {
       const message = e instanceof VideoRejected ? e.message : 'Não consegui processar este vídeo. Tenta outro formato (MP4).';
       if (!(e instanceof VideoRejected)) this.log.error(`falha a processar vídeo ${id}: ${(e as Error).message}`);
       await this.pool.query(`UPDATE content.media_assets SET status = 'deleted', processing_error = $2 WHERE id = $1`, [id, message]);
       await Promise.all([rm(f.src, { force: true }), rm(f.out, { force: true }), rm(f.poster, { force: true }), rm(`${f.out}.tmp.mp4`, { force: true })]);
+      if (hooks) await hooks.cleanup().catch(() => undefined);
       await this.pool.query('UPDATE content.media_assets SET purged_at = now() WHERE id = $1', [id]);
     }
   }

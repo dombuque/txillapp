@@ -1,0 +1,17 @@
+**/node_modules
+**/dist
+**/coverage
+**/.vite
+**/uploads
+**/uploads-test
+**/.models
+**/*.log
+**/*.tsbuildinfo
+.git
+.github
+.env
+.env.*
+!.env.example
+img
+docs
+infra/docker

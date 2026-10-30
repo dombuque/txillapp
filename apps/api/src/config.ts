@@ -9,7 +9,10 @@ const schema = z.object({
   GOOGLE_CLIENT_ID: z.string().min(10).optional(),
   /** Onde ficam as fotos e gravações: 'local' (disco, desenvolvimento) ou 's3' (S3, Cloudflare R2, MinIO…). */
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
+  /** Bucket PÚBLICO (domínio com leitura aberta, ex.: media.txillapp.com). */
   S3_BUCKET: z.string().optional(),
+  /** Bucket PRIVADO (conversas e vídeos por verificar). Obrigatório se existir S3_PUBLIC_URL. */
+  S3_PRIVATE_BUCKET: z.string().optional(),
   S3_REGION: z.string().default('auto'),
   S3_ENDPOINT: z.string().url().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),
@@ -54,6 +57,8 @@ function validateStorage(c: AppConfig) {
   if (c.STORAGE_DRIVER === 's3') {
     const missing = (['S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'] as const).filter((k) => !c[k]);
     if (missing.length) throw new Error(`Configuração inválida: STORAGE_DRIVER=s3 precisa de ${missing.join(', ')}`);
+    // Com leitura pública no bucket principal, as conversas NÃO podem ir para lá.
+    if (c.S3_PUBLIC_URL && !c.S3_PRIVATE_BUCKET) throw new Error('Configuração inválida: com S3_PUBLIC_URL é obrigatório S3_PRIVATE_BUCKET (um bucket sem leitura pública para as conversas)');
   }
 }
 

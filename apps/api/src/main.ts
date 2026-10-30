@@ -16,9 +16,12 @@ export async function createApp(config = loadConfig(), opts: { googleJwks?: JWTV
   app.set('trust proxy', 1);
   app.use(helmet());
   app.use(metricsMiddleware);
-  app.use(compression()); // JSON e texto mais leves (as fotos já vêm comprimidas)
+  // JSON e texto mais leves (as fotos já vêm comprimidas). O canal em tempo real (SSE) NUNCA se comprime:
+  // a compressão guarda os bytes em memória até encher e as mensagens chegariam com atraso.
+  app.use(compression({ filter: (req, res) => !String(res.getHeader('Content-Type') ?? '').includes('text/event-stream') && compression.filter(req, res) }));
   app.use(cookieParser());
-  app.enableCors({ origin: config.WEB_ORIGIN, credentials: true });
+  // WEB_ORIGIN pode listar várias origens separadas por vírgula (por exemplo app e admin).
+  app.enableCors({ origin: config.WEB_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean), credentials: true });
   app.setGlobalPrefix('api/v1');
   app.enableShutdownHooks();
   if (config.NODE_ENV !== 'production') {

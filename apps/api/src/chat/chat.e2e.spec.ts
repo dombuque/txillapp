@@ -169,7 +169,10 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     await app.listen(0);
     const port = (app.getHttpServer().address() as { port: number }).port;
     const received: { type: string; from: string }[] = [];
-    const req = http.get({ port, path: '/api/v1/chat/stream', headers: { Authorization: `Bearer ${ca.token}`, Accept: 'text/event-stream' } }, (res) => {
+    let encoding: string | undefined = 'nao-medido';
+    const req = http.get({ port, path: '/api/v1/chat/stream', headers: { Authorization: `Bearer ${ca.token}`, Accept: 'text/event-stream', 'Accept-Encoding': 'gzip, deflate, br' } }, (res) => {
+      // Como um browser a sério: aceita compressão. O servidor não pode comprimir o canal em tempo real.
+      encoding = res.headers['content-encoding'];
       res.setEncoding('utf8');
       res.on('data', (chunk: string) => {
         for (const line of chunk.split('\n')) if (line.startsWith('data:')) received.push(JSON.parse(line.slice(5)));
@@ -182,6 +185,7 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
       await thread(cb, ca); // cb abre a conversa → ca sabe que foi lido
       await new Promise((r) => setTimeout(r, 400));
       const types = received.map((e) => e.type);
+      expect(encoding).toBeUndefined(); // sem compressão no canal em tempo real
       expect(types).toContain('message');
       expect(types).toContain('typing');
       expect(received.every((e) => e.from === cb.username || e.type === 'ping')).toBe(true);

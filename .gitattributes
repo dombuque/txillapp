@@ -1,0 +1,6 @@
+# Ficheiros que correm em Linux têm de ter fim de linha LF, mesmo quando editados no Windows.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.conf text eol=lf
+*.yml text eol=lf
+*.sql text eol=lf

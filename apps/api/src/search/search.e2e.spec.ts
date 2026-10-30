@@ -87,7 +87,7 @@ describe('hashtags, em alta e pesquisa melhor (integração)', () => {
     if (soloIdx >= 0) expect(hotIdx).toBeLessThan(soloIdx); // 3 contas diferentes batem 1 conta com 3 publicações
     expect(t[hotIdx].authors).toBe(3);
 
-    const auto = (await get(sa, `search/tags?q=quen`)).tags as { tag: string }[];
+    const auto = (await get(sa, `search/tags?q=${hot.slice(0, 5 + run.length)}`)).tags as { tag: string }[];
     expect(auto.map((x) => x.tag)).toContain(hot);
     expect((await get(sa, `search/tags?q=%25`)).tags).toEqual([]);
   });
@@ -106,7 +106,7 @@ describe('hashtags, em alta e pesquisa melhor (integração)', () => {
     const people = ((await get(sb, `search?q=${encodeURIComponent('Margarita ' + run)}`)).people as { username: string }[]).map((x) => x.username);
     expect(people).toContain(sa.username);
 
-    const onlyTags = await get(sb, `search?q=${encodeURIComponent('#' + tagA.slice(0, 7))}`);
+    const onlyTags = await get(sb, `search?q=${encodeURIComponent('#' + tagA)}`);
     expect(onlyTags.people).toEqual([]);
     expect(onlyTags.tags.map((t: { tag: string }) => t.tag)).toContain(tagA);
     expect((await get(sb, 'search/suggest?q=Marg')).people.length).toBeLessThanOrEqual(5);

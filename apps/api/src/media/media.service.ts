@@ -4,8 +4,8 @@ import {
   UnsupportedMediaTypeException, ForbiddenException, UnprocessableEntityException,
 } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'crypto';
-import { createWriteStream, existsSync, mkdirSync } from 'fs';
-import { open, readFile, rename, rm } from 'fs/promises';
+import { createReadStream, createWriteStream, existsSync, mkdirSync } from 'fs';
+import { open, readFile, rename, rm, stat, writeFile } from 'fs/promises';
 import { join, resolve } from 'path';
 import { Pool } from 'pg';
 import sharp from 'sharp';
@@ -16,7 +16,7 @@ import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
 import { ImageModerationService } from '../moderation/image-moderation.service';
 import { MAX_VIDEO_BYTES, VideoService, sniffVideo } from './video.service';
-import { S3Storage } from './s3.storage';
+import { S3Storage, type Scope } from './s3.storage';
 
 /** Onde está o ficheiro: no disco deste servidor, ou num URL (S3/CDN) para onde se redirecciona. */
 export type Served = { path: string; mime: string } | { url: string };
@@ -52,6 +52,8 @@ export class MediaService implements OnModuleInit {
   private readonly secret: string;
   private readonly s3: S3Storage | null;
   private readonly making = new Map<string, Promise<void>>();
+  /** Em que bucket vive cada tipo de ficheiro: conversas ficam no privado. */
+  private scopeOf = (purpose: string): Scope => (purpose === 'chat' ? 'private' : 'public');
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -89,9 +91,15 @@ export class MediaService implements OnModuleInit {
 
   /** Apaga do armazenamento os ficheiros de contas eliminadas. Corre ao arrancar e de tempos a tempos. */
   async sweepDeleted(limit = 200) {
-    const { rows } = await this.pool.query(`SELECT id FROM content.media_assets WHERE status = 'deleted' AND purged_at IS NULL LIMIT $1`, [limit]);
+    const { rows } = await this.pool.query(`SELECT id, purpose FROM content.media_assets WHERE status = 'deleted' AND purged_at IS NULL LIMIT $1`, [limit]);
     for (const r of rows) {
-      if (this.s3) await this.s3.remove(r.id as string);
+      if (this.s3) {
+        const id = r.id as string;
+        const scope = this.scopeOf(r.purpose as string);
+        // Tudo o que possa existir deste ficheiro, em ambos os buckets (variantes, capa, original por converter).
+        const jobs = [this.s3.remove(id, scope), this.s3.remove(`${id}.src`, 'private'), this.s3.remove(`${id}.poster.jpg`, 'public'), ...WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'public'))];
+        await Promise.allSettled(jobs);
+      }
       else {
         await rm(join(this.dir, r.id as string), { force: true });
         await rm(join(this.dir, `${r.id}.src`), { force: true });
@@ -112,7 +120,7 @@ export class MediaService implements OnModuleInit {
   async requestUpload(userId: string, mime: string, size: number, purpose: 'public' | 'chat' = 'public') {
     const audio = AUDIO.has(mime);
     const video = VIDEO.has(mime);
-    if (video && (purpose !== 'public' || this.s3)) throw new UnsupportedMediaTypeException('Vídeos ainda não estão disponíveis neste armazenamento');
+    if (video && purpose !== 'public') throw new UnsupportedMediaTypeException('Vídeos só se publicam em publicações e stories');
     if (!ALLOWED.has(mime) && !(audio && purpose === 'chat') && !video) throw new UnsupportedMediaTypeException('Apenas JPEG, PNG ou WebP (e vídeos MP4)');
     const max = audio ? MAX_AUDIO_BYTES : video ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
     if (!Number.isInteger(size) || size < 1 || size > max) {
@@ -123,7 +131,8 @@ export class MediaService implements OnModuleInit {
       'INSERT INTO content.media_assets (id, owner_id, mime, size_bytes, storage_key, purpose) VALUES ($1, $2, $3, $4, $5, $6)',
       [id, userId, mime, size, `${id}`, purpose],
     );
-    if (this.s3) return { assetId: id, uploadUrl: await this.s3.presignPut(id, mime, size, UPLOAD_TTL_S) };
+    // Na nuvem: conversas no bucket privado; vídeos entram como "original" no privado até serem verificados e convertidos.
+    if (this.s3) return { assetId: id, uploadUrl: await this.s3.presignPut(video ? `${id}.src` : id, mime, size, UPLOAD_TTL_S, video || purpose === 'chat' ? 'private' : 'public') };
     const exp = Math.floor(Date.now() / 1000) + UPLOAD_TTL_S;
     return { assetId: id, uploadUrl: `/api/v1/media/${id}/upload?exp=${exp}&sig=${this.sign(id, exp)}` };
   }
@@ -133,7 +142,7 @@ export class MediaService implements OnModuleInit {
    * no S3 confirma-se aqui o tamanho e o tipo real (primeiros bytes) antes de o ficheiro passar a 'ready'.
    */
   async complete(userId: string, id: string): Promise<{ status: string; error?: string }> {
-    const { rows } = await this.pool.query('SELECT mime, size_bytes, status, processing_error FROM content.media_assets WHERE id = $1 AND owner_id = $2', [id, userId]);
+    const { rows } = await this.pool.query('SELECT mime, size_bytes, status, processing_error, purpose FROM content.media_assets WHERE id = $1 AND owner_id = $2', [id, userId]);
     const a = rows[0];
     if (!a) throw new NotFoundException();
     if (a.status === 'deleted') return { status: 'deleted', error: a.processing_error ?? undefined };
@@ -144,22 +153,66 @@ export class MediaService implements OnModuleInit {
       return { status: 'processing' };
     }
     if (a.status === 'ready' || a.status === 'processing') return { status: a.status };
-    if (VIDEO.has(a.mime)) throw new NotFoundException('O vídeo ainda não foi enviado');
-    if (!this.s3) throw new NotFoundException('O ficheiro ainda não foi enviado');
-    const head = await this.s3.head(id);
+    if (!this.s3) throw new NotFoundException(VIDEO.has(a.mime) ? 'O vídeo ainda não foi enviado' : 'O ficheiro ainda não foi enviado');
+    const scope = this.scopeOf(a.purpose);
+    if (VIDEO.has(a.mime)) return this.completeCloudVideo(userId, id);
+    const head = await this.s3.head(id, scope);
     if (!head) throw new NotFoundException('O ficheiro ainda não foi enviado');
     const limit = AUDIO.has(a.mime) ? MAX_AUDIO_BYTES : MAX_IMAGE_BYTES;
     if (head.size < 1 || head.size > limit) {
-      await this.s3.remove(id);
+      await this.s3.remove(id, scope);
       throw new PayloadTooLargeException('Ficheiro demasiado grande');
     }
-    if (sniff(await this.s3.firstBytes(id)) !== a.mime) {
-      await this.s3.remove(id);
+    if (sniff(await this.s3.firstBytes(id, scope)) !== a.mime) {
+      await this.s3.remove(id, scope);
       throw new UnsupportedMediaTypeException('Conteúdo não corresponde ao tipo declarado');
     }
-    await this.screen(id, userId, a.mime, () => this.s3!.read(id));
+    let bytes: Buffer | null = null;
+    const read = async () => (bytes ??= await this.s3!.read(id, scope));
+    await this.screen(id, userId, a.mime, read);
+    // Fotos públicas: gera já as versões leves (o telemóvel descarrega dezenas de KB, não vários MB).
+    if (a.mime.startsWith('image/') && a.purpose === 'public') await this.publishVariants(id, await read());
     await this.pool.query(`UPDATE content.media_assets SET status = 'ready', size_bytes = $2 WHERE id = $1`, [id, head.size]);
     return { status: 'ready' };
+  }
+
+  /** Gera e envia as larguras (WebP) de uma foto para o bucket público. */
+  private async publishVariants(id: string, bytes: Buffer) {
+    for (const w of WIDTHS) {
+      try {
+        const out = await sharp(bytes).rotate().resize({ width: w, withoutEnlargement: true }).webp({ quality: 78 }).toBuffer();
+        await this.s3!.put(`${id}.${w}.webp`, out, 'image/webp', 'public');
+      } catch {
+        return; // imagem que o sharp não consegue reduzir: fica só o original
+      }
+    }
+  }
+
+  /** Vídeo na nuvem: valida o original (bucket privado), converte aqui e publica o resultado no bucket público. */
+  private async completeCloudVideo(userId: string, id: string): Promise<{ status: string }> {
+    const s3 = this.s3!;
+    const src = `${id}.src`;
+    const head = await s3.head(src, 'private');
+    if (!head) throw new NotFoundException('O vídeo ainda não foi enviado');
+    if (head.size < 1 || head.size > MAX_VIDEO_BYTES) {
+      await s3.remove(src, 'private');
+      throw new PayloadTooLargeException('Vídeo demasiado grande');
+    }
+    if (!sniffVideo(await s3.firstBytes(src, 'private'))) {
+      await s3.remove(src, 'private');
+      throw new UnsupportedMediaTypeException('Conteúdo não corresponde a um vídeo');
+    }
+    await this.pool.query(`UPDATE content.media_assets SET status = 'processing' WHERE id = $1 AND status = 'pending'`, [id]);
+    void this.video.enqueue(id, userId, {
+      fetchSource: async (dest) => writeFile(dest, await s3.read(src, 'private')),
+      publish: async (video, poster) => {
+        await s3.put(id, createReadStream(video), 'video/mp4', 'public', (await stat(video)).size);
+        await s3.put(`${id}.poster.jpg`, await readFile(poster), 'image/jpeg', 'public');
+        await s3.remove(src, 'private'); // o original não publicado deixa de existir
+      },
+      cleanup: async () => void (await Promise.allSettled([s3.remove(src, 'private'), s3.remove(id, 'public'), s3.remove(`${id}.poster.jpg`, 'public')])),
+    });
+    return { status: 'processing' };
   }
 
   /** Estado de um ficheiro (para a app esperar pela conversão do vídeo). */
@@ -221,7 +274,11 @@ export class MediaService implements OnModuleInit {
     // Os ficheiros do chat nunca saem por aqui: só pelo URL assinado da conversa.
     const { rows } = await this.pool.query(`SELECT mime FROM content.media_assets WHERE id = $1 AND status = 'ready' AND purpose = 'public'`, [id]);
     if (!rows[0]) throw new NotFoundException();
-    if (this.s3) return { url: await this.s3.readUrl(id, { publicOk: true, ttlSeconds: 3600 }) };
+    if (this.s3) {
+      // Nuvem: a versão leve (WebP) se pedida; senão o original.
+      const w = width && rows[0].mime.startsWith('image/') ? (WIDTHS.find((x) => x >= width) ?? WIDTHS[WIDTHS.length - 1]) : null;
+      return { url: await this.s3.readUrl(w ? `${id}.${w}.webp` : id, { ttlSeconds: 3600 }) };
+    }
     const original = { path: join(this.dir, id), mime: rows[0].mime as string };
     return width ? this.variant(original, id, width) : original;
   }
@@ -257,6 +314,7 @@ export class MediaService implements OnModuleInit {
   async locatePoster(id: string): Promise<Served> {
     const { rows } = await this.pool.query(`SELECT 1 FROM content.media_assets WHERE id = $1 AND status = 'ready' AND purpose = 'public' AND mime LIKE 'video/%'`, [id]);
     if (!rows[0]) throw new NotFoundException();
+    if (this.s3) return { url: await this.s3.readUrl(`${id}.poster.jpg`, { ttlSeconds: 3600 }) };
     return { path: this.video.paths(id).poster, mime: 'image/jpeg' };
   }
 
@@ -275,7 +333,7 @@ export class MediaService implements OnModuleInit {
     if (expected.length !== given.length || !timingSafeEqual(expected, given) || exp < Date.now() / 1000) throw new ForbiddenException('URL expirado');
     const { rows } = await this.pool.query(`SELECT mime FROM content.media_assets WHERE id = $1 AND status = 'ready' AND purpose = 'chat'`, [id]);
     if (!rows[0]) throw new NotFoundException();
-    if (this.s3) return { url: await this.s3.readUrl(id, { publicOk: false, ttlSeconds: 300 }) };
+    if (this.s3) return { url: await this.s3.readUrl(id, { scope: 'private', ttlSeconds: 300 }) };
     return { path: join(this.dir, id), mime: rows[0].mime as string };
   }
 
@@ -287,7 +345,7 @@ export class MediaService implements OnModuleInit {
       [username],
     );
     if (!rows[0]) return null;
-    if (this.s3) return { url: await this.s3.readUrl(rows[0].id as string, { publicOk: true, ttlSeconds: 3600 }) };
+    if (this.s3) return { url: await this.s3.readUrl(`${rows[0].id}.256.webp`, { ttlSeconds: 3600 }) };
     // O avatar nunca precisa do original: serve-se sempre a versão pequena.
     return this.variant({ path: join(this.dir, rows[0].id as string), mime: rows[0].mime as string }, rows[0].id as string, 256);
   }

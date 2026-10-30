@@ -1,0 +1,183 @@
+# Txillapp em produção (um servidor, Docker Compose). Guia completo: docs/DEPLOY.md
+#
+#   cp .env.example .env   # preencher TODOS os valores
+#   docker compose up -d --build
+#   docker compose --profile monitoring up -d     # Prometheus + Grafana (opcional)
+#   docker compose --profile search up -d         # Elasticsearch (opcional)
+name: txillapp
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: 10m, max-file: '5' }
+
+services:
+  # Entrada: HTTPS, app web compilada e encaminhamento de /api. É a única coisa exposta ao exterior.
+  nginx:
+    build: { context: ../.., dockerfile: apps/web/Dockerfile }
+    image: txillapp-edge:latest
+    restart: unless-stopped
+    ports: ['80:80', '443:443']
+    volumes: ['./certs:/etc/nginx/certs:ro']
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [edge, backend]
+    logging: *logging
+
+  api:
+    build: { context: ../.., dockerfile: apps/api/Dockerfile }
+    image: txillapp-api:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://txill:${POSTGRES_PASSWORD}@postgres:5432/txillapp
+      NODE_ENV: production
+    volumes:
+      - uploads:/data/uploads # só usado com STORAGE_DRIVER=local (e como pasta temporária dos vídeos)
+      - models:/data/models # modelo de verificação de fotos (descarrega uma vez)
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [backend]
+    deploy: { resources: { limits: { memory: 4g } } }
+    logging: *logging
+
+  # Aplica as migrações SQL antes de a API arrancar (seguro repetir: só corre o que falta).
+  migrate:
+    image: txillapp-api:latest
+    command: ['node', 'dist/db/migrate.js']
+    restart: 'no'
+    environment:
+      DATABASE_URL: postgres://txill:${POSTGRES_PASSWORD}@postgres:5432/txillapp
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backend]
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: txill
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: txillapp
+    # Afinado para ~16 GB de RAM partilhada com a API; ajusta se o servidor for diferente.
+    command: >
+      postgres -c shared_buffers=2GB -c effective_cache_size=6GB -c work_mem=16MB -c maintenance_work_mem=512MB
+      -c max_connections=100 -c wal_compression=on -c log_min_duration_statement=500
+    volumes: ['pgdata:/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U txill -d txillapp']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend] # sem portas no exterior
+    shm_size: 512mb
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes', '--requirepass', '${REDIS_PASSWORD}', '--maxmemory', '256mb', '--maxmemory-policy', 'allkeys-lru']
+    volumes: ['redisdata:/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" ping | grep PONG']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    networks: [backend]
+
+  # Cópias de segurança cifradas da base de dados, todas as noites, para um armazenamento independente.
+  backup:
+    build: { context: ./backup }
+    image: txillapp-backup:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://txill:${POSTGRES_PASSWORD}@postgres:5432/txillapp
+    volumes:
+      - uploads:/data/uploads:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backend]
+    logging: *logging
+
+  # ───────────── opcionais ─────────────
+  prometheus:
+    profiles: ['monitoring']
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    command: ['--config.file=/etc/prometheus/prometheus.yml', '--storage.tsdb.retention.time=30d']
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/metrics_token:/etc/prometheus/metrics_token:ro
+      - promdata:/prometheus
+    networks: [backend]
+
+  grafana:
+    profiles: ['monitoring']
+    image: grafana/grafana:11.3.0
+    restart: unless-stopped
+    environment:
+      GF_SERVER_ROOT_URL: https://monitor.txillapp.com
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+    volumes:
+      - grafanadata:/var/lib/grafana
+      - ./monitoring/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+    networks: [backend]
+
+  node-exporter:
+    profiles: ['monitoring']
+    image: prom/node-exporter:v1.8.2
+    restart: unless-stopped
+    pid: host
+    volumes: ['/:/host:ro,rslave']
+    command: ['--path.rootfs=/host']
+    networks: [backend]
+
+  cadvisor:
+    profiles: ['monitoring']
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks: [backend]
+
+  postgres-exporter:
+    profiles: ['monitoring']
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgresql://txill:${POSTGRES_PASSWORD}@postgres:5432/txillapp?sslmode=disable
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backend]
+
+  elasticsearch:
+    profiles: ['search']
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: 'true'
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      ES_JAVA_OPTS: -Xms1g -Xmx1g
+    volumes: ['esdata:/usr/share/elasticsearch/data']
+    networks: [backend]
+
+networks:
+  edge: {}
+  backend: { internal: false } # a API precisa de sair para a Google, o R2 e as notificações; nada entra senão pelo nginx
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:
+  models:
+  promdata:
+  grafanadata:
+  esdata:

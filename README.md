@@ -82,3 +82,7 @@ Todas as fotos passam por um modelo local (ViT `AdamCodd/vit-base-nsfw-detector`
 - Nenhum detetor é perfeito: mantém-se a moderação humana e as denúncias.
 
 Contas de moderação: `UPDATE identity.users SET is_admin = true WHERE username = '...';`
+
+## Produção
+
+Guia completo para pôr o Txillapp no ar em `txillapp.com` (Cloudflare + R2 + VPS com Docker Compose + Nginx + PostgreSQL + Redis, cópias de segurança cifradas e monitorização): [`docs/DEPLOY.md`](docs/DEPLOY.md). Os ficheiros estão em `infra/prod/` e nos `Dockerfile` de `apps/api` e `apps/web`.
