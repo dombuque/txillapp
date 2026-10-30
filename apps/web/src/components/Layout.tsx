@@ -43,8 +43,8 @@ export default function Layout() {
   const chatCount = chats.data?.conversations ?? 0;
 
   return (
-    <div className="mx-auto min-h-dvh max-w-xl bg-white pb-24">
-      <header className="sticky top-0 z-10 flex items-center justify-center bg-white/95 py-3 backdrop-blur">
+    <div className="mx-auto min-h-dvh max-w-xl bg-white pb-24 lg:pb-8">
+      <header className="sticky top-0 z-10 flex items-center justify-center bg-white/95 py-3 backdrop-blur lg:hidden">
         <NavLink to="/notifications" aria-label={count > 0 ? `Notificações (${count} por ler)` : 'Notificações'} className="absolute left-3 flex h-11 w-11 items-center justify-center text-zinc-900">
           <span className="relative">
             <BellIcon width={26} height={26} />
@@ -72,7 +72,7 @@ export default function Layout() {
       <GenderGate />
       <nav
         aria-label="Navegação principal"
-        className="fixed bottom-0 left-1/2 z-20 w-full max-w-xl -translate-x-1/2 border-t border-zinc-100 bg-white pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 shadow-[0_-6px_24px_rgba(0,0,0,0.05)]"
+        className="fixed bottom-0 left-1/2 z-20 w-full max-w-xl -translate-x-1/2 lg:hidden border-t border-zinc-100 bg-white pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 shadow-[0_-6px_24px_rgba(0,0,0,0.05)]"
       >
         <div className="flex items-end justify-around px-1 min-[360px]:px-3">
           <Item to="/" label="Início" end onClick={tapTab}>{(a) => <HomeIcon filled={a} width={27} height={27} />}</Item>

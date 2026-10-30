@@ -5,7 +5,7 @@ import FollowButton from './FollowButton';
 import { Avatar } from './ui';
 
 /** "Pessoas que talvez conheças": amigos em comum primeiro; dá para dispensar com o ✕. */
-export default function Suggestions() {
+export default function Suggestions({ compact = false }: { compact?: boolean }) {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['suggestions'], queryFn: api.suggestions, staleTime: 60_000 });
   if (!data || data.length === 0) return null;
@@ -15,8 +15,33 @@ export default function Suggestions() {
     api.dismissSuggestion(p.username).catch(() => qc.invalidateQueries({ queryKey: ['suggestions'] }));
   }
 
+  if (compact) {
+    // Painel do computador: lista vertical e curta.
+    return (
+      <section aria-label="Sugestões de pessoas" className="rounded-[28px] bg-zinc-50 py-4">
+        <h2 className="px-5 text-lg font-bold">Bora conhecer malta nova? 🤝</h2>
+        <ul className="mt-2">
+          {data.slice(0, 4).map((p) => (
+            <li key={p.username} className="flex items-center gap-3 px-5 py-2.5">
+              <Link to={`/u/${p.username}`} className="flex min-w-0 flex-1 items-center gap-3">
+                <Avatar name={p.displayName} username={p.username} size={44} />
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold leading-tight">{p.displayName} {p.isPrivate && <span aria-label="Conta privada">🔒</span>}</span>
+                  <span className="block truncate text-sm text-zinc-500">{p.reason || `@${p.username}`}</span>
+                </span>
+              </Link>
+              <div className="w-[112px] shrink-0">
+                <FollowButton username={p.username} following={false} requested={p.requested} isPrivate={p.isPrivate} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
+
   return (
-    <section aria-label="Sugestões de pessoas" className="mx-4 mb-6 rounded-[28px] bg-white py-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
+    <section aria-label="Sugestões de pessoas" className="mx-4 mb-6 xl:hidden rounded-[28px] bg-white py-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
       <h2 className="px-5 text-lg font-bold">Bora conhecer malta nova? 🤝</h2>
       <div className="mt-4 flex gap-3 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {data.map((p) => (

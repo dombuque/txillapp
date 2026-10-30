@@ -7,7 +7,10 @@ import { StrictMode, type ReactNode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import './index.css';
+import DesktopShell from './components/DesktopShell';
 import Layout from './components/Layout';
+import Landing from './pages/Landing';
+import { isStandalone } from './lib/useDesktop';
 import { Wordmark } from './components/ui';
 import { AuthProvider, useAuth } from './lib/auth';
 import { GoogleUsername, Login, Register } from './pages/AuthForm';
@@ -79,6 +82,8 @@ function Private({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const here = useLocation();
   if (loading) return <Splash />;
+  // txillapp.com sem sessão mostra a apresentação; a app instalada vai direto ao login.
+  if (!user && here.pathname === '/' && !isStandalone()) return <Landing />;
   // Guarda para onde ia (ex.: um perfil partilhado) e volta lá depois de entrar.
   return user ? <>{children}</> : <Navigate to="/login" replace state={{ from: here.pathname + here.search }} />;
 }
@@ -103,30 +108,32 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
             <Route path="/google-username" element={<PublicOnly><GoogleUsername /></PublicOnly>} />
-            {/* Páginas próprias em ecrã inteiro (como a Atividade do Instagram): sem a barra de baixo. */}
-            <Route path="/notifications" element={<Private><Notifications /></Private>} />
-            <Route path="/settings" element={<Private><Settings /></Private>} />
-            <Route path="/admin/stats" element={<Private><AdminStats /></Private>} />
-            <Route path="/reels" element={<Private><Reels /></Private>} />
-            <Route path="/tag/:tag" element={<Private><TagPage /></Private>} />
-            <Route path="/admin" element={<Private><Admin /></Private>} />
-            <Route path="/p/:postId" element={<Private><PostPage /></Private>} />
-            <Route path="/messages/:username" element={<Private><Thread /></Private>} />
-            <Route path="/u/:username/connections" element={<Private><Connections /></Private>} />
-            <Route
-              element={
-                <Private>
-                  <Layout />
-                </Private>
-              }
-            >
-              <Route path="/" element={<Feed />} />
-              <Route path="/new" element={<Compose />} />
-              <Route path="/wallet" element={<Wallet />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/u/:username" element={<Profile />} />
-              <Route path="/search" element={<Search />} />
-              <Route path="/messages" element={<Messages />} />
+            <Route element={<Private><DesktopShell /></Private>}>
+              {/* Páginas próprias em ecrã inteiro (como a Atividade do Instagram): sem a barra de baixo. */}
+              <Route path="/notifications" element={<Private><Notifications /></Private>} />
+              <Route path="/settings" element={<Private><Settings /></Private>} />
+              <Route path="/admin/stats" element={<Private><AdminStats /></Private>} />
+              <Route path="/reels" element={<Private><Reels /></Private>} />
+              <Route path="/tag/:tag" element={<Private><TagPage /></Private>} />
+              <Route path="/admin" element={<Private><Admin /></Private>} />
+              <Route path="/p/:postId" element={<Private><PostPage /></Private>} />
+              <Route path="/messages/:username" element={<Private><Thread /></Private>} />
+              <Route path="/u/:username/connections" element={<Private><Connections /></Private>} />
+              <Route
+                element={
+                  <Private>
+                    <Layout />
+                  </Private>
+                }
+              >
+                <Route path="/" element={<Feed />} />
+                <Route path="/new" element={<Compose />} />
+                <Route path="/wallet" element={<Wallet />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/u/:username" element={<Profile />} />
+                <Route path="/search" element={<Search />} />
+                <Route path="/messages" element={<Messages />} />
+              </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

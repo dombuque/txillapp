@@ -3,7 +3,7 @@ import { sized } from '../lib/media';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import FollowButton from '../components/FollowButton';
 import PostCard from '../components/PostCard';
 import { SearchIcon } from '../components/icons';
@@ -22,7 +22,8 @@ const readRecent = (): string[] => {
 
 /** Pesquisa de pessoas (por @ ou nome) e publicações (texto ou local). Pesquisas recentes só ficam neste dispositivo. */
 export default function Search() {
-  const [text, setText] = useState('');
+  const [params] = useSearchParams();
+  const [text, setText] = useState(() => params.get('q')?.slice(0, 100) ?? '');
   const [term, setTerm] = useState('');
   const [tab, setTab] = useState<'people' | 'tags' | 'posts'>('people');
   const trending = useQuery({ queryKey: ['trending'], queryFn: api.trending, staleTime: 60_000 });
