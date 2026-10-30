@@ -28,7 +28,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
-const standalone = () =>
+export const standalone = () =>
   typeof window !== 'undefined' &&
   (window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
 
@@ -38,7 +38,12 @@ const ios = () => typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(n
 const iosSafari = () => ios() && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA/.test(navigator.userAgent);
 
 /** O convite para instalar é só para telemóveis e tablets: no computador usa-se o site (txillapp.com). */
-const mobileDevice = () => typeof navigator !== 'undefined' && (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || ios());
+export const mobileDevice = () => typeof navigator !== 'undefined' && (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || ios());
+
+/** A app instalável vive em app.txillapp.com; txillapp.com é a apresentação e a versão web (instalar lá instalaria a apresentação). */
+export const APP_URL = 'https://app.txillapp.com/';
+export const onAppHost = () => typeof location !== 'undefined' && location.hostname === 'app.txillapp.com';
+const onSiteHost = () => typeof location !== 'undefined' && /(^|\.)txillapp\.com$/.test(location.hostname) && !onAppHost();
 
 const snoozed = () => {
   try {
@@ -59,18 +64,23 @@ export interface InstallState {
   iosOpenInSafari: boolean;
   /** O banner foi dispensado há pouco. */
   snoozed: boolean;
+  /** Telemóvel em txillapp.com: "Instalar" leva a app.txillapp.com, onde a instalação é feita. */
+  goToApp: boolean;
 }
 
 let snapshot: InstallState = compute();
 function compute(): InstallState {
   const isInstalled = installed || standalone();
   const mobile = mobileDevice();
+  const goToApp = mobile && !isInstalled && onSiteHost();
+  const here = mobile && !isInstalled && !goToApp;
   return {
     installed: isInstalled,
-    canPrompt: mobile && !isInstalled && !!deferred,
-    iosHint: mobile && !isInstalled && iosSafari(),
-    iosOpenInSafari: mobile && !isInstalled && ios() && !iosSafari(),
+    canPrompt: here && !!deferred,
+    iosHint: here && iosSafari(),
+    iosOpenInSafari: here && ios() && !iosSafari(),
     snoozed: snoozed(),
+    goToApp,
   };
 }
 const same = (a: InstallState, b: InstallState) => (Object.keys(a) as (keyof InstallState)[]).every((k) => a[k] === b[k]);
@@ -115,4 +125,20 @@ export function useInstall() {
   }, []);
 
   return { ...state, install, snooze };
+}
+
+/** Quem escolheu continuar no navegador (porque ele não consegue instalar) não volta a ver o ecrã de instalação nesta sessão. */
+export const BROWSER_OK_KEY = 'txill_browser_ok';
+export const browserOk = () => {
+  try {
+    return sessionStorage.getItem(BROWSER_OK_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+/** txillapp.com não é instalável: instalar de lá guardaria a apresentação. Tira o que faria o iPhone/Android tratá-lo como app. */
+export function neutralizeInstallOnSite() {
+  if (!onSiteHost()) return;
+  document.querySelectorAll('meta[name="apple-mobile-web-app-capable"], meta[name="mobile-web-app-capable"], link[rel="manifest"]').forEach((n) => n.remove());
 }

@@ -10,6 +10,8 @@ import DesktopShell from './components/DesktopShell';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
 import { isStandalone } from './lib/useDesktop';
+import InstallGate, { installRequired } from './pages/InstallGate';
+import { neutralizeInstallOnSite, useInstall } from './lib/install';
 import { Wordmark } from './components/ui';
 import { AuthProvider, useAuth } from './lib/auth';
 import { GoogleUsername, Login, Register } from './pages/AuthForm';
@@ -35,6 +37,8 @@ import Wallet from './pages/Wallet';
 const AdminStats = lazy(() => import('./pages/AdminStats'));
 const Admin = lazy(() => import('./pages/Admin'));
 
+neutralizeInstallOnSite();
+
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1 } } });
 
 function Splash() {
@@ -45,6 +49,14 @@ function Splash() {
       <p role="status" className="text-zinc-500">{reconnecting ? 'A reconectar…' : 'A carregar a vibe…'}</p>
     </main>
   );
+}
+
+/** Em app.txillapp.com, no telemóvel, sem a app instalada: só se vê o ecrã de instalação (menos os termos e a privacidade). */
+function Gate({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  useInstall(); // volta a avaliar quando a app acaba de ser instalada
+  if (installRequired() && !['/terms', '/privacy'].includes(pathname)) return <InstallGate />;
+  return <>{children}</>;
 }
 
 /** Convite para instalar: só onde não tapa nada (login, registo e separadores principais). */
@@ -103,6 +115,7 @@ createRoot(document.getElementById('root')!).render(
         <Live />
         <UpdateBanner />
         <BrowserRouter>
+          <Gate>
           <Routes>
             <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
             <Route path="/terms" element={<Terms />} />
@@ -138,6 +151,7 @@ createRoot(document.getElementById('root')!).render(
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Gate>
           <Install />
           <Analytics />
         </BrowserRouter>

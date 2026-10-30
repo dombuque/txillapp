@@ -1,4 +1,4 @@
-import { useInstall } from '../lib/install';
+import { APP_URL, useInstall } from '../lib/install';
 import PushToggle from '../components/PushToggle';
 import Icon from '../components/Icon';
 import { Link } from 'react-router-dom';
@@ -97,8 +97,9 @@ function ChoiceSheet<T extends string>({ title, intro, options, value, onPick, o
 
 /** "Instalar a app" nas definições: botão no Android, instruções no iPhone, e "instalada" quando já está. */
 function InstallRow() {
-  const { installed, canPrompt, iosHint, iosOpenInSafari, install } = useInstall();
+  const { installed, canPrompt, iosHint, iosOpenInSafari, goToApp, install } = useInstall();
   if (installed) return <Row icon={<Icon name="check-circle" />} label="App instalada" onClick={() => undefined} />;
+  if (goToApp) return <Row icon={<Icon name="phone" />} label="Instalar a app" onClick={() => window.location.assign(APP_URL)} />;
   if (!canPrompt && !iosHint && !iosOpenInSafari) return null;
   const how = iosHint
     ? 'No Safari: toca em Partilhar (o quadrado com a seta) e depois em "Adicionar ao ecrã principal".'

@@ -1,5 +1,5 @@
 import Icon from './Icon';
-import { useInstall } from '../lib/install';
+import { APP_URL, useInstall } from '../lib/install';
 
 const Share = () => <Icon name="share" size={20} strokeWidth={2} className="inline align-[-4px]" />;
 const PlusSquare = () => <Icon name="square-plus" size={20} strokeWidth={2} className="inline align-[-4px]" />;
@@ -12,8 +12,8 @@ const PlusSquare = () => <Icon name="square-plus" size={20} strokeWidth={2} clas
  * Some quando já está instalada e volta só passados 7 dias se for dispensado.
  */
 export default function InstallPrompt({ className = 'bottom-24' }: { className?: string }) {
-  const { installed, canPrompt, iosHint, iosOpenInSafari, snoozed, install, snooze } = useInstall();
-  if (installed || snoozed || !(canPrompt || iosHint || iosOpenInSafari)) return null;
+  const { installed, canPrompt, iosHint, iosOpenInSafari, goToApp, snoozed, install, snooze } = useInstall();
+  if (installed || snoozed || !(canPrompt || iosHint || iosOpenInSafari || goToApp)) return null;
 
   return (
     <aside
@@ -25,7 +25,7 @@ export default function InstallPrompt({ className = 'bottom-24' }: { className?:
         <img src="/favicon.svg?v=2" alt="" width={48} height={48} className="h-12 w-12 shrink-0 rounded-2xl" />
         <div className="min-w-0 flex-1">
           <p className="text-[17px] font-bold leading-tight">Instala o Txillapp</p>
-          {canPrompt && <p className="mt-0.5 text-sm text-zinc-300">Ecrã inteiro, mais rápido e com o ícone no telemóvel.</p>}
+          {(canPrompt || goToApp) && <p className="mt-0.5 text-sm text-zinc-300">Ecrã inteiro, mais rápido e com o ícone no telemóvel.</p>}
           {iosHint && (
             <p className="mt-1 text-sm leading-relaxed text-zinc-200">
               Toca em <b>Partilhar</b> <Share /> e depois em <b>Adicionar ao ecrã principal</b> <PlusSquare />.
@@ -37,6 +37,11 @@ export default function InstallPrompt({ className = 'bottom-24' }: { className?:
           <Icon name="x" size={20} />
         </button>
       </div>
+      {goToApp && (
+        <a href={APP_URL} className="mt-3 flex h-12 w-full items-center justify-center rounded-full bg-brand text-[17px] font-bold active:scale-[0.98]">
+          Instalar
+        </a>
+      )}
       {canPrompt && (
         <button onClick={install} className="mt-3 h-12 w-full rounded-full bg-brand text-[17px] font-bold active:scale-[0.98]">
           Instalar

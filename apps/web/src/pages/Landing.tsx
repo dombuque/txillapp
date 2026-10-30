@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../components/Icon';
 import { Wordmark } from '../components/ui';
+import { APP_URL, useInstall } from '../lib/install';
 
 const FEATURES = [
   { icon: 'image', title: 'Feed da malta', text: 'Fotos e vídeos de quem segues e do que está a bombar. Sem algoritmo a enganar-te: tu mandas no que vês.' },
@@ -14,6 +15,7 @@ const FEATURES = [
 
 /** Página de apresentação (txillapp.com para quem ainda não entrou). */
 export default function Landing() {
+  const { goToApp } = useInstall();
   useEffect(() => {
     const prev = document.title;
     document.title = 'Txillapp — a rede da malta';
@@ -48,6 +50,11 @@ export default function Landing() {
               <Link to="/login" className="rounded-full border-2 border-zinc-200 px-8 py-4 text-lg font-bold transition hover:bg-zinc-50 active:scale-95">
                 Já tenho conta
               </Link>
+              {goToApp && (
+                <a href={APP_URL} className="w-full rounded-full bg-zinc-900 px-8 py-4 text-center text-lg font-bold text-white transition active:scale-95">
+                  Instalar a app
+                </a>
+              )}
             </div>
             <p className="mt-4 text-sm text-zinc-500">Para maiores de 13 anos. Funciona no navegador e podes instalar no telemóvel.</p>
           </div>
