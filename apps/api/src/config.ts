@@ -44,7 +44,8 @@ const schema = z.object({
   /** Chaves VAPID (notificações no telemóvel). Sem elas as notificações push ficam desligadas. Gera com: npx web-push generate-vapid-keys */
   VAPID_PUBLIC_KEY: z.string().min(20).optional(),
   VAPID_PRIVATE_KEY: z.string().min(20).optional(),
-  VAPID_SUBJECT: z.string().default('mailto:admin@txillapp.local'),
+  /** Contacto do remetente das notificações. O iPhone recusa domínios que não existem (como .local). */
+  VAPID_SUBJECT: z.string().default('mailto:suporte@txillapp.com'),
   /**
    * E-mail (confirmação de conta e recuperação de senha). Sem SMTP_USER e SMTP_PASS fica tudo desligado.
    * Zoho: smtp.zoho.com, porta 465, utilizador = a caixa e senha = "palavra-passe de aplicação".

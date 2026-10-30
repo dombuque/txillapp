@@ -61,4 +61,8 @@ const og = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width
     <circle cx="135" cy="24" r="9.5"/><path d="M125.5 14V46"/>
   </g></svg>`;
 await sharp(Buffer.from(og)).png({ compressionLevel: 9 }).toFile('public/og-image.png');
+
+// Ícone pequeno das notificações no Android: só a forma (o sistema pinta-a de uma cor), por isso o monograma a branco sobre transparente.
+const badge = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><g transform="translate(10 26) scale(2.2)" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5V27Q7 34 14 34M0 14H14"/><path d="M20 14Q27 24 34 34M34 14Q27 24 20 34"/></g></svg>`;
+await sharp(Buffer.from(badge)).png().toFile('public/badge-96.png');
 console.log('ícones gerados');

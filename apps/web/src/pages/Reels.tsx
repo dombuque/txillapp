@@ -99,7 +99,7 @@ export default function Reels() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const vv = useVisualViewport();
-  const isMuted = useMuted();
+  const isMuted = useMuted(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
 

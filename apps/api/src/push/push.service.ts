@@ -56,7 +56,7 @@ export class PushService {
       await Promise.all(
         rows.map(async (r) => {
           try {
-            await webpush.sendNotification({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }, JSON.stringify(payload), { TTL: 3600, urgency: 'normal' });
+            await webpush.sendNotification({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }, JSON.stringify(payload), { TTL: 86_400, urgency: 'high' });
           } catch (e) {
             const status = (e as { statusCode?: number }).statusCode;
             if (status === 404 || status === 410) await this.pool.query('DELETE FROM social.push_subscriptions WHERE endpoint = $1', [r.endpoint]);

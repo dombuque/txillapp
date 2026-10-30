@@ -2,14 +2,9 @@ import { track } from '../lib/analytics';
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import Icon from './Icon';
+import { freshSubscription, registerSubscription } from '../lib/push';
 
 type State = 'checking' | 'unsupported' | 'off-server' | 'denied' | 'off' | 'on';
-
-const toKey = (b64: string) => {
-  const pad = '='.repeat((4 - (b64.length % 4)) % 4);
-  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
-  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
-};
 
 /** Ligar ou desligar as notificações no telemóvel (Web Push). Funciona na app instalada, em HTTPS. */
 export default function PushToggle() {
@@ -39,9 +34,7 @@ export default function PushToggle() {
       if (perm !== 'granted') return setState(perm === 'denied' ? 'denied' : 'off');
       const { publicKey } = await api.pushKey();
       const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: toKey(publicKey!) });
-      const j = sub.toJSON();
-      await api.pushSubscribe({ endpoint: sub.endpoint, keys: { p256dh: j.keys!.p256dh, auth: j.keys!.auth } });
+      await registerSubscription(await freshSubscription(reg, publicKey!));
       track('push_enabled');
       setState('on');
     } catch (x) {

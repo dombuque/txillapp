@@ -12,6 +12,7 @@ import Landing from './pages/Landing';
 import { isStandalone } from './lib/useDesktop';
 import InstallGate, { installRequired } from './pages/InstallGate';
 import { neutralizeInstallOnSite, useInstall } from './lib/install';
+import { syncPush } from './lib/push';
 import { BrandLoader, TopLoader } from './components/Loading';
 import { AuthProvider, useAuth } from './lib/auth';
 import { GoogleUsername, Login, Register } from './pages/AuthForm';
@@ -83,6 +84,9 @@ function Analytics() {
 /** Mantém a ligação em tempo real do chat enquanto houver sessão (uma só, em toda a app). */
 function Live() {
   const { user } = useAuth();
+  useEffect(() => {
+    if (user) void syncPush();
+  }, [user]);
   return user ? <ChatLive /> : null;
 }
 

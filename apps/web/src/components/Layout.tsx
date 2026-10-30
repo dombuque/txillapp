@@ -4,7 +4,7 @@ import { refreshPage } from '../lib/refresh';
 import EmailBanner from './EmailBanner';
 import GenderGate from './GenderGate';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -42,6 +42,13 @@ export default function Layout() {
   const count = unread.data?.count ?? 0;
   const chats = useQuery({ queryKey: ['chat-unread'], queryFn: api.chatUnread, refetchInterval: 20_000, staleTime: 8_000 });
   const chatCount = chats.data?.conversations ?? 0;
+  // Número no ícone da app instalada (Android e computador): notificações + conversas por ler.
+  useEffect(() => {
+    const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    const total = count + chatCount;
+    if (total > 0) void nav.setAppBadge?.(total).catch(() => undefined);
+    else void nav.clearAppBadge?.().catch(() => undefined);
+  }, [count, chatCount]);
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl bg-white pb-24 lg:pb-8">

@@ -1,51 +1,62 @@
-import Icon from './Icon';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { registerSW } from 'virtual:pwa-register';
 
 /**
- * Atualizações da app: a versão nova descarrega em segundo plano e aparece este aviso.
- * Ao tocar em "Atualizar" a app recarrega já com a versão nova. Verifica de 30 em 30 minutos e sempre que voltas à app.
+ * Atualizações da app, sem a pessoa fazer nada (nem desinstalar). A versão nova descarrega em segundo plano e aplica-se
+ * sozinha num momento seguro: ao abrir a app, ao ir para segundo plano, ou quando a pessoa não está a escrever nem a gravar.
+ * Verifica de 10 em 10 minutos, ao voltar à app e quando a rede volta.
  */
 export default function UpdateBanner() {
-  const [needRefresh, setNeedRefresh] = useState(false);
-  const [update, setUpdate] = useState<null | ((reload?: boolean) => Promise<void>)>(null);
-  const [busy, setBusy] = useState(false);
-
   useEffect(() => {
     let reg: ServiceWorkerRegistration | undefined;
-    const fn = registerSW({
-      onNeedRefresh: () => setNeedRefresh(true),
+    let waiting = false;
+    let apply: ((reload?: boolean) => Promise<void>) | null = null;
+    let timer: ReturnType<typeof setInterval> | undefined;
+
+    /** A pessoa está a meio de uma ação que uma recarga estragaria? */
+    const busy = () => {
+      const el = document.activeElement as HTMLElement | null;
+      const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+      const delicate = /^\/(new|reels|messages\/)/.test(location.pathname);
+      return typing || delicate || !!document.querySelector('[role="dialog"], [aria-modal="true"]');
+    };
+    const go = () => {
+      waiting = false;
+      if (timer) clearInterval(timer);
+      void apply?.(true);
+    };
+    const tryApply = () => {
+      if (!waiting) return;
+      if (document.visibilityState === 'hidden' || !busy()) go();
+    };
+    const onHidden = () => document.visibilityState === 'hidden' && tryApply();
+
+    apply = registerSW({
+      immediate: true,
+      onNeedRefresh: () => {
+        waiting = true;
+        tryApply();
+        if (waiting) timer = setInterval(tryApply, 4000);
+      },
       onRegisteredSW: (_url, r) => {
         reg = r;
       },
     });
-    setUpdate(() => fn);
+
     const check = () => void reg?.update().catch(() => undefined);
-    const timer = setInterval(check, 30 * 60_000);
-    const vis = () => document.visibilityState === 'visible' && check();
-    document.addEventListener('visibilitychange', vis);
+    const poll = setInterval(check, 10 * 60_000);
+    const onVisible = () => document.visibilityState === 'visible' && check();
+    document.addEventListener('visibilitychange', onVisible);
+    document.addEventListener('visibilitychange', onHidden);
+    window.addEventListener('online', check);
     return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', vis);
+      clearInterval(poll);
+      if (timer) clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener('visibilitychange', onHidden);
+      window.removeEventListener('online', check);
     };
   }, []);
 
-  if (!needRefresh) return null;
-  return (
-    <div role="status" className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[95] mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-zinc-900 px-4 py-3 text-white shadow-[0_8px_32px_rgba(0,0,0,0.35)]">
-      <Icon name="sparkles" size={22} />
-      <span className="min-w-0 flex-1 text-[15px] font-semibold leading-tight">Há uma versão nova do Txillapp</span>
-      <button
-        disabled={busy}
-        onClick={() => {
-          setBusy(true);
-          void update?.(true);
-        }}
-        className="h-10 rounded-full bg-brand px-5 text-[15px] font-bold active:scale-95 disabled:opacity-60"
-      >
-        {busy ? '…' : 'Atualizar'}
-      </button>
-      <button onClick={() => setNeedRefresh(false)} aria-label="Depois" className="-mr-1 flex h-9 w-9 items-center justify-center rounded-full text-xl text-zinc-400 active:bg-white/10">×</button>
-    </div>
-  );
+  return null;
 }

@@ -64,7 +64,7 @@ export class NotificationsService {
       follow: { body: `${who} começou a seguir-te`, url: '/notifications' },
       follow_request: { body: `${who} quer seguir-te`, url: '/notifications' },
       request_accepted: { body: `${who} aceitou o teu pedido`, url: '/notifications' },
-      gift: { body: `${who} presenteou-te 🎁`, url: '/wallet' },
+      gift: { body: `${who} presenteou-te`, url: '/wallet' },
       comment: { body: `${who} comentou a tua publicação`, url: postId ? `/p/${postId}?comments=1` : '/notifications' },
       reply: { body: `${who} respondeu ao teu comentário`, url: postId ? `/p/${postId}?comments=1` : '/notifications' },
       repost: { body: `${who} repostou a tua publicação`, url: postId ? `/p/${postId}` : '/notifications' },
