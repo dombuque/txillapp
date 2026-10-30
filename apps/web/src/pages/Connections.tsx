@@ -1,3 +1,4 @@
+import { RowsSkeleton } from '../components/Loading';
 import Icon from '../components/Icon';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -50,7 +51,7 @@ function ConnectionList({ username, kind, meUsername }: { username: string; kind
         </label>
       </form>
 
-      {q.isLoading && <p className="py-10 text-center text-zinc-600">A carregar…</p>}
+      {q.isLoading && <RowsSkeleton />}
       {q.isError && <p role="alert" className="py-10 text-center text-red-600">Ups, não consegui carregar</p>}
       {q.isSuccess && people.length === 0 && (
         <div className="py-12 text-center text-zinc-600">

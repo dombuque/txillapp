@@ -1,3 +1,4 @@
+import { postShare, shareNow } from '../lib/share';
 import { useState } from 'react';
 import { api, type Post } from '../lib/api';
 import { track } from '../lib/analytics';
@@ -39,12 +40,10 @@ export default function ShareSheet({ post, onClose, layer }: { post: Post; onClo
   }
   async function system() {
     track('share', { where: 'system' });
-    try {
-      await navigator.share({ title: 'Txillapp', text: post.body.slice(0, 80), url });
-      onClose();
-    } catch {
-      /* cancelou */
-    }
+    const r = await shareNow(postShare(post.author.displayName, post.body, url));
+    if (r === 'shared') onClose();
+    else if (r === 'copied') setNote('Texto e link copiados');
+    else if (r === 'failed') setNote('Não consegui copiar');
   }
 
   return (

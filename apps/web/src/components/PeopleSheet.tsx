@@ -1,3 +1,4 @@
+import { LoadingBlock } from './Loading';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api, type PeopleKind } from '../lib/api';
@@ -11,7 +12,7 @@ export default function PeopleSheet({ postId, kind, onClose, layer }: { postId: 
   const q = useQuery({ queryKey: ['post-people', postId, kind], queryFn: () => api.postPeople(postId, kind), retry: false });
   return (
     <Sheet title={TITLE[kind]} onClose={onClose} layer={layer}>
-      {q.isLoading && <p className="py-6 text-center text-zinc-500">A carregar…</p>}
+      {q.isLoading && <LoadingBlock className="py-6" />}
       {q.isError && <p role="alert" className="py-6 text-center text-zinc-600">Esta lista não está disponível</p>}
       {q.isSuccess && q.data.length === 0 && <p className="py-6 text-center text-zinc-500">{EMPTY[kind]}</p>}
       <ul>

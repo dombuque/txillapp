@@ -1,3 +1,4 @@
+import { PostSkeleton } from '../components/Loading';
 import Icon from '../components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -15,7 +16,7 @@ export default function PostPage() {
   return (
     <StackPage title="Publicação">
       <div className="pt-4">
-        {q.isLoading && <p className="py-16 text-center text-zinc-500">A carregar…</p>}
+        {q.isLoading && <PostSkeleton />}
         {q.isError && (
           <div className="mx-6 mt-12 text-center">
             <p className="text-zinc-300" aria-hidden><Icon name="search" size={44} className="mx-auto" /></p>

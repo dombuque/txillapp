@@ -12,7 +12,7 @@ import Landing from './pages/Landing';
 import { isStandalone } from './lib/useDesktop';
 import InstallGate, { installRequired } from './pages/InstallGate';
 import { neutralizeInstallOnSite, useInstall } from './lib/install';
-import { Wordmark } from './components/ui';
+import { BrandLoader, TopLoader } from './components/Loading';
 import { AuthProvider, useAuth } from './lib/auth';
 import { GoogleUsername, Login, Register } from './pages/AuthForm';
 import Compose from './pages/Compose';
@@ -44,12 +44,7 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15
 
 function Splash() {
   const { reconnecting } = useAuth();
-  return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-5 bg-white" aria-busy="true">
-      <Wordmark className="h-14" />
-      <p role="status" className="text-zinc-500">{reconnecting ? 'A reconectar…' : 'A carregar a vibe…'}</p>
-    </main>
-  );
+  return <BrandLoader message={reconnecting ? 'A reconectar…' : 'A carregar a vibe…'} />;
 }
 
 /** Em app.txillapp.com, no telemóvel, sem a app instalada: só se vê o ecrã de instalação (menos os termos e a privacidade). */
@@ -113,6 +108,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <TopLoader />
         <Live />
         <UpdateBanner />
         <BrowserRouter>

@@ -1,3 +1,4 @@
+import { PontoLoader } from '../components/Loading';
 import Icon from '../components/Icon';
 import GenderPicker from '../components/GenderPicker';
 import { MIN_AGE, birthDateSchema, registerSchema, type RegisterInput } from '@txillapp/shared';
@@ -19,7 +20,7 @@ const BackIcon = () => <Icon name="back" size={30} strokeWidth={2} />;
 const CalendarIcon = () => <Icon name="calendar" size={22} />;
 const CheckIcon = () => <Icon name="check" size={22} strokeWidth={2.4} />;
 const CrossIcon = () => <Icon name="x" size={22} strokeWidth={2.4} />;
-const Spinner = () => <Icon name="loader" size={22} className="animate-spin" />;
+const Spinner = () => <PontoLoader size={11} />;
 
 /* ───────────── validação (mensagens em português, na hora) ───────────── */
 type FieldKey = keyof RegisterInput;

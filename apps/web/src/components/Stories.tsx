@@ -1,3 +1,4 @@
+import { LoadingBlock } from './Loading';
 import VideoPlayer from './VideoPlayer';
 import { sized } from '../lib/media';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -298,7 +299,7 @@ function CommentsPanel({ story, onClose, canComment, onTyping }: { story: Story;
   return (
     <Panel title={`Comentários${list.data ? ` (${list.data.length})` : ''}`} onClose={onClose}>
       <ul className="min-h-[96px]">
-        {list.isLoading && <li className="py-6 text-center text-zinc-500">A carregar…</li>}
+        {list.isLoading && <li><LoadingBlock className="py-6" /></li>}
         {list.isSuccess && list.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda sem comentários. Sê o primeiro</li>}
         {list.data?.map((c) => (
           <li key={c.id} className="flex items-start gap-3 py-2.5">
@@ -556,7 +557,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
 
             {tab === 'replies' && (
               <ul>
-                {replies.isLoading && <li className="py-6 text-center text-zinc-500">A carregar…</li>}
+                {replies.isLoading && <li><LoadingBlock className="py-6" /></li>}
                 {replies.isSuccess && replies.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda sem respostas</li>}
                 {replies.data?.map((r) => (
                   <li key={r.id} className="flex items-start gap-3 py-2.5">
@@ -574,7 +575,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
 
             {tab === 'viewers' && (
               <ul>
-                {viewers.isLoading && <li className="py-6 text-center text-zinc-500">A carregar…</li>}
+                {viewers.isLoading && <li><LoadingBlock className="py-6" /></li>}
                 {viewers.isSuccess && viewers.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda ninguém viu</li>}
                 {viewers.data?.map((v) => (
                   <li key={v.username} className="flex items-center gap-3 py-2.5">

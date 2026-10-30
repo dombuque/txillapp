@@ -1,3 +1,4 @@
+import { PontoLoader } from '../components/Loading';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../components/Icon';
@@ -45,7 +46,7 @@ export default function InstallGate() {
             </ol>
           )}
           {iosOpenInSafari && <p className="mt-8 rounded-2xl bg-zinc-100 px-4 py-4 text-lg">No iPhone, a instalação só funciona no <b>Safari</b>. Abre <b>app.txillapp.com</b> nele.</p>}
-          {!canPrompt && !iosHint && !iosOpenInSafari && !unsupported && <p className="mt-8 text-zinc-500">A preparar a instalação…</p>}
+          {!canPrompt && !iosHint && !iosOpenInSafari && !unsupported && <div className="mt-8 flex flex-col items-center gap-1 text-zinc-500"><PontoLoader size={18} label="A preparar a instalação" /><p>A preparar a instalação…</p></div>}
           {unsupported && (
             <div className="mt-8 w-full">
               <p className="rounded-2xl bg-zinc-100 px-4 py-4 text-zinc-700">Este navegador não consegue instalar a app. No Android usa o <b>Chrome</b>; no iPhone usa o <b>Safari</b>.</p>

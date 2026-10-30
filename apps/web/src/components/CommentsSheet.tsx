@@ -1,3 +1,4 @@
+import { LoadingBlock } from './Loading';
 import Icon from './Icon';
 import MentionTextarea from './MentionTextarea';
 import { Link } from 'react-router-dom';
@@ -115,7 +116,7 @@ function Replies({ c, expanded, toggle, canDeleteFor, onReply, onRemoved }: Thre
           {items.map((r) => (
             <Row key={r.id} c={r} isReply canDelete={canDeleteFor(r)} onReply={onReply} onRemoved={onRemoved} />
           ))}
-          {q.isLoading && <div className="py-2 text-sm text-zinc-500">A carregar…</div>}
+          {q.isLoading && <LoadingBlock className="py-2" />}
           {q.hasNextPage && (
             <div>
               <button onClick={() => q.fetchNextPage()} className="flex items-center gap-3 py-1 text-xs font-semibold text-zinc-500">
@@ -214,7 +215,7 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-2">
-          {q.isLoading && <p className="py-10 text-center text-zinc-500">A carregar a conversa…</p>}
+          {q.isLoading && <LoadingBlock label="A carregar a conversa" />}
           {q.isError && <p role="alert" className="py-10 text-center text-red-600">Ups, não consegui carregar</p>}
           {q.isSuccess && items.length === 0 && (
             <div className="py-14 text-center">

@@ -25,7 +25,7 @@ export default function Wallet() {
   if (isLoading || !data) {
     return (
       <Page title="Carteira">
-        <div className="h-40 animate-pulse rounded-[28px] bg-zinc-200" aria-label="A carregar" />
+        <div className="skel h-40 rounded-[28px]" role="status" aria-label="A carregar" />
       </Page>
     );
   }

@@ -1,3 +1,4 @@
+import { LoadingBlock } from '../components/Loading';
 import Icon from '../components/Icon';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -36,7 +37,7 @@ export default function TagPage() {
           ))}
         </div>
       </div>
-      {q.isLoading && <p className="py-16 text-center text-zinc-500">A carregar…</p>}
+      {q.isLoading && <LoadingBlock className="py-16" />}
       {q.isError && <p role="alert" className="py-16 text-center text-zinc-600">Esta hashtag não existe</p>}
       {q.isSuccess && items.length === 0 && (
         <div className="py-16 text-center">

@@ -60,6 +60,63 @@ body {
   to { transform: translateY(0); opacity: 1; }
 }
 
+/*
+ * O "ponto": o ponto do "i" do logótipo a saltar como uma bola. É o carregamento do Txillapp em todo o lado
+ * (ecrã inicial, listas, botões, atualizar). Os esqueletos têm um brilho com um toque de coral.
+ */
+@keyframes ponto {
+  0%, 100% { transform: translateY(0) scale(1.18, 0.82); }
+  38% { transform: translateY(-1.15em) scale(0.9, 1.12); }
+  62% { transform: translateY(-0.12em) scale(1, 1); }
+  78% { transform: translateY(0) scale(1.1, 0.9); }
+}
+@keyframes ponto-sombra {
+  0%, 100% { transform: scaleX(1); opacity: 0.22; }
+  38% { transform: scaleX(0.45); opacity: 0.08; }
+}
+@keyframes ponto-i {
+  0%, 100% { transform: translateY(0) scale(1.15, 0.85); }
+  38% { transform: translateY(-13px) scale(0.9, 1.12); }
+  62% { transform: translateY(-1px) scale(1, 1); }
+  78% { transform: translateY(0) scale(1.1, 0.9); }
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+@keyframes barra {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(260%); }
+}
+.ponto {
+  display: block;
+  width: 1em;
+  height: 1em;
+  border-radius: 9999px;
+  background: var(--color-brand);
+  transform-origin: 50% 100%;
+  animation: ponto 0.95s ease-in-out infinite;
+}
+.ponto-sombra {
+  display: block;
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 1em;
+  height: 0.22em;
+  margin-left: -0.5em;
+  border-radius: 9999px;
+  background: #18181b;
+  animation: ponto-sombra 0.95s ease-in-out infinite;
+}
+.ponto-i {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: ponto-i 0.95s ease-in-out infinite;
+}
+.skel {
+  background: linear-gradient(90deg, #f4f4f5 0%, #f4f4f5 35%, #fde4ea 50%, #f4f4f5 65%, #f4f4f5 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }

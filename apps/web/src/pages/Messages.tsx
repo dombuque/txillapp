@@ -1,3 +1,4 @@
+import { RowsSkeleton } from '../components/Loading';
 import Icon from '../components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -19,7 +20,7 @@ export default function Messages() {
   return (
     <section className="px-4 pb-28">
       <h1 className="px-1 pb-3 pt-1 text-2xl font-extrabold">Mensagens</h1>
-      {q.isLoading && <p className="py-10 text-center text-zinc-500">A carregar…</p>}
+      {q.isLoading && <RowsSkeleton />}
       {q.isSuccess && q.data.length === 0 && (
         <div className="mt-10 text-center">
           <p className="text-zinc-300" aria-hidden><Icon name="messages" size={44} className="mx-auto" /></p>

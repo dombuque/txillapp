@@ -71,13 +71,13 @@ function useDebounced<T>(value: T, ms: number) {
 const SearchIcon = () => <Icon name="search" size={20} strokeWidth={2.2} />;
 
 const Skeleton = () => (
-  <ul className="mt-3 animate-pulse" aria-hidden>
+  <ul className="mt-3" aria-hidden>
     {[0, 1, 2].map((i) => (
       <li key={i} className="flex items-center gap-3 px-1 py-2.5">
-        <span className="h-11 w-11 rounded-full bg-zinc-100" />
+        <span className="skel h-11 w-11 rounded-full" />
         <span className="flex-1 space-y-2">
-          <span className="block h-3.5 w-2/3 rounded bg-zinc-100" />
-          <span className="block h-3 w-1/3 rounded bg-zinc-100" />
+          <span className="skel block h-3.5 w-2/3 rounded-full" />
+          <span className="skel block h-3 w-1/3 rounded-full" />
         </span>
       </li>
     ))}

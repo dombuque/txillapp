@@ -1,3 +1,4 @@
+import { PostSkeleton } from '../components/Loading';
 import Icon from '../components/Icon';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Fragment, useEffect, useRef } from 'react';
@@ -8,22 +9,6 @@ import Suggestions from '../components/Suggestions';
 import { btnGhost } from '../components/ui';
 import { api, type Post } from '../lib/api';
 import { trackSeen } from '../lib/seen';
-
-function Skeleton() {
-  return (
-    <div className="mx-4 mb-6 animate-pulse rounded-[28px] bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]" aria-hidden>
-      <div className="flex items-center gap-3">
-        <div className="h-[52px] w-[52px] rounded-full bg-zinc-200" />
-        <div className="flex-1 space-y-2">
-          <div className="h-4 w-1/2 rounded-full bg-zinc-200" />
-          <div className="h-3 w-1/3 rounded-full bg-zinc-100" />
-        </div>
-      </div>
-      <div className="mt-5 h-4 w-3/4 rounded-full bg-zinc-200" />
-      <div className="mt-4 h-40 rounded-xl bg-zinc-100" />
-    </div>
-  );
-}
 
 /** Regista a publicação como vista quando está pelo menos 60% no ecrã durante 1 segundo. */
 function Impression({ id, children }: { id: string; children: React.ReactNode }) {
@@ -66,8 +51,8 @@ export default function Feed() {
       <StoriesTray />
       {q.isLoading && (
         <>
-          <Skeleton />
-          <Skeleton />
+          <PostSkeleton />
+          <PostSkeleton />
         </>
       )}
       {q.isError && (

@@ -1,4 +1,5 @@
 import { sized } from '../lib/media';
+import { profileShare, shareNow } from '../lib/share';
 import Icon from '../components/Icon';
 import ReportSheet from '../components/ReportSheet';
 import VerifiedBadge from '../components/VerifiedBadge';
@@ -52,7 +53,7 @@ export default function ProfilePage() {
       </div>
     );
   }
-  if (!p) return <div className="mx-4 mt-6 h-64 animate-pulse rounded-[28px] bg-zinc-100" aria-label="A carregar" />;
+  if (!p) return <div className="skel mx-4 mt-6 h-64 rounded-[28px]" role="status" aria-label="A carregar" />;
 
   const blocked = p.blockedByMe || p.blockedMe;
   const stat = (n: number, label: string, onClick?: () => void) => (
@@ -62,23 +63,11 @@ export default function ProfilePage() {
     </button>
   );
 
-  /** Partilhar o perfil: menu de partilha do telemóvel; sem ele, copia o link. */
+  /** Partilhar o perfil: menu de partilha do telemóvel com o texto já escrito; sem ele, copia o texto e o link. */
   async function share() {
-    const url = `${window.location.origin}/u/${p!.username}`;
-    const copy = async () => {
-      try {
-        await navigator.clipboard.writeText(url);
-        flash('Link copiado');
-      } catch {
-        flash('Não consegui copiar');
-      }
-    };
-    if (!navigator.share) return copy();
-    try {
-      await navigator.share({ title: `${p!.displayName} no txillapp`, text: `Segue @${p!.username} no txillapp`, url });
-    } catch (e) {
-      if ((e as Error).name !== 'AbortError') await copy(); // cancelar a partilha não é erro
-    }
+    const r = await shareNow(profileShare(p!.displayName, p!.username, window.location.origin));
+    if (r === 'copied') flash('Texto e link copiados');
+    if (r === 'failed') flash('Não consegui copiar');
   }
   function flash(text: string) {
     setToast(text);

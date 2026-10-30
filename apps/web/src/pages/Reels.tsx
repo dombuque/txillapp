@@ -1,3 +1,4 @@
+import { PontoLoader } from '../components/Loading';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -171,7 +172,7 @@ export default function Reels() {
             <Reel post={p} active={p.id === current} onChange={(c) => patch(p.id, c)} />
           </div>
         ))}
-        {q.isLoading && <p className="flex h-full items-center justify-center text-white/80">A carregar…</p>}
+        {q.isLoading && <div className="flex h-full items-center justify-center"><PontoLoader size={26} /></div>}
         {q.isSuccess && items.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center px-8 text-center text-white">
             <Icon name="film" size={52} className="mx-auto text-white/70" />

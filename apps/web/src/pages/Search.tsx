@@ -1,3 +1,4 @@
+import { LoadingBlock } from '../components/Loading';
 import Icon from '../components/Icon';
 import { track } from '../lib/analytics';
 import { sized } from '../lib/media';
@@ -142,7 +143,7 @@ export default function Search() {
             ))}
           </div>
 
-          {q.isLoading && <p className="py-10 text-center text-zinc-500">A procurar…</p>}
+          {q.isLoading && <LoadingBlock label="A procurar" />}
           {q.isError && <p role="alert" className="py-10 text-center text-red-600">Ups, a pesquisa falhou</p>}
 
           {q.isSuccess && tab === 'people' && (

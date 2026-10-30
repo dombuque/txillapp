@@ -1,3 +1,5 @@
+import { inviteShare, shareNow } from '../lib/share';
+import { LoadingBlock } from '../components/Loading';
 import { APP_URL, useInstall } from '../lib/install';
 import PushToggle from '../components/PushToggle';
 import Icon from '../components/Icon';
@@ -43,6 +45,18 @@ function Row({ icon, label, value, onClick, danger }: { icon: ReactNode; label: 
       <span className="text-xl text-zinc-400" aria-hidden>›</span>
     </button>
   );
+}
+
+/** Convidar amigos: abre o menu de partilha com a mensagem já escrita e o link do Txillapp. */
+function InviteRow() {
+  const { user } = useAuth();
+  const [note, setNote] = useState('');
+  async function invite() {
+    const r = await shareNow(inviteShare(user?.displayName.split(' ')[0]));
+    setNote(r === 'copied' ? 'Texto e link copiados' : r === 'failed' ? 'Não consegui copiar' : '');
+    if (r === 'copied' || r === 'failed') setTimeout(() => setNote(''), 2500);
+  }
+  return <Row icon={<Icon name="user-plus" />} label="Convidar amigos" value={note} onClick={() => void invite()} />;
 }
 
 /** Mostra o país onde estás: é a rede que vês (o que é de outros países só aparece se seguires a pessoa). */
@@ -221,6 +235,10 @@ export default function Settings() {
         <Row icon={<Icon name="camera" />} label="Quem pode responder" value={stories.data ? whoLabel(stories.data.replies) : '…'} onClick={() => setSheet('storyReplies')} />
         <Row icon={<Icon name="heart" />} label="Amigos próximos" value={closeFriends.data ? String(closeFriends.data.length) : '…'} onClick={() => setSheet('closeFriends')} />
         <Row icon={<Icon name="eye-off" />} label="Esconder story de…" value={stories.data ? String(stories.data.hidden.length) : '…'} onClick={() => setSheet('hidden')} />
+      </Section>
+
+      <Section title="Convidar">
+        <InviteRow />
       </Section>
 
       <Section title="Região">
@@ -414,7 +432,7 @@ function DevicesSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet title="Dispositivos" onClose={onClose}>
       <p className="-mt-2 mb-3 text-sm text-zinc-600">Sítios onde a tua conta está com sessão iniciada. Não reconheces algum? Termina-o.</p>
-      {q.isLoading && <p className="py-6 text-center text-zinc-600">A carregar…</p>}
+      {q.isLoading && <LoadingBlock className="py-6" />}
       {q.data?.map((d) => (
         <div key={d.id} className="flex items-center gap-3 py-2.5">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-100" aria-hidden><Icon name={/Android|iOS/.test(d.device) ? 'phone' : 'laptop'} size={22} /></span>

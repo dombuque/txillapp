@@ -1,3 +1,4 @@
+import { LoadingBlock } from '../components/Loading';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import BarChart from '../components/BarChart';
@@ -42,7 +43,7 @@ export default function AdminStats() {
           ))}
         </div>
         {q.isError && <p role="alert" className="py-10 text-center text-zinc-600">Sem acesso</p>}
-        {q.isLoading && <p className="py-10 text-center text-zinc-500">A carregar…</p>}
+        {q.isLoading && <LoadingBlock />}
         {s && (
           <>
             <div className="grid grid-cols-2 gap-3">

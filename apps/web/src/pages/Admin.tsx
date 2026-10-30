@@ -1,3 +1,4 @@
+import { LoadingBlock } from '../components/Loading';
 import Icon from '../components/Icon';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -61,7 +62,7 @@ export default function Admin() {
     <StackPage title="Moderação">
       <div className="px-4 pt-4">
         {q.isError && <p role="alert" className="py-10 text-center text-zinc-600">Sem acesso</p>}
-        {q.isLoading && <p className="py-10 text-center text-zinc-500">A carregar…</p>}
+        {q.isLoading && <LoadingBlock />}
         {q.isSuccess && q.data.length === 0 && (
           <div className="py-16 text-center">
             <p className="text-zinc-300" aria-hidden><Icon name="sparkles" size={44} className="mx-auto" /></p>

@@ -1,3 +1,4 @@
+import { PontoLoader } from './Loading';
 import Icon from './Icon';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
@@ -60,8 +61,14 @@ export default function PullToRefresh({ onRefresh, children }: { onRefresh: () =
   return (
     <div className="relative" style={{ transform: shown ? `translateY(${shown}px)` : undefined, transition: pull ? 'none' : 'transform .2s ease-out' }}>
       <div className="pointer-events-none absolute inset-x-0 -top-10 flex h-10 items-center justify-center" aria-hidden={!busy} role={busy ? 'status' : undefined}>
-        <Icon name="loader" size={26} strokeWidth={2.4} className={busy ? 'animate-spin' : ''} style={busy ? { color: '#d6334f' } : { color: '#d6334f', transform: `rotate(${Math.min(pull / TRIGGER, 1) * 270}deg)`, opacity: Math.min(pull / 40, 1) }} />
-        {busy && <span className="sr-only">A atualizar…</span>}
+        {busy ? (
+          <PontoLoader size={16} label="A atualizar" />
+        ) : (
+          <span
+            className="block h-4 w-4 rounded-full bg-brand"
+            style={{ opacity: Math.min(pull / 40, 1), transform: `scale(${0.4 + Math.min(pull / TRIGGER, 1) * (ready ? 1.3 : 0.9)})`, transition: 'transform .12s' }}
+          />
+        )}
       </div>
       {children}
     </div>

@@ -1,3 +1,4 @@
+import { RowsSkeleton } from '../components/Loading';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -153,7 +154,7 @@ export default function Notifications() {
 
   return (
     <StackPage title="Notificações">
-      {q.isLoading && <p className="py-12 text-center text-zinc-500">A ver o que aconteceu…</p>}
+      {q.isLoading && <RowsSkeleton rows={7} />}
       {q.isError && (
         <div role="alert" className="mx-6 mt-10 text-center">
           <p className="text-lg">Ups, não consegui carregar</p>
