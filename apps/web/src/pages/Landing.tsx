@@ -35,8 +35,7 @@ export default function Landing() {
       <main>
         <section className="mx-auto grid max-w-6xl items-center gap-10 px-5 pb-16 pt-8 lg:grid-cols-2 lg:pt-16">
           <div>
-            <p className="inline-block rounded-full bg-rose-50 px-4 py-1.5 text-sm font-bold text-brand">Rede social made in Moçambique</p>
-            <h1 className="mt-5 text-5xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
+            <h1 className="text-5xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
               Posta. Mostra. <span className="text-brand">Txilla.</span>
             </h1>
             <p className="mt-5 max-w-lg text-xl leading-relaxed text-zinc-600">
