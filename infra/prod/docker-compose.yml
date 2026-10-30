@@ -17,10 +17,24 @@ services:
     image: txillapp-edge:latest
     restart: unless-stopped
     ports: ['80:80', '443:443']
-    volumes: ['./certs:/etc/nginx/certs:ro']
+    volumes: ['letsencrypt:/etc/letsencrypt:ro']
+    # Recarrega a cada 6 h para apanhar os certificados renovados pelo certbot (sem cortar ligações).
+    command: ['/bin/sh', '-c', 'while :; do sleep 6h; nginx -s reload; done & exec nginx -g "daemon off;"']
     depends_on:
       api: { condition: service_healthy }
     networks: [edge, backend]
+    logging: *logging
+
+  # Certificados Let's Encrypt (desafio DNS no Cloudflare: não precisa da porta 80 nem de o servidor estar visível).
+  # Primeira emissão: ver docs/DEPLOY.md. Depois renova sozinho quando faltam menos de 30 dias.
+  certbot:
+    image: certbot/dns-cloudflare:v3.0.1
+    restart: unless-stopped
+    entrypoint: ['/bin/sh', '-c', 'trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done']
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - ./certbot/cloudflare.ini:/etc/cloudflare.ini:ro
+    networks: [backend]
     logging: *logging
 
   api:
@@ -174,6 +188,7 @@ networks:
   backend: { internal: false } # a API precisa de sair para a Google, o R2 e as notificações; nada entra senão pelo nginx
 
 volumes:
+  letsencrypt:
   pgdata:
   redisdata:
   uploads:

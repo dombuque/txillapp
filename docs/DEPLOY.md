@@ -20,18 +20,20 @@ A moderação e as métricas **não** existem em `app.` nem em `api.` (o nginx d
 
 1. **Domínio** `txillapp.com` e conta **Cloudflare** (passar os nameservers do domínio para o Cloudflare).
 2. **VPS** Contabo (Ubuntu 24.04 LTS). Anota o IP.
-3. **R2**: dois buckets: `txillapp-media` (com domínio personalizado `media.txillapp.com`) e `txillapp-private` (**sem** acesso público). Cria uma chave de API com permissão de escrita nos dois.
+3. **R2**: dois buckets: `txillapp-media` (com domínio personalizado `media.txillapp.com`) e `txillapp-private` (**sem** acesso público). Cria uma chave de API (Object Read & Write) limitada a esses dois. **CORS** nos dois buckets, senão o browser bloqueia os envios diretos:
+   `[{"AllowedOrigins":["https://app.txillapp.com"],"AllowedMethods":["GET","PUT","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]`
+   Um **API Token** do Cloudflare (Zone → DNS → Edit, só `txillapp.com`) para o certbot renovar os certificados.
 4. **Cópias de segurança**: um bucket noutro fornecedor (recomendado: Backblaze B2) chamado `txillapp-backups`, e um par de chaves `age` (`age-keygen`): a **pública** vai para o servidor, a **privada** guardas fora dele (gestor de senhas + papel).
 5. (Opcional) Google OAuth, conta no healthchecks.io, e-mail transacional.
 
 ## 3. DNS e Cloudflare
 
 - Registos **A** (laranja/proxied) para `app`, `api`, `admin`, `monitor` → IP do VPS. `media` fica ligado ao R2 (o Cloudflare cria o registo ao adicionares o domínio personalizado).
-- SSL/TLS: modo **Full (strict)**; cria um **Origin Certificate** (15 anos) para `*.txillapp.com` e `txillapp.com`, e guarda-o em `infra/prod/certs/origin.pem` e `origin.key` no servidor (nunca no Git).
+- SSL/TLS: modo **Full (strict)**; o certificado é **Let's Encrypt** (desafio DNS no Cloudflare, renovado sozinho pelo contentor `certbot`; ver secção 5). O token fica em `infra/prod/certbot/cloudflare.ini` no servidor (nunca no Git).
 - **Always Use HTTPS**, **HSTS**, **Min TLS 1.2**.
 - **Cloudflare Access** (Zero Trust, grátis até 50 pessoas): aplicações para `admin.txillapp.com` e `monitor.txillapp.com`, permitindo só os teus e-mails. É uma 2.ª porta à frente do login da app.
 - WAF: regras geridas ligadas; **Turnstile** no registo e login é um bom passo seguinte.
-- **Authenticated Origin Pulls** (SSL/TLS → Origin Server): o nginx só aceita ligações que o Cloudflare assina. Garante que ninguém contorna o Cloudflare indo diretamente ao IP do servidor. Ativa-o no painel, descarrega o certificado de CA do Cloudflare para `infra/prod/certs/cloudflare-origin-pull-ca.pem` e acrescenta `ssl_client_certificate /etc/nginx/certs/cloudflare-origin-pull-ca.pem; ssl_verify_client on;` aos blocos `server` com `listen 443`.
+- **Authenticated Origin Pulls** (SSL/TLS → Origin Server): o nginx só aceita ligações que o Cloudflare assina. Garante que ninguém contorna o Cloudflare indo diretamente ao IP do servidor. Ativa-o no painel, descarrega o certificado de CA do Cloudflare para `infra/prod/nginx/cloudflare-origin-pull-ca.pem`, copia-o no `apps/web/Dockerfile` para `/etc/nginx/` e acrescenta `ssl_client_certificate /etc/nginx/cloudflare-origin-pull-ca.pem; ssl_verify_client on;` aos blocos `server` com `listen 443`.
 - Na firewall da **Contabo** (painel): só 22 (idealmente só do teu IP), 80 e 443.
 
 ## 4. Preparar o servidor (uma vez)
@@ -57,10 +59,13 @@ ufw enable
 su - deploy
 git clone https://github.com/dombuque/txillapp.git && cd txillapp/infra/prod
 cp .env.example .env && nano .env        # preencher TUDO (segredos fortes: ver comentários)
-cp /caminho/origin.pem certs/origin.pem && cp /caminho/origin.key certs/origin.key && chmod 600 certs/origin.key
+cp /caminho/cloudflare.ini certbot/cloudflare.ini && chmod 600 certbot/cloudflare.ini   # dns_cloudflare_api_token = ...
 printf %s "$(grep ^METRICS_TOKEN= .env | cut -d= -f2-)" > monitoring/metrics_token
 
-docker compose up -d --build              # nginx, api, migrate, postgres, redis, backup
+# 1.ª vez: emitir o certificado (o nginx precisa dele para arrancar). Depois renova sozinho.
+docker compose run --rm --entrypoint certbot certbot certonly --dns-cloudflare \n  --dns-cloudflare-credentials /etc/cloudflare.ini --dns-cloudflare-propagation-seconds 40 \n  --cert-name txillapp.com -d app.txillapp.com -d api.txillapp.com -d admin.txillapp.com -d monitor.txillapp.com \n  --email admin@txillapp.com --agree-tos --no-eff-email
+
+docker compose up -d --build              # nginx, certbot, api, migrate, postgres, redis, backup
 docker compose logs -f api                # esperar "Nest application successfully started"
 curl -I https://app.txillapp.com          # 200
 ```
