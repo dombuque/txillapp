@@ -3,7 +3,7 @@ import { Pool, PoolClient } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { NotificationsService, mentionableBy } from '../notifications/notifications.service';
-import { allowedBy, blockedBetween, canView, listVisibleTo } from '../social/visibility';
+import { allowedBy, blockedBetween, canView, inMyNetwork, listVisibleTo } from '../social/visibility';
 import { SearchIndexer } from '../search/search-index';
 import { extractHashtags, prefixQuery } from '../common/hashtags';
 import { RANKED_SQL, decodeCursor, encodeCursor } from './feed';
@@ -303,7 +303,7 @@ export class PostsService {
     const { rows } = await this.pool.query(
       `${FEED_SQL} WHERE (
             (${'$3'}::text IS NOT NULL AND to_tsvector('portuguese', content.f_unaccent(p.body)) @@ to_tsquery('portuguese', $3))
-            OR p.body ILIKE $2 ESCAPE '\\' OR p.location_label ILIKE $2 ESCAPE '\\') AND ${canView()}
+            OR p.body ILIKE $2 ESCAPE '\\' OR p.location_label ILIKE $2 ESCAPE '\\') AND ${canView()} AND ${inMyNetwork()}
         ORDER BY (CASE WHEN $3::text IS NOT NULL THEN ts_rank(to_tsvector('portuguese', content.f_unaccent(p.body)), to_tsquery('portuguese', $3)) ELSE 0 END) DESC, p.id DESC
         LIMIT $4`,
       [viewerId, like, q, limit],
@@ -314,7 +314,7 @@ export class PostsService {
   /** Publicações por id (resultado do Elasticsearch), na mesma ordem, só as que quem pede pode ver. */
   async byIds(viewerId: string, ids: string[], limit: number) {
     if (!ids.length) return [];
-    const { rows } = await this.pool.query(`${FEED_SQL} WHERE p.id = ANY($2::uuid[]) AND ${canView()}`, [viewerId, ids]);
+    const { rows } = await this.pool.query(`${FEED_SQL} WHERE p.id = ANY($2::uuid[]) AND ${canView()} AND ${inMyNetwork()}`, [viewerId, ids]);
     const order = new Map(ids.map((id, i) => [id, i]));
     rows.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
     return (await this.hydrate(viewerId, rows.slice(0, limit)));
@@ -330,7 +330,7 @@ export class PostsService {
     // "top" não usa cursor por id (a ordem não é por id): mostra só as primeiras `limit`.
     const { rows } = await this.pool.query(
       `${FEED_SQL} WHERE EXISTS (SELECT 1 FROM content.post_tags t WHERE t.post_id = p.id AND t.tag = $2)
-          AND ($3::uuid IS NULL OR p.id < $3) AND ${canView()} ${sort === 'top' ? "AND p.created_at > now() - interval '7 days'" : ''} ${order} LIMIT $4`,
+          AND ($3::uuid IS NULL OR p.id < $3) AND ${canView()} AND ${inMyNetwork()} ${sort === 'top' ? "AND p.created_at > now() - interval '7 days'" : ''} ${order} LIMIT $4`,
       [viewerId, tag, sort === 'top' ? null : cursor ?? null, limit + 1],
     );
     const page = rows.slice(0, limit);

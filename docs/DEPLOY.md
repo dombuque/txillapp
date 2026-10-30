@@ -36,6 +36,15 @@ A moderação e as métricas **não** existem em `app.` nem em `api.` (o nginx d
 - **Authenticated Origin Pulls** (SSL/TLS → Origin Server): o nginx só aceita ligações que o Cloudflare assina. Garante que ninguém contorna o Cloudflare indo diretamente ao IP do servidor. Ativa-o no painel, descarrega o certificado de CA do Cloudflare para `infra/prod/nginx/cloudflare-origin-pull-ca.pem`, copia-o no `apps/web/Dockerfile` para `/etc/nginx/` e acrescenta `ssl_client_certificate /etc/nginx/cloudflare-origin-pull-ca.pem; ssl_verify_client on;` aos blocos `server` com `listen 443`.
 - Na firewall da **Contabo** (painel): só 22 (idealmente só do teu IP), 80 e 443.
 
+## 3.1 Cada país é a sua rede
+
+O país de cada pedido vem do Cloudflare (cabeçalho `CF-IPCountry`); o nginx passa-o à API como `X-Client-Country` e apaga qualquer valor enviado pelo cliente. Por isso:
+
+- **Mantém ligado** *Network → IP Geolocation* no Cloudflare (vem ligado por omissão).
+- A API só pode ser alcançada através do nginx (já é assim: não publica portas). Ativa também as *Authenticated Origin Pulls* (secção 3), senão alguém que chegue ao IP do servidor poderia forjar o cabeçalho.
+- Verifica em `https://txillapp.com/api/v1/health/geo`: deve devolver o teu país (`{"country":"MZ"}`).
+- A descoberta (sugestões no feed, reels, pesquisa, hashtags e sugestões de pessoas) só mostra o mesmo país; quem segues vês sempre. Quem viaja passa para a rede do país onde está; o que publicou antes fica no país de origem.
+
 ## 4. Preparar o servidor (uma vez)
 
 ```bash

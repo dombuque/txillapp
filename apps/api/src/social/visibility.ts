@@ -1,3 +1,17 @@
+/** País onde a pessoa está agora (atualizado a cada pedido a partir do IP). */
+const viewerCountry = (viewer: string) => `(SELECT vc.country FROM identity.users vc WHERE vc.id = ${viewer})`;
+
+/** O conteúdo/conta é do mesmo país onde o espectador está agora? */
+export const sameCountry = (column: string, viewer = '$1') => `${column} IS NOT DISTINCT FROM ${viewerCountry(viewer)}`;
+
+/**
+ * Rede do espectador para DESCOBERTA (pesquisa, hashtags, reels, sugestões): cada país é a sua própria rede.
+ * Entra o que é do mesmo país, o que é do próprio e o de quem ele segue (esses vêm de onde estiverem).
+ * Junta-se sempre a canView(): a privacidade continua a mandar.
+ */
+export const inMyNetwork = (authorId = 'p.author_id', country = 'p.country', viewer = '$1') =>
+  `(${authorId} = ${viewer} OR ${sameCountry(country, viewer)} OR EXISTS (SELECT 1 FROM social.follows nf WHERE nf.follower_id = ${viewer} AND nf.followee_id = ${authorId}))`;
+
 /** Existe bloqueio entre os dois, em qualquer sentido? */
 export const blockedBetween = (a: string, b: string) =>
   `EXISTS (SELECT 1 FROM social.blocks bk WHERE (bk.blocker_id = ${a} AND bk.blocked_id = ${b}) OR (bk.blocker_id = ${b} AND bk.blocked_id = ${a}))`;

@@ -391,6 +391,16 @@ export class AuthService {
     }
   }
 
+  private readonly countrySeen = new Map<string, string>();
+
+  /** Regista o país atual da pessoa (a partir do IP). Sem país conhecido, mantém o último. Só vai à base de dados quando muda. */
+  async touchCountry(userId: string, country: string | null) {
+    if (!country || this.countrySeen.get(userId) === country) return;
+    await this.pool.query('UPDATE identity.users SET country = $2 WHERE id = $1 AND country IS DISTINCT FROM $2', [userId, country]);
+    if (this.countrySeen.size > 50_000) this.countrySeen.clear();
+    this.countrySeen.set(userId, country);
+  }
+
   async verifyAccessToken(token: string): Promise<string> {
     try {
       const { payload } = await jwtVerify(token, this.secret, { algorithms: ['HS256'], issuer: 'txillapp', audience: 'access' });

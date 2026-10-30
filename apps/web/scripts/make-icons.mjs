@@ -45,4 +45,20 @@ head.writeUInt16LE(0, 0); head.writeUInt16LE(1, 2); head.writeUInt16LE(1, 4);
 head[6] = 48; head[7] = 48; head.writeUInt16LE(1, 10); head.writeUInt16LE(32, 12);
 head.writeUInt32LE(p48.length, 14); head.writeUInt32LE(22, 18);
 writeFileSync('public/favicon.ico', Buffer.concat([head, p48]));
+
+// Imagem de partilha (WhatsApp, Facebook, X, iMessage...): 1200x630, o logótipo grande sobre o fundo claro da app com as manchas de cor.
+const og = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs><filter id="b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="70"/></filter></defs>
+  <rect width="1200" height="630" fill="#ebebea"/>
+  <circle cx="1040" cy="60" r="260" fill="${BRAND}" opacity="0.35" filter="url(#b)"/>
+  <circle cx="120" cy="600" r="240" fill="#fcd34d" opacity="0.45" filter="url(#b)"/>
+  <g transform="translate(200 190) scale(5.2)" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 5V27Q7 34 14 34M0 14H14"/><path d="M20 14Q27 24 34 34M34 14Q27 24 20 34"/><path d="M42 14V34"/>
+    <circle cx="42" cy="3.5" r="4.2" stroke-width="0" fill="${BRAND}"/>
+    <path d="M51 3V34"/><path d="M61 3V34"/>
+    <circle cx="77" cy="24" r="9.5"/><path d="M86.5 14V34"/>
+    <circle cx="106" cy="24" r="9.5"/><path d="M96.5 14V46"/>
+    <circle cx="135" cy="24" r="9.5"/><path d="M125.5 14V46"/>
+  </g></svg>`;
+await sharp(Buffer.from(og)).png({ compressionLevel: 9 }).toFile('public/og-image.png');
 console.log('ícones gerados');

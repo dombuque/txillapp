@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { blockedBetween, canView } from '../social/visibility';
+import { blockedBetween, canView, sameCountry } from '../social/visibility';
 
 /**
  * Feed por relevância (como nas redes sociais). Em vez de "o mais recente primeiro", cada publicação recebe uma pontuação:
@@ -61,6 +61,7 @@ export const RANKED_SQL = `
      WHERE p.removed_at IS NULL AND p.kind = 'post' AND NOT u.is_private AND u.status = 'active'
        AND p.created_at > $2::timestamptz - interval '3 days' AND p.created_at <= $2::timestamptz
        AND p.author_id <> $1 AND NOT ${blockedBetween('p.author_id', '$1')}
+       AND ${sameCountry('p.country')}
        AND (NOT $7::boolean OR ${VIDEO_POST})
      ORDER BY p.created_at DESC LIMIT 150
   ), ids AS (

@@ -5,7 +5,7 @@ import { PG_POOL } from '../db/db.module';
 import { SearchIndexer } from '../search/search-index';
 import { NotificationsService } from '../notifications/notifications.service';
 import { mentionableBy } from '../notifications/notifications.service';
-import { blockedBetween, canView } from './visibility';
+import { blockedBetween, canView, sameCountry } from './visibility';
 
 const UUID = /^[0-9a-f-]{36}$/;
 
@@ -375,7 +375,7 @@ export class SocialService {
               (SELECT m.display_name FROM social.follows a JOIN social.follows b ON b.follower_id = a.followee_id AND b.followee_id = u.id
                  JOIN identity.users m ON m.id = a.followee_id WHERE a.follower_id = $1 ORDER BY b.created_at DESC LIMIT 1) AS mutual_name
          FROM identity.users u
-        WHERE u.id <> $1 AND u.status = 'active' AND u.suggestable
+        WHERE u.id <> $1 AND u.status = 'active' AND u.suggestable AND ${sameCountry('u.country')}
           AND NOT ${blockedBetween('u.id', '$1')}
           AND NOT EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id)
           AND NOT EXISTS (SELECT 1 FROM social.suggestion_dismissals d WHERE d.user_id = $1 AND d.dismissed_id = u.id)

@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { Request, Response } from 'express';
 import { AuthResponse, LoginInput, RegisterInput, genderSchema, loginSchema, passwordSchema, registerSchema, birthDateSchema } from '@txillapp/shared';
 import { ZodPipe } from '../common/zod.pipe';
+import { countryOf } from '../common/geo';
 import { AuthService, REFRESH_TTL_MS, Tokens } from './auth.service';
 
 const COOKIE = 'txill_rt';
@@ -21,6 +22,8 @@ export class JwtAuthGuard implements CanActivate {
     const header = req.headers.authorization;
     if (!header?.startsWith('Bearer ')) throw new UnauthorizedException();
     req.userId = await this.auth.verifyAccessToken(header.slice(7));
+    // Cada país é a sua rede: guarda onde a pessoa está agora (só escreve se mudou).
+    await this.auth.touchCountry(req.userId, countryOf(req));
     return true;
   }
 }

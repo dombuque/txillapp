@@ -455,6 +455,8 @@ export const api = {
   search: (q: string): Promise<SearchResults> => raw(`/search?q=${encodeURIComponent(q)}`),
 
   privacy: (): Promise<PrivacySettings> => raw('/settings/privacy'),
+  /** País onde a pessoa está agora (pelo IP). */
+  geo: (): Promise<{ country: string | null }> => raw('/health/geo'),
   setPrivacy: (b: Partial<PrivacySettings>): Promise<PrivacySettings> => raw('/settings/privacy', { method: 'PATCH', body: JSON.stringify(b) }),
   blocked: (): Promise<{ username: string; displayName: string }[]> => raw('/blocks'),
   block: (username: string): Promise<{ username: string; displayName: string }[]> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'PUT' }),

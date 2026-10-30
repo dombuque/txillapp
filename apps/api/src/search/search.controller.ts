@@ -15,15 +15,15 @@ export class SearchController {
   /** Hashtags em alta (últimas 48 h). */
   @Get('trending')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-  trending() {
-    return this.search.trending();
+  trending(@Req() req: Request & { userId?: string }) {
+    return this.search.trending(req.userId!);
   }
 
   /** Hashtags que começam por ... (para completar enquanto se escreve #). */
   @Get('tags')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-  async tags(@Query('q') q = '') {
-    return { tags: await this.search.tagsLike(q.slice(0, 31)) };
+  async tags(@Req() req: Request & { userId?: string }, @Query('q') q = '') {
+    return { tags: await this.search.tagsLike(req.userId!, q.slice(0, 31)) };
   }
 
   /** Pessoas e hashtags enquanto se escreve (poucos resultados, resposta rápida). */
@@ -53,7 +53,7 @@ export class TagsController {
 
   @Get(':tag')
   async one(@Req() req: Request & { userId?: string }, @Param('tag') tag: string, @Query(new ZodPipe(tagSchema)) q: z.infer<typeof tagSchema>) {
-    const info = await this.search.tagInfo(tag);
+    const info = await this.search.tagInfo(req.userId!, tag);
     if (!info) throw new NotFoundException('Hashtag inválida');
     return { ...info, ...(await this.posts.byTag(req.userId!, info.tag, q.sort, q.cursor, q.limit)) };
   }

@@ -45,6 +45,29 @@ function Row({ icon, label, value, onClick, danger }: { icon: ReactNode; label: 
   );
 }
 
+/** Mostra o país onde estás: é a rede que vês (o que é de outros países só aparece se seguires a pessoa). */
+function RegionInfo() {
+  const geo = useQuery({ queryKey: ['geo'], queryFn: api.geo, staleTime: 5 * 60_000 });
+  const code = geo.data?.country;
+  let name = 'Não consegui saber';
+  if (code) {
+    try {
+      name = new Intl.DisplayNames(['pt'], { type: 'region' }).of(code) ?? code;
+    } catch {
+      name = code;
+    }
+  }
+  return (
+    <div className="flex min-h-[56px] w-full items-center gap-3.5 px-4 py-3">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="map-pin" /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[16px] font-medium">A tua região: {geo.isLoading ? '…' : name}</span>
+        <span className="block text-sm text-zinc-600">Cada país é a sua rede: sugestões, reels e pesquisa mostram o que é daqui. Quem segues vês sempre.</span>
+      </span>
+    </div>
+  );
+}
+
 function Toggle({ icon, label, text, on, onChange }: { icon: ReactNode; label: string; text: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
     <div className="flex min-h-[56px] items-center gap-3.5 px-4 py-3">
@@ -198,6 +221,10 @@ export default function Settings() {
         <Row icon={<Icon name="camera" />} label="Quem pode responder" value={stories.data ? whoLabel(stories.data.replies) : '…'} onClick={() => setSheet('storyReplies')} />
         <Row icon={<Icon name="heart" />} label="Amigos próximos" value={closeFriends.data ? String(closeFriends.data.length) : '…'} onClick={() => setSheet('closeFriends')} />
         <Row icon={<Icon name="eye-off" />} label="Esconder story de…" value={stories.data ? String(stories.data.hidden.length) : '…'} onClick={() => setSheet('hidden')} />
+      </Section>
+
+      <Section title="Região">
+        <RegionInfo />
       </Section>
 
       <Section title="Notificações">
