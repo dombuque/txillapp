@@ -90,8 +90,9 @@ export default function Layout() {
           <Item to="/reels" label="Reels">{() => <Icon name="film" size={27} />}</Item>
           <Item to="/profile" label="Perfil" onClick={tapTab}>
             {(a) => (
-              <span className={`rounded-full ${a ? 'ring-2 ring-zinc-900 ring-offset-1' : ''}`}>
-                <Avatar name={user?.displayName ?? '?'} username={user?.username} size={28} ring={false} />
+              // Caixa quadrada de tamanho fixo (igual ativa ou não, sem saltos): o aro é um círculo perfeito, com 2 px de folga até à foto.
+              <span className={`box-border flex h-[34px] w-[34px] items-center justify-center rounded-full border-2 ${a ? 'border-zinc-900' : 'border-transparent'}`}>
+                <Avatar name={user?.displayName ?? '?'} username={user?.username} size={26} ring={false} />
               </span>
             )}
           </Item>
