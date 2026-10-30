@@ -6,6 +6,7 @@ import { AppConfig, CONFIG } from './config';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { MetricsController } from './observability/metrics';
 import { AccountModule } from './account/account.module';
+import { MailModule } from './mail/mail.module';
 import { AuthModule } from './auth/auth.module';
 import { GOOGLE_JWKS } from './auth/google.service';
 import { Client } from '@elastic/elasticsearch';
@@ -37,6 +38,7 @@ export class AppModule {
         // TODO(fase 3): storage em Redis para limites partilhados entre instâncias.
         ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
         DbModule,
+        MailModule,
         AuthModule,
         SearchIndexModule,
         AccountModule,

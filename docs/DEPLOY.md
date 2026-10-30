@@ -45,6 +45,15 @@ O país de cada pedido vem do Cloudflare (cabeçalho `CF-IPCountry`); o nginx pa
 - Verifica em `https://txillapp.com/api/v1/health/geo`: deve devolver o teu país (`{"country":"MZ"}`).
 - A descoberta (sugestões no feed, reels, pesquisa, hashtags e sugestões de pessoas) só mostra o mesmo país; quem segues vês sempre. Quem viaja passa para a rede do país onde está; o que publicou antes fica no país de origem.
 
+## 3.2 E-mail (confirmar contas, recuperar senha)
+
+A app envia por SMTP. Com o **Zoho** que já tens:
+
+1. Zoho Mail → *Segurança* → *Palavras-passe de aplicação* → cria uma ("Txillapp SMTP"). Isto não é a senha da caixa.
+2. Guarda `SMTP_HOST` (smtp.zoho.com, ou smtp.zoho.eu / .in conforme o endereço por onde entras), `SMTP_USER` (a caixa, ex. `admin@txillapp.com`), `SMTP_PASS` e `MAIL_FROM` no `.env` do servidor. Sem `SMTP_USER`/`SMTP_PASS` o envio fica desligado e a app **não exige** confirmação de e-mail.
+3. **DKIM** (para não cair no spam): Zoho Admin Console → *Domínios* → *DKIM* → gera e cria o registo TXT no Cloudflare (só DNS, cinzento). SPF já existe; acrescenta também `_dmarc` TXT `v=DMARC1; p=none; rua=mailto:admin@txillapp.com`.
+4. Com o envio ligado, contas novas têm de confirmar o e-mail para publicar, comentar, conversar e presentear (ver, seguir e pesquisar continuam livres). Contas com Google já vêm confirmadas.
+
 ## 4. Preparar o servidor (uma vez)
 
 ```bash

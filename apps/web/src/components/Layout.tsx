@@ -1,6 +1,7 @@
 import Icon from './Icon';
 import PullToRefresh from './PullToRefresh';
 import { refreshPage } from '../lib/refresh';
+import EmailBanner from './EmailBanner';
 import GenderGate from './GenderGate';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
@@ -67,6 +68,7 @@ export default function Layout() {
           </span>
         </NavLink>
       </header>
+      <EmailBanner />
       {/* Puxar para baixo recarrega a página (menos ao escrever uma publicação). */}
       {pathname === '/new' ? <Outlet /> : <PullToRefresh onRefresh={() => refreshPage(qc, pathname)}><Outlet /></PullToRefresh>}
       <GenderGate />

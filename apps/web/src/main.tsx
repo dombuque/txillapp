@@ -25,6 +25,7 @@ import InstallPrompt from './components/InstallPrompt';
 import ChatLive from './lib/chatLive';
 import TagPage from './pages/TagPage';
 import PostPage from './pages/PostPage';
+import { ForgotPassword, ResetPassword, VerifyEmail } from './pages/EmailPages';
 import { Privacy, Terms } from './pages/Legal';
 import Messages from './pages/Messages';
 import Thread from './pages/Thread';
@@ -118,6 +119,9 @@ createRoot(document.getElementById('root')!).render(
           <Gate>
           <Routes>
             <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
+            <Route path="/forgot-password" element={<PublicOnly><ForgotPassword /></PublicOnly>} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />

@@ -398,6 +398,11 @@ export const api = {
   // Partilha o pedido em curso: dois refresh com o mesmo token (StrictMode, vários separadores) seriam tratados como reutilização.
   refresh: (): Promise<AuthResponse> => refreshOnce(),
   logout: (): Promise<void> => raw('/auth/logout', { method: 'POST' }),
+  emailStatus: (): Promise<{ required: boolean; verified: boolean }> => raw('/auth/email/status'),
+  resendVerification: (): Promise<{ sent: boolean }> => raw('/auth/email/resend', { method: 'POST' }),
+  verifyEmail: (token: string): Promise<{ ok: boolean }> => raw('/auth/email/verify', post({ token })),
+  forgotPassword: (email: string): Promise<{ ok: boolean }> => raw('/auth/password/forgot', post({ email })),
+  resetPassword: (token: string, newPassword: string): Promise<{ ok: boolean }> => raw('/auth/password/reset', post({ token, newPassword })),
 
   profile: (username: string): Promise<Profile> => raw(`/users/${encodeURIComponent(username)}`),
   userPosts: (username: string, cursor?: string): Promise<Page<Post>> => raw(`/users/${encodeURIComponent(username)}/posts${qs(cursor, 18)}`),

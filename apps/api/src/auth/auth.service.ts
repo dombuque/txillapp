@@ -9,6 +9,8 @@ import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
 import { SearchIndexer } from '../search/search-index';
 import { PG_POOL } from '../db/db.module';
+import { MailService } from '../mail/mail.service';
+import { resetPasswordMail, verifyEmailMail } from '../mail/templates';
 import { GoogleService } from './google.service';
 import { isReservedUsername } from './reserved-usernames';
 
@@ -45,6 +47,7 @@ export class AuthService {
     @Inject(CONFIG) config: AppConfig,
     private readonly google: GoogleService,
     private readonly indexer: SearchIndexer,
+    private readonly mail: MailService,
   ) {
     this.secret = new TextEncoder().encode(config.JWT_ACCESS_SECRET);
   }
@@ -96,6 +99,7 @@ export class AuthService {
       const tokens = await this.issueSession(client, id, uuidv7(), userAgent);
       await client.query('COMMIT');
       this.indexer.userChanged(id);
+      void this.sendVerification(id).catch(() => undefined);
       return { tokens, user: { id, username: input.username, displayName: input.displayName } };
     } catch (e) {
       await client.query('ROLLBACK');
@@ -227,8 +231,8 @@ export class AuthService {
     try {
       await client.query('BEGIN');
       await client.query(
-        `INSERT INTO identity.users (id, email, username, display_name, google_sub, gender, birth_date, terms_accepted_at, terms_version)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, now(), $8)`,
+        `INSERT INTO identity.users (id, email, username, display_name, google_sub, gender, birth_date, terms_accepted_at, terms_version, email_verified_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now(), $8, now())`,
         [id, claims.email, username, displayName, claims.sub, gender ?? null, birthDate ?? null, TERMS_VERSION],
       );
       await this.audit(client, id, 'auth.google_register');
@@ -399,6 +403,91 @@ export class AuthService {
     await this.pool.query('UPDATE identity.users SET country = $2 WHERE id = $1 AND country IS DISTINCT FROM $2', [userId, country]);
     if (this.countrySeen.size > 50_000) this.countrySeen.clear();
     this.countrySeen.set(userId, country);
+  }
+
+  /* ───── confirmação de e-mail e recuperação de senha ───── */
+
+  /** Cria um código de uso único (guardamos só o hash). Os anteriores ainda por usar do mesmo tipo deixam de valer. */
+  private async issueEmailToken(userId: string, kind: 'verify' | 'reset', ttlMs: number): Promise<string> {
+    const token = randomBytes(32).toString('base64url');
+    await this.pool.query("UPDATE identity.email_tokens SET used_at = now() WHERE user_id = $1 AND kind = $2 AND used_at IS NULL", [userId, kind]);
+    await this.pool.query(
+      'INSERT INTO identity.email_tokens (id, user_id, kind, token_hash, expires_at) VALUES ($1, $2, $3, $4, now() + ($5 || \' milliseconds\')::interval)',
+      [uuidv7(), userId, kind, sha256(token), String(ttlMs)],
+    );
+    return token;
+  }
+
+  /** Envia (ou reenvia) o e-mail de confirmação. Devolve false se o e-mail não está ligado ou a conta já está confirmada. */
+  async sendVerification(userId: string): Promise<boolean> {
+    if (!this.mail.enabled) return false;
+    const { rows } = await this.pool.query("SELECT email, display_name, email_verified_at FROM identity.users WHERE id = $1 AND status = 'active'", [userId]);
+    const u = rows[0];
+    if (!u || u.email_verified_at) return false;
+    const token = await this.issueEmailToken(userId, 'verify', 48 * 3600_000);
+    return this.mail.send({ to: u.email, ...verifyEmailMail(this.mail.publicUrl, String(u.display_name).split(' ')[0], token) });
+  }
+
+  async emailStatus(userId: string) {
+    const { rows } = await this.pool.query('SELECT email_verified_at IS NOT NULL AS verified FROM identity.users WHERE id = $1', [userId]);
+    return { required: this.mail.enabled, verified: !!rows[0]?.verified };
+  }
+
+  /** Abre o link do e-mail: marca a conta como confirmada. */
+  async verifyEmail(token: string) {
+    const { rows } = await this.pool.query(
+      `UPDATE identity.email_tokens SET used_at = now()
+        WHERE token_hash = $1 AND kind = 'verify' AND used_at IS NULL AND expires_at > now() RETURNING user_id`,
+      [sha256(token)],
+    );
+    if (!rows[0]) throw new BadRequestException('Este link já não vale. Pede um novo na app.');
+    await this.pool.query('UPDATE identity.users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1', [rows[0].user_id]);
+    return { ok: true };
+  }
+
+  /** "Esqueci a senha": responde sempre igual, exista ou não a conta (não revela quem está registado). */
+  async forgotPassword(rawEmail: string) {
+    const email = rawEmail.trim().toLowerCase();
+    if (this.mail.enabled && z.string().email().max(254).safeParse(email).success) {
+      const { rows } = await this.pool.query("SELECT id, display_name FROM identity.users WHERE lower(email) = $1 AND status = 'active'", [email]);
+      if (rows[0]) {
+        const token = await this.issueEmailToken(rows[0].id, 'reset', 3600_000);
+        await this.mail.send({ to: email, ...resetPasswordMail(this.mail.publicUrl, String(rows[0].display_name).split(' ')[0], token) });
+      }
+    }
+    return { ok: true };
+  }
+
+  /** Define a senha nova com o código do e-mail. Termina todas as sessões. */
+  async resetPassword(token: string, newPassword: string) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `UPDATE identity.email_tokens SET used_at = now()
+          WHERE token_hash = $1 AND kind = 'reset' AND used_at IS NULL AND expires_at > now() RETURNING user_id`,
+        [sha256(token)],
+      );
+      if (!rows[0]) throw new BadRequestException('Este link já não vale. Pede um novo em "Esqueci a senha".');
+      const userId = rows[0].user_id as string;
+      const hash = await argon2.hash(newPassword, ARGON_OPTS);
+      await client.query(
+        `INSERT INTO identity.credentials (user_id, password_hash) VALUES ($1, $2)
+         ON CONFLICT (user_id) DO UPDATE SET password_hash = EXCLUDED.password_hash, updated_at = now()`,
+        [userId, hash],
+      );
+      // Quem abriu o link provou que o e-mail é seu.
+      await client.query('UPDATE identity.users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1', [userId]);
+      await client.query('UPDATE identity.sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [userId]);
+      await this.audit(client, userId, 'auth.password_reset');
+      await client.query('COMMIT');
+      return { ok: true };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 
   async verifyAccessToken(token: string): Promise<string> {

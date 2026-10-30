@@ -1,3 +1,4 @@
+import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { Body, Controller, Delete, Get, HttpCode, MessageEvent, Param, ParseUUIDPipe, Post, Query, Req, Res, Sse, UseGuards } from '@nestjs/common';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
@@ -65,6 +66,7 @@ export class ChatController {
     return this.chat.thread(req.userId!, username, cursor);
   }
 
+  @NeedsVerifiedEmail()
   @Post('with/:username')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 40, ttl: 60_000 } })

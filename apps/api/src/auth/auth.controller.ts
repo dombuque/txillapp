@@ -35,6 +35,9 @@ function requireCsrfHeader(req: Request) {
 
 const passwordChangeSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: passwordSchema });
 const deleteSchema = z.object({ confirmUsername: z.string().min(1).max(60), password: z.string().max(128).optional() });
+const tokenSchema = z.object({ token: z.string().min(20).max(200) });
+const forgotSchema = z.object({ email: z.string().max(254) });
+const resetSchema = z.object({ token: z.string().min(20).max(200), newPassword: passwordSchema });
 const googleSchema = z.object({ idToken: z.string().min(20).max(4096) });
 const googleCompleteSchema = z.object({ signupToken: z.string().min(20).max(4096), username: z.string().min(1).max(60), gender: genderSchema.optional(), birthDate: birthDateSchema, acceptTerms: z.literal(true) });
 
@@ -181,6 +184,46 @@ export class AuthController {
   ) {
     await this.auth.deleteAccount(req.userId!, b.confirmUsername, b.password);
     res.clearCookie(COOKIE, { path: COOKIE_PATH });
+  }
+
+  /* ───── e-mail ───── */
+
+  /** Esta conta precisa de confirmar o e-mail? (a app mostra um aviso) */
+  @Get('email/status')
+  @UseGuards(JwtAuthGuard)
+  emailStatus(@Req() req: Request & { userId?: string }) {
+    return this.auth.emailStatus(req.userId!);
+  }
+
+  /** Reenvia o e-mail de confirmação. */
+  @Post('email/resend')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 3, ttl: 3600_000 } })
+  async resend(@Req() req: Request & { userId?: string }) {
+    return { sent: await this.auth.sendVerification(req.userId!) };
+  }
+
+  /** O link do e-mail leva aqui. Público: quem abre o link pode estar noutro aparelho. */
+  @Post('email/verify')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  verifyEmail(@Body(new ZodPipe(tokenSchema)) b: z.infer<typeof tokenSchema>) {
+    return this.auth.verifyEmail(b.token);
+  }
+
+  @Post('password/forgot')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 3600_000 } })
+  forgot(@Body(new ZodPipe(forgotSchema)) b: z.infer<typeof forgotSchema>) {
+    return this.auth.forgotPassword(b.email);
+  }
+
+  @Post('password/reset')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 3600_000 } })
+  reset(@Body(new ZodPipe(resetSchema)) b: z.infer<typeof resetSchema>) {
+    return this.auth.resetPassword(b.token, b.newPassword);
   }
 
   @Get('me')

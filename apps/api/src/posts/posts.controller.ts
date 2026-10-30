@@ -1,3 +1,4 @@
+import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { z } from 'zod';
@@ -64,6 +65,7 @@ export class FeedController {
 export class PostsController {
   constructor(private readonly posts: PostsService) {}
 
+  @NeedsVerifiedEmail()
   @Post()
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
     return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds, b.tags);
@@ -99,6 +101,7 @@ export class PostsController {
   }
 
   /** Repostar (sozinho ou com comentário). */
+  @NeedsVerifiedEmail()
   @Post(':id/repost')
   @HttpCode(201)
   repost(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(repostSchema)) b: z.infer<typeof repostSchema>) {
@@ -110,6 +113,7 @@ export class PostsController {
     return this.posts.unrepost(req.userId!, id);
   }
 
+  @NeedsVerifiedEmail()
   @Post(':id/gifts')
   @HttpCode(201)
   gift(

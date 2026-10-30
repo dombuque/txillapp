@@ -1,3 +1,4 @@
+import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { z } from 'zod';
@@ -23,6 +24,7 @@ export class CommentsController {
     return this.comments.list(req.userId!, postId, cursor, limitOf(limit));
   }
 
+  @NeedsVerifiedEmail()
   @Post('posts/:postId/comments')
   create(@Req() req: AuthedReq, @Param('postId', ParseUUIDPipe) postId: string, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
     return this.comments.create(req.userId!, postId, b.body, b.parentId);

@@ -1,3 +1,4 @@
+import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { Body, Controller, Headers, HttpCode, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { z } from 'zod';
@@ -23,6 +24,7 @@ export class GiftsController {
   constructor(private readonly posts: PostsService) {}
 
   /** Presentear alguém com Txills (demonstração), de onde quer que seja. */
+  @NeedsVerifiedEmail()
   @Post()
   @HttpCode(201)
   gift(@Req() req: Request & { userId?: string }, @Body(new ZodPipe(schema)) b: z.infer<typeof schema>, @Headers('idempotency-key') key?: string) {

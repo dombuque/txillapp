@@ -356,6 +356,7 @@ export function Login() {
         <Field icon={<LockIcon />} value={password} onChange={setPassword} placeholder="Senha" type="password" name="password" autoComplete="current-password" enterKeyHint="go" inputRef={passRef} />
         <Alert>{error}</Alert>
         <button disabled={busy} className={cta}>{busy ? 'A entrar…' : 'Entrar'}</button>
+        <p className="pt-1 text-center"><Link to="/forgot-password" className="text-[15px] font-semibold text-zinc-600 underline">Esqueceste a senha?</Link></p>
       </form>
       <GoogleButton mode="login" onError={setError} />
       <div className="pb-6" />
@@ -585,3 +586,6 @@ export function GoogleUsername() {
     </Screen>
   );
 }
+
+/** Usados também pelas páginas de e-mail (confirmar conta, recuperar senha). */
+export { Field as AuthField, Screen as AuthScreen, cta as AuthCta };

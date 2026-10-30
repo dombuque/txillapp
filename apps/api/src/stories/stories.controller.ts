@@ -1,3 +1,4 @@
+import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { z } from 'zod';
@@ -17,12 +18,14 @@ const settingsSchema = z.object({ replies: z.enum(['everyone', 'following', 'off
 export class StoriesController {
   constructor(private readonly stories: StoriesService) {}
 
+  @NeedsVerifiedEmail()
   @Post()
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
     return this.stories.create(req.userId!, b.mediaId, b.caption, b.audience);
   }
 
   /** Partilhar uma publicação (foto ou reel) no meu status. */
+  @NeedsVerifiedEmail()
   @Post('share')
   @HttpCode(201)
   share(@Req() req: AuthedReq, @Body(new ZodPipe(shareSchema)) b: z.infer<typeof shareSchema>) {
@@ -83,6 +86,7 @@ export class StoriesController {
     return this.stories.view(req.userId!, id);
   }
 
+  @NeedsVerifiedEmail()
   @Post(':id/replies')
   @HttpCode(201)
   reply(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(replySchema)) b: z.infer<typeof replySchema>) {
@@ -94,6 +98,7 @@ export class StoriesController {
     return this.stories.comments(req.userId!, id);
   }
 
+  @NeedsVerifiedEmail()
   @Post(':id/comments')
   @HttpCode(201)
   comment(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(replySchema)) b: z.infer<typeof replySchema>) {

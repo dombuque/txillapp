@@ -45,6 +45,19 @@ const schema = z.object({
   VAPID_PUBLIC_KEY: z.string().min(20).optional(),
   VAPID_PRIVATE_KEY: z.string().min(20).optional(),
   VAPID_SUBJECT: z.string().default('mailto:admin@txillapp.local'),
+  /**
+   * E-mail (confirmação de conta e recuperação de senha). Sem SMTP_USER e SMTP_PASS fica tudo desligado.
+   * Zoho: smtp.zoho.com, porta 465, utilizador = a caixa e senha = "palavra-passe de aplicação".
+   */
+  SMTP_HOST: z.string().default('smtp.zoho.com'),
+  SMTP_PORT: z.coerce.number().int().default(465),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  MAIL_FROM: z.string().default('Txillapp <suporte@txillapp.com>'),
+  /** Endereço público da app, usado nos links dos e-mails. */
+  PUBLIC_URL: z.string().url().default('http://localhost:5173'),
+  /** Só para testes: guarda os e-mails em memória em vez de os enviar. */
+  MAIL_CAPTURE: z.enum(['true', 'false']).default('false'),
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });
@@ -53,6 +66,7 @@ export type AppConfig = z.infer<typeof schema>;
 
 /** Com STORAGE_DRIVER=s3 as credenciais são obrigatórias (falha ao arrancar, não no primeiro upload). */
 function validateStorage(c: AppConfig) {
+  if (!!c.SMTP_USER !== !!c.SMTP_PASS) throw new Error('Configuração inválida: SMTP_USER e SMTP_PASS têm de vir os dois (ou nenhum)');
   if (c.SEARCH_BACKEND === 'elasticsearch' && !c.ELASTICSEARCH_URL) throw new Error('Configuração inválida: SEARCH_BACKEND=elasticsearch precisa de ELASTICSEARCH_URL');
   if (c.STORAGE_DRIVER === 's3') {
     const missing = (['S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'] as const).filter((k) => !c[k]);
