@@ -136,6 +136,29 @@ export default function Reels() {
     track('screen_view', { path: '/reels' });
   }, []);
 
+  // Como uma app nativa: barra de estado preta nos Reels e, no controlo de média do telemóvel, o nome e o logótipo do Txillapp.
+  useEffect(() => {
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const before = meta?.content;
+    if (meta) meta.content = '#000000';
+    return () => {
+      if (meta && before) meta.content = before;
+    };
+  }, []);
+  const playing = idx >= 0 ? items[idx] : null;
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !playing) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: (playing.body || 'Reel').slice(0, 80),
+      artist: playing.author.displayName,
+      album: 'Txillapp',
+      artwork: [{ src: '/icon-512.png', sizes: '512x512', type: 'image/png' }],
+    });
+    return () => {
+      navigator.mediaSession.metadata = null;
+    };
+  }, [playing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function patch(id: string, p: Partial<Post>) {
     qc.setQueryData<typeof q.data>(['reels'], (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map((i) => (i.id === id ? { ...i, ...p } : i)) })) });
   }

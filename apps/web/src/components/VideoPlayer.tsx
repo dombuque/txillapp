@@ -94,6 +94,9 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
         muted={isMuted}
         loop
         playsInline
+        disablePictureInPicture
+        disableRemotePlayback
+        controlsList="nodownload noremoteplayback"
         preload={active === false ? 'none' : 'metadata'}
         onTimeUpdate={(e) => onProgress?.(e.currentTarget.duration ? e.currentTarget.currentTime / e.currentTarget.duration : 0)}
         onError={() => setFailed(true)}
