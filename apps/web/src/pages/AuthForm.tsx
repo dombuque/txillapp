@@ -143,14 +143,55 @@ function Field({
 const cta =
   'w-full rounded-full bg-gradient-to-r from-brand to-brand-light py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(214,51,79,0.35)] transition active:scale-[0.98] disabled:opacity-50 disabled:shadow-none';
 
-/** Fundo cinzento claro com manchas de cor suaves, como num ecrã de rede social. */
+/** Painel de marca, só em ecrãs largos (a versão web de entrar e criar conta). */
+function BrandPanel() {
+  const points = [
+    { icon: 'image', text: 'Fotos, vídeos e stories de quem segues' },
+    { icon: 'film', text: 'Reels para criar e descobrir' },
+    { icon: 'comment', text: 'Chat em tempo real com a tua malta' },
+    { icon: 'shield', text: 'Tu decides quem te vê' },
+  ] as const;
+  return (
+    <aside className="relative hidden w-[46%] max-w-[640px] shrink-0 flex-col justify-between overflow-hidden bg-gradient-to-br from-brand to-brand-light p-14 text-white lg:flex">
+      <div className="pointer-events-none absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" aria-hidden />
+      <div className="pointer-events-none absolute -top-24 left-1/3 h-72 w-72 rounded-full bg-amber-300/20 blur-3xl" aria-hidden />
+      <Link to="/" aria-label="Txillapp, página inicial" className="relative w-fit">
+        <Wordmark className="h-12" accent={false} />
+      </Link>
+      <div className="relative">
+        <p className="text-5xl font-extrabold leading-[1.05] tracking-tight">Posta. Mostra.<br />Txilla.</p>
+        <ul className="mt-10 space-y-4 text-xl">
+          {points.map((p) => (
+            <li key={p.text} className="flex items-center gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15"><Icon name={p.icon} size={24} /></span>
+              {p.text}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <p className="relative text-sm text-white/80">
+        <Link to="/terms" className="hover:underline">Termos</Link> · <Link to="/privacy" className="hover:underline">Privacidade</Link> ·{' '}
+        <a href="mailto:suporte@txillapp.com" className="hover:underline">suporte@txillapp.com</a>
+      </p>
+    </aside>
+  );
+}
+
+/** No telemóvel: fundo cinzento claro com manchas de cor suaves. Em ecrãs largos: painel de marca à esquerda e o formulário ao centro da direita. */
 function Screen({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   return (
-    <main className="relative mx-auto flex min-h-dvh max-w-xl flex-col overflow-hidden bg-canvas">
-      <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-brand/25 blur-3xl" aria-hidden />
-      <div className="pointer-events-none absolute -left-28 top-64 h-64 w-64 rounded-full bg-amber-300/30 blur-3xl" aria-hidden />
-      <div className="relative flex flex-1 flex-col px-7 pt-6">{children}</div>
-      {footer && <p className="relative border-t border-zinc-200 bg-white/70 py-5 text-center text-lg text-zinc-800 backdrop-blur">{footer}</p>}
+    <main className="relative flex min-h-dvh bg-canvas lg:bg-white">
+      <BrandPanel />
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-xl flex-1 flex-col overflow-hidden lg:max-w-none lg:items-center lg:justify-center lg:overflow-visible">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-brand/25 blur-3xl lg:hidden" aria-hidden />
+        <div className="pointer-events-none absolute -left-28 top-64 h-64 w-64 rounded-full bg-amber-300/30 blur-3xl lg:hidden" aria-hidden />
+        <div className="relative flex flex-1 flex-col px-7 pt-6 lg:w-full lg:max-w-[440px] lg:flex-none lg:px-0 lg:pb-6 lg:pt-0">{children}</div>
+        {footer && (
+          <p className="relative border-t border-zinc-200 bg-white/70 py-5 text-center text-lg text-zinc-800 backdrop-blur lg:w-full lg:max-w-[440px] lg:border-0 lg:bg-transparent lg:py-4 lg:backdrop-blur-none">
+            {footer}
+          </p>
+        )}
+      </div>
     </main>
   );
 }
@@ -299,7 +340,7 @@ export function Login() {
 
   return (
     <Screen footer={<>É novo no txillapp? <Link to="/register" state={location.state} className="font-semibold text-brand">Cria a tua conta</Link></>}>
-      <h1 className="pt-10">
+      <h1 className="pt-10 lg:hidden">
         <Wordmark className="h-11" />
       </h1>
       <p className="mt-7 text-[38px] font-extrabold leading-[1.05]">Qual é a<br />Vibe?</p>

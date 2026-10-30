@@ -37,6 +37,9 @@ const ios = () => typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(n
 /** Só o Safari instala no iOS (Chrome/Firefox/Edge no iPhone não conseguem). */
 const iosSafari = () => ios() && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA/.test(navigator.userAgent);
 
+/** O convite para instalar é só para telemóveis e tablets: no computador usa-se o site (txillapp.com). */
+const mobileDevice = () => typeof navigator !== 'undefined' && (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || ios());
+
 const snoozed = () => {
   try {
     return Date.now() - Number(localStorage.getItem(KEY) ?? 0) < SNOOZE_MS;
@@ -61,11 +64,12 @@ export interface InstallState {
 let snapshot: InstallState = compute();
 function compute(): InstallState {
   const isInstalled = installed || standalone();
+  const mobile = mobileDevice();
   return {
     installed: isInstalled,
-    canPrompt: !isInstalled && !!deferred,
-    iosHint: !isInstalled && iosSafari(),
-    iosOpenInSafari: !isInstalled && ios() && !iosSafari(),
+    canPrompt: mobile && !isInstalled && !!deferred,
+    iosHint: mobile && !isInstalled && iosSafari(),
+    iosOpenInSafari: mobile && !isInstalled && ios() && !iosSafari(),
     snoozed: snoozed(),
   };
 }
