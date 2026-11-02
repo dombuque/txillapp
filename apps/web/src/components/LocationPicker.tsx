@@ -13,6 +13,8 @@ export interface Picked {
   lat: number;
   lng: number;
   label: string;
+  /** Localização em direto, durante estes minutos. */
+  live?: 15 | 60 | 480;
 }
 
 /**
@@ -25,6 +27,7 @@ export default function LocationPicker({ onSend, onClose }: { onSend: (p: Picked
   const me = useRef<{ lat: number; lng: number; acc: number } | null>(null);
   const [mine, setMine] = useState<{ lat: number; lng: number; acc: number } | null>(null);
   const [gpsErr, setGpsErr] = useState(false);
+  const [liveOpen, setLiveOpen] = useState(false);
   const [pin, setPin] = useState(MAPUTO);
   const [near, setNear] = useState<NearbyPlaces | null>(null);
   const [loading, setLoading] = useState(false);
@@ -125,6 +128,20 @@ export default function LocationPicker({ onSend, onClose }: { onSend: (p: Picked
             <span className="block text-sm text-zinc-500">{mine ? `Precisão de ${mine.acc} metros` : gpsErr ? 'Sem acesso à localização. Ativa-a nas definições.' : 'A procurar onde estás…'}</span>
           </span>
         </button>
+        <button type="button" disabled={!mine} onClick={() => setLiveOpen((v) => !v)} aria-expanded={liveOpen} className={`${row} disabled:opacity-60`}>
+          <span className={`${dot} bg-emerald-100 text-emerald-700`}><Icon name="clock" size={22} /></span>
+          <span className="min-w-0">
+            <span className="block font-semibold">Partilhar localização em direto</span>
+            <span className="block text-sm text-zinc-500">A posição vai-se atualizando enquanto a app estiver aberta</span>
+          </span>
+        </button>
+        {liveOpen && mine && (
+          <div className="flex gap-2 px-4 pb-2">
+            {([[15, '15 minutos'], [60, '1 hora'], [480, '8 horas']] as const).map(([m, label]) => (
+              <button key={m} type="button" onClick={() => onSend({ lat: mine.lat, lng: mine.lng, label: 'Localização em direto', live: m })} className="h-11 flex-1 rounded-full bg-emerald-600 text-sm font-bold text-white active:scale-95">{label}</button>
+            ))}
+          </div>
+        )}
         {moved && (
           <button type="button" onClick={() => onSend({ ...pin, label: near?.area ?? 'Localização escolhida' })} className={row}>
             <span className={`${dot} bg-rose-100 text-brand`}><Icon name="map-pin" size={22} /></span>

@@ -1,5 +1,5 @@
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
-import { Body, Controller, Delete, Get, HttpCode, MessageEvent, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res, Sse, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, MessageEvent, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, Res, Sse, UseGuards } from '@nestjs/common';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { Observable, finalize, interval, map, merge } from 'rxjs';
@@ -16,11 +16,15 @@ const groupSchema = z.object({ name: z.string().trim().min(1).max(40), members: 
 const renameSchema = z.object({ name: z.string().trim().min(1).max(40) });
 const membersSchema = z.object({ members: z.array(z.string().trim().min(1).max(40)).min(1).max(49) });
 
+const liveSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
+
 const sendSchema = z.object({
   body: z.string().trim().max(2000).default(''),
   kind: z.enum(['text', 'image', 'voice', 'sticker', 'location', 'post']).default('text'),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
+  once: z.boolean().optional(),
+  liveMinutes: z.union([z.literal(15), z.literal(60), z.literal(480)]).optional(),
   mediaId: z.string().uuid().optional(),
   durationMs: z.number().int().min(0).max(300_000).optional(),
   waveform: z.string().regex(/^[0-9]{8,96}$/).optional(),
@@ -160,6 +164,30 @@ export class ChatController {
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
   typing(@Req() req: AuthedReq, @Param('username') username: string) {
     return this.chat.typing(req.userId!, username);
+  }
+
+  /** Abrir uma mensagem de visualização única: devolve o conteúdo uma vez e apaga-o. */
+  @Post('messages/:id/open')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  open(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.chat.open(req.userId!, id);
+  }
+
+  /** Localização em direto: atualizar a posição, ou parar a partilha. */
+  @Put('messages/:id/location')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  live(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(liveSchema)) b: z.infer<typeof liveSchema>) {
+    return this.chat.updateLive(req.userId!, id, b.lat, b.lng);
+  }
+
+  @Delete('messages/:id/live')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  stopLive(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.chat.stopLive(req.userId!, id);
   }
 
   @Delete('messages/:id')

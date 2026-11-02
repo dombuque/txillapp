@@ -80,9 +80,10 @@ export default function Messages() {
 
   return (
     <section className="px-4 pb-28">
-      <header className="mb-1 flex items-center gap-1 pb-1 pt-2">
-        <h1 className="min-w-0 flex-1 truncate px-1 text-[24px] font-extrabold leading-tight">{user?.username ?? 'Mensagens'}</h1>
-        <button onClick={() => setCreating(true)} aria-label="Nova conversa ou grupo" className="flex h-11 w-11 items-center justify-center rounded-[14px] text-zinc-900 transition active:scale-90 active:bg-zinc-100"><Icon name="compose" size={25} strokeWidth={1.9} /></button>
+      {/* O @ fica ao centro, como no Instagram; o ícone de nova mensagem à direita (tamanho inteiro, para ficar nítido). */}
+      <header className="relative mb-1 flex h-12 items-center justify-center">
+        <h1 className="max-w-[70%] truncate text-[20px] font-extrabold leading-tight">{user?.username ?? 'Mensagens'}</h1>
+        <button onClick={() => setCreating(true)} aria-label="Nova conversa ou grupo" className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-zinc-900 active:bg-zinc-100"><Icon name="compose" size={24} strokeWidth={2} /></button>
       </header>
       <label className="mb-2 flex h-11 items-center gap-2 rounded-full bg-zinc-100 px-4 text-zinc-500 transition focus-within:bg-zinc-200/70">
         <Icon name="search" size={18} />

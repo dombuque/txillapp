@@ -7,6 +7,7 @@ import { BackIcon } from '../components/icons';
 import Icon from '../components/Icon';
 import Camera from '../components/Camera';
 import GroupSheet from '../components/GroupSheet';
+import OnceViewer from '../components/OnceViewer';
 import LocationPicker, { type Picked } from '../components/LocationPicker';
 import GiftSheet from '../components/GiftSheet';
 import ReportSheet from '../components/ReportSheet';
@@ -16,6 +17,7 @@ import VoiceMessage from '../components/VoiceMessage';
 import { Avatar, Sheet } from '../components/ui';
 import { api, type ChatMessage, type ChatThread, type GroupThread } from '../lib/api';
 import { detectIntent } from '../lib/chatIntent';
+import { isSharing, startLive, stopLive } from '../lib/liveLocation';
 import { useTyping } from '../lib/chatLive';
 import { STICKERS, Sticker } from '../lib/stickers';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
@@ -61,6 +63,8 @@ interface Draft {
   body: string;
   lat?: number;
   lng?: number;
+  once?: boolean;
+  liveMinutes?: 15 | 60 | 480;
   file?: Blob;
   mime?: string;
   durationMs?: number;
@@ -68,7 +72,7 @@ interface Draft {
   localUrl?: string;
 }
 
-function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard }: { m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; onMenu: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
+function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard, onOpenOnce, onStopLive }: { m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onMenu: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
   const mine = m.fromMe;
   const real = !m.id.startsWith('tmp-');
   // Carregar e segurar (ou clique direito): apagar as minhas, denunciar as dos outros.
@@ -96,16 +100,34 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
         <p className="mb-0.5 text-xs text-zinc-500">{m.kind === 'story_reaction' ? (mine ? 'Reagiste ao story' : 'Reagiu ao teu story') : mine ? 'Respondeste ao story' : 'Respondeu ao teu story'}</p>
       )}
       {m.kind === 'story_reaction' && <p className="text-4xl leading-tight">{m.body}</p>}
-      {m.kind === 'sticker' && <div className={dim}><Sticker id={m.body} /></div>}
-      {m.kind === 'post' && <SharedPost post={m.post ?? null} shape={shape} tone={tone} />}
-      {m.kind === 'location' && m.lat != null && m.lng != null && (
+      {m.viewOnce ? (
+        <button
+          type="button"
+          disabled={mine || m.opened || m.state === 'sending'}
+          onClick={() => onOpenOnce(m)}
+          className={`flex items-center gap-2.5 px-4 py-2.5 text-[15px] font-semibold ${shape} ${m.opened ? 'bg-zinc-100 text-zinc-500' : mine ? 'bg-brand text-white' : 'bg-zinc-900 text-white'} ${dim} ${!mine && !m.opened ? 'active:scale-95' : ''}`}
+        >
+          <span className={`flex h-7 w-7 items-center justify-center rounded-full border-2 text-[13px] font-extrabold leading-none ${m.opened ? 'border-zinc-400' : 'border-white'}`}>1</span>
+          {m.opened ? 'Aberta' : mine ? 'Visualização única · por abrir' : m.kind === 'image' ? 'Foto · toca para abrir' : m.kind === 'voice' ? 'Voz · toca para abrir' : 'Mensagem · toca para abrir'}
+        </button>
+      ) : null}
+      {!m.viewOnce && m.kind === 'sticker' && <div className={dim}><Sticker id={m.body} /></div>}
+      {!m.viewOnce && m.kind === 'post' && <SharedPost post={m.post ?? null} shape={shape} tone={tone} />}
+      {!m.viewOnce && m.kind === 'location' && m.lat != null && m.lng != null && (
         <a href={`https://www.google.com/maps?q=${m.lat},${m.lng}`} target="_blank" rel="noreferrer" className={`block overflow-hidden ${shape} ${tone} ${dim}`} style={{ width: 240 }}>
           <TileMap lat={m.lat} lng={m.lng} width={240} height={132} />
           <span className="flex items-center gap-2 px-3 py-2 text-[15px] font-semibold"><Icon name="map-pin" size={16} className="shrink-0" /><span className="min-w-0 truncate">{m.body || 'Localização'}</span></span>
         </a>
       )}
-      {m.kind === 'voice' && <div className={`max-w-[86%] ${dim}`}><VoiceMessage m={m} /></div>}
-      {m.kind === 'image' && m.mediaUrl && (
+      {!m.viewOnce && m.kind === 'location' && m.liveUntil && (
+        <span className="mt-1 flex items-center gap-2 px-1 text-[12px] font-semibold text-emerald-700">
+          <span className={`h-2 w-2 rounded-full ${m.live ? 'animate-pulse bg-emerald-500' : 'bg-zinc-300'}`} aria-hidden />
+          {m.live ? `Em direto até às ${clock(m.liveUntil)}` : 'Partilha em direto terminada'}
+          {m.live && mine && <button type="button" onClick={() => onStopLive(m)} className="rounded-full bg-red-50 px-3 py-1 text-red-700 active:scale-95">Parar</button>}
+        </span>
+      )}
+      {!m.viewOnce && m.kind === 'voice' && <div className={`max-w-[86%] ${dim}`}><VoiceMessage m={m} /></div>}
+      {!m.viewOnce && m.kind === 'image' && m.mediaUrl && (
         <div className={`max-w-[75%] overflow-hidden ${shape} ${tone} ${dim}`}>
           <a href={m.mediaUrl} target="_blank" rel="noreferrer">
             <img src={m.mediaUrl} alt="Foto enviada" loading="lazy" draggable={false} className="max-h-72 w-full object-cover" />
@@ -113,7 +135,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
           {m.body && <p className="px-3 py-2 text-[16px]">{m.body}</p>}
         </div>
       )}
-      {(m.kind === 'text' || m.kind === 'story_reply') && (
+      {!m.viewOnce && (m.kind === 'text' || m.kind === 'story_reply') && (
         <p className={`max-w-[82%] whitespace-pre-wrap break-words px-4 py-2.5 text-[16px] leading-snug ${shape} ${tone} ${dim}`}>{m.body}</p>
       )}
       {m.state === 'failed' ? (
@@ -151,6 +173,8 @@ export default function Thread() {
   const [unseen, setUnseen] = useState(0);
   const [away, setAway] = useState(false); // longe do fim da conversa
   const [panel, setPanel] = useState<null | 'attach' | 'stickers'>(null);
+  const [once, setOnce] = useState(false); // a próxima mensagem é de visualização única
+  const [opening, setOpening] = useState<Msg | null>(null);
   const [camera, setCamera] = useState(false);
   const [gift, setGift] = useState<null | { amount?: number; note?: string }>(null);
   const [place, setPlace] = useState(false);
@@ -231,16 +255,17 @@ export default function Thread() {
   /** Mostra a mensagem logo; o envio acontece por trás e, se falhar, fica a pedir para tentar de novo. */
   async function dispatch(d: Draft, tmpId = `tmp-${Date.now()}-${seq.current++}`) {
     drafts.current.set(tmpId, d);
-    const msg: Msg = { id: tmpId, fromMe: true, body: d.body, kind: d.kind, storyUrl: null, mediaUrl: d.localUrl ?? null, durationMs: d.durationMs ?? null, waveform: d.waveform ?? null, at: new Date().toISOString(), state: 'sending' };
+    const msg: Msg = { id: tmpId, fromMe: true, body: d.once ? '' : d.body, kind: d.kind, viewOnce: !!d.once, storyUrl: null, mediaUrl: d.once ? null : (d.localUrl ?? null), durationMs: d.durationMs ?? null, waveform: d.waveform ?? null, at: new Date().toISOString(), state: 'sending' };
     setOutbox((o) => (o.some((x) => x.id === tmpId) ? o.map((x) => (x.id === tmpId ? msg : x)) : [...o, msg]));
     stick.current = true;
     setErr('');
     try {
       const mediaId = d.file ? await api.uploadChatFile(d.file, d.mime ?? d.file.type) : undefined;
       track('message_send', { kind: d.kind });
-      const msg = { kind: d.kind, body: d.body, mediaId, durationMs: d.durationMs, waveform: d.waveform, lat: d.lat, lng: d.lng };
+      const msg = { kind: d.kind, body: d.body, mediaId, durationMs: d.durationMs, waveform: d.waveform, lat: d.lat, lng: d.lng, once: d.once, liveMinutes: d.liveMinutes };
       const r = isGroup ? await api.chatGroupSend(groupId, msg) : await api.chatSend(username, msg);
       drafts.current.delete(tmpId);
+      if (d.liveMinutes) startLive(r.id, Date.now() + d.liveMinutes * 60_000);
       setOutbox((o) => o.map((x) => (x.id === tmpId ? { ...x, state: undefined, realId: r.id } : x)));
       await q.refetch();
     } catch (x) {
@@ -263,7 +288,8 @@ export default function Thread() {
     if (!body) return;
     setText('');
     input.current?.focus(); // o teclado fica aberto para a mensagem seguinte
-    void dispatch({ kind: 'text', body });
+    void dispatch({ kind: 'text', body, once: once && !isGroup });
+    setOnce(false);
   }
 
   function onType(v: string) {
@@ -282,13 +308,15 @@ export default function Thread() {
     if (f.size > MAX_IMAGE) return setErr('Foto pesada demais! Máximo 8 MB');
     const caption = text.trim();
     setText('');
-    void dispatch({ kind: 'image', body: caption, file: f, mime: f.type, localUrl: URL.createObjectURL(f) });
+    void dispatch({ kind: 'image', body: caption, file: f, mime: f.type, localUrl: URL.createObjectURL(f), once: once && !isGroup });
+    setOnce(false);
   }
 
   function sendPhoto(f: File) {
     if (!IMAGE_TYPES.includes(f.type)) return setErr('Essa foto não serve. Usa JPEG, PNG ou WebP');
     if (f.size > MAX_IMAGE) return setErr('Foto pesada demais! Máximo 8 MB');
-    void dispatch({ kind: 'image', body: '', file: f, mime: f.type, localUrl: URL.createObjectURL(f) });
+    void dispatch({ kind: 'image', body: '', file: f, mime: f.type, localUrl: URL.createObjectURL(f), once: once && !isGroup });
+    setOnce(false);
   }
 
   function sendSticker(id: string) {
@@ -299,7 +327,7 @@ export default function Thread() {
   /** Localização como no WhatsApp: mapa com pino, localização atual (com a precisão) ou um local próximo. Só vai o que se escolhe, uma vez. */
   function sendPlace(p: Picked) {
     setPlace(false);
-    void dispatch({ kind: 'location', body: p.label, lat: p.lat, lng: p.lng });
+    void dispatch({ kind: 'location', body: p.label, lat: p.lat, lng: p.lng, liveMinutes: isGroup ? undefined : p.live });
   }
 
   // ----- voz -----
@@ -347,7 +375,8 @@ export default function Thread() {
         const durationMs = Math.min(Date.now() - r.start, 300_000);
         const mime = (mr.mimeType || 'audio/webm').split(';')[0];
         const blob = new Blob(r.chunks, { type: mime });
-        void dispatch({ kind: 'voice', body: '', file: blob, mime, durationMs, waveform: toWaveform(r.levels), localUrl: URL.createObjectURL(blob) });
+        void dispatch({ kind: 'voice', body: '', file: blob, mime, durationMs, waveform: toWaveform(r.levels), localUrl: URL.createObjectURL(blob), once: once && !isGroup });
+        setOnce(false);
       };
       mr.start();
       setRec({ ms: 0, bars: [] });
@@ -410,6 +439,12 @@ export default function Thread() {
     await api.block(username).catch((x) => setErr((x as Error).message));
     qc.invalidateQueries({ queryKey: ['chat-list'] });
     navigate('/messages', { replace: true });
+  }
+
+  async function stopSharing(m: Msg) {
+    stopLive(m.id);
+    await api.chatLiveStop(m.id).catch(() => undefined);
+    await q.refetch();
   }
 
   function jumpDown() {
@@ -513,7 +548,7 @@ export default function Thread() {
             return (
               <div key={m.id}>
                 {newDay && <p className="mx-auto mb-1 mt-5 w-fit rounded-full bg-zinc-100 px-3 py-1 text-[12px] font-semibold text-zinc-600">{dayLabel(m.at)}</p>}
-                <Bubble m={m} group={isGroup} prevSame={!!prev && !newDay && joined(prev, m)} nextSame={!!next && joined(m, next)} seen={seenUpTo(m)} onMenu={setMenuFor} onRetry={retry} onDiscard={discard} />
+                <Bubble m={m} group={isGroup} prevSame={!!prev && !newDay && joined(prev, m)} nextSame={!!next && joined(m, next)} seen={seenUpTo(m)} onMenu={setMenuFor} onRetry={retry} onDiscard={discard} onOpenOnce={setOpening} onStopLive={stopSharing} />
               </div>
             );
           })}
@@ -562,6 +597,12 @@ export default function Thread() {
         </div>
       ) : (
         <div className="shrink-0 border-t border-zinc-100">
+        {once && !isGroup && (
+          <p role="status" className="mx-3 mt-2 flex items-center justify-between rounded-2xl bg-zinc-900 px-4 py-2 text-[13px] font-semibold text-white">
+            <span>Visualização única: a próxima mensagem só se abre uma vez.</span>
+            <button type="button" onClick={() => setOnce(false)} aria-label="Desativar visualização única" className="ml-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20"><Icon name="x" size={14} /></button>
+          </p>
+        )}
         {suggestion && (
           <div className="mx-3 mt-2 flex items-center gap-3 rounded-2xl bg-amber-50 p-2.5 pl-3" role="note">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700"><Icon name="gift" size={20} /></span>
@@ -622,6 +663,7 @@ export default function Thread() {
               <button type="submit" onPointerDown={(e) => e.preventDefault()} className="h-10 shrink-0 rounded-full bg-brand px-4 font-bold text-white transition active:scale-95">Enviar</button>
             ) : (
               <>
+                {!isGroup && <button type="button" onClick={() => setOnce(!once)} aria-pressed={once} aria-label="Visualização única" className={`${bar} text-[15px] font-extrabold ${once ? 'bg-brand text-white active:bg-brand' : ''}`}>1</button>}
                 <button type="button" onClick={startRecording} className={bar} aria-label="Gravar mensagem de voz"><Icon name="mic" size={22} /></button>
                 <button type="button" onClick={() => gallery.current?.click()} className={bar} aria-label="Enviar foto da galeria"><Icon name="image" size={22} /></button>
                 <button type="button" onClick={() => setPanel(panel === 'stickers' ? null : 'stickers')} aria-label="Stickers" aria-expanded={panel === 'stickers'} className={`${bar} ${panel === 'stickers' ? 'bg-white text-brand' : ''}`}><Icon name="sticker" size={22} /></button>
@@ -650,6 +692,7 @@ export default function Thread() {
         />
       )}
       {place && <LocationPicker onSend={sendPlace} onClose={() => setPlace(false)} />}
+      {opening && <OnceViewer id={opening.id} from={person?.displayName ?? ''} onClose={() => { setOpening(null); void q.refetch(); }} />}
       {members && group && <GroupSheet group={group} onClose={() => setMembers(false)} onChanged={() => void q.refetch()} onLeft={() => navigate('/messages', { replace: true })} />}
       {reporting && <ReportSheet type="message" id={reporting} onClose={() => setReporting(null)} />}
       {menuFor && (

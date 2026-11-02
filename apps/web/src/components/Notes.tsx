@@ -65,6 +65,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
   const [audience, setAudience] = useState<NoteAudience>(current?.audience ?? 'mutual');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function run(job: () => Promise<unknown>) {
     setBusy(true);
@@ -98,7 +99,14 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
         {current ? 'Atualizar nota' : 'Partilhar nota'}
       </button>
       {current && (
-        <button disabled={busy} onClick={() => run(() => api.deleteNote())} className="mt-2 h-12 w-full rounded-full font-semibold text-red-700 active:bg-red-50">Apagar nota</button>
+        <button disabled={busy} onClick={() => setConfirmDelete(true)} className="mt-2 h-12 w-full rounded-full font-semibold text-red-700 active:bg-red-50">Apagar nota</button>
+      )}
+      {confirmDelete && (
+        <Sheet title="Apagar a nota?" onClose={() => setConfirmDelete(false)} layer="z-[60]">
+          <p className="mb-4 text-zinc-600">A nota desaparece já para toda a gente. Podes escrever outra quando quiseres.</p>
+          <button disabled={busy} onClick={() => run(() => api.deleteNote())} className="h-12 w-full rounded-full bg-red-700 font-bold text-white active:scale-[0.98] disabled:opacity-50">Apagar</button>
+          <button onClick={() => setConfirmDelete(false)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">Cancelar</button>
+        </Sheet>
       )}
     </Sheet>
   );

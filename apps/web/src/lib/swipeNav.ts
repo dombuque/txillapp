@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { DESKTOP_QUERY } from './useDesktop';
 
 /** Separadores principais, pela ordem da barra de baixo (o "+" não conta: abrir a publicar a deslizar seria estranho). */
-const TABS = ['/', '/search', '/reels', '/profile'];
+const TABS = ['/', '/search', '/messages', '/profile'];
 
 /** Lado de onde o próximo ecrã entra (definido pelo gesto, gasto uma vez por quem anima). */
 let incoming: 'left' | 'right' | null = null;
@@ -24,7 +24,7 @@ function busy(start: EventTarget | null) {
   return false;
 }
 
-/** Deslizar para os lados nos ecrãs principais muda de separador, com o ecrã novo a entrar desse lado. Só no telemóvel. */
+/** Deslizar para os lados nos ecrãs principais muda de separador (sem dar a volta: nas pontas não passa; no Início, para a direita, abre a câmara), com o ecrã novo a entrar desse lado. Só no telemóvel. */
 export function useSwipeTabs() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -47,7 +47,15 @@ export function useSwipeTabs() {
       s = null;
       if (!quick || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
       const next = here + (dx < 0 ? 1 : -1);
-      if (next < 0 || next >= TABS.length) return;
+      // Sem voltas: no fim da direita não passa. No Início, deslizar para a direita abre a câmara (como tocar no "+").
+      if (next < 0) {
+        if (pathname === '/') {
+          incoming = 'left';
+          navigate('/new');
+        }
+        return;
+      }
+      if (next >= TABS.length) return;
       incoming = dx < 0 ? 'right' : 'left';
       navigate(TABS[next]);
     };

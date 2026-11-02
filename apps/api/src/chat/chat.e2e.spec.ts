@@ -363,4 +363,51 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     expect((await notes(ca)).mine).toBeNull();
     await pool.query('DELETE FROM social.close_friends WHERE owner_id = $1', [ca.id]);
   });
+
+  it('visualização única: o conteúdo não vai na lista, abre-se uma vez e é apagado; só o destinatário abre', async () => {
+    const { ce: from, cf: to } = u;
+    await pool.query('INSERT INTO social.follows (follower_id, followee_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [to.id, from.id]); // quem recebe segue quem envia (sem limite de desconhecidos)
+    const post = (a: U, b: U, body: object) => api().post(`/api/v1/chat/with/${b.username}`).set(auth(a)).send(body);
+    const sent = (await post(from, to, { body: 'segredo 1234', once: true }).expect(201)).body.id as string;
+
+    // Na lista, nem o destinatário nem quem enviou vê o texto.
+    const asTo = ((await thread(to, from)).items as { id: string; body: string; viewOnce: boolean; opened: boolean }[]).find((m) => m.id === sent)!;
+    expect(asTo).toMatchObject({ body: '', viewOnce: true, opened: false });
+    expect(JSON.stringify((await thread(from, to)).items)).not.toContain('segredo');
+    expect(((await list(to)).find((c) => c.username === from.username) as unknown as { lastMessage: { body: string; once: boolean } }).lastMessage).toMatchObject({ body: '', once: true });
+
+    // Quem enviou não abre; um terceiro também não.
+    await api().post(`/api/v1/chat/messages/${sent}/open`).set(auth(from)).expect(404);
+    await api().post(`/api/v1/chat/messages/${sent}/open`).set(auth(u.ca)).expect(404);
+    // O destinatário abre: vê uma vez.
+    const opened = (await api().post(`/api/v1/chat/messages/${sent}/open`).set(auth(to)).expect(200)).body;
+    expect(opened).toMatchObject({ kind: 'text', body: 'segredo 1234' });
+    await api().post(`/api/v1/chat/messages/${sent}/open`).set(auth(to)).expect(410);
+    expect(((await thread(from, to)).items as { id: string; opened: boolean }[]).find((m) => m.id === sent)!.opened).toBe(true);
+    // O texto foi mesmo apagado do servidor.
+    expect((await pool.query('SELECT body FROM social.messages WHERE id = $1', [sent])).rows[0].body).toBe('');
+
+    // Foto de visualização única: o ficheiro só aparece ao abrir.
+    const pic = await uploadChat(from, 'image/png', PNG);
+    const img = (await post(from, to, { kind: 'image', mediaId: pic, once: true }).expect(201)).body.id as string;
+    expect(((await thread(to, from)).items as { id: string; mediaUrl: string | null }[]).find((m) => m.id === img)!.mediaUrl).toBeNull();
+    expect((await api().post(`/api/v1/chat/messages/${img}/open`).set(auth(to)).expect(200)).body.mediaUrl).toContain('/chat/media/');
+  });
+
+  it('localização em direto: o remetente atualiza enquanto dura; depois já não; pode parar', async () => {
+    const { ce: from, cf: to } = u;
+    await pool.query('INSERT INTO social.follows (follower_id, followee_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [to.id, from.id]); // quem recebe segue quem envia (sem limite de desconhecidos)
+    const sent = (await api().post(`/api/v1/chat/with/${to.username}`).set(auth(from)).send({ kind: 'location', body: 'Em direto', lat: -25.97, lng: 32.57, liveMinutes: 15 }).expect(201)).body.id as string;
+    const find = async (x: U, y: U) => ((await thread(x, y)).items as { id: string; live: boolean; lat: number }[]).find((m) => m.id === sent)!;
+    expect(await find(to, from)).toMatchObject({ live: true, lat: -25.97 });
+    await api().post(`/api/v1/chat/with/${to.username}`).set(auth(from)).send({ kind: 'location', body: 'x', lat: 0, lng: 0, liveMinutes: 7 }).expect(400); // só 15, 60 ou 480
+
+    await api().put(`/api/v1/chat/messages/${sent}/location`).set(auth(to)).send({ lat: 1, lng: 1 }).expect(404); // só quem enviou
+    await api().put(`/api/v1/chat/messages/${sent}/location`).set(auth(from)).send({ lat: -25.98, lng: 32.58 }).expect(204);
+    expect(await find(to, from)).toMatchObject({ live: true, lat: -25.98 });
+
+    await api().delete(`/api/v1/chat/messages/${sent}/live`).set(auth(from)).expect(204);
+    expect((await find(to, from)).live).toBe(false);
+    await api().put(`/api/v1/chat/messages/${sent}/location`).set(auth(from)).send({ lat: 2, lng: 2 }).expect(404); // terminou
+  });
 });

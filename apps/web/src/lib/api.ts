@@ -257,6 +257,12 @@ export interface ChatMessage {
   /** Localização partilhada (só em mensagens de localização). */
   lat?: number | null;
   lng?: number | null;
+  /** Visualização única: o conteúdo só se lê ao abrir, uma vez. */
+  viewOnce?: boolean;
+  opened?: boolean;
+  /** Localização em direto ainda a decorrer, e até quando. */
+  live?: boolean;
+  liveUntil?: string | null;
   at: string;
 }
 /** Online agora, ou a hora a que foi visto pela última vez. null = escondido por uma das partes. */
@@ -566,8 +572,12 @@ export const api = {
   chatGroupRemove: (id: string, username: string): Promise<void> => raw(`/chat/groups/${id}/members/${encodeURIComponent(username)}`, { method: 'DELETE' }),
   chatUnread: (): Promise<{ conversations: number; requests?: number }> => raw('/chat/unread'),
   chatThread: (username: string, cursor?: string): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${cursor ? `?cursor=${cursor}` : ''}`),
-  chatSend: (username: string, msg: { body?: string; kind?: ChatMessage['kind']; mediaId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number }): Promise<{ id: string }> =>
+  chatSend: (username: string, msg: { body?: string; kind?: ChatMessage['kind']; mediaId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; once?: boolean; liveMinutes?: 15 | 60 | 480 }): Promise<{ id: string }> =>
     raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
+  /** Abrir uma mensagem de visualização única: devolve o conteúdo uma vez. */
+  chatOpen: (id: string): Promise<{ kind: ChatMessage['kind']; body: string; mediaUrl: string | null; durationMs: number | null; waveform: string | null }> => raw(`/chat/messages/${id}/open`, post({})),
+  chatLiveUpdate: (id: string, lat: number, lng: number): Promise<void> => raw(`/chat/messages/${id}/location`, { method: 'PUT', body: JSON.stringify({ lat, lng }) }),
+  chatLiveStop: (id: string): Promise<void> => raw(`/chat/messages/${id}/live`, { method: 'DELETE' }),
   chatAccept: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/accept`, post({})),
   chatDecline: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/decline`, post({})),
   chatTyping: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/typing`, post({})),

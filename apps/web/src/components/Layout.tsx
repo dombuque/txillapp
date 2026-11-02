@@ -73,15 +73,8 @@ export default function Layout() {
             </span>
           </NavLink>
           <Wordmark className="h-8" />
-          <NavLink to="/messages" aria-label={chatCount > 0 ? `Mensagens (${chatCount} por ler)` : 'Mensagens'} className="absolute right-3 flex h-11 w-11 items-center justify-center text-zinc-900">
-            <span className="relative">
-              <MessagesIcon width={26} height={26} />
-              {chatCount > 0 && (
-                <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white">
-                  {chatCount > 9 ? '9+' : chatCount}
-                </span>
-              )}
-            </span>
+          <NavLink to="/reels" aria-label="Reels" data-tour="reels" className="absolute right-3 flex h-11 w-11 items-center justify-center text-zinc-900">
+            <Icon name="film" size={26} strokeWidth={1.9} />
           </NavLink>
         </header>
       )}
@@ -109,7 +102,16 @@ export default function Layout() {
           >
             <PlusIcon width={38} height={38} strokeWidth={2.2} />
           </NavLink>
-          <Item to="/reels" label="Reels" tour="reels">{(a) => <Icon name="film" size={27} strokeWidth={a ? 2.3 : 1.9} />}</Item>
+          <Item to="/messages" label={chatCount > 0 ? `Mensagens (${chatCount} por ler)` : 'Mensagens'} onClick={tapTab} tour="messages">
+            {(a) => (
+              <span className="relative">
+                <MessagesIcon width={27} height={27} strokeWidth={a ? 2.3 : 1.9} />
+                {chatCount > 0 && (
+                  <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white">{chatCount > 9 ? '9+' : chatCount}</span>
+                )}
+              </span>
+            )}
+          </Item>
           <Item to="/profile" label="Perfil" onClick={tapTab} tour="profile">
             {(a) => (
               // Caixa quadrada de tamanho fixo (igual ativa ou não, sem saltos): o aro é um círculo perfeito, com 2 px de folga até à foto.
