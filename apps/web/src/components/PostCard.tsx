@@ -127,6 +127,55 @@ export function OnlineDot({ username, className = '' }: { username: string; clas
   return <span role="img" aria-label="Online" className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500 ${className}`} />;
 }
 
+/**
+ * O cartão de um presente: as duas fotos cruzadas ao centro com o símbolo do presente, "X presenteou Y", o valor em Txills
+ * e a mensagem num balão, tudo num bilhete a degradê. Em cima, só a hora e o menu.
+ */
+function GiftBlock({ post, g, me }: { post: Post; g: NonNullable<Post['gift']>; me?: string }) {
+  const sender = post.author;
+  return (
+    <>
+      <div className="flex items-center justify-between gap-2 text-[14px] text-zinc-500">
+        <span className="flex items-center gap-1.5 font-semibold text-brand"><Icon name="gift" size={15} /> Presente</span>
+        <span className="flex items-center gap-1">
+          <time dateTime={post.createdAt}>{timeAgo(post.createdAt)}</time>
+          <PostMenu post={post} />
+        </span>
+      </div>
+      <div className="relative mt-2 overflow-hidden rounded-3xl bg-gradient-to-br from-brand via-[#e8475f] to-[#ff8a5b] px-5 pb-5 pt-6 text-center text-white shadow-[0_6px_18px_rgba(214,51,79,0.35)]">
+        <span aria-hidden className="pointer-events-none absolute -left-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
+        <span aria-hidden className="pointer-events-none absolute -bottom-8 -right-4 h-28 w-28 rounded-full bg-white/10" />
+        <span aria-hidden className="pointer-events-none absolute right-8 top-4 h-2 w-2 rounded-full bg-white/50" />
+        <span aria-hidden className="pointer-events-none absolute left-10 top-16 h-1.5 w-1.5 rounded-full bg-white/40" />
+        <div className="relative mx-auto h-[76px] w-[132px]">
+          <Link to={profilePath(g.recipient.username, me)} aria-label={`Perfil de ${g.recipient.displayName}`} className="absolute right-0 top-0 rounded-full ring-4 ring-white/90">
+            <Avatar name={g.recipient.displayName} username={g.recipient.hasAvatar ? g.recipient.username : undefined} size={68} ring={false} />
+          </Link>
+          <Link to={profilePath(sender.username, me)} aria-label={`Perfil de ${sender.displayName}`} className="absolute left-0 top-0 z-10 rounded-full ring-4 ring-white/90">
+            <Avatar name={sender.displayName} username={sender.username} size={68} ring={false} />
+            <OnlineDot username={sender.username} />
+          </Link>
+          <span aria-hidden className="absolute -bottom-1 left-1/2 z-20 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full bg-white text-brand shadow-md"><Icon name="gift" size={20} /></span>
+        </div>
+        <p className="mt-4 text-[16px] leading-tight">
+          <Link to={profilePath(sender.username, me)} className="font-extrabold">{sender.displayName}</Link>
+          {sender.verified && <> <VerifiedBadge size={15} tier={sender.verifiedTier} /></>} presenteou{' '}
+          <Link to={profilePath(g.recipient.username, me)} className="font-extrabold">{g.recipient.displayName}</Link>
+          {g.recipient.verified && <> <VerifiedBadge size={15} tier={g.recipient.verifiedTier} /></>}
+        </p>
+        <p className="mt-2 text-[40px] font-black leading-none tracking-tight">{g.amount.toLocaleString('pt-PT')}</p>
+        <p className="text-[13px] font-bold uppercase tracking-[0.2em] text-white/85">Txills</p>
+        {post.body && (
+          <p className="relative mx-auto mt-4 max-w-[92%] break-words rounded-2xl bg-white/20 px-4 py-2.5 text-[16px] leading-snug backdrop-blur-sm">
+            <span aria-hidden className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 bg-white/20" />
+            <RichText text={post.body} />
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
 /** Cartão normal de uma publicação. */
 function PostBody({ post }: { post: Post }) {
   const { user } = useAuth();
@@ -134,37 +183,20 @@ function PostBody({ post }: { post: Post }) {
   const g = post.gift;
   return (
     <article className="mx-3 mb-6 rounded-[28px] bg-white px-4 pt-5 min-[360px]:mx-4 min-[360px]:px-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
+      {g ? <GiftBlock post={post} g={g} me={user?.username} /> : (
+        <>
       <header className="flex items-center gap-3">
-        {g ? (
-          // Presente: as duas fotos cruzadas (quem deu à frente, quem recebeu por trás) com o símbolo do presente no cruzamento.
-          <span className="relative h-[52px] w-[80px] shrink-0">
-            <Link to={profilePath(g.recipient.username, user?.username)} aria-label={`Perfil de ${g.recipient.displayName}`} className="absolute right-0 top-0 rounded-full ring-[3px] ring-white">
-              <Avatar name={g.recipient.displayName} username={g.recipient.hasAvatar ? g.recipient.username : undefined} size={46} ring={false} />
-            </Link>
-            <Link to={profilePath(post.author.username, user?.username)} aria-label={`Perfil de ${post.author.displayName}`} className="absolute left-0 top-0 z-10 rounded-full ring-[3px] ring-white">
-              <Avatar name={post.author.displayName} username={post.author.username} size={46} ring={false} />
-              <OnlineDot username={post.author.username} />
-            </Link>
-            <span aria-hidden className="absolute -bottom-0.5 left-1/2 z-20 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-brand text-white ring-2 ring-white"><Icon name="gift" size={13} /></span>
-          </span>
-        ) : (
+        {(
           <Link to={profilePath(post.author.username, user?.username)} aria-label={`Perfil de ${post.author.displayName}`} className="relative shrink-0">
             <Avatar name={post.author.displayName} username={post.author.username} size={52} />
             <OnlineDot username={post.author.username} />
           </Link>
         )}
         <div className="min-w-0 flex-1">
-          {g ? (
-            <p className="text-[17px] leading-tight text-zinc-800">
-              <Link to={profilePath(post.author.username, user?.username)} className="font-bold">{post.author.displayName}</Link>{post.author.verified && <> <VerifiedBadge size={15} tier={post.author.verifiedTier} /></>} presenteou{' '}
-              <Link to={profilePath(g.recipient.username, user?.username)} className="font-bold">{g.recipient.displayName}</Link>{g.recipient.verified && <> <VerifiedBadge size={15} tier={g.recipient.verifiedTier} /></>}
-            </p>
-          ) : (
             <Link to={profilePath(post.author.username, user?.username)} className="block truncate text-[19px] font-medium leading-tight text-zinc-800">
               {post.author.displayName}
               {post.author.verified && <> <VerifiedBadge tier={post.author.verifiedTier} /></>}
             </Link>
-          )}
           <p className="truncate text-[15px] text-zinc-500">{post.locationLabel ?? `@${post.author.username}`}</p>
         </div>
         <time className="self-start text-[15px] text-zinc-500" dateTime={post.createdAt}>
@@ -172,12 +204,9 @@ function PostBody({ post }: { post: Post }) {
         </time>
         <PostMenu post={post} />
       </header>
-      {g && (
-        <p className="mt-4 rounded-2xl bg-gradient-to-r from-brand to-brand-light py-3 text-center text-2xl font-extrabold text-white">
-          <Icon name="gift" size={16} className="inline align-[-3px]" /> {g.amount.toLocaleString('pt-PT')} Txills
-        </p>
-      )}
       {post.body && <p className="mt-4 whitespace-pre-wrap break-words text-[19px] text-zinc-800"><RichText text={post.body} /></p>}
+        </>
+      )}
       <Carousel media={post.media} onOpen={setViewer} />
       <Actions post={post} />
       {viewer !== null && <ImageViewer post={post} start={viewer} onClose={() => setViewer(null)} />}
