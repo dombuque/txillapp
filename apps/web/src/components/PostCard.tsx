@@ -255,7 +255,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
     const canSee = (k: PeopleKind) => post.kind !== 'repost' && !!post.lists?.[k];
     // Quatro colunas iguais, ícone em cima e nome por baixo: o texto nunca sai do cartão, em qualquer largura.
     const barBtn = 'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-zinc-800 transition active:scale-95 [&>svg]:shrink-0';
-    const word = 'block max-w-full truncate text-[12px] font-medium leading-tight';
+    const word = 'block max-w-full truncate text-[12px] font-medium leading-tight min-[400px]:text-[13px]';
     const canRepost = post.kind === 'post' || (post.kind === 'repost' && !!post.body);
     return (
       <>
