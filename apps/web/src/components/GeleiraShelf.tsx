@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { api, type MyTaste, type TasteItem, type TheirTaste } from '../lib/api';
 import { ICE, KINDS, KIND_ICON, KIND_LABEL } from '../lib/geleira';
 import TasteBubble from './TasteIcon';
-import FridgeArt, { FROST_LABEL, frostLevel } from './FridgeArt';
+import FridgeArt, { LEVEL_LABEL, geleiraLevel, nextLevelHint } from './FridgeArt';
 import Icon from './Icon';
 
 type Shown = TasteItem & { rating: number | null; favorite: boolean };
@@ -67,6 +67,7 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
 
   const favorites = items.filter((i) => i.favorite).slice(0, 8);
   const total = items.filter((i) => !i.pending).length;
+  const kinds = new Set(items.filter((i) => !i.pending).map((i) => i.kind)).size;
 
   const folded = compact && !open;
 
@@ -76,18 +77,20 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
       className={`${flush ? '' : 'mx-4'} mt-4 overflow-hidden rounded-[24px] border border-sky-100 bg-gradient-to-b from-sky-50 via-white to-cyan-50/60 px-4 shadow-[0_2px_12px_rgba(14,116,144,0.1)] ${folded ? 'pb-3 pt-3' : 'pb-6 pt-4'}`}
     >
       <div className="flex items-center gap-4 pb-1">
-        <FridgeArt count={total} open={!folded} size={folded ? 76 : 84} />
+        {compact ? (
+          <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={open ? 'Fechar a geleira' : 'Abrir a geleira'} className="shrink-0 transition active:scale-95">
+            <FridgeArt count={total} kinds={kinds} open={!folded} invite={folded} size={folded ? 80 : 88} />
+          </button>
+        ) : (
+          <FridgeArt count={total} kinds={kinds} open={!folded} size={84} />
+        )}
         <div className="min-w-0 flex-1">
           <span className="block text-[18px] font-extrabold leading-tight">{isMe ? 'A minha geleira' : 'Geleira'}</span>
           <span className="block text-[13px] text-zinc-600">
             {items.length === 0 ? 'Ainda vazia' : `${total} ${total === 1 ? 'gosto' : 'gostos'}${favorites.length ? ` · ${favorites.length} ${favorites.length === 1 ? 'favorito' : 'favoritos'}` : ''}`}
           </span>
-          {total > 0 && <span className="mt-1 inline-block rounded-full bg-sky-100 px-2.5 py-0.5 text-[12px] font-bold text-sky-700">{FROST_LABEL[frostLevel(total)]}</span>}
-          {compact && (
-            <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="mt-2 flex h-9 items-center gap-1 rounded-full bg-sky-100 px-3.5 text-[13px] font-bold text-sky-700 transition active:scale-95">
-              {open ? 'Fechar geleira' : 'Abrir geleira'} <Icon name="chevron-right" size={14} strokeWidth={3} className={`transition-transform ${open ? '-rotate-90' : 'rotate-90'}`} />
-            </button>
-          )}
+          {total > 0 && <span className="mt-1 inline-block rounded-full bg-rose-50 px-2.5 py-0.5 text-[12px] font-bold text-brand">{LEVEL_LABEL[geleiraLevel(total, kinds)]}</span>}
+          {isMe && !folded && <span className="mt-1 block text-[12px] text-zinc-500">{nextLevelHint(total, kinds)}</span>}
         </div>
       </div>
 
