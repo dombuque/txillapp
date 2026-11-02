@@ -105,7 +105,7 @@ export default function Layout() {
           <Item to="/messages" label={chatCount > 0 ? `Mensagens (${chatCount} por ler)` : 'Mensagens'} onClick={tapTab} tour="messages">
             {(a) => (
               <span className="relative">
-                <MessagesIcon filled={a} size={29} strokeWidth={1.8} />
+                <MessagesIcon filled={a} size={27} strokeWidth={1.9} />
                 {chatCount > 0 && (
                   <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white">{chatCount > 9 ? '9+' : chatCount}</span>
                 )}

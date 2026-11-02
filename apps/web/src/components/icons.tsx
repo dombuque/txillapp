@@ -1,4 +1,4 @@
-import ChatIcon from './ChatIcon';
+import PlaneIcon from './PlaneIcon';
 import { ArrowLeft, Bell, House, MessageCircleMore, Pencil, Repeat2, Search, SquareArrowUp, SquarePlus, Star, Undo2, Wallet, type LucideProps } from 'lucide-react';
 
 /**
@@ -10,7 +10,7 @@ const p = (size: number, extra: LucideProps) => ({ size, strokeWidth: 1.75, 'ari
 export const HomeIcon = ({ filled, ...r }: LucideProps & { filled?: boolean }) => <House {...p(26, r)} fill={filled ? 'currentColor' : 'none'} />;
 export const StarIcon = (r: LucideProps) => <Star {...p(26, r)} />;
 export const WalletIcon = (r: LucideProps) => <Wallet {...p(26, r)} />;
-export const MessagesIcon = ({ filled, ...r }: LucideProps & { filled?: boolean }) => <ChatIcon size={26} strokeWidth={1.9} filled={filled} {...(r as object)} />;
+export const MessagesIcon = ({ filled, ...r }: LucideProps & { filled?: boolean }) => <PlaneIcon size={26} strokeWidth={1.9} filled={filled} {...(r as object)} />;
 export const PlusIcon = (r: LucideProps) => <SquarePlus {...p(34, { strokeWidth: 2.2, ...r })} />;
 export const CommentIcon = (r: LucideProps) => <MessageCircleMore {...p(22, r)} />;
 export const GiftIcon = (r: LucideProps) => <SquareArrowUp {...p(22, r)} />;
