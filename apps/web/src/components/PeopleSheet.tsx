@@ -19,7 +19,7 @@ export default function PeopleSheet({ postId, kind, onClose, layer }: { postId: 
         {q.data?.map((p) => (
           <li key={p.username}>
             <Link to={`/u/${p.username}`} onClick={onClose} className="flex items-center gap-3 rounded-xl py-2.5 active:bg-zinc-100">
-              <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={44} ring={false} />
+              <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={44} ring={false} presence />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold">{p.displayName}</span>
                 <span className="block truncate text-sm text-zinc-500">@{p.username}</span>

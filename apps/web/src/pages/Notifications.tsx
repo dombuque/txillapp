@@ -108,7 +108,7 @@ function Row({ n, fresh }: { n: AppNotification; fresh: boolean }) {
       className={`flex gap-3 px-4 py-3.5 ${fresh ? 'bg-rose-50/70' : ''} ${target ? 'cursor-pointer transition active:bg-zinc-100' : ''}`}
     >
       <Link {...stop} to={`/u/${n.actor.username}`} aria-label={`Perfil de ${n.actor.displayName}`} className="relative shrink-0">
-        <Avatar name={n.actor.displayName} username={n.actor.username} size={46} ring={false} />
+        <Avatar name={n.actor.displayName} username={n.actor.username} size={46} ring={false} presence />
         <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-white text-sm shadow-sm" aria-hidden>
           <Icon name={ICON[n.kind].name} size={14} className={ICON[n.kind].color} strokeWidth={2.4} />
         </span>

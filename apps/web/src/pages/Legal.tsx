@@ -87,6 +87,7 @@ export function Terms() {
           <li>O título do nível mais alto <b>muda com a tua idade</b> (por exemplo, «Madala da paulada» só a partir dos 45 anos). A idade vem da data de nascimento que deste ao criar a conta; a data nunca é mostrada a ninguém.</li>
           <li>Como os Txills contam para o nível, quem vê a tua geleira pode ter uma ideia aproximada de quantos tens. Se não queres isso, põe a geleira como <b>só eu</b>: então o nível também não aparece a mais ninguém.</li>
           <li>Os Txills não são dinheiro (ver ponto 1) e a pontuação é só uma brincadeira: não dá direito a prémios nem a dinheiro.</li>
+          <li>Podes <b>recarregar Txills</b> em Definições → «Pedidos e pagamentos», com os métodos que estiverem disponíveis. Os Txills comprados entram na carteira e usam-se como os outros: não se trocam por dinheiro. Um pedido que não for pago em 30 minutos expira; se o pagamento chegar depois, os Txills são entregues na mesma. Para qualquer problema com um pagamento, escreve para o suporte.</li>
         </ul>
       </section>
       <section>
@@ -155,6 +156,8 @@ export function Privacy() {
           <li><b>Localização:</b> só o <i>nome do sítio</i> que escolheres. Nunca guardamos a tua posição exata.</li>
           <li><b>Segurança:</b> sessões e dispositivos com sessão iniciada (tipo de browser, datas de acesso) e registos de ações sensíveis.</li>
           <li><b>Carteira:</b> o teu saldo de Txills e os movimentos (presentes enviados e recebidos).</li>
+          <li><b>Pagamentos:</b> se recarregares Txills, guardamos o pedido (pacote, valor, método de pagamento, estado e datas) e só os últimos 3 dígitos do teu telemóvel. Os dados completos do pagamento ficam com o fornecedor (M-Pesa, e-Mola ou cartão) e nós não os guardamos.</li>
+          <li><b>Contactos:</b> só se usares «Amigos nos contactos». Os contactos ficam no teu telemóvel; enviamos apenas um resumo cifrado (SHA-256) dos emails, só para ver quem já está no Txillapp, e não guardamos nem os resumos nem os contactos. Podes não ser encontrado por esta via em Definições → «Deixar que me encontrem pelos contactos».</li>
           <li><b>Geleira:</b> os gostos que juntas (vibes, bebidas, comidas e sítios), com notas e favoritos, e o nível calculado a partir deles e do teu saldo de Txills.</li>
           <li><b>Presença:</b> se estás online ou a escrever um comentário (só enquanto a app está aberta) e a hora da última vez que estiveste online.</li>
           <li><b>Verificação:</b> se pedires o selo, o teu nome, a prova que indicares, uma foto de um documento e uma selfie (apagados logo que há decisão).</li>

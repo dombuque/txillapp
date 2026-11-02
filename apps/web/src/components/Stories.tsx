@@ -61,7 +61,7 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
   const [open, setOpen] = useState(false);
   const q = useQuery({ queryKey: ['stories', username], queryFn: () => api.storiesOf(username), retry: false });
   const list = q.data ?? [];
-  const avatar = <Avatar name={displayName} username={hasAvatar ? username : undefined} size={size} ring={list.length === 0} />;
+  const avatar = <Avatar name={displayName} username={hasAvatar ? username : undefined} size={size} ring={list.length === 0} presence={!isMe} />;
   if (list.length === 0) return avatar;
   const ownSeen = isMe && readOwnSeen() === list[list.length - 1].createdAt;
   const seenCount = isMe ? (ownSeen ? list.length : 0) : list.filter((x) => x.seen).length;
@@ -154,7 +154,7 @@ export default function StoriesTray() {
           // Não vistos: anel a cores, nome a negrito. Vistos: anel cinzento, avatar e nome mais apagados.
           <button key={u.username} onClick={() => setViewing(mine ? i + 1 : i)} className={bubble} aria-label={`Ver story de ${u.displayName}${u.seen ? '' : ' (novo)'}`}>
             <span className={u.seen ? 'opacity-60' : ''}>
-              <Ring count={u.count} seenCount={u.seenCount} green={u.closeFriends}><Avatar name={u.displayName} username={u.username} size={56} ring={false} /></Ring>
+              <Ring count={u.count} seenCount={u.seenCount} green={u.closeFriends}><Avatar name={u.displayName} username={u.username} size={56} ring={false} presence /></Ring>
             </span>
             <span className={`${label} ${u.seen ? 'font-normal text-zinc-500' : 'font-bold text-zinc-900'}`}>{u.username}</span>
           </button>
@@ -268,7 +268,7 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
         ) : (
           <>
             <button type="button" onClick={cheer} aria-label="Brindar" aria-pressed={cheered} className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-90 ${cheered ? 'text-emerald-300' : 'text-white'}`}><Icon name="cheers" size={28} /></button>
-            {story.sharedFrom && <button type="button" onClick={openShare} aria-label="Partilhar" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white transition active:scale-90"><Icon name="send" size={26} /></button>}
+            {story.sharedFrom && <button type="button" onClick={openShare} aria-label="Partilhar" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white transition active:scale-90"><Icon name="share" size={26} /></button>}
           </>
         )}
       </form>

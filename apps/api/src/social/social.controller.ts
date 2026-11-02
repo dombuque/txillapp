@@ -23,6 +23,7 @@ const consentSchema = z.object({ birthDate: birthDateSchema, acceptTerms: z.lite
 const avatarSchema = z.object({ mediaId: z.string().uuid() });
 const who = z.enum(['everyone', 'following', 'off']);
 const viewers = z.enum(['everyone', 'followers', 'off']);
+const contactsSchema = z.object({ hashes: z.array(z.string().regex(/^[0-9a-fA-F]{64}$/)).max(500) });
 const privacySchema = z.object({
   repostsVisible: viewers.optional(),
   cheersVisible: viewers.optional(),
@@ -38,6 +39,7 @@ const privacySchema = z.object({
   gender: genderSchema.optional(),
   showGender: z.boolean().optional(),
   showPresence: z.boolean().optional(),
+  findByContacts: z.boolean().optional(),
 });
 
 @Controller()
@@ -98,6 +100,13 @@ export class SocialController {
   @Delete('blocks/:username')
   unblock(@Req() req: AuthedReq, @Param('username') username: string) {
     return this.social.unblock(req.userId!, username);
+  }
+
+  @Post('contacts/match')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 3_600_000 } })
+  matchContacts(@Req() req: AuthedReq, @Body(new ZodPipe(contactsSchema)) b: z.infer<typeof contactsSchema>) {
+    return this.social.matchContacts(req.userId!, b.hashes);
   }
 
   @Get('users/:username')

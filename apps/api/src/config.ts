@@ -59,6 +59,13 @@ const schema = z.object({
   PUBLIC_URL: z.string().url().default('http://localhost:5173'),
   /** Só para testes: guarda os e-mails em memória em vez de os enviar. */
   MAIL_CAPTURE: z.enum(['true', 'false']).default('false'),
+  /**
+   * Pagamentos de teste: com 'true' existe um fornecedor "sandbox" que confirma pagamentos sem dinheiro a sério (só desenvolvimento
+   * e testes; é recusado em produção). Os fornecedores reais (M-Pesa, e-Mola, cartão) ligam-se com as respetivas chaves.
+   */
+  PAYMENTS_SANDBOX: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  /** Segredo com que os fornecedores assinam os avisos de pagamento (webhooks). */
+  PAYMENTS_WEBHOOK_SECRET: z.string().min(16).optional(),
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });
@@ -67,6 +74,7 @@ export type AppConfig = z.infer<typeof schema>;
 
 /** Com STORAGE_DRIVER=s3 as credenciais são obrigatórias (falha ao arrancar, não no primeiro upload). */
 function validateStorage(c: AppConfig) {
+  if (c.NODE_ENV === 'production' && c.PAYMENTS_SANDBOX) throw new Error('Configuração inválida: PAYMENTS_SANDBOX não pode estar ligado em produção');
   if (!!c.SMTP_USER !== !!c.SMTP_PASS) throw new Error('Configuração inválida: SMTP_USER e SMTP_PASS têm de vir os dois (ou nenhum)');
   if (c.SEARCH_BACKEND === 'elasticsearch' && !c.ELASTICSEARCH_URL) throw new Error('Configuração inválida: SEARCH_BACKEND=elasticsearch precisa de ELASTICSEARCH_URL');
   if (c.STORAGE_DRIVER === 's3') {

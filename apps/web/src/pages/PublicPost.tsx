@@ -36,7 +36,7 @@ export default function PublicPost() {
   const p = q.data;
   const state = { from: here.pathname + here.search };
 
-  const locked = (label: string, icon: 'cheers' | 'comment' | 'send') => (
+  const locked = (label: string, icon: 'cheers' | 'comment' | 'share') => (
     <Link to="/login" state={state} aria-label={`${label}: entra para poder`} className="flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-zinc-400">
       <Icon name={icon} size={24} />
       <span className="text-[12px] font-medium">{label}</span>
@@ -91,7 +91,7 @@ export default function PublicPost() {
           <div className="mt-1 flex items-stretch border-t border-zinc-200 px-2">
             {locked('Brindar', 'cheers')}
             {locked('Comentar', 'comment')}
-            {locked('Partilhar', 'send')}
+            {locked('Partilhar', 'share')}
           </div>
         </article>
       )}

@@ -1,3 +1,4 @@
+import { useOnline } from '../lib/presence';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 
@@ -58,7 +59,15 @@ const useAvatarVersion = () =>
  * Foto de perfil. Com `username` tenta a foto (o servidor responde 204 se a pessoa não tiver) e, sem foto,
  * mostra as iniciais. Imagens com texto alternativo vazio: o nome já está escrito ao lado.
  */
-export function Avatar({ name, username, size = 40, ring = true }: { name: string; username?: string; size?: number; ring?: boolean }) {
+/** Bolinha verde de "online" no canto do avatar (só se a pessoa estiver online e deixar ver; o servidor aplica a privacidade). */
+function PresenceDot({ username, size }: { username: string; size: number }) {
+  const on = useOnline(username);
+  if (!on) return null;
+  const d = size >= 60 ? 16 : size >= 40 ? 13 : 10;
+  return <span role="img" aria-label="Online" style={{ width: d, height: d }} className="absolute bottom-0 right-0 rounded-full border-2 border-white bg-emerald-500" />;
+}
+
+export function Avatar({ name, username, size = 40, ring = true, presence = false }: { name: string; username?: string; size?: number; ring?: boolean; /** mostra a bolinha de online */ presence?: boolean }) {
   const version = useAvatarVersion();
   const [failed, setFailed] = useState<string | null>(null);
   const src = username ? `/api/v1/avatars/${encodeURIComponent(username)}?v=${version}` : null;
@@ -68,12 +77,19 @@ export function Avatar({ name, username, size = 40, ring = true }: { name: strin
     .slice(0, 2)
     .join('')
     .toUpperCase();
-  return (
+  const circle = (
     <span
       style={{ width: size, height: size, fontSize: Math.max(11, size * 0.3) }}
       className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-rose-50 font-bold text-brand ${ring ? 'ring-[1.5px] ring-brand ring-offset-2' : ''}`}
     >
       {src && failed !== src ? <img src={src} alt="" onError={() => setFailed(src)} className="h-full w-full object-cover" draggable={false} /> : initials}
+    </span>
+  );
+  if (!presence || !username) return circle;
+  return (
+    <span className="relative inline-flex shrink-0">
+      {circle}
+      <PresenceDot username={username} size={size} />
     </span>
   );
 }

@@ -312,7 +312,7 @@ export class SocialService {
 
   async privacy(userId: string) {
     const { rows } = await this.pool.query(
-      'SELECT is_private, comments_allowed, gifts_allowed, mentions_allowed, dms_allowed, reposts_visible, cheers_visible, gifts_visible, show_connections, suggestable, gender, show_gender, (birth_date IS NOT NULL) AS birth_set, (terms_version = $2) AS terms_ok, is_admin, share_analytics, show_presence, (welcomed_at IS NOT NULL) AS welcomed FROM identity.users WHERE id = $1',
+      'SELECT is_private, comments_allowed, gifts_allowed, mentions_allowed, dms_allowed, reposts_visible, cheers_visible, gifts_visible, show_connections, suggestable, gender, show_gender, (birth_date IS NOT NULL) AS birth_set, (terms_version = $2) AS terms_ok, is_admin, share_analytics, show_presence, find_by_contacts, (welcomed_at IS NOT NULL) AS welcomed FROM identity.users WHERE id = $1',
       [userId, TERMS_VERSION],
     );
     const r = rows[0];
@@ -326,6 +326,8 @@ export class SocialService {
       shareAnalytics: r.share_analytics as boolean,
       /** Mostrar quando estou online (e ver a dos outros). */
       showPresence: r.show_presence as boolean,
+      /** Deixar que quem tem o meu email nos contactos me encontre. */
+      findByContacts: r.find_by_contacts as boolean,
       /** null = ainda não escolheu (a app pede-o uma vez). */
       gender: r.gender as Gender | null,
       showGender: r.show_gender as boolean,
@@ -344,7 +346,7 @@ export class SocialService {
 
   async setPrivacy(
     userId: string,
-    p: { isPrivate?: boolean; commentsAllowed?: Who; giftsAllowed?: Who; mentionsAllowed?: Who; dmsAllowed?: Who; shareAnalytics?: boolean; repostsVisible?: Viewers; cheersVisible?: Viewers; giftsVisible?: Viewers; showConnections?: Connections; suggestable?: boolean; gender?: Gender; showGender?: boolean; showPresence?: boolean },
+    p: { isPrivate?: boolean; commentsAllowed?: Who; giftsAllowed?: Who; mentionsAllowed?: Who; dmsAllowed?: Who; shareAnalytics?: boolean; repostsVisible?: Viewers; cheersVisible?: Viewers; giftsVisible?: Viewers; showConnections?: Connections; suggestable?: boolean; gender?: Gender; showGender?: boolean; showPresence?: boolean; findByContacts?: boolean },
   ) {
     // O género escolhe-se ao criar a conta e não se altera. Só contas antigas, sem género, o definem (uma vez).
     if (p.gender !== undefined) {
@@ -366,11 +368,32 @@ export class SocialService {
           suggestable = COALESCE($5, suggestable),
           gender = COALESCE(gender, $6),
           show_gender = COALESCE($7, show_gender),
-          show_presence = COALESCE($14, show_presence)
+          show_presence = COALESCE($14, show_presence),
+          find_by_contacts = COALESCE($15, find_by_contacts)
         WHERE id = $1`,
-      [userId, p.commentsAllowed ?? null, p.giftsAllowed ?? null, p.showConnections ?? null, p.suggestable ?? null, p.gender ?? null, p.showGender ?? null, p.mentionsAllowed ?? null, p.repostsVisible ?? null, p.cheersVisible ?? null, p.giftsVisible ?? null, p.dmsAllowed ?? null, p.shareAnalytics ?? null, p.showPresence ?? null],
+      [userId, p.commentsAllowed ?? null, p.giftsAllowed ?? null, p.showConnections ?? null, p.suggestable ?? null, p.gender ?? null, p.showGender ?? null, p.mentionsAllowed ?? null, p.repostsVisible ?? null, p.cheersVisible ?? null, p.giftsVisible ?? null, p.dmsAllowed ?? null, p.shareAnalytics ?? null, p.showPresence ?? null, p.findByContacts ?? null],
     );
     return this.privacy(userId);
+  }
+
+  /**
+   * Amigos nos contactos: a app envia só o resumo (SHA-256) dos emails dos contactos; devolvemos quem tem conta com esse email,
+   * deixa ser encontrado, não bloqueou nem foi bloqueado e eu ainda não sigo. Nada do que recebemos é guardado.
+   */
+  async matchContacts(userId: string, hashes: string[]) {
+    const unique = [...new Set(hashes.map((h) => h.toLowerCase()))].slice(0, 500);
+    if (!unique.length) return [];
+    const { rows } = await this.pool.query(
+      `SELECT u.username, u.display_name, u.is_private,
+              EXISTS (SELECT 1 FROM social.follow_requests fr WHERE fr.requester_id = $1 AND fr.target_id = u.id) AS requested
+         FROM identity.users u
+        WHERE u.email_sha256 = ANY($2) AND u.id <> $1 AND u.status = 'active' AND u.find_by_contacts
+          AND NOT ${blockedBetween('u.id', '$1')}
+          AND NOT EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id)
+        ORDER BY u.display_name LIMIT 100`,
+      [userId, unique],
+    );
+    return rows.map((r) => ({ username: r.username as string, displayName: r.display_name as string, isPrivate: r.is_private as boolean, requested: r.requested as boolean, reason: 'Está nos teus contactos' }));
   }
 
   /* ───────────── sugestões ───────────── */

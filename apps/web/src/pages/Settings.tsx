@@ -5,6 +5,7 @@ import PushToggle from '../components/PushToggle';
 import Icon from '../components/Icon';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { Link } from 'react-router-dom';
+import FindContacts from '../components/FindContacts';
 import GenderPicker, { genderLabel } from '../components/GenderPicker';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent, type ReactNode } from 'react';
@@ -16,7 +17,7 @@ import { Avatar, Sheet, btnGhost, btnPrimary, fieldInput, timeAgo } from '../com
 import { ApiError, api, type PrivacySettings, type Who, type Viewers } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
-type SheetName = null | 'gender' | 'edit' | 'type' | 'comments' | 'gifts' | 'connections' | 'storyReplies' | 'hidden' | 'mentions' | 'dms' | 'closeFriends' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'blocked' | 'password' | 'devices' | 'delete' | 'logout';
+type SheetName = null | 'contacts' | 'gender' | 'edit' | 'type' | 'comments' | 'gifts' | 'connections' | 'storyReplies' | 'hidden' | 'mentions' | 'dms' | 'closeFriends' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'blocked' | 'password' | 'devices' | 'delete' | 'logout';
 
 const VIEWERS: { value: Viewers; title: string; text: string }[] = [
   { value: 'everyone', title: 'Todos', text: 'Qualquer pessoa que veja a publicação.' },
@@ -284,6 +285,8 @@ export default function Settings() {
 
       <Section title="Convidar">
         <InviteRow />
+        <Row icon={<Icon name="users" />} label="Encontrar amigos nos contactos" onClick={() => setSheet('contacts')} />
+        {p && <Toggle icon={<Icon name="search" />} label="Deixar que me encontrem pelos contactos" text="Quem tem o teu email nos contactos pode sugerir-te a seguir. Só vê que estás no Txillapp." on={p.findByContacts} onChange={(v) => savePrivacy({ findByContacts: v })} />}
       </Section>
 
       <Section title="Região">
@@ -356,6 +359,7 @@ export default function Settings() {
         <Row icon={<Icon name="trash" />} label="Eliminar conta" danger onClick={() => setSheet('delete')} />
       </Section>
 
+      {sheet === 'contacts' && <FindContacts onClose={close} />}
       {sheet === 'gender' && p && (
         <Sheet title="Como te identificas?" onClose={close}>
           <GenderPicker value={p.gender} onChange={(g) => { void savePrivacy({ gender: g, ...(g === 'unspecified' ? { showGender: false } : {}) }); close(); }} />

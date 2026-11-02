@@ -246,8 +246,8 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
               <div className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {action('square-plus', 'Adicionar ao status', () => void toStory('all'), canStory ? 'bg-brand text-white' : 'bg-zinc-100 text-zinc-400')}
                 {action('heart', 'Amigos próximos', () => void toStory('close_friends'), canStory ? 'bg-emerald-500 text-white' : 'bg-zinc-100 text-zinc-400')}
-                {action('send', 'Story do WhatsApp', () => void whatsappStory(), 'bg-emerald-500 text-white')}
-                {action('send', 'WhatsApp', whatsapp, 'bg-emerald-600 text-white')}
+                {action('camera', 'Story do WhatsApp', () => void whatsappStory(), 'bg-emerald-500 text-white')}
+                {action('messages', 'WhatsApp', whatsapp, 'bg-emerald-600 text-white')}
                 {letter('Telegram', 'T', 'bg-sky-500', () => network('telegram', `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(data.text)}`))}
                 {letter('Facebook', 'f', 'bg-blue-600', () => network('facebook', `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`))}
                 {letter('X', 'X', 'bg-zinc-900', () => network('x', `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(data.text)}`))}

@@ -1,10 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import Icon, { type IconName } from '../components/Icon';
 import StackPage from '../components/StackPage';
 import VerifiedBadge from '../components/VerifiedBadge';
-import { api } from '../lib/api';
+import { api, type PaymentOrder } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 const SUPPORT = 'suporte@txillapp.com';
@@ -121,9 +121,87 @@ export function Help() {
   );
 }
 
-/** Pedidos e pagamentos: o saldo e histórico de Txills e o que vem a seguir. */
+const money = (minor: number, currency: string) => `${(minor / 100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency === 'MZN' ? 'MT' : currency}`;
+const STATUS: Record<PaymentOrder['status'], { label: string; tone: string }> = {
+  pending: { label: 'À espera', tone: 'bg-amber-100 text-amber-800' },
+  paid: { label: 'Pago', tone: 'bg-emerald-100 text-emerald-800' },
+  failed: { label: 'Falhou', tone: 'bg-red-100 text-red-700' },
+  cancelled: { label: 'Cancelado', tone: 'bg-zinc-100 text-zinc-600' },
+  expired: { label: 'Expirou', tone: 'bg-zinc-100 text-zinc-600' },
+};
+
+/** Pedidos e pagamentos: o saldo, recarregar Txills e o histórico de pedidos. */
 export function Orders() {
+  const qc = useQueryClient();
   const w = useQuery({ queryKey: ['wallet'], queryFn: api.wallet });
+  const cfg = useQuery({ queryKey: ['payments-config'], queryFn: api.paymentsConfig, staleTime: 5 * 60_000 });
+  const orders = useQuery({ queryKey: ['payments-orders'], queryFn: api.paymentsOrders });
+  const [pkg, setPkg] = useState<string | null>(null);
+  const [provider, setProvider] = useState<string | null>(null);
+  const [phone, setPhone] = useState('');
+  const [current, setCurrent] = useState<PaymentOrder | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const key = useRef(crypto.randomUUID());
+  const providers = cfg.data?.providers ?? [];
+  const chosen = providers.find((p) => p.id === (provider ?? providers[0]?.id));
+  const chosenPkg = cfg.data?.packages.find((p) => p.id === pkg);
+
+  // Enquanto o pedido está à espera, pergunta ao servidor de 3 em 3 segundos; ao ser pago, atualiza o saldo.
+  useEffect(() => {
+    if (!current || current.status !== 'pending') return;
+    const t = setInterval(async () => {
+      try {
+        const o = await api.paymentsOrder(current.id);
+        if (o.status !== 'pending') {
+          setCurrent(o);
+          void qc.invalidateQueries({ queryKey: ['wallet'] });
+          void qc.invalidateQueries({ queryKey: ['payments-orders'] });
+        }
+      } catch {
+        /* tenta no próximo */
+      }
+    }, 3000);
+    return () => clearInterval(t);
+  }, [current, qc]);
+
+  async function pay() {
+    if (!chosen || !chosenPkg) return;
+    setBusy(true);
+    setErr('');
+    try {
+      const o = await api.paymentsCreate({ packageId: chosenPkg.id, provider: chosen.id, phone: chosen.needsPhone ? phone : undefined }, key.current);
+      setCurrent(o);
+      key.current = crypto.randomUUID(); // o próximo pedido é outro
+      void qc.invalidateQueries({ queryKey: ['payments-orders'] });
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+    setBusy(false);
+  }
+  async function cancel() {
+    if (!current) return;
+    try {
+      await api.paymentsCancel(current.id);
+      setCurrent(await api.paymentsOrder(current.id));
+      void qc.invalidateQueries({ queryKey: ['payments-orders'] });
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }
+  async function sandboxPay() {
+    if (!current) return;
+    setBusy(true);
+    try {
+      setCurrent(await api.paymentsSandboxPay(current.id));
+      void qc.invalidateQueries({ queryKey: ['wallet'] });
+      void qc.invalidateQueries({ queryKey: ['payments-orders'] });
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+    setBusy(false);
+  }
+
   return (
     <StackPage title="Pedidos e pagamentos">
       <div className="mx-4 mt-4 rounded-3xl bg-gradient-to-br from-brand via-[#e8475f] to-[#ff8a5b] p-5 text-white shadow-[0_6px_18px_rgba(214,51,79,0.3)]">
@@ -131,14 +209,77 @@ export function Orders() {
         <p className="mt-1 text-[38px] font-black leading-none">{w.data ? w.data.balance.toLocaleString('pt-PT') : '…'} <span className="text-xl font-bold">Txills</span></p>
         <Link to="/wallet" className="mt-4 inline-flex h-10 items-center rounded-full bg-white/20 px-4 text-sm font-bold active:scale-95">Ver movimentos e presentes</Link>
       </div>
-      <Group title="Pagamentos">
-        <Line icon="wallet" label="Comprar Txills" value="Em breve" />
-        <Line icon="gift" label="Métodos de pagamento" value="Formas de pagar locais, em breve" />
+
+      <Group title="Recarregar Txills">
+        {cfg.isLoading && <p className="px-4 py-6 text-center text-zinc-500">A carregar…</p>}
+        {cfg.data && providers.length === 0 && <Line icon="wallet" label="Comprar Txills" value="Em breve: M-Pesa, e-Mola e cartão" />}
+        {cfg.data && providers.length > 0 && !current && (
+          <div className="space-y-4 p-4">
+            <div className="grid grid-cols-2 gap-2.5">
+              {cfg.data.packages.map((p) => (
+                <button key={p.id} type="button" onClick={() => setPkg(p.id)} aria-pressed={pkg === p.id} className={`rounded-2xl border-2 px-3 py-3 text-left transition active:scale-[0.98] ${pkg === p.id ? 'border-brand bg-rose-50' : 'border-zinc-200'}`}>
+                  <span className="block text-[22px] font-black leading-none">{p.txills.toLocaleString('pt-PT')}</span>
+                  <span className="block text-[12px] font-bold uppercase tracking-wider text-zinc-500">Txills</span>
+                  <span className="mt-1.5 block text-[15px] font-semibold text-brand">{money(p.priceMinor, p.currency)}</span>
+                </button>
+              ))}
+            </div>
+            <div role="radiogroup" aria-label="Como pagas" className="flex flex-wrap gap-2">
+              {providers.map((p) => (
+                <button key={p.id} type="button" role="radio" aria-checked={chosen?.id === p.id} onClick={() => setProvider(p.id)} className={`h-10 rounded-full border-2 px-4 text-sm font-semibold ${chosen?.id === p.id ? 'border-brand bg-rose-50 text-brand' : 'border-zinc-200 text-zinc-700'}`}>{p.label}</button>
+              ))}
+            </div>
+            {chosen?.needsPhone && (
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold">O teu número {chosen.label}</span>
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel" placeholder="84 123 4567" className="h-12 w-full rounded-2xl border-2 border-zinc-200 px-4 text-[16px] outline-none focus:border-zinc-500" />
+              </label>
+            )}
+            {err && <p role="alert" className="text-center text-sm text-red-600">{err}</p>}
+            <button type="button" onClick={pay} disabled={busy || !chosenPkg || (chosen?.needsPhone && phone.trim().length < 9)} className="h-12 w-full rounded-full bg-brand text-[16px] font-bold text-white transition active:scale-[0.98] disabled:opacity-40">
+              {busy ? 'A preparar…' : chosenPkg ? `Pagar ${money(chosenPkg.priceMinor, chosenPkg.currency)}` : 'Escolhe um pacote'}
+            </button>
+          </div>
+        )}
+        {current && (
+          <div className="space-y-3 p-4 text-center">
+            {current.status === 'pending' && (
+              <>
+                <p className="text-lg font-extrabold">À espera do pagamento</p>
+                <p className="text-sm text-zinc-600">{current.provider === 'sandbox' ? 'Pagamento de teste: confirma abaixo.' : `Confirma o pagamento no teu telemóvel${current.phoneTail ? ` (número terminado em ${current.phoneTail})` : ''}.`} Isto atualiza sozinho.</p>
+                {current.provider === 'sandbox' && <button type="button" onClick={sandboxPay} disabled={busy} className="h-11 w-full rounded-full bg-emerald-500 font-bold text-white active:scale-[0.98] disabled:opacity-50">Simular pagamento</button>}
+                <button type="button" onClick={cancel} className="h-11 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">Cancelar pedido</button>
+              </>
+            )}
+            {current.status === 'paid' && (
+              <>
+                <p className="text-lg font-extrabold text-emerald-700">Pago! +{current.txills.toLocaleString('pt-PT')} Txills</p>
+                <button type="button" onClick={() => setCurrent(null)} className="h-11 w-full rounded-full bg-zinc-100 font-semibold active:scale-[0.98]">Fechar</button>
+              </>
+            )}
+            {(current.status === 'failed' || current.status === 'cancelled' || current.status === 'expired') && (
+              <>
+                <p className="text-lg font-extrabold">{STATUS[current.status].label}</p>
+                <button type="button" onClick={() => { setCurrent(null); setErr(''); }} className="h-11 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">Tentar outra vez</button>
+              </>
+            )}
+          </div>
+        )}
       </Group>
+
       <Group title="Pedidos">
-        <Line icon="file-text" label="Histórico de pedidos" value="Ainda não tens pedidos" />
+        {orders.data && orders.data.length === 0 && <Line icon="file-text" label="Histórico de pedidos" value="Ainda não tens pedidos" />}
+        {orders.data?.map((o) => (
+          <div key={o.id} className="flex min-h-14 items-center gap-3 px-4 py-3">
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold">{o.txills.toLocaleString('pt-PT')} Txills</span>
+              <span className="block text-sm text-zinc-500">{money(o.amountMinor, o.currency)} · {new Date(o.createdAt).toLocaleDateString('pt-PT')}</span>
+            </span>
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS[o.status].tone}`}>{STATUS[o.status].label}</span>
+          </div>
+        ))}
       </Group>
-      <p className="mx-6 mt-5 text-center text-sm text-zinc-500">Por agora os Txills são uma demonstração e não valem dinheiro. Quando houver pagamentos a sério, os teus pedidos e recibos ficam aqui.</p>
+      <p className="mx-6 mt-5 text-center text-sm text-zinc-500">Os Txills comprados entram na carteira e usam-se como os outros: para presentear quem segues. Não se trocam por dinheiro.</p>
     </StackPage>
   );
 }

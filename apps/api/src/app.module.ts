@@ -28,6 +28,7 @@ import { SearchModule } from './search/search.module';
 import { SocialModule } from './social/social.module';
 import { StoriesModule } from './stories/stories.module';
 import { WalletModule } from './wallet/wallet.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({})
 export class AppModule {
@@ -46,6 +47,7 @@ export class AppModule {
         AccountModule,
         AnalyticsModule,
         WalletModule,
+        PaymentsModule,
         MediaModule,
         PushModule,
         NotificationsModule,

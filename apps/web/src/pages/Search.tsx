@@ -214,7 +214,7 @@ export default function Search() {
               {people.map((p) => (
                 <li key={p.username} className="flex items-center gap-3 py-2.5">
                   <Link to={`/u/${p.username}`} onClick={() => remember(term)} className="flex min-w-0 flex-1 items-center gap-3">
-                    <Avatar name={p.displayName} username={p.username} size={48} />
+                    <Avatar name={p.displayName} username={p.username} size={48} presence />
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">{p.displayName} {p.verified && <VerifiedBadge size={15} />} {p.isPrivate && <Icon name="lock" size={14} className="inline align-[-2px] text-zinc-500" aria-hidden={false} role="img" aria-label="Conta privada" />}</span>
                       <span className="block truncate text-sm text-zinc-600">@{p.username}{p.followsYou ? ' · segue-te' : ''}</span>

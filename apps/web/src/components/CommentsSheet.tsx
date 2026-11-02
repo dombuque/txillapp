@@ -58,7 +58,7 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
   return (
     <div className="flex gap-3 py-2.5">
       <Link to={`/u/${c.author.username}`} aria-label={`Perfil de ${c.author.displayName}`} className="self-start">
-        <Avatar name={c.author.displayName} username={c.author.username} size={isReply ? 28 : 36} />
+        <Avatar name={c.author.displayName} username={c.author.username} size={isReply ? 28 : 36} presence />
       </Link>
       <div className="min-w-0 flex-1">
         <p className="text-sm">

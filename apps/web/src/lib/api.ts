@@ -291,6 +291,8 @@ export interface PrivacySettings {
   shareAnalytics: boolean;
   /** Mostrar quando estou online (e ver a dos outros). */
   showPresence: boolean;
+  /** Deixar que quem tem o meu email nos contactos me encontre. */
+  findByContacts: boolean;
   isAdmin: boolean;
   /** Já viu (ou saltou) a visita guiada. */
   welcomed: boolean;
@@ -323,6 +325,9 @@ export interface StorySettings {
 }
 export type GiftVisibility = 'silent' | 'private' | 'public';
 export interface GeleiraLevel { points: number; level: number; title: string; toNext: number | null; nextTitle: string | null }
+export interface PaymentPackage { id: string; name: string; txills: number; priceMinor: number; currency: string }
+export interface PaymentsConfig { providers: { id: 'sandbox' | 'mpesa' | 'emola' | 'card'; label: string; needsPhone: boolean }[]; packages: PaymentPackage[] }
+export interface PaymentOrder { id: string; packageId: string; txills: number; amountMinor: number; currency: string; provider: string; status: 'pending' | 'paid' | 'failed' | 'cancelled' | 'expired'; phoneTail: string | null; createdAt: string; paidAt: string | null }
 export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts';
 export interface VerificationStatus {
   items: { key: string; label: string; ok: boolean; hint: string }[];
@@ -629,6 +634,13 @@ export const api = {
   typingPing: (postId: string): Promise<void> => raw('/presence/typing', post({ postId })),
   typers: async (postId: string): Promise<string[]> => ((await raw(`/presence/typing?postId=${postId}`)) as { names: string[] }).names,
   geleiraLevel: (username: string): Promise<GeleiraLevel> => raw(`/users/${encodeURIComponent(username)}/geleira/level`),
+  matchContacts: (hashes: string[]): Promise<Suggestion[]> => raw('/contacts/match', post({ hashes })),
+  paymentsConfig: (): Promise<PaymentsConfig> => raw('/payments/config'),
+  paymentsOrders: (): Promise<PaymentOrder[]> => raw('/payments/orders'),
+  paymentsOrder: (id: string): Promise<PaymentOrder> => raw(`/payments/orders/${id}`),
+  paymentsCreate: (b: { packageId: string; provider: string; phone?: string }, key: string): Promise<PaymentOrder> => raw('/payments/orders', post(b, { 'Idempotency-Key': key })),
+  paymentsCancel: (id: string): Promise<void> => raw(`/payments/orders/${id}/cancel`, post({})),
+  paymentsSandboxPay: (id: string): Promise<PaymentOrder> => raw(`/payments/orders/${id}/sandbox-pay`, post({})),
   verificationStatus: (): Promise<VerificationStatus> => raw('/verification/me'),
   verificationRequest: (b: { kind: 'person' | 'business'; fullName: string; proof: string; docMediaId: string; selfieMediaId: string }): Promise<void> => raw('/verification/request', post(b)),
   verificationWithdraw: (): Promise<void> => raw('/verification/request', { method: 'DELETE' }),

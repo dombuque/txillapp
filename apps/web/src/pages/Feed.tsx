@@ -1,7 +1,8 @@
 import { PostSkeleton } from '../components/Loading';
 import Icon from '../components/Icon';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { Fragment, useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import { shouldShowSuggestions } from '../lib/suggestPacing';
 import { Link } from 'react-router-dom';
 import PostCard from '../components/PostCard';
 import StoriesTray from '../components/Stories';
@@ -34,6 +35,8 @@ function Impression({ id, children }: { id: string; children: React.ReactNode })
 }
 
 export default function Feed() {
+  // As sugestões de pessoas aparecem só às vezes entre os posts (ritmo no aparelho).
+  const [showSuggestions] = useState(() => shouldShowSuggestions('feed', { minGapHours: 10, base: 0.4, step: 0.2 }));
   const q = useInfiniteQuery({
     queryKey: ['feed'],
     queryFn: ({ pageParam }) => api.feed(pageParam),
@@ -110,7 +113,7 @@ export default function Feed() {
           <Impression id={p.id}>
             <PostCard post={p} />
           </Impression>
-          {i === 1 && <Suggestions />}
+          {i === 1 && showSuggestions && <Suggestions />}
         </Fragment>
       ))}
       {q.isSuccess && posts.length <= 1 && <Suggestions />}

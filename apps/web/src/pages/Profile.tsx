@@ -1,6 +1,8 @@
 import { sized } from '../lib/media';
 import { profileShare, shareNow } from '../lib/share';
 import ExploreViewer from '../components/ExploreViewer';
+import Suggestions from '../components/Suggestions';
+import { shouldShowSuggestions } from '../lib/suggestPacing';
 import Icon, { type IconName } from '../components/Icon';
 import ReportSheet from '../components/ReportSheet';
 import VerifiedBadge from '../components/VerifiedBadge';
@@ -48,6 +50,8 @@ export default function ProfilePage() {
 
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username), retry: false });
   const p = q.data;
+  // As sugestões de pessoas só aparecem às vezes (ritmo no aparelho), não em todas as visitas ao perfil.
+  const [showSuggestions] = useState(() => shouldShowSuggestions('profile', { minGapHours: 8, base: 0.25, step: 0.2 }));
   const [tab, setTab] = useState<ProfileTab>('all');
   const swipe = useRef<{ x: number; y: number; at: number; lock: 'h' | 'v' | null } | null>(null);
   const [dragX, setDragX] = useState(0);
@@ -214,6 +218,7 @@ export default function ProfilePage() {
       </section>
 
       {p.canView && !blocked && <GeleiraShelf username={p.username} isMe={p.isMe} compact />}
+      {showSuggestions && p.canView && !blocked && <div className="mt-4"><Suggestions /></div>}
 
       {!p.canView && !blocked ? (
         <div className="mx-4 mt-6 rounded-[28px] bg-white p-8 text-center shadow-[0_2px_16px_rgba(0,0,0,0.09)]">

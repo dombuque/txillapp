@@ -160,6 +160,34 @@ export class WalletService {
     }
   }
 
+  /**
+   * Credita Txills comprados (emissão → carteira) no mesmo livro de partidas dobradas, de forma idempotente por `key`.
+   * `client` opcional para compor com a atualização do pedido na mesma transação.
+   */
+  async credit(userId: string, amount: number, key: string, metadata: Record<string, unknown>, client?: PoolClient): Promise<{ transactionId: string; replayed: boolean }> {
+    if (!Number.isInteger(amount) || amount < 1) throw new UnprocessableEntityException('Montante inválido');
+    const accountId = await this.ensureWallet(userId);
+    const own = !client;
+    const c = client ?? (await this.pool.connect());
+    try {
+      if (own) await c.query('BEGIN');
+      const dup = await c.query('SELECT id FROM ledger.transactions WHERE actor_id = $1 AND idempotency_key = $2', [userId, key]);
+      if (dup.rows[0]) {
+        if (own) await c.query('COMMIT');
+        return { transactionId: dup.rows[0].id, replayed: true };
+      }
+      await c.query('SELECT 1 FROM ledger.accounts WHERE id = $1 FOR UPDATE', [accountId]);
+      const txId = await this.post(c, { type: 'topup', actorId: userId, key, legs: [[ISSUANCE_ACCOUNT, -amount], [accountId, amount]], metadata });
+      if (own) await c.query('COMMIT');
+      return { transactionId: txId, replayed: false };
+    } catch (e) {
+      if (own) await c.query('ROLLBACK').catch(() => undefined);
+      throw e;
+    } finally {
+      if (own) c.release();
+    }
+  }
+
   private async post(
     c: PoolClient,
     t: { type: string; actorId: string; key: string; legs: [string, number][]; metadata: Record<string, unknown> },

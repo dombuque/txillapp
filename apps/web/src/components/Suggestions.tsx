@@ -3,15 +3,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api, type Suggestion } from '../lib/api';
 import FollowButton from './FollowButton';
+import { snoozeSuggestions } from '../lib/suggestPacing';
+import FindContacts from './FindContacts';
 import { Avatar } from './ui';
+import { useState } from 'react';
 
 /** "Pessoas que talvez conheças": amigos em comum primeiro; dá para dispensar com o X. */
 export default function Suggestions({ compact = false }: { compact?: boolean }) {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['suggestions'], queryFn: api.suggestions, staleTime: 60_000 });
+  const [contacts, setContacts] = useState(false);
   if (!data || data.length === 0) return null;
 
   function dismiss(p: Suggestion) {
+    snoozeSuggestions(24);
     qc.setQueryData<Suggestion[]>(['suggestions'], (d) => d?.filter((x) => x.username !== p.username));
     api.dismissSuggestion(p.username).catch(() => qc.invalidateQueries({ queryKey: ['suggestions'] }));
   }
@@ -25,7 +30,7 @@ export default function Suggestions({ compact = false }: { compact?: boolean }) 
           {data.slice(0, 4).map((p) => (
             <li key={p.username} className="flex items-center gap-2.5 px-4 py-2.5">
               <Link to={`/u/${p.username}`} className="flex min-w-0 flex-1 items-center gap-2.5">
-                <Avatar name={p.displayName} username={p.username} size={40} />
+                <Avatar name={p.displayName} username={p.username} size={40} presence />
                 <span className="min-w-0">
                   <span className="block truncate font-semibold leading-tight">{p.displayName} {p.isPrivate && <Icon name="lock" size={14} className="inline align-[-2px] text-zinc-500" aria-hidden={false} role="img" aria-label="Conta privada" />}</span>
                   <span className="block truncate text-sm text-zinc-500">{p.reason || `@${p.username}`}</span>
@@ -43,7 +48,11 @@ export default function Suggestions({ compact = false }: { compact?: boolean }) 
 
   return (
     <section aria-label="Sugestões de pessoas" className="mx-4 mb-6 xl:hidden rounded-[28px] bg-white py-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
-      <h2 className="px-5 text-lg font-bold">Bora conhecer malta nova?</h2>
+      <div className="flex items-center justify-between gap-2 px-5">
+        <h2 className="text-lg font-bold">Bora conhecer malta nova?</h2>
+        <button type="button" onClick={() => setContacts(true)} className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-zinc-100 px-3 text-[13px] font-bold text-zinc-800 active:scale-95"><Icon name="users" size={15} /> Contactos</button>
+      </div>
+      {contacts && <FindContacts onClose={() => setContacts(false)} />}
       <div className="mt-4 flex gap-3 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {data.map((p) => (
           <div key={p.username} className="relative flex w-[152px] shrink-0 flex-col items-center rounded-2xl border border-zinc-200 px-3 pb-3 pt-5 text-center">
@@ -51,7 +60,7 @@ export default function Suggestions({ compact = false }: { compact?: boolean }) 
               ×
             </button>
             <Link to={`/u/${p.username}`} className="flex w-full flex-col items-center">
-              <Avatar name={p.displayName} username={p.username} size={64} />
+              <Avatar name={p.displayName} username={p.username} size={64} presence />
               <p className="mt-3 w-full truncate font-semibold leading-tight">
                 {p.displayName} {p.isPrivate && <Icon name="lock" size={14} className="inline align-[-2px] text-zinc-500" aria-hidden={false} role="img" aria-label="Conta privada" />}
               </p>

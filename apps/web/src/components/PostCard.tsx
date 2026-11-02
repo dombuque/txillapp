@@ -357,7 +357,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
             </button>
           )}
           <button onClick={() => setSheet('share')} aria-label="Partilhar" className={barBtn}>
-            <Icon name="send" size={24} /> <span className={word}>Partilhar</span>
+            <Icon name="share" size={24} /> <span className={word}>Partilhar</span>
           </button>
         </div>
         {sheets}
@@ -412,7 +412,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
           )
         )}
         <Item label="Partilhar" onClick={() => setSheet('share')}>
-          <Icon name="send" size={26} />
+          <Icon name="share" size={26} />
         </Item>
       </div>
       {sheets}

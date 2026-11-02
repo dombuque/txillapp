@@ -65,7 +65,7 @@ function ConnectionList({ username, kind, meUsername }: { username: string; kind
         {people.map((x) => (
           <li key={x.username} className="flex items-center gap-3 px-4 py-2.5">
             <Link to={x.username === meUsername ? '/profile' : `/u/${x.username}`} className="flex min-w-0 flex-1 items-center gap-3">
-              <Avatar name={x.displayName} username={x.username} size={48} ring={false} />
+              <Avatar name={x.displayName} username={x.username} size={48} ring={false} presence />
               <span className="min-w-0">
                 <span className="block truncate font-semibold">{x.displayName}</span>
                 <span className="block truncate text-sm text-zinc-600">@{x.username}{x.followsYou && x.username !== meUsername ? ' · segue-te' : ''}</span>
