@@ -15,6 +15,9 @@ export const STICKERS = ['bora', 'fixe', 'ja-vou', 'a-caminho', 'paga', 'saude',
 const PAGE = 40;
 
 /** Os dois ids por ordem fixa (user_a < user_b), para haver uma só conversa por par. */
+/** Quantas mensagens se podem mandar a quem não nos segue, antes de a pessoa responder, aceitar ou seguir de volta. */
+export const STRANGER_LIMIT = 3;
+
 const pair = (x: string, y: string) => (x < y ? ([x, y] as const) : ([y, x] as const));
 
 export interface Outgoing {
@@ -44,6 +47,77 @@ export class ChatService {
     );
     if (!rows[0] || rows[0].status !== 'active') throw new NotFoundException('Pessoa não encontrada');
     return rows[0] as { id: string; username: string; display_name: string; has_avatar: boolean };
+  }
+
+  /**
+   * Relação entre duas pessoas numa conversa (a política de mensagens de quem não se segue):
+   *  - `request`: para mim, é um pedido de mensagem (não sigo a pessoa, ela escreveu, e eu ainda não respondi nem aceitei);
+   *  - `left`: quantas mensagens ainda posso mandar a quem não me segue e ainda não interagiu (null = sem limite).
+   */
+  async relationOf(me: string, otherId: string, conv: string | null) {
+    const f = (
+      await this.pool.query(
+        `SELECT EXISTS (SELECT 1 FROM social.follows WHERE follower_id = $1 AND followee_id = $2) AS i_follow,
+                EXISTS (SELECT 1 FROM social.follows WHERE follower_id = $2 AND followee_id = $1) AS they_follow`,
+        [me, otherId],
+      )
+    ).rows[0];
+    let sentByMe = 0;
+    let sentByThem = 0;
+    let acceptedMe = false;
+    let acceptedThem = false;
+    let hidden = false;
+    if (conv) {
+      const r = (
+        await this.pool.query(
+          `SELECT (SELECT count(*) FROM social.messages WHERE conversation_id = c.id AND sender_id = $2 AND deleted_at IS NULL)::int AS mine,
+                  (SELECT count(*) FROM social.messages WHERE conversation_id = c.id AND sender_id = $3 AND deleted_at IS NULL)::int AS theirs,
+                  c.user_a, c.accepted_a, c.accepted_b, c.hidden_a, c.hidden_b
+             FROM social.conversations c WHERE c.id = $1`,
+          [conv, me, otherId],
+        )
+      ).rows[0];
+      if (r) {
+        const iAmA = r.user_a === me;
+        sentByMe = r.mine;
+        sentByThem = r.theirs;
+        acceptedMe = iAmA ? r.accepted_a : r.accepted_b;
+        acceptedThem = iAmA ? r.accepted_b : r.accepted_a;
+        hidden = iAmA ? r.hidden_a : r.hidden_b;
+      }
+    }
+    const iFollow = f.i_follow as boolean;
+    const theyFollow = f.they_follow as boolean;
+    return {
+      iFollow,
+      theyFollow,
+      hidden,
+      request: !iFollow && sentByMe === 0 && !acceptedMe && sentByThem > 0,
+      left: !theyFollow && sentByThem === 0 && !acceptedThem ? Math.max(0, STRANGER_LIMIT - sentByMe) : null,
+    };
+  }
+
+  /** Aceitar o pedido: a conversa passa para a lista normal. */
+  async accept(me: string, username: string) {
+    const other = await this.userByName(username);
+    const conv = await this.conversation(me, other.id, false);
+    if (!conv) throw new NotFoundException('Conversa não encontrada');
+    await this.pool.query(
+      `UPDATE social.conversations SET accepted_a = CASE WHEN user_a = $2 THEN true ELSE accepted_a END, accepted_b = CASE WHEN user_b = $2 THEN true ELSE accepted_b END,
+              hidden_a = CASE WHEN user_a = $2 THEN false ELSE hidden_a END, hidden_b = CASE WHEN user_b = $2 THEN false ELSE hidden_b END WHERE id = $1`,
+      [conv, me],
+    );
+  }
+
+  /** Recusar o pedido: some da minha lista e deixo de receber avisos desta conversa (a outra pessoa não é avisada). */
+  async decline(me: string, username: string) {
+    const other = await this.userByName(username);
+    const conv = await this.conversation(me, other.id, false);
+    if (!conv) throw new NotFoundException('Conversa não encontrada');
+    await this.pool.query(
+      `UPDATE social.conversations SET hidden_a = CASE WHEN user_a = $2 THEN true ELSE hidden_a END, hidden_b = CASE WHEN user_b = $2 THEN true ELSE hidden_b END WHERE id = $1`,
+      [conv, me],
+    );
   }
 
   /** Hora a que a pessoa foi vista pela última vez (ao abrir e fechar a app). */
@@ -81,6 +155,9 @@ export class ChatService {
     const { rows } = await this.pool.query(
       `SELECT c.id, o.id AS other_id, o.username, o.display_name, (o.avatar_media_id IS NOT NULL) AS has_avatar, o.status, o.show_presence AS o_show, o.last_seen_at,
               lm.body AS last_body, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at,
+              EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = o.id) AS i_follow,
+              (SELECT count(*) FROM social.messages sm WHERE sm.conversation_id = c.id AND sm.sender_id = $1 AND sm.deleted_at IS NULL)::int AS sent_by_me,
+              (CASE WHEN c.user_a = $1 THEN c.accepted_a ELSE c.accepted_b END) AS accepted,
               (SELECT count(*) FROM social.messages m
                 WHERE m.conversation_id = c.id AND m.sender_id <> $1 AND m.deleted_at IS NULL
                   AND (CASE WHEN c.user_a = $1 THEN c.read_a ELSE c.read_b END IS NULL
@@ -89,6 +166,7 @@ export class ChatService {
          JOIN identity.users o ON o.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
          JOIN LATERAL (SELECT body, kind, sender_id, created_at FROM social.messages WHERE conversation_id = c.id AND deleted_at IS NULL ORDER BY id DESC LIMIT 1) lm ON true
         WHERE (c.user_a = $1 OR c.user_b = $1) AND NOT ${blockedBetween('o.id', '$1')}
+          AND NOT (CASE WHEN c.user_a = $1 THEN c.hidden_a ELSE c.hidden_b END)
         ORDER BY lm.created_at DESC LIMIT 100`,
       [me],
     );
@@ -104,14 +182,17 @@ export class ChatService {
         fromMe: r.last_sender === me,
         at: r.last_at as string,
       },
+      /** Pedido de mensagem: quem escreveu não é seguido por mim, eu ainda não respondi nem aceitei. */
+      request: !r.i_follow && r.sent_by_me === 0 && !r.accepted && r.last_sender !== me,
       unread: r.unread as number,
     }));
   }
 
   /** Quantas conversas têm mensagens por ler (o ponto no ícone das mensagens). */
   async unread(me: string) {
+    // Os pedidos de mensagem não contam para o número do ícone: só aparecem na caixa de pedidos.
     const list = await this.list(me);
-    return { conversations: list.filter((c) => c.unread > 0).length };
+    return { conversations: list.filter((c) => c.unread > 0 && !c.request).length, requests: list.filter((c) => c.request).length };
   }
 
   /** Mensagens da conversa (as mais recentes primeiro, por cursor). Abrir marca como lidas e avisa o outro lado. */
@@ -128,7 +209,9 @@ export class ChatService {
     ).rows[0];
     const person = { username: other.username, displayName: other.display_name, hasAvatar: other.has_avatar, canGift: !blocked && !!g?.allowed && !!g?.following, presence: blocked ? null : await this.presenceOf(me, other.id) };
     const conv = await this.conversation(me, other.id, false);
-    if (!conv) return { person, blocked, otherRead: null, items: [], nextCursor: null };
+    const rel = await this.relationOf(me, other.id, conv);
+    const relation = { iFollow: rel.iFollow, theyFollow: rel.theyFollow, request: rel.request, left: rel.left };
+    if (!conv) return { person, blocked, relation, otherRead: null, items: [], nextCursor: null };
     const { rows } = await this.pool.query(
       `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.created_at FROM social.messages m
         WHERE m.conversation_id = $1 AND m.deleted_at IS NULL AND ($2::uuid IS NULL OR m.id < $2) ORDER BY m.id DESC LIMIT $3`,
@@ -148,6 +231,7 @@ export class ChatService {
     return {
       person,
       blocked,
+      relation,
       /** Último id que a outra pessoa já leu ("Visto" nas minhas mensagens até aqui). */
       otherRead,
       items: await this.mapItems(me, page),
@@ -219,6 +303,10 @@ export class ChatService {
     if (r.blocked) throw new ForbiddenException('Não podes enviar mensagens a esta pessoa');
     if (!r.allowed && !r.spoke) throw new ForbiddenException('Esta pessoa não aceita mensagens novas');
 
+    const rel = await this.relationOf(me, other.id, await this.conversation(me, other.id, false));
+    if (rel.left === 0) {
+      throw new ForbiddenException(`Esta pessoa não te segue e ainda não respondeu. Podes escrever outra vez quando ela responder, aceitar ou te seguir.`);
+    }
     const place = await this.validateOutgoing(me, msg);
     return this.insert(me, other.id, msg.kind === 'location' ? msg.body.slice(0, 80) : msg.body, msg.kind, null, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place);
   }
@@ -265,12 +353,21 @@ export class ChatService {
               read_a = CASE WHEN user_a = $2 THEN $3::uuid ELSE read_a END, read_b = CASE WHEN user_b = $2 THEN $3::uuid ELSE read_b END WHERE id = $1`,
       [conv, me, id],
     );
+    // Quem responde aceita (sai dos pedidos e volta a ver a conversa).
+    await this.pool.query(
+      `UPDATE social.conversations SET accepted_a = CASE WHEN user_a = $2 THEN true ELSE accepted_a END, accepted_b = CASE WHEN user_b = $2 THEN true ELSE accepted_b END,
+              hidden_a = CASE WHEN user_a = $2 THEN false ELSE hidden_a END, hidden_b = CASE WHEN user_b = $2 THEN false ELSE hidden_b END WHERE id = $1`,
+      [conv, me],
+    );
+    const theirs = await this.relationOf(other, me, conv);
+    // Quem recusou a conversa não recebe avisos dela.
+    if (theirs.hidden) return { id, kind };
     const from = await this.usernameOf(me);
     this.events.emit(other, { type: 'message', from });
     // Também no telemóvel, sem o texto da mensagem.
     const sender = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0].display_name as string;
     const what: Partial<Record<MessageKind, string>> = { image: 'enviou-te uma foto', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo' };
-    void this.push.send(other, { title: sender, body: what[kind] ?? 'enviou-te uma mensagem', url: `/messages/${from}`, tag: `chat:${me}` });
+    void this.push.send(other, { title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : (what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}` });
     return { id, kind };
   }
 }

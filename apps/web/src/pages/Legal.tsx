@@ -67,6 +67,15 @@ export function Terms() {
           <li>partilhar dados privados de outras pessoas sem consentimento;</li>
           <li>tentar invadir o serviço, contornar a segurança ou recolher dados em massa.</li>
         </ul>
+        <h3>Mensagens de quem não segues</h3>
+        <p>Para proteger toda a gente de spam e assédio, as conversas com quem não se segue têm regras próprias:</p>
+        <ul>
+          <li>Quando alguém que não segues te escreve, a conversa chega como <b>pedido de mensagem</b>. Não conta no número do ícone das mensagens até a aceitares. Podes <b>aceitar</b>, <b>recusar</b> (a pessoa não é avisada e deixas de receber avisos dela), <b>bloquear</b> ou <b>denunciar</b>.</li>
+          <li>Quem escreve a alguém que não o segue vê o aviso «Esta pessoa não te segue» e pode enviar <b>até 3 mensagens</b> enquanto a outra pessoa não responder, aceitar ou seguir de volta. Depois disso, tem de esperar.</li>
+          <li>Responder a um pedido, aceitá-lo ou seguir a pessoa liberta a conversa, sem limite.</li>
+          <li>Cada pessoa escolhe quem lhe pode escrever em Definições (todos, só quem segue, ou ninguém). Contas bloqueadas não conseguem escrever-te.</li>
+          <li>Pedidos de mensagem usados para assediar, enganar ou fazer spam podem levar à suspensão da conta (ver «Denúncias e moderação»).</li>
+        </ul>
       </section>
       <section>
         <h2>5. Denúncias e moderação</h2>

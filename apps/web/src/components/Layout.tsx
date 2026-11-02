@@ -59,29 +59,32 @@ export default function Layout() {
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl bg-white pb-24 lg:pb-8">
-      <header className="sticky top-0 z-10 flex items-center justify-center bg-white/95 py-3 backdrop-blur lg:hidden">
-        <NavLink to="/notifications" aria-label={count > 0 ? `Notificações (${count} por ler)` : 'Notificações'} className="absolute left-3 flex h-11 w-11 items-center justify-center text-zinc-900">
-          <span className="relative">
-            <BellIcon width={26} height={26} />
-            {count > 0 && (
-              <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white">
-                {count > 9 ? '9+' : count}
-              </span>
-            )}
-          </span>
-        </NavLink>
-        <Wordmark className="h-8" />
-        <NavLink to="/messages" aria-label={chatCount > 0 ? `Mensagens (${chatCount} por ler)` : 'Mensagens'} className="absolute right-3 flex h-11 w-11 items-center justify-center text-zinc-900">
-          <span className="relative">
-            <MessagesIcon width={26} height={26} />
-            {chatCount > 0 && (
-              <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white">
-                {chatCount > 9 ? '9+' : chatCount}
-              </span>
-            )}
-          </span>
-        </NavLink>
-      </header>
+      {/* Dentro das mensagens o topo é o do chat (o teu @ e nova conversa), como no Instagram. */}
+      {pathname !== '/messages' && (
+        <header className="sticky top-0 z-10 flex items-center justify-center bg-white/95 py-3 backdrop-blur lg:hidden">
+          <NavLink to="/notifications" aria-label={count > 0 ? `Notificações (${count} por ler)` : 'Notificações'} className="absolute left-3 flex h-11 w-11 items-center justify-center text-zinc-900">
+            <span className="relative">
+              <BellIcon width={26} height={26} />
+              {count > 0 && (
+                <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white">
+                  {count > 9 ? '9+' : count}
+                </span>
+              )}
+            </span>
+          </NavLink>
+          <Wordmark className="h-8" />
+          <NavLink to="/messages" aria-label={chatCount > 0 ? `Mensagens (${chatCount} por ler)` : 'Mensagens'} className="absolute right-3 flex h-11 w-11 items-center justify-center text-zinc-900">
+            <span className="relative">
+              <MessagesIcon width={26} height={26} />
+              {chatCount > 0 && (
+                <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white">
+                  {chatCount > 9 ? '9+' : chatCount}
+                </span>
+              )}
+            </span>
+          </NavLink>
+        </header>
+      )}
       <EmailBanner />
       {/* Puxar para baixo recarrega a página (menos ao escrever uma publicação). */}
       <div key={pathname} className={slide}>

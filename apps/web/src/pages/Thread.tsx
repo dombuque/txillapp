@@ -19,6 +19,7 @@ import { detectIntent } from '../lib/chatIntent';
 import { useTyping } from '../lib/chatLive';
 import { STICKERS, Sticker } from '../lib/stickers';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
+import { useAuth } from '../lib/auth';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE = 8 * 1024 * 1024;
@@ -395,6 +396,22 @@ export default function Thread() {
     await q.refetch();
   }
 
+  async function acceptReq() {
+    await api.chatAccept(username).catch((x) => setErr((x as Error).message));
+    await q.refetch();
+    qc.invalidateQueries({ queryKey: ['chat-list'] });
+  }
+  async function declineReq() {
+    await api.chatDecline(username).catch((x) => setErr((x as Error).message));
+    qc.invalidateQueries({ queryKey: ['chat-list'] });
+    navigate('/messages', { replace: true });
+  }
+  async function blockReq() {
+    await api.block(username).catch((x) => setErr((x as Error).message));
+    qc.invalidateQueries({ queryKey: ['chat-list'] });
+    navigate('/messages', { replace: true });
+  }
+
   function jumpDown() {
     stick.current = true;
     setUnseen(0);
@@ -473,6 +490,13 @@ export default function Thread() {
           }}
           className="h-full overflow-y-auto overscroll-contain px-4 pb-3 pt-2 [overflow-anchor:none]"
         >
+          {!isGroup && first?.relation && !first.relation.theyFollow && !first.relation.request && person && (
+            <div role="note" className="mx-auto mb-2 mt-3 max-w-sm rounded-2xl bg-zinc-50 px-4 py-3 text-center text-[13px] leading-snug text-zinc-600 ring-1 ring-zinc-100">
+              <Icon name="info" size={16} className="mx-auto mb-1 text-zinc-500" />
+              <b className="text-zinc-800">{person.displayName.split(' ')[0]} não te segue.</b> Pode não ver nem responder à tua mensagem.
+              {first.relation.left !== null && <span className="block">{first.relation.left > 0 ? `Podes enviar mais ${first.relation.left} ${first.relation.left === 1 ? 'mensagem' : 'mensagens'} até responder.` : 'Aguarda que responda, aceite ou te siga para escreveres outra vez.'}</span>}
+            </div>
+          )}
           {q.hasNextPage && (
             <button onClick={() => { stick.current = false; void q.fetchNextPage(); }} className="mx-auto mb-2 mt-2 block rounded-full bg-zinc-100 px-4 py-1.5 text-sm font-semibold text-zinc-700">Ver mensagens anteriores</button>
           )}
@@ -509,7 +533,18 @@ export default function Thread() {
         )}
       </div>
 
-      {first?.blocked ? (
+      {!isGroup && first?.relation?.request && person ? (
+        <div className="shrink-0 border-t border-zinc-100 px-4 pb-[max(0.9rem,env(safe-area-inset-bottom))] pt-3">
+          <p className="text-center text-[14px] leading-snug text-zinc-700"><b>Pedido de mensagem.</b> Não segues {person.displayName.split(' ')[0]}. Se aceitares, podem falar à vontade; se recusares, não és incomodado.</p>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <button onClick={() => acceptReq()} className="h-11 rounded-full bg-brand font-bold text-white active:scale-95">Aceitar</button>
+            <button onClick={() => declineReq()} className="h-11 rounded-full bg-zinc-100 font-semibold text-zinc-800 active:scale-95">Recusar</button>
+            <button onClick={() => blockReq()} className="h-11 rounded-full bg-zinc-100 font-semibold text-red-700 active:scale-95">Bloquear</button>
+          </div>
+        </div>
+      ) : first?.relation?.left === 0 && !isGroup ? (
+        <p className="shrink-0 border-t border-zinc-100 px-6 py-4 text-center text-sm text-zinc-600">{person?.displayName.split(' ')[0]} ainda não respondeu. Podes escrever outra vez quando responder, aceitar ou te seguir.</p>
+      ) : first?.blocked ? (
         <p className="shrink-0 border-t border-zinc-100 px-6 py-4 text-center text-sm text-zinc-600">Não podes trocar mensagens com esta conta.</p>
       ) : rec ? (
         <div className="flex shrink-0 items-center gap-3 border-t border-zinc-100 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
@@ -539,12 +574,12 @@ export default function Thread() {
           </div>
         )}
         {panel === 'attach' && (
-          <div className="mx-3 mt-2 grid grid-cols-4 gap-2" role="menu" aria-label="Mais">
+          <div className="mx-3 mt-2 flex justify-end gap-1" role="menu" aria-label="Mais">
             {([
               ['map-pin', 'Localização', () => { setPanel(null); setPlace(true); }],
               ...(person?.canGift ? [['gift', 'Presente', () => { setPanel(null); setGift({}); }] as const] : []),
             ] as const).map(([ic, label, run]) => (
-              <button key={label} type="button" role="menuitem" onClick={run} className="flex flex-col items-center gap-1.5 rounded-2xl py-2 active:bg-zinc-100">
+              <button key={label} type="button" role="menuitem" onClick={run} className="flex w-[84px] flex-col items-center gap-1.5 rounded-2xl py-2 active:bg-zinc-100">
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-800"><Icon name={ic} size={22} /></span>
                 <span className="text-xs font-semibold text-zinc-700">{label}</span>
               </button>

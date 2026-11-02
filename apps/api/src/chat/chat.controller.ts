@@ -71,7 +71,7 @@ export class ChatController {
   @UseGuards(JwtAuthGuard)
   async unread(@Req() req: AuthedReq) {
     const [direct, groups] = await Promise.all([this.chat.unread(req.userId!), this.groups.list(req.userId!)]);
-    return { conversations: direct.conversations + groups.filter((g) => g.unread > 0).length };
+    return { conversations: direct.conversations + groups.filter((g) => g.unread > 0).length, requests: direct.requests };
   }
 
   /* ───────────── grupos ───────────── */
@@ -137,6 +137,21 @@ export class ChatController {
   @Throttle({ default: { limit: 40, ttl: 60_000 } })
   send(@Req() req: AuthedReq, @Param('username') username: string, @Body(new ZodPipe(sendSchema)) b: z.infer<typeof sendSchema>) {
     return this.chat.send(req.userId!, username, b);
+  }
+
+  /** Pedidos de mensagem (de quem não sigo): aceitar passa a conversa para a lista normal; recusar esconde-a. */
+  @Post('with/:username/accept')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  accept(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.chat.accept(req.userId!, username);
+  }
+
+  @Post('with/:username/decline')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  decline(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.chat.decline(req.userId!, username);
   }
 
   @Post('with/:username/typing')

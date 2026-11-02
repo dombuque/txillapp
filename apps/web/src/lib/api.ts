@@ -220,8 +220,12 @@ export interface Conversation {
   hasAvatar: boolean;
   lastMessage: { body: string; kind: ChatMessage['kind']; fromMe: boolean; at: string };
   presence?: Presence | null;
+  /** Pedido de mensagem (de quem não sigo): só aparece na caixa de pedidos. */
+  request?: boolean;
   unread: number;
 }
+export type NoteAudience = 'mutual' | 'close_friends';
+export interface Note { username: string; displayName: string; hasAvatar: boolean; body: string; audience: NoteAudience; createdAt: string; expiresAt: string }
 export interface GroupSummary {
   kind: 'group';
   id: string;
@@ -257,7 +261,10 @@ export interface ChatMessage {
 }
 /** Online agora, ou a hora a que foi visto pela última vez. null = escondido por uma das partes. */
 export interface Presence { online: boolean; lastSeen: string | null }
+/** Como estamos um com o outro no chat: o aviso "não te segue", o pedido de mensagem e quantas mensagens ainda posso mandar a quem não responde. */
+export interface ChatRelation { iFollow: boolean; theyFollow: boolean; request: boolean; left: number | null }
 export interface ChatThread {
+  relation?: ChatRelation;
   person: { username: string; displayName: string; hasAvatar: boolean; canGift?: boolean; presence?: Presence | null };
   blocked: boolean;
   /** Último id que a outra pessoa já leu. */
@@ -545,6 +552,10 @@ export const api = {
   nearbyPlaces: (lat: number, lng: number): Promise<NearbyPlaces> => raw(`/places/nearby?lat=${lat}&lng=${lng}`),
   postPeople: (postId: string, kind: PeopleKind): Promise<{ username: string; displayName: string; hasAvatar: boolean; verified: boolean; at: string }[]> => raw(`/posts/${postId}/people/${kind}`),
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
+  notes: (): Promise<{ mine: Note | null; items: Note[] }> => raw('/notes'),
+  setNote: (body: string, audience: NoteAudience): Promise<void> => raw('/notes/me', { method: 'PUT', body: JSON.stringify({ body, audience }) }),
+  deleteNote: (): Promise<void> => raw('/notes/me', { method: 'DELETE' }),
+  replyNote: (username: string, text: string): Promise<{ id: string }> => raw(`/notes/${encodeURIComponent(username)}/reply`, post({ text })),
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),
   chatGroupThread: (id: string, cursor?: string): Promise<GroupThread> => raw(`/chat/groups/${id}${cursor ? `?cursor=${cursor}` : ''}`),
   chatGroupSend: (id: string, msg: { body?: string; kind?: ChatMessage['kind']; mediaId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number }): Promise<{ id: string }> =>
@@ -553,10 +564,12 @@ export const api = {
   chatGroupRename: (id: string, name: string): Promise<void> => raw(`/chat/groups/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
   chatGroupAdd: (id: string, members: string[]): Promise<void> => raw(`/chat/groups/${id}/members`, post({ members })),
   chatGroupRemove: (id: string, username: string): Promise<void> => raw(`/chat/groups/${id}/members/${encodeURIComponent(username)}`, { method: 'DELETE' }),
-  chatUnread: (): Promise<{ conversations: number }> => raw('/chat/unread'),
+  chatUnread: (): Promise<{ conversations: number; requests?: number }> => raw('/chat/unread'),
   chatThread: (username: string, cursor?: string): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${cursor ? `?cursor=${cursor}` : ''}`),
   chatSend: (username: string, msg: { body?: string; kind?: ChatMessage['kind']; mediaId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number }): Promise<{ id: string }> =>
     raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
+  chatAccept: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/accept`, post({})),
+  chatDecline: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/decline`, post({})),
   chatTyping: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/typing`, post({})),
   chatDelete: (id: string): Promise<void> => raw(`/chat/messages/${id}`, { method: 'DELETE' }),
   /** Envia uma foto ou gravação para o chat (ficheiro privado). */

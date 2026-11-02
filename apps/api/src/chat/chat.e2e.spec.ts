@@ -40,7 +40,10 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     pool = new Pool({ connectionString: DB });
     app = await createApp(loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'c'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test' }));
     await app.init();
-    for (const n of ['ca', 'cb', 'cc', 'cd', 'ce', 'cf', 'cg', 'ch', 'ci']) u[n] = await signup(n);
+    for (const n of ['ca', 'cb', 'cc', 'cd', 'ce', 'cf', 'cg', 'ch', 'ci', 'cj']) u[n] = await signup(n);
+    // Quase todos se seguem (os testes de conversa não são sobre pedidos de mensagem); só 'cj' fica de fora, para a política.
+    const ids = ['ca', 'cb', 'cc', 'cd', 'ce', 'cf', 'cg', 'ch', 'ci'].map((n) => u[n].id);
+    for (const a of ids) for (const b of ids) if (a !== b) await pool.query('INSERT INTO social.follows (follower_id, followee_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [a, b]);
   }, 60_000);
 
   afterAll(async () => {
@@ -221,6 +224,7 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
 
   it('sugestão de presente: só aparece se posso presentear (sigo a pessoa e aceita presentes)', async () => {
     const { ce: cc, cf: cd } = u;
+    await pool.query('DELETE FROM social.follows WHERE follower_id = $1 AND followee_id = $2', [cc.id, cd.id]);
     expect((await thread(cc, cd)).person.canGift).toBe(false); // não segue
     await api().post(`/api/v1/users/${cd.username}/follow`).set(auth(cc)).expect(200);
     expect((await thread(cc, cd)).person.canGift).toBe(true);
@@ -291,5 +295,72 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     const msgId = (await gp(ch, `/${id}`).expect(200)).body.items[1].id as string;
     await api().delete(`/api/v1/chat/messages/${msgId}`).set(auth(ch)).expect(204);
     expect((await gp(ci, `/${id}`).expect(200)).body.items.some((m: { id: string }) => m.id === msgId)).toBe(false);
+  });
+
+  it('política de mensagens de quem não se segue: aviso, limite de 3, pedido, aceitar, recusar', async () => {
+    const { cj: stranger, ca: me } = u; // stranger não é seguido por ca, nem o segue
+    // Quem escreve a alguém que não o segue: sabe que a pessoa não o segue e pode mandar só 3 antes de resposta.
+    const first = await send(stranger, me, 'olá 1').expect(201);
+    expect(first.body.kind).toBe('text');
+    expect((await thread(stranger, me)).relation).toMatchObject({ theyFollow: false, request: false, left: 2 });
+    await send(stranger, me, 'olá 2').expect(201);
+    await send(stranger, me, 'olá 3').expect(201);
+    await send(stranger, me, 'olá 4').expect(403);
+
+    // Para quem recebe é um pedido: vai para os pedidos e não conta para o número do ícone.
+    const row = (await list(me)).find((c) => c.username === stranger.username) as unknown as { request: boolean; unread: number };
+    expect(row).toMatchObject({ request: true, unread: 3 });
+    expect((await api().get('/api/v1/chat/unread').set(auth(me)).expect(200)).body).toMatchObject({ requests: expect.any(Number) });
+    expect((await thread(me, stranger)).relation).toMatchObject({ iFollow: false, request: true });
+
+    // Recusar esconde a conversa e a pessoa não é avisada; não recebe mais avisos.
+    await api().post(`/api/v1/chat/with/${stranger.username}/decline`).set(auth(me)).expect(204);
+    expect((await list(me)).some((c) => c.username === stranger.username)).toBe(false);
+
+    // Aceitar traz a conversa de volta à lista normal e liberta o limite de quem escreveu.
+    await api().post(`/api/v1/chat/with/${stranger.username}/accept`).set(auth(me)).expect(204);
+    const back = (await list(me)).find((c) => c.username === stranger.username) as unknown as { request: boolean };
+    expect(back.request).toBe(false);
+    await send(stranger, me, 'olá 4').expect(201);
+    expect((await thread(stranger, me)).relation.left).toBeNull();
+
+    // Responder também aceita; seguir de volta tira o aviso de "não te segue".
+    await send(me, stranger, 'olá! diz').expect(201);
+    await api().post(`/api/v1/users/${stranger.username}/follow`).set(auth(me)).expect(200);
+    expect((await thread(stranger, me)).relation).toMatchObject({ theyFollow: true, left: null });
+  });
+
+  it('notas de 24 h: só quem a pessoa escolhe vê; amigos próximos; expira; responder vai para o chat', async () => {
+    const { ca, cb, cc, cj } = u; // ca, cb, cc seguem-se; cj não é seguido por ninguém
+    const notes = async (x: U) => (await api().get('/api/v1/notes').set(auth(x)).expect(200)).body as { mine: { body: string } | null; items: { username: string; body: string }[] };
+    await api().put('/api/v1/notes/me').set(auth(ca)).send({ body: '' }).expect(400);
+    await api().put('/api/v1/notes/me').set(auth(ca)).send({ body: 'x'.repeat(61) }).expect(400);
+    await api().put('/api/v1/notes/me').set(auth(ca)).send({ body: 'Quem vai à praia hoje?' }).expect(204);
+
+    expect((await notes(ca)).mine?.body).toBe('Quem vai à praia hoje?');
+    expect((await notes(cb)).items.map((n) => n.username)).toContain(ca.username); // seguem-se um ao outro
+    expect((await notes(cj)).items.map((n) => n.username)).not.toContain(ca.username); // não é seguidor de volta
+
+    // Só para amigos próximos: quem não está na lista deixa de a ver.
+    await api().put('/api/v1/notes/me').set(auth(ca)).send({ body: 'Só os meus', audience: 'close_friends' }).expect(204);
+    expect((await notes(cb)).items.map((n) => n.username)).not.toContain(ca.username);
+    await pool.query('INSERT INTO social.close_friends (owner_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [ca.id, cb.id]);
+    expect((await notes(cb)).items.find((n) => n.username === ca.username)?.body).toBe('Só os meus');
+    expect((await notes(cc)).items.map((n) => n.username)).not.toContain(ca.username);
+
+    // Responder: chega ao dono como mensagem, a dizer a que nota responde; quem não a vê não pode responder.
+    await api().post(`/api/v1/notes/${ca.username}/reply`).set(auth(cb)).send({ text: 'eu vou!' }).expect(201);
+    await api().post(`/api/v1/notes/${ca.username}/reply`).set(auth(cc)).send({ text: 'e eu?' }).expect(404);
+    const got = ((await thread(ca, cb)).items as { body: string; fromMe: boolean }[]).find((m) => !m.fromMe && m.body.includes('eu vou!'))!;
+    expect(got.body).toContain('Só os meus');
+
+    // Expira passadas 24 h; apagar também a tira.
+    await pool.query(`UPDATE social.notes SET expires_at = now() - interval '1 minute' WHERE user_id = $1`, [ca.id]);
+    expect((await notes(cb)).items.map((n) => n.username)).not.toContain(ca.username);
+    expect((await notes(ca)).mine).toBeNull();
+    await api().put('/api/v1/notes/me').set(auth(ca)).send({ body: 'outra' }).expect(204);
+    await api().delete('/api/v1/notes/me').set(auth(ca)).expect(204);
+    expect((await notes(ca)).mine).toBeNull();
+    await pool.query('DELETE FROM social.close_friends WHERE owner_id = $1', [ca.id]);
   });
 });

@@ -65,7 +65,8 @@ describe('notificações no telemóvel (Web Push)', () => {
     expect(msg.endpoint).toBe(sub('a').endpoint);
     // O título é quem enviou (o sistema já mostra que é do Txillapp); o corpo não repete o nome nem leva o texto da mensagem.
     expect(msg.payload.title).toBe('qb Teste');
-    expect(msg.payload.body).toBe('enviou-te uma mensagem');
+    // qa não segue qb: é um pedido de mensagem (política de mensagens de quem não se segue).
+    expect(msg.payload.body).toBe('quer enviar-te uma mensagem');
     expect(JSON.stringify(sent)).not.toMatch(/segredo|1234/); // nunca o conteúdo
 
     await api().post(`/api/v1/users/${qa.username}/follow`).set(auth(qb)).expect(200);

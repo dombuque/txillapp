@@ -1,9 +1,11 @@
 import { RowsSkeleton } from '../components/Loading';
 import Icon from '../components/Icon';
 import NewChat from '../components/NewChat';
+import NotesStrip from '../components/Notes';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
 import { Avatar, timeAgo } from '../components/ui';
 import { api, type ChatMessage } from '../lib/api';
 
@@ -34,6 +36,8 @@ interface Row {
 
 /** Lista de conversas e grupos, com pesquisa (pelo nome ou pelo que foi dito) e um botão para começar uma conversa nova. */
 export default function Messages() {
+  const { user } = useAuth();
+  const [view, setView] = useState<'all' | 'requests'>('all');
   const direct = useQuery({ queryKey: ['chat-list'], queryFn: api.chatList, refetchInterval: 60_000 });
   const groups = useQuery({ queryKey: ['chat-groups'], queryFn: api.chatGroups, refetchInterval: 60_000 });
   const [text, setText] = useState('');
@@ -41,8 +45,9 @@ export default function Messages() {
   const term = text.trim().toLowerCase().replace(/^@/, '');
   const people = useQuery({ queryKey: ['mentionable', term], queryFn: () => api.mentionable(term), enabled: term.length >= 1, staleTime: 30_000 });
 
+  const requestCount = (direct.data ?? []).filter((c) => c.request).length;
   const rows: Row[] = [
-    ...(direct.data ?? []).map((c): Row => ({
+    ...(direct.data ?? []).filter((c) => (view === 'requests' ? c.request : !c.request)).map((c): Row => ({
       key: `d:${c.username}`,
       to: `/messages/${c.username}`,
       name: c.displayName,
@@ -53,7 +58,7 @@ export default function Messages() {
       online: !!c.presence?.online,
       group: false,
     })),
-    ...(groups.data ?? []).map((g): Row => ({
+    ...(view === 'requests' ? [] : groups.data ?? []).map((g): Row => ({
       key: `g:${g.id}`,
       to: `/messages/g/${g.id}`,
       name: g.name,
@@ -75,23 +80,32 @@ export default function Messages() {
 
   return (
     <section className="px-4 pb-28">
-      <div className="flex items-center justify-between px-1 pb-2 pt-1">
-        <h1 className="text-2xl font-extrabold">Mensagens</h1>
-        <button onClick={() => setCreating(true)} aria-label="Nova conversa ou grupo" className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-zinc-100 text-zinc-900 transition active:scale-90"><Icon name="compose" size={23} strokeWidth={1.9} /></button>
-      </div>
+      <header className="mb-1 flex items-center gap-1 pb-1 pt-2">
+        <h1 className="min-w-0 flex-1 truncate px-1 text-[24px] font-extrabold leading-tight">{user?.username ?? 'Mensagens'}</h1>
+        <button onClick={() => setCreating(true)} aria-label="Nova conversa ou grupo" className="flex h-11 w-11 items-center justify-center rounded-[14px] text-zinc-900 transition active:scale-90 active:bg-zinc-100"><Icon name="compose" size={25} strokeWidth={1.9} /></button>
+      </header>
       <label className="mb-2 flex h-11 items-center gap-2 rounded-full bg-zinc-100 px-4 text-zinc-500 transition focus-within:bg-zinc-200/70">
         <Icon name="search" size={18} />
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Procurar pessoas e grupos" aria-label="Procurar conversas" className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
         {text && <button onClick={() => setText('')} aria-label="Limpar" className="flex h-8 w-8 items-center justify-center"><Icon name="x" size={16} /></button>}
       </label>
 
+      {!term && view === 'all' && <NotesStrip />}
+      <div role="tablist" aria-label="Caixa" className="mb-1 flex items-center gap-5 px-1 pt-1">
+        <button role="tab" aria-selected={view === 'all'} onClick={() => setView('all')} className={`h-10 text-[17px] ${view === 'all' ? 'font-extrabold text-zinc-900' : 'font-semibold text-zinc-500'}`}>Mensagens</button>
+        <button role="tab" aria-selected={view === 'requests'} onClick={() => setView('requests')} className={`flex h-10 items-center gap-1.5 text-[17px] ${view === 'requests' ? 'font-extrabold text-zinc-900' : 'font-semibold text-zinc-500'}`}>
+          Pedidos {requestCount > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-bold text-white">{requestCount}</span>}
+        </button>
+      </div>
+      {view === 'requests' && <p className="px-1 pb-2 text-[13px] leading-snug text-zinc-500">Mensagens de quem não segues. Só passam para a caixa normal se aceitares. Quem recusas não é avisado.</p>}
+
       {loading && <RowsSkeleton />}
       {!loading && rows.length === 0 && strangers.length === 0 && (
         <div className="mt-10 text-center">
           <p className="text-zinc-300" aria-hidden><Icon name="messages" size={44} className="mx-auto" /></p>
-          <p className="mt-3 text-xl font-bold">{term ? 'Nada com esse nome' : 'Ainda sem cochichos'}</p>
-          <p className="mx-auto mt-1 max-w-xs text-zinc-600">{term ? 'Tenta outro nome ou começa uma conversa nova.' : 'Toca em Nova conversa para falar com alguém ou criar um grupo.'}</p>
-          {!term && <button onClick={() => setCreating(true)} className="mt-4 h-11 rounded-full bg-brand px-6 font-bold text-white active:scale-95">Nova conversa</button>}
+          <p className="mt-3 text-xl font-bold">{term ? 'Nada com esse nome' : view === 'requests' ? 'Sem pedidos' : 'Ainda sem cochichos'}</p>
+          <p className="mx-auto mt-1 max-w-xs text-zinc-600">{term ? 'Tenta outro nome ou começa uma conversa nova.' : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.' : 'Toca no ícone no canto para falar com alguém ou criar um grupo.'}</p>
+          {!term && view === 'all' && <button onClick={() => setCreating(true)} className="mt-4 h-11 rounded-full bg-brand px-6 font-bold text-white active:scale-95">Nova conversa</button>}
         </div>
       )}
       <ul>
