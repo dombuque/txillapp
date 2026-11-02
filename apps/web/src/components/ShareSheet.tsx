@@ -100,6 +100,7 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
   }
 
   async function toStory(audience: 'all' | 'close_friends') {
+    if (!canStory) return setNote('Só se partilham no status publicações com foto ou vídeo');
     setBusy(true);
     try {
       await api.shareToStory(post.id, audience);
@@ -124,6 +125,10 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
     track('share', { where: 'whatsapp' });
     window.open(`https://wa.me/?text=${encodeURIComponent(`${data.text}\n${url}`)}`, '_blank', 'noopener');
   }
+  function network(where: string, href: string) {
+    track('share', { where });
+    window.open(href, '_blank', 'noopener');
+  }
   async function system() {
     track('share', { where: 'system' });
     const r = await shareNow(data);
@@ -135,6 +140,13 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
   const action = (icon: IconName, label: string, run: () => void, tone = 'bg-zinc-100 text-zinc-900', disabled = false) => (
     <button key={label} type="button" onClick={run} disabled={disabled || busy} className="flex w-[74px] shrink-0 flex-col items-center gap-1.5 active:scale-95 disabled:opacity-50">
       <span className={`flex h-14 w-14 items-center justify-center rounded-full ${tone}`}><Icon name={icon} size={26} /></span>
+      <span className="w-full text-center text-[12px] font-medium leading-tight text-zinc-700">{label}</span>
+    </button>
+  );
+
+  const letter = (label: string, mark: string, tone: string, run: () => void) => (
+    <button key={label} type="button" onClick={run} className="flex w-[74px] shrink-0 flex-col items-center gap-1.5 active:scale-95">
+      <span className={`flex h-14 w-14 items-center justify-center rounded-full text-[24px] font-extrabold text-white ${tone}`} aria-hidden>{mark}</span>
       <span className="w-full text-center text-[12px] font-medium leading-tight text-zinc-700">{label}</span>
     </button>
   );
@@ -197,9 +209,12 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
           ) : (
             <div className="shrink-0 border-t border-zinc-100 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
               <div className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {canStory && action('square-plus', 'Adicionar ao status', () => void toStory('all'))}
-                {canStory && action('heart', 'Amigos próximos', () => void toStory('close_friends'))}
+                {action('square-plus', 'Adicionar ao status', () => void toStory('all'), canStory ? 'bg-brand text-white' : 'bg-zinc-100 text-zinc-400')}
+                {action('heart', 'Amigos próximos', () => void toStory('close_friends'), canStory ? 'bg-emerald-500 text-white' : 'bg-zinc-100 text-zinc-400')}
                 {action('send', 'WhatsApp', whatsapp, 'bg-emerald-500 text-white')}
+                {letter('Telegram', 'T', 'bg-sky-500', () => network('telegram', `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(data.text)}`))}
+                {letter('Facebook', 'f', 'bg-blue-600', () => network('facebook', `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`))}
+                {letter('X', 'X', 'bg-zinc-900', () => network('x', `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(data.text)}`))}
                 {action('link', 'Copiar link', () => void copy())}
                 {typeof navigator.share === 'function' && action('share', 'Partilhar…', () => void system())}
               </div>
