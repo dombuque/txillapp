@@ -93,6 +93,8 @@ export interface Profile {
   username: string;
   displayName: string;
   bio: string | null;
+  website?: string | null;
+  city?: string | null;
   joinedAt: string;
   hasAvatar: boolean;
   isMe: boolean;
@@ -216,22 +218,30 @@ export interface Conversation {
   username: string;
   displayName: string;
   hasAvatar: boolean;
-  lastMessage: { body: string; kind: 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice'; fromMe: boolean; at: string };
+  lastMessage: { body: string; kind: ChatMessage['kind']; fromMe: boolean; at: string };
+  presence?: Presence | null;
   unread: number;
 }
 export interface ChatMessage {
   id: string;
   fromMe: boolean;
   body: string;
-  kind: 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice';
+  kind: 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location';
   storyUrl: string | null;
   /** Foto ou voz do chat: URL assinado e temporário. */
   mediaUrl: string | null;
   durationMs: number | null;
+  /** Onda da mensagem de voz: níveis 0–9 em texto. */
+  waveform?: string | null;
+  /** Localização partilhada (só em mensagens de localização). */
+  lat?: number | null;
+  lng?: number | null;
   at: string;
 }
+/** Online agora, ou a hora a que foi visto pela última vez. null = escondido por uma das partes. */
+export interface Presence { online: boolean; lastSeen: string | null }
 export interface ChatThread {
-  person: { username: string; displayName: string; hasAvatar: boolean };
+  person: { username: string; displayName: string; hasAvatar: boolean; canGift?: boolean; presence?: Presence | null };
   blocked: boolean;
   /** Último id que a outra pessoa já leu. */
   otherRead: string | null;
@@ -244,6 +254,8 @@ export interface PrivacySettings {
   isPrivate: boolean;
   /** Estatísticas de utilização próprias (sem terceiros). */
   shareAnalytics: boolean;
+  /** Mostrar quando estou online (e ver a dos outros). */
+  showPresence: boolean;
   isAdmin: boolean;
   /** Já viu (ou saltou) a visita guiada. */
   welcomed: boolean;
@@ -264,10 +276,11 @@ export interface PrivacySettings {
   suggestable: boolean;
 }
 export type TasteKind = 'vibe' | 'bebida' | 'comida' | 'sitio';
-export type TasteVisibility = 'everyone' | 'followers' | 'me';
+/** Quem vê a geleira (inteira): todos, seguidores, amigos próximos ou só eu. */
+export type TasteVisibility = 'everyone' | 'followers' | 'close_friends' | 'me';
 export interface TasteItem { id: string; slug: string; name: string; kind: TasteKind; category: string; alcoholic: boolean; pending: boolean }
-export interface CatalogItem extends TasteItem { mine: boolean; rating: number | null; favorite: boolean; visibility: TasteVisibility; fans: number; region: 'local' | 'global' | 'foreign' }
-export interface MyTaste extends TasteItem { rating: number | null; favorite: boolean; visibility: TasteVisibility }
+export interface CatalogItem extends TasteItem { mine: boolean; rating: number | null; favorite: boolean; fans: number; region: 'local' | 'global' | 'foreign' }
+export interface MyTaste extends TasteItem { rating: number | null; favorite: boolean }
 export interface TheirTaste extends TasteItem { rating: number | null; favorite: boolean }
 export interface StorySettings {
   replies: Who;
@@ -418,7 +431,7 @@ export const api = {
   unfollow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/follow`, { method: 'DELETE' }),
   followers: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/followers${qs(cursor, undefined, q)}`),
   following: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/following${qs(cursor, undefined, q)}`),
-  updateMe: (b: { displayName?: string; bio?: string; isPrivate?: boolean }): Promise<{ id: string; username: string; displayName: string; bio: string | null; isPrivate: boolean }> =>
+  updateMe: (b: { displayName?: string; bio?: string; isPrivate?: boolean; website?: string; city?: string }): Promise<{ id: string; username: string; displayName: string; bio: string | null; isPrivate: boolean; website: string | null; city: string | null }> =>
     raw('/users/me', { method: 'PATCH', body: JSON.stringify(b) }),
   suggestions: (): Promise<Suggestion[]> => raw('/suggestions/people'),
   dismissSuggestion: (username: string): Promise<void> => raw(`/suggestions/people/${encodeURIComponent(username)}/dismiss`, post({})),
@@ -470,12 +483,12 @@ export const api = {
   geleiraCatalog: (q: string, kind?: TasteKind): Promise<CatalogItem[]> => raw(`/geleira/catalog?q=${encodeURIComponent(q)}${kind ? `&kind=${kind}` : ''}`),
   geleiraMine: (): Promise<MyTaste[]> => raw('/geleira/me'),
   geleiraOf: (username: string): Promise<TheirTaste[]> => raw(`/users/${encodeURIComponent(username)}/geleira`),
-  geleiraPut: (itemId: string, b: { rating?: number | null; favorite?: boolean; visibility?: TasteVisibility }): Promise<void> =>
+  geleiraPut: (itemId: string, b: { rating?: number | null; favorite?: boolean }): Promise<void> =>
     raw(`/geleira/me/items/${itemId}`, { method: 'PUT', body: JSON.stringify(b) }),
   geleiraRemove: (itemId: string): Promise<void> => raw(`/geleira/me/items/${itemId}`, { method: 'DELETE' }),
   geleiraSuggest: (b: { name: string; kind: TasteKind; category: string; alcoholic?: boolean }): Promise<TasteItem> => raw('/geleira/items', post(b)),
-  geleiraSettings: (): Promise<{ matching: boolean }> => raw('/geleira/me/settings'),
-  setGeleiraSettings: (b: { matching: boolean }): Promise<{ matching: boolean }> => raw('/geleira/me/settings', { method: 'PUT', body: JSON.stringify(b) }),
+  geleiraSettings: (): Promise<{ matching: boolean; visibility: TasteVisibility }> => raw('/geleira/me/settings'),
+  setGeleiraSettings: (b: { matching?: boolean; visibility?: TasteVisibility }): Promise<{ matching: boolean; visibility: TasteVisibility }> => raw('/geleira/me/settings', { method: 'PUT', body: JSON.stringify(b) }),
   setWelcomed: (): Promise<PrivacySettings> => raw('/users/me/welcomed', { method: 'PUT' }),
   privacy: (): Promise<PrivacySettings> => raw('/settings/privacy'),
   /** País onde a pessoa está agora (pelo IP). */
@@ -503,6 +516,7 @@ export const api = {
   closeFriends: (): Promise<{ username: string; displayName: string; hasAvatar: boolean }[]> => raw('/stories/close-friends'),
   addCloseFriend: (username: string): Promise<void> => raw(`/stories/close-friends/${encodeURIComponent(username)}`, { method: 'PUT' }),
   removeCloseFriend: (username: string): Promise<void> => raw(`/stories/close-friends/${encodeURIComponent(username)}`, { method: 'DELETE' }),
+  mentionsExist: (names: string[]): Promise<string[]> => raw(`/mentions/exist?names=${encodeURIComponent(names.join(','))}`),
   mentionable: (q: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; following: boolean; verified?: boolean }[]> => raw(`/mentionable?q=${encodeURIComponent(q)}`),
   viewStory: (id: string): Promise<void> => raw(`/stories/${id}/view`, post({})),
   deleteStory: (id: string): Promise<void> => raw(`/stories/${id}`, { method: 'DELETE' }),
@@ -516,7 +530,7 @@ export const api = {
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
   chatUnread: (): Promise<{ conversations: number }> => raw('/chat/unread'),
   chatThread: (username: string, cursor?: string): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${cursor ? `?cursor=${cursor}` : ''}`),
-  chatSend: (username: string, msg: { body?: string; kind?: 'text' | 'image' | 'voice'; mediaId?: string; durationMs?: number }): Promise<{ id: string }> =>
+  chatSend: (username: string, msg: { body?: string; kind?: ChatMessage['kind']; mediaId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number }): Promise<{ id: string }> =>
     raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
   chatTyping: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/typing`, post({})),
   chatDelete: (id: string): Promise<void> => raw(`/chat/messages/${id}`, { method: 'DELETE' }),

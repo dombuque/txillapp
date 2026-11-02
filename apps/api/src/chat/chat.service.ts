@@ -7,7 +7,10 @@ import { MediaService } from '../media/media.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
 
-export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice';
+export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location';
+
+/** Stickers que existem (o desenho está na app; aqui só se confirma que o id é válido). */
+export const STICKERS = ['bora', 'fixe', 'ja-vou', 'a-caminho', 'paga', 'saude', 'saudades', 'obrigado', 'parabens', 'ups', 'dormir', 'fome', 'festa', 'amor', 'rir', 'ok'] as const;
 const PAGE = 40;
 
 /** Os dois ids por ordem fixa (user_a < user_b), para haver uma só conversa por par. */
@@ -15,9 +18,12 @@ const pair = (x: string, y: string) => (x < y ? ([x, y] as const) : ([y, x] as c
 
 export interface Outgoing {
   body: string;
-  kind: 'text' | 'image' | 'voice';
+  kind: 'text' | 'image' | 'voice' | 'sticker' | 'location';
   mediaId?: string;
   durationMs?: number;
+  waveform?: string;
+  lat?: number;
+  lng?: number;
 }
 
 @Injectable()
@@ -38,6 +44,22 @@ export class ChatService {
     return rows[0] as { id: string; username: string; display_name: string; has_avatar: boolean };
   }
 
+  /** Hora a que a pessoa foi vista pela última vez (ao abrir e fechar a app). */
+  async touchSeen(userId: string) {
+    await this.pool.query('UPDATE identity.users SET last_seen_at = now() WHERE id = $1', [userId]).catch(() => undefined);
+  }
+
+  /** Online / visto há…: só se as duas pessoas mostram a presença (quem esconde a sua também não vê a dos outros). */
+  private async presenceOf(me: string, otherId: string) {
+    const { rows } = await this.pool.query(
+      'SELECT o.show_presence AS o_show, o.last_seen_at, m.show_presence AS m_show FROM identity.users o, identity.users m WHERE o.id = $2 AND m.id = $1',
+      [me, otherId],
+    );
+    const r = rows[0];
+    if (!r || !r.o_show || !r.m_show) return null;
+    return { online: this.events.isOnline(otherId), lastSeen: (r.last_seen_at as string | null) ?? null };
+  }
+
   private async usernameOf(id: string) {
     return (await this.pool.query('SELECT username FROM identity.users WHERE id = $1', [id])).rows[0].username as string;
   }
@@ -55,7 +77,7 @@ export class ChatService {
   /** Conversas, da mais recente para a mais antiga, com a última mensagem e quantas por ler. */
   async list(me: string) {
     const { rows } = await this.pool.query(
-      `SELECT c.id, o.username, o.display_name, (o.avatar_media_id IS NOT NULL) AS has_avatar, o.status,
+      `SELECT c.id, o.id AS other_id, o.username, o.display_name, (o.avatar_media_id IS NOT NULL) AS has_avatar, o.status, o.show_presence AS o_show, o.last_seen_at,
               lm.body AS last_body, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at,
               (SELECT count(*) FROM social.messages m
                 WHERE m.conversation_id = c.id AND m.sender_id <> $1 AND m.deleted_at IS NULL
@@ -68,8 +90,10 @@ export class ChatService {
         ORDER BY lm.created_at DESC LIMIT 100`,
       [me],
     );
+    const iShow = (await this.pool.query('SELECT show_presence FROM identity.users WHERE id = $1', [me])).rows[0]?.show_presence !== false;
     return rows.map((r) => ({
       username: r.username,
+      presence: iShow && r.o_show && r.status === 'active' ? { online: this.events.isOnline(r.other_id as string), lastSeen: (r.last_seen_at as string | null) ?? null } : null,
       displayName: r.status === 'active' ? r.display_name : 'Conta eliminada',
       hasAvatar: r.has_avatar,
       lastMessage: {
@@ -92,12 +116,19 @@ export class ChatService {
   async thread(me: string, username: string, cursor?: string) {
     if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
     const other = await this.userByName(username);
-    const person = { username: other.username, displayName: other.display_name, hasAvatar: other.has_avatar };
     const blocked = (await this.pool.query(`SELECT ${blockedBetween('$2::uuid', '$1::uuid')} AS b`, [me, other.id])).rows[0].b as boolean;
+    // Só se sugere presentear quem se segue, que aceita presentes, sem bloqueio (as mesmas regras de presentear).
+    const g = (
+      await this.pool.query(
+        `SELECT ${allowedBy('u', 'gifts_allowed', '$1')} AS allowed, EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS following FROM identity.users u WHERE u.id = $2`,
+        [me, other.id],
+      )
+    ).rows[0];
+    const person = { username: other.username, displayName: other.display_name, hasAvatar: other.has_avatar, canGift: !blocked && !!g?.allowed && !!g?.following, presence: blocked ? null : await this.presenceOf(me, other.id) };
     const conv = await this.conversation(me, other.id, false);
     if (!conv) return { person, blocked, otherRead: null, items: [], nextCursor: null };
     const { rows } = await this.pool.query(
-      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.created_at FROM social.messages m
+      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.created_at FROM social.messages m
         WHERE m.conversation_id = $1 AND m.deleted_at IS NULL AND ($2::uuid IS NULL OR m.id < $2) ORDER BY m.id DESC LIMIT $3`,
       [conv, cursor ?? null, PAGE + 1],
     );
@@ -125,6 +156,9 @@ export class ChatService {
         storyUrl: m.story_media_id ? `/api/v1/media/${m.story_media_id}` : null,
         mediaUrl: m.media_id ? this.media.chatUrl(m.media_id) : null,
         durationMs: m.duration_ms as number | null,
+        waveform: (m.waveform as string | null) ?? null,
+        lat: (m.lat as number | null) ?? null,
+        lng: (m.lng as number | null) ?? null,
         at: m.created_at as string,
       })),
       nextCursor: rows.length > PAGE ? page[page.length - 1].id : null,
@@ -147,6 +181,10 @@ export class ChatService {
 
     if (msg.kind === 'text') {
       if (!msg.body.trim()) throw new BadRequestException('Mensagem vazia');
+    } else if (msg.kind === 'sticker') {
+      if (!(STICKERS as readonly string[]).includes(msg.body)) throw new BadRequestException('Sticker inválido');
+    } else if (msg.kind === 'location') {
+      if (typeof msg.lat !== 'number' || typeof msg.lng !== 'number') throw new BadRequestException('Falta a localização');
     } else {
       if (!msg.mediaId) throw new BadRequestException('Falta o ficheiro');
       // Só ficheiros do chat, do próprio, já carregados, do tipo certo e ainda não usados.
@@ -159,12 +197,14 @@ export class ChatService {
       const mime = a.rows[0]?.mime as string | undefined;
       if (!mime || (msg.kind === 'image') !== mime.startsWith('image/')) throw new BadRequestException('Ficheiro inválido');
     }
-    return this.insert(me, other.id, msg.body, msg.kind, null, msg.mediaId ?? null, msg.durationMs ?? null);
+    // A localização guarda-se com ~1 m de precisão e só o que a pessoa escolheu enviar, uma vez.
+    const place = msg.kind === 'location' ? { lat: Math.round(msg.lat! * 1e5) / 1e5, lng: Math.round(msg.lng! * 1e5) / 1e5 } : null;
+    return this.insert(me, other.id, msg.kind === 'location' ? msg.body.slice(0, 80) : msg.body, msg.kind, null, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place);
   }
 
   /** Resposta/reacção a um story: já foi autorizada pela definição de respostas do autor. */
   async sendStoryReply(me: string, recipientId: string, body: string, kind: 'story_reply' | 'story_reaction', storyMediaId: string) {
-    return this.insert(me, recipientId, body, kind, storyMediaId, null, null);
+    return this.insert(me, recipientId, body, kind, storyMediaId, null, null, null, null);
   }
 
   /** Apagar para todos (só quem enviou): a mensagem desaparece da conversa, sem deixar rasto visível. */
@@ -187,12 +227,12 @@ export class ChatService {
     this.events.emit(other.id, { type: 'typing', from: await this.usernameOf(me) });
   }
 
-  private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null) {
+  private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null, waveform: string | null, place: { lat: number; lng: number } | null) {
     const conv = await this.conversation(me, other, true);
     const id = uuidv7();
     await this.pool.query(
-      'INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-      [id, conv, me, body, kind, storyMediaId, mediaId, durationMs],
+      'INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms, waveform, lat, lng) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)',
+      [id, conv, me, body, kind, storyMediaId, mediaId, durationMs, waveform, place?.lat ?? null, place?.lng ?? null],
     );
     await this.pool.query(
       `UPDATE social.conversations SET last_message_at = now(),

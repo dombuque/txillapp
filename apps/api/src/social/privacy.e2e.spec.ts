@@ -358,4 +358,15 @@ describe('privacidade, bloqueios, notificações, pesquisa, foto e segurança da
     // O email pode ser usado numa conta nova.
     await api().post('/api/v1/auth/register').send({ email: `${x.username}@example.com`, username: `${x.username}n`.slice(0, 30), displayName: 'Novo', password: PASSWORD , birthDate: '1990-06-15', acceptTerms: true}).expect(201);
   });
+
+  it('perfil: link e cidade (editáveis, validados, apagáveis) aparecem no perfil', async () => {
+    const { pa } = u;
+    await api().patch('/api/v1/users/me').set(auth(pa)).send({ website: 'javascript:alert(1)' }).expect(400);
+    await api().patch('/api/v1/users/me').set(auth(pa)).send({ website: 'não é um link' }).expect(400);
+    const r = (await api().patch('/api/v1/users/me').set(auth(pa)).send({ website: 'https://txillapp.com/mim', city: 'Maputo' }).expect(200)).body;
+    expect(r).toMatchObject({ website: 'https://txillapp.com/mim', city: 'Maputo' });
+    expect((await profile(u.pb, pa)).city).toBe('Maputo');
+    const cleared = (await api().patch('/api/v1/users/me').set(auth(pa)).send({ website: '', city: '' }).expect(200)).body;
+    expect(cleared).toMatchObject({ website: null, city: null });
+  });
 });

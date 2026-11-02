@@ -2,7 +2,7 @@ import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { Body, Controller, Delete, Get, HttpCode, MessageEvent, Param, ParseUUIDPipe, Post, Query, Req, Res, Sse, UseGuards } from '@nestjs/common';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
-import { Observable, interval, map, merge } from 'rxjs';
+import { Observable, finalize, interval, map, merge } from 'rxjs';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
@@ -13,9 +13,12 @@ import { ChatService } from './chat.service';
 type AuthedReq = Request & { userId?: string };
 const sendSchema = z.object({
   body: z.string().trim().max(2000).default(''),
-  kind: z.enum(['text', 'image', 'voice']).default('text'),
+  kind: z.enum(['text', 'image', 'voice', 'sticker', 'location']).default('text'),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
   mediaId: z.string().uuid().optional(),
   durationMs: z.number().int().min(0).max(300_000).optional(),
+  waveform: z.string().regex(/^[0-9]{8,96}$/).optional(),
 });
 
 @Controller('chat')
@@ -31,10 +34,14 @@ export class ChatController {
   @UseGuards(JwtAuthGuard)
   @SkipThrottle()
   stream(@Req() req: AuthedReq): Observable<MessageEvent> {
-    const events = this.events.forUser(req.userId!).pipe(map((e): MessageEvent => ({ data: e })));
+    const uid = req.userId!;
+    this.events.connect(uid);
+    void this.chat.touchSeen(uid);
+    const events = this.events.forUser(uid).pipe(map((e): MessageEvent => ({ data: e })));
     // Batimento: mantém a ligação viva através de proxies.
     const ping = interval(25_000).pipe(map((): MessageEvent => ({ data: { type: 'ping' } })));
-    return merge(events, ping);
+    // Ao fechar a ligação, guarda a hora a que a pessoa esteve online pela última vez.
+    return merge(events, ping).pipe(finalize(() => { if (this.events.disconnect(uid)) void this.chat.touchSeen(uid); }));
   }
 
   /** Fotos e voz do chat: URL assinado e temporário (não público). */

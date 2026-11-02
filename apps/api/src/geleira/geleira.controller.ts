@@ -13,7 +13,6 @@ const catalogSchema = z.object({ q: z.string().trim().max(60).optional(), kind: 
 const putSchema = z.object({
   rating: z.number().int().min(1).max(5).nullable().optional(),
   favorite: z.boolean().optional(),
-  visibility: z.enum(['everyone', 'followers', 'me']).optional(),
 });
 const suggestSchema = z.object({
   name: z.string().trim().min(2).max(40).regex(/^[\p{L}\p{N}][\p{L}\p{N} '&.\-]*$/u, 'Só letras, números e espaços'),
@@ -21,7 +20,7 @@ const suggestSchema = z.object({
   category: z.string().trim().min(2).max(30).regex(/^[a-z0-9-]+$/),
   alcoholic: z.boolean().optional(),
 });
-const settingsSchema = z.object({ matching: z.boolean().optional() });
+const settingsSchema = z.object({ matching: z.boolean().optional(), visibility: z.enum(['everyone', 'followers', 'close_friends', 'me']).optional() });
 const decideSchema = z.object({ approve: z.boolean() });
 
 @Controller()

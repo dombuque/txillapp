@@ -1,9 +1,9 @@
 import Icon, { type IconName } from './Icon';
 import MentionTextarea from './MentionTextarea';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { api, type Profile } from '../lib/api';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { api, type Profile, type TasteVisibility } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Avatar, Sheet, bumpAvatars, btnGhost, btnPrimary, fieldInput } from './ui';
 
@@ -41,6 +41,14 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [bio, setBio] = useState(profile.bio ?? '');
   const [isPrivate, setIsPrivate] = useState(profile.isPrivate);
+  const [city, setCity] = useState(profile.city ?? '');
+  const [website, setWebsite] = useState(profile.website ?? '');
+  // Quem vê a geleira (inteira). Só se guarda se mudar.
+  const gSettings = useQuery({ queryKey: ['geleira', 'settings'], queryFn: api.geleiraSettings, staleTime: 30_000 });
+  const [gVis, setGVis] = useState<TasteVisibility | null>(null);
+  useEffect(() => {
+    if (gSettings.data && gVis === null) setGVis(gSettings.data.visibility);
+  }, [gSettings.data, gVis]);
   const [busy, setBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [hasPhoto, setHasPhoto] = useState(profile.hasAvatar);
@@ -87,7 +95,11 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
     setBusy(true);
     setErr('');
     try {
-      const r = await api.updateMe({ displayName: displayName.trim(), bio: bio.trim(), isPrivate });
+      const r = await api.updateMe({ displayName: displayName.trim(), bio: bio.trim(), isPrivate, city: city.trim(), website: website.trim() });
+      if (gVis && gSettings.data && gVis !== gSettings.data.visibility) {
+        await api.setGeleiraSettings({ visibility: gVis });
+        qc.invalidateQueries({ queryKey: ['geleira'] });
+      }
       patchUser({ displayName: r.displayName });
       await qc.invalidateQueries({ queryKey: ['profile'] });
       qc.invalidateQueries({ queryKey: ['feed'] });
@@ -144,6 +156,20 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
           </span>
           <MentionTextarea value={bio} onChange={setBio} maxLength={150} rows={3} placeholder="Conta à malta quem és…" className={`${fieldInput} resize-none`} />
         </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold text-zinc-700">Cidade ou bairro</span>
+          <span className="relative block">
+            <Icon name="map-pin" size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input value={city} onChange={(e) => setCity(e.target.value)} maxLength={40} placeholder="Maputo, Polana…" className={`${fieldInput} !pl-10`} autoComplete="address-level2" />
+          </span>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold text-zinc-700">Link</span>
+          <span className="relative block">
+            <Icon name="link" size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input value={website} onChange={(e) => setWebsite(e.target.value)} maxLength={100} placeholder="https://…" inputMode="url" autoCapitalize="none" autoCorrect="off" className={`${fieldInput} !pl-10`} />
+          </span>
+        </label>
         <div>
           <span className="mb-2 block text-sm font-semibold text-zinc-700">Tipo de perfil</span>
           <div role="radiogroup" aria-label="Tipo de perfil" className="flex gap-3">
@@ -152,14 +178,25 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
           </div>
           {profile.isPrivate && !isPrivate && <p className="mt-2 text-xs text-zinc-600">Ao passar a público, os pedidos pendentes são aceites.</p>}
         </div>
-        <button type="button" onClick={() => { onClose(); navigate('/geleira'); }} className="flex w-full items-center gap-3 rounded-2xl border-2 border-zinc-200 p-3 text-left transition active:scale-[0.99] active:bg-zinc-50">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-400 text-white"><Icon name="snowflake" size={22} /></span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-bold">A minha geleira</span>
-            <span className="block text-sm text-zinc-600">Vibes, bebidas, comidas e sítios de que gostas.</span>
-          </span>
-          <Icon name="chevron-right" size={20} className="shrink-0 text-zinc-500" />
-        </button>
+        <div>
+          <span className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-700"><Icon name="snowflake" size={16} className="text-sky-600" /> A minha geleira · quem vê</span>
+          <div role="radiogroup" aria-label="Quem vê a minha geleira" className="grid grid-cols-2 gap-2">
+            {([['everyone', 'globe', 'Todos'], ['followers', 'users', 'Seguidores'], ['close_friends', 'heart', 'Amigos próximos'], ['me', 'lock', 'Só eu']] as const).map(([v, ic, label]) => (
+              <button key={v} type="button" role="radio" aria-checked={gVis === v} disabled={gVis === null} onClick={() => setGVis(v)} className={`flex h-12 items-center gap-2 rounded-2xl border-2 px-3 text-left text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50 ${gVis === v ? 'border-brand bg-rose-50' : 'border-zinc-200'}`}>
+                <Icon name={ic} size={18} /> {label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-zinc-600">A geleira é toda pública, para seguidores, para os amigos próximos ou só tua. Não se escolhe item a item.</p>
+          <button type="button" onClick={() => { onClose(); navigate('/geleira'); }} className="mt-2 flex w-full items-center gap-3 rounded-2xl border-2 border-zinc-200 p-3 text-left transition active:scale-[0.99] active:bg-zinc-50">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-400 text-white"><Icon name="snowflake" size={22} /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-bold">Escolher os meus gostos</span>
+              <span className="block text-sm text-zinc-600">Vibes, bebidas, comidas e sítios de que gostas.</span>
+            </span>
+            <Icon name="chevron-right" size={20} className="shrink-0 text-zinc-500" />
+          </button>
+        </div>
         <p role="alert" className="min-h-5 text-center text-sm text-red-600">{err}</p>
         <button disabled={busy || photoBusy} className={`${btnPrimary} w-full py-4 text-lg`}>{busy ? 'A guardar…' : 'Guardar'}</button>
       </form>

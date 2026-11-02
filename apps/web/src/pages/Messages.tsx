@@ -9,6 +9,8 @@ function preview(c: Conversation) {
   const m = c.lastMessage;
   if (m.kind === 'image') return `${m.fromMe ? 'Tu: ' : ''}${m.body || 'Foto'}`;
   if (m.kind === 'voice') return `${m.fromMe ? 'Tu: ' : ''}Mensagem de voz`;
+  if (m.kind === 'sticker') return `${m.fromMe ? 'Tu: ' : ''}Sticker`;
+  if (m.kind === 'location') return `${m.fromMe ? 'Tu: ' : ''}Localização`;
   if (m.kind === 'story_reaction') return m.fromMe ? `Reagiste ao story ${m.body}` : `Reagiu ao teu story ${m.body}`;
   if (m.kind === 'story_reply') return `${m.fromMe ? 'Respondeste ao story' : 'Respondeu ao teu story'}: ${m.body}`;
   return `${m.fromMe ? 'Tu: ' : ''}${m.body}`;

@@ -8,7 +8,7 @@ import { canView } from '../social/visibility';
 
 export const KINDS = ['vibe', 'bebida', 'comida', 'sitio'] as const;
 export type Kind = (typeof KINDS)[number];
-export type Visibility = 'everyone' | 'followers' | 'me';
+export type Visibility = 'everyone' | 'followers' | 'close_friends' | 'me';
 
 /** Máximo de itens na geleira de cada pessoa. */
 export const MAX_ITEMS = 200;
@@ -67,7 +67,7 @@ export class GeleiraService {
     const { rows } = await this.pool.query(
       `SELECT i.id, i.slug, i.name, i.kind, i.category, i.alcoholic, i.status, i.created_by,
               (SELECT count(*)::int FROM taste.user_items f WHERE f.item_id = i.id) AS fans,
-              (m.user_id IS NOT NULL) AS mine, m.rating, COALESCE(m.favorite, false) AS favorite, COALESCE(m.visibility, 'everyone') AS visibility,
+              (m.user_id IS NOT NULL) AS mine, m.rating, COALESCE(m.favorite, false) AS favorite,
               CASE WHEN i.countries IS NULL OR vc.country IS NULL THEN 'global'
                    WHEN vc.country = ANY(i.countries) THEN 'local' ELSE 'foreign' END AS region
          FROM taste.items i
@@ -77,7 +77,7 @@ export class GeleiraService {
         ORDER BY (CASE WHEN i.countries IS NOT NULL AND vc.country = ANY(i.countries) THEN 0 ELSE 1 END), fans DESC, i.name LIMIT 600`,
       params,
     );
-    return rows.map((r) => ({ ...itemOut(r, userId), mine: r.mine as boolean, rating: r.rating as number | null, favorite: r.favorite as boolean, visibility: r.visibility as Visibility, fans: r.fans as number, region: r.region as 'local' | 'global' | 'foreign' }));
+    return rows.map((r) => ({ ...itemOut(r, userId), mine: r.mine as boolean, rating: r.rating as number | null, favorite: r.favorite as boolean, fans: r.fans as number, region: r.region as 'local' | 'global' | 'foreign' }));
   }
 
   /** A minha geleira completa, com visibilidade de cada item. */
@@ -85,17 +85,17 @@ export class GeleiraService {
     const adult = await this.isAdult(userId);
     const { rows } = await this.pool.query(
       `SELECT i.id, i.slug, i.name, i.kind, i.category, i.alcoholic, i.status, i.created_by,
-              ui.rating, ui.favorite, ui.visibility
+              ui.rating, ui.favorite
          FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id
         WHERE ui.user_id = $1 AND i.status <> 'rejected' AND ($2 OR NOT i.alcoholic)
         ORDER BY ui.favorite DESC, ui.rating DESC NULLS LAST, ui.updated_at DESC`,
       [userId, adult],
     );
-    return rows.map((r) => ({ ...itemOut(r, userId), rating: r.rating as number | null, favorite: r.favorite as boolean, visibility: r.visibility as Visibility }));
+    return rows.map((r) => ({ ...itemOut(r, userId), rating: r.rating as number | null, favorite: r.favorite as boolean }));
   }
 
-  /** Guardar ou alterar um item da minha geleira (nota, favorito, visibilidade). Repetir o pedido dá o mesmo resultado. */
-  async put(userId: string, itemId: string, b: { rating?: number | null; favorite?: boolean; visibility?: Visibility }) {
+  /** Guardar ou alterar um item da minha geleira (nota, favorito). Repetir o pedido dá o mesmo resultado. */
+  async put(userId: string, itemId: string, b: { rating?: number | null; favorite?: boolean }) {
     const adult = await this.isAdult(userId);
     const { rows } = await this.pool.query(
       `SELECT alcoholic FROM taste.items WHERE id = $1 AND (status = 'curated' OR (status = 'pending' AND created_by = $2))`,
@@ -110,14 +110,13 @@ export class GeleiraService {
       if (n.rows[0].n >= MAX_ITEMS) throw new ConflictException(`A geleira está cheia (${MAX_ITEMS} itens). Tira alguma coisa para entrar outra.`);
     }
     await this.pool.query(
-      `INSERT INTO taste.user_items (user_id, item_id, rating, favorite, visibility)
-            VALUES ($1, $2, $3, COALESCE($4, false), COALESCE($5, 'everyone'))
+      `INSERT INTO taste.user_items (user_id, item_id, rating, favorite)
+            VALUES ($1, $2, $3, COALESCE($4, false))
        ON CONFLICT (user_id, item_id) DO UPDATE SET
-            rating = CASE WHEN $6 THEN $3 ELSE taste.user_items.rating END,
+            rating = CASE WHEN $5 THEN $3 ELSE taste.user_items.rating END,
             favorite = COALESCE($4, taste.user_items.favorite),
-            visibility = COALESCE($5, taste.user_items.visibility),
             updated_at = now()`,
-      [userId, itemId, b.rating ?? null, b.favorite ?? null, b.visibility ?? null, b.rating !== undefined],
+      [userId, itemId, b.rating ?? null, b.favorite ?? null, b.rating !== undefined],
     );
   }
 
@@ -156,35 +155,41 @@ export class GeleiraService {
   }
 
   /**
-   * A geleira de outra pessoa, só com o que o espectador pode ver:
-   * conta visível (público/seguidor, sem bloqueio), item "todos" ou "seguidores" (se segue) e álcool só para adultos.
-   * Item "só eu" nunca sai daqui. O próprio dono vê tudo no /me.
+   * A geleira de outra pessoa. Quem decide é o dono, para a geleira inteira: todos, seguidores, amigos próximos ou só ele.
+   * Conta tem de estar visível (público/seguidor, sem bloqueio) e o álcool só sai para adultos. Se não pode ver, devolve vazio
+   * (não se distingue "escondida" de "vazia", para ninguém a descobrir por tentativa).
    */
   async of(viewerId: string, username: string) {
     const { rows: owner } = await this.pool.query(
-      `SELECT u.id, (${canView('u', '$2')}) AS can FROM identity.users u WHERE lower(u.username) = lower($1)`,
+      `SELECT u.id, (${canView('u', '$2')}) AS can,
+              (u.id = $2 OR u.geleira_visibility = 'everyone'
+               OR (u.geleira_visibility = 'followers' AND EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $2 AND f.followee_id = u.id))
+               OR (u.geleira_visibility = 'close_friends' AND EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $2))) AS shown
+         FROM identity.users u WHERE lower(u.username) = lower($1)`,
       [username, viewerId],
     );
     if (!owner[0] || !owner[0].can) throw new NotFoundException('Essa pessoa não existe');
+    if (!owner[0].shown) return [];
     const adult = await this.isAdult(viewerId);
     const { rows } = await this.pool.query(
       `SELECT i.id, i.slug, i.name, i.kind, i.category, i.alcoholic, i.status, i.created_by, ui.rating, ui.favorite
          FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id
-        WHERE ui.user_id = $1 AND i.status = 'curated' AND ($3 OR NOT i.alcoholic)
-          AND (ui.user_id = $2 OR ui.visibility = 'everyone'
-               OR (ui.visibility = 'followers' AND EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $2 AND f.followee_id = ui.user_id)))
+        WHERE ui.user_id = $1 AND i.status = 'curated' AND ($2 OR NOT i.alcoholic)
         ORDER BY ui.favorite DESC, ui.rating DESC NULLS LAST, ui.updated_at DESC`,
-      [owner[0].id, viewerId, adult],
+      [owner[0].id, adult],
     );
     return rows.map((r) => ({ ...itemOut(r, viewerId), rating: r.rating as number | null, favorite: r.favorite as boolean }));
   }
 
   async settings(userId: string) {
-    const { rows } = await this.pool.query('SELECT geleira_matching FROM identity.users WHERE id = $1', [userId]);
-    return { matching: rows[0].geleira_matching as boolean };
+    const { rows } = await this.pool.query('SELECT geleira_matching, geleira_visibility FROM identity.users WHERE id = $1', [userId]);
+    return { matching: rows[0].geleira_matching as boolean, visibility: rows[0].geleira_visibility as Visibility };
   }
-  async setSettings(userId: string, b: { matching?: boolean }) {
-    await this.pool.query('UPDATE identity.users SET geleira_matching = COALESCE($2, geleira_matching) WHERE id = $1', [userId, b.matching ?? null]);
+  async setSettings(userId: string, b: { matching?: boolean; visibility?: Visibility }) {
+    await this.pool.query(
+      'UPDATE identity.users SET geleira_matching = COALESCE($2, geleira_matching), geleira_visibility = COALESCE($3, geleira_visibility) WHERE id = $1',
+      [userId, b.matching ?? null, b.visibility ?? null],
+    );
     return this.settings(userId);
   }
 

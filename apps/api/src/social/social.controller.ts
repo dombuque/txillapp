@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
@@ -13,6 +14,9 @@ const updateSchema = z.object({
   displayName: z.string().trim().min(1).max(60).optional(),
   bio: z.string().trim().max(150).optional(),
   isPrivate: z.boolean().optional(),
+  /** Ligação do perfil (só http/https) e cidade; vazio apaga. */
+  website: z.string().trim().max(100).refine((v) => v === '' || /^https?:\/\/[^\s]+\.[^\s]{2,}$/i.test(v), 'Escreve um link válido (https://…)').optional(),
+  city: z.string().trim().max(40).optional(),
 });
 
 const consentSchema = z.object({ birthDate: birthDateSchema, acceptTerms: z.literal(true) });
@@ -33,6 +37,7 @@ const privacySchema = z.object({
   suggestable: z.boolean().optional(),
   gender: genderSchema.optional(),
   showGender: z.boolean().optional(),
+  showPresence: z.boolean().optional(),
 });
 
 @Controller()
@@ -146,6 +151,13 @@ export class SocialController {
   }
 
   /** Autocompletar de @menções: primeiro quem sigo, depois contas públicas que aceitam menções de todos. */
+  /** Dos nomes pedidos (até 20, separados por vírgula), quais são contas ativas: só esses ganham link nas menções. */
+  @Get('mentions/exist')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  mentionsExist(@Query('names') names?: string) {
+    return this.social.existing((names ?? '').split(',').slice(0, 20));
+  }
+
   @Get('mentionable')
   mentionable(@Req() req: AuthedReq, @Query('q') q?: string) {
     return this.social.mentionable(req.userId!, (q ?? '').slice(0, 30));

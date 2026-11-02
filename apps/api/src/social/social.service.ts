@@ -34,7 +34,7 @@ export class SocialService {
 
   async profile(viewerId: string, username: string) {
     const { rows } = await this.pool.query(
-      `SELECT u.id, u.username, u.display_name, u.bio, u.created_at, u.is_private, u.show_connections,
+      `SELECT u.id, u.username, u.display_name, u.bio, u.website, u.city, u.created_at, u.is_private, u.show_connections,
               u.gender, u.show_gender, u.verified,
               (u.avatar_media_id IS NOT NULL) AS has_avatar,
               (SELECT count(*) FROM content.posts p WHERE p.author_id = u.id AND p.removed_at IS NULL)::int AS posts,
@@ -59,6 +59,8 @@ export class SocialService {
       username: r.username,
       displayName: r.display_name,
       bio: r.bio,
+      website: r.website as string | null,
+      city: r.city as string | null,
       hasAvatar: r.has_avatar,
       /** Selo de perfil verificado (o processo de verificação fica para depois). */
       verified: r.verified as boolean,
@@ -111,7 +113,7 @@ export class SocialService {
   }
 
   /** Editar o próprio perfil. Só campos enviados são alterados. Passar a público aceita os pedidos pendentes. */
-  async updateMe(userId: string, patch: { displayName?: string; bio?: string; isPrivate?: boolean }) {
+  async updateMe(userId: string, patch: { displayName?: string; bio?: string; isPrivate?: boolean; website?: string; city?: string }) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -119,9 +121,11 @@ export class SocialService {
         `UPDATE identity.users SET
             display_name = COALESCE($2, display_name),
             bio = CASE WHEN $3::boolean THEN NULLIF($4, '') ELSE bio END,
-            is_private = COALESCE($5, is_private)
-          WHERE id = $1 RETURNING id, username, display_name, bio, is_private`,
-        [userId, patch.displayName ?? null, patch.bio !== undefined, patch.bio ?? null, patch.isPrivate ?? null],
+            is_private = COALESCE($5, is_private),
+            website = CASE WHEN $6::boolean THEN NULLIF($7, '') ELSE website END,
+            city = CASE WHEN $8::boolean THEN NULLIF($9, '') ELSE city END
+          WHERE id = $1 RETURNING id, username, display_name, bio, is_private, website, city`,
+        [userId, patch.displayName ?? null, patch.bio !== undefined, patch.bio ?? null, patch.isPrivate ?? null, patch.website !== undefined, patch.website ?? null, patch.city !== undefined, patch.city ?? null],
       );
       if (patch.isPrivate === false) {
         await client.query(
@@ -133,7 +137,7 @@ export class SocialService {
       }
       await client.query('COMMIT');
       this.indexer.userChanged(userId);
-      return { id: rows[0].id, username: rows[0].username, displayName: rows[0].display_name, bio: rows[0].bio, isPrivate: rows[0].is_private };
+      return { id: rows[0].id, username: rows[0].username, displayName: rows[0].display_name, bio: rows[0].bio, isPrivate: rows[0].is_private, website: rows[0].website as string | null, city: rows[0].city as string | null };
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw e;
@@ -289,6 +293,14 @@ export class SocialService {
     return this.privacy(userId);
   }
 
+  /** Quais dos nomes são contas ativas (sem distinguir maiúsculas). */
+  async existing(names: string[]) {
+    const clean = [...new Set(names.map((n) => n.trim().toLowerCase()).filter((n) => /^[a-z0-9_.]{3,30}$/.test(n)))];
+    if (!clean.length) return [];
+    const { rows } = await this.pool.query(`SELECT username FROM identity.users WHERE lower(username) = ANY($1) AND status = 'active'`, [clean]);
+    return rows.map((r) => r.username as string);
+  }
+
   /** Fim (ou salto) da visita guiada: não volta a aparecer. */
   async setWelcomed(userId: string) {
     await this.pool.query('UPDATE identity.users SET welcomed_at = COALESCE(welcomed_at, now()) WHERE id = $1', [userId]);
@@ -299,7 +311,7 @@ export class SocialService {
 
   async privacy(userId: string) {
     const { rows } = await this.pool.query(
-      'SELECT is_private, comments_allowed, gifts_allowed, mentions_allowed, dms_allowed, reposts_visible, cheers_visible, gifts_visible, show_connections, suggestable, gender, show_gender, (birth_date IS NOT NULL) AS birth_set, (terms_version = $2) AS terms_ok, is_admin, share_analytics, (welcomed_at IS NOT NULL) AS welcomed FROM identity.users WHERE id = $1',
+      'SELECT is_private, comments_allowed, gifts_allowed, mentions_allowed, dms_allowed, reposts_visible, cheers_visible, gifts_visible, show_connections, suggestable, gender, show_gender, (birth_date IS NOT NULL) AS birth_set, (terms_version = $2) AS terms_ok, is_admin, share_analytics, show_presence, (welcomed_at IS NOT NULL) AS welcomed FROM identity.users WHERE id = $1',
       [userId, TERMS_VERSION],
     );
     const r = rows[0];
@@ -311,6 +323,8 @@ export class SocialService {
       /** Já viu (ou saltou) a visita guiada de boas-vindas. */
       welcomed: r.welcomed as boolean,
       shareAnalytics: r.share_analytics as boolean,
+      /** Mostrar quando estou online (e ver a dos outros). */
+      showPresence: r.show_presence as boolean,
       /** null = ainda não escolheu (a app pede-o uma vez). */
       gender: r.gender as Gender | null,
       showGender: r.show_gender as boolean,
@@ -329,7 +343,7 @@ export class SocialService {
 
   async setPrivacy(
     userId: string,
-    p: { isPrivate?: boolean; commentsAllowed?: Who; giftsAllowed?: Who; mentionsAllowed?: Who; dmsAllowed?: Who; shareAnalytics?: boolean; repostsVisible?: Viewers; cheersVisible?: Viewers; giftsVisible?: Viewers; showConnections?: Connections; suggestable?: boolean; gender?: Gender; showGender?: boolean },
+    p: { isPrivate?: boolean; commentsAllowed?: Who; giftsAllowed?: Who; mentionsAllowed?: Who; dmsAllowed?: Who; shareAnalytics?: boolean; repostsVisible?: Viewers; cheersVisible?: Viewers; giftsVisible?: Viewers; showConnections?: Connections; suggestable?: boolean; gender?: Gender; showGender?: boolean; showPresence?: boolean },
   ) {
     if (p.isPrivate !== undefined) await this.updateMe(userId, { isPrivate: p.isPrivate }); // aceita pedidos ao passar a público
     await this.pool.query(
@@ -345,9 +359,10 @@ export class SocialService {
           show_connections = COALESCE($4, show_connections),
           suggestable = COALESCE($5, suggestable),
           gender = COALESCE($6, gender),
-          show_gender = COALESCE($7, show_gender)
+          show_gender = COALESCE($7, show_gender),
+          show_presence = COALESCE($14, show_presence)
         WHERE id = $1`,
-      [userId, p.commentsAllowed ?? null, p.giftsAllowed ?? null, p.showConnections ?? null, p.suggestable ?? null, p.gender ?? null, p.showGender ?? null, p.mentionsAllowed ?? null, p.repostsVisible ?? null, p.cheersVisible ?? null, p.giftsVisible ?? null, p.dmsAllowed ?? null, p.shareAnalytics ?? null],
+      [userId, p.commentsAllowed ?? null, p.giftsAllowed ?? null, p.showConnections ?? null, p.suggestable ?? null, p.gender ?? null, p.showGender ?? null, p.mentionsAllowed ?? null, p.repostsVisible ?? null, p.cheersVisible ?? null, p.giftsVisible ?? null, p.dmsAllowed ?? null, p.shareAnalytics ?? null, p.showPresence ?? null],
     );
     return this.privacy(userId);
   }

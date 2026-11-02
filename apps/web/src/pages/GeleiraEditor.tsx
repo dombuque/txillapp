@@ -5,15 +5,10 @@ import Icon from '../components/Icon';
 import IceRating from '../components/IceRating';
 import { Sheet } from '../components/ui';
 import { BackIcon } from '../components/icons';
-import { api, type CatalogItem, type TasteKind, type TasteVisibility } from '../lib/api';
+import { api, type CatalogItem, type TasteKind } from '../lib/api';
 import { CATEGORIES, ICE, KINDS, KIND_ICON, KIND_LABEL } from '../lib/geleira';
 import TasteBubble from '../components/TasteIcon';
 
-const VIS: { v: TasteVisibility; label: string }[] = [
-  { v: 'everyone', label: 'Todos' },
-  { v: 'followers', label: 'Seguidores' },
-  { v: 'me', label: 'Só eu' },
-];
 const norm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 const fmt = (n: number) => n.toLocaleString('pt-PT');
 
@@ -70,7 +65,7 @@ export default function GeleiraEditor() {
       setOpen(i.id); // abre já para dar a nota
     }
   }
-  function change(i: CatalogItem, patch: { rating?: number | null; favorite?: boolean; visibility?: TasteVisibility }) {
+  function change(i: CatalogItem, patch: { rating?: number | null; favorite?: boolean }) {
     edit(i.id, patch);
   }
 
@@ -78,7 +73,7 @@ export default function GeleiraEditor() {
   const create = useMutation({
     mutationFn: (b: { name: string; category: string }) => api.geleiraSuggest({ ...b, kind }),
     onSuccess: (n) => {
-      const fresh: CatalogItem = { ...n, mine: true, rating: null, favorite: false, visibility: 'everyone', fans: 1, region: 'global' };
+      const fresh: CatalogItem = { ...n, mine: true, rating: null, favorite: false, fans: 1, region: 'global' };
       setItems((l) => (l && !l.some((i) => i.id === n.id) ? [fresh, ...l] : l));
       setSaved((l) => (l && !l.some((i) => i.id === n.id) ? [fresh, ...l] : l));
       setText('');
@@ -95,7 +90,7 @@ export default function GeleiraEditor() {
     return items.filter((i) => {
       const o = was.get(i.id);
       if (!o) return false;
-      return i.mine !== o.mine || (i.mine && (i.rating !== o.rating || i.favorite !== o.favorite || i.visibility !== o.visibility));
+      return i.mine !== o.mine || (i.mine && (i.rating !== o.rating || i.favorite !== o.favorite));
     });
   }, [items, saved]);
 
@@ -104,7 +99,7 @@ export default function GeleiraEditor() {
     setSaving(true);
     try {
       await Promise.all(
-        changes.map((i) => (i.mine ? api.geleiraPut(i.id, { rating: i.rating, favorite: i.favorite, visibility: i.visibility }) : api.geleiraRemove(i.id))),
+        changes.map((i) => (i.mine ? api.geleiraPut(i.id, { rating: i.rating, favorite: i.favorite }) : api.geleiraRemove(i.id))),
       );
       await qc.invalidateQueries({ queryKey: ['geleira'], refetchType: 'none' });
       leave();
@@ -212,12 +207,6 @@ export default function GeleiraEditor() {
                           <div className="flex items-center justify-between">
                             <IceRating value={i.rating} onChange={(rating) => change(i, { rating })} size={30} />
                             <button onClick={() => change(i, { favorite: !i.favorite })} aria-pressed={i.favorite} aria-label="Favorito" className={`flex h-11 w-11 items-center justify-center rounded-full transition active:scale-90 ${i.favorite ? 'bg-rose-50 text-brand' : 'bg-zinc-100 text-zinc-600'}`}><Icon name="heart" size={20} className={i.favorite ? 'fill-brand' : ''} /></button>
-                          </div>
-                          <div className="mt-1 flex items-center gap-2" role="radiogroup" aria-label="Quem vê">
-                            <Icon name="eye" size={16} className="shrink-0 text-zinc-500" />
-                            {VIS.map((o) => (
-                              <button key={o.v} role="radio" aria-checked={i.visibility === o.v} onClick={() => change(i, { visibility: o.v })} className={`h-9 flex-1 rounded-full text-[13px] font-semibold ${i.visibility === o.v ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-700 ring-1 ring-zinc-200'}`}>{o.label}</button>
-                            ))}
                           </div>
                         </div>
                       </div>

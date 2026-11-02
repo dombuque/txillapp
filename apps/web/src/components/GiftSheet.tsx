@@ -17,7 +17,7 @@ const OPTIONS: { value: GiftVisibility; icon: IconName; title: string; text: str
  * Escolhe-se como o dar (discreto, no privado, no feed) e, mesmo depois de enviado, pode-se publicar.
  */
 export default function GiftSheet({
-  recipient, postId, onClose, layer,
+  recipient, postId, onClose, layer, preset,
 }: {
   /** Destinatário já conhecido (publicação ou perfil). Sem ele, pede-se o @. */
   recipient?: { username: string; displayName: string };
@@ -26,13 +26,15 @@ export default function GiftSheet({
   onClose: () => void;
   /** Camada (z-index) quando abre por cima de outro ecrã, ex.: o visualizador de fotos. */
   layer?: string;
+  /** Valores sugeridos (por exemplo pelo chat): a pessoa pode sempre mudá-los. */
+  preset?: { amount?: number; note?: string; visibility?: GiftVisibility };
 }) {
   const qc = useQueryClient();
   const [to, setTo] = useState('');
-  const [amount, setAmount] = useState(10);
-  const [custom, setCustom] = useState('');
-  const [note, setNote] = useState('');
-  const [visibility, setVisibility] = useState<GiftVisibility>('silent');
+  const [amount, setAmount] = useState(preset?.amount && AMOUNTS.includes(preset.amount) ? preset.amount : 10);
+  const [custom, setCustom] = useState(preset?.amount && !AMOUNTS.includes(preset.amount) ? String(preset.amount) : '');
+  const [note, setNote] = useState(preset?.note ?? '');
+  const [visibility, setVisibility] = useState<GiftVisibility>(preset?.visibility ?? 'silent');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [sent, setSent] = useState<{ transactionId: string; published: boolean; note: string } | null>(null);
@@ -55,7 +57,7 @@ export default function GiftSheet({
         ? await api.gift(postId, n, keyRef.current, text, visibility)
         : await api.giftUser({ toUsername: target, amount: n, note: text, visibility }, keyRef.current);
       setSent({ transactionId: r.transactionId, published: visibility === 'public', note: text });
-      for (const key of ['wallet', 'feed', 'profile-posts']) qc.invalidateQueries({ queryKey: [key] });
+      for (const key of ['wallet', 'feed', 'profile-posts', 'chat-thread']) qc.invalidateQueries({ queryKey: [key] });
     } catch (x) {
       const m = (x as Error).message;
       setErr(m === 'Saldo insuficiente' ? 'Ups, o teu saldo não chega' : x instanceof ApiError && x.status === 404 ? 'Essa pessoa não existe. Confirma o @' : m);

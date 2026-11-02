@@ -160,4 +160,10 @@ describe('menções (@utilizador) e amigos próximos (integração)', () => {
     const feed = ((await api().get(`/api/v1/users/${md.username}/posts`).set(auth(ma)).expect(200)).body.items as { id: string; repostOf: { repostOf: { id: string } } }[]).find((x) => x.id === again.id)!;
     expect(feed.repostOf.repostOf.id).toBe(original.id);
   });
+
+  it('menções: só contas que existem (e estão ativas) ganham link', async () => {
+    const ok = (await api().get('/api/v1/mentions/exist').query({ names: `${u.ma.username.toUpperCase()},nao_existe_${run},ab` }).set(auth(u.mb)).expect(200)).body as string[];
+    expect(ok.map((x) => x.toLowerCase())).toEqual([u.ma.username.toLowerCase()]);
+    expect((await api().get('/api/v1/mentions/exist').set(auth(u.mb)).expect(200)).body).toEqual([]);
+  });
 });

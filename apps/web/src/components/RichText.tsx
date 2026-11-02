@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { checkUsers, userKnown, useUserChecks } from '../lib/userExists';
 
 // Mesmas regras do servidor: o @ ou # não pode vir colado a letras (e-mails, endereços) e o ponto final não faz parte do nome.
 const TOKEN = /(?<![\p{L}\p{N}_.&#])(?:@([a-zA-Z0-9_.]{3,30})|#([\p{L}\p{N}_]{2,30}))/gu;
@@ -7,6 +8,9 @@ const plain = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').toLowerCa
 
 /** Texto com @menções e #hashtags clicáveis (abrem o perfil ou a página da hashtag). */
 export default function RichText({ text }: { text: string }) {
+  useUserChecks(); // volta a desenhar quando se sabe quais contas existem
+  const names = [...text.matchAll(TOKEN)].filter((m) => m[1]).map((m) => m[1].replace(/\.+$/, ''));
+  checkUsers(names);
   const out: ReactNode[] = [];
   let last = 0;
   for (const m of text.matchAll(TOKEN)) {
@@ -14,11 +18,16 @@ export default function RichText({ text }: { text: string }) {
     if (start > last) out.push(text.slice(last, start));
     if (m[1]) {
       const name = m[1].replace(/\.+$/, '');
-      out.push(
-        <Link key={start} to={`/u/${name}`} onClick={(e) => e.stopPropagation()} className="font-semibold text-brand">
-          @{name}
-        </Link>,
-      );
+      // Só é link se a conta existe; enquanto se verifica (ou se não existe) fica texto normal.
+      if (userKnown(name) === true) {
+        out.push(
+          <Link key={start} to={`/u/${name}`} onClick={(e) => e.stopPropagation()} className="font-semibold text-brand">
+            @{name}
+          </Link>,
+        );
+      } else {
+        out.push(`@${name}`);
+      }
       last = start + 1 + name.length;
     } else {
       const tag = m[2];

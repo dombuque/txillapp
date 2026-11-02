@@ -219,6 +219,7 @@ export default function Settings() {
         <Row icon={<Icon name="block" />} label="Contas bloqueadas" value={blocked.data ? String(blocked.data.length) : '…'} onClick={() => setSheet('blocked')} />
         <Row icon={<Icon name="users" />} label="Quem vê seguidores e a quem sigo" value={p ? CONNECTIONS.find((c) => c.value === p.showConnections)!.title : '…'} onClick={() => setSheet('connections')} />
         {p && <Toggle icon={<Icon name="sparkles" />} label="Aparecer nas sugestões" text="Outras pessoas podem descobrir-te." on={p.suggestable} onChange={(v) => savePrivacy({ suggestable: v })} />}
+        {p && <Toggle icon={<Icon name="eye" />} label="Mostrar quando estou online" text="Vês e és visto como \"Online\" ou \"Visto há…\" no chat. Se desligares, também não vês o dos outros." on={p.showPresence} onChange={(v) => savePrivacy({ showPresence: v })} />}
       </Section>
 
       <Section title="Interações">

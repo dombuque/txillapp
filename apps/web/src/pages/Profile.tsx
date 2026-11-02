@@ -115,6 +115,16 @@ export default function ProfilePage() {
             {!p.isMe && p.followsYou && !blocked && <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700">Segue-te</span>}
           </p>
           {p.bio && <p className="mt-3 max-w-sm whitespace-pre-wrap break-words text-[15px] text-zinc-800"><RichText text={p.bio} /></p>}
+          {(p.city || p.website) && (
+            <p className="mt-2 flex max-w-sm flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-zinc-600">
+              {p.city && <span className="flex items-center gap-1"><Icon name="map-pin" size={14} /> {p.city}</span>}
+              {p.website && (
+                <a href={p.website} target="_blank" rel="noopener noreferrer nofollow" className="flex min-w-0 items-center gap-1 font-semibold text-brand">
+                  <Icon name="link" size={14} className="shrink-0" /> <span className="truncate">{p.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</span>
+                </a>
+              )}
+            </p>
+          )}
           {!p.bio && p.isMe && (
             <button onClick={() => setSheet('edit')} className="mt-3 text-sm font-medium text-zinc-600 underline">Adiciona uma bio</button>
           )}

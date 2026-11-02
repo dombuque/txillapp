@@ -53,25 +53,34 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
     for (let n = 0; n < 2; n++) await api().put(`/api/v1/geleira/me/items/${matapa}`).set(auth(u.ga)).send({ rating: 5, favorite: true }).expect(204);
     const mine = (await api().get('/api/v1/geleira/me').set(auth(u.ga)).expect(200)).body;
     expect(mine).toHaveLength(1);
-    expect(mine[0]).toMatchObject({ name: 'Matapa', rating: 5, favorite: true, visibility: 'everyone' });
+    expect(mine[0]).toMatchObject({ name: 'Matapa', rating: 5, favorite: true });
     await api().put(`/api/v1/geleira/me/items/${matapa}`).set(auth(u.ga)).send({ rating: 6 }).expect(400);
-    // Só alterar a visibilidade não apaga a nota.
-    await api().put(`/api/v1/geleira/me/items/${matapa}`).set(auth(u.ga)).send({ visibility: 'followers' }).expect(204);
-    expect((await api().get('/api/v1/geleira/me').set(auth(u.ga))).body[0]).toMatchObject({ rating: 5, visibility: 'followers' });
+    // Alterar só o favorito não apaga a nota.
+    await api().put(`/api/v1/geleira/me/items/${matapa}`).set(auth(u.ga)).send({ favorite: false }).expect(204);
+    expect((await api().get('/api/v1/geleira/me').set(auth(u.ga))).body[0]).toMatchObject({ rating: 5, favorite: false });
   });
 
-  it('privacidade por item: seguidores, só eu, e efeito imediato', async () => {
+  it('privacidade da geleira inteira: todos, seguidores, amigos próximos ou só eu; efeito imediato', async () => {
     const xima = await idOf(u.ga, 'Xima com caril');
-    const cafe = await idOf(u.ga, 'Café');
-    await api().put(`/api/v1/geleira/me/items/${xima}`).set(auth(u.ga)).send({ rating: 4, visibility: 'me' }).expect(204);
-    await api().put(`/api/v1/geleira/me/items/${cafe}`).set(auth(u.ga)).send({ visibility: 'everyone' }).expect(204);
-    // gb não segue: só vê o "todos" (Café); Matapa é "seguidores", Xima é "só eu".
-    expect((await theirs(u.gb, u.ga)).map((i) => i.name)).toEqual(['Café']);
+    await api().put(`/api/v1/geleira/me/items/${xima}`).set(auth(u.ga)).send({ rating: 4 }).expect(204);
+    const set = (visibility: string) => api().put('/api/v1/geleira/me/settings').set(auth(u.ga)).send({ visibility }).expect(200);
+    await api().put('/api/v1/geleira/me/settings').set(auth(u.ga)).send({ visibility: 'segredo' }).expect(400);
+
+    await set('everyone');
+    expect((await theirs(u.gb, u.ga)).length).toBeGreaterThan(0); // gb ainda não segue
+    await set('followers');
+    expect(await theirs(u.gb, u.ga)).toEqual([]); // não segue: vazio (não se distingue de "sem nada")
     await api().post(`/api/v1/users/${u.ga.username}/follow`).set(auth(u.gb)).expect(200);
-    expect((await theirs(u.gb, u.ga)).map((i) => i.name).sort()).toEqual(['Café', 'Matapa']);
-    // "Só eu" nunca sai, nem para quem segue; mudar tem efeito imediato.
-    await api().put(`/api/v1/geleira/me/items/${cafe}`).set(auth(u.ga)).send({ visibility: 'me' }).expect(204);
-    expect((await theirs(u.gb, u.ga)).map((i) => i.name)).toEqual(['Matapa']);
+    expect((await theirs(u.gb, u.ga)).length).toBeGreaterThan(0);
+    await set('close_friends');
+    expect(await theirs(u.gb, u.ga)).toEqual([]); // segue, mas não é amigo próximo
+    await pool.query('INSERT INTO social.close_friends (owner_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [u.ga.id, u.gb.id]);
+    expect((await theirs(u.gb, u.ga)).length).toBeGreaterThan(0);
+    await set('me');
+    expect(await theirs(u.gb, u.ga)).toEqual([]);
+    expect((await api().get('/api/v1/geleira/me').set(auth(u.ga))).body.length).toBeGreaterThan(0); // o dono vê sempre
+    await set('everyone');
+    await pool.query('DELETE FROM social.close_friends WHERE owner_id = $1', [u.ga.id]);
   });
 
   it('bloqueados e contas privadas não veem a geleira', async () => {
@@ -150,7 +159,7 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
   });
 
   it('definições, exportação e eliminar conta cobrem a geleira', async () => {
-    expect((await api().put('/api/v1/geleira/me/settings').set(auth(u.gb)).send({ matching: false }).expect(200)).body).toEqual({ matching: false });
+    expect((await api().put('/api/v1/geleira/me/settings').set(auth(u.gb)).send({ matching: false }).expect(200)).body).toEqual({ matching: false, visibility: 'everyone' });
     const exp = (await api().get('/api/v1/me/export').set(auth(u.gb))).body;
     expect(JSON.stringify(exp)).toContain('Laurentina');
     await api().post('/api/v1/auth/delete-account').set(auth(u.gb)).send({ confirmUsername: u.gb.username, password: PASSWORD }).expect(204);

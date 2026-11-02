@@ -40,7 +40,7 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     pool = new Pool({ connectionString: DB });
     app = await createApp(loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'c'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test' }));
     await app.init();
-    for (const n of ['ca', 'cb', 'cc', 'cd']) u[n] = await signup(n);
+    for (const n of ['ca', 'cb', 'cc', 'cd', 'ce', 'cf']) u[n] = await signup(n);
   }, 60_000);
 
   afterAll(async () => {
@@ -132,10 +132,10 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     const img = await uploadChat(cb, 'image/png', PNG);
     await api().post(`/api/v1/chat/with/${ca.username}`).set(auth(cb)).send({ kind: 'image', mediaId: img, body: 'olha' }).expect(201);
     const voice = await uploadChat(cb, 'audio/webm', Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3, 4, 5, 6, 7, 8]));
-    await api().post(`/api/v1/chat/with/${ca.username}`).set(auth(cb)).send({ kind: 'voice', mediaId: voice, durationMs: 4200 }).expect(201);
+    await api().post(`/api/v1/chat/with/${ca.username}`).set(auth(cb)).send({ kind: 'voice', mediaId: voice, durationMs: 4200, waveform: '1357975313579753' }).expect(201);
 
     const [vm, im] = (await thread(ca, cb)).items;
-    expect(vm).toMatchObject({ kind: 'voice', durationMs: 4200, fromMe: false });
+    expect(vm).toMatchObject({ kind: 'voice', durationMs: 4200, fromMe: false, waveform: '1357975313579753' });
     expect(im).toMatchObject({ kind: 'image', body: 'olha' });
     await api().get(im.mediaUrl).expect(200).expect('Content-Type', /image\/png/); // URL assinado: sem login
     await api().get(im.mediaUrl.replace(/sig=.{6}/, 'sig=AAAAAA')).expect(403); // assinatura adulterada
@@ -194,5 +194,38 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     }
     // sem sessão não há canal
     await api().get('/api/v1/chat/stream').expect(401);
+  });
+
+  it('stickers e localização: só stickers válidos; localização guarda-se arredondada; aparecem na conversa', async () => {
+    const { ce: cc, cf: cd } = u;
+    const post = (from: U, to: U, b: object) => api().post(`/api/v1/chat/with/${to.username}`).set(auth(from)).send(b);
+    await post(cc, cd, { kind: 'sticker', body: 'bora' }).expect(201);
+    await post(cc, cd, { kind: 'sticker', body: 'inventado' }).expect(400);
+    await post(cc, cd, { kind: 'location', body: 'Praia da Polana' }).expect(400); // falta lat/lng
+    await post(cc, cd, { kind: 'location', body: 'Praia da Polana', lat: -25.969212345, lng: 32.573212345 }).expect(201);
+    await post(cc, cd, { kind: 'location', body: 'x', lat: 91, lng: 0 }).expect(400);
+    const items = (await thread(cd, cc)).items as { kind: string; body: string; lat: number | null; lng: number | null }[];
+    expect(items.find((m) => m.kind === 'sticker')).toMatchObject({ body: 'bora', lat: null });
+    expect(items.find((m) => m.kind === 'location')).toMatchObject({ body: 'Praia da Polana', lat: -25.96921, lng: 32.57321 });
+  });
+
+  it('presença: online só se as duas pessoas mostram; esconder a minha também esconde a dos outros', async () => {
+    const { ce: cc, cf: cd } = u;
+    expect((await thread(cc, cd)).person.presence).toMatchObject({ online: false });
+    await api().patch('/api/v1/settings/privacy').set(auth(cd)).send({ showPresence: false }).expect(200);
+    expect((await thread(cc, cd)).person.presence).toBeNull(); // cd esconde a sua
+    expect((await thread(cd, cc)).person.presence).toBeNull(); // e por isso também não vê a de cc
+    await api().patch('/api/v1/settings/privacy').set(auth(cd)).send({ showPresence: true }).expect(200);
+    expect((await thread(cd, cc)).person.presence).not.toBeNull();
+  });
+
+  it('sugestão de presente: só aparece se posso presentear (sigo a pessoa e aceita presentes)', async () => {
+    const { ce: cc, cf: cd } = u;
+    expect((await thread(cc, cd)).person.canGift).toBe(false); // não segue
+    await api().post(`/api/v1/users/${cd.username}/follow`).set(auth(cc)).expect(200);
+    expect((await thread(cc, cd)).person.canGift).toBe(true);
+    await api().patch('/api/v1/settings/privacy').set(auth(cd)).send({ giftsAllowed: 'off' }).expect(200);
+    expect((await thread(cc, cd)).person.canGift).toBe(false);
+    await api().patch('/api/v1/settings/privacy').set(auth(cd)).send({ giftsAllowed: 'everyone' }).expect(200);
   });
 });
