@@ -1,6 +1,6 @@
 import { PostSkeleton } from '../components/Loading';
 import Icon from '../components/Icon';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Fragment, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import PostCard from '../components/PostCard';
@@ -45,9 +45,35 @@ export default function Feed() {
   const posts = (q.data?.pages.flatMap((p) => p.items) ?? []).filter((p) => !seenIds.has(p.id) && !!seenIds.add(p.id));
   const firstSeen = posts.findIndex((p: Post) => p.feed?.seen);
 
+  // Sinal de novidades: de tempos a tempos espreita a primeira página sem mexer no que estás a ler. Não atualiza sozinho:
+  // mostra um aviso e, ao tocar (ou ao puxar para atualizar), traz as novas.
+  const peek = useQuery({
+    queryKey: ['feed-peek'],
+    queryFn: () => api.feed(),
+    enabled: q.isSuccess,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    gcTime: 0,
+  });
+  const have = new Set(posts.map((p) => p.id));
+  const fresh = (peek.data?.items ?? []).filter((p) => !have.has(p.id) && !p.feed?.seen).length;
+  async function showNew() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    await q.refetch();
+    void peek.refetch();
+  }
+
 
   return (
     <div className="pt-1">
+      {fresh > 0 && (
+        <div className="pointer-events-none sticky top-2 z-30 flex justify-center">
+          <button type="button" onClick={() => void showNew()} className="pointer-events-auto flex h-10 animate-[rise_.25s_ease-out] items-center gap-2 rounded-full bg-brand pl-3 pr-4 text-[14px] font-bold text-white shadow-[0_4px_14px_rgba(214,51,79,0.45)] active:scale-95">
+            <Icon name="arrow-up" size={16} strokeWidth={3} /> {fresh === 1 ? 'Há novidades' : `${fresh} novidades`}
+          </button>
+        </div>
+      )}
       <StoriesTray />
       {q.isLoading && (
         <>

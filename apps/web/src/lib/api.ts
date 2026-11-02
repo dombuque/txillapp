@@ -60,7 +60,7 @@ export interface Post {
   gifts: number;
   cheered: boolean;
   /** Preenchido nos posts "X presenteou Y". */
-  gift: { amount: number; recipient: { username: string; displayName: string } } | null;
+  gift: { amount: number; recipient: { username: string; displayName: string; hasAvatar: boolean } } | null;
   /** Conforme as definições do autor. */
   canComment: boolean;
   canGift: boolean;
@@ -656,7 +656,7 @@ export const api = {
     if (st.status !== 'ready') throw new ApiError(422, st.error ?? 'Não consegui processar o vídeo.');
     return assetId;
   },
-  shareToStory: (postId: string, audience: 'all' | 'close_friends' = 'all'): Promise<Story> => raw('/stories/share', post({ postId, audience })),
+  shareToStory: (postId: string, audience: 'all' | 'close_friends' = 'all', caption = ''): Promise<Story> => raw('/stories/share', post({ postId, audience, caption })),
   untagMe: (postId: string): Promise<Post> => raw(`/posts/${postId}/tags/me`, { method: 'DELETE' }),
   hotPlaces: (): Promise<{ name: string; posts: number }[]> => raw('/places/hot'),
   searchPlaces: (q: string, at?: { lat: number; lng: number }): Promise<{ name: string; sub: string; kind: string }[]> =>

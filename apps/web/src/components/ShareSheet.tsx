@@ -32,6 +32,8 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [grouping, setGrouping] = useState(false);
+  const [preview, setPreview] = useState<'all' | 'close_friends' | null>(null);
+  const [caption, setCaption] = useState('');
   const url = postLink(post);
   const video = post.media[0]?.kind === 'video';
   const canStory = post.kind === 'post' && post.media.length > 0;
@@ -99,18 +101,25 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
     setTimeout(onClose, 900);
   }
 
-  async function toStory(audience: 'all' | 'close_friends') {
+  // Escolher o status abre primeiro a pré-visualização (como no Instagram): vês como fica, escreves uma legenda e só depois partilhas.
+  function toStory(audience: 'all' | 'close_friends') {
     if (!canStory) return setNote('Só se partilham no status publicações com foto ou vídeo');
+    setPreview(audience);
+  }
+  async function publishStory() {
+    if (!preview) return;
     setBusy(true);
     try {
-      await api.shareToStory(post.id, audience);
+      await api.shareToStory(post.id, preview, caption.trim());
       track('share', { where: 'story', video });
-      setNote(audience === 'all' ? 'Adicionado ao teu status' : 'Partilhado com amigos próximos');
+      setPreview(null);
+      setNote(preview === 'all' ? 'Adicionado ao teu status' : 'Partilhado com amigos próximos');
       setTimeout(onClose, 1000);
     } catch (e) {
       setNote((e as Error).message);
-      setBusy(false);
+      setPreview(null);
     }
+    setBusy(false);
   }
   async function copy() {
     try {
@@ -222,6 +231,39 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
           )}
         </div>
       </div>
+      {preview && (
+        <div className="fixed inset-0 z-[90] flex flex-col bg-black" role="dialog" aria-modal="true" aria-label="Pré-visualização do status">
+          <div className="flex shrink-0 items-center gap-2 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-white">
+            <button type="button" onClick={() => setPreview(null)} aria-label="Voltar" className="flex h-11 w-11 items-center justify-center rounded-full active:bg-white/15"><Icon name="back" size={24} /></button>
+            <h2 className="text-[17px] font-bold">Pré-visualização</h2>
+          </div>
+          <div className="relative mx-auto flex min-h-0 w-full max-w-sm flex-1 items-center justify-center px-4">
+            <div className="relative aspect-[9/16] max-h-full overflow-hidden rounded-[22px] bg-zinc-900 shadow-2xl">
+              {post.media[0]?.kind === 'video' ? (
+                <video src={post.media[0].url} poster={post.media[0].posterUrl ?? undefined} className="h-full w-full object-cover" autoPlay muted loop playsInline />
+              ) : (
+                <img src={post.media[0]?.url} alt="" className="h-full w-full object-cover" />
+              )}
+              <div className="absolute inset-x-0 top-0 flex items-center gap-2 bg-gradient-to-b from-black/55 to-transparent p-3 text-white">
+                <Avatar name={post.author.displayName} username={post.author.username} size={30} ring={false} />
+                <span className="truncate text-[13px] font-semibold">@{post.author.username}</span>
+              </div>
+              {caption.trim() && <p className="absolute inset-x-3 bottom-4 rounded-xl bg-black/55 px-3 py-2 text-center text-[16px] font-semibold text-white">{caption}</p>}
+            </div>
+          </div>
+          <div className="shrink-0 space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+            <input value={caption} onChange={(e) => setCaption(e.target.value.slice(0, 200))} placeholder="Adicionar legenda…" aria-label="Legenda" className="h-12 w-full rounded-full bg-white/15 px-5 text-[16px] text-white outline-none placeholder:text-white/60 focus:bg-white/25" />
+            <div role="radiogroup" aria-label="Quem vê" className="grid grid-cols-2 gap-2">
+              {([['all', 'Os teus seguidores', 'square-plus'], ['close_friends', 'Amigos próximos', 'heart']] as const).map(([v, label, ic]) => (
+                <button key={v} type="button" role="radio" aria-checked={preview === v} onClick={() => setPreview(v)} className={`flex h-11 items-center justify-center gap-2 rounded-full text-sm font-semibold transition ${preview === v ? (v === 'all' ? 'bg-white text-zinc-900' : 'bg-emerald-500 text-white') : 'bg-white/15 text-white'}`}>
+                  <Icon name={ic} size={18} /> {label}
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => void publishStory()} disabled={busy} className="h-12 w-full rounded-full bg-brand text-[17px] font-bold text-white transition active:scale-[0.98] disabled:opacity-60">{busy ? 'A partilhar…' : 'Partilhar no status'}</button>
+          </div>
+        </div>
+      )}
       {grouping && (
         <NewChat
           onClose={() => setGrouping(false)}

@@ -21,7 +21,7 @@ import { detectIntent } from '../lib/chatIntent';
 import { firstTime } from '../lib/firstTime';
 import { isSharing, startLive, stopLive } from '../lib/liveLocation';
 import { useTyping } from '../lib/chatLive';
-import { STICKERS, Sticker } from '../lib/stickers';
+import { STICKERS, Sticker, StickerButton } from '../lib/stickers';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { useAuth } from '../lib/auth';
 
@@ -128,7 +128,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
           <p className="px-4 pb-3 pt-1 text-[15px] leading-snug">{m.body || ' '}</p>
         </div>
       )}
-      {!m.viewOnce && m.kind === 'sticker' && <div className={dim}><Sticker id={m.body} /></div>}
+      {!m.viewOnce && m.kind === 'sticker' && <div className={dim}><StickerButton id={m.body} /></div>}
       {!m.viewOnce && m.kind === 'post' && <SharedPost post={m.post ?? null} shape={shape} tone={tone} />}
       {!m.viewOnce && m.kind === 'location' && m.lat != null && m.lng != null && (
         <a href={`https://www.google.com/maps?q=${m.lat},${m.lng}`} target="_blank" rel="noreferrer" className={`block overflow-hidden ${shape} ${tone} ${dim}`} style={{ width: 240 }}>

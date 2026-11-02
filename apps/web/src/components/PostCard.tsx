@@ -127,9 +127,22 @@ function PostBody({ post }: { post: Post }) {
   return (
     <article className="mx-3 mb-6 rounded-[28px] bg-white px-4 pt-5 min-[360px]:mx-4 min-[360px]:px-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
       <header className="flex items-center gap-3">
-        <Link to={profilePath(post.author.username, user?.username)} aria-label={`Perfil de ${post.author.displayName}`}>
-          <Avatar name={post.author.displayName} username={post.author.username} size={52} />
-        </Link>
+        {g ? (
+          // Presente: as duas fotos cruzadas (quem deu à frente, quem recebeu por trás) com o símbolo do presente no cruzamento.
+          <span className="relative h-[52px] w-[80px] shrink-0">
+            <Link to={profilePath(g.recipient.username, user?.username)} aria-label={`Perfil de ${g.recipient.displayName}`} className="absolute right-0 top-0 rounded-full ring-[3px] ring-white">
+              <Avatar name={g.recipient.displayName} username={g.recipient.hasAvatar ? g.recipient.username : undefined} size={46} ring={false} />
+            </Link>
+            <Link to={profilePath(post.author.username, user?.username)} aria-label={`Perfil de ${post.author.displayName}`} className="absolute left-0 top-0 z-10 rounded-full ring-[3px] ring-white">
+              <Avatar name={post.author.displayName} username={post.author.username} size={46} ring={false} />
+            </Link>
+            <span aria-hidden className="absolute -bottom-0.5 left-1/2 z-20 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-brand text-white ring-2 ring-white"><Icon name="gift" size={13} /></span>
+          </span>
+        ) : (
+          <Link to={profilePath(post.author.username, user?.username)} aria-label={`Perfil de ${post.author.displayName}`}>
+            <Avatar name={post.author.displayName} username={post.author.username} size={52} />
+          </Link>
+        )}
         <div className="min-w-0 flex-1">
           {g ? (
             <p className="text-[17px] leading-tight text-zinc-800">
@@ -210,7 +223,7 @@ function QuoteCard({ post, original }: { post: Post; original: Post }) {
 function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; layer?: string }) {
   const { user } = useAuth();
   const patch = usePatch(post.id);
-  const [sheet, setSheet] = useState<'comments' | 'gift' | 'repost' | null>(null);
+  const [sheet, setSheet] = useState<'comments' | 'gift' | 'repost' | 'share' | null>(null);
   const [people, setPeople] = useState<PeopleKind | null>(null);
   const mine = post.author.id === user?.id;
 
@@ -247,6 +260,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
       {people && <PeopleSheet postId={post.id} kind={people} layer={top} onClose={() => setPeople(null)} />}
       {sheet === 'comments' && <CommentsSheet post={post} layer={top} onClose={() => setSheet(null)} onDelta={(d) => patch({ comments: Math.max(0, post.comments + d) })} />}
       {sheet === 'gift' && <GiftSheet postId={post.id} recipient={post.author} layer={top} onClose={() => setSheet(null)} />}
+      {sheet === 'share' && <ShareSheet post={post} layer={top} onClose={() => setSheet(null)} />}
       {sheet === 'repost' && <RepostSheet post={post} layer={top} onChange={patch} onClose={() => setSheet(null)} />}
     </>,
     document.body,
@@ -303,6 +317,9 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
               <GiftIcon /> <span className={word}>Presentear</span>
             </button>
           )}
+          <button onClick={() => setSheet('share')} aria-label="Partilhar" className={barBtn}>
+            <Icon name="send" size={24} /> <span className={word}>Partilhar</span>
+          </button>
         </div>
         {sheets}
       </>

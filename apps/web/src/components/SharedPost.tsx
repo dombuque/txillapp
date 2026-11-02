@@ -1,10 +1,11 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { sized } from '../lib/media';
 import type { Post } from '../lib/api';
 import Icon from './Icon';
 
 /** Publicação ou reel partilhado numa conversa: miniatura, autor e texto. Tocar abre o post (ou o reel, em ecrã inteiro). */
 export default function SharedPost({ post, shape, tone }: { post: Post | null; shape: string; tone: string }) {
+  const navigate = useNavigate();
   if (!post) {
     return (
       <div className={`flex w-[240px] items-center gap-2 px-4 py-3 text-sm ${shape} ${tone} opacity-80`}>
@@ -17,7 +18,16 @@ export default function SharedPost({ post, shape, tone }: { post: Post | null; s
   const video = m?.kind === 'video';
   const thumb = m ? (video ? m.posterUrl : sized(m.url, 480)) : null;
   return (
-    <Link to={video ? `/r/${shown.id}` : `/p/${shown.id}`} className={`block w-[240px] overflow-hidden ${shape} ${tone}`}>
+    <Link
+      to={video ? `/r/${shown.code ?? shown.id}` : `/p/${shown.code ?? shown.id}`}
+      onClick={(e) => {
+        // O toque no meio do cartão abre sempre o post ou o reel (o menu de toque longo da mensagem não o apanha).
+        e.preventDefault();
+        e.stopPropagation();
+        navigate(video ? `/r/${shown.code ?? shown.id}` : `/p/${shown.code ?? shown.id}`);
+      }}
+      className={`block w-[240px] overflow-hidden ${shape} ${tone}`}
+    >
       <span className="flex items-center gap-2 px-3 pt-2.5 text-[13px] font-semibold opacity-90">
         <Icon name={video ? 'film' : 'image'} size={14} /> {video ? 'Reel' : 'Publicação'} de {shown.author.displayName}
       </span>
