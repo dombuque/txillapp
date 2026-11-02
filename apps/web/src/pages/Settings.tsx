@@ -10,6 +10,7 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import CloseFriendsSheet from '../components/CloseFriendsSheet';
 import EditProfileSheet from '../components/EditProfileSheet';
 import StackPage from '../components/StackPage';
+import { checkForUpdate, hardReload } from '../components/UpdateBanner';
 import { Avatar, Sheet, btnGhost, btnPrimary, fieldInput, timeAgo } from '../components/ui';
 import { ApiError, api, type PrivacySettings, type Who, type Viewers } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -144,6 +145,28 @@ function InstallRow() {
   return <Row icon={<Icon name="phone" />} label="Instalar a app" onClick={() => (canPrompt ? void install() : window.alert(how))} />;
 }
 
+/** A versão da app e o botão para procurar já uma atualização (e, se ficar presa, recarregar do zero). */
+function VersionRow() {
+  const [state, setState] = useState<'idle' | 'checking' | 'latest' | 'updating' | 'error'>('idle');
+  async function check() {
+    setState('checking');
+    setState(await checkForUpdate());
+  }
+  return (
+    <div className="mt-2 px-4 text-center text-xs text-zinc-500">
+      <p>Txillapp · versão de {__BUILD__}</p>
+      <button type="button" onClick={check} disabled={state === 'checking' || state === 'updating'} className="mt-1.5 h-9 rounded-full px-4 text-sm font-semibold text-brand active:bg-rose-50 disabled:opacity-60">
+        {state === 'checking' ? 'A procurar…' : state === 'updating' ? 'A atualizar…' : 'Procurar atualização'}
+      </button>
+      {state === 'latest' && <p role="status" className="text-zinc-600">Já tens a versão mais recente.</p>}
+      {state === 'error' && <p role="alert" className="text-red-600">Não consegui procurar. Tenta outra vez.</p>}
+      {(state === 'latest' || state === 'error') && (
+        <button type="button" onClick={() => void hardReload()} className="mt-1 block w-full text-center text-xs font-semibold text-zinc-600 underline">Ainda vês a versão antiga? Recarregar do zero</button>
+      )}
+    </div>
+  );
+}
+
 export default function Settings() {
   const qc = useQueryClient();
   const { user, signOut, signIn } = useAuth();
@@ -275,7 +298,7 @@ export default function Settings() {
         </Section>
       )}
 
-      <p className="mt-2 px-4 text-center text-xs text-zinc-500">Txillapp · versão de {__BUILD__}</p>
+      <VersionRow />
 
       <Section title="Conta">
         <Row icon={<Icon name="download" />} label={exporting ? 'A preparar…' : 'Descarregar os meus dados'} onClick={downloadData} />

@@ -6,6 +6,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { BackIcon } from '../components/icons';
 import Icon from '../components/Icon';
 import Camera from '../components/Camera';
+import ChatPhotoReview from '../components/ChatPhotoReview';
 import GroupSheet from '../components/GroupSheet';
 import OnceViewer from '../components/OnceViewer';
 import LocationPicker, { type Picked } from '../components/LocationPicker';
@@ -175,6 +176,7 @@ export default function Thread() {
   const [away, setAway] = useState(false); // longe do fim da conversa
   const [panel, setPanel] = useState<null | 'attach' | 'stickers'>(null);
   const [once, setOnce] = useState(false); // a próxima mensagem é de visualização única
+  const [review, setReview] = useState<File | null>(null); // foto à espera de enviar (pré-visualização)
   const [onceHelp, setOnceHelp] = useState(false); // a explicação só aparece da primeira vez
   const [opening, setOpening] = useState<Msg | null>(null);
   const [camera, setCamera] = useState(false);
@@ -302,22 +304,22 @@ export default function Thread() {
     }
   }
 
+  /** Tirada na câmara ou escolhida da galeria: primeiro vê-se e decide-se (legenda, filtro, visualização única); só vai ao tocar em Enviar. */
+  function queuePhoto(f: File) {
+    if (!IMAGE_TYPES.includes(f.type)) return setErr('Essa foto não serve. Usa JPEG, PNG ou WebP');
+    if (f.size > MAX_IMAGE) return setErr('Foto pesada demais! Máximo 8 MB');
+    setErr('');
+    setReview(f);
+  }
   function pickPhoto(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = '';
-    if (!f) return;
-    if (!IMAGE_TYPES.includes(f.type)) return setErr('Essa foto não serve. Usa JPEG, PNG ou WebP');
-    if (f.size > MAX_IMAGE) return setErr('Foto pesada demais! Máximo 8 MB');
-    const caption = text.trim();
-    setText('');
-    void dispatch({ kind: 'image', body: caption, file: f, mime: f.type, localUrl: URL.createObjectURL(f), once: once && !isGroup });
-    setOnce(false);
+    if (f) queuePhoto(f);
   }
-
-  function sendPhoto(f: File) {
-    if (!IMAGE_TYPES.includes(f.type)) return setErr('Essa foto não serve. Usa JPEG, PNG ou WebP');
-    if (f.size > MAX_IMAGE) return setErr('Foto pesada demais! Máximo 8 MB');
-    void dispatch({ kind: 'image', body: '', file: f, mime: f.type, localUrl: URL.createObjectURL(f), once: once && !isGroup });
+  function sendReviewed(r: { file: File; caption: string; once: boolean }) {
+    setReview(null);
+    setText('');
+    void dispatch({ kind: 'image', body: r.caption, file: r.file, mime: r.file.type, localUrl: URL.createObjectURL(r.file), once: r.once && !isGroup });
     setOnce(false);
   }
 
@@ -681,8 +683,8 @@ export default function Thread() {
         <Camera
           count={0}
           max={1}
-          onShot={(f) => { setCamera(false); sendPhoto(f); }}
-          onGallery={(files) => { setCamera(false); if (files[0]) sendPhoto(files[0]); }}
+          onShot={(f) => { setCamera(false); queuePhoto(f); }}
+          onGallery={(files) => { setCamera(false); if (files[0]) queuePhoto(files[0]); }}
           onClose={() => setCamera(false)}
         />
       )}
@@ -694,6 +696,7 @@ export default function Thread() {
         />
       )}
       {place && <LocationPicker onSend={sendPlace} onClose={() => setPlace(false)} />}
+      {review && <ChatPhotoReview file={review} name={person?.displayName.split(' ')[0] ?? group?.name ?? 'o chat'} canOnce={!isGroup} initialCaption={text.trim()} onCancel={() => setReview(null)} onSend={sendReviewed} />}
       {opening && <OnceViewer id={opening.id} from={person?.displayName ?? ''} onClose={() => { setOpening(null); void q.refetch(); }} />}
       {members && group && <GroupSheet group={group} onClose={() => setMembers(false)} onChanged={() => void q.refetch()} onLeft={() => navigate('/messages', { replace: true })} />}
       {reporting && <ReportSheet type="message" id={reporting} onClose={() => setReporting(null)} />}
