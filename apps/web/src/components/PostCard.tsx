@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom';
+import { useOnline } from '../lib/presence';
 import ShareSheet from './ShareSheet';
 import VideoPlayer from './VideoPlayer';
 import { track } from '../lib/analytics';
@@ -119,6 +120,13 @@ export default function PostCard({ post }: { post: Post }) {
   return <PostBody post={post} />;
 }
 
+/** Bolinha verde de "online" no canto do avatar (só aparece se a pessoa estiver online e deixar ver). */
+export function OnlineDot({ username, className = '' }: { username: string; className?: string }) {
+  const on = useOnline(username);
+  if (!on) return null;
+  return <span role="img" aria-label="Online" className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500 ${className}`} />;
+}
+
 /** Cartão normal de uma publicação. */
 function PostBody({ post }: { post: Post }) {
   const { user } = useAuth();
@@ -135,12 +143,14 @@ function PostBody({ post }: { post: Post }) {
             </Link>
             <Link to={profilePath(post.author.username, user?.username)} aria-label={`Perfil de ${post.author.displayName}`} className="absolute left-0 top-0 z-10 rounded-full ring-[3px] ring-white">
               <Avatar name={post.author.displayName} username={post.author.username} size={46} ring={false} />
+              <OnlineDot username={post.author.username} />
             </Link>
             <span aria-hidden className="absolute -bottom-0.5 left-1/2 z-20 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-brand text-white ring-2 ring-white"><Icon name="gift" size={13} /></span>
           </span>
         ) : (
-          <Link to={profilePath(post.author.username, user?.username)} aria-label={`Perfil de ${post.author.displayName}`}>
+          <Link to={profilePath(post.author.username, user?.username)} aria-label={`Perfil de ${post.author.displayName}`} className="relative shrink-0">
             <Avatar name={post.author.displayName} username={post.author.username} size={52} />
+            <OnlineDot username={post.author.username} />
           </Link>
         )}
         <div className="min-w-0 flex-1">

@@ -5,7 +5,7 @@ const SEAL =
 
 /**
  * Selo de perfil verificado. Dois níveis: azul (pessoa ou negócio verificado, depois de revisão manual) e
- * o selo do Txillapp (conta oficial da casa), em coral e dourado, para nunca se confundir com os outros.
+ * o selo do Txillapp (conta oficial da casa), na cor coral da marca, para nunca se confundir com os outros.
  */
 export default function VerifiedBadge({ size = 16, className = '', tier = 'verified' }: { size?: number; className?: string; tier?: 'verified' | 'official' | null }) {
   const id = useId().replace(/:/g, '');
@@ -17,20 +17,13 @@ export default function VerifiedBadge({ size = 16, className = '', tier = 'verif
       {official && (
         <defs>
           <linearGradient id={`o${id}`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#ff7a59" />
-            <stop offset="0.55" stopColor="#d6334f" />
-            <stop offset="1" stopColor="#f5b301" />
+            <stop offset="0" stopColor="#ff6b81" />
+            <stop offset="1" stopColor="#d6334f" />
           </linearGradient>
         </defs>
       )}
       <path fill={official ? `url(#o${id})` : '#1d9bf0'} d={SEAL} />
-      {official ? (
-        <>
-          <path fill="#fff" d="M12 6.4l1.6 3.3 3.6.5-2.6 2.5.6 3.6-3.2-1.7-3.2 1.7.6-3.6-2.6-2.5 3.6-.5z" />
-        </>
-      ) : (
-        <path fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" d="m8 12.4 2.8 2.8L16.4 9.4" />
-      )}
+      <path fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" d="m8 12.4 2.8 2.8L16.4 9.4" />
     </svg>
   );
 }

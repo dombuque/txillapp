@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { api, type MyTaste, type TasteItem, type TheirTaste } from '../lib/api';
 import { ICE, KINDS, KIND_ICON, KIND_LABEL } from '../lib/geleira';
 import TasteBubble from './TasteIcon';
+import FridgeArt, { FROST_LABEL, frostLevel } from './FridgeArt';
 import Icon from './Icon';
 
 type Shown = TasteItem & { rating: number | null; favorite: boolean };
@@ -68,42 +69,27 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
   const total = items.filter((i) => !i.pending).length;
 
   const folded = compact && !open;
-  const preview = items.slice(0, 7);
-  const more = items.length - preview.length;
 
   return (
     <section
       aria-label="Geleira"
       className={`${flush ? '' : 'mx-4'} mt-4 overflow-hidden rounded-[24px] border border-sky-100 bg-gradient-to-b from-sky-50 via-white to-cyan-50/60 px-4 shadow-[0_2px_12px_rgba(14,116,144,0.1)] ${folded ? 'pb-3 pt-3' : 'pb-6 pt-4'}`}
     >
-      <button
-        type="button"
-        onClick={compact ? () => setOpen(!open) : undefined}
-        disabled={!compact}
-        aria-expanded={compact ? open : undefined}
-        className="flex w-full items-center gap-3 text-left disabled:cursor-default"
-      >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-cyan-400 text-white shadow-[0_3px_8px_rgba(14,116,144,0.3)]"><Icon name="snowflake" size={22} /></span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[17px] font-extrabold leading-tight">{isMe ? 'A minha geleira' : 'Geleira'}</span>
+      <div className="flex items-center gap-4 pb-1">
+        <FridgeArt count={total} open={!folded} size={folded ? 76 : 84} />
+        <div className="min-w-0 flex-1">
+          <span className="block text-[18px] font-extrabold leading-tight">{isMe ? 'A minha geleira' : 'Geleira'}</span>
           <span className="block text-[13px] text-zinc-600">
             {items.length === 0 ? 'Ainda vazia' : `${total} ${total === 1 ? 'gosto' : 'gostos'}${favorites.length ? ` · ${favorites.length} ${favorites.length === 1 ? 'favorito' : 'favoritos'}` : ''}`}
           </span>
-        </span>
-        {compact && <Icon name="chevron-right" size={20} className={`shrink-0 text-sky-700 transition-transform ${open ? 'rotate-90' : ''}`} />}
-      </button>
-
-      {folded && items.length > 0 && (
-        <button type="button" onClick={() => setOpen(true)} aria-label="Abrir a geleira" className="mt-3 flex w-full items-center gap-1.5 text-left">
-          {preview.map((i) => (
-            <span key={i.id} className="relative shrink-0">
-              <TasteBubble item={i} size={40} />
-              {i.favorite && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-brand ring-2 ring-white" />}
-            </span>
-          ))}
-          {more > 0 && <span className="flex h-10 min-w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 px-2 text-[13px] font-bold text-sky-700">+{more}</span>}
-        </button>
-      )}
+          {total > 0 && <span className="mt-1 inline-block rounded-full bg-sky-100 px-2.5 py-0.5 text-[12px] font-bold text-sky-700">{FROST_LABEL[frostLevel(total)]}</span>}
+          {compact && (
+            <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="mt-2 flex h-10 items-center gap-1.5 rounded-full bg-sky-500 px-4 text-[14px] font-bold text-white shadow-[0_3px_8px_rgba(14,116,144,0.3)] transition active:scale-95">
+              {open ? 'Fechar geleira' : 'Abrir geleira'} <Icon name="chevron-right" size={16} strokeWidth={3} className={`transition-transform ${open ? '-rotate-90' : 'rotate-90'}`} />
+            </button>
+          )}
+        </div>
+      </div>
 
       {items.length === 0 && (!compact || open) ? (
         <div className="mt-4 rounded-2xl bg-white/70 px-4 py-6 text-center ring-1 ring-sky-100">

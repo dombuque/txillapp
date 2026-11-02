@@ -322,7 +322,7 @@ export interface StorySettings {
   hidden: { username: string; displayName: string }[];
 }
 export type GiftVisibility = 'silent' | 'private' | 'public';
-export type ProfileTab = 'posts' | 'reels' | 'reposts' | 'gifts' | 'tagged';
+export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts';
 export interface VerificationStatus {
   items: { key: string; label: string; ok: boolean; hint: string }[];
   eligible: boolean;
@@ -480,7 +480,7 @@ export const api = {
   resetPassword: (token: string, newPassword: string): Promise<{ ok: boolean }> => raw('/auth/password/reset', post({ token, newPassword })),
 
   profile: (username: string): Promise<Profile> => raw(`/users/${encodeURIComponent(username)}`),
-  userPosts: (username: string, cursor?: string, tab: ProfileTab = 'posts'): Promise<Page<Post>> => raw(`/users/${encodeURIComponent(username)}/posts${qs(cursor, 18)}${(qs(cursor, 18) ? '&' : '?')}tab=${tab}`),
+  userPosts: (username: string, cursor?: string, tab: ProfileTab = 'all'): Promise<Page<Post>> => raw(`/users/${encodeURIComponent(username)}/posts${qs(cursor, 18)}${(qs(cursor, 18) ? '&' : '?')}tab=${tab}`),
   follow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/follow`, post({})),
   unfollow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/follow`, { method: 'DELETE' }),
   followers: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/followers${qs(cursor, undefined, q)}`),
@@ -625,6 +625,8 @@ export const api = {
   report: (type: Exclude<ReportType, 'media'>, id: string, reason: ReportReason, note?: string): Promise<void> => raw('/reports', post({ type, id, reason, note })),
   removePost: (id: string): Promise<void> => raw(`/posts/${id}`, { method: 'DELETE' }),
   adminQueue: (): Promise<ReportQueueItem[]> => raw('/admin/reports'),
+  typingPing: (postId: string): Promise<void> => raw('/presence/typing', post({ postId })),
+  typers: async (postId: string): Promise<string[]> => ((await raw(`/presence/typing?postId=${postId}`)) as { names: string[] }).names,
   verificationStatus: (): Promise<VerificationStatus> => raw('/verification/me'),
   verificationRequest: (b: { kind: 'person' | 'business'; fullName: string; proof: string; docMediaId: string; selfieMediaId: string }): Promise<void> => raw('/verification/request', post(b)),
   verificationWithdraw: (): Promise<void> => raw('/verification/request', { method: 'DELETE' }),

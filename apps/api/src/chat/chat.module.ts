@@ -8,11 +8,12 @@ import { ChatService } from './chat.service';
 import { GroupsService } from './groups.service';
 import { NotesController } from './notes.controller';
 import { NotesService } from './notes.service';
+import { PresenceController, PresenceService } from './presence.controller';
 
 @Module({
   imports: [AuthModule, MediaModule, PostsModule],
-  controllers: [ChatController, NotesController],
-  providers: [ChatService, GroupsService, NotesService, ChatEvents],
+  controllers: [ChatController, NotesController, PresenceController],
+  providers: [ChatService, GroupsService, NotesService, ChatEvents, PresenceService],
   exports: [ChatService],
 })
 export class ChatModule {}

@@ -22,17 +22,15 @@ type SheetName = null | 'report' | 'edit' | 'requests' | 'menu' | 'block' | 'gif
 
 /** Perfil de qualquer pessoa (/u/:username) e o meu (/profile). */
 const TABS: { id: ProfileTab; label: string; icon: IconName }[] = [
-  { id: 'posts', label: 'Publicações', icon: 'image' },
+  { id: 'all', label: 'Tudo', icon: 'grid' },
   { id: 'reels', label: 'Reels', icon: 'film' },
   { id: 'reposts', label: 'Reposts', icon: 'repeat' },
   { id: 'gifts', label: 'Presentes', icon: 'gift' },
-  { id: 'tagged', label: 'Identificações', icon: 'tag' },
 ];
-const EMPTY: Record<Exclude<ProfileTab, 'posts'>, { me: string; other: string }> = {
+const EMPTY: Record<Exclude<ProfileTab, 'all'>, { me: string; other: string }> = {
   reels: { me: 'Ainda não publicaste reels.', other: 'Ainda sem reels.' },
   reposts: { me: 'Ainda não repostaste nada.', other: 'Ainda sem reposts.' },
   gifts: { me: 'Os presentes que deres ou receberes e publicares aparecem aqui.', other: 'Ainda sem presentes publicados.' },
-  tagged: { me: 'As fotos em que te identificarem aparecem aqui.', other: 'Ainda sem identificações.' },
 };
 
 export default function ProfilePage() {
@@ -48,7 +46,7 @@ export default function ProfilePage() {
 
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username), retry: false });
   const p = q.data;
-  const [tab, setTab] = useState<ProfileTab>('posts');
+  const [tab, setTab] = useState<ProfileTab>('all');
   const posts = useInfiniteQuery({
     queryKey: ['profile-posts', username, tab],
     queryFn: ({ pageParam }) => api.userPosts(username, pageParam, tab),
@@ -231,10 +229,10 @@ export default function ProfilePage() {
               ))}
             </div>
             {posts.isLoading && <p className="py-8 text-center text-sm text-zinc-500">A carregar…</p>}
-            {posts.isSuccess && items.length === 0 && tab !== 'posts' && (
+            {posts.isSuccess && items.length === 0 && tab !== 'all' && (
               <p className="mt-8 text-center text-zinc-600">{p.isMe ? EMPTY[tab].me : EMPTY[tab].other}</p>
             )}
-            {posts.isSuccess && items.length === 0 && tab === 'posts' && (
+            {posts.isSuccess && items.length === 0 && tab === 'all' && (
               <div className="mt-8 text-center text-zinc-600">
                 <p className="text-zinc-300" aria-hidden><Icon name="camera" size={36} className="mx-auto" /></p>
                 <p className="mt-2 font-semibold">{p.isMe ? 'Ainda não publicaste nada' : 'Ainda sem publicações'}</p>

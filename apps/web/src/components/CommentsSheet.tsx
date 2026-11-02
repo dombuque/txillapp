@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import VerifiedBadge from './VerifiedBadge';
 import ReportSheet from './ReportSheet';
 import RichText from './RichText';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent, type TouchEvent } from 'react';
 import { api, type Comment, type Post } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -136,6 +136,17 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState('');
+  // Quem mais está a escrever um comentário neste post (o servidor só mostra quem deixa ver a presença, e só se eu também deixar).
+  const typers = useQuery({ queryKey: ['typing', post.id], queryFn: () => api.typers(post.id), refetchInterval: 3000, staleTime: 0, gcTime: 0 });
+  const lastPing = useRef(0);
+  function onType(v: string) {
+    setText(v);
+    if (v.trim() && Date.now() - lastPing.current > 3000) {
+      lastPing.current = Date.now();
+      void api.typingPing(post.id).catch(() => undefined);
+    }
+  }
+  const typing = typers.data ?? [];
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -265,6 +276,11 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
               </button>
             ))}
           </div>
+          {typing.length > 0 && (
+            <p role="status" className="px-4 pt-2 text-[13px] text-zinc-500">
+              {typing.length === 1 ? `${typing[0]} está a escrever…` : typing.length === 2 ? `${typing[0]} e ${typing[1]} estão a escrever…` : `${typing[0]} e mais ${typing.length - 1} estão a escrever…`}
+            </p>
+          )}
           <form onSubmit={submit} className="flex items-center gap-3 px-4 pt-2">
             <Avatar name={user?.displayName ?? '?'} username={user?.username} size={36} />
             <div className="flex flex-1 items-center rounded-full border border-zinc-300 pl-4 pr-2">
@@ -274,7 +290,7 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
                 wrapperClassName="min-w-0 flex-1"
                 inputRef={inputRef}
                 value={text}
-                onChange={setText}
+                onChange={onType}
                 maxLength={1000}
                 placeholder={replyTo ? `Responder a ${replyTo.author.username}…` : 'Diz lá…'}
                 aria-label="Escrever comentário"
