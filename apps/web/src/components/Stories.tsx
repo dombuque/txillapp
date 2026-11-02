@@ -496,8 +496,16 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
           </div>
         </div>
 
-        <button aria-label="Anterior" onClick={tap(prev)} className="absolute bottom-28 left-0 top-28 w-1/3" />
-        <button aria-label="Seguinte" onClick={tap(next)} className="absolute bottom-28 right-0 top-28 w-2/3" />
+        {/* Story de uma publicação ou reel: os lados recuam e avançam e o meio abre o post (não só o botão de baixo). */}
+        <button aria-label="Anterior" onClick={tap(prev)} className={`absolute bottom-28 left-0 top-28 ${story?.sharedFrom ? 'w-[30%]' : 'w-1/3'}`} />
+        {story?.sharedFrom && (
+          <button
+            aria-label={story.mediaKind === 'video' ? 'Abrir o reel' : 'Abrir a publicação'}
+            onClick={tap(() => navigate(story.mediaKind === 'video' ? `/r/${story.sharedFrom!.postId}` : `/p/${story.sharedFrom!.postId}`))}
+            className="absolute bottom-28 left-[30%] top-28 w-[40%]"
+          />
+        )}
+        <button aria-label="Seguinte" onClick={tap(next)} className={`absolute bottom-28 right-0 top-28 ${story?.sharedFrom ? 'w-[30%]' : 'w-2/3'}`} />
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/70 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-16">
           {story?.sharedFrom && (
