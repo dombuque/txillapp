@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { track } from '../lib/analytics';
 import { api, type Post } from '../lib/api';
 import { sized } from '../lib/media';
-import { composeStoryImage } from '../lib/storyImage';
 import { postLink, postShare, shareNow } from '../lib/share';
 import Icon, { type IconName } from './Icon';
 import NewChat from './NewChat';
@@ -146,17 +145,10 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
     try {
       const res = await fetch(m.kind === 'video' ? m.url : sized(m.url, 1080));
       const blob = await res.blob();
-      let file: File;
-      let caption = '';
-      if (m.kind === 'video') {
-        // Vídeo: segue como está; a legenda leva só o link curto (não dá para desenhar por cima).
-        file = new File([blob], `txillapp-${post.code ?? post.id}.mp4`, { type: blob.type || 'video/mp4' });
-        caption = url;
-      } else {
-        // Foto: vira uma imagem de story com o link dentro (o WhatsApp não tem autocolante de link), sem legenda.
-        const avatar = await fetch(`/api/v1/avatars/${encodeURIComponent(post.author.username)}`).then((r) => (r.ok ? r.blob() : null)).catch(() => null);
-        file = await composeStoryImage(blob, { displayName: post.author.displayName, username: post.author.username, link: url, avatar });
-      }
+      // A foto (ou o vídeo) segue como é, sem moldura; a legenda leva só o link curto, clicável.
+      const ext = blob.type.includes('mp4') || blob.type.includes('video') ? 'mp4' : blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
+      const file = new File([blob], `txillapp-${post.code ?? post.id}.${ext}`, { type: blob.type });
+      const caption = url;
       if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
         await navigator.share(caption ? { files: [file], text: caption } : { files: [file] });
         onClose();
