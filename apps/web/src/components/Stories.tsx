@@ -336,7 +336,7 @@ function CommentsPanel({ story, onClose, canComment, onTyping }: { story: Story;
             maxLength={500}
             placeholder="Adiciona um comentário…"
             aria-label="Comentário"
-            className="h-11 w-full rounded-full bg-zinc-100 px-4 text-[15px] outline-none focus:ring-2 focus:ring-brand/50"
+            className="h-11 w-full rounded-full bg-zinc-100 px-4 text-[15px] outline-none focus:bg-zinc-200/70"
           />
           <button disabled={!text.trim() || busy} className="px-2 font-bold text-brand disabled:opacity-40">Publicar</button>
         </form>
@@ -629,7 +629,7 @@ export function StoryCreator({ file, onClose, onBack }: { file: File; onClose: (
         <img src={preview} alt="Pré-visualização do story" className="min-h-0 flex-1 object-contain" />
         <button type="button" onClick={onBack ?? onClose} aria-label={onBack ? 'Voltar' : 'Cancelar'} className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] px-2 text-3xl leading-none text-white">×</button>
         <div className="space-y-3 bg-black px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
-          <MentionTextarea single up value={caption} onChange={setCaption} maxLength={200} placeholder="Escreve uma legenda…" aria-label="Legenda" className="w-full rounded-full bg-white/15 px-4 py-3 text-white outline-none placeholder:text-white/60 focus:ring-2 focus:ring-brand" />
+          <MentionTextarea single up value={caption} onChange={setCaption} maxLength={200} placeholder="Escreve uma legenda…" aria-label="Legenda" className="w-full rounded-full bg-white/15 px-4 py-3 text-white outline-none placeholder:text-white/60 focus:bg-white/25" />
           <div role="radiogroup" aria-label="Quem vê" className="flex gap-2">
             {([['all', 'globe', 'Os teus stories'], ['close_friends', 'heart', 'Amigos próximos']] as const).map(([v, ic, label]) => (
               <button

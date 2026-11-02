@@ -57,7 +57,7 @@ export default function Compose() {
         setErr('');
       } else if (ms > 60_500) {
         URL.revokeObjectURL(url);
-        setErr('O vídeo tem de ter até 60 segundos ⏱️');
+        setErr('O vídeo tem de ter até 60 segundos');
       } else {
         setVideo({ file: f, preview: url, durationMs: ms });
         setErr('');

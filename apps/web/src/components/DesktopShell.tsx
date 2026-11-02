@@ -93,7 +93,7 @@ function RightPanel() {
   return (
     <aside aria-label="Descobrir" className="sticky top-0 hidden h-dvh w-[320px] flex-col gap-4 overflow-y-auto py-3 pl-8 [scrollbar-width:none] xl:flex [&::-webkit-scrollbar]:hidden">
       <form onSubmit={go} role="search">
-        <label className="flex h-12 items-center gap-3 rounded-full bg-zinc-100 px-4 text-zinc-500 focus-within:ring-2 focus-within:ring-brand">
+        <label className="flex h-12 items-center gap-3 rounded-full bg-zinc-100 px-4 text-zinc-500 focus-within:bg-zinc-200/70">
           <SearchIcon width={20} height={20} />
           <input
             value={q}

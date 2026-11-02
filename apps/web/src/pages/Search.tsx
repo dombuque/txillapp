@@ -3,8 +3,8 @@ import Icon from '../components/Icon';
 import { track } from '../lib/analytics';
 import { sized } from '../lib/media';
 import VerifiedBadge from '../components/VerifiedBadge';
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { Fragment, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import FollowButton from '../components/FollowButton';
 import PostCard from '../components/PostCard';
@@ -29,6 +29,23 @@ export default function Search() {
   const [term, setTerm] = useState('');
   const [tab, setTab] = useState<'people' | 'tags' | 'posts'>('people');
   const trending = useQuery({ queryKey: ['trending'], queryFn: api.trending, staleTime: 60_000 });
+  const hot = useQuery({ queryKey: ['places-hot'], queryFn: api.hotPlaces, staleTime: 60_000 });
+  // Explorar: publicações com foto ou vídeo do feed de descoberta, mais os reels, sem repetir.
+  const explore = useInfiniteQuery({
+    queryKey: ['explore'],
+    queryFn: ({ pageParam }) => api.feed(pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (l) => l.nextCursor ?? undefined,
+    staleTime: 60_000,
+  });
+  const reelsQ = useQuery({ queryKey: ['explore-reels'], queryFn: () => api.reels(), staleTime: 60_000 });
+  const grid = (() => {
+    const seen = new Set<string>();
+    const all = [...(reelsQ.data?.items ?? []), ...(explore.data?.pages.flatMap((x) => x.items) ?? [])];
+    return all
+      .map((p) => (p.kind === 'repost' && p.repostOf ? p.repostOf : p))
+      .filter((p) => p.media.length > 0 && !seen.has(p.id) && !!seen.add(p.id));
+  })();
   const [recent, setRecent] = useState<string[]>(readRecent);
   const [open, setOpen] = useState<Post | null>(null);
 
@@ -70,7 +87,7 @@ export default function Search() {
   return (
     <div className="pb-6">
       <form role="search" onSubmit={(e) => { e.preventDefault(); if (term.length >= 2) remember(term); }} className="px-4 pb-3 pt-2">
-        <label className="flex items-center gap-2.5 rounded-full bg-zinc-100 px-4 py-3 text-zinc-600 focus-within:ring-2 focus-within:ring-brand">
+        <label className="flex items-center gap-2.5 rounded-full bg-zinc-100 px-4 py-3 text-zinc-600 focus-within:bg-zinc-200/70">
           <SearchIcon width={20} height={20} />
           <input
             type="search"
@@ -107,29 +124,68 @@ export default function Search() {
               </div>
             </section>
           )}
-          {(trending.data?.tags.length ?? 0) > 0 && (
-            <section className="px-5 pb-4" aria-label="Em alta">
-              <h2 className="mb-1 font-bold">Em alta</h2>
-              <ol>
-                {trending.data!.tags.map((t, i) => (
-                  <li key={t.tag}>
-                    <Link to={`/tag/${t.tag}`} className="flex items-center gap-3 rounded-xl py-2.5 active:bg-zinc-100">
-                      <span className="w-6 text-center text-sm font-bold text-zinc-400">{i + 1}</span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[17px] font-bold">#{t.tag}</span>
-                        <span className="block text-sm text-zinc-500">
-                          {t.posts} {t.posts === 1 ? 'publicação' : 'publicações'} · {t.authors} {t.authors === 1 ? 'pessoa' : 'pessoas'}
-                        </span>
-                      </span>
-                      {t.rising && <span className="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-700">A subir ↗</span>}
-                    </Link>
-                  </li>
+          {((trending.data?.tags.length ?? 0) > 0 || (hot.data?.length ?? 0) > 0) && (
+            <section className="pb-3" aria-label="Em alta">
+              <div className="flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {(hot.data ?? []).slice(0, 5).map((pl) => (
+                  <button key={pl.name} onClick={() => setText(pl.name)} className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-sky-50 px-4 text-sm font-semibold text-sky-800 transition active:scale-95">
+                    <Icon name="map-pin" size={15} /> {pl.name}
+                  </button>
                 ))}
-              </ol>
+                {(trending.data?.tags ?? []).slice(0, 8).map((t) => (
+                  <Link key={t.tag} to={`/tag/${t.tag}`} className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-zinc-100 px-4 text-sm font-semibold text-zinc-800 transition active:scale-95">
+                    #{t.tag}{t.rising && <Icon name="trending" size={14} strokeWidth={2.2} className="text-orange-600" />}
+                  </Link>
+                ))}
+              </div>
             </section>
           )}
-          <Suggestions />
-          <p className="px-6 pt-4 text-center text-zinc-500">Procura pessoas pelo @ ou nome, #hashtags, e publicações por texto ou local.</p>
+
+          {explore.isLoading && <div className="grid grid-cols-3 gap-0.5 px-0.5" role="status" aria-label="A carregar">{Array.from({ length: 9 }, (_, n) => <div key={n} className="skel aspect-square" />)}</div>}
+          {/* Linhas todas da mesma altura (um terço da largura); o primeiro bloco grande ocupa 2×2. As sugestões entram a meio. */}
+          {[grid.slice(0, 9), grid.slice(9)].map((chunk, c) =>
+            chunk.length === 0 ? null : (
+              <Fragment key={c}>
+                <div className="grid grid-flow-dense grid-cols-3 gap-0.5 px-0.5" style={{ gridAutoRows: 'calc((min(100vw, 36rem) - 0.5rem) / 3)' }}>
+                  {chunk.map((p, k) => {
+                    const n = c === 0 ? k : 9 + k;
+                    const m = p.media[0];
+                    const big = n % 10 === 0;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => { track('explore_open', { kind: m.kind ?? 'image' }); setOpen(p); }}
+                        aria-label={`Abrir publicação de ${p.author.displayName}`}
+                        className={`relative h-full w-full overflow-hidden bg-rose-50 active:opacity-80 ${big ? 'col-span-2 row-span-2' : ''}`}
+                      >
+                        <img src={m.kind === 'video' ? m.posterUrl : sized(m.url, big ? 720 : 360)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                        {m.kind === 'video' ? (
+                          <span className="absolute right-1.5 top-1.5 text-white drop-shadow"><Icon name="film" size={18} /></span>
+                        ) : p.media.length > 1 ? (
+                          <span className="absolute right-1.5 top-1.5 text-white drop-shadow"><Icon name="images" size={18} /></span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+                {c === 0 && <div className="my-2"><Suggestions /></div>}
+              </Fragment>
+            ),
+          )}
+          {explore.isSuccess && grid.length === 0 && (
+            <div className="px-6 py-10 text-center text-zinc-600">
+              <p className="text-zinc-300" aria-hidden><Icon name="image" size={36} className="mx-auto" /></p>
+              <p className="mt-2 font-semibold">Ainda não há publicações para explorar</p>
+              <p className="text-sm">Quando a malta publicar, aparece aqui.</p>
+            </div>
+          )}
+          {explore.hasNextPage && (
+            <div className="py-5 text-center">
+              <button onClick={() => explore.fetchNextPage()} disabled={explore.isFetchingNextPage} className="h-11 rounded-full bg-zinc-100 px-6 font-semibold active:scale-95">
+                {explore.isFetchingNextPage ? 'A carregar…' : 'Ver mais'}
+              </button>
+            </div>
+          )}
         </>
       )}
 

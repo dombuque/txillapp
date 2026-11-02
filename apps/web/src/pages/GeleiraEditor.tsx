@@ -6,7 +6,8 @@ import IceRating from '../components/IceRating';
 import { Sheet } from '../components/ui';
 import { BackIcon } from '../components/icons';
 import { api, type CatalogItem, type TasteKind, type TasteVisibility } from '../lib/api';
-import { CATEGORIES, ICE, KINDS, KIND_ICON, KIND_LABEL, iconOf } from '../lib/geleira';
+import { CATEGORIES, ICE, KINDS, KIND_ICON, KIND_LABEL } from '../lib/geleira';
+import TasteBubble from '../components/TasteIcon';
 
 const VIS: { v: TasteVisibility; label: string }[] = [
   { v: 'everyone', label: 'Todos' },
@@ -34,9 +35,16 @@ export default function GeleiraEditor() {
   const [items, setItems] = useState<CatalogItem[] | null>(null);
   const [toast, setToast] = useState('');
   const [suggesting, setSuggesting] = useState(false);
+  const [world, setWorld] = useState(false);
   const [saving, setSaving] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
+  const geo = useQuery({ queryKey: ['geo'], queryFn: api.geo, staleTime: 10 * 60_000, retry: false });
+  const countryName = (() => {
+    const c = geo.data?.country;
+    if (!c) return null;
+    try { return new Intl.DisplayNames(['pt'], { type: 'region' }).of(c) ?? null; } catch { return null; }
+  })();
   const cat = useQuery({ queryKey: ['geleira', 'catalog'], queryFn: () => api.geleiraCatalog('', undefined), staleTime: 0, gcTime: 0 });
   // O que está guardado no servidor (para saber o que mudou) e o rascunho que se vai editando.
   const [saved, setSaved] = useState<CatalogItem[] | null>(null);
@@ -70,7 +78,7 @@ export default function GeleiraEditor() {
   const create = useMutation({
     mutationFn: (b: { name: string; category: string }) => api.geleiraSuggest({ ...b, kind }),
     onSuccess: (n) => {
-      const fresh: CatalogItem = { ...n, mine: true, rating: null, favorite: false, visibility: 'everyone', fans: 1 };
+      const fresh: CatalogItem = { ...n, mine: true, rating: null, favorite: false, visibility: 'everyone', fans: 1, region: 'global' };
       setItems((l) => (l && !l.some((i) => i.id === n.id) ? [fresh, ...l] : l));
       setSaved((l) => (l && !l.some((i) => i.id === n.id) ? [fresh, ...l] : l));
       setText('');
@@ -116,12 +124,16 @@ export default function GeleiraEditor() {
 
   const q = norm(text.trim());
   const groups = CATEGORIES[kind];
-  const shown = list.filter((i) => i.kind === kind && (group === 'todas' || i.category === group) && (!q || norm(i.name).includes(q)));
+  // Só o que faz sentido onde estás (as do teu país e as de todo o lado); as de outros países vêm a pedido ou se já as tens.
+  const inScope = (i: CatalogItem) => i.region !== 'foreign' || world || i.mine;
+  const hiddenForeign = list.filter((i) => i.kind === kind && !inScope(i) && (!q || norm(i.name).includes(q))).length;
+  const shown = list.filter((i) => i.kind === kind && inScope(i) && (group === 'todas' || i.category === group) && (!q || norm(i.name).includes(q)));
   const sections = useMemo(() => {
     const by = new Map<string, CatalogItem[]>();
     for (const i of shown) by.set(i.category, [...(by.get(i.category) ?? []), i]);
     const label = (slug: string) => groups.find((g) => g.slug === slug)?.label ?? slug.replace(/-/g, ' ');
-    return [...by.entries()].map(([slug, rows]) => ({ slug, label: label(slug), rows }));
+    const pos = (slug: string) => { const k = groups.findIndex((g) => g.slug === slug); return k < 0 ? 99 : k; };
+    return [...by.entries()].sort((a, b) => pos(a[0]) - pos(b[0])).map(([slug, rows]) => ({ slug, label: label(slug), rows }));
   }, [shown, groups]);
   const exact = shown.some((i) => norm(i.name) === q);
 
@@ -147,7 +159,7 @@ export default function GeleiraEditor() {
           ))}
         </div>
         <div className="px-3 pb-2">
-          <label className="flex h-11 items-center gap-2 rounded-full bg-zinc-100 px-4 text-zinc-500 focus-within:ring-2 focus-within:ring-brand">
+          <label className="flex h-11 items-center gap-2 rounded-full bg-zinc-100 px-4 text-zinc-500 focus-within:bg-zinc-200/70">
             <Icon name="search" size={18} />
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Procurar em ${KIND_LABEL[kind].toLowerCase()}…`} aria-label="Procurar" maxLength={40} className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
             {text && <button onClick={() => setText('')} aria-label="Limpar" className="flex h-8 w-8 items-center justify-center"><Icon name="x" size={16} /></button>}
@@ -158,6 +170,14 @@ export default function GeleiraEditor() {
             <button key={g.slug} role="radio" aria-checked={group === g.slug} onClick={() => setGroup(g.slug)} className={`h-9 shrink-0 rounded-full px-4 text-sm font-semibold transition active:scale-95 ${group === g.slug ? 'bg-brand text-white' : 'bg-zinc-100 text-zinc-700'}`}>{g.label}</button>
           ))}
         </div>
+        {(kind === 'bebida' || kind === 'sitio') && (hiddenForeign > 0 || world) && (
+          <div className="px-3 pb-3">
+            <button onClick={() => setWorld(!world)} aria-pressed={world} className="flex h-10 w-full items-center justify-center gap-2 rounded-full bg-sky-50 text-sm font-semibold text-sky-800 transition active:scale-[0.98]">
+              <Icon name="globe" size={16} />
+              {world ? `A mostrar bebidas de todo o mundo · só ${countryName ?? 'do meu país'}` : `${countryName ? `Bebidas de ${countryName} e de todo o lado` : 'Bebidas do teu país'} · ver de outros países (${hiddenForeign})`}
+            </button>
+          </div>
+        )}
       </header>
 
       <main className="flex-1 px-3 pb-32 pt-2">
@@ -174,7 +194,7 @@ export default function GeleiraEditor() {
                   <li key={i.id} className={i.mine ? 'bg-sky-50/50' : 'bg-white'}>
                     <div className="flex min-h-[68px] items-center gap-3 px-3">
                       <button onClick={() => (i.mine ? setOpen(expanded ? null : i.id) : toggle(i))} aria-expanded={i.mine ? expanded : undefined} className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left active:opacity-70">
-                        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${i.mine ? 'bg-sky-100 text-sky-700' : 'bg-zinc-100 text-zinc-600'}`}><Icon name={iconOf(i)} size={22} /></span>
+                        <TasteBubble item={i} size={46} className={i.mine ? '' : 'opacity-70 saturate-50'} />
                         <span className="min-w-0">
                           <span className="flex items-center gap-1 text-[16px] font-semibold leading-tight"><span className="truncate">{i.name}</span>{i.favorite && <Icon name="heart" size={14} className="shrink-0 fill-brand text-brand" aria-label="Favorito" role="img" aria-hidden={false} />}</span>
                           <span className="block truncate text-[13px] text-zinc-500">

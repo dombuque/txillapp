@@ -141,6 +141,11 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
     const g2 = await api().post(`/api/v1/posts/${post.body.id}/gifts`).set(auth(ana)).set('Idempotency-Key', `gift-${run}-2`).send({ amount: 20 }).expect(201);
     expect(g2.body.replayed).toBe(true);
     expect(g2.body.post.gifts).toBe(1);
+    // O presente é uma publicação como as outras: também se reposta.
+    const ann = g.body.post;
+    if (ann?.kind === 'gift') {
+      await api().post(`/api/v1/posts/${ann.id}/repost`).set(auth(bruno)).send({}).expect(201);
+    }
 
     const feed = await api().get('/api/v1/posts?limit=5').set(auth(ana)).expect(200);
     expect(feed.body.items[0]).toMatchObject({ id: post.body.id, comments: 1, gifts: 1, cheers: 0, cheered: false });

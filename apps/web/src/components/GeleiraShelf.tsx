@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, type MyTaste, type TasteItem, type TheirTaste } from '../lib/api';
-import { ICE, KINDS, KIND_ICON, KIND_LABEL, iconOf } from '../lib/geleira';
+import { ICE, KINDS, KIND_ICON, KIND_LABEL } from '../lib/geleira';
+import TasteBubble from './TasteIcon';
 import Icon from './Icon';
 
 type Shown = TasteItem & { rating: number | null; favorite: boolean };
@@ -22,8 +23,8 @@ function Tile({ item }: { item: Shown }) {
   const label = `${item.name}${item.rating ? `, ${ICE[item.rating]}` : ''}${item.favorite ? ', favorito' : ''}`;
   const inner = (
     <>
-      <span className="relative flex h-[60px] w-[60px] items-center justify-center rounded-full bg-gradient-to-b from-white to-sky-100 text-sky-600 shadow-[0_4px_12px_rgba(14,116,144,0.2)] ring-1 ring-white">
-        <Icon name={iconOf(item)} size={26} strokeWidth={1.6} />
+      <span className="relative">
+        <TasteBubble item={item} size={60} />
         {item.favorite && (
           <span className="absolute -right-0.5 -top-0.5 flex h-[22px] w-[22px] items-center justify-center rounded-full bg-brand text-white ring-2 ring-white">
             <Icon name="heart" size={12} className="fill-white" />
@@ -95,8 +96,8 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
       {folded && items.length > 0 && (
         <button type="button" onClick={() => setOpen(true)} aria-label="Abrir a geleira" className="mt-3 flex w-full items-center gap-1.5 text-left">
           {preview.map((i) => (
-            <span key={i.id} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-white to-sky-100 text-sky-600 shadow-[0_2px_6px_rgba(14,116,144,0.18)] ring-1 ring-white">
-              <Icon name={iconOf(i)} size={19} strokeWidth={1.7} />
+            <span key={i.id} className="relative shrink-0">
+              <TasteBubble item={i} size={40} />
               {i.favorite && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-brand ring-2 ring-white" />}
             </span>
           ))}

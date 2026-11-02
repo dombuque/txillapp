@@ -252,8 +252,8 @@ export class PostsService {
     );
     const o = rows[0];
     if (!o) throw new NotFoundException('Publicação não encontrada');
-    // Reposta-se publicações normais e citações (como no X); um repost simples já mostra o original, repostas esse.
-    if (!(o.kind === 'post' || (o.kind === 'repost' && o.body))) throw new BadRequestException('Só se reposta publicações normais e citações (não reposts simples nem presentes)');
+    // Reposta-se publicações (incluindo presentes) e citações, como no X; um repost simples já mostra o original, repostas esse.
+    if (!(o.kind === 'post' || o.kind === 'gift' || (o.kind === 'repost' && o.body))) throw new BadRequestException('Um repost simples não se reposta: reposta a publicação original');
     // O dono também pode repostar a sua própria publicação (como no X). Contas privadas não se repostam, nem a própria.
     if (o.is_private) throw new ForbiddenException('As publicações de contas privadas não podem ser repostadas 🔒');
 

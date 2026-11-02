@@ -115,6 +115,23 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
     await pool.query('UPDATE identity.users SET is_admin = false WHERE id = $1', [u.ga.id]);
   });
 
+  it('bebidas por país: as do país vêm primeiro e as de outros países ficam marcadas como estrangeiras', async () => {
+    await pool.query(`UPDATE identity.users SET country = 'MZ' WHERE id = $1`, [u.ga.id]);
+    const mz = await catalog(u.ga, '', 'bebida');
+    const reg = (name: string) => (mz as unknown as { name: string; region: string }[]).find((i) => i.name === name)?.region;
+    expect(reg('Laurentina')).toBe('local');
+    expect(reg('Cuca')).toBe('foreign');
+    expect(reg('Heineken')).toBe('global');
+    // As locais vêm antes das globais.
+    const names = mz.map((i) => i.name);
+    expect(names.indexOf('Laurentina')).toBeLessThan(names.indexOf('Heineken'));
+    await pool.query(`UPDATE identity.users SET country = 'AO' WHERE id = $1`, [u.ga.id]);
+    expect((await catalog(u.ga, 'Cuca', 'bebida') as unknown as { region: string }[])[0].region).toBe('local');
+    await pool.query(`UPDATE identity.users SET country = NULL WHERE id = $1`, [u.ga.id]);
+    expect((await catalog(u.ga, 'Cuca', 'bebida') as unknown as { region: string }[])[0].region).toBe('global');
+    await pool.query(`UPDATE identity.users SET country = 'MZ' WHERE id = $1`, [u.ga.id]);
+  });
+
   it('limite de 200 itens por pessoa', async () => {
     const ids = (await pool.query(`SELECT id FROM taste.items WHERE status = 'curated' AND NOT alcoholic LIMIT 1`)).rows.map((r) => r.id);
     expect(ids.length).toBe(1);

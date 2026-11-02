@@ -1,10 +1,11 @@
 import {
-  ArrowLeft, AtSign, Beer, Cake, ChevronLeft, ChevronRight, Coffee, Compass, CupSoda, Dumbbell, Fish, GlassWater, IceCreamCone, Martini, Moon, Mountain, Music, PartyPopper, Sandwich, Sofa, Soup, Snowflake, SquareArrowUp, Store, Sun, Umbrella, Ban, Bell, BellOff, Building2, Calendar, Camera, Check, CircleAlert, CircleCheck, CircleUser, Clapperboard, Clock, Download,
+  ArrowLeft, AtSign, SquarePlay, Images, TrendingUp, Beer, Cake, ChevronLeft, ChevronRight, Coffee, Compass, CupSoda, Dumbbell, Fish, GlassWater, IceCreamCone, Martini, Moon, Mountain, Music, PartyPopper, Sandwich, Sofa, Soup, Snowflake, SquareArrowUp, Store, Sun, Umbrella, Ban, Bell, BellOff, Building2, Calendar, Camera, Check, CircleAlert, CircleCheck, CircleUser, Clock, Download,
   Ellipsis, Eye, EyeOff, Flag, Flame, Gift, Globe, Heart, House, Image, Inbox, Info, KeyRound, Laptop, Link2, LoaderCircle, LocateFixed, Lock, LogOut,
   Mail, Map, MapPin, Megaphone, Menu, MessageCircle, MessageSquareOff, MessagesSquare, Mic, Pause, Pencil, Play, Plus, Repeat2, Search, Send, Settings,
   Share, ShieldCheck, Smartphone, Sparkles, Sprout, SquarePlus, Star, SwitchCamera, Tag, Trash2, Trees, Undo2, User, UserPlus, Users, Utensils,
-  VenetianMask, Video, Volume2, VolumeX, Wallet, Waves, Wine, X, type LucideIcon, type LucideProps,
+  VenetianMask, Video, Volume2, VolumeX, Wallet, Waves, X, type LucideIcon, type LucideProps,
 } from 'lucide-react';
+import CheersIcon from './CheersIcon';
 
 /**
  * Conjunto único de ícones da app (Lucide): traço de 1,75 px, cantos redondos, 24×24. Nada de desenhos soltos nem emojis na interface.
@@ -14,7 +15,7 @@ const ICONS = {
   back: ArrowLeft,
   at: AtSign,
   block: Ban,
-  cheers: Wine,
+  cheers: CheersIcon as unknown as LucideIcon,
   bell: Bell,
   'bell-off': BellOff,
   city: Building2,
@@ -24,7 +25,7 @@ const ICONS = {
   alert: CircleAlert,
   'check-circle': CircleCheck,
   'user-circle': CircleUser,
-  film: Clapperboard,
+  film: SquarePlay,
   clock: Clock,
   download: Download,
   more: Ellipsis,
@@ -110,6 +111,8 @@ const ICONS = {
   store: Store,
   sun: Sun,
   umbrella: Umbrella,
+  images: Images,
+  trending: TrendingUp,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

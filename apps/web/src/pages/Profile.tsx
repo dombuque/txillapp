@@ -207,11 +207,11 @@ export default function ProfilePage() {
                       <img src={shown.media[0].kind === 'video' ? shown.media[0].posterUrl : sized(shown.media[0].url, 480)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center p-2 text-center text-xs font-medium leading-snug text-zinc-700">
-                        {post.gift ? '' : ''}{(post.body || shown.body).slice(0, 70)}
+                        {(post.body || shown.body).slice(0, 70)}
                       </span>
                     )}
-                    {shown.media.length > 1 && <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-1.5 text-[10px] font-bold text-white">▣ {shown.media.length}</span>}
-                    {post.kind === 'repost' && <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-1.5 text-[10px] font-bold text-white"></span>}
+                    {shown.media.length > 1 && <span aria-label={`${shown.media.length} fotos`} className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-bold text-white"><Icon name="images" size={12} /> {shown.media.length}</span>}
+                    {post.kind === 'repost' && <span aria-label="Repost" className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/55 text-white"><Icon name="repeat" size={12} /></span>}
                   </button>
                 );
               })}

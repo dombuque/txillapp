@@ -75,7 +75,7 @@ export default function ReportSheet({ type, id, onClose, layer }: { type: Exclud
           rows={2}
           placeholder="Queres acrescentar algo? (opcional)"
           aria-label="Nota"
-          className="mt-3 w-full resize-none rounded-2xl bg-zinc-100 px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-brand/50"
+          className="mt-3 w-full resize-none rounded-2xl bg-zinc-100 px-4 py-3 text-[16px] outline-none focus:bg-zinc-200/70"
         />
       )}
       {err && <p role="alert" className="mt-2 text-center text-sm text-red-600">{err}</p>}

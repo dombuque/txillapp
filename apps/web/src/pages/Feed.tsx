@@ -82,11 +82,6 @@ export default function Feed() {
             </div>
           )}
           <Impression id={p.id}>
-            {p.feed?.source === 'discover' && (
-              <p className="mx-6 mb-1.5 text-sm font-semibold text-zinc-500">
-                <span aria-hidden><Icon name="sparkles" size={16} className="inline align-[-3px]" /></span> Sugestão para ti
-              </p>
-            )}
             <PostCard post={p} />
           </Impression>
           {i === 1 && <Suggestions />}

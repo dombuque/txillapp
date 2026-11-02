@@ -69,7 +69,7 @@ export default function PhotoTagger({ src, tags, onDone }: { src: string; tags: 
               onChange={(e) => setQ(e.target.value)}
               placeholder="Quem é? Procura um nome…"
               aria-label="Procurar pessoa"
-              className="h-11 min-w-0 flex-1 rounded-full bg-zinc-100 px-4 text-base outline-none focus:ring-2 focus:ring-brand/60"
+              className="h-11 min-w-0 flex-1 rounded-full bg-zinc-100 px-4 text-base outline-none focus:bg-zinc-200/70"
             />
             <button type="button" onClick={() => setPending(null)} className="h-11 px-3 font-semibold text-zinc-600">Cancelar</button>
           </div>

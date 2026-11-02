@@ -187,6 +187,7 @@ function QuoteCard({ post, original }: { post: Post; original: Post }) {
           </Link>
           <span className="shrink-0 text-sm text-zinc-500">· {timeAgo(original.createdAt)}</span>
         </div>
+        {original.gift && <p className="mx-3 mt-2 rounded-xl bg-gradient-to-r from-brand to-brand-light py-2 text-center text-lg font-extrabold text-white"><Icon name="gift" size={14} className="inline align-[-2px]" /> {original.gift.amount.toLocaleString('pt-PT')} Txills</p>}
         {original.body && <p className="line-clamp-4 whitespace-pre-wrap break-words px-3 pt-2 text-[16px] text-zinc-800">{original.body}</p>}
         {original.media[0] ? (
           <button onClick={() => setViewer(0)} aria-label="Ver a foto em ecrã inteiro" className="mt-2 block w-full">
@@ -208,11 +209,6 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
   const patch = usePatch(post.id);
   const [sheet, setSheet] = useState<'comments' | 'gift' | 'repost' | null>(null);
   const [people, setPeople] = useState<PeopleKind | null>(null);
-  const [hint, setHint] = useState('');
-  const flashHint = (t: string) => {
-    setHint(t);
-    setTimeout(() => setHint(''), 2200);
-  };
   const mine = post.author.id === user?.id;
 
   async function cheer() {
@@ -261,8 +257,6 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
     // Quatro colunas iguais, ícone em cima e nome por baixo: o texto nunca sai do cartão, em qualquer largura.
     const barBtn = 'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-zinc-800 transition active:scale-95 [&>svg]:shrink-0';
     const word = 'block max-w-full truncate text-[12px] font-medium leading-tight min-[400px]:text-[13px]';
-    // O servidor só deixa repostar publicações normais e citações; nos presentes o botão fica à vista, esmaecido, e explica porquê.
-    const canRepost = post.kind === 'post' || (post.kind === 'repost' && !!post.body);
     return (
       <>
         <div className="mt-3 flex min-h-8 items-center justify-between gap-3 text-[15px] text-zinc-700">
@@ -291,11 +285,10 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
             <CommentIcon /> <span className={word}>Comentar</span>
           </button>
           <button
-            onClick={() => (canRepost ? setSheet('repost') : flashHint('Os presentes não se repostam'))}
-            aria-label={canRepost ? (post.reposted ? `Repost feito (${post.reposts})` : `Repostar (${post.reposts})`) : 'Repostar (não disponível nos presentes)'}
-            aria-pressed={canRepost ? post.reposted : undefined}
-            aria-disabled={!canRepost}
-            className={`${barBtn} ${post.reposted ? '!text-green-700' : ''} ${canRepost ? '' : 'opacity-40'}`}
+            onClick={() => setSheet('repost')}
+            aria-label={post.reposted ? `Repost feito (${post.reposts})` : `Repostar (${post.reposts})`}
+            aria-pressed={post.reposted}
+            className={`${barBtn} ${post.reposted ? '!text-green-700' : ''}`}
           >
             <RepostIcon /> <span className={word}>{post.reposted ? 'Repostado' : 'Repostar'}</span>
           </button>
@@ -305,7 +298,6 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
             </button>
           )}
         </div>
-        {hint && <p role="status" className="pb-2 text-center text-sm text-zinc-600">{hint}</p>}
         {sheets}
       </>
     );
@@ -337,7 +329,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
           <CommentIcon />
           {count(post.comments)}
         </Item>
-        {(post.kind === 'post' || (post.kind === 'repost' && !!post.body)) && (
+        {(post.kind === 'post' || post.kind === 'gift' || (post.kind === 'repost' && !!post.body)) && (
           <Item label={post.reposted ? `Reposte feito (${post.reposts})` : `Repostar (${post.reposts})`} onClick={() => setSheet('repost')} pressed={post.reposted}>
             <RepostIcon />
             {count(post.reposts)}

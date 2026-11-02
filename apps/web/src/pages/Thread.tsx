@@ -355,7 +355,7 @@ export default function Thread() {
               rows={1}
               placeholder="Escreve uma mensagem…"
               aria-label="Mensagem"
-              className="max-h-32 min-h-11 flex-1 resize-none rounded-[22px] bg-zinc-100 px-4 py-2.5 text-[16px] outline-none focus:ring-2 focus:ring-brand/50"
+              className="max-h-32 min-h-11 flex-1 resize-none rounded-[22px] bg-zinc-100 px-4 py-2.5 text-[16px] outline-none focus:bg-zinc-200/70"
             />
             {text.trim() ? (
               <button disabled={busy} className="h-11 rounded-full bg-brand px-5 font-bold text-white transition active:scale-95 disabled:opacity-40">Enviar</button>

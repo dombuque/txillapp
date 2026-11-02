@@ -138,8 +138,8 @@ export const btnGhost =
 export const btnSmall =
   'h-9 whitespace-nowrap rounded-xl bg-zinc-100 px-4 text-sm font-semibold text-zinc-900 transition active:scale-[0.97] hover:bg-zinc-200';
 export const lineInput =
-  'w-full border-0 border-b border-zinc-400 bg-transparent py-3 text-lg text-zinc-900 outline-none placeholder:text-zinc-500 focus:border-brand';
+  'w-full border-0 border-b border-zinc-400 bg-transparent py-3 text-lg text-zinc-900 outline-none placeholder:text-zinc-500 focus:border-zinc-500';
 export const fieldInput =
-  'w-full rounded-2xl bg-zinc-100 px-4 py-3.5 text-base text-zinc-900 outline-none placeholder:text-zinc-500 focus:ring-2 focus:ring-brand';
+  'w-full rounded-2xl bg-zinc-100 px-4 py-3.5 text-base text-zinc-900 outline-none placeholder:text-zinc-500 focus:bg-zinc-200/70';
 export const pillInput =
-  'w-full rounded-full bg-zinc-100 px-4 py-3 text-base outline-none placeholder:text-zinc-500 focus:ring-2 focus:ring-brand';
+  'w-full rounded-full bg-zinc-100 px-4 py-3 text-base outline-none placeholder:text-zinc-500 focus:bg-zinc-200/70';

@@ -64,7 +64,7 @@ export default function GenderGate() {
               value={birth}
               onChange={(e) => setBirth(e.target.value)}
               aria-label="Data de nascimento"
-              className="h-14 w-full rounded-2xl border-2 border-zinc-200 px-4 text-lg outline-none focus:border-brand"
+              className="h-14 w-full rounded-2xl border-2 border-zinc-200 px-4 text-lg outline-none focus:border-zinc-500"
             />
             <p className={`mt-1 px-1 text-sm ${birthProblem ? 'font-medium text-red-600' : 'text-zinc-500'}`}>{birthProblem ?? `Para confirmar que tens ${MIN_AGE}+ anos. Ninguém vê esta data.`}</p>
           </>

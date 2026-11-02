@@ -161,7 +161,7 @@ export default function PlaceSheet({ value, onChange, onClose }: PlacePickerProp
           autoComplete="off"
           placeholder="Procura um sítio…"
           aria-label="Local"
-          className="h-12 w-full rounded-full bg-zinc-100 pl-11 pr-11 text-base outline-none ring-1 ring-transparent transition placeholder:text-zinc-500 focus:bg-white focus:ring-2 focus:ring-brand/60"
+          className="h-12 w-full rounded-full bg-zinc-100 pl-11 pr-11 text-base outline-none ring-1 ring-transparent transition placeholder:text-zinc-500 focus:bg-white focus:bg-zinc-200/70"
         />
         {typed && (
           <button type="button" onClick={() => setTyped('')} aria-label="Limpar" className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-zinc-500 active:bg-zinc-200">

@@ -265,8 +265,8 @@ export interface PrivacySettings {
 }
 export type TasteKind = 'vibe' | 'bebida' | 'comida' | 'sitio';
 export type TasteVisibility = 'everyone' | 'followers' | 'me';
-export interface TasteItem { id: string; name: string; kind: TasteKind; category: string; alcoholic: boolean; pending: boolean }
-export interface CatalogItem extends TasteItem { mine: boolean; rating: number | null; favorite: boolean; visibility: TasteVisibility; fans: number }
+export interface TasteItem { id: string; slug: string; name: string; kind: TasteKind; category: string; alcoholic: boolean; pending: boolean }
+export interface CatalogItem extends TasteItem { mine: boolean; rating: number | null; favorite: boolean; visibility: TasteVisibility; fans: number; region: 'local' | 'global' | 'foreign' }
 export interface MyTaste extends TasteItem { rating: number | null; favorite: boolean; visibility: TasteVisibility }
 export interface TheirTaste extends TasteItem { rating: number | null; favorite: boolean }
 export interface StorySettings {

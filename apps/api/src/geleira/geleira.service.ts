@@ -30,6 +30,7 @@ interface ItemRow {
 }
 const itemOut = (r: ItemRow, viewer: string) => ({
   id: r.id,
+  slug: r.slug,
   name: r.name,
   kind: r.kind,
   category: r.category,
@@ -62,16 +63,21 @@ export class GeleiraService {
       params.push(`%${term}%`);
       where += ` AND ${fold('i.name')} LIKE $${params.length}`;
     }
+    // `region`: do país onde a pessoa está (local), de qualquer sítio (global) ou de outro país (foreign). Sem país conhecido, tudo é global.
     const { rows } = await this.pool.query(
       `SELECT i.id, i.slug, i.name, i.kind, i.category, i.alcoholic, i.status, i.created_by,
               (SELECT count(*)::int FROM taste.user_items f WHERE f.item_id = i.id) AS fans,
-              (m.user_id IS NOT NULL) AS mine, m.rating, COALESCE(m.favorite, false) AS favorite, COALESCE(m.visibility, 'everyone') AS visibility
-         FROM taste.items i LEFT JOIN taste.user_items m ON m.item_id = i.id AND m.user_id = $1
+              (m.user_id IS NOT NULL) AS mine, m.rating, COALESCE(m.favorite, false) AS favorite, COALESCE(m.visibility, 'everyone') AS visibility,
+              CASE WHEN i.countries IS NULL OR vc.country IS NULL THEN 'global'
+                   WHEN vc.country = ANY(i.countries) THEN 'local' ELSE 'foreign' END AS region
+         FROM taste.items i
+         LEFT JOIN taste.user_items m ON m.item_id = i.id AND m.user_id = $1
+         LEFT JOIN identity.users vc ON vc.id = $1
         WHERE ${where}
-        ORDER BY fans DESC, i.name LIMIT 400`,
+        ORDER BY (CASE WHEN i.countries IS NOT NULL AND vc.country = ANY(i.countries) THEN 0 ELSE 1 END), fans DESC, i.name LIMIT 600`,
       params,
     );
-    return rows.map((r) => ({ ...itemOut(r, userId), mine: r.mine as boolean, rating: r.rating as number | null, favorite: r.favorite as boolean, visibility: r.visibility as Visibility, fans: r.fans as number }));
+    return rows.map((r) => ({ ...itemOut(r, userId), mine: r.mine as boolean, rating: r.rating as number | null, favorite: r.favorite as boolean, visibility: r.visibility as Visibility, fans: r.fans as number, region: r.region as 'local' | 'global' | 'foreign' }));
   }
 
   /** A minha geleira completa, com visibilidade de cada item. */

@@ -92,8 +92,8 @@ export default function Layout() {
         className="fixed bottom-0 left-1/2 z-20 w-full max-w-xl -translate-x-1/2 lg:hidden border-t border-zinc-100 bg-white pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 shadow-[0_-6px_24px_rgba(0,0,0,0.05)]"
       >
         <div className="flex items-end justify-around px-1 min-[360px]:px-3">
-          <Item to="/" label="Início" end onClick={tapTab} tour="home">{(a) => <HomeIcon filled={a} width={27} height={27} />}</Item>
-          <Item to="/search" label="Pesquisar" onClick={tapTab} tour="search">{(a) => <SearchIcon width={27} height={27} strokeWidth={a ? 2.6 : 1.8} />}</Item>
+          <Item to="/" label="Início" end onClick={tapTab} tour="home">{(a) => <HomeIcon filled={a} width={27} height={27} strokeWidth={a ? 2.3 : 1.9} />}</Item>
+          <Item to="/search" label="Pesquisar" onClick={tapTab} tour="search">{(a) => <SearchIcon width={27} height={27} strokeWidth={a ? 2.3 : 1.9} />}</Item>
           {/* Nova publicação: base alinhada com os outros ícones, mas mais alto: ultrapassa a linha da barra (~8 px) para cima. */}
           <NavLink
             to="/new"
@@ -103,7 +103,7 @@ export default function Layout() {
           >
             <PlusIcon width={38} height={38} strokeWidth={2.2} />
           </NavLink>
-          <Item to="/reels" label="Reels" tour="reels">{() => <Icon name="film" size={27} />}</Item>
+          <Item to="/reels" label="Reels" tour="reels">{(a) => <Icon name="film" size={27} strokeWidth={a ? 2.3 : 1.9} />}</Item>
           <Item to="/profile" label="Perfil" onClick={tapTab} tour="profile">
             {(a) => (
               // Caixa quadrada de tamanho fixo (igual ativa ou não, sem saltos): o aro é um círculo perfeito, com 2 px de folga até à foto.
