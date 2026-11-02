@@ -1,7 +1,7 @@
 import { PontoLoader } from '../components/Loading';
 import Icon from '../components/Icon';
 import GenderPicker from '../components/GenderPicker';
-import { MIN_AGE, birthDateSchema, registerSchema, type RegisterInput } from '@txillapp/shared';
+import { MIN_AGE, birthDateSchema, earliestBirthDate, latestBirthDate, registerSchema, type RegisterInput } from '@txillapp/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type Ref, type SVGProps } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -92,11 +92,11 @@ function useAvailability(kind: 'username' | 'email', raw: string, enabled = true
 /** Campo arredondado e preenchido, com ícone, estado (certo / errado / a verificar) e olho para a senha. */
 function Field({
   icon, value, onChange, placeholder, type = 'text', autoComplete, autoFocus, name, capitalize, status,
-  enterKeyHint, inputMode, inputRef, onEnter,
+  enterKeyHint, inputMode, inputRef, onEnter, min, max,
 }: {
   icon: ReactNode; value: string; onChange: (v: string) => void; placeholder: string; type?: string;
   autoComplete?: string; autoFocus?: boolean; name?: string; capitalize?: 'words' | 'none';
-  status?: 'ok' | 'bad' | 'checking'; enterKeyHint?: 'next' | 'go' | 'done'; inputMode?: 'text' | 'email';
+  min?: string; max?: string; status?: 'ok' | 'bad' | 'checking'; enterKeyHint?: 'next' | 'go' | 'done'; inputMode?: 'text' | 'email';
   inputRef?: Ref<HTMLInputElement>; onEnter?: (e: KeyboardEvent<HTMLInputElement>) => void;
 }) {
   const [shown, setShown] = useState(false);
@@ -110,6 +110,8 @@ function Field({
         name={name}
         autoFocus={autoFocus}
         type={isPassword && shown ? 'text' : type}
+        min={min}
+        max={max}
         inputMode={inputMode}
         enterKeyHint={enterKeyHint}
         value={value}
@@ -570,7 +572,7 @@ export function GoogleUsername() {
         <p className="mb-3 mt-8 text-lg font-semibold">Como te identificas?</p>
         <GenderPicker value={gender} onChange={setGender} />
         <p className="mb-3 mt-8 text-lg font-semibold">Quando nasceste?</p>
-        <Field icon={<CalendarIcon />} value={birth} onChange={(v) => { setError(''); setBirth(v); }} placeholder="AAAA-MM-DD" type="date" autoComplete="bday" status={birth ? (birthProblem ? 'bad' : 'ok') : undefined} />
+        <Field icon={<CalendarIcon />} value={birth} onChange={(v) => { setError(''); setBirth(v); }} placeholder="AAAA-MM-DD" type="date" min={earliestBirthDate()} max={latestBirthDate()} autoComplete="bday" status={birth ? (birthProblem ? 'bad' : 'ok') : undefined} />
         {birthProblem && <p className="mt-2 px-1 text-sm font-medium text-red-600">{birthProblem}</p>}
         <label className="mt-6 flex cursor-pointer items-start gap-3 px-1 text-[15px] leading-snug text-zinc-700">
           <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-[#d6334f]" />

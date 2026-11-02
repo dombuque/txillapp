@@ -18,7 +18,7 @@ export type Gender = z.infer<typeof genderSchema>;
 /** Idade mínima para ter conta. */
 export const MIN_AGE = 13;
 /** Versão em vigor dos Termos e da Política de Privacidade (muda quando o texto muda). */
-export const TERMS_VERSION = '2026-10';
+export const TERMS_VERSION = '2026-11';
 
 /** Idade completa em `on` (por omissão, hoje) de alguém nascido em `birthDate` (AAAA-MM-DD). */
 export function ageOf(birthDate: string, on: Date = new Date()): number {
@@ -26,6 +26,16 @@ export function ageOf(birthDate: string, on: Date = new Date()): number {
   let age = on.getUTCFullYear() - y;
   if (on.getUTCMonth() + 1 < m || (on.getUTCMonth() + 1 === m && on.getUTCDate() < d)) age -= 1;
   return age;
+}
+
+/** A data de nascimento mais recente que se aceita: hoje menos a idade mínima (para os seletores de data já descontarem os 13 anos). */
+export function latestBirthDate(now = new Date()): string {
+  const d = new Date(Date.UTC(now.getUTCFullYear() - MIN_AGE, now.getUTCMonth(), now.getUTCDate()));
+  return d.toISOString().slice(0, 10);
+}
+/** A mais antiga (120 anos). */
+export function earliestBirthDate(now = new Date()): string {
+  return new Date(Date.UTC(now.getUTCFullYear() - 120, now.getUTCMonth(), now.getUTCDate())).toISOString().slice(0, 10);
 }
 
 export const birthDateSchema = z

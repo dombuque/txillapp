@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { MIN_AGE, birthDateSchema } from '@txillapp/shared';
+import { MIN_AGE, birthDateSchema, earliestBirthDate, latestBirthDate } from '@txillapp/shared';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type Gender } from '../lib/api';
@@ -47,8 +47,12 @@ export default function GenderGate() {
   return (
     <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/50 sm:items-center" role="dialog" aria-modal="true" aria-label="Completa o teu perfil">
       <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-[28px] bg-white px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-6 sm:rounded-[28px]">
-        <h2 className="text-2xl font-extrabold">Só mais um passo</h2>
-        <p className="mb-5 mt-1 text-zinc-600">Falta completar o teu perfil. É uma vez só e fica privado.</p>
+        <h2 className="text-2xl font-extrabold">{needGender || needBirth ? 'Só mais um passo' : 'Atualizámos os termos'}</h2>
+        <p className="mb-5 mt-1 text-zinc-600">
+          {needGender || needBirth
+            ? 'Falta completar o teu perfil. É uma vez só e fica privado.'
+            : 'Novidades: geleira com níveis, selo de verificado, presença online, verificação de identidade e partilha de links. Lê e aceita para continuares.'}
+        </p>
 
         {needGender && (
           <>
@@ -61,6 +65,8 @@ export default function GenderGate() {
             <p className="mb-2 mt-5 font-semibold">Quando nasceste?</p>
             <input
               type="date"
+              min={earliestBirthDate()}
+              max={latestBirthDate()}
               value={birth}
               onChange={(e) => setBirth(e.target.value)}
               aria-label="Data de nascimento"
