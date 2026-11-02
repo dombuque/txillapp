@@ -208,6 +208,11 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
   const patch = usePatch(post.id);
   const [sheet, setSheet] = useState<'comments' | 'gift' | 'repost' | null>(null);
   const [people, setPeople] = useState<PeopleKind | null>(null);
+  const [hint, setHint] = useState('');
+  const flashHint = (t: string) => {
+    setHint(t);
+    setTimeout(() => setHint(''), 2200);
+  };
   const mine = post.author.id === user?.id;
 
   async function cheer() {
@@ -256,6 +261,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
     // Quatro colunas iguais, ícone em cima e nome por baixo: o texto nunca sai do cartão, em qualquer largura.
     const barBtn = 'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-zinc-800 transition active:scale-95 [&>svg]:shrink-0';
     const word = 'block max-w-full truncate text-[12px] font-medium leading-tight min-[400px]:text-[13px]';
+    // O servidor só deixa repostar publicações normais e citações; nos presentes o botão fica à vista, esmaecido, e explica porquê.
     const canRepost = post.kind === 'post' || (post.kind === 'repost' && !!post.body);
     return (
       <>
@@ -284,17 +290,22 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
           <button onClick={() => setSheet('comments')} aria-label={`Comentar (${post.comments})`} className={barBtn}>
             <CommentIcon /> <span className={word}>Comentar</span>
           </button>
-          {canRepost && (
-            <button onClick={() => setSheet('repost')} aria-label={post.reposted ? `Repost feito (${post.reposts})` : `Repostar (${post.reposts})`} aria-pressed={post.reposted} className={`${barBtn} ${post.reposted ? '!text-green-700' : ''}`}>
-              <RepostIcon /> <span className={word}>{post.reposted ? 'Repostado' : 'Repostar'}</span>
-            </button>
-          )}
+          <button
+            onClick={() => (canRepost ? setSheet('repost') : flashHint('Os presentes não se repostam'))}
+            aria-label={canRepost ? (post.reposted ? `Repost feito (${post.reposts})` : `Repostar (${post.reposts})`) : 'Repostar (não disponível nos presentes)'}
+            aria-pressed={canRepost ? post.reposted : undefined}
+            aria-disabled={!canRepost}
+            className={`${barBtn} ${post.reposted ? '!text-green-700' : ''} ${canRepost ? '' : 'opacity-40'}`}
+          >
+            <RepostIcon /> <span className={word}>{post.reposted ? 'Repostado' : 'Repostar'}</span>
+          </button>
           {!mine && post.canGift && (
             <button onClick={() => setSheet('gift')} aria-label={`Presentear (${post.gifts})`} className={barBtn}>
               <GiftIcon /> <span className={word}>Presentear</span>
             </button>
           )}
         </div>
+        {hint && <p role="status" className="pb-2 text-center text-sm text-zinc-600">{hint}</p>}
         {sheets}
       </>
     );
