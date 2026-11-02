@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../components/Icon';
 import IceRating from '../components/IceRating';
+import { Sheet } from '../components/ui';
 import { BackIcon } from '../components/icons';
 import { api, type CatalogItem, type TasteKind, type TasteVisibility } from '../lib/api';
 import { CATEGORIES, ICE, KINDS, KIND_ICON, KIND_LABEL, iconOf } from '../lib/geleira';
@@ -19,8 +20,8 @@ const fmt = (n: number) => n.toLocaleString('pt-PT');
 const others = (i: CatalogItem) => Math.max(0, i.fans - (i.mine ? 1 : 0));
 
 /**
- * Montar a geleira (gostos): tudo muda no ecrã na hora e o envio ao servidor vai atrás, por ordem, sem se ver.
- * Uma só lista pesquisável, com separadores por tipo e grupos dentro de cada um.
+ * Montar a geleira (gostos). As mudanças ficam num rascunho no ecrã e só vão para o servidor quando carregas em "Guardar";
+ * se saíres com mudanças por guardar, pergunta. Uma só lista pesquisável, com separadores por tipo e grupos dentro de cada um.
  */
 export default function GeleiraEditor() {
   const navigate = useNavigate();
@@ -33,57 +34,77 @@ export default function GeleiraEditor() {
   const [items, setItems] = useState<CatalogItem[] | null>(null);
   const [toast, setToast] = useState('');
   const [suggesting, setSuggesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   const cat = useQuery({ queryKey: ['geleira', 'catalog'], queryFn: () => api.geleiraCatalog('', undefined), staleTime: 0, gcTime: 0 });
+  // O que está guardado no servidor (para saber o que mudou) e o rascunho que se vai editando.
+  const [saved, setSaved] = useState<CatalogItem[] | null>(null);
   useEffect(() => {
-    if (cat.data && !items) setItems(cat.data);
+    if (cat.data && !items) {
+      setItems(cat.data);
+      setSaved(cat.data);
+    }
   }, [cat.data, items]);
 
   const say = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(''), 2500);
   };
-  // Envios por item, em fila: tocar depressa nunca baralha a ordem.
-  const queue = useRef(new Map<string, Promise<unknown>>());
-  const send = (id: string, job: () => Promise<unknown>) => {
-    const prev = queue.current.get(id) ?? Promise.resolve();
-    const next = prev.then(job).catch(() => {
-      say('Não consegui guardar. Vou recarregar.');
-      setItems(null);
-      void cat.refetch();
-    });
-    queue.current.set(id, next);
-  };
-  const touch = () => void qc.invalidateQueries({ queryKey: ['geleira'], refetchType: 'none' });
   const edit = (id: string, patch: Partial<CatalogItem>) => setItems((l) => l && l.map((i) => (i.id === id ? { ...i, ...patch } : i)));
 
   function toggle(i: CatalogItem) {
     if (i.mine) {
       edit(i.id, { mine: false, rating: null, favorite: false });
       setOpen(null);
-      send(i.id, () => api.geleiraRemove(i.id).then(touch));
     } else {
       edit(i.id, { mine: true });
       setOpen(i.id); // abre já para dar a nota
-      send(i.id, () => api.geleiraPut(i.id, { favorite: false }).then(touch));
     }
   }
   function change(i: CatalogItem, patch: { rating?: number | null; favorite?: boolean; visibility?: TasteVisibility }) {
     edit(i.id, patch);
-    send(i.id, () => api.geleiraPut(i.id, patch).then(touch));
   }
 
+  // Sugerir cria o item no servidor (fica pendente e já entra na tua geleira), sem tocar no resto do rascunho.
   const create = useMutation({
     mutationFn: (b: { name: string; category: string }) => api.geleiraSuggest({ ...b, kind }),
-    onSuccess: async () => {
+    onSuccess: (n) => {
+      const fresh: CatalogItem = { ...n, mine: true, rating: null, favorite: false, visibility: 'everyone', fans: 1 };
+      setItems((l) => (l && !l.some((i) => i.id === n.id) ? [fresh, ...l] : l));
+      setSaved((l) => (l && !l.some((i) => i.id === n.id) ? [fresh, ...l] : l));
       setText('');
       setSuggesting(false);
-      setItems(null);
-      await cat.refetch();
-      touch();
+      void qc.invalidateQueries({ queryKey: ['geleira'], refetchType: 'none' });
     },
     onError: (e) => say((e as Error).message),
   });
+
+  // Mudanças por guardar: entrou, saiu, ou mudou nota, favorito ou visibilidade.
+  const changes = useMemo(() => {
+    if (!items || !saved) return [];
+    const was = new Map(saved.map((i) => [i.id, i]));
+    return items.filter((i) => {
+      const o = was.get(i.id);
+      if (!o) return false;
+      return i.mine !== o.mine || (i.mine && (i.rating !== o.rating || i.favorite !== o.favorite || i.visibility !== o.visibility));
+    });
+  }, [items, saved]);
+
+  async function save() {
+    if (!changes.length || saving) return;
+    setSaving(true);
+    try {
+      await Promise.all(
+        changes.map((i) => (i.mine ? api.geleiraPut(i.id, { rating: i.rating, favorite: i.favorite, visibility: i.visibility }) : api.geleiraRemove(i.id))),
+      );
+      await qc.invalidateQueries({ queryKey: ['geleira'], refetchType: 'none' });
+      leave();
+    } catch {
+      say('Não consegui guardar. Tenta outra vez.');
+      setSaving(false);
+    }
+  }
 
   const list = items ?? [];
   const mine = list.filter((i) => i.mine);
@@ -104,7 +125,8 @@ export default function GeleiraEditor() {
   }, [shown, groups]);
   const exact = shown.some((i) => norm(i.name) === q);
 
-  const back = () => (window.history.length > 1 ? navigate(-1) : navigate('/wallet', { replace: true }));
+  const leave = () => (window.history.length > 1 ? navigate(-1) : navigate('/wallet', { replace: true }));
+  const back = () => (changes.length > 0 ? setLeaving(true) : leave());
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-xl flex-col bg-white">
@@ -215,9 +237,19 @@ export default function GeleiraEditor() {
           <p className="min-w-0 flex-1 text-sm leading-tight text-zinc-600">
             <b className="text-zinc-900">{mine.length}</b> {mine.length === 1 ? 'gosto' : 'gostos'}
           </p>
-          <button onClick={back} className="h-12 rounded-full bg-brand px-6 font-bold text-white active:scale-95">Pronto</button>
+          <button onClick={save} disabled={changes.length === 0 || saving} className="h-12 rounded-full bg-brand px-6 font-bold text-white transition active:scale-95 disabled:bg-brand/40">
+            {saving ? 'A guardar…' : changes.length > 0 ? `Guardar (${changes.length})` : 'Guardar'}
+          </button>
         </div>
       </div>
+      {leaving && (
+        <Sheet title="Sair sem guardar?" onClose={() => setLeaving(false)}>
+          <p className="mb-4 text-zinc-600">Tens {changes.length} {changes.length === 1 ? 'mudança' : 'mudanças'} na geleira que ainda não guardaste.</p>
+          <button onClick={() => { setLeaving(false); void save(); }} className="h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">Guardar e sair</button>
+          <button onClick={leave} className="mt-2 h-12 w-full rounded-full font-semibold text-red-700 active:bg-red-50">Sair sem guardar</button>
+          <button onClick={() => setLeaving(false)} className="mt-1 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">Continuar a editar</button>
+        </Sheet>
+      )}
       {toast && <div role="status" className="fixed bottom-24 left-1/2 z-30 -translate-x-1/2 rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white shadow-lg">{toast}</div>}
     </div>
   );
