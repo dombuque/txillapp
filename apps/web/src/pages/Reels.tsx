@@ -1,3 +1,4 @@
+import { sized } from '../lib/media';
 import { PontoLoader } from '../components/Loading';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -24,6 +25,8 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
   const [progress, setProgress] = useState(0);
   const [sheet, setSheet] = useState<null | 'comments' | 'gift' | 'share' | 'repost'>(null);
   const v = post.media[0];
+  const video = v?.kind === 'video';
+  const [photo, setPhoto] = useState(0);
   const mine = post.author.id === user?.id;
 
   // Conta como "visto" depois de 1 s em cena.
@@ -45,13 +48,33 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
   const rail = 'flex flex-col items-center gap-1 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]';
   const circle = 'flex h-12 w-12 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm transition active:scale-90';
   return (
-    <section className="relative h-full w-full snap-start snap-always bg-black" aria-label={`Reel de ${post.author.displayName}`}>
-      <VideoPlayer src={v.url} poster={v.posterUrl} active={active} cover durationMs={null} className="h-full w-full" onProgress={setProgress} id={post.id} onMore={onMore} />
+    <section className="relative h-full w-full snap-start snap-always bg-black" aria-label={`${video ? 'Reel' : 'Publicação'} de ${post.author.displayName}`}>
+      {video ? (
+        <VideoPlayer src={v.url} poster={v.posterUrl} active={active} cover durationMs={null} className="h-full w-full" onProgress={setProgress} id={post.id} onMore={onMore} />
+      ) : post.media.length > 0 ? (
+        // Foto (ou várias, que se deslizam): ocupa o ecrã todo, sem cortar.
+        <div className="flex h-full w-full snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-no-swipe onScroll={(e) => setPhoto(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}>
+          {post.media.map((m, i) => (
+            <img key={i} src={sized(m.url, 1080)} alt="" loading={i ? 'lazy' : 'eager'} decoding="async" className="h-full w-full shrink-0 snap-center object-contain" />
+          ))}
+        </div>
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-brand via-[#e8475f] to-[#ff8a5b] pl-8 pr-24 pb-28 pt-20 text-center text-white">
+          <p className="max-h-full overflow-hidden whitespace-pre-wrap break-words text-[28px] font-extrabold leading-tight">{post.body}</p>
+        </div>
+      )}
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 to-transparent" />
-      <div className="absolute inset-x-0 bottom-0 h-[3px] bg-white/25" aria-hidden>
-        <div className="h-full bg-white" style={{ width: `${progress * 100}%` }} />
-      </div>
+      {video && (
+        <div className="absolute inset-x-0 bottom-0 h-[3px] bg-white/25" aria-hidden>
+          <div className="h-full bg-white" style={{ width: `${progress * 100}%` }} />
+        </div>
+      )}
+      {!video && post.media.length > 1 && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center gap-1.5" aria-hidden>
+          {post.media.map((_, i) => <span key={i} className={`h-1.5 w-1.5 rounded-full ${i === photo ? 'bg-white' : 'bg-white/40'}`} />)}
+        </div>
+      )}
 
       <div className="absolute bottom-6 left-4 right-20 text-white">
         <div className="flex items-center gap-2.5">
@@ -59,7 +82,7 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
           <Link to={`/u/${post.author.username}`} className="min-w-0 truncate font-bold">{post.author.displayName}</Link>
           {!mine && post.authorFollowed === false && <FollowButton username={post.author.username} following={false} requested={false} isPrivate={false} />}
         </div>
-        {post.body && <p className="mt-2 line-clamp-3 text-[15px] leading-snug"><RichText text={post.body} /></p>}
+        {post.body && (video || post.media.length > 0) && <p className="mt-2 line-clamp-3 text-[15px] leading-snug"><RichText text={post.body} /></p>}
         {post.locationLabel && <p className="mt-1 flex items-center gap-1 text-sm text-white/80"><Icon name="globe" size={14} /> {post.locationLabel}</p>}
       </div>
 

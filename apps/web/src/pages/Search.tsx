@@ -280,7 +280,7 @@ export default function Search() {
       )}
 
       {viewing && <ExploreViewer items={grid} startId={viewing} onClose={() => setViewing(null)} />}
-      {open && <ExploreViewer items={[open]} startId={open.id} onClose={() => setOpen(null)} />}
+      {open && <ExploreViewer items={[open]} startId={open.id} title="Publicação" onClose={() => setOpen(null)} />}
     </div>
   );
 }

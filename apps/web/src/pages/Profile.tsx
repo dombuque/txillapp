@@ -324,7 +324,7 @@ export default function ProfilePage() {
           <button onClick={close} className={`${btnGhost} mt-3 w-full`}>Cancelar</button>
         </Sheet>
       )}
-      {openPost && <ExploreViewer items={items} startId={openPost.id} onClose={() => setOpenPost(null)} />}
+      {openPost && <ExploreViewer items={items} startId={openPost.id} title="Publicação" onClose={() => setOpenPost(null)} />}
     </div>
   );
 }

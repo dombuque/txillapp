@@ -43,9 +43,11 @@ function useDragDown(scroller: React.RefObject<HTMLElement | null>, onClose: () 
  * Foto ou texto: só aquela publicação. Vídeo: como os Reels, desliza-se para cima para o seguinte.
  * Arrastar para baixo no topo (ou o voltar do telemóvel) fecha e volta ao Explorar.
  */
-export default function ExploreViewer({ items, startId, onClose }: { items: Post[]; startId: string; onClose: () => void }) {
+export default function ExploreViewer({ items, startId, onClose, title = 'Explorar' }: { items: Post[]; startId: string; onClose: () => void; title?: string }) {
   const start = items.find((p) => p.id === startId);
   const reels = start?.media[0]?.kind === 'video';
+  // Publicação normal (foto ou texto): também em ecrã inteiro, com as ações na vertical à direita, como nos reels.
+  const immersive = reels || start?.kind === 'post';
   // Vídeo: percorrem-se os vídeos do Explorar (desliza-se para cima para o seguinte). Foto ou texto: só aquela publicação.
   const list = reels ? items.filter((p) => p.media[0]?.kind === 'video') : items.filter((p) => p.id === startId);
   const qc = useQueryClient();
@@ -113,7 +115,7 @@ export default function ExploreViewer({ items, startId, onClose }: { items: Post
       role="dialog"
       aria-modal="true"
       aria-label={reels ? 'Reels' : 'Publicação'}
-      className={`fixed inset-0 z-[60] ${reels ? 'bg-black' : 'bg-white'}`}
+      className={`fixed inset-0 z-[60] ${immersive ? 'bg-black' : 'bg-white'}`}
       style={{ ...visibleStyle(vv), transform: `translateY(${drag}px)`, transition: drag ? 'none' : 'transform .2s', opacity: Math.max(0.4, 1 - drag / 500) }}
       {...handlers}
     >
@@ -121,7 +123,7 @@ export default function ExploreViewer({ items, startId, onClose }: { items: Post
     </div>
   );
 
-  if (reels) {
+  if (immersive) {
     return shell(
       <>
         <div ref={scroller} className="relative mx-auto h-full max-w-xl snap-y snap-mandatory overflow-y-scroll overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -141,10 +143,10 @@ export default function ExploreViewer({ items, startId, onClose }: { items: Post
         </div>
         <div className="pointer-events-none absolute inset-x-0 top-0 mx-auto flex max-w-xl items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
           <button onClick={close} aria-label="Voltar ao Explorar" className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90"><Icon name="back" size={24} /></button>
-          <span className="text-lg font-extrabold drop-shadow">Explorar</span>
-          <button onClick={() => setMuted(!isMuted)} aria-label={isMuted ? 'Ligar o som' : 'Desligar o som'} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
+          <span className="text-lg font-extrabold drop-shadow">{title}</span>
+          {reels ? <button onClick={() => setMuted(!isMuted)} aria-label={isMuted ? 'Ligar o som' : 'Desligar o som'} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
             <Icon name={isMuted ? 'volume-off' : 'volume'} size={22} />
-          </button>
+          </button> : <span className="h-11 w-11" />}
         </div>
       </>,
     );
