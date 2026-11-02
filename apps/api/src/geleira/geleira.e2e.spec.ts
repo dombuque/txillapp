@@ -176,6 +176,7 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
 
   it('nível da geleira: pontos premeiam álcool e vibes de festa; título do topo respeita a idade; quem não pode ver não vê', async () => {
     const { ga, gb } = u;
+    const setBalance = (x: U, n: number) => pool.query(`INSERT INTO ledger.accounts (id, user_id, kind, balance) VALUES (gen_random_uuid(), $1, 'user_wallet', $2) ON CONFLICT (user_id) DO UPDATE SET balance = $2`, [x.id, n]);
     const level = (viewer: U, of: U) => api().get(`/api/v1/users/${of.username}/geleira/level`).set(auth(viewer));
     await api().put('/api/v1/geleira/me/settings').set(auth(ga)).send({ visibility: 'everyone' }).expect(200);
     await pool.query('DELETE FROM taste.user_items WHERE user_id = $1', [ga.id]);
@@ -187,14 +188,14 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
     const beer = (await pool.query(`SELECT id FROM taste.items WHERE status = 'curated' AND kind = 'bebida' AND alcoholic LIMIT 1`)).rows[0].id as string;
     const water = (await pool.query(`SELECT id FROM taste.items WHERE status = 'curated' AND kind = 'bebida' AND NOT alcoholic LIMIT 1`)).rows[0].id as string;
     await pool.query(`INSERT INTO taste.user_items (user_id, item_id) VALUES ($1, $2), ($1, $3)`, [ga.id, beer, water]);
-    await pool.query('UPDATE ledger.accounts SET balance = 0 WHERE user_id = $1', [ga.id]);
+    await setBalance(ga, 0);
     expect((await level(gb, ga).expect(200)).body).toMatchObject({ points: 5, level: 1, title: 'A txilar', toNext: 5, txillContribution: 0 });
     // Os Txills também contam: 1 ponto por cada 200, até 15.
-    await pool.query('UPDATE ledger.accounts SET balance = 1000 WHERE user_id = $1', [ga.id]);
+    await setBalance(ga, 1000);
     expect((await level(gb, ga).expect(200)).body).toMatchObject({ points: 10, level: 2, txillContribution: 5 });
-    await pool.query('UPDATE ledger.accounts SET balance = 100000 WHERE user_id = $1', [ga.id]);
+    await setBalance(ga, 100000);
     expect((await level(gb, ga).expect(200)).body.txillContribution).toBe(15); // tem teto
-    await pool.query('UPDATE ledger.accounts SET balance = 0 WHERE user_id = $1', [ga.id]);
+    await setBalance(ga, 0);
 
     // O título do topo depende da idade (sem nunca mostrar a data): 20 anos, 35 e 60.
     await pool.query(`UPDATE taste.user_items SET favorite = true WHERE user_id = $1`, [ga.id]); // +2 pontos

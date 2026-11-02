@@ -78,32 +78,63 @@ export function Terms() {
         </ul>
       </section>
       <section>
-        <h2>5. Denúncias e moderação</h2>
+        <h2>5. Presentes, Txills e geleira</h2>
+        <ul>
+          <li>Só podes presentear quem segues e quem aceita presentes (cada pessoa escolhe isso nas Definições). O presente pode ficar <b>em silêncio</b>, <b>privado</b> ou ser <b>publicado</b> num post para toda a gente ver.</li>
+          <li>A <b>geleira</b> é a tua vitrine de gostos (vibes, bebidas, comidas e sítios). Quem a vê escolhes tu: todos, só seguidores, só amigos próximos ou só tu.</li>
+          <li>As <b>bebidas com álcool</b> só aparecem a maiores de 18 anos; menores nunca as veem, juntam ou sugerem.</li>
+          <li>A geleira tem um <b>nível</b>, calculado por pontos. As bebidas com álcool e as vibes de festa valem mais, as outras valem menos, um favorito dá mais um ponto, e os teus <b>Txills também contam</b> (1 ponto por cada 200, até 15). O nível tem nome em calão da malta (por exemplo, «Paulada garantida»).</li>
+          <li>O título do nível mais alto <b>muda com a tua idade</b> (por exemplo, «Madala da paulada» só a partir dos 45 anos). A idade vem da data de nascimento que deste ao criar a conta; a data nunca é mostrada a ninguém.</li>
+          <li>Como os Txills contam para o nível, quem vê a tua geleira pode ter uma ideia aproximada de quantos tens. Se não queres isso, põe a geleira como <b>só eu</b>: então o nível também não aparece a mais ninguém.</li>
+          <li>Os Txills não são dinheiro (ver ponto 1) e a pontuação é só uma brincadeira: não dá direito a prémios nem a dinheiro.</li>
+        </ul>
+      </section>
+      <section>
+        <h2>6. Selo de verificado</h2>
+        <ul>
+          <li>Há dois selos: o <b>azul</b>, para pessoas e negócios verificados, e o selo coral do Txillapp, só para <b>contas oficiais</b> da casa.</li>
+          <li>Para pedir o selo a conta tem de cumprir requisitos: email confirmado, foto e bio, 30 dias ou mais, 3 publicações ou mais, 10 seguidores ou mais e nenhuma sanção recente.</li>
+          <li>Depois envias o teu nome, uma prova de quem és (uma ligação ou explicação), uma foto de um documento de identificação e uma selfie. A moderação revê tudo à mão.</li>
+          <li>Podes ser recusado, com o motivo. Só podes voltar a pedir passados 30 dias. Podemos retirar o selo a contas que violem estes termos, mudem de identidade ou fiquem inativas.</li>
+          <li>O selo não dá privilégios nem é uma recomendação do Txillapp sobre o que a pessoa publica. No futuro poderão existir formas pagas de verificação; nunca sem avisar antes.</li>
+        </ul>
+      </section>
+      <section>
+        <h2>7. Stories, notas e conteúdo temporário</h2>
+        <ul>
+          <li><b>Stories e notas</b> duram 24 horas. As <b>notas</b> só as veem os teus seguidores e não se editam: apagas e publicas outra.</li>
+          <li><b>Visualização única</b>: fotos, voz e mensagens que só se abrem uma vez; depois são apagadas do servidor. Quem recebe pode, mesmo assim, fotografar o ecrã. Não confies nisto para o que não podes arriscar.</li>
+          <li><b>Localização em direto</b> só se atualiza enquanto o Txillapp está aberto no teu aparelho e para quando acabar o tempo que escolheste (ou quando a parares).</li>
+          <li>Podes partilhar publicações e stories com amigos no chat ou noutras apps. Quando alguém abre o link sem ter entrado, vê apenas uma pré-visualização das publicações <b>públicas</b>, sem poder brindar, comentar nem partilhar.</li>
+        </ul>
+      </section>
+      <section>
+        <h2>8. Denúncias e moderação</h2>
         <p>
           Podes denunciar publicações, comentários, mensagens e contas. Analisamos as denúncias e podemos remover conteúdo ou suspender contas que violem estes termos.
           Podes bloquear qualquer pessoa a qualquer momento.
         </p>
       </section>
       <section>
-        <h2>6. Terminar a conta</h2>
+        <h2>9. Terminar a conta</h2>
         <p>
           Podes eliminar a tua conta nas Definições. O teu perfil e as tuas publicações deixam de ser visíveis e os teus dados pessoais são removidos,
           como explicado na Política de Privacidade. Podemos suspender ou encerrar contas que violem estes termos.
         </p>
       </section>
       <section>
-        <h2>7. Sem garantias absolutas</h2>
+        <h2>10. Sem garantias absolutas</h2>
         <p>
           Este serviço é fornecido «como está» e pode ter interrupções ou erros. Na medida permitida pela lei, não nos responsabilizamos por perdas indiretas resultantes do uso do serviço
           ou de conteúdo publicado por outras pessoas.
         </p>
       </section>
       <section>
-        <h2>8. Alterações</h2>
+        <h2>11. Alterações</h2>
         <p>Se mudarmos estes termos de forma relevante, avisamos-te na app e pedimos-te para aceitar de novo.</p>
       </section>
       <section>
-        <h2>9. Lei aplicável e contacto</h2>
+        <h2>12. Lei aplicável e contacto</h2>
         <p>
           Estes termos regem-se pela lei da República de Moçambique. Para qualquer questão sobre o serviço, ajuda ou denúncias, escreve para{' '}
           <a href="mailto:suporte@txillapp.com" className="font-semibold text-brand underline">suporte@txillapp.com</a>.
@@ -124,6 +155,10 @@ export function Privacy() {
           <li><b>Localização:</b> só o <i>nome do sítio</i> que escolheres. Nunca guardamos a tua posição exata.</li>
           <li><b>Segurança:</b> sessões e dispositivos com sessão iniciada (tipo de browser, datas de acesso) e registos de ações sensíveis.</li>
           <li><b>Carteira:</b> o teu saldo de Txills e os movimentos (presentes enviados e recebidos).</li>
+          <li><b>Geleira:</b> os gostos que juntas (vibes, bebidas, comidas e sítios), com notas e favoritos, e o nível calculado a partir deles e do teu saldo de Txills.</li>
+          <li><b>Presença:</b> se estás online ou a escrever um comentário (só enquanto a app está aberta) e a hora da última vez que estiveste online.</li>
+          <li><b>Verificação:</b> se pedires o selo, o teu nome, a prova que indicares, uma foto de um documento e uma selfie (apagados logo que há decisão).</li>
+          <li><b>Localização em direto:</b> se a partilhares numa conversa, a tua posição vai-se atualizando só enquanto a app está aberta e durante o tempo que escolheste.</li>
           <li><b>Utilização:</b> aberturas da app, ecrãs vistos, desempenho e erros. São estatísticas nossas, sem terceiros, e podes desligá-las em Definições → «Ajudar a melhorar o Txillapp». Também guardamos o que já viste no feed, para não repetir sempre o mesmo.</li>
           <li><b>Fotos e vídeos:</b> são verificados automaticamente no nosso servidor (nudez e conteúdo sexual) antes de ficarem visíveis. Nada é enviado a terceiros.</li>
         </ul>
@@ -136,25 +171,52 @@ export function Privacy() {
         <h2>3. Quem vê o quê</h2>
         <p>
           Tu controlas: perfil público ou privado, quem comenta, menciona, presenteia ou te envia mensagens, quem vê os teus seguidores e quem repostou, brindou ou presenteou.
-          O género só aparece no perfil se tu quiseres. As mensagens diretas só são visíveis para as duas pessoas da conversa.
+          O género escolhe-se ao criar a conta e <b>não se altera</b>; só aparece no perfil se tu quiseres. As mensagens diretas só são visíveis para as duas pessoas da conversa.
+          As <b>notas</b> só as veem os teus seguidores. A <b>geleira</b> e o seu nível veem-nos só quem escolheres. Quem não tem conta e abre um link de uma publicação <b>pública</b> vê só uma pré-visualização dela (sem comentários nem ações);
+          publicações de contas privadas, apagadas ou de quem te bloqueou nunca aparecem. Redes como o WhatsApp podem mostrar um cartão com o nome, o texto e a foto de uma publicação pública quando alguém cola o link.
         </p>
       </section>
       <section>
-        <h2>4. Cookies e armazenamento</h2>
+        <h2>4. Presença online e a escrever</h2>
+        <p>
+          O Txillapp mostra quando uma pessoa está <b>online</b> (com a app aberta) e, nos comentários de um post, quando alguém está <b>a escrever</b>. No chat mostra também «Visto há…».
+          Isto só vale entre quem mostra a presença: se desligares «Mostrar quando estou online» nas Definições, ninguém te vê online ou a escrever, e tu também deixas de ver os outros.
+          Quem tem a conta bloqueada nunca te vê. A presença só existe enquanto a app está aberta; só guardamos a hora da última vez que estiveste online.
+        </p>
+      </section>
+      <section>
+        <h2>5. Geleira e pontuação</h2>
+        <p>
+          Guardamos os gostos que juntas à tua geleira, as notas e os favoritos. Com eles, e com o teu saldo de Txills, calculamos o <b>nível</b> da geleira.
+          A data de nascimento é usada para três coisas, nunca para mostrar: validar a idade mínima, esconder bebidas com álcool a menores de 18 anos e escolher o título do nível mais alto.
+          Tu escolhes quem vê a geleira (todos, seguidores, amigos próximos ou só tu); quando ela não é visível para alguém, o nível também não é. Como o saldo de Txills conta para o nível, uma geleira visível pode revelar de forma aproximada quanto tens.
+        </p>
+      </section>
+      <section>
+        <h2>6. Verificação de identidade</h2>
+        <p>
+          Se pedires o selo de verificado, recolhemos o teu nome, a prova que indicares, uma foto de um documento de identificação e uma selfie.
+          Estes ficheiros são <b>privados</b>: só a moderação os vê, só para decidir o pedido, e são <b>apagados logo que há decisão</b> (aprovar, recusar) ou quando retiras o pedido.
+          Guardamos o resultado (se tens o selo, o tipo de selo e, numa recusa, o motivo) e as datas, para não repetir pedidos e para prevenir abuso. Os documentos nunca são mostrados a outras pessoas nem usados para outra coisa.
+        </p>
+      </section>
+      <section>
+        <h2>7. Cookies e armazenamento</h2>
         <p>
           Usamos apenas o essencial: um cookie de sessão seguro (para manteres a sessão iniciada) e armazenamento local no teu aparelho (por exemplo, rascunhos de publicações).
           Não usamos cookies de publicidade.
         </p>
       </section>
       <section>
-        <h2>5. Quanto tempo guardamos</h2>
+        <h2>8. Quanto tempo guardamos</h2>
         <p>
           Enquanto a conta existir. Ao eliminares a conta, os dados pessoais são removidos ou anonimizados e as tuas fotos e mensagens deixam de estar acessíveis.
           Alguns registos de segurança podem ser mantidos por um período limitado para prevenir abuso.
+          Stories e notas deixam de aparecer ao fim de 24 horas. O conteúdo de visualização única é apagado do servidor quando é aberto. Os documentos de uma verificação são apagados logo que há decisão.
         </p>
       </section>
       <section>
-        <h2>6. Os teus direitos</h2>
+        <h2>9. Os teus direitos</h2>
         <ul>
           <li><b>Aceder e levar contigo:</b> Definições → «Descarregar os meus dados».</li>
           <li><b>Corrigir:</b> edita o teu perfil a qualquer momento.</li>
@@ -163,18 +225,18 @@ export function Privacy() {
         </ul>
       </section>
       <section>
-        <h2>7. Crianças</h2>
+        <h2>10. Crianças</h2>
         <p>O Txillapp não é para menores de {MIN_AGE} anos. Se descobrirmos uma conta abaixo dessa idade, removemo-la.</p>
       </section>
       <section>
-        <h2>8. Quem trata os teus dados</h2>
+        <h2>11. Quem trata os teus dados</h2>
         <p>
           Os dados são tratados pelo Txillapp e guardados em servidores de fornecedores de alojamento e de rede (por exemplo, o armazenamento das fotos e vídeos e a proteção do site),
           que só os processam para nós. Se entrares com a Google, recebemos o teu nome e email dessa conta. Os mapas usam o OpenStreetMap, que vê o endereço de rede do teu aparelho ao carregar o mapa.
         </p>
       </section>
       <section>
-        <h2>9. Contacto</h2>
+        <h2>12. Contacto</h2>
         <p>
           Para exercer os teus direitos, pedir ajuda ou esclarecer dúvidas sobre os teus dados, escreve para{' '}
           <a href="mailto:privacidade@txillapp.com" className="font-semibold text-brand underline">privacidade@txillapp.com</a>.
