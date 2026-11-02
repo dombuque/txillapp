@@ -67,7 +67,12 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
 
   const favorites = items.filter((i) => i.favorite).slice(0, 8);
   const total = items.filter((i) => !i.pending).length;
+  // O nível vem do servidor (conta tudo, venha quem vier ver, e o título respeita a idade); enquanto carrega usa a conta local.
+  const lv = useQuery({ queryKey: ['geleira-level', username], queryFn: () => api.geleiraLevel(username), retry: false, staleTime: 60_000 });
   const points = geleiraPoints(items);
+  const level = lv.data?.level ?? geleiraLevel(points);
+  const title = lv.data?.title ?? LEVEL_LABEL[level];
+  const hint = lv.data ? (lv.data.toNext === null ? `Nível máximo: ${lv.data.title.toLowerCase()}!` : `Faltam ${lv.data.toNext} ${lv.data.toNext === 1 ? 'ponto' : 'pontos'} para ${lv.data.nextTitle!.toLowerCase()}. Bebidas com álcool e vibes de festa valem mais.`) : nextLevelHint(points);
 
   const folded = compact && !open;
 
@@ -79,18 +84,18 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
       <div className="flex items-center gap-4 pb-1">
         {compact ? (
           <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={open ? 'Fechar a geleira' : 'Abrir a geleira'} className="shrink-0 transition active:scale-95">
-            <FridgeArt count={total} points={points} open={!folded} invite={folded} size={folded ? 80 : 88} />
+            <FridgeArt count={total} level={level} open={!folded} invite={folded} size={folded ? 80 : 88} />
           </button>
         ) : (
-          <FridgeArt count={total} points={points} open={!folded} size={84} />
+          <FridgeArt count={total} level={level} open={!folded} size={84} />
         )}
         <div className="min-w-0 flex-1">
           <span className="block text-[18px] font-extrabold leading-tight">{isMe ? 'A minha geleira' : 'Geleira'}</span>
           <span className="block text-[13px] text-zinc-600">
             {items.length === 0 ? 'Ainda vazia' : `${total} ${total === 1 ? 'gosto' : 'gostos'}${favorites.length ? ` · ${favorites.length} ${favorites.length === 1 ? 'favorito' : 'favoritos'}` : ''}`}
           </span>
-          {total > 0 && <span className="mt-1 inline-block rounded-full bg-rose-50 px-2.5 py-0.5 text-[12px] font-bold text-brand">{LEVEL_LABEL[geleiraLevel(points)]}</span>}
-          {isMe && !folded && <span className="mt-1 block text-[12px] text-zinc-500">{nextLevelHint(points)}</span>}
+          {total > 0 && <span className="mt-1 inline-block rounded-full bg-rose-50 px-2.5 py-0.5 text-[12px] font-bold text-brand">{title}</span>}
+          {isMe && !folded && <span className="mt-1 block text-[12px] text-zinc-500">{hint}</span>}
         </div>
       </div>
 

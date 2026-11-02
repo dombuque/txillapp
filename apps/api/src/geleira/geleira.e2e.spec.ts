@@ -173,4 +173,39 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
     expect(done.welcomed).toBe(true);
     expect((await api().get('/api/v1/settings/privacy').set(auth(u.gc))).body.welcomed).toBe(true);
   });
+
+  it('nível da geleira: pontos premeiam álcool e vibes de festa; título do topo respeita a idade; quem não pode ver não vê', async () => {
+    const { ga, gb } = u;
+    const level = (viewer: U, of: U) => api().get(`/api/v1/users/${of.username}/geleira/level`).set(auth(viewer));
+    await api().put('/api/v1/geleira/me/settings').set(auth(ga)).send({ visibility: 'everyone' }).expect(200);
+    await pool.query('DELETE FROM taste.user_items WHERE user_id = $1', [ga.id]);
+    const mine = (await level(ga, ga).expect(200)).body;
+    expect(mine.level).toBe(0);
+    expect(mine.title).toBe('Geleira seca');
+
+    // Uma cerveja (álcool, 4 pontos) pesa mais do que uma água (1 ponto).
+    const beer = (await pool.query(`SELECT id FROM taste.items WHERE status = 'curated' AND kind = 'bebida' AND alcoholic LIMIT 1`)).rows[0].id as string;
+    const water = (await pool.query(`SELECT id FROM taste.items WHERE status = 'curated' AND kind = 'bebida' AND NOT alcoholic LIMIT 1`)).rows[0].id as string;
+    await pool.query(`INSERT INTO taste.user_items (user_id, item_id) VALUES ($1, $2), ($1, $3)`, [ga.id, beer, water]);
+    expect((await level(gb, ga).expect(200)).body).toMatchObject({ points: 5, level: 1, title: 'A txilar', toNext: 5 });
+
+    // O título do topo depende da idade (sem nunca mostrar a data): 20 anos, 35 e 60.
+    await pool.query(`UPDATE taste.user_items SET favorite = true WHERE user_id = $1`, [ga.id]); // +2 pontos
+    await pool.query(`INSERT INTO taste.user_items (user_id, item_id, favorite) SELECT $1, i.id, true FROM taste.items i WHERE i.status = 'curated' AND i.alcoholic AND i.id <> $2 LIMIT 12`, [ga.id, beer]);
+    const top = async (birth: string) => {
+      await pool.query('UPDATE identity.users SET birth_date = $2 WHERE id = $1', [ga.id, birth]);
+      return (await level(gb, ga).expect(200)).body;
+    };
+    const year = new Date().getUTCFullYear();
+    const young = await top(`${year - 20}-01-01`);
+    expect(young).toMatchObject({ level: 4, title: 'Lenda da paulada', toNext: null });
+    expect((await top(`${year - 35}-01-01`)).title).toBe('Mestre da paulada');
+    expect((await top(`${year - 60}-01-01`)).title).toBe('Madala da paulada');
+    expect(JSON.stringify(young)).not.toMatch(/birth|19\d\d-|20\d\d-/);
+
+    // Visibilidade: só eu → os outros não veem.
+    await api().put('/api/v1/geleira/me/settings').set(auth(ga)).send({ visibility: 'me' }).expect(200);
+    await level(gb, ga).expect(404);
+    await level(ga, ga).expect(200);
+  });
 });

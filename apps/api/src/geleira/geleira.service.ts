@@ -181,6 +181,39 @@ export class GeleiraService {
     return rows.map((r) => ({ ...itemOut(r, viewerId), rating: r.rating as number | null, favorite: r.favorite as boolean }));
   }
 
+  /**
+   * Nível da geleira de alguém: pontos (álcool e vibes de festa valem mais) e título em calão da malta. O título do topo
+   * respeita a idade (madala só a partir dos 45), sem nunca devolver a data de nascimento. Só para quem pode ver a geleira.
+   */
+  async level(viewerId: string, username: string) {
+    const { rows: owner } = await this.pool.query(
+      `SELECT u.id, (${canView('u', '$2')}) AS can, u.birth_date,
+              (u.id = $2 OR u.geleira_visibility = 'everyone'
+               OR (u.geleira_visibility = 'followers' AND EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $2 AND f.followee_id = u.id))
+               OR (u.geleira_visibility = 'close_friends' AND EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $2))) AS shown
+         FROM identity.users u WHERE lower(u.username) = lower($1)`,
+      [username, viewerId],
+    );
+    if (!owner[0] || !owner[0].can || !owner[0].shown) throw new NotFoundException('Sem geleira para mostrar');
+    const { rows } = await this.pool.query(
+      `SELECT coalesce(sum(
+                (CASE WHEN i.kind = 'bebida' THEN CASE WHEN i.alcoholic THEN 4 ELSE 1 END
+                      WHEN i.kind = 'vibe' THEN CASE i.category WHEN 'festa' THEN 4 WHEN 'musica' THEN 3 WHEN 'convivio' THEN 3 ELSE 2 END
+                      WHEN i.kind = 'sitio' THEN CASE WHEN i.category = 'noite' THEN 3 ELSE 1 END
+                      ELSE 1 END) + CASE WHEN ui.favorite THEN 1 ELSE 0 END), 0)::int AS points
+         FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id
+        WHERE ui.user_id = $1 AND i.status = 'curated'`,
+      [owner[0].id],
+    );
+    const points = rows[0].points as number;
+    const steps = [1, 10, 25, 50];
+    const level = points <= 0 ? 0 : points >= steps[3] ? 4 : points >= steps[2] ? 3 : points >= steps[1] ? 2 : 1;
+    const age = owner[0].birth_date ? Math.floor((Date.now() - new Date(owner[0].birth_date as string).getTime()) / 31_557_600_000) : null;
+    const top = age !== null && age >= 45 ? 'Madala da paulada' : age !== null && age >= 30 ? 'Mestre da paulada' : 'Lenda da paulada';
+    const titles = ['Geleira seca', 'A txilar', 'Maningue abastecida', 'Paulada garantida', top];
+    return { points, level, title: titles[level], toNext: level >= 4 ? null : steps[level] - points, nextTitle: level >= 4 ? null : level === 3 ? top : titles[level + 1] };
+  }
+
   async settings(userId: string) {
     const { rows } = await this.pool.query('SELECT geleira_matching, geleira_visibility FROM identity.users WHERE id = $1', [userId]);
     return { matching: rows[0].geleira_matching as boolean, visibility: rows[0].geleira_visibility as Visibility };

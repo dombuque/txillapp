@@ -55,14 +55,13 @@ function Magnet({ m }: { m: (typeof MAGNETS)[number] }) {
  * mais ímanes, mais cor e mais brilho: no topo (madala da paulada) ganha uma coroa e faíscas. Aberta, mostra o interior com
  * prateleiras e tantos "produtos" quantos gostos (até 8).
  */
-export default function FridgeArt({ count, points, open = false, invite = false, size = 96 }: { count: number; points: number; open?: boolean; invite?: boolean; size?: number }) {
+export default function FridgeArt({ count, level, open = false, invite = false, size = 96 }: { count: number; level: number; open?: boolean; invite?: boolean; size?: number }) {
   const id = useId().replace(/:/g, '');
-  const level = geleiraLevel(points);
   const edge = ['#a9c9d9', '#8fd0ee', '#6fc4ea', '#f08aa0', '#e8a317'][level];
   const dots = Math.min(count, 8);
   const h = Math.round(size * 1.3);
   return (
-    <svg width={size} height={h} viewBox="0 0 100 130" role="img" aria-label={`Geleira: ${LEVEL_LABEL[level]}`} className="shrink-0 overflow-visible">
+    <svg width={size} height={h} viewBox="0 0 100 130" role="img" aria-label={`Geleira: ${LEVEL_LABEL[level] ?? ''}`} className="shrink-0 overflow-visible">
       <defs>
         <linearGradient id={`b${id}`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#ffffff" />

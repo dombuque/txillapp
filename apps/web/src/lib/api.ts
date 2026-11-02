@@ -322,6 +322,7 @@ export interface StorySettings {
   hidden: { username: string; displayName: string }[];
 }
 export type GiftVisibility = 'silent' | 'private' | 'public';
+export interface GeleiraLevel { points: number; level: number; title: string; toNext: number | null; nextTitle: string | null }
 export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts';
 export interface VerificationStatus {
   items: { key: string; label: string; ok: boolean; hint: string }[];
@@ -627,6 +628,7 @@ export const api = {
   adminQueue: (): Promise<ReportQueueItem[]> => raw('/admin/reports'),
   typingPing: (postId: string): Promise<void> => raw('/presence/typing', post({ postId })),
   typers: async (postId: string): Promise<string[]> => ((await raw(`/presence/typing?postId=${postId}`)) as { names: string[] }).names,
+  geleiraLevel: (username: string): Promise<GeleiraLevel> => raw(`/users/${encodeURIComponent(username)}/geleira/level`),
   verificationStatus: (): Promise<VerificationStatus> => raw('/verification/me'),
   verificationRequest: (b: { kind: 'person' | 'business'; fullName: string; proof: string; docMediaId: string; selfieMediaId: string }): Promise<void> => raw('/verification/request', post(b)),
   verificationWithdraw: (): Promise<void> => raw('/verification/request', { method: 'DELETE' }),

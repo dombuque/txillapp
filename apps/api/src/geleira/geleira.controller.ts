@@ -68,6 +68,12 @@ export class GeleiraController {
     return this.geleira.setSettings(req.userId!, b);
   }
 
+  @Get('users/:username/geleira/level')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  level(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.geleira.level(req.userId!, username);
+  }
+
   @Get('users/:username/geleira')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   of(@Req() req: AuthedReq, @Param('username') username: string) {
