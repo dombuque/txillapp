@@ -1,6 +1,7 @@
 import Icon, { type IconName } from './Icon';
 import MentionTextarea from './MentionTextarea';
 import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { api, type Profile } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -33,6 +34,7 @@ async function cropSquare(file: File, side = 512): Promise<File> {
 
 /** Editar foto, nome, bio e tipo de perfil (público ou privado). */
 export default function EditProfileSheet({ profile, onClose }: { profile: Profile; onClose: () => void }) {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { patchUser } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -150,6 +152,14 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
           </div>
           {profile.isPrivate && !isPrivate && <p className="mt-2 text-xs text-zinc-600">Ao passar a público, os pedidos pendentes são aceites.</p>}
         </div>
+        <button type="button" onClick={() => { onClose(); navigate('/geleira'); }} className="flex w-full items-center gap-3 rounded-2xl border-2 border-zinc-200 p-3 text-left transition active:scale-[0.99] active:bg-zinc-50">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-400 text-white"><Icon name="snowflake" size={22} /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-bold">A minha geleira</span>
+            <span className="block text-sm text-zinc-600">Vibes, bebidas, comidas e sítios de que gostas.</span>
+          </span>
+          <Icon name="chevron-right" size={20} className="shrink-0 text-zinc-500" />
+        </button>
         <p role="alert" className="min-h-5 text-center text-sm text-red-600">{err}</p>
         <button disabled={busy || photoBusy} className={`${btnPrimary} w-full py-4 text-lg`}>{busy ? 'A guardar…' : 'Guardar'}</button>
       </form>
