@@ -40,20 +40,28 @@ export default function FindContacts({ onClose }: { onClose: () => void }) {
       {found === null ? (
         <div className="space-y-3">
           <p className="text-[15px] text-zinc-700">Vê quem dos teus contactos já está no Txillapp. Os contactos ficam no teu telemóvel: só enviamos um resumo cifrado dos emails, só para comparar, e não guardamos nada.</p>
-          {canPickContacts() && (
-            <button type="button" disabled={busy} onClick={() => void run(pickContactEmails)} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-brand font-bold text-white transition active:scale-[0.98] disabled:opacity-50">
-              <Icon name="users" size={20} /> {busy ? 'A procurar…' : 'Escolher contactos'}
-            </button>
+          {canPickContacts() ? (
+            <>
+              <button type="button" disabled={busy} onClick={() => void run(pickContactEmails)} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-brand font-bold text-white transition active:scale-[0.98] disabled:opacity-50">
+                <Icon name="users" size={20} /> {busy ? 'A procurar…' : 'Permitir acesso aos contactos'}
+              </button>
+              <p className="text-sm text-zinc-500">O telemóvel vai pedir a tua permissão e mostrar os contactos: escolhe os que quiseres (ou todos).</p>
+            </>
+          ) : (
+            <div className="rounded-2xl bg-zinc-50 p-4 text-sm text-zinc-700">
+              <p className="font-semibold text-zinc-900">Neste aparelho a app web não pode ler os contactos.</p>
+              <p className="mt-1">No iPhone isso só é possível na app da App Store, que vai pedir a permissão normal. Enquanto isso, podes importar um ficheiro de contactos (.vcf).</p>
+              <button type="button" disabled={busy} onClick={() => file.current?.click()} className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-white font-semibold text-zinc-800 ring-1 ring-zinc-200 transition active:scale-[0.98] disabled:opacity-50">
+                <Icon name="download" size={18} /> {busy ? 'A procurar…' : 'Importar ficheiro de contactos'}
+              </button>
+              <p className="mt-2 text-xs text-zinc-500">Na app Contactos do iPhone, escolhe os contactos, toca em Partilhar e guarda o ficheiro .vcf.</p>
+            </div>
           )}
-          <button type="button" disabled={busy} onClick={() => file.current?.click()} className={`flex h-12 w-full items-center justify-center gap-2 rounded-full font-bold transition active:scale-[0.98] disabled:opacity-50 ${canPickContacts() ? 'bg-zinc-100 text-zinc-800' : 'bg-brand text-white'}`}>
-            <Icon name="download" size={20} /> {busy ? 'A procurar…' : 'Importar ficheiro de contactos'}
-          </button>
           <input ref={file} type="file" accept=".vcf,.csv,text/vcard,text/csv,text/plain" className="hidden" onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = '';
             if (f) void run(() => emailsFromFile(f));
           }} />
-          {!canPickContacts() && <p className="text-sm text-zinc-500">No iPhone, exporta os contactos como ficheiro .vcf (na app Contactos, escolhe os contactos e partilha) e importa-o aqui.</p>}
           {err && <p role="alert" className="text-center text-sm text-red-600">{err}</p>}
         </div>
       ) : found.length === 0 ? (
