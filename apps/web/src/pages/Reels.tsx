@@ -1,6 +1,7 @@
 import { PontoLoader } from '../components/Loading';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { slideClass, takeSlide, useSwipeTabs } from '../lib/swipeNav';
 import { Link, useNavigate } from 'react-router-dom';
 import { PostMenu, RepostSheet } from '../components/PostCard';
 import ShareSheet from '../components/ShareSheet';
@@ -156,12 +157,15 @@ export default function Reels() {
     }
   }, []);
 
+  useSwipeTabs();
+  const slide = useMemo(() => slideClass(takeSlide()), []);
+
   function patch(id: string, p: Partial<Post>) {
     qc.setQueryData<typeof q.data>(['reels'], (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map((i) => (i.id === id ? { ...i, ...p } : i)) })) });
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-black" style={visibleStyle(vv)}>
+    <div className={`fixed inset-0 z-40 bg-black ${slide}`} style={visibleStyle(vv)}>
       <div ref={root} className="mx-auto h-full max-w-xl snap-y snap-mandatory overflow-y-scroll [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((p) => (
           <div key={p.id} data-id={p.id} className="h-full w-full snap-start snap-always">

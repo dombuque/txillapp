@@ -4,8 +4,9 @@ import { refreshPage } from '../lib/refresh';
 import EmailBanner from './EmailBanner';
 import GenderGate from './GenderGate';
 import WelcomeTour from './WelcomeTour';
+import { slideClass, takeSlide, useSwipeTabs } from '../lib/swipeNav';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -26,6 +27,9 @@ export default function Layout() {
   const { user } = useAuth();
   const { pathname } = useLocation();
   const qc = useQueryClient();
+  useSwipeTabs();
+  // Quando se chega por um deslize, o ecrã entra do lado do gesto.
+  const slide = useMemo(() => slideClass(takeSlide()), [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
   /**
    * Tocar no separador onde já estás: sobe ao topo (1.º toque, se estiveres mais abaixo) e, no Início, atualiza o feed
    * (toque seguinte). Como no Instagram e no X.
@@ -78,7 +82,9 @@ export default function Layout() {
       </header>
       <EmailBanner />
       {/* Puxar para baixo recarrega a página (menos ao escrever uma publicação). */}
-      {pathname === '/new' ? <Outlet /> : <PullToRefresh onRefresh={() => refreshPage(qc, pathname)}><Outlet /></PullToRefresh>}
+      <div key={pathname} className={slide}>
+        {pathname === '/new' ? <Outlet /> : <PullToRefresh onRefresh={() => refreshPage(qc, pathname)}><Outlet /></PullToRefresh>}
+      </div>
       <GenderGate />
       <WelcomeTour />
       <nav
