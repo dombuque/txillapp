@@ -10,7 +10,7 @@ export default function StackPage({ title, children }: { title: string; children
   const navigate = useNavigate();
   return (
     <div className="mx-auto min-h-dvh max-w-xl bg-white pb-8">
-      <header className="sticky top-0 z-10 flex items-center gap-1 border-b border-zinc-100 bg-white/95 px-2 py-2 backdrop-blur">
+      <header className="sticky top-0 z-10 flex items-center gap-1 border-b border-zinc-100 bg-white px-2 py-2">
         <button
           onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/', { replace: true }))}
           aria-label="Voltar"

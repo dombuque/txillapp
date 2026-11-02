@@ -15,7 +15,7 @@ function Page({ title, children }: { title: string; children: ReactNode }) {
   const navigate = useNavigate();
   return (
     <div className="mx-auto min-h-dvh max-w-2xl bg-white px-5 pb-16">
-      <header className="sticky top-0 z-10 -mx-5 flex items-center gap-2 border-b border-zinc-100 bg-white/95 px-3 py-2 backdrop-blur">
+      <header className="sticky top-0 z-10 -mx-5 flex items-center gap-2 border-b border-zinc-100 bg-white px-3 py-2">
         <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/', { replace: true }))} aria-label="Voltar" className="flex h-11 w-11 items-center justify-center rounded-full active:bg-zinc-100">
           <BackIcon />
         </button>
