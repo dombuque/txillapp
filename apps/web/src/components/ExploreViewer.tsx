@@ -40,14 +40,14 @@ function useDragDown(scroller: React.RefObject<HTMLElement | null>, onClose: () 
 
 /**
  * Abre uma publicação do Explorar a sério (não numa folha): ecrã inteiro com seta de voltar.
- * Foto ou texto: lista que continua pelas seguintes. Vídeo: como os Reels, desliza-se para cima para o seguinte.
+ * Foto ou texto: só aquela publicação. Vídeo: como os Reels, desliza-se para cima para o seguinte.
  * Arrastar para baixo no topo (ou o voltar do telemóvel) fecha e volta ao Explorar.
  */
 export default function ExploreViewer({ items, startId, onClose }: { items: Post[]; startId: string; onClose: () => void }) {
   const start = items.find((p) => p.id === startId);
   const reels = start?.media[0]?.kind === 'video';
-  // O que se percorre: só vídeos no modo reels; fora disso, tudo o que não é vídeo.
-  const list = items.filter((p) => (p.media[0]?.kind === 'video') === reels);
+  // Vídeo: percorrem-se os vídeos do Explorar (desliza-se para cima para o seguinte). Foto ou texto: só aquela publicação.
+  const list = reels ? items.filter((p) => p.media[0]?.kind === 'video') : items.filter((p) => p.id === startId);
   const qc = useQueryClient();
   const vv = useVisualViewport();
   const isMuted = useMuted(true);
@@ -124,7 +124,7 @@ export default function ExploreViewer({ items, startId, onClose }: { items: Post
   if (reels) {
     return shell(
       <>
-        <div ref={scroller} className="mx-auto h-full max-w-xl snap-y snap-mandatory overflow-y-scroll overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div ref={scroller} className="relative mx-auto h-full max-w-xl snap-y snap-mandatory overflow-y-scroll overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {list.map((p) => (
             <div key={p.id} data-id={p.id} className="h-full w-full snap-start snap-always">
               <Reel post={p} active={p.id === activeId} onChange={(c) => patch(p.id, c)} />
