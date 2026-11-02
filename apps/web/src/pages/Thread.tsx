@@ -17,6 +17,7 @@ import VoiceMessage from '../components/VoiceMessage';
 import { Avatar, Sheet } from '../components/ui';
 import { api, type ChatMessage, type ChatThread, type GroupThread } from '../lib/api';
 import { detectIntent } from '../lib/chatIntent';
+import { firstTime } from '../lib/firstTime';
 import { isSharing, startLive, stopLive } from '../lib/liveLocation';
 import { useTyping } from '../lib/chatLive';
 import { STICKERS, Sticker } from '../lib/stickers';
@@ -174,6 +175,7 @@ export default function Thread() {
   const [away, setAway] = useState(false); // longe do fim da conversa
   const [panel, setPanel] = useState<null | 'attach' | 'stickers'>(null);
   const [once, setOnce] = useState(false); // a próxima mensagem é de visualização única
+  const [onceHelp, setOnceHelp] = useState(false); // a explicação só aparece da primeira vez
   const [opening, setOpening] = useState<Msg | null>(null);
   const [camera, setCamera] = useState(false);
   const [gift, setGift] = useState<null | { amount?: number; note?: string }>(null);
@@ -597,10 +599,10 @@ export default function Thread() {
         </div>
       ) : (
         <div className="shrink-0 border-t border-zinc-100">
-        {once && !isGroup && (
+        {once && onceHelp && !isGroup && (
           <p role="status" className="mx-3 mt-2 flex items-center justify-between rounded-2xl bg-zinc-900 px-4 py-2 text-[13px] font-semibold text-white">
             <span>Visualização única: a próxima mensagem só se abre uma vez.</span>
-            <button type="button" onClick={() => setOnce(false)} aria-label="Desativar visualização única" className="ml-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20"><Icon name="x" size={14} /></button>
+            <button type="button" onClick={() => setOnceHelp(false)} aria-label="Fechar a explicação" className="ml-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20"><Icon name="x" size={14} /></button>
           </p>
         )}
         {suggestion && (
@@ -663,7 +665,7 @@ export default function Thread() {
               <button type="submit" onPointerDown={(e) => e.preventDefault()} className="h-10 shrink-0 rounded-full bg-brand px-4 font-bold text-white transition active:scale-95">Enviar</button>
             ) : (
               <>
-                {!isGroup && <button type="button" onClick={() => setOnce(!once)} aria-pressed={once} aria-label="Visualização única" className={`${bar} ${once ? 'bg-brand text-white active:bg-brand' : ''}`}><Icon name="once" size={24} /></button>}
+                {!isGroup && <button type="button" onClick={() => { if (!once && firstTime('view-once')) setOnceHelp(true); setOnce(!once); }} aria-pressed={once} aria-label="Visualização única" className={`${bar} ${once ? 'bg-brand text-white active:bg-brand' : ''}`}><Icon name="once" size={24} /></button>}
                 <button type="button" onClick={startRecording} className={bar} aria-label="Gravar mensagem de voz"><Icon name="mic" size={22} /></button>
                 <button type="button" onClick={() => gallery.current?.click()} className={bar} aria-label="Enviar foto da galeria"><Icon name="image" size={22} /></button>
                 <button type="button" onClick={() => setPanel(panel === 'stickers' ? null : 'stickers')} aria-label="Stickers" aria-expanded={panel === 'stickers'} className={`${bar} ${panel === 'stickers' ? 'bg-white text-brand' : ''}`}><Icon name="sticker" size={22} /></button>
