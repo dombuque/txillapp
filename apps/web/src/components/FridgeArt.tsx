@@ -1,20 +1,20 @@
 import { useId } from 'react';
 
 /**
- * Nível da geleira: não é "quão gelada", é quão recheada e variada está. Conta os gostos e quantos tipos diferentes tem
+ * Nível da geleira: quão recheada e variada está, em calão da malta (txilar, maningue, paulada, madala). Conta os gostos e quantos tipos diferentes tem
  * (vibes, bebidas, comidas, sítios): para subir de nível é preciso ter mais e de mais tipos.
  */
 export const geleiraLevel = (count: number, kinds: number) =>
   count <= 0 ? 0 : count >= 21 && kinds >= 4 ? 4 : count >= 11 && kinds >= 3 ? 3 : count >= 5 && kinds >= 2 ? 2 : 1;
-export const LEVEL_LABEL = ['Geleira vazia', 'Primeiras compras', 'Bem abastecida', 'Cheia de sabor', 'Lenda da malta'] as const;
+export const LEVEL_LABEL = ['Geleira seca', 'A txilar', 'Maningue abastecida', 'Paulada garantida', 'Madala da paulada'] as const;
 /** Quanto falta para o nível seguinte, numa frase (vazio no último). */
 export function nextLevelHint(count: number, kinds: number): string {
   const l = geleiraLevel(count, kinds);
-  if (l === 0) return 'Põe o primeiro gosto para começar.';
-  if (l === 1) return 'Chega aos 5 gostos, de 2 tipos, para ficar bem abastecida.';
-  if (l === 2) return 'Chega aos 11 gostos, de 3 tipos, para ficar cheia de sabor.';
-  if (l === 3) return 'Chega aos 21 gostos, dos 4 tipos, para ser lenda da malta.';
-  return 'Nível máximo. A malta vê que sabes viver!';
+  if (l === 0) return 'Põe o primeiro gosto para começar a txilar.';
+  if (l === 1) return 'Chega aos 5 gostos, de 2 tipos, para ficar maningue abastecida.';
+  if (l === 2) return 'Chega aos 11 gostos, de 3 tipos, para a paulada ficar garantida.';
+  if (l === 3) return 'Chega aos 21 gostos, dos 4 tipos, para seres madala da paulada.';
+  return 'Nível máximo: madala da paulada!';
 }
 
 const ITEM_COLORS = ['#fb7185', '#fbbf24', '#34d399', '#60a5fa', '#c084fc', '#fb923c', '#f472b6', '#2dd4bf'];
@@ -39,7 +39,7 @@ function Magnet({ m }: { m: (typeof MAGNETS)[number] }) {
 
 /**
  * A geleira desenhada: um frigorífico com porta de cima e de baixo, puxadores, pés e ímanes. Quanto mais recheada e variada,
- * mais ímanes, mais cor e mais brilho: no topo (lenda da malta) ganha uma coroa e faíscas. Aberta, mostra o interior com
+ * mais ímanes, mais cor e mais brilho: no topo (madala da paulada) ganha uma coroa e faíscas. Aberta, mostra o interior com
  * prateleiras e tantos "produtos" quantos gostos (até 8).
  */
 export default function FridgeArt({ count, kinds = 1, open = false, invite = false, size = 96 }: { count: number; kinds?: number; open?: boolean; invite?: boolean; size?: number }) {
