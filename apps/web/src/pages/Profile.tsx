@@ -4,7 +4,7 @@ import Icon, { type IconName } from '../components/Icon';
 import ReportSheet from '../components/ReportSheet';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import EditProfileSheet from '../components/EditProfileSheet';
 import GeleiraShelf from '../components/GeleiraShelf';
@@ -47,6 +47,7 @@ export default function ProfilePage() {
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username), retry: false });
   const p = q.data;
   const [tab, setTab] = useState<ProfileTab>('all');
+  const swipe = useRef<{ x: number; y: number; at: number } | null>(null);
   const posts = useInfiniteQuery({
     queryKey: ['profile-posts', username, tab],
     queryFn: ({ pageParam }) => api.userPosts(username, pageParam, tab),
@@ -220,7 +221,24 @@ export default function ProfilePage() {
         </div>
       ) : (
         p.canView && (
-          <section className="mt-6 px-4" aria-label="Publicações">
+          <section
+          className="mt-6 px-4"
+          aria-label="Publicações"
+          // Deslizar para os lados muda de separador (na primeira, deslizar para a direita volta ao ecrã anterior da barra).
+          data-no-swipe={tab !== 'all' ? '' : undefined}
+          onTouchStart={(e) => { const t = e.touches[0]; swipe.current = e.touches.length === 1 && t.clientX > 24 && t.clientX < window.innerWidth - 24 ? { x: t.clientX, y: t.clientY, at: Date.now() } : null; }}
+          onTouchEnd={(e) => {
+            const s0 = swipe.current;
+            swipe.current = null;
+            if (!s0) return;
+            const t = e.changedTouches[0];
+            const dx = t.clientX - s0.x;
+            const dy = t.clientY - s0.y;
+            if (Date.now() - s0.at > 700 || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+            const i = TABS.findIndex((x) => x.id === tab) + (dx < 0 ? 1 : -1);
+            if (i >= 0 && i < TABS.length) setTab(TABS[i].id);
+          }}
+        >
             <div role="tablist" aria-label="Conteúdo do perfil" className="mb-3 flex border-b border-zinc-200">
               {TABS.map((t) => (
                 <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} aria-label={t.label} onClick={() => setTab(t.id)} className={`flex h-12 min-w-0 flex-1 items-center justify-center border-b-2 transition active:bg-zinc-50 ${tab === t.id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-400'}`}>
