@@ -58,6 +58,10 @@ body {
   40% { transform: scale(1.5) rotate(-12deg); }
   100% { transform: scale(1); }
 }
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
 @keyframes rise {
   from { transform: translateY(40px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }

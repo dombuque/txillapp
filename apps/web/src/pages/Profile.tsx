@@ -118,14 +118,14 @@ export default function ProfilePage() {
       )}
 
       <section className="mx-4 rounded-[28px] bg-white px-5 pb-5 pt-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
-        {p.bio && (
-          // A bio num balão por cima da foto, como no WhatsApp: o "bico" aponta para a pessoa.
-          <div className="relative mb-4 max-w-[92%] rounded-[20px] bg-zinc-100 px-4 py-2.5 text-center text-[15px] leading-snug text-zinc-800">
-            <p className="whitespace-pre-wrap break-words"><RichText text={p.bio} /></p>
-            <span aria-hidden className="absolute -bottom-1.5 left-[40px] h-3.5 w-3.5 rotate-45 rounded-[3px] bg-zinc-100" />
-          </div>
-        )}
-        <div className="flex items-center gap-4">
+        <div className={`relative flex items-center gap-4 ${p.bio ? 'mt-12' : ''}`}>
+          {p.bio && (
+            // A bio num balão a flutuar por cima da foto, como as notas: branco, com sombra, a pairar devagar, com o "bico" a apontar para a pessoa.
+            <div className="absolute -top-[52px] left-6 z-10 max-w-[78%] animate-[bob_3.2s_ease-in-out_infinite] rounded-[18px] bg-white px-3.5 py-2 text-center text-[14px] leading-snug text-zinc-800 shadow-[0_4px_16px_rgba(0,0,0,0.16)] ring-1 ring-zinc-100">
+              <p className="line-clamp-3 whitespace-pre-wrap break-words"><RichText text={p.bio} /></p>
+              <span aria-hidden className="absolute -bottom-1.5 left-[26px] h-3 w-3 rotate-45 rounded-[2px] bg-white ring-1 ring-zinc-100 [clip-path:polygon(100%_0,100%_100%,0_100%)]" />
+            </div>
+          )}
           <span className="shrink-0"><ProfileStoryAvatar username={p.username} displayName={p.displayName} isMe={p.isMe} hasAvatar={p.hasAvatar} size={84} /></span>
           <div className="flex min-w-0 flex-1">
             {stat(p.counts.posts, 'publicações')}
