@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import Icon from './Icon';
-import { Avatar, Sheet, fieldInput } from './ui';
+import { Avatar } from './ui';
 
 interface Person { username: string; displayName: string; hasAvatar: boolean }
 
@@ -61,52 +61,81 @@ export default function NewChat({ onClose, addTo, onCreated }: { onClose: () => 
 
   const label = addTo ? `Adicionar ${picked.length || ''}`.trim() : picked.length === 1 ? 'Conversar' : picked.length > 1 ? (naming ? 'Criar grupo' : 'Seguinte') : 'Escolhe pessoas';
 
+  const title = addTo ? 'Adicionar ao grupo' : naming ? 'Nome do grupo' : 'Nova conversa';
   return (
-    <Sheet title={addTo ? 'Adicionar ao grupo' : naming ? 'Nome do grupo' : 'Nova conversa'} onClose={onClose}>
-      {naming ? (
-        <>
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} autoFocus placeholder="Ex.: Malta da Polana" aria-label="Nome do grupo" className={fieldInput} />
-          <p className="mt-2 text-sm text-zinc-600">{picked.length + 1} pessoas: {picked.map((p) => p.displayName.split(' ')[0]).join(', ')} e tu.</p>
-        </>
-      ) : (
-        <>
-          {picked.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-2">
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40" onClick={onClose} role="presentation">
+      <div role="dialog" aria-modal="true" aria-label={title} className="flex h-[78dvh] max-h-[640px] w-full max-w-xl animate-[rise_.25s_ease-out] flex-col rounded-t-[28px] bg-white" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-zinc-300" aria-hidden />
+        <div className="relative flex shrink-0 items-center justify-center px-4 pb-2 pt-3">
+          <h2 className="text-[17px] font-bold">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Fechar" className="absolute right-2 flex h-10 w-10 items-center justify-center rounded-full text-zinc-600 active:bg-zinc-100"><Icon name="x" size={20} /></button>
+        </div>
+
+        {naming ? (
+          <div className="min-h-0 flex-1 px-5 pt-4">
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} autoFocus placeholder="Ex.: Malta da Polana" aria-label="Nome do grupo" className="h-12 w-full rounded-full bg-zinc-100 px-5 text-[16px] outline-none placeholder:text-zinc-500 focus:bg-zinc-200/70" />
+            <div className="mt-5 flex flex-wrap justify-center gap-4">
               {picked.map((p) => (
-                <button key={p.username} type="button" onClick={() => toggle(p)} aria-label={`Tirar ${p.displayName}`} className="flex h-9 items-center gap-1.5 rounded-full bg-rose-50 pl-3 pr-2 text-sm font-semibold text-brand active:scale-95">
-                  {p.displayName.split(' ')[0]} <Icon name="x" size={14} />
-                </button>
+                <span key={p.username} className="flex w-16 flex-col items-center gap-1">
+                  <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={52} ring={false} />
+                  <span className="w-full truncate text-center text-[12px] text-zinc-700">{p.displayName.split(' ')[0]}</span>
+                </span>
               ))}
             </div>
-          )}
-          <input value={text} onChange={(e) => setText(e.target.value)} placeholder={addTo ? 'Procurar pessoas' : 'Procura uma pessoa para conversar'} aria-label="Procurar pessoas" className={fieldInput} />
-          <ul className="mt-2">
-            {!text.trim() && rows.length > 0 && <li className="px-1 pb-1 pt-2 text-xs font-bold uppercase tracking-wider text-zinc-500">Recentes</li>}
-            {rows.length === 0 && <li className="py-8 text-center text-zinc-600">{text.trim() ? 'Ninguém com esse nome' : 'Procura pelo nome ou @.'}</li>}
-            {rows.map((p) => {
-              const on = isPicked(p.username);
-              return (
-                <li key={p.username}>
-                  <button type="button" onClick={() => toggle(p)} aria-pressed={on} className="flex min-h-14 w-full items-center gap-3 rounded-2xl px-1 text-left active:bg-zinc-100">
-                    <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={44} ring={false} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-semibold">{p.displayName}</span>
-                      <span className="block truncate text-sm text-zinc-500">@{p.username}</span>
-                    </span>
-                    <span className={`flex h-7 w-7 items-center justify-center rounded-full border-2 ${on ? 'border-brand bg-brand text-white' : 'border-zinc-300'}`} aria-hidden>{on && <Icon name="check" size={16} strokeWidth={3} />}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
-      {err && <p role="alert" className="mt-2 text-center text-sm text-red-600">{err}</p>}
-      <div className="mt-3 flex gap-2">
-        {naming && <button type="button" onClick={() => setNaming(false)} className="h-12 rounded-full px-5 font-semibold text-zinc-700 active:bg-zinc-100">Voltar</button>}
-        <button type="button" onClick={go} disabled={busy || picked.length === 0} className="h-12 flex-1 rounded-full bg-brand font-bold text-white transition active:scale-[0.98] disabled:opacity-40">{busy ? 'A criar…' : label}</button>
+            <p className="mt-4 text-center text-sm text-zinc-500">{picked.length + 1} pessoas, contigo.</p>
+          </div>
+        ) : (
+          <>
+            <div className="shrink-0 px-4 pb-1">
+              <label className="flex h-11 items-center gap-2 rounded-full bg-zinc-100 px-4 text-zinc-500 transition focus-within:bg-zinc-200/70">
+                <Icon name="search" size={18} />
+                <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Procurar" aria-label="Procurar pessoas" className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
+              </label>
+              {picked.length > 0 && (
+                <div className="mt-3 flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {picked.map((p) => (
+                    <button key={p.username} type="button" onClick={() => toggle(p)} aria-label={`Tirar ${p.displayName}`} className="relative flex w-[60px] shrink-0 flex-col items-center gap-1 active:scale-95">
+                      <span className="relative">
+                        <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={52} ring={false} />
+                        <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-white ring-2 ring-white"><Icon name="x" size={12} strokeWidth={3} /></span>
+                      </span>
+                      <span className="w-full truncate text-center text-[12px] text-zinc-700">{p.displayName.split(' ')[0]}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+              {!text.trim() && rows.length > 0 && <li className="px-3 pb-1 pt-3 text-[13px] font-bold text-zinc-500">Sugestões</li>}
+              {rows.length === 0 && <li className="py-12 text-center text-zinc-500">{text.trim() ? 'Ninguém com esse nome' : 'Procura pelo nome ou @.'}</li>}
+              {rows.map((p) => {
+                const on = isPicked(p.username);
+                return (
+                  <li key={p.username}>
+                    <button type="button" onClick={() => toggle(p)} aria-pressed={on} className="flex min-h-[60px] w-full items-center gap-3 rounded-2xl px-3 text-left active:bg-zinc-100">
+                      <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={46} ring={false} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold">{p.displayName}</span>
+                        <span className="block truncate text-sm text-zinc-500">@{p.username}</span>
+                      </span>
+                      <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 transition ${on ? 'border-brand bg-brand text-white' : 'border-zinc-300'}`} aria-hidden>{on && <Icon name="check" size={14} strokeWidth={3} />}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+
+        <div className="shrink-0 border-t border-zinc-100 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+          {err && <p role="alert" className="mb-2 text-center text-sm text-red-600">{err}</p>}
+          <div className="flex gap-2">
+            {naming && <button type="button" onClick={() => setNaming(false)} className="h-12 rounded-full px-5 font-semibold text-zinc-700 active:bg-zinc-100">Voltar</button>}
+            <button type="button" onClick={go} disabled={busy || picked.length === 0} className="h-12 flex-1 rounded-full bg-brand text-[16px] font-bold text-white transition active:scale-[0.98] disabled:opacity-40">{busy ? 'A criar…' : label}</button>
+          </div>
+          {!addTo && !naming && picked.length === 1 && <p className="mt-2 text-center text-xs text-zinc-500">Escolhe mais pessoas para criar um grupo.</p>}
+        </div>
       </div>
-      {!addTo && !naming && picked.length === 1 && <p className="mt-2 text-center text-xs text-zinc-500">Escolhe mais pessoas para criar um grupo.</p>}
-    </Sheet>
+    </div>
   );
 }
