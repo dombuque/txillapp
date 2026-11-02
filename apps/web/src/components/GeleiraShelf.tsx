@@ -84,8 +84,8 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
           </span>
           {total > 0 && <span className="mt-1 inline-block rounded-full bg-sky-100 px-2.5 py-0.5 text-[12px] font-bold text-sky-700">{FROST_LABEL[frostLevel(total)]}</span>}
           {compact && (
-            <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="mt-2 flex h-10 items-center gap-1.5 rounded-full bg-sky-500 px-4 text-[14px] font-bold text-white shadow-[0_3px_8px_rgba(14,116,144,0.3)] transition active:scale-95">
-              {open ? 'Fechar geleira' : 'Abrir geleira'} <Icon name="chevron-right" size={16} strokeWidth={3} className={`transition-transform ${open ? '-rotate-90' : 'rotate-90'}`} />
+            <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="mt-2 flex h-9 items-center gap-1 rounded-full bg-sky-100 px-3.5 text-[13px] font-bold text-sky-700 transition active:scale-95">
+              {open ? 'Fechar geleira' : 'Abrir geleira'} <Icon name="chevron-right" size={14} strokeWidth={3} className={`transition-transform ${open ? '-rotate-90' : 'rotate-90'}`} />
             </button>
           )}
         </div>
