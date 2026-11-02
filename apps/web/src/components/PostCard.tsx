@@ -253,7 +253,10 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
       { kind: 'gifts', n: post.gifts, icon: 'present', label: rows[2].label },
     ];
     const canSee = (k: PeopleKind) => post.kind !== 'repost' && !!post.lists?.[k];
-    const barBtn = 'flex min-h-12 flex-1 items-center justify-center gap-2 px-1 text-[16px] font-medium text-zinc-800 transition active:scale-95';
+    const barBtn = 'flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 px-0.5 text-[15px] font-medium text-zinc-800 transition active:scale-95 [&>svg]:shrink-0';
+    // Em ecrãs estreitos só os ícones (o texto fica no aria-label), para nada ficar cortado.
+    const word = 'hidden min-[380px]:inline';
+    const canRepost = post.kind === 'post' || (post.kind === 'repost' && !!post.body);
     return (
       <>
         <div className="mt-3 flex min-h-8 items-center justify-between gap-3 text-[15px] text-zinc-700">
@@ -276,14 +279,19 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
         <div className="mt-1 flex items-center border-t border-zinc-200">
           <button onClick={cheer} aria-pressed={post.cheered} aria-label={post.cheered ? 'Tirar o brinde' : 'Brindar'} className={`${barBtn} ${post.cheered ? '!text-green-700' : ''}`}>
             <span key={String(post.cheered)} className={`inline-flex ${post.cheered ? 'animate-[pop_.4s_ease-out]' : ''}`}><Icon name="cheers" size={24} /></span>
-            {post.cheered ? 'Brindou' : 'Brindar'}
+            <span className={word}>{post.cheered ? 'Brindou' : 'Brindar'}</span>
           </button>
           <button onClick={() => setSheet('comments')} aria-label={`Comentar (${post.comments})`} className={barBtn}>
-            <CommentIcon /> Comentar
+            <CommentIcon /> <span className={word}>Comentar</span>
           </button>
+          {canRepost && (
+            <button onClick={() => setSheet('repost')} aria-label={post.reposted ? `Repost feito (${post.reposts})` : `Repostar (${post.reposts})`} aria-pressed={post.reposted} className={`${barBtn} !flex-none w-12 ${post.reposted ? '!text-green-700' : ''}`}>
+              <RepostIcon />
+            </button>
+          )}
           {!mine && post.canGift ? (
             <button onClick={() => setSheet('gift')} aria-label={`Presentear (${post.gifts})`} className={barBtn}>
-              <GiftIcon /> Presentear
+              <GiftIcon /> <span className={word}>Presentear</span>
             </button>
           ) : (
             // Sem seguir (ou nas próprias publicações) não há presente: o espaço mantém as ações alinhadas.
@@ -427,12 +435,9 @@ function ImageViewer({ post, start, onClose }: { post: Post; start: number; onCl
 export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean }) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [open, setOpen] = useState<null | 'menu' | 'report' | 'delete' | 'share' | 'repost'>(null);
+  const [open, setOpen] = useState<null | 'menu' | 'report' | 'delete' | 'share'>(null);
   const [note, setNote] = useState('');
   const mine = post.author.id === user?.id;
-  const patch = usePatch(post.id);
-  // Fora da barra de ações (cartão normal): repostar vive aqui.
-  const canRepost = !dark && (post.kind === 'post' || (post.kind === 'repost' && !!post.body));
 
   async function copy() {
     try {
@@ -460,7 +465,6 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
       </button>
       {open === 'menu' && (
         <Sheet title="Publicação" onClose={() => setOpen(null)}>
-          {canRepost && <MenuRow icon={<RepostIcon />} title={post.reposted ? 'Repost feito' : 'Repostar'} text={post.reposted ? 'Toca para desfazer ou comentar.' : 'Partilha no teu perfil, com ou sem comentário.'} onClick={() => setOpen('repost')} />}
           <MenuRow icon={<Icon name="share" />} title="Partilhar" text="No teu status, por ligação ou por outra app." onClick={() => setOpen('share')} />
           <MenuRow icon={<Icon name="link" />} title="Copiar ligação" text={note || 'Para partilhares onde quiseres.'} onClick={copy} />
           {mine ? (
@@ -480,7 +484,6 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
           <button onClick={() => setOpen(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">Cancelar</button>
         </Sheet>
       )}
-      {open === 'repost' && <RepostSheet post={post} onChange={patch} onClose={() => setOpen(null)} />}
       {open === 'share' && <ShareSheet post={post} onClose={() => setOpen(null)} />}
       {open === 'report' && <ReportSheet type="post" id={post.id} onClose={() => setOpen(null)} />}
     </>

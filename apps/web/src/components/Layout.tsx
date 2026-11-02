@@ -99,9 +99,9 @@ export default function Layout() {
             to="/new"
             aria-label="Nova publicação"
             data-tour="new"
-            className={({ isActive }) => `-mt-3 flex h-[60px] w-14 shrink-0 items-center justify-center rounded-[18px] border-[2.5px] transition active:scale-90 ${isActive ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-700 bg-white text-zinc-700'}`}
+            className={({ isActive }) => `-mt-4 flex h-[62px] w-[62px] shrink-0 items-center justify-center rounded-[22px] shadow-[0_4px_16px_rgba(0,0,0,0.22)] transition active:scale-90 ${isActive ? 'bg-green-600 text-white' : 'bg-white text-green-600'}`}
           >
-            <PlusIcon width={30} height={30} strokeWidth={2.2} />
+            <PlusIcon width={38} height={38} strokeWidth={2.2} />
           </NavLink>
           <Item to="/reels" label="Reels" tour="reels">{() => <Icon name="film" size={27} />}</Item>
           <Item to="/profile" label="Perfil" onClick={tapTab} tour="profile">
