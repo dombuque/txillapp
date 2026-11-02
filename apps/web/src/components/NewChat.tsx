@@ -11,7 +11,7 @@ interface Person { username: string; displayName: string; hasAvatar: boolean }
  * Nova conversa: procura uma pessoa e conversa, ou escolhe duas ou mais para criar um grupo (com nome).
  * As pessoas escolhidas ficam em cima, como etiquetas que se podem tirar.
  */
-export default function NewChat({ onClose, addTo }: { onClose: () => void; addTo?: { groupId: string; have: string[]; onAdded: () => void } }) {
+export default function NewChat({ onClose, addTo, onCreated }: { onClose: () => void; addTo?: { groupId: string; have: string[]; onAdded: () => void }; onCreated?: (g: { id: string; name: string }) => void }) {
   const navigate = useNavigate();
   const [text, setText] = useState('');
   const [picked, setPicked] = useState<Person[]>([]);
@@ -51,7 +51,8 @@ export default function NewChat({ onClose, addTo }: { onClose: () => void; addTo
     try {
       const r = await api.chatGroupCreate(name.trim(), picked.map((p) => p.username));
       onClose();
-      navigate(`/messages/g/${r.id}`);
+      if (onCreated) onCreated({ id: r.id, name: name.trim() });
+      else navigate(`/messages/g/${r.id}`);
     } catch (e) {
       setErr((e as Error).message);
       setBusy(false);

@@ -125,6 +125,12 @@ export class PostsController {
     return this.posts.gift(req.userId!, id, b.amount, requireIdempotencyKey(key), b.note, b.visibility);
   }
 
+  /** Uma publicação pelo código curto do link (txillapp.com/p/Ab3xK9q). */
+  @Get('code/:code')
+  byCode(@Req() req: AuthedReq, @Param('code') code: string) {
+    return this.posts.getByCode(req.userId!, code);
+  }
+
   /** Uma publicação (para abrir a partir de notificações e ligações). Última rota: não esconde as outras. */
   @Get(':id')
   one(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {

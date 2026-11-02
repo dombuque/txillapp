@@ -330,7 +330,7 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     expect((await thread(stranger, me)).relation).toMatchObject({ theyFollow: true, left: null });
   });
 
-  it('notas de 24 h: só quem a pessoa escolhe vê; amigos próximos; expira; responder vai para o chat', async () => {
+  it('notas de 24 h: só os seguidores veem; não se edita; responder vai para o chat', async () => {
     const { ca, cb, cc, cj } = u; // ca, cb, cc seguem-se; cj não é seguido por ninguém
     const notes = async (x: U) => (await api().get('/api/v1/notes').set(auth(x)).expect(200)).body as { mine: { body: string } | null; items: { username: string; body: string }[] };
     await api().put('/api/v1/notes/me').set(auth(ca)).send({ body: '' }).expect(400);
@@ -338,21 +338,19 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     await api().put('/api/v1/notes/me').set(auth(ca)).send({ body: 'Quem vai à praia hoje?' }).expect(204);
 
     expect((await notes(ca)).mine?.body).toBe('Quem vai à praia hoje?');
-    expect((await notes(cb)).items.map((n) => n.username)).toContain(ca.username); // seguem-se um ao outro
-    expect((await notes(cj)).items.map((n) => n.username)).not.toContain(ca.username); // não é seguidor de volta
+    expect((await notes(cb)).items.map((n) => n.username)).toContain(ca.username); // segue ca
+    expect((await notes(cj)).items.map((n) => n.username)).not.toContain(ca.username); // não segue ca
 
-    // Só para amigos próximos: quem não está na lista deixa de a ver.
-    await api().put('/api/v1/notes/me').set(auth(ca)).send({ body: 'Só os meus', audience: 'close_friends' }).expect(204);
-    expect((await notes(cb)).items.map((n) => n.username)).not.toContain(ca.username);
-    await pool.query('INSERT INTO social.close_friends (owner_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [ca.id, cb.id]);
-    expect((await notes(cb)).items.find((n) => n.username === ca.username)?.body).toBe('Só os meus');
-    expect((await notes(cc)).items.map((n) => n.username)).not.toContain(ca.username);
+    // Não se edita: tentar publicar outra com a primeira ativa é recusado; só apagando.
+    await api().put('/api/v1/notes/me').set(auth(ca)).send({ body: 'Só os meus' }).expect(409);
+    expect((await notes(ca)).mine?.body).toBe('Quem vai à praia hoje?');
+    expect((await notes(cc)).items.map((n) => n.username)).toContain(ca.username); // cc também segue ca
 
     // Responder: chega ao dono como mensagem, a dizer a que nota responde; quem não a vê não pode responder.
     await api().post(`/api/v1/notes/${ca.username}/reply`).set(auth(cb)).send({ text: 'eu vou!' }).expect(201);
-    await api().post(`/api/v1/notes/${ca.username}/reply`).set(auth(cc)).send({ text: 'e eu?' }).expect(404);
+    await api().post(`/api/v1/notes/${ca.username}/reply`).set(auth(cj)).send({ text: 'e eu?' }).expect(404);
     const got = ((await thread(ca, cb)).items as { body: string; fromMe: boolean }[]).find((m) => !m.fromMe && m.body.includes('eu vou!'))!;
-    expect(got.body).toContain('Só os meus');
+    expect(got.body).toContain('Quem vai à praia hoje?');
 
     // Expira passadas 24 h; apagar também a tira.
     await pool.query(`UPDATE social.notes SET expires_at = now() - interval '1 minute' WHERE user_id = $1`, [ca.id]);
@@ -361,7 +359,6 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     await api().put('/api/v1/notes/me').set(auth(ca)).send({ body: 'outra' }).expect(204);
     await api().delete('/api/v1/notes/me').set(auth(ca)).expect(204);
     expect((await notes(ca)).mine).toBeNull();
-    await pool.query('DELETE FROM social.close_friends WHERE owner_id = $1', [ca.id]);
   });
 
   it('visualização única: o conteúdo não vai na lista, abre-se uma vez e é apagado; só o destinatário abre', async () => {

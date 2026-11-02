@@ -1,32 +1,111 @@
-import { postShare, shareNow } from '../lib/share';
-import { useState } from 'react';
-import { api, type Post } from '../lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
 import { track } from '../lib/analytics';
-import Icon from './Icon';
-import SendToChat from './SendToChat';
-import { Sheet } from './ui';
+import { api, type Post } from '../lib/api';
+import { postLink, postShare, shareNow } from '../lib/share';
+import Icon, { type IconName } from './Icon';
+import NewChat from './NewChat';
+import { Avatar } from './ui';
 
-const row = 'flex w-full items-center gap-4 rounded-2xl px-1 py-3 text-left transition active:bg-zinc-100 disabled:opacity-60';
-const dot = 'flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800';
+/** Uma conversa (pessoa ou grupo) na grelha de partilha. */
+interface Target {
+  key: string;
+  kind: 'user' | 'group';
+  id: string; // @utilizador ou id do grupo
+  name: string;
+  avatars: { name: string; username?: string }[];
+  online: boolean;
+  /** Minutos desde que esteve online (só se foi há menos de uma hora). */
+  recent: number | null;
+  at: string;
+}
 
 /**
- * Partilhar uma publicação ou reel: no meu status (story), por ligação, ou pelo sistema (WhatsApp, etc.).
- * Só publicações públicas com foto ou vídeo vão para o status.
+ * Partilhar uma publicação ou reel, como no Instagram: pesquisa e "criar grupo" no topo, grelha das conversas recentes
+ * (toca para escolher várias) e, em baixo, as ações: status, amigos próximos, WhatsApp, copiar link e o menu do telemóvel.
+ * Escolhidas pessoas, a barra de baixo passa a ser uma mensagem opcional e o botão Enviar.
  */
-export default function ShareSheet({ post, onClose, layer }: { post: Post; onClose: () => void; layer?: string }) {
+export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Post; onClose: () => void; layer?: string }) {
+  const [term, setTerm] = useState('');
+  const [picked, setPicked] = useState<Target[]>([]);
+  const [message, setMessage] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const [chat, setChat] = useState(false);
-  const url = `${location.origin}/p/${post.id}`;
+  const [grouping, setGrouping] = useState(false);
+  const url = postLink(post);
+  const video = post.media[0]?.kind === 'video';
   const canStory = post.kind === 'post' && post.media.length > 0;
+
+  const direct = useQuery({ queryKey: ['chat-list'], queryFn: api.chatList, staleTime: 30_000 });
+  const groups = useQuery({ queryKey: ['chat-groups'], queryFn: api.chatGroups, staleTime: 30_000 });
+  const t = term.trim().replace(/^@/, '').toLowerCase();
+  const found = useQuery({ queryKey: ['mentionable', t], queryFn: () => api.mentionable(t), enabled: t.length >= 1, staleTime: 30_000 });
+
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [onClose]);
+
+  const recents = useMemo<Target[]>(() => {
+    const mins = (iso: string | null | undefined) => (iso ? Math.round((Date.now() - new Date(iso).getTime()) / 60000) : null);
+    const people = (direct.data ?? []).filter((c) => !c.request).map((c): Target => {
+      const m = mins(c.presence?.lastSeen);
+      return {
+        key: `u:${c.username}`, kind: 'user', id: c.username, name: c.displayName,
+        avatars: [{ name: c.displayName, username: c.hasAvatar ? c.username : undefined }],
+        online: !!c.presence?.online, recent: !c.presence?.online && m !== null && m < 60 ? Math.max(1, m) : null, at: c.lastMessage.at,
+      };
+    });
+    const gs = (groups.data ?? []).map((g): Target => ({
+      key: `g:${g.id}`, kind: 'group', id: g.id, name: g.name,
+      avatars: g.preview.slice(0, 2).map((p) => ({ name: p.displayName, username: p.hasAvatar ? p.username : undefined })),
+      online: false, recent: null, at: g.lastMessage.at,
+    }));
+    return [...people, ...gs].sort((a, b) => +new Date(b.at) - +new Date(a.at));
+  }, [direct.data, groups.data]);
+
+  const list = useMemo<Target[]>(() => {
+    if (!t) return recents;
+    const have = new Set(recents.map((r) => r.key));
+    const hits = recents.filter((r) => r.name.toLowerCase().includes(t) || r.id.toLowerCase().includes(t));
+    const more = (found.data ?? [])
+      .filter((p) => !have.has(`u:${p.username}`))
+      .map((p): Target => ({ key: `u:${p.username}`, kind: 'user', id: p.username, name: p.displayName, avatars: [{ name: p.displayName, username: p.hasAvatar ? p.username : undefined }], online: false, recent: null, at: '' }));
+    return [...hits, ...more];
+  }, [t, recents, found.data]);
+
+  const isPicked = (k: string) => picked.some((p) => p.key === k);
+  const toggle = (x: Target) => setPicked((l) => (isPicked(x.key) ? l.filter((p) => p.key !== x.key) : [...l, x]));
+
+  async function sendAll() {
+    setBusy(true);
+    setNote('');
+    const failed: string[] = [];
+    for (const x of picked) {
+      try {
+        const body = (kind: 'post' | 'text', text: string) => ({ kind, body: text });
+        const send = (b: { kind: 'post' | 'text'; body: string }) => (x.kind === 'user' ? api.chatSend(x.id, b) : api.chatGroupSend(x.id, b));
+        await send(body('post', post.id));
+        if (message.trim()) await send(body('text', message.trim()));
+      } catch (e) {
+        failed.push(`${x.name}: ${(e as Error).message}`);
+      }
+    }
+    track('share', { where: 'chat', video, to: picked.length });
+    setBusy(false);
+    if (failed.length) return setNote(failed.join(' · '));
+    setNote(picked.length === 1 ? `Enviado a ${picked[0].name}` : `Enviado a ${picked.length} conversas`);
+    setTimeout(onClose, 900);
+  }
 
   async function toStory(audience: 'all' | 'close_friends') {
     setBusy(true);
     try {
       await api.shareToStory(post.id, audience);
-      track('share', { where: 'story', video: post.media[0]?.kind === 'video' });
-      setNote(audience === 'all' ? 'Partilhado no teu status' : 'Partilhado com amigos próximos');
-      setTimeout(onClose, 1100);
+      track('share', { where: 'story', video });
+      setNote(audience === 'all' ? 'Adicionado ao teu status' : 'Partilhado com amigos próximos');
+      setTimeout(onClose, 1000);
     } catch (e) {
       setNote((e as Error).message);
       setBusy(false);
@@ -35,61 +114,109 @@ export default function ShareSheet({ post, onClose, layer }: { post: Post; onClo
   async function copy() {
     try {
       await navigator.clipboard.writeText(url);
-      setNote('Ligação copiada');
+      setNote('Link copiado');
     } catch {
       setNote('Não consegui copiar');
     }
   }
+  const data = postShare(post.author.displayName, post.body, url);
+  function whatsapp() {
+    track('share', { where: 'whatsapp' });
+    window.open(`https://wa.me/?text=${encodeURIComponent(`${data.text}\n${url}`)}`, '_blank', 'noopener');
+  }
   async function system() {
     track('share', { where: 'system' });
-    const r = await shareNow(postShare(post.author.displayName, post.body, url));
+    const r = await shareNow(data);
     if (r === 'shared') onClose();
     else if (r === 'copied') setNote('Texto e link copiados');
     else if (r === 'failed') setNote('Não consegui copiar');
   }
 
-  if (chat) return <SendToChat post={post} onClose={onClose} layer={layer} />;
+  const action = (icon: IconName, label: string, run: () => void, tone = 'bg-zinc-100 text-zinc-900', disabled = false) => (
+    <button key={label} type="button" onClick={run} disabled={disabled || busy} className="flex w-[74px] shrink-0 flex-col items-center gap-1.5 active:scale-95 disabled:opacity-50">
+      <span className={`flex h-14 w-14 items-center justify-center rounded-full ${tone}`}><Icon name={icon} size={26} /></span>
+      <span className="w-full text-center text-[12px] font-medium leading-tight text-zinc-700">{label}</span>
+    </button>
+  );
+
   return (
-    <Sheet title="Partilhar" onClose={onClose} layer={layer}>
-      {note && <p role="status" className="mb-2 rounded-xl bg-zinc-50 px-3 py-2 text-center text-sm font-semibold">{note}</p>}
-      <button onClick={() => setChat(true)} className={row}>
-        <span className={dot}><Icon name="send" /></span>
-        <span>
-          <span className="block text-[17px] font-semibold">Enviar no chat</span>
-          <span className="block text-sm text-zinc-600">Manda a {post.media[0]?.kind === 'video' ? 'este reel' : 'esta publicação'} a quem quiseres.</span>
-        </span>
-      </button>
-      {canStory && (
-        <>
-          <button disabled={busy} onClick={() => toStory('all')} className={row}>
-            <span className={dot}><Icon name="camera" /></span>
-            <span>
-              <span className="block text-[17px] font-semibold">Adicionar ao meu status</span>
-              <span className="block text-sm text-zinc-600">Fica 24 horas. Quem tocar abre {post.media[0]?.kind === 'video' ? 'o reel' : 'a publicação'} no Txillapp.</span>
-            </span>
-          </button>
-          <button disabled={busy} onClick={() => toStory('close_friends')} className={row}>
-            <span className={dot}><Icon name="heart" /></span>
-            <span>
-              <span className="block text-[17px] font-semibold">Só para amigos próximos</span>
-              <span className="block text-sm text-zinc-600">Só quem está na tua lista vê.</span>
-            </span>
-          </button>
-        </>
+    <>
+      <div className={`fixed inset-0 ${layer} flex items-end justify-center bg-black/40`} onClick={onClose} role="presentation">
+        <div role="dialog" aria-modal="true" aria-label="Partilhar" className="flex max-h-[88dvh] w-full max-w-xl animate-[rise_.25s_ease-out] flex-col rounded-t-[28px] bg-white" onClick={(e) => e.stopPropagation()}>
+          <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-zinc-300" aria-hidden />
+
+          <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-3">
+            <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full bg-zinc-100 px-4 text-zinc-500 transition focus-within:bg-zinc-200/70">
+              <Icon name="search" size={18} />
+              <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Procurar" aria-label="Procurar pessoas e grupos" className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
+            </label>
+            <button type="button" onClick={() => setGrouping(true)} aria-label="Criar grupo" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-900 active:scale-90"><Icon name="user-plus" size={22} /></button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-2">
+            {(direct.isLoading || groups.isLoading) && <p className="py-10 text-center text-zinc-500">A carregar…</p>}
+            {!direct.isLoading && list.length === 0 && <p className="py-10 text-center text-zinc-500">{t ? 'Ninguém com esse nome' : 'Ainda não tens conversas. Procura alguém pelo nome.'}</p>}
+            <ul className="grid grid-cols-3 gap-y-4 pt-2">
+              {list.map((x) => {
+                const on = isPicked(x.key);
+                return (
+                  <li key={x.key}>
+                    <button type="button" onClick={() => toggle(x)} aria-pressed={on} className="flex w-full flex-col items-center gap-1.5 px-1 active:scale-95">
+                      <span className="relative block h-[72px] w-[72px]">
+                        {x.kind === 'group' ? (
+                          <span className="relative block h-full w-full">
+                            {x.avatars.slice(0, 2).map((a, i) => (
+                              <span key={i} className={`absolute rounded-full ring-2 ring-white ${i === 0 ? 'left-0 top-0' : 'bottom-0 right-0'}`}><Avatar name={a.name} username={a.username} size={46} ring={false} /></span>
+                            ))}
+                            {x.avatars.length === 0 && <span className="flex h-full w-full items-center justify-center rounded-full bg-zinc-100 text-zinc-600"><Icon name="users" size={30} /></span>}
+                          </span>
+                        ) : (
+                          <Avatar name={x.avatars[0].name} username={x.avatars[0].username} size={72} ring={false} />
+                        )}
+                        {x.online && <span className="absolute bottom-0.5 right-0.5 h-4 w-4 rounded-full border-[3px] border-white bg-emerald-500" aria-label="Online" />}
+                        {x.recent !== null && <span className="absolute -bottom-1 right-0 rounded-full border-2 border-white bg-emerald-100 px-1.5 text-[11px] font-bold leading-4 text-emerald-700">{x.recent}m</span>}
+                        {on && <span className="absolute inset-0 flex items-center justify-center rounded-full bg-brand/70 text-white"><Icon name="check" size={32} strokeWidth={3} /></span>}
+                      </span>
+                      <span className="line-clamp-2 w-full break-words text-center text-[13px] font-medium leading-tight text-zinc-800">{x.name}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {note && <p role="status" className="mx-4 mb-1 rounded-xl bg-zinc-50 px-3 py-2 text-center text-sm font-semibold text-zinc-800">{note}</p>}
+
+          {picked.length > 0 ? (
+            <div className="shrink-0 border-t border-zinc-100 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+              <input value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} placeholder="Escrever uma mensagem…" aria-label="Mensagem" className="h-12 w-full rounded-full bg-zinc-100 px-5 text-[16px] outline-none placeholder:text-zinc-500 focus:bg-zinc-200/70" />
+              <button type="button" onClick={sendAll} disabled={busy} className="mt-3 h-12 w-full rounded-full bg-brand text-[17px] font-bold text-white transition active:scale-[0.98] disabled:opacity-60">
+                {busy ? 'A enviar…' : picked.length === 1 ? `Enviar a ${picked[0].name.split(' ')[0]}` : `Enviar a ${picked.length} conversas`}
+              </button>
+            </div>
+          ) : (
+            <div className="shrink-0 border-t border-zinc-100 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
+              <div className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {canStory && action('square-plus', 'Adicionar ao status', () => void toStory('all'))}
+                {canStory && action('heart', 'Amigos próximos', () => void toStory('close_friends'))}
+                {action('send', 'WhatsApp', whatsapp, 'bg-emerald-500 text-white')}
+                {action('link', 'Copiar link', () => void copy())}
+                {typeof navigator.share === 'function' && action('share', 'Partilhar…', () => void system())}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      {grouping && (
+        <NewChat
+          onClose={() => setGrouping(false)}
+          onCreated={(g) => {
+            // O grupo acabado de criar entra já escolhido, pronto a receber a publicação.
+            setPicked((l) => [...l, { key: `g:${g.id}`, kind: 'group', id: g.id, name: g.name, avatars: [], online: false, recent: null, at: new Date().toISOString() }]);
+            void groups.refetch();
+          }}
+        />
       )}
-      <button onClick={copy} className={row}>
-        <span className={dot}><Icon name="link" /></span>
-        <span className="text-[17px] font-semibold">Copiar ligação</span>
-      </button>
-      {typeof navigator.share === 'function' && (
-        <button onClick={system} className={row}>
-          <span className={dot}><Icon name="share" /></span>
-          <span>
-            <span className="block text-[17px] font-semibold">Outras redes e apps</span>
-            <span className="block text-sm text-zinc-600">WhatsApp, Facebook, SMS…</span>
-          </span>
-        </button>
-      )}
-    </Sheet>
+    </>
   );
 }

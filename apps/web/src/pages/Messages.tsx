@@ -14,6 +14,7 @@ function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, g
   if (m.kind === 'image') return `${you}${m.body || 'Foto'}`;
   if (m.kind === 'voice') return `${you}Mensagem de voz`;
   if (m.kind === 'post') return `${you}Partilhou uma publicação`;
+  if (m.kind === 'gift') return `${m.fromMe ? 'Tu: ' : ''}Presente`;
   if (m.kind === 'sticker') return `${you}Sticker`;
   if (m.kind === 'location') return `${you}Localização`;
   if (m.kind === 'story_reaction') return m.fromMe ? `Reagiste ao story ${m.body}` : `Reagiu ao teu story ${m.body}`;

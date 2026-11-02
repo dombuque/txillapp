@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
 import { blockedBetween } from '../social/visibility';
@@ -6,7 +6,7 @@ import { ChatService } from './chat.service';
 
 export type NoteAudience = 'mutual' | 'close_friends';
 
-/** Notas de 24 horas por cima da foto de perfil. Só quem a pessoa escolhe as vê (quem segue de volta, ou os amigos próximos). */
+/** Notas de 24 horas por cima da foto de perfil. Só os seguidores da pessoa as vêem. Não se editam: apaga-se e publica-se outra. */
 @Injectable()
 export class NotesService {
   constructor(
@@ -22,9 +22,7 @@ export class NotesService {
         WHERE n.expires_at > now()
           AND (n.user_id = $1 OR (
                 NOT ${blockedBetween('u.id', '$1')}
-                AND ((n.audience = 'mutual' AND EXISTS (SELECT 1 FROM social.follows a WHERE a.follower_id = $1 AND a.followee_id = u.id)
-                                            AND EXISTS (SELECT 1 FROM social.follows b WHERE b.follower_id = u.id AND b.followee_id = $1))
-                  OR (n.audience = 'close_friends' AND EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $1)))))
+                AND EXISTS (SELECT 1 FROM social.follows a WHERE a.follower_id = $1 AND a.followee_id = u.id)))
         ORDER BY n.created_at DESC LIMIT 60`,
       [me],
     );
@@ -41,13 +39,18 @@ export class NotesService {
     return { mine: mine ? map(mine) : null, items: rows.filter((r) => r.user_id !== me).map(map) };
   }
 
-  /** Criar ou trocar a minha nota (recomeça as 24 horas). */
-  async set(me: string, body: string, audience: NoteAudience) {
-    await this.pool.query(
-      `INSERT INTO social.notes (user_id, body, audience, created_at, expires_at) VALUES ($1, $2, $3, now(), now() + interval '24 hours')
-       ON CONFLICT (user_id) DO UPDATE SET body = $2, audience = $3, created_at = now(), expires_at = now() + interval '24 hours'`,
-      [me, body.trim(), audience],
-    );
+  /** Publicar a minha nota (24 horas, para os seguidores). Não se troca: para escrever outra, apaga-se esta primeiro. */
+  async set(me: string, body: string) {
+    await this.pool.query('DELETE FROM social.notes WHERE user_id = $1 AND expires_at <= now()', [me]);
+    try {
+      await this.pool.query(
+        `INSERT INTO social.notes (user_id, body, audience, created_at, expires_at) VALUES ($1, $2, 'mutual', now(), now() + interval '24 hours')`,
+        [me, body.trim()],
+      );
+    } catch (e) {
+      if ((e as { code?: string }).code === '23505') throw new ConflictException('Já tens uma nota. Apaga-a para publicar outra');
+      throw e;
+    }
   }
 
   async remove(me: string) {

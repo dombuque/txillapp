@@ -1,6 +1,7 @@
 import ShareSheet from './ShareSheet';
 import VideoPlayer from './VideoPlayer';
 import { track } from '../lib/analytics';
+import { postLink } from '../lib/share';
 import { sized, srcSet } from '../lib/media';
 import VerifiedBadge from './VerifiedBadge';
 import MentionTextarea from './MentionTextarea';
@@ -442,7 +443,7 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(`${location.origin}/p/${post.id}`);
+      await navigator.clipboard.writeText(postLink(post));
       setNote('Ligação copiada');
     } catch {
       setNote('Não consegui copiar');

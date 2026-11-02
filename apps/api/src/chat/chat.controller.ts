@@ -20,7 +20,7 @@ const liveSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().
 
 const sendSchema = z.object({
   body: z.string().trim().max(2000).default(''),
-  kind: z.enum(['text', 'image', 'voice', 'sticker', 'location', 'post']).default('text'),
+  kind: z.enum(['text', 'image', 'voice', 'sticker', 'location', 'post', 'gift']).default('text'),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
   once: z.boolean().optional(),

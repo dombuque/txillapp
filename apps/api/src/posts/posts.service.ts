@@ -15,7 +15,7 @@ export const MAX_PHOTOS = 10;
 export type GiftVisibility = 'silent' | 'private' | 'public';
 
 const FEED_SQL = `
-  SELECT p.id, p.body, p.location_label, p.created_at, p.kind, p.gift_amount, p.repost_of,
+  SELECT p.id, p.short_code, p.body, p.location_label, p.created_at, p.kind, p.gift_amount, p.repost_of,
          u.id AS author_id, u.username, u.display_name, u.verified AS author_verified,
          gr.username AS gift_username, gr.display_name AS gift_display_name,
          ${allowedBy('u', 'comments_allowed')} AS can_comment,
@@ -337,6 +337,14 @@ export class PostsService {
     return { items: await this.hydrate(viewerId, page), nextCursor: sort === 'recent' && rows.length > limit ? page[page.length - 1].id : null };
   }
 
+  /** Uma publicação pelo código curto dos links (ou pelo id, nos links antigos). */
+  async getByCode(userId: string, code: string) {
+    if (!/^[A-Za-z0-9-]{6,36}$/.test(code)) throw new NotFoundException('Publicação não encontrada');
+    const { rows } = await this.pool.query('SELECT id FROM content.posts WHERE short_code = $1 OR id::text = $1', [code]);
+    if (!rows[0]) throw new NotFoundException('Publicação não encontrada');
+    return this.getOne(userId, rows[0].id as string);
+  }
+
   async getOne(userId: string, postId: string) {
     const { rows } = await this.pool.query(`${FEED_SQL} WHERE p.id = $2 AND ${canView()}`, [userId, postId]);
     const [post] = rows[0] ? await this.hydrate(userId, [rows[0]]) : [];
@@ -483,6 +491,8 @@ export class PostsService {
 
   private toDto = (r: Record<string, any>) => ({
     id: r.id,
+    /** Código curto para links limpos (txillapp.com/p/Ab3xK9q). */
+    code: r.short_code as string,
     body: r.body,
     locationLabel: r.location_label,
     media: (r.media as { id: string; video: boolean; durationMs: number | null; w: number | null; h: number | null; tags: PhotoTag[] }[]).map((m) => ({

@@ -47,6 +47,8 @@ export class ApiError extends Error {
 }
 
 export interface Post {
+  /** Código curto para links limpos (txillapp.com/p/Ab3xK9q). */
+  code: string;
   id: string;
   body: string;
   locationLabel: string | null;
@@ -245,7 +247,9 @@ export interface ChatMessage {
   id: string;
   fromMe: boolean;
   body: string;
-  kind: 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post';
+  kind: 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift';
+  /** Presente enviado na conversa: quanto (a nota vai no texto). */
+  giftAmount?: number | null;
   /** Publicação partilhada (só em mensagens do tipo post; null se já não a posso ver). */
   post?: Post | null;
   storyUrl: string | null;
@@ -559,7 +563,7 @@ export const api = {
   postPeople: (postId: string, kind: PeopleKind): Promise<{ username: string; displayName: string; hasAvatar: boolean; verified: boolean; at: string }[]> => raw(`/posts/${postId}/people/${kind}`),
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
   notes: (): Promise<{ mine: Note | null; items: Note[] }> => raw('/notes'),
-  setNote: (body: string, audience: NoteAudience): Promise<void> => raw('/notes/me', { method: 'PUT', body: JSON.stringify({ body, audience }) }),
+  setNote: (body: string): Promise<void> => raw('/notes/me', { method: 'PUT', body: JSON.stringify({ body }) }),
   deleteNote: (): Promise<void> => raw('/notes/me', { method: 'DELETE' }),
   replyNote: (username: string, text: string): Promise<{ id: string }> => raw(`/notes/${encodeURIComponent(username)}/reply`, post({ text })),
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),
@@ -596,7 +600,8 @@ export const api = {
   storyComments: (id: string): Promise<StoryComment[]> => raw(`/stories/${id}/comments`),
   commentStory: (id: string, body: string): Promise<{ id: string }> => raw(`/stories/${id}/comments`, post({ body })),
   deleteStoryComment: (commentId: string): Promise<void> => raw(`/stories/comments/${commentId}`, { method: 'DELETE' }),
-  getPost: (id: string): Promise<Post> => raw(`/posts/${id}`),
+  /** Abre pelo id ou pelo código curto dos links. */
+  getPost: (idOrCode: string): Promise<Post> => raw(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrCode) ? `/posts/${idOrCode}` : `/posts/code/${encodeURIComponent(idOrCode)}`),
   report: (type: Exclude<ReportType, 'media'>, id: string, reason: ReportReason, note?: string): Promise<void> => raw('/reports', post({ type, id, reason, note })),
   removePost: (id: string): Promise<void> => raw(`/posts/${id}`, { method: 'DELETE' }),
   adminQueue: (): Promise<ReportQueueItem[]> => raw('/admin/reports'),

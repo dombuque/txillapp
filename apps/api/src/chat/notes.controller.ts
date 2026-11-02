@@ -9,7 +9,7 @@ import { NotesService } from './notes.service';
 
 type AuthedReq = Request & { userId?: string };
 
-const noteSchema = z.object({ body: z.string().trim().min(1).max(60), audience: z.enum(['mutual', 'close_friends']).default('mutual') });
+const noteSchema = z.object({ body: z.string().trim().min(1).max(60) });
 const replySchema = z.object({ text: z.string().trim().min(1).max(500) });
 
 @Controller('notes')
@@ -27,7 +27,7 @@ export class NotesController {
   @HttpCode(204)
   @Throttle({ default: { limit: 20, ttl: 3_600_000 } })
   set(@Req() req: AuthedReq, @Body(new ZodPipe(noteSchema)) b: z.infer<typeof noteSchema>) {
-    return this.notes.set(req.userId!, b.body, b.audience);
+    return this.notes.set(req.userId!, b.body);
   }
 
   @Delete('me')

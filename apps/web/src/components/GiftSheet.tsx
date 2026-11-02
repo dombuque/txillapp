@@ -17,7 +17,7 @@ const OPTIONS: { value: GiftVisibility; icon: IconName; title: string; text: str
  * Escolhe-se como o dar (discreto, no privado, no feed) e, mesmo depois de enviado, pode-se publicar.
  */
 export default function GiftSheet({
-  recipient, postId, onClose, layer, preset,
+  recipient, postId, onClose, layer, preset, onSent,
 }: {
   /** Destinatário já conhecido (publicação ou perfil). Sem ele, pede-se o @. */
   recipient?: { username: string; displayName: string };
@@ -28,6 +28,8 @@ export default function GiftSheet({
   layer?: string;
   /** Valores sugeridos (por exemplo pelo chat): a pessoa pode sempre mudá-los. */
   preset?: { amount?: number; note?: string; visibility?: GiftVisibility };
+  /** Chamado quando o presente foi enviado (por exemplo, o chat mostra-o na conversa). */
+  onSent?: (r: { transactionId: string; amount: number; note: string }) => void;
 }) {
   const qc = useQueryClient();
   const [to, setTo] = useState('');
@@ -57,6 +59,7 @@ export default function GiftSheet({
         ? await api.gift(postId, n, keyRef.current, text, visibility)
         : await api.giftUser({ toUsername: target, amount: n, note: text, visibility }, keyRef.current);
       setSent({ transactionId: r.transactionId, published: visibility === 'public', note: text });
+      onSent?.({ transactionId: r.transactionId, amount: n, note: text });
       for (const key of ['wallet', 'feed', 'profile-posts', 'chat-thread']) qc.invalidateQueries({ queryKey: [key] });
     } catch (x) {
       const m = (x as Error).message;

@@ -15,6 +15,9 @@ export const inviteShare = (name?: string): ShareData => ({
   url: `${SITE_URL}/?c=convite`,
 });
 
+/** O link limpo de uma publicação ou reel: txillapp.com/p/Ab3xK9q (reels: /r/…). Sempre no site público, que mostra a pré-visualização. */
+export const postLink = (post: { code: string; media: { kind?: string }[] }, origin = SITE_URL) => `${origin}/${post.media[0]?.kind === 'video' ? 'r' : 'p'}/${post.code}`;
+
 export const profileShare = (displayName: string, username: string, origin = SITE_URL): ShareData => ({
   title: `${displayName} no Txillapp`,
   text: `Segue @${username} no Txillapp, a rede da malta:`,

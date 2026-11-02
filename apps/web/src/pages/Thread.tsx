@@ -61,12 +61,15 @@ function seenLabel(iso: string | null) {
 /** Mensagem enviada, à espera do servidor: aparece logo e fica "a enviar" ou "não enviada". */
 type Msg = ChatMessage & { state?: 'sending' | 'failed'; realId?: string; sender?: { username: string; displayName: string; hasAvatar: boolean } };
 interface Draft {
-  kind: 'text' | 'image' | 'voice' | 'sticker' | 'location';
+  kind: 'text' | 'image' | 'voice' | 'sticker' | 'location' | 'gift';
+  giftAmount?: number;
   body: string;
   lat?: number;
   lng?: number;
   once?: boolean;
   liveMinutes?: 15 | 60 | 480;
+  /** Texto do presente, só para mostrar já enquanto se envia. */
+  note?: string;
   file?: Blob;
   mime?: string;
   durationMs?: number;
@@ -113,6 +116,18 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
           {m.opened ? 'Aberta' : mine ? 'Visualização única · por abrir' : m.kind === 'image' ? 'Foto · toca para abrir' : m.kind === 'voice' ? 'Voz · toca para abrir' : 'Mensagem · toca para abrir'}
         </button>
       ) : null}
+      {!m.viewOnce && m.kind === 'gift' && (
+        <div className={`w-[240px] overflow-hidden rounded-[20px] bg-gradient-to-br from-brand to-brand-light text-white shadow-[0_2px_10px_rgba(214,51,79,0.35)] ${dim}`}>
+          <div className="flex items-center gap-3 px-4 pt-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/25"><Icon name="gift" size={24} /></span>
+            <span className="min-w-0">
+              <span className="block text-[13px] font-semibold opacity-90">{mine ? 'Enviaste um presente' : 'Enviou-te um presente'}</span>
+              <span className="block text-[24px] font-extrabold leading-tight">{(m.giftAmount ?? 0).toLocaleString('pt-PT')} Txills</span>
+            </span>
+          </div>
+          <p className="px-4 pb-3 pt-1 text-[15px] leading-snug">{m.body || ' '}</p>
+        </div>
+      )}
       {!m.viewOnce && m.kind === 'sticker' && <div className={dim}><Sticker id={m.body} /></div>}
       {!m.viewOnce && m.kind === 'post' && <SharedPost post={m.post ?? null} shape={shape} tone={tone} />}
       {!m.viewOnce && m.kind === 'location' && m.lat != null && m.lng != null && (
@@ -259,7 +274,7 @@ export default function Thread() {
   /** Mostra a mensagem logo; o envio acontece por trás e, se falhar, fica a pedir para tentar de novo. */
   async function dispatch(d: Draft, tmpId = `tmp-${Date.now()}-${seq.current++}`) {
     drafts.current.set(tmpId, d);
-    const msg: Msg = { id: tmpId, fromMe: true, body: d.once ? '' : d.body, kind: d.kind, viewOnce: !!d.once, storyUrl: null, mediaUrl: d.once ? null : (d.localUrl ?? null), durationMs: d.durationMs ?? null, waveform: d.waveform ?? null, at: new Date().toISOString(), state: 'sending' };
+    const msg: Msg = { id: tmpId, fromMe: true, body: d.once ? '' : d.kind === 'gift' ? (d.note ?? '') : d.body, kind: d.kind, giftAmount: d.giftAmount, viewOnce: !!d.once, storyUrl: null, mediaUrl: d.once ? null : (d.localUrl ?? null), durationMs: d.durationMs ?? null, waveform: d.waveform ?? null, at: new Date().toISOString(), state: 'sending' };
     setOutbox((o) => (o.some((x) => x.id === tmpId) ? o.map((x) => (x.id === tmpId ? msg : x)) : [...o, msg]));
     stick.current = true;
     setErr('');
@@ -468,7 +483,9 @@ export default function Thread() {
   }
 
   const person = first?.person;
-  const intent = person?.canGift ? detectIntent(items, person.displayName.split(' ')[0]) : null;
+  // Depois de um presente na conversa a sugestão desaparece: só se olha para o que foi dito a seguir ao último presente.
+  const lastGift = items.map((m) => m.kind).lastIndexOf('gift');
+  const intent = person?.canGift ? detectIntent(lastGift >= 0 ? items.slice(lastGift + 1) : items, person.displayName.split(' ')[0]) : null;
   const suggestion = intent && !dismissed.has(intent.key) && !gift ? intent : null;
   const lastMine = [...items].reverse().find((m) => m.fromMe);
   const seenUpTo = (m: ChatMessage) => !!otherRead && m.id <= otherRead && lastMine?.id === m.id;
@@ -692,6 +709,10 @@ export default function Thread() {
         <GiftSheet
           recipient={{ username: person.username, displayName: person.displayName }}
           preset={gift.amount ? { amount: gift.amount, note: gift.note, visibility: 'private' } : undefined}
+          onSent={(r) => {
+            if (intent) setDismissed((d) => new Set(d).add(intent.key));
+            void dispatch({ kind: 'gift', body: r.transactionId, giftAmount: r.amount, note: r.note });
+          }}
           onClose={() => { setGift(null); void q.refetch(); }}
         />
       )}

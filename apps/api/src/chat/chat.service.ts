@@ -8,7 +8,7 @@ import { MediaService } from '../media/media.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
 
-export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post';
+export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift';
 
 /** Stickers que existem (o desenho está na app; aqui só se confirma que o id é válido). */
 export const STICKERS = ['bora', 'fixe', 'ja-vou', 'a-caminho', 'paga', 'saude', 'saudades', 'obrigado', 'parabens', 'ups', 'dormir', 'fome', 'festa', 'amor', 'rir', 'ok'] as const;
@@ -22,7 +22,7 @@ const pair = (x: string, y: string) => (x < y ? ([x, y] as const) : ([y, x] as c
 
 export interface Outgoing {
   body: string;
-  kind: 'text' | 'image' | 'voice' | 'sticker' | 'location' | 'post';
+  kind: 'text' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift';
   mediaId?: string;
   durationMs?: number;
   waveform?: string;
@@ -218,7 +218,7 @@ export class ChatService {
     const relation = { iFollow: rel.iFollow, theyFollow: rel.theyFollow, request: rel.request, left: rel.left };
     if (!conv) return { person, blocked, relation, otherRead: null, items: [], nextCursor: null };
     const { rows } = await this.pool.query(
-      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.view_once, m.viewed_at, m.live_until, m.created_at FROM social.messages m
+      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.view_once, m.viewed_at, m.live_until, m.gift_amount, m.created_at FROM social.messages m
         WHERE m.conversation_id = $1 AND m.deleted_at IS NULL AND ($2::uuid IS NULL OR m.id < $2) ORDER BY m.id DESC LIMIT $3`,
       [conv, cursor ?? null, PAGE + 1],
     );
@@ -261,6 +261,8 @@ export class ChatService {
         waveform: m.view_once ? null : ((m.waveform as string | null) ?? null),
         lat: (m.lat as number | null) ?? null,
         lng: (m.lng as number | null) ?? null,
+        /** Presente enviado na conversa: quanto (a nota vai no texto). */
+        giftAmount: (m.gift_amount as number | null) ?? null,
         /** Localização em direto ainda a decorrer. */
         live: !!m.live_until && new Date(m.live_until as string).getTime() > Date.now(),
         liveUntil: (m.live_until as string | null) ?? null,
@@ -314,6 +316,28 @@ export class ChatService {
     if (r.blocked) throw new ForbiddenException('Não podes enviar mensagens a esta pessoa');
     if (!r.allowed && !r.spoke) throw new ForbiddenException('Esta pessoa não aceita mensagens novas');
 
+    // Presente na conversa: a mensagem aponta para a transação; só entra se foi mesmo feita por mim a esta pessoa (ninguém inventa presentes).
+    if (msg.kind === 'gift') {
+      if (!/^[0-9a-f-]{36}$/.test(msg.body)) throw new BadRequestException('Presente inválido');
+      const g = (
+        await this.pool.query(
+          `SELECT t.metadata, e.amount, a.user_id AS recipient_id
+             FROM ledger.transactions t
+             JOIN ledger.entries e ON e.transaction_id = t.id AND e.amount > 0
+             JOIN ledger.accounts a ON a.id = e.account_id
+            WHERE t.id = $1 AND t.actor_id = $2 AND t.type = 'gift'`,
+          [msg.body, me],
+        )
+      ).rows[0];
+      if (!g || g.recipient_id !== other.id) throw new BadRequestException('Presente inválido');
+      const note = String((g.metadata as { note?: string } | null)?.note ?? '').slice(0, 280);
+      try {
+        return await this.insert(me, other.id, note, 'gift', null, null, null, null, null, { giftTx: msg.body, giftAmount: Number(g.amount) });
+      } catch (e) {
+        if ((e as { code?: string }).code === '23505') throw new BadRequestException('Este presente já está na conversa');
+        throw e;
+      }
+    }
     const rel = await this.relationOf(me, other.id, await this.conversation(me, other.id, false));
     if (rel.left === 0) {
       throw new ForbiddenException(`Esta pessoa não te segue e ainda não respondeu. Podes escrever outra vez quando ela responder, aceitar ou te seguir.`);
@@ -406,12 +430,12 @@ export class ChatService {
     this.events.emit(other.id, { type: 'typing', from: await this.usernameOf(me) });
   }
 
-  private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null, waveform: string | null, place: { lat: number; lng: number } | null, extra: { once?: boolean; liveMinutes?: number | null } = {}) {
+  private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null, waveform: string | null, place: { lat: number; lng: number } | null, extra: { once?: boolean; liveMinutes?: number | null; giftTx?: string; giftAmount?: number } = {}) {
     const conv = await this.conversation(me, other, true);
     const id = uuidv7();
     await this.pool.query(
-      "INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms, waveform, lat, lng, view_once, live_until) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CASE WHEN $13::int IS NULL THEN NULL ELSE now() + ($13::int * interval '1 minute') END)",
-      [id, conv, me, body, kind, storyMediaId, mediaId, durationMs, waveform, place?.lat ?? null, place?.lng ?? null, !!extra.once, extra.liveMinutes ?? null],
+      "INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms, waveform, lat, lng, view_once, live_until, gift_tx, gift_amount) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CASE WHEN $13::int IS NULL THEN NULL ELSE now() + ($13::int * interval '1 minute') END, $14, $15)",
+      [id, conv, me, body, kind, storyMediaId, mediaId, durationMs, waveform, place?.lat ?? null, place?.lng ?? null, !!extra.once, extra.liveMinutes ?? null, extra.giftTx ?? null, extra.giftAmount ?? null],
     );
     await this.pool.query(
       `UPDATE social.conversations SET last_message_at = now(),
@@ -431,7 +455,7 @@ export class ChatService {
     this.events.emit(other, { type: 'message', from });
     // Também no telemóvel, sem o texto da mensagem.
     const sender = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0].display_name as string;
-    const what: Partial<Record<MessageKind, string>> = { image: 'enviou-te uma foto', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo' };
+    const what: Partial<Record<MessageKind, string>> = { image: 'enviou-te uma foto', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo', gift: 'enviou-te um presente' };
     void this.push.send(other, { title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : extra.once ? 'enviou-te uma mensagem de visualização única' : extra.liveMinutes ? 'está a partilhar a localização em direto' : (what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}` });
     return { id, kind };
   }
