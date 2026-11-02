@@ -1,5 +1,6 @@
 import { sized } from '../lib/media';
 import { profileShare, shareNow } from '../lib/share';
+import ExploreViewer from '../components/ExploreViewer';
 import Icon, { type IconName } from '../components/Icon';
 import ReportSheet from '../components/ReportSheet';
 import VerifiedBadge from '../components/VerifiedBadge';
@@ -323,11 +324,7 @@ export default function ProfilePage() {
           <button onClick={close} className={`${btnGhost} mt-3 w-full`}>Cancelar</button>
         </Sheet>
       )}
-      {openPost && (
-        <Sheet title={`Publicação de ${openPost.author.displayName}`} onClose={() => setOpenPost(null)}>
-          <div className="-mx-6"><PostCard post={openPost} /></div>
-        </Sheet>
-      )}
+      {openPost && <ExploreViewer items={items} startId={openPost.id} onClose={() => setOpenPost(null)} />}
     </div>
   );
 }

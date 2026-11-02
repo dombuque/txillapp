@@ -280,11 +280,7 @@ export default function Search() {
       )}
 
       {viewing && <ExploreViewer items={grid} startId={viewing} onClose={() => setViewing(null)} />}
-      {open && (
-        <Sheet title={`Publicação de ${open.author.displayName}`} onClose={() => setOpen(null)}>
-          <div className="-mx-6"><PostCard post={open} /></div>
-        </Sheet>
-      )}
+      {open && <ExploreViewer items={[open]} startId={open.id} onClose={() => setOpen(null)} />}
     </div>
   );
 }
