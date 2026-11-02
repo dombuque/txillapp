@@ -313,6 +313,30 @@ export default function Settings() {
         </Section>
       )}
 
+      <Section title="Apoio e informações">
+        <Link to="/help" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="info" /></span>
+          <span className="flex-1 font-semibold">Ajuda</span>
+          <span className="text-xl text-zinc-400" aria-hidden>›</span>
+        </Link>
+        <Link to="/orders" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="wallet" /></span>
+          <span className="flex-1 font-semibold">Pedidos e pagamentos</span>
+          <span className="text-xl text-zinc-400" aria-hidden>›</span>
+        </Link>
+        <Link to="/language" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="globe" /></span>
+          <span className="flex-1 font-semibold">Idioma e traduções</span>
+          <span className="text-xl text-zinc-400" aria-hidden>›</span>
+        </Link>
+        <Link to="/about" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="shield" /></span>
+          <span className="flex-1 font-semibold">Sobre</span>
+          <span className="text-sm text-zinc-500">Perfil, privacidade e termos</span>
+          <span className="text-xl text-zinc-400" aria-hidden>›</span>
+        </Link>
+      </Section>
+
       <VersionRow />
 
       <Section title="Conta">
