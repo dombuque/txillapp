@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { DESKTOP_QUERY } from './useDesktop';
 
 /** Separadores principais, pela ordem da barra de baixo (o "+" não conta: abrir a publicar a deslizar seria estranho). */
-const TABS = ['/', '/search', '/messages', '/profile'];
+const TABS = ['/', '/reels', '/messages', '/profile'];
 
 /** Lado de onde o próximo ecrã entra (definido pelo gesto, gasto uma vez por quem anima). */
 let incoming: 'left' | 'right' | null = null;

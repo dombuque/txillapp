@@ -73,8 +73,8 @@ export default function Layout() {
             </span>
           </NavLink>
           <Wordmark className="h-8" />
-          <NavLink to="/reels" aria-label="Reels" data-tour="reels" className="absolute right-3 flex h-11 w-11 items-center justify-center text-zinc-900">
-            <Icon name="film" size={26} strokeWidth={1.9} />
+          <NavLink to="/search" aria-label="Pesquisar" data-tour="search" className="absolute right-3 flex h-11 w-11 items-center justify-center text-zinc-900">
+            {({ isActive }) => <SearchIcon width={26} height={26} strokeWidth={isActive ? 2.4 : 1.9} />}
           </NavLink>
         </header>
       )}
@@ -92,7 +92,7 @@ export default function Layout() {
       >
         <div className="flex items-end justify-around px-1 min-[360px]:px-3">
           <Item to="/" label="Início" end onClick={tapTab} tour="home">{(a) => <HomeIcon filled={a} width={27} height={27} strokeWidth={a ? 2.3 : 1.9} />}</Item>
-          <Item to="/search" label="Pesquisar" onClick={tapTab} tour="search">{(a) => <SearchIcon width={27} height={27} strokeWidth={a ? 2.3 : 1.9} />}</Item>
+          <Item to="/reels" label="Reels" tour="reels">{(a) => <Icon name="film" size={27} strokeWidth={a ? 2.3 : 1.9} />}</Item>
           {/* Nova publicação: base alinhada com os outros ícones, mas mais alto: ultrapassa a linha da barra (~8 px) para cima. */}
           <NavLink
             to="/new"
@@ -105,7 +105,7 @@ export default function Layout() {
           <Item to="/messages" label={chatCount > 0 ? `Mensagens (${chatCount} por ler)` : 'Mensagens'} onClick={tapTab} tour="messages">
             {(a) => (
               <span className="relative">
-                <MessagesIcon width={27} height={27} strokeWidth={a ? 2.3 : 1.9} />
+                <MessagesIcon filled={a} size={29} strokeWidth={1.8} />
                 {chatCount > 0 && (
                   <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white">{chatCount > 9 ? '9+' : chatCount}</span>
                 )}

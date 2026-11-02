@@ -16,10 +16,10 @@ interface Step {
 const STEPS: Step[] = [
   { icon: 'sparkles', title: 'Bem-vindo ao Txillapp', text: 'Dois minutos e já sabes onde está tudo. Podes saltar quando quiseres.' },
   { target: 'home', icon: 'home', title: 'Início', text: 'O feed da malta e dos sítios onde andam. Toca outra vez no ícone para voltar ao topo e atualizar.' },
-  { target: 'search', icon: 'search', title: 'Pesquisar', text: 'Procura pessoas, hashtags e sítios a bater perto de ti.' },
+  { target: 'search', icon: 'search', title: 'Pesquisar', text: 'Aqui no canto de cima: procura pessoas, hashtags e sítios a bater perto de ti.' },
   { target: 'new', icon: 'plus', title: 'Publicar', text: 'Foto, vídeo ou só texto, com sítio e malta identificada. A tua vibe, tu mandas.' },
   { target: 'messages', icon: 'send', title: 'Mensagens', text: 'Conversas, grupos e notas de 24 horas. Manda fotos, voz, stickers e a tua localização.' },
-  { target: 'reels', icon: 'film', title: 'Reels', text: 'Vídeos curtos a tocar sem parar, aqui no canto de cima. Brinda, comenta e presenteia sem sair do vídeo.' },
+  { target: 'reels', icon: 'film', title: 'Reels', text: 'Vídeos curtos a tocar sem parar. Brinda, comenta e presenteia sem sair do vídeo.' },
   { target: 'profile', icon: 'user', title: 'O teu perfil', text: 'Aqui moram as tuas publicações, as definições e a tua geleira.' },
   { icon: 'snowflake', title: 'Enche a tua geleira', text: 'Diz-nos as tuas vibes, bebidas, comidas e sítios favoritos. É assim que a malta fica a saber quem tu és.' },
 ];
