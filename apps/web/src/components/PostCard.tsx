@@ -253,9 +253,9 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
       { kind: 'gifts', n: post.gifts, icon: 'present', label: rows[2].label },
     ];
     const canSee = (k: PeopleKind) => post.kind !== 'repost' && !!post.lists?.[k];
-    const barBtn = 'flex min-h-12 shrink-0 items-center justify-center gap-1 px-1 text-[14px] font-medium text-zinc-800 transition active:scale-95 [&>svg]:shrink-0';
-    // Em ecrãs estreitos só os ícones (o texto fica no aria-label), para nada ficar cortado.
-    const word = 'hidden min-[390px]:inline';
+    // Quatro colunas iguais, ícone em cima e nome por baixo: o texto nunca sai do cartão, em qualquer largura.
+    const barBtn = 'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-zinc-800 transition active:scale-95 [&>svg]:shrink-0';
+    const word = 'block max-w-full truncate text-[12px] font-medium leading-tight';
     const canRepost = post.kind === 'post' || (post.kind === 'repost' && !!post.body);
     return (
       <>
@@ -276,7 +276,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
             </button>
           )}
         </div>
-        <div className="mt-1 flex items-center justify-between border-t border-zinc-200">
+        <div className="mt-1 flex items-stretch border-t border-zinc-200">
           <button onClick={cheer} aria-pressed={post.cheered} aria-label={post.cheered ? 'Tirar o brinde' : 'Brindar'} className={`${barBtn} ${post.cheered ? '!text-green-700' : ''}`}>
             <span key={String(post.cheered)} className={`inline-flex ${post.cheered ? 'animate-[pop_.4s_ease-out]' : ''}`}><Icon name="cheers" size={24} /></span>
             <span className={word}>{post.cheered ? 'Brindou' : 'Brindar'}</span>
