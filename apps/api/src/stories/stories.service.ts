@@ -19,7 +19,7 @@ const sharedOk = (s = 's') =>
 const notHidden = (author: string, viewer = '$1') =>
   `NOT EXISTS (SELECT 1 FROM social.story_hidden h WHERE h.owner_id = ${author} AND h.hidden_id = ${viewer})`;
 
-const REACTIONS = new Set(['😂', '😮', '😍', '😢', '👏', '🔥', '🍻']);
+const REACTIONS = new Set(['😂', '😮', '😍', '😢', '👏', '🔥', '🍻', '🥂']);
 
 @Injectable()
 export class StoriesService {

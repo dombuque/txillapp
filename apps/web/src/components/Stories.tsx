@@ -4,7 +4,8 @@ import { sized } from '../lib/media';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { api, type Story, type TrayUser } from '../lib/api';
+import { api, type Post, type Story, type TrayUser } from '../lib/api';
+import ShareSheet from './ShareSheet';
 import { useAuth } from '../lib/auth';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import Icon from './Icon';
@@ -194,6 +195,23 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [cheered, setCheered] = useState(false);
+  const [sharing, setSharing] = useState<Post | null>(null);
+
+  async function openShare() {
+    if (!story.sharedFrom) return;
+    try {
+      setSharing(await api.getPost(story.sharedFrom.postId));
+    } catch (x) {
+      setMsg((x as Error).message);
+      setTimeout(() => setMsg(null), 2200);
+    }
+  }
+  async function cheer() {
+    if (cheered) return;
+    setCheered(true);
+    await send('🥂');
+  }
 
   async function send(body: string) {
     if (!body.trim() || busy) return;
@@ -245,8 +263,16 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
           aria-label={`Responder ao story de ${username}`}
           className="w-full rounded-full border border-white/60 bg-black/20 px-5 py-3 text-white outline-none backdrop-blur-sm placeholder:text-white/70 focus:border-white"
         />
-        {text.trim() && <button className="font-semibold text-white">Enviar</button>}
+        {text.trim() ? (
+          <button className="font-semibold text-white">Enviar</button>
+        ) : (
+          <>
+            <button type="button" onClick={cheer} aria-label="Brindar" aria-pressed={cheered} className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-90 ${cheered ? 'text-emerald-300' : 'text-white'}`}><Icon name="cheers" size={28} /></button>
+            {story.sharedFrom && <button type="button" onClick={openShare} aria-label="Partilhar" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white transition active:scale-90"><Icon name="send" size={26} /></button>}
+          </>
+        )}
       </form>
+      {sharing && <ShareSheet post={sharing} layer="z-[95]" onClose={() => setSharing(null)} />}
       {msg && <p role="status" className="mt-2 text-center text-sm font-medium text-white">{msg}</p>}
     </div>
   );
@@ -440,6 +466,16 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
     if (list.length <= 1) onClose();
   }
 
+  const [seePost, setSeePost] = useState(false);
+  useEffect(() => {
+    setSeePost(false);
+  }, [story?.id]);
+  useEffect(() => {
+    if (!seePost) return;
+    const t = setTimeout(() => setSeePost(false), 4000);
+    return () => clearTimeout(t);
+  }, [seePost]);
+
   const tap = (fn: () => void) => () => {
     if (Date.now() - downAt.current < 250) fn(); // toque curto navega; segurar só pausa
   };
@@ -497,22 +533,27 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
         </div>
 
         {/* Story de uma publicação ou reel: os lados recuam e avançam e o meio abre o post (não só o botão de baixo). */}
-        <button aria-label="Anterior" onClick={tap(prev)} className={`absolute bottom-28 left-0 top-28 ${story?.sharedFrom ? 'w-[30%]' : 'w-1/3'}`} />
+        <button aria-label="Anterior" onClick={tap(() => { setSeePost(false); prev(); })} className={`absolute bottom-28 left-0 top-28 ${story?.sharedFrom ? 'w-[30%]' : 'w-1/3'}`} />
         {story?.sharedFrom && (
           <button
-            aria-label={story.mediaKind === 'video' ? 'Abrir o reel' : 'Abrir a publicação'}
-            onClick={tap(() => navigate(story.mediaKind === 'video' ? `/r/${story.sharedFrom!.postId}` : `/p/${story.sharedFrom!.postId}`))}
+            aria-label="Mostrar a ligação à publicação"
+            onClick={tap(() => setSeePost((v) => !v))}
             className="absolute bottom-28 left-[30%] top-28 w-[40%]"
           />
         )}
-        <button aria-label="Seguinte" onClick={tap(next)} className={`absolute bottom-28 right-0 top-28 ${story?.sharedFrom ? 'w-[30%]' : 'w-2/3'}`} />
+        {story?.sharedFrom && seePost && (
+          // Como no Instagram: tocar no meio mostra o balão "Ver publicação"; tocar nele abre-a.
+          <button
+            {...stop}
+            onClick={() => navigate(story.mediaKind === 'video' ? `/r/${story.sharedFrom!.postId}` : `/p/${story.sharedFrom!.postId}`)}
+            className="absolute left-1/2 top-1/2 z-10 flex min-h-11 -translate-x-1/2 -translate-y-1/2 animate-[rise_.15s_ease-out] items-center gap-2 rounded-xl bg-zinc-700/90 px-5 text-[16px] font-semibold text-white shadow-lg backdrop-blur-sm active:scale-95"
+          >
+            {story.mediaKind === 'video' ? 'Ver reel' : 'Ver publicação'} <Icon name="chevron-right" size={16} strokeWidth={3} />
+          </button>
+        )}
+        <button aria-label="Seguinte" onClick={tap(() => { setSeePost(false); next(); })} className={`absolute bottom-28 right-0 top-28 ${story?.sharedFrom ? 'w-[30%]' : 'w-2/3'}`} />
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/70 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-16">
-          {story?.sharedFrom && (
-            <Link {...stop} to={story.mediaKind === 'video' ? `/r/${story.sharedFrom.postId}` : `/p/${story.sharedFrom.postId}`} className="pointer-events-auto flex min-h-10 items-center gap-2 rounded-full bg-black/45 px-4 text-sm font-semibold text-white backdrop-blur-sm active:scale-95">
-              <Icon name={story.mediaKind === 'video' ? 'film' : 'image'} size={16} /> {story.mediaKind === 'video' ? 'Reel' : 'Publicação'} de @{story.sharedFrom.username} <span aria-hidden>›</span>
-            </Link>
-          )}
           {story?.caption && (
             <p {...stop} className="pointer-events-auto max-w-full break-words rounded-2xl bg-black/40 px-4 py-2 text-center text-lg text-white backdrop-blur-sm [&_a]:underline [&_a]:text-white"><RichText text={story.caption} /></p>
           )}
