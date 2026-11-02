@@ -40,6 +40,12 @@ export class GeleiraController {
     return this.geleira.mine(req.userId!);
   }
 
+  /** Quanto vale a minha geleira em Txills (valor de estatuto, só para mim). */
+  @Get('geleira/me/value')
+  value(@Req() req: AuthedReq) {
+    return this.geleira.value(req.userId!);
+  }
+
   @Put('geleira/me/items/:itemId')
   @HttpCode(204)
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
