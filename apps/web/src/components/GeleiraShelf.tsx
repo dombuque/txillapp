@@ -25,7 +25,7 @@ function Chip({ item, onClick }: { item: TasteItem & { rating: number | null; fa
 }
 
 /** A geleira no perfil: prateleiras por tipo. Na minha, abre o editor; na dos outros, só mostra o que a pessoa deixa ver. */
-export default function GeleiraShelf({ username, isMe }: { username: string; isMe: boolean }) {
+export default function GeleiraShelf({ username, isMe, flush = false }: { username: string; isMe: boolean; flush?: boolean }) {
   const navigate = useNavigate();
   const q = useQuery({ queryKey: ['geleira', isMe ? 'me' : username], queryFn: (): Promise<(MyTaste | TheirTaste)[]> => (isMe ? api.geleiraMine() : api.geleiraOf(username)), retry: false });
   const items = q.data ?? [];
@@ -33,7 +33,7 @@ export default function GeleiraShelf({ username, isMe }: { username: string; isM
   if (!isMe && (q.isError || items.length === 0)) return null;
 
   return (
-    <section className="mx-4 mt-6 rounded-[28px] bg-white px-5 pb-5 pt-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]" aria-label="Geleira">
+    <section className={`${flush ? '' : 'mx-4'} mt-6 rounded-[28px] bg-white px-5 pb-5 pt-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]`} aria-label="Geleira">
       <div className="flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-xl font-extrabold"><Icon name="snowflake" size={22} className="text-sky-500" /> {isMe ? 'A minha geleira' : 'Geleira'}</h2>
         {isMe && items.length > 0 && (

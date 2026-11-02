@@ -269,13 +269,6 @@ export interface TasteItem { id: string; name: string; kind: TasteKind; category
 export interface CatalogItem extends TasteItem { mine: boolean; rating: number | null; favorite: boolean; visibility: TasteVisibility; fans: number }
 export interface MyTaste extends TasteItem { rating: number | null; favorite: boolean; visibility: TasteVisibility }
 export interface TheirTaste extends TasteItem { rating: number | null; favorite: boolean }
-export interface GeleiraValue {
-  total: number;
-  bonusPct: number;
-  byKind: Record<TasteKind, { value: number; count: number }>;
-  jewels: { name: string; kind: TasteKind; value: number }[];
-  level: { name: string; from: number; next: { name: string; at: number } | null };
-}
 export interface StorySettings {
   replies: Who;
   hidden: { username: string; displayName: string }[];
@@ -475,7 +468,6 @@ export const api = {
   search: (q: string): Promise<SearchResults> => raw(`/search?q=${encodeURIComponent(q)}`),
 
   geleiraCatalog: (q: string, kind?: TasteKind): Promise<CatalogItem[]> => raw(`/geleira/catalog?q=${encodeURIComponent(q)}${kind ? `&kind=${kind}` : ''}`),
-  geleiraValue: (): Promise<GeleiraValue> => raw('/geleira/me/value'),
   geleiraMine: (): Promise<MyTaste[]> => raw('/geleira/me'),
   geleiraOf: (username: string): Promise<TheirTaste[]> => raw(`/users/${encodeURIComponent(username)}/geleira`),
   geleiraPut: (itemId: string, b: { rating?: number | null; favorite?: boolean; visibility?: TasteVisibility }): Promise<void> =>

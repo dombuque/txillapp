@@ -2,14 +2,16 @@ import Icon from '../components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import GeleiraWallet from '../components/GeleiraWallet';
+import GeleiraShelf from '../components/GeleiraShelf';
 import GiftSheet from '../components/GiftSheet';
 import { Page, btnPrimary, timeAgo } from '../components/ui';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
 
 const labels = { welcome_bonus: 'Boas-vindas, malta!', transfer: 'Transferência', gift: 'Presente' } as const;
 
 export default function Wallet() {
+  const { user } = useAuth();
   const { data, isLoading, isError, refetch } = useQuery({ queryKey: ['wallet'], queryFn: api.wallet });
   // Vindo de um perfil ("Presentear"), o ecrã de presente abre já com a pessoa escolhida.
   const preset = (useLocation().state as { to?: string; name?: string } | null) ?? null;
@@ -44,7 +46,7 @@ export default function Wallet() {
         <Icon name="gift" size={20} /> Presentear alguém
       </button>
 
-      <GeleiraWallet />
+      <GeleiraShelf username={user!.username} isMe flush />
 
       <section className="mt-8 rounded-[28px] bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
         <h2 className="mb-2 text-xl font-bold">Movimentos</h2>

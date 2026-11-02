@@ -5,7 +5,7 @@ import Icon from '../components/Icon';
 import IceRating from '../components/IceRating';
 import { BackIcon } from '../components/icons';
 import { api, type CatalogItem, type TasteKind, type TasteVisibility } from '../lib/api';
-import { CATEGORIES, ICE, KINDS, KIND_ICON, KIND_LABEL, iconOf, itemValue } from '../lib/geleira';
+import { CATEGORIES, ICE, KINDS, KIND_ICON, KIND_LABEL, iconOf } from '../lib/geleira';
 
 const VIS: { v: TasteVisibility; label: string }[] = [
   { v: 'everyone', label: 'Todos' },
@@ -19,8 +19,8 @@ const fmt = (n: number) => n.toLocaleString('pt-PT');
 const others = (i: CatalogItem) => Math.max(0, i.fans - (i.mine ? 1 : 0));
 
 /**
- * Montar a geleira: tudo muda no ecrã na hora (o envio ao servidor vai atrás, por ordem, sem se ver) e o valor em Txills
- * sobe enquanto se escolhe. Uma só lista pesquisável, com separadores por tipo e grupos dentro de cada um.
+ * Montar a geleira (gostos): tudo muda no ecrã na hora e o envio ao servidor vai atrás, por ordem, sem se ver.
+ * Uma só lista pesquisável, com separadores por tipo e grupos dentro de cada um.
  */
 export default function GeleiraEditor() {
   const navigate = useNavigate();
@@ -87,16 +87,10 @@ export default function GeleiraEditor() {
 
   const list = items ?? [];
   const mine = list.filter((i) => i.mine);
-  const stats = useMemo(() => {
-    const count: Record<TasteKind, number> = { vibe: 0, bebida: 0, comida: 0, sitio: 0 };
-    let sum = 0;
-    for (const i of list) {
-      if (!i.mine) continue;
-      count[i.kind] += 1;
-      if (!i.pending) sum += itemValue(i.kind, i.rating, i.favorite, others(i) + 1);
-    }
-    const full = KINDS.filter((k) => count[k] >= 3).length;
-    return { count, total: Math.round(sum * (1 + full * 0.05)), full };
+  const count = useMemo(() => {
+    const c: Record<TasteKind, number> = { vibe: 0, bebida: 0, comida: 0, sitio: 0 };
+    for (const i of list) if (i.mine) c[i.kind] += 1;
+    return c;
   }, [list]);
 
   const q = norm(text.trim());
@@ -110,18 +104,7 @@ export default function GeleiraEditor() {
   }, [shown, groups]);
   const exact = shown.some((i) => norm(i.name) === q);
 
-  // Valor a subir: pequeno salto no chip quando muda.
-  const [bump, setBump] = useState(false);
-  const last = useRef(stats.total);
-  useEffect(() => {
-    if (last.current === stats.total) return;
-    last.current = stats.total;
-    setBump(true);
-    const t = setTimeout(() => setBump(false), 320);
-    return () => clearTimeout(t);
-  }, [stats.total]);
-
-  const back = () => (window.history.length > 1 ? navigate(-1) : navigate('/profile', { replace: true }));
+  const back = () => (window.history.length > 1 ? navigate(-1) : navigate('/wallet', { replace: true }));
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-xl flex-col bg-white">
@@ -129,14 +112,14 @@ export default function GeleiraEditor() {
         <div className="flex items-center gap-1 px-2 py-2">
           <button onClick={back} aria-label="Voltar" className="flex h-11 w-11 items-center justify-center rounded-full active:bg-zinc-100"><BackIcon /></button>
           <h1 className="min-w-0 flex-1 truncate text-[20px] font-extrabold">A minha geleira</h1>
-          <span aria-live="polite" className={`flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1.5 text-sm font-extrabold tabular-nums text-sky-700 transition-transform ${bump ? 'scale-110' : ''}`}>
-            <Icon name="snowflake" size={16} /> {fmt(stats.total)} TXL
+          <span aria-live="polite" className="flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1.5 text-sm font-extrabold tabular-nums text-sky-700">
+            <Icon name="snowflake" size={16} /> {fmt(mine.length)}
           </span>
         </div>
         <div role="tablist" aria-label="Tipo" className="grid grid-cols-4 gap-1 px-3 pb-2">
           {KINDS.map((k) => (
             <button key={k} role="tab" aria-selected={kind === k} onClick={() => { setKind(k); setGroup('todas'); setOpen(null); setSuggesting(false); }} className={`flex h-14 flex-col items-center justify-center gap-0.5 rounded-2xl text-[12px] font-bold transition active:scale-95 ${kind === k ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-700'}`}>
-              <span className="flex items-center gap-1"><Icon name={KIND_ICON[k]} size={16} />{stats.count[k] > 0 && <span className={`rounded-full px-1.5 text-[11px] ${kind === k ? 'bg-white/25' : 'bg-white'}`}>{stats.count[k]}</span>}</span>
+              <span className="flex items-center gap-1"><Icon name={KIND_ICON[k]} size={16} />{count[k] > 0 && <span className={`rounded-full px-1.5 text-[11px] ${kind === k ? 'bg-white/25' : 'bg-white'}`}>{count[k]}</span>}</span>
               {KIND_LABEL[k]}
             </button>
           ))}
@@ -165,7 +148,6 @@ export default function GeleiraEditor() {
             <ul className="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-zinc-200">
               {s.rows.map((i) => {
                 const expanded = open === i.id && i.mine;
-                const value = itemValue(i.kind, i.rating, i.favorite, others(i) + 1);
                 return (
                   <li key={i.id} className={i.mine ? 'bg-sky-50/50' : 'bg-white'}>
                     <div className="flex min-h-[68px] items-center gap-3 px-3">
@@ -174,7 +156,7 @@ export default function GeleiraEditor() {
                         <span className="min-w-0">
                           <span className="flex items-center gap-1 text-[16px] font-semibold leading-tight"><span className="truncate">{i.name}</span>{i.favorite && <Icon name="heart" size={14} className="shrink-0 fill-brand text-brand" aria-label="Favorito" role="img" aria-hidden={false} />}</span>
                           <span className="block truncate text-[13px] text-zinc-500">
-                            {i.pending ? 'À espera de aprovação' : i.mine ? (i.rating ? `${ICE[i.rating]} · vale ${fmt(value)} TXL` : `Dá-lhe gelo · vale ${fmt(value)} TXL`) : others(i) > 0 ? `${fmt(others(i))} na geleira da malta` : 'Ninguém tem ainda. Sê o primeiro'}
+                            {i.pending ? 'À espera de aprovação' : i.mine ? (i.rating ? ICE[i.rating] : 'Dá-lhe gelo') : others(i) > 0 ? `${fmt(others(i))} na geleira da malta` : 'Ninguém tem ainda. Sê o primeiro'}
                           </span>
                         </span>
                       </button>
@@ -232,9 +214,7 @@ export default function GeleiraEditor() {
         <div className="flex items-center gap-3">
           <p className="min-w-0 flex-1 text-sm leading-tight text-zinc-600">
             <b className="text-zinc-900">{mine.length}</b> {mine.length === 1 ? 'gosto' : 'gostos'}
-            {stats.full > 0 && <span className="block text-sky-700">Prateleiras cheias: +{stats.full * 5}%</span>}
           </p>
-          <button onClick={() => navigate('/wallet')} className="h-12 rounded-full border border-zinc-300 px-4 font-semibold text-zinc-800 active:scale-95">Ver valor</button>
           <button onClick={back} className="h-12 rounded-full bg-brand px-6 font-bold text-white active:scale-95">Pronto</button>
         </div>
       </div>

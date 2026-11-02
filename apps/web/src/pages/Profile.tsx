@@ -178,7 +178,7 @@ export default function ProfilePage() {
         )}
       </section>
 
-      {p.canView && !blocked && <GeleiraShelf username={p.username} isMe={p.isMe} />}
+      {p.canView && !blocked && !p.isMe && <GeleiraShelf username={p.username} isMe={false} />}
 
       {!p.canView && !blocked ? (
         <div className="mx-4 mt-6 rounded-[28px] bg-white p-8 text-center shadow-[0_2px_16px_rgba(0,0,0,0.09)]">

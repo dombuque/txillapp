@@ -18,25 +18,6 @@ const ADULT = 18;
 /** Letras sem acentos, minúsculas, para comparar nomes ("Pastéis de nata" = "pasteis de nata"). */
 const fold = (s: string) => `translate(lower(${s}), 'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc')`;
 
-/* ───────────── valor da geleira em Txills ─────────────
- * Valor de estatuto (não é saldo: não se gasta nem se transfere). Cada item vale:
- *   base do tipo × nota de gelo × raridade × favorito
- * Raridade = 1 + 1/√fãs: o que quase ninguém tem vale mais do que o que toda a gente tem.
- * Prateleira cheia (3+ itens de um tipo) dá +5% ao total, por tipo (até +20%). */
-const BASE: Record<Kind, number> = { vibe: 15, bebida: 20, comida: 20, sitio: 30 };
-const ICE_MULT = [0.5, 1, 1.5, 2, 3, 4]; // índice = nota (0 = guardado sem nota)
-export const itemValue = (kind: Kind, rating: number | null, favorite: boolean, fans: number) =>
-  Math.round(BASE[kind] * ICE_MULT[rating ?? 0] * (1 + 1 / Math.sqrt(Math.max(1, fans))) * (favorite ? 1.5 : 1));
-
-export const LEVELS = [
-  { at: 0, name: 'Geleira vazia' },
-  { at: 1, name: 'Frigobar' },
-  { at: 250, name: 'Geleira de bairro' },
-  { at: 800, name: 'Geleira de rachar' },
-  { at: 2000, name: 'Câmara frigorífica' },
-  { at: 5000, name: 'Lenda do gelo' },
-];
-
 interface ItemRow {
   id: string;
   slug: string;
@@ -190,37 +171,6 @@ export class GeleiraService {
       [owner[0].id, viewerId, adult],
     );
     return rows.map((r) => ({ ...itemOut(r, viewerId), rating: r.rating as number | null, favorite: r.favorite as boolean }));
-  }
-
-  /** Quanto vale a minha geleira em Txills, por prateleira, com as joias e o nível. */
-  async value(userId: string) {
-    const adult = await this.isAdult(userId);
-    const { rows } = await this.pool.query(
-      `SELECT i.name, i.kind, ui.rating, ui.favorite,
-              (SELECT count(*)::int FROM taste.user_items f WHERE f.item_id = i.id) AS fans
-         FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id
-        WHERE ui.user_id = $1 AND i.status = 'curated' AND ($2 OR NOT i.alcoholic)`,
-      [userId, adult],
-    );
-    const byKind: Record<Kind, { value: number; count: number }> = { vibe: { value: 0, count: 0 }, bebida: { value: 0, count: 0 }, comida: { value: 0, count: 0 }, sitio: { value: 0, count: 0 } };
-    const items = rows.map((r) => ({ name: r.name as string, kind: r.kind as Kind, value: itemValue(r.kind, r.rating, r.favorite, r.fans) }));
-    for (const i of items) {
-      byKind[i.kind].value += i.value;
-      byKind[i.kind].count += 1;
-    }
-    const sum = items.reduce((n, i) => n + i.value, 0);
-    const fullShelves = KINDS.filter((k) => byKind[k].count >= 3).length;
-    const bonusPct = fullShelves * 5;
-    const total = Math.round(sum * (1 + bonusPct / 100));
-    const idx = LEVELS.reduce((n, l, k) => (total >= l.at ? k : n), 0);
-    const next = LEVELS[idx + 1] ?? null;
-    return {
-      total,
-      bonusPct,
-      byKind,
-      jewels: [...items].sort((a, b) => b.value - a.value).slice(0, 3),
-      level: { name: LEVELS[idx].name, from: LEVELS[idx].at, next: next && { name: next.name, at: next.at } },
-    };
   }
 
   async settings(userId: string) {

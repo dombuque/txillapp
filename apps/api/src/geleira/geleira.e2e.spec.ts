@@ -5,7 +5,6 @@ import { Pool } from 'pg';
 import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
-import { itemValue } from './geleira.service';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
@@ -114,20 +113,6 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
     await api().post(`/api/v1/admin/geleira/${a.id}`).set(auth(u.ga)).send({ approve: true }).expect(204);
     expect((await theirs(u.gc, u.gb)).some((i) => i.name === nome)).toBe(true);
     await pool.query('UPDATE identity.users SET is_admin = false WHERE id = $1', [u.ga.id]);
-  });
-
-  it('valor em Txills: mais gelo, favorito e raridade valem mais; é privado do dono', async () => {
-    // Conta de ouro: comida 20 base; nota 5 (×4), fã único (×2), favorito (×1,5) = 240.
-    expect(itemValue('comida', 5, true, 1)).toBe(240);
-    expect(itemValue('comida', 5, false, 1)).toBeGreaterThan(itemValue('comida', 3, false, 1));
-    expect(itemValue('comida', 3, false, 1)).toBeGreaterThan(itemValue('comida', 3, false, 100)); // raro vale mais
-    expect(itemValue('sitio', null, false, 4)).toBeLessThan(itemValue('sitio', 1, false, 4)); // sem nota vale menos
-    const vazio = (await api().get('/api/v1/geleira/me/value').set(auth(u.gc)).expect(200)).body;
-    expect(vazio).toMatchObject({ total: 0, level: { name: 'Geleira vazia' } });
-    const v = (await api().get('/api/v1/geleira/me/value').set(auth(u.ga)).expect(200)).body;
-    expect(v.total).toBeGreaterThan(0);
-    expect(v.jewels[0].value).toBeGreaterThanOrEqual(v.jewels[v.jewels.length - 1].value);
-    expect(v.level.next).not.toBeNull();
   });
 
   it('limite de 200 itens por pessoa', async () => {
