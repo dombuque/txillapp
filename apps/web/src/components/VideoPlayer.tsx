@@ -40,6 +40,28 @@ const mutedFor = (reels: boolean) => !activated || (pref === null ? !reels : pre
 export const useMuted = (reels = false) => useSyncExternalStore((cb) => (subs.add(cb), () => subs.delete(cb)), () => (pref === null ? !reels : pref === 'off'));
 const useEffectiveMuted = (reels: boolean) => useSyncExternalStore((cb) => (subs.add(cb), () => subs.delete(cb)), () => mutedFor(reels));
 
+/**
+ * iPhone: um <video> com som aparece no "A tocar" do ecrã de bloqueio, como se fosse um leitor de música.
+ * As redes sociais evitam-no passando o som pelo Web Audio: o vídeo fica só imagem e o áudio sai por aqui.
+ * Só para vídeos do nosso domínio (sem CORS) e se algo falhar, o vídeo toca como antes.
+ */
+let audioCtx: AudioContext | null = null;
+const routed = new WeakSet<HTMLVideoElement>();
+const isIOS = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+function routeAudio(v: HTMLVideoElement) {
+  if (!isIOS || routed.has(v) || !v.currentSrc.startsWith(location.origin)) return;
+  try {
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    audioCtx ??= new Ctx();
+    audioCtx.createMediaElementSource(v).connect(audioCtx.destination);
+    routed.add(v);
+  } catch {
+    /* sem Web Audio: toca como antes */
+  }
+  void audioCtx?.resume().catch(() => undefined);
+}
+
 const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
 
 interface Props {
@@ -92,7 +114,10 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
 
   // O som segue o que o aparelho deixa (muda sozinho no primeiro toque).
   useEffect(() => {
-    if (ref.current) ref.current.muted = silent;
+    const v = ref.current;
+    if (!v) return;
+    v.muted = silent;
+    if (!silent) routeAudio(v);
   }, [silent]);
 
   useEffect(() => {
@@ -100,6 +125,8 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
     if (!v) return;
     if (shouldPlay) {
       v.muted = silent;
+      if (!silent) routeAudio(v);
+      else void audioCtx?.resume().catch(() => undefined);
       // Nunca fica parado: se o navegador recusar com som, toca sem som (e o som liga no primeiro toque).
       v.play().catch(() => {
         v.muted = true;
@@ -152,6 +179,7 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
         playsInline
         disablePictureInPicture
         disableRemotePlayback
+        x-webkit-airplay="deny"
         controlsList="nodownload noremoteplayback"
         preload={active === false ? 'none' : 'metadata'}
         onTimeUpdate={(e) => onProgress?.(e.currentTarget.duration ? e.currentTarget.currentTime / e.currentTarget.duration : 0)}

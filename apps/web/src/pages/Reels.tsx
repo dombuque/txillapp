@@ -137,7 +137,7 @@ export default function Reels() {
     track('screen_view', { path: '/reels' });
   }, []);
 
-  // Como uma app nativa: barra de estado preta nos Reels e, no controlo de média do telemóvel, o nome e o logótipo do Txillapp.
+  // Como uma app nativa: barra de estado preta nos Reels e, no sem controlo de média do telemóvel.
   useEffect(() => {
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     const before = meta?.content;
@@ -146,19 +146,15 @@ export default function Reels() {
       if (meta && before) meta.content = before;
     };
   }, []);
-  const playing = idx >= 0 ? items[idx] : null;
+  // Os Reels não são um leitor de média: sem cartão no ecrã de bloqueio nem nos controlos do telemóvel.
   useEffect(() => {
-    if (!('mediaSession' in navigator) || !playing) return;
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: (playing.body || 'Reel').slice(0, 80),
-      artist: playing.author.displayName,
-      album: 'Txillapp',
-      artwork: [{ src: '/icon-512.png', sizes: '512x512', type: 'image/png' }],
-    });
-    return () => {
-      navigator.mediaSession.metadata = null;
-    };
-  }, [playing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!('mediaSession' in navigator)) return;
+    const ms = navigator.mediaSession;
+    ms.metadata = null;
+    for (const a of ['play', 'pause', 'seekbackward', 'seekforward', 'previoustrack', 'nexttrack', 'seekto'] as const) {
+      try { ms.setActionHandler(a, null); } catch { /* ação não suportada */ }
+    }
+  }, []);
 
   function patch(id: string, p: Partial<Post>) {
     qc.setQueryData<typeof q.data>(['reels'], (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map((i) => (i.id === id ? { ...i, ...p } : i)) })) });
