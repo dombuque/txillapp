@@ -1,125 +1,43 @@
-import {
-  ArrowLeft, AtSign, SquarePen, Sticker, SquarePlay, Images, TrendingUp, Beer, Cake, ChevronLeft, ChevronRight, Coffee, Compass, CupSoda, Dumbbell, Fish, GlassWater, IceCreamCone, Martini, Moon, Mountain, Music, PartyPopper, Sandwich, Sofa, Soup, Snowflake, SquareArrowUp, Store, Sun, Umbrella, Ban, Bell, BellOff, Building2, Calendar, Camera, Check, CircleAlert, CircleCheck, CircleUser, Clock, Download,
-  Ellipsis, Eye, EyeOff, Flag, Flame, Gift, Globe, Heart, House, Image, Inbox, Info, KeyRound, Laptop, Link2, LoaderCircle, LocateFixed, Lock, LogOut,
-  Mail, Map, MapPin, Megaphone, Menu, MessageCircle, MessageSquareOff, MessagesSquare, Mic, Pause, Pencil, Play, Plus, Repeat2, Search, Send, Settings,
-  Share, ShieldCheck, Smartphone, Sparkles, Sprout, SquarePlus, Star, SwitchCamera, Tag, Trash2, Trees, Undo2, User, UserPlus, Users, Utensils,
-  VenetianMask, Video, Volume2, VolumeX, Wallet, Waves, X, type LucideIcon, type LucideProps,
-} from 'lucide-react';
+import type { SVGProps } from 'react';
+import { TX, type TxDef, type TxName } from '../icons/tx';
 import CheersIcon from './CheersIcon';
 
 /**
- * Conjunto único de ícones da app (Lucide): traço de 1,75 px, cantos redondos, 24×24. Nada de desenhos soltos nem emojis na interface.
- * Para usar um ícone novo, junta-o aqui e escreve `<Icon name="..." />`.
+ * Os ícones do Txillapp ("Tx"): desenhados por nós, todos na mesma grelha 24×24 e no mesmo traço, com o pequeno corte do sino.
+ * Para usar: `<Icon name="home" />`. Para um ícone novo, desenha-o em `apps/web/scripts/make-txicons.py` e corre o script.
+ * `solid` pinta a versão cheia (separador ativo), quando o ícone a tem.
  */
-const ICONS = {
-  back: ArrowLeft,
-  at: AtSign,
-  block: Ban,
-  cheers: CheersIcon as unknown as LucideIcon,
-  bell: Bell,
-  'bell-off': BellOff,
-  city: Building2,
-  calendar: Calendar,
-  camera: Camera,
-  check: Check,
-  alert: CircleAlert,
-  'check-circle': CircleCheck,
-  'user-circle': CircleUser,
-  film: SquarePlay,
-  clock: Clock,
-  download: Download,
-  more: Ellipsis,
-  eye: Eye,
-  'eye-off': EyeOff,
-  flag: Flag,
-  flame: Flame,
-  gift: Gift,
-  globe: Globe,
-  heart: Heart,
-  home: House,
-  image: Image,
-  inbox: Inbox,
-  info: Info,
-  key: KeyRound,
-  laptop: Laptop,
-  link: Link2,
-  loader: LoaderCircle,
-  locate: LocateFixed,
-  lock: Lock,
-  logout: LogOut,
-  mail: Mail,
-  map: Map,
-  'map-pin': MapPin,
-  megaphone: Megaphone,
-  menu: Menu,
-  comment: MessageCircle,
-  'comment-off': MessageSquareOff,
-  messages: MessagesSquare,
-  mic: Mic,
-  pause: Pause,
-  pencil: Pencil,
-  play: Play,
-  plus: Plus,
-  repeat: Repeat2,
-  search: Search,
-  send: Send,
-  settings: Settings,
-  share: Share,
-  shield: ShieldCheck,
-  phone: Smartphone,
-  sparkles: Sparkles,
-  sprout: Sprout,
-  'square-plus': SquarePlus,
-  star: Star,
-  'flip-camera': SwitchCamera,
-  tag: Tag,
-  trash: Trash2,
-  trees: Trees,
-  undo: Undo2,
-  user: User,
-  'user-plus': UserPlus,
-  users: Users,
-  utensils: Utensils,
-  mask: VenetianMask,
-  video: Video,
-  volume: Volume2,
-  'volume-off': VolumeX,
-  wallet: Wallet,
-  waves: Waves,
-  x: X,
-  beer: Beer,
-  cake: Cake,
-  'chevron-left': ChevronLeft,
-  'chevron-right': ChevronRight,
-  coffee: Coffee,
-  compass: Compass,
-  soda: CupSoda,
-  dumbbell: Dumbbell,
-  fish: Fish,
-  water: GlassWater,
-  'ice-cream': IceCreamCone,
-  martini: Martini,
-  moon: Moon,
-  mountain: Mountain,
-  music: Music,
-  party: PartyPopper,
-  present: SquareArrowUp,
-  sandwich: Sandwich,
-  sofa: Sofa,
-  soup: Soup,
-  snowflake: Snowflake,
-  store: Store,
-  sun: Sun,
-  umbrella: Umbrella,
-  images: Images,
-  trending: TrendingUp,
-  sticker: Sticker,
-  compose: SquarePen,
-} satisfies Record<string, LucideIcon>;
+export type IconName = TxName;
 
-export type IconName = keyof typeof ICONS;
+export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'ref'> {
+  name: IconName;
+  size?: number | string;
+  strokeWidth?: number | string;
+  solid?: boolean;
+}
 
-export default function Icon({ name, size = 22, strokeWidth = 1.75, ...rest }: { name: IconName; size?: number } & Omit<LucideProps, 'size' | 'ref'>) {
-  const Glyph = ICONS[name];
-  return <Glyph size={size} strokeWidth={strokeWidth} aria-hidden {...rest} />;
+export default function Icon({ name, size = 22, strokeWidth = 1.8, solid = false, ...rest }: IconProps) {
+  // As canecas do Brindar têm desenho próprio (duas peças espelhadas).
+  if (name === 'cheers') return <CheersIcon size={size} strokeWidth={strokeWidth} aria-hidden {...rest} />;
+  const d = TX[name] as TxDef;
+  const filled = solid && !!d.s;
+  const paths = filled ? d.s! : d.p;
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth={d.w ?? strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...rest}
+    >
+      {paths.map((p, i) => (
+        <path key={i} d={p} fill={d.f ? 'currentColor' : undefined} />
+      ))}
+    </svg>
+  );
 }

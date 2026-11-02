@@ -107,7 +107,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
           onClick={() => onOpenOnce(m)}
           className={`flex items-center gap-2.5 px-4 py-2.5 text-[15px] font-semibold ${shape} ${m.opened ? 'bg-zinc-100 text-zinc-500' : mine ? 'bg-brand text-white' : 'bg-zinc-900 text-white'} ${dim} ${!mine && !m.opened ? 'active:scale-95' : ''}`}
         >
-          <span className={`flex h-7 w-7 items-center justify-center rounded-full border-2 text-[13px] font-extrabold leading-none ${m.opened ? 'border-zinc-400' : 'border-white'}`}>1</span>
+          <Icon name="once" size={26} />
           {m.opened ? 'Aberta' : mine ? 'Visualização única · por abrir' : m.kind === 'image' ? 'Foto · toca para abrir' : m.kind === 'voice' ? 'Voz · toca para abrir' : 'Mensagem · toca para abrir'}
         </button>
       ) : null}
@@ -663,7 +663,7 @@ export default function Thread() {
               <button type="submit" onPointerDown={(e) => e.preventDefault()} className="h-10 shrink-0 rounded-full bg-brand px-4 font-bold text-white transition active:scale-95">Enviar</button>
             ) : (
               <>
-                {!isGroup && <button type="button" onClick={() => setOnce(!once)} aria-pressed={once} aria-label="Visualização única" className={`${bar} text-[15px] font-extrabold ${once ? 'bg-brand text-white active:bg-brand' : ''}`}>1</button>}
+                {!isGroup && <button type="button" onClick={() => setOnce(!once)} aria-pressed={once} aria-label="Visualização única" className={`${bar} ${once ? 'bg-brand text-white active:bg-brand' : ''}`}><Icon name="once" size={24} /></button>}
                 <button type="button" onClick={startRecording} className={bar} aria-label="Gravar mensagem de voz"><Icon name="mic" size={22} /></button>
                 <button type="button" onClick={() => gallery.current?.click()} className={bar} aria-label="Enviar foto da galeria"><Icon name="image" size={22} /></button>
                 <button type="button" onClick={() => setPanel(panel === 'stickers' ? null : 'stickers')} aria-label="Stickers" aria-expanded={panel === 'stickers'} className={`${bar} ${panel === 'stickers' ? 'bg-white text-brand' : ''}`}><Icon name="sticker" size={22} /></button>

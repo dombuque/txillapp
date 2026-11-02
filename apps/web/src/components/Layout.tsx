@@ -15,8 +15,8 @@ import { BellIcon, HomeIcon, MessagesIcon, PlusIcon, SearchIcon, WalletIcon } fr
 import { Avatar, Wordmark } from './ui';
 
 /** Áreas de toque de 48 px (acima dos 44 px recomendados), com ícones de tamanho moderado. */
-const tab = ({ isActive }: { isActive: boolean }) =>
-  `flex h-12 min-w-0 flex-1 items-center justify-center ${isActive ? 'text-zinc-900' : 'text-zinc-600'}`;
+const tab = (_: { isActive: boolean }) =>
+  `flex h-12 min-w-0 flex-1 items-center justify-center text-zinc-900`;
 
 const Item = ({ to, label, children, end, onClick, tour }: { to: string; label: string; tour?: string; children: (active: boolean) => ReactNode; end?: boolean; onClick?: (e: React.MouseEvent) => void }) => (
   <NavLink to={to} end={end} aria-label={label} className={tab} onClick={onClick} data-tour={tour}>

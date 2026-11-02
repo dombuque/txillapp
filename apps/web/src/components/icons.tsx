@@ -1,22 +1,25 @@
-import PlaneIcon from './PlaneIcon';
-import { ArrowLeft, Bell, House, MessageCircleMore, Pencil, Repeat2, Search, SquareArrowUp, SquarePlus, Star, Undo2, Wallet, type LucideProps } from 'lucide-react';
+import Icon, { type IconProps } from './Icon';
 
 /**
- * Ícones de navegação e de ações, todos do mesmo conjunto (Lucide) com o mesmo traço. Aceitam width/height/strokeWidth
- * para os tamanhos de cada sítio. O conjunto completo está em Icon.tsx.
+ * Atalhos dos ícones de navegação e de ações, com o tamanho com que cada um se usa. O conjunto completo está em Icon.tsx
+ * (a biblioteca "Tx"). `filled` mostra a versão cheia (separador ativo).
  */
-const p = (size: number, extra: LucideProps) => ({ size, strokeWidth: 1.75, 'aria-hidden': true, ...extra });
+type P = Omit<IconProps, 'name' | 'solid'> & { filled?: boolean };
+const make = (name: IconProps['name'], size: number, extra: Partial<IconProps> = {}) =>
+  function TxShortcut({ filled, ...r }: P) {
+    return <Icon name={name} size={size} solid={filled} {...extra} {...r} />;
+  };
 
-export const HomeIcon = ({ filled, ...r }: LucideProps & { filled?: boolean }) => <House {...p(26, r)} fill={filled ? 'currentColor' : 'none'} />;
-export const StarIcon = (r: LucideProps) => <Star {...p(26, r)} />;
-export const WalletIcon = (r: LucideProps) => <Wallet {...p(26, r)} />;
-export const MessagesIcon = ({ filled, ...r }: LucideProps & { filled?: boolean }) => <PlaneIcon size={26} strokeWidth={1.9} filled={filled} {...(r as object)} />;
-export const PlusIcon = (r: LucideProps) => <SquarePlus {...p(34, { strokeWidth: 2.2, ...r })} />;
-export const CommentIcon = (r: LucideProps) => <MessageCircleMore {...p(22, r)} />;
-export const GiftIcon = (r: LucideProps) => <SquareArrowUp {...p(22, r)} />;
-export const SearchIcon = (r: LucideProps) => <Search {...p(26, r)} />;
-export const BellIcon = (r: LucideProps) => <Bell {...p(26, r)} />;
-export const RepostIcon = (r: LucideProps) => <Repeat2 {...p(22, r)} />;
-export const BackIcon = (r: LucideProps) => <ArrowLeft {...p(26, { strokeWidth: 2, ...r })} />;
-export const PencilIcon = (r: LucideProps) => <Pencil {...p(22, r)} />;
-export const UndoIcon = (r: LucideProps) => <Undo2 {...p(22, r)} />;
+export const HomeIcon = make('home', 26);
+export const StarIcon = make('star', 26);
+export const WalletIcon = make('wallet', 26);
+export const MessagesIcon = make('messages', 26);
+export const PlusIcon = make('square-plus', 34, { strokeWidth: 2.1 });
+export const CommentIcon = make('comment', 22);
+export const GiftIcon = make('present', 22);
+export const SearchIcon = make('search', 26);
+export const BellIcon = make('bell', 26);
+export const RepostIcon = make('repeat', 22);
+export const BackIcon = make('back', 26, { strokeWidth: 2 });
+export const PencilIcon = make('pencil', 22);
+export const UndoIcon = make('undo', 22);
