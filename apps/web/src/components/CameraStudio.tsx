@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { acquireCamera, releaseCamera } from '../lib/cameraSession';
 import { setHandoff } from '../lib/handoff';
 import { FILTERS, bakeFilter, cssFilter, type Filter } from '../lib/filters';
 import Icon from './Icon';
@@ -47,27 +48,14 @@ export default function CameraStudio() {
   const [err, setErr] = useState('');
   const wantsAudio = mode === 'reel';
 
-  const stop = () => {
-    stream.current?.getTracks().forEach((t) => t.stop());
-    stream.current = null;
-  };
-
   const start = useCallback(async () => {
-    stop();
     setReady(false);
     setProblem(null);
     setTorch(false);
     if (!navigator.mediaDevices?.getUserMedia) return setProblem('unsupported');
-    const base = { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1920 } };
     try {
-      let s: MediaStream;
-      try {
-        s = await navigator.mediaDevices.getUserMedia({ video: base, audio: wantsAudio });
-      } catch (e) {
-        // Sem microfone (ou recusado): o reel grava-se na mesma, sem som.
-        if (!wantsAudio || (e as DOMException).name === 'NotAllowedError') throw e;
-        s = await navigator.mediaDevices.getUserMedia({ video: base, audio: false });
-      }
+      // Reaproveita a câmara já ligada: não volta a pedir permissão ao mudar de modo ou voltar dos filtros.
+      const s = await acquireCamera(facing, wantsAudio);
       stream.current = s;
       if (video.current) {
         video.current.srcObject = s;
@@ -83,12 +71,12 @@ export default function CameraStudio() {
     }
   }, [facing, wantsAudio]);
 
-  // A câmara só fica ligada enquanto estás a captar (não durante filtros nem story).
+  // A câmara só fica à vista enquanto estás a captar; ao sair continua ligada uns instantes (ver cameraSession).
   const live = !captured && !story;
   useEffect(() => {
     if (live) void start();
-    else stop();
-    return stop;
+    else releaseCamera();
+    return () => releaseCamera(20_000);
   }, [live, start]);
   useEffect(
     () => () => {

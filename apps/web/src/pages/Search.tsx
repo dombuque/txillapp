@@ -6,6 +6,7 @@ import VerifiedBadge from '../components/VerifiedBadge';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Fragment, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import ExploreViewer from '../components/ExploreViewer';
 import FollowButton from '../components/FollowButton';
 import PostCard from '../components/PostCard';
 import { SearchIcon } from '../components/icons';
@@ -48,6 +49,7 @@ export default function Search() {
   })();
   const [recent, setRecent] = useState<string[]>(readRecent);
   const [open, setOpen] = useState<Post | null>(null);
+  const [viewing, setViewing] = useState<string | null>(null);
 
   // Pausa de 300 ms depois de parar de escrever.
   useEffect(() => {
@@ -95,7 +97,6 @@ export default function Search() {
             onChange={(e) => setText(e.target.value)}
             placeholder="Procura malta e publicações…"
             aria-label="Pesquisar"
-            autoFocus
             enterKeyHint="search"
             autoCapitalize="none"
             autoCorrect="off"
@@ -154,7 +155,7 @@ export default function Search() {
                     return (
                       <button
                         key={p.id}
-                        onClick={() => { track('explore_open', { kind: m.kind ?? 'image' }); setOpen(p); }}
+                        onClick={() => { track('explore_open', { kind: m.kind ?? 'image' }); setViewing(p.id); }}
                         aria-label={`Abrir publicação de ${p.author.displayName}`}
                         className={`relative h-full w-full overflow-hidden bg-rose-50 active:opacity-80 ${big ? 'col-span-2 row-span-2' : ''}`}
                       >
@@ -278,6 +279,7 @@ export default function Search() {
         </>
       )}
 
+      {viewing && <ExploreViewer items={grid} startId={viewing} onClose={() => setViewing(null)} />}
       {open && (
         <Sheet title={`Publicação de ${open.author.displayName}`} onClose={() => setOpen(null)}>
           <div className="-mx-6"><PostCard post={open} /></div>

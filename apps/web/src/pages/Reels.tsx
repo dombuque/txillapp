@@ -19,7 +19,7 @@ import { trackSeen } from '../lib/seen';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 
 /** Um vídeo em ecrã inteiro com os botões à direita (brindar, comentar, partilhar, presentear). */
-function Reel({ post, active, onChange }: { post: Post; active: boolean; onChange: (p: Partial<Post>) => void }) {
+export function Reel({ post, active, onChange }: { post: Post; active: boolean; onChange: (p: Partial<Post>) => void }) {
   const { user } = useAuth();
   const [progress, setProgress] = useState(0);
   const [sheet, setSheet] = useState<null | 'comments' | 'gift' | 'share' | 'repost'>(null);

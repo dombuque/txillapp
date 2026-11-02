@@ -88,9 +88,10 @@ function usePatch(id: string) {
   return (p: Partial<Post>) => {
     const merge = (i: Post): Post =>
       i.id === id ? { ...i, ...p } : i.repostOf?.id === id ? { ...i, repostOf: { ...i.repostOf, ...p } } : i;
-    for (const key of ['feed', 'profile-posts']) {
+    for (const key of ['feed', 'profile-posts', 'explore']) {
       qc.setQueriesData<Feed>({ queryKey: [key] }, (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map(merge) })) });
     }
+    qc.setQueriesData<Page<Post>>({ queryKey: ['explore-reels'] }, (d) => d && { ...d, items: d.items.map(merge) });
   };
 }
 
