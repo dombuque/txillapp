@@ -245,8 +245,9 @@ describe('privacidade, bloqueios, notificações, pesquisa, foto e segurança da
 
     await api().patch('/api/v1/settings/privacy').set(auth(g)).send({ showGender: true }).expect(200);
     expect((await profile(u.pa, g)).gender).toBe('female'); // só depois de ela o ativar
-    await api().patch('/api/v1/settings/privacy').set(auth(g)).send({ gender: 'unspecified' }).expect(200); // "prefiro não dizer" é uma escolha
-    expect((await profile(u.pa, g)).gender).toBe('unspecified');
+    await api().patch('/api/v1/settings/privacy').set(auth(g)).send({ gender: 'unspecified' }).expect(400); // definido ao criar a conta: não se altera
+    await api().patch('/api/v1/settings/privacy').set(auth(g)).send({ gender: 'female' }).expect(200); // o mesmo valor é inofensivo
+    expect((await profile(u.pa, g)).gender).toBe('female');
     await api().patch('/api/v1/settings/privacy').set(auth(g)).send({ gender: 'xyz' }).expect(400);
 
     // Contas sem género (antigas / API) ficam a null: a app pede-o uma vez.

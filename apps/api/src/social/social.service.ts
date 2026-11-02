@@ -346,6 +346,11 @@ export class SocialService {
     userId: string,
     p: { isPrivate?: boolean; commentsAllowed?: Who; giftsAllowed?: Who; mentionsAllowed?: Who; dmsAllowed?: Who; shareAnalytics?: boolean; repostsVisible?: Viewers; cheersVisible?: Viewers; giftsVisible?: Viewers; showConnections?: Connections; suggestable?: boolean; gender?: Gender; showGender?: boolean; showPresence?: boolean },
   ) {
+    // O género escolhe-se ao criar a conta e não se altera. Só contas antigas, sem género, o definem (uma vez).
+    if (p.gender !== undefined) {
+      const cur = (await this.pool.query('SELECT gender FROM identity.users WHERE id = $1', [userId])).rows[0]?.gender as Gender | null | undefined;
+      if (cur && cur !== p.gender) throw new BadRequestException('Isto define-se ao criar a conta e não se altera');
+    }
     if (p.isPrivate !== undefined) await this.updateMe(userId, { isPrivate: p.isPrivate }); // aceita pedidos ao passar a público
     await this.pool.query(
       `UPDATE identity.users SET
@@ -359,7 +364,7 @@ export class SocialService {
           gifts_visible = COALESCE($11, gifts_visible),
           show_connections = COALESCE($4, show_connections),
           suggestable = COALESCE($5, suggestable),
-          gender = COALESCE($6, gender),
+          gender = COALESCE(gender, $6),
           show_gender = COALESCE($7, show_gender),
           show_presence = COALESCE($14, show_presence)
         WHERE id = $1`,

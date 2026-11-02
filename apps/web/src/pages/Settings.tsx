@@ -38,7 +38,18 @@ const CONNECTIONS = [
 ] as const;
 
 /** Linha de definição: ícone, nome, valor atual e seta. */
-function Row({ icon, label, value, onClick, danger }: { icon: ReactNode; label: string; value?: string; onClick: () => void; danger?: boolean }) {
+function Row({ icon, label, value, onClick, danger }: { icon: ReactNode; label: string; value?: string; onClick?: () => void; danger?: boolean }) {
+  if (!onClick) {
+    // Só para ver: não se altera (por exemplo, o que se escolheu ao criar a conta).
+    return (
+      <div className="flex min-h-[56px] w-full items-center gap-3.5 px-4 py-3 text-left">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden>{icon}</span>
+        <span className="min-w-0 flex-1 text-[16px] font-medium">{label}</span>
+        {value && <span className="max-w-[40%] truncate text-sm text-zinc-600">{value}</span>}
+        <Icon name="lock" size={16} className="text-zinc-400" aria-hidden />
+      </div>
+    );
+  }
   return (
     <button onClick={onClick} className={`flex min-h-[56px] w-full items-center gap-3.5 px-4 py-3 text-left transition active:bg-zinc-50 ${danger ? 'text-red-700' : ''}`}>
       <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${danger ? 'bg-red-50 text-red-700' : 'bg-zinc-100 text-zinc-800'}`} aria-hidden>{icon}</span>
@@ -247,7 +258,7 @@ export default function Settings() {
 
       <Section title="Privacidade da conta">
         <Row icon={<Icon name={p?.isPrivate ? 'lock' : 'globe'} />} label="Tipo de perfil" value={p ? (p.isPrivate ? 'Privado' : 'Público') : '…'} onClick={() => setSheet('type')} />
-        <Row icon={<Icon name="user-circle" />} label="Como me identifico" value={p ? (p.gender ? genderLabel(p.gender) : 'Por escolher') : '…'} onClick={() => setSheet('gender')} />
+        <Row icon={<Icon name="user-circle" />} label="Como me identifico" value={p ? (p.gender ? genderLabel(p.gender) : 'Por escolher') : '…'} onClick={p && !p.gender ? () => setSheet('gender') : undefined} />
         {p && p.gender && p.gender !== 'unspecified' && <Toggle icon={<Icon name="user" />} label="Mostrar no perfil" text="Quem vê o teu perfil vê também isto." on={p.showGender} onChange={(v) => savePrivacy({ showGender: v })} />}
         <Row icon={<Icon name="block" />} label="Contas bloqueadas" value={blocked.data ? String(blocked.data.length) : '…'} onClick={() => setSheet('blocked')} />
         <Row icon={<Icon name="users" />} label="Quem vê seguidores e a quem sigo" value={p ? CONNECTIONS.find((c) => c.value === p.showConnections)!.title : '…'} onClick={() => setSheet('connections')} />
