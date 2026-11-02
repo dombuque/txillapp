@@ -411,6 +411,9 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
             </span>
           )
         )}
+        <Item label="Partilhar" onClick={() => setSheet('share')}>
+          <Icon name="send" size={26} />
+        </Item>
       </div>
       {sheets}
     </>
