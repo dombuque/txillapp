@@ -3,7 +3,6 @@ import { profileShare, shareNow } from '../lib/share';
 import Icon from '../components/Icon';
 import ReportSheet from '../components/ReportSheet';
 import VerifiedBadge from '../components/VerifiedBadge';
-import { genderLabel } from '../components/GenderPicker';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -115,9 +114,6 @@ export default function ProfilePage() {
             @{p.username}
             {!p.isMe && p.followsYou && !blocked && <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700">Segue-te</span>}
           </p>
-          {p.gender && p.gender !== 'unspecified' && (
-            <span className="mt-2 rounded-full bg-zinc-100 px-3 py-0.5 text-xs font-semibold text-zinc-700">{genderLabel(p.gender)}</span>
-          )}
           {p.bio && <p className="mt-3 max-w-sm whitespace-pre-wrap break-words text-[15px] text-zinc-800"><RichText text={p.bio} /></p>}
           {!p.bio && p.isMe && (
             <button onClick={() => setSheet('edit')} className="mt-3 text-sm font-medium text-zinc-600 underline">Adiciona uma bio</button>
