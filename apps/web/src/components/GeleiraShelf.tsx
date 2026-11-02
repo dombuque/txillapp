@@ -79,8 +79,10 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
 
   return (
     <section
-      aria-label="Geleira"
-      className={`${flush ? '' : 'mx-4'} mt-4 overflow-hidden rounded-[24px] border border-sky-100 bg-gradient-to-b from-sky-50 via-white to-cyan-50/60 px-4 shadow-[0_2px_12px_rgba(14,116,144,0.1)] ${folded ? 'pb-3 pt-3' : 'pb-6 pt-4'}`}
+      aria-label={folded ? 'Abrir a geleira' : 'Geleira'}
+      // Fechada, qualquer parte do cartão abre a geleira (o frigorífico, o texto, o espaço à volta).
+      {...(folded ? { role: 'button', tabIndex: 0, 'aria-expanded': false, onClick: () => setOpen(true), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true); } } } : {})}
+      className={`${folded ? 'cursor-pointer active:scale-[0.99] ' : ''}transition ${flush ? '' : 'mx-4'} mt-4 overflow-hidden rounded-[24px] border border-sky-100 bg-gradient-to-b from-sky-50 via-white to-cyan-50/60 px-4 shadow-[0_2px_12px_rgba(14,116,144,0.1)] ${folded ? 'pb-3 pt-3' : 'pb-6 pt-4'}`}
     >
       <div className="flex items-center gap-4 pb-1">
         {compact ? (
