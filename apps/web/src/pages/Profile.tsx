@@ -6,6 +6,7 @@ import ReportSheet from '../components/ReportSheet';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
+import { slideClass } from '../lib/swipeNav';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import EditProfileSheet from '../components/EditProfileSheet';
 import GeleiraShelf from '../components/GeleiraShelf';
@@ -48,7 +49,9 @@ export default function ProfilePage() {
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username), retry: false });
   const p = q.data;
   const [tab, setTab] = useState<ProfileTab>('all');
-  const swipe = useRef<{ x: number; y: number; at: number } | null>(null);
+  const swipe = useRef<{ x: number; y: number; at: number; lock: 'h' | 'v' | null } | null>(null);
+  const [dragX, setDragX] = useState(0);
+  const [enter, setEnter] = useState<'left' | 'right' | null>(null);
   const posts = useInfiniteQuery({
     queryKey: ['profile-posts', username, tab],
     queryFn: ({ pageParam }) => api.userPosts(username, pageParam, tab),
@@ -225,28 +228,51 @@ export default function ProfilePage() {
           <section
           className="mt-6 px-4"
           aria-label="Publicações"
-          // Deslizar para os lados muda de separador (na primeira, deslizar para a direita volta ao ecrã anterior da barra).
+          // Deslizar para os lados muda de separador: o conteúdo acompanha o dedo (só quando o gesto é claramente horizontal) e assenta ou volta.
           data-no-swipe={tab !== 'all' ? '' : undefined}
-          onTouchStart={(e) => { const t = e.touches[0]; swipe.current = e.touches.length === 1 && t.clientX > 24 && t.clientX < window.innerWidth - 24 ? { x: t.clientX, y: t.clientY, at: Date.now() } : null; }}
+          onTouchStart={(e) => { const t = e.touches[0]; swipe.current = e.touches.length === 1 && t.clientX > 24 && t.clientX < window.innerWidth - 24 ? { x: t.clientX, y: t.clientY, at: Date.now(), lock: null } : null; }}
+          onTouchMove={(e) => {
+            const s0 = swipe.current;
+            if (!s0 || s0.lock === 'v') return;
+            const t = e.touches[0];
+            const dx = t.clientX - s0.x;
+            const dy = t.clientY - s0.y;
+            if (!s0.lock) {
+              if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+              s0.lock = Math.abs(dx) > Math.abs(dy) * 1.3 ? 'h' : 'v';
+              if (s0.lock === 'v') return;
+            }
+            const at = TABS.findIndex((x) => x.id === tab);
+            const edge = (dx > 0 && at === 0) || (dx < 0 && at === TABS.length - 1);
+            setDragX(edge ? dx * 0.2 : dx);
+          }}
           onTouchEnd={(e) => {
             const s0 = swipe.current;
             swipe.current = null;
-            if (!s0) return;
-            const t = e.changedTouches[0];
-            const dx = t.clientX - s0.x;
-            const dy = t.clientY - s0.y;
-            if (Date.now() - s0.at > 700 || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+            if (!s0 || s0.lock !== 'h') return setDragX(0);
+            const dx = e.changedTouches[0].clientX - s0.x;
+            const quick = Date.now() - s0.at < 320;
             const i = TABS.findIndex((x) => x.id === tab) + (dx < 0 ? 1 : -1);
-            if (i >= 0 && i < TABS.length) setTab(TABS[i].id);
+            setDragX(0);
+            if ((Math.abs(dx) > 80 || (quick && Math.abs(dx) > 40)) && i >= 0 && i < TABS.length) {
+              setEnter(dx < 0 ? 'right' : 'left');
+              setTab(TABS[i].id);
+            }
           }}
+          onTouchCancel={() => { swipe.current = null; setDragX(0); }}
         >
             <div role="tablist" aria-label="Conteúdo do perfil" className="mb-3 flex border-b border-zinc-200">
               {TABS.map((t) => (
-                <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} aria-label={t.label} onClick={() => setTab(t.id)} className={`flex h-12 min-w-0 flex-1 items-center justify-center border-b-2 transition active:bg-zinc-50 ${tab === t.id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-400'}`}>
+                <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} aria-label={t.label} onClick={() => { setEnter(null); setTab(t.id); }} className={`flex h-12 min-w-0 flex-1 items-center justify-center border-b-2 transition active:bg-zinc-50 ${tab === t.id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-400'}`}>
                   <Icon name={t.icon} size={24} />
                 </button>
               ))}
             </div>
+            <div
+              key={tab}
+              style={{ transform: dragX ? `translateX(${dragX}px)` : undefined, transition: dragX ? 'none' : 'transform .2s ease-out', touchAction: 'pan-y' }}
+              className={`min-h-[40dvh] ${dragX ? '' : slideClass(enter)}`}
+            >
             {posts.isLoading && <p className="py-8 text-center text-sm text-zinc-500">A carregar…</p>}
             {posts.isSuccess && items.length === 0 && tab !== 'all' && (
               <p className="mt-8 text-center text-zinc-600">{p.isMe ? EMPTY[tab].me : EMPTY[tab].other}</p>
@@ -263,7 +289,17 @@ export default function ProfilePage() {
                 const shown = post.kind === 'repost' && post.repostOf ? post.repostOf : post;
                 return (
                   <button key={post.id} onClick={() => setOpenPost(post)} aria-label={`Abrir publicação: ${post.body || shown.body || 'foto'}`} className="relative aspect-square overflow-hidden rounded-xl bg-rose-50 text-left active:opacity-80">
-                    {shown.media[0] ? (
+                    {post.kind === 'gift' && post.gift ? (
+                      // Presente: o mesmo bilhete do post, em ponto pequeno (fotos cruzadas, valor e Txills).
+                      <span className="flex h-full w-full flex-col items-center justify-center gap-1 bg-gradient-to-br from-brand via-[#e8475f] to-[#ff8a5b] p-2 text-white">
+                        <span className="relative h-7 w-[46px]">
+                          <span className="absolute right-0 top-0 rounded-full ring-2 ring-white/90"><Avatar name={post.gift.recipient.displayName} username={post.gift.recipient.hasAvatar ? post.gift.recipient.username : undefined} size={26} ring={false} /></span>
+                          <span className="absolute left-0 top-0 z-10 rounded-full ring-2 ring-white/90"><Avatar name={post.author.displayName} username={post.author.username} size={26} ring={false} /></span>
+                        </span>
+                        <span className="text-[22px] font-black leading-none">{post.gift.amount.toLocaleString('pt-PT')}</span>
+                        <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/85">Txills</span>
+                      </span>
+                    ) : shown.media[0] ? (
                       <img src={shown.media[0].kind === 'video' ? shown.media[0].posterUrl : sized(shown.media[0].url, 480)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center p-2 text-center text-xs font-medium leading-snug text-zinc-700">
@@ -271,6 +307,7 @@ export default function ProfilePage() {
                       </span>
                     )}
                     {shown.media.length > 1 && <span aria-label={`${shown.media.length} fotos`} className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-bold text-white"><Icon name="images" size={12} /> {shown.media.length}</span>}
+                    {post.kind === 'gift' && <span aria-label="Presente" className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-brand"><Icon name="gift" size={12} /></span>}
                     {post.kind === 'repost' && <span aria-label="Repost" className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/55 text-white"><Icon name="repeat" size={12} /></span>}
                   </button>
                 );
@@ -283,6 +320,7 @@ export default function ProfilePage() {
                 </button>
               </div>
             )}
+            </div>
           </section>
         )
       )}

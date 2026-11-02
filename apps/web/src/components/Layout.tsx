@@ -61,7 +61,7 @@ export default function Layout() {
     <div className="mx-auto min-h-dvh max-w-xl bg-white pb-24 lg:pb-8">
       {/* Dentro das mensagens o topo é o do chat (o teu @ e nova conversa), como no Instagram. */}
       {pathname !== '/messages' && (
-        <header className="sticky top-0 z-10 flex items-center justify-center bg-white/95 py-3 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-30 flex items-center justify-center bg-white py-3 lg:hidden">
           <NavLink to="/notifications" aria-label={count > 0 ? `Notificações (${count} por ler)` : 'Notificações'} className="absolute left-3 flex h-11 w-11 items-center justify-center text-zinc-900">
             <span className="relative">
               <BellIcon width={26} height={26} />

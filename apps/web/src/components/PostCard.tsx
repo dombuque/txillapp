@@ -142,7 +142,7 @@ function GiftBlock({ post, g, me }: { post: Post; g: NonNullable<Post['gift']>; 
           <PostMenu post={post} />
         </span>
       </div>
-      <div className="relative mt-2 overflow-hidden rounded-3xl bg-gradient-to-br from-brand via-[#e8475f] to-[#ff8a5b] px-5 pb-5 pt-6 text-center text-white shadow-[0_6px_18px_rgba(214,51,79,0.35)]">
+      <div className="relative isolate mt-2 overflow-hidden rounded-3xl bg-gradient-to-br from-brand via-[#e8475f] to-[#ff8a5b] px-5 pb-5 pt-6 text-center text-white shadow-[0_6px_18px_rgba(214,51,79,0.35)]">
         <span aria-hidden className="pointer-events-none absolute -left-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
         <span aria-hidden className="pointer-events-none absolute -bottom-8 -right-4 h-28 w-28 rounded-full bg-white/10" />
         <span aria-hidden className="pointer-events-none absolute right-8 top-4 h-2 w-2 rounded-full bg-white/50" />
