@@ -230,7 +230,7 @@ export default function ProfilePage() {
           aria-label="Publicações"
           // Deslizar para os lados muda de separador: o conteúdo acompanha o dedo (só quando o gesto é claramente horizontal) e assenta ou volta.
           data-no-swipe={tab !== 'all' ? '' : undefined}
-          onTouchStart={(e) => { const t = e.touches[0]; swipe.current = e.touches.length === 1 && t.clientX > 24 && t.clientX < window.innerWidth - 24 ? { x: t.clientX, y: t.clientY, at: Date.now(), lock: null } : null; }}
+          onTouchStart={(e) => { const t = e.touches[0]; swipe.current = e.touches.length === 1 && t.clientX > 20 ? { x: t.clientX, y: t.clientY, at: Date.now(), lock: null } : null; }}
           onTouchMove={(e) => {
             const s0 = swipe.current;
             if (!s0 || s0.lock === 'v') return;
@@ -239,7 +239,7 @@ export default function ProfilePage() {
             const dy = t.clientY - s0.y;
             if (!s0.lock) {
               if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
-              s0.lock = Math.abs(dx) > Math.abs(dy) * 1.3 ? 'h' : 'v';
+              s0.lock = Math.abs(dx) > Math.abs(dy) * 1.1 ? 'h' : 'v';
               if (s0.lock === 'v') return;
             }
             const at = TABS.findIndex((x) => x.id === tab);
@@ -254,7 +254,7 @@ export default function ProfilePage() {
             const quick = Date.now() - s0.at < 320;
             const i = TABS.findIndex((x) => x.id === tab) + (dx < 0 ? 1 : -1);
             setDragX(0);
-            if ((Math.abs(dx) > 80 || (quick && Math.abs(dx) > 40)) && i >= 0 && i < TABS.length) {
+            if ((Math.abs(dx) > 55 || (quick && Math.abs(dx) > 28)) && i >= 0 && i < TABS.length) {
               setEnter(dx < 0 ? 'right' : 'left');
               setTab(TABS[i].id);
             }
