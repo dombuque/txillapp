@@ -38,7 +38,7 @@ export default function ChatLive() {
     let wait = 1000;
 
     function handle(raw: string) {
-      let e: { type: string; from?: string };
+      let e: { type: string; from?: string; group?: string };
       try {
         e = JSON.parse(raw);
       } catch {
@@ -52,6 +52,8 @@ export default function ChatLive() {
       }
       void qc.invalidateQueries({ queryKey: ['chat-list'] });
       void qc.invalidateQueries({ queryKey: ['chat-unread'] });
+      void qc.invalidateQueries({ queryKey: ['chat-groups'] });
+      if (e.group) void qc.invalidateQueries({ queryKey: ['chat-group', e.group] });
       if (e.from) void qc.invalidateQueries({ queryKey: ['chat-thread', e.from] });
       if (e.type === 'message' && e.from) {
         typingAt.delete(e.from);

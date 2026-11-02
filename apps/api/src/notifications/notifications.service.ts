@@ -54,26 +54,26 @@ export class NotificationsService {
     }
   }
 
-  /** Também no telemóvel. O texto é genérico: nunca leva o conteúdo (o ecrã de bloqueio é público). */
+  /** Também no telemóvel. O título é quem fez a ação (o iPhone já diz que é do Txillapp) e o texto é genérico: nunca leva o conteúdo (o ecrã de bloqueio é público). */
   private async pushFor(n: { userId: string; actorId: string; kind: NotificationKind; data?: Record<string, unknown> }) {
     if (!this.push.enabled) return;
     const a = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [n.actorId])).rows[0];
     const who = (a?.display_name as string | undefined) ?? 'Alguém';
     const postId = n.data?.postId as string | undefined;
     const t: Partial<Record<NotificationKind, { body: string; url: string }>> = {
-      follow: { body: `${who} começou a seguir-te`, url: '/notifications' },
-      follow_request: { body: `${who} quer seguir-te`, url: '/notifications' },
-      request_accepted: { body: `${who} aceitou o teu pedido`, url: '/notifications' },
-      gift: { body: `${who} presenteou-te`, url: '/wallet' },
-      comment: { body: `${who} comentou a tua publicação`, url: postId ? `/p/${postId}?comments=1` : '/notifications' },
-      reply: { body: `${who} respondeu ao teu comentário`, url: postId ? `/p/${postId}?comments=1` : '/notifications' },
-      repost: { body: `${who} repostou a tua publicação`, url: postId ? `/p/${postId}` : '/notifications' },
-      mention: { body: `${who} mencionou-te`, url: postId ? `/p/${postId}` : '/notifications' },
-      tag: { body: `${who} identificou-te numa foto`, url: postId ? `/p/${postId}` : '/notifications' },
-      story_reply: { body: `${who} respondeu ao teu story`, url: '/notifications' },
+      follow: { body: 'começou a seguir-te', url: '/notifications' },
+      follow_request: { body: 'quer seguir-te', url: '/notifications' },
+      request_accepted: { body: 'aceitou o teu pedido', url: '/notifications' },
+      gift: { body: 'presenteou-te', url: '/wallet' },
+      comment: { body: 'comentou a tua publicação', url: postId ? `/p/${postId}?comments=1` : '/notifications' },
+      reply: { body: 'respondeu ao teu comentário', url: postId ? `/p/${postId}?comments=1` : '/notifications' },
+      repost: { body: 'repostou a tua publicação', url: postId ? `/p/${postId}` : '/notifications' },
+      mention: { body: 'mencionou-te', url: postId ? `/p/${postId}` : '/notifications' },
+      tag: { body: 'identificou-te numa foto', url: postId ? `/p/${postId}` : '/notifications' },
+      story_reply: { body: 'respondeu ao teu story', url: '/notifications' },
     };
     const m = t[n.kind];
-    if (m) await this.push.send(n.userId, { title: 'Txillapp', body: m.body, url: m.url, tag: `${n.kind}:${n.actorId}` });
+    if (m) await this.push.send(n.userId, { title: who, body: m.body, url: m.url, tag: `${n.kind}:${n.actorId}` });
   }
 
   /** Avisa as pessoas mencionadas em `text` que o autor pode mencionar e que podem ver o conteúdo dele. */

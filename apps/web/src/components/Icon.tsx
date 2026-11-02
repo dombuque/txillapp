@@ -1,5 +1,5 @@
 import {
-  ArrowLeft, AtSign, SquarePlay, Images, TrendingUp, Beer, Cake, ChevronLeft, ChevronRight, Coffee, Compass, CupSoda, Dumbbell, Fish, GlassWater, IceCreamCone, Martini, Moon, Mountain, Music, PartyPopper, Sandwich, Sofa, Soup, Snowflake, SquareArrowUp, Store, Sun, Umbrella, Ban, Bell, BellOff, Building2, Calendar, Camera, Check, CircleAlert, CircleCheck, CircleUser, Clock, Download,
+  ArrowLeft, AtSign, SquarePen, Sticker, SquarePlay, Images, TrendingUp, Beer, Cake, ChevronLeft, ChevronRight, Coffee, Compass, CupSoda, Dumbbell, Fish, GlassWater, IceCreamCone, Martini, Moon, Mountain, Music, PartyPopper, Sandwich, Sofa, Soup, Snowflake, SquareArrowUp, Store, Sun, Umbrella, Ban, Bell, BellOff, Building2, Calendar, Camera, Check, CircleAlert, CircleCheck, CircleUser, Clock, Download,
   Ellipsis, Eye, EyeOff, Flag, Flame, Gift, Globe, Heart, House, Image, Inbox, Info, KeyRound, Laptop, Link2, LoaderCircle, LocateFixed, Lock, LogOut,
   Mail, Map, MapPin, Megaphone, Menu, MessageCircle, MessageSquareOff, MessagesSquare, Mic, Pause, Pencil, Play, Plus, Repeat2, Search, Send, Settings,
   Share, ShieldCheck, Smartphone, Sparkles, Sprout, SquarePlus, Star, SwitchCamera, Tag, Trash2, Trees, Undo2, User, UserPlus, Users, Utensils,
@@ -113,6 +113,8 @@ const ICONS = {
   umbrella: Umbrella,
   images: Images,
   trending: TrendingUp,
+  sticker: Sticker,
+  compose: SquarePen,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

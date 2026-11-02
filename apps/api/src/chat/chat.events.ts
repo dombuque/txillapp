@@ -3,8 +3,10 @@ import { Observable, Subject, filter, map } from 'rxjs';
 
 export interface ChatEvent {
   type: 'message' | 'typing' | 'read' | 'deleted';
-  /** @utilizador de quem provocou o evento (o outro lado da conversa). */
-  from: string;
+  /** @utilizador de quem provocou o evento (o outro lado da conversa); vazio nos grupos. */
+  from?: string;
+  /** Id do grupo, quando o evento é de um grupo. */
+  group?: string;
 }
 
 /**

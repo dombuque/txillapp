@@ -501,7 +501,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/70 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-16">
           {story?.sharedFrom && (
-            <Link {...stop} to={`/p/${story.sharedFrom.postId}`} className="pointer-events-auto flex min-h-10 items-center gap-2 rounded-full bg-black/45 px-4 text-sm font-semibold text-white backdrop-blur-sm active:scale-95">
+            <Link {...stop} to={story.mediaKind === 'video' ? `/r/${story.sharedFrom.postId}` : `/p/${story.sharedFrom.postId}`} className="pointer-events-auto flex min-h-10 items-center gap-2 rounded-full bg-black/45 px-4 text-sm font-semibold text-white backdrop-blur-sm active:scale-95">
               <Icon name={story.mediaKind === 'video' ? 'film' : 'image'} size={16} /> {story.mediaKind === 'video' ? 'Reel' : 'Publicação'} de @{story.sharedFrom.username} <span aria-hidden>›</span>
             </Link>
           )}

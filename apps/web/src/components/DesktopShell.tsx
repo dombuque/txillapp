@@ -59,7 +59,7 @@ function LeftNav() {
         </Item>
         <Item to="/settings" label="Definições">{() => <Icon name="shield" size={27} />}</Item>
         <Link
-          to="/new"
+          to="/new/post"
           aria-label="Nova publicação"
           className="mt-3 flex h-12 items-center justify-center gap-2 self-end rounded-full bg-brand px-4 font-bold text-white transition hover:brightness-110 active:scale-95 xl:self-stretch"
         >

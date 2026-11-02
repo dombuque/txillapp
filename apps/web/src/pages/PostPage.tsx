@@ -1,6 +1,7 @@
 import { PostSkeleton } from '../components/Loading';
 import Icon from '../components/Icon';
 import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import CommentsSheet from '../components/CommentsSheet';
 import PostCard from '../components/PostCard';
@@ -13,6 +14,12 @@ export default function PostPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const q = useQuery({ queryKey: ['post', postId], queryFn: () => api.getPost(postId), retry: false });
+  // Ligações para vídeos (partilhas, status, notificações) abrem o reel em ecrã inteiro.
+  const shown = q.data && q.data.kind === 'repost' && q.data.repostOf ? q.data.repostOf : q.data;
+  const video = shown?.media[0]?.kind === 'video';
+  useEffect(() => {
+    if (video && shown) navigate(`/r/${shown.id}`, { replace: true });
+  }, [video]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <StackPage title="Publicação">
       <div className="pt-4">

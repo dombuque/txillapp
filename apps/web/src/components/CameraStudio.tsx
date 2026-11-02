@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { acquireCamera, releaseCamera } from '../lib/cameraSession';
+import { useDesktop } from '../lib/useDesktop';
 import { setHandoff } from '../lib/handoff';
 import { FILTERS, bakeFilter, cssFilter, type Filter } from '../lib/filters';
 import Icon from './Icon';
@@ -28,6 +29,11 @@ const recorderType = () => ['video/mp4', 'video/webm;codecs=vp9,opus', 'video/we
  */
 export default function CameraStudio() {
   const navigate = useNavigate();
+  // No computador não há câmara à frente: "Publicar" vai direto ao ecrã de escrever.
+  const desktop = useDesktop();
+  useEffect(() => {
+    if (desktop) navigate('/new/post', { replace: true });
+  }, [desktop, navigate]);
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
@@ -72,7 +78,7 @@ export default function CameraStudio() {
   }, [facing, wantsAudio]);
 
   // A câmara só fica à vista enquanto estás a captar; ao sair continua ligada uns instantes (ver cameraSession).
-  const live = !captured && !story;
+  const live = !captured && !story && !desktop;
   useEffect(() => {
     if (live) void start();
     else releaseCamera();
@@ -193,6 +199,7 @@ export default function CameraStudio() {
   const R = 41;
   const C = 2 * Math.PI * R;
 
+  if (desktop) return null;
   if (story) return <StoryCreator file={story} onClose={() => navigate('/', { replace: true })} onBack={() => { setStory(null); setCaptured(null); }} />;
   if (captured) return <Review mode={mode} captured={captured} onBack={() => setCaptured(null)} onDone={proceed} />;
 

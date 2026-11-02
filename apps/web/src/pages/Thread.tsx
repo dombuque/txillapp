@@ -6,12 +6,15 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { BackIcon } from '../components/icons';
 import Icon from '../components/Icon';
 import Camera from '../components/Camera';
+import GroupSheet from '../components/GroupSheet';
+import LocationPicker, { type Picked } from '../components/LocationPicker';
 import GiftSheet from '../components/GiftSheet';
 import ReportSheet from '../components/ReportSheet';
+import SharedPost from '../components/SharedPost';
 import TileMap from '../components/TileMap';
 import VoiceMessage from '../components/VoiceMessage';
 import { Avatar, Sheet } from '../components/ui';
-import { api, type ChatMessage } from '../lib/api';
+import { api, type ChatMessage, type ChatThread, type GroupThread } from '../lib/api';
 import { detectIntent } from '../lib/chatIntent';
 import { useTyping } from '../lib/chatLive';
 import { STICKERS, Sticker } from '../lib/stickers';
@@ -51,7 +54,7 @@ function seenLabel(iso: string | null) {
 }
 
 /** Mensagem enviada, à espera do servidor: aparece logo e fica "a enviar" ou "não enviada". */
-type Msg = ChatMessage & { state?: 'sending' | 'failed'; realId?: string };
+type Msg = ChatMessage & { state?: 'sending' | 'failed'; realId?: string; sender?: { username: string; displayName: string; hasAvatar: boolean } };
 interface Draft {
   kind: 'text' | 'image' | 'voice' | 'sticker' | 'location';
   body: string;
@@ -64,7 +67,7 @@ interface Draft {
   localUrl?: string;
 }
 
-function Bubble({ m, prevSame, nextSame, seen, onMenu, onRetry, onDiscard }: { m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; onMenu: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
+function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard }: { m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; onMenu: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
   const mine = m.fromMe;
   const real = !m.id.startsWith('tmp-');
   // Carregar e segurar (ou clique direito): apagar as minhas, denunciar as dos outros.
@@ -86,12 +89,14 @@ function Bubble({ m, prevSame, nextSame, seen, onMenu, onRetry, onDiscard }: { m
 
   return (
     <div className={`flex select-none flex-col ${mine ? 'items-end' : 'items-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`} {...menuProps}>
+      {group && !mine && !prevSame && m.sender && <span className="mb-0.5 px-1 text-[12px] font-bold text-zinc-600">{m.sender.displayName.split(' ')[0]}</span>}
       {m.storyUrl && <img src={sized(m.storyUrl, 160)} alt="Story" className="mb-1 h-28 w-[72px] rounded-xl object-cover opacity-90" />}
       {(m.kind === 'story_reply' || m.kind === 'story_reaction') && (
         <p className="mb-0.5 text-xs text-zinc-500">{m.kind === 'story_reaction' ? (mine ? 'Reagiste ao story' : 'Reagiu ao teu story') : mine ? 'Respondeste ao story' : 'Respondeu ao teu story'}</p>
       )}
       {m.kind === 'story_reaction' && <p className="text-4xl leading-tight">{m.body}</p>}
       {m.kind === 'sticker' && <div className={dim}><Sticker id={m.body} /></div>}
+      {m.kind === 'post' && <SharedPost post={m.post ?? null} shape={shape} tone={tone} />}
       {m.kind === 'location' && m.lat != null && m.lng != null && (
         <a href={`https://www.google.com/maps?q=${m.lat},${m.lng}`} target="_blank" rel="noreferrer" className={`block overflow-hidden ${shape} ${tone} ${dim}`} style={{ width: 240 }}>
           <TileMap lat={m.lat} lng={m.lng} width={240} height={132} />
@@ -132,7 +137,8 @@ function Bubble({ m, prevSame, nextSame, seen, onMenu, onRetry, onDiscard }: { m
 
 /** Conversa com uma pessoa. Tempo real, envio instantâneo, fotos, voz com onda, "a escrever…" e "Visto". */
 export default function Thread() {
-  const { username = '' } = useParams();
+  const { username = '', id: groupId = '' } = useParams();
+  const isGroup = !!groupId;
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [text, setText] = useState('');
@@ -146,7 +152,7 @@ export default function Thread() {
   const [panel, setPanel] = useState<null | 'attach' | 'stickers'>(null);
   const [camera, setCamera] = useState(false);
   const [gift, setGift] = useState<null | { amount?: number; note?: string }>(null);
-  const [place, setPlace] = useState<null | 'finding' | { lat: number; lng: number }>(null);
+  const [place, setPlace] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const scroller = useRef<HTMLDivElement>(null);
   const end = useRef<HTMLDivElement>(null);
@@ -157,28 +163,31 @@ export default function Thread() {
   const drafts = useRef(new Map<string, Draft>());
   const seq = useRef(0);
   const typingSent = useRef(0);
-  const typing = useTyping(username);
+  const typing = useTyping(isGroup ? '' : username);
+  const [members, setMembers] = useState(false);
   const vv = useVisualViewport();
   const recorder = useRef<{ mr: MediaRecorder; chunks: Blob[]; start: number; stream: MediaStream; cancelled: boolean; ctx: AudioContext | null; levels: number[] } | null>(null);
 
   const q = useInfiniteQuery({
-    queryKey: ['chat-thread', username],
-    queryFn: ({ pageParam }) => api.chatThread(username, pageParam),
+    queryKey: isGroup ? ['chat-group', groupId] : ['chat-thread', username],
+    queryFn: ({ pageParam }): Promise<ChatThread | GroupThread> => (isGroup ? api.chatGroupThread(groupId, pageParam) : api.chatThread(username, pageParam)),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (l) => l.nextCursor ?? undefined,
     // O tempo real faz o trabalho; isto é só uma rede de segurança.
     refetchInterval: () => (document.visibilityState === 'visible' ? 30_000 : false),
     retry: false,
   });
-  const first = q.data?.pages[0];
+  const first = q.data?.pages[0] as (Partial<ChatThread> & Partial<GroupThread>) | undefined;
   const otherRead = first?.otherRead ?? null;
-  const items = (q.data?.pages.flatMap((p) => p.items) ?? []).slice().reverse();
+  const items = ((q.data?.pages.flatMap((p) => p.items) ?? []) as Msg[]).slice().reverse();
+  const group = first?.group;
   // As minhas ainda por confirmar vão no fim; quando a verdadeira chega, a provisória sai.
   const real = new Set(items.map((m) => m.id));
   const all: Msg[] = [...items, ...outbox.filter((o) => !(o.realId && real.has(o.realId)))];
 
   useEffect(() => {
     qc.invalidateQueries({ queryKey: ['chat-list'] });
+    qc.invalidateQueries({ queryKey: ['chat-groups'] });
     qc.invalidateQueries({ queryKey: ['chat-unread'] });
   }, [items.length, qc]);
   useEffect(() => {
@@ -228,7 +237,8 @@ export default function Thread() {
     try {
       const mediaId = d.file ? await api.uploadChatFile(d.file, d.mime ?? d.file.type) : undefined;
       track('message_send', { kind: d.kind });
-      const r = await api.chatSend(username, { kind: d.kind, body: d.body, mediaId, durationMs: d.durationMs, waveform: d.waveform });
+      const msg = { kind: d.kind, body: d.body, mediaId, durationMs: d.durationMs, waveform: d.waveform, lat: d.lat, lng: d.lng };
+      const r = isGroup ? await api.chatGroupSend(groupId, msg) : await api.chatSend(username, msg);
       drafts.current.delete(tmpId);
       setOutbox((o) => o.map((x) => (x.id === tmpId ? { ...x, state: undefined, realId: r.id } : x)));
       await q.refetch();
@@ -257,7 +267,7 @@ export default function Thread() {
 
   function onType(v: string) {
     setText(v);
-    if (v && Date.now() - typingSent.current > 3000) {
+    if (!isGroup && v && Date.now() - typingSent.current > 3000) {
       typingSent.current = Date.now();
       api.chatTyping(username).catch(() => undefined);
     }
@@ -285,25 +295,10 @@ export default function Thread() {
     void dispatch({ kind: 'sticker', body: id });
   }
 
-  /** Pede a localização só quando se toca; mostra onde é e só envia se confirmares. Não fica guardada nem é seguida. */
-  function findPlace() {
-    setPanel(null);
-    if (!navigator.geolocation) return setErr('Este aparelho não partilha localização.');
-    setPlace('finding');
-    navigator.geolocation.getCurrentPosition(
-      (p) => setPlace({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => {
-        setPlace(null);
-        setErr('Não consegui a tua localização. Ativa-a nas definições do browser.');
-      },
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 },
-    );
-  }
-  function sendPlace() {
-    if (!place || place === 'finding') return;
-    const { lat, lng } = place;
-    setPlace(null);
-    void dispatch({ kind: 'location', body: 'A minha localização', lat, lng });
+  /** Localização como no WhatsApp: mapa com pino, localização atual (com a precisão) ou um local próximo. Só vai o que se escolhe, uma vez. */
+  function sendPlace(p: Picked) {
+    setPlace(false);
+    void dispatch({ kind: 'location', body: p.label, lat: p.lat, lng: p.lng });
   }
 
   // ----- voz -----
@@ -421,6 +416,7 @@ export default function Thread() {
   const suggestion = intent && !dismissed.has(intent.key) && !gift ? intent : null;
   const lastMine = [...items].reverse().find((m) => m.fromMe);
   const seenUpTo = (m: ChatMessage) => !!otherRead && m.id <= otherRead && lastMine?.id === m.id;
+  const bar = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-zinc-700 transition active:scale-90 active:bg-white';
   const tool = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-zinc-600 transition active:scale-90 active:bg-zinc-100';
   const joined = (a: Msg, b: Msg) => a.fromMe === b.fromMe && sameDay(a.at, b.at) && new Date(b.at).getTime() - new Date(a.at).getTime() < GROUP_MS && a.kind !== 'story_reaction' && b.kind !== 'story_reaction';
 
@@ -430,6 +426,19 @@ export default function Thread() {
         <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/messages', { replace: true }))} aria-label="Voltar" className="flex h-11 w-11 items-center justify-center rounded-full active:bg-zinc-100">
           <BackIcon />
         </button>
+        {group && (
+          <button type="button" onClick={() => setMembers(true)} aria-label={`Ver membros de ${group.name}`} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+            <span className="relative block h-[40px] w-[40px] shrink-0">
+              {group.members.slice(0, 2).map((m, i) => (
+                <span key={m.username} className={`absolute rounded-full ring-2 ring-white ${i === 0 ? 'left-0 top-0' : 'bottom-0 right-0'}`}><Avatar name={m.displayName} username={m.hasAvatar ? m.username : undefined} size={26} ring={false} /></span>
+              ))}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate font-bold leading-tight">{group.name}</span>
+              <span className="block truncate text-xs text-zinc-500">{group.members.length} pessoas · toca para ver</span>
+            </span>
+          </button>
+        )}
         {person && (
           <Link to={`/u/${person.username}`} className="flex min-w-0 items-center gap-3">
             <span className="relative">
@@ -480,7 +489,7 @@ export default function Thread() {
             return (
               <div key={m.id}>
                 {newDay && <p className="mx-auto mb-1 mt-5 w-fit rounded-full bg-zinc-100 px-3 py-1 text-[12px] font-semibold text-zinc-600">{dayLabel(m.at)}</p>}
-                <Bubble m={m} prevSame={!!prev && !newDay && joined(prev, m)} nextSame={!!next && joined(m, next)} seen={seenUpTo(m)} onMenu={setMenuFor} onRetry={retry} onDiscard={discard} />
+                <Bubble m={m} group={isGroup} prevSame={!!prev && !newDay && joined(prev, m)} nextSame={!!next && joined(m, next)} seen={seenUpTo(m)} onMenu={setMenuFor} onRetry={retry} onDiscard={discard} />
               </div>
             );
           })}
@@ -530,12 +539,9 @@ export default function Thread() {
           </div>
         )}
         {panel === 'attach' && (
-          <div className="mx-3 mt-2 grid grid-cols-4 gap-2 sm:grid-cols-5" role="menu" aria-label="Anexar">
+          <div className="mx-3 mt-2 grid grid-cols-4 gap-2" role="menu" aria-label="Mais">
             {([
-              ['camera', 'Câmara', () => { setPanel(null); setCamera(true); }],
-              ['image', 'Galeria', () => { setPanel(null); gallery.current?.click(); }],
-              ['sparkles', 'Stickers', () => setPanel('stickers')],
-              ['map-pin', 'Local', findPlace],
+              ['map-pin', 'Localização', () => { setPanel(null); setPlace(true); }],
               ...(person?.canGift ? [['gift', 'Presente', () => { setPanel(null); setGift({}); }] as const] : []),
             ] as const).map(([ic, label, run]) => (
               <button key={label} type="button" role="menuitem" onClick={run} className="flex flex-col items-center gap-1.5 rounded-2xl py-2 active:bg-zinc-100">
@@ -556,31 +562,36 @@ export default function Thread() {
         )}
         <form onSubmit={submit} className="px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
           {err && <p role="alert" className="px-2 pb-1 text-center text-sm text-red-600">{err}</p>}
-          <div className="flex items-end gap-1.5">
-            <button type="button" onClick={() => setPanel(panel ? null : 'attach')} aria-label={panel ? 'Fechar anexos' : 'Anexar'} aria-expanded={!!panel} className={`${tool} ${panel ? 'rotate-45 bg-zinc-100 text-brand' : ''} transition-transform`}>
-              <Icon name="plus" size={24} />
+          {/* Como no Instagram: câmara à esquerda, o campo ao meio e, à direita, voz, galeria, stickers e mais. */}
+          <div className="flex items-end gap-1 rounded-[26px] bg-zinc-100 p-1.5 transition-colors focus-within:bg-zinc-200/70">
+            <button type="button" onClick={() => setCamera(true)} aria-label="Abrir a câmara" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-brand-light text-white transition active:scale-90">
+              <Icon name="camera" size={20} />
             </button>
             <input ref={gallery} type="file" accept={IMAGE_TYPES.join(',')} onChange={pickPhoto} className="sr-only" aria-label="Escolher foto da galeria" />
             <textarea
               ref={input}
               value={text}
               onChange={(e) => onType(e.target.value)}
+              onFocus={() => setPanel(null)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(pointer: fine)').matches) submit(e as unknown as FormEvent);
               }}
               maxLength={2000}
               rows={1}
-              placeholder="Escreve uma mensagem…"
+              placeholder="Mensagem…"
               aria-label="Mensagem"
-              className="max-h-32 min-h-11 flex-1 resize-none rounded-[22px] bg-zinc-100 px-4 py-2.5 text-[16px] outline-none focus:bg-zinc-200/70"
+              className="max-h-32 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-[16px] outline-none placeholder:text-zinc-500"
             />
             {text.trim() ? (
               // pointerdown sem foco: o teclado não fecha ao enviar.
-              <button type="submit" onPointerDown={(e) => e.preventDefault()} className="h-11 rounded-full bg-brand px-5 font-bold text-white transition active:scale-95">Enviar</button>
+              <button type="submit" onPointerDown={(e) => e.preventDefault()} className="h-10 shrink-0 rounded-full bg-brand px-4 font-bold text-white transition active:scale-95">Enviar</button>
             ) : (
-              <button type="button" onClick={startRecording} className={tool} aria-label="Gravar mensagem de voz">
-                <Icon name="mic" size={22} />
-              </button>
+              <>
+                <button type="button" onClick={startRecording} className={bar} aria-label="Gravar mensagem de voz"><Icon name="mic" size={22} /></button>
+                <button type="button" onClick={() => gallery.current?.click()} className={bar} aria-label="Enviar foto da galeria"><Icon name="image" size={22} /></button>
+                <button type="button" onClick={() => setPanel(panel === 'stickers' ? null : 'stickers')} aria-label="Stickers" aria-expanded={panel === 'stickers'} className={`${bar} ${panel === 'stickers' ? 'bg-white text-brand' : ''}`}><Icon name="sticker" size={22} /></button>
+                <button type="button" onClick={() => setPanel(panel === 'attach' ? null : 'attach')} aria-label="Mais" aria-expanded={panel === 'attach'} className={`${bar} ${panel === 'attach' ? 'bg-white text-brand' : ''}`}><Icon name="plus" size={22} /></button>
+              </>
             )}
           </div>
         </form>
@@ -603,20 +614,8 @@ export default function Thread() {
           onClose={() => { setGift(null); void q.refetch(); }}
         />
       )}
-      {place && (
-        <Sheet title="Enviar a tua localização" onClose={() => setPlace(null)}>
-          {place === 'finding' ? (
-            <p className="py-10 text-center text-zinc-600">A procurar onde estás…</p>
-          ) : (
-            <>
-              <TileMap lat={place.lat} lng={place.lng} width={Math.min(420, window.innerWidth - 48)} height={170} className="mx-auto rounded-2xl" />
-              <p className="mt-3 text-sm text-zinc-600">Vai só este ponto, uma vez. Não ficas a ser seguido.</p>
-              <button onClick={sendPlace} className="mt-4 h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">Enviar localização</button>
-              <button onClick={() => setPlace(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">Cancelar</button>
-            </>
-          )}
-        </Sheet>
-      )}
+      {place && <LocationPicker onSend={sendPlace} onClose={() => setPlace(false)} />}
+      {members && group && <GroupSheet group={group} onClose={() => setMembers(false)} onChanged={() => void q.refetch()} onLeft={() => navigate('/messages', { replace: true })} />}
       {reporting && <ReportSheet type="message" id={reporting} onClose={() => setReporting(null)} />}
       {menuFor && (
         <Sheet title="Mensagem" onClose={() => setMenuFor(null)}>

@@ -40,7 +40,7 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     pool = new Pool({ connectionString: DB });
     app = await createApp(loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'c'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test' }));
     await app.init();
-    for (const n of ['ca', 'cb', 'cc', 'cd', 'ce', 'cf']) u[n] = await signup(n);
+    for (const n of ['ca', 'cb', 'cc', 'cd', 'ce', 'cf', 'cg', 'ch', 'ci']) u[n] = await signup(n);
   }, 60_000);
 
   afterAll(async () => {
@@ -227,5 +227,69 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     await api().patch('/api/v1/settings/privacy').set(auth(cd)).send({ giftsAllowed: 'off' }).expect(200);
     expect((await thread(cc, cd)).person.canGift).toBe(false);
     await api().patch('/api/v1/settings/privacy').set(auth(cd)).send({ giftsAllowed: 'everyone' }).expect(200);
+  });
+
+  it('partilhar uma publicação no chat: aparece como cartão; some se deixar de se poder ver', async () => {
+    const { ce: from, cf: to } = u;
+    const mk = (a: U, body: string) => api().post('/api/v1/posts').set(auth(a)).send({ body }).expect(201);
+    const p = (await mk(from, 'post para partilhar')).body;
+    const post = (a: U, b: object) => api().post(`/api/v1/chat/with/${to.username}`).set(auth(a)).send(b);
+    await post(from, { kind: 'post', body: 'não-é-um-id' }).expect(400);
+    await post(from, { kind: 'post', body: '00000000-0000-0000-0000-000000000000' }).expect(404);
+    await post(from, { kind: 'post', body: p.id }).expect(201);
+    const card = ((await thread(to, from)).items as { kind: string; post: { id: string; body: string } | null }[]).find((m) => m.kind === 'post')!;
+    expect(card.post).toMatchObject({ id: p.id, body: 'post para partilhar' });
+    // Se o autor passar a privado e o destinatário não o seguir, o cartão fica sem conteúdo.
+    await api().patch('/api/v1/settings/privacy').set(auth(from)).send({ isPrivate: true }).expect(200);
+    await api().delete(`/api/v1/users/${from.username}/follow`).set(auth(to));
+    const hidden = ((await thread(to, from)).items as { kind: string; post: unknown }[]).find((m) => m.kind === 'post')!;
+    expect(hidden.post).toBeNull();
+    await api().patch('/api/v1/settings/privacy').set(auth(from)).send({ isPrivate: false }).expect(200);
+  });
+
+  it('grupos: criar, falar, não lidos, quem é membro, admin gere, sair passa a administração', async () => {
+    const { cg, ch, ci, ca } = u;
+    const gp = (x: U, path: string, method: 'get' | 'post' | 'patch' | 'delete' = 'get') => api()[method](`/api/v1/chat/groups${path}`).set(auth(x));
+    // Precisa de pelo menos 2 pessoas além de quem cria; nomes que não existem falham.
+    await gp(cg, '', 'post').send({ name: 'Malta', members: [ch.username] }).expect(400);
+    await gp(cg, '', 'post').send({ name: 'Malta', members: [ch.username, 'ninguem_existe_' + run] }).expect(404);
+    const id = (await gp(cg, '', 'post').send({ name: 'Malta da Polana', members: [ch.username, ci.username] }).expect(201)).body.id as string;
+
+    // Todos veem o grupo; quem não é membro não.
+    expect((await gp(ch, '').expect(200)).body.map((g: { id: string }) => g.id)).toContain(id);
+    await gp(ca, `/${id}`).expect(404);
+    await gp(ca, `/${id}/messages`, 'post').send({ body: 'intruso' }).expect(404);
+
+    await gp(ch, `/${id}/messages`, 'post').send({ body: 'bora à praia?' }).expect(201);
+    await gp(ch, `/${id}/messages`, 'post').send({ kind: 'sticker', body: 'bora' }).expect(201);
+    const mine = (await gp(ci, '').expect(200)).body.find((g: { id: string }) => g.id === id);
+    expect(mine).toMatchObject({ name: 'Malta da Polana', members: 3, unread: 2 });
+    expect(mine.lastMessage).toMatchObject({ kind: 'sticker', fromMe: false });
+    expect((await api().get('/api/v1/chat/unread').set(auth(ci)).expect(200)).body.conversations).toBeGreaterThanOrEqual(1);
+
+    const t = (await gp(ci, `/${id}`).expect(200)).body;
+    expect(t.group).toMatchObject({ name: 'Malta da Polana', myRole: 'member' });
+    expect(t.group.members).toHaveLength(3);
+    expect(t.items[0]).toMatchObject({ kind: 'sticker', fromMe: false, sender: { username: ch.username } });
+    expect(((await gp(ci, '').expect(200)).body.find((g: { id: string }) => g.id === id)).unread).toBe(0); // abrir marca como lido
+
+    // Só quem administra muda o nome e adiciona; qualquer pessoa pode sair.
+    await gp(ch, `/${id}`, 'patch').send({ name: 'x' }).expect(403);
+    await gp(cg, `/${id}`, 'patch').send({ name: 'Malta toda' }).expect(204);
+    await gp(ch, `/${id}/members`, 'post').send({ members: [ca.username] }).expect(403);
+    await gp(cg, `/${id}/members`, 'post').send({ members: [ca.username] }).expect(204);
+    expect((await gp(ca, `/${id}`).expect(200)).body.group).toMatchObject({ name: 'Malta toda', myRole: 'member' });
+    await gp(ca, `/${id}/members/${ch.username}`, 'delete').expect(403); // membro não tira outro
+    await gp(cg, `/${id}/members/${ca.username}`, 'delete').expect(204);
+    await gp(ca, `/${id}`).expect(404); // já não é membro
+
+    // O admin sai e a administração passa ao membro mais antigo.
+    await gp(cg, `/${id}/members/${cg.username}`, 'delete').expect(204);
+    expect((await gp(ch, `/${id}`).expect(200)).body.group.myRole).toBe('admin');
+
+    // Apagar a minha mensagem no grupo.
+    const msgId = (await gp(ch, `/${id}`).expect(200)).body.items[1].id as string;
+    await api().delete(`/api/v1/chat/messages/${msgId}`).set(auth(ch)).expect(204);
+    expect((await gp(ci, `/${id}`).expect(200)).body.items.some((m: { id: string }) => m.id === msgId)).toBe(false);
   });
 });

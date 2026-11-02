@@ -36,7 +36,7 @@ export class PushController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async test(@Req() req: AuthedReq) {
     if (!this.push.enabled) throw new ServiceUnavailableException('Notificações push não estão ativas neste servidor');
-    await this.push.send(req.userId!, { title: 'Txillapp', body: 'Funciona! As notificações chegam a este telemóvel 🎉', url: '/settings', tag: 'test' });
+    await this.push.send(req.userId!, { title: 'Notificações ligadas', body: 'Funciona! Agora chegam a este telemóvel.', url: '/settings', tag: 'test' });
   }
 
   @Delete('subscribe')

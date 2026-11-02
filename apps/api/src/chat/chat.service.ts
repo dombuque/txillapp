@@ -2,12 +2,13 @@ import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundEx
 import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
+import { PostsService } from '../posts/posts.service';
 import { PushService } from '../push/push.service';
 import { MediaService } from '../media/media.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
 
-export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location';
+export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post';
 
 /** Stickers que existem (o desenho está na app; aqui só se confirma que o id é válido). */
 export const STICKERS = ['bora', 'fixe', 'ja-vou', 'a-caminho', 'paga', 'saude', 'saudades', 'obrigado', 'parabens', 'ups', 'dormir', 'fome', 'festa', 'amor', 'rir', 'ok'] as const;
@@ -18,7 +19,7 @@ const pair = (x: string, y: string) => (x < y ? ([x, y] as const) : ([y, x] as c
 
 export interface Outgoing {
   body: string;
-  kind: 'text' | 'image' | 'voice' | 'sticker' | 'location';
+  kind: 'text' | 'image' | 'voice' | 'sticker' | 'location' | 'post';
   mediaId?: string;
   durationMs?: number;
   waveform?: string;
@@ -33,6 +34,7 @@ export class ChatService {
     private readonly media: MediaService,
     private readonly events: ChatEvents,
     private readonly push: PushService,
+    private readonly posts: PostsService,
   ) {}
 
   private async userByName(username: string) {
@@ -148,7 +150,15 @@ export class ChatService {
       blocked,
       /** Último id que a outra pessoa já leu ("Visto" nas minhas mensagens até aqui). */
       otherRead,
-      items: page.map((m) => ({
+      items: await this.mapItems(me, page),
+      nextCursor: rows.length > PAGE ? page[page.length - 1].id : null,
+    };
+  }
+
+  /** Linhas de mensagens → o que a app recebe (ficheiros com URL temporário, publicações partilhadas com os dados de quem as vê). */
+  async mapItems(me: string, page: Record<string, any>[]) {
+    return Promise.all(
+      page.map(async (m) => ({
         id: m.id as string,
         fromMe: m.sender_id === me,
         body: m.body as string,
@@ -159,30 +169,23 @@ export class ChatService {
         waveform: (m.waveform as string | null) ?? null,
         lat: (m.lat as number | null) ?? null,
         lng: (m.lng as number | null) ?? null,
+        // Publicação partilhada: o cartão mostra-se com os dados de quem a vê agora (null se já não a pode ver).
+        post: m.kind === 'post' ? await this.posts.getOne(me, m.body as string).catch(() => null) : undefined,
         at: m.created_at as string,
       })),
-      nextCursor: rows.length > PAGE ? page[page.length - 1].id : null,
-    };
+    );
   }
 
-  /** Mensagem normal: precisa de não haver bloqueio e de a pessoa aceitar mensagens (ou já existir conversa). */
-  async send(me: string, username: string, msg: Outgoing) {
-    const other = await this.userByName(username);
-    if (other.id === me) throw new BadRequestException('Não podes enviar mensagens a ti próprio');
-    const ok = await this.pool.query(
-      `SELECT ${blockedBetween('u.id', '$1')} AS blocked, ${allowedBy('u', 'dms_allowed')} AS allowed,
-              EXISTS (SELECT 1 FROM social.conversations c WHERE c.user_a = LEAST($1::uuid, u.id) AND c.user_b = GREATEST($1::uuid, u.id)) AS spoke
-         FROM identity.users u WHERE u.id = $2`,
-      [me, other.id],
-    );
-    const r = ok.rows[0];
-    if (r.blocked) throw new ForbiddenException('Não podes enviar mensagens a esta pessoa');
-    if (!r.allowed && !r.spoke) throw new ForbiddenException('Esta pessoa não aceita mensagens novas');
-
+  /** Valida o conteúdo de uma mensagem (texto, sticker, publicação, localização ou ficheiro do chat) e devolve a localização arredondada, se houver. */
+  async validateOutgoing(me: string, msg: Outgoing): Promise<{ lat: number; lng: number } | null> {
     if (msg.kind === 'text') {
       if (!msg.body.trim()) throw new BadRequestException('Mensagem vazia');
     } else if (msg.kind === 'sticker') {
       if (!(STICKERS as readonly string[]).includes(msg.body)) throw new BadRequestException('Sticker inválido');
+    } else if (msg.kind === 'post') {
+      // Só se partilha o que quem envia pode ver (e que ainda existe).
+      if (!/^[0-9a-f-]{36}$/.test(msg.body)) throw new BadRequestException('Publicação inválida');
+      await this.posts.getOne(me, msg.body);
     } else if (msg.kind === 'location') {
       if (typeof msg.lat !== 'number' || typeof msg.lng !== 'number') throw new BadRequestException('Falta a localização');
     } else {
@@ -199,6 +202,24 @@ export class ChatService {
     }
     // A localização guarda-se com ~1 m de precisão e só o que a pessoa escolheu enviar, uma vez.
     const place = msg.kind === 'location' ? { lat: Math.round(msg.lat! * 1e5) / 1e5, lng: Math.round(msg.lng! * 1e5) / 1e5 } : null;
+    return place;
+  }
+
+  /** Mensagem normal: precisa de não haver bloqueio e de a pessoa aceitar mensagens (ou já existir conversa). */
+  async send(me: string, username: string, msg: Outgoing) {
+    const other = await this.userByName(username);
+    if (other.id === me) throw new BadRequestException('Não podes enviar mensagens a ti próprio');
+    const ok = await this.pool.query(
+      `SELECT ${blockedBetween('u.id', '$1')} AS blocked, ${allowedBy('u', 'dms_allowed')} AS allowed,
+              EXISTS (SELECT 1 FROM social.conversations c WHERE c.user_a = LEAST($1::uuid, u.id) AND c.user_b = GREATEST($1::uuid, u.id)) AS spoke
+         FROM identity.users u WHERE u.id = $2`,
+      [me, other.id],
+    );
+    const r = ok.rows[0];
+    if (r.blocked) throw new ForbiddenException('Não podes enviar mensagens a esta pessoa');
+    if (!r.allowed && !r.spoke) throw new ForbiddenException('Esta pessoa não aceita mensagens novas');
+
+    const place = await this.validateOutgoing(me, msg);
     return this.insert(me, other.id, msg.kind === 'location' ? msg.body.slice(0, 80) : msg.body, msg.kind, null, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place);
   }
 
@@ -212,10 +233,15 @@ export class ChatService {
     const { rows } = await this.pool.query(
       `UPDATE social.messages m SET deleted_at = now(), body = '', media_id = NULL, story_media_id = NULL
         WHERE m.id = $1 AND m.sender_id = $2 AND m.deleted_at IS NULL
-       RETURNING (SELECT CASE WHEN c.user_a = $2 THEN c.user_b ELSE c.user_a END FROM social.conversations c WHERE c.id = m.conversation_id) AS other`,
+       RETURNING m.group_id, (SELECT CASE WHEN c.user_a = $2 THEN c.user_b ELSE c.user_a END FROM social.conversations c WHERE c.id = m.conversation_id) AS other`,
       [messageId, me],
     );
     if (!rows[0]) throw new NotFoundException('Mensagem não encontrada');
+    if (rows[0].group_id) {
+      const members = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1 AND user_id <> $2', [rows[0].group_id, me])).rows;
+      for (const r of members) this.events.emit(r.user_id as string, { type: 'deleted', group: rows[0].group_id as string });
+      return;
+    }
     this.events.emit(rows[0].other, { type: 'deleted', from: await this.usernameOf(me) });
   }
 
@@ -243,7 +269,8 @@ export class ChatService {
     this.events.emit(other, { type: 'message', from });
     // Também no telemóvel, sem o texto da mensagem.
     const sender = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0].display_name as string;
-    void this.push.send(other, { title: 'Txillapp', body: `${sender} enviou-te uma mensagem`, url: `/messages/${from}`, tag: `chat:${me}` });
+    const what: Partial<Record<MessageKind, string>> = { image: 'enviou-te uma foto', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo' };
+    void this.push.send(other, { title: sender, body: what[kind] ?? 'enviou-te uma mensagem', url: `/messages/${from}`, tag: `chat:${me}` });
     return { id, kind };
   }
 }

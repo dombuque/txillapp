@@ -2,7 +2,7 @@ import { track } from '../lib/analytics';
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import Icon from './Icon';
-import { freshSubscription, registerSubscription } from '../lib/push';
+import { enablePush } from '../lib/push';
 
 type State = 'checking' | 'unsupported' | 'off-server' | 'denied' | 'off' | 'on';
 
@@ -30,13 +30,9 @@ export default function PushToggle() {
     setBusy(true);
     setErr('');
     try {
-      const perm = await Notification.requestPermission();
-      if (perm !== 'granted') return setState(perm === 'denied' ? 'denied' : 'off');
-      const { publicKey } = await api.pushKey();
-      const reg = await navigator.serviceWorker.ready;
-      await registerSubscription(await freshSubscription(reg, publicKey!));
-      track('push_enabled');
-      setState('on');
+      const r = await enablePush();
+      if (r === 'on') track('push_enabled');
+      setState(r);
     } catch (x) {
       setErr((x as Error).message || 'Não consegui ligar as notificações');
     } finally {

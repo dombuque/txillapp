@@ -4,6 +4,7 @@ import { refreshPage } from '../lib/refresh';
 import EmailBanner from './EmailBanner';
 import GenderGate from './GenderGate';
 import WelcomeTour from './WelcomeTour';
+import NotificationNudge from './NotificationNudge';
 import { slideClass, takeSlide, useSwipeTabs } from '../lib/swipeNav';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, type ReactNode } from 'react';
@@ -27,6 +28,7 @@ export default function Layout() {
   const { user } = useAuth();
   const { pathname } = useLocation();
   const qc = useQueryClient();
+  const sharing = useQuery({ queryKey: ['privacy'], queryFn: api.privacy, staleTime: 60_000 });
   useSwipeTabs();
   // Quando se chega por um deslize, o ecrã entra do lado do gesto.
   const slide = useMemo(() => slideClass(takeSlide()), [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -87,6 +89,7 @@ export default function Layout() {
       </div>
       <GenderGate />
       <WelcomeTour />
+      <NotificationNudge ready={!!sharing.data?.welcomed} />
       <nav
         aria-label="Navegação principal"
         className="fixed bottom-0 left-1/2 z-20 w-full max-w-xl -translate-x-1/2 lg:hidden border-t border-zinc-100 bg-white pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 shadow-[0_-6px_24px_rgba(0,0,0,0.05)]"

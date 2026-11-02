@@ -17,6 +17,7 @@ import { BrandLoader, TopLoader } from './components/Loading';
 import { AuthProvider, useAuth } from './lib/auth';
 import { GoogleUsername, Login, Register } from './pages/AuthForm';
 import Compose from './pages/Compose';
+import ReelPage from './pages/ReelPage';
 import GeleiraEditor from './pages/GeleiraEditor';
 import CameraStudio from './components/CameraStudio';
 import Connections from './pages/Connections';
@@ -137,7 +138,9 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/reels" element={<Private><Reels /></Private>} />
               <Route path="/tag/:tag" element={<Private><TagPage /></Private>} />
               <Route path="/admin" element={<Private><Suspense fallback={null}><Admin /></Suspense></Private>} />
+              <Route path="/r/:postId" element={<Private><ReelPage /></Private>} />
               <Route path="/p/:postId" element={<Private><PostPage /></Private>} />
+              <Route path="/messages/g/:id" element={<Private><Thread /></Private>} />
               <Route path="/messages/:username" element={<Private><Thread /></Private>} />
               <Route path="/u/:username/connections" element={<Private><Connections /></Private>} />
               <Route

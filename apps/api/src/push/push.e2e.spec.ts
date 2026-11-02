@@ -19,7 +19,7 @@ describe('notificações no telemóvel (Web Push)', () => {
   const api = () => request(app.getHttpServer());
   const auth = (x: U) => ({ Authorization: `Bearer ${x.token}` });
   const u: Record<string, U> = {};
-  const sent: { endpoint: string; payload: { body: string; url: string } }[] = [];
+  const sent: { endpoint: string; payload: { title: string; body: string; url: string } }[] = [];
   const keys = webpush.generateVAPIDKeys();
 
   async function signup(name: string): Promise<U> {
@@ -63,7 +63,9 @@ describe('notificações no telemóvel (Web Push)', () => {
     await wait();
     const msg = sent.find((s) => s.payload.url === `/messages/${qb.username}`)!;
     expect(msg.endpoint).toBe(sub('a').endpoint);
-    expect(msg.payload.body).toBe('qb Teste enviou-te uma mensagem');
+    // O título é quem enviou (o sistema já mostra que é do Txillapp); o corpo não repete o nome nem leva o texto da mensagem.
+    expect(msg.payload.title).toBe('qb Teste');
+    expect(msg.payload.body).toBe('enviou-te uma mensagem');
     expect(JSON.stringify(sent)).not.toMatch(/segredo|1234/); // nunca o conteúdo
 
     await api().post(`/api/v1/users/${qa.username}/follow`).set(auth(qb)).expect(200);

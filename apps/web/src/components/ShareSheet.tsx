@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { api, type Post } from '../lib/api';
 import { track } from '../lib/analytics';
 import Icon from './Icon';
+import SendToChat from './SendToChat';
 import { Sheet } from './ui';
 
 const row = 'flex w-full items-center gap-4 rounded-2xl px-1 py-3 text-left transition active:bg-zinc-100 disabled:opacity-60';
@@ -15,6 +16,7 @@ const dot = 'flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg
 export default function ShareSheet({ post, onClose, layer }: { post: Post; onClose: () => void; layer?: string }) {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [chat, setChat] = useState(false);
   const url = `${location.origin}/p/${post.id}`;
   const canStory = post.kind === 'post' && post.media.length > 0;
 
@@ -46,16 +48,24 @@ export default function ShareSheet({ post, onClose, layer }: { post: Post; onClo
     else if (r === 'failed') setNote('Não consegui copiar');
   }
 
+  if (chat) return <SendToChat post={post} onClose={onClose} layer={layer} />;
   return (
     <Sheet title="Partilhar" onClose={onClose} layer={layer}>
       {note && <p role="status" className="mb-2 rounded-xl bg-zinc-50 px-3 py-2 text-center text-sm font-semibold">{note}</p>}
+      <button onClick={() => setChat(true)} className={row}>
+        <span className={dot}><Icon name="send" /></span>
+        <span>
+          <span className="block text-[17px] font-semibold">Enviar no chat</span>
+          <span className="block text-sm text-zinc-600">Manda a {post.media[0]?.kind === 'video' ? 'este reel' : 'esta publicação'} a quem quiseres.</span>
+        </span>
+      </button>
       {canStory && (
         <>
           <button disabled={busy} onClick={() => toStory('all')} className={row}>
             <span className={dot}><Icon name="camera" /></span>
             <span>
               <span className="block text-[17px] font-semibold">Adicionar ao meu status</span>
-              <span className="block text-sm text-zinc-600">Fica 24 horas, com a origem e ligação.</span>
+              <span className="block text-sm text-zinc-600">Fica 24 horas. Quem tocar abre {post.media[0]?.kind === 'video' ? 'o reel' : 'a publicação'} no Txillapp.</span>
             </span>
           </button>
           <button disabled={busy} onClick={() => toStory('close_friends')} className={row}>
@@ -74,7 +84,10 @@ export default function ShareSheet({ post, onClose, layer }: { post: Post; onClo
       {typeof navigator.share === 'function' && (
         <button onClick={system} className={row}>
           <span className={dot}><Icon name="share" /></span>
-          <span className="text-[17px] font-semibold">Enviar por…</span>
+          <span>
+            <span className="block text-[17px] font-semibold">Outras redes e apps</span>
+            <span className="block text-sm text-zinc-600">WhatsApp, Facebook, SMS…</span>
+          </span>
         </button>
       )}
     </Sheet>

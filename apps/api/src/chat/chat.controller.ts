@@ -1,5 +1,5 @@
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
-import { Body, Controller, Delete, Get, HttpCode, MessageEvent, Param, ParseUUIDPipe, Post, Query, Req, Res, Sse, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, MessageEvent, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res, Sse, UseGuards } from '@nestjs/common';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { Observable, finalize, interval, map, merge } from 'rxjs';
@@ -8,12 +8,17 @@ import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { MediaService, parseIdParam } from '../media/media.service';
 import { ChatEvents } from './chat.events';
+import { GroupsService } from './groups.service';
 import { ChatService } from './chat.service';
 
 type AuthedReq = Request & { userId?: string };
+const groupSchema = z.object({ name: z.string().trim().min(1).max(40), members: z.array(z.string().trim().min(1).max(40)).min(2).max(49) });
+const renameSchema = z.object({ name: z.string().trim().min(1).max(40) });
+const membersSchema = z.object({ members: z.array(z.string().trim().min(1).max(40)).min(1).max(49) });
+
 const sendSchema = z.object({
   body: z.string().trim().max(2000).default(''),
-  kind: z.enum(['text', 'image', 'voice', 'sticker', 'location']).default('text'),
+  kind: z.enum(['text', 'image', 'voice', 'sticker', 'location', 'post']).default('text'),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
   mediaId: z.string().uuid().optional(),
@@ -25,6 +30,7 @@ const sendSchema = z.object({
 export class ChatController {
   constructor(
     private readonly chat: ChatService,
+    private readonly groups: GroupsService,
     private readonly events: ChatEvents,
     private readonly media: MediaService,
   ) {}
@@ -63,8 +69,60 @@ export class ChatController {
 
   @Get('unread')
   @UseGuards(JwtAuthGuard)
-  unread(@Req() req: AuthedReq) {
-    return this.chat.unread(req.userId!);
+  async unread(@Req() req: AuthedReq) {
+    const [direct, groups] = await Promise.all([this.chat.unread(req.userId!), this.groups.list(req.userId!)]);
+    return { conversations: direct.conversations + groups.filter((g) => g.unread > 0).length };
+  }
+
+  /* ───────────── grupos ───────────── */
+
+  @NeedsVerifiedEmail()
+  @Post('groups')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 3_600_000 } })
+  createGroup(@Req() req: AuthedReq, @Body(new ZodPipe(groupSchema)) b: z.infer<typeof groupSchema>) {
+    return this.groups.create(req.userId!, b.name, b.members);
+  }
+
+  @Get('groups')
+  @UseGuards(JwtAuthGuard)
+  listGroups(@Req() req: AuthedReq) {
+    return this.groups.list(req.userId!);
+  }
+
+  @Get('groups/:id')
+  @UseGuards(JwtAuthGuard)
+  groupThread(@Req() req: AuthedReq, @Param('id') id: string, @Query('cursor') cursor?: string) {
+    return this.groups.thread(req.userId!, id, cursor);
+  }
+
+  @NeedsVerifiedEmail()
+  @Post('groups/:id/messages')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  sendToGroup(@Req() req: AuthedReq, @Param('id') id: string, @Body(new ZodPipe(sendSchema)) b: z.infer<typeof sendSchema>) {
+    return this.groups.send(req.userId!, id, b);
+  }
+
+  @Patch('groups/:id')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  renameGroup(@Req() req: AuthedReq, @Param('id') id: string, @Body(new ZodPipe(renameSchema)) b: z.infer<typeof renameSchema>) {
+    return this.groups.rename(req.userId!, id, b.name);
+  }
+
+  @Post('groups/:id/members')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  addGroupMembers(@Req() req: AuthedReq, @Param('id') id: string, @Body(new ZodPipe(membersSchema)) b: z.infer<typeof membersSchema>) {
+    return this.groups.addMembers(req.userId!, id, b.members);
+  }
+
+  @Delete('groups/:id/members/:username')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  removeGroupMember(@Req() req: AuthedReq, @Param('id') id: string, @Param('username') username: string) {
+    return this.groups.removeMember(req.userId!, id, username);
   }
 
   @Get('with/:username')

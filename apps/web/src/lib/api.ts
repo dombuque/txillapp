@@ -222,11 +222,28 @@ export interface Conversation {
   presence?: Presence | null;
   unread: number;
 }
+export interface GroupSummary {
+  kind: 'group';
+  id: string;
+  name: string;
+  members: number;
+  preview: { username: string; displayName: string; hasAvatar: boolean }[];
+  lastMessage: { body: string; kind: ChatMessage['kind']; fromMe: boolean; senderName: string | null; at: string; empty: boolean };
+  unread: number;
+}
+export interface GroupMember { username: string; displayName: string; hasAvatar: boolean; role: 'admin' | 'member' }
+export interface GroupThread {
+  group: { id: string; name: string; myRole: 'admin' | 'member'; members: GroupMember[] };
+  items: (ChatMessage & { sender: { username: string; displayName: string; hasAvatar: boolean } })[];
+  nextCursor: string | null;
+}
 export interface ChatMessage {
   id: string;
   fromMe: boolean;
   body: string;
-  kind: 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location';
+  kind: 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post';
+  /** Publicação partilhada (só em mensagens do tipo post; null se já não a posso ver). */
+  post?: Post | null;
   storyUrl: string | null;
   /** Foto ou voz do chat: URL assinado e temporário. */
   mediaUrl: string | null;
@@ -528,6 +545,14 @@ export const api = {
   nearbyPlaces: (lat: number, lng: number): Promise<NearbyPlaces> => raw(`/places/nearby?lat=${lat}&lng=${lng}`),
   postPeople: (postId: string, kind: PeopleKind): Promise<{ username: string; displayName: string; hasAvatar: boolean; verified: boolean; at: string }[]> => raw(`/posts/${postId}/people/${kind}`),
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
+  chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),
+  chatGroupThread: (id: string, cursor?: string): Promise<GroupThread> => raw(`/chat/groups/${id}${cursor ? `?cursor=${cursor}` : ''}`),
+  chatGroupSend: (id: string, msg: { body?: string; kind?: ChatMessage['kind']; mediaId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number }): Promise<{ id: string }> =>
+    raw(`/chat/groups/${id}/messages`, post(msg)),
+  chatGroupCreate: (name: string, members: string[]): Promise<{ id: string }> => raw('/chat/groups', post({ name, members })),
+  chatGroupRename: (id: string, name: string): Promise<void> => raw(`/chat/groups/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  chatGroupAdd: (id: string, members: string[]): Promise<void> => raw(`/chat/groups/${id}/members`, post({ members })),
+  chatGroupRemove: (id: string, username: string): Promise<void> => raw(`/chat/groups/${id}/members/${encodeURIComponent(username)}`, { method: 'DELETE' }),
   chatUnread: (): Promise<{ conversations: number }> => raw('/chat/unread'),
   chatThread: (username: string, cursor?: string): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${cursor ? `?cursor=${cursor}` : ''}`),
   chatSend: (username: string, msg: { body?: string; kind?: ChatMessage['kind']; mediaId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number }): Promise<{ id: string }> =>
