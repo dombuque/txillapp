@@ -187,7 +187,14 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
     const beer = (await pool.query(`SELECT id FROM taste.items WHERE status = 'curated' AND kind = 'bebida' AND alcoholic LIMIT 1`)).rows[0].id as string;
     const water = (await pool.query(`SELECT id FROM taste.items WHERE status = 'curated' AND kind = 'bebida' AND NOT alcoholic LIMIT 1`)).rows[0].id as string;
     await pool.query(`INSERT INTO taste.user_items (user_id, item_id) VALUES ($1, $2), ($1, $3)`, [ga.id, beer, water]);
-    expect((await level(gb, ga).expect(200)).body).toMatchObject({ points: 5, level: 1, title: 'A txilar', toNext: 5 });
+    await pool.query('UPDATE ledger.accounts SET balance = 0 WHERE user_id = $1', [ga.id]);
+    expect((await level(gb, ga).expect(200)).body).toMatchObject({ points: 5, level: 1, title: 'A txilar', toNext: 5, txillContribution: 0 });
+    // Os Txills também contam: 1 ponto por cada 200, até 15.
+    await pool.query('UPDATE ledger.accounts SET balance = 1000 WHERE user_id = $1', [ga.id]);
+    expect((await level(gb, ga).expect(200)).body).toMatchObject({ points: 10, level: 2, txillContribution: 5 });
+    await pool.query('UPDATE ledger.accounts SET balance = 100000 WHERE user_id = $1', [ga.id]);
+    expect((await level(gb, ga).expect(200)).body.txillContribution).toBe(15); // tem teto
+    await pool.query('UPDATE ledger.accounts SET balance = 0 WHERE user_id = $1', [ga.id]);
 
     // O título do topo depende da idade (sem nunca mostrar a data): 20 anos, 35 e 60.
     await pool.query(`UPDATE taste.user_items SET favorite = true WHERE user_id = $1`, [ga.id]); // +2 pontos

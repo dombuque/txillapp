@@ -196,22 +196,23 @@ export class GeleiraService {
     );
     if (!owner[0] || !owner[0].can || !owner[0].shown) throw new NotFoundException('Sem geleira para mostrar');
     const { rows } = await this.pool.query(
-      `SELECT coalesce(sum(
+      `SELECT (SELECT coalesce(sum(
                 (CASE WHEN i.kind = 'bebida' THEN CASE WHEN i.alcoholic THEN 4 ELSE 1 END
                       WHEN i.kind = 'vibe' THEN CASE i.category WHEN 'festa' THEN 4 WHEN 'musica' THEN 3 WHEN 'convivio' THEN 3 ELSE 2 END
                       WHEN i.kind = 'sitio' THEN CASE WHEN i.category = 'noite' THEN 3 ELSE 1 END
-                      ELSE 1 END) + CASE WHEN ui.favorite THEN 1 ELSE 0 END), 0)::int AS points
-         FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id
-        WHERE ui.user_id = $1 AND i.status = 'curated'`,
+                      ELSE 1 END) + CASE WHEN ui.favorite THEN 1 ELSE 0 END), 0)::int
+                FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id WHERE ui.user_id = $1 AND i.status = 'curated') AS taste_points,
+              -- Os Txills também contam: 1 ponto por cada 200, até 15.
+              (SELECT least(15, floor(coalesce(sum(a.balance), 0) / 200))::int FROM ledger.accounts a WHERE a.user_id = $1) AS txill_points`,
       [owner[0].id],
     );
-    const points = rows[0].points as number;
+    const points = (rows[0].taste_points as number) + ((rows[0].txill_points as number) ?? 0);
     const steps = [1, 10, 25, 50];
     const level = points <= 0 ? 0 : points >= steps[3] ? 4 : points >= steps[2] ? 3 : points >= steps[1] ? 2 : 1;
     const age = owner[0].birth_date ? Math.floor((Date.now() - new Date(owner[0].birth_date as string).getTime()) / 31_557_600_000) : null;
     const top = age !== null && age >= 45 ? 'Madala da paulada' : age !== null && age >= 30 ? 'Mestre da paulada' : 'Lenda da paulada';
     const titles = ['Geleira seca', 'A txilar', 'Maningue abastecida', 'Paulada garantida', top];
-    return { points, level, title: titles[level], toNext: level >= 4 ? null : steps[level] - points, nextTitle: level >= 4 ? null : level === 3 ? top : titles[level + 1] };
+    return { points, tasteContribution: rows[0].taste_points as number, txillContribution: (rows[0].txill_points as number) ?? 0, level, title: titles[level], toNext: level >= 4 ? null : steps[level] - points, nextTitle: level >= 4 ? null : level === 3 ? top : titles[level + 1] };
   }
 
   async settings(userId: string) {

@@ -62,13 +62,14 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
   const [open, setOpen] = useState(!compact);
   const q = useQuery({ queryKey: ['geleira', isMe ? 'me' : username], queryFn: (): Promise<(MyTaste | TheirTaste)[]> => (isMe ? api.geleiraMine() : api.geleiraOf(username)), retry: false });
   const items = q.data ?? [];
+  // O nível vem do servidor (conta tudo, venha quem vier ver, e o título respeita a idade). Fica antes dos return: os hooks têm de ser sempre os mesmos.
+  const lv = useQuery({ queryKey: ['geleira-level', username], queryFn: () => api.geleiraLevel(username), retry: false, staleTime: 60_000 });
   if (q.isLoading) return <div className={`${flush ? '' : 'mx-4'} skel mt-4 ${compact ? 'h-[60px]' : 'h-48'} rounded-[24px]`} role="status" aria-label="A carregar a geleira" />;
   if (!isMe && (q.isError || items.length === 0)) return null;
 
   const favorites = items.filter((i) => i.favorite).slice(0, 8);
   const total = items.filter((i) => !i.pending).length;
   // O nível vem do servidor (conta tudo, venha quem vier ver, e o título respeita a idade); enquanto carrega usa a conta local.
-  const lv = useQuery({ queryKey: ['geleira-level', username], queryFn: () => api.geleiraLevel(username), retry: false, staleTime: 60_000 });
   const points = geleiraPoints(items);
   const level = lv.data?.level ?? geleiraLevel(points);
   const title = lv.data?.title ?? LEVEL_LABEL[level];
