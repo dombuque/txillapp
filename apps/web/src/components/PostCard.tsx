@@ -236,6 +236,65 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
   ];
   const shown = post.kind === 'repost' ? [] : rows.filter((r) => r.n > 0 && post.lists?.[r.kind]);
 
+  const sheets = (
+    <>
+      {people && <PeopleSheet postId={post.id} kind={people} layer={layer} onClose={() => setPeople(null)} />}
+      {sheet === 'comments' && <CommentsSheet post={post} layer={layer} onClose={() => setSheet(null)} onDelta={(d) => patch({ comments: Math.max(0, post.comments + d) })} />}
+      {sheet === 'gift' && <GiftSheet postId={post.id} recipient={post.author} layer={layer} onClose={() => setSheet(null)} />}
+      {sheet === 'repost' && <RepostSheet post={post} layer={layer} onChange={patch} onClose={() => setSheet(null)} />}
+    </>
+  );
+
+  // Cartão normal: contadores em cima (brindes, reposts, presentes · comentários) e, por baixo da linha, três ações com texto.
+  if (!dark) {
+    const chips: { kind: PeopleKind; n: number; icon: 'cheers' | 'repeat' | 'present'; label: string }[] = [
+      { kind: 'cheers', n: post.cheers, icon: 'cheers', label: rows[0].label },
+      { kind: 'reposts', n: post.reposts, icon: 'repeat', label: rows[1].label },
+      { kind: 'gifts', n: post.gifts, icon: 'present', label: rows[2].label },
+    ];
+    const canSee = (k: PeopleKind) => post.kind !== 'repost' && !!post.lists?.[k];
+    const barBtn = 'flex min-h-12 flex-1 items-center justify-center gap-2 px-1 text-[16px] font-medium text-zinc-800 transition active:scale-95';
+    return (
+      <>
+        <div className="mt-3 flex min-h-8 items-center justify-between gap-3 text-[15px] text-zinc-700">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4">
+            {chips.filter((c) => c.n > 0).map((c) => {
+              const inner = (<><Icon name={c.icon} size={18} /> <span className="tabular-nums">{c.n}</span></>);
+              return canSee(c.kind) ? (
+                <button key={c.kind} onClick={() => setPeople(c.kind)} aria-label={`${c.n} ${c.label}: ver quem`} className="flex min-h-8 items-center gap-1.5 active:opacity-60">{inner}</button>
+              ) : (
+                <span key={c.kind} role="img" aria-label={`${c.n} ${c.label}`} className="flex min-h-8 items-center gap-1.5">{inner}</span>
+              );
+            })}
+          </div>
+          {post.comments > 0 && (
+            <button onClick={() => setSheet('comments')} className="shrink-0 text-[14px] font-medium text-zinc-700 active:opacity-60">
+              {post.comments} {post.comments === 1 ? 'Comentário' : 'Comentários'}
+            </button>
+          )}
+        </div>
+        <div className="mt-1 flex items-center border-t border-zinc-200">
+          <button onClick={cheer} aria-pressed={post.cheered} aria-label={post.cheered ? 'Tirar o brinde' : 'Brindar'} className={`${barBtn} ${post.cheered ? '!text-green-700' : ''}`}>
+            <span key={String(post.cheered)} className={`inline-flex ${post.cheered ? 'animate-[pop_.4s_ease-out]' : ''}`}><Icon name="cheers" size={24} /></span>
+            {post.cheered ? 'Brindou' : 'Brindar'}
+          </button>
+          <button onClick={() => setSheet('comments')} aria-label={`Comentar (${post.comments})`} className={barBtn}>
+            <CommentIcon /> Comentar
+          </button>
+          {!mine && post.canGift ? (
+            <button onClick={() => setSheet('gift')} aria-label={`Presentear (${post.gifts})`} className={barBtn}>
+              <GiftIcon /> Presentear
+            </button>
+          ) : (
+            // Sem seguir (ou nas próprias publicações) não há presente: o espaço mantém as ações alinhadas.
+            <span className="flex-1" aria-hidden />
+          )}
+        </div>
+        {sheets}
+      </>
+    );
+  }
+
   return (
     <>
       {shown.length > 0 && (
@@ -283,10 +342,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
           )
         )}
       </div>
-      {people && <PeopleSheet postId={post.id} kind={people} layer={layer} onClose={() => setPeople(null)} />}
-      {sheet === 'comments' && <CommentsSheet post={post} layer={layer} onClose={() => setSheet(null)} onDelta={(d) => patch({ comments: Math.max(0, post.comments + d) })} />}
-      {sheet === 'gift' && <GiftSheet postId={post.id} recipient={post.author} layer={layer} onClose={() => setSheet(null)} />}
-      {sheet === 'repost' && <RepostSheet post={post} layer={layer} onChange={patch} onClose={() => setSheet(null)} />}
+      {sheets}
     </>
   );
 }
@@ -371,9 +427,12 @@ function ImageViewer({ post, start, onClose }: { post: Post; start: number; onCl
 export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean }) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [open, setOpen] = useState<null | 'menu' | 'report' | 'delete' | 'share'>(null);
+  const [open, setOpen] = useState<null | 'menu' | 'report' | 'delete' | 'share' | 'repost'>(null);
   const [note, setNote] = useState('');
   const mine = post.author.id === user?.id;
+  const patch = usePatch(post.id);
+  // Fora da barra de ações (cartão normal): repostar vive aqui.
+  const canRepost = !dark && (post.kind === 'post' || (post.kind === 'repost' && !!post.body));
 
   async function copy() {
     try {
@@ -401,6 +460,7 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
       </button>
       {open === 'menu' && (
         <Sheet title="Publicação" onClose={() => setOpen(null)}>
+          {canRepost && <MenuRow icon={<RepostIcon />} title={post.reposted ? 'Repost feito' : 'Repostar'} text={post.reposted ? 'Toca para desfazer ou comentar.' : 'Partilha no teu perfil, com ou sem comentário.'} onClick={() => setOpen('repost')} />}
           <MenuRow icon={<Icon name="share" />} title="Partilhar" text="No teu status, por ligação ou por outra app." onClick={() => setOpen('share')} />
           <MenuRow icon={<Icon name="link" />} title="Copiar ligação" text={note || 'Para partilhares onde quiseres.'} onClick={copy} />
           {mine ? (
@@ -420,6 +480,7 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
           <button onClick={() => setOpen(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">Cancelar</button>
         </Sheet>
       )}
+      {open === 'repost' && <RepostSheet post={post} onChange={patch} onClose={() => setOpen(null)} />}
       {open === 'share' && <ShareSheet post={post} onClose={() => setOpen(null)} />}
       {open === 'report' && <ReportSheet type="post" id={post.id} onClose={() => setOpen(null)} />}
     </>

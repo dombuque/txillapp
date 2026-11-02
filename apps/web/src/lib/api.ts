@@ -245,6 +245,8 @@ export interface PrivacySettings {
   /** Estatísticas de utilização próprias (sem terceiros). */
   shareAnalytics: boolean;
   isAdmin: boolean;
+  /** Já viu (ou saltou) a visita guiada. */
+  welcomed: boolean;
   /** Contas antigas: falta a data de nascimento / aceitar os termos em vigor. */
   birthDateSet: boolean;
   termsAccepted: boolean;
@@ -261,6 +263,12 @@ export interface PrivacySettings {
   showConnections: 'everyone' | 'followers' | 'me';
   suggestable: boolean;
 }
+export type TasteKind = 'vibe' | 'bebida' | 'comida' | 'sitio';
+export type TasteVisibility = 'everyone' | 'followers' | 'me';
+export interface TasteItem { id: string; name: string; kind: TasteKind; category: string; alcoholic: boolean; pending: boolean }
+export interface CatalogItem extends TasteItem { mine: boolean }
+export interface MyTaste extends TasteItem { rating: number | null; favorite: boolean; visibility: TasteVisibility }
+export interface TheirTaste extends TasteItem { rating: number | null; favorite: boolean }
 export interface StorySettings {
   replies: Who;
   hidden: { username: string; displayName: string }[];
@@ -459,6 +467,16 @@ export const api = {
 
   search: (q: string): Promise<SearchResults> => raw(`/search?q=${encodeURIComponent(q)}`),
 
+  geleiraCatalog: (q: string, kind?: TasteKind): Promise<CatalogItem[]> => raw(`/geleira/catalog?q=${encodeURIComponent(q)}${kind ? `&kind=${kind}` : ''}`),
+  geleiraMine: (): Promise<MyTaste[]> => raw('/geleira/me'),
+  geleiraOf: (username: string): Promise<TheirTaste[]> => raw(`/users/${encodeURIComponent(username)}/geleira`),
+  geleiraPut: (itemId: string, b: { rating?: number | null; favorite?: boolean; visibility?: TasteVisibility }): Promise<void> =>
+    raw(`/geleira/me/items/${itemId}`, { method: 'PUT', body: JSON.stringify(b) }),
+  geleiraRemove: (itemId: string): Promise<void> => raw(`/geleira/me/items/${itemId}`, { method: 'DELETE' }),
+  geleiraSuggest: (b: { name: string; kind: TasteKind; category: string; alcoholic?: boolean }): Promise<TasteItem> => raw('/geleira/items', post(b)),
+  geleiraSettings: (): Promise<{ matching: boolean }> => raw('/geleira/me/settings'),
+  setGeleiraSettings: (b: { matching: boolean }): Promise<{ matching: boolean }> => raw('/geleira/me/settings', { method: 'PUT', body: JSON.stringify(b) }),
+  setWelcomed: (): Promise<PrivacySettings> => raw('/users/me/welcomed', { method: 'PUT' }),
   privacy: (): Promise<PrivacySettings> => raw('/settings/privacy'),
   /** País onde a pessoa está agora (pelo IP). */
   geo: (): Promise<{ country: string | null }> => raw('/health/geo'),

@@ -54,6 +54,11 @@ export class SocialController {
     return this.social.setConsent(req.userId!, b.birthDate);
   }
 
+  @Put('users/me/welcomed')
+  welcomed(@Req() req: AuthedReq) {
+    return this.social.setWelcomed(req.userId!);
+  }
+
   @Put('users/me/avatar')
   setAvatar(@Req() req: AuthedReq, @Body(new ZodPipe(avatarSchema)) b: z.infer<typeof avatarSchema>) {
     return this.social.setAvatar(req.userId!, b.mediaId);

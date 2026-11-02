@@ -289,11 +289,17 @@ export class SocialService {
     return this.privacy(userId);
   }
 
+  /** Fim (ou salto) da visita guiada: não volta a aparecer. */
+  async setWelcomed(userId: string) {
+    await this.pool.query('UPDATE identity.users SET welcomed_at = COALESCE(welcomed_at, now()) WHERE id = $1', [userId]);
+    return this.privacy(userId);
+  }
+
   /* ───────────── privacidade ───────────── */
 
   async privacy(userId: string) {
     const { rows } = await this.pool.query(
-      'SELECT is_private, comments_allowed, gifts_allowed, mentions_allowed, dms_allowed, reposts_visible, cheers_visible, gifts_visible, show_connections, suggestable, gender, show_gender, (birth_date IS NOT NULL) AS birth_set, (terms_version = $2) AS terms_ok, is_admin, share_analytics FROM identity.users WHERE id = $1',
+      'SELECT is_private, comments_allowed, gifts_allowed, mentions_allowed, dms_allowed, reposts_visible, cheers_visible, gifts_visible, show_connections, suggestable, gender, show_gender, (birth_date IS NOT NULL) AS birth_set, (terms_version = $2) AS terms_ok, is_admin, share_analytics, (welcomed_at IS NOT NULL) AS welcomed FROM identity.users WHERE id = $1',
       [userId, TERMS_VERSION],
     );
     const r = rows[0];
@@ -302,6 +308,8 @@ export class SocialService {
       birthDateSet: r.birth_set as boolean,
       termsAccepted: r.terms_ok === true,
       isAdmin: r.is_admin as boolean,
+      /** Já viu (ou saltou) a visita guiada de boas-vindas. */
+      welcomed: r.welcomed as boolean,
       shareAnalytics: r.share_analytics as boolean,
       /** null = ainda não escolheu (a app pede-o uma vez). */
       gender: r.gender as Gender | null,

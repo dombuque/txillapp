@@ -46,6 +46,10 @@ export class ExportService {
       followers: (await q(`SELECT u.username FROM social.follows f JOIN identity.users u ON u.id = f.follower_id WHERE f.followee_id = $1 ORDER BY u.username`)).map((r) => r.username),
       blocked: (await q(`SELECT u.username FROM social.blocks b JOIN identity.users u ON u.id = b.blocked_id WHERE b.blocker_id = $1 ORDER BY u.username`)).map((r) => r.username),
       closeFriends: (await q(`SELECT u.username FROM social.close_friends cf JOIN identity.users u ON u.id = cf.friend_id WHERE cf.owner_id = $1 ORDER BY u.username`)).map((r) => r.username),
+      geleira: await q(
+        `SELECT i.name, i.kind, i.category, ui.rating, ui.favorite, ui.visibility
+           FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id WHERE ui.user_id = $1 ORDER BY i.kind, i.name`,
+      ),
       reportsFiled: await q(`SELECT target_type AS "type", reason, status, created_at AS "createdAt" FROM social.reports WHERE reporter_id = $1 ORDER BY created_at`),
       wallet: await q(
         `SELECT t.id, t.created_at AS "createdAt", t.type, e.amount

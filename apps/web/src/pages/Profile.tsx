@@ -8,6 +8,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import EditProfileSheet from '../components/EditProfileSheet';
+import GeleiraShelf from '../components/GeleiraShelf';
 import FollowButton from '../components/FollowButton';
 import GiftSheet from '../components/GiftSheet';
 import RichText from '../components/RichText';
@@ -180,6 +181,8 @@ export default function ProfilePage() {
           </button>
         )}
       </section>
+
+      {p.canView && !blocked && <GeleiraShelf username={p.username} isMe={p.isMe} />}
 
       {!p.canView && !blocked ? (
         <div className="mx-4 mt-6 rounded-[28px] bg-white p-8 text-center shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
