@@ -17,6 +17,7 @@ import { BrandLoader, TopLoader } from './components/Loading';
 import { AuthProvider, useAuth } from './lib/auth';
 import { GoogleUsername, Login, Register } from './pages/AuthForm';
 import Compose from './pages/Compose';
+import GeleiraEditor from './pages/GeleiraEditor';
 import CameraStudio from './components/CameraStudio';
 import Connections from './pages/Connections';
 import Feed from './pages/Feed';
@@ -130,6 +131,7 @@ createRoot(document.getElementById('root')!).render(
             <Route element={<Private><DesktopShell /></Private>}>
               {/* Páginas próprias em ecrã inteiro (como a Atividade do Instagram): sem a barra de baixo. */}
               <Route path="/notifications" element={<Private><Notifications /></Private>} />
+              <Route path="/geleira" element={<Private><GeleiraEditor /></Private>} />
               <Route path="/settings" element={<Private><Settings /></Private>} />
               <Route path="/admin/stats" element={<Private><Suspense fallback={null}><AdminStats /></Suspense></Private>} />
               <Route path="/reels" element={<Private><Reels /></Private>} />

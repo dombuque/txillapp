@@ -63,7 +63,7 @@ export default function GeleiraWallet() {
         </>
       )}
 
-      <Link to="/profile" className="mt-4 flex h-12 items-center justify-center gap-2 rounded-full bg-white font-bold text-sky-700 transition active:scale-[0.98]">
+      <Link to="/geleira" className="mt-4 flex h-12 items-center justify-center gap-2 rounded-full bg-white font-bold text-sky-700 transition active:scale-[0.98]">
         <Icon name="plus" size={18} /> {empty ? 'Encher a geleira' : 'Valorizar a geleira'}
       </Link>
       <p className="mt-3 text-center text-xs text-white/80">Valor de estatuto: não é saldo e não se gasta. Quanto mais gelo, favoritos e coisas raras, mais vale. Só tu o vês.</p>

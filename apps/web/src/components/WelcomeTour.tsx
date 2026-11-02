@@ -61,7 +61,7 @@ export default function WelcomeTour() {
   async function finish(openGeleira: boolean) {
     qc.setQueryData(['privacy'], { ...p!, welcomed: true }); // fecha já; o servidor confirma a seguir
     api.setWelcomed().then((r) => qc.setQueryData(['privacy'], r)).catch(() => undefined);
-    if (openGeleira) navigate('/profile');
+    if (openGeleira) navigate('/geleira');
   }
   const last = i === STEPS.length - 1;
 

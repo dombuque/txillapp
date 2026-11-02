@@ -83,13 +83,14 @@ export class GeleiraService {
     }
     const { rows } = await this.pool.query(
       `SELECT i.id, i.slug, i.name, i.kind, i.category, i.alcoholic, i.status, i.created_by,
-              (SELECT count(*)::int FROM taste.user_items ui WHERE ui.item_id = i.id) AS fans,
-              EXISTS (SELECT 1 FROM taste.user_items m WHERE m.item_id = i.id AND m.user_id = $1) AS mine
-         FROM taste.items i WHERE ${where}
-        ORDER BY fans DESC, i.name LIMIT 300`,
+              (SELECT count(*)::int FROM taste.user_items f WHERE f.item_id = i.id) AS fans,
+              (m.user_id IS NOT NULL) AS mine, m.rating, COALESCE(m.favorite, false) AS favorite, COALESCE(m.visibility, 'everyone') AS visibility
+         FROM taste.items i LEFT JOIN taste.user_items m ON m.item_id = i.id AND m.user_id = $1
+        WHERE ${where}
+        ORDER BY fans DESC, i.name LIMIT 400`,
       params,
     );
-    return rows.map((r) => ({ ...itemOut(r, userId), mine: r.mine as boolean }));
+    return rows.map((r) => ({ ...itemOut(r, userId), mine: r.mine as boolean, rating: r.rating as number | null, favorite: r.favorite as boolean, visibility: r.visibility as Visibility, fans: r.fans as number }));
   }
 
   /** A minha geleira completa, com visibilidade de cada item. */

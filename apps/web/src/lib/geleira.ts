@@ -23,3 +23,9 @@ export const iconOf = (i: Pick<TasteItem, 'kind' | 'category'>): IconName => BY_
 
 /** Escala de gelo: de morno a gelada de rachar. */
 export const ICE = ['', 'Morno', 'Fresquinho', 'Fresco', 'Gelado', 'Gelada de rachar'];
+
+/** Mesma conta do servidor (valor de estatuto em Txills), para mostrar o valor a subir enquanto se escolhe. */
+const BASE: Record<TasteKind, number> = { vibe: 15, bebida: 20, comida: 20, sitio: 30 };
+const ICE_MULT = [0.5, 1, 1.5, 2, 3, 4];
+export const itemValue = (kind: TasteKind, rating: number | null, favorite: boolean, fans: number) =>
+  Math.round(BASE[kind] * ICE_MULT[rating ?? 0] * (1 + 1 / Math.sqrt(Math.max(1, fans))) * (favorite ? 1.5 : 1));
