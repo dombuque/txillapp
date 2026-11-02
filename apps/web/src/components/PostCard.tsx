@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import ShareSheet from './ShareSheet';
 import VideoPlayer from './VideoPlayer';
 import { track } from '../lib/analytics';
@@ -239,13 +240,16 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
   ];
   const shown = post.kind === 'repost' ? [] : rows.filter((r) => r.n > 0 && post.lists?.[r.kind]);
 
-  const sheets = (
+  // Vão para o topo da página: dentro de um cartão aberto numa folha ou no visualizador (que têm transformações) ficariam presas e escondidas.
+  const top = layer ?? 'z-[80]';
+  const sheets = createPortal(
     <>
-      {people && <PeopleSheet postId={post.id} kind={people} layer={layer} onClose={() => setPeople(null)} />}
-      {sheet === 'comments' && <CommentsSheet post={post} layer={layer} onClose={() => setSheet(null)} onDelta={(d) => patch({ comments: Math.max(0, post.comments + d) })} />}
-      {sheet === 'gift' && <GiftSheet postId={post.id} recipient={post.author} layer={layer} onClose={() => setSheet(null)} />}
-      {sheet === 'repost' && <RepostSheet post={post} layer={layer} onChange={patch} onClose={() => setSheet(null)} />}
-    </>
+      {people && <PeopleSheet postId={post.id} kind={people} layer={top} onClose={() => setPeople(null)} />}
+      {sheet === 'comments' && <CommentsSheet post={post} layer={top} onClose={() => setSheet(null)} onDelta={(d) => patch({ comments: Math.max(0, post.comments + d) })} />}
+      {sheet === 'gift' && <GiftSheet postId={post.id} recipient={post.author} layer={top} onClose={() => setSheet(null)} />}
+      {sheet === 'repost' && <RepostSheet post={post} layer={top} onChange={patch} onClose={() => setSheet(null)} />}
+    </>,
+    document.body,
   );
 
   // Cartão normal: contadores em cima (brindes, reposts, presentes · comentários) e, por baixo da linha, três ações com texto.
@@ -486,7 +490,7 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
           <button onClick={() => setOpen(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">Cancelar</button>
         </Sheet>
       )}
-      {open === 'share' && <ShareSheet post={post} onClose={() => setOpen(null)} />}
+      {open === 'share' && createPortal(<ShareSheet post={post} layer="z-[80]" onClose={() => setOpen(null)} />, document.body)}
       {open === 'report' && <ReportSheet type="post" id={post.id} onClose={() => setOpen(null)} />}
     </>
   );
