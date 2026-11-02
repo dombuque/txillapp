@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'r
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { api, type Post, type Story, type TrayUser } from '../lib/api';
 import ShareSheet from './ShareSheet';
+import { REACTIONS, Reaction, reactionText } from '../lib/stickers';
 import { useAuth } from '../lib/auth';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import Icon from './Icon';
@@ -182,7 +183,6 @@ const CloseIcon = () => <Icon name="x" size={24} strokeWidth={2} />;
 const DotsIcon = () => <Icon name="more" size={24} strokeWidth={2.4} />;
 const EyeIcon = () => <Icon name="eye" size={20} strokeWidth={2} />;
 
-const REACTIONS = ['😂', '😮', '😍', '😢', '👏', '🔥', '🥂'];
 
 function expiresIn(iso: string) {
   const h = Math.ceil((new Date(iso).getTime() - Date.now()) / 3_600_000);
@@ -210,7 +210,7 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
   async function cheer() {
     if (cheered) return;
     setCheered(true);
-    await send('🥂');
+    await send(':brinde:');
   }
 
   async function send(body: string) {
@@ -219,7 +219,7 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
     try {
       await api.replyStory(story.id, body.trim());
       setText('');
-      setMsg(REACTIONS.includes(body) ? `${body} enviado!` : 'Mensagem enviada');
+      setMsg(REACTIONS.some((r) => r.id === body) ? `${reactionText(body)} enviado!` : 'Mensagem enviada');
     } catch (x) {
       setMsg((x as Error).message);
     } finally {
@@ -235,10 +235,10 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
   return (
     <div className="pointer-events-auto w-full" onPointerDown={(e) => e.stopPropagation()}>
       {open && (
-        <div className="mb-3 flex justify-between px-1 text-3xl">
-          {REACTIONS.map((e) => (
-            <button key={e} type="button" onMouseDown={(ev) => ev.preventDefault()} onClick={() => send(e)} aria-label={`Reagir com ${e}`} className="transition active:scale-125">
-              {e}
+        <div className="mb-3 flex justify-between px-1">
+          {REACTIONS.map((r) => (
+            <button key={r.id} type="button" onMouseDown={(ev) => ev.preventDefault()} onClick={() => send(r.id)} aria-label={`Reagir: ${r.label}`} className="transition active:scale-125">
+              <Reaction body={r.id} size={40} />
             </button>
           ))}
         </div>

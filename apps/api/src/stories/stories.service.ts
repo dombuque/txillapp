@@ -19,7 +19,8 @@ const sharedOk = (s = 's') =>
 const notHidden = (author: string, viewer = '$1') =>
   `NOT EXISTS (SELECT 1 FROM social.story_hidden h WHERE h.owner_id = ${author} AND h.hidden_id = ${viewer})`;
 
-const REACTIONS = new Set(['😂', '😮', '😍', '😢', '👏', '🔥', '🍻', '🥂']);
+/** Reações a stories: as do Txillapp (desenhadas na app, guardadas como :nome:) e os emojis antigos. */
+const REACTIONS = new Set([':rir:', ':uau:', ':amor:', ':snif:', ':palmas:', ':fogo:', ':brinde:', '😂', '😮', '😍', '😢', '👏', '🔥', '🍻', '🥂']);
 
 @Injectable()
 export class StoriesService {

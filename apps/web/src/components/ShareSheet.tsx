@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { track } from '../lib/analytics';
 import { api, type Post } from '../lib/api';
+import { sized } from '../lib/media';
 import { postLink, postShare, shareNow } from '../lib/share';
 import Icon, { type IconName } from './Icon';
 import NewChat from './NewChat';
@@ -134,6 +135,30 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
     track('share', { where: 'whatsapp' });
     window.open(`https://wa.me/?text=${encodeURIComponent(`${data.text}\n${url}`)}`, '_blank', 'noopener');
   }
+  // O WhatsApp não tem ligação direta ao status: o que se consegue é entregar a foto ou vídeo ao menu de partilha do telemóvel,
+  // onde o WhatsApp oferece "Status". Por isso envia-se o ficheiro (não o link) e a pessoa escolhe o Status.
+  async function whatsappStory() {
+    track('share', { where: 'whatsapp-status' });
+    const m = post.media[0];
+    if (!m) return setNote('Só publicações com foto ou vídeo vão para o status do WhatsApp');
+    setBusy(true);
+    try {
+      const res = await fetch(m.kind === 'video' ? m.url : sized(m.url, 1080));
+      const blob = await res.blob();
+      const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : blob.type.includes('video') ? 'mp4' : 'jpg';
+      const file = new File([blob], `txillapp-${post.code ?? post.id}.${ext}`, { type: blob.type });
+      if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text: `${data.text}
+${url}` });
+        onClose();
+      } else {
+        setNote('Este telemóvel não deixa partilhar o ficheiro diretamente. Usa "Partilhar…" ou guarda a foto.');
+      }
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') setNote('Não consegui preparar a foto para o status');
+    }
+    setBusy(false);
+  }
   function network(where: string, href: string) {
     track('share', { where });
     window.open(href, '_blank', 'noopener');
@@ -220,7 +245,8 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
               <div className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {action('square-plus', 'Adicionar ao status', () => void toStory('all'), canStory ? 'bg-brand text-white' : 'bg-zinc-100 text-zinc-400')}
                 {action('heart', 'Amigos próximos', () => void toStory('close_friends'), canStory ? 'bg-emerald-500 text-white' : 'bg-zinc-100 text-zinc-400')}
-                {action('send', 'WhatsApp', whatsapp, 'bg-emerald-500 text-white')}
+                {action('send', 'Story do WhatsApp', () => void whatsappStory(), 'bg-emerald-500 text-white')}
+                {action('send', 'WhatsApp', whatsapp, 'bg-emerald-600 text-white')}
                 {letter('Telegram', 'T', 'bg-sky-500', () => network('telegram', `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(data.text)}`))}
                 {letter('Facebook', 'f', 'bg-blue-600', () => network('facebook', `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`))}
                 {letter('X', 'X', 'bg-zinc-900', () => network('x', `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(data.text)}`))}

@@ -75,4 +75,16 @@ describe('links curtos e cartões de pré-visualização (integração)', () => 
     await pool.query('UPDATE content.posts SET removed_at = now() WHERE id = $1', [p.id]);
     expect((await api().get(`/api/v1/share/p/${p.code}`).expect(200)).text).not.toContain('segredo');
   });
+
+  it('pré-visualização pública (sem sessão): só leitura, só de publicações públicas', async () => {
+    const p = (await api().post('/api/v1/posts').set(auth(ana)).send({ body: 'olá a quem ainda não entrou' }).expect(201)).body;
+    const view = (await api().get(`/api/v1/public/posts/${p.code}`).expect(200)).body;
+    expect(view).toMatchObject({ code: p.code, kind: 'post', body: 'olá a quem ainda não entrou', author: { username: ana.username }, media: [], counts: { cheers: 0, comments: 0 } });
+    expect(JSON.stringify(view)).not.toMatch(/email|password|id"/i); // sem dados internos
+    await api().get(`/api/v1/public/posts/${p.id}`).expect(200); // links antigos, com o id
+    await api().get('/api/v1/public/posts/nao-existe-1').expect(404);
+    await pool.query('UPDATE identity.users SET is_private = true WHERE id = $1', [ana.id]);
+    await api().get(`/api/v1/public/posts/${p.code}`).expect(404); // conta privada: não se vê
+    await pool.query('UPDATE identity.users SET is_private = false WHERE id = $1', [ana.id]);
+  });
 });

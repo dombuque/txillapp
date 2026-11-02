@@ -1,4 +1,4 @@
-import { Controller, Get, Header, Inject, Param, Req, Res } from '@nestjs/common';
+import { Controller, Get, Header, Inject, NotFoundException, Param, Req, Res } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { Pool } from 'pg';
@@ -62,5 +62,64 @@ export class ShareController {
           `<meta name="twitter:description" content="${esc(description)}"><meta name="twitter:image" content="${esc(image)}">` +
           `</head><body><p><a href="${esc(url)}">Abrir no Txillapp</a></p></body></html>`,
       );
+  }
+}
+
+/**
+ * Pré-visualização pública de uma publicação (para quem abre um link partilhado sem ter conta ou sem ter entrado):
+ * só leitura, sem ações. Só publicações públicas e ativas; qualquer outra coisa dá 404 (sem revelar que existe).
+ */
+@Controller('public')
+export class PublicPostController {
+  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+
+  @Get('posts/:code')
+  @SkipThrottle()
+  @Header('Cache-Control', 'public, max-age=60')
+  async post(@Param('code') code: string) {
+    if (!/^[A-Za-z0-9-]{6,36}$/.test(code)) throw new NotFoundException();
+    const find = async (key: string) =>
+      (
+        await this.pool.query(
+          `SELECT p.id, p.short_code, p.body, p.kind, p.repost_of, p.location_label, p.created_at, u.username, u.display_name, u.verified, u.verified_tier,
+                  (u.avatar_media_id IS NOT NULL) AS has_avatar,
+                  (SELECT count(*) FROM content.cheers c WHERE c.post_id = p.id)::int AS cheers,
+                  (SELECT count(*) FROM content.comments cm WHERE cm.post_id = p.id)::int AS comments,
+                  (SELECT coalesce(json_agg(json_build_object('id', a.id, 'video', a.mime LIKE 'video/%', 'width', a.width, 'height', a.height) ORDER BY pm.position), '[]'::json)
+                     FROM content.post_media pm JOIN content.media_assets a ON a.id = pm.media_id WHERE pm.post_id = p.id) AS media
+             FROM content.posts p JOIN identity.users u ON u.id = p.author_id
+            WHERE (p.short_code = $1 OR p.id::text = $1) AND p.removed_at IS NULL AND u.status = 'active' AND u.is_private = false AND p.kind IN ('post', 'repost', 'gift')`,
+          [key],
+        )
+      ).rows[0];
+    let r = await find(code);
+    if (!r) throw new NotFoundException();
+    // Um repost mostra a publicação original (se também for pública).
+    let repostedBy: string | null = null;
+    if (r.kind === 'repost' && r.repost_of) {
+      const o = await find(r.repost_of as string);
+      if (o) {
+        repostedBy = r.display_name as string;
+        r = o;
+      }
+    }
+    const media = (r.media as { id: string; video: boolean; width: number | null; height: number | null }[]).map((m) => ({
+      kind: m.video ? 'video' : 'image',
+      url: `/api/v1/media/${m.id}${m.video ? '' : '?w=1080'}`,
+      posterUrl: m.video ? `/api/v1/media/${m.id}?poster=1` : null,
+      width: m.width,
+      height: m.height,
+    }));
+    return {
+      code: r.short_code as string,
+      kind: media[0]?.kind === 'video' ? 'reel' : 'post',
+      author: { username: r.username as string, displayName: r.display_name as string, hasAvatar: r.has_avatar as boolean, verified: r.verified as boolean, verifiedTier: (r.verified_tier as string | null) ?? null },
+      body: (r.body as string) ?? '',
+      locationLabel: (r.location_label as string | null) ?? null,
+      createdAt: r.created_at as string,
+      repostedBy,
+      media,
+      counts: { cheers: r.cheers as number, comments: r.comments as number },
+    };
   }
 }

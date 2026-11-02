@@ -223,13 +223,13 @@ function mouth(kind: Mouth) {
 }
 
 /** O sticker: recorte com fundo transparente (a mascote, o adereço, o texto) com contorno branco e sombra suave. */
-export function Sticker({ id, size = 132 }: { id: string; size?: number }) {
+export function Sticker({ id, size = 132, bare = false }: { id: string; size?: number; bare?: boolean }) {
   const uid = useId().replace(/:/g, '');
   const s = STICKERS.find((x) => x.id === id);
   if (!s) return <span className="text-sm text-zinc-500">Sticker</span>;
-  const h = Math.round(size * 1.12);
+  const h = Math.round(size * (bare ? 0.98 : 1.12));
   return (
-    <svg role="img" aria-label={`Sticker: ${s.text}`} width={size} height={h} viewBox="0 0 120 134" className="shrink-0 overflow-visible">
+    <svg role="img" aria-label={`Sticker: ${s.text}`} width={size} height={h} viewBox={bare ? '0 4 120 118' : '0 0 120 134'} className="shrink-0 overflow-visible">
       <defs>
         <linearGradient id={`g${uid}`} x1="0.2" y1="0" x2="0.8" y2="1">
           <stop offset="0" stopColor={s.from} />
@@ -256,7 +256,7 @@ export function Sticker({ id, size = 132 }: { id: string; size?: number }) {
         {eyes(s.eyes)}
         {mouth(s.mouth)}
         {s.hat}
-        <text x="60" y="120" textAnchor="middle" fontSize={s.text.length > 9 ? 15 : 19} fontWeight="900" letterSpacing="0.5" fill="#fff" stroke={INK} strokeWidth="5" strokeLinejoin="round" paintOrder="stroke" fontFamily="inherit">{s.text}</text>
+        {!bare && <text x="60" y="120" textAnchor="middle" fontSize={s.text.length > 9 ? 15 : 19} fontWeight="900" letterSpacing="0.5" fill="#fff" stroke={INK} strokeWidth="5" strokeLinejoin="round" paintOrder="stroke" fontFamily="inherit">{s.text}</text>}
       </g>
     </svg>
   );
@@ -334,3 +334,23 @@ export function StickerPicker({ onPick, onClose }: { onPick: (id: string) => voi
     </div>
   );
 }
+
+/** Reações a stories: a mesma mascote dos stickers, sem texto. Guardam-se como :nome: (os emojis antigos continuam a aparecer). */
+export const REACTIONS: { id: string; label: string; art: string }[] = [
+  { id: ':rir:', label: 'Rir', art: 'rir' },
+  { id: ':uau:', label: 'Uau', art: 'uau' },
+  { id: ':amor:', label: 'Adorar', art: 'amor' },
+  { id: ':snif:', label: 'Triste', art: 'snif' },
+  { id: ':palmas:', label: 'Fixe', art: 'fixe' },
+  { id: ':fogo:', label: 'Bora', art: 'bora' },
+  { id: ':brinde:', label: 'Brindar', art: 'saude' },
+];
+
+export function Reaction({ body, size = 40 }: { body: string; size?: number }) {
+  const r = REACTIONS.find((x) => x.id === body);
+  if (!r) return <span style={{ fontSize: size * 0.85, lineHeight: 1 }}>{body}</span>;
+  return <Sticker id={r.art} size={size} bare />;
+}
+
+/** Texto simples de uma reação (para listas de mensagens). */
+export const reactionText = (body: string) => REACTIONS.find((x) => x.id === body)?.label ?? body;

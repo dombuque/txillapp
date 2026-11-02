@@ -39,7 +39,7 @@ export default function ReelPage() {
       )}
       {post && isVideo && (
         <div className="mx-auto h-full max-w-xl">
-          <Reel post={post} active onChange={patch} />
+          <Reel post={post} active onChange={patch} onMore={() => navigate('/reels')} />
         </div>
       )}
       <div className="pointer-events-none absolute inset-x-0 top-0 mx-auto flex max-w-xl items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { birthDateSchema, genderSchema } from '@txillapp/shared';
 import { ZodPipe } from '../common/zod.pipe';
-import { PostsService } from '../posts/posts.service';
+import { PROFILE_TABS, PostsService, type ProfileTab } from '../posts/posts.service';
 import { SocialService } from './social.service';
 
 type AuthedReq = Request & { userId?: string };
@@ -106,10 +106,10 @@ export class SocialController {
   }
 
   @Get('users/:username/posts')
-  async userPosts(@Req() req: AuthedReq, @Param('username') username: string, @Query('cursor') cursor?: string, @Query('limit') limit?: string) {
+  async userPosts(@Req() req: AuthedReq, @Param('username') username: string, @Query('cursor') cursor?: string, @Query('limit') limit?: string, @Query('tab') tab?: string) {
     await this.social.assertVisible(req.userId!, username);
     const n = Math.min(Math.max(parseInt(limit ?? '18', 10) || 18, 1), 50);
-    return this.posts.byAuthor(req.userId!, username, cursor, n);
+    return this.posts.byAuthor(req.userId!, username, cursor, n, (PROFILE_TABS as readonly string[]).includes(tab ?? '') ? (tab as ProfileTab) : 'all');
   }
 
   @Post('users/:username/follow')

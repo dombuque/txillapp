@@ -21,7 +21,7 @@ import { detectIntent } from '../lib/chatIntent';
 import { firstTime } from '../lib/firstTime';
 import { isSharing, startLive, stopLive } from '../lib/liveLocation';
 import { useTyping } from '../lib/chatLive';
-import { StickerButton, StickerPicker } from '../lib/stickers';
+import { Reaction, StickerButton, StickerPicker } from '../lib/stickers';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { useAuth } from '../lib/auth';
 
@@ -104,7 +104,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
       {(m.kind === 'story_reply' || m.kind === 'story_reaction') && (
         <p className="mb-0.5 text-xs text-zinc-500">{m.kind === 'story_reaction' ? (mine ? 'Reagiste ao story' : 'Reagiu ao teu story') : mine ? 'Respondeste ao story' : 'Respondeu ao teu story'}</p>
       )}
-      {m.kind === 'story_reaction' && <p className="text-4xl leading-tight">{m.body}</p>}
+      {m.kind === 'story_reaction' && <div className="leading-tight"><Reaction body={m.body} size={64} /></div>}
       {m.viewOnce ? (
         <button
           type="button"

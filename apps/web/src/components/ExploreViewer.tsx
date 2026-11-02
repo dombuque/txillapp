@@ -127,7 +127,15 @@ export default function ExploreViewer({ items, startId, onClose }: { items: Post
         <div ref={scroller} className="relative mx-auto h-full max-w-xl snap-y snap-mandatory overflow-y-scroll overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {list.map((p) => (
             <div key={p.id} data-id={p.id} className="h-full w-full snap-start snap-always">
-              <Reel post={p} active={p.id === activeId} onChange={(c) => patch(p.id, c)} />
+              <Reel
+                post={p}
+                active={p.id === activeId}
+                onChange={(c) => patch(p.id, c)}
+                onMore={() => {
+                  const next = list[list.findIndex((x) => x.id === p.id) + 1] ?? list[0];
+                  scroller.current?.querySelector(`[data-id="${next.id}"]`)?.scrollIntoView({ behavior: 'smooth' });
+                }}
+              />
             </div>
           ))}
         </div>

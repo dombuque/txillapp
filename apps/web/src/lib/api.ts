@@ -322,6 +322,7 @@ export interface StorySettings {
   hidden: { username: string; displayName: string }[];
 }
 export type GiftVisibility = 'silent' | 'private' | 'public';
+export type ProfileTab = 'posts' | 'reels' | 'reposts' | 'gifts' | 'tagged';
 export interface VerificationStatus {
   items: { key: string; label: string; ok: boolean; hint: string }[];
   eligible: boolean;
@@ -479,7 +480,7 @@ export const api = {
   resetPassword: (token: string, newPassword: string): Promise<{ ok: boolean }> => raw('/auth/password/reset', post({ token, newPassword })),
 
   profile: (username: string): Promise<Profile> => raw(`/users/${encodeURIComponent(username)}`),
-  userPosts: (username: string, cursor?: string): Promise<Page<Post>> => raw(`/users/${encodeURIComponent(username)}/posts${qs(cursor, 18)}`),
+  userPosts: (username: string, cursor?: string, tab: ProfileTab = 'posts'): Promise<Page<Post>> => raw(`/users/${encodeURIComponent(username)}/posts${qs(cursor, 18)}${(qs(cursor, 18) ? '&' : '?')}tab=${tab}`),
   follow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/follow`, post({})),
   unfollow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/follow`, { method: 'DELETE' }),
   followers: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/followers${qs(cursor, undefined, q)}`),

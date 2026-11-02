@@ -77,10 +77,13 @@ interface Props {
   className?: string;
   onProgress?: (fraction: number) => void;
   id?: string;
+  /** Reels: em vez de repetir sem fim, o vídeo termina e pergunta se se quer ver mais (ou rever). */
+  onMore?: () => void;
 }
 
 /** Vídeo curto: toca sozinho quando está à vista, sem som; toca-se para ligar/desligar o som. */
-export default function VideoPlayer({ src, poster, durationMs, width, height, active, cover = false, className = '', onProgress, id }: Props) {
+export default function VideoPlayer({ src, poster, durationMs, width, height, active, cover = false, className = '', onProgress, id, onMore }: Props) {
+  const [ended, setEnded] = useState(false);
   const ref = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const reels = active !== undefined;
@@ -102,7 +105,10 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
   }, [active]);
   // Fora de cena volta a tocar desde o início sem a pausa anterior.
   useEffect(() => {
-    if (active === false) setUserPaused(false);
+    if (active === false) {
+      setUserPaused(false);
+      setEnded(false);
+    }
   }, [active]);
   // Separador/app em segundo plano: pára; ao voltar, continua.
   useEffect(() => {
@@ -175,7 +181,8 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
         poster={poster}
         muted={silent}
         autoPlay={active === undefined ? undefined : active}
-        loop
+        loop={!onMore}
+        onEnded={onMore ? () => setEnded(true) : undefined}
         playsInline
         disablePictureInPicture
         disableRemotePlayback
@@ -192,6 +199,22 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
             <Icon name={flash === 'pause' ? 'pause' : 'play'} size={38} fill="currentColor" />
           </span>
         </span>
+      )}
+      {ended && onMore && (
+        // Fim do reel, como no Instagram: não repete sozinho, deixa escolher.
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/70 px-8 text-center text-white backdrop-blur-sm" onClick={(e) => e.stopPropagation()}>
+          <p className="text-xl font-extrabold">Queres ver mais?</p>
+          <button type="button" onClick={() => { setEnded(false); onMore(); }} className="h-12 w-full max-w-[240px] rounded-full bg-brand font-bold active:scale-95">Ver mais reels</button>
+          <button
+            type="button"
+            onClick={() => {
+              const v = ref.current;
+              setEnded(false);
+              if (v) { v.currentTime = 0; void v.play().catch(() => undefined); }
+            }}
+            className="h-11 w-full max-w-[240px] rounded-full bg-white/15 font-semibold active:scale-95"
+          >Ver outra vez</button>
+        </div>
       )}
       {failed && <p className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-white/80">Não consegui carregar este vídeo.</p>}
       {durationMs ? <span className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/60 px-2.5 py-0.5 text-xs font-semibold text-white">{mmss(durationMs)}</span> : null}

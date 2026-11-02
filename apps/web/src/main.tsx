@@ -43,6 +43,7 @@ const AdminStats = lazy(() => import('./pages/AdminStats'));
 const Admin = lazy(() => import('./pages/Admin'));
 const AdminVerifications = lazy(() => import('./pages/AdminVerifications'));
 const Verification = lazy(() => import('./pages/Verification'));
+const PublicPost = lazy(() => import('./pages/PublicPost'));
 
 neutralizeInstallOnSite();
 
@@ -106,6 +107,13 @@ function Private({ children }: { children: ReactNode }) {
   return user ? <>{children}</> : <Navigate to="/login" replace state={{ from: here.pathname + here.search }} />;
 }
 
+/** Links de posts e reels: com sessão abre normal; sem sessão mostra a pré-visualização pública (só leitura) em vez de pedir login. */
+function PrivateOrPublic({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <Splash />;
+  return user ? <>{children}</> : <Suspense fallback={<Splash />}><PublicPost /></Suspense>;
+}
+
 /** Login e registo só para quem ainda não entrou: com sessão iniciada vai direto ao feed (só o logout leva ao login). */
 function PublicOnly({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -142,8 +150,8 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/admin/verifications" element={<Private><Suspense fallback={null}><AdminVerifications /></Suspense></Private>} />
               <Route path="/verification" element={<Private><Suspense fallback={null}><Verification /></Suspense></Private>} />
               <Route path="/admin" element={<Private><Suspense fallback={null}><Admin /></Suspense></Private>} />
-              <Route path="/r/:postId" element={<Private><ReelPage /></Private>} />
-              <Route path="/p/:postId" element={<Private><PostPage /></Private>} />
+              <Route path="/r/:postId" element={<PrivateOrPublic><ReelPage /></PrivateOrPublic>} />
+              <Route path="/p/:postId" element={<PrivateOrPublic><PostPage /></PrivateOrPublic>} />
               <Route path="/messages/g/:id" element={<Private><Thread /></Private>} />
               <Route path="/messages/:username" element={<Private><Thread /></Private>} />
               <Route path="/u/:username/connections" element={<Private><Connections /></Private>} />

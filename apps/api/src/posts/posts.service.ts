@@ -44,6 +44,9 @@ export interface PhotoTag {
   y: number;
 }
 
+export type ProfileTab = 'posts' | 'reels' | 'reposts' | 'gifts' | 'tagged';
+export const PROFILE_TABS: readonly ProfileTab[] = ['posts', 'reels', 'reposts', 'gifts', 'tagged'];
+
 @Injectable()
 export class PostsService {
   constructor(
@@ -282,10 +285,20 @@ export class PostsService {
   }
 
   /** Publicações de uma pessoa (perfil), com o mesmo formato do feed. */
-  async byAuthor(viewerId: string, username: string, cursor: string | undefined, limit: number) {
+  async byAuthor(viewerId: string, username: string, cursor: string | undefined, limit: number, tab: ProfileTab | 'all' = 'all') {
     if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
+    const hasVideo = `EXISTS (SELECT 1 FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id WHERE pm.post_id = p.id AND ma.mime LIKE 'video/%')`;
+    // Cada separador do perfil: publicações (sem vídeo), reels (com vídeo), reposts, presentes (dados ou recebidos) e identificações.
+    const where: Record<ProfileTab | 'all', string> = {
+      all: `u.username = $2`,
+      posts: `u.username = $2 AND p.kind = 'post' AND NOT ${hasVideo}`,
+      reels: `u.username = $2 AND p.kind = 'post' AND ${hasVideo}`,
+      reposts: `u.username = $2 AND p.kind = 'repost'`,
+      gifts: `p.kind = 'gift' AND (u.username = $2 OR gr.username = $2)`,
+      tagged: `EXISTS (SELECT 1 FROM content.photo_tags pt JOIN identity.users tu ON tu.id = pt.tagged_id WHERE pt.post_id = p.id AND tu.username = $2)`,
+    };
     const { rows } = await this.pool.query(
-      `${FEED_SQL} WHERE u.username = $2 AND ($3::uuid IS NULL OR p.id < $3) AND ${canView()} ORDER BY p.id DESC LIMIT $4`,
+      `${FEED_SQL} WHERE ${where[tab]} AND ($3::uuid IS NULL OR p.id < $3) AND ${canView()} ORDER BY p.id DESC LIMIT $4`,
       [viewerId, username, cursor ?? null, limit + 1],
     );
     const page = rows.slice(0, limit);

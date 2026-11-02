@@ -1,3 +1,4 @@
+import { reactionText } from '../lib/stickers';
 import { RowsSkeleton } from '../components/Loading';
 import Icon from '../components/Icon';
 import NewChat from '../components/NewChat';
@@ -17,7 +18,7 @@ function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, g
   if (m.kind === 'gift') return `${m.fromMe ? 'Tu: ' : ''}Presente`;
   if (m.kind === 'sticker') return `${you}Sticker`;
   if (m.kind === 'location') return `${you}Localização`;
-  if (m.kind === 'story_reaction') return m.fromMe ? `Reagiste ao story ${m.body}` : `Reagiu ao teu story ${m.body}`;
+  if (m.kind === 'story_reaction') return m.fromMe ? `Reagiste ao story: ${reactionText(m.body)}` : `Reagiu ao teu story: ${reactionText(m.body)}`;
   if (m.kind === 'story_reply') return `${m.fromMe ? 'Respondeste ao story' : 'Respondeu ao teu story'}: ${m.body}`;
   return `${group ? '' : you}${m.body}`;
 }

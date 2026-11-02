@@ -19,7 +19,7 @@ import { trackSeen } from '../lib/seen';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 
 /** Um vídeo em ecrã inteiro com os botões à direita (brindar, comentar, partilhar, presentear). */
-export function Reel({ post, active, onChange }: { post: Post; active: boolean; onChange: (p: Partial<Post>) => void }) {
+export function Reel({ post, active, onChange, onMore }: { post: Post; active: boolean; onChange: (p: Partial<Post>) => void; onMore?: () => void }) {
   const { user } = useAuth();
   const [progress, setProgress] = useState(0);
   const [sheet, setSheet] = useState<null | 'comments' | 'gift' | 'share' | 'repost'>(null);
@@ -46,7 +46,7 @@ export function Reel({ post, active, onChange }: { post: Post; active: boolean; 
   const circle = 'flex h-12 w-12 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm transition active:scale-90';
   return (
     <section className="relative h-full w-full snap-start snap-always bg-black" aria-label={`Reel de ${post.author.displayName}`}>
-      <VideoPlayer src={v.url} poster={v.posterUrl} active={active} cover durationMs={null} className="h-full w-full" onProgress={setProgress} id={post.id} />
+      <VideoPlayer src={v.url} poster={v.posterUrl} active={active} cover durationMs={null} className="h-full w-full" onProgress={setProgress} id={post.id} onMore={onMore} />
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 to-transparent" />
       <div className="absolute inset-x-0 bottom-0 h-[3px] bg-white/25" aria-hidden>
@@ -115,6 +115,18 @@ export default function Reels() {
   const current = activeId ?? items[0]?.id ?? null;
   const idx = items.findIndex((p) => p.id === current);
 
+  /** Do fim de um reel para o seguinte (e, no último, carrega mais). */
+  async function goNext(id: string) {
+    const i = items.findIndex((x) => x.id === id);
+    let next = items[i + 1];
+    if (!next && q.hasNextPage) {
+      await q.fetchNextPage();
+      return;
+    }
+    if (!next) next = items[0];
+    root.current?.querySelector(`[data-id="${next.id}"]`)?.scrollIntoView({ behavior: 'smooth' });
+  }
+
   // Qual está em cena: o que ocupa mais de 70% do ecrã.
   useEffect(() => {
     const el = root.current;
@@ -169,7 +181,7 @@ export default function Reels() {
       <div ref={root} className="mx-auto h-full max-w-xl snap-y snap-mandatory overflow-y-scroll [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((p) => (
           <div key={p.id} data-id={p.id} className="h-full w-full snap-start snap-always">
-            <Reel post={p} active={p.id === current} onChange={(c) => patch(p.id, c)} />
+            <Reel post={p} active={p.id === current} onChange={(c) => patch(p.id, c)} onMore={() => void goNext(p.id)} />
           </div>
         ))}
         {q.isLoading && <div className="flex h-full items-center justify-center"><PontoLoader size={26} /></div>}

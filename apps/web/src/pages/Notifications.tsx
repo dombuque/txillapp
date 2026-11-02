@@ -1,3 +1,4 @@
+import { Reaction } from '../lib/stickers';
 import { RowsSkeleton } from '../components/Loading';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -43,7 +44,7 @@ function describe(n: AppNotification): { text: ReactNode; sub?: string } {
     case 'story_reply':
       if (n.data.replyKind === 'comment') return { text: <>comentou o teu story</>, sub: quote };
       return n.data.replyKind === 'reaction'
-        ? { text: <>reagiu ao teu story {n.data.snippet}</> }
+        ? { text: <>reagiu ao teu story <span className="ml-1 inline-block align-middle"><Reaction body={n.data.snippet ?? ''} size={26} /></span></> }
         : { text: <>respondeu ao teu story</>, sub: quote };
     case 'repost':
       return { text: <>repostou a tua publicação</>, sub: quote };

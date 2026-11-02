@@ -1,6 +1,6 @@
 import { sized } from '../lib/media';
 import { profileShare, shareNow } from '../lib/share';
-import Icon from '../components/Icon';
+import Icon, { type IconName } from '../components/Icon';
 import ReportSheet from '../components/ReportSheet';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,12 +15,26 @@ import PostCard from '../components/PostCard';
 import { ProfileStoryAvatar } from '../components/Stories';
 import { BackIcon } from '../components/icons';
 import { Avatar, Sheet, btnGhost, btnPrimary, btnSmall } from '../components/ui';
-import { ApiError, api, type Post } from '../lib/api';
+import { ApiError, api, type Post, type ProfileTab } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 type SheetName = null | 'report' | 'edit' | 'requests' | 'menu' | 'block' | 'gift';
 
 /** Perfil de qualquer pessoa (/u/:username) e o meu (/profile). */
+const TABS: { id: ProfileTab; label: string; icon: IconName }[] = [
+  { id: 'posts', label: 'Publicações', icon: 'image' },
+  { id: 'reels', label: 'Reels', icon: 'film' },
+  { id: 'reposts', label: 'Reposts', icon: 'repeat' },
+  { id: 'gifts', label: 'Presentes', icon: 'gift' },
+  { id: 'tagged', label: 'Identificações', icon: 'tag' },
+];
+const EMPTY: Record<Exclude<ProfileTab, 'posts'>, { me: string; other: string }> = {
+  reels: { me: 'Ainda não publicaste reels.', other: 'Ainda sem reels.' },
+  reposts: { me: 'Ainda não repostaste nada.', other: 'Ainda sem reposts.' },
+  gifts: { me: 'Os presentes que deres ou receberes e publicares aparecem aqui.', other: 'Ainda sem presentes publicados.' },
+  tagged: { me: 'As fotos em que te identificarem aparecem aqui.', other: 'Ainda sem identificações.' },
+};
+
 export default function ProfilePage() {
   const { username: param } = useParams();
   const { user } = useAuth();
@@ -34,9 +48,10 @@ export default function ProfilePage() {
 
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username), retry: false });
   const p = q.data;
+  const [tab, setTab] = useState<ProfileTab>('posts');
   const posts = useInfiniteQuery({
-    queryKey: ['profile-posts', username],
-    queryFn: ({ pageParam }) => api.userPosts(username, pageParam),
+    queryKey: ['profile-posts', username, tab],
+    queryFn: ({ pageParam }) => api.userPosts(username, pageParam, tab),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (l) => l.nextCursor ?? undefined,
     enabled: !!p?.canView,
@@ -208,7 +223,18 @@ export default function ProfilePage() {
       ) : (
         p.canView && (
           <section className="mt-6 px-4" aria-label="Publicações">
-            {posts.isSuccess && items.length === 0 && (
+            <div role="tablist" aria-label="Conteúdo do perfil" className="mb-3 flex border-b border-zinc-200">
+              {TABS.map((t) => (
+                <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} aria-label={t.label} onClick={() => setTab(t.id)} className={`flex h-12 min-w-0 flex-1 items-center justify-center border-b-2 transition active:bg-zinc-50 ${tab === t.id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-400'}`}>
+                  <Icon name={t.icon} size={24} />
+                </button>
+              ))}
+            </div>
+            {posts.isLoading && <p className="py-8 text-center text-sm text-zinc-500">A carregar…</p>}
+            {posts.isSuccess && items.length === 0 && tab !== 'posts' && (
+              <p className="mt-8 text-center text-zinc-600">{p.isMe ? EMPTY[tab].me : EMPTY[tab].other}</p>
+            )}
+            {posts.isSuccess && items.length === 0 && tab === 'posts' && (
               <div className="mt-8 text-center text-zinc-600">
                 <p className="text-zinc-300" aria-hidden><Icon name="camera" size={36} className="mx-auto" /></p>
                 <p className="mt-2 font-semibold">{p.isMe ? 'Ainda não publicaste nada' : 'Ainda sem publicações'}</p>

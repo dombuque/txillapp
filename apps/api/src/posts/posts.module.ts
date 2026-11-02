@@ -4,11 +4,11 @@ import { WalletModule } from '../wallet/wallet.module';
 import { GiftsController } from './gifts.controller';
 import { FeedController, PostsController } from './posts.controller';
 import { PostsService } from './posts.service';
-import { ShareController } from './share.controller';
+import { PublicPostController, ShareController } from './share.controller';
 
 @Module({
   imports: [AuthModule, WalletModule],
-  controllers: [FeedController, PostsController, GiftsController, ShareController],
+  controllers: [FeedController, PostsController, GiftsController, ShareController, PublicPostController],
   providers: [PostsService],
   exports: [PostsService],
 })
