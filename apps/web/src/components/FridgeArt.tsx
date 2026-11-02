@@ -1,20 +1,33 @@
 import { useId } from 'react';
 
 /**
- * Nível da geleira: quão recheada e variada está, em calão da malta (txilar, maningue, paulada, madala). Conta os gostos e quantos tipos diferentes tem
- * (vibes, bebidas, comidas, sítios): para subir de nível é preciso ter mais e de mais tipos.
+ * Pontuação da geleira, a premiar o que é da pesada: bebidas com álcool e vibes de festa valem mais; o resto vale pouco.
+ * Os favoritos dão mais um ponto. Quem tem muita paulada na geleira sobe depressa de nível.
  */
-export const geleiraLevel = (count: number, kinds: number) =>
-  count <= 0 ? 0 : count >= 21 && kinds >= 4 ? 4 : count >= 11 && kinds >= 3 ? 3 : count >= 5 && kinds >= 2 ? 2 : 1;
+export function geleiraPoints(items: { kind: string; category: string; alcoholic: boolean; favorite?: boolean; pending?: boolean }[]): number {
+  let n = 0;
+  for (const i of items) {
+    if (i.pending) continue;
+    let p = 1;
+    if (i.kind === 'bebida') p = i.alcoholic ? 4 : 1;
+    else if (i.kind === 'vibe') p = i.category === 'festa' ? 4 : i.category === 'musica' || i.category === 'convivio' ? 3 : 2;
+    else if (i.kind === 'sitio') p = i.category === 'noite' ? 3 : 1;
+    n += p + (i.favorite ? 1 : 0);
+  }
+  return n;
+}
+
+/** Nível da geleira pelos pontos, em calão da malta (txilar, maningue, paulada, madala). */
+const STEPS = [1, 10, 25, 50] as const;
+export const geleiraLevel = (points: number) => (points <= 0 ? 0 : points >= STEPS[3] ? 4 : points >= STEPS[2] ? 3 : points >= STEPS[1] ? 2 : 1);
 export const LEVEL_LABEL = ['Geleira seca', 'A txilar', 'Maningue abastecida', 'Paulada garantida', 'Madala da paulada'] as const;
-/** Quanto falta para o nível seguinte, numa frase (vazio no último). */
-export function nextLevelHint(count: number, kinds: number): string {
-  const l = geleiraLevel(count, kinds);
+/** Quanto falta para o nível seguinte, numa frase. */
+export function nextLevelHint(points: number): string {
+  const l = geleiraLevel(points);
+  if (l === 4) return 'Nível máximo: madala da paulada!';
   if (l === 0) return 'Põe o primeiro gosto para começar a txilar.';
-  if (l === 1) return 'Chega aos 5 gostos, de 2 tipos, para ficar maningue abastecida.';
-  if (l === 2) return 'Chega aos 11 gostos, de 3 tipos, para a paulada ficar garantida.';
-  if (l === 3) return 'Chega aos 21 gostos, dos 4 tipos, para seres madala da paulada.';
-  return 'Nível máximo: madala da paulada!';
+  const falta = STEPS[l] - points;
+  return `Faltam ${falta} ${falta === 1 ? 'ponto' : 'pontos'} para ${LEVEL_LABEL[l + 1].toLowerCase()}. Bebidas com álcool e vibes de festa valem mais.`;
 }
 
 const ITEM_COLORS = ['#fb7185', '#fbbf24', '#34d399', '#60a5fa', '#c084fc', '#fb923c', '#f472b6', '#2dd4bf'];
@@ -42,9 +55,9 @@ function Magnet({ m }: { m: (typeof MAGNETS)[number] }) {
  * mais ímanes, mais cor e mais brilho: no topo (madala da paulada) ganha uma coroa e faíscas. Aberta, mostra o interior com
  * prateleiras e tantos "produtos" quantos gostos (até 8).
  */
-export default function FridgeArt({ count, kinds = 1, open = false, invite = false, size = 96 }: { count: number; kinds?: number; open?: boolean; invite?: boolean; size?: number }) {
+export default function FridgeArt({ count, points, open = false, invite = false, size = 96 }: { count: number; points: number; open?: boolean; invite?: boolean; size?: number }) {
   const id = useId().replace(/:/g, '');
-  const level = geleiraLevel(count, kinds);
+  const level = geleiraLevel(points);
   const edge = ['#a9c9d9', '#8fd0ee', '#6fc4ea', '#f08aa0', '#e8a317'][level];
   const dots = Math.min(count, 8);
   const h = Math.round(size * 1.3);
