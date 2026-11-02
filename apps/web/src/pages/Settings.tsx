@@ -3,6 +3,7 @@ import { LoadingBlock } from '../components/Loading';
 import { APP_URL, useInstall } from '../lib/install';
 import PushToggle from '../components/PushToggle';
 import Icon from '../components/Icon';
+import VerifiedBadge from '../components/VerifiedBadge';
 import { Link } from 'react-router-dom';
 import GenderPicker, { genderLabel } from '../components/GenderPicker';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -179,6 +180,7 @@ export default function Settings() {
   const closeFriends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
   const blocked = useQuery({ queryKey: ['blocked'], queryFn: api.blocked });
   const p = privacy.data;
+  const ver = useQuery({ queryKey: ['verification'], queryFn: api.verificationStatus, staleTime: 60_000 });
 
   const [exporting, setExporting] = useState(false);
   async function downloadData() {
@@ -231,6 +233,14 @@ export default function Settings() {
         <Link to="/wallet" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="wallet" /></span>
           <span className="flex-1 font-semibold">Txills e presentes</span>
+          <span className="text-xl text-zinc-400" aria-hidden>›</span>
+        </Link>
+      </Section>
+
+      <Section title="Verificação">
+        <Link to="/verification" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-50" aria-hidden><VerifiedBadge size={22} tier={ver.data?.tier} /></span>
+          <span className="flex-1 font-semibold">{ver.data?.verified ? 'A tua conta está verificada' : 'Pedir o selo de verificado'}</span>
           <span className="text-xl text-zinc-400" aria-hidden>›</span>
         </Link>
       </Section>
@@ -288,6 +298,11 @@ export default function Settings() {
           <Link to="/admin/stats" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="sparkles" /></span>
             <span className="flex-1 font-semibold">Estatísticas</span>
+            <span className="text-xl text-zinc-400" aria-hidden>›</span>
+          </Link>
+          <Link to="/admin/verifications" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="check-circle" /></span>
+            <span className="flex-1 font-semibold">Pedidos de verificação</span>
             <span className="text-xl text-zinc-400" aria-hidden>›</span>
           </Link>
           <Link to="/admin" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">

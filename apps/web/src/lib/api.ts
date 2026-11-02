@@ -54,13 +54,13 @@ export interface Post {
   locationLabel: string | null;
   media: { url: string; tags: PhotoTag[]; kind?: 'image' | 'video'; posterUrl?: string; durationMs?: number | null; width?: number | null; height?: number | null }[];
   createdAt: string;
-  author: { id: string; username: string; displayName: string; verified?: boolean };
+  author: { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null };
   cheers: number;
   comments: number;
   gifts: number;
   cheered: boolean;
   /** Preenchido nos posts "X presenteou Y". */
-  gift: { amount: number; recipient: { username: string; displayName: string; hasAvatar: boolean } } | null;
+  gift: { amount: number; recipient: { username: string; displayName: string; hasAvatar: boolean; verified?: boolean; verifiedTier?: 'verified' | 'official' | null } } | null;
   /** Conforme as definições do autor. */
   canComment: boolean;
   canGift: boolean;
@@ -82,7 +82,7 @@ export interface Comment {
   parentId: string | null;
   body: string;
   createdAt: string;
-  author: { id: string; username: string; displayName: string; verified?: boolean };
+  author: { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null };
   cheers: number;
   cheered: boolean;
   replyCount: number;
@@ -90,6 +90,7 @@ export interface Comment {
 export interface Profile {
   id: string;
   verified?: boolean;
+  verifiedTier?: 'verified' | 'official' | null;
   /** Só vem preenchido se a pessoa escolheu mostrá-lo (ou sou eu). */
   gender?: Gender | null;
   username: string;
@@ -321,7 +322,25 @@ export interface StorySettings {
   hidden: { username: string; displayName: string }[];
 }
 export type GiftVisibility = 'silent' | 'private' | 'public';
-export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag';
+export interface VerificationStatus {
+  items: { key: string; label: string; ok: boolean; hint: string }[];
+  eligible: boolean;
+  verified: boolean;
+  tier: 'verified' | 'official' | null;
+  request: { id: string; kind: string; status: 'pending' | 'approved' | 'rejected' | 'withdrawn'; reason: string | null; createdAt: string } | null;
+  retryAfter: string | null;
+}
+export interface VerificationItem {
+  id: string;
+  kind: 'person' | 'business';
+  fullName: string;
+  proof: string;
+  createdAt: string;
+  user: { username: string; displayName: string; bio: string; hasAvatar: boolean; followers: number };
+  docUrl: string | null;
+  selfieUrl: string | null;
+}
+export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified';
 export interface AppNotification {
   id: string;
   kind: NotificationKind;
@@ -605,6 +624,11 @@ export const api = {
   report: (type: Exclude<ReportType, 'media'>, id: string, reason: ReportReason, note?: string): Promise<void> => raw('/reports', post({ type, id, reason, note })),
   removePost: (id: string): Promise<void> => raw(`/posts/${id}`, { method: 'DELETE' }),
   adminQueue: (): Promise<ReportQueueItem[]> => raw('/admin/reports'),
+  verificationStatus: (): Promise<VerificationStatus> => raw('/verification/me'),
+  verificationRequest: (b: { kind: 'person' | 'business'; fullName: string; proof: string; docMediaId: string; selfieMediaId: string }): Promise<void> => raw('/verification/request', post(b)),
+  verificationWithdraw: (): Promise<void> => raw('/verification/request', { method: 'DELETE' }),
+  adminVerifications: (): Promise<VerificationItem[]> => raw('/admin/verifications'),
+  verificationDecide: (id: string, action: 'approve' | 'reject', reason?: string, tier?: 'verified' | 'official'): Promise<void> => raw(`/admin/verifications/${id}/decide`, post({ action, reason, tier })),
   adminResolve: (type: ReportType, id: string, action: 'dismiss' | 'remove' | 'suspend'): Promise<void> => raw('/admin/reports/resolve', post({ type, id, action })),
   /** Ficheiro com todos os meus dados (JSON). */
   async exportData(): Promise<Blob> {

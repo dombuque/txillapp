@@ -16,8 +16,8 @@ export type GiftVisibility = 'silent' | 'private' | 'public';
 
 const FEED_SQL = `
   SELECT p.id, p.short_code, p.body, p.location_label, p.created_at, p.kind, p.gift_amount, p.repost_of,
-         u.id AS author_id, u.username, u.display_name, u.verified AS author_verified,
-         gr.username AS gift_username, gr.display_name AS gift_display_name, (gr.avatar_media_id IS NOT NULL) AS gift_has_avatar,
+         u.id AS author_id, u.username, u.display_name, u.verified AS author_verified, u.verified_tier AS author_tier,
+         gr.username AS gift_username, gr.display_name AS gift_display_name, (gr.avatar_media_id IS NOT NULL) AS gift_has_avatar, gr.verified AS gift_verified, gr.verified_tier AS gift_tier,
          ${allowedBy('u', 'comments_allowed')} AS can_comment,
          ${allowedBy('u', 'gifts_allowed')} AS can_gift,
          ${listVisibleTo('u', 'reposts_visible')} AS reposts_list, ${listVisibleTo('u', 'cheers_visible')} AS cheers_list, ${listVisibleTo('u', 'gifts_visible')} AS gifts_list,
@@ -503,7 +503,7 @@ export class PostsService {
       ...(m.video ? { posterUrl: `/api/v1/media/${m.id}?poster=1`, durationMs: m.durationMs, width: m.w, height: m.h } : {}),
     })),
     createdAt: r.created_at,
-    author: { id: r.author_id, username: r.username, displayName: r.display_name, verified: r.author_verified as boolean },
+    author: { id: r.author_id, username: r.username, displayName: r.display_name, verified: r.author_verified as boolean, verifiedTier: (r.author_tier as string | null) ?? null },
     cheers: r.cheers,
     comments: r.comments,
     gifts: r.gifts,
@@ -520,7 +520,7 @@ export class PostsService {
     reposted: r.reposted as boolean,
     gift:
       r.kind === 'gift'
-        ? { amount: Number(r.gift_amount), recipient: { username: r.gift_username, displayName: r.gift_display_name, hasAvatar: r.gift_has_avatar === true } }
+        ? { amount: Number(r.gift_amount), recipient: { username: r.gift_username, displayName: r.gift_display_name, hasAvatar: r.gift_has_avatar === true, verified: r.gift_verified === true, verifiedTier: (r.gift_tier as string | null) ?? null } }
         : null,
   });
 }

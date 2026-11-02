@@ -62,7 +62,7 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
       </Link>
       <div className="min-w-0 flex-1">
         <p className="text-sm">
-          <Link to={`/u/${c.author.username}`} className="font-semibold">{c.author.username}{c.author.verified && <> <VerifiedBadge size={13} /></>}</Link>{' '}
+          <Link to={`/u/${c.author.username}`} className="font-semibold">{c.author.username}{c.author.verified && <> <VerifiedBadge size={13} tier={c.author.verifiedTier} /></>}</Link>{' '}
           <span className="text-zinc-500">{timeAgo(c.createdAt)}</span>
         </p>
         <Body text={c.body} />

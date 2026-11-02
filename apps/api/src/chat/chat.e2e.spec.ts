@@ -203,7 +203,7 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     const { ce: cc, cf: cd } = u;
     const post = (from: U, to: U, b: object) => api().post(`/api/v1/chat/with/${to.username}`).set(auth(from)).send(b);
     await post(cc, cd, { kind: 'sticker', body: 'bora' }).expect(201);
-    await post(cc, cd, { kind: 'sticker', body: 'inventado' }).expect(400);
+    await post(cc, cd, { kind: 'sticker', body: 'Inventado!' }).expect(400);
     await post(cc, cd, { kind: 'location', body: 'Praia da Polana' }).expect(400); // falta lat/lng
     await post(cc, cd, { kind: 'location', body: 'Praia da Polana', lat: -25.969212345, lng: 32.573212345 }).expect(201);
     await post(cc, cd, { kind: 'location', body: 'x', lat: 91, lng: 0 }).expect(400);

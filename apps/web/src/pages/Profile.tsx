@@ -58,8 +58,8 @@ export default function ProfilePage() {
   const blocked = p.blockedByMe || p.blockedMe;
   const stat = (n: number, label: string, onClick?: () => void) => (
     <button onClick={onClick} disabled={!onClick} className="min-h-12 flex-1 text-center disabled:cursor-default">
-      <span className="block text-xl font-extrabold">{n.toLocaleString('pt-PT')}</span>
-      <span className="text-sm text-zinc-600">{label}</span>
+      <span className="block text-xl font-extrabold leading-tight">{n.toLocaleString('pt-PT')}</span>
+      <span className="text-[13px] text-zinc-600">{label}</span>
     </button>
   );
 
@@ -104,19 +104,31 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <section className="mx-4 rounded-[28px] bg-white px-5 pb-5 pt-6 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
-        <div className="flex flex-col items-center text-center">
-          <ProfileStoryAvatar username={p.username} displayName={p.displayName} isMe={p.isMe} hasAvatar={p.hasAvatar} />
-          <h1 className="mt-4 text-2xl font-extrabold leading-tight">
-            {p.displayName} {p.verified && <VerifiedBadge size={22} />} {p.isPrivate && <Icon name="lock" size={14} className="inline align-[-2px] text-zinc-500" aria-hidden={false} role="img" aria-label="Conta privada" />}
+      <section className="mx-4 rounded-[28px] bg-white px-5 pb-5 pt-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
+        {p.bio && (
+          // A bio num balão por cima da foto, como no WhatsApp: o "bico" aponta para a pessoa.
+          <div className="relative mb-4 max-w-[92%] rounded-[20px] bg-zinc-100 px-4 py-2.5 text-center text-[15px] leading-snug text-zinc-800">
+            <p className="whitespace-pre-wrap break-words"><RichText text={p.bio} /></p>
+            <span aria-hidden className="absolute -bottom-1.5 left-[40px] h-3.5 w-3.5 rotate-45 rounded-[3px] bg-zinc-100" />
+          </div>
+        )}
+        <div className="flex items-center gap-4">
+          <span className="shrink-0"><ProfileStoryAvatar username={p.username} displayName={p.displayName} isMe={p.isMe} hasAvatar={p.hasAvatar} size={84} /></span>
+          <div className="flex min-w-0 flex-1">
+            {stat(p.counts.posts, 'publicações')}
+            {stat(p.counts.followers, 'seguidores', p.canSeeConnections ? () => navigate('/u/' + p.username + '/connections', { state: { tab: 'followers' } }) : undefined)}
+            {stat(p.counts.following, 'a seguir', p.canSeeConnections ? () => navigate('/u/' + p.username + '/connections', { state: { tab: 'following' } }) : undefined)}
+          </div>
+        </div>
+        <div className="mt-3 text-left">
+          <h1 className="text-xl font-extrabold leading-tight">
+            {p.displayName} {p.verified && <VerifiedBadge size={20} tier={p.verifiedTier} />} {p.isPrivate && <Icon name="lock" size={14} className="inline align-[-2px] text-zinc-500" aria-hidden={false} role="img" aria-label="Conta privada" />}
           </h1>
-          <p className="text-zinc-600">
-            @{p.username}
-            {!p.isMe && p.followsYou && !blocked && <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700">Segue-te</span>}
-          </p>
-          {p.bio && <p className="mt-3 max-w-sm whitespace-pre-wrap break-words text-[15px] text-zinc-800"><RichText text={p.bio} /></p>}
+          {/* O @utilizador já está no topo do ecrã: aqui não se repete. */}
+          {!p.isMe && p.followsYou && !blocked && <span className="mt-1 inline-block rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700">Segue-te</span>}
+
           {(p.city || p.website) && (
-            <p className="mt-2 flex max-w-sm flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-zinc-600">
+            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-zinc-600">
               {p.city && <span className="flex items-center gap-1"><Icon name="map-pin" size={14} /> {p.city}</span>}
               {p.website && (
                 <a href={p.website} target="_blank" rel="noopener noreferrer nofollow" className="flex min-w-0 items-center gap-1 font-semibold text-brand">
@@ -130,11 +142,6 @@ export default function ProfilePage() {
           )}
         </div>
 
-        <div className="mt-5 flex border-y border-zinc-100 py-2">
-          {stat(p.counts.posts, 'publicações')}
-          {stat(p.counts.followers, 'seguidores', p.canSeeConnections ? () => navigate('/u/' + p.username + '/connections', { state: { tab: 'followers' } }) : undefined)}
-          {stat(p.counts.following, 'a seguir', p.canSeeConnections ? () => navigate('/u/' + p.username + '/connections', { state: { tab: 'following' } }) : undefined)}
-        </div>
 
         {/* Bloqueio ao estilo do X: o cabeçalho fica visível, com o aviso. */}
         {p.blockedMe && (

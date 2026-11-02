@@ -41,6 +41,8 @@ import Wallet from './pages/Wallet';
 
 const AdminStats = lazy(() => import('./pages/AdminStats'));
 const Admin = lazy(() => import('./pages/Admin'));
+const AdminVerifications = lazy(() => import('./pages/AdminVerifications'));
+const Verification = lazy(() => import('./pages/Verification'));
 
 neutralizeInstallOnSite();
 
@@ -137,6 +139,8 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/admin/stats" element={<Private><Suspense fallback={null}><AdminStats /></Suspense></Private>} />
               <Route path="/reels" element={<Private><Reels /></Private>} />
               <Route path="/tag/:tag" element={<Private><TagPage /></Private>} />
+              <Route path="/admin/verifications" element={<Private><Suspense fallback={null}><AdminVerifications /></Suspense></Private>} />
+              <Route path="/verification" element={<Private><Suspense fallback={null}><Verification /></Suspense></Private>} />
               <Route path="/admin" element={<Private><Suspense fallback={null}><Admin /></Suspense></Private>} />
               <Route path="/r/:postId" element={<Private><ReelPage /></Private>} />
               <Route path="/p/:postId" element={<Private><PostPage /></Private>} />

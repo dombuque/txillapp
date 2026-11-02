@@ -17,7 +17,7 @@ export const mentionableBy = (u = 'u', viewer = '$1') =>
   `(${u}.id <> ${viewer} AND ${u}.status = 'active' AND NOT ${blockedBetween(`${u}.id`, viewer)} AND ${allowedBy(u, 'mentions_allowed', viewer)} AND ` +
   `(NOT ${u}.is_private OR EXISTS (SELECT 1 FROM social.follows mf WHERE mf.follower_id = ${viewer} AND mf.followee_id = ${u}.id)))`;
 
-export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag';
+export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified';
 
 /** Tipos que não se repetem enquanto houver uma igual por ler (evita spam de seguir/deixar de seguir). */
 const DEDUPE_UNREAD = new Set<NotificationKind>(['blocked', 'follow', 'follow_request']);
@@ -71,6 +71,7 @@ export class NotificationsService {
       mention: { body: 'mencionou-te', url: postId ? `/p/${postId}` : '/notifications' },
       tag: { body: 'identificou-te numa foto', url: postId ? `/p/${postId}` : '/notifications' },
       story_reply: { body: 'respondeu ao teu story', url: '/notifications' },
+      verified: { body: 'agora tem a conta verificada', url: '/notifications' },
     };
     const m = t[n.kind];
     if (m) await this.push.send(n.userId, { title: who, body: m.body, url: m.url, tag: `${n.kind}:${n.actorId}` });

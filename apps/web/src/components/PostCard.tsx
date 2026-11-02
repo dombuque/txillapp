@@ -146,13 +146,13 @@ function PostBody({ post }: { post: Post }) {
         <div className="min-w-0 flex-1">
           {g ? (
             <p className="text-[17px] leading-tight text-zinc-800">
-              <Link to={profilePath(post.author.username, user?.username)} className="font-bold">{post.author.displayName}</Link> presenteou{' '}
-              <Link to={profilePath(g.recipient.username, user?.username)} className="font-bold">{g.recipient.displayName}</Link>
+              <Link to={profilePath(post.author.username, user?.username)} className="font-bold">{post.author.displayName}</Link>{post.author.verified && <> <VerifiedBadge size={15} tier={post.author.verifiedTier} /></>} presenteou{' '}
+              <Link to={profilePath(g.recipient.username, user?.username)} className="font-bold">{g.recipient.displayName}</Link>{g.recipient.verified && <> <VerifiedBadge size={15} tier={g.recipient.verifiedTier} /></>}
             </p>
           ) : (
             <Link to={profilePath(post.author.username, user?.username)} className="block truncate text-[19px] font-medium leading-tight text-zinc-800">
               {post.author.displayName}
-              {post.author.verified && <> <VerifiedBadge /></>}
+              {post.author.verified && <> <VerifiedBadge tier={post.author.verifiedTier} /></>}
             </Link>
           )}
           <p className="truncate text-[15px] text-zinc-500">{post.locationLabel ?? `@${post.author.username}`}</p>
@@ -199,7 +199,7 @@ function QuoteCard({ post, original }: { post: Post; original: Post }) {
         <div className="flex items-center gap-2.5 px-3 pt-3">
           <Link to={profilePath(original.author.username, user?.username)} className="flex min-w-0 items-center gap-2.5">
             <Avatar name={original.author.displayName} username={original.author.username} size={30} ring={false} />
-            <span className="truncate font-semibold">{original.author.displayName}{original.author.verified && <> <VerifiedBadge size={14} /></>}</span>
+            <span className="truncate font-semibold">{original.author.displayName}{original.author.verified && <> <VerifiedBadge size={14} tier={original.author.verifiedTier} /></>}</span>
           </Link>
           <span className="shrink-0 text-sm text-zinc-500">· {timeAgo(original.createdAt)}</span>
         </div>

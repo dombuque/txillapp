@@ -19,6 +19,7 @@ const ICON: Record<AppNotification['kind'], { name: IconName; color: string }> =
   repost: { name: 'repeat', color: 'text-emerald-600' },
   mention: { name: 'at', color: 'text-amber-600' },
   tag: { name: 'tag', color: 'text-violet-600' },
+  verified: { name: 'check-circle', color: 'text-sky-600' },
 };
 
 /** Texto de cada tipo de notificação. */
@@ -50,6 +51,8 @@ function describe(n: AppNotification): { text: ReactNode; sub?: string } {
       return { text: <>identificou-te numa foto</> };
     case 'mention':
       return { text: <>mencionou-te</>, sub: quote };
+    case 'verified':
+      return { text: <>agora tem o selo de conta verificada</> };
   }
 }
 
@@ -68,6 +71,7 @@ function targetOf(n: AppNotification): string | null {
     case 'story_reply':
       return n.data.replyKind === 'comment' ? '/profile' : `/messages/${n.actor.username}`;
     case 'follow':
+    case 'verified':
     case 'request_accepted':
       return `/u/${n.actor.username}`;
     default:

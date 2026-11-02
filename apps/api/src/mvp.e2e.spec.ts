@@ -225,7 +225,7 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
 
     // Público: post "X presenteou Y" no feed.
     const a = await give(`dg-${run}-1`, { toUsername: `@${ana.username}`, amount: 10, note: 'Pela cerveja 🍻', visibility: 'public' }).expect(201);
-    expect(a.body.post.gift).toEqual({ amount: 10, recipient: { username: ana.username, displayName: 'ana' } });
+    expect(a.body.post.gift).toEqual({ amount: 10, recipient: { username: ana.username, displayName: 'ana', hasAvatar: false, verified: false, verifiedTier: null } });
     expect(a.body.post.body).toBe('Pela cerveja 🍻');
 
     const again = await give(`dg-${run}-1`, { toUsername: ana.username, amount: 10, note: 'Pela cerveja 🍻', visibility: 'public' }).expect(201);

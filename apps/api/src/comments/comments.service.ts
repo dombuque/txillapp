@@ -9,7 +9,7 @@ const UUID = /^[0-9a-f-]{36}$/;
 
 const SELECT = `
   SELECT c.id, c.post_id, c.parent_id, c.body, c.created_at,
-         u.id AS author_id, u.username, u.display_name, u.verified,
+         u.id AS author_id, u.username, u.display_name, u.verified, u.verified_tier,
          (SELECT count(*) FROM content.comment_cheers x WHERE x.comment_id = c.id)::int AS cheers,
          EXISTS (SELECT 1 FROM content.comment_cheers x WHERE x.comment_id = c.id AND x.user_id = $1) AS cheered,
          (SELECT count(*) FROM content.comments r WHERE r.parent_id = c.id)::int AS reply_count
@@ -142,7 +142,7 @@ export class CommentsService {
     parentId: r.parent_id,
     body: r.body,
     createdAt: r.created_at,
-    author: { id: r.author_id, username: r.username, displayName: r.display_name, verified: r.verified as boolean },
+    author: { id: r.author_id, username: r.username, displayName: r.display_name, verified: r.verified as boolean, verifiedTier: (r.verified_tier as string | null) ?? null },
     cheers: r.cheers,
     cheered: r.cheered,
     replyCount: r.reply_count,

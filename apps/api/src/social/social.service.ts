@@ -35,7 +35,7 @@ export class SocialService {
   async profile(viewerId: string, username: string) {
     const { rows } = await this.pool.query(
       `SELECT u.id, u.username, u.display_name, u.bio, u.website, u.city, u.created_at, u.is_private, u.show_connections,
-              u.gender, u.show_gender, u.verified,
+              u.gender, u.show_gender, u.verified, u.verified_tier,
               (u.avatar_media_id IS NOT NULL) AS has_avatar,
               (SELECT count(*) FROM content.posts p WHERE p.author_id = u.id AND p.removed_at IS NULL)::int AS posts,
               (SELECT count(*) FROM social.follows f WHERE f.followee_id = u.id)::int AS followers,
@@ -64,6 +64,7 @@ export class SocialService {
       hasAvatar: r.has_avatar,
       /** Selo de perfil verificado (o processo de verificação fica para depois). */
       verified: r.verified as boolean,
+      verifiedTier: (r.verified_tier as string | null) ?? null,
       /** Género: só a própria pessoa o vê, a menos que tenha escolhido mostrá-lo no perfil. */
       gender: isMe || (r.show_gender && !r.blocked_by_me && !r.blocked_me) ? (r.gender as string | null) : null,
       joinedAt: r.created_at,

@@ -21,7 +21,7 @@ import { detectIntent } from '../lib/chatIntent';
 import { firstTime } from '../lib/firstTime';
 import { isSharing, startLive, stopLive } from '../lib/liveLocation';
 import { useTyping } from '../lib/chatLive';
-import { STICKERS, Sticker, StickerButton } from '../lib/stickers';
+import { StickerButton, StickerPicker } from '../lib/stickers';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { useAuth } from '../lib/auth';
 
@@ -648,15 +648,7 @@ export default function Thread() {
             ))}
           </div>
         )}
-        {panel === 'stickers' && (
-          <div className="mx-3 mt-2" aria-label="Stickers">
-            <div className="grid max-h-56 grid-cols-4 gap-2 overflow-y-auto rounded-2xl bg-zinc-50 p-2">
-              {STICKERS.map((st) => (
-                <button key={st.id} type="button" onClick={() => sendSticker(st.id)} aria-label={`Enviar sticker ${st.text}`} className="flex justify-center rounded-2xl p-1 active:scale-90"><Sticker id={st.id} size={72} /></button>
-              ))}
-            </div>
-          </div>
-        )}
+        {panel === 'stickers' && <StickerPicker onPick={sendSticker} onClose={() => setPanel(null)} />}
         <form onSubmit={submit} className="px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
           {err && <p role="alert" className="px-2 pb-1 text-center text-sm text-red-600">{err}</p>}
           {/* Como no Instagram: câmara à esquerda, o campo ao meio e, à direita, voz, galeria, stickers e mais. */}
@@ -687,7 +679,7 @@ export default function Thread() {
                 {!isGroup && <button type="button" onClick={() => { if (!once && firstTime('view-once')) setOnceHelp(true); setOnce(!once); }} aria-pressed={once} aria-label="Visualização única" className={`${bar} ${once ? 'bg-brand text-white active:bg-brand' : ''}`}><Icon name="once" size={22} /></button>}
                 <button type="button" onClick={startRecording} className={bar} aria-label="Gravar mensagem de voz"><Icon name="mic" size={22} /></button>
                 <button type="button" onClick={() => gallery.current?.click()} className={bar} aria-label="Enviar foto da galeria"><Icon name="image" size={22} /></button>
-                <button type="button" onClick={() => setPanel(panel === 'stickers' ? null : 'stickers')} aria-label="Stickers" aria-expanded={panel === 'stickers'} className={`${bar} ${panel === 'stickers' ? 'bg-white text-brand' : ''}`}><Icon name="sticker" size={22} /></button>
+                <button type="button" data-sticker-toggle onClick={() => setPanel(panel === 'stickers' ? null : 'stickers')} aria-label="Stickers" aria-expanded={panel === 'stickers'} className={`${bar} ${panel === 'stickers' ? 'bg-white text-brand' : ''}`}><Icon name="sticker" size={22} /></button>
                 <button type="button" onClick={() => setPanel(panel === 'attach' ? null : 'attach')} aria-label="Mais" aria-expanded={panel === 'attach'} className={`${bar} ${panel === 'attach' ? 'bg-white text-brand' : ''}`}><Icon name="plus" size={22} /></button>
               </>
             )}

@@ -11,7 +11,8 @@ import { ChatEvents } from './chat.events';
 export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift';
 
 /** Stickers que existem (o desenho está na app; aqui só se confirma que o id é válido). */
-export const STICKERS = ['bora', 'fixe', 'ja-vou', 'a-caminho', 'paga', 'saude', 'saudades', 'obrigado', 'parabens', 'ups', 'dormir', 'fome', 'festa', 'amor', 'rir', 'ok'] as const;
+/** Os stickers são desenhados na app; o servidor só confirma que o id tem o feitio certo (a lista cresce sem mexer aqui). */
+export const STICKER_ID = /^[a-z0-9-]{2,24}$/;
 const PAGE = 40;
 
 /** Os dois ids por ordem fixa (user_a < user_b), para haver uma só conversa por par. */
@@ -278,7 +279,7 @@ export class ChatService {
     if (msg.kind === 'text') {
       if (!msg.body.trim()) throw new BadRequestException('Mensagem vazia');
     } else if (msg.kind === 'sticker') {
-      if (!(STICKERS as readonly string[]).includes(msg.body)) throw new BadRequestException('Sticker inválido');
+      if (!STICKER_ID.test(msg.body)) throw new BadRequestException('Sticker inválido');
     } else if (msg.kind === 'post') {
       // Só se partilha o que quem envia pode ver (e que ainda existe).
       if (!/^[0-9a-f-]{36}$/.test(msg.body)) throw new BadRequestException('Publicação inválida');
