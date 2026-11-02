@@ -470,7 +470,7 @@ export default function Thread() {
   const suggestion = intent && !dismissed.has(intent.key) && !gift ? intent : null;
   const lastMine = [...items].reverse().find((m) => m.fromMe);
   const seenUpTo = (m: ChatMessage) => !!otherRead && m.id <= otherRead && lastMine?.id === m.id;
-  const bar = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-zinc-700 transition active:scale-90 active:bg-white';
+  const bar = 'mb-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-800 transition active:scale-90 active:bg-white';
   const tool = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-zinc-600 transition active:scale-90 active:bg-zinc-100';
   const joined = (a: Msg, b: Msg) => a.fromMe === b.fromMe && sameDay(a.at, b.at) && new Date(b.at).getTime() - new Date(a.at).getTime() < GROUP_MS && a.kind !== 'story_reaction' && b.kind !== 'story_reaction';
 
@@ -665,7 +665,7 @@ export default function Thread() {
               <button type="submit" onPointerDown={(e) => e.preventDefault()} className="h-10 shrink-0 rounded-full bg-brand px-4 font-bold text-white transition active:scale-95">Enviar</button>
             ) : (
               <>
-                {!isGroup && <button type="button" onClick={() => { if (!once && firstTime('view-once')) setOnceHelp(true); setOnce(!once); }} aria-pressed={once} aria-label="Visualização única" className={`${bar} ${once ? 'bg-brand text-white active:bg-brand' : ''}`}><Icon name="once" size={24} /></button>}
+                {!isGroup && <button type="button" onClick={() => { if (!once && firstTime('view-once')) setOnceHelp(true); setOnce(!once); }} aria-pressed={once} aria-label="Visualização única" className={`${bar} ${once ? 'bg-brand text-white active:bg-brand' : ''}`}><Icon name="once" size={22} /></button>}
                 <button type="button" onClick={startRecording} className={bar} aria-label="Gravar mensagem de voz"><Icon name="mic" size={22} /></button>
                 <button type="button" onClick={() => gallery.current?.click()} className={bar} aria-label="Enviar foto da galeria"><Icon name="image" size={22} /></button>
                 <button type="button" onClick={() => setPanel(panel === 'stickers' ? null : 'stickers')} aria-label="Stickers" aria-expanded={panel === 'stickers'} className={`${bar} ${panel === 'stickers' ? 'bg-white text-brand' : ''}`}><Icon name="sticker" size={22} /></button>
