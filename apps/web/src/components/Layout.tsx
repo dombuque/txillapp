@@ -83,7 +83,7 @@ export default function Layout() {
       <EmailBanner />
       {/* Puxar para baixo recarrega a página (menos ao escrever uma publicação). */}
       <div key={pathname} className={slide}>
-        {pathname === '/new' ? <Outlet /> : <PullToRefresh onRefresh={() => refreshPage(qc, pathname)}><Outlet /></PullToRefresh>}
+        {pathname.startsWith('/new') ? <Outlet /> : <PullToRefresh onRefresh={() => refreshPage(qc, pathname)}><Outlet /></PullToRefresh>}
       </div>
       <GenderGate />
       <WelcomeTour />

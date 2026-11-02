@@ -11,6 +11,7 @@ import { Avatar, Sheet } from '../components/ui';
 import { api, type PhotoTag } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { clearDraft, loadDraft, saveDraft } from '../lib/draft';
+import { takeHandoff } from '../lib/handoff';
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const MAX_PHOTOS = 10;
@@ -40,7 +41,9 @@ export default function Compose() {
   function pickVideo(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = '';
-    if (!f) return;
+    if (f) loadVideo(f);
+  }
+  function loadVideo(f: File) {
     if (!f.type.startsWith('video/')) return setErr('Isso não é um vídeo');
     if (f.size > 100 * 1024 * 1024) return setErr('Vídeo pesado demais! Máximo 100 MB');
     const url = URL.createObjectURL(f);
@@ -76,8 +79,17 @@ export default function Compose() {
   const hasContent = body.trim().length > 0 || photos.length > 0;
   const draftKey = user!.username;
 
+  // Vindo da câmara: fotos ou vídeo já escolhidos (e com filtro). Nesse caso não se mistura com o rascunho antigo.
+  const [fromCamera] = useState(() => takeHandoff());
+  useEffect(() => {
+    if (!fromCamera) return;
+    if (fromCamera.video) loadVideo(fromCamera.video);
+    else if (fromCamera.photos) addFiles(fromCamera.photos);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Recupera o rascunho guardado (texto, local e fotos).
   useEffect(() => {
+    if (fromCamera) return;
     let alive = true;
     void loadDraft(draftKey).then((d) => {
       if (!alive || !d) return;
@@ -182,7 +194,7 @@ export default function Compose() {
         <button type="button" onClick={leave} aria-label="Cancelar" className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-600 active:bg-zinc-100">
           <Icon name="x" size={24} />
         </button>
-        <h1 className="text-lg font-bold">Nova publicação</h1>
+        <h1 className="text-lg font-bold">{video ? 'Novo reel' : 'Nova publicação'}</h1>
         <button disabled={!canPost} className="h-10 rounded-full bg-brand px-5 font-bold text-white shadow-sm transition active:scale-95 disabled:bg-brand/40 disabled:shadow-none">
           {busy ? 'A enviar…' : 'Publicar'}
         </button>

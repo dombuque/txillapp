@@ -172,7 +172,7 @@ export default function StoriesTray() {
           }}
         />
       )}
-      {file && <Creator file={file} onClose={() => setFile(null)} />}
+      {file && <StoryCreator file={file} onClose={() => setFile(null)} />}
     </section>
   );
 }
@@ -596,7 +596,8 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
   );
 }
 
-function Creator({ file, onClose }: { file: File; onClose: () => void }) {
+/** Criador de story (foto + legenda + quem vê). `onBack`, se existir, volta ao passo anterior (a câmara) em vez de cancelar. */
+export function StoryCreator({ file, onClose, onBack }: { file: File; onClose: () => void; onBack?: () => void }) {
   const qc = useQueryClient();
   const [preview] = useState(() => URL.createObjectURL(file));
   const [caption, setCaption] = useState('');
@@ -626,7 +627,7 @@ function Creator({ file, onClose }: { file: File; onClose: () => void }) {
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black" style={visibleStyle(vv)} role="dialog" aria-modal="true" aria-label="Novo story">
       <form onSubmit={share} className="relative flex h-full w-full max-w-xl flex-col">
         <img src={preview} alt="Pré-visualização do story" className="min-h-0 flex-1 object-contain" />
-        <button type="button" onClick={onClose} aria-label="Cancelar" className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] px-2 text-3xl leading-none text-white">×</button>
+        <button type="button" onClick={onBack ?? onClose} aria-label={onBack ? 'Voltar' : 'Cancelar'} className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] px-2 text-3xl leading-none text-white">×</button>
         <div className="space-y-3 bg-black px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
           <MentionTextarea single up value={caption} onChange={setCaption} maxLength={200} placeholder="Escreve uma legenda…" aria-label="Legenda" className="w-full rounded-full bg-white/15 px-4 py-3 text-white outline-none placeholder:text-white/60 focus:ring-2 focus:ring-brand" />
           <div role="radiogroup" aria-label="Quem vê" className="flex gap-2">

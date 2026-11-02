@@ -17,6 +17,7 @@ import { BrandLoader, TopLoader } from './components/Loading';
 import { AuthProvider, useAuth } from './lib/auth';
 import { GoogleUsername, Login, Register } from './pages/AuthForm';
 import Compose from './pages/Compose';
+import CameraStudio from './components/CameraStudio';
 import Connections from './pages/Connections';
 import Feed from './pages/Feed';
 import Notifications from './pages/Notifications';
@@ -145,7 +146,8 @@ createRoot(document.getElementById('root')!).render(
                 }
               >
                 <Route path="/" element={<Feed />} />
-                <Route path="/new" element={<Compose />} />
+                <Route path="/new" element={<CameraStudio />} />
+                <Route path="/new/post" element={<Compose />} />
                 <Route path="/wallet" element={<Wallet />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/u/:username" element={<Profile />} />
