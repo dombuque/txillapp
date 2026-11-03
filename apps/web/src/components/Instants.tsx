@@ -318,84 +318,90 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** Grelha dos meus Instants ativos (24 h): quantas pessoas viram cada um e apagar (com confirmação). */
+/** Forma "squircle" dos Zás (cantos muito redondos e lados ligeiramente abaulados), como as fotos dos Instants. */
+const SQUIRCLE_POINTS = (() => {
+  const n = 3.4;
+  const pts: string[] = [];
+  for (let i = 0; i < 90; i++) {
+    const t = (i / 90) * 2 * Math.PI;
+    const c = Math.cos(t);
+    const s = Math.sin(t);
+    pts.push(`${(0.5 + 0.5 * Math.sign(c) * Math.abs(c) ** (2 / n)).toFixed(4)},${(0.5 + 0.5 * Math.sign(s) * Math.abs(s) ** (2 / n)).toFixed(4)}`);
+  }
+  return pts.join(' ');
+})();
+const SQUIRCLE = { clipPath: 'url(#zas-squircle)', WebkitClipPath: 'url(#zas-squircle)' } as const;
+function SquircleDefs() {
+  return (
+    <svg width="0" height="0" className="absolute" aria-hidden focusable="false">
+      <defs>
+        <clipPath id="zas-squircle" clipPathUnits="objectBoundingBox"><polygon points={SQUIRCLE_POINTS} /></clipPath>
+      </defs>
+    </svg>
+  );
+}
+const hoursLeft = (iso: string) => `${Math.max(1, Math.ceil((new Date(iso).getTime() - Date.now()) / 3_600_000))}h`;
+
+/** Os meus Zás ativos (24 h) numa grelha de 3 colunas em formas arredondadas; a reação mais comum aparece no canto. Toca para abrir (e apagar). */
 function MyInstants({ username, onClose }: { username: string; onClose: () => void }) {
   const [items, setItems] = useState<InstantItem[] | null>(null);
   const [err, setErr] = useState('');
-  const [del, setDel] = useState<InstantItem | null>(null);
-  const [viewers, setViewers] = useState<{ username: string; displayName: string; hasAvatar: boolean; at: string }[] | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
 
+  const load = () => api.instantsOf(username).then(setItems).catch((e) => setErr((e as Error).message));
   useEffect(() => {
-    api.instantsOf(username).then(setItems).catch((e) => setErr((e as Error).message));
-  }, [username]);
+    void load();
+  }, [username]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function confirmDelete() {
-    if (!del) return;
-    const id = del.id;
-    setDel(null);
-    try {
-      await api.instantDelete(id);
-      setItems((l) => (l ?? []).filter((x) => x.id !== id));
-    } catch (e) {
-      setErr((e as Error).message);
-    }
-  }
-  async function showViewers(it: InstantItem) {
-    try {
-      setViewers(await api.instantViewers(it.id));
-    } catch (e) {
-      setErr((e as Error).message);
-    }
-  }
-
-  return (
-    <Sheet title={tr('Os meus Instants')} onClose={onClose} layer="z-[95]">
-      {err && <p role="alert" className="pb-2 text-sm text-red-600">{err}</p>}
-      {items === null ? (
-        <p className="py-8 text-center text-zinc-500">{tr('A carregar…')}</p>
-      ) : items.length === 0 ? (
-        <p className="py-8 text-center text-zinc-600">{tr('Não tens Zás ativos. Os Zás duram 24 h.')}</p>
-      ) : (
-        <ul className="grid grid-cols-3 gap-2">
-          {items.map((it) => (
-            <li key={it.id} className="relative aspect-[3/4] overflow-hidden rounded-[28px] bg-zinc-100">
-              <img src={it.url} alt={it.caption || 'Zás'} loading="lazy" draggable={false} className="h-full w-full object-cover" />
-              <button type="button" onClick={() => showViewers(it)} aria-label={tr('Quem viu')} className="absolute bottom-1.5 left-1.5 flex h-7 items-center gap-1 rounded-full bg-black/60 px-2 text-xs font-bold text-white"><Icon name="eye" size={13} /> {it.views ?? 0}</button>
-              <button type="button" onClick={() => setDel(it)} aria-label={tr('Apagar Zás')} className="absolute right-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white active:scale-90"><Icon name="trash" size={15} /></button>
-              <span className="absolute bottom-1.5 right-1.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">{hm(it.at)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {del && (
-        <Sheet title={tr('Apagar o Zás?')} onClose={() => setDel(null)} layer="z-[100]">
-          <p className="mb-4 text-zinc-600">{tr('Desaparece para toda a gente e não dá para o recuperar.')}</p>
-          <button onClick={confirmDelete} className="h-12 w-full rounded-full bg-red-700 font-bold text-white active:scale-[0.98]">{tr('Apagar')}</button>
-          <button onClick={() => setDel(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar')}</button>
-        </Sheet>
-      )}
-      {viewers && (
-        <Sheet title={tr('Quem viu')} onClose={() => setViewers(null)} layer="z-[100]">
-          {viewers.length === 0 ? (
-            <p className="py-6 text-center text-zinc-600">{tr('Ainda ninguém viu.')}</p>
-          ) : (
-            <ul>
-              {viewers.map((v) => (
-                <li key={v.username} className="flex items-center gap-3 py-2">
-                  <Avatar name={v.displayName} username={v.hasAvatar ? v.username : undefined} size={40} ring={false} />
-                  <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{v.displayName}</span><span className="block text-sm text-zinc-500">@{v.username} · {hm(v.at)}</span></span>
+  return createPortal(
+    <div role="dialog" aria-modal="true" aria-label={tr('Os meus Zás')} className="fixed inset-0 z-[95] flex flex-col bg-black text-white">
+      <SquircleDefs />
+      <div className="relative flex shrink-0 items-center justify-center px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <button type="button" onClick={onClose} aria-label={tr('Voltar')} className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] flex h-10 w-10 items-center justify-center rounded-full active:scale-90"><Icon name="chevron-left" size={26} /></button>
+        <h2 className="text-[18px] font-extrabold">{tr('Os meus Zás')}</h2>
+      </div>
+      {err && <p role="alert" className="px-4 pb-2 text-center text-sm text-red-400">{err}</p>}
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-28">
+        {items === null ? (
+          <p className="py-16 text-center text-white/60">{tr('A carregar…')}</p>
+        ) : items.length === 0 ? (
+          <p className="px-8 py-16 text-center text-white/70">{tr('Não tens Zás ativos. Os Zás duram 24 h.')}</p>
+        ) : (
+          <ul className="grid grid-cols-3 gap-2">
+            {items.map((it) => {
+              const top = it.reactions?.[0];
+              return (
+                <li key={it.id}>
+                  <button type="button" onClick={() => setOpen(it.id)} aria-label={it.caption || tr('Zás')} className="relative block aspect-[3/4] w-full bg-zinc-800 active:opacity-80" style={SQUIRCLE}>
+                    <img src={it.url} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover" />
+                    <span className="absolute right-[13%] top-[9%] flex items-center gap-0.5 text-[13px] font-bold drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+                      {top ? (
+                        <>
+                          <Reaction body={top.reaction} size={20} />
+                          {(it.reactions ?? []).reduce((n, r) => n + r.count, 0)}
+                        </>
+                      ) : (
+                        <><Icon name="eye" size={14} />{it.views ?? 0}</>
+                      )}
+                    </span>
+                    <span className="absolute bottom-[9%] right-[13%] rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-bold">{hoursLeft(it.expiresAt)}</span>
+                  </button>
                 </li>
-              ))}
-            </ul>
-          )}
-        </Sheet>
-      )}
-    </Sheet>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+      {/* Botão flutuante: voltar à câmara para mandar outro. */}
+      <button type="button" onClick={onClose} className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 flex h-14 -translate-x-1/2 items-center gap-2 rounded-full bg-white px-7 text-[17px] font-bold text-zinc-900 shadow-[0_6px_24px_rgba(0,0,0,0.5)] active:scale-95"><Icon name="bolt" size={20} fill="currentColor" className="text-brand" />{tr('Mandar um Zás')}</button>
+      {open && <InstantViewer who={{ username, displayName: '' }} own startId={open} onClose={() => { setOpen(null); void load(); }} />}
+    </div>,
+    document.body,
   );
 }
 
 /** Ver os Zás de alguém: foto a ecrã cheio com cantos bem redondos, cada um abre-se uma só vez. Toca à direita para o seguinte e à esquerda para o anterior. */
-function InstantViewer({ who, own, onClose, onFinish, onCamera }: { who: { username: string; displayName: string }; own: boolean; onClose: () => void; onFinish?: () => void; onCamera?: () => void }) {
+function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who: { username: string; displayName: string }; own: boolean; onClose: () => void; onFinish?: () => void; onCamera?: () => void; startId?: string }) {
   const [items, setItems] = useState<InstantItem[] | null>(null);
   const [i, setI] = useState(0);
   const [viewers, setViewers] = useState<{ username: string; displayName: string; hasAvatar: boolean; at: string }[] | null>(null);
@@ -405,7 +411,12 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera }: { who: { usern
   const marked = useRef(new Set<string>());
 
   useEffect(() => {
-    api.instantsOf(who.username).then((r) => (r.length ? setItems(r) : (onFinish ?? onClose)())).catch((e) => setErr((e as Error).message));
+    api.instantsOf(who.username).then((r) => {
+      if (!r.length) return (onFinish ?? onClose)();
+      setItems(r);
+      const at = startId ? r.findIndex((x) => x.id === startId) : -1;
+      if (at > 0) setI(at);
+    }).catch((e) => setErr((e as Error).message));
   }, [who.username]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cur = items?.[i];
@@ -502,7 +513,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera }: { who: { usern
           <>
             <div className="mb-3 flex justify-center gap-2" role="group" aria-label={tr('Reagir')}>
               {REACTIONS.map((r) => (
-                <button key={r.id} type="button" aria-label={r.label} onClick={() => void sendDm({ kind: 'sticker', body: r.art })} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/12 transition active:scale-90"><Reaction body={r.id} size={32} /></button>
+                <button key={r.id} type="button" aria-label={r.label} onClick={() => { if (cur) api.instantReact(cur.id, r.id).catch(() => undefined); void sendDm({ kind: 'sticker', body: r.art }); }} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/12 transition active:scale-90"><Reaction body={r.id} size={32} /></button>
               ))}
             </div>
             <form onSubmit={sendReply} className="flex items-center gap-2 rounded-full bg-white/12 p-1.5 pl-5">

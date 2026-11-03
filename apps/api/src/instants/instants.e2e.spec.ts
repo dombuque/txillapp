@@ -84,8 +84,16 @@ describe('Instants: fotos de 24 h, vistas uma só vez, só para amigos próximos
     await api().get(`/api/v1/instants/${made.id}/viewers`).set(auth(inb)).expect(404);
     const mine = (await api().get('/api/v1/instants').set(auth(ina)).expect(200)).body.mine;
     expect(mine).toMatchObject({ count: 1, views: 1 });
-    const own = (await api().get(`/api/v1/instants/of/${ina.username}`).set(auth(ina)).expect(200)).body as { views: number }[];
+    // reações: uma por pessoa; o autor vê o resumo
+    await api().put(`/api/v1/instants/${made.id}/reaction`).set(auth(ind)).send({ reaction: ':amor:' }).expect(204);
+    await api().put(`/api/v1/instants/${made.id}/reaction`).set(auth(inb)).send({ reaction: ':rir:' }).expect(204);
+    await api().put(`/api/v1/instants/${made.id}/reaction`).set(auth(inb)).send({ reaction: ':amor:' }).expect(204); // muda, não soma
+    await api().put(`/api/v1/instants/${made.id}/reaction`).set(auth(inc)).send({ reaction: ':amor:' }).expect(404); // sem acesso
+    await api().put(`/api/v1/instants/${made.id}/reaction`).set(auth(ina)).send({ reaction: ':amor:' }).expect(404); // o autor não reage ao seu
+    await api().put(`/api/v1/instants/${made.id}/reaction`).set(auth(inb)).send({ reaction: 'rir' }).expect(400);
+    const own = (await api().get(`/api/v1/instants/of/${ina.username}`).set(auth(ina)).expect(200)).body as { views: number; reactions: { reaction: string; count: number }[] }[];
     expect(own[0].views).toBe(1);
+    expect(own[0].reactions).toEqual([{ reaction: ':amor:', count: 2 }]);
   });
 
   it('"só amigos próximos": quem só se segue mutuamente não vê esse Zás', async () => {

@@ -291,7 +291,7 @@ export interface ChatMessage {
   at: string;
 }
 /** Instants: foto tirada na hora, 24 h, vista uma só vez. */
-export interface InstantItem { id: string; url: string; caption: string; at: string; expiresAt: string; views?: number }
+export interface InstantItem { id: string; url: string; caption: string; at: string; expiresAt: string; views?: number; reactions?: { reaction: string; count: number }[] }
 export interface InstantTray {
   mine: { count: number; views: number; endsAt: string | null };
   others: { username: string; displayName: string; hasAvatar: boolean; count: number; latestAt: string; previewUrl: string }[];
@@ -601,6 +601,7 @@ export const api = {
   instantsOf: (username: string): Promise<InstantItem[]> => raw(`/instants/of/${encodeURIComponent(username)}`),
   instantCreate: (mediaId: string, caption: string, audience: 'friends' | 'close' = 'friends'): Promise<{ id: string; expiresAt: string }> => raw('/instants', post({ mediaId, caption, audience })),
   instantView: (id: string): Promise<void> => raw(`/instants/${id}/view`, post({})),
+  instantReact: (id: string, reaction: string): Promise<void> => raw(`/instants/${id}/reaction`, { method: 'PUT', body: JSON.stringify({ reaction }) }),
   instantViewers: (id: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; at: string }[]> => raw(`/instants/${id}/viewers`),
   instantDelete: (id: string): Promise<void> => raw(`/instants/${id}`, { method: 'DELETE' }),
   storiesOf: (username: string): Promise<Story[]> => raw(`/stories/user/${encodeURIComponent(username)}`),

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
@@ -9,6 +9,8 @@ import { InstantsService } from './instants.service';
 
 type AuthedReq = Request & { userId?: string };
 const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(80).default(''), audience: z.enum(['friends', 'close']).default('friends') });
+
+const reactSchema = z.object({ reaction: z.string().regex(/^:[a-z]{2,12}:$/) });
 
 @Controller('instants')
 @UseGuards(JwtAuthGuard)
@@ -37,6 +39,13 @@ export class InstantsController {
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
   async view(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
     await this.instants.view(req.userId!, id);
+  }
+
+  @Put(':id/reaction')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  async react(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(reactSchema)) b: z.infer<typeof reactSchema>) {
+    await this.instants.react(req.userId!, id, b.reaction);
   }
 
   @Get(':id/viewers')
