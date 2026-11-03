@@ -73,7 +73,7 @@ function ConnectionList({ username, kind, meUsername }: { username: string; kind
               </span>
             </Link>
             {x.username !== meUsername && (
-              <div className="w-28 shrink-0"><FollowButton username={x.username} following={x.following} requested={false} large /></div>
+              <div className="w-28 shrink-0"><FollowButton username={x.username} following={x.following} requested={!!x.requested} isPrivate={!!x.isPrivate} large /></div>
             )}
           </li>
         ))}

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'r
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { api, type Post, type Story, type Track, type TrayUser } from '../lib/api';
 import MusicPicker from './MusicPicker';
+import { pauseTrack, playTrack, resumeTrack, stopTrack } from '../lib/musicPlayer';
 import { TrackCredits, useMusicMuted } from './TrackCard';
 import ShareSheet from './ShareSheet';
 import { REACTIONS, Reaction, reactionText } from '../lib/stickers';
@@ -396,23 +397,15 @@ function CommentsPanel({ story, onClose, canComment, onTyping }: { story: Story;
 function StoryMusic({ track, paused, stop }: { track: Track; paused: boolean; stop: Record<string, unknown> }) {
   const [muted, toggleMute] = useMusicMuted();
   const [info, setInfo] = useState(false);
-  const audio = useRef<HTMLAudioElement | null>(null);
+  const me = useRef(Symbol('story-music'));
   useEffect(() => {
-    const a = new Audio(track.url);
-    a.loop = true;
-    a.muted = muted;
-    audio.current = a;
-    void a.play().catch(() => undefined);
-    return () => a.pause();
-  }, [track.url]); // eslint-disable-line react-hooks/exhaustive-deps
+    const id = me.current;
+    void playTrack(id, track.url, { loop: true, onStop: () => undefined });
+    return () => stopTrack(id);
+  }, [track.url]);
   useEffect(() => {
-    if (audio.current) audio.current.muted = muted;
-  }, [muted]);
-  useEffect(() => {
-    const a = audio.current;
-    if (!a) return;
-    if (paused) a.pause();
-    else void a.play().catch(() => undefined);
+    if (paused) pauseTrack(me.current);
+    else resumeTrack(me.current);
   }, [paused]);
   return (
     <div {...stop} className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-black/45 py-1 pl-4 pr-1 text-white backdrop-blur-sm">

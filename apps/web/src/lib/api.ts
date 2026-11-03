@@ -132,6 +132,8 @@ export interface Person {
   displayName: string;
   following: boolean;
   followsYou: boolean;
+  isPrivate?: boolean;
+  requested?: boolean;
 }
 export interface Suggestion {
   username: string;

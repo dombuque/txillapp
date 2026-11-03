@@ -112,6 +112,10 @@ describe('rede social: seguir, sugestões, perfil e perfis privados (integraçã
     await api().post(`/api/v1/posts/${mine.id}/repost`).set(auth(fan)).send({ body: 'com comentário' }).expect(201).catch(() => undefined);
     expect((await profile(fan, fan)).counts.posts).toBe(before); // os reposts não contam
     expect((await profile(fan, author)).counts.posts).toBeGreaterThanOrEqual(1);
+    // a grelha "Tudo" só tem o que a pessoa publicou; os reposts estão no separador deles
+    const grid = async (tab: string) => ((await api().get(`/api/v1/users/${fan.username}/posts?tab=${tab}`).set(auth(fan)).expect(200)).body.items as { kind: string }[]);
+    expect((await grid('all')).some((i) => i.kind === 'repost')).toBe(false);
+    expect((await grid('reposts')).length).toBeGreaterThanOrEqual(1);
   });
 
   it('perfil privado: o conteúdo só aparece a seguidores aceites, em TODAS as superfícies', async () => {

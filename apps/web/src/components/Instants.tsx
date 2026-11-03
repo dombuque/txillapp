@@ -9,6 +9,7 @@ import Icon from './Icon';
 import { REACTIONS, Reaction } from '../lib/stickers';
 import { markSeen } from '../lib/whatsNew';
 import { NewBadge } from './WhatsNew';
+import CloseFriendsSheet from './CloseFriendsSheet';
 import { Avatar, Sheet } from './ui';
 
 const hm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -125,6 +126,8 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   const [queue, setQueue] = useState<{ username: string; displayName: string }[] | null>(null);
   const [at, setAt] = useState(0);
   const refresh = () => void qc.invalidateQueries({ queryKey: ['instants'] });
+  const friendsList = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
+  const [setupClose, setSetupClose] = useState(false);
   const others = data?.others ?? [];
   const total = others.reduce((n, o) => n + o.count, 0);
 
@@ -153,6 +156,8 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   useEffect(() => () => { releaseCamera(2_000); clearTimeout(undoTimer.current); }, []);
 
   function pickAudience(a: Audience) {
+    // Sem amigos próximos ainda: abre já a lista para os escolher.
+    if (a === 'close' && friendsList.isSuccess && friendsList.data.length === 0) setSetupClose(true);
     setAudience(a);
     try {
       localStorage.setItem(AUDIENCE_KEY, a);
@@ -286,6 +291,17 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
             <button type="button" onClick={() => { try { localStorage.setItem(INTRO_KEY, '1'); } catch { /* sem armazenamento: volta a aparecer */ } setIntro(false); }} className="mt-5 h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">{tr('Percebi')}</button>
           </div>
         </div>
+      )}
+      {setupClose && (
+        <CloseFriendsSheet
+          layer="z-[100]"
+          onClose={async () => {
+            setSetupClose(false);
+            const r = await friendsList.refetch();
+            // Se continua sem ninguém, "Próximos" não faria sentido: volta a "Amigos".
+            if (!r.data?.length) pickAudience('friends');
+          }}
+        />
       )}
       {grid && user && <MyInstants username={user.username} onClose={() => { setGrid(false); refresh(); }} />}
       {queue && queue[at] && (

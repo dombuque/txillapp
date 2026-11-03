@@ -15,6 +15,10 @@ export interface PersonItem {
   displayName: string;
   following: boolean;
   followsYou: boolean;
+  /** Conta privada: seguir envia um pedido. */
+  isPrivate: boolean;
+  /** Já enviei o pedido para seguir. */
+  requested: boolean;
 }
 
 export type Gender = 'female' | 'male' | 'other' | 'unspecified';
@@ -469,7 +473,9 @@ export class SocialService {
     const { rows } = await this.pool.query(
       `SELECT u.id, u.username, u.display_name,
               EXISTS (SELECT 1 FROM social.follows x WHERE x.follower_id = $1 AND x.followee_id = u.id) AS following,
-              EXISTS (SELECT 1 FROM social.follows x WHERE x.follower_id = u.id AND x.followee_id = $1) AS follows_you
+              EXISTS (SELECT 1 FROM social.follows x WHERE x.follower_id = u.id AND x.followee_id = $1) AS follows_you,
+              u.is_private,
+              EXISTS (SELECT 1 FROM social.follow_requests fr WHERE fr.requester_id = $1 AND fr.target_id = u.id) AS requested
          FROM social.follows f JOIN identity.users u ON u.id = ${self}
         WHERE ${other} = $2 AND ($3::uuid IS NULL OR u.id < $3) AND u.status = 'active' AND NOT ${blockedBetween('u.id', '$1')}
           AND ($5::text IS NULL OR u.username ILIKE $5 ESCAPE '\\' OR u.display_name ILIKE $5 ESCAPE '\\')
@@ -478,7 +484,7 @@ export class SocialService {
     );
     const page = rows.slice(0, limit);
     return {
-      items: page.map((r): PersonItem => ({ username: r.username, displayName: r.display_name, following: r.following, followsYou: r.follows_you })),
+      items: page.map((r): PersonItem => ({ username: r.username, displayName: r.display_name, following: r.following, followsYou: r.follows_you, isPrivate: r.is_private, requested: r.requested })),
       nextCursor: rows.length > limit ? page[page.length - 1].id : null,
     };
   }

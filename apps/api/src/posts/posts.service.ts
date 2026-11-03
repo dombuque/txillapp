@@ -297,7 +297,8 @@ export class PostsService {
     const hasVideo = `EXISTS (SELECT 1 FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id WHERE pm.post_id = p.id AND ma.mime LIKE 'video/%')`;
     // Cada separador do perfil: publicações (sem vídeo), reels (com vídeo), reposts, presentes (dados ou recebidos) e identificações.
     const where: Record<ProfileTab | 'all', string> = {
-      all: `u.username = $2`,
+      // "Tudo": só o que a pessoa publicou (publicações, reels e presentes). Os reposts têm o seu próprio separador.
+      all: `u.username = $2 AND p.kind <> 'repost'`,
       posts: `u.username = $2 AND p.kind = 'post' AND NOT ${hasVideo}`,
       reels: `u.username = $2 AND p.kind = 'post' AND ${hasVideo}`,
       reposts: `u.username = $2 AND p.kind = 'repost'`,
