@@ -8,12 +8,13 @@ import { blockedBetween } from '../social/visibility';
 
 const MAX_ACTIVE = 10;
 
-/** Quem vê os Instants de `a`: ele próprio, os amigos próximos dele e quem se segue mutuamente; nunca com bloqueios. */
-const audience = (a: string, v = '$1') =>
-  `(${a} = ${v} OR (NOT ${blockedBetween(a, v)} AND (
-      EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = ${a} AND cf.friend_id = ${v})
-      OR (EXISTS (SELECT 1 FROM social.follows f1 WHERE f1.follower_id = ${v} AND f1.followee_id = ${a})
-          AND EXISTS (SELECT 1 FROM social.follows f2 WHERE f2.follower_id = ${a} AND f2.followee_id = ${v})))))`;
+/** Quem vê um Zás (`i` = alias da tabela): quem o fez; os amigos próximos dele; e, se for para "amigos", quem se segue mutuamente. Nunca com bloqueios. */
+const visible = (i = 'i', v = '$1') =>
+  `(${i}.author_id = ${v} OR (NOT ${blockedBetween(`${i}.author_id`, v)} AND (
+      EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = ${i}.author_id AND cf.friend_id = ${v})
+      OR (${i}.audience = 'friends'
+          AND EXISTS (SELECT 1 FROM social.follows f1 WHERE f1.follower_id = ${v} AND f1.followee_id = ${i}.author_id)
+          AND EXISTS (SELECT 1 FROM social.follows f2 WHERE f2.follower_id = ${i}.author_id AND f2.followee_id = ${v})))))`;
 
 @Injectable()
 export class InstantsService {
@@ -23,7 +24,7 @@ export class InstantsService {
     private readonly filter: TextFilter,
   ) {}
 
-  async create(me: string, mediaId: string, caption: string) {
+  async create(me: string, mediaId: string, caption: string, audience: 'friends' | 'close' = 'friends') {
     this.filter.assertClean(caption);
     const active = (await this.pool.query('SELECT count(*)::int AS n FROM social.instants WHERE author_id = $1 AND expires_at > now()', [me])).rows[0].n as number;
     if (active >= MAX_ACTIVE) throw new BadRequestException('Já tens muitos Instants ativos. Espera que alguns acabem.');
@@ -35,7 +36,7 @@ export class InstantsService {
     );
     if (!ok.rowCount) throw new BadRequestException('Foto inválida ou ainda não carregada');
     const id = uuidv7();
-    const r = await this.pool.query('INSERT INTO social.instants (id, author_id, media_id, caption) VALUES ($1, $2, $3, $4) RETURNING expires_at', [id, me, mediaId, caption]);
+    const r = await this.pool.query('INSERT INTO social.instants (id, author_id, media_id, caption, audience) VALUES ($1, $2, $3, $4, $5) RETURNING expires_at', [id, me, mediaId, caption, audience]);
     return { id, expiresAt: r.rows[0].expires_at as string };
   }
 
@@ -46,7 +47,7 @@ export class InstantsService {
         `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", count(*)::int AS count, max(i.created_at) AS "latestAt"
            FROM social.instants i
            JOIN identity.users u ON u.id = i.author_id
-          WHERE i.expires_at > now() AND i.author_id <> $1 AND ${audience('i.author_id')}
+          WHERE i.expires_at > now() AND i.author_id <> $1 AND ${visible('i')}
             AND NOT EXISTS (SELECT 1 FROM social.instant_views v WHERE v.instant_id = i.id AND v.viewer_id = $1)
             AND EXISTS (SELECT 1 FROM content.media_assets a WHERE a.id = i.media_id AND a.status = 'ready')
           GROUP BY u.id ORDER BY max(i.created_at) DESC LIMIT 40`,
@@ -71,7 +72,7 @@ export class InstantsService {
     const { rows } = await this.pool.query(
       `SELECT i.id, i.media_id, i.caption, i.created_at, i.expires_at, (SELECT count(*)::int FROM social.instant_views v WHERE v.instant_id = i.id) AS views
          FROM social.instants i
-        WHERE i.author_id = $2 AND i.expires_at > now() AND ${audience('i.author_id')}
+        WHERE i.author_id = $2 AND i.expires_at > now() AND ${visible('i')}
           AND ($2 = $1 OR NOT EXISTS (SELECT 1 FROM social.instant_views v WHERE v.instant_id = i.id AND v.viewer_id = $1))
           AND EXISTS (SELECT 1 FROM content.media_assets m WHERE m.id = i.media_id AND m.status = 'ready')
         ORDER BY i.created_at`,
@@ -84,7 +85,7 @@ export class InstantsService {
   async view(me: string, id: string) {
     const r = await this.pool.query(
       `INSERT INTO social.instant_views (instant_id, viewer_id)
-       SELECT i.id, $1 FROM social.instants i WHERE i.id = $2 AND i.author_id <> $1 AND i.expires_at > now() AND ${audience('i.author_id')}
+       SELECT i.id, $1 FROM social.instants i WHERE i.id = $2 AND i.author_id <> $1 AND i.expires_at > now() AND ${visible('i')}
        ON CONFLICT DO NOTHING`,
       [me, id],
     );

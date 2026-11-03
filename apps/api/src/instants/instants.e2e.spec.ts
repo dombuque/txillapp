@@ -86,6 +86,17 @@ describe('Instants: fotos de 24 h, vistas uma só vez, só para amigos próximos
     expect(own[0].views).toBe(1);
   });
 
+  it('"só amigos próximos": quem só se segue mutuamente não vê esse Zás', async () => {
+    const { ina, inb, ind } = u;
+    const pic = await photo(ina);
+    const made = (await api().post('/api/v1/instants').set(auth(ina)).send({ mediaId: pic, caption: 'só próximos', audience: 'close' }).expect(201)).body;
+    const items = async (x: U) => ((await api().get(`/api/v1/instants/of/${ina.username}`).set(auth(x)).expect(200)).body as { id: string }[]).map((i) => i.id);
+    expect(await items(ind)).toContain(made.id); // amigo próximo
+    expect(await items(inb)).not.toContain(made.id); // só mútuo
+    const third = await photo(ina);
+    await api().post('/api/v1/instants').set(auth(ina)).send({ mediaId: third, audience: 'todos' }).expect(400);
+  });
+
   it('dura 24 h, bloqueios escondem e só o autor apaga', async () => {
     const { inb, inc } = u;
     await follow(inb, inc); await follow(inc, inb);

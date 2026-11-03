@@ -8,7 +8,7 @@ import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { InstantsService } from './instants.service';
 
 type AuthedReq = Request & { userId?: string };
-const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(80).default('') });
+const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(80).default(''), audience: z.enum(['friends', 'close']).default('friends') });
 
 @Controller('instants')
 @UseGuards(JwtAuthGuard)
@@ -19,7 +19,7 @@ export class InstantsController {
   @Post()
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
-    return this.instants.create(req.userId!, b.mediaId, b.caption);
+    return this.instants.create(req.userId!, b.mediaId, b.caption, b.audience);
   }
 
   @Get()

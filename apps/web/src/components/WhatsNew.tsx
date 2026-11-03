@@ -20,7 +20,7 @@ export default function WhatsNewCard() {
     <section aria-label={tr('Novidades')} className="mx-3 mb-4 overflow-hidden rounded-3xl bg-gradient-to-br from-brand to-[#ff9a5b] p-4 text-white shadow-[0_6px_18px_rgba(214,51,79,0.35)]">
       <div className="flex items-center gap-2">
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/25"><Icon name="sparkles" size={16} /></span>
-        <h2 className="flex-1 text-[17px] font-extrabold tracking-tight">{tr('Há novidades na Txillapp!')}</h2>
+        <h2 className="flex-1 text-[17px] font-extrabold tracking-tight">{tr('Há novidades no Txillapp!')}</h2>
         <button type="button" onClick={() => markSeen(...FEATURES.map((f) => f.id))} aria-label={tr('Dispensar as novidades')} className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 active:scale-90"><Icon name="x" size={16} /></button>
       </div>
       <ul className="mt-3 space-y-2">

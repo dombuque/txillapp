@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { acquireCamera, releaseCamera } from '../lib/cameraSession';
 import { tr } from '../lib/i18n';
 import Icon from './Icon';
+import { REACTIONS, Reaction } from '../lib/stickers';
 import { markSeen } from '../lib/whatsNew';
 import { NewBadge } from './WhatsNew';
 import { Avatar, Sheet } from './ui';
@@ -61,7 +62,20 @@ const seenIntro = () => {
   }
 };
 
-/** A câmara dos Instants: sem galeria nem edição; a legenda escreve-se antes e o obturador envia logo (com 6 s para desfazer). */
+const AUDIENCE_KEY = 'tx_zas_audience';
+type Audience = 'friends' | 'close';
+const readAudience = (): Audience => {
+  try {
+    return localStorage.getItem(AUDIENCE_KEY) === 'close' ? 'close' : 'friends';
+  } catch {
+    return 'friends';
+  }
+};
+
+/**
+ * A câmara dos Zás (como a dos Instants do Instagram): a ecrã cheio, sem galeria nem edição. No canto de cima, a pilha de quem te
+ * mandou um Zás e a grelha dos teus; em baixo a legenda, o obturador (envia logo, com 6 s para desfazer) e para quem vai.
+ */
 function InstantsHub({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -71,17 +85,21 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   const [ready, setReady] = useState(false);
   const [problem, setProblem] = useState(false);
   const [caption, setCaption] = useState('');
+  const [audience, setAudience] = useState<Audience>(readAudience);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [flash, setFlash] = useState(false);
-  const [sent, setSent] = useState<string | null>(null); // id do último Instant, para desfazer
+  const [sent, setSent] = useState<string | null>(null); // id do último Zás, para desfazer
   const undoTimer = useRef<ReturnType<typeof setTimeout>>();
   const [grid, setGrid] = useState(false);
   // A explicação só aparece da primeira vez.
   const [intro, setIntro] = useState(() => !seenIntro());
-  const [viewing, setViewing] = useState<{ username: string; displayName: string } | null>(null);
+  // Ver os Zás dos outros, um de cada vez, em fila.
+  const [queue, setQueue] = useState<{ username: string; displayName: string }[] | null>(null);
+  const [at, setAt] = useState(0);
   const refresh = () => void qc.invalidateQueries({ queryKey: ['instants'] });
   const others = data?.others ?? [];
+  const total = others.reduce((n, o) => n + o.count, 0);
 
   useEffect(() => {
     let dead = false;
@@ -107,6 +125,14 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   }, [facing]);
   useEffect(() => () => { releaseCamera(2_000); clearTimeout(undoTimer.current); }, []);
 
+  function pickAudience(a: Audience) {
+    setAudience(a);
+    try {
+      localStorage.setItem(AUDIENCE_KEY, a);
+    } catch {
+      /* sem armazenamento: só não se lembra da escolha */
+    }
+  }
   async function shoot() {
     const v = video.current;
     if (!v || !ready || !v.videoWidth || busy) return;
@@ -123,7 +149,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       const blob = await new Promise<Blob | null>((res) => c.toBlob(res, 'image/jpeg', 0.9));
       if (!blob) throw new Error(tr('Não consegui tirar a foto'));
       const mediaId = await api.uploadChatFile(new File([blob], `instant-${Date.now()}.jpg`, { type: 'image/jpeg' }), 'image/jpeg');
-      const r = await api.instantCreate(mediaId, caption.trim());
+      const r = await api.instantCreate(mediaId, caption.trim(), audience);
       setCaption('');
       setSent(r.id);
       clearTimeout(undoTimer.current);
@@ -142,54 +168,65 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
     refresh();
   }
 
+  const top = 'flex h-11 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md active:scale-90';
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={tr('Tirar um Instant')} className="fixed inset-0 z-[90] flex flex-col bg-zinc-950 text-white">
-      <div className="flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-        <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 active:scale-90"><Icon name="x" size={24} /></button>
-        <span className="flex -rotate-2 items-center gap-1 rounded-full bg-gradient-to-r from-brand to-[#ff9a5b] px-3.5 py-1 text-[17px] font-black italic tracking-tight shadow-[0_3px_12px_rgba(255,107,107,0.5)]"><Icon name="bolt" size={16} fill="currentColor" /> Zás!</span>
-        <button type="button" onClick={() => setGrid(true)} aria-label={tr('Os meus Zás')} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 active:scale-90"><Icon name="grid" size={22} /></button>
-      </div>
-
-      <div className="relative mx-auto mt-3 aspect-[3/4] w-[min(88vw,420px)] max-h-[58dvh] overflow-hidden rounded-[30px] bg-black ring-4 ring-white shadow-[0_0_44px_rgba(255,107,107,0.35)]">
-        <video ref={video} playsInline muted className={`h-full w-full object-cover ${facing === 'user' ? '-scale-x-100' : ''} ${ready ? '' : 'invisible'}`} />
-        {!ready && <p className="absolute inset-0 flex items-center justify-center px-6 text-center text-white/80">{problem ? tr('Não consegui abrir a câmara. Os Zás só se mandam na hora.') : tr('A acordar a câmara…')}</p>}
+    <div role="dialog" aria-modal="true" aria-label={tr('Mandar um Zás')} className="fixed inset-0 z-[90] flex flex-col bg-black text-white">
+      {/* A câmara, com cantos bem redondos; tudo o que está por cima fica afastado das curvas. */}
+      <div className="relative mx-2 mt-[max(0.5rem,env(safe-area-inset-top))] min-h-0 flex-1 overflow-hidden rounded-[44px] bg-zinc-900 shadow-[0_0_44px_rgba(255,107,107,0.28)]">
+        <video ref={video} playsInline muted className={`absolute inset-0 h-full w-full object-cover ${facing === 'user' ? '-scale-x-100' : ''} ${ready ? '' : 'invisible'}`} />
+        {!ready && <p className="absolute inset-0 flex items-center justify-center px-10 text-center text-white/80">{problem ? tr('Não consegui abrir a câmara. Os Zás só se mandam na hora.') : tr('A acordar a câmara…')}</p>}
         {flash && <div className="pointer-events-none absolute inset-0 bg-white" />}
-        {caption && <p className="absolute inset-x-3 bottom-3 rounded-2xl bg-black/55 px-3 py-2 text-center text-[17px] font-bold leading-snug backdrop-blur-sm">{caption}</p>}
-        <button type="button" onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} aria-label={tr('Virar câmara')} className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 active:scale-90"><Icon name="flip-camera" size={22} /></button>
-      </div>
 
-      <div className="mx-auto mt-3 w-[min(88vw,420px)]">
-        <input value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={80} placeholder={tr('Uma legenda curta (antes da foto)')} aria-label={tr('Legenda')} className="h-11 w-full rounded-full bg-white/15 px-4 text-center text-[16px] outline-none placeholder:text-white/60 focus:bg-white/25" />
-        {err && <p role="alert" className="mt-2 text-center text-sm text-red-300">{err}</p>}
-      </div>
-
-      {others.length > 0 && (
-        <div className="mx-auto mt-3 flex w-[min(88vw,420px)] gap-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {others.map((o) => (
-            <button key={o.username} type="button" onClick={() => setViewing({ username: o.username, displayName: o.displayName })} aria-label={tr('Ver os Zás de {v0}', { v0: o.displayName })} className="flex w-14 shrink-0 flex-col items-center gap-1 active:scale-95">
-              <span className="rounded-2xl bg-gradient-to-br from-brand to-amber-400 p-[2.5px]"><span className="flex rounded-[13px] bg-white p-0.5"><Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={40} ring={false} /></span></span>
-              <span className="w-full truncate text-center text-[11px] text-white/80">{o.displayName.split(' ')[0]}</span>
+        <button type="button" onClick={onClose} aria-label={tr('Fechar')} className={`${top} absolute left-5 top-5 w-11`}><Icon name="x" size={24} /></button>
+        <div className="absolute right-5 top-5 flex items-center gap-2">
+          {total > 0 && (
+            <button type="button" onClick={() => { setQueue(others); setAt(0); }} aria-label={tr('Zás: {n} por ver', { n: total })} className={`${top} relative gap-0 pl-1.5 pr-3`}>
+              <span className="flex -space-x-2.5">
+                {others.slice(0, 3).map((o) => <span key={o.username} className="rounded-full bg-white p-[1.5px]"><Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={30} ring={false} /></span>)}
+              </span>
+              <span className="ml-1.5 text-sm font-extrabold">{total}</span>
             </button>
-          ))}
+          )}
+          <button type="button" onClick={() => setGrid(true)} aria-label={tr('Os meus Zás')} className={`${top} w-11`}><Icon name="grid" size={22} /></button>
         </div>
-      )}
 
-      <div className="relative mt-auto flex items-center justify-center pb-[max(1.75rem,env(safe-area-inset-bottom))] pt-4">
-        <button type="button" onClick={shoot} disabled={!ready || busy} aria-label={tr('Tirar e enviar')} className="flex h-[84px] w-[84px] items-center justify-center rounded-full border-[5px] border-white transition active:scale-90 disabled:opacity-50">
-          <span className={`flex h-[62px] w-[62px] items-center justify-center rounded-full ${busy ? 'animate-pulse bg-brand text-white' : 'bg-white text-brand'}`}><Icon name="bolt" size={30} fill="currentColor" /></span>
-        </button>
+        <input
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+          maxLength={80}
+          placeholder={tr('Adicionar legenda…')}
+          aria-label={tr('Legenda')}
+          className="absolute inset-x-6 bottom-6 h-12 rounded-full bg-black/45 px-6 text-center text-[17px] font-bold outline-none backdrop-blur-md placeholder:text-white/70 focus:bg-black/60"
+        />
+        {err && <p role="alert" className="absolute inset-x-8 bottom-[5.25rem] rounded-2xl bg-red-600/90 px-4 py-2 text-center text-sm font-semibold">{err}</p>}
+      </div>
+
+      <div className="relative shrink-0 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
         {sent && (
-          <div role="status" className="absolute inset-x-4 -top-2 mx-auto flex max-w-sm -translate-y-full items-center justify-between rounded-full bg-white py-2 pl-4 pr-2 text-zinc-900 shadow-[0_4px_18px_rgba(0,0,0,0.4)]">
-            <span className="text-[14px] font-semibold">{tr('Zás enviado!')}</span>
+          <div role="status" className="absolute inset-x-6 -top-1 mx-auto flex max-w-sm -translate-y-full items-center justify-between rounded-full bg-white py-2 pl-5 pr-2 text-zinc-900 shadow-[0_4px_18px_rgba(0,0,0,0.5)]">
+            <span className="text-[15px] font-bold">{tr('Zás enviado!')}</span>
             <button type="button" onClick={undo} className="h-9 rounded-full bg-zinc-100 px-4 text-sm font-bold active:scale-95">{tr('Desfazer')}</button>
           </div>
         )}
+        <div className="flex items-center justify-between">
+          <span className="w-12" />
+          <button type="button" onClick={shoot} disabled={!ready || busy} aria-label={tr('Tirar e enviar')} className="flex h-[84px] w-[84px] items-center justify-center rounded-full border-[5px] border-white transition active:scale-90 disabled:opacity-50">
+            <span className={`flex h-[62px] w-[62px] items-center justify-center rounded-full ${busy ? 'animate-pulse bg-brand text-white' : 'bg-white text-brand'}`}><Icon name="bolt" size={30} fill="currentColor" /></span>
+          </button>
+          <button type="button" onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} aria-label={tr('Virar câmara')} className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 active:scale-90"><Icon name="flip-camera" size={24} /></button>
+        </div>
+        {/* Para quem vai: amigos (próximos e mútuos) ou só os amigos próximos. */}
+        <div role="radiogroup" aria-label={tr('Para quem vai')} className="mx-auto mt-3 flex w-fit rounded-full bg-white/12 p-1">
+          {([['friends', tr('Amigos')], ['close', tr('Próximos')]] as const).map(([id, label]) => (
+            <button key={id} type="button" role="radio" aria-checked={audience === id} onClick={() => pickAudience(id)} className={`h-9 rounded-full px-6 text-[14px] font-bold transition ${audience === id ? (id === 'close' ? 'bg-emerald-500 text-white' : 'bg-white text-zinc-900') : 'text-white/80'}`}>{label}</button>
+          ))}
+        </div>
       </div>
 
       {intro && (
         <div role="dialog" aria-modal="true" aria-label="Zás" className="absolute inset-0 z-10 flex items-center justify-center bg-black/80 px-6">
-          <div className="w-full max-w-sm rounded-[28px] bg-white p-6 text-zinc-900 shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
-            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand text-white"><Icon name="sparkles" size={28} /></span>
+          <div className="w-full max-w-sm rounded-[36px] bg-white p-6 text-zinc-900 shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand text-white"><Icon name="bolt" size={28} fill="currentColor" /></span>
             <h2 className="mt-3 text-center text-2xl font-extrabold tracking-tight">{tr('Zás!')}</h2>
             <p className="mt-1 text-center text-[15px] font-semibold text-zinc-600">{tr('Tirou, mandou, já foi.')}</p>
             <ul className="mt-4 space-y-3 text-[15px] leading-snug">
@@ -198,7 +235,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
                 ['send', tr('O botão envia logo. Tens 6 segundos para desfazer.')],
                 ['eye', tr('Cada pessoa vê uma só vez e depois desaparece.')],
                 ['clock', tr('Dura 24 horas.')],
-                ['users', tr('Só os teus amigos próximos e quem se segue contigo veem.')],
+                ['users', tr('Vai para os teus amigos (quem se segue contigo) ou só para os Próximos.')],
               ] as const).map(([ic, text]) => (
                 <li key={ic} className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100"><Icon name={ic} size={18} /></span>{text}</li>
               ))}
@@ -208,7 +245,15 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
         </div>
       )}
       {grid && user && <MyInstants username={user.username} onClose={() => { setGrid(false); refresh(); }} />}
-      {viewing && <InstantViewer who={viewing} own={false} onClose={() => { setViewing(null); refresh(); }} />}
+      {queue && queue[at] && (
+        <InstantViewer
+          key={queue[at].username}
+          who={queue[at]}
+          own={false}
+          onClose={() => { setQueue(null); refresh(); }}
+          onFinish={() => (at + 1 < queue.length ? setAt(at + 1) : (setQueue(null), refresh()))}
+        />
+      )}
     </div>,
     document.body,
   );
@@ -254,7 +299,7 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
       ) : (
         <ul className="grid grid-cols-3 gap-2">
           {items.map((it) => (
-            <li key={it.id} className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-zinc-100">
+            <li key={it.id} className="relative aspect-[3/4] overflow-hidden rounded-[28px] bg-zinc-100">
               <img src={it.url} alt={it.caption || 'Zás'} loading="lazy" draggable={false} className="h-full w-full object-cover" />
               <button type="button" onClick={() => showViewers(it)} aria-label={tr('Quem viu')} className="absolute bottom-1.5 left-1.5 flex h-7 items-center gap-1 rounded-full bg-black/60 px-2 text-xs font-bold text-white"><Icon name="eye" size={13} /> {it.views ?? 0}</button>
               <button type="button" onClick={() => setDel(it)} aria-label={tr('Apagar Zás')} className="absolute right-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white active:scale-90"><Icon name="trash" size={15} /></button>
@@ -290,16 +335,18 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
   );
 }
 
-/** Ver os Instants de alguém: cada um abre-se uma só vez. Toca à direita para o seguinte, à esquerda para o anterior. */
-function InstantViewer({ who, own, onClose }: { who: { username: string; displayName: string }; own: boolean; onClose: () => void }) {
+/** Ver os Zás de alguém: foto a ecrã cheio com cantos bem redondos, cada um abre-se uma só vez. Toca à direita para o seguinte e à esquerda para o anterior. */
+function InstantViewer({ who, own, onClose, onFinish }: { who: { username: string; displayName: string }; own: boolean; onClose: () => void; onFinish?: () => void }) {
   const [items, setItems] = useState<InstantItem[] | null>(null);
   const [i, setI] = useState(0);
   const [viewers, setViewers] = useState<{ username: string; displayName: string; hasAvatar: boolean; at: string }[] | null>(null);
   const [err, setErr] = useState('');
+  const [reply, setReply] = useState('');
+  const [note, setNote] = useState('');
   const marked = useRef(new Set<string>());
 
   useEffect(() => {
-    api.instantsOf(who.username).then((r) => (r.length ? setItems(r) : onClose())).catch((e) => setErr((e as Error).message));
+    api.instantsOf(who.username).then((r) => (r.length ? setItems(r) : (onFinish ?? onClose)())).catch((e) => setErr((e as Error).message));
   }, [who.username]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cur = items?.[i];
@@ -312,7 +359,7 @@ function InstantViewer({ who, own, onClose }: { who: { username: string; display
 
   function next() {
     if (!items) return;
-    if (i + 1 >= items.length) onClose();
+    if (i + 1 >= items.length) (onFinish ?? onClose)();
     else setI(i + 1);
   }
   async function remove() {
@@ -335,44 +382,70 @@ function InstantViewer({ who, own, onClose }: { who: { username: string; display
       setErr((e as Error).message);
     }
   }
+  // Reações e respostas vão para as mensagens (como no Instagram).
+  async function sendDm(msg: { kind: 'sticker' | 'text'; body: string }) {
+    setErr('');
+    try {
+      await api.chatSend(who.username, msg);
+      setNote(tr('Enviado para as mensagens'));
+      setTimeout(() => setNote(''), 2000);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }
+  function sendReply(e: React.FormEvent) {
+    e.preventDefault();
+    const body = reply.trim();
+    if (!body) return;
+    setReply('');
+    void sendDm({ kind: 'text', body: `${tr('Sobre o teu Zás')}: ${body}` });
+  }
 
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={`Zás de ${who.displayName}`} className="fixed inset-0 z-[90] flex flex-col bg-gradient-to-b from-zinc-900 via-zinc-950 to-black text-white">
-      <div className="flex gap-1 px-3 pt-[max(0.75rem,env(safe-area-inset-top))]" aria-hidden>
-        {(items ?? [{ id: 'x' }]).map((x, k) => <span key={x.id} className={`h-1 flex-1 rounded-full ${k <= i ? 'bg-white' : 'bg-white/30'}`} />)}
-      </div>
-      <div className="flex items-center gap-3 px-4 py-3">
-        <Avatar name={who.displayName} username={who.username} size={36} ring={false} />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-bold leading-tight">{own ? tr('Os teus Zás') : who.displayName}</span>
-          {cur && <span className="block text-xs text-white/70">{hm(cur.at)} · {leftLabel(cur.expiresAt)}</span>}
-        </span>
-        <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 active:scale-90"><Icon name="x" size={22} /></button>
-      </div>
+    <div role="dialog" aria-modal="true" aria-label={`Zás de ${who.displayName}`} className="fixed inset-0 z-[90] flex flex-col bg-black text-white">
+      <div className="relative mx-2 mt-[max(0.5rem,env(safe-area-inset-top))] min-h-0 flex-1 overflow-hidden rounded-[44px] bg-zinc-900">
+        {cur ? <img src={cur.url} alt={cur.caption || tr('Zás')} draggable={false} className="absolute inset-0 h-full w-full object-cover" /> : <p className="absolute inset-0 flex items-center justify-center text-white/70">{err || tr('A carregar…')}</p>}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/55 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/60 to-transparent" />
 
-      <div className="relative flex min-h-0 flex-1 items-center justify-center px-5 pb-2">
-        {cur ? (
-          <figure className="relative w-full max-w-sm rotate-[-1.2deg] rounded-[26px] bg-white p-3 pb-4 shadow-[0_12px_40px_rgba(0,0,0,0.6)]">
-            <span className="absolute -top-3 left-6 z-10 flex rotate-[-5deg] items-center gap-1 rounded-md bg-gradient-to-r from-brand to-[#ff9a5b] px-2.5 py-0.5 text-sm font-black italic text-white shadow-md"><Icon name="bolt" size={13} fill="currentColor" /> Zás!</span>
-            <img src={cur.url} alt={cur.caption || tr('Zás')} draggable={false} className="aspect-[3/4] max-h-[62dvh] w-full rounded-[18px] object-cover" />
-            {cur.caption && <figcaption className="mt-3 px-1 text-center text-[19px] font-extrabold leading-snug text-zinc-900">{cur.caption}</figcaption>}
-          </figure>
-        ) : (
-          <p className="text-white/70">{err || tr('A carregar…')}</p>
-        )}
         {/* Metades do ecrã: anterior / seguinte. */}
-        <button type="button" aria-label={tr('Anterior')} onClick={() => setI((k) => Math.max(0, k - 1))} className="absolute inset-y-0 left-0 w-1/3" />
-        <button type="button" aria-label={tr('Seguinte')} onClick={next} className="absolute inset-y-0 right-0 w-2/3" />
+        <button type="button" aria-label={tr('Anterior')} onClick={() => setI((k) => Math.max(0, k - 1))} className="absolute inset-y-16 left-0 w-1/3" />
+        <button type="button" aria-label={tr('Seguinte')} onClick={next} className="absolute inset-y-16 right-0 w-2/3" />
+
+        <div className="absolute inset-x-6 top-4 flex gap-1" aria-hidden>
+          {(items ?? [{ id: 'x' }]).map((x, k) => <span key={x.id} className={`h-1 flex-1 rounded-full ${k <= i ? 'bg-white' : 'bg-white/35'}`} />)}
+        </div>
+        <div className="absolute inset-x-5 top-8 flex items-center gap-3">
+          <Avatar name={who.displayName} username={who.username} size={38} ring={false} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[16px] font-bold leading-tight drop-shadow">{own ? tr('Os teus Zás') : who.displayName}</span>
+            {cur && <span className="block text-xs text-white/80 drop-shadow">{hm(cur.at)} · {leftLabel(cur.expiresAt)}</span>}
+          </span>
+          <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-md active:scale-90"><Icon name="x" size={22} /></button>
+        </div>
+
+        {cur?.caption && <p className="absolute inset-x-6 bottom-6 rounded-[28px] bg-black/45 px-6 py-3 text-center text-[19px] font-extrabold leading-snug backdrop-blur-md">{cur.caption}</p>}
+        {(err || note) && cur && <p role={err ? 'alert' : 'status'} className={`absolute inset-x-8 top-24 rounded-full px-4 py-2 text-center text-sm font-semibold ${err ? 'bg-red-600/90' : 'bg-emerald-600/90'}`}>{err || note}</p>}
       </div>
 
-      <div className="flex items-center justify-center gap-3 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-2">
+      <div className="shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
         {own ? (
-          <>
-            <button type="button" onClick={showViewers} className="flex h-11 items-center gap-2 rounded-full bg-white/15 px-5 font-semibold active:scale-95"><Icon name="eye" size={18} /> {tr('{n} viram', { n: cur?.views ?? 0 })}</button>
-            <button type="button" onClick={remove} aria-label={tr('Apagar Instant')} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-red-300 active:scale-95"><Icon name="trash" size={20} /></button>
-          </>
+          <div className="flex items-center justify-center gap-3">
+            <button type="button" onClick={showViewers} className="flex h-12 items-center gap-2 rounded-full bg-white/15 px-6 font-semibold active:scale-95"><Icon name="eye" size={18} /> {tr('{n} viram', { n: cur?.views ?? 0 })}</button>
+            <button type="button" onClick={remove} aria-label={tr('Apagar Zás')} className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-red-300 active:scale-95"><Icon name="trash" size={20} /></button>
+          </div>
         ) : (
-          <span aria-hidden className="h-11" />
+          <>
+            <div className="mb-3 flex justify-center gap-2" role="group" aria-label={tr('Reagir')}>
+              {REACTIONS.map((r) => (
+                <button key={r.id} type="button" aria-label={r.label} onClick={() => void sendDm({ kind: 'sticker', body: r.art })} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/12 transition active:scale-90"><Reaction body={r.id} size={32} /></button>
+              ))}
+            </div>
+            <form onSubmit={sendReply} className="flex items-center gap-2 rounded-full bg-white/12 p-1.5 pl-5">
+              <input value={reply} onChange={(e) => setReply(e.target.value)} maxLength={500} placeholder={tr('Responder a {v0}…', { v0: who.displayName.split(' ')[0] })} aria-label={tr('Responder')} className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-white/60" />
+              <button type="submit" disabled={!reply.trim()} aria-label={tr('Enviar')} className="flex h-10 w-10 items-center justify-center rounded-full bg-brand disabled:opacity-40 active:scale-90"><Icon name="send" size={18} /></button>
+            </form>
+          </>
         )}
       </div>
 

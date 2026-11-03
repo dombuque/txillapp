@@ -1243,8 +1243,15 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Amigos': 'Friends',
+  'Próximos': 'Close',
+  'Para quem vai': 'Who it goes to',
+  'Vai para os teus amigos (quem se segue contigo) ou só para os Próximos.': 'It goes to your friends (people you follow each other with) or only to Close.',
+  'Enviado para as mensagens': 'Sent to messages',
+  'Sobre o teu Zás': 'About your Zap',
+  'Responder a {v0}…': 'Reply to {v0}…',
   'Novidades': 'What is new',
-  'Há novidades na Txillapp!': 'What is new on Txillapp!',
+  'Há novidades no Txillapp!': 'What is new on Txillapp!',
   'Dispensar as novidades': 'Dismiss what is new',
   'E mais {n}…': 'And {n} more…',
   'Fotos na hora que duram 24 h e só se veem uma vez. Está no canto das mensagens.': 'Photos taken live that last 24 h and are seen only once. Find it in the corner of messages.',

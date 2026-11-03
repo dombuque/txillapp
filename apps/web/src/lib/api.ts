@@ -595,7 +595,7 @@ export const api = {
   stories: (): Promise<TrayUser[]> => raw('/stories'),
   instants: (): Promise<InstantTray> => raw('/instants'),
   instantsOf: (username: string): Promise<InstantItem[]> => raw(`/instants/of/${encodeURIComponent(username)}`),
-  instantCreate: (mediaId: string, caption: string): Promise<{ id: string; expiresAt: string }> => raw('/instants', post({ mediaId, caption })),
+  instantCreate: (mediaId: string, caption: string, audience: 'friends' | 'close' = 'friends'): Promise<{ id: string; expiresAt: string }> => raw('/instants', post({ mediaId, caption, audience })),
   instantView: (id: string): Promise<void> => raw(`/instants/${id}/view`, post({})),
   instantViewers: (id: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; at: string }[]> => raw(`/instants/${id}/viewers`),
   instantDelete: (id: string): Promise<void> => raw(`/instants/${id}`, { method: 'DELETE' }),

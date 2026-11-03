@@ -61,7 +61,7 @@ Todos os dados abaixo são **ligados à identidade** da pessoa, **não usados pa
 | Identificadores (ID do utilizador) | Sim | Funcionalidade da app | |
 | Dados de utilização (interação com o produto) | Sim, **desligável** em Definições | Análise | Aberturas, ecrãs vistos; sem terceiros. |
 | Diagnóstico (falhas, desempenho) | Sim | Análise, funcionalidade | |
-| Informação financeira | Não pela Txillapp | | Com compra da Apple, o pagamento é da Apple. |
+| Informação financeira | Não pelo Txillapp | | Com compra da Apple, o pagamento é da Apple. |
 | Dados sensíveis | Género, só se a pessoa o der | Funcionalidade da app | Escolhido ao criar a conta; não se altera. |
 
 ## 5. Textos dos pedidos de permissão (para o `Info.plist` da app nativa)
