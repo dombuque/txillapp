@@ -37,12 +37,15 @@ export const setAccessToken = (t: string | null) => {
   accessToken = t;
 };
 
+import { tr } from './i18n';
+
 export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
   ) {
-    super(message);
+    // As mensagens do servidor vêm em português: mostram-se no idioma escolhido (o que não tiver tradução fica como veio).
+    super(typeof message === 'string' ? tr(message) : String(message));
   }
 }
 
