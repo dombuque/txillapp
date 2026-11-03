@@ -127,3 +127,13 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* Menu de baixo: afastado do fundo. No iPhone (sem viewport-fit=cover a área da linha de baixo não é reservada) dá-se espaço à mão. */
+.bottom-safe {
+  padding-bottom: max(0.35rem, env(safe-area-inset-bottom));
+}
+@supports (-webkit-touch-callout: none) {
+  .bottom-safe {
+    padding-bottom: max(1.35rem, env(safe-area-inset-bottom));
+  }
+}

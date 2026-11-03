@@ -59,7 +59,7 @@ export default function Layout() {
   }, [count, chatCount]);
 
   return (
-    <div className="mx-auto min-h-dvh max-w-xl bg-white pb-24 lg:pb-8">
+    <div className="mx-auto min-h-dvh max-w-xl bg-white pb-28 lg:pb-8">
       {/* O topo com o logo, as notificações e a pesquisa só aparece no Início: nos outros ecrãs cada um tem o seu topo. */}
       {pathname === '/' && (
         <header className="sticky top-[env(safe-area-inset-top)] z-30 flex items-center justify-center bg-white py-3 lg:hidden">
@@ -89,7 +89,7 @@ export default function Layout() {
       <NotificationNudge ready={!!sharing.data?.welcomed} />
       <nav
         aria-label={tr('Navegação principal')}
-        className="fixed bottom-0 left-1/2 z-20 w-full max-w-xl -translate-x-1/2 lg:hidden border-t border-zinc-100 bg-white pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 shadow-[0_-6px_24px_rgba(0,0,0,0.05)]"
+        className="fixed bottom-0 left-1/2 z-20 w-full max-w-xl -translate-x-1/2 lg:hidden border-t border-zinc-100 bg-white bottom-safe pt-1 shadow-[0_-6px_24px_rgba(0,0,0,0.05)]"
       >
         <div className="flex items-end justify-around px-1 min-[360px]:px-3">
           <Item to="/" label={tr('Início')} end onClick={tapTab} tour="home">{(a) => <HomeIcon filled={a} width={27} height={27} strokeWidth={a ? 2.3 : 1.9} />}</Item>
