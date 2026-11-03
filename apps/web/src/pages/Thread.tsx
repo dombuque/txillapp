@@ -3,6 +3,7 @@ import { tr, locale } from '../lib/i18n';
 import { sized } from '../lib/media';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { BackIcon } from '../components/icons';
 import Icon from '../components/Icon';
@@ -86,22 +87,27 @@ const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voi
 /** Excerto de uma mensagem para citar (na bolha e na barra de resposta). */
 const quoteText = (k: string, body: string) => (k === 'text' || k === 'story_reply' ? body : tr(KIND_LABEL[k] ?? 'Mensagem'));
 
-/** Vídeo da conversa: controlos normais e um botão próprio de ecrã inteiro (no iPhone usa o leitor do sistema). */
+/** Vídeo da conversa: controlos normais e um botão que o abre em ecrã inteiro (visualizador da app, igual em todos os aparelhos). */
 function ChatVideo({ src }: { src: string }) {
   const ref = useRef<HTMLVideoElement>(null);
-  function full() {
-    const v = ref.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void; webkitRequestFullscreen?: () => Promise<void> }) | null;
-    if (!v) return;
-    if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();
-    else if (v.requestFullscreen) void v.requestFullscreen().catch(() => undefined);
-    else void v.webkitRequestFullscreen?.();
+  const [full, setFull] = useState(false);
+  function open() {
+    ref.current?.pause();
+    setFull(true);
   }
   return (
     <div className="relative">
-      <video ref={ref} src={src} controls playsInline preload="metadata" controlsList="nodownload noremoteplayback" onContextMenu={(e) => e.preventDefault()} className="max-h-80 w-full bg-black object-cover" />
-      <button type="button" onClick={full} aria-label={tr('Ecrã inteiro')} className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white active:scale-90">
+      <video ref={ref} src={src} controls playsInline preload="metadata" controlsList="nodownload noremoteplayback nofullscreen" onContextMenu={(e) => e.preventDefault()} className="max-h-80 w-full bg-black object-cover" />
+      <button type="button" onClick={open} aria-label={tr('Ecrã inteiro')} className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white active:scale-90">
         <Icon name="expand" size={18} />
       </button>
+      {full && createPortal(
+        <div role="dialog" aria-modal="true" aria-label={tr('Vídeo')} className="fixed inset-0 z-[120] flex items-center justify-center bg-black" onClick={() => setFull(false)}>
+          <video src={src} controls autoPlay playsInline controlsList="nodownload noremoteplayback" disablePictureInPicture onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()} className="max-h-full max-w-full" />
+          <button type="button" onClick={() => setFull(false)} aria-label={tr('Fechar')} className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white active:scale-90"><Icon name="x" size={22} /></button>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
