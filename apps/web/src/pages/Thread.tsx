@@ -86,6 +86,26 @@ const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voi
 /** Excerto de uma mensagem para citar (na bolha e na barra de resposta). */
 const quoteText = (k: string, body: string) => (k === 'text' || k === 'story_reply' ? body : tr(KIND_LABEL[k] ?? 'Mensagem'));
 
+/** Vídeo da conversa: controlos normais e um botão próprio de ecrã inteiro (no iPhone usa o leitor do sistema). */
+function ChatVideo({ src }: { src: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  function full() {
+    const v = ref.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void; webkitRequestFullscreen?: () => Promise<void> }) | null;
+    if (!v) return;
+    if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();
+    else if (v.requestFullscreen) void v.requestFullscreen().catch(() => undefined);
+    else void v.webkitRequestFullscreen?.();
+  }
+  return (
+    <div className="relative">
+      <video ref={ref} src={src} controls playsInline preload="metadata" controlsList="nodownload noremoteplayback" onContextMenu={(e) => e.preventDefault()} className="max-h-80 w-full bg-black object-cover" />
+      <button type="button" onClick={full} aria-label={tr('Ecrã inteiro')} className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white active:scale-90">
+        <Icon name="expand" size={18} />
+      </button>
+    </div>
+  );
+}
+
 function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onReply, onRetry, onDiscard, onOpenOnce, onStopLive }: { m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; flash: boolean; onJump: (id: string) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onMenu: (m: ChatMessage) => void; onReply: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
   const mine = m.fromMe;
   const real = !m.id.startsWith('tmp-');
@@ -202,7 +222,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onR
       {!m.viewOnce && m.kind === 'voice' && <div className={`max-w-[86%] ${dim}`}><VoiceMessage m={m} /></div>}
       {!m.viewOnce && m.kind === 'video' && m.mediaUrl && (
         <div className={`max-w-[75%] overflow-hidden ${shape} ${tone} ${dim}`}>
-          <video src={m.mediaUrl} controls playsInline preload="metadata" controlsList="nodownload noremoteplayback" onContextMenu={(e) => e.preventDefault()} className="max-h-80 w-full bg-black object-cover" />
+          <ChatVideo src={m.mediaUrl} />
         </div>
       )}
       {!m.viewOnce && m.kind === 'image' && m.mediaUrl && (
