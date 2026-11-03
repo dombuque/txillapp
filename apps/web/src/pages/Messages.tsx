@@ -2,6 +2,7 @@ import { reactionText } from '../lib/stickers';
 import { tr } from '../lib/i18n';
 import { RowsSkeleton } from '../components/Loading';
 import Icon from '../components/Icon';
+import InstantsDock from '../components/Instants';
 import NewChat from '../components/NewChat';
 import NotesStrip from '../components/Notes';
 import { useQuery } from '@tanstack/react-query';
@@ -165,6 +166,7 @@ export default function Messages() {
         </>
       )}
       {creating && <NewChat onClose={() => setCreating(false)} />}
+      <InstantsDock />
     </section>
   );
 }
