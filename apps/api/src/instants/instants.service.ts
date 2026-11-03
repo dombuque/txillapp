@@ -4,6 +4,7 @@ import sharp from 'sharp';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { MediaService } from '../media/media.service';
+import { PushService } from '../push/push.service';
 import { TextFilter } from '../safety/text-filter.service';
 import { blockedBetween } from '../social/visibility';
 
@@ -23,6 +24,7 @@ export class InstantsService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly media: MediaService,
     private readonly filter: TextFilter,
+    private readonly push: PushService,
   ) {}
 
   async create(me: string, mediaId: string, caption: string, audience: 'friends' | 'close' = 'friends') {
@@ -53,13 +55,13 @@ export class InstantsService {
   async tray(me: string) {
     const others = (
       await this.pool.query(
-        `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", count(*)::int AS count, max(i.created_at) AS "latestAt", (array_agg(i.preview ORDER BY i.created_at DESC))[1] AS preview
+        `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", count(*)::int AS count, max(i.created_at) AS "latestAt", bool_or(EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $1)) AS close, (array_agg(i.preview ORDER BY i.created_at DESC))[1] AS preview
            FROM social.instants i
            JOIN identity.users u ON u.id = i.author_id
           WHERE i.expires_at > now() AND i.author_id <> $1 AND ${visible('i')}
             AND NOT EXISTS (SELECT 1 FROM social.instant_views v WHERE v.instant_id = i.id AND v.viewer_id = $1)
             AND EXISTS (SELECT 1 FROM content.media_assets a WHERE a.id = i.media_id AND a.status = 'ready')
-          GROUP BY u.id ORDER BY max(i.created_at) DESC LIMIT 40`,
+          GROUP BY u.id ORDER BY bool_or(EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $1)) DESC, max(i.created_at) DESC LIMIT 40`,
         [me],
       )
     ).rows;
@@ -107,11 +109,18 @@ export class InstantsService {
     const ok = await this.pool.query(`SELECT 1 FROM social.instants i WHERE i.id = $1 AND i.author_id <> $2 AND i.expires_at > now() AND ${visible('i', '$2')}`, [id, me]);
     if (!ok.rowCount) throw new NotFoundException('Instant não encontrado');
     if (reaction === null) await this.pool.query('DELETE FROM social.instant_reactions WHERE instant_id = $1 AND user_id = $2', [id, me]);
-    else
+    else {
+      const prev = (await this.pool.query('SELECT reaction FROM social.instant_reactions WHERE instant_id = $1 AND user_id = $2', [id, me])).rows[0]?.reaction as string | undefined;
       await this.pool.query(
         'INSERT INTO social.instant_reactions (instant_id, user_id, reaction) VALUES ($1, $2, $3) ON CONFLICT (instant_id, user_id) DO UPDATE SET reaction = EXCLUDED.reaction, created_at = now()',
         [id, me, reaction],
       );
+      // Avisa o dono (só a primeira vez que reajo a este Zás; o texto não diz qual foi a reação).
+      if (prev === undefined) {
+        const row = (await this.pool.query('SELECT i.author_id, (SELECT display_name FROM identity.users WHERE id = $2) AS name FROM social.instants i WHERE i.id = $1', [id, me])).rows[0];
+        if (row) void this.push.send(row.author_id as string, { title: row.name as string, body: 'reagiu ao teu Zás', url: '/messages', tag: `zas-react:${id}` });
+      }
+    }
   }
 
   /** Quem viu o meu Instant. */

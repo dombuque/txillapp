@@ -1243,6 +1243,7 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Flash': 'Flash',
   'Ecrã inteiro': 'Full screen',
   'Vídeo · toca para abrir': 'Video · tap to open',
   'Usa um vídeo MP4, MOV ou WebM': 'Use an MP4, MOV or WebM video',

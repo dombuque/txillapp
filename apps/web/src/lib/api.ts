@@ -294,7 +294,7 @@ export interface ChatMessage {
 export interface InstantItem { id: string; url: string; caption: string; at: string; expiresAt: string; views?: number; reactions?: { reaction: string; count: number }[] }
 export interface InstantTray {
   mine: { count: number; views: number; endsAt: string | null };
-  others: { username: string; displayName: string; hasAvatar: boolean; count: number; latestAt: string; preview: string | null }[];
+  others: { username: string; displayName: string; hasAvatar: boolean; count: number; latestAt: string; close: boolean; preview: string | null }[];
 }
 /** Online agora, ou a hora a que foi visto pela última vez. null = escondido por uma das partes. */
 export interface Presence { online: boolean; lastSeen: string | null }

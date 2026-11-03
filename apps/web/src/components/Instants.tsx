@@ -10,8 +10,23 @@ import { REACTIONS, Reaction } from '../lib/stickers';
 import { markSeen } from '../lib/whatsNew';
 import { NewBadge } from './WhatsNew';
 import CloseFriendsSheet from './CloseFriendsSheet';
-import { Avatar, Sheet } from './ui';
+import { Avatar, Sheet, timeAgo } from './ui';
 
+/** Guardar a foto de um Zás: no telemóvel abre a folha de partilha ("Guardar imagem"); no computador descarrega o ficheiro. */
+async function saveInstant(it: { id: string; url: string }) {
+  try {
+    const b = await (await fetch(it.url)).blob();
+    const f = new File([b], `zas-${it.id.slice(0, 8)}.jpg`, { type: b.type || 'image/jpeg' });
+    if (navigator.canShare?.({ files: [f] })) return void (await navigator.share({ files: [f] }));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(f);
+    a.download = f.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch (e) {
+    if ((e as Error).name !== 'AbortError') window.open(it.url, '_blank');
+  }
+}
 const hm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 const leftLabel = (iso: string) => {
   const h = Math.max(0, Math.round((new Date(iso).getTime() - Date.now()) / 3_600_000));
@@ -66,6 +81,12 @@ export default function InstantsDock() {
         <NewBadge id="zas" className="absolute -left-4 -top-3" />
         {total > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1 text-[11px] font-bold text-white ring-2 ring-white">{total > 9 ? '9+' : total}</span>}
       </button>
+      {top && (
+        <span aria-hidden className="pointer-events-none fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom)+0.6rem)] right-[4.4rem] z-20 flex max-w-[11rem] items-center gap-1 truncate rounded-full bg-zinc-900/85 px-2.5 py-1 text-[12px] font-semibold text-white shadow-md">
+          {top.close && <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />}
+          <span className="truncate">{top.displayName.split(' ')[0]} · {timeAgo(top.latestAt)}</span>
+        </span>
+      )}
       {mode === 'cam' && <InstantsHub onClose={() => { setMode(null); refresh(); }} />}
       {mode === 'view' && queue[at] && (
         <InstantViewer
@@ -119,6 +140,11 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   const [flash, setFlash] = useState(false);
   const [sent, setSent] = useState<string | null>(null); // id do último Zás, para desfazer
   const undoTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [light, setLight] = useState(false); // flash ligado
+  const [lit, setLit] = useState(false); // ecrã aceso (flash da câmara da frente)
+  const [delay, setDelay] = useState<0 | 3 | 10>(0); // temporizador
+  const [count, setCount] = useState<number | null>(null);
+  const countTimer = useRef<ReturnType<typeof setInterval>>();
   const [grid, setGrid] = useState(false);
   // A explicação só aparece da primeira vez.
   const [intro, setIntro] = useState(() => !seenIntro());
@@ -153,7 +179,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       dead = true;
     };
   }, [facing]);
-  useEffect(() => () => { releaseCamera(2_000); clearTimeout(undoTimer.current); }, []);
+  useEffect(() => () => { releaseCamera(2_000); clearTimeout(undoTimer.current); clearInterval(countTimer.current); }, []);
 
   function pickAudience(a: Audience) {
     // Sem amigos próximos ainda: abre já a lista para os escolher.
@@ -168,6 +194,21 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   async function shoot() {
     const v = video.current;
     if (!v || !ready || !v.videoWidth || busy) return;
+    // Flash: lanterna na câmara de trás (se o aparelho deixar); na da frente acende o ecrã.
+    const track = (v.srcObject as MediaStream | null)?.getVideoTracks()[0];
+    let torch = false;
+    if (light) {
+      if (facing === 'environment' && (track?.getCapabilities?.() as { torch?: boolean } | undefined)?.torch) {
+        try {
+          await track!.applyConstraints({ advanced: [{ torch: true } as MediaTrackConstraintSet] });
+          torch = true;
+        } catch {
+          /* sem lanterna */
+        }
+      }
+      if (!torch) setLit(true);
+      await new Promise((r) => setTimeout(r, 380));
+    }
     const c = document.createElement('canvas');
     c.width = v.videoWidth;
     c.height = v.videoHeight;
@@ -178,6 +219,8 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       g.scale(-1, 1);
     }
     g.drawImage(v, 0, 0);
+    setLit(false);
+    if (torch) track!.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] }).catch(() => undefined);
     navigator.vibrate?.(15);
     setFlash(true);
     setTimeout(() => setFlash(false), 140);
@@ -197,6 +240,24 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       setErr((e as Error).message);
     }
     setBusy(false);
+  }
+  /** Obturador: com temporizador faz a contagem e só depois tira; tocar outra vez cancela. */
+  function press() {
+    if (count !== null) {
+      clearInterval(countTimer.current);
+      return setCount(null);
+    }
+    if (!delay) return void shoot();
+    let n = delay;
+    setCount(n);
+    countTimer.current = setInterval(() => {
+      n -= 1;
+      if (n <= 0) {
+        clearInterval(countTimer.current);
+        setCount(null);
+        void shoot();
+      } else setCount(n);
+    }, 1000);
   }
   async function undo() {
     if (!sent) return;
@@ -221,6 +282,12 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       <div className="relative mx-auto flex min-h-0 w-full flex-1 items-center justify-center px-8 py-2">
         <div className="relative h-full max-h-[440px] overflow-hidden rounded-[44px] bg-zinc-900 ring-1 ring-white/15 shadow-[0_20px_60px_-10px_rgba(255,92,92,0.35)]" style={{ aspectRatio: '3 / 4', maxWidth: '100%' }}>
           <video ref={video} playsInline muted className={`absolute inset-0 h-full w-full object-cover ${facing === 'user' ? '-scale-x-100' : ''} ${ready ? '' : 'invisible'}`} />
+          {lit && <div className="pointer-events-none absolute inset-0 z-10 bg-white" />}
+          {count !== null && <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-[120px] font-black drop-shadow-[0_4px_20px_rgba(0,0,0,0.6)]" aria-live="assertive">{count}</div>}
+          <div className="absolute right-3 top-3 z-10 flex flex-col gap-2">
+            <button type="button" onClick={() => setLight((v) => !v)} aria-pressed={light} aria-label={tr('Flash')} className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-md transition active:scale-90 ${light ? 'bg-amber-300 text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}><Icon name="sun" size={20} /></button>
+            <button type="button" onClick={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} aria-label={tr('Temporizador')} className={`flex h-10 w-10 items-center justify-center rounded-full text-[13px] font-extrabold backdrop-blur-md transition active:scale-90 ${delay ? 'bg-white text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}>{delay ? `${delay}s` : <Icon name="clock" size={20} />}</button>
+          </div>
           {!ready && <p className="absolute inset-0 flex items-center justify-center px-12 text-center text-white/80">{problem ? tr('Não consegui abrir a câmara. Os Zás só se mandam na hora.') : tr('A acordar a câmara…')}</p>}
           {flash && <div className="pointer-events-none absolute inset-0 bg-white" />}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/45 to-transparent" />
@@ -239,9 +306,12 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       {/* Em baixo: quem te mandou, o obturador e virar a câmara; depois, para quem vai. */}
       <div className="relative shrink-0 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
         {sent && (
-          <div role="status" className="absolute inset-x-6 top-0 mx-auto flex max-w-sm -translate-y-[calc(100%+4px)] items-center justify-between rounded-full bg-white py-2 pl-5 pr-2 text-zinc-900">
-            <span className="text-[15px] font-bold">{tr('Zás enviado!')}</span>
-            <button type="button" onClick={undo} className="h-9 rounded-full bg-zinc-100 px-4 text-sm font-bold active:scale-95">{tr('Desfazer')}</button>
+          <div role="status" className="absolute inset-x-6 top-0 mx-auto max-w-sm -translate-y-[calc(100%+4px)] overflow-hidden rounded-[28px] bg-white text-zinc-900 shadow-lg">
+            <div className="flex items-center justify-between py-2 pl-5 pr-2">
+              <span className="text-[15px] font-bold">{tr('Zás enviado!')}</span>
+              <button type="button" onClick={undo} className="h-9 rounded-full bg-zinc-100 px-4 text-sm font-bold active:scale-95">{tr('Desfazer')}</button>
+            </div>
+            <span key={sent} aria-hidden className="block h-1 rounded-full bg-brand" style={{ animation: 'shrink 6s linear forwards' }} />
           </div>
         )}
         <div className="mx-auto flex max-w-[360px] items-center justify-between">
@@ -260,7 +330,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
           ) : (
             <span className="h-14 w-14" />
           )}
-          <button type="button" onClick={shoot} disabled={!ready || busy} aria-label={tr('Tirar e enviar')} className="relative flex h-[86px] w-[86px] items-center justify-center rounded-full transition active:scale-90 disabled:opacity-50">
+          <button type="button" onClick={press} disabled={!ready || busy} aria-label={count !== null ? tr('Cancelar') : tr('Tirar e enviar')} className="relative flex h-[86px] w-[86px] items-center justify-center rounded-full transition active:scale-90 disabled:opacity-50">
             <span className="absolute inset-0 rounded-full bg-[conic-gradient(from_200deg,#ff5c5c,#ff9a5b,#ffd166,#ff5c5c)] p-[4px]"><span className="block h-full w-full rounded-full bg-[#08080b]" /></span>
             <span className={`relative flex h-[66px] w-[66px] items-center justify-center rounded-full shadow-[0_6px_20px_rgba(255,92,92,0.45)] ${busy ? 'animate-pulse bg-brand text-white' : 'bg-white text-brand'}`}><Icon name="bolt" size={30} fill="currentColor" /></span>
           </button>
@@ -637,7 +707,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
           <Avatar name={who.displayName} username={who.username} size={38} ring={false} />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[16px] font-bold leading-tight drop-shadow">{own ? tr('Os teus Zás') : who.displayName}</span>
-            {cur && <span className="block text-xs text-white/80 drop-shadow">{hm(cur.at)} · {leftLabel(cur.expiresAt)}</span>}
+            {cur && <span className={`block text-xs drop-shadow ${own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? 'font-bold text-amber-300' : 'text-white/80'}`}>{hm(cur.at)} · {leftLabel(cur.expiresAt)}</span>}
           </span>
           {onCamera ? (
             <button type="button" onClick={onCamera} aria-label={tr('Mandar o meu Zás')} className="flex h-10 items-center gap-1.5 rounded-full bg-brand pl-3 pr-3.5 text-[13px] font-black italic active:scale-90"><Icon name="camera" size={16} />{tr('O meu')}</button>
@@ -661,6 +731,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
               </div>
             )}
             <button type="button" onClick={showViewers} className="flex h-12 items-center gap-2 rounded-full bg-white/15 px-6 font-semibold active:scale-95"><Icon name="eye" size={18} /> {tr('{n} viram', { n: cur?.views ?? 0 })}</button>
+            {cur && <button type="button" onClick={() => void saveInstant(cur)} aria-label={tr('Guardar na galeria')} className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 active:scale-95"><Icon name="download" size={20} /></button>}
             <button type="button" onClick={remove} aria-label={tr('Apagar Zás')} className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-red-300 active:scale-95"><Icon name="trash" size={20} /></button>
           </div>
         ) : (
