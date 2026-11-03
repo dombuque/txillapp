@@ -86,6 +86,18 @@ export class StoriesController {
     return this.stories.view(req.userId!, id);
   }
 
+  /** Brindar o story (sem mensagem); DELETE tira o brinde. */
+  @Put(':id/cheer')
+  @HttpCode(200)
+  cheer(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.stories.cheer(req.userId!, id, true);
+  }
+
+  @Delete(':id/cheer')
+  uncheer(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.stories.cheer(req.userId!, id, false);
+  }
+
   @NeedsVerifiedEmail()
   @Post(':id/replies')
   @HttpCode(201)

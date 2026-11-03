@@ -90,6 +90,8 @@ export class StoriesService {
               (SELECT json_build_object('username', su.username, 'displayName', su.display_name) FROM content.posts sp JOIN identity.users su ON su.id = sp.author_id WHERE sp.id = s.shared_post_id) AS shared_from,
               EXISTS (SELECT 1 FROM content.story_views v WHERE v.story_id = s.id AND v.viewer_id = $1) AS seen,
               (SELECT count(*) FROM content.story_views v WHERE v.story_id = s.id)::int AS view_count,
+              EXISTS (SELECT 1 FROM content.story_cheers c WHERE c.story_id = s.id AND c.user_id = $1) AS cheered,
+              (SELECT count(*) FROM content.story_cheers c WHERE c.story_id = s.id)::int AS cheer_count,
               (SELECT count(*) FROM content.story_replies r WHERE r.story_id = s.id)::int AS reply_count,
               (SELECT count(*) FROM content.story_comments sc WHERE sc.story_id = s.id)::int AS comment_count,
               (u.id <> $1 AND (u.story_replies = 'everyone' OR (u.story_replies = 'following' AND
@@ -120,16 +122,33 @@ export class StoriesService {
     return s.rows[0];
   }
 
+  /**
+   * Brindar um story (e tirar o brinde): conta e mostra quem brindou ao autor, como o gosto do Instagram. NÃO envia mensagem:
+   * só se escreve ao autor se a pessoa usar "Enviar mensagem". Quem brinda também conta como tendo visto.
+   */
+  async cheer(userId: string, storyId: string, on: boolean) {
+    const s = await this.visibleStory(userId, storyId);
+    if (s.author_id === userId) throw new BadRequestException('Não podes brindar o teu próprio story');
+    if (on) {
+      await this.pool.query('INSERT INTO content.story_cheers (story_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [storyId, userId]);
+      await this.pool.query('INSERT INTO content.story_views (story_id, viewer_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [storyId, userId]);
+    } else {
+      await this.pool.query('DELETE FROM content.story_cheers WHERE story_id = $1 AND user_id = $2', [storyId, userId]);
+    }
+    return { cheered: on };
+  }
+
   /** Só o autor vê quem viu. */
   async viewers(userId: string, storyId: string) {
     const own = await this.pool.query('SELECT 1 FROM content.stories WHERE id = $1 AND author_id = $2', [storyId, userId]);
     if (!own.rowCount) throw new NotFoundException('Story não encontrado');
     const { rows } = await this.pool.query(
-      `SELECT u.username, u.display_name, v.viewed_at FROM content.story_views v
-         JOIN identity.users u ON u.id = v.viewer_id WHERE v.story_id = $1 ORDER BY v.viewed_at DESC LIMIT 200`,
+      `SELECT u.username, u.display_name, v.viewed_at,
+              EXISTS (SELECT 1 FROM content.story_cheers c WHERE c.story_id = v.story_id AND c.user_id = v.viewer_id) AS cheered
+         FROM content.story_views v JOIN identity.users u ON u.id = v.viewer_id WHERE v.story_id = $1 ORDER BY v.viewed_at DESC LIMIT 200`,
       [storyId],
     );
-    return rows.map((r) => ({ username: r.username, displayName: r.display_name, viewedAt: r.viewed_at }));
+    return rows.map((r) => ({ username: r.username, displayName: r.display_name, viewedAt: r.viewed_at, cheered: r.cheered as boolean }));
   }
 
   /** Responder a um story (ou reagir com emoji). Chega ao autor; não se responde ao próprio story nem a um expirado. */
@@ -320,7 +339,7 @@ export class StoriesService {
               (SELECT m.duration_ms FROM content.media_assets m WHERE m.id = s.media_id) AS duration_ms,
               s.shared_post_id,
               (SELECT json_build_object('username', su.username, 'displayName', su.display_name) FROM content.posts sp JOIN identity.users su ON su.id = sp.author_id WHERE sp.id = s.shared_post_id) AS shared_from,
-              false AS seen, 0 AS view_count, 0 AS reply_count, 0 AS comment_count, false AS can_reply
+              false AS seen, 0 AS view_count, false AS cheered, 0 AS cheer_count, 0 AS reply_count, 0 AS comment_count, false AS can_reply
          FROM content.stories s JOIN identity.users u ON u.id = s.author_id WHERE s.id = $1`,
       [id],
     );
@@ -344,6 +363,9 @@ export class StoriesService {
     // Só o autor vê o contador de visualizações.
     viewCount: r.author_id === viewerId ? r.view_count : null,
     replyCount: r.author_id === viewerId ? r.reply_count : null,
+    /** Brindes: este espectador já brindou? E, só para o autor, quantos. */
+    cheered: !!r.cheered,
+    cheerCount: r.author_id === viewerId ? (r.cheer_count ?? 0) : null,
     /** Comentários públicos: o número é visível a quem vê o story. */
     commentCount: (r.comment_count ?? 0) as number,
     /** Se este espectador pode responder (depende da definição do autor). */

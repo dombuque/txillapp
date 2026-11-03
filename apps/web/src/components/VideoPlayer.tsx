@@ -61,9 +61,12 @@ function ambientAudio() {
 }
 ambientAudio();
 
+const ROUTE_VIA_WEB_AUDIO = false;
 const routed = new WeakSet<HTMLVideoElement>();
 const isIOS = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 function routeAudio(v: HTMLVideoElement) {
+  // Desligado: com a sessão de áudio "ambiente" já não é preciso, e o desvio deixava o vídeo parado quando o contexto de áudio estava suspenso.
+  if (!ROUTE_VIA_WEB_AUDIO) return;
   // `currentSrc` só se preenche depois de o navegador escolher o recurso (tarde demais na primeira vez): `src` já vem resolvido.
   const url = v.currentSrc || v.src;
   if (!isIOS || routed.has(v) || !url.startsWith(location.origin)) return;
