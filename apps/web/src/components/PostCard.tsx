@@ -200,14 +200,10 @@ function GiftBlock({ post, g, me }: { post: Post; g: NonNullable<Post['gift']>; 
   );
 }
 
-/** Cartão normal de uma publicação. */
-function PostBody({ post }: { post: Post }) {
-  const { user } = useAuth();
-  const [viewer, setViewer] = useState<number | null>(null);
+/** Duplo toque: brinda (só põe, nunca tira) e dá o sinal para a animação do copo. */
+function useBrindar(post: Post) {
   const [burst, setBurst] = useState(0);
   const patch = usePatch(post.id);
-  const g = post.gift;
-  // Duplo toque no texto ou nas fotos: brinda (só põe; tirar é pelo botão).
   async function brindar() {
     setBurst((n) => n + 1);
     navigator.vibrate?.(8);
@@ -220,6 +216,17 @@ function PostBody({ post }: { post: Post }) {
       patch({ cheered: post.cheered, cheers: post.cheers });
     }
   }
+  return { burst, brindar };
+}
+
+const BurstCup = ({ n }: { n: number }) => n > 0 ? <span key={n} aria-hidden className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-brand opacity-0 animate-[burst_.8s_ease-out_forwards]"><Icon name="cheers" size={96} strokeWidth={1.6} className="drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)]" /></span> : null;
+
+/** Cartão normal de uma publicação. */
+function PostBody({ post }: { post: Post }) {
+  const { user } = useAuth();
+  const [viewer, setViewer] = useState<number | null>(null);
+  const g = post.gift;
+  const { burst, brindar } = useBrindar(post);
   const tapText = useTap(brindar);
   return (
     <article className="relative mx-1.5 mb-5 rounded-[26px] bg-white px-3.5 pt-4 min-[360px]:mx-2 min-[360px]:px-4 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
@@ -250,7 +257,7 @@ function PostBody({ post }: { post: Post }) {
       {post.music && <TrackCard track={post.music} autoplay />}
       <Carousel media={post.media} onOpen={setViewer} reelId={post.id} onDouble={brindar} />
       <Actions post={post} />
-      {burst > 0 && <span key={burst} aria-hidden className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-brand opacity-0 animate-[burst_.8s_ease-out_forwards]"><Icon name="cheers" size={96} strokeWidth={1.6} className="drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)]" /></span>}
+      <BurstCup n={burst} />
       {viewer !== null && <ImageViewer post={post} start={viewer} onClose={() => setViewer(null)} />}
     </article>
   );
@@ -260,8 +267,10 @@ function PostBody({ post }: { post: Post }) {
 function QuoteCard({ post, original }: { post: Post; original: Post }) {
   const { user } = useAuth();
   const [viewer, setViewer] = useState<number | null>(null);
+  const { burst, brindar } = useBrindar(post);
+  const tapText = useTap(brindar);
   return (
-    <article className="mx-2 mb-5 rounded-[26px] bg-white px-4 pt-4 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
+    <article className="relative mx-2 mb-5 rounded-[26px] bg-white px-4 pt-4 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
       <header className="flex items-center gap-3">
         <Link to={profilePath(post.author.username, user?.username)} aria-label={tr('Perfil de {v0}', { v0: post.author.displayName })}>
           <Avatar name={post.author.displayName} username={post.author.username} size={52} />
@@ -275,7 +284,7 @@ function QuoteCard({ post, original }: { post: Post; original: Post }) {
         <time className="self-start text-[15px] text-zinc-500" dateTime={post.createdAt}>{timeAgo(post.createdAt)}</time>
         <PostMenu post={post} />
       </header>
-      <p className="mt-4 whitespace-pre-wrap break-words text-[19px] text-zinc-800"><RichText text={post.body} /></p>
+      <p onClick={(e) => { if (!(e.target as HTMLElement).closest('a')) tapText(); }} className="mt-4 whitespace-pre-wrap break-words text-[19px] text-zinc-800"><RichText text={post.body} /></p>
       <div className="mt-3 overflow-hidden rounded-2xl border border-zinc-200">
         <div className="flex items-center gap-2.5 px-3 pt-3">
           <Link to={profilePath(original.author.username, user?.username)} className="flex min-w-0 items-center gap-2.5">
@@ -287,7 +296,7 @@ function QuoteCard({ post, original }: { post: Post; original: Post }) {
         {original.gift && <p className="mx-3 mt-2 rounded-xl bg-gradient-to-r from-brand to-brand-light py-2 text-center text-lg font-extrabold text-white"><Icon name="gift" size={14} className="inline align-[-2px]" /> {original.gift.amount.toLocaleString(locale)} {tr('Txills')}</p>}
         {original.body && <p className="line-clamp-4 whitespace-pre-wrap break-words px-3 pt-2 text-[16px] text-zinc-800">{original.body}</p>}
         {original.media[0] ? (
-          <button onClick={() => setViewer(0)} aria-label={tr('Ver a foto em ecrã inteiro')} className="mt-2 block w-full">
+          <button onClick={() => tapText(() => setViewer(0))} aria-label={tr('Ver a foto em ecrã inteiro')} className="mt-2 block w-full">
             <img src={sized(original.media[0].url, 720)} alt="" loading="lazy" decoding="async" className="max-h-72 w-full object-cover" />
           </button>
         ) : (
@@ -295,6 +304,7 @@ function QuoteCard({ post, original }: { post: Post; original: Post }) {
         )}
       </div>
       <Actions post={post} />
+      <BurstCup n={burst} />
       {viewer !== null && <ImageViewer post={original} start={viewer} onClose={() => setViewer(null)} />}
     </article>
   );

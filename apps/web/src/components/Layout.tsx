@@ -3,6 +3,7 @@ import { tr } from '../lib/i18n';
 import PullToRefresh from './PullToRefresh';
 import { refreshPage } from '../lib/refresh';
 import EmailBanner from './EmailBanner';
+import OfflineBar from './OfflineBar';
 import GenderGate from './GenderGate';
 import WelcomeTour from './WelcomeTour';
 import NotificationNudge from './NotificationNudge';
@@ -79,6 +80,7 @@ export default function Layout() {
           </NavLink>
         </header>
       )}
+      <OfflineBar />
       <EmailBanner />
       {/* Puxar para baixo recarrega a página (menos ao escrever uma publicação). */}
       <div key={pathname} className={slide}>

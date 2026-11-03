@@ -273,7 +273,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
     refresh();
   }
 
-  const small = 'flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition active:scale-90';
+  const small = 'flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition active:scale-90';
   const recent = others.slice(0, 3);
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={tr('Mandar um Zás')} className="fixed inset-0 z-[90] flex flex-col bg-[#08080b] text-white" style={{ background: 'radial-gradient(120% 60% at 50% 105%, rgba(255,92,92,.28), transparent 60%), #08080b' }}>
@@ -291,8 +291,8 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
           {lit && <div className="pointer-events-none absolute inset-0 z-10 bg-white" />}
           {count !== null && <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-[120px] font-black drop-shadow-[0_4px_20px_rgba(0,0,0,0.6)]" aria-live="assertive">{count}</div>}
           <div className="absolute right-3 top-3 z-10 flex flex-col gap-2">
-            <button type="button" onClick={() => void toggleLight()} aria-pressed={light} aria-label={canTorch ? tr('Lanterna') : tr('Flash de ecrã')} className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-md transition active:scale-90 ${light ? 'bg-amber-300 text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}><Icon name="sun" size={20} /></button>
-            <button type="button" onClick={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} aria-label={tr('Temporizador')} className={`flex h-10 w-10 items-center justify-center rounded-full text-[13px] font-extrabold backdrop-blur-md transition active:scale-90 ${delay ? 'bg-white text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}>{delay ? `${delay}s` : <Icon name="clock" size={20} />}</button>
+            <button type="button" onClick={() => void toggleLight()} aria-pressed={light} aria-label={canTorch ? tr('Lanterna') : tr('Flash de ecrã')} className={`flex h-11 w-11 items-center justify-center rounded-full backdrop-blur-md transition active:scale-90 ${light ? 'bg-amber-300 text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}><Icon name="sun" size={20} /></button>
+            <button type="button" onClick={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} aria-label={tr('Temporizador')} className={`flex h-11 w-11 items-center justify-center rounded-full text-[13px] font-extrabold backdrop-blur-md transition active:scale-90 ${delay ? 'bg-white text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}>{delay ? `${delay}s` : <Icon name="clock" size={20} />}</button>
           </div>
           {!ready && <p className="absolute inset-0 flex items-center justify-center px-12 text-center text-white/80">{problem ? tr('Não consegui abrir a câmara. Os Zás só se mandam na hora.') : tr('A acordar a câmara…')}</p>}
           {flash && <div className="pointer-events-none absolute inset-0 bg-white" />}
@@ -487,7 +487,7 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
     <div role="dialog" aria-modal="true" aria-label={tr('Os meus Zás')} className="fixed inset-0 z-[95] flex flex-col bg-black text-white">
       <SquircleDefs />
       <div className="relative flex shrink-0 items-center justify-center px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button type="button" onClick={onClose} aria-label={tr('Voltar')} className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] flex h-10 w-10 items-center justify-center rounded-full active:scale-90"><Icon name="chevron-left" size={26} /></button>
+        <button type="button" onClick={onClose} aria-label={tr('Voltar')} className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] flex h-11 w-11 items-center justify-center rounded-full active:scale-90"><Icon name="chevron-left" size={26} /></button>
         <h2 className="text-[18px] font-extrabold">{tr('Os meus Zás')}</h2>
       </div>
       {err && <p role="alert" className="px-4 pb-2 text-center text-sm text-red-400">{err}</p>}
@@ -720,7 +720,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
           ) : (
             <span className="flex items-center gap-1 rounded-full bg-brand px-2.5 py-1 text-[12px] font-black italic"><Icon name="bolt" size={12} fill="currentColor" />Zás</span>
           )}
-          <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-md active:scale-90"><Icon name="x" size={22} /></button>
+          <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 backdrop-blur-md active:scale-90"><Icon name="x" size={22} /></button>
         </div>
 
         {cur?.caption && <p className="absolute inset-x-6 bottom-6 rounded-[26px] bg-black/35 px-5 py-3 text-center text-[19px] font-extrabold leading-snug ring-1 ring-white/15 backdrop-blur-md">{cur.caption}</p>}
@@ -749,7 +749,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
             </div>
             <form onSubmit={sendReply} className="flex items-center gap-2 rounded-full bg-white/12 p-1.5 pl-5">
               <input value={reply} onChange={(e) => setReply(e.target.value)} maxLength={500} placeholder={tr('Responder a {v0}…', { v0: who.displayName.split(' ')[0] })} aria-label={tr('Responder')} className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-white/60" />
-              <button type="submit" disabled={!reply.trim()} aria-label={tr('Enviar')} className="flex h-10 w-10 items-center justify-center rounded-full bg-brand disabled:opacity-40 active:scale-90"><Icon name="send" size={18} /></button>
+              <button type="submit" disabled={!reply.trim()} aria-label={tr('Enviar')} className="flex h-11 w-11 items-center justify-center rounded-full bg-brand disabled:opacity-40 active:scale-90"><Icon name="send" size={18} /></button>
             </form>
           </>
         )}

@@ -17,6 +17,7 @@ import ReportSheet from '../components/ReportSheet';
 import SharedPost from '../components/SharedPost';
 import TileMap from '../components/TileMap';
 import VoiceMessage from '../components/VoiceMessage';
+import OfflineBar from '../components/OfflineBar';
 import { Avatar, Sheet } from '../components/ui';
 import { api, type ChatMessage, type ChatThread, type GroupThread } from '../lib/api';
 import { detectIntent } from '../lib/chatIntent';
@@ -292,6 +293,8 @@ export default function Thread() {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const [menuFor, setMenuFor] = useState<ChatMessage | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [needle, setNeedle] = useState('');
   const [replying, setReplying] = useState<ChatMessage | null>(null);
   useEffect(() => {
     if (menuFor) markSeen('reacoes'); // abriu o menu das mensagens: já descobriu as reações
@@ -413,6 +416,12 @@ export default function Thread() {
     const d = drafts.current.get(m.id);
     if (d) void dispatch(d, m.id);
   };
+  // Voltou a ligação: o que ficou por enviar segue sozinho.
+  useEffect(() => {
+    const on = () => outbox.filter((o) => o.state === 'failed').forEach(retry);
+    window.addEventListener('online', on);
+    return () => window.removeEventListener('online', on);
+  }); // eslint-disable-line react-hooks/exhaustive-deps
   const discard = (m: Msg) => {
     drafts.current.delete(m.id);
     setOutbox((o) => o.filter((x) => x.id !== m.id));
@@ -728,7 +737,35 @@ export default function Thread() {
             </span>
           </Link>
         )}
+        <button type="button" onClick={() => setSearching(true)} aria-label={tr('Procurar na conversa')} className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-zinc-700 active:bg-zinc-100"><Icon name="search" size={22} /></button>
       </header>
+      <OfflineBar />
+      {searching && (
+        <Sheet title={tr('Procurar na conversa')} onClose={() => { setSearching(false); setNeedle(''); }}>
+          <input autoFocus value={needle} onChange={(e) => setNeedle(e.target.value)} placeholder={tr('Escreve uma palavra…')} aria-label={tr('Procurar na conversa')} className="h-12 w-full rounded-full bg-zinc-100 px-5 text-[16px] outline-none" />
+          {(() => {
+            const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+            const n = norm(needle.trim());
+            const hits = n.length < 2 ? [] : [...all].reverse().filter((m) => !m.id.startsWith('tmp-') && !m.viewOnce && m.body && (m.kind === 'text' || m.kind === 'story_reply') && norm(m.body).includes(n)).slice(0, 40);
+            return (
+              <>
+                <ul className="mt-3 space-y-1">
+                  {hits.map((m) => (
+                    <li key={m.id}>
+                      <button type="button" onClick={() => { setSearching(false); setNeedle(''); void jumpTo(m.id); }} className="block w-full rounded-2xl px-3 py-2 text-left active:bg-zinc-100">
+                        <span className="block text-xs font-semibold text-zinc-500">{m.fromMe ? tr('Tu') : m.sender?.displayName ?? person?.displayName} · {dayLabel(m.at)}</span>
+                        <span className="line-clamp-2 break-words text-[15px] text-zinc-800">{m.body}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {n.length >= 2 && hits.length === 0 && <p className="py-6 text-center text-zinc-600">{tr('Nada encontrado nas mensagens carregadas.')}</p>}
+                {q.hasNextPage && <button type="button" onClick={() => void q.fetchNextPage()} className="mt-2 w-full rounded-full bg-zinc-100 py-2.5 text-sm font-semibold text-zinc-700 active:bg-zinc-200">{tr('Carregar mensagens mais antigas')}</button>}
+              </>
+            );
+          })()}
+        </Sheet>
+      )}
 
       <div className="relative min-h-0 flex-1">
         <div

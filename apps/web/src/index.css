@@ -161,3 +161,6 @@ body {
     padding-bottom: max(1.35rem, env(safe-area-inset-bottom));
   }
 }
+
+/* Quem prefere menos movimento: sem a animação do copo (a contagem fica, só sem o encolher). */
+@media (prefers-reduced-motion: reduce) { [class*='animate-[burst'] { display: none !important; } [class*='shrink_6s'] { animation: none !important; } }

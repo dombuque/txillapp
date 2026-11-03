@@ -1243,6 +1243,15 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Carregar mensagens mais antigas': 'Load older messages',
+  'Nada encontrado nas mensagens carregadas.': 'Nothing found in the loaded messages.',
+  'Escreve uma palavra…': 'Type a word…',
+  'Procurar na conversa': 'Search in chat',
+  'Sem ligação. O que enviares segue quando ela voltar.': 'No connection. What you send goes out when it returns.',
+  'Apagar rascunho': 'Delete draft',
+  'Sem texto': 'No text',
+  'Sem rascunhos.': 'No drafts.',
+  'Rascunhos': 'Drafts',
   'Flash': 'Flash',
   'Ecrã inteiro': 'Full screen',
   'Vídeo · toca para abrir': 'Video · tap to open',

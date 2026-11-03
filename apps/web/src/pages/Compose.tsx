@@ -10,10 +10,10 @@ import MusicPicker from '../components/MusicPicker';
 import TrackCard from '../components/TrackCard';
 import PhotoTagger from '../components/PhotoTagger';
 import PlaceSheet from '../components/PlacePicker';
-import { Avatar, Sheet } from '../components/ui';
+import { Avatar, Sheet, timeAgo } from '../components/ui';
 import { api, type PhotoTag, type Track } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { clearDraft, loadDraft, saveDraft } from '../lib/draft';
+import { clearDraft, listDrafts, saveDraft, type DraftItem } from '../lib/draft';
 import { takeHandoff } from '../lib/handoff';
 
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -82,7 +82,13 @@ export default function Compose() {
   const [restored, setRestored] = useState(false);
   const settled = useRef(false); // publicado ou descartado: não voltar a guardar rascunho
   const hasContent = body.trim().length > 0 || photos.length > 0;
-  const draftKey = user!.username;
+  // Vários rascunhos: cada sessão de escrita tem a sua chave; os outros ficam numa lista.
+  const [draftKey, setDraftKey] = useState(() => `${user!.username}:${Date.now()}`);
+  const keyRef = useRef(draftKey);
+  keyRef.current = draftKey;
+  const [drafts, setDrafts] = useState<DraftItem[]>([]);
+  const [draftsOpen, setDraftsOpen] = useState(false);
+  const refreshDrafts = () => void listDrafts(user!.username).then((l) => setDrafts(l.filter((d) => d.key !== keyRef.current)));
 
   // Vindo da câmara: fotos ou vídeo já escolhidos (e com filtro). Nesse caso não se mistura com o rascunho antigo.
   const [fromCamera] = useState(() => takeHandoff());
@@ -92,27 +98,36 @@ export default function Compose() {
     else if (fromCamera.photos) addFiles(fromCamera.photos);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Recupera o rascunho guardado (texto, local e fotos).
+  // Os rascunhos que já existem (aparecem numa lista; nenhum é aberto sozinho).
   useEffect(() => {
-    if (fromCamera) return;
-    let alive = true;
-    void loadDraft(draftKey).then((d) => {
-      if (!alive || !d) return;
-      setBody(d.body);
-      setPlace(d.place);
-      setPhotos(d.photos.map((file, i) => ({ file, preview: URL.createObjectURL(file), tags: d.tags?.[i] ?? [] })));
-      setRestored(true);
-    });
-    return () => { alive = false; };
-  }, [draftKey]);
+    if (!fromCamera) refreshDrafts();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Abre um rascunho; o que estava a ser escrito fica guardado como outro rascunho. */
+  async function openDraft(d: DraftItem) {
+    if (hasContent) await saveDraft(draftKey, { body, place, photos: photos.map((p) => p.file), tags: photos.map((p) => p.tags) });
+    photos.forEach((p) => URL.revokeObjectURL(p.preview));
+    setBody(d.body);
+    setPlace(d.place);
+    setPhotos(d.photos.map((file, i) => ({ file, preview: URL.createObjectURL(file), tags: d.tags?.[i] ?? [] })));
+    keyRef.current = d.key;
+    setDraftKey(d.key);
+    setRestored(true);
+    setDraftsOpen(false);
+    void listDrafts(user!.username).then((l) => setDrafts(l.filter((x) => x.key !== d.key)));
+  }
+  async function dropDraft(key: string) {
+    await clearDraft(key);
+    setDrafts((l) => l.filter((x) => x.key !== key));
+  }
 
   // Se saíres por outro caminho (menu, voltar), o que escreveste fica guardado em vez de se perder.
   const latest = useRef({ body, place, photos, hasContent });
   latest.current = { body, place, photos, hasContent };
   useEffect(() => () => {
     const l = latest.current;
-    if (!settled.current && l.hasContent) void saveDraft(draftKey, { body: l.body, place: l.place, photos: l.photos.map((p) => p.file), tags: l.photos.map((p) => p.tags) });
-  }, [draftKey]);
+    if (!settled.current && l.hasContent) void saveDraft(keyRef.current, { body: l.body, place: l.place, photos: l.photos.map((p) => p.file), tags: l.photos.map((p) => p.tags) });
+  }, []);
 
   function leave() {
     if (hasContent) setLeaveOpen(true);
@@ -218,12 +233,29 @@ export default function Compose() {
         </button>
       </div>
 
+      {!restored && drafts.length > 0 && (
+        <button type="button" onClick={() => setDraftsOpen(true)} className="mx-4 mb-3 flex w-[calc(100%-2rem)] items-center justify-between gap-2 rounded-2xl bg-zinc-100 px-4 py-2.5 text-left text-sm font-semibold text-zinc-800 active:bg-zinc-200">
+          <span className="flex items-center gap-2"><Icon name="file-text" size={18} /> {tr('Rascunhos')}</span>
+          <span className="rounded-full bg-brand px-2 py-0.5 text-xs font-bold text-white">{drafts.length}</span>
+        </button>
+      )}
+      {draftsOpen && (
+        <Sheet title={tr('Rascunhos')} onClose={() => setDraftsOpen(false)}>
+          {drafts.length === 0 ? (
+            <p className="py-6 text-center text-zinc-600">{tr('Sem rascunhos.')}</p>
+          ) : (
+            <ul className="space-y-2">
+              {drafts.map((d) => <DraftRow key={d.key} d={d} onOpen={() => void openDraft(d)} onDrop={() => void dropDraft(d.key)} />)}
+            </ul>
+          )}
+        </Sheet>
+      )}
       {restored && (
         <div className="mx-4 mb-3 flex items-center justify-between gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-sm">
           <span className="font-semibold text-zinc-800">{tr('Rascunho recuperado')}</span>
           <button
             type="button"
-            onClick={() => { photos.forEach((p) => URL.revokeObjectURL(p.preview)); setBody(''); setPlace(''); setPhotos([]); setRestored(false); void clearDraft(draftKey); }}
+            onClick={() => { photos.forEach((p) => URL.revokeObjectURL(p.preview)); setBody(''); setPlace(''); setPhotos([]); setRestored(false); void clearDraft(draftKey); refreshDrafts(); }}
             className="font-bold text-brand"
           >
             {tr('Descartar')}
@@ -356,5 +388,29 @@ export default function Compose() {
       )}
       {placeOpen && <PlaceSheet value={place} onChange={setPlace} onClose={() => setPlaceOpen(false)} />}
     </form>
+  );
+}
+
+
+/** Uma linha da lista de rascunhos: miniatura (se tem foto), o início do texto e há quanto tempo foi guardado. */
+function DraftRow({ d, onOpen, onDrop }: { d: DraftItem; onOpen: () => void; onDrop: () => void }) {
+  const [thumb, setThumb] = useState<string | null>(null);
+  useEffect(() => {
+    if (!d.photos[0]) return;
+    const u = URL.createObjectURL(d.photos[0]);
+    setThumb(u);
+    return () => URL.revokeObjectURL(u);
+  }, [d]);
+  return (
+    <li className="flex items-center gap-2 rounded-2xl bg-zinc-50 p-2 ring-1 ring-zinc-100">
+      <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1 text-left active:bg-zinc-100">
+        {thumb ? <img src={thumb} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" /> : <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-zinc-200 text-zinc-500"><Icon name="file-text" size={22} /></span>}
+        <span className="min-w-0 flex-1">
+          <span className="line-clamp-2 break-words font-semibold text-zinc-800">{d.body.trim() || (d.photos.length ? `${d.photos.length} ${tr('fotos')}` : tr('Sem texto'))}</span>
+          <span className="block text-xs text-zinc-500">{timeAgo(new Date(d.savedAt).toISOString())}{d.photos.length > 0 && d.body.trim() ? ` · ${d.photos.length} ${tr('fotos')}` : ''}</span>
+        </span>
+      </button>
+      <button type="button" onClick={onDrop} aria-label={tr('Apagar rascunho')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-red-600 active:bg-red-50"><Icon name="trash" size={20} /></button>
+    </li>
   );
 }

@@ -1,6 +1,7 @@
 /**
  * Rascunho da publicação, guardado só neste aparelho (IndexedDB, para aguentar fotos).
- * Um rascunho por conta. Se o armazenamento não estiver disponível, falha em silêncio.
+ * Vários rascunhos por conta (chave `utilizador:hora`; a chave antiga, só `utilizador`, continua a ser lida).
+ * Se o armazenamento não estiver disponível, falha em silêncio.
  */
 export interface Draft {
   body: string;
@@ -33,6 +34,33 @@ async function run<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRe
     }).finally(() => db.close());
   } catch {
     return undefined;
+  }
+}
+
+export interface DraftItem extends Draft {
+  key: string;
+}
+
+/** Os rascunhos desta conta, do mais recente para o mais antigo. */
+export async function listDrafts(username: string): Promise<DraftItem[]> {
+  try {
+    const db = await open();
+    return await new Promise<DraftItem[]>((resolve, reject) => {
+      const st = db.transaction(STORE, 'readonly').objectStore(STORE);
+      const keys = st.getAllKeys();
+      const vals = st.getAll();
+      vals.onsuccess = () => {
+        const ks = keys.result as string[];
+        const out = (vals.result as Draft[])
+          .map((d, i) => ({ ...d, key: String(ks[i]) }))
+          .filter((d) => d.key === username || d.key.startsWith(`${username}:`))
+          .sort((a, b) => b.savedAt - a.savedAt);
+        resolve(out);
+      };
+      vals.onerror = () => reject(vals.error);
+    }).finally(() => db.close());
+  } catch {
+    return [];
   }
 }
 
