@@ -33,6 +33,19 @@ export class ChatEvents {
     return (this.open.get(userId) ?? 0) > 0;
   }
 
+  /** Conversa que cada pessoa tem aberta e à vista (a app avisa de tempos a tempos). Quem está a ver não recebe aviso no telemóvel. */
+  private readonly active = new Map<string, { key: string; at: number }>();
+
+  setActive(userId: string, key: string | null) {
+    if (key) this.active.set(userId, { key: key.toLowerCase(), at: Date.now() });
+    else this.active.delete(userId);
+  }
+  /** A pessoa está a ver esta conversa agora? ("u:<utilizador>" ou "g:<grupo>"; o sinal vale 45 s.) */
+  isActive(userId: string, key: string, now = Date.now()) {
+    const a = this.active.get(userId);
+    return !!a && a.key === key.toLowerCase() && now - a.at < 45_000;
+  }
+
   emit(to: string, event: ChatEvent) {
     this.bus.next({ to, event });
   }

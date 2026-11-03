@@ -30,6 +30,7 @@ const sendSchema = z.object({
   waveform: z.string().regex(/^[0-9]{8,96}$/).optional(),
   replyTo: z.string().uuid().optional(),
 });
+const activeSchema = z.object({ key: z.string().regex(/^(u:[A-Za-z0-9_.]{1,40}|g:[0-9a-f-]{36})$/).nullable() });
 const reactSchema = z.object({ reaction: z.string().regex(/^:[a-z]{2,12}:$/) });
 
 @Controller('chat')
@@ -54,6 +55,15 @@ export class ChatController {
     const ping = interval(25_000).pipe(map((): MessageEvent => ({ data: { type: 'ping' } })));
     // Ao fechar a ligação, guarda a hora a que a pessoa esteve online pela última vez.
     return merge(events, ping).pipe(finalize(() => { if (this.events.disconnect(uid)) void this.chat.touchSeen(uid); }));
+  }
+
+  /** A app diz que conversa tem aberta e à vista (ou `null` ao sair): quem está a ver não recebe aviso no telemóvel. */
+  @Put('active')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  @SkipThrottle()
+  active(@Req() req: AuthedReq, @Body(new ZodPipe(activeSchema)) b: z.infer<typeof activeSchema>) {
+    this.events.setActive(req.userId!, b.key);
   }
 
   /** Fotos e voz do chat: URL assinado e temporário (não público). */

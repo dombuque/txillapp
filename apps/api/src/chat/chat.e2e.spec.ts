@@ -6,6 +6,7 @@ import { Pool } from 'pg';
 import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
+import { ChatEvents } from './chat.events';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
@@ -225,6 +226,19 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     // apagada a original, a citação mostra "apagada"
     await api().delete(`/api/v1/chat/messages/${first}`).set(auth(a)).expect(204);
     expect((await thread(a, b)).items.find((i: { id: string }) => i.id === reply.body.id).replyTo).toEqual({ id: first, gone: true });
+  });
+
+  it('quem está a ver a conversa avisa o servidor; o sinal expira e só vale para essa conversa', async () => {
+    const { ca: a, cb: b } = u;
+    await api().put('/api/v1/chat/active').set(auth(b)).send({ key: `u:${a.username}` }).expect(204);
+    await api().put('/api/v1/chat/active').set(auth(b)).send({ key: 'qualquer coisa' }).expect(400);
+    const ev = app.get(ChatEvents);
+    expect(ev.isActive(b.id, `u:${a.username.toUpperCase()}`)).toBe(true); // sem distinguir maiúsculas
+    expect(ev.isActive(b.id, 'u:outra')).toBe(false);
+    expect(ev.isActive(a.id, `u:${a.username}`)).toBe(false); // é por pessoa
+    expect(ev.isActive(b.id, `u:${a.username}`, Date.now() + 46_000)).toBe(false); // expira
+    await api().put('/api/v1/chat/active').set(auth(b)).send({ key: null }).expect(204);
+    expect(ev.isActive(b.id, `u:${a.username}`)).toBe(false);
   });
 
   it('stickers e localização: só stickers válidos; localização guarda-se arredondada; aparecem na conversa', async () => {

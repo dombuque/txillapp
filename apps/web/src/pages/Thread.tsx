@@ -548,6 +548,21 @@ export default function Thread() {
     await q.refetch();
   }
 
+  // Diz ao servidor que esta conversa está aberta e à vista: assim não manda aviso para o telemóvel enquanto estás aqui.
+  useEffect(() => {
+    const key = isGroup ? `g:${groupId}` : `u:${username}`;
+    const ping = () => document.visibilityState === 'visible' && api.chatActive(key).catch(() => undefined);
+    const vis = () => (document.visibilityState === 'visible' ? ping() : void api.chatActive(null).catch(() => undefined));
+    ping();
+    const t = setInterval(ping, 20_000);
+    document.addEventListener('visibilitychange', vis);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', vis);
+      void api.chatActive(null).catch(() => undefined);
+    };
+  }, [isGroup, groupId, username]);
+
   // Com o teclado a abrir/fechar a área visível muda: se estavas no fim, continuas no fim.
   useEffect(() => {
     const vv = window.visualViewport;

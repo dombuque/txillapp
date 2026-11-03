@@ -169,7 +169,7 @@ export class GroupsService {
     const meta = (await this.pool.query('SELECT g.name, u.display_name FROM social.groups g, identity.users u WHERE g.id = $1 AND u.id = $2', [groupId, me])).rows[0];
     for (const u of others) {
       this.events.emit(u, { type: 'message', group: groupId });
-      void this.push.send(u, { title: meta.name as string, body: `${(meta.display_name as string).split(' ')[0]}: ${msg.kind === 'text' ? 'enviou uma mensagem' : msg.kind === 'image' ? 'enviou uma foto' : msg.kind === 'voice' ? 'enviou uma mensagem de voz' : msg.kind === 'sticker' ? 'enviou um sticker' : msg.kind === 'location' ? 'partilhou a localização' : 'partilhou uma publicação'}`, url: `/messages/g/${groupId}`, tag: `group:${groupId}` });
+      if (!this.events.isActive(u, `g:${groupId}`)) void this.push.send(u, { title: meta.name as string, body: `${(meta.display_name as string).split(' ')[0]}: ${msg.kind === 'text' ? 'enviou uma mensagem' : msg.kind === 'image' ? 'enviou uma foto' : msg.kind === 'voice' ? 'enviou uma mensagem de voz' : msg.kind === 'sticker' ? 'enviou um sticker' : msg.kind === 'location' ? 'partilhou a localização' : 'partilhou uma publicação'}`, url: `/messages/g/${groupId}`, tag: `group:${groupId}` });
     }
     return { id, kind: msg.kind };
   }

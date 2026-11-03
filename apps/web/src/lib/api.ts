@@ -647,6 +647,7 @@ export const api = {
   chatLiveStop: (id: string): Promise<void> => raw(`/chat/messages/${id}/live`, { method: 'DELETE' }),
   chatAccept: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/accept`, post({})),
   chatDecline: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/decline`, post({})),
+  chatActive: (key: string | null): Promise<void> => raw('/chat/active', { method: 'PUT', body: JSON.stringify({ key }) }),
   chatTyping: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/typing`, post({})),
   chatDelete: (id: string): Promise<void> => raw(`/chat/messages/${id}`, { method: 'DELETE' }),
   /** Envia uma foto ou gravação para o chat (ficheiro privado). */
