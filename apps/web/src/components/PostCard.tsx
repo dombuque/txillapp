@@ -29,11 +29,30 @@ type Feed = InfiniteData<Page<Post>>;
 /** O meu perfil vive em /profile; os outros em /u/:username. */
 export const profilePath = (username: string, me?: string) => (username === me ? '/profile' : `/u/${username}`);
 
+/** Toque simples ou duplo: o duplo chama `double`; o simples só corre (com um pequeno atraso) se não vier segundo toque. */
+function useTap(double?: () => void) {
+  const t = useRef<number | null>(null);
+  return (single?: () => void) => {
+    if (!double) return single?.();
+    if (t.current != null) {
+      window.clearTimeout(t.current);
+      t.current = null;
+      double();
+      return;
+    }
+    t.current = window.setTimeout(() => {
+      t.current = null;
+      single?.();
+    }, 260);
+  };
+}
+
 /** Carrossel de fotos: deslizar na horizontal, com contador e pontos como no Instagram. */
-function Carousel({ media, onOpen, reelId }: { media: Post['media']; onOpen: (index: number) => void; reelId?: string }) {
+function Carousel({ media, onOpen, reelId, onDouble }: { media: Post['media']; onOpen: (index: number) => void; reelId?: string; onDouble?: () => void }) {
   const navigate = useNavigate();
+  const tap = useTap(onDouble);
   // Tocar num vídeo do feed abre os Reels já nesse vídeo (e a pessoa fica no Reels).
-  const onOpenReel = reelId ? () => navigate(`/reels?start=${reelId}`) : undefined;
+  const onOpenReel = reelId ? () => tap(() => navigate(`/reels?start=${reelId}`)) : undefined;
   const [i, setI] = useState(0);
   const [showTags, setShowTags] = useState(false);
   if (media.length === 0) return null;
@@ -52,7 +71,7 @@ function Carousel({ media, onOpen, reelId }: { media: Post['media']; onOpen: (in
           </div>
         ) : (
           // Tocar na foto abre-a inteira, em ecrã completo (como no X).
-          <button key={m.url} onClick={() => onOpen(n)} aria-label={tr('Ver a foto {v0} de {v1} em ecrã inteiro', { v0: n + 1, v1: media.length })} className="block w-full shrink-0 snap-center">
+          <button key={m.url} onClick={() => tap(() => onOpen(n))} aria-label={tr('Ver a foto {v0} de {v1} em ecrã inteiro', { v0: n + 1, v1: media.length })} className="block w-full shrink-0 snap-center">
             <img src={sized(m.url, 720)} srcSet={srcSet(m.url)} sizes="(min-width: 640px) 576px, 100vw" alt={tr('Foto {v0} de {v1}', { v0: n + 1, v1: media.length })} loading={n === 0 ? 'eager' : 'lazy'} decoding="async" className="max-h-[28rem] w-full object-cover" />
           </button>
         )))}
@@ -185,9 +204,25 @@ function GiftBlock({ post, g, me }: { post: Post; g: NonNullable<Post['gift']>; 
 function PostBody({ post }: { post: Post }) {
   const { user } = useAuth();
   const [viewer, setViewer] = useState<number | null>(null);
+  const [burst, setBurst] = useState(0);
+  const patch = usePatch(post.id);
   const g = post.gift;
+  // Duplo toque no texto ou nas fotos: brinda (só põe; tirar é pelo botão).
+  async function brindar() {
+    setBurst((n) => n + 1);
+    navigator.vibrate?.(8);
+    if (post.cheered) return;
+    track('cheer', { on: true, source: post.feed?.source ?? 'other' });
+    patch({ cheered: true, cheers: post.cheers + 1 });
+    try {
+      patch(await api.cheer(post.id));
+    } catch {
+      patch({ cheered: post.cheered, cheers: post.cheers });
+    }
+  }
+  const tapText = useTap(brindar);
   return (
-    <article className="mx-1.5 mb-5 rounded-[26px] bg-white px-3.5 pt-4 min-[360px]:mx-2 min-[360px]:px-4 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
+    <article className="relative mx-1.5 mb-5 rounded-[26px] bg-white px-3.5 pt-4 min-[360px]:mx-2 min-[360px]:px-4 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
       {g ? <GiftBlock post={post} g={g} me={user?.username} /> : (
         <>
       <header className="flex items-center gap-3">
@@ -209,12 +244,13 @@ function PostBody({ post }: { post: Post }) {
         </time>
         <PostMenu post={post} />
       </header>
-      {post.body && <p className="mt-4 whitespace-pre-wrap break-words text-[19px] text-zinc-800"><RichText text={post.body} /></p>}
+      {post.body && <p onClick={(e) => { if (!(e.target as HTMLElement).closest('a')) tapText(); }} className="mt-4 whitespace-pre-wrap break-words text-[19px] text-zinc-800"><RichText text={post.body} /></p>}
         </>
       )}
       {post.music && <TrackCard track={post.music} autoplay />}
-      <Carousel media={post.media} onOpen={setViewer} reelId={post.id} />
+      <Carousel media={post.media} onOpen={setViewer} reelId={post.id} onDouble={brindar} />
       <Actions post={post} />
+      {burst > 0 && <span key={burst} aria-hidden className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-brand opacity-0 animate-[burst_.8s_ease-out_forwards]"><Icon name="cheers" size={96} strokeWidth={1.6} className="drop-shadow-[0_4px_14px_rgba(0,0,0,0.35)]" /></span>}
       {viewer !== null && <ImageViewer post={post} start={viewer} onClose={() => setViewer(null)} />}
     </article>
   );

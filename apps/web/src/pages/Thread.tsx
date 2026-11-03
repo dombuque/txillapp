@@ -106,11 +106,22 @@ function ChatVideo({ src }: { src: string }) {
   );
 }
 
-function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onReply, onRetry, onDiscard, onOpenOnce, onStopLive }: { m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; flash: boolean; onJump: (id: string) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onMenu: (m: ChatMessage) => void; onReply: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
+function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onReply, onRetry, onDiscard, onOpenOnce, onStopLive, onCheer }: { onCheer: (m: ChatMessage) => void; m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; flash: boolean; onJump: (id: string) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onMenu: (m: ChatMessage) => void; onReply: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
   const mine = m.fromMe;
   const real = !m.id.startsWith('tmp-');
   // Carregar e segurar (ou clique direito): apagar as minhas, denunciar as dos outros.
   const hold = useRef<ReturnType<typeof setTimeout>>();
+  // Duplo toque na mensagem: brinda-a (só põe; tirar é pelo menu).
+  const lastTap = useRef(0);
+  const tapProps = real && !m.viewOnce
+    ? {
+        onClick: (e: React.MouseEvent) => {
+          if ((e.target as HTMLElement).closest('a,button,video,audio,input,textarea')) return;
+          const now = Date.now();
+          if (now - lastTap.current < 320) { lastTap.current = 0; onCheer(m); } else lastTap.current = now;
+        },
+      }
+    : {};
   // Deslizar a mensagem para a direita responde-lhe (como no WhatsApp e no Instagram).
   const [dx, setDx] = useState(0);
   const swipe = useRef<{ x: number; y: number; on: boolean } | null>(null);
@@ -156,7 +167,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onR
   const dim = m.state === 'sending' ? 'opacity-70' : '';
 
   return (
-    <div id={real ? `msg-${m.id}` : undefined} className={`relative flex select-none flex-col rounded-3xl transition-colors duration-500 ${flash ? 'bg-brand/15' : ''} ${mine ? 'items-end' : 'items-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`} style={{ transform: dx ? `translateX(${dx}px)` : undefined, transition: dx ? 'none' : 'transform .18s ease-out', touchAction: 'pan-y' }} {...menuProps} {...swipeProps}>
+    <div id={real ? `msg-${m.id}` : undefined} className={`relative flex select-none flex-col rounded-3xl transition-colors duration-500 ${flash ? 'bg-brand/15' : ''} ${mine ? 'items-end' : 'items-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`} style={{ transform: dx ? `translateX(${dx}px)` : undefined, transition: dx ? 'none' : 'transform .18s ease-out', touchAction: 'pan-y' }} {...menuProps} {...swipeProps} {...tapProps}>
       {dx > 8 && <span aria-hidden className="absolute left-[-40px] top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-zinc-700" style={{ opacity: Math.min(1, dx / 56), transform: `translateY(-50%) scale(${dx >= 56 ? 1.15 : 0.85})` }}><Icon name="reply" size={16} /></span>}
       {group && !mine && !prevSame && m.sender && <span className="mb-0.5 px-1 text-[12px] font-bold text-zinc-600">{m.sender.displayName.split(' ')[0]}</span>}
       {m.replyTo && (
@@ -560,6 +571,18 @@ export default function Thread() {
     }
   }
 
+  /** Duplo toque: brinda a mensagem (se ainda não brindei). */
+  async function cheerMsg(m: ChatMessage) {
+    navigator.vibrate?.(8);
+    if (m.reactions?.some((x) => x.mine && x.reaction === ':brinde:')) return;
+    try {
+      await api.chatReact(m.id, ':brinde:');
+      await q.refetch();
+    } catch (x) {
+      setErr((x as Error).message);
+    }
+  }
+
   async function remove(m: ChatMessage) {
     setMenuFor(null);
     await api.chatDelete(m.id).catch((x) => setErr((x as Error).message));
@@ -736,7 +759,7 @@ export default function Thread() {
             return (
               <div key={m.id}>
                 {newDay && <p className="mx-auto mb-1 mt-5 w-fit rounded-full bg-zinc-100 px-3 py-1 text-[12px] font-semibold text-zinc-600">{dayLabel(m.at)}</p>}
-                <Bubble m={m} group={isGroup} flash={flashId === m.id} onJump={jumpTo} prevSame={!!prev && !newDay && joined(prev, m)} nextSame={!!next && joined(m, next)} seen={seenUpTo(m)} onMenu={setMenuFor} onReply={(x) => { setReplying(x); input.current?.focus(); }} onRetry={retry} onDiscard={discard} onOpenOnce={setOpening} onStopLive={stopSharing} />
+                <Bubble m={m} group={isGroup} flash={flashId === m.id} onJump={jumpTo} prevSame={!!prev && !newDay && joined(prev, m)} nextSame={!!next && joined(m, next)} seen={seenUpTo(m)} onMenu={setMenuFor} onReply={(x) => { setReplying(x); input.current?.focus(); }} onRetry={retry} onDiscard={discard} onOpenOnce={setOpening} onStopLive={stopSharing} onCheer={cheerMsg} />
               </div>
             );
           })}
