@@ -18,8 +18,7 @@ function detect(): Lang {
   try {
     const saved = localStorage.getItem(KEY);
     if (saved === 'pt-MZ' || saved === 'en') return saved;
-    // Sem escolha guardada: segue o idioma do telemóvel (inglês só se for inglês; senão a base).
-    if (typeof navigator !== 'undefined' && /^en\b/i.test(navigator.language)) return 'en';
+    // Sem escolha guardada fica em português: o inglês só entra se a pessoa o escolher (não misturamos idiomas).
   } catch {
     /* sem armazenamento: usa a base */
   }
