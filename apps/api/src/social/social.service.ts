@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { TextFilter } from '../safety/text-filter.service';
 import { TERMS_VERSION } from '@txillapp/shared';
 import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
@@ -28,6 +29,7 @@ export class SocialService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly notifications: NotificationsService,
     private readonly indexer: SearchIndexer,
+    private readonly filter: TextFilter,
   ) {}
 
   /* ───────────── perfil ───────────── */
@@ -115,6 +117,7 @@ export class SocialService {
 
   /** Editar o próprio perfil. Só campos enviados são alterados. Passar a público aceita os pedidos pendentes. */
   async updateMe(userId: string, patch: { displayName?: string; bio?: string; isPrivate?: boolean; website?: string; city?: string }) {
+    this.filter.assertClean(patch.displayName, patch.bio, patch.city);
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');

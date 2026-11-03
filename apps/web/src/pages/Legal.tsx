@@ -113,6 +113,7 @@ export function Terms() {
       <section>
         <h2>8. Denúncias e moderação</h2>
         <p>
+          O que é claramente uma ameaça, incentivo ao suicídio ou ódio contra um grupo de pessoas é recusado automaticamente antes de ser publicado ou enviado.
           Podes denunciar publicações, comentários, mensagens e contas. Analisamos as denúncias e podemos remover conteúdo ou suspender contas que violem estes termos.
           Podes bloquear qualquer pessoa a qualquer momento.
         </p>

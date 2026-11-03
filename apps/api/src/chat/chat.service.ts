@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, GoneException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { TextFilter } from '../safety/text-filter.service';
 import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
@@ -43,6 +44,7 @@ export class ChatService {
     private readonly events: ChatEvents,
     private readonly push: PushService,
     private readonly posts: PostsService,
+    private readonly filter: TextFilter,
   ) {}
 
   private async userByName(username: string) {
@@ -305,6 +307,7 @@ export class ChatService {
 
   /** Mensagem normal: precisa de não haver bloqueio e de a pessoa aceitar mensagens (ou já existir conversa). */
   async send(me: string, username: string, msg: Outgoing) {
+    if (msg.kind === 'text' || msg.kind === 'image') this.filter.assertClean(msg.body);
     const other = await this.userByName(username);
     if (other.id === me) throw new BadRequestException('Não podes enviar mensagens a ti próprio');
     const ok = await this.pool.query(
@@ -351,6 +354,7 @@ export class ChatService {
 
   /** Resposta/reacção a um story: já foi autorizada pela definição de respostas do autor. */
   async sendStoryReply(me: string, recipientId: string, body: string, kind: 'story_reply' | 'story_reaction', storyMediaId: string) {
+    this.filter.assertClean(body);
     return this.insert(me, recipientId, body, kind, storyMediaId, null, null, null, null, {});
   }
 

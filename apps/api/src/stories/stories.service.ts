@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { TextFilter } from '../safety/text-filter.service';
 import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
@@ -28,9 +29,11 @@ export class StoriesService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly notifications: NotificationsService,
     private readonly chat: ChatService,
+    private readonly filter: TextFilter,
   ) {}
 
   async create(userId: string, mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all') {
+    this.filter.assertClean(caption);
     const ok = await this.pool.query(
       `SELECT 1 FROM content.media_assets a
         WHERE a.id = $1 AND a.owner_id = $2 AND a.status = 'ready'
@@ -153,6 +156,7 @@ export class StoriesService {
 
   /** Responder a um story (ou reagir com emoji). Chega ao autor; não se responde ao próprio story nem a um expirado. */
   async reply(userId: string, storyId: string, body: string) {
+    this.filter.assertClean(body);
     const s = await this.visibleStory(userId, storyId);
     if (s.author_id === userId) throw new BadRequestException('Não podes responder ao teu próprio story');
     // O autor decide quem pode responder: todos, só quem ele segue, ou ninguém.
@@ -197,6 +201,7 @@ export class StoriesService {
 
   /** Comentar num story: segue a mesma definição de respostas do autor (todos, quem ele segue, ninguém). */
   async comment(userId: string, storyId: string, body: string) {
+    this.filter.assertClean(body);
     const s = await this.visibleStory(userId, storyId);
     if (s.author_id !== userId && (s.story_replies === 'off' || (s.story_replies === 'following' && !s.author_follows_viewer))) {
       throw new ForbiddenException('Este story não aceita comentários');
@@ -273,6 +278,7 @@ export class StoriesService {
    * o story reutiliza o ficheiro e mostra de quem é. Se a publicação for apagada, o story deixa de aparecer.
    */
   async share(userId: string, postId: string, caption: string, audience: 'all' | 'close_friends' = 'all') {
+    this.filter.assertClean(caption);
     const { rows } = await this.pool.query(
       `SELECT (SELECT pm.media_id FROM content.post_media pm JOIN content.media_assets m ON m.id = pm.media_id
                 WHERE pm.post_id = p.id AND m.status = 'ready' ORDER BY pm.position LIMIT 1) AS media_id

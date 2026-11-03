@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { TextFilter } from '../safety/text-filter.service';
 import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
@@ -20,6 +21,7 @@ export class CommentsService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly notifications: NotificationsService,
+    private readonly filter: TextFilter,
   ) {}
 
   /** Comentários de topo, do mais recente para o mais antigo, com paginação por cursor. */
@@ -46,6 +48,7 @@ export class CommentsService {
   }
 
   async create(userId: string, postId: string, body: string, parentId?: string) {
+    this.filter.assertClean(body);
     const postAuthorId = await this.assertCanComment(userId, postId);
     let threadParent: string | null = null;
     let parentAuthorId: string | null = null;

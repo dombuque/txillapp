@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { TextFilter } from '../safety/text-filter.service';
 import { Pool, PoolClient } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
@@ -54,9 +55,11 @@ export class PostsService {
     private readonly wallet: WalletService,
     private readonly notifications: NotificationsService,
     private readonly indexer: SearchIndexer,
+    private readonly filter: TextFilter,
   ) {}
 
   async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = []) {
+    this.filter.assertClean(body, locationLabel);
     if (mediaIds.length > MAX_PHOTOS) throw new BadRequestException(`No máximo ${MAX_PHOTOS} fotos por publicação`);
     if (new Set(mediaIds).size !== mediaIds.length) throw new BadRequestException('Fotos repetidas');
     if (!body.trim() && mediaIds.length === 0) throw new BadRequestException('Escreve algo ou mete uma foto');
@@ -248,6 +251,7 @@ export class PostsService {
    * Só publicações normais de contas públicas; nunca as tuas, de bloqueados, nem reposts de reposts.
    */
   async repost(userId: string, postId: string, body = '') {
+    this.filter.assertClean(body);
     const { rows } = await this.pool.query(
       `SELECT p.author_id, p.kind, p.body, u.is_private FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
         WHERE p.id = $2 AND ${canView()}`,
@@ -381,6 +385,7 @@ export class PostsService {
    * Mesmo depois de enviado pode publicar (ver `publishGift`).
    */
   async gift(userId: string, postId: string, amount: number, key: string, note = '', visibility: GiftVisibility = 'silent') {
+    this.filter.assertClean(note);
     const { rows } = await this.pool.query(
       `SELECT p.author_id, ${allowedBy('u', 'gifts_allowed')} AS allowed,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS following
@@ -403,6 +408,7 @@ export class PostsService {
 
   /** Presente directo a uma pessoa, de onde quer que seja (perfil, carteira…). Mesmas escolhas de visibilidade. */
   async giftUser(userId: string, toUsername: string, amount: number, key: string, note = '', visibility: GiftVisibility = 'silent') {
+    this.filter.assertClean(note);
     const to = await this.pool.query(
       `SELECT u.id, ${allowedBy('u', 'gifts_allowed')} AS allowed, ${blockedBetween('u.id', '$1')} AS blocked,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS following

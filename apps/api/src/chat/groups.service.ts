@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { TextFilter } from '../safety/text-filter.service';
 import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
@@ -19,6 +20,7 @@ export class GroupsService {
     private readonly chat: ChatService,
     private readonly events: ChatEvents,
     private readonly push: PushService,
+    private readonly filter: TextFilter,
   ) {}
 
   private assertId(id: string) {
@@ -61,6 +63,7 @@ export class GroupsService {
   }
 
   async create(me: string, name: string, usernames: string[]) {
+    this.filter.assertClean(name);
     const invitees = await this.resolveInvitees(me, usernames);
     if (invitees.length < 2) throw new BadRequestException('Um grupo precisa de pelo menos 2 pessoas além de ti');
     if (invitees.length + 1 > MAX_MEMBERS) throw new BadRequestException(`Um grupo tem no máximo ${MAX_MEMBERS} pessoas`);
@@ -152,6 +155,7 @@ export class GroupsService {
   }
 
   async send(me: string, groupId: string, msg: Outgoing) {
+    if (msg.kind === 'text' || msg.kind === 'image') this.filter.assertClean(msg.body);
     await this.needMember(groupId, me);
     const place = await this.chat.validateOutgoing(me, msg);
     const id = uuidv7();
