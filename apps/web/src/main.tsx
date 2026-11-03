@@ -129,8 +129,6 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        {/* A app ocupa o ecrã todo: a zona da hora e da bateria (iPhone) fica coral, como no Android, com as letras brancas. */}
-        <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-[999] bg-brand" style={{ height: 'env(safe-area-inset-top)' }} />
         <TopLoader />
         <Live />
         <UpdateBanner />
