@@ -1,4 +1,5 @@
 import Icon from './Icon';
+import { tr } from '../lib/i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { PhotoTag } from '../lib/api';
@@ -62,7 +63,7 @@ export default function TaggedImage({ src, alt, tags, onPoint, onRemove, pending
                   {onRemove ? (
                     <>
                       {t.displayName}
-                      <button type="button" onClick={() => onRemove(i)} aria-label={`Tirar a identificação de ${t.displayName}`} className="-mr-1 flex h-6 w-6 items-center justify-center rounded-full text-white/80 active:bg-white/20"><Icon name="x" size={14} strokeWidth={2.4} /></button>
+                      <button type="button" onClick={() => onRemove(i)} aria-label={tr('Tirar a identificação de {v0}', { v0: t.displayName })} className="-mr-1 flex h-6 w-6 items-center justify-center rounded-full text-white/80 active:bg-white/20"><Icon name="x" size={14} strokeWidth={2.4} /></button>
                     </>
                   ) : (
                     <Link to={`/u/${t.username}`} onClick={(e) => e.stopPropagation()}>{t.displayName}</Link>

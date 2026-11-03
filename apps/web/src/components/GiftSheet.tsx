@@ -103,7 +103,7 @@ export default function GiftSheet({
   }
 
   return (
-    <Sheet title={`Presentear ${name}`} onClose={onClose} layer={layer}>
+    <Sheet title={tr('Presentear {v0}', { v0: name })} onClose={onClose} layer={layer}>
       <div className="space-y-4">
         {!recipient && (
           <input value={to} onChange={(e) => { setTo(e.target.value); fresh(); }} placeholder={tr('@utilizador')} aria-label={tr('Utilizador')} autoCapitalize="none" autoCorrect="off" className={fieldInput} />

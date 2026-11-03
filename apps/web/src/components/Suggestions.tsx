@@ -57,7 +57,7 @@ export default function Suggestions({ compact = false }: { compact?: boolean }) 
       <div className="mt-4 flex gap-3 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {data.map((p) => (
           <div key={p.username} className="relative flex w-[152px] shrink-0 flex-col items-center rounded-2xl border border-zinc-200 px-3 pb-3 pt-5 text-center">
-            <button onClick={() => dismiss(p)} aria-label={`Não sugerir ${p.displayName}`} className="absolute right-2 top-1 px-1.5 text-xl leading-none text-zinc-500">
+            <button onClick={() => dismiss(p)} aria-label={tr('Não sugerir {v0}', { v0: p.displayName })} className="absolute right-2 top-1 px-1.5 text-xl leading-none text-zinc-500">
               ×
             </button>
             <Link to={`/u/${p.username}`} className="flex w-full flex-col items-center">

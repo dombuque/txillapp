@@ -95,7 +95,7 @@ export default function NewChat({ onClose, addTo, onCreated }: { onClose: () => 
               {picked.length > 0 && (
                 <div className="mt-3 flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {picked.map((p) => (
-                    <button key={p.username} type="button" onClick={() => toggle(p)} aria-label={`Tirar ${p.displayName}`} className="relative flex w-[60px] shrink-0 flex-col items-center gap-1 active:scale-95">
+                    <button key={p.username} type="button" onClick={() => toggle(p)} aria-label={tr('Tirar {v0}', { v0: p.displayName })} className="relative flex w-[60px] shrink-0 flex-col items-center gap-1 active:scale-95">
                       <span className="relative">
                         <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={52} ring={false} />
                         <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-white ring-2 ring-white"><Icon name="x" size={12} strokeWidth={3} /></span>

@@ -69,7 +69,7 @@ function useAvailability(kind: 'username' | 'email', raw: string, enabled = true
           if (r.available) return setCheck({ state: 'ok' });
           setCheck(
             r.reason === 'taken'
-              ? { state: 'bad', taken: true, message: `@${value} já tem dono`, suggestions: r.suggestions }
+              ? { state: 'bad', taken: true, message: tr('@{u} já tem dono', { u: value }), suggestions: r.suggestions }
               : { state: 'bad', message: r.reason === 'reserved' ? 'Esse nome está reservado' : 'Nome de utilizador inválido' },
           );
         } else {
@@ -437,7 +437,7 @@ export function Register() {
     <Screen>
       <div className="flex items-center gap-4 pt-2">
         <button onClick={back} aria-label={tr('Voltar')} className="-ml-1 text-brand active:scale-90"><BackIcon /></button>
-        <div className="flex flex-1 gap-1.5" role="progressbar" aria-valuemin={1} aria-valuemax={steps.length} aria-valuenow={i + 1} aria-label={`Passo ${i + 1} de ${steps.length}`}>
+        <div className="flex flex-1 gap-1.5" role="progressbar" aria-valuemin={1} aria-valuemax={steps.length} aria-valuenow={i + 1} aria-label={tr('Passo {v0} de {v1}', { v0: i + 1, v1: steps.length })}>
           {steps.map((_, n) => (
             <span key={n} className={`h-1.5 flex-1 rounded-full transition-colors ${n <= i ? 'bg-brand' : 'bg-zinc-300'}`} />
           ))}
@@ -470,7 +470,7 @@ export function Register() {
           />
           )}
           {step.key === 'username' && (
-            <Availability check={check} okText={`@${value.trim().replace(/^@/, '')} está livre`} onPick={(v) => setData({ ...data, username: v })} />
+            <Availability check={check} okText={tr('@{u} está livre', { u: value.trim().replace(/^@/, '') })} onPick={(v) => setData({ ...data, username: v })} />
           )}
           {step.key === 'email' && (
             <Availability check={check} okText="Email livre">
@@ -568,7 +568,7 @@ export function GoogleUsername() {
             placeholder={tr('utilizador')} autoComplete="username" enterKeyHint="go"
             status={check.state === 'ok' ? 'ok' : check.state === 'bad' ? 'bad' : check.state === 'checking' ? 'checking' : undefined}
           />
-          <Availability check={check} okText={`@${username.trim().replace(/^@/, '')} está livre`} onPick={setUsername} />
+          <Availability check={check} okText={tr('@{u} está livre', { u: username.trim().replace(/^@/, '') })} onPick={setUsername} />
         </div>
         <p className="mb-3 mt-8 text-lg font-semibold">{tr('Como te identificas?')}</p>
         <GenderPicker value={gender} onChange={setGender} />

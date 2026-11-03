@@ -72,7 +72,7 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
   };
   return (
     <>
-      <button onClick={() => setOpen(true)} aria-label={`Ver story de ${displayName}`}>
+      <button onClick={() => setOpen(true)} aria-label={tr('Ver story de {v0}', { v0: displayName })}>
         {/* O anel mede 72px; amplia-se para acompanhar a foto grande do perfil. */}
         <span className="block" style={{ width: size + 12, height: size + 12 }}>
           <span className="block origin-top-left" style={{ transform: `scale(${(size + 12) / 72})` }}>
@@ -153,7 +153,7 @@ export default function StoriesTray() {
 
         {others.map((u, i) => (
           // Não vistos: anel a cores, nome a negrito. Vistos: anel cinzento, avatar e nome mais apagados.
-          <button key={u.username} onClick={() => setViewing(mine ? i + 1 : i)} className={bubble} aria-label={`Ver story de ${u.displayName}${u.seen ? '' : ' (novo)'}`}>
+          <button key={u.username} onClick={() => setViewing(mine ? i + 1 : i)} className={bubble} aria-label={tr('Ver story de {v0}{v1}', { v0: u.displayName, v1: u.seen ? '' : ' (novo)' })}>
             <span className={u.seen ? 'opacity-60' : ''}>
               <Ring count={u.count} seenCount={u.seenCount} green={u.closeFriends}><Avatar name={u.displayName} username={u.username} size={56} ring={false} presence /></Ring>
             </span>
@@ -227,7 +227,7 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
     try {
       await api.replyStory(story.id, body.trim());
       setText('');
-      setMsg(REACTIONS.some((r) => r.id === body) ? `${reactionText(body)} enviado!` : 'Mensagem enviada');
+      setMsg(REACTIONS.some((r) => r.id === body) ? tr('{x} enviado!', { x: reactionText(body) }) : tr('Mensagem enviada'));
     } catch (x) {
       setMsg((x as Error).message);
     } finally {
@@ -245,7 +245,7 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
       {open && (
         <div className="mb-3 flex justify-between px-1">
           {REACTIONS.map((r) => (
-            <button key={r.id} type="button" onMouseDown={(ev) => ev.preventDefault()} onClick={() => send(r.id)} aria-label={`Reagir: ${r.label}`} className="transition active:scale-125">
+            <button key={r.id} type="button" onMouseDown={(ev) => ev.preventDefault()} onClick={() => send(r.id)} aria-label={tr('Reagir: {v0}', { v0: r.label })} className="transition active:scale-125">
               <Reaction body={r.id} size={40} />
             </button>
           ))}
@@ -267,8 +267,8 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
           onFocus={() => focus(true)}
           onBlur={() => focus(false)}
           maxLength={500}
-          placeholder={`Enviar mensagem a ${username}…`}
-          aria-label={`Responder ao story de ${username}`}
+          placeholder={tr('Enviar mensagem a {v0}…', { v0: username })}
+          aria-label={tr('Responder ao story de {v0}', { v0: username })}
           className="w-full rounded-full border border-white/60 bg-black/20 px-5 py-3 text-white outline-none backdrop-blur-sm placeholder:text-white/70 focus:border-white"
         />
         {text.trim() ? (
@@ -331,7 +331,7 @@ function CommentsPanel({ story, onClose, canComment, onTyping }: { story: Story;
   }
 
   return (
-    <Panel title={`Comentários${list.data ? ` (${list.data.length})` : ''}`} onClose={onClose}>
+    <Panel title={tr('Comentários{v0}', { v0: list.data ? ` (${list.data.length})` : '' })} onClose={onClose}>
       <ul className="min-h-[96px]">
         {list.isLoading && <li><LoadingBlock className="py-6" /></li>}
         {list.isSuccess && list.data.length === 0 && <li className="py-6 text-center text-zinc-500">{tr('Ainda sem comentários. Sê o primeiro')}</li>}
@@ -491,7 +491,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
   const circleBtn = 'flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-sm transition active:scale-90';
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black" style={visibleStyle(vv)} role="dialog" aria-modal="true" aria-label={`Story de ${user.displayName}`}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black" style={visibleStyle(vv)} role="dialog" aria-modal="true" aria-label={tr('Story de {v0}', { v0: user.displayName })}>
       <div
         className="relative h-full w-full max-w-[460px] select-none overflow-hidden bg-zinc-900 sm:h-[min(100dvh,860px)] sm:rounded-3xl"
         onPointerDown={() => { downAt.current = Date.now(); setHeld(true); }}
@@ -567,13 +567,13 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
           )}
           {user.isMe && story && (
             <div className="pointer-events-auto flex gap-2">
-              <button {...stop} onClick={() => { setTab('viewers'); setPanel('viewers'); }} aria-label={`${story.viewCount ?? 0} visualizações`} className="flex min-h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
+              <button {...stop} onClick={() => { setTab('viewers'); setPanel('viewers'); }} aria-label={tr('{v0} visualizações', { v0: story.viewCount ?? 0 })} className="flex min-h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
                 <EyeIcon /> {story.viewCount ?? 0}
               </button>
               <button {...stop} onClick={() => { setTab('viewers'); setPanel('viewers'); }} aria-label={`${story.cheerCount ?? 0} ${tr('brindes')}`} className="flex min-h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
                 <Icon name="cheers" size={18} /> {story.cheerCount ?? 0}
               </button>
-              <button {...stop} onClick={() => setPanel('comments')} aria-label={`${story.commentCount} comentários`} className="flex min-h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
+              <button {...stop} onClick={() => setPanel('comments')} aria-label={tr('{v0} comentários', { v0: story.commentCount })} className="flex min-h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
                 <Icon name="comment" size={18} /> {story.commentCount}
               </button>
             </div>

@@ -294,7 +294,7 @@ export default function ProfilePage() {
               {items.map((post) => {
                 const shown = post.kind === 'repost' && post.repostOf ? post.repostOf : post;
                 return (
-                  <button key={post.id} onClick={() => setOpenPost(post)} aria-label={`Abrir publicação: ${post.body || shown.body || 'foto'}`} className="relative aspect-square overflow-hidden rounded-xl bg-rose-50 text-left active:opacity-80">
+                  <button key={post.id} onClick={() => setOpenPost(post)} aria-label={tr('Abrir publicação: {v0}', { v0: post.body || shown.body || 'foto' })} className="relative aspect-square overflow-hidden rounded-xl bg-rose-50 text-left active:opacity-80">
                     {post.kind === 'gift' && post.gift ? (
                       // Presente: o mesmo bilhete do post, em ponto pequeno (fotos cruzadas, valor e Txills).
                       <span className="flex h-full w-full flex-col items-center justify-center gap-1 bg-gradient-to-br from-brand via-[#e8475f] to-[#ff8a5b] p-2 text-white">
@@ -312,7 +312,7 @@ export default function ProfilePage() {
                         {(post.body || shown.body).slice(0, 70)}
                       </span>
                     )}
-                    {shown.media.length > 1 && <span aria-label={`${shown.media.length} fotos`} className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-bold text-white"><Icon name="images" size={12} /> {shown.media.length}</span>}
+                    {shown.media.length > 1 && <span aria-label={tr('{v0} fotos', { v0: shown.media.length })} className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-bold text-white"><Icon name="images" size={12} /> {shown.media.length}</span>}
                     {post.kind === 'gift' && <span aria-label={tr('Presente')} className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-brand"><Icon name="gift" size={12} /></span>}
                     {post.kind === 'repost' && <span aria-label={tr('Repost')} className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/55 text-white"><Icon name="repeat" size={12} /></span>}
                   </button>
@@ -357,7 +357,7 @@ export default function ProfilePage() {
       )}
       {sheet === 'report' && <ReportSheet type="user" id={p.id} onClose={close} />}
       {sheet === 'block' && (
-        <Sheet title={`Bloquear @${p.username}?`} onClose={close}>
+        <Sheet title={tr('Bloquear @{v0}?', { v0: p.username })} onClose={close}>
           <ul className="mb-4 list-disc space-y-1 pl-5 text-[15px] text-zinc-700">
             <li>{p.displayName} {tr('deixa de ver as tuas publicações e stories.')}</li>
             <li>{tr('Não te pode seguir nem interagir contigo.')}</li>

@@ -501,7 +501,7 @@ export default function Thread() {
           <BackIcon />
         </button>
         {group && (
-          <button type="button" onClick={() => setMembers(true)} aria-label={`Ver membros de ${group.name}`} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+          <button type="button" onClick={() => setMembers(true)} aria-label={tr('Ver membros de {v0}', { v0: group.name })} className="flex min-w-0 flex-1 items-center gap-3 text-left">
             <span className="relative block h-[40px] w-[40px] shrink-0">
               {group.members.slice(0, 2).map((m, i) => (
                 <span key={m.username} className={`absolute rounded-full ring-2 ring-white ${i === 0 ? 'left-0 top-0' : 'bottom-0 right-0'}`}><Avatar name={m.displayName} username={m.hasAvatar ? m.username : undefined} size={26} ring={false} /></span>

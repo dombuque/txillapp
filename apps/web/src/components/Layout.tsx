@@ -103,7 +103,7 @@ export default function Layout() {
           >
             <PlusIcon width={38} height={38} strokeWidth={2.2} />
           </NavLink>
-          <Item to="/messages" label={chatCount > 0 ? `Mensagens (${chatCount} por ler)` : 'Mensagens'} onClick={tapTab} tour="messages">
+          <Item to="/messages" label={chatCount > 0 ? tr('Mensagens ({n} por ler)', { n: chatCount }) : tr('Mensagens')} onClick={tapTab} tour="messages">
             {(a) => (
               <span className="relative">
                 <MessagesIcon filled={a} size={27} strokeWidth={1.9} />

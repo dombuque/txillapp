@@ -37,7 +37,7 @@ export default function BarChart({ title, data, unit = '' }: { title: string; da
           <b className="text-zinc-900">{data[shown]?.value ?? 0}{unit}</b> · {data[shown] ? fmtDay(data[shown].day) : ''}
         </span>
       </figcaption>
-      <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" role="img" aria-label={`${title}: total ${total}, último dia ${last?.value ?? 0}`} onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" role="img" aria-label={tr('{v0}: total {v1}, último dia {v2}', { v0: title, v1: total, v2: last?.value ?? 0 })} onMouseLeave={() => setHover(null)}>
         {/* grelha: só a base e a linha do máximo, em cinzento muito claro */}
         <line x1={PAD.left} x2={W - PAD.right} y1={PAD.top + innerH} y2={PAD.top + innerH} stroke="#d4d4d8" strokeWidth="1" />
         <line x1={PAD.left} x2={W - PAD.right} y1={PAD.top} y2={PAD.top} stroke="#f4f4f5" strokeWidth="1" />

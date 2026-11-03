@@ -74,7 +74,7 @@ export default function Feed() {
       {fresh > 0 && (
         <div className="pointer-events-none sticky top-2 z-30 flex justify-center">
           <button type="button" onClick={() => void showNew()} className="pointer-events-auto flex h-10 animate-[rise_.25s_ease-out] items-center gap-2 rounded-full bg-brand pl-3 pr-4 text-[14px] font-bold text-white shadow-[0_4px_14px_rgba(214,51,79,0.45)] active:scale-95">
-            <Icon name="arrow-up" size={16} strokeWidth={3} /> {fresh === 1 ? tr('Há novidades') : `${fresh} novidades`}
+            <Icon name="arrow-up" size={16} strokeWidth={3} /> {fresh === 1 ? tr('Há novidades') : tr('{n} novidades', { n: fresh })}
           </button>
         </div>
       )}

@@ -87,7 +87,7 @@ export default function WelcomeTour() {
         </div>
         <p className="mt-3 text-[16px] text-zinc-700">{step.text}</p>
         <div className="mt-4 flex items-center justify-between">
-          <div className="flex gap-1.5" aria-label={`Passo ${i + 1} de ${STEPS.length}`} role="img">
+          <div className="flex gap-1.5" aria-label={tr('Passo {v0} de {v1}', { v0: i + 1, v1: STEPS.length })} role="img">
             {STEPS.map((_, n) => <span key={n} className={`h-1.5 rounded-full transition-all ${n === i ? 'w-5 bg-brand' : 'w-1.5 bg-zinc-300'}`} />)}
           </div>
           <div className="flex items-center gap-1">

@@ -131,7 +131,7 @@ export default function Compose() {
     let problem = '';
     for (const f of files) {
       if (next.length >= MAX_PHOTOS) {
-        problem = `Máximo de ${MAX_PHOTOS} fotos por publicação`;
+        problem = tr('Máximo de {n} fotos por publicação', { n: MAX_PHOTOS });
         break;
       }
       if (!TYPES.includes(f.type)) problem = 'Uma das fotos não serve. Usa JPEG, PNG ou WebP';
@@ -163,7 +163,7 @@ export default function Compose() {
         );
       }
       for (const [i, p] of photos.entries()) {
-        setProgress(`A enviar foto ${i + 1} de ${photos.length}…`);
+        setProgress(tr('A enviar foto {i} de {n}…', { i: i + 1, n: photos.length }));
         mediaIds.push(await api.uploadImage(p.file));
       }
       setProgress(null);
@@ -236,7 +236,7 @@ export default function Compose() {
             value={body}
             onChange={setBody}
             maxLength={2000}
-            placeholder={`O que se passa, ${first}?`}
+            placeholder={tr('O que se passa, {v0}?', { v0: first })}
             aria-label={tr('Texto da publicação')}
             className="min-h-[110px] w-full resize-none bg-transparent text-xl leading-snug outline-none placeholder:text-zinc-500"
           />
@@ -256,14 +256,14 @@ export default function Compose() {
           <ul className={`grid gap-2 px-5 pb-2 pt-1 ${photos.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
             {photos.map((p, i) => (
               <li key={p.preview} className={`relative overflow-hidden rounded-2xl bg-zinc-200 ${photos.length === 1 ? 'aspect-[4/3]' : i === 0 && photos.length % 2 === 1 ? 'col-span-2 aspect-[16/10]' : 'aspect-square'}`}>
-                <img src={p.preview} alt={`Foto ${i + 1}`} className="h-full w-full object-cover" />
+                <img src={p.preview} alt={tr('Foto {v0}', { v0: i + 1 })} className="h-full w-full object-cover" />
                 {i === 0 && photos.length > 1 && (
                   <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2.5 py-0.5 text-[11px] font-semibold text-white">{tr('Capa')}</span>
                 )}
                 <button
                   type="button"
                   onClick={() => setTagging(i)}
-                  aria-label={`Identificar pessoas na foto ${i + 1}`}
+                  aria-label={tr('Identificar pessoas na foto {v0}', { v0: i + 1 })}
                   className="absolute bottom-2 right-2 flex h-8 items-center gap-1 rounded-full bg-black/60 px-2.5 text-xs font-semibold text-white backdrop-blur-sm active:scale-95"
                 >
                   <Icon name="users" size={16} className="mr-1 inline align-[-3px]" />{p.tags.length ? p.tags.length : tr('Identificar')}
@@ -271,7 +271,7 @@ export default function Compose() {
                 <button
                   type="button"
                   onClick={() => remove(i)}
-                  aria-label={`Tirar a foto ${i + 1}`}
+                  aria-label={tr('Tirar a foto {v0}', { v0: i + 1 })}
                   className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm active:scale-90"
                 >
                   <Icon name="x" size={16} />

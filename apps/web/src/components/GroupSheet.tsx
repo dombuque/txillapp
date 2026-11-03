@@ -71,7 +71,7 @@ export default function GroupSheet({ group, onClose, onChanged, onLeft }: { grou
             </Link>
             {m.role === 'admin' && <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-bold text-zinc-700">{tr('Admin')}</span>}
             {admin && m.username !== user?.username && (
-              <button disabled={busy} onClick={() => run(() => api.chatGroupRemove(group.id, m.username))} aria-label={`Tirar ${m.displayName} do grupo`} className="flex h-10 w-10 items-center justify-center rounded-full text-red-600 active:bg-red-50"><Icon name="x" size={18} /></button>
+              <button disabled={busy} onClick={() => run(() => api.chatGroupRemove(group.id, m.username))} aria-label={tr('Tirar {v0} do grupo', { v0: m.displayName })} className="flex h-10 w-10 items-center justify-center rounded-full text-red-600 active:bg-red-50"><Icon name="x" size={18} /></button>
             )}
           </li>
         ))}

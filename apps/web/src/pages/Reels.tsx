@@ -92,7 +92,7 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
           <span className={`${circle} ${post.cheered ? '!bg-white/90' : ''}`}><Icon name="cheers" size={26} className={post.cheered ? 'text-brand' : ''} /></span>
           <span className="text-sm font-semibold tabular-nums">{post.cheers}</span>
         </button>
-        <button onClick={() => setSheet('comments')} aria-label={`Comentários (${post.comments})`} className={rail}>
+        <button onClick={() => setSheet('comments')} aria-label={tr('Comentários ({v0})', { v0: post.comments })} className={rail}>
           <span className={circle}><Icon name="comment" size={26} /></span>
           <span className="text-sm font-semibold tabular-nums">{post.comments}</span>
         </button>

@@ -556,7 +556,7 @@ function DeleteSheet({ username, onClose, onDeleted }: { username: string; onClo
         </ul>
       </div>
       <form onSubmit={submit} className="space-y-3" noValidate>
-        <input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={`Escreve @${username} para confirmar`} aria-label={tr('Confirmar o teu @')} autoCapitalize="none" autoCorrect="off" className={fieldInput} />
+        <input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={tr('Escreve @{v0} para confirmar', { v0: username })} aria-label={tr('Confirmar o teu @')} autoCapitalize="none" autoCorrect="off" className={fieldInput} />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={tr('A tua senha (se a conta tiver)')} aria-label={tr('Senha')} autoComplete="current-password" className={fieldInput} />
         <p role="alert" className="min-h-5 text-center text-sm text-red-600">{err}</p>
         <button disabled={busy || confirm.replace(/^@/, '').toLowerCase() !== username.toLowerCase()} className="w-full rounded-full bg-red-700 py-3.5 font-bold text-white transition active:scale-[0.98] disabled:opacity-50">

@@ -73,7 +73,7 @@ export default function ChatPhotoReview({ file, name, canOnce, initialCaption = 
 
       <div className="flex items-center gap-2 px-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] pt-1">
         <div className="flex min-w-0 flex-1 items-center gap-1 rounded-[26px] bg-white/15 p-1.5">
-          <input value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={200} placeholder={`Legenda para ${name}…`} aria-label={tr('Legenda')} className="h-10 min-w-0 flex-1 bg-transparent px-3 text-[16px] text-white outline-none placeholder:text-white/60" />
+          <input value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={200} placeholder={tr('Legenda para {v0}…', { v0: name })} aria-label={tr('Legenda')} className="h-10 min-w-0 flex-1 bg-transparent px-3 text-[16px] text-white outline-none placeholder:text-white/60" />
           {canOnce && (
             <button
               type="button"

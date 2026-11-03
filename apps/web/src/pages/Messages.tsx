@@ -138,7 +138,7 @@ export default function Messages() {
               </span>
               <span className="flex shrink-0 flex-col items-end gap-1.5">
                 <span className="text-xs text-zinc-500">{timeAgo(r.at)}</span>
-                {r.unread > 0 && <span aria-label={`${r.unread} por ler`} className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-bold text-white">{r.unread > 9 ? '9+' : r.unread}</span>}
+                {r.unread > 0 && <span aria-label={tr('{v0} por ler', { v0: r.unread })} className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-bold text-white">{r.unread > 9 ? '9+' : r.unread}</span>}
               </span>
             </Link>
           </li>

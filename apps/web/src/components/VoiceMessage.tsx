@@ -197,7 +197,7 @@ export default function VoiceMessage({ m }: { m: ChatMessage }) {
         type="button"
         {...stop}
         onClick={nextRate}
-        aria-label={`Velocidade ${speed}×. Tocar para mudar`}
+        aria-label={tr('Velocidade {v0}×. Tocar para mudar', { v0: speed })}
         className={`flex h-8 min-w-[2.6rem] shrink-0 items-center justify-center rounded-full px-2 text-xs font-extrabold tabular-nums transition active:scale-90 ${mine ? 'bg-white/25 text-white' : 'bg-white text-zinc-700 shadow-sm'}`}
       >
         {speed === 1 ? '1×' : `${speed}×`}

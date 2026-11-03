@@ -42,7 +42,7 @@ export default function OnceViewer({ id, from, onClose }: { id: string; from: st
             <p className="mt-3 text-lg font-bold">{err}</p>
           </div>
         )}
-        {c?.kind === 'image' && c.mediaUrl && <img src={c.mediaUrl} alt={`Foto de ${from}`} draggable={false} className="max-h-full max-w-full rounded-2xl object-contain" />}
+        {c?.kind === 'image' && c.mediaUrl && <img src={c.mediaUrl} alt={tr('Foto de {v0}', { v0: from })} draggable={false} className="max-h-full max-w-full rounded-2xl object-contain" />}
         {c?.kind === 'voice' && c.mediaUrl && (
           <div className="w-full max-w-sm rounded-3xl bg-white/10 p-6 text-center">
             <Icon name="mic" size={40} className="mx-auto" />

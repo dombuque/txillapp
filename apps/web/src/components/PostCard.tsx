@@ -51,14 +51,14 @@ function Carousel({ media, onOpen, reelId }: { media: Post['media']; onOpen: (in
           </div>
         ) : (
           // Tocar na foto abre-a inteira, em ecrã completo (como no X).
-          <button key={m.url} onClick={() => onOpen(n)} aria-label={`Ver a foto ${n + 1} de ${media.length} em ecrã inteiro`} className="block w-full shrink-0 snap-center">
-            <img src={sized(m.url, 720)} srcSet={srcSet(m.url)} sizes="(min-width: 640px) 576px, 100vw" alt={`Foto ${n + 1} de ${media.length}`} loading={n === 0 ? 'eager' : 'lazy'} decoding="async" className="max-h-[28rem] w-full object-cover" />
+          <button key={m.url} onClick={() => onOpen(n)} aria-label={tr('Ver a foto {v0} de {v1} em ecrã inteiro', { v0: n + 1, v1: media.length })} className="block w-full shrink-0 snap-center">
+            <img src={sized(m.url, 720)} srcSet={srcSet(m.url)} sizes="(min-width: 640px) 576px, 100vw" alt={tr('Foto {v0} de {v1}', { v0: n + 1, v1: media.length })} loading={n === 0 ? 'eager' : 'lazy'} decoding="async" className="max-h-[28rem] w-full object-cover" />
           </button>
         )))}
       </div>
       {tags.length > 0 && (
         <>
-          <button onClick={() => setShowTags((v) => !v)} aria-label={`${tags.length} pessoa(s) identificadas`} aria-expanded={showTags} className="absolute bottom-3 left-3 flex h-8 items-center gap-1 rounded-full bg-black/60 px-2.5 text-sm font-semibold text-white backdrop-blur-sm active:scale-95">
+          <button onClick={() => setShowTags((v) => !v)} aria-label={tr('{v0} pessoa(s) identificadas', { v0: tags.length })} aria-expanded={showTags} className="absolute bottom-3 left-3 flex h-8 items-center gap-1 rounded-full bg-black/60 px-2.5 text-sm font-semibold text-white backdrop-blur-sm active:scale-95">
             <Icon name="users" size={16} /> {tags.length}
           </button>
           {showTags && (
@@ -152,10 +152,10 @@ function GiftBlock({ post, g, me }: { post: Post; g: NonNullable<Post['gift']>; 
         <span aria-hidden className="pointer-events-none absolute right-8 top-4 h-2 w-2 rounded-full bg-white/50" />
         <span aria-hidden className="pointer-events-none absolute left-10 top-16 h-1.5 w-1.5 rounded-full bg-white/40" />
         <div className="relative mx-auto h-[76px] w-[132px]">
-          <Link to={profilePath(g.recipient.username, me)} aria-label={`Perfil de ${g.recipient.displayName}`} className="absolute right-0 top-0 rounded-full ring-4 ring-white/90">
+          <Link to={profilePath(g.recipient.username, me)} aria-label={tr('Perfil de {v0}', { v0: g.recipient.displayName })} className="absolute right-0 top-0 rounded-full ring-4 ring-white/90">
             <Avatar name={g.recipient.displayName} username={g.recipient.hasAvatar ? g.recipient.username : undefined} size={68} ring={false} />
           </Link>
-          <Link to={profilePath(sender.username, me)} aria-label={`Perfil de ${sender.displayName}`} className="absolute left-0 top-0 z-10 rounded-full ring-4 ring-white/90">
+          <Link to={profilePath(sender.username, me)} aria-label={tr('Perfil de {v0}', { v0: sender.displayName })} className="absolute left-0 top-0 z-10 rounded-full ring-4 ring-white/90">
             <Avatar name={sender.displayName} username={sender.username} size={68} ring={false} />
             <OnlineDot username={sender.username} />
           </Link>
@@ -191,7 +191,7 @@ function PostBody({ post }: { post: Post }) {
         <>
       <header className="flex items-center gap-3">
         {(
-          <Link to={profilePath(post.author.username, user?.username)} aria-label={`Perfil de ${post.author.displayName}`} className="relative shrink-0">
+          <Link to={profilePath(post.author.username, user?.username)} aria-label={tr('Perfil de {v0}', { v0: post.author.displayName })} className="relative shrink-0">
             <Avatar name={post.author.displayName} username={post.author.username} size={52} />
             <OnlineDot username={post.author.username} />
           </Link>
@@ -225,7 +225,7 @@ function QuoteCard({ post, original }: { post: Post; original: Post }) {
   return (
     <article className="mx-4 mb-6 rounded-[28px] bg-white px-5 pt-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
       <header className="flex items-center gap-3">
-        <Link to={profilePath(post.author.username, user?.username)} aria-label={`Perfil de ${post.author.displayName}`}>
+        <Link to={profilePath(post.author.username, user?.username)} aria-label={tr('Perfil de {v0}', { v0: post.author.displayName })}>
           <Avatar name={post.author.displayName} username={post.author.username} size={52} />
         </Link>
         <div className="min-w-0 flex-1">
@@ -327,7 +327,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
             {chips.filter((c) => c.n > 0).map((c) => {
               const inner = (<><Icon name={c.icon} size={18} /> <span className="tabular-nums">{c.n}</span></>);
               return canSee(c.kind) ? (
-                <button key={c.kind} onClick={() => setPeople(c.kind)} aria-label={`${c.n} ${c.label}: ver quem`} className="flex min-h-8 items-center gap-1.5 active:opacity-60">{inner}</button>
+                <button key={c.kind} onClick={() => setPeople(c.kind)} aria-label={tr('{v0} {v1}: ver quem', { v0: c.n, v1: c.label })} className="flex min-h-8 items-center gap-1.5 active:opacity-60">{inner}</button>
               ) : (
                 <span key={c.kind} role="img" aria-label={`${c.n} ${c.label}`} className="flex min-h-8 items-center gap-1.5">{inner}</span>
               );
@@ -344,7 +344,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
             <span key={String(post.cheered)} className={`inline-flex ${post.cheered ? 'animate-[pop_.4s_ease-out]' : ''}`}><Icon name="cheers" size={24} /></span>
             <span className={word}>{post.cheered ? tr('Brindou') : tr('Brindar')}</span>
           </button>
-          <button onClick={() => setSheet('comments')} aria-label={`Comentar (${post.comments})`} className={barBtn}>
+          <button onClick={() => setSheet('comments')} aria-label={tr('Comentar ({v0})', { v0: post.comments })} className={barBtn}>
             <CommentIcon /> <span className={word}>{tr('Comentar')}</span>
           </button>
           <button
@@ -356,7 +356,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
             <RepostIcon /> <span className={word}>{post.reposted ? tr('Repostado') : tr('Repostar')}</span>
           </button>
           {!mine && post.canGift && (
-            <button onClick={() => setSheet('gift')} aria-label={`Presentear (${post.gifts})`} className={barBtn}>
+            <button onClick={() => setSheet('gift')} aria-label={tr('Presentear ({v0})', { v0: post.gifts })} className={barBtn}>
               <GiftIcon /> <span className={word}>{tr('Presentear')}</span>
             </button>
           )}
@@ -391,18 +391,18 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
           <span className="hidden text-[16px] font-medium min-[380px]:inline">{post.cheered ? tr('Brindou') : tr('Brindar')}</span>
           {count(post.cheers)}
         </Item>
-        <Item label={`Comentários (${post.comments})`} onClick={() => setSheet('comments')}>
+        <Item label={tr('Comentários ({v0})', { v0: post.comments })} onClick={() => setSheet('comments')}>
           <CommentIcon />
           {count(post.comments)}
         </Item>
         {(post.kind === 'post' || post.kind === 'gift' || (post.kind === 'repost' && !!post.body)) && (
-          <Item label={post.reposted ? `Reposte feito (${post.reposts})` : `Repostar (${post.reposts})`} onClick={() => setSheet('repost')} pressed={post.reposted}>
+          <Item label={post.reposted ? tr('Reposte feito ({n})', { n: post.reposts }) : tr('Repostar ({n})', { n: post.reposts })} onClick={() => setSheet('repost')} pressed={post.reposted}>
             <RepostIcon />
             {count(post.reposts)}
           </Item>
         )}
         {!mine && post.canGift ? (
-          <Item label={`Presentear (${post.gifts})`} onClick={() => setSheet('gift')}>
+          <Item label={tr('Presentear ({v0})', { v0: post.gifts })} onClick={() => setSheet('gift')}>
             <GiftIcon />
             {count(post.gifts)}
           </Item>
@@ -463,7 +463,7 @@ function ImageViewer({ post, start, onClose }: { post: Post; start: number; onCl
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={`Fotos de ${post.author.displayName}`}
+      aria-label={tr('Fotos de {v0}', { v0: post.author.displayName })}
       className="fixed inset-0 z-[60] flex flex-col text-white"
       style={{ backgroundColor: `rgba(0,0,0,${Math.max(0.35, 1 - drag / 500)})` }}
     >
@@ -485,7 +485,7 @@ function ImageViewer({ post, start, onClose }: { post: Post; start: number; onCl
         {post.media.map((m, k) => (
           <div key={m.url} className="flex h-full w-full shrink-0 snap-center items-center justify-center">
             {/* object-contain: a foto aparece inteira, sem cortes. */}
-            <TaggedImage src={sized(m.url, 1600)} alt={`Foto ${k + 1} de ${n}`} tags={m.tags} />
+            <TaggedImage src={sized(m.url, 1600)} alt={tr('Foto {v0} de {v1}', { v0: k + 1, v1: n })} tags={m.tags} />
           </div>
         ))}
       </div>

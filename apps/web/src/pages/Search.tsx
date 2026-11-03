@@ -158,7 +158,7 @@ export default function Search() {
                       <button
                         key={p.id}
                         onClick={() => { track('explore_open', { kind: m.kind ?? 'image' }); setViewing(p.id); }}
-                        aria-label={`Abrir publicação de ${p.author.displayName}`}
+                        aria-label={tr('Abrir publicação de {v0}', { v0: p.author.displayName })}
                         className={`relative h-full w-full overflow-hidden bg-rose-50 active:opacity-80 ${big ? 'col-span-2 row-span-2' : ''}`}
                       >
                         <img src={m.kind === 'video' ? m.posterUrl : sized(m.url, big ? 720 : 360)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />

@@ -38,7 +38,7 @@ export default function PublicPost() {
   const state = { from: here.pathname + here.search };
 
   const locked = (label: string, icon: 'cheers' | 'comment' | 'share') => (
-    <Link to="/login" state={state} aria-label={`${label}: entra para poder`} className="flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-zinc-400">
+    <Link to="/login" state={state} aria-label={tr('{v0}: entra para poder', { v0: label })} className="flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-zinc-400">
       <Icon name={icon} size={24} />
       <span className="text-[12px] font-medium">{label}</span>
     </Link>

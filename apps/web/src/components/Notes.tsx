@@ -47,7 +47,7 @@ export default function NotesStrip() {
           <span className="mt-1 w-full truncate text-center text-[12px] text-zinc-600">{tr('A tua nota')}</span>
         </button>
         {items.map((n) => (
-          <button key={n.username} onClick={() => setViewing(n)} aria-label={`Nota de ${n.displayName}: ${n.body}`} className="flex w-[84px] shrink-0 flex-col items-center active:scale-95">
+          <button key={n.username} onClick={() => setViewing(n)} aria-label={tr('Nota de {v0}: {v1}', { v0: n.displayName, v1: n.body })} className="flex w-[84px] shrink-0 flex-col items-center active:scale-95">
             <span className="flex h-[54px] items-end"><Bubble text={n.body || n.music?.title || ''} music={!!n.music} /></span>
             <Avatar name={n.displayName} username={n.hasAvatar ? n.username : undefined} size={64} ring={false} presence />
             <span className="mt-1 w-full truncate text-center text-[12px] text-zinc-600">{n.displayName.split(' ')[0]}</span>

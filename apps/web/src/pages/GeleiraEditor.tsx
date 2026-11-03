@@ -157,7 +157,7 @@ export default function GeleiraEditor() {
         <div className="px-3 pb-2">
           <label className="flex h-11 items-center gap-2 rounded-full bg-zinc-100 px-4 text-zinc-500 focus-within:bg-zinc-200/70">
             <Icon name="search" size={18} />
-            <input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Procurar em ${KIND_LABEL[kind].toLowerCase()}…`} aria-label={tr('Procurar')} maxLength={40} className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder={tr('Procurar em {v0}…', { v0: KIND_LABEL[kind].toLowerCase() })} aria-label={tr('Procurar')} maxLength={40} className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
             {text && <button onClick={() => setText('')} aria-label={tr('Limpar')} className="flex h-8 w-8 items-center justify-center"><Icon name="x" size={16} /></button>}
           </label>
         </div>
