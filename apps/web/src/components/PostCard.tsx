@@ -187,7 +187,7 @@ function PostBody({ post }: { post: Post }) {
   const [viewer, setViewer] = useState<number | null>(null);
   const g = post.gift;
   return (
-    <article className="mx-3 mb-6 rounded-[28px] bg-white px-4 pt-5 min-[360px]:mx-4 min-[360px]:px-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
+    <article className="mx-1.5 mb-5 rounded-[26px] bg-white px-3.5 pt-4 min-[360px]:mx-2 min-[360px]:px-4 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
       {g ? <GiftBlock post={post} g={g} me={user?.username} /> : (
         <>
       <header className="flex items-center gap-3">
@@ -225,7 +225,7 @@ function QuoteCard({ post, original }: { post: Post; original: Post }) {
   const { user } = useAuth();
   const [viewer, setViewer] = useState<number | null>(null);
   return (
-    <article className="mx-4 mb-6 rounded-[28px] bg-white px-5 pt-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
+    <article className="mx-2 mb-5 rounded-[26px] bg-white px-4 pt-4 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
       <header className="flex items-center gap-3">
         <Link to={profilePath(post.author.username, user?.username)} aria-label={tr('Perfil de {v0}', { v0: post.author.displayName })}>
           <Avatar name={post.author.displayName} username={post.author.username} size={52} />

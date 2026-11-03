@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { tr } from '../lib/i18n';
 import { useNavigate } from 'react-router-dom';
 import { acquireCamera, releaseCamera } from '../lib/cameraSession';
@@ -53,7 +53,8 @@ export default function CameraStudio() {
   const [captured, setCaptured] = useState<Captured | null>(null);
   const [story, setStory] = useState<File | null>(null);
   const [err, setErr] = useState('');
-  const wantsAudio = mode === 'reel';
+  // Na publicação também se pode gravar vídeo (segurando o botão), por isso leva som.
+  const wantsAudio = mode !== 'story';
 
   const start = useCallback(async () => {
     setReady(false);
@@ -159,6 +160,38 @@ export default function CameraStudio() {
     setErr('');
     if (mode === 'reel') return recording ? stopRecording() : startRecording();
     shoot();
+  }
+
+  // Toque curto: foto (ou liga/desliga no Reel). Segurar: grava vídeo enquanto o dedo estiver no botão.
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const held = useRef(false);
+  function pressDown(e: ReactPointerEvent<HTMLButtonElement>) {
+    held.current = false;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    if (mode === 'story' || recording) return;
+    holdTimer.current = setTimeout(() => {
+      held.current = true;
+      setErr('');
+      startRecording();
+    }, 350);
+  }
+  function pressUp() {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    if (held.current) {
+      held.current = false;
+      stopRecording();
+      return;
+    }
+    shutter();
+  }
+  function pressCancel() {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    if (held.current) {
+      held.current = false;
+      stopRecording();
+    }
   }
 
   function gallery(e: ChangeEvent<HTMLInputElement>) {
@@ -276,9 +309,14 @@ export default function CameraStudio() {
         )}
         <button
           type="button"
-          onClick={shutter}
+          onPointerDown={pressDown}
+          onPointerUp={pressUp}
+          onPointerCancel={pressCancel}
+          onContextMenu={(e) => e.preventDefault()}
+          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), shutter())}
           disabled={!ready}
-          aria-label={mode === 'reel' ? (recording ? 'Parar a gravação' : 'Gravar') : 'Tirar foto'}
+          aria-label={mode === 'reel' ? (recording ? 'Parar a gravação' : 'Gravar') : 'Tirar foto (segura para gravar vídeo)'}
+          style={{ touchAction: 'none', WebkitTouchCallout: 'none', userSelect: 'none' }}
           className="relative flex h-[84px] w-[84px] items-center justify-center transition active:scale-90 disabled:opacity-40"
         >
           <svg viewBox="0 0 90 90" className="absolute inset-0 -rotate-90" aria-hidden>
@@ -287,6 +325,8 @@ export default function CameraStudio() {
           </svg>
           {mode === 'reel' ? (
             <span className={`bg-red-500 transition-all ${recording ? 'h-7 w-7 rounded-md' : 'h-[62px] w-[62px] rounded-full'}`} />
+          ) : recording ? (
+            <span className="h-7 w-7 rounded-md bg-red-500 transition-all" />
           ) : (
             <span className="h-[62px] w-[62px] rounded-full bg-white" />
           )}
