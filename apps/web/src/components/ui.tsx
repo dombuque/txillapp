@@ -47,7 +47,7 @@ export const bumpAvatars = () => {
   avatarVersion = Date.now();
   avatarListeners.forEach((l) => l());
 };
-const useAvatarVersion = () =>
+export const useAvatarVersion = () =>
   useSyncExternalStore(
     (cb) => {
       avatarListeners.add(cb);

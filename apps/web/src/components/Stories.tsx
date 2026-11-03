@@ -17,7 +17,8 @@ import Icon from './Icon';
 import CloseFriendsSheet from './CloseFriendsSheet';
 import RichText from './RichText';
 import MentionTextarea from './MentionTextarea';
-import { Avatar, Sheet, timeAgo } from './ui';
+import { Avatar, Sheet, timeAgo, useAvatarVersion } from './ui';
+import { createPortal } from 'react-dom';
 
 const DURATION_MS = 5000;
 const TICK_MS = 50;
@@ -59,14 +60,41 @@ function Ring({ count, seenCount = 0, green = false, children }: { count: number
   );
 }
 
-/** Foto do perfil com story: anel a cores/cinzento e, ao tocar, abre o story (o servidor só devolve se eu puder ver). */
+/** Toque longo na foto de perfil: abre-a em grande (toca para fechar). Devolve os gestos e o elemento. */
+function useAvatarPreview(username: string, displayName: string, hasAvatar: boolean) {
+  const [show, setShow] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const held = useRef(false);
+  const version = useAvatarVersion();
+  const clear = () => clearTimeout(timer.current);
+  const press = hasAvatar
+    ? {
+        onPointerDown: () => { held.current = false; timer.current = setTimeout(() => { held.current = true; navigator.vibrate?.(15); setShow(true); }, 400); },
+        onPointerUp: clear,
+        onPointerLeave: clear,
+        onPointerCancel: clear,
+        onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); held.current = true; setShow(true); },
+      }
+    : {};
+  const preview = show && createPortal(
+    <div role="dialog" aria-modal="true" aria-label={tr('Foto de {v0}', { v0: displayName })} onClick={() => setShow(false)} className="fixed inset-0 z-[95] flex animate-[rise_.18s_ease-out] items-center justify-center bg-black/80 p-6 backdrop-blur-sm">
+      <img src={`/api/v1/avatars/${encodeURIComponent(username)}?v=${version}`} alt={displayName} draggable={false} className="aspect-square w-[min(80vw,420px)] rounded-full object-cover shadow-[0_12px_50px_rgba(0,0,0,0.6)] ring-4 ring-white" />
+    </div>,
+    document.body,
+  );
+  return { press, preview, wasHeld: () => { const h = held.current; held.current = false; return h; } };
+}
+
+/** Foto do perfil com story: anel a cores/cinzento e, ao tocar, abre o story (o servidor só devolve se eu puder ver). Toque longo: foto em grande. */
 export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, size = 96 }: { username: string; displayName: string; isMe: boolean; hasAvatar: boolean; size?: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const q = useQuery({ queryKey: ['stories', username], queryFn: () => api.storiesOf(username), retry: false });
   const list = q.data ?? [];
+  const { press, preview, wasHeld } = useAvatarPreview(username, displayName, hasAvatar);
   const avatar = <Avatar name={displayName} username={hasAvatar ? username : undefined} size={size} ring={list.length === 0} presence={!isMe} />;
-  if (list.length === 0) return avatar;
+  const guard = 'select-none [-webkit-touch-callout:none] [&_img]:pointer-events-none';
+  if (list.length === 0) return <><span className={`block ${guard}`} {...press}>{avatar}</span>{preview}</>;
   const ownSeen = isMe && readOwnSeen() === list[list.length - 1].createdAt;
   const seenCount = isMe ? (ownSeen ? list.length : 0) : list.filter((x) => x.seen).length;
   const tray: TrayUser = {
@@ -75,7 +103,7 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
   };
   return (
     <>
-      <button onClick={() => setOpen(true)} aria-label={tr('Ver story de {v0}', { v0: displayName })}>
+      <button onClick={() => { if (!wasHeld()) setOpen(true); }} aria-label={tr('Ver story de {v0}', { v0: displayName })} className={guard} {...press}>
         {/* O anel mede 72px; amplia-se para acompanhar a foto grande do perfil. */}
         <span className="block" style={{ width: size + 12, height: size + 12 }}>
           <span className="block origin-top-left" style={{ transform: `scale(${(size + 12) / 72})` }}>
@@ -83,6 +111,7 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
           </span>
         </span>
       </button>
+      {preview}
       {open && (
         <Viewer
           users={[tray]}
