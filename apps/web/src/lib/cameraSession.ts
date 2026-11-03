@@ -5,7 +5,7 @@
  */
 const IDLE_MS = 30_000;
 
-let cur: { stream: MediaStream; facing: 'environment' | 'user' } | null = null;
+let cur: { stream: MediaStream; facing: 'environment' | 'user'; portrait: boolean } | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
 
 const alive = (s: MediaStream) => s.getVideoTracks().some((t) => t.readyState === 'live');
@@ -31,17 +31,20 @@ if (typeof document !== 'undefined') {
 }
 
 /** Devolve a câmara pedida, reaproveitando a que já está ligada (sem novo pedido de permissão). */
-export async function acquireCamera(facing: 'environment' | 'user', audio: boolean): Promise<MediaStream> {
+export async function acquireCamera(facing: 'environment' | 'user', audio: boolean, portrait = false): Promise<MediaStream> {
   if (timer) clearTimeout(timer);
   timer = null;
-  if (cur && cur.facing !== facing) stopCameraNow();
+  if (cur && (cur.facing !== facing || cur.portrait !== portrait)) stopCameraNow();
   if (cur && !alive(cur.stream)) cur = null;
   if (!cur) {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1920 } },
+      // Retrato 3:4 (Zás): é o formato inteiro do sensor, sem cortar o campo de visão (por isso não parece "ampliado").
+      video: portrait
+        ? { facingMode: { ideal: facing }, width: { ideal: 1080 }, height: { ideal: 1440 }, aspectRatio: { ideal: 3 / 4 } }
+        : { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1920 } },
       audio: false,
     });
-    cur = { stream, facing };
+    cur = { stream, facing, portrait };
   }
   // Sem microfone nesta vez (foto, story, Zás): larga já o que ficou ligado do Reel, para o iPhone não mostrar "a gravar".
   if (!audio) {

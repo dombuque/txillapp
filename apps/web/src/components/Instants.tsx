@@ -130,7 +130,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['instants'], queryFn: api.instants, refetchInterval: 30_000 });
   const video = useRef<HTMLVideoElement>(null);
-  const [facing, setFacing] = useState<'user' | 'environment'>('user');
+  const [facing, setFacing] = useState<'user' | 'environment'>('environment');
   const [ready, setReady] = useState(false);
   const [problem, setProblem] = useState(false);
   const [caption, setCaption] = useState('');
@@ -165,7 +165,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
     (async () => {
       try {
         if (!navigator.mediaDevices?.getUserMedia) throw new Error('sem câmara');
-        const s = await acquireCamera(facing, false);
+        const s = await acquireCamera(facing, false, true);
         if (dead) return;
         if (video.current) {
           video.current.srcObject = s;
@@ -277,21 +277,35 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   const recent = others.slice(0, 3);
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={tr('Mandar um Zás')} className="fixed inset-0 z-[90] flex flex-col bg-[#08080b] text-white" style={{ background: 'radial-gradient(120% 60% at 50% 105%, rgba(255,92,92,.28), transparent 60%), #08080b' }}>
+      <SquircleDefs />
       {/* Em cima, sobre o preto: fechar, o nome e os teus Zás. */}
       <div className="flex shrink-0 items-center justify-between px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
         <button type="button" onClick={onClose} aria-label={tr('Fechar')} className={small}><Icon name="x" size={26} /></button>
         <span className="flex items-center gap-1.5 text-[22px] font-black italic tracking-tight"><Icon name="bolt" size={20} fill="currentColor" className="text-brand" /> Zás</span>
-        <button type="button" onClick={() => setGrid(true)} aria-label={tr('Os meus Zás')} className={small}><Icon name="grid" size={23} /></button>
+        <div className="flex items-center gap-2">
+          {total > 0 && (
+            <button type="button" onClick={() => { setQueue(others); setAt(0); }} aria-label={tr('Zás: {n} por ver', { n: total })} className="relative flex h-11 items-center rounded-full bg-white/10 py-1 pl-1 pr-3 backdrop-blur active:scale-95">
+              <span className="flex -space-x-3">
+                {recent.map((o) => (
+                  <span key={o.username} className="rounded-full ring-2 ring-brand"><Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={34} ring={false} /></span>
+                ))}
+              </span>
+              <span className="ml-2 text-[14px] font-extrabold">{total > 9 ? '9+' : total}</span>
+            </button>
+          )}
+          <button type="button" onClick={() => setGrid(true)} aria-label={tr('Os meus Zás')} className={small}><Icon name="grid" size={23} /></button>
+        </div>
       </div>
 
       {/* A câmara: um cartão 3:4 de cantos bem redondos. A legenda fica dentro, afastada das curvas. */}
       <div className="relative mx-auto flex min-h-0 w-full flex-1 items-center justify-center px-8 py-2">
-        <div className="relative h-full max-h-[440px] overflow-hidden rounded-[44px] bg-zinc-900 ring-1 ring-white/15 shadow-[0_20px_60px_-10px_rgba(255,92,92,0.35)]" style={{ aspectRatio: '3 / 4', maxWidth: '100%' }}>
+        <div className="relative h-full max-h-[440px]" style={{ aspectRatio: '3 / 4', maxWidth: '100%', filter: 'drop-shadow(0 18px 36px rgba(255,92,92,0.3))' }}>
+        <div className="relative h-full w-full overflow-hidden bg-zinc-900" style={SQUIRCLE}>
           <video ref={video} playsInline muted className={`absolute inset-0 h-full w-full object-cover ${facing === 'user' ? '-scale-x-100' : ''} ${ready ? '' : 'invisible'}`} />
           {lit && <div className="pointer-events-none absolute inset-0 z-10 bg-white" />}
           {count !== null && <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-[120px] font-black drop-shadow-[0_4px_20px_rgba(0,0,0,0.6)]" aria-live="assertive">{count}</div>}
           <div className="absolute right-3 top-3 z-10 flex flex-col gap-2">
-            <button type="button" onClick={() => void toggleLight()} aria-pressed={light} aria-label={canTorch ? tr('Lanterna') : tr('Flash de ecrã')} className={`flex h-11 w-11 items-center justify-center rounded-full backdrop-blur-md transition active:scale-90 ${light ? 'bg-amber-300 text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}><Icon name="sun" size={20} /></button>
+            <button type="button" onClick={() => void toggleLight()} aria-pressed={light} aria-label={canTorch ? tr('Lanterna') : tr('Flash de ecrã')} className={`flex h-11 w-11 items-center justify-center rounded-full backdrop-blur-md transition active:scale-90 ${light ? 'bg-amber-300 text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}><span className="relative flex items-center justify-center"><Icon name="bolt" size={20} fill={light ? 'currentColor' : 'none'} />{!light && <span aria-hidden className="absolute h-[2px] w-[26px] -rotate-45 rounded-full bg-current" />}</span></button>
             <button type="button" onClick={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} aria-label={tr('Temporizador')} className={`flex h-11 w-11 items-center justify-center rounded-full text-[13px] font-extrabold backdrop-blur-md transition active:scale-90 ${delay ? 'bg-white text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}>{delay ? `${delay}s` : <Icon name="clock" size={20} />}</button>
           </div>
           {!ready && <p className="absolute inset-0 flex items-center justify-center px-12 text-center text-white/80">{problem ? tr('Não consegui abrir a câmara. Os Zás só se mandam na hora.') : tr('A acordar a câmara…')}</p>}
@@ -303,9 +317,10 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
             maxLength={80}
             placeholder={tr('Adicionar legenda…')}
             aria-label={tr('Legenda')}
-            className="absolute inset-x-5 bottom-4 h-11 rounded-full bg-black/35 px-5 text-center text-[16px] font-semibold outline-none ring-1 ring-white/15 backdrop-blur-md placeholder:text-white/75 focus:bg-black/50"
+            className="absolute inset-x-8 bottom-6 h-11 rounded-full bg-black/35 px-5 text-center text-[16px] font-semibold outline-none ring-1 ring-white/15 backdrop-blur-md placeholder:text-white/75 focus:bg-black/50"
           />
           {err && <p role="alert" className="absolute inset-x-8 top-6 rounded-[22px] bg-red-600/90 px-4 py-2 text-center text-sm font-semibold">{err}</p>}
+        </div>
         </div>
       </div>
 
@@ -321,21 +336,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
           </div>
         )}
         <div className="mx-auto flex max-w-[360px] items-center justify-between">
-          {total > 0 ? (
-            <button type="button" onClick={() => { setQueue(others); setAt(0); }} aria-label={tr('Zás: {n} por ver', { n: total })} className="relative h-14 w-14 active:scale-90">
-              {[...recent].reverse().map((o, k) => {
-                const i = recent.length - 1 - k;
-                return (
-                  <span key={o.username} className="absolute left-0 top-0 rounded-[18px] bg-white p-[2px] shadow-md" style={{ transform: `translate(${i * 5}px, ${i * -5}px) rotate(${i % 2 ? 5 : -4}deg)` }}>
-                    <Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={46} ring={false} />
-                  </span>
-                );
-              })}
-              <span className="absolute -right-1 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-extrabold text-white ring-2 ring-black">{total > 9 ? '9+' : total}</span>
-            </button>
-          ) : (
-            <span className="h-14 w-14" />
-          )}
+          <span className="h-14 w-14" />
           <button type="button" onClick={press} disabled={!ready || busy} aria-label={count !== null ? tr('Cancelar') : tr('Tirar e enviar')} className="relative flex h-[86px] w-[86px] items-center justify-center rounded-full transition active:scale-90 disabled:opacity-50">
             <span className="absolute inset-0 rounded-full bg-[conic-gradient(from_200deg,#ff5c5c,#ff9a5b,#ffd166,#ff5c5c)] p-[4px]"><span className="block h-full w-full rounded-full bg-[#08080b]" /></span>
             <span className={`relative flex h-[66px] w-[66px] items-center justify-center rounded-full shadow-[0_6px_20px_rgba(255,92,92,0.45)] ${busy ? 'animate-pulse bg-brand text-white' : 'bg-white text-brand'}`}><Icon name="bolt" size={30} fill="currentColor" /></span>
@@ -695,8 +696,9 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
 
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={`Zás de ${who.displayName}`} className="fixed inset-0 z-[96] flex flex-col bg-black text-white" style={{ backgroundColor: drag ? `rgba(0,0,0,${Math.max(0.3, 1 - drag / 400)})` : undefined }}>
+      <SquircleDefs />
       <div className="mt-[max(0.5rem,env(safe-area-inset-top))] flex min-h-0 flex-1 items-center justify-center px-5">
-      <div {...dragProps} className="relative h-full max-h-[600px] overflow-hidden rounded-[44px] bg-zinc-900 ring-1 ring-white/10 shadow-[0_20px_60px_-10px_rgba(255,92,92,0.3)]" style={{ transform: drag ? `translateY(${drag}px) scale(${Math.max(0.85, 1 - drag / 1500)})` : undefined, transition: drag ? 'none' : 'transform .2s ease-out', touchAction: 'pan-x', aspectRatio: '3 / 4', maxWidth: '100%' }}>
+      <div {...dragProps} className="relative h-full max-h-[600px] overflow-hidden bg-zinc-900" style={{ ...SQUIRCLE, transform: drag ? `translateY(${drag}px) scale(${Math.max(0.85, 1 - drag / 1500)})` : undefined, transition: drag ? 'none' : 'transform .2s ease-out', touchAction: 'pan-x', aspectRatio: '3 / 4', maxWidth: '100%' }}>
         {cur ? <img src={cur.url} alt={cur.caption || tr('Zás')} draggable={false} onContextMenu={(e) => e.preventDefault()} className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover [-webkit-touch-callout:none]" /> : <p className="absolute inset-0 flex items-center justify-center text-white/70">{err || tr('A carregar…')}</p>}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/55 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/60 to-transparent" />
