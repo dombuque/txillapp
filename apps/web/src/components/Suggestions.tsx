@@ -5,7 +5,6 @@ import { Link } from 'react-router-dom';
 import { api, type Suggestion } from '../lib/api';
 import FollowButton from './FollowButton';
 import { snoozeSuggestions } from '../lib/suggestPacing';
-import FindContacts from './FindContacts';
 import { Avatar } from './ui';
 import { useState } from 'react';
 
@@ -13,7 +12,6 @@ import { useState } from 'react';
 export default function Suggestions({ compact = false }: { compact?: boolean }) {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['suggestions'], queryFn: api.suggestions, staleTime: 60_000 });
-  const [contacts, setContacts] = useState(false);
   if (!data || data.length === 0) return null;
 
   function dismiss(p: Suggestion) {
@@ -51,9 +49,7 @@ export default function Suggestions({ compact = false }: { compact?: boolean }) 
     <section aria-label={tr('Sugestões de pessoas')} className="mx-4 mb-6 xl:hidden rounded-[28px] bg-white py-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
       <div className="flex items-center justify-between gap-2 px-5">
         <h2 className="text-lg font-bold">{tr('Bora conhecer malta nova?')}</h2>
-        <button type="button" onClick={() => setContacts(true)} className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-zinc-100 px-3 text-[13px] font-bold text-zinc-800 active:scale-95"><Icon name="users" size={15} /> {tr('Contactos')}</button>
       </div>
-      {contacts && <FindContacts onClose={() => setContacts(false)} />}
       <div className="mt-4 flex gap-3 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {data.map((p) => (
           <div key={p.username} className="relative flex w-[152px] shrink-0 flex-col items-center rounded-2xl border border-zinc-200 px-3 pb-3 pt-5 text-center">
