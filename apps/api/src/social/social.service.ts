@@ -39,7 +39,7 @@ export class SocialService {
       `SELECT u.id, u.username, u.display_name, u.bio, u.website, u.city, u.created_at, u.is_private, u.show_connections,
               u.gender, u.show_gender, u.verified, u.verified_tier,
               (u.avatar_media_id IS NOT NULL) AS has_avatar,
-              (SELECT count(*) FROM content.posts p WHERE p.author_id = u.id AND p.removed_at IS NULL)::int AS posts,
+              (SELECT count(*) FROM content.posts p WHERE p.author_id = u.id AND p.removed_at IS NULL AND p.kind <> 'repost')::int AS posts,
               (SELECT count(*) FROM social.follows f WHERE f.followee_id = u.id)::int AS followers,
               (SELECT count(*) FROM social.follows f WHERE f.follower_id = u.id)::int AS following,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS i_follow,

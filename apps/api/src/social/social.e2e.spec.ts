@@ -104,6 +104,16 @@ describe('rede social: seguir, sugestões, perfil e perfis privados (integraçã
     expect(after).not.toContain(friendOfFriend.username);
   });
 
+  it('a contagem de publicações do perfil não inclui os reposts: só o que a pessoa publicou', async () => {
+    const { sf: author, sg: fan } = u;
+    const mine = (await api().post('/api/v1/posts').set(auth(author)).send({ body: 'isto é meu' }).expect(201)).body;
+    const before = (await profile(fan, fan)).counts.posts as number;
+    await api().post(`/api/v1/posts/${mine.id}/repost`).set(auth(fan)).send({}).expect(201);
+    await api().post(`/api/v1/posts/${mine.id}/repost`).set(auth(fan)).send({ body: 'com comentário' }).expect(201).catch(() => undefined);
+    expect((await profile(fan, fan)).counts.posts).toBe(before); // os reposts não contam
+    expect((await profile(fan, author)).counts.posts).toBeGreaterThanOrEqual(1);
+  });
+
   it('perfil privado: o conteúdo só aparece a seguidores aceites, em TODAS as superfícies', async () => {
     const { sp: owner, sq: stranger } = u;
     const mediaR = await api().post('/api/v1/media/uploads').set(auth(owner)).send({ mime: 'image/png', size: PNG.length }).expect(201);
