@@ -286,6 +286,12 @@ export interface ChatMessage {
   reactions?: { reaction: string; count: number; mine: boolean }[];
   at: string;
 }
+/** Instants: foto tirada na hora, 24 h, vista uma só vez. */
+export interface InstantItem { id: string; url: string; caption: string; at: string; expiresAt: string; views?: number }
+export interface InstantTray {
+  mine: { count: number; views: number; endsAt: string | null };
+  others: { username: string; displayName: string; hasAvatar: boolean; count: number; latestAt: string }[];
+}
 /** Online agora, ou a hora a que foi visto pela última vez. null = escondido por uma das partes. */
 export interface Presence { online: boolean; lastSeen: string | null }
 /** Como estamos um com o outro no chat: o aviso "não te segue", o pedido de mensagem e quantas mensagens ainda posso mandar a quem não responde. */
@@ -587,6 +593,12 @@ export const api = {
   deleteAccount: (confirmUsername: string, password?: string): Promise<void> => raw('/auth/delete-account', post({ confirmUsername, password })),
 
   stories: (): Promise<TrayUser[]> => raw('/stories'),
+  instants: (): Promise<InstantTray> => raw('/instants'),
+  instantsOf: (username: string): Promise<InstantItem[]> => raw(`/instants/of/${encodeURIComponent(username)}`),
+  instantCreate: (mediaId: string, caption: string): Promise<{ id: string; expiresAt: string }> => raw('/instants', post({ mediaId, caption })),
+  instantView: (id: string): Promise<void> => raw(`/instants/${id}/view`, post({})),
+  instantViewers: (id: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; at: string }[]> => raw(`/instants/${id}/viewers`),
+  instantDelete: (id: string): Promise<void> => raw(`/instants/${id}`, { method: 'DELETE' }),
   storiesOf: (username: string): Promise<Story[]> => raw(`/stories/user/${encodeURIComponent(username)}`),
   createStory: (mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all'): Promise<Story> => raw('/stories', post({ mediaId, caption, audience })),
   closeFriends: (): Promise<{ username: string; displayName: string; hasAvatar: boolean }[]> => raw('/stories/close-friends'),

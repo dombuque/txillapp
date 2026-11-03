@@ -10,7 +10,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useRef, useState, type FormEvent, type TouchEvent } from 'react';
 import { api, type Comment, type Post } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { Avatar, timeAgo } from './ui';
+import { Avatar, Sheet, timeAgo } from './ui';
 
 const QUICK = ['🥂', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
 
@@ -34,6 +34,7 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
   const [cheer, setCheer] = useState({ cheered: c.cheered, cheers: c.cheers });
   const [gone, setGone] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   async function toggle() {
     const prev = cheer;
@@ -45,6 +46,7 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
     }
   }
   async function remove() {
+    setConfirming(false);
     setGone(true);
     try {
       await api.deleteComment(c.id);
@@ -71,7 +73,7 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
           {cheer.cheers > 0 && <span>{cheer.cheers} {cheer.cheers === 1 ? tr('brinde') : tr('brindes')}</span>}
           <button onClick={() => onReply(c)}>{tr('Responder')}</button>
           {!canDelete && <button onClick={() => setReporting(true)}>{tr('Denunciar')}</button>}
-          {canDelete && <button onClick={remove}>{tr('Apagar')}</button>}
+          {canDelete && <button onClick={() => setConfirming(true)}>{tr('Apagar')}</button>}
         </div>
       </div>
       <button
@@ -83,6 +85,13 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
         <Icon name="cheers" size={20} />
       </button>
       {reportSheet}
+      {confirming && (
+        <Sheet title={tr('Apagar o comentário?')} onClose={() => setConfirming(false)} layer="z-[60]">
+          <p className="mb-4 text-zinc-600">{tr('O comentário desaparece e não dá para o recuperar.')}</p>
+          <button onClick={remove} className="h-12 w-full rounded-full bg-red-700 font-bold text-white active:scale-[0.98]">{tr('Apagar')}</button>
+          <button onClick={() => setConfirming(false)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar')}</button>
+        </Sheet>
+      )}
     </div>
   );
 }

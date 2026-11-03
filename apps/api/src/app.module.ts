@@ -29,6 +29,7 @@ import { PlacesModule } from './places/places.module';
 import { PostsModule } from './posts/posts.module';
 import { SearchModule } from './search/search.module';
 import { SocialModule } from './social/social.module';
+import { InstantsModule } from './instants/instants.module';
 import { StoriesModule } from './stories/stories.module';
 import { WalletModule } from './wallet/wallet.module';
 import { PaymentsModule } from './payments/payments.module';
@@ -64,6 +65,7 @@ export class AppModule {
         VerificationModule,
         ModerationModule,
         StoriesModule,
+        InstantsModule,
         SocialModule,
         SearchModule,
       ],
