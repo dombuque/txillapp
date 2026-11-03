@@ -6,6 +6,8 @@ import { useAuth } from '../lib/auth';
 import { acquireCamera, releaseCamera } from '../lib/cameraSession';
 import { tr } from '../lib/i18n';
 import Icon from './Icon';
+import { markSeen } from '../lib/whatsNew';
+import { NewBadge } from './WhatsNew';
 import { Avatar, Sheet } from './ui';
 
 const hm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -32,7 +34,7 @@ export default function InstantsDock() {
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => { markSeen('zas'); setOpen(true); }}
         aria-label={total ? tr('Zás: {n} por ver', { n: total }) : tr('Mandar um Zás')}
         className="fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom))] right-3 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-brand to-[#ff9a5b] text-white shadow-[0_4px_14px_rgba(214,51,79,0.5)] ring-2 ring-white active:scale-90"
       >
@@ -42,6 +44,7 @@ export default function InstantsDock() {
           <Icon name="bolt" size={24} fill="currentColor" />
         )}
         {top && <span className="absolute -bottom-1 -left-1 flex h-5 w-5 items-center justify-center rounded-full bg-brand text-white ring-2 ring-white"><Icon name="bolt" size={11} fill="currentColor" /></span>}
+        <NewBadge id="zas" className="absolute -left-4 -top-3" />
         {total > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1 text-[11px] font-bold text-white ring-2 ring-white">{total > 9 ? '9+' : total}</span>}
       </button>
       {open && <InstantsHub onClose={() => setOpen(false)} />}

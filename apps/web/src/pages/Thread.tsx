@@ -22,6 +22,8 @@ import { detectIntent } from '../lib/chatIntent';
 import { firstTime } from '../lib/firstTime';
 import { isSharing, startLive, stopLive } from '../lib/liveLocation';
 import { useTyping } from '../lib/chatLive';
+import { markSeen } from '../lib/whatsNew';
+import { NewBadge } from '../components/WhatsNew';
 import { REACTIONS, Reaction, StickerButton, StickerPicker } from '../lib/stickers';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { useAuth } from '../lib/auth';
@@ -214,6 +216,9 @@ export default function Thread() {
   const [err, setErr] = useState('');
   const [menuFor, setMenuFor] = useState<ChatMessage | null>(null);
   const [replying, setReplying] = useState<ChatMessage | null>(null);
+  useEffect(() => {
+    if (menuFor) markSeen('reacoes'); // abriu o menu das mensagens: já descobriu as reações
+  }, [menuFor]);
   const [reporting, setReporting] = useState<string | null>(null);
   const [rec, setRec] = useState<{ ms: number; bars: number[] } | null>(null);
   const [outbox, setOutbox] = useState<Msg[]>([]);
@@ -735,7 +740,7 @@ export default function Thread() {
                 {!isGroup && <button type="button" onClick={() => { if (!once && firstTime('view-once')) setOnceHelp(true); setOnce(!once); }} aria-pressed={once} aria-label={tr('Visualização única')} className={`${bar} ${once ? 'bg-brand text-white active:bg-brand' : ''}`}><Icon name="once" size={22} /></button>}
                 <button type="button" onClick={startRecording} className={bar} aria-label={tr('Gravar mensagem de voz')}><Icon name="mic" size={22} /></button>
                 <button type="button" onClick={() => gallery.current?.click()} className={bar} aria-label={tr('Enviar foto da galeria')}><Icon name="image" size={22} /></button>
-                <button type="button" data-sticker-toggle onClick={() => setPanel(panel === 'stickers' ? null : 'stickers')} aria-label={tr('Stickers')} aria-expanded={panel === 'stickers'} className={`${bar} ${panel === 'stickers' ? 'bg-white text-brand' : ''}`}><Icon name="sticker" size={22} /></button>
+                <button type="button" data-sticker-toggle onClick={() => { markSeen('stickers'); setPanel(panel === 'stickers' ? null : 'stickers'); }} aria-label={tr('Stickers')} aria-expanded={panel === 'stickers'} className={`${bar} relative ${panel === 'stickers' ? 'bg-white text-brand' : ''}`}><Icon name="sticker" size={22} /><NewBadge id="stickers" className="absolute -right-2 -top-2" /></button>
                 <button type="button" onClick={() => setPanel(panel === 'attach' ? null : 'attach')} aria-label={tr('Mais')} aria-expanded={panel === 'attach'} className={`${bar} ${panel === 'attach' ? 'bg-white text-brand' : ''}`}><Icon name="plus" size={22} /></button>
               </>
             )}

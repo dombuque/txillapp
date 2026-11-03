@@ -7,6 +7,7 @@ import { shouldShowSuggestions } from '../lib/suggestPacing';
 import { Link } from 'react-router-dom';
 import PostCard from '../components/PostCard';
 import StoriesTray from '../components/Stories';
+import WhatsNewCard from '../components/WhatsNew';
 import Suggestions from '../components/Suggestions';
 import { btnGhost } from '../components/ui';
 import { api, type Post } from '../lib/api';
@@ -78,6 +79,7 @@ export default function Feed() {
           </button>
         </div>
       )}
+      <WhatsNewCard />
       <StoriesTray />
       {q.isLoading && (
         <>

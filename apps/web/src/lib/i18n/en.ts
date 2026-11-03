@@ -1243,6 +1243,17 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Novidades': 'What is new',
+  'Há novidades na Txillapp!': 'What is new on Txillapp!',
+  'Dispensar as novidades': 'Dismiss what is new',
+  'E mais {n}…': 'And {n} more…',
+  'Fotos na hora que duram 24 h e só se veem uma vez. Está no canto das mensagens.': 'Photos taken live that last 24 h and are seen only once. Find it in the corner of messages.',
+  'Reage e responde nas mensagens': 'React and reply in messages',
+  'Segura numa mensagem para reagir ou responder.': 'Hold a message to react or reply.',
+  'Mais de 90 stickers': 'Over 90 stickers',
+  'Desenhos novos e mais engraçados para as conversas.': 'New, funnier drawings for your chats.',
+  'Grava vídeo com o dedo': 'Record video with your finger',
+  'Na câmara, segura o botão para gravar e larga para parar.': 'In the camera, hold the button to record and let go to stop.',
   'Zás: {n} por ver': 'Zap: {n} to see',
   'Mandar um Zás': 'Send a Zap',
   'Os meus Zás': 'My Zaps',

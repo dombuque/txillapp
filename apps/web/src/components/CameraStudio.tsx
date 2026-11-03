@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { tr } from '../lib/i18n';
+import { markSeen } from '../lib/whatsNew';
 import { useNavigate } from 'react-router-dom';
 import { acquireCamera, releaseCamera } from '../lib/cameraSession';
 import { useDesktop } from '../lib/useDesktop';
@@ -190,6 +191,7 @@ export default function CameraStudio() {
     if (mode === 'story' || recording) return;
     holdTimer.current = setTimeout(() => {
       held.current = true;
+      markSeen('video-longo');
       setErr('');
       startRecording();
     }, 350);
