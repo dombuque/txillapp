@@ -39,6 +39,8 @@ const tokenSchema = z.object({ token: z.string().min(20).max(200) });
 const forgotSchema = z.object({ email: z.string().max(254) });
 const resetSchema = z.object({ token: z.string().min(20).max(200), newPassword: passwordSchema });
 const googleSchema = z.object({ idToken: z.string().min(20).max(4096) });
+const appleSchema = z.object({ identityToken: z.string().min(20).max(8192), nonce: z.string().max(200).optional(), fullName: z.string().max(120).optional() });
+const appleCompleteSchema = z.object({ signupToken: z.string().min(20).max(4096), username: z.string().min(1).max(60), gender: genderSchema.optional(), birthDate: birthDateSchema.optional() });
 const googleCompleteSchema = z.object({ signupToken: z.string().min(20).max(4096), username: z.string().min(1).max(60), gender: genderSchema.optional(), birthDate: birthDateSchema, acceptTerms: z.literal(true) });
 
 @Controller('auth')
@@ -89,7 +91,7 @@ export class AuthController {
   @Get('config')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   config() {
-    return { googleClientId: this.auth.googleClientId };
+    return { googleClientId: this.auth.googleClientId, appleEnabled: !!this.auth.appleClientId };
   }
 
   /** Verificação ao escrever o @ no registo. Limitada para dificultar a enumeração de utilizadores. */
@@ -116,6 +118,31 @@ export class AuthController {
     const r = await this.auth.googleLogin(body.idToken, req.headers['user-agent']);
     if (r.kind === 'session') return this.respond(res, r.tokens, r.user);
     return { needsUsername: true as const, signupToken: r.signupToken, displayName: r.displayName, suggestedUsername: r.suggestedUsername };
+  }
+
+  @Post('apple')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @HttpCode(200)
+  async apple(
+    @Body(new ZodPipe(appleSchema)) body: z.infer<typeof appleSchema>,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const r = await this.auth.appleLogin(body.identityToken, body.nonce, body.fullName, req.headers['user-agent']);
+    if (r.kind === 'session') return this.respond(res, r.tokens, r.user);
+    return { needsUsername: true as const, signupToken: r.signupToken, displayName: r.displayName, suggestedUsername: r.suggestedUsername };
+  }
+
+  @Post('apple/complete')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @HttpCode(200)
+  async appleComplete(
+    @Body(new ZodPipe(appleCompleteSchema)) body: z.infer<typeof appleCompleteSchema>,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponse> {
+    const { tokens, user } = await this.auth.appleComplete(body.signupToken, body.username, req.headers['user-agent'], body.gender, body.birthDate);
+    return this.respond(res, tokens, user);
   }
 
   @Post('google/complete')

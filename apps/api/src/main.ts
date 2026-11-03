@@ -11,7 +11,7 @@ import type { JWTVerifyGetKey } from 'jose';
 import { AppModule } from './app.module';
 import { loadConfig } from './config';
 
-export async function createApp(config = loadConfig(), opts: { googleJwks?: JWTVerifyGetKey; imageClassifier?: import('./moderation/image-moderation.service').ImageClassifier; esClient?: import('@elastic/elasticsearch').Client } = {}) {
+export async function createApp(config = loadConfig(), opts: { googleJwks?: JWTVerifyGetKey; appleJwks?: JWTVerifyGetKey; imageClassifier?: import('./moderation/image-moderation.service').ImageClassifier; esClient?: import('@elastic/elasticsearch').Client } = {}) {
   const app = await NestFactory.create<NestExpressApplication>(AppModule.register(config, opts));
   app.set('trust proxy', 1);
   app.use(helmet());

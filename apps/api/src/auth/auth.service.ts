@@ -11,6 +11,7 @@ import { SearchIndexer } from '../search/search-index';
 import { PG_POOL } from '../db/db.module';
 import { MailService } from '../mail/mail.service';
 import { resetPasswordMail, verifyEmailMail } from '../mail/templates';
+import { AppleService } from './apple.service';
 import { GoogleService } from './google.service';
 import { isReservedUsername } from './reserved-usernames';
 
@@ -46,6 +47,7 @@ export class AuthService {
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(CONFIG) config: AppConfig,
     private readonly google: GoogleService,
+    private readonly apple: AppleService,
     private readonly indexer: SearchIndexer,
     private readonly mail: MailService,
   ) {
@@ -253,6 +255,79 @@ export class AuthService {
     return this.google.clientIdPublic;
   }
 
+  /**
+   * Iniciar sessão com a Apple. `fullName` só vem da app na primeira vez (a Apple não o repete).
+   * Conta já ligada: entra. Conta nova: devolve um pedido para escolher o @ (como na Google). Nunca se liga sozinha a uma conta
+   * existente só por ter o mesmo email.
+   */
+  async appleLogin(identityToken: string, nonce: string | undefined, fullName: string | undefined, userAgent?: string) {
+    const p = await this.apple.verify(identityToken, nonce);
+    const found = await this.pool.query(`SELECT id, username, display_name, status FROM identity.users WHERE apple_sub = $1`, [p.sub]);
+    const u = found.rows[0];
+    if (u) {
+      if (u.status !== 'active') throw new UnauthorizedException('Conta indisponível');
+      const tokens = await this.sessionFor(u.id, 'auth.apple_login', userAgent);
+      return { kind: 'session' as const, tokens, user: { id: u.id, username: u.username, displayName: u.display_name } };
+    }
+    // Sem email (a pessoa escondeu-o e a Apple não o confirmou) a conta fica sem email até ele ser confirmado mais tarde.
+    const email = p.email ?? `${p.sub.replace(/[^a-z0-9]/gi, '').toLowerCase()}@appleid.invalid`;
+    if (p.email && (await this.pool.query('SELECT 1 FROM identity.users WHERE email = $1', [p.email])).rowCount) {
+      throw new ConflictException('Já existe uma conta com este email. Entra com a tua senha.');
+    }
+    const name = (fullName ?? '').trim().slice(0, 60) || (p.email ? p.email.split('@')[0] : 'Malta');
+    const signupToken = await new SignJWT({ email, name, privateEmail: !p.email || p.isPrivateEmail })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(p.sub)
+      .setIssuer('txillapp')
+      .setAudience('apple-signup')
+      .setIssuedAt()
+      .setExpirationTime('15m')
+      .sign(this.secret);
+    return { kind: 'signup' as const, signupToken, displayName: name, suggestedUsername: await this.suggestUsername(p.email ?? name) };
+  }
+
+  async appleComplete(signupToken: string, rawUsername: string, userAgent?: string, gender?: string, birthDate?: string) {
+    let claims;
+    try {
+      claims = (await jwtVerify(signupToken, this.secret, { algorithms: ['HS256'], issuer: 'txillapp', audience: 'apple-signup' })).payload;
+    } catch {
+      throw new UnauthorizedException('O pedido expirou. Entra com a Apple outra vez.');
+    }
+    const username = rawUsername.trim().replace(/^@/, '');
+    const a = await this.usernameAvailable(username);
+    if (!a.available) {
+      throw new ConflictException(a.reason === 'invalid' ? 'Nome de utilizador inválido' : a.reason === 'reserved' ? 'Esse nome está reservado' : 'Esse já tem dono');
+    }
+    const id = uuidv7();
+    const displayName = String(claims.name ?? username).slice(0, 60);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Email de reencaminhamento ou desconhecido: a conta fica por confirmar (email_verified_at nulo) até a pessoa pôr um email.
+      const verified = !claims.privateEmail;
+      await client.query(
+        `INSERT INTO identity.users (id, email, username, display_name, apple_sub, gender, birth_date, terms_accepted_at, terms_version, email_verified_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now(), $8, ${verified ? 'now()' : 'NULL'})`,
+        [id, claims.email, username, displayName, claims.sub, gender ?? null, birthDate ?? null, TERMS_VERSION],
+      );
+      await this.audit(client, id, 'auth.apple_register');
+      const tokens = await this.issueSession(client, id, uuidv7(), userAgent);
+      await client.query('COMMIT');
+      this.indexer.userChanged(id);
+      return { tokens, user: { id, username, displayName } };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      if ((e as { code?: string }).code === '23505') throw new ConflictException('Esse já tem dono, ou esta conta Apple já está registada');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  get appleClientId() {
+    return this.apple.enabled ? 'enabled' : null;
+  }
+
   private async sessionFor(userId: string, action: string, userAgent?: string) {
     const client = await this.pool.connect();
     try {
@@ -362,7 +437,7 @@ export class AuthService {
       await client.query(
         `UPDATE identity.users SET status = 'deleted', username = 'eliminado_' || substr(replace(id::text, '-', ''), 1, 12),
                 display_name = 'Conta eliminada', email = 'deleted+' || id::text || '@invalid.local',
-                bio = NULL, google_sub = NULL, avatar_media_id = NULL, is_private = true, gender = NULL, birth_date = NULL
+                bio = NULL, google_sub = NULL, apple_sub = NULL, avatar_media_id = NULL, is_private = true, gender = NULL, birth_date = NULL
           WHERE id = $1`,
         [userId],
       );

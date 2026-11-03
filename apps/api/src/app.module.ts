@@ -8,6 +8,7 @@ import { MetricsController } from './observability/metrics';
 import { AccountModule } from './account/account.module';
 import { MailModule } from './mail/mail.module';
 import { AuthModule } from './auth/auth.module';
+import { APPLE_JWKS } from './auth/apple.service';
 import { GOOGLE_JWKS } from './auth/google.service';
 import { Client } from '@elastic/elasticsearch';
 import { ES_CLIENT, SearchIndexModule } from './search/search-index';
@@ -35,7 +36,7 @@ import { PaymentsModule } from './payments/payments.module';
 @Module({})
 export class AppModule {
   /** `googleJwks`: chaves públicas para validar tokens da Google; só os testes as substituem. */
-  static register(config: AppConfig, opts: { googleJwks?: JWTVerifyGetKey; imageClassifier?: ImageClassifier; esClient?: Client } = {}): DynamicModule {
+  static register(config: AppConfig, opts: { googleJwks?: JWTVerifyGetKey; appleJwks?: JWTVerifyGetKey; imageClassifier?: ImageClassifier; esClient?: Client } = {}): DynamicModule {
     return {
       module: AppModule,
       global: true,
@@ -70,6 +71,7 @@ export class AppModule {
       providers: [
         { provide: CONFIG, useValue: config },
         { provide: GOOGLE_JWKS, useValue: opts.googleJwks ?? null },
+        { provide: APPLE_JWKS, useValue: opts.appleJwks ?? null },
         { provide: IMAGE_CLASSIFIER, useValue: opts.imageClassifier ?? null },
         {
           provide: ES_CLIENT,
@@ -81,7 +83,7 @@ export class AppModule {
         },
         { provide: APP_GUARD, useClass: ThrottlerGuard },
       ],
-      exports: [CONFIG, GOOGLE_JWKS, IMAGE_CLASSIFIER, ES_CLIENT],
+      exports: [CONFIG, GOOGLE_JWKS, APPLE_JWKS, IMAGE_CLASSIFIER, ES_CLIENT],
     };
   }
 }

@@ -7,6 +7,8 @@ const schema = z.object({
   MEDIA_DIR: z.string().default('./uploads'),
   /** ID de cliente OAuth da Google (público). Sem ele, o login com Google fica desligado. */
   GOOGLE_CLIENT_ID: z.string().min(10).optional(),
+  /** Identificadores aceites no Iniciar sessão com a Apple (bundle ID da app e/ou ID do serviço web), separados por vírgula. Sem ele fica desligado. */
+  APPLE_CLIENT_ID: z.string().min(3).optional(),
   /** Onde ficam as fotos e gravações: 'local' (disco, desenvolvimento) ou 's3' (S3, Cloudflare R2, MinIO…). */
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   /** Bucket PÚBLICO (domínio com leitura aberta, ex.: media.txillapp.com). */

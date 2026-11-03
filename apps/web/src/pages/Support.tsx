@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LANGS, lang, setLang, tr, locale } from '../lib/i18n';
+import { STORE_BUILD } from '../lib/build';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import Icon, { type IconName } from '../components/Icon';
@@ -211,9 +212,10 @@ export function Orders() {
         <Link to="/wallet" className="mt-4 inline-flex h-10 items-center rounded-full bg-white/20 px-4 text-sm font-bold active:scale-95">{tr('Ver movimentos e presentes')}</Link>
       </div>
 
+      {(!STORE_BUILD || providers.length > 0) && (
       <Group title={tr('Recarregar Txills')}>
         {cfg.isLoading && <p className="px-4 py-6 text-center text-zinc-500">{tr('A carregar…')}</p>}
-        {cfg.data && providers.length === 0 && <Line icon="wallet" label={tr('Comprar Txills')} value="Em breve: M-Pesa, e-Mola e cartão" />}
+        {cfg.data && providers.length === 0 && !STORE_BUILD && <Line icon="wallet" label={tr('Comprar Txills')} value="Em breve: M-Pesa, e-Mola e cartão" />}
         {cfg.data && providers.length > 0 && !current && (
           <div className="space-y-4 p-4">
             <div className="grid grid-cols-2 gap-2.5">
@@ -267,6 +269,7 @@ export function Orders() {
           </div>
         )}
       </Group>
+      )}
 
       <Group title={tr('Pedidos')}>
         {orders.data && orders.data.length === 0 && <Line icon="file-text" label={tr('Histórico de pedidos')} value="Ainda não tens pedidos" />}
@@ -296,11 +299,13 @@ export function Language() {
             <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${lang === l.id ? 'border-brand bg-brand text-white' : 'border-zinc-300'}`} aria-hidden>{lang === l.id && <Icon name="check" size={14} strokeWidth={3} />}</span>
           </button>
         ))}
-        <Line icon="globe" label={tr('Français')} value={tr('em breve')} />
+        {!STORE_BUILD && <Line icon="globe" label={tr('Français')} value={tr('em breve')} />}
       </Group>
+      {!STORE_BUILD && (
       <Group title={tr('Traduções')}>
         <Line icon="globe" label={tr('Traduzir publicações')} value={tr('Em breve: ver posts e comentários noutro idioma com um toque')} />
       </Group>
+      )}
       <p className="mx-6 mt-5 text-center text-sm text-zinc-500">{tr('O Txillapp está em português e em inglês. Vamos acrescentando idiomas e a tradução de publicações.')}</p>
     </StackPage>
   );
