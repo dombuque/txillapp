@@ -111,14 +111,14 @@ export default function ProfilePage() {
   return (
     <div className="pb-6">
       {p.isMe ? (
-        <div className="flex items-center justify-between px-5 pb-2">
+        <div className="flex items-center justify-between px-5 pb-2 pt-5">
           <p className="font-semibold">@{p.username}</p>
           <button onClick={() => navigate('/settings')} aria-label={tr('Definições e privacidade')} className="-mr-2 flex h-11 w-11 items-center justify-center rounded-full text-zinc-900 transition active:scale-90">
             <Icon name="menu" size={26} strokeWidth={2} />
           </button>
         </div>
       ) : (
-        <div className="flex items-center gap-1 px-2 pb-2">
+        <div className="flex items-center gap-1 px-2 pb-2 pt-5">
           <button onClick={() => navigate(-1)} aria-label={tr('Voltar')} className="flex h-11 w-11 items-center justify-center text-zinc-900"><BackIcon /></button>
           <p className="min-w-0 flex-1 truncate font-semibold">@{p.username}</p>
           <button onClick={() => setSheet('menu')} aria-label={tr('Mais opções')} className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-900 transition active:bg-zinc-100">
