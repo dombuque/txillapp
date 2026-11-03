@@ -51,7 +51,10 @@ let audioCtx: AudioContext | null = null;
  * Safari (iOS 16.4+): o som dos vídeos é "ambiente", como nas apps de redes sociais. Assim o iPhone não o trata como música:
  * não aparece na Dynamic Island nem no ecrã de bloqueio como leitor, não interrompe a música de outras apps e respeita o botão de silêncio.
  */
+const AMBIENT_AUDIO = false;
 function ambientAudio() {
+  // Desligado: o tipo "ambiente" respeita o botão de silêncio do iPhone e os reels ficavam sem som. O leitor na Dynamic Island volta a poder aparecer.
+  if (!AMBIENT_AUDIO) return;
   try {
     const a = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
     if (a && a.type !== 'ambient') a.type = 'ambient';
