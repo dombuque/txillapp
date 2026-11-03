@@ -4,10 +4,11 @@ import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
+import { musicSchema } from '../music/music.service';
 import { StoriesService } from './stories.service';
 
 type AuthedReq = Request & { userId?: string };
-const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all') });
+const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all'), music: musicSchema.nullable().optional() });
 
 const shareSchema = z.object({ postId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all') });
 const replySchema = z.object({ body: z.string().trim().min(1).max(500) });
@@ -21,7 +22,7 @@ export class StoriesController {
   @NeedsVerifiedEmail()
   @Post()
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
-    return this.stories.create(req.userId!, b.mediaId, b.caption, b.audience);
+    return this.stories.create(req.userId!, b.mediaId, b.caption, b.audience, b.music ?? null);
   }
 
   /** Partilhar uma publicação (foto ou reel) no meu status. */

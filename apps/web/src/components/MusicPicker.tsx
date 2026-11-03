@@ -178,7 +178,7 @@ export default function MusicPicker({ onPick, onClose }: { onPick: (t: Track) =>
               </button>
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold">{t.title}</span>
-                <span className="block truncate text-sm text-zinc-500">{t.artist || tr('Autor desconhecido')} · {licenseLabel(t.license)}{t.durationMs ? ` · ${mmss(t.durationMs)}` : ''}</span>
+                <span className="block truncate text-sm text-zinc-500">{t.artist || tr('Autor desconhecido')}{t.durationMs ? ` · ${mmss(t.durationMs)}` : ''}</span>
               </span>
               <button type="button" onClick={() => { audio.current?.pause(); onPick(t); }} className="h-9 shrink-0 rounded-full bg-zinc-100 px-4 text-sm font-bold active:scale-95">{tr('Usar')}</button>
             </li>

@@ -44,7 +44,7 @@ export class InstantsService {
   async tray(me: string) {
     const others = (
       await this.pool.query(
-        `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", count(*)::int AS count, max(i.created_at) AS "latestAt"
+        `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", count(*)::int AS count, max(i.created_at) AS "latestAt", (array_agg(i.media_id ORDER BY i.created_at DESC))[1] AS media
            FROM social.instants i
            JOIN identity.users u ON u.id = i.author_id
           WHERE i.expires_at > now() AND i.author_id <> $1 AND ${visible('i')}
@@ -53,7 +53,7 @@ export class InstantsService {
           GROUP BY u.id ORDER BY max(i.created_at) DESC LIMIT 40`,
         [me],
       )
-    ).rows;
+    ).rows.map(({ media, ...o }) => ({ ...o, previewUrl: this.media.chatUrl(media as string) }));
     const mine = (
       await this.pool.query(
         `SELECT count(*)::int AS count, coalesce(sum((SELECT count(*) FROM social.instant_views v WHERE v.instant_id = i.id)), 0)::int AS views, min(i.expires_at) AS "endsAt"

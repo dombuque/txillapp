@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { ChatService } from '../chat/chat.service';
+import { MusicService, type MusicInput } from '../music/music.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { blockedBetween, canView } from '../social/visibility';
 
@@ -30,10 +31,12 @@ export class StoriesService {
     private readonly notifications: NotificationsService,
     private readonly chat: ChatService,
     private readonly filter: TextFilter,
+    private readonly musicSvc: MusicService,
   ) {}
 
-  async create(userId: string, mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all') {
-    this.filter.assertClean(caption);
+  async create(userId: string, mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all', musicIn: MusicInput | null = null) {
+    this.filter.assertClean(caption, musicIn?.title, musicIn && 'artist' in musicIn ? musicIn.artist : undefined);
+    const music = await this.musicSvc.prepare(userId, musicIn);
     const ok = await this.pool.query(
       `SELECT 1 FROM content.media_assets a
         WHERE a.id = $1 AND a.owner_id = $2 AND a.status = 'ready'
@@ -43,8 +46,8 @@ export class StoriesService {
     );
     if (!ok.rowCount) throw new BadRequestException('Foto inválida ou ainda não carregada');
     const id = uuidv7();
-    await this.pool.query('INSERT INTO content.stories (id, author_id, media_id, caption, audience) VALUES ($1, $2, $3, $4, $5)', [
-      id, userId, mediaId, caption || null, audience,
+    await this.pool.query('INSERT INTO content.stories (id, author_id, media_id, caption, audience, music) VALUES ($1, $2, $3, $4, $5, $6)', [
+      id, userId, mediaId, caption || null, audience, music ? JSON.stringify(music) : null,
     ]);
     if (caption && audience === 'all') void this.notifications.notifyMentions(userId, caption, { snippet: caption.slice(0, 80) });
     return this.getOne(userId, id);
@@ -86,7 +89,7 @@ export class StoriesService {
 
   async byUser(viewerId: string, username: string) {
     const { rows } = await this.pool.query(
-      `SELECT s.id, s.media_id, s.caption, s.created_at, s.expires_at, s.audience, u.id AS author_id, u.username, u.display_name,
+      `SELECT s.id, s.media_id, s.caption, s.music, s.created_at, s.expires_at, s.audience, u.id AS author_id, u.username, u.display_name,
               (SELECT m.mime FROM content.media_assets m WHERE m.id = s.media_id) AS mime,
               (SELECT m.duration_ms FROM content.media_assets m WHERE m.id = s.media_id) AS duration_ms,
               s.shared_post_id,
@@ -340,7 +343,7 @@ export class StoriesService {
 
   private async getOne(userId: string, id: string) {
     const { rows } = await this.pool.query(
-      `SELECT s.id, s.media_id, s.caption, s.created_at, s.expires_at, s.audience, u.id AS author_id, u.username, u.display_name,
+      `SELECT s.id, s.media_id, s.caption, s.music, s.created_at, s.expires_at, s.audience, u.id AS author_id, u.username, u.display_name,
               (SELECT m.mime FROM content.media_assets m WHERE m.id = s.media_id) AS mime,
               (SELECT m.duration_ms FROM content.media_assets m WHERE m.id = s.media_id) AS duration_ms,
               s.shared_post_id,
@@ -361,6 +364,7 @@ export class StoriesService {
     /** Partilhado de uma publicação: de quem e qual (para abrir o original). */
     sharedFrom: r.shared_post_id ? { postId: r.shared_post_id as string, ...(r.shared_from as { username: string; displayName: string }) } : null,
     caption: r.caption,
+    music: this.musicSvc.resolve((r.music as Record<string, unknown> | null) ?? null),
     audience: r.audience as 'all' | 'close_friends',
     createdAt: r.created_at,
     expiresAt: r.expires_at,

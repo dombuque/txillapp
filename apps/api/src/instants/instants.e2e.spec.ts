@@ -60,6 +60,8 @@ describe('Instants: fotos de 24 h, vistas uma só vez, só para amigos próximos
 
     const names = async (x: U) => ((await api().get('/api/v1/instants').set(auth(x)).expect(200)).body.others as { username: string }[]).map((o) => o.username);
     expect(await names(inb)).toContain(ina.username);
+    const tray = (await api().get('/api/v1/instants').set(auth(inb)).expect(200)).body.others as { username: string; previewUrl: string }[];
+    expect(tray.find((x) => x.username === ina.username)?.previewUrl).toMatch(/chat\/media\//); // pré-visualização para o atalho
     expect(await names(ind)).toContain(ina.username);
     expect(await names(inc)).not.toContain(ina.username);
     expect(await names(ine)).not.toContain(ina.username);

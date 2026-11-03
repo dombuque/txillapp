@@ -37,14 +37,19 @@ export default function InstantsDock() {
         type="button"
         onClick={() => { markSeen('zas'); setOpen(true); }}
         aria-label={total ? tr('Zás: {n} por ver', { n: total }) : tr('Mandar um Zás')}
-        className="fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom))] right-3 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-brand to-[#ff9a5b] text-white shadow-[0_4px_14px_rgba(214,51,79,0.5)] ring-2 ring-white active:scale-90"
+        className="fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom))] right-3 z-20 flex h-[60px] w-12 items-center justify-center rounded-[20px] bg-gradient-to-br from-brand to-[#ff9a5b] text-white shadow-[0_4px_14px_rgba(214,51,79,0.5)] ring-2 ring-white active:scale-90"
       >
         {top ? (
-          <span className="rounded-full bg-white p-[2px]"><Avatar name={top.displayName} username={top.hasAvatar ? top.username : undefined} size={34} ring={false} /></span>
+          <>
+            {/* Pré-visualização desfocada do Zás mais recente: dá a ideia sem o mostrar (só se vê uma vez). */}
+            <img src={top.previewUrl} alt="" draggable={false} className="absolute inset-0 h-full w-full scale-110 rounded-[inherit] object-cover blur-[5px]" />
+            <span className="absolute inset-0 rounded-[inherit] bg-black/15" />
+            <span className="absolute -bottom-1.5 -left-1.5 rounded-full bg-white p-[2px] shadow"><Avatar name={top.displayName} username={top.hasAvatar ? top.username : undefined} size={26} ring={false} /></span>
+            <span className="absolute inset-0 flex items-center justify-center"><Icon name="bolt" size={22} fill="currentColor" className="drop-shadow" /></span>
+          </>
         ) : (
           <Icon name="bolt" size={24} fill="currentColor" />
         )}
-        {top && <span className="absolute -bottom-1 -left-1 flex h-5 w-5 items-center justify-center rounded-full bg-brand text-white ring-2 ring-white"><Icon name="bolt" size={11} fill="currentColor" /></span>}
         <NewBadge id="zas" className="absolute -left-4 -top-3" />
         {total > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1 text-[11px] font-bold text-white ring-2 ring-white">{total > 9 ? '9+' : total}</span>}
       </button>

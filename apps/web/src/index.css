@@ -29,6 +29,28 @@ html::-webkit-scrollbar {
   display: none;
 }
 
+/* Computador (rato): a barra de rolagem fica visível e fina. Sem ela, quem testa na web acha que a página não rola. */
+@media (hover: hover) and (pointer: fine) {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: #c4c4cc transparent;
+  }
+  html::-webkit-scrollbar {
+    display: block;
+    width: 10px;
+  }
+  html::-webkit-scrollbar-thumb {
+    background: #c4c4cc;
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  html::-webkit-scrollbar-thumb:hover {
+    background: #a1a1aa;
+    background-clip: content-box;
+  }
+}
+
 /* Sem "elástico" nem puxar-para-atualizar: a app deve parecer fixa, como uma app nativa. */
 html,
 body {

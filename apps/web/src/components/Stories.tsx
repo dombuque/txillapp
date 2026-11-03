@@ -5,7 +5,9 @@ import { sized } from '../lib/media';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { api, type Post, type Story, type TrayUser } from '../lib/api';
+import { api, type Post, type Story, type Track, type TrayUser } from '../lib/api';
+import MusicPicker from './MusicPicker';
+import { TrackCredits, useMusicMuted } from './TrackCard';
 import ShareSheet from './ShareSheet';
 import { REACTIONS, Reaction, reactionText } from '../lib/stickers';
 import { useAuth } from '../lib/auth';
@@ -390,6 +392,38 @@ function CommentsPanel({ story, onClose, canComment, onTyping }: { story: Story;
   );
 }
 
+/** A música do story: toca enquanto o story está à vista (pára se pausares) e tem botão para silenciar. */
+function StoryMusic({ track, paused, stop }: { track: Track; paused: boolean; stop: Record<string, unknown> }) {
+  const [muted, toggleMute] = useMusicMuted();
+  const [info, setInfo] = useState(false);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => {
+    const a = new Audio(track.url);
+    a.loop = true;
+    a.muted = muted;
+    audio.current = a;
+    void a.play().catch(() => undefined);
+    return () => a.pause();
+  }, [track.url]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (audio.current) audio.current.muted = muted;
+  }, [muted]);
+  useEffect(() => {
+    const a = audio.current;
+    if (!a) return;
+    if (paused) a.pause();
+    else void a.play().catch(() => undefined);
+  }, [paused]);
+  return (
+    <div {...stop} className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-black/45 py-1 pl-4 pr-1 text-white backdrop-blur-sm">
+      <Icon name="music" size={16} className="shrink-0" />
+      <button type="button" onClick={() => setInfo(true)} className="min-w-0 truncate text-sm font-semibold">{track.title}{track.kind === 'clip' ? '' : ` · ${track.artist || tr('Autor desconhecido')}`}</button>
+      <button type="button" onClick={toggleMute} aria-pressed={muted} aria-label={muted ? tr('Ativar o som') : tr('Silenciar')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 active:scale-90"><Icon name={muted ? 'volume-off' : 'volume'} size={18} /></button>
+      {info && <TrackCredits track={track} onClose={() => setInfo(false)} />}
+    </div>
+  );
+}
+
 function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start: number; onClose: () => void; onOwnSeen: (latestAt: string) => void }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -570,6 +604,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
         <button aria-label={tr('Seguinte')} onClick={tap(() => { setSeePost(false); next(); })} className={`absolute bottom-28 right-0 top-28 ${story?.sharedFrom ? 'w-[30%]' : 'w-2/3'}`} />
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/70 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-16">
+          {story?.music && <StoryMusic key={story.id} track={story.music} paused={paused} stop={stop} />}
           {story?.caption && (
             <p {...stop} className="pointer-events-auto max-w-full break-words rounded-2xl bg-black/40 px-4 py-2 text-center text-lg text-white backdrop-blur-sm [&_a]:underline [&_a]:text-white"><RichText text={story.caption} /></p>
           )}
@@ -676,6 +711,8 @@ export function StoryCreator({ file, onClose, onBack }: { file: File; onClose: (
   const friends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [music, setMusic] = useState<Track | null>(null);
+  const [pickMusic, setPickMusic] = useState(false);
 
   async function share(e: FormEvent) {
     e.preventDefault();
@@ -683,7 +720,7 @@ export function StoryCreator({ file, onClose, onBack }: { file: File; onClose: (
     setErr('');
     try {
       const mediaId = await api.uploadImage(file);
-      await api.createStory(mediaId, caption.trim(), audience);
+      await api.createStory(mediaId, caption.trim(), audience, music);
       await qc.invalidateQueries({ queryKey: ['stories'] });
       onClose();
     } catch (x) {
@@ -699,6 +736,15 @@ export function StoryCreator({ file, onClose, onBack }: { file: File; onClose: (
         <button type="button" onClick={onBack ?? onClose} aria-label={onBack ? 'Voltar' : 'Cancelar'} className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] px-2 text-3xl leading-none text-white">×</button>
         <div className="space-y-3 bg-black px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
           <MentionTextarea single up value={caption} onChange={setCaption} maxLength={200} placeholder={tr('Escreve uma legenda…')} aria-label={tr('Legenda')} className="w-full rounded-full bg-white/15 px-4 py-3 text-white outline-none placeholder:text-white/60 focus:bg-white/25" />
+          {music ? (
+            <div className="flex items-center gap-3 rounded-full bg-white/15 py-1.5 pl-4 pr-1.5">
+              <Icon name="music" size={18} className="shrink-0" />
+              <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{music.title}{music.kind === 'clip' ? '' : ` · ${music.artist || tr('Autor desconhecido')}`}</span>
+              <button type="button" onClick={() => setMusic(null)} aria-label={tr('Tirar a música')} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 active:scale-90"><Icon name="x" size={16} /></button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setPickMusic(true)} className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-white/15 text-sm font-bold text-white active:scale-95"><Icon name="music" size={18} /> {tr('Adicionar música')}</button>
+          )}
           <div role="radiogroup" aria-label={tr('Quem vê')} className="flex gap-2">
             {([['all', 'globe', 'Os teus stories'], ['close_friends', 'heart', 'Amigos próximos']] as const).map(([v, ic, label]) => (
               <button
@@ -725,6 +771,7 @@ export function StoryCreator({ file, onClose, onBack }: { file: File; onClose: (
         </div>
       </form>
       {listOpen && <CloseFriendsSheet layer="z-[70]" onClose={() => setListOpen(false)} />}
+      {pickMusic && <MusicPicker onPick={(t) => { setMusic(t); setPickMusic(false); }} onClose={() => setPickMusic(false)} />}
     </div>
   );
 }

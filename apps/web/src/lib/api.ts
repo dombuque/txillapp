@@ -174,6 +174,8 @@ export interface StoryComment {
 }
 export interface Story {
   id: string;
+  /** Música do story (faixa de licença aberta ou clipe próprio). */
+  music?: Track | null;
   mediaUrl: string;
   caption: string | null;
   audience: 'all' | 'close_friends';
@@ -290,7 +292,7 @@ export interface ChatMessage {
 export interface InstantItem { id: string; url: string; caption: string; at: string; expiresAt: string; views?: number }
 export interface InstantTray {
   mine: { count: number; views: number; endsAt: string | null };
-  others: { username: string; displayName: string; hasAvatar: boolean; count: number; latestAt: string }[];
+  others: { username: string; displayName: string; hasAvatar: boolean; count: number; latestAt: string; previewUrl: string }[];
 }
 /** Online agora, ou a hora a que foi visto pela última vez. null = escondido por uma das partes. */
 export interface Presence { online: boolean; lastSeen: string | null }
@@ -600,7 +602,7 @@ export const api = {
   instantViewers: (id: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; at: string }[]> => raw(`/instants/${id}/viewers`),
   instantDelete: (id: string): Promise<void> => raw(`/instants/${id}`, { method: 'DELETE' }),
   storiesOf: (username: string): Promise<Story[]> => raw(`/stories/user/${encodeURIComponent(username)}`),
-  createStory: (mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all'): Promise<Story> => raw('/stories', post({ mediaId, caption, audience })),
+  createStory: (mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all', music?: Track | null): Promise<Story> => raw('/stories', post({ mediaId, caption, audience, music: musicPayload(music) })),
   closeFriends: (): Promise<{ username: string; displayName: string; hasAvatar: boolean }[]> => raw('/stories/close-friends'),
   addCloseFriend: (username: string): Promise<void> => raw(`/stories/close-friends/${encodeURIComponent(username)}`, { method: 'PUT' }),
   removeCloseFriend: (username: string): Promise<void> => raw(`/stories/close-friends/${encodeURIComponent(username)}`, { method: 'DELETE' }),
