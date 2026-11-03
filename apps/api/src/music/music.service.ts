@@ -28,6 +28,15 @@ const hostOk = (url: string) => {
   }
 };
 
+/** Só ligações https (nunca javascript:, data: nem outras): estes endereços viram links e imagens na app. */
+const httpsOnly = (url: string) => {
+  try {
+    return new URL(url).protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 /** Licenças que deixam usar numa app (partilha com crédito). Nada de "não comercial" ou "sem derivados". */
 const LICENSES = new Set(['cc0', 'pdm', 'by', 'by-sa']);
 
@@ -51,11 +60,11 @@ export const trackSchema = z.object({
   title: z.string().trim().min(1).max(120),
   artist: z.string().trim().max(120).default(''),
   url: z.string().url().max(500).refine(hostOk, 'Faixa de um sítio não permitido'),
-  landing: z.string().url().max(500).nullable().default(null),
+  landing: z.string().url().max(500).refine(httpsOnly, 'Ligação inválida').nullable().default(null),
   license: z.string().max(20).refine((l) => LICENSES.has(l.toLowerCase()), 'Licença não permitida'),
-  licenseUrl: z.string().url().max(300).nullable().default(null),
+  licenseUrl: z.string().url().max(300).refine(httpsOnly, 'Ligação inválida').nullable().default(null),
   durationMs: z.number().int().positive().max(3_600_000).nullable().default(null),
-  cover: z.string().url().max(500).nullable().default(null),
+  cover: z.string().url().max(500).refine(httpsOnly, 'Ligação inválida').nullable().default(null),
 });
 
 /** Clipe de áudio gravado pela própria pessoa (até 30 s): fica no armazenamento privado e é servido com URL assinado. */

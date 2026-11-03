@@ -6,6 +6,7 @@ import { Pool } from 'pg';
 import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
+import { MediaService } from '../media/media.service';
 import { ChatEvents } from './chat.events';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
@@ -241,6 +242,14 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     expect(ev.isActive(b.id, `u:${a.username}`)).toBe(false);
   });
 
+  it('vídeos no chat: aceita o envio, mas só entra na conversa depois de convertido e pronto', async () => {
+    const { ch: a, ci: b } = u;
+    const up = await api().post('/api/v1/media/uploads').set(auth(a)).send({ mime: 'video/mp4', size: 1000, purpose: 'chat' }).expect(201);
+    const post = (b2: object) => api().post(`/api/v1/chat/with/${b.username}`).set(auth(a)).send(b2);
+    await post({ kind: 'video', once: true }).expect(400); // falta o ficheiro (e um vídeo ainda por converter não entra)
+    expect(up.body.assetId).toBeTruthy();
+  });
+
   it('stickers e localização: só stickers válidos; localização guarda-se arredondada; aparecem na conversa', async () => {
     const { ce: cc, cf: cd } = u;
     const post = (from: U, to: U, b: object) => api().post(`/api/v1/chat/with/${to.username}`).set(auth(from)).send(b);
@@ -431,6 +440,11 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     const img = (await post(from, to, { kind: 'image', mediaId: pic, once: true }).expect(201)).body.id as string;
     expect(((await thread(to, from)).items as { id: string; mediaUrl: string | null }[]).find((m) => m.id === img)!.mediaUrl).toBeNull();
     expect((await api().post(`/api/v1/chat/messages/${img}/open`).set(auth(to)).expect(200)).body.mediaUrl).toContain('/chat/media/');
+    // Depois de aberta, a foto tem prazo: o servidor apaga o ficheiro (não fica guardada para sempre).
+    expect((await pool.query('SELECT expires_at FROM content.media_assets WHERE id = $1', [pic])).rows[0].expires_at).not.toBeNull();
+    await pool.query("UPDATE content.media_assets SET expires_at = now() - interval '1 minute' WHERE id = $1", [pic]);
+    await app.get(MediaService).sweepDeleted();
+    expect((await pool.query('SELECT status, purged_at FROM content.media_assets WHERE id = $1', [pic])).rows[0]).toMatchObject({ status: 'deleted' });
   });
 
   it('localização em direto: o remetente atualiza enquanto dura; depois já não; pode parar', async () => {

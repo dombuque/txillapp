@@ -98,6 +98,9 @@ export default function TrackCard({ track, autoplay = false }: { track: Track; a
   );
 }
 
+/** Só ligações https viram links (defesa a mais: o servidor já recusa o resto). */
+const safeHref = (u: string | null | undefined) => (u && /^https:\/\//i.test(u) ? u : null);
+
 /** Créditos da faixa (licença Creative Commons e origem). Ficam fora do cartão, mas sempre à mão. */
 export function TrackCredits({ track, onClose }: { track: Track; onClose: () => void }) {
   return (
@@ -106,9 +109,9 @@ export function TrackCredits({ track, onClose }: { track: Track; onClose: () => 
       <p className="text-zinc-600">{track.artist || tr('Autor desconhecido')}</p>
       <p className="mt-3 text-sm text-zinc-600">
         {tr('Licença')}:{' '}
-        {track.licenseUrl ? <a href={track.licenseUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">{licenseLabel(track.license)}</a> : licenseLabel(track.license)}
+        {safeHref(track.licenseUrl) ? <a href={safeHref(track.licenseUrl)!} target="_blank" rel="noopener noreferrer" className="font-semibold underline">{licenseLabel(track.license)}</a> : licenseLabel(track.license)}
       </p>
-      {track.landing && <p className="mt-1 text-sm"><a href={track.landing} target="_blank" rel="noopener noreferrer" className="font-semibold underline">{tr('Origem')}</a></p>}
+      {safeHref(track.landing) && <p className="mt-1 text-sm"><a href={safeHref(track.landing)!} target="_blank" rel="noopener noreferrer" className="font-semibold underline">{tr('Origem')}</a></p>}
     </Sheet>
   );
 }

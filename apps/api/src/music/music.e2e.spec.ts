@@ -80,6 +80,10 @@ describe('música nas notas: catálogo de licenças abertas e crédito (integra�
     await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'x', music: { ...good, url: 'https://evil.example.com/a.mp3' } }).expect(400); // sítio não permitido
     await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'x', music: { ...good, url: 'http://cdn.freesound.org/a.mp3' } }).expect(400); // sem https
     await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'x', music: { ...good, license: 'by-nc' } }).expect(400); // licença não permitida
+    // Os endereços viram links na app: nada de javascript:, data: nem http (anti-XSS)
+    await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'x', music: { ...good, landing: 'javascript:alert(document.cookie)' } }).expect(400);
+    await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'x', music: { ...good, licenseUrl: 'data:text/html;base64,PHNjcmlwdD4=' } }).expect(400);
+    await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'x', music: { ...good, cover: 'http://evil.example.com/a.jpg' } }).expect(400);
     await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'só texto' }).expect(204); // sem música continua a funcionar
     await api().delete('/api/v1/notes/me').set(auth(mua)).expect(204);
   });

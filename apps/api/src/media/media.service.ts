@@ -1,6 +1,6 @@
 import { OnModuleInit } from '@nestjs/common';
 import {
-  BadRequestException, Inject, Injectable, NotFoundException, PayloadTooLargeException,
+  BadRequestException, HttpException, HttpStatus, Inject, Injectable, NotFoundException, PayloadTooLargeException,
   UnsupportedMediaTypeException, ForbiddenException, UnprocessableEntityException,
 } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'crypto';
@@ -90,14 +90,27 @@ export class MediaService implements OnModuleInit {
   }
 
   /** Apaga do armazenamento os ficheiros de contas eliminadas. Corre ao arrancar e de tempos a tempos. */
+  /** Bytes de um ficheiro de conversa (privado), para o servidor tratar (por exemplo, miniaturas). */
+  async chatBytes(id: string): Promise<Buffer> {
+    if (this.s3) return this.s3.read(id, 'private');
+    return readFile(join(this.dir, id));
+  }
+
+  /** Dá um prazo ao ficheiro (depois dele é apagado). Usado nas mensagens de "ver uma vez". */
+  async expireIn(id: string, minutes: number) {
+    await this.pool.query(`UPDATE content.media_assets SET expires_at = now() + ($2::int * interval '1 minute') WHERE id = $1 AND status <> 'deleted'`, [id, minutes]);
+  }
+
   async sweepDeleted(limit = 200) {
+    // O prazo passou: o ficheiro passa a "apagado" e é removido logo a seguir.
+    await this.pool.query(`UPDATE content.media_assets SET status = 'deleted' WHERE expires_at IS NOT NULL AND expires_at < now() AND status <> 'deleted'`);
     const { rows } = await this.pool.query(`SELECT id, purpose FROM content.media_assets WHERE status = 'deleted' AND purged_at IS NULL LIMIT $1`, [limit]);
     for (const r of rows) {
       if (this.s3) {
         const id = r.id as string;
         const scope = this.scopeOf(r.purpose as string);
         // Tudo o que possa existir deste ficheiro, em ambos os buckets (variantes, capa, original por converter).
-        const jobs = [this.s3.remove(id, scope), this.s3.remove(`${id}.src`, 'private'), this.s3.remove(`${id}.poster.jpg`, 'public'), ...WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'public'))];
+        const jobs = [this.s3.remove(id, scope), this.s3.remove(`${id}.src`, 'private'), this.s3.remove(`${id}.poster.jpg`, 'public'), this.s3.remove(`${id}.poster.jpg`, 'private'), ...WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'public'))];
         await Promise.allSettled(jobs);
       }
       else {
@@ -120,11 +133,15 @@ export class MediaService implements OnModuleInit {
   async requestUpload(userId: string, mime: string, size: number, purpose: 'public' | 'chat' = 'public') {
     const audio = AUDIO.has(mime);
     const video = VIDEO.has(mime);
-    if (video && purpose !== 'public') throw new UnsupportedMediaTypeException('Vídeos só se publicam em publicações e stories');
     if (!ALLOWED.has(mime) && !(audio && purpose === 'chat') && !video) throw new UnsupportedMediaTypeException('Apenas JPEG, PNG ou WebP (e vídeos MP4)');
     const max = audio ? MAX_AUDIO_BYTES : video ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
     if (!Number.isInteger(size) || size < 1 || size > max) {
       throw new PayloadTooLargeException(`Ficheiro até ${max / 1024 / 1024} MB`);
+    }
+    // Converter vídeo é pesado: no máximo 10 por hora e por pessoa (evita encher a fila de conversão).
+    if (video) {
+      const n = (await this.pool.query(`SELECT count(*)::int AS n FROM content.media_assets WHERE owner_id = $1 AND mime LIKE 'video/%' AND created_at > now() - interval '1 hour'`, [userId])).rows[0].n as number;
+      if (n >= 10) throw new HttpException('Já enviaste muitos vídeos. Tenta daqui a um bocado.', HttpStatus.TOO_MANY_REQUESTS);
     }
     const id = uuidv7();
     await this.pool.query(
@@ -155,7 +172,7 @@ export class MediaService implements OnModuleInit {
     if (a.status === 'ready' || a.status === 'processing') return { status: a.status };
     if (!this.s3) throw new NotFoundException(VIDEO.has(a.mime) ? 'O vídeo ainda não foi enviado' : 'O ficheiro ainda não foi enviado');
     const scope = this.scopeOf(a.purpose);
-    if (VIDEO.has(a.mime)) return this.completeCloudVideo(userId, id);
+    if (VIDEO.has(a.mime)) return this.completeCloudVideo(userId, id, a.purpose === 'chat' ? 'private' : 'public');
     const head = await this.s3.head(id, scope);
     if (!head) throw new NotFoundException('O ficheiro ainda não foi enviado');
     const limit = AUDIO.has(a.mime) ? MAX_AUDIO_BYTES : MAX_IMAGE_BYTES;
@@ -189,7 +206,8 @@ export class MediaService implements OnModuleInit {
   }
 
   /** Vídeo na nuvem: valida o original (bucket privado), converte aqui e publica o resultado no bucket público. */
-  private async completeCloudVideo(userId: string, id: string): Promise<{ status: string }> {
+  /** `scope`: onde fica o vídeo pronto (público nas publicações; privado nas conversas). */
+  private async completeCloudVideo(userId: string, id: string, scope: 'public' | 'private' = 'public'): Promise<{ status: string }> {
     const s3 = this.s3!;
     const src = `${id}.src`;
     const head = await s3.head(src, 'private');
@@ -206,11 +224,11 @@ export class MediaService implements OnModuleInit {
     void this.video.enqueue(id, userId, {
       fetchSource: async (dest) => writeFile(dest, await s3.read(src, 'private')),
       publish: async (video, poster) => {
-        await s3.put(id, createReadStream(video), 'video/mp4', 'public', (await stat(video)).size);
-        await s3.put(`${id}.poster.jpg`, await readFile(poster), 'image/jpeg', 'public');
+        await s3.put(id, createReadStream(video), 'video/mp4', scope, (await stat(video)).size);
+        await s3.put(`${id}.poster.jpg`, await readFile(poster), 'image/jpeg', scope);
         await s3.remove(src, 'private'); // o original não publicado deixa de existir
       },
-      cleanup: async () => void (await Promise.allSettled([s3.remove(src, 'private'), s3.remove(id, 'public'), s3.remove(`${id}.poster.jpg`, 'public')])),
+      cleanup: async () => void (await Promise.allSettled([s3.remove(src, 'private'), s3.remove(id, scope), s3.remove(`${id}.poster.jpg`, scope)])),
     });
     return { status: 'processing' };
   }

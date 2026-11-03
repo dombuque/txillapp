@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
+import sharp from 'sharp';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { MediaService } from '../media/media.service';
@@ -35,8 +36,16 @@ export class InstantsService {
       [mediaId, me],
     );
     if (!ok.rowCount) throw new BadRequestException('Foto inválida ou ainda não carregada');
+    // Pré-visualização: miniatura minúscula e muito desfocada (a foto verdadeira só chega a quem abre o Zás).
+    let preview: string | null = null;
+    try {
+      const thumb = await sharp(await this.media.chatBytes(mediaId)).rotate().resize(24, 32, { fit: 'cover' }).blur(1.2).jpeg({ quality: 35 }).toBuffer();
+      preview = `data:image/jpeg;base64,${thumb.toString('base64')}`;
+    } catch {
+      /* sem miniatura: o atalho mostra só o raio */
+    }
     const id = uuidv7();
-    const r = await this.pool.query('INSERT INTO social.instants (id, author_id, media_id, caption, audience) VALUES ($1, $2, $3, $4, $5) RETURNING expires_at', [id, me, mediaId, caption, audience]);
+    const r = await this.pool.query('INSERT INTO social.instants (id, author_id, media_id, caption, audience, preview) VALUES ($1, $2, $3, $4, $5, $6) RETURNING expires_at', [id, me, mediaId, caption, audience, preview]);
     return { id, expiresAt: r.rows[0].expires_at as string };
   }
 
@@ -44,7 +53,7 @@ export class InstantsService {
   async tray(me: string) {
     const others = (
       await this.pool.query(
-        `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", count(*)::int AS count, max(i.created_at) AS "latestAt", (array_agg(i.media_id ORDER BY i.created_at DESC))[1] AS media
+        `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", count(*)::int AS count, max(i.created_at) AS "latestAt", (array_agg(i.preview ORDER BY i.created_at DESC))[1] AS preview
            FROM social.instants i
            JOIN identity.users u ON u.id = i.author_id
           WHERE i.expires_at > now() AND i.author_id <> $1 AND ${visible('i')}
@@ -53,7 +62,7 @@ export class InstantsService {
           GROUP BY u.id ORDER BY max(i.created_at) DESC LIMIT 40`,
         [me],
       )
-    ).rows.map(({ media, ...o }) => ({ ...o, previewUrl: this.media.chatUrl(media as string) }));
+    ).rows;
     const mine = (
       await this.pool.query(
         `SELECT count(*)::int AS count, coalesce(sum((SELECT count(*) FROM social.instant_views v WHERE v.instant_id = i.id)), 0)::int AS views, min(i.expires_at) AS "endsAt"

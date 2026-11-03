@@ -103,8 +103,8 @@ export default function CameraStudio() {
   const live = !captured && !story && !desktop;
   useEffect(() => {
     if (live) void start();
-    else releaseCamera();
-    return () => releaseCamera(20_000);
+    else releaseCamera(3_000); // tirou a foto (ou entrou nos filtros): a câmara desliga-se logo, para sair o aviso de gravação
+    return () => releaseCamera(4_000);
   }, [live, start]);
   useEffect(
     () => () => {

@@ -64,7 +64,7 @@ function seenLabel(iso: string | null) {
 /** Mensagem enviada, à espera do servidor: aparece logo e fica "a enviar" ou "não enviada". */
 type Msg = ChatMessage & { state?: 'sending' | 'failed'; realId?: string; sender?: { username: string; displayName: string; hasAvatar: boolean } };
 interface Draft {
-  kind: 'text' | 'image' | 'voice' | 'sticker' | 'location' | 'gift';
+  kind: 'text' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'gift';
   giftAmount?: number;
   body: string;
   lat?: number;
@@ -82,11 +82,11 @@ interface Draft {
   replyTo?: string;
 }
 
-const KIND_LABEL: Record<string, string> = { image: 'Foto', voice: 'Mensagem de voz', sticker: 'Sticker', post: 'Publicação', location: 'Localização', gift: 'Presente' };
+const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voice: 'Mensagem de voz', sticker: 'Sticker', post: 'Publicação', location: 'Localização', gift: 'Presente' };
 /** Excerto de uma mensagem para citar (na bolha e na barra de resposta). */
 const quoteText = (k: string, body: string) => (k === 'text' || k === 'story_reply' ? body : tr(KIND_LABEL[k] ?? 'Mensagem'));
 
-function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onReply, onRetry, onDiscard, onOpenOnce, onStopLive }: { m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onMenu: (m: ChatMessage) => void; onReply: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
+function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onReply, onRetry, onDiscard, onOpenOnce, onStopLive }: { m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; flash: boolean; onJump: (id: string) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onMenu: (m: ChatMessage) => void; onReply: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
   const mine = m.fromMe;
   const real = !m.id.startsWith('tmp-');
   // Carregar e segurar (ou clique direito): apagar as minhas, denunciar as dos outros.
@@ -136,11 +136,16 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onReply, onRetry, 
   const dim = m.state === 'sending' ? 'opacity-70' : '';
 
   return (
-    <div className={`relative flex select-none flex-col ${mine ? 'items-end' : 'items-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`} style={{ transform: dx ? `translateX(${dx}px)` : undefined, transition: dx ? 'none' : 'transform .18s ease-out', touchAction: 'pan-y' }} {...menuProps} {...swipeProps}>
+    <div id={real ? `msg-${m.id}` : undefined} className={`relative flex select-none flex-col rounded-3xl transition-colors duration-500 ${flash ? 'bg-brand/15' : ''} ${mine ? 'items-end' : 'items-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`} style={{ transform: dx ? `translateX(${dx}px)` : undefined, transition: dx ? 'none' : 'transform .18s ease-out', touchAction: 'pan-y' }} {...menuProps} {...swipeProps}>
       {dx > 8 && <span aria-hidden className="absolute left-[-40px] top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-zinc-700" style={{ opacity: Math.min(1, dx / 56), transform: `translateY(-50%) scale(${dx >= 56 ? 1.15 : 0.85})` }}><Icon name="reply" size={16} /></span>}
       {group && !mine && !prevSame && m.sender && <span className="mb-0.5 px-1 text-[12px] font-bold text-zinc-600">{m.sender.displayName.split(' ')[0]}</span>}
       {m.replyTo && (
-        <div className={`mb-0.5 max-w-[78%] rounded-2xl border-l-4 px-3 py-1.5 text-[13px] leading-snug ${mine ? 'border-brand/70 bg-brand/10' : 'border-zinc-400 bg-zinc-50'} text-zinc-600`}>
+        <button
+          type="button"
+          disabled={m.replyTo.gone}
+          onClick={(e) => { e.stopPropagation(); if (!m.replyTo!.gone) onJump(m.replyTo!.id); }}
+          className={`mb-0.5 max-w-[78%] rounded-2xl border-l-4 px-3 py-1.5 text-left text-[13px] leading-snug transition active:scale-[0.98] ${mine ? 'border-brand/70 bg-brand/10' : 'border-zinc-400 bg-zinc-50'} text-zinc-600`}
+        >
           {m.replyTo.gone ? (
             <span className="italic">{tr('Mensagem apagada')}</span>
           ) : (
@@ -149,7 +154,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onReply, onRetry, 
               <span className="line-clamp-2 break-words">{quoteText(m.replyTo.kind, m.replyTo.body)}</span>
             </>
           )}
-        </div>
+        </button>
       )}
       {m.storyUrl && <img src={sized(m.storyUrl, 160)} alt={tr('Story')} className="mb-1 h-28 w-[72px] rounded-xl object-cover opacity-90" />}
       {(m.kind === 'story_reply' || m.kind === 'story_reaction') && (
@@ -164,7 +169,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onReply, onRetry, 
           className={`flex items-center gap-2.5 px-4 py-2.5 text-[15px] font-semibold ${shape} ${m.opened ? 'bg-zinc-100 text-zinc-500' : mine ? 'bg-brand text-white' : 'bg-zinc-900 text-white'} ${dim} ${!mine && !m.opened ? 'active:scale-95' : ''}`}
         >
           <Icon name="once" size={26} />
-          {m.opened ? tr('Aberta') : mine ? tr('Visualização única · por abrir') : m.kind === 'image' ? tr('Foto · toca para abrir') : m.kind === 'voice' ? tr('Voz · toca para abrir') : tr('Mensagem · toca para abrir')}
+          {m.opened ? tr('Aberta') : mine ? tr('Visualização única · por abrir') : m.kind === 'image' ? tr('Foto · toca para abrir') : m.kind === 'video' ? tr('Vídeo · toca para abrir') : m.kind === 'voice' ? tr('Voz · toca para abrir') : tr('Mensagem · toca para abrir')}
         </button>
       ) : null}
       {!m.viewOnce && m.kind === 'gift' && (
@@ -195,6 +200,11 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onReply, onRetry, 
         </span>
       )}
       {!m.viewOnce && m.kind === 'voice' && <div className={`max-w-[86%] ${dim}`}><VoiceMessage m={m} /></div>}
+      {!m.viewOnce && m.kind === 'video' && m.mediaUrl && (
+        <div className={`max-w-[75%] overflow-hidden ${shape} ${tone} ${dim}`}>
+          <video src={m.mediaUrl} controls playsInline preload="metadata" controlsList="nodownload noremoteplayback" onContextMenu={(e) => e.preventDefault()} className="max-h-80 w-full bg-black object-cover" />
+        </div>
+      )}
       {!m.viewOnce && m.kind === 'image' && m.mediaUrl && (
         <div className={`max-w-[75%] overflow-hidden ${shape} ${tone} ${dim}`}>
           <a href={m.mediaUrl} target="_blank" rel="noreferrer">
@@ -349,7 +359,7 @@ export default function Thread() {
     stick.current = true;
     setErr('');
     try {
-      const mediaId = d.file ? await api.uploadChatFile(d.file, d.mime ?? d.file.type) : undefined;
+      const mediaId = d.file ? (d.kind === 'video' ? await api.uploadVideo(d.file as File, { progress: () => undefined, stage: () => undefined }, 'chat') : await api.uploadChatFile(d.file, d.mime ?? d.file.type)) : undefined;
       track('message_send', { kind: d.kind });
       const msg = { kind: d.kind, body: d.body, mediaId, durationMs: d.durationMs, waveform: d.waveform, lat: d.lat, lng: d.lng, once: d.once, liveMinutes: d.liveMinutes, replyTo: d.replyTo };
       const r = isGroup ? await api.chatGroupSend(groupId, msg) : await api.chatSend(username, msg);
@@ -399,7 +409,17 @@ export default function Thread() {
   function pickPhoto(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = '';
-    if (f) queuePhoto(f);
+    if (!f) return;
+    if (f.type.startsWith('video/')) return queueVideo(f);
+    queuePhoto(f);
+  }
+  /** Vídeo da galeria: vai direto (a opção de "ver uma vez" do campo aplica-se). Até 100 MB e 60 s; o servidor converte e verifica. */
+  function queueVideo(f: File) {
+    if (!['video/mp4', 'video/quicktime', 'video/webm'].includes(f.type)) return setErr(tr('Usa um vídeo MP4, MOV ou WebM'));
+    if (f.size > 100 * 1024 * 1024) return setErr(tr('Vídeo pesado demais! Máximo 100 MB'));
+    setErr('');
+    void dispatch({ kind: 'video', body: '', file: f, mime: f.type, localUrl: URL.createObjectURL(f), once: once && !isGroup });
+    setOnce(false);
   }
   function sendReviewed(r: { file: File; caption: string; once: boolean }) {
     setReview(null);
@@ -574,6 +594,25 @@ export default function Thread() {
     return () => vv.removeEventListener('resize', onResize);
   }, []);
 
+  // Tocar na citação de uma resposta leva à mensagem original (carrega mensagens mais antigas se for preciso) e destaca-a um instante.
+  const [flashId, setFlashId] = useState<string | null>(null);
+  async function jumpTo(id: string) {
+    for (let tries = 0; tries < 8; tries++) {
+      const el = document.getElementById(`msg-${id}`);
+      if (el) {
+        stick.current = false;
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        setFlashId(id);
+        setTimeout(() => setFlashId((c) => (c === id ? null : c)), 1800);
+        return;
+      }
+      if (!q.hasNextPage) return;
+      stick.current = false;
+      await q.fetchNextPage();
+      await new Promise((r) => setTimeout(r, 80));
+    }
+  }
+
   function jumpDown() {
     stick.current = true;
     setUnseen(0);
@@ -677,7 +716,7 @@ export default function Thread() {
             return (
               <div key={m.id}>
                 {newDay && <p className="mx-auto mb-1 mt-5 w-fit rounded-full bg-zinc-100 px-3 py-1 text-[12px] font-semibold text-zinc-600">{dayLabel(m.at)}</p>}
-                <Bubble m={m} group={isGroup} prevSame={!!prev && !newDay && joined(prev, m)} nextSame={!!next && joined(m, next)} seen={seenUpTo(m)} onMenu={setMenuFor} onReply={(x) => { setReplying(x); input.current?.focus(); }} onRetry={retry} onDiscard={discard} onOpenOnce={setOpening} onStopLive={stopSharing} />
+                <Bubble m={m} group={isGroup} flash={flashId === m.id} onJump={jumpTo} prevSame={!!prev && !newDay && joined(prev, m)} nextSame={!!next && joined(m, next)} seen={seenUpTo(m)} onMenu={setMenuFor} onReply={(x) => { setReplying(x); input.current?.focus(); }} onRetry={retry} onDiscard={discard} onOpenOnce={setOpening} onStopLive={stopSharing} />
               </div>
             );
           })}
@@ -773,7 +812,7 @@ export default function Thread() {
             <button type="button" onClick={() => setCamera(true)} aria-label={tr('Abrir a câmara')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-brand-light text-white transition active:scale-90">
               <Icon name="camera" size={20} />
             </button>
-            <input ref={gallery} type="file" accept={IMAGE_TYPES.join(',')} onChange={pickPhoto} className="sr-only" aria-label={tr('Escolher foto da galeria')} />
+            <input ref={gallery} type="file" accept={`${IMAGE_TYPES.join(',')},video/mp4,video/quicktime,video/webm`} onChange={pickPhoto} className="sr-only" aria-label={tr('Escolher foto ou vídeo da galeria')} />
             <textarea
               ref={input}
               value={text}
@@ -803,7 +842,7 @@ export default function Thread() {
               <>
                 {!isGroup && <button type="button" onClick={() => { if (!once && firstTime('view-once')) setOnceHelp(true); setOnce(!once); }} aria-pressed={once} aria-label={tr('Visualização única')} className={`${bar} ${once ? 'bg-brand text-white active:bg-brand' : ''}`}><Icon name="once" size={22} /></button>}
                 <button type="button" onClick={startRecording} className={bar} aria-label={tr('Gravar mensagem de voz')}><Icon name="mic" size={22} /></button>
-                <button type="button" onClick={() => gallery.current?.click()} className={bar} aria-label={tr('Enviar foto da galeria')}><Icon name="image" size={22} /></button>
+                <button type="button" onClick={() => gallery.current?.click()} className={bar} aria-label={tr('Enviar foto ou vídeo da galeria')}><Icon name="image" size={22} /></button>
                 <button type="button" data-sticker-toggle onClick={() => { markSeen('stickers'); setPanel(panel === 'stickers' ? null : 'stickers'); }} aria-label={tr('Stickers')} aria-expanded={panel === 'stickers'} className={`${bar} relative ${panel === 'stickers' ? 'bg-white text-brand' : ''}`}><Icon name="sticker" size={22} /><NewBadge id="stickers" className="absolute -right-2 -top-2" /></button>
                 <button type="button" onClick={() => setPanel(panel === 'attach' ? null : 'attach')} aria-label={tr('Mais')} aria-expanded={panel === 'attach'} className={`${bar} ${panel === 'attach' ? 'bg-white text-brand' : ''}`}><Icon name="plus" size={22} /></button>
               </>

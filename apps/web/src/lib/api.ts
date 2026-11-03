@@ -264,7 +264,7 @@ export interface ChatMessage {
   id: string;
   fromMe: boolean;
   body: string;
-  kind: 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift';
+  kind: 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift';
   /** Presente enviado na conversa: quanto (a nota vai no texto). */
   giftAmount?: number | null;
   /** Publicação partilhada (só em mensagens do tipo post; null se já não a posso ver). */
@@ -294,7 +294,7 @@ export interface ChatMessage {
 export interface InstantItem { id: string; url: string; caption: string; at: string; expiresAt: string; views?: number; reactions?: { reaction: string; count: number }[] }
 export interface InstantTray {
   mine: { count: number; views: number; endsAt: string | null };
-  others: { username: string; displayName: string; hasAvatar: boolean; count: number; latestAt: string; previewUrl: string }[];
+  others: { username: string; displayName: string; hasAvatar: boolean; count: number; latestAt: string; preview: string | null }[];
 }
 /** Online agora, ou a hora a que foi visto pela última vez. null = escondido por uma das partes. */
 export interface Presence { online: boolean; lastSeen: string | null }
@@ -704,9 +704,9 @@ export const api = {
    * Envia um vídeo curto: mostra o progresso do envio, espera pela conversão no servidor (MP4 até 60 s)
    * e devolve o id do ficheiro pronto a usar numa publicação.
    */
-  async uploadVideo(file: File, on: { progress: (fraction: number) => void; stage: (s: 'uploading' | 'processing') => void }): Promise<string> {
+  async uploadVideo(file: File, on: { progress: (fraction: number) => void; stage: (s: 'uploading' | 'processing') => void }, purpose: 'public' | 'chat' = 'public'): Promise<string> {
     const mime = ['video/mp4', 'video/quicktime', 'video/webm'].includes(file.type) ? file.type : 'video/mp4';
-    const { assetId, uploadUrl } = await raw('/media/uploads', post({ mime, size: file.size }));
+    const { assetId, uploadUrl } = await raw('/media/uploads', post({ mime, size: file.size, purpose }));
     on.stage('uploading');
     await new Promise<void>((resolve, reject) => {
       const x = new XMLHttpRequest();

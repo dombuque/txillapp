@@ -9,7 +9,7 @@ import { MediaService } from '../media/media.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
 
-export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift';
+export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video';
 
 /** Stickers que existem (o desenho está na app; aqui só se confirma que o id é válido). */
 /** Os stickers são desenhados na app; o servidor só confirma que o id tem o feitio certo (a lista cresce sem mexer aqui). */
@@ -24,7 +24,7 @@ const pair = (x: string, y: string) => (x < y ? ([x, y] as const) : ([y, x] as c
 
 export interface Outgoing {
   body: string;
-  kind: 'text' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift';
+  kind: 'text' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift';
   mediaId?: string;
   durationMs?: number;
   waveform?: string;
@@ -320,7 +320,8 @@ export class ChatService {
         [msg.mediaId, me],
       );
       const mime = a.rows[0]?.mime as string | undefined;
-      if (!mime || (msg.kind === 'image') !== mime.startsWith('image/')) throw new BadRequestException('Ficheiro inválido');
+      const want = msg.kind === 'image' ? 'image/' : msg.kind === 'video' ? 'video/' : 'audio/';
+      if (!mime || !mime.startsWith(want)) throw new BadRequestException('Ficheiro inválido');
     }
     // A localização guarda-se com ~1 m de precisão e só o que a pessoa escolheu enviar, uma vez.
     const place = msg.kind === 'location' ? { lat: Math.round(msg.lat! * 1e5) / 1e5, lng: Math.round(msg.lng! * 1e5) / 1e5 } : null;
@@ -369,7 +370,7 @@ export class ChatService {
       throw new ForbiddenException(`Esta pessoa não te segue e ainda não respondeu. Podes escrever outra vez quando ela responder, aceitar ou te seguir.`);
     }
     const place = await this.validateOutgoing(me, msg);
-    const once = !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice');
+    const once = !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice' || msg.kind === 'video');
     const live = msg.kind === 'location' && msg.liveMinutes && [15, 60, 480].includes(msg.liveMinutes) ? msg.liveMinutes : null;
     return this.insert(me, other.id, msg.kind === 'location' ? msg.body.slice(0, 80) : msg.body, msg.kind, null, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place, { once, liveMinutes: live, replyTo: msg.replyTo });
   }
@@ -382,6 +383,11 @@ export class ChatService {
 
   /** Apagar para todos (só quem enviou): a mensagem desaparece da conversa, sem deixar rasto visível. */
   async remove(me: string, messageId: string) {
+    // O ficheiro (foto, vídeo, voz) desaparece do armazenamento com a mensagem.
+    await this.pool.query(
+      `UPDATE content.media_assets SET status = 'deleted' WHERE id = (SELECT media_id FROM social.messages WHERE id = $1 AND sender_id = $2 AND deleted_at IS NULL)`,
+      [messageId, me],
+    );
     const { rows } = await this.pool.query(
       `UPDATE social.messages m SET deleted_at = now(), body = '', media_id = NULL, story_media_id = NULL
         WHERE m.id = $1 AND m.sender_id = $2 AND m.deleted_at IS NULL
@@ -449,6 +455,8 @@ export class ChatService {
       [messageId],
     );
     if (!rows[0]) throw new GoneException('Esta mensagem já foi aberta');
+    // Já foi aberta: o ficheiro fica só uns minutos (para acabar de ver) e depois é apagado do armazenamento.
+    if (rows[0].media_id) await this.media.expireIn(rows[0].media_id as string, 15);
     this.events.emit(m.sender_id as string, { type: 'read', from: await this.usernameOf(me) });
     const r = rows[0];
     return {
@@ -513,7 +521,7 @@ export class ChatService {
     this.events.emit(other, { type: 'message', from });
     // Também no telemóvel, sem o texto da mensagem.
     const sender = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0].display_name as string;
-    const what: Partial<Record<MessageKind, string>> = { image: 'enviou-te uma foto', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo', gift: 'enviou-te um presente' };
+    const what: Partial<Record<MessageKind, string>> = { image: 'enviou-te uma foto', video: 'enviou-te um vídeo', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo', gift: 'enviou-te um presente' };
     if (!this.events.isActive(other, `u:${from}`)) void this.push.send(other, { title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : extra.once ? 'enviou-te uma mensagem de visualização única' : extra.liveMinutes ? 'está a partilhar a localização em direto' : (what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}` });
     return { id, kind };
   }

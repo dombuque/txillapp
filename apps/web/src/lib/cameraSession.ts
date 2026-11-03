@@ -43,6 +43,13 @@ export async function acquireCamera(facing: 'environment' | 'user', audio: boole
     });
     cur = { stream, facing };
   }
+  // Sem microfone nesta vez (foto, story, Zás): larga já o que ficou ligado do Reel, para o iPhone não mostrar "a gravar".
+  if (!audio) {
+    cur.stream.getAudioTracks().forEach((t) => {
+      t.stop();
+      cur?.stream.removeTrack(t);
+    });
+  }
   // Microfone: pedido à parte e uma só vez; se recusarem, grava-se sem som.
   if (audio && cur.stream.getAudioTracks().length === 0) {
     try {

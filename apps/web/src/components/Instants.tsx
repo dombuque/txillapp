@@ -54,8 +54,8 @@ export default function InstantsDock() {
       >
         {top ? (
           <>
-            {/* Pré-visualização desfocada do Zás mais recente: dá a ideia sem o mostrar (só se vê uma vez). */}
-            <img src={top.previewUrl} alt="" draggable={false} className="absolute inset-0 h-full w-full scale-110 rounded-[inherit] object-cover blur-[5px]" />
+            {/* Miniatura minúscula e desfocada feita pelo servidor: dá a ideia sem mostrar a foto (só se vê uma vez). */}
+            {top.preview && <img src={top.preview} alt="" draggable={false} className="absolute inset-0 h-full w-full scale-110 rounded-[inherit] object-cover blur-[2px]" />}
             <span className="absolute inset-0 rounded-[inherit] bg-black/15" />
             <span className="absolute -bottom-1.5 -left-1.5 rounded-full bg-white p-[2px] shadow"><Avatar name={top.displayName} username={top.hasAvatar ? top.username : undefined} size={26} ring={false} /></span>
             <span className="absolute inset-0 flex items-center justify-center"><Icon name="bolt" size={22} fill="currentColor" className="drop-shadow" /></span>
@@ -354,8 +354,39 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
   const [err, setErr] = useState('');
   const [open, setOpen] = useState<string | null>(null);
   const [del, setDel] = useState<InstantItem | null>(null);
+  const [menu, setMenu] = useState<InstantItem | null>(null);
   const hold = useRef<ReturnType<typeof setTimeout>>();
   const held = useRef(false);
+
+  // Guardar na galeria / partilhar: no telemóvel abre a folha de partilha (com "Guardar imagem"); no computador descarrega o ficheiro.
+  async function photoOf(it: InstantItem) {
+    const b = await (await fetch(it.url)).blob();
+    return new File([b], `zas-${it.id.slice(0, 8)}.jpg`, { type: b.type || 'image/jpeg' });
+  }
+  async function save(it: InstantItem) {
+    setMenu(null);
+    try {
+      const f = await photoOf(it);
+      if (navigator.canShare?.({ files: [f] })) return void (await navigator.share({ files: [f] }));
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(f);
+      a.download = f.name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') window.open(it.url, '_blank');
+    }
+  }
+  async function share(it: InstantItem) {
+    setMenu(null);
+    try {
+      const f = await photoOf(it);
+      if (navigator.canShare?.({ files: [f] })) await navigator.share({ files: [f], text: it.caption || undefined });
+      else await navigator.clipboard?.writeText(it.caption || '');
+    } catch {
+      /* cancelado: nada a fazer */
+    }
+  }
 
   async function confirmDelete() {
     if (!del) return;
@@ -396,11 +427,11 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
                   <button
                     type="button"
                     onClick={() => { if (held.current) { held.current = false; return; } setOpen(it.id); }}
-                    onPointerDown={() => { held.current = false; hold.current = setTimeout(() => { held.current = true; navigator.vibrate?.(15); setDel(it); }, 450); }}
+                    onPointerDown={() => { held.current = false; hold.current = setTimeout(() => { held.current = true; navigator.vibrate?.(15); setMenu(it); }, 450); }}
                     onPointerUp={() => clearTimeout(hold.current)}
                     onPointerLeave={() => clearTimeout(hold.current)}
                     onPointerCancel={() => clearTimeout(hold.current)}
-                    onContextMenu={(e) => { e.preventDefault(); held.current = true; setDel(it); }}
+                    onContextMenu={(e) => { e.preventDefault(); held.current = true; setMenu(it); }}
                     aria-label={it.caption || tr('Zás')}
                     className="relative block aspect-[3/4] w-full select-none bg-zinc-800 transition active:scale-[0.97] active:opacity-80 [-webkit-touch-callout:none]"
                     style={SQUIRCLE}
@@ -426,6 +457,20 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
       </div>
       {/* Botão flutuante: voltar à câmara para mandar outro. */}
       <button type="button" onClick={onClose} className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 flex h-14 -translate-x-1/2 items-center gap-2 rounded-full bg-white px-7 text-[17px] font-bold text-zinc-900 shadow-[0_6px_24px_rgba(0,0,0,0.5)] active:scale-95"><Icon name="bolt" size={20} fill="currentColor" className="text-brand" />{tr('Mandar um Zás')}</button>
+      {menu && (
+        <Sheet title={tr('Zás')} onClose={() => setMenu(null)} layer="z-[100]">
+          {([
+            ['download', tr('Guardar na galeria'), tr('Fica no teu telemóvel.'), () => void save(menu), false],
+            ['share', tr('Partilhar'), tr('Manda a foto a quem quiseres.'), () => void share(menu), false],
+            ['trash', tr('Apagar'), tr('Desaparece para toda a gente.'), () => { setDel(menu); setMenu(null); }, true],
+          ] as const).map(([ic, label, text, run, danger]) => (
+            <button key={label} onClick={run} className={`flex w-full items-center gap-4 rounded-2xl px-1 py-3 text-left transition ${danger ? 'text-red-700 active:bg-red-50' : 'active:bg-zinc-100'}`}>
+              <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${danger ? 'bg-red-50' : 'bg-zinc-100 text-zinc-800'}`}><Icon name={ic} /></span>
+              <span><span className="block text-[17px] font-semibold">{label}</span><span className="block text-sm text-zinc-600">{text}</span></span>
+            </button>
+          ))}
+        </Sheet>
+      )}
       {del && (
         <Sheet title={tr('Apagar o Zás?')} onClose={() => setDel(null)} layer="z-[100]">
           <p className="mb-4 text-zinc-600">{tr('Desaparece para toda a gente e não dá para o recuperar.')}</p>

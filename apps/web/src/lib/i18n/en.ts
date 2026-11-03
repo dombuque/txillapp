@@ -1243,6 +1243,14 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Vídeo · toca para abrir': 'Video · tap to open',
+  'Usa um vídeo MP4, MOV ou WebM': 'Use an MP4, MOV or WebM video',
+  'Escolher foto ou vídeo da galeria': 'Choose a photo or video from the gallery',
+  'Enviar foto ou vídeo da galeria': 'Send a photo or video from the gallery',
+  'Guardar na galeria': 'Save to gallery',
+  'Fica no teu telemóvel.': 'It stays on your phone.',
+  'Manda a foto a quem quiseres.': 'Send the photo to anyone.',
+  'Desaparece para toda a gente.': 'It disappears for everyone.',
   'Mandar o meu Zás': 'Send my Zap',
   'O meu': 'Mine',
   'Créditos da música': 'Music credits',
