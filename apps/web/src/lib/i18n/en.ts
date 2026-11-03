@@ -1243,6 +1243,8 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Mandar o meu Zás': 'Send my Zap',
+  'O meu': 'Mine',
   'Créditos da música': 'Music credits',
   'Licença': 'License',
   'Ativar o som': 'Turn sound on',

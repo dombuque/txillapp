@@ -25,8 +25,13 @@ const leftLabel = (iso: string) => {
 export default function InstantsDock() {
   const { user } = useAuth();
   const { data } = useQuery({ queryKey: ['instants'], queryFn: api.instants, refetchInterval: 60_000 });
-  const [open, setOpen] = useState(false);
+  const qc = useQueryClient();
+  // O normal é ver os Zás dos outros; a câmara abre logo se não há nenhum por ver (ou ao tocar na câmara / no fim da fila).
+  const [mode, setMode] = useState<null | 'view' | 'cam'>(null);
+  const [queue, setQueue] = useState<{ username: string; displayName: string }[]>([]);
+  const [at, setAt] = useState(0);
   if (!user) return null;
+  const refresh = () => void qc.invalidateQueries({ queryKey: ['instants'] });
   const others = data?.others ?? [];
   const total = others.reduce((n, o) => n + o.count, 0);
   const top = others[0];
@@ -35,7 +40,14 @@ export default function InstantsDock() {
     <>
       <button
         type="button"
-        onClick={() => { markSeen('zas'); setOpen(true); }}
+        onClick={() => {
+          markSeen('zas');
+          if (others.length) {
+            setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName })));
+            setAt(0);
+            setMode('view');
+          } else setMode('cam');
+        }}
         aria-label={total ? tr('Zás: {n} por ver', { n: total }) : tr('Mandar um Zás')}
         className="fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom))] right-3 z-20 flex h-[60px] w-12 items-center justify-center rounded-[20px] bg-gradient-to-br from-brand to-[#ff9a5b] text-white shadow-[0_4px_14px_rgba(214,51,79,0.5)] ring-2 ring-white active:scale-90"
       >
@@ -53,7 +65,17 @@ export default function InstantsDock() {
         <NewBadge id="zas" className="absolute -left-4 -top-3" />
         {total > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1 text-[11px] font-bold text-white ring-2 ring-white">{total > 9 ? '9+' : total}</span>}
       </button>
-      {open && <InstantsHub onClose={() => setOpen(false)} />}
+      {mode === 'cam' && <InstantsHub onClose={() => { setMode(null); refresh(); }} />}
+      {mode === 'view' && queue[at] && (
+        <InstantViewer
+          key={queue[at].username}
+          who={queue[at]}
+          own={false}
+          onClose={() => { setMode(null); refresh(); }}
+          onCamera={() => setMode('cam')}
+          onFinish={() => (at + 1 < queue.length ? setAt(at + 1) : setMode('cam'))}
+        />
+      )}
     </>
   );
 }
@@ -357,7 +379,7 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
 }
 
 /** Ver os Zás de alguém: foto a ecrã cheio com cantos bem redondos, cada um abre-se uma só vez. Toca à direita para o seguinte e à esquerda para o anterior. */
-function InstantViewer({ who, own, onClose, onFinish }: { who: { username: string; displayName: string }; own: boolean; onClose: () => void; onFinish?: () => void }) {
+function InstantViewer({ who, own, onClose, onFinish, onCamera }: { who: { username: string; displayName: string }; own: boolean; onClose: () => void; onFinish?: () => void; onCamera?: () => void }) {
   const [items, setItems] = useState<InstantItem[] | null>(null);
   const [i, setI] = useState(0);
   const [viewers, setViewers] = useState<{ username: string; displayName: string; hasAvatar: boolean; at: string }[] | null>(null);
@@ -442,7 +464,11 @@ function InstantViewer({ who, own, onClose, onFinish }: { who: { username: strin
             <span className="block truncate text-[16px] font-bold leading-tight drop-shadow">{own ? tr('Os teus Zás') : who.displayName}</span>
             {cur && <span className="block text-xs text-white/80 drop-shadow">{hm(cur.at)} · {leftLabel(cur.expiresAt)}</span>}
           </span>
-          <span className="flex items-center gap-1 rounded-full bg-brand px-2.5 py-1 text-[12px] font-black italic"><Icon name="bolt" size={12} fill="currentColor" />Zás</span>
+          {onCamera ? (
+            <button type="button" onClick={onCamera} aria-label={tr('Mandar o meu Zás')} className="flex h-10 items-center gap-1.5 rounded-full bg-brand pl-3 pr-3.5 text-[13px] font-black italic active:scale-90"><Icon name="camera" size={16} />{tr('O meu')}</button>
+          ) : (
+            <span className="flex items-center gap-1 rounded-full bg-brand px-2.5 py-1 text-[12px] font-black italic"><Icon name="bolt" size={12} fill="currentColor" />Zás</span>
+          )}
           <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-md active:scale-90"><Icon name="x" size={22} /></button>
         </div>
 
