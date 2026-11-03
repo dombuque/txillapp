@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, type InstantItem } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -11,6 +11,7 @@ import { markSeen } from '../lib/whatsNew';
 import { NewBadge } from './WhatsNew';
 import CloseFriendsSheet from './CloseFriendsSheet';
 import FlashIcon from './FlashIcon';
+import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { FUN_FX, createFunRenderer, type FunRenderer } from '../lib/funFilters';
 import { Avatar, Sheet, timeAgo } from './ui';
 
@@ -153,6 +154,10 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   const fxRenderer = useRef<FunRenderer | null>(null);
   const [fx, setFx] = useState(0);
   const [fxOk, setFxOk] = useState(true);
+  const [editing, setEditing] = useState(false); // a escrever a legenda (o cartão cresce e o resto afasta-se)
+  const vv = useVisualViewport();
+  const swipe = useRef<{ x: number; y: number } | null>(null);
+  const cycleFx = (dir: 1 | -1) => setFx((f) => (f + dir + FUN_FX.length) % FUN_FX.length);
   useEffect(() => {
     if (!ready || fx === 0 || !fxCanvas.current) return;
     fxRenderer.current ??= createFunRenderer(fxCanvas.current);
@@ -211,18 +216,9 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   }, [facing]);
   useEffect(() => () => { releaseCamera(2_000); clearTimeout(undoTimer.current); clearInterval(countTimer.current); }, []);
 
-  /** Flash: com lanterna (câmara de trás) acende já, como na câmara dos posts; sem ela, o ecrã acende no disparo. */
-  async function toggleLight() {
-    const next = !light;
-    const track = (video.current?.srcObject as MediaStream | null)?.getVideoTracks()[0];
-    if (canTorch && track) {
-      try {
-        await track.applyConstraints({ advanced: [{ torch: next } as MediaTrackConstraintSet] });
-      } catch {
-        setCanTorch(false);
-      }
-    }
-    setLight(next);
+  /** Flash: só liga e desliga a opção; a luz acende no momento do obturador. */
+  function toggleLight() {
+    setLight((v) => !v);
   }
   function pickAudience(a: Audience) {
     // Sem amigos próximos ainda: abre já a lista para os escolher.
@@ -237,10 +233,20 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   async function shoot() {
     const v = video.current;
     if (!v || !ready || !v.videoWidth || busy) return;
-    // Sem lanterna (câmara da frente): o ecrã acende um instante antes de tirar.
-    if (light && !canTorch) {
-      setLit(true);
-      await new Promise((r) => setTimeout(r, 380));
+    // Flash ao obturar: lanterna (câmara de trás, se o aparelho deixar) ou ecrã aceso (câmara da frente).
+    const vtrack = (v.srcObject as MediaStream | null)?.getVideoTracks()[0];
+    let torchOn = false;
+    if (light) {
+      if (canTorch && vtrack) {
+        try {
+          await vtrack.applyConstraints({ advanced: [{ torch: true } as MediaTrackConstraintSet] });
+          torchOn = true;
+        } catch {
+          /* sem lanterna: acende o ecrã */
+        }
+      }
+      if (!torchOn) setLit(true);
+      await new Promise((r) => setTimeout(r, 420));
     }
     const c = document.createElement('canvas');
     const fxc = fx > 0 && fxCanvas.current && fxCanvas.current.width > 0 ? fxCanvas.current : null;
@@ -256,6 +262,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
     }
     g.drawImage(src, 0, 0);
     setLit(false);
+    if (torchOn && vtrack) vtrack.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] }).catch(() => undefined);
     navigator.vibrate?.(15);
     setFlash(true);
     setTimeout(() => setFlash(false), 140);
@@ -305,10 +312,10 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   const small = 'flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition active:scale-90';
   const recent = others.slice(0, 3);
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={tr('Mandar um Zás')} className="fixed inset-0 z-[90] flex flex-col bg-[#08080b] text-white" style={{ background: 'radial-gradient(120% 60% at 50% 105%, rgba(255,92,92,.28), transparent 60%), #08080b' }}>
+    <div role="dialog" aria-modal="true" aria-label={tr('Mandar um Zás')} className="fixed inset-0 z-[90] flex flex-col bg-[#08080b] text-white" style={{ background: 'radial-gradient(120% 60% at 50% 105%, rgba(255,92,92,.28), transparent 60%), #08080b', ...visibleStyle(vv) }}>
       <SquircleDefs />
       {/* Em cima, sobre o preto: fechar, o nome e os teus Zás. */}
-      <div className="flex shrink-0 items-center justify-between px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+      <div className={`shrink-0 items-center justify-between px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] ${editing ? 'hidden' : 'flex'}`}>
         <button type="button" onClick={onClose} aria-label={tr('Fechar')} className={small}><Icon name="x" size={26} /></button>
         <span className="flex items-center gap-1.5 text-[22px] font-black italic tracking-tight"><Icon name="bolt" size={20} fill="currentColor" className="text-brand" /> Zás</span>
         <div className="flex items-center gap-2">
@@ -327,33 +334,50 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* A câmara: um cartão 3:4 de cantos bem redondos. A legenda fica dentro, afastada das curvas. */}
-      <div className="relative mx-auto flex min-h-0 w-full flex-1 items-center justify-center px-8 py-2">
-        <div className="relative h-full max-h-[440px]" style={{ aspectRatio: '3 / 4', maxWidth: '100%', filter: 'drop-shadow(0 18px 36px rgba(255,92,92,0.3))' }}>
-        <div className="absolute inset-0 overflow-hidden bg-zinc-900" style={SQUIRCLE}>
+      <div className={`relative mx-auto flex min-h-0 w-full flex-1 items-center justify-center py-2 ${editing ? 'px-2 pt-[max(0.5rem,env(safe-area-inset-top))]' : 'px-8'}`}>
+        <div className={`relative h-full ${editing ? 'w-full' : 'max-h-[440px]'}`} style={editing ? { filter: 'drop-shadow(0 18px 36px rgba(255,92,92,0.3))' } : { aspectRatio: '3 / 4', maxWidth: '100%', filter: 'drop-shadow(0 18px 36px rgba(255,92,92,0.3))' }}>
+        <div
+          className="absolute inset-0 overflow-hidden bg-zinc-900"
+          style={SQUIRCLE}
+          onTouchStart={(e) => { swipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+          onTouchEnd={(e) => {
+            const st = swipe.current;
+            swipe.current = null;
+            if (!st || editing || !fxOk || !ready) return;
+            const dx = e.changedTouches[0].clientX - st.x;
+            const dy = e.changedTouches[0].clientY - st.y;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+              navigator.vibrate?.(6);
+              cycleFx(dx < 0 ? 1 : -1);
+            }
+          }}
+        >
           <video ref={video} playsInline muted className={`absolute inset-0 h-full w-full object-cover ${facing === 'user' ? '-scale-x-100' : ''} ${ready ? '' : 'invisible'}`} />
           <canvas ref={fxCanvas} aria-hidden className={`absolute inset-0 h-full w-full object-cover ${facing === 'user' ? '-scale-x-100' : ''} ${fx > 0 ? '' : 'hidden'}`} />
-          {ready && fxOk && (
-            <div role="radiogroup" aria-label={tr('Filtros')} className="absolute inset-x-0 bottom-[4.9rem] z-10 flex gap-2 overflow-x-auto px-6 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ touchAction: 'pan-x' }}>
-              {FUN_FX.map((f) => (
-                <button key={f.id} type="button" role="radio" aria-checked={fx === f.id} onClick={() => setFx(f.id)} className={`h-9 shrink-0 rounded-full px-3.5 text-[13px] font-bold backdrop-blur-md transition active:scale-95 ${fx === f.id ? 'bg-white text-zinc-900' : 'bg-black/40 text-white ring-1 ring-white/15'}`}>{tr(f.name)}</button>
-              ))}
+          {editing && <div className="pointer-events-none absolute inset-0 bg-black/40" />}
+          {ready && fxOk && !editing && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center gap-1" aria-hidden>
+              {FUN_FX.map((f) => <span key={f.id} className={`h-1.5 rounded-full transition-all ${fx === f.id ? 'w-4 bg-white' : 'w-1.5 bg-white/40'}`} />)}
             </div>
           )}
           {lit && <div className="pointer-events-none absolute inset-0 z-10 bg-white" />}
           {count !== null && <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-[120px] font-black drop-shadow-[0_4px_20px_rgba(0,0,0,0.6)]" aria-live="assertive">{count}</div>}
-          <div className="absolute right-6 top-6 z-10 flex flex-col gap-2">
-            <button type="button" onClick={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} aria-label={tr('Temporizador')} className={`flex h-11 w-11 items-center justify-center rounded-full text-[13px] font-extrabold backdrop-blur-md transition active:scale-90 ${delay ? 'bg-white text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}>{delay ? `${delay}s` : <Icon name="clock" size={20} />}</button>
-          </div>
           {!ready && <p className="absolute inset-0 flex items-center justify-center px-12 text-center text-white/80">{problem ? tr('Não consegui abrir a câmara. Os Zás só se mandam na hora.') : tr('A acordar a câmara…')}</p>}
           {flash && <div className="pointer-events-none absolute inset-0 bg-white" />}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/45 to-transparent" />
+          <CurvedCaption text={caption || tr('Adicionar legenda…')} hint={!caption} caret={editing} caretFirst={!caption} />
           <input
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
+            onFocus={() => setEditing(true)}
+            onBlur={() => setEditing(false)}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
             maxLength={80}
-            placeholder={tr('Adicionar legenda…')}
+            enterKeyHint="done"
+            autoComplete="off"
             aria-label={tr('Legenda')}
-            className="absolute inset-x-8 bottom-6 h-11 rounded-full bg-black/35 px-5 text-center text-[16px] font-semibold outline-none ring-1 ring-white/15 backdrop-blur-md placeholder:text-white/75 focus:bg-black/50"
+            className={`absolute left-0 z-[5] w-full bg-transparent text-[16px] opacity-0 outline-none ${editing ? 'inset-0 h-full' : 'top-0 h-2/5'}`}
+            style={{ caretColor: 'transparent' }}
           />
           {err && <p role="alert" className="absolute inset-x-8 top-6 rounded-[22px] bg-red-600/90 px-4 py-2 text-center text-sm font-semibold">{err}</p>}
         </div>
@@ -361,7 +385,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* Em baixo: quem te mandou, o obturador e virar a câmara; depois, para quem vai. */}
-      <div className="relative shrink-0 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
+      <div className={`relative shrink-0 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 ${editing ? 'hidden' : ''}`}>
         {sent && (
           <div role="status" className="absolute inset-x-6 top-0 mx-auto max-w-sm -translate-y-[calc(100%+4px)] overflow-hidden rounded-[28px] bg-white text-zinc-900 shadow-lg">
             <div className="flex items-center justify-between py-2 pl-5 pr-2">
@@ -371,8 +395,9 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
             <span key={sent} aria-hidden className="block h-1 rounded-full bg-brand" style={{ animation: 'shrink 6s linear forwards' }} />
           </div>
         )}
-        <div className="mx-auto flex max-w-[360px] items-center justify-between">
-          <button type="button" onClick={() => void toggleLight()} aria-pressed={light} aria-label={canTorch ? tr('Lanterna') : tr('Flash de ecrã')} className={`flex h-14 w-14 items-center justify-center rounded-full backdrop-blur transition active:scale-90 ${light ? 'bg-amber-300 text-zinc-900' : 'bg-white/10 text-white'}`}><FlashIcon on={light} size={25} /></button>
+        <div className="mx-auto flex max-w-[360px] items-center justify-center gap-4">
+          <button type="button" onClick={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} aria-label={tr('Temporizador')} className={`flex h-14 w-14 items-center justify-center rounded-full text-[15px] font-extrabold backdrop-blur transition active:scale-90 ${delay ? 'bg-white text-zinc-900' : 'bg-white/10 text-white'}`}>{delay ? `${delay}s` : <Icon name="clock" size={24} />}</button>
+          <button type="button" onClick={toggleLight} aria-pressed={light} aria-label={canTorch ? tr('Lanterna') : tr('Flash de ecrã')} className={`flex h-14 w-14 items-center justify-center rounded-full backdrop-blur transition active:scale-90 ${light ? 'bg-amber-300 text-zinc-900' : 'bg-white/10 text-white'}`}><FlashIcon on={light} size={25} /></button>
           <button type="button" onClick={press} disabled={!ready || busy} aria-label={count !== null ? tr('Cancelar') : tr('Tirar e enviar')} className="relative flex h-[86px] w-[86px] items-center justify-center rounded-full transition active:scale-90 disabled:opacity-50">
             <span className="absolute inset-0 rounded-full bg-[conic-gradient(from_200deg,#ff5c5c,#ff9a5b,#ffd166,#ff5c5c)] p-[4px]"><span className="block h-full w-full rounded-full bg-[#08080b]" /></span>
             <span className={`relative flex h-[66px] w-[66px] items-center justify-center rounded-full shadow-[0_6px_20px_rgba(255,92,92,0.45)] ${busy ? 'animate-pulse bg-brand text-white' : 'bg-white text-brand'}`}><Icon name="bolt" size={30} fill="currentColor" /></span>
@@ -434,6 +459,64 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       )}
     </div>,
     document.body,
+  );
+}
+
+/**
+ * Legenda dos Zás: o texto corre pela curva do cartão (em maiúsculas, com letras espaçadas), como nos Instants do Instagram.
+ * `arc` escolhe o troço: 'top' sobe pela esquerda e segue pelo topo; 'bottom' desce pela esquerda e segue pelo fundo.
+ */
+function CurvedCaption({ text, hint = false, caret = false, caretFirst = false, arc = 'top' }: { text: string; hint?: boolean; caret?: boolean; caretFirst?: boolean; arc?: 'top' | 'bottom' }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  const pid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const read = () => setSize({ w: el.clientWidth, h: el.clientHeight });
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const { d, len } = useMemo(() => {
+    const { w, h } = size;
+    if (!w || !h) return { d: '', len: 0 };
+    const inset = Math.min(w, h) * 0.1;
+    const n = 3.4;
+    const a = arc === 'top' ? Math.PI + 0.22 : Math.PI - 0.5;
+    const b = arc === 'top' ? 2 * Math.PI - 0.3 : 0.45;
+    const N = 80;
+    let len = 0;
+    let prev: [number, number] | null = null;
+    const pts: string[] = [];
+    for (let i = 0; i <= N; i++) {
+      const t = a + ((b - a) * i) / N;
+      const c = Math.cos(t);
+      const sn = Math.sin(t);
+      const x = w / 2 + (w / 2 - inset) * Math.sign(c) * Math.abs(c) ** (2 / n);
+      const y = h / 2 + (h / 2 - inset) * Math.sign(sn) * Math.abs(sn) ** (2 / n);
+      if (prev) len += Math.hypot(x - prev[0], y - prev[1]);
+      prev = [x, y];
+      pts.push(`${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`);
+    }
+    return { d: pts.join(' '), len };
+  }, [size, arc]);
+  const label = text.toUpperCase();
+  const chars = Math.max(1, label.length + (caret ? 1 : 0));
+  const fs = Math.max(8, Math.min(Math.min(size.w, size.h) * 0.052, (len - 14) / (chars * 0.8)));
+  const Caret = () => <tspan fill="#3b82f6" className="animate-pulse">|</tspan>;
+  return (
+    <div ref={box} className="pointer-events-none absolute inset-0 z-[4]" aria-hidden>
+      {d && (
+        <svg width={size.w} height={size.h} className="absolute inset-0 overflow-visible">
+          <defs><path id={pid} d={d} /></defs>
+          <text fontSize={fs} fontWeight={700} letterSpacing={fs * 0.16} fill="white" fillOpacity={hint ? 0.72 : 1} stroke="rgba(0,0,0,0.35)" strokeWidth={2.4} style={{ paintOrder: 'stroke' }}>
+            <textPath href={`#${pid}`}>{caretFirst && caret && <Caret />}{label}{!caretFirst && caret && <Caret />}</textPath>
+          </text>
+        </svg>
+      )}
+    </div>
   );
 }
 
@@ -761,7 +844,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
           <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 backdrop-blur-md active:scale-90"><Icon name="x" size={22} /></button>
         </div>
 
-        {cur?.caption && <p className="absolute inset-x-6 bottom-6 rounded-[26px] bg-black/35 px-5 py-3 text-center text-[19px] font-extrabold leading-snug ring-1 ring-white/15 backdrop-blur-md">{cur.caption}</p>}
+        {cur?.caption && <CurvedCaption text={cur.caption} arc="bottom" />}
         {(err || note) && cur && <p role={err ? 'alert' : 'status'} className={`absolute inset-x-8 top-24 rounded-full px-4 py-2 text-center text-sm font-semibold ${err ? 'bg-red-600/90' : 'bg-emerald-600/90'}`}>{err || note}</p>}
       </div>
       </div>
