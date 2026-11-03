@@ -10,6 +10,8 @@ import { REACTIONS, Reaction } from '../lib/stickers';
 import { markSeen } from '../lib/whatsNew';
 import { NewBadge } from './WhatsNew';
 import CloseFriendsSheet from './CloseFriendsSheet';
+import FlashIcon from './FlashIcon';
+import { FUN_FX, createFunRenderer, type FunRenderer } from '../lib/funFilters';
 import { Avatar, Sheet, timeAgo } from './ui';
 
 /** Guardar a foto de um Zás: no telemóvel abre a folha de partilha ("Guardar imagem"); no computador descarrega o ficheiro. */
@@ -146,6 +148,30 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   const [delay, setDelay] = useState<0 | 3 | 10>(0); // temporizador
   const [count, setCount] = useState<number | null>(null);
   const countTimer = useRef<ReturnType<typeof setInterval>>();
+  // Filtros divertidos em direto (WebGL): o canvas mostra o resultado e é dele que sai a foto.
+  const fxCanvas = useRef<HTMLCanvasElement>(null);
+  const fxRenderer = useRef<FunRenderer | null>(null);
+  const [fx, setFx] = useState(0);
+  const [fxOk, setFxOk] = useState(true);
+  useEffect(() => {
+    if (!ready || fx === 0 || !fxCanvas.current) return;
+    fxRenderer.current ??= createFunRenderer(fxCanvas.current);
+    const r = fxRenderer.current;
+    if (!r) {
+      setFxOk(false);
+      setFx(0);
+      return;
+    }
+    const t0 = performance.now();
+    let raf = 0;
+    const loop = () => {
+      if (video.current) r.render(video.current, fx, (performance.now() - t0) / 1000);
+      raf = requestAnimationFrame(loop);
+    };
+    loop();
+    return () => cancelAnimationFrame(raf);
+  }, [ready, fx]);
+  useEffect(() => () => fxRenderer.current?.dispose(), []);
   const [grid, setGrid] = useState(false);
   // A explicação só aparece da primeira vez.
   const [intro, setIntro] = useState(() => !seenIntro());
@@ -217,15 +243,18 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       await new Promise((r) => setTimeout(r, 380));
     }
     const c = document.createElement('canvas');
-    c.width = v.videoWidth;
-    c.height = v.videoHeight;
+    const fxc = fx > 0 && fxCanvas.current && fxCanvas.current.width > 0 ? fxCanvas.current : null;
+    if (fxc && fxRenderer.current) fxRenderer.current.render(v, fx, performance.now() / 1000);
+    const src: CanvasImageSource = fxc ?? v;
+    c.width = fxc ? fxc.width : v.videoWidth;
+    c.height = fxc ? fxc.height : v.videoHeight;
     const g = c.getContext('2d')!;
     // Selfie: a foto sai como a viste no ecrã (espelhada).
     if (facing === 'user') {
       g.translate(c.width, 0);
       g.scale(-1, 1);
     }
-    g.drawImage(v, 0, 0);
+    g.drawImage(src, 0, 0);
     setLit(false);
     navigator.vibrate?.(15);
     setFlash(true);
@@ -302,10 +331,17 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
         <div className="relative h-full max-h-[440px]" style={{ aspectRatio: '3 / 4', maxWidth: '100%', filter: 'drop-shadow(0 18px 36px rgba(255,92,92,0.3))' }}>
         <div className="relative h-full w-full overflow-hidden bg-zinc-900" style={SQUIRCLE}>
           <video ref={video} playsInline muted className={`absolute inset-0 h-full w-full object-cover ${facing === 'user' ? '-scale-x-100' : ''} ${ready ? '' : 'invisible'}`} />
+          <canvas ref={fxCanvas} aria-hidden className={`absolute inset-0 h-full w-full object-cover ${facing === 'user' ? '-scale-x-100' : ''} ${fx > 0 ? '' : 'hidden'}`} />
+          {ready && fxOk && (
+            <div role="radiogroup" aria-label={tr('Filtros')} className="absolute inset-x-0 bottom-[4.9rem] z-10 flex gap-2 overflow-x-auto px-6 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ touchAction: 'pan-x' }}>
+              {FUN_FX.map((f) => (
+                <button key={f.id} type="button" role="radio" aria-checked={fx === f.id} onClick={() => setFx(f.id)} className={`h-9 shrink-0 rounded-full px-3.5 text-[13px] font-bold backdrop-blur-md transition active:scale-95 ${fx === f.id ? 'bg-white text-zinc-900' : 'bg-black/40 text-white ring-1 ring-white/15'}`}>{tr(f.name)}</button>
+              ))}
+            </div>
+          )}
           {lit && <div className="pointer-events-none absolute inset-0 z-10 bg-white" />}
           {count !== null && <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-[120px] font-black drop-shadow-[0_4px_20px_rgba(0,0,0,0.6)]" aria-live="assertive">{count}</div>}
           <div className="absolute right-3 top-3 z-10 flex flex-col gap-2">
-            <button type="button" onClick={() => void toggleLight()} aria-pressed={light} aria-label={canTorch ? tr('Lanterna') : tr('Flash de ecrã')} className={`flex h-11 w-11 items-center justify-center rounded-full backdrop-blur-md transition active:scale-90 ${light ? 'bg-amber-300 text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}><span className="relative flex items-center justify-center"><Icon name="bolt" size={20} fill={light ? 'currentColor' : 'none'} />{!light && <span aria-hidden className="absolute h-[2px] w-[26px] -rotate-45 rounded-full bg-current" />}</span></button>
             <button type="button" onClick={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} aria-label={tr('Temporizador')} className={`flex h-11 w-11 items-center justify-center rounded-full text-[13px] font-extrabold backdrop-blur-md transition active:scale-90 ${delay ? 'bg-white text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}>{delay ? `${delay}s` : <Icon name="clock" size={20} />}</button>
           </div>
           {!ready && <p className="absolute inset-0 flex items-center justify-center px-12 text-center text-white/80">{problem ? tr('Não consegui abrir a câmara. Os Zás só se mandam na hora.') : tr('A acordar a câmara…')}</p>}
@@ -336,7 +372,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
           </div>
         )}
         <div className="mx-auto flex max-w-[360px] items-center justify-between">
-          <span className="h-14 w-14" />
+          <button type="button" onClick={() => void toggleLight()} aria-pressed={light} aria-label={canTorch ? tr('Lanterna') : tr('Flash de ecrã')} className={`flex h-14 w-14 items-center justify-center rounded-full backdrop-blur transition active:scale-90 ${light ? 'bg-amber-300 text-zinc-900' : 'bg-white/10 text-white'}`}><FlashIcon on={light} size={25} /></button>
           <button type="button" onClick={press} disabled={!ready || busy} aria-label={count !== null ? tr('Cancelar') : tr('Tirar e enviar')} className="relative flex h-[86px] w-[86px] items-center justify-center rounded-full transition active:scale-90 disabled:opacity-50">
             <span className="absolute inset-0 rounded-full bg-[conic-gradient(from_200deg,#ff5c5c,#ff9a5b,#ffd166,#ff5c5c)] p-[4px]"><span className="block h-full w-full rounded-full bg-[#08080b]" /></span>
             <span className={`relative flex h-[66px] w-[66px] items-center justify-center rounded-full shadow-[0_6px_20px_rgba(255,92,92,0.45)] ${busy ? 'animate-pulse bg-brand text-white' : 'bg-white text-brand'}`}><Icon name="bolt" size={30} fill="currentColor" /></span>

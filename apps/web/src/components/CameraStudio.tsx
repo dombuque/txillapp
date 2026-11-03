@@ -6,6 +6,7 @@ import { acquireCamera, releaseCamera } from '../lib/cameraSession';
 import { useDesktop } from '../lib/useDesktop';
 import { setHandoff } from '../lib/handoff';
 import { FILTERS, bakeFilter, cssFilter, type Filter } from '../lib/filters';
+import FlashIcon from './FlashIcon';
 import Icon from './Icon';
 import { StoryCreator } from './Stories';
 
@@ -428,8 +429,8 @@ export default function CameraStudio() {
           <div className="flex gap-2">
             <button type="button" onClick={() => setGrid((g) => !g)} aria-pressed={grid} aria-label={tr('Grelha')} className={`${round} ${grid ? '!bg-white !text-zinc-900' : ''}`}><Icon name="grid" size={22} /></button>
             <button type="button" onClick={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} aria-label={tr('Temporizador')} className={`${round} relative ${delay ? '!bg-white !text-zinc-900' : ''}`}><Icon name="clock" size={22} />{delay > 0 && <span className="absolute -bottom-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-[11px] font-bold text-white">{delay}</span>}</button>
-            {!canTorch && ready && facing === 'user' && <button type="button" onClick={() => setScreenFlash((f) => !f)} aria-pressed={screenFlash} aria-label={tr('Flash de ecrã')} className={`${round} ${screenFlash ? '!bg-white !text-zinc-900' : ''}`}><Icon name="bolt" size={22} /></button>}
-            {canTorch && ready && <button type="button" onClick={toggleTorch} aria-pressed={torch} aria-label={tr('Lanterna')} className={`${round} ${torch ? '!bg-white !text-zinc-900' : ''}`}><Icon name="sun" size={22} /></button>}
+            {!canTorch && ready && facing === 'user' && <button type="button" onClick={() => setScreenFlash((f) => !f)} aria-pressed={screenFlash} aria-label={tr('Flash de ecrã')} className={`${round} ${screenFlash ? '!bg-white !text-zinc-900' : ''}`}><FlashIcon on={screenFlash} size={22} /></button>}
+            {canTorch && ready && <button type="button" onClick={toggleTorch} aria-pressed={torch} aria-label={tr('Lanterna')} className={`${round} ${torch ? '!bg-white !text-zinc-900' : ''}`}><FlashIcon on={torch} size={22} /></button>}
             {mode === 'post' && <button type="button" onClick={() => navigate('/new/post', { replace: true })} aria-label={tr('Só texto')} className={`${round} text-base font-bold`}>{tr('Aa')}</button>}
             {canFlip && ready && <button type="button" onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} aria-label={tr('Virar câmara')} className={round}><Icon name="flip-camera" size={24} /></button>}
           </div>
