@@ -493,6 +493,11 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
   const [reply, setReply] = useState('');
   const [note, setNote] = useState('');
   const marked = useRef(new Set<string>());
+  // Arrastar para baixo fecha (o cartão acompanha o dedo); duplo toque na foto reage com um brinde.
+  const [drag, setDrag] = useState(0);
+  const touch = useRef<{ x: number; y: number; on: boolean } | null>(null);
+  const [pop, setPop] = useState<{ n: number; id: string } | null>(null);
+  const tapTimer = useRef<number | null>(null);
 
   useEffect(() => {
     api.instantsOf(who.username).then((r) => {
@@ -510,6 +515,45 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
     marked.current.add(cur.id);
     api.instantView(cur.id).catch(() => undefined);
   }, [cur, own]);
+
+  function react(id: string, art: string) {
+    if (!cur) return;
+    navigator.vibrate?.(8);
+    setPop((p) => ({ n: (p?.n ?? 0) + 1, id }));
+    api.instantReact(cur.id, id).catch(() => undefined);
+    void sendDm({ kind: 'sticker', body: art });
+  }
+  /** Toque numa metade: vai para o outro Zás; dois toques seguidos reagem com um brinde (e não mudam de Zás). */
+  function tapZone(go: () => void) {
+    if (own) return go();
+    if (tapTimer.current != null) {
+      window.clearTimeout(tapTimer.current);
+      tapTimer.current = null;
+      react(':brinde:', 'saude');
+      return;
+    }
+    tapTimer.current = window.setTimeout(() => {
+      tapTimer.current = null;
+      go();
+    }, 250);
+  }
+  const dragProps = {
+    onTouchStart: (e: React.TouchEvent) => { touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, on: false }; },
+    onTouchMove: (e: React.TouchEvent) => {
+      const t = touch.current;
+      if (!t) return;
+      const dy = e.touches[0].clientY - t.y;
+      const dx = e.touches[0].clientX - t.x;
+      if (!t.on && dy > 12 && dy > Math.abs(dx) * 1.5) t.on = true;
+      if (t.on) setDrag(Math.max(0, dy));
+    },
+    onTouchEnd: () => {
+      const t = touch.current;
+      touch.current = null;
+      if (t?.on && drag > 110) onClose();
+      setDrag(0);
+    },
+  };
 
   function next() {
     if (!items) return;
@@ -556,15 +600,16 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
   }
 
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={`Zás de ${who.displayName}`} className="fixed inset-0 z-[90] flex flex-col bg-black text-white">
-      <div className="relative mx-2 mt-[max(0.5rem,env(safe-area-inset-top))] min-h-0 flex-1 overflow-hidden rounded-[40px] bg-zinc-900 ring-1 ring-white/10">
+    <div role="dialog" aria-modal="true" aria-label={`Zás de ${who.displayName}`} className="fixed inset-0 z-[90] flex flex-col bg-black text-white" style={{ backgroundColor: drag ? `rgba(0,0,0,${Math.max(0.3, 1 - drag / 400)})` : undefined }}>
+      <div {...dragProps} className="relative mx-2 mt-[max(0.5rem,env(safe-area-inset-top))] min-h-0 flex-1 overflow-hidden rounded-[40px] bg-zinc-900 ring-1 ring-white/10" style={{ transform: drag ? `translateY(${drag}px) scale(${Math.max(0.85, 1 - drag / 1500)})` : undefined, transition: drag ? 'none' : 'transform .2s ease-out', touchAction: 'pan-x' }}>
         {cur ? <img src={cur.url} alt={cur.caption || tr('Zás')} draggable={false} onContextMenu={(e) => e.preventDefault()} className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover [-webkit-touch-callout:none]" /> : <p className="absolute inset-0 flex items-center justify-center text-white/70">{err || tr('A carregar…')}</p>}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/55 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/60 to-transparent" />
 
         {/* Metades do ecrã: anterior / seguinte. */}
-        <button type="button" aria-label={tr('Anterior')} onClick={() => setI((k) => Math.max(0, k - 1))} className="absolute inset-y-16 left-0 w-1/3" />
-        <button type="button" aria-label={tr('Seguinte')} onClick={next} className="absolute inset-y-16 right-0 w-2/3" />
+        <button type="button" aria-label={tr('Anterior')} onClick={() => tapZone(() => setI((k) => Math.max(0, k - 1)))} className="absolute inset-y-16 left-0 w-1/3" />
+        <button type="button" aria-label={tr('Seguinte')} onClick={() => tapZone(next)} className="absolute inset-y-16 right-0 w-2/3" />
+        {pop && <span key={pop.n} aria-hidden className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center opacity-0 animate-[burst_.9s_ease-out_forwards]"><Reaction body={pop.id} size={120} /></span>}
 
         <div className="absolute inset-x-6 top-4 flex gap-1" aria-hidden>
           {(items ?? [{ id: 'x' }]).map((x, k) => <span key={x.id} className={`h-1 flex-1 rounded-full ${k <= i ? 'bg-white' : 'bg-white/35'}`} />)}
@@ -590,6 +635,11 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
       <div className="shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
         {own ? (
           <div className="flex items-center justify-center gap-3">
+            {!!cur?.reactions?.length && (
+              <div className="flex h-12 items-center gap-2 rounded-full bg-white/15 px-4" aria-label={tr('Reações')}>
+                {cur.reactions.map((r) => <span key={r.reaction} className="flex items-center gap-0.5 text-[13px] font-bold"><Reaction body={r.reaction} size={24} />{r.count}</span>)}
+              </div>
+            )}
             <button type="button" onClick={showViewers} className="flex h-12 items-center gap-2 rounded-full bg-white/15 px-6 font-semibold active:scale-95"><Icon name="eye" size={18} /> {tr('{n} viram', { n: cur?.views ?? 0 })}</button>
             <button type="button" onClick={remove} aria-label={tr('Apagar Zás')} className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-red-300 active:scale-95"><Icon name="trash" size={20} /></button>
           </div>
@@ -597,7 +647,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
           <>
             <div className="mb-3 flex justify-center gap-2" role="group" aria-label={tr('Reagir')}>
               {REACTIONS.map((r) => (
-                <button key={r.id} type="button" aria-label={r.label} onClick={() => { if (cur) api.instantReact(cur.id, r.id).catch(() => undefined); void sendDm({ kind: 'sticker', body: r.art }); }} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/12 transition active:scale-90"><Reaction body={r.id} size={32} /></button>
+                <button key={r.id} type="button" aria-label={r.label} onClick={() => react(r.id, r.art)} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/12 transition active:scale-90"><Reaction body={r.id} size={32} /></button>
               ))}
             </div>
             <form onSubmit={sendReply} className="flex items-center gap-2 rounded-full bg-white/12 p-1.5 pl-5">
