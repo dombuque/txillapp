@@ -329,7 +329,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       {/* A câmara: um cartão 3:4 de cantos bem redondos. A legenda fica dentro, afastada das curvas. */}
       <div className="relative mx-auto flex min-h-0 w-full flex-1 items-center justify-center px-8 py-2">
         <div className="relative h-full max-h-[440px]" style={{ aspectRatio: '3 / 4', maxWidth: '100%', filter: 'drop-shadow(0 18px 36px rgba(255,92,92,0.3))' }}>
-        <div className="relative h-full w-full overflow-hidden bg-zinc-900" style={SQUIRCLE}>
+        <div className="absolute inset-0 overflow-hidden bg-zinc-900" style={SQUIRCLE}>
           <video ref={video} playsInline muted className={`absolute inset-0 h-full w-full object-cover ${facing === 'user' ? '-scale-x-100' : ''} ${ready ? '' : 'invisible'}`} />
           <canvas ref={fxCanvas} aria-hidden className={`absolute inset-0 h-full w-full object-cover ${facing === 'user' ? '-scale-x-100' : ''} ${fx > 0 ? '' : 'hidden'}`} />
           {ready && fxOk && (
@@ -341,7 +341,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
           )}
           {lit && <div className="pointer-events-none absolute inset-0 z-10 bg-white" />}
           {count !== null && <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-[120px] font-black drop-shadow-[0_4px_20px_rgba(0,0,0,0.6)]" aria-live="assertive">{count}</div>}
-          <div className="absolute right-3 top-3 z-10 flex flex-col gap-2">
+          <div className="absolute right-6 top-6 z-10 flex flex-col gap-2">
             <button type="button" onClick={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} aria-label={tr('Temporizador')} className={`flex h-11 w-11 items-center justify-center rounded-full text-[13px] font-extrabold backdrop-blur-md transition active:scale-90 ${delay ? 'bg-white text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}>{delay ? `${delay}s` : <Icon name="clock" size={20} />}</button>
           </div>
           {!ready && <p className="absolute inset-0 flex items-center justify-center px-12 text-center text-white/80">{problem ? tr('Não consegui abrir a câmara. Os Zás só se mandam na hora.') : tr('A acordar a câmara…')}</p>}
