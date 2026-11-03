@@ -212,7 +212,7 @@ function PostBody({ post }: { post: Post }) {
       {post.body && <p className="mt-4 whitespace-pre-wrap break-words text-[19px] text-zinc-800"><RichText text={post.body} /></p>}
         </>
       )}
-      {post.music && <TrackCard track={post.music} />}
+      {post.music && <TrackCard track={post.music} autoplay />}
       <Carousel media={post.media} onOpen={setViewer} reelId={post.id} />
       <Actions post={post} />
       {viewer !== null && <ImageViewer post={post} start={viewer} onClose={() => setViewer(null)} />}

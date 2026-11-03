@@ -168,57 +168,72 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
     refresh();
   }
 
-  const top = 'flex h-11 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md active:scale-90';
+  const small = 'flex h-11 w-11 items-center justify-center rounded-full text-white transition active:scale-90';
+  const recent = others.slice(0, 3);
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={tr('Mandar um Zás')} className="fixed inset-0 z-[90] flex flex-col bg-black text-white">
-      {/* A câmara, com cantos bem redondos; tudo o que está por cima fica afastado das curvas. */}
-      <div className="relative mx-2 mt-[max(0.5rem,env(safe-area-inset-top))] min-h-0 flex-1 overflow-hidden rounded-[44px] bg-zinc-900 shadow-[0_0_44px_rgba(255,107,107,0.28)]">
-        <video ref={video} playsInline muted className={`absolute inset-0 h-full w-full object-cover ${facing === 'user' ? '-scale-x-100' : ''} ${ready ? '' : 'invisible'}`} />
-        {!ready && <p className="absolute inset-0 flex items-center justify-center px-10 text-center text-white/80">{problem ? tr('Não consegui abrir a câmara. Os Zás só se mandam na hora.') : tr('A acordar a câmara…')}</p>}
-        {flash && <div className="pointer-events-none absolute inset-0 bg-white" />}
-
-        <button type="button" onClick={onClose} aria-label={tr('Fechar')} className={`${top} absolute left-5 top-5 w-11`}><Icon name="x" size={24} /></button>
-        <div className="absolute right-5 top-5 flex items-center gap-2">
-          {total > 0 && (
-            <button type="button" onClick={() => { setQueue(others); setAt(0); }} aria-label={tr('Zás: {n} por ver', { n: total })} className={`${top} relative gap-0 pl-1.5 pr-3`}>
-              <span className="flex -space-x-2.5">
-                {others.slice(0, 3).map((o) => <span key={o.username} className="rounded-full bg-white p-[1.5px]"><Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={30} ring={false} /></span>)}
-              </span>
-              <span className="ml-1.5 text-sm font-extrabold">{total}</span>
-            </button>
-          )}
-          <button type="button" onClick={() => setGrid(true)} aria-label={tr('Os meus Zás')} className={`${top} w-11`}><Icon name="grid" size={22} /></button>
-        </div>
-
-        <input
-          value={caption}
-          onChange={(e) => setCaption(e.target.value)}
-          maxLength={80}
-          placeholder={tr('Adicionar legenda…')}
-          aria-label={tr('Legenda')}
-          className="absolute inset-x-6 bottom-6 h-12 rounded-full bg-black/45 px-6 text-center text-[17px] font-bold outline-none backdrop-blur-md placeholder:text-white/70 focus:bg-black/60"
-        />
-        {err && <p role="alert" className="absolute inset-x-8 bottom-[5.25rem] rounded-2xl bg-red-600/90 px-4 py-2 text-center text-sm font-semibold">{err}</p>}
+      {/* Em cima, sobre o preto: fechar, o nome e os teus Zás. */}
+      <div className="flex shrink-0 items-center justify-between px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+        <button type="button" onClick={onClose} aria-label={tr('Fechar')} className={small}><Icon name="x" size={26} /></button>
+        <span className="flex items-center gap-1 text-[19px] font-black italic tracking-tight"><Icon name="bolt" size={17} fill="currentColor" className="text-brand" /> Zás</span>
+        <button type="button" onClick={() => setGrid(true)} aria-label={tr('Os meus Zás')} className={small}><Icon name="grid" size={23} /></button>
       </div>
 
-      <div className="relative shrink-0 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+      {/* A câmara: um cartão 3:4 de cantos bem redondos. A legenda fica dentro, afastada das curvas. */}
+      <div className="relative mx-auto min-h-0 w-full max-w-[460px] flex-1 px-3">
+        <div className="relative mx-auto h-full max-h-full overflow-hidden rounded-[40px] bg-zinc-900" style={{ aspectRatio: '3 / 4', maxWidth: '100%' }}>
+          <video ref={video} playsInline muted className={`absolute inset-0 h-full w-full object-cover ${facing === 'user' ? '-scale-x-100' : ''} ${ready ? '' : 'invisible'}`} />
+          {!ready && <p className="absolute inset-0 flex items-center justify-center px-12 text-center text-white/80">{problem ? tr('Não consegui abrir a câmara. Os Zás só se mandam na hora.') : tr('A acordar a câmara…')}</p>}
+          {flash && <div className="pointer-events-none absolute inset-0 bg-white" />}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/45 to-transparent" />
+          <input
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            maxLength={80}
+            placeholder={tr('Adicionar legenda…')}
+            aria-label={tr('Legenda')}
+            className="absolute inset-x-8 bottom-6 h-11 bg-transparent text-center text-[18px] font-bold outline-none drop-shadow placeholder:text-white/75"
+          />
+          {err && <p role="alert" className="absolute inset-x-8 top-6 rounded-[22px] bg-red-600/90 px-4 py-2 text-center text-sm font-semibold">{err}</p>}
+        </div>
+      </div>
+
+      {/* Em baixo: quem te mandou, o obturador e virar a câmara; depois, para quem vai. */}
+      <div className="relative shrink-0 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
         {sent && (
-          <div role="status" className="absolute inset-x-6 -top-1 mx-auto flex max-w-sm -translate-y-full items-center justify-between rounded-full bg-white py-2 pl-5 pr-2 text-zinc-900 shadow-[0_4px_18px_rgba(0,0,0,0.5)]">
+          <div role="status" className="absolute inset-x-6 top-0 mx-auto flex max-w-sm -translate-y-[calc(100%+4px)] items-center justify-between rounded-full bg-white py-2 pl-5 pr-2 text-zinc-900">
             <span className="text-[15px] font-bold">{tr('Zás enviado!')}</span>
             <button type="button" onClick={undo} className="h-9 rounded-full bg-zinc-100 px-4 text-sm font-bold active:scale-95">{tr('Desfazer')}</button>
           </div>
         )}
-        <div className="flex items-center justify-between">
-          <span className="w-12" />
-          <button type="button" onClick={shoot} disabled={!ready || busy} aria-label={tr('Tirar e enviar')} className="flex h-[84px] w-[84px] items-center justify-center rounded-full border-[5px] border-white transition active:scale-90 disabled:opacity-50">
-            <span className={`flex h-[62px] w-[62px] items-center justify-center rounded-full ${busy ? 'animate-pulse bg-brand text-white' : 'bg-white text-brand'}`}><Icon name="bolt" size={30} fill="currentColor" /></span>
+        <div className="mx-auto flex max-w-[360px] items-center justify-between">
+          {total > 0 ? (
+            <button type="button" onClick={() => { setQueue(others); setAt(0); }} aria-label={tr('Zás: {n} por ver', { n: total })} className="relative h-14 w-14 active:scale-90">
+              {[...recent].reverse().map((o, k) => {
+                const i = recent.length - 1 - k;
+                return (
+                  <span key={o.username} className="absolute left-0 top-0 rounded-[18px] bg-white p-[2px] shadow-md" style={{ transform: `translate(${i * 5}px, ${i * -5}px) rotate(${i % 2 ? 5 : -4}deg)` }}>
+                    <Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={46} ring={false} />
+                  </span>
+                );
+              })}
+              <span className="absolute -right-1 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-extrabold text-white ring-2 ring-black">{total > 9 ? '9+' : total}</span>
+            </button>
+          ) : (
+            <span className="h-14 w-14" />
+          )}
+          <button type="button" onClick={shoot} disabled={!ready || busy} aria-label={tr('Tirar e enviar')} className="flex h-[80px] w-[80px] items-center justify-center rounded-full border-4 border-white transition active:scale-90 disabled:opacity-50">
+            <span className={`h-[62px] w-[62px] rounded-full ${busy ? 'animate-pulse bg-brand' : 'bg-white'}`} />
           </button>
-          <button type="button" onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} aria-label={tr('Virar câmara')} className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 active:scale-90"><Icon name="flip-camera" size={24} /></button>
+          <button type="button" onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} aria-label={tr('Virar câmara')} className="flex h-14 w-14 items-center justify-center rounded-full bg-white/12 active:scale-90"><Icon name="flip-camera" size={25} /></button>
         </div>
         {/* Para quem vai: amigos (próximos e mútuos) ou só os amigos próximos. */}
-        <div role="radiogroup" aria-label={tr('Para quem vai')} className="mx-auto mt-3 flex w-fit rounded-full bg-white/12 p-1">
+        <div role="radiogroup" aria-label={tr('Para quem vai')} className="mx-auto mt-4 flex w-fit items-center gap-5 text-[15px] font-bold">
           {([['friends', tr('Amigos')], ['close', tr('Próximos')]] as const).map(([id, label]) => (
-            <button key={id} type="button" role="radio" aria-checked={audience === id} onClick={() => pickAudience(id)} className={`h-9 rounded-full px-6 text-[14px] font-bold transition ${audience === id ? (id === 'close' ? 'bg-emerald-500 text-white' : 'bg-white text-zinc-900') : 'text-white/80'}`}>{label}</button>
+            <button key={id} type="button" role="radio" aria-checked={audience === id} onClick={() => pickAudience(id)} className={`flex items-center gap-1.5 border-b-2 pb-0.5 transition ${audience === id ? (id === 'close' ? 'border-emerald-400 text-emerald-400' : 'border-white text-white') : 'border-transparent text-white/50'}`}>
+              {id === 'close' && <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />}
+              {label}
+            </button>
           ))}
         </div>
       </div>
