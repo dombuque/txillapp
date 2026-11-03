@@ -353,6 +353,8 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
   const [items, setItems] = useState<InstantItem[] | null>(null);
   const [err, setErr] = useState('');
   const [open, setOpen] = useState<string | null>(null);
+  const [who, setWho] = useState<{ username: string; displayName: string; hasAvatar: boolean; at: string }[] | null>(null);
+  const showWho = (id: string) => api.instantViewers(id).then(setWho).catch((e) => setErr((e as Error).message));
   const [del, setDel] = useState<InstantItem | null>(null);
   const [menu, setMenu] = useState<InstantItem | null>(null);
   const hold = useRef<ReturnType<typeof setTimeout>>();
@@ -437,7 +439,7 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
                     style={SQUIRCLE}
                   >
                     <img src={it.url} alt="" loading="lazy" draggable={false} className="pointer-events-none h-full w-full select-none object-cover [-webkit-touch-callout:none]" />
-                    <span className="absolute right-[13%] top-[9%] flex items-center gap-0.5 text-[13px] font-bold drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+                    <span role="button" tabIndex={0} aria-label={tr('Quem viu')} onClick={(e) => { e.stopPropagation(); void showWho(it.id); }} onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); void showWho(it.id); } }} className="absolute right-[10%] top-[6%] flex min-h-8 items-center gap-0.5 rounded-full px-1.5 text-[13px] font-bold drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] active:scale-90">
                       {top ? (
                         <>
                           <Reaction body={top.reaction} size={20} />
@@ -476,6 +478,22 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
           <p className="mb-4 text-zinc-600">{tr('Desaparece para toda a gente e não dá para o recuperar.')}</p>
           <button onClick={confirmDelete} className="h-12 w-full rounded-full bg-red-700 font-bold text-white active:scale-[0.98]">{tr('Apagar')}</button>
           <button onClick={() => setDel(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar')}</button>
+        </Sheet>
+      )}
+      {who && (
+        <Sheet title={tr('Quem viu')} onClose={() => setWho(null)} layer="z-[100]">
+          {who.length === 0 ? (
+            <p className="py-6 text-center text-zinc-600">{tr('Ainda ninguém viu.')}</p>
+          ) : (
+            <ul>
+              {who.map((v) => (
+                <li key={v.username} className="flex items-center gap-3 py-2">
+                  <Avatar name={v.displayName} username={v.hasAvatar ? v.username : undefined} size={40} ring={false} />
+                  <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{v.displayName}</span><span className="block text-sm text-zinc-500">@{v.username} · {hm(v.at)}</span></span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Sheet>
       )}
       {open && <InstantViewer who={{ username, displayName: '' }} own startId={open} onClose={() => { setOpen(null); void load(); }} />}
@@ -601,7 +619,8 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
 
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={`Zás de ${who.displayName}`} className="fixed inset-0 z-[96] flex flex-col bg-black text-white" style={{ backgroundColor: drag ? `rgba(0,0,0,${Math.max(0.3, 1 - drag / 400)})` : undefined }}>
-      <div {...dragProps} className="relative mx-2 mt-[max(0.5rem,env(safe-area-inset-top))] min-h-0 flex-1 overflow-hidden rounded-[40px] bg-zinc-900 ring-1 ring-white/10" style={{ transform: drag ? `translateY(${drag}px) scale(${Math.max(0.85, 1 - drag / 1500)})` : undefined, transition: drag ? 'none' : 'transform .2s ease-out', touchAction: 'pan-x' }}>
+      <div className="mt-[max(0.5rem,env(safe-area-inset-top))] flex min-h-0 flex-1 items-center justify-center px-5">
+      <div {...dragProps} className="relative h-full max-h-[600px] overflow-hidden rounded-[44px] bg-zinc-900 ring-1 ring-white/10 shadow-[0_20px_60px_-10px_rgba(255,92,92,0.3)]" style={{ transform: drag ? `translateY(${drag}px) scale(${Math.max(0.85, 1 - drag / 1500)})` : undefined, transition: drag ? 'none' : 'transform .2s ease-out', touchAction: 'pan-x', aspectRatio: '3 / 4', maxWidth: '100%' }}>
         {cur ? <img src={cur.url} alt={cur.caption || tr('Zás')} draggable={false} onContextMenu={(e) => e.preventDefault()} className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover [-webkit-touch-callout:none]" /> : <p className="absolute inset-0 flex items-center justify-center text-white/70">{err || tr('A carregar…')}</p>}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/55 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/60 to-transparent" />
@@ -630,6 +649,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
 
         {cur?.caption && <p className="absolute inset-x-6 bottom-6 rounded-[26px] bg-black/35 px-5 py-3 text-center text-[19px] font-extrabold leading-snug ring-1 ring-white/15 backdrop-blur-md">{cur.caption}</p>}
         {(err || note) && cur && <p role={err ? 'alert' : 'status'} className={`absolute inset-x-8 top-24 rounded-full px-4 py-2 text-center text-sm font-semibold ${err ? 'bg-red-600/90' : 'bg-emerald-600/90'}`}>{err || note}</p>}
+      </div>
       </div>
 
       <div className="shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
