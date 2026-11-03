@@ -218,8 +218,8 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* A câmara: um cartão 3:4 de cantos bem redondos. A legenda fica dentro, afastada das curvas. */}
-      <div className="relative mx-auto min-h-0 w-full max-w-[460px] flex-1 px-3">
-        <div className="relative mx-auto h-full max-h-full overflow-hidden rounded-[38px] bg-zinc-900 ring-1 ring-white/15 shadow-[0_20px_60px_-10px_rgba(255,92,92,0.35)]" style={{ aspectRatio: '3 / 4', maxWidth: '100%' }}>
+      <div className="relative mx-auto flex min-h-0 w-full flex-1 items-center justify-center px-8 py-2">
+        <div className="relative h-full max-h-[440px] overflow-hidden rounded-[44px] bg-zinc-900 ring-1 ring-white/15 shadow-[0_20px_60px_-10px_rgba(255,92,92,0.35)]" style={{ aspectRatio: '3 / 4', maxWidth: '100%' }}>
           <video ref={video} playsInline muted className={`absolute inset-0 h-full w-full object-cover ${facing === 'user' ? '-scale-x-100' : ''} ${ready ? '' : 'invisible'}`} />
           {!ready && <p className="absolute inset-0 flex items-center justify-center px-12 text-center text-white/80">{problem ? tr('Não consegui abrir a câmara. Os Zás só se mandam na hora.') : tr('A acordar a câmara…')}</p>}
           {flash && <div className="pointer-events-none absolute inset-0 bg-white" />}
@@ -230,7 +230,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
             maxLength={80}
             placeholder={tr('Adicionar legenda…')}
             aria-label={tr('Legenda')}
-            className="absolute inset-x-6 bottom-5 h-12 rounded-full bg-black/35 px-6 text-center text-[17px] font-semibold outline-none ring-1 ring-white/15 backdrop-blur-md placeholder:text-white/75 focus:bg-black/50"
+            className="absolute inset-x-5 bottom-4 h-11 rounded-full bg-black/35 px-5 text-center text-[16px] font-semibold outline-none ring-1 ring-white/15 backdrop-blur-md placeholder:text-white/75 focus:bg-black/50"
           />
           {err && <p role="alert" className="absolute inset-x-8 top-6 rounded-[22px] bg-red-600/90 px-4 py-2 text-center text-sm font-semibold">{err}</p>}
         </div>
