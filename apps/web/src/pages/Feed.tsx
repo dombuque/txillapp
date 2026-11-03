@@ -3,7 +3,8 @@ import { tr } from '../lib/i18n';
 import Icon from '../components/Icon';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { shouldShowSuggestions } from '../lib/suggestPacing';
+import { isSnoozed, shouldShowSuggestions } from '../lib/suggestPacing';
+import { useAuth } from '../lib/auth';
 import { Link } from 'react-router-dom';
 import PostCard from '../components/PostCard';
 import StoriesTray from '../components/Stories';
@@ -39,6 +40,10 @@ function Impression({ id, children }: { id: string; children: React.ReactNode })
 export default function Feed() {
   // As sugestões de pessoas aparecem só às vezes entre os posts (ritmo no aparelho).
   const [showSuggestions] = useState(() => shouldShowSuggestions('feed', { minGapHours: 10, base: 0.4, step: 0.2 }));
+  // A app ainda é nova e há pouca gente: quem segue poucas pessoas vê logo, em todas as visitas, quem pode conhecer (a não ser que dispense).
+  const { user } = useAuth();
+  const me = useQuery({ queryKey: ['profile', user?.username], queryFn: () => api.profile(user!.username), enabled: !!user, staleTime: 60_000 });
+  const early = !!me.data && me.data.counts.following < 25 && !isSnoozed();
   const q = useInfiniteQuery({
     queryKey: ['feed'],
     queryFn: ({ pageParam }) => api.feed(pageParam),
@@ -116,10 +121,10 @@ export default function Feed() {
           <Impression id={p.id}>
             <PostCard post={p} />
           </Impression>
-          {i === 1 && showSuggestions && <Suggestions />}
+          {((early && i === 0) || (!early && i === 1 && showSuggestions)) && <Suggestions />}
         </Fragment>
       ))}
-      {q.isSuccess && posts.length <= 1 && <Suggestions />}
+      {q.isSuccess && (posts.length === 0 || (posts.length === 1 && !early)) && <Suggestions />}
       {q.hasNextPage && (
         <div className="mb-6 text-center">
           <button onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage} className={btnGhost}>

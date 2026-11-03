@@ -42,6 +42,11 @@ export function shouldShowSuggestions(slot: string, o: { minGapHours?: number; b
   return show;
 }
 
+/** Dispensou as sugestões há pouco? (Também vale para quem está no início e as vê sempre.) */
+export function isSnoozed(now = Date.now()): boolean {
+  return now < read().snoozeUntil;
+}
+
 /** Dispensou uma sugestão: descansa um tempo em todos os sítios. */
 export function snoozeSuggestions(hours = 24, now = Date.now()) {
   const s = read();
