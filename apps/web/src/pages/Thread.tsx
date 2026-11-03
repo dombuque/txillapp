@@ -548,6 +548,17 @@ export default function Thread() {
     await q.refetch();
   }
 
+  // Com o teclado a abrir/fechar a área visível muda: se estavas no fim, continuas no fim.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      if (stick.current && document.activeElement === input.current) end.current?.scrollIntoView({ block: 'end' });
+    };
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
+
   function jumpDown() {
     stick.current = true;
     setUnseen(0);
@@ -752,7 +763,15 @@ export default function Thread() {
               ref={input}
               value={text}
               onChange={(e) => onType(e.target.value)}
-              onFocus={() => setPanel(null)}
+              onFocus={() => {
+                setPanel(null);
+                // O teclado abre e encolhe a conversa: sobe para a última mensagem (volta a tentar quando o teclado acaba de abrir).
+                stick.current = true;
+                const down = () => end.current?.scrollIntoView({ block: 'end' });
+                down();
+                setTimeout(down, 120);
+                setTimeout(down, 350);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(pointer: fine)').matches) submit(e as unknown as FormEvent);
               }}

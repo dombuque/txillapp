@@ -171,7 +171,13 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
     const c = document.createElement('canvas');
     c.width = v.videoWidth;
     c.height = v.videoHeight;
-    c.getContext('2d')!.drawImage(v, 0, 0);
+    const g = c.getContext('2d')!;
+    // Selfie: a foto sai como a viste no ecrã (espelhada).
+    if (facing === 'user') {
+      g.translate(c.width, 0);
+      g.scale(-1, 1);
+    }
+    g.drawImage(v, 0, 0);
     navigator.vibrate?.(15);
     setFlash(true);
     setTimeout(() => setFlash(false), 140);
@@ -347,6 +353,21 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
   const [items, setItems] = useState<InstantItem[] | null>(null);
   const [err, setErr] = useState('');
   const [open, setOpen] = useState<string | null>(null);
+  const [del, setDel] = useState<InstantItem | null>(null);
+  const hold = useRef<ReturnType<typeof setTimeout>>();
+  const held = useRef(false);
+
+  async function confirmDelete() {
+    if (!del) return;
+    const id = del.id;
+    setDel(null);
+    try {
+      await api.instantDelete(id);
+      setItems((l) => (l ?? []).filter((x) => x.id !== id));
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }
 
   const load = () => api.instantsOf(username).then(setItems).catch((e) => setErr((e as Error).message));
   useEffect(() => {
@@ -372,8 +393,19 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
               const top = it.reactions?.[0];
               return (
                 <li key={it.id}>
-                  <button type="button" onClick={() => setOpen(it.id)} aria-label={it.caption || tr('Zás')} className="relative block aspect-[3/4] w-full bg-zinc-800 active:opacity-80" style={SQUIRCLE}>
-                    <img src={it.url} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => { if (held.current) { held.current = false; return; } setOpen(it.id); }}
+                    onPointerDown={() => { held.current = false; hold.current = setTimeout(() => { held.current = true; navigator.vibrate?.(15); setDel(it); }, 450); }}
+                    onPointerUp={() => clearTimeout(hold.current)}
+                    onPointerLeave={() => clearTimeout(hold.current)}
+                    onPointerCancel={() => clearTimeout(hold.current)}
+                    onContextMenu={(e) => { e.preventDefault(); held.current = true; setDel(it); }}
+                    aria-label={it.caption || tr('Zás')}
+                    className="relative block aspect-[3/4] w-full select-none bg-zinc-800 transition active:scale-[0.97] active:opacity-80 [-webkit-touch-callout:none]"
+                    style={SQUIRCLE}
+                  >
+                    <img src={it.url} alt="" loading="lazy" draggable={false} className="pointer-events-none h-full w-full select-none object-cover [-webkit-touch-callout:none]" />
                     <span className="absolute right-[13%] top-[9%] flex items-center gap-0.5 text-[13px] font-bold drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
                       {top ? (
                         <>
@@ -394,6 +426,13 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
       </div>
       {/* Botão flutuante: voltar à câmara para mandar outro. */}
       <button type="button" onClick={onClose} className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 flex h-14 -translate-x-1/2 items-center gap-2 rounded-full bg-white px-7 text-[17px] font-bold text-zinc-900 shadow-[0_6px_24px_rgba(0,0,0,0.5)] active:scale-95"><Icon name="bolt" size={20} fill="currentColor" className="text-brand" />{tr('Mandar um Zás')}</button>
+      {del && (
+        <Sheet title={tr('Apagar o Zás?')} onClose={() => setDel(null)} layer="z-[100]">
+          <p className="mb-4 text-zinc-600">{tr('Desaparece para toda a gente e não dá para o recuperar.')}</p>
+          <button onClick={confirmDelete} className="h-12 w-full rounded-full bg-red-700 font-bold text-white active:scale-[0.98]">{tr('Apagar')}</button>
+          <button onClick={() => setDel(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar')}</button>
+        </Sheet>
+      )}
       {open && <InstantViewer who={{ username, displayName: '' }} own startId={open} onClose={() => { setOpen(null); void load(); }} />}
     </div>,
     document.body,
@@ -474,7 +513,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={`Zás de ${who.displayName}`} className="fixed inset-0 z-[90] flex flex-col bg-black text-white">
       <div className="relative mx-2 mt-[max(0.5rem,env(safe-area-inset-top))] min-h-0 flex-1 overflow-hidden rounded-[40px] bg-zinc-900 ring-1 ring-white/10">
-        {cur ? <img src={cur.url} alt={cur.caption || tr('Zás')} draggable={false} className="absolute inset-0 h-full w-full object-cover" /> : <p className="absolute inset-0 flex items-center justify-center text-white/70">{err || tr('A carregar…')}</p>}
+        {cur ? <img src={cur.url} alt={cur.caption || tr('Zás')} draggable={false} onContextMenu={(e) => e.preventDefault()} className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover [-webkit-touch-callout:none]" /> : <p className="absolute inset-0 flex items-center justify-center text-white/70">{err || tr('A carregar…')}</p>}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/55 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/60 to-transparent" />
 

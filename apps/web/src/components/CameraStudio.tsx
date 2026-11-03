@@ -187,7 +187,13 @@ export default function CameraStudio() {
     const sh = v.videoHeight / k;
     c.width = Math.round(sw);
     c.height = Math.round(sh);
-    c.getContext('2d')!.drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height);
+    const g = c.getContext('2d')!;
+    // Selfie: a foto sai como a viste no ecrã (espelhada), e não ao contrário.
+    if (facing === 'user') {
+      g.translate(c.width, 0);
+      g.scale(-1, 1);
+    }
+    g.drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height);
     setWhiteOut(false);
     setFlash(true);
     setTimeout(() => setFlash(false), 140);

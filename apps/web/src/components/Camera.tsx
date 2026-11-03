@@ -76,7 +76,13 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
     const c = document.createElement('canvas');
     c.width = v.videoWidth;
     c.height = v.videoHeight;
-    c.getContext('2d')!.drawImage(v, 0, 0);
+    const g = c.getContext('2d')!;
+    // Selfie: a foto sai como a viste no ecrã (espelhada).
+    if (facing === 'user') {
+      g.translate(c.width, 0);
+      g.scale(-1, 1);
+    }
+    g.drawImage(v, 0, 0);
     c.toBlob(
       (blob) => {
         if (blob) onShot(new File([blob], `txill-${Date.now()}.jpg`, { type: 'image/jpeg' }));
