@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { useEffect, useMemo, useState } from 'react';
 import { track } from '../lib/analytics';
 import { api, type Post } from '../lib/api';
@@ -189,19 +190,19 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
   return (
     <>
       <div className={`fixed inset-0 ${layer} flex items-end justify-center bg-black/40`} onClick={onClose} role="presentation">
-        <div role="dialog" aria-modal="true" aria-label="Partilhar" className="flex max-h-[88dvh] w-full max-w-xl animate-[rise_.25s_ease-out] flex-col rounded-t-[28px] bg-white" onClick={(e) => e.stopPropagation()}>
+        <div role="dialog" aria-modal="true" aria-label={tr('Partilhar')} className="flex max-h-[88dvh] w-full max-w-xl animate-[rise_.25s_ease-out] flex-col rounded-t-[28px] bg-white" onClick={(e) => e.stopPropagation()}>
           <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-zinc-300" aria-hidden />
 
           <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-3">
             <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full bg-zinc-100 px-4 text-zinc-500 transition focus-within:bg-zinc-200/70">
               <Icon name="search" size={18} />
-              <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Procurar" aria-label="Procurar pessoas e grupos" className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
+              <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder={tr('Procurar')} aria-label={tr('Procurar pessoas e grupos')} className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
             </label>
-            <button type="button" onClick={() => setGrouping(true)} aria-label="Criar grupo" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-900 active:scale-90"><Icon name="user-plus" size={22} /></button>
+            <button type="button" onClick={() => setGrouping(true)} aria-label={tr('Criar grupo')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-900 active:scale-90"><Icon name="user-plus" size={22} /></button>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-2">
-            {(direct.isLoading || groups.isLoading) && <p className="py-10 text-center text-zinc-500">A carregar…</p>}
+            {(direct.isLoading || groups.isLoading) && <p className="py-10 text-center text-zinc-500">{tr('A carregar…')}</p>}
             {!direct.isLoading && list.length === 0 && <p className="py-10 text-center text-zinc-500">{t ? 'Ninguém com esse nome' : 'Ainda não tens conversas. Procura alguém pelo nome.'}</p>}
             <ul className="grid grid-cols-3 gap-y-4 pt-2">
               {list.map((x) => {
@@ -220,7 +221,7 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
                         ) : (
                           <Avatar name={x.avatars[0].name} username={x.avatars[0].username} size={72} ring={false} />
                         )}
-                        {x.online && <span className="absolute bottom-0.5 right-0.5 h-4 w-4 rounded-full border-[3px] border-white bg-emerald-500" aria-label="Online" />}
+                        {x.online && <span className="absolute bottom-0.5 right-0.5 h-4 w-4 rounded-full border-[3px] border-white bg-emerald-500" aria-label={tr('Online')} />}
                         {x.recent !== null && <span className="absolute -bottom-1 right-0 rounded-full border-2 border-white bg-emerald-100 px-1.5 text-[11px] font-bold leading-4 text-emerald-700">{x.recent}m</span>}
                         {on && <span className="absolute inset-0 flex items-center justify-center rounded-full bg-brand/70 text-white"><Icon name="check" size={32} strokeWidth={3} /></span>}
                       </span>
@@ -236,7 +237,7 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
 
           {picked.length > 0 ? (
             <div className="shrink-0 border-t border-zinc-100 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
-              <input value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} placeholder="Escrever uma mensagem…" aria-label="Mensagem" className="h-12 w-full rounded-full bg-zinc-100 px-5 text-[16px] outline-none placeholder:text-zinc-500 focus:bg-zinc-200/70" />
+              <input value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} placeholder={tr('Escrever uma mensagem…')} aria-label={tr('Mensagem')} className="h-12 w-full rounded-full bg-zinc-100 px-5 text-[16px] outline-none placeholder:text-zinc-500 focus:bg-zinc-200/70" />
               <button type="button" onClick={sendAll} disabled={busy} className="mt-3 h-12 w-full rounded-full bg-brand text-[17px] font-bold text-white transition active:scale-[0.98] disabled:opacity-60">
                 {busy ? 'A enviar…' : picked.length === 1 ? `Enviar a ${picked[0].name.split(' ')[0]}` : `Enviar a ${picked.length} conversas`}
               </button>
@@ -259,10 +260,10 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
         </div>
       </div>
       {preview && (
-        <div className="fixed inset-0 z-[90] flex flex-col bg-black" role="dialog" aria-modal="true" aria-label="Pré-visualização do status">
+        <div className="fixed inset-0 z-[90] flex flex-col bg-black" role="dialog" aria-modal="true" aria-label={tr('Pré-visualização do status')}>
           <div className="flex shrink-0 items-center gap-2 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-white">
-            <button type="button" onClick={() => setPreview(null)} aria-label="Voltar" className="flex h-11 w-11 items-center justify-center rounded-full active:bg-white/15"><Icon name="back" size={24} /></button>
-            <h2 className="text-[17px] font-bold">Pré-visualização</h2>
+            <button type="button" onClick={() => setPreview(null)} aria-label={tr('Voltar')} className="flex h-11 w-11 items-center justify-center rounded-full active:bg-white/15"><Icon name="back" size={24} /></button>
+            <h2 className="text-[17px] font-bold">{tr('Pré-visualização')}</h2>
           </div>
           <div className="relative mx-auto flex min-h-0 w-full max-w-sm flex-1 items-center justify-center px-4">
             <div className="relative aspect-[9/16] max-h-full overflow-hidden rounded-[22px] bg-zinc-900 shadow-2xl">
@@ -279,8 +280,8 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
             </div>
           </div>
           <div className="shrink-0 space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
-            <input value={caption} onChange={(e) => setCaption(e.target.value.slice(0, 200))} placeholder="Adicionar legenda…" aria-label="Legenda" className="h-12 w-full rounded-full bg-white/15 px-5 text-[16px] text-white outline-none placeholder:text-white/60 focus:bg-white/25" />
-            <div role="radiogroup" aria-label="Quem vê" className="grid grid-cols-2 gap-2">
+            <input value={caption} onChange={(e) => setCaption(e.target.value.slice(0, 200))} placeholder={tr('Adicionar legenda…')} aria-label={tr('Legenda')} className="h-12 w-full rounded-full bg-white/15 px-5 text-[16px] text-white outline-none placeholder:text-white/60 focus:bg-white/25" />
+            <div role="radiogroup" aria-label={tr('Quem vê')} className="grid grid-cols-2 gap-2">
               {([['all', 'Os teus seguidores', 'square-plus'], ['close_friends', 'Amigos próximos', 'heart']] as const).map(([v, label, ic]) => (
                 <button key={v} type="button" role="radio" aria-checked={preview === v} onClick={() => setPreview(v)} className={`flex h-11 items-center justify-center gap-2 rounded-full text-sm font-semibold transition ${preview === v ? (v === 'all' ? 'bg-white text-zinc-900' : 'bg-emerald-500 text-white') : 'bg-white/15 text-white'}`}>
                   <Icon name={ic} size={18} /> {label}

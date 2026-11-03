@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { tr } from '../lib/i18n';
 import { track } from '../lib/analytics';
 import Icon from './Icon';
 
@@ -203,8 +204,8 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
       {ended && onMore && (
         // Fim do reel, como no Instagram: não repete sozinho, deixa escolher.
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/70 px-8 text-center text-white backdrop-blur-sm" onClick={(e) => e.stopPropagation()}>
-          <p className="text-xl font-extrabold">Queres ver mais?</p>
-          <button type="button" onClick={() => { setEnded(false); onMore(); }} className="h-12 w-full max-w-[240px] rounded-full bg-brand font-bold active:scale-95">Ver mais reels</button>
+          <p className="text-xl font-extrabold">{tr('Queres ver mais?')}</p>
+          <button type="button" onClick={() => { setEnded(false); onMore(); }} className="h-12 w-full max-w-[240px] rounded-full bg-brand font-bold active:scale-95">{tr('Ver mais reels')}</button>
           <button
             type="button"
             onClick={() => {
@@ -213,10 +214,10 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
               if (v) { v.currentTime = 0; void v.play().catch(() => undefined); }
             }}
             className="h-11 w-full max-w-[240px] rounded-full bg-white/15 font-semibold active:scale-95"
-          >Ver outra vez</button>
+          >{tr('Ver outra vez')}</button>
         </div>
       )}
-      {failed && <p className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-white/80">Não consegui carregar este vídeo.</p>}
+      {failed && <p className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-white/80">{tr('Não consegui carregar este vídeo.')}</p>}
       {durationMs ? <span className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/60 px-2.5 py-0.5 text-xs font-semibold text-white">{mmss(durationMs)}</span> : null}
       <button
         type="button"

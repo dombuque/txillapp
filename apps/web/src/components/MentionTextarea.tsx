@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { useEffect, useRef, useState, type TextareaHTMLAttributes } from 'react';
 import { api } from '../lib/api';
 import { Avatar } from './ui';
@@ -88,7 +89,7 @@ export default function MentionTextarea({ value, onChange, single, up, inline, w
       {tagList.length > 0 && (
         <ul
           role="listbox"
-          aria-label="Hashtags"
+          aria-label={tr('Hashtags')}
           className={`max-h-60 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
             inline
               ? '-mx-5 mt-3 border-t border-zinc-100 px-2 pt-1.5'
@@ -109,7 +110,7 @@ export default function MentionTextarea({ value, onChange, single, up, inline, w
       {list.length > 0 && (
         <ul
           role="listbox"
-          aria-label="Pessoas para mencionar"
+          aria-label={tr('Pessoas para mencionar')}
           className={`max-h-60 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
             inline
               ? '-mx-5 mt-3 border-t border-zinc-100 px-2 pt-1.5'

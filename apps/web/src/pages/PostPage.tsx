@@ -1,4 +1,5 @@
 import { PostSkeleton } from '../components/Loading';
+import { tr } from '../lib/i18n';
 import Icon from '../components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
@@ -21,14 +22,14 @@ export default function PostPage() {
     if (video && shown) navigate(`/r/${shown.id}`, { replace: true });
   }, [video]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <StackPage title="Publicação">
+    <StackPage title={tr('Publicação')}>
       <div className="pt-4">
         {q.isLoading && <PostSkeleton />}
         {q.isError && (
           <div className="mx-6 mt-12 text-center">
             <p className="text-zinc-300" aria-hidden><Icon name="search" size={44} className="mx-auto" /></p>
-            <p className="mt-3 text-xl font-bold">Esta publicação já não está disponível</p>
-            <p className="mt-1 text-zinc-600">Pode ter sido apagada, ou a conta passou a privada.</p>
+            <p className="mt-3 text-xl font-bold">{tr('Esta publicação já não está disponível')}</p>
+            <p className="mt-1 text-zinc-600">{tr('Pode ter sido apagada, ou a conta passou a privada.')}</p>
           </div>
         )}
         {q.data && <PostCard post={q.data} />}

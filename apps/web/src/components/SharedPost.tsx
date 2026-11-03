@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { tr } from '../lib/i18n';
 import { sized } from '../lib/media';
 import type { Post } from '../lib/api';
 import Icon from './Icon';
@@ -9,7 +10,7 @@ export default function SharedPost({ post, shape, tone }: { post: Post | null; s
   if (!post) {
     return (
       <div className={`flex w-[240px] items-center gap-2 px-4 py-3 text-sm ${shape} ${tone} opacity-80`}>
-        <Icon name="lock" size={16} className="shrink-0" /> Publicação indisponível
+        <Icon name="lock" size={16} className="shrink-0" /> {tr('Publicação indisponível')}
       </div>
     );
   }
@@ -29,7 +30,7 @@ export default function SharedPost({ post, shape, tone }: { post: Post | null; s
       className={`block w-[240px] overflow-hidden ${shape} ${tone}`}
     >
       <span className="flex items-center gap-2 px-3 pt-2.5 text-[13px] font-semibold opacity-90">
-        <Icon name={video ? 'film' : 'image'} size={14} /> {video ? 'Reel' : 'Publicação'} de {shown.author.displayName}
+        <Icon name={video ? 'film' : 'image'} size={14} /> {video ? 'Reel' : 'Publicação'} {tr('de')} {shown.author.displayName}
       </span>
       {thumb ? (
         <span className="relative mt-2 block h-[170px] w-full bg-zinc-200">

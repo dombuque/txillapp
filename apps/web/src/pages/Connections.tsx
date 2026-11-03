@@ -1,4 +1,5 @@
 import { RowsSkeleton } from '../components/Loading';
+import { tr, locale } from '../lib/i18n';
 import Icon from '../components/Icon';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -46,13 +47,13 @@ function ConnectionList({ username, kind, meUsername }: { username: string; kind
             className="min-w-0 flex-1 bg-transparent text-[15px] text-zinc-900 outline-none placeholder:text-zinc-500 [&::-webkit-search-cancel-button]:hidden"
           />
           {text && (
-            <button type="button" onClick={() => setText('')} aria-label="Limpar pesquisa" className="flex h-7 w-7 items-center justify-center text-lg">×</button>
+            <button type="button" onClick={() => setText('')} aria-label={tr('Limpar pesquisa')} className="flex h-7 w-7 items-center justify-center text-lg">×</button>
           )}
         </label>
       </form>
 
       {q.isLoading && <RowsSkeleton />}
-      {q.isError && <p role="alert" className="py-10 text-center text-red-600">Ups, não consegui carregar</p>}
+      {q.isError && <p role="alert" className="py-10 text-center text-red-600">{tr('Ups, não consegui carregar')}</p>}
       {q.isSuccess && people.length === 0 && (
         <div className="py-12 text-center text-zinc-600">
           <Icon name={term ? 'search' : kind === 'followers' ? 'sprout' : 'eye'} size={36} className="mx-auto text-zinc-300" />
@@ -125,7 +126,7 @@ export default function Connections() {
       onClick={() => go(kind)}
       className={`relative min-h-12 flex-1 text-[15px] transition ${tab === kind ? 'font-bold text-zinc-900' : 'font-medium text-zinc-600'}`}
     >
-      {n !== undefined ? `${n.toLocaleString('pt-PT')} ` : ''}{label}
+      {n !== undefined ? `${n.toLocaleString(locale)} ` : ''}{label}
       <span className={`absolute inset-x-6 bottom-0 h-[3px] rounded-full bg-zinc-900 transition-opacity ${tab === kind ? 'opacity-100' : 'opacity-0'}`} aria-hidden />
     </button>
   );
@@ -135,28 +136,28 @@ export default function Connections() {
       {profile.isError && (
         <div className="mx-6 mt-16 text-center">
           <p className="text-zinc-300" aria-hidden><Icon name="search" size={44} className="mx-auto" /></p>
-          <p className="mt-3 text-xl font-bold">Essa pessoa não existe</p>
-          <button onClick={() => navigate(-1)} className="mt-6 underline">Voltar</button>
+          <p className="mt-3 text-xl font-bold">{tr('Essa pessoa não existe')}</p>
+          <button onClick={() => navigate(-1)} className="mt-6 underline">{tr('Voltar')}</button>
         </div>
       )}
       {p && !p.canSeeConnections && (
         <div className="mx-6 mt-16 text-center">
           <p className="text-zinc-300" aria-hidden><Icon name="lock" size={44} className="mx-auto" /></p>
-          <p className="mt-3 text-xl font-extrabold">Estas listas são privadas</p>
-          <p className="mt-1 text-zinc-600">{p.displayName} escolheu quem as pode ver.</p>
+          <p className="mt-3 text-xl font-extrabold">{tr('Estas listas são privadas')}</p>
+          <p className="mt-1 text-zinc-600">{p.displayName} {tr('escolheu quem as pode ver.')}</p>
         </div>
       )}
       {p?.canSeeConnections && (
         <>
-          <div role="tablist" aria-label="Seguidores e a seguir" className="sticky top-[57px] z-10 flex border-b border-zinc-100 bg-white">
+          <div role="tablist" aria-label={tr('Seguidores e a seguir')} className="sticky top-[57px] z-10 flex border-b border-zinc-100 bg-white">
             {tabBtn('followers', 'seguidores', p.counts.followers)}
             {tabBtn('following', 'a seguir', p.counts.following)}
           </div>
           <div ref={pager} onScroll={onScroll} className="flex h-[calc(100dvh-7.5rem)] snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <section role="tabpanel" aria-label="Seguidores" className="h-full w-full shrink-0 snap-center">
+            <section role="tabpanel" aria-label={tr('Seguidores')} className="h-full w-full shrink-0 snap-center">
               <ConnectionList username={username} kind="followers" meUsername={user!.username} />
             </section>
-            <section role="tabpanel" aria-label="A seguir" className="h-full w-full shrink-0 snap-center">
+            <section role="tabpanel" aria-label={tr('A seguir')} className="h-full w-full shrink-0 snap-center">
               <ConnectionList username={username} kind="following" meUsername={user!.username} />
             </section>
           </div>

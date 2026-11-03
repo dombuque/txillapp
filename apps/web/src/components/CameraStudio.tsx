@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { tr } from '../lib/i18n';
 import { useNavigate } from 'react-router-dom';
 import { acquireCamera, releaseCamera } from '../lib/cameraSession';
 import { useDesktop } from '../lib/useDesktop';
@@ -195,7 +196,7 @@ export default function CameraStudio() {
 
   const round = 'flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-md transition active:scale-90';
   const accept = mode === 'reel' ? 'video/*' : mode === 'story' ? IMAGE_TYPES.join(',') : `${IMAGE_TYPES.join(',')},video/*`;
-  const galleryInput = <input type="file" multiple={mode === 'post'} accept={accept} onChange={gallery} className="sr-only" aria-label="Escolher da galeria" />;
+  const galleryInput = <input type="file" multiple={mode === 'post'} accept={accept} onChange={gallery} className="sr-only" aria-label={tr('Escolher da galeria')} />;
   const R = 41;
   const C = 2 * Math.PI * R;
 
@@ -207,7 +208,7 @@ export default function CameraStudio() {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Câmara"
+      aria-label={tr('Câmara')}
       className="fixed inset-0 z-[80] flex flex-col bg-black text-white"
       onTouchStart={(e) => (touch.current = e.touches.length === 1 ? e.touches[0].clientX : null)}
       onTouchEnd={(e) => {
@@ -222,16 +223,16 @@ export default function CameraStudio() {
       {flash && <div className="pointer-events-none absolute inset-0 bg-white" />}
 
       <div className="relative z-10 flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-        <button type="button" onClick={() => navigate(-1)} aria-label="Fechar câmara" className={round}><Icon name="x" size={24} /></button>
+        <button type="button" onClick={() => navigate(-1)} aria-label={tr('Fechar câmara')} className={round}><Icon name="x" size={24} /></button>
         {recording ? (
           <span role="timer" className="flex items-center gap-2 rounded-full bg-red-600 px-3 py-1 text-sm font-bold tabular-nums">
             <span className="h-2 w-2 animate-pulse rounded-full bg-white" /> {Math.floor(seconds / 60)}:{String(Math.floor(seconds % 60)).padStart(2, '0')}
           </span>
         ) : (
           <div className="flex gap-2">
-            {canTorch && ready && <button type="button" onClick={toggleTorch} aria-pressed={torch} aria-label="Lanterna" className={`${round} ${torch ? '!bg-white !text-zinc-900' : ''}`}><Icon name="sun" size={22} /></button>}
-            {mode === 'post' && <button type="button" onClick={() => navigate('/new/post', { replace: true })} aria-label="Só texto" className={`${round} text-base font-bold`}>Aa</button>}
-            {canFlip && ready && <button type="button" onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} aria-label="Virar câmara" className={round}><Icon name="flip-camera" size={24} /></button>}
+            {canTorch && ready && <button type="button" onClick={toggleTorch} aria-pressed={torch} aria-label={tr('Lanterna')} className={`${round} ${torch ? '!bg-white !text-zinc-900' : ''}`}><Icon name="sun" size={22} /></button>}
+            {mode === 'post' && <button type="button" onClick={() => navigate('/new/post', { replace: true })} aria-label={tr('Só texto')} className={`${round} text-base font-bold`}>{tr('Aa')}</button>}
+            {canFlip && ready && <button type="button" onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} aria-label={tr('Virar câmara')} className={round}><Icon name="flip-camera" size={24} /></button>}
           </div>
         )}
       </div>
@@ -239,13 +240,13 @@ export default function CameraStudio() {
       {!ready && (
         <div className="relative z-10 m-auto max-w-xs px-6 text-center">
           {problem === null ? (
-            <p className="text-white/80">A acordar a câmara…</p>
+            <p className="text-white/80">{tr('A acordar a câmara…')}</p>
           ) : (
             <>
               <Icon name="alert" size={48} className="mx-auto text-white/70" />
               <p className="mt-3 text-lg font-bold">{problem === 'denied' ? 'Sem permissão para a câmara' : problem === 'unsupported' ? 'A câmara precisa de ligação segura' : 'Não consegui abrir a câmara'}</p>
               <p className="mt-1 text-sm text-white/70">{problem === 'denied' ? 'Ativa a câmara nas definições do browser, ou escolhe da galeria.' : 'Podes sempre escolher da galeria.'}</p>
-              <label className="mt-5 inline-flex h-12 cursor-pointer items-center rounded-full bg-brand px-6 font-bold">Abrir galeria{galleryInput}</label>
+              <label className="mt-5 inline-flex h-12 cursor-pointer items-center rounded-full bg-brand px-6 font-bold">{tr('Abrir galeria')}{galleryInput}</label>
             </>
           )}
         </div>
@@ -255,7 +256,7 @@ export default function CameraStudio() {
 
       {/* Modos: o ativo fica a branco; deslizar ou tocar muda. */}
       {!recording && (
-        <div className="relative z-10 flex justify-center gap-6 pb-3" role="tablist" aria-label="O que queres publicar">
+        <div className="relative z-10 flex justify-center gap-6 pb-3" role="tablist" aria-label={tr('O que queres publicar')}>
           {MODES.map((m) => (
             <button key={m.id} role="tab" aria-selected={mode === m.id} onClick={() => setMode(m.id)} className={`h-11 px-1 text-[15px] font-bold uppercase tracking-wide transition ${mode === m.id ? 'text-white' : 'text-white/55'}`}>
               {m.label}
@@ -268,7 +269,7 @@ export default function CameraStudio() {
         {recording ? (
           <span className="w-14" aria-hidden />
         ) : (
-          <label className={`${round} h-14 w-14 cursor-pointer rounded-2xl`} title="Galeria" aria-label="Galeria">
+          <label className={`${round} h-14 w-14 cursor-pointer rounded-2xl`} title={tr('Galeria')} aria-label={tr('Galeria')}>
             <Icon name="image" size={26} />
             {galleryInput}
           </label>
@@ -321,31 +322,31 @@ function Review({ mode, captured, onBack, onDone }: { mode: Mode; captured: Capt
 
   const tint = filter.tint;
   return (
-    <div role="dialog" aria-modal="true" aria-label="Filtros" className="fixed inset-0 z-[80] flex flex-col bg-black text-white">
+    <div role="dialog" aria-modal="true" aria-label={tr('Filtros')} className="fixed inset-0 z-[80] flex flex-col bg-black text-white">
       <div className="relative min-h-0 flex-1">
         {videoUrl ? (
           <video src={videoUrl} autoPlay loop muted playsInline controls={false} className="h-full w-full object-contain" />
         ) : (
           <>
-            <img src={previews[i]} alt="Pré-visualização" className="h-full w-full object-contain" style={{ filter: cssFilter(filter) }} />
+            <img src={previews[i]} alt={tr('Pré-visualização')} className="h-full w-full object-contain" style={{ filter: cssFilter(filter) }} />
             {tint && <div aria-hidden className="pointer-events-none absolute inset-0 mix-blend-soft-light" style={{ background: `rgba(${tint[0]},${tint[1]},${tint[2]},${Math.min(1, tint[3] * 3)})` }} />}
           </>
         )}
         <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-          <button type="button" onClick={onBack} aria-label="Voltar à câmara" className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 backdrop-blur-md"><Icon name="back" size={24} /></button>
+          <button type="button" onClick={onBack} aria-label={tr('Voltar à câmara')} className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 backdrop-blur-md"><Icon name="back" size={24} /></button>
           {photos && photos.length > 1 && <span className="rounded-full bg-black/50 px-3 py-1 text-sm font-semibold">{i + 1}/{photos.length}</span>}
         </div>
         {photos && photos.length > 1 && (
           <>
-            {i > 0 && <button type="button" onClick={() => setI(i - 1)} aria-label="Foto anterior" className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/40"><Icon name="chevron-left" size={24} /></button>}
-            {i < photos.length - 1 && <button type="button" onClick={() => setI(i + 1)} aria-label="Foto seguinte" className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/40"><Icon name="chevron-right" size={24} /></button>}
+            {i > 0 && <button type="button" onClick={() => setI(i - 1)} aria-label={tr('Foto anterior')} className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/40"><Icon name="chevron-left" size={24} /></button>}
+            {i < photos.length - 1 && <button type="button" onClick={() => setI(i + 1)} aria-label={tr('Foto seguinte')} className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/40"><Icon name="chevron-right" size={24} /></button>}
           </>
         )}
       </div>
 
       <div className="bg-black px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
         {photos ? (
-          <div role="radiogroup" aria-label="Filtros" className="flex gap-2.5 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div role="radiogroup" aria-label={tr('Filtros')} className="flex gap-2.5 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {FILTERS.map((f) => (
               <button key={f.id} type="button" role="radio" aria-checked={filter.id === f.id} onClick={() => setFilter(f)} className="flex w-[68px] shrink-0 flex-col items-center gap-1.5 active:scale-95">
                 <span className={`relative block h-[68px] w-[68px] overflow-hidden rounded-xl ${filter.id === f.id ? 'ring-2 ring-white' : 'opacity-80'}`}>
@@ -357,7 +358,7 @@ function Review({ mode, captured, onBack, onDone }: { mode: Mode; captured: Capt
             ))}
           </div>
         ) : (
-          <p className="pb-3 text-center text-sm text-white/70">Os filtros são para fotos. O vídeo segue como foi gravado.</p>
+          <p className="pb-3 text-center text-sm text-white/70">{tr('Os filtros são para fotos. O vídeo segue como foi gravado.')}</p>
         )}
         {err && <p role="alert" className="pb-2 text-center text-sm text-red-400">{err}</p>}
         <button type="button" onClick={next} disabled={busy} className="h-12 w-full rounded-full bg-brand text-lg font-bold text-white transition active:scale-[0.98] disabled:opacity-50">

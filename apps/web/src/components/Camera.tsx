@@ -1,4 +1,5 @@
 import Icon from './Icon';
+import { tr } from '../lib/i18n';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 
 const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -96,11 +97,11 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
 
   const round = 'flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md transition active:scale-90';
   const galleryInput = (
-    <input type="file" multiple accept={TYPES.join(',')} onChange={gallery} className="sr-only" aria-label="Escolher fotos da galeria" />
+    <input type="file" multiple accept={TYPES.join(',')} onChange={gallery} className="sr-only" aria-label={tr('Escolher fotos da galeria')} />
   );
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Câmara" className="fixed inset-0 z-[80] flex flex-col bg-black text-white">
+    <div role="dialog" aria-modal="true" aria-label={tr('Câmara')} className="fixed inset-0 z-[80] flex flex-col bg-black text-white">
       <video
         ref={video}
         playsInline
@@ -110,11 +111,11 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
       {flash && <div className="pointer-events-none absolute inset-0 bg-white" />}
 
       <div className="relative z-10 flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-        <button type="button" onClick={onClose} aria-label="Fechar câmara" className={round}>
+        <button type="button" onClick={onClose} aria-label={tr('Fechar câmara')} className={round}>
           <Icon name="x" size={26} />
         </button>
         {canFlip && ready && (
-          <button type="button" onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} aria-label="Virar câmara" className={round}>
+          <button type="button" onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} aria-label={tr('Virar câmara')} className={round}>
             <Icon name="flip-camera" size={26} />
           </button>
         )}
@@ -123,7 +124,7 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
       {!ready && (
         <div className="relative z-10 m-auto max-w-xs px-6 text-center">
           {problem === null ? (
-            <p className="text-white/80">A acordar a câmara…</p>
+            <p className="text-white/80">{tr('A acordar a câmara…')}</p>
           ) : (
             <>
               <Icon name="alert" size={48} className="mx-auto text-white/70" />
@@ -134,7 +135,7 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
                 {problem === 'denied' ? 'Ativa a câmara nas definições do browser, ou escolhe fotos da galeria.' : 'Podes sempre escolher fotos da galeria.'}
               </p>
               <label className="mt-5 inline-flex h-12 cursor-pointer items-center rounded-full bg-brand px-6 font-bold">
-                Abrir galeria
+                {tr('Abrir galeria')}
                 {galleryInput}
               </label>
             </>
@@ -144,7 +145,7 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
       {ready && <div className="flex-1" />}
 
       <div className="relative z-10 flex items-center justify-between px-6 pb-[max(1.75rem,env(safe-area-inset-bottom))] pt-6">
-        <label className={`${round} h-14 w-14 cursor-pointer rounded-2xl`} title="Galeria" aria-label="Galeria">
+        <label className={`${round} h-14 w-14 cursor-pointer rounded-2xl`} title={tr('Galeria')} aria-label={tr('Galeria')}>
           <Icon name="image" size={26} />
           {galleryInput}
         </label>
@@ -153,7 +154,7 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
           type="button"
           onClick={shoot}
           disabled={!ready || full}
-          aria-label="Tirar foto"
+          aria-label={tr('Tirar foto')}
           className="flex h-[78px] w-[78px] items-center justify-center rounded-full border-[5px] border-white transition active:scale-90 disabled:opacity-40"
         >
           <span className="h-[58px] w-[58px] rounded-full bg-white" />
@@ -161,13 +162,13 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
 
         {count > 0 ? (
           <button type="button" onClick={onClose} className="flex h-12 min-w-[92px] items-center justify-center gap-1.5 rounded-full bg-brand px-4 font-bold shadow-lg active:scale-95">
-            Feito <span className="rounded-full bg-white/25 px-2 text-sm">{count}</span>
+            {tr('Feito')} <span className="rounded-full bg-white/25 px-2 text-sm">{count}</span>
           </button>
         ) : (
           <span className="w-[92px]" aria-hidden />
         )}
       </div>
-      {full && <p role="status" className="absolute inset-x-0 bottom-32 text-center text-sm font-semibold">Máximo de {max} fotos</p>}
+      {full && <p role="status" className="absolute inset-x-0 bottom-32 text-center text-sm font-semibold">{tr('Máximo de')} {max} {tr('fotos')}</p>}
     </div>
   );
 }

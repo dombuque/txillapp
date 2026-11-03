@@ -1,4 +1,5 @@
 import { Reaction } from '../lib/stickers';
+import { tr, locale } from '../lib/i18n';
 import { RowsSkeleton } from '../components/Loading';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -28,32 +29,32 @@ function describe(n: AppNotification): { text: ReactNode; sub?: string } {
   const quote = n.data.snippet ? `“${n.data.snippet}”` : undefined;
   switch (n.kind) {
     case 'blocked':
-      return { text: <>bloqueou-te</>, sub: 'Já não podes seguir esta conta nem ver as publicações e stories dela.' };
+      return { text: <>{tr('bloqueou-te')}</>, sub: 'Já não podes seguir esta conta nem ver as publicações e stories dela.' };
     case 'follow':
-      return { text: <>começou a seguir-te</> };
+      return { text: <>{tr('começou a seguir-te')}</> };
     case 'follow_request':
-      return { text: <>pediu para te seguir</> };
+      return { text: <>{tr('pediu para te seguir')}</> };
     case 'request_accepted':
-      return { text: <>aceitou o teu pedido para seguir</> };
+      return { text: <>{tr('aceitou o teu pedido para seguir')}</> };
     case 'gift':
-      return { text: <>presenteou-te com <b>{(n.data.amount ?? 0).toLocaleString('pt-PT')} Txills</b></>, sub: n.data.note ? `${n.data.note}` : undefined };
+      return { text: <>{tr('presenteou-te com')} <b>{(n.data.amount ?? 0).toLocaleString(locale)} {tr('Txills')}</b></>, sub: n.data.note ? `${n.data.note}` : undefined };
     case 'comment':
-      return { text: <>comentou a tua publicação</>, sub: quote };
+      return { text: <>{tr('comentou a tua publicação')}</>, sub: quote };
     case 'reply':
-      return { text: <>respondeu ao teu comentário</>, sub: quote };
+      return { text: <>{tr('respondeu ao teu comentário')}</>, sub: quote };
     case 'story_reply':
-      if (n.data.replyKind === 'comment') return { text: <>comentou o teu story</>, sub: quote };
+      if (n.data.replyKind === 'comment') return { text: <>{tr('comentou o teu story')}</>, sub: quote };
       return n.data.replyKind === 'reaction'
-        ? { text: <>reagiu ao teu story <span className="ml-1 inline-block align-middle"><Reaction body={n.data.snippet ?? ''} size={26} /></span></> }
-        : { text: <>respondeu ao teu story</>, sub: quote };
+        ? { text: <>{tr('reagiu ao teu story')} <span className="ml-1 inline-block align-middle"><Reaction body={n.data.snippet ?? ''} size={26} /></span></> }
+        : { text: <>{tr('respondeu ao teu story')}</>, sub: quote };
     case 'repost':
-      return { text: <>repostou a tua publicação</>, sub: quote };
+      return { text: <>{tr('repostou a tua publicação')}</>, sub: quote };
     case 'tag':
-      return { text: <>identificou-te numa foto</> };
+      return { text: <>{tr('identificou-te numa foto')}</> };
     case 'mention':
-      return { text: <>mencionou-te</>, sub: quote };
+      return { text: <>{tr('mencionou-te')}</>, sub: quote };
     case 'verified':
-      return { text: <>agora tem o selo de conta verificada</> };
+      return { text: <>{tr('agora tem o selo de conta verificada')}</> };
   }
 }
 
@@ -121,8 +122,8 @@ function Row({ n, fresh }: { n: AppNotification; fresh: boolean }) {
         {sub && <p className="mt-1 line-clamp-3 break-words text-sm text-zinc-600">{sub}</p>}
         {n.kind === 'follow_request' && !answer && (
           <div className="mt-2.5 flex gap-2">
-            <button disabled={busy} onClick={(e) => { e.stopPropagation(); respond(true); }} className="rounded-full bg-brand px-5 py-2 text-sm font-bold text-white transition active:scale-95">Aceitar</button>
-            <button disabled={busy} onClick={(e) => { e.stopPropagation(); respond(false); }} className="rounded-full border border-zinc-300 px-5 py-2 text-sm font-semibold transition active:scale-95">Recusar</button>
+            <button disabled={busy} onClick={(e) => { e.stopPropagation(); respond(true); }} className="rounded-full bg-brand px-5 py-2 text-sm font-bold text-white transition active:scale-95">{tr('Aceitar')}</button>
+            <button disabled={busy} onClick={(e) => { e.stopPropagation(); respond(false); }} className="rounded-full border border-zinc-300 px-5 py-2 text-sm font-semibold transition active:scale-95">{tr('Recusar')}</button>
           </div>
         )}
         {answer && <p role="status" className="mt-2 text-sm font-medium text-zinc-600">{answer === 'accepted' ? 'Pedido aceite' : 'Pedido recusado'}</p>}
@@ -158,30 +159,30 @@ export default function Notifications() {
   const older = items.filter((n) => !freshIds.current?.has(n.id));
 
   return (
-    <StackPage title="Notificações">
+    <StackPage title={tr('Notificações')}>
       {q.isLoading && <RowsSkeleton rows={7} />}
       {q.isError && (
         <div role="alert" className="mx-6 mt-10 text-center">
-          <p className="text-lg">Ups, não consegui carregar</p>
-          <button onClick={() => q.refetch()} className={`${btnGhost} mt-4`}>Tentar outra vez</button>
+          <p className="text-lg">{tr('Ups, não consegui carregar')}</p>
+          <button onClick={() => q.refetch()} className={`${btnGhost} mt-4`}>{tr('Tentar outra vez')}</button>
         </div>
       )}
       {q.isSuccess && items.length === 0 && (
         <div className="mx-6 mt-16 text-center">
           <p className="text-zinc-300" aria-hidden><Icon name="bell-off" size={52} className="mx-auto" /></p>
-          <p className="mt-4 text-2xl font-extrabold">Tudo calmo por aqui</p>
-          <p className="mt-2 text-lg font-light text-zinc-600">Quando alguém te seguir, comentar ou presentear, aparece aqui.</p>
+          <p className="mt-4 text-2xl font-extrabold">{tr('Tudo calmo por aqui')}</p>
+          <p className="mt-2 text-lg font-light text-zinc-600">{tr('Quando alguém te seguir, comentar ou presentear, aparece aqui.')}</p>
         </div>
       )}
       {fresh.length > 0 && (
-        <section aria-label="Novas">
-          <h2 className="px-5 pb-1 pt-2 text-sm font-bold text-zinc-600">Novas</h2>
+        <section aria-label={tr('Novas')}>
+          <h2 className="px-5 pb-1 pt-2 text-sm font-bold text-zinc-600">{tr('Novas')}</h2>
           <ul>{fresh.map((n) => <Row key={n.id} n={n} fresh />)}</ul>
         </section>
       )}
       {older.length > 0 && (
-        <section aria-label="Anteriores">
-          {fresh.length > 0 && <h2 className="px-5 pb-1 pt-4 text-sm font-bold text-zinc-600">Anteriores</h2>}
+        <section aria-label={tr('Anteriores')}>
+          {fresh.length > 0 && <h2 className="px-5 pb-1 pt-4 text-sm font-bold text-zinc-600">{tr('Anteriores')}</h2>}
           <ul>{older.map((n) => <Row key={n.id} n={n} fresh={false} />)}</ul>
         </section>
       )}

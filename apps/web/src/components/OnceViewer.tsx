@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { tr } from '../lib/i18n';
 import { api } from '../lib/api';
 import { firstTime } from '../lib/firstTime';
 import Icon from './Icon';
@@ -27,14 +28,14 @@ export default function OnceViewer({ id, from, onClose }: { id: string; from: st
   }, [onClose]);
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Visualização única" className="fixed inset-0 z-[85] flex flex-col bg-black text-white">
+    <div role="dialog" aria-modal="true" aria-label={tr('Visualização única')} className="fixed inset-0 z-[85] flex flex-col bg-black text-white">
       <div className="flex items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button type="button" onClick={onClose} aria-label="Fechar" className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 active:scale-90"><Icon name="x" size={24} /></button>
-        <span className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-sm font-semibold"><Icon name="eye" size={16} /> Só podes ver uma vez</span>
+        <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 active:scale-90"><Icon name="x" size={24} /></button>
+        <span className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-sm font-semibold"><Icon name="eye" size={16} /> {tr('Só podes ver uma vez')}</span>
         <span className="w-11" aria-hidden />
       </div>
       <div className="flex min-h-0 flex-1 items-center justify-center px-5">
-        {!c && !err && <p className="text-white/80">A abrir…</p>}
+        {!c && !err && <p className="text-white/80">{tr('A abrir…')}</p>}
         {err && (
           <div className="text-center">
             <Icon name="eye-off" size={44} className="mx-auto text-white/60" />

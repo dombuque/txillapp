@@ -1,4 +1,5 @@
 import Icon from '../components/Icon';
+import { tr } from '../lib/i18n';
 import { track } from '../lib/analytics';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -191,7 +192,7 @@ export default function Compose() {
   return (
     <form onSubmit={submit} noValidate>
       <div className="flex items-center justify-between px-3 pb-3">
-        <button type="button" onClick={leave} aria-label="Cancelar" className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-600 active:bg-zinc-100">
+        <button type="button" onClick={leave} aria-label={tr('Cancelar')} className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-600 active:bg-zinc-100">
           <Icon name="x" size={24} />
         </button>
         <h1 className="text-lg font-bold">{video ? 'Novo reel' : 'Nova publicação'}</h1>
@@ -202,13 +203,13 @@ export default function Compose() {
 
       {restored && (
         <div className="mx-4 mb-3 flex items-center justify-between gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-sm">
-          <span className="font-semibold text-zinc-800">Rascunho recuperado</span>
+          <span className="font-semibold text-zinc-800">{tr('Rascunho recuperado')}</span>
           <button
             type="button"
             onClick={() => { photos.forEach((p) => URL.revokeObjectURL(p.preview)); setBody(''); setPlace(''); setPhotos([]); setRestored(false); void clearDraft(draftKey); }}
             className="font-bold text-brand"
           >
-            Descartar
+            {tr('Descartar')}
           </button>
         </div>
       )}
@@ -221,7 +222,7 @@ export default function Compose() {
             {place ? (
               <span className="mt-0.5 inline-flex max-w-full items-center gap-1 rounded-full bg-rose-50 py-0.5 pl-2.5 pr-1 text-sm font-semibold text-brand">
                 <button type="button" onClick={() => setPlaceOpen(true)} className="truncate"><Icon name="map-pin" size={16} className="mr-1 inline align-[-3px]" />{place}</button>
-                <button type="button" onClick={() => setPlace('')} aria-label="Tirar o local" className="px-1.5 text-base">×</button>
+                <button type="button" onClick={() => setPlace('')} aria-label={tr('Tirar o local')} className="px-1.5 text-base">×</button>
               </span>
             ) : (
               <p className="text-sm text-zinc-500">@{user?.username}</p>
@@ -236,7 +237,7 @@ export default function Compose() {
             onChange={setBody}
             maxLength={2000}
             placeholder={`O que se passa, ${first}?`}
-            aria-label="Texto da publicação"
+            aria-label={tr('Texto da publicação')}
             className="min-h-[110px] w-full resize-none bg-transparent text-xl leading-snug outline-none placeholder:text-zinc-500"
           />
           {left < 200 && <p className={`text-right text-xs ${left < 50 ? 'font-semibold text-brand' : 'text-zinc-500'}`} aria-live="polite">{left}</p>}
@@ -245,7 +246,7 @@ export default function Compose() {
         {video && (
           <div className="relative mx-5 mb-2 mt-1 overflow-hidden rounded-2xl bg-black">
             <video src={video.preview} controls playsInline muted preload="metadata" className="max-h-80 w-full object-contain" />
-            <button type="button" onClick={() => { URL.revokeObjectURL(video.preview); setVideo(null); }} aria-label="Tirar o vídeo" className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm active:scale-90">
+            <button type="button" onClick={() => { URL.revokeObjectURL(video.preview); setVideo(null); }} aria-label={tr('Tirar o vídeo')} className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm active:scale-90">
               <Icon name="x" size={16} />
             </button>
           </div>
@@ -257,7 +258,7 @@ export default function Compose() {
               <li key={p.preview} className={`relative overflow-hidden rounded-2xl bg-zinc-200 ${photos.length === 1 ? 'aspect-[4/3]' : i === 0 && photos.length % 2 === 1 ? 'col-span-2 aspect-[16/10]' : 'aspect-square'}`}>
                 <img src={p.preview} alt={`Foto ${i + 1}`} className="h-full w-full object-cover" />
                 {i === 0 && photos.length > 1 && (
-                  <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2.5 py-0.5 text-[11px] font-semibold text-white">Capa</span>
+                  <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2.5 py-0.5 text-[11px] font-semibold text-white">{tr('Capa')}</span>
                 )}
                 <button
                   type="button"
@@ -283,32 +284,32 @@ export default function Compose() {
         <div className="mt-3 border-t border-zinc-100 px-4 py-3">
           <div className="flex gap-2">
             {/* Uma só entrada: abre a câmara do Txillapp, com a galeria lá dentro. */}
-            <button type="button" onClick={() => setCameraOpen(true)} disabled={photos.length >= MAX_PHOTOS || !!video} title="Foto" className={`${chip} disabled:opacity-40`}>
+            <button type="button" onClick={() => setCameraOpen(true)} disabled={photos.length >= MAX_PHOTOS || !!video} title={tr('Foto')} className={`${chip} disabled:opacity-40`}>
               <Icon name="camera" size={20} />
-              Foto
+              {tr('Foto')}
             </button>
-            <label className={`${chip} cursor-pointer ${photos.length > 0 || video ? 'pointer-events-none opacity-40' : ''}`} title="Vídeo">
+            <label className={`${chip} cursor-pointer ${photos.length > 0 || video ? 'pointer-events-none opacity-40' : ''}`} title={tr('Vídeo')}>
               <Icon name="video" size={20} />
-              Vídeo
-              <input type="file" accept="video/*" onChange={pickVideo} className="sr-only" aria-label="Escolher ou gravar um vídeo" />
+              {tr('Vídeo')}
+              <input type="file" accept="video/*" onChange={pickVideo} className="sr-only" aria-label={tr('Escolher ou gravar um vídeo')} />
             </label>
-            <button type="button" onClick={() => setPlaceOpen(true)} title="Local" className={chip}>
+            <button type="button" onClick={() => setPlaceOpen(true)} title={tr('Local')} className={chip}>
               <Icon name="map-pin" size={20} />
-              Local
+              {tr('Local')}
             </button>
           </div>
-          {photos.length > 0 && <p className="mt-2 text-center text-xs text-zinc-500">{photos.length}/{MAX_PHOTOS} fotos</p>}
+          {photos.length > 0 && <p className="mt-2 text-center text-xs text-zinc-500">{photos.length}/{MAX_PHOTOS} {tr('fotos')}</p>}
         </div>
       </div>
 
       <p role="alert" className="mt-4 min-h-6 px-6 text-center text-red-600">{err}</p>
       {progress && <p role="status" className="px-6 text-center text-zinc-600">{progress}</p>}
       {leaveOpen && (
-        <Sheet title="Sair sem publicar?" onClose={() => setLeaveOpen(false)}>
-          <p className="mb-4 text-zinc-600">Podes guardar isto como rascunho e continuar mais tarde</p>
-          <button type="button" onClick={keepDraft} className="h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">Guardar rascunho</button>
-          <button type="button" onClick={discard} className="mt-2 h-12 w-full rounded-full font-bold text-red-600 active:bg-red-50">Descartar</button>
-          <button type="button" onClick={() => setLeaveOpen(false)} className="mt-1 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">Continuar a editar</button>
+        <Sheet title={tr('Sair sem publicar?')} onClose={() => setLeaveOpen(false)}>
+          <p className="mb-4 text-zinc-600">{tr('Podes guardar isto como rascunho e continuar mais tarde')}</p>
+          <button type="button" onClick={keepDraft} className="h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">{tr('Guardar rascunho')}</button>
+          <button type="button" onClick={discard} className="mt-2 h-12 w-full rounded-full font-bold text-red-600 active:bg-red-50">{tr('Descartar')}</button>
+          <button type="button" onClick={() => setLeaveOpen(false)} className="mt-1 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Continuar a editar')}</button>
         </Sheet>
       )}
       {tagging !== null && photos[tagging] && (

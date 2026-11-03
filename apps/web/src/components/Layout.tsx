@@ -1,4 +1,5 @@
 import Icon from './Icon';
+import { tr } from '../lib/i18n';
 import PullToRefresh from './PullToRefresh';
 import { refreshPage } from '../lib/refresh';
 import EmailBanner from './EmailBanner';
@@ -73,7 +74,7 @@ export default function Layout() {
             </span>
           </NavLink>
           <Wordmark className="h-8" />
-          <NavLink to="/search" aria-label="Pesquisar" data-tour="search" className="absolute right-3 flex h-11 w-11 items-center justify-center text-zinc-900">
+          <NavLink to="/search" aria-label={tr('Pesquisar')} data-tour="search" className="absolute right-3 flex h-11 w-11 items-center justify-center text-zinc-900">
             {({ isActive }) => <SearchIcon width={26} height={26} strokeWidth={isActive ? 2.4 : 1.9} />}
           </NavLink>
         </header>
@@ -87,16 +88,16 @@ export default function Layout() {
       <WelcomeTour />
       <NotificationNudge ready={!!sharing.data?.welcomed} />
       <nav
-        aria-label="Navegação principal"
+        aria-label={tr('Navegação principal')}
         className="fixed bottom-0 left-1/2 z-20 w-full max-w-xl -translate-x-1/2 lg:hidden border-t border-zinc-100 bg-white pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 shadow-[0_-6px_24px_rgba(0,0,0,0.05)]"
       >
         <div className="flex items-end justify-around px-1 min-[360px]:px-3">
-          <Item to="/" label="Início" end onClick={tapTab} tour="home">{(a) => <HomeIcon filled={a} width={27} height={27} strokeWidth={a ? 2.3 : 1.9} />}</Item>
-          <Item to="/reels" label="Reels" tour="reels">{(a) => <Icon name="film" size={27} strokeWidth={a ? 2.3 : 1.9} />}</Item>
+          <Item to="/" label={tr('Início')} end onClick={tapTab} tour="home">{(a) => <HomeIcon filled={a} width={27} height={27} strokeWidth={a ? 2.3 : 1.9} />}</Item>
+          <Item to="/reels" label={tr('Reels')} tour="reels">{(a) => <Icon name="film" size={27} strokeWidth={a ? 2.3 : 1.9} />}</Item>
           {/* Nova publicação: base alinhada com os outros ícones, mas mais alto: ultrapassa a linha da barra (~8 px) para cima. */}
           <NavLink
             to="/new"
-            aria-label="Nova publicação"
+            aria-label={tr('Nova publicação')}
             data-tour="new"
             className={({ isActive }) => `-mt-4 flex h-[62px] w-[62px] shrink-0 items-center justify-center rounded-[22px] shadow-[0_4px_16px_rgba(0,0,0,0.22)] transition active:scale-90 ${isActive ? 'bg-green-600 text-white' : 'bg-white text-green-600'}`}
           >
@@ -112,7 +113,7 @@ export default function Layout() {
               </span>
             )}
           </Item>
-          <Item to="/profile" label="Perfil" onClick={tapTab} tour="profile">
+          <Item to="/profile" label={tr('Perfil')} onClick={tapTab} tour="profile">
             {(a) => (
               // Caixa quadrada de tamanho fixo (igual ativa ou não, sem saltos): o aro é um círculo perfeito, com 2 px de folga até à foto.
               <span className={`box-border flex h-[34px] w-[34px] items-center justify-center rounded-full border-2 ${a ? 'border-zinc-900' : 'border-transparent'}`}>

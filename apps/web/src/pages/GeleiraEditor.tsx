@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { tr, locale } from '../lib/i18n';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../components/Icon';
@@ -10,7 +11,7 @@ import { CATEGORIES, ICE, KINDS, KIND_ICON, KIND_LABEL } from '../lib/geleira';
 import TasteBubble from '../components/TasteIcon';
 
 const norm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
-const fmt = (n: number) => n.toLocaleString('pt-PT');
+const fmt = (n: number) => n.toLocaleString(locale);
 
 /** Quantos já tem a malta sem mim (o servidor conta-me se já tenho o item). */
 const others = (i: CatalogItem) => Math.max(0, i.fans - (i.mine ? 1 : 0));
@@ -139,13 +140,13 @@ export default function GeleiraEditor() {
     <div className="mx-auto flex min-h-dvh max-w-xl flex-col bg-white">
       <header className="sticky top-0 z-20 border-b border-zinc-100 bg-white">
         <div className="flex items-center gap-1 px-2 py-2">
-          <button onClick={back} aria-label="Voltar" className="flex h-11 w-11 items-center justify-center rounded-full active:bg-zinc-100"><BackIcon /></button>
-          <h1 className="min-w-0 flex-1 truncate text-[20px] font-extrabold">A minha geleira</h1>
+          <button onClick={back} aria-label={tr('Voltar')} className="flex h-11 w-11 items-center justify-center rounded-full active:bg-zinc-100"><BackIcon /></button>
+          <h1 className="min-w-0 flex-1 truncate text-[20px] font-extrabold">{tr('A minha geleira')}</h1>
           <span aria-live="polite" className="flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1.5 text-sm font-extrabold tabular-nums text-sky-700">
             <Icon name="snowflake" size={16} /> {fmt(mine.length)}
           </span>
         </div>
-        <div role="tablist" aria-label="Tipo" className="grid grid-cols-4 gap-1 px-3 pb-2">
+        <div role="tablist" aria-label={tr('Tipo')} className="grid grid-cols-4 gap-1 px-3 pb-2">
           {KINDS.map((k) => (
             <button key={k} role="tab" aria-selected={kind === k} onClick={() => { setKind(k); setGroup('todas'); setOpen(null); setSuggesting(false); }} className={`flex h-14 flex-col items-center justify-center gap-0.5 rounded-2xl text-[12px] font-bold transition active:scale-95 ${kind === k ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-700'}`}>
               <span className="flex items-center gap-1"><Icon name={KIND_ICON[k]} size={16} />{count[k] > 0 && <span className={`rounded-full px-1.5 text-[11px] ${kind === k ? 'bg-white/25' : 'bg-white'}`}>{count[k]}</span>}</span>
@@ -156,11 +157,11 @@ export default function GeleiraEditor() {
         <div className="px-3 pb-2">
           <label className="flex h-11 items-center gap-2 rounded-full bg-zinc-100 px-4 text-zinc-500 focus-within:bg-zinc-200/70">
             <Icon name="search" size={18} />
-            <input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Procurar em ${KIND_LABEL[kind].toLowerCase()}…`} aria-label="Procurar" maxLength={40} className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
-            {text && <button onClick={() => setText('')} aria-label="Limpar" className="flex h-8 w-8 items-center justify-center"><Icon name="x" size={16} /></button>}
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Procurar em ${KIND_LABEL[kind].toLowerCase()}…`} aria-label={tr('Procurar')} maxLength={40} className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
+            {text && <button onClick={() => setText('')} aria-label={tr('Limpar')} className="flex h-8 w-8 items-center justify-center"><Icon name="x" size={16} /></button>}
           </label>
         </div>
-        <div className="flex gap-2 overflow-x-auto px-3 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="radiogroup" aria-label="Grupo">
+        <div className="flex gap-2 overflow-x-auto px-3 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="radiogroup" aria-label={tr('Grupo')}>
           {[{ slug: 'todas', label: 'Tudo' }, ...groups].map((g) => (
             <button key={g.slug} role="radio" aria-checked={group === g.slug} onClick={() => setGroup(g.slug)} className={`h-9 shrink-0 rounded-full px-4 text-sm font-semibold transition active:scale-95 ${group === g.slug ? 'bg-brand text-white' : 'bg-zinc-100 text-zinc-700'}`}>{g.label}</button>
           ))}
@@ -177,7 +178,7 @@ export default function GeleiraEditor() {
 
       <main className="flex-1 px-3 pb-32 pt-2">
         {!items && (
-          <div className="space-y-2" role="status" aria-label="A carregar">{[0, 1, 2, 3, 4, 5].map((n) => <div key={n} className="skel h-[68px] rounded-2xl" />)}</div>
+          <div className="space-y-2" role="status" aria-label={tr('A carregar')}>{[0, 1, 2, 3, 4, 5].map((n) => <div key={n} className="skel h-[68px] rounded-2xl" />)}</div>
         )}
         {items && sections.map((s) => (
           <section key={s.slug} aria-label={s.label} className="mb-4">
@@ -191,7 +192,7 @@ export default function GeleiraEditor() {
                       <button onClick={() => (i.mine ? setOpen(expanded ? null : i.id) : toggle(i))} aria-expanded={i.mine ? expanded : undefined} className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left active:opacity-70">
                         <TasteBubble item={i} size={46} className={i.mine ? '' : 'opacity-70 saturate-50'} />
                         <span className="min-w-0">
-                          <span className="flex items-center gap-1 text-[16px] font-semibold leading-tight"><span className="truncate">{i.name}</span>{i.favorite && <Icon name="heart" size={14} className="shrink-0 fill-brand text-brand" aria-label="Favorito" role="img" aria-hidden={false} />}</span>
+                          <span className="flex items-center gap-1 text-[16px] font-semibold leading-tight"><span className="truncate">{i.name}</span>{i.favorite && <Icon name="heart" size={14} className="shrink-0 fill-brand text-brand" aria-label={tr('Favorito')} role="img" aria-hidden={false} />}</span>
                           <span className="block truncate text-[13px] text-zinc-500">
                             {i.pending ? 'À espera de aprovação' : i.mine ? (i.rating ? ICE[i.rating] : 'Dá-lhe gelo') : others(i) > 0 ? `${fmt(others(i))} na geleira da malta` : 'Ninguém tem ainda. Sê o primeiro'}
                           </span>
@@ -206,7 +207,7 @@ export default function GeleiraEditor() {
                         <div className="px-3 pb-3">
                           <div className="flex items-center justify-between">
                             <IceRating value={i.rating} onChange={(rating) => change(i, { rating })} size={30} />
-                            <button onClick={() => change(i, { favorite: !i.favorite })} aria-pressed={i.favorite} aria-label="Favorito" className={`flex h-11 w-11 items-center justify-center rounded-full transition active:scale-90 ${i.favorite ? 'bg-rose-50 text-brand' : 'bg-zinc-100 text-zinc-600'}`}><Icon name="heart" size={20} className={i.favorite ? 'fill-brand' : ''} /></button>
+                            <button onClick={() => change(i, { favorite: !i.favorite })} aria-pressed={i.favorite} aria-label={tr('Favorito')} className={`flex h-11 w-11 items-center justify-center rounded-full transition active:scale-90 ${i.favorite ? 'bg-rose-50 text-brand' : 'bg-zinc-100 text-zinc-600'}`}><Icon name="heart" size={20} className={i.favorite ? 'fill-brand' : ''} /></button>
                           </div>
                         </div>
                       </div>
@@ -218,18 +219,18 @@ export default function GeleiraEditor() {
           </section>
         ))}
 
-        {items && sections.length === 0 && <p className="py-10 text-center text-zinc-600">Nada com esse nome em {KIND_LABEL[kind].toLowerCase()}.</p>}
+        {items && sections.length === 0 && <p className="py-10 text-center text-zinc-600">{tr('Nada com esse nome em')} {KIND_LABEL[kind].toLowerCase()}.</p>}
 
         {items && q.length >= 2 && !exact && (
           <div className="mt-2 rounded-2xl border border-dashed border-zinc-300 p-4">
             {!suggesting ? (
               <button onClick={() => setSuggesting(true)} className="flex w-full items-center gap-3 text-left active:opacity-70">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-100"><Icon name="sparkles" size={22} /></span>
-                <span><span className="block font-semibold">Não está cá? Sugere “{text.trim()}”</span><span className="text-sm text-zinc-500">Entra já na tua geleira; a malta vê depois de aprovado.</span></span>
+                <span><span className="block font-semibold">{tr('Não está cá? Sugere “')}{text.trim()}”</span><span className="text-sm text-zinc-500">{tr('Entra já na tua geleira; a malta vê depois de aprovado.')}</span></span>
               </button>
             ) : (
               <>
-                <p className="font-semibold">Em que grupo fica “{text.trim()}”?</p>
+                <p className="font-semibold">{tr('Em que grupo fica “')}{text.trim()}”?</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {groups.map((g) => (
                     <button key={g.slug} disabled={create.isPending} onClick={() => create.mutate({ name: text.trim(), category: g.slug })} className="h-10 rounded-full bg-zinc-900 px-4 text-sm font-semibold text-white active:scale-95 disabled:opacity-50">{g.label}</button>
@@ -252,11 +253,11 @@ export default function GeleiraEditor() {
         </div>
       </div>
       {leaving && (
-        <Sheet title="Sair sem guardar?" onClose={() => setLeaving(false)}>
-          <p className="mb-4 text-zinc-600">Tens {changes.length} {changes.length === 1 ? 'mudança' : 'mudanças'} na geleira que ainda não guardaste.</p>
-          <button onClick={() => { setLeaving(false); void save(); }} className="h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">Guardar e sair</button>
-          <button onClick={leave} className="mt-2 h-12 w-full rounded-full font-semibold text-red-700 active:bg-red-50">Sair sem guardar</button>
-          <button onClick={() => setLeaving(false)} className="mt-1 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">Continuar a editar</button>
+        <Sheet title={tr('Sair sem guardar?')} onClose={() => setLeaving(false)}>
+          <p className="mb-4 text-zinc-600">{tr('Tens')} {changes.length} {changes.length === 1 ? 'mudança' : 'mudanças'} {tr('na geleira que ainda não guardaste.')}</p>
+          <button onClick={() => { setLeaving(false); void save(); }} className="h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">{tr('Guardar e sair')}</button>
+          <button onClick={leave} className="mt-2 h-12 w-full rounded-full font-semibold text-red-700 active:bg-red-50">{tr('Sair sem guardar')}</button>
+          <button onClick={() => setLeaving(false)} className="mt-1 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Continuar a editar')}</button>
         </Sheet>
       )}
       {toast && <div role="status" className="fixed bottom-24 left-1/2 z-30 -translate-x-1/2 rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white shadow-lg">{toast}</div>}

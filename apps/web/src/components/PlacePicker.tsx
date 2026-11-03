@@ -1,4 +1,5 @@
 import Icon, { type IconName } from './Icon';
+import { tr } from '../lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { api, type NearbyPlaces } from '../lib/api';
@@ -142,7 +143,7 @@ export default function PlaceSheet({ value, onChange, onClose }: PlacePickerProp
   const fullName = (o: Option) => (o.sub ? `${o.label}, ${o.sub.split(', ')[0]}` : o.label);
 
   return (
-    <Sheet title="Onde estás?" onClose={onClose}>
+    <Sheet title={tr('Onde estás?')} onClose={onClose}>
       <div className="min-h-[260px]">
       <form
         onSubmit={(e) => {
@@ -159,12 +160,12 @@ export default function PlaceSheet({ value, onChange, onClose }: PlacePickerProp
           maxLength={80}
           enterKeyHint="done"
           autoComplete="off"
-          placeholder="Procura um sítio…"
-          aria-label="Local"
+          placeholder={tr('Procura um sítio…')}
+          aria-label={tr('Local')}
           className="h-12 w-full rounded-full bg-zinc-100 pl-11 pr-11 text-base outline-none ring-1 ring-transparent transition placeholder:text-zinc-500 focus:bg-white focus:bg-zinc-200/70"
         />
         {typed && (
-          <button type="button" onClick={() => setTyped('')} aria-label="Limpar" className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-zinc-500 active:bg-zinc-200">
+          <button type="button" onClick={() => setTyped('')} aria-label={tr('Limpar')} className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-zinc-500 active:bg-zinc-200">
             <Icon name="x" size={18} />
           </button>
         )}
@@ -183,8 +184,8 @@ export default function PlaceSheet({ value, onChange, onClose }: PlacePickerProp
             <Icon name="locate" size={22} strokeWidth={2.2} />
           </span>
           <span>
-            <span className="block font-bold text-zinc-900">Usar a minha localização</span>
-            <span className="block text-sm text-zinc-600">Vê o que há por perto</span>
+            <span className="block font-bold text-zinc-900">{tr('Usar a minha localização')}</span>
+            <span className="block text-sm text-zinc-600">{tr('Vê o que há por perto')}</span>
           </span>
         </button>
       )}
@@ -197,12 +198,12 @@ export default function PlaceSheet({ value, onChange, onClose }: PlacePickerProp
             className="mt-3 flex w-full items-center gap-3 rounded-2xl bg-zinc-100 px-4 py-3 text-left transition active:scale-[0.99]"
           >
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm" aria-hidden><Icon name="map" size={20} /></span>
-            <span className="min-w-0 flex-1 font-semibold">Procurar no mapa</span>
+            <span className="min-w-0 flex-1 font-semibold">{tr('Procurar no mapa')}</span>
             <span aria-hidden className="text-zinc-400">›</span>
           </button>
           {(hot.data?.length ?? 0) > 0 && (
             <div className="mt-4">
-              <p className="mb-2 text-sm font-semibold text-zinc-500">A bater agora</p>
+              <p className="mb-2 text-sm font-semibold text-zinc-500">{tr('A bater agora')}</p>
               <ul className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {hot.data!.map((h) => (
                   <li key={h.name} className="shrink-0">
@@ -225,7 +226,7 @@ export default function PlaceSheet({ value, onChange, onClose }: PlacePickerProp
             <Row key={`${o.label}-${i}`} o={o} onPick={() => pick(fullName(o))} />
           ))}
           {!found.isFetching && debounced === text && suggestions.length === 0 && (
-            <li className="px-1 py-3 text-sm text-zinc-500">Nada com esse nome. Podes usar o que escreveste.</li>
+            <li className="px-1 py-3 text-sm text-zinc-500">{tr('Nada com esse nome. Podes usar o que escreveste.')}</li>
           )}
         </ul>
       ) : (
@@ -239,13 +240,13 @@ export default function PlaceSheet({ value, onChange, onClose }: PlacePickerProp
           {started && status === 'error' && (
             <div role="alert" className="py-6 text-center text-zinc-700">
               <p>{msg}</p>
-              <button type="button" onClick={locate} className="mt-3 rounded-full bg-rose-50 px-5 py-2 font-semibold text-brand active:scale-95">Tentar outra vez</button>
+              <button type="button" onClick={locate} className="mt-3 rounded-full bg-rose-50 px-5 py-2 font-semibold text-brand active:scale-95">{tr('Tentar outra vez')}</button>
             </div>
           )}
-          {started && status === 'ready' && nearby.length === 0 && <p className="py-6 text-center text-zinc-600">Não encontrei nada por perto. Escreve o sítio acima.</p>}
+          {started && status === 'ready' && nearby.length === 0 && <p className="py-6 text-center text-zinc-600">{tr('Não encontrei nada por perto. Escreve o sítio acima.')}</p>}
           {status === 'ready' && nearby.length > 0 && (
             <>
-              <p className="mb-1 mt-4 text-sm font-semibold text-zinc-500">Perto de ti</p>
+              <p className="mb-1 mt-4 text-sm font-semibold text-zinc-500">{tr('Perto de ti')}</p>
               <ul>
                 {nearby.map((o, i) => (
                   <Row key={`${o.label}-${i}`} o={o} onPick={() => pick(data?.area && o.label !== data.area && o.sub?.includes('·') ? `${o.label}, ${data.area}` : o.label)} />

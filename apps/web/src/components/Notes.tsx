@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type Note } from '../lib/api';
@@ -33,7 +34,7 @@ export default function NotesStrip() {
 
   return (
     <>
-      <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Notas">
+      <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label={tr('Notas')}>
         <button onClick={() => setEditing(true)} aria-label={mine ? 'A tua nota' : 'Deixar uma nota'} className="flex w-[84px] shrink-0 flex-col items-center active:scale-95">
           <span className="flex h-[54px] items-end"><Bubble text={mine ? mine.body : 'Deixa uma nota'} dim={!mine} /></span>
           <span className="relative">
@@ -42,7 +43,7 @@ export default function NotesStrip() {
               <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-brand text-white ring-2 ring-white"><Icon name="plus" size={14} strokeWidth={3} /></span>
             )}
           </span>
-          <span className="mt-1 w-full truncate text-center text-[12px] text-zinc-600">A tua nota</span>
+          <span className="mt-1 w-full truncate text-center text-[12px] text-zinc-600">{tr('A tua nota')}</span>
         </button>
         {items.map((n) => (
           <button key={n.username} onClick={() => setViewing(n)} aria-label={`Nota de ${n.displayName}: ${n.body}`} className="flex w-[84px] shrink-0 flex-col items-center active:scale-95">
@@ -80,30 +81,30 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
   }
 
   return (
-    <Sheet title="A tua nota" onClose={onClose}>
+    <Sheet title={tr('A tua nota')} onClose={onClose}>
       {current ? (
         <>
           <p className="mx-auto max-w-xs break-words rounded-[18px] bg-zinc-100 px-4 py-3 text-center text-[17px] font-medium leading-snug">{current.body}</p>
-          <p className="mt-2 text-center text-xs text-zinc-500">{timeAgo(current.createdAt)} · visível para os teus seguidores. Uma nota não se edita: apaga-a para publicar outra.</p>
+          <p className="mt-2 text-center text-xs text-zinc-500">{timeAgo(current.createdAt)} {tr('· visível para os teus seguidores. Uma nota não se edita: apaga-a para publicar outra.')}</p>
           {err && <p role="alert" className="mt-2 text-center text-sm text-red-600">{err}</p>}
-          <button disabled={busy} onClick={() => setConfirmDelete(true)} className="mt-3 h-12 w-full rounded-full font-semibold text-red-700 active:bg-red-50">Apagar nota</button>
+          <button disabled={busy} onClick={() => setConfirmDelete(true)} className="mt-3 h-12 w-full rounded-full font-semibold text-red-700 active:bg-red-50">{tr('Apagar nota')}</button>
         </>
       ) : (
         <>
           <label className="block">
-            <textarea value={body} onChange={(e) => setBody(e.target.value.replace(/\n/g, ' ').slice(0, LIMIT))} rows={2} autoFocus placeholder="O que se passa?" aria-label="Nota" className={`${fieldInput} resize-none`} />
+            <textarea value={body} onChange={(e) => setBody(e.target.value.replace(/\n/g, ' ').slice(0, LIMIT))} rows={2} autoFocus placeholder={tr('O que se passa?')} aria-label={tr('Nota')} className={`${fieldInput} resize-none`} />
             <span className={`mt-1 block text-right text-xs ${body.length >= LIMIT ? 'text-brand' : 'text-zinc-500'}`}>{body.length}/{LIMIT}</span>
           </label>
-          <p className="mt-1 text-xs text-zinc-500">Fica 24 horas por cima da tua foto, para os teus seguidores. Quem vê pode responder-te por mensagem.</p>
+          <p className="mt-1 text-xs text-zinc-500">{tr('Fica 24 horas por cima da tua foto, para os teus seguidores. Quem vê pode responder-te por mensagem.')}</p>
           {err && <p role="alert" className="mt-2 text-center text-sm text-red-600">{err}</p>}
-          <button disabled={busy || !body.trim()} onClick={() => run(() => api.setNote(body.trim()))} className="mt-3 h-12 w-full rounded-full bg-brand font-bold text-white transition active:scale-[0.98] disabled:opacity-40">Partilhar nota</button>
+          <button disabled={busy || !body.trim()} onClick={() => run(() => api.setNote(body.trim()))} className="mt-3 h-12 w-full rounded-full bg-brand font-bold text-white transition active:scale-[0.98] disabled:opacity-40">{tr('Partilhar nota')}</button>
         </>
       )}
       {confirmDelete && (
-        <Sheet title="Apagar a nota?" onClose={() => setConfirmDelete(false)} layer="z-[60]">
-          <p className="mb-4 text-zinc-600">A nota desaparece já para toda a gente. Podes escrever outra quando quiseres.</p>
-          <button disabled={busy} onClick={() => run(() => api.deleteNote())} className="h-12 w-full rounded-full bg-red-700 font-bold text-white active:scale-[0.98] disabled:opacity-50">Apagar</button>
-          <button onClick={() => setConfirmDelete(false)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">Cancelar</button>
+        <Sheet title={tr('Apagar a nota?')} onClose={() => setConfirmDelete(false)} layer="z-[60]">
+          <p className="mb-4 text-zinc-600">{tr('A nota desaparece já para toda a gente. Podes escrever outra quando quiseres.')}</p>
+          <button disabled={busy} onClick={() => run(() => api.deleteNote())} className="h-12 w-full rounded-full bg-red-700 font-bold text-white active:scale-[0.98] disabled:opacity-50">{tr('Apagar')}</button>
+          <button onClick={() => setConfirmDelete(false)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar')}</button>
         </Sheet>
       )}
     </Sheet>
@@ -139,11 +140,11 @@ function NoteView({ note, onClose }: { note: Note; onClose: () => void }) {
         <p className="mt-1.5 text-xs text-zinc-500">{timeAgo(note.createdAt)}</p>
       </div>
       <form onSubmit={(e) => { e.preventDefault(); void reply(); }} className="mt-4 flex gap-2">
-        <input value={text} onChange={(e) => setText(e.target.value)} maxLength={400} placeholder="Responder à nota…" aria-label="Responder à nota" className={fieldInput} />
-        <button disabled={busy || !text.trim()} className="h-[50px] shrink-0 rounded-full bg-brand px-5 font-bold text-white active:scale-95 disabled:opacity-40">Enviar</button>
+        <input value={text} onChange={(e) => setText(e.target.value)} maxLength={400} placeholder={tr('Responder à nota…')} aria-label={tr('Responder à nota')} className={fieldInput} />
+        <button disabled={busy || !text.trim()} className="h-[50px] shrink-0 rounded-full bg-brand px-5 font-bold text-white active:scale-95 disabled:opacity-40">{tr('Enviar')}</button>
       </form>
       {err && <p role="alert" className="mt-2 text-center text-sm text-red-600">{err}</p>}
-      <button onClick={() => { onClose(); navigate(`/messages/${note.username}`); }} className="mt-2 h-11 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">Abrir a conversa</button>
+      <button onClick={() => { onClose(); navigate(`/messages/${note.username}`); }} className="mt-2 h-11 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Abrir a conversa')}</button>
     </Sheet>
   );
 }

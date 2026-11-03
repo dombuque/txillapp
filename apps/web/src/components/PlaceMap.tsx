@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { tr } from '../lib/i18n';
 import Icon, { type IconName } from './Icon';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -99,11 +100,11 @@ export default function PlaceMap({ start, onPick, onClose }: Props) {
 
   const round = 'flex h-11 w-11 items-center justify-center rounded-full bg-white text-zinc-900 shadow-lg active:scale-90';
   return (
-    <div role="dialog" aria-modal="true" aria-label="Mapa de locais" className="fixed inset-0 z-[75] bg-zinc-100">
+    <div role="dialog" aria-modal="true" aria-label={tr('Mapa de locais')} className="fixed inset-0 z-[75] bg-zinc-100">
       <div ref={box} className="absolute inset-0" />
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex items-center justify-between gap-2 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-        <button type="button" onClick={onClose} aria-label="Fechar mapa" className={`${round} pointer-events-auto`}>
+        <button type="button" onClick={onClose} aria-label={tr('Fechar mapa')} className={`${round} pointer-events-auto`}>
           <Icon name="x" size={22} strokeWidth={2.2} />
         </button>
         {(moved || loading) && (
@@ -121,7 +122,7 @@ export default function PlaceMap({ start, onPick, onClose }: Props) {
 
       {empty && !loading && (
         <p role="status" className="absolute inset-x-6 top-24 z-[1000] rounded-2xl bg-white/95 px-4 py-3 text-center text-sm shadow-lg">
-          Nada por aqui. Mexe o mapa e procura noutra zona.
+          {tr('Nada por aqui. Mexe o mapa e procura noutra zona.')}
         </p>
       )}
 
@@ -134,11 +135,11 @@ export default function PlaceMap({ start, onPick, onClose }: Props) {
               <span className="block truncate text-sm text-zinc-500">{area ?? 'Perto daqui'}</span>
             </span>
             <button type="button" onClick={() => onPick(area ? `${selected.name}, ${area}` : selected.name)} className="h-11 rounded-full bg-brand px-5 font-bold text-white active:scale-95">
-              Usar
+              {tr('Usar')}
             </button>
           </div>
         ) : (
-          spots.length > 0 && <p className="mx-auto w-fit rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-lg">Toca num sítio para escolher</p>
+          spots.length > 0 && <p className="mx-auto w-fit rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-lg">{tr('Toca num sítio para escolher')}</p>
         )}
       </div>
     </div>

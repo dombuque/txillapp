@@ -1,4 +1,5 @@
 import Icon from './Icon';
+import { tr } from '../lib/i18n';
 import { useState } from 'react';
 import { api, type ReportReason, type ReportType } from '../lib/api';
 import { Sheet } from './ui';
@@ -39,18 +40,18 @@ export default function ReportSheet({ type, id, onClose, layer }: { type: Exclud
 
   if (done) {
     return (
-      <Sheet title="Denúncia enviada" onClose={onClose} layer={layer}>
+      <Sheet title={tr('Denúncia enviada')} onClose={onClose} layer={layer}>
         <p className="py-4 text-center text-zinc-300" aria-hidden><Icon name="check-circle" size={44} className="mx-auto" /></p>
-        <p className="text-center text-lg font-semibold">Obrigado por avisares</p>
-        <p className="mb-5 mt-1 text-center text-zinc-600">Vamos analisar. A outra pessoa não sabe que foste tu. Se quiseres, podes também bloqueá-la no perfil.</p>
-        <button onClick={onClose} className="h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">Fechar</button>
+        <p className="text-center text-lg font-semibold">{tr('Obrigado por avisares')}</p>
+        <p className="mb-5 mt-1 text-center text-zinc-600">{tr('Vamos analisar. A outra pessoa não sabe que foste tu. Se quiseres, podes também bloqueá-la no perfil.')}</p>
+        <button onClick={onClose} className="h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">{tr('Fechar')}</button>
       </Sheet>
     );
   }
 
   return (
-    <Sheet title="Porque queres denunciar?" onClose={onClose} layer={layer}>
-      <div role="radiogroup" aria-label="Motivo" className="space-y-2">
+    <Sheet title={tr('Porque queres denunciar?')} onClose={onClose} layer={layer}>
+      <div role="radiogroup" aria-label={tr('Motivo')} className="space-y-2">
         {REASONS.map((r) => (
           <button
             key={r.value}
@@ -73,8 +74,8 @@ export default function ReportSheet({ type, id, onClose, layer }: { type: Exclud
           onChange={(e) => setNote(e.target.value)}
           maxLength={500}
           rows={2}
-          placeholder="Queres acrescentar algo? (opcional)"
-          aria-label="Nota"
+          placeholder={tr('Queres acrescentar algo? (opcional)')}
+          aria-label={tr('Nota')}
           className="mt-3 w-full resize-none rounded-2xl bg-zinc-100 px-4 py-3 text-[16px] outline-none focus:bg-zinc-200/70"
         />
       )}

@@ -1,4 +1,5 @@
 import { useOnline } from '../lib/presence';
+import { tr } from '../lib/i18n';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 
@@ -9,7 +10,7 @@ export const Wordmark = ({ className = 'h-8', loading = false }: { className?: s
   <svg
     viewBox="-4 -3 154 54"
     role="img"
-    aria-label="txillapp"
+    aria-label={tr('txillapp')}
     className={`w-auto ${className}`}
     fill="none"
     stroke="currentColor"
@@ -64,7 +65,7 @@ function PresenceDot({ username, size }: { username: string; size: number }) {
   const on = useOnline(username);
   if (!on) return null;
   const d = size >= 60 ? 16 : size >= 40 ? 13 : 10;
-  return <span role="img" aria-label="Online" style={{ width: d, height: d }} className="absolute bottom-0 right-0 rounded-full border-2 border-white bg-emerald-500" />;
+  return <span role="img" aria-label={tr('Online')} style={{ width: d, height: d }} className="absolute bottom-0 right-0 rounded-full border-2 border-white bg-emerald-500" />;
 }
 
 export function Avatar({ name, username, size = 40, ring = true, presence = false }: { name: string; username?: string; size?: number; ring?: boolean; /** mostra a bolinha de online */ presence?: boolean }) {
@@ -96,10 +97,10 @@ export function Avatar({ name, username, size = 40, ring = true, presence = fals
 
 export function timeAgo(iso: string) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 60) return 'Agora';
-  if (s < 3600) return `Há ${Math.floor(s / 60)}min`;
-  if (s < 86400) return `Há ${Math.floor(s / 3600)}h`;
-  return `Há ${Math.floor(s / 86400)}d`;
+  if (s < 60) return tr('Agora');
+  if (s < 3600) return tr('Há {n}min', { n: Math.floor(s / 60) });
+  if (s < 86400) return tr('Há {n}h', { n: Math.floor(s / 3600) });
+  return tr('Há {n}d', { n: Math.floor(s / 86400) });
 }
 
 /** Folha inferior (bottom sheet) acessível, com pega de arrastar visual. */
@@ -125,7 +126,7 @@ export function Sheet({ title, onClose, children, layer = 'z-50' }: { title: str
         <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-zinc-300" aria-hidden />
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold">{title}</h2>
-          <button onClick={onClose} aria-label="Fechar" className="-mr-2 flex h-11 w-11 items-center justify-center rounded-full text-2xl text-zinc-600">
+          <button onClick={onClose} aria-label={tr('Fechar')} className="-mr-2 flex h-11 w-11 items-center justify-center rounded-full text-2xl text-zinc-600">
             ×
           </button>
         </div>

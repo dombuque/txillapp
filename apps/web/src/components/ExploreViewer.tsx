@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Reel } from '../pages/Reels';
 import type { Page, Post } from '../lib/api';
@@ -142,7 +143,7 @@ export default function ExploreViewer({ items, startId, onClose, title = 'Explor
           ))}
         </div>
         <div className="pointer-events-none absolute inset-x-0 top-0 mx-auto flex max-w-xl items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
-          <button onClick={close} aria-label="Voltar ao Explorar" className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90"><Icon name="back" size={24} /></button>
+          <button onClick={close} aria-label={tr('Voltar ao Explorar')} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90"><Icon name="back" size={24} /></button>
           <span className="text-lg font-extrabold drop-shadow">{title}</span>
           {reels ? <button onClick={() => setMuted(!isMuted)} aria-label={isMuted ? 'Ligar o som' : 'Desligar o som'} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
             <Icon name={isMuted ? 'volume-off' : 'volume'} size={22} />
@@ -155,8 +156,8 @@ export default function ExploreViewer({ items, startId, onClose, title = 'Explor
   return shell(
     <div className="mx-auto flex h-full max-w-xl flex-col bg-white">
       <header className="flex shrink-0 items-center gap-1 border-b border-zinc-100 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
-        <button onClick={close} aria-label="Voltar ao Explorar" className="flex h-11 w-11 items-center justify-center rounded-full active:bg-zinc-100"><Icon name="back" size={24} /></button>
-        <h1 className="text-[20px] font-extrabold">Publicação</h1>
+        <button onClick={close} aria-label={tr('Voltar ao Explorar')} className="flex h-11 w-11 items-center justify-center rounded-full active:bg-zinc-100"><Icon name="back" size={24} /></button>
+        <h1 className="text-[20px] font-extrabold">{tr('Publicação')}</h1>
       </header>
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-canvas pb-10 pt-3">
         {list.map((p) => (

@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { tr, locale } from '../lib/i18n';
 import { useRef, useState } from 'react';
 import { LoadingBlock } from '../components/Loading';
 import Icon from '../components/Icon';
@@ -68,19 +69,19 @@ export default function Verification() {
   }
 
   return (
-    <StackPage title="Verificação">
+    <StackPage title={tr('Verificação')}>
       <div className="px-5 pt-4">
         {q.isLoading && <LoadingBlock />}
         {s && s.verified && (
           <div className="rounded-3xl bg-sky-50 p-6 text-center">
             <VerifiedBadge size={56} tier={s.tier} />
             <p className="mt-3 text-xl font-extrabold">{s.tier === 'official' ? 'Conta oficial do Txillapp' : 'A tua conta está verificada'}</p>
-            <p className="mt-1 text-sm text-zinc-600">O selo aparece junto ao teu nome em todo o Txillapp.</p>
+            <p className="mt-1 text-sm text-zinc-600">{tr('O selo aparece junto ao teu nome em todo o Txillapp.')}</p>
           </div>
         )}
         {s && !s.verified && (
           <>
-            <p className="text-[15px] text-zinc-700">O selo mostra que uma conta é de quem diz ser. Passa por duas fases: primeiro a conta tem de cumprir os requisitos, depois revemos o teu documento à mão. Os documentos são apagados logo que há decisão.</p>
+            <p className="text-[15px] text-zinc-700">{tr('O selo mostra que uma conta é de quem diz ser. Passa por duas fases: primeiro a conta tem de cumprir os requisitos, depois revemos o teu documento à mão. Os documentos são apagados logo que há decisão.')}</p>
 
             <ul className="mt-4 divide-y divide-zinc-100 rounded-2xl border border-zinc-200">
               {s.items.map((i) => (
@@ -96,22 +97,22 @@ export default function Verification() {
 
             {s.request?.status === 'pending' && (
               <div className="mt-5 rounded-2xl bg-amber-50 p-4">
-                <p className="font-bold">Pedido em análise</p>
-                <p className="mt-1 text-sm text-zinc-700">Vamos rever o teu pedido e avisamos-te quando houver decisão.</p>
-                <button onClick={withdraw} disabled={busy} className={`${btnGhost} mt-3 !py-2.5`}>Retirar pedido</button>
+                <p className="font-bold">{tr('Pedido em análise')}</p>
+                <p className="mt-1 text-sm text-zinc-700">{tr('Vamos rever o teu pedido e avisamos-te quando houver decisão.')}</p>
+                <button onClick={withdraw} disabled={busy} className={`${btnGhost} mt-3 !py-2.5`}>{tr('Retirar pedido')}</button>
               </div>
             )}
             {s.request?.status === 'rejected' && (
               <div className="mt-5 rounded-2xl bg-red-50 p-4">
-                <p className="font-bold">O último pedido foi recusado</p>
-                {s.request.reason && <p className="mt-1 text-sm text-zinc-700">Motivo: {s.request.reason}</p>}
-                {s.retryAfter && <p className="mt-1 text-sm text-zinc-600">Podes pedir outra vez a partir de {new Date(s.retryAfter).toLocaleDateString('pt-PT')}.</p>}
+                <p className="font-bold">{tr('O último pedido foi recusado')}</p>
+                {s.request.reason && <p className="mt-1 text-sm text-zinc-700">{tr('Motivo:')} {s.request.reason}</p>}
+                {s.retryAfter && <p className="mt-1 text-sm text-zinc-600">{tr('Podes pedir outra vez a partir de')} {new Date(s.retryAfter).toLocaleDateString(locale)}.</p>}
               </div>
             )}
 
             {s.eligible && s.request?.status !== 'pending' && !s.retryAfter && (
               <form onSubmit={(e) => { e.preventDefault(); void submit(); }} className="mt-6 space-y-4">
-                <div role="radiogroup" aria-label="Tipo de conta" className="grid grid-cols-2 gap-2">
+                <div role="radiogroup" aria-label={tr('Tipo de conta')} className="grid grid-cols-2 gap-2">
                   {([['person', 'Pessoa'], ['business', 'Negócio ou marca']] as const).map(([v, label]) => (
                     <button key={v} type="button" role="radio" aria-checked={kind === v} onClick={() => setKind(v)} className={`h-12 rounded-2xl border-2 text-sm font-semibold ${kind === v ? 'border-brand bg-rose-50' : 'border-zinc-200'}`}>{label}</button>
                   ))}
@@ -121,17 +122,17 @@ export default function Verification() {
                   <input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={80} required className={fieldInput} />
                 </label>
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-semibold">Quem és e onde te podemos confirmar</span>
-                  <textarea value={proof} onChange={(e) => setProof(e.target.value)} maxLength={600} minLength={10} required rows={3} placeholder="Ex.: músico, página oficial em… ou notícia sobre mim em…" className={`${fieldInput} resize-none`} />
+                  <span className="mb-1.5 block text-sm font-semibold">{tr('Quem és e onde te podemos confirmar')}</span>
+                  <textarea value={proof} onChange={(e) => setProof(e.target.value)} maxLength={600} minLength={10} required rows={3} placeholder={tr('Ex.: músico, página oficial em… ou notícia sobre mim em…')} className={`${fieldInput} resize-none`} />
                 </label>
-                <PhotoSlot label="Documento de identificação" hint="BI, passaporte ou carta de condução (a frente)" file={doc} onPick={setDoc} />
-                <PhotoSlot label="Selfie" hint="Uma foto tua, com a cara bem visível" file={selfie} onPick={setSelfie} />
+                <PhotoSlot label={tr('Documento de identificação')} hint={tr('BI, passaporte ou carta de condução (a frente)')} file={doc} onPick={setDoc} />
+                <PhotoSlot label={tr('Selfie')} hint={tr('Uma foto tua, com a cara bem visível')} file={selfie} onPick={setSelfie} />
                 {err && <p role="alert" className="text-center text-sm text-red-600">{err}</p>}
                 <button disabled={busy || !fullName.trim() || proof.trim().length < 10 || !doc || !selfie} className={`${btnPrimary} w-full`}>{busy ? 'A enviar…' : 'Enviar pedido'}</button>
-                <p className="text-center text-xs text-zinc-500">Só a moderação vê os documentos, e são apagados quando decidirmos.</p>
+                <p className="text-center text-xs text-zinc-500">{tr('Só a moderação vê os documentos, e são apagados quando decidirmos.')}</p>
               </form>
             )}
-            {!s.eligible && <p className="mt-4 text-center text-sm text-zinc-500">Quando cumprires todos os pontos, o pedido abre aqui.</p>}
+            {!s.eligible && <p className="mt-4 text-center text-sm text-zinc-500">{tr('Quando cumprires todos os pontos, o pedido abre aqui.')}</p>}
           </>
         )}
       </div>

@@ -1,4 +1,5 @@
 import Icon, { type IconName } from './Icon';
+import { tr } from '../lib/i18n';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { ApiError, api, type GiftVisibility } from '../lib/api';
@@ -86,17 +87,17 @@ export default function GiftSheet({
 
   if (sent) {
     return (
-      <Sheet title="Presente enviado" onClose={onClose} layer={layer}>
-        <p className="py-3 text-center text-lg">Mandaste {custom || amount} Txills a {name}! Que generoso</p>
+      <Sheet title={tr('Presente enviado')} onClose={onClose} layer={layer}>
+        <p className="py-3 text-center text-lg">{tr('Mandaste')} {custom || amount} {tr('Txills a')} {name}{tr('! Que generoso')}</p>
         {sent.published ? (
-          <p role="status" className="pb-2 text-center text-green-700">Já está no feed.</p>
+          <p role="status" className="pb-2 text-center text-green-700">{tr('Já está no feed.')}</p>
         ) : (
           <button onClick={publishNow} disabled={publishing} className={`${btnGhost} mt-2 w-full`}>
             {publishing ? 'A publicar…' : 'Publicar no feed agora'}
           </button>
         )}
         <p role="alert" className="mt-2 min-h-5 text-center text-sm text-red-600">{err}</p>
-        <button onClick={onClose} className={`${btnPrimary} mt-2 w-full`}>Feito</button>
+        <button onClick={onClose} className={`${btnPrimary} mt-2 w-full`}>{tr('Feito')}</button>
       </Sheet>
     );
   }
@@ -105,11 +106,11 @@ export default function GiftSheet({
     <Sheet title={`Presentear ${name}`} onClose={onClose} layer={layer}>
       <div className="space-y-4">
         {!recipient && (
-          <input value={to} onChange={(e) => { setTo(e.target.value); fresh(); }} placeholder="@utilizador" aria-label="Utilizador" autoCapitalize="none" autoCorrect="off" className={fieldInput} />
+          <input value={to} onChange={(e) => { setTo(e.target.value); fresh(); }} placeholder={tr('@utilizador')} aria-label={tr('Utilizador')} autoCapitalize="none" autoCorrect="off" className={fieldInput} />
         )}
 
         <div>
-          <div className="flex gap-2" role="radiogroup" aria-label="Quantidade de Txills">
+          <div className="flex gap-2" role="radiogroup" aria-label={tr('Quantidade de Txills')}>
             {AMOUNTS.map((v) => (
               <button
                 key={v}
@@ -122,10 +123,10 @@ export default function GiftSheet({
               </button>
             ))}
           </div>
-          <input value={custom} onChange={(e) => { setCustom(e.target.value.replace(/\D/g, '')); fresh(); }} inputMode="numeric" placeholder="Ou outro valor…" aria-label="Outro valor" className={`${fieldInput} mt-2`} />
+          <input value={custom} onChange={(e) => { setCustom(e.target.value.replace(/\D/g, '')); fresh(); }} inputMode="numeric" placeholder={tr('Ou outro valor…')} aria-label={tr('Outro valor')} className={`${fieldInput} mt-2`} />
         </div>
 
-        <div role="radiogroup" aria-label="Como dar o presente" className="grid grid-cols-3 gap-2">
+        <div role="radiogroup" aria-label={tr('Como dar o presente')} className="grid grid-cols-3 gap-2">
           {OPTIONS.map((o) => (
             <button
               key={o.value}
@@ -148,7 +149,7 @@ export default function GiftSheet({
             maxLength={280}
             rows={2}
             placeholder={visibility === 'private' ? 'Uma mensagem só para a pessoa…' : 'Escreve algo para o post…'}
-            aria-label="Mensagem"
+            aria-label={tr('Mensagem')}
             className={`${fieldInput} resize-none`}
           />
         )}

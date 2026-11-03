@@ -48,3 +48,6 @@ export function t(pt: string, vars?: Record<string, string | number>): string {
   if (!vars) return base;
   return base.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 }
+
+/** Mesmo que `t`, com um nome que não se confunde com variáveis locais (por exemplo, `t` de um toque). */
+export const tr = t;

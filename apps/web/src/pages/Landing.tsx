@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { tr } from '../lib/i18n';
 import { Link } from 'react-router-dom';
 import Icon from '../components/Icon';
 import { Wordmark } from '../components/ui';
@@ -28,9 +29,9 @@ export default function Landing() {
     <div className="min-h-dvh bg-white text-zinc-900">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
         <Wordmark className="h-8" />
-        <nav aria-label="Entrar" className="flex items-center gap-2">
-          <Link to="/login" className="rounded-full px-5 py-2.5 font-semibold transition hover:bg-zinc-100">Entrar</Link>
-          <Link to="/register" className="hidden rounded-full bg-brand px-5 py-2.5 font-bold text-white transition hover:brightness-110 sm:block">Criar conta</Link>
+        <nav aria-label={tr('Entrar')} className="flex items-center gap-2">
+          <Link to="/login" className="rounded-full px-5 py-2.5 font-semibold transition hover:bg-zinc-100">{tr('Entrar')}</Link>
+          <Link to="/register" className="hidden rounded-full bg-brand px-5 py-2.5 font-bold text-white transition hover:brightness-110 sm:block">{tr('Criar conta')}</Link>
         </nav>
       </header>
 
@@ -38,25 +39,25 @@ export default function Landing() {
         <section className="mx-auto grid max-w-6xl items-center gap-10 px-5 pb-16 pt-8 lg:grid-cols-2 lg:pt-16">
           <div>
             <h1 className="text-5xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
-              Posta. Mostra. <span className="text-brand">Txilla.</span>
+              {tr('Posta. Mostra.')} <span className="text-brand">{tr('Txilla.')}</span>
             </h1>
             <p className="mt-5 max-w-lg text-xl leading-relaxed text-zinc-600">
-              A tua vibe, a tua malta e o teu espaço. Fotos, vídeos, stories, reels e chat numa só app, feita para quem não tem tempo a perder.
+              {tr('A tua vibe, a tua malta e o teu espaço. Fotos, vídeos, stories, reels e chat numa só app, feita para quem não tem tempo a perder.')}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link to="/register" className="rounded-full bg-brand px-8 py-4 text-lg font-bold text-white shadow-lg shadow-rose-200 transition hover:brightness-110 active:scale-95">
-                Criar conta grátis
+                {tr('Criar conta grátis')}
               </Link>
               <Link to="/login" className="rounded-full border-2 border-zinc-200 px-8 py-4 text-lg font-bold transition hover:bg-zinc-50 active:scale-95">
-                Já tenho conta
+                {tr('Já tenho conta')}
               </Link>
               {goToApp && (
                 <a href={APP_URL} className="w-full rounded-full bg-zinc-900 px-8 py-4 text-center text-lg font-bold text-white transition active:scale-95">
-                  Instalar a app
+                  {tr('Instalar a app')}
                 </a>
               )}
             </div>
-            <p className="mt-4 text-sm text-zinc-500">Para maiores de 13 anos. Funciona no navegador e podes instalar no telemóvel.</p>
+            <p className="mt-4 text-sm text-zinc-500">{tr('Para maiores de 13 anos. Funciona no navegador e podes instalar no telemóvel.')}</p>
           </div>
 
           {/* Maqueta do telemóvel, só desenho (sem dados de ninguém). */}
@@ -89,7 +90,7 @@ export default function Landing() {
 
         <section className="bg-zinc-50 py-16" aria-labelledby="porque">
           <div className="mx-auto max-w-6xl px-5">
-            <h2 id="porque" className="text-3xl font-extrabold">Tudo o que a malta precisa</h2>
+            <h2 id="porque" className="text-3xl font-extrabold">{tr('Tudo o que a malta precisa')}</h2>
             <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {FEATURES.map((f) => (
                 <li key={f.title} className="rounded-3xl bg-white p-6 shadow-[0_2px_16px_rgba(0,0,0,0.06)]">
@@ -105,20 +106,20 @@ export default function Landing() {
         </section>
 
         <section className="mx-auto max-w-3xl px-5 py-16 text-center">
-          <h2 className="text-3xl font-extrabold">Bora entrar na festa?</h2>
-          <p className="mt-3 text-lg text-zinc-600">É grátis e demora menos de um minuto.</p>
+          <h2 className="text-3xl font-extrabold">{tr('Bora entrar na festa?')}</h2>
+          <p className="mt-3 text-lg text-zinc-600">{tr('É grátis e demora menos de um minuto.')}</p>
           <Link to="/register" className="mt-6 inline-block rounded-full bg-brand px-10 py-4 text-lg font-bold text-white transition hover:brightness-110 active:scale-95">
-            Criar a minha conta
+            {tr('Criar a minha conta')}
           </Link>
         </section>
       </main>
 
       <footer className="border-t border-zinc-100 py-8 text-center text-sm text-zinc-500">
         <p>
-          <Link to="/terms" className="hover:underline">Termos de Uso</Link> · <Link to="/privacy" className="hover:underline">Política de Privacidade</Link> ·{' '}
-          <a href="mailto:suporte@txillapp.com" className="hover:underline">suporte@txillapp.com</a>
+          <Link to="/terms" className="hover:underline">{tr('Termos de Uso')}</Link> · <Link to="/privacy" className="hover:underline">{tr('Política de Privacidade')}</Link> ·{' '}
+          <a href="mailto:suporte@txillapp.com" className="hover:underline">{tr('suporte@txillapp.com')}</a>
         </p>
-        <p className="mt-2">© {new Date().getFullYear()} Txillapp</p>
+        <p className="mt-2">© {new Date().getFullYear()} {tr('Txillapp')}</p>
       </footer>
     </div>
   );

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { tr } from '../lib/i18n';
 import { useNavigate } from 'react-router-dom';
 import { BackIcon } from './icons';
 
@@ -13,7 +14,7 @@ export default function StackPage({ title, children }: { title: string; children
       <header className="sticky top-0 z-10 flex items-center gap-1 border-b border-zinc-100 bg-white px-2 py-2">
         <button
           onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/', { replace: true }))}
-          aria-label="Voltar"
+          aria-label={tr('Voltar')}
           className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-900 transition active:bg-zinc-100"
         >
           <BackIcon />

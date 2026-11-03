@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { tr, locale } from '../lib/i18n';
 
 interface Point {
   day: string;
@@ -10,7 +11,7 @@ const W = 320;
 const H = 128;
 const PAD = { top: 14, right: 4, bottom: 18, left: 4 };
 
-const fmtDay = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const fmtDay = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
 /**
  * Barras por dia, uma série só (o título diz qual): barras finas ancoradas na base com o topo arredondado,
@@ -67,10 +68,10 @@ export default function BarChart({ title, data, unit = '' }: { title: string; da
         <text x={W - PAD.right} y={H - 4} fontSize="9" fill="#71717a" textAnchor="end">{last ? fmtDay(last.day) : ''}</text>
       </svg>
       <details className="mt-1 text-sm">
-        <summary className="cursor-pointer text-zinc-600 underline">Ver tabela</summary>
+        <summary className="cursor-pointer text-zinc-600 underline">{tr('Ver tabela')}</summary>
         <table className="mt-2 w-full text-left">
           <thead>
-            <tr><th className="py-1 font-semibold">Dia</th><th className="py-1 text-right font-semibold">{title}</th></tr>
+            <tr><th className="py-1 font-semibold">{tr('Dia')}</th><th className="py-1 text-right font-semibold">{title}</th></tr>
           </thead>
           <tbody>
             {data.map((d) => (

@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { LANGS, lang, setLang, tr, locale } from '../lib/i18n';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import Icon, { type IconName } from '../components/Icon';
@@ -41,7 +42,7 @@ export function About() {
   const me = useQuery({ queryKey: ['profile', user?.username], queryFn: () => api.profile(user!.username), enabled: !!user });
   const ver = useQuery({ queryKey: ['verification'], queryFn: api.verificationStatus, staleTime: 60_000 });
   const geo = useQuery({ queryKey: ['geo'], queryFn: api.geo, staleTime: 5 * 60_000 });
-  const since = me.data?.joinedAt ? new Date(me.data.joinedAt).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' }) : '…';
+  const since = me.data?.joinedAt ? new Date(me.data.joinedAt).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : '…';
   let country = geo.data?.country ?? '';
   try {
     if (country) country = new Intl.DisplayNames(['pt'], { type: 'region' }).of(country) ?? country;
@@ -49,23 +50,23 @@ export function About() {
     /* mantém o código */
   }
   return (
-    <StackPage title="Sobre">
-      <Group title="Sobre o teu perfil">
-        <Line icon="user" label="Nome de utilizador" value={`@${user?.username ?? ''}`} />
-        <Line icon="clock" label="Conta criada em" value={since} />
-        {country && <Line icon="globe" label="Região" value={country} />}
-        <Line icon="check-circle" label="Verificação" value={ver.data?.verified ? (ver.data.tier === 'official' ? 'Conta oficial do Txillapp' : 'Conta verificada') : 'Sem selo'} to="/verification" />
+    <StackPage title={tr('Sobre')}>
+      <Group title={tr('Sobre o teu perfil')}>
+        <Line icon="user" label={tr('Nome de utilizador')} value={`@${user?.username ?? ''}`} />
+        <Line icon="clock" label={tr('Conta criada em')} value={since} />
+        {country && <Line icon="globe" label={tr('Região')} value={country} />}
+        <Line icon="check-circle" label={tr('Verificação')} value={ver.data?.verified ? (ver.data.tier === 'official' ? 'Conta oficial do Txillapp' : 'Conta verificada') : 'Sem selo'} to="/verification" />
       </Group>
-      <Group title="Legal">
-        <Line icon="shield" label="Política de privacidade" to="/privacy" />
-        <Line icon="file-text" label="Termos de utilização" to="/terms" />
+      <Group title={tr('Legal')}>
+        <Line icon="shield" label={tr('Política de privacidade')} to="/privacy" />
+        <Line icon="file-text" label={tr('Termos de utilização')} to="/terms" />
       </Group>
-      <Group title="Txillapp">
-        <Line icon="info" label="Versão" value={`de ${__BUILD__}`} />
-        <Line icon="mail" label="Contactar-nos" value={SUPPORT} href={`mailto:${SUPPORT}`} />
+      <Group title={tr('Txillapp')}>
+        <Line icon="info" label={tr('Versão')} value={`de ${__BUILD__}`} />
+        <Line icon="mail" label={tr('Contactar-nos')} value={SUPPORT} href={`mailto:${SUPPORT}`} />
       </Group>
       <p className="mx-6 mt-6 text-center text-sm text-zinc-500">
-        O Txillapp é a rede da malta: fotos, vídeos, stories, reels e chat, com Txills para brindar e presentear. {user && ver.data?.verified && <VerifiedBadge size={14} tier={ver.data.tier} />}
+        {tr('O Txillapp é a rede da malta: fotos, vídeos, stories, reels e chat, com Txills para brindar e presentear.')} {user && ver.data?.verified && <VerifiedBadge size={14} tier={ver.data.tier} />}
       </p>
     </StackPage>
   );
@@ -93,15 +94,15 @@ export function Help() {
   const subject = encodeURIComponent('Problema no Txillapp');
   const body = encodeURIComponent(`\n\n---\nVersão: ${__BUILD__}\nAparelho: ${navigator.userAgent}`);
   return (
-    <StackPage title="Ajuda">
+    <StackPage title={tr('Ajuda')}>
       <div className="px-4 pt-4">
         <label className="flex h-11 items-center gap-2 rounded-full bg-zinc-100 px-4 text-zinc-500 focus-within:bg-zinc-200/70">
           <Icon name="search" size={18} />
-          <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Procurar na ajuda" aria-label="Procurar na ajuda" className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
+          <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder={tr('Procurar na ajuda')} aria-label={tr('Procurar na ajuda')} className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
         </label>
       </div>
-      <Group title="Perguntas frequentes">
-        {list.length === 0 && <p className="px-4 py-6 text-center text-zinc-500">Nada com essa palavra. Fala connosco, em baixo.</p>}
+      <Group title={tr('Perguntas frequentes')}>
+        {list.length === 0 && <p className="px-4 py-6 text-center text-zinc-500">{tr('Nada com essa palavra. Fala connosco, em baixo.')}</p>}
         {list.map((f, i) => (
           <div key={f.q}>
             <button type="button" onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i} className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left active:bg-zinc-50">
@@ -112,16 +113,16 @@ export function Help() {
           </div>
         ))}
       </Group>
-      <Group title="Fala connosco">
-        <Line icon="mail" label="Contactar o suporte" value={SUPPORT} href={`mailto:${SUPPORT}`} />
-        <Line icon="alert" label="Reportar um problema" value="Já leva a versão e o aparelho" href={`mailto:${SUPPORT}?subject=${subject}&body=${body}`} />
-        <Line icon="shield" label="Segurança e privacidade" to="/privacy" />
+      <Group title={tr('Fala connosco')}>
+        <Line icon="mail" label={tr('Contactar o suporte')} value={SUPPORT} href={`mailto:${SUPPORT}`} />
+        <Line icon="alert" label={tr('Reportar um problema')} value="Já leva a versão e o aparelho" href={`mailto:${SUPPORT}?subject=${subject}&body=${body}`} />
+        <Line icon="shield" label={tr('Segurança e privacidade')} to="/privacy" />
       </Group>
     </StackPage>
   );
 }
 
-const money = (minor: number, currency: string) => `${(minor / 100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency === 'MZN' ? 'MT' : currency}`;
+const money = (minor: number, currency: string) => `${(minor / 100).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency === 'MZN' ? 'MT' : currency}`;
 const STATUS: Record<PaymentOrder['status'], { label: string; tone: string }> = {
   pending: { label: 'À espera', tone: 'bg-amber-100 text-amber-800' },
   paid: { label: 'Pago', tone: 'bg-emerald-100 text-emerald-800' },
@@ -203,35 +204,35 @@ export function Orders() {
   }
 
   return (
-    <StackPage title="Pedidos e pagamentos">
+    <StackPage title={tr('Pedidos e pagamentos')}>
       <div className="mx-4 mt-4 rounded-3xl bg-gradient-to-br from-brand via-[#e8475f] to-[#ff8a5b] p-5 text-white shadow-[0_6px_18px_rgba(214,51,79,0.3)]">
-        <p className="text-sm font-semibold text-white/85">O teu saldo</p>
-        <p className="mt-1 text-[38px] font-black leading-none">{w.data ? w.data.balance.toLocaleString('pt-PT') : '…'} <span className="text-xl font-bold">Txills</span></p>
-        <Link to="/wallet" className="mt-4 inline-flex h-10 items-center rounded-full bg-white/20 px-4 text-sm font-bold active:scale-95">Ver movimentos e presentes</Link>
+        <p className="text-sm font-semibold text-white/85">{tr('O teu saldo')}</p>
+        <p className="mt-1 text-[38px] font-black leading-none">{w.data ? w.data.balance.toLocaleString(locale) : '…'} <span className="text-xl font-bold">{tr('Txills')}</span></p>
+        <Link to="/wallet" className="mt-4 inline-flex h-10 items-center rounded-full bg-white/20 px-4 text-sm font-bold active:scale-95">{tr('Ver movimentos e presentes')}</Link>
       </div>
 
-      <Group title="Recarregar Txills">
-        {cfg.isLoading && <p className="px-4 py-6 text-center text-zinc-500">A carregar…</p>}
-        {cfg.data && providers.length === 0 && <Line icon="wallet" label="Comprar Txills" value="Em breve: M-Pesa, e-Mola e cartão" />}
+      <Group title={tr('Recarregar Txills')}>
+        {cfg.isLoading && <p className="px-4 py-6 text-center text-zinc-500">{tr('A carregar…')}</p>}
+        {cfg.data && providers.length === 0 && <Line icon="wallet" label={tr('Comprar Txills')} value="Em breve: M-Pesa, e-Mola e cartão" />}
         {cfg.data && providers.length > 0 && !current && (
           <div className="space-y-4 p-4">
             <div className="grid grid-cols-2 gap-2.5">
               {cfg.data.packages.map((p) => (
                 <button key={p.id} type="button" onClick={() => setPkg(p.id)} aria-pressed={pkg === p.id} className={`rounded-2xl border-2 px-3 py-3 text-left transition active:scale-[0.98] ${pkg === p.id ? 'border-brand bg-rose-50' : 'border-zinc-200'}`}>
-                  <span className="block text-[22px] font-black leading-none">{p.txills.toLocaleString('pt-PT')}</span>
-                  <span className="block text-[12px] font-bold uppercase tracking-wider text-zinc-500">Txills</span>
+                  <span className="block text-[22px] font-black leading-none">{p.txills.toLocaleString(locale)}</span>
+                  <span className="block text-[12px] font-bold uppercase tracking-wider text-zinc-500">{tr('Txills')}</span>
                   <span className="mt-1.5 block text-[15px] font-semibold text-brand">{money(p.priceMinor, p.currency)}</span>
                 </button>
               ))}
             </div>
-            <div role="radiogroup" aria-label="Como pagas" className="flex flex-wrap gap-2">
+            <div role="radiogroup" aria-label={tr('Como pagas')} className="flex flex-wrap gap-2">
               {providers.map((p) => (
                 <button key={p.id} type="button" role="radio" aria-checked={chosen?.id === p.id} onClick={() => setProvider(p.id)} className={`h-10 rounded-full border-2 px-4 text-sm font-semibold ${chosen?.id === p.id ? 'border-brand bg-rose-50 text-brand' : 'border-zinc-200 text-zinc-700'}`}>{p.label}</button>
               ))}
             </div>
             {chosen?.needsPhone && (
               <label className="block">
-                <span className="mb-1.5 block text-sm font-semibold">O teu número {chosen.label}</span>
+                <span className="mb-1.5 block text-sm font-semibold">{tr('O teu número')} {chosen.label}</span>
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel" placeholder="84 123 4567" className="h-12 w-full rounded-2xl border-2 border-zinc-200 px-4 text-[16px] outline-none focus:border-zinc-500" />
               </label>
             )}
@@ -245,86 +246,62 @@ export function Orders() {
           <div className="space-y-3 p-4 text-center">
             {current.status === 'pending' && (
               <>
-                <p className="text-lg font-extrabold">À espera do pagamento</p>
-                <p className="text-sm text-zinc-600">{current.provider === 'sandbox' ? 'Pagamento de teste: confirma abaixo.' : `Confirma o pagamento no teu telemóvel${current.phoneTail ? ` (número terminado em ${current.phoneTail})` : ''}.`} Isto atualiza sozinho.</p>
-                {current.provider === 'sandbox' && <button type="button" onClick={sandboxPay} disabled={busy} className="h-11 w-full rounded-full bg-emerald-500 font-bold text-white active:scale-[0.98] disabled:opacity-50">Simular pagamento</button>}
-                <button type="button" onClick={cancel} className="h-11 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">Cancelar pedido</button>
+                <p className="text-lg font-extrabold">{tr('À espera do pagamento')}</p>
+                <p className="text-sm text-zinc-600">{current.provider === 'sandbox' ? 'Pagamento de teste: confirma abaixo.' : `Confirma o pagamento no teu telemóvel${current.phoneTail ? ` (número terminado em ${current.phoneTail})` : ''}.`} {tr('Isto atualiza sozinho.')}</p>
+                {current.provider === 'sandbox' && <button type="button" onClick={sandboxPay} disabled={busy} className="h-11 w-full rounded-full bg-emerald-500 font-bold text-white active:scale-[0.98] disabled:opacity-50">{tr('Simular pagamento')}</button>}
+                <button type="button" onClick={cancel} className="h-11 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar pedido')}</button>
               </>
             )}
             {current.status === 'paid' && (
               <>
-                <p className="text-lg font-extrabold text-emerald-700">Pago! +{current.txills.toLocaleString('pt-PT')} Txills</p>
-                <button type="button" onClick={() => setCurrent(null)} className="h-11 w-full rounded-full bg-zinc-100 font-semibold active:scale-[0.98]">Fechar</button>
+                <p className="text-lg font-extrabold text-emerald-700">{tr('Pago! +')}{current.txills.toLocaleString(locale)} {tr('Txills')}</p>
+                <button type="button" onClick={() => setCurrent(null)} className="h-11 w-full rounded-full bg-zinc-100 font-semibold active:scale-[0.98]">{tr('Fechar')}</button>
               </>
             )}
             {(current.status === 'failed' || current.status === 'cancelled' || current.status === 'expired') && (
               <>
                 <p className="text-lg font-extrabold">{STATUS[current.status].label}</p>
-                <button type="button" onClick={() => { setCurrent(null); setErr(''); }} className="h-11 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">Tentar outra vez</button>
+                <button type="button" onClick={() => { setCurrent(null); setErr(''); }} className="h-11 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">{tr('Tentar outra vez')}</button>
               </>
             )}
           </div>
         )}
       </Group>
 
-      <Group title="Pedidos">
-        {orders.data && orders.data.length === 0 && <Line icon="file-text" label="Histórico de pedidos" value="Ainda não tens pedidos" />}
+      <Group title={tr('Pedidos')}>
+        {orders.data && orders.data.length === 0 && <Line icon="file-text" label={tr('Histórico de pedidos')} value="Ainda não tens pedidos" />}
         {orders.data?.map((o) => (
           <div key={o.id} className="flex min-h-14 items-center gap-3 px-4 py-3">
             <span className="min-w-0 flex-1">
-              <span className="block font-semibold">{o.txills.toLocaleString('pt-PT')} Txills</span>
-              <span className="block text-sm text-zinc-500">{money(o.amountMinor, o.currency)} · {new Date(o.createdAt).toLocaleDateString('pt-PT')}</span>
+              <span className="block font-semibold">{o.txills.toLocaleString(locale)} {tr('Txills')}</span>
+              <span className="block text-sm text-zinc-500">{money(o.amountMinor, o.currency)} · {new Date(o.createdAt).toLocaleDateString(locale)}</span>
             </span>
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS[o.status].tone}`}>{STATUS[o.status].label}</span>
           </div>
         ))}
       </Group>
-      <p className="mx-6 mt-5 text-center text-sm text-zinc-500">Os Txills comprados entram na carteira e usam-se como os outros: para presentear quem segues. Não se trocam por dinheiro.</p>
+      <p className="mx-6 mt-5 text-center text-sm text-zinc-500">{tr('Os Txills comprados entram na carteira e usam-se como os outros: para presentear quem segues. Não se trocam por dinheiro.')}</p>
     </StackPage>
   );
 }
 
-const LANGS = [
-  { id: 'pt-MZ', label: 'Português (Moçambique)', ready: true },
-  { id: 'pt-PT', label: 'Português (Portugal)', ready: true },
-  { id: 'en', label: 'English', ready: false },
-  { id: 'fr', label: 'Français', ready: false },
-] as const;
-const KEY = 'txill_lang';
-const stored = () => {
-  try {
-    return localStorage.getItem(KEY) ?? 'pt-MZ';
-  } catch {
-    return 'pt-MZ';
-  }
-};
-
-/** Idioma e traduções: o idioma da app e a tradução de publicações. */
+/** Idioma e traduções: o idioma da app (muda e recarrega) e a tradução de publicações. */
 export function Language() {
-  const [lang, setLang] = useState(stored);
-  function pick(id: string) {
-    setLang(id);
-    try {
-      localStorage.setItem(KEY, id);
-    } catch {
-      /* sem armazenamento: só vale agora */
-    }
-    document.documentElement.lang = id;
-  }
   return (
-    <StackPage title="Idioma e traduções">
-      <Group title="Idioma da app">
+    <StackPage title={tr('Idioma e traduções')}>
+      <Group title={tr('Idioma da app')}>
         {LANGS.map((l) => (
-          <button key={l.id} type="button" disabled={!l.ready} onClick={() => pick(l.id)} role="radio" aria-checked={lang === l.id} className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left active:bg-zinc-50 disabled:opacity-55">
-            <span className="flex-1 font-semibold">{l.label}{!l.ready && <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-bold text-zinc-500">em breve</span>}</span>
+          <button key={l.id} type="button" onClick={() => l.id !== lang && setLang(l.id)} role="radio" aria-checked={lang === l.id} className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left active:bg-zinc-50">
+            <span className="flex-1 font-semibold">{l.label}</span>
             <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${lang === l.id ? 'border-brand bg-brand text-white' : 'border-zinc-300'}`} aria-hidden>{lang === l.id && <Icon name="check" size={14} strokeWidth={3} />}</span>
           </button>
         ))}
+        <Line icon="globe" label={tr('Français')} value={tr('em breve')} />
       </Group>
-      <Group title="Traduções">
-        <Line icon="globe" label="Traduzir publicações" value="Em breve: ver posts e comentários noutro idioma com um toque" />
+      <Group title={tr('Traduções')}>
+        <Line icon="globe" label={tr('Traduzir publicações')} value={tr('Em breve: ver posts e comentários noutro idioma com um toque')} />
       </Group>
-      <p className="mx-6 mt-5 text-center text-sm text-zinc-500">Por agora o Txillapp está em português. Vamos acrescentando idiomas e a tradução de publicações.</p>
+      <p className="mx-6 mt-5 text-center text-sm text-zinc-500">{tr('O Txillapp está em português e em inglês. Vamos acrescentando idiomas e a tradução de publicações.')}</p>
     </StackPage>
   );
 }

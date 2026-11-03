@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { useEffect, useState } from 'react';
 import { api, type PhotoTag } from '../lib/api';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
@@ -37,16 +38,16 @@ export default function PhotoTagger({ src, tags, onDone }: { src: string; tags: 
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Identificar pessoas" className="fixed inset-0 z-[80] flex flex-col bg-black text-white" style={visibleStyle(vv)}>
+    <div role="dialog" aria-modal="true" aria-label={tr('Identificar pessoas')} className="fixed inset-0 z-[80] flex flex-col bg-black text-white" style={visibleStyle(vv)}>
       <div className="flex items-center justify-between px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
-        <p className="text-lg font-bold">Identificar pessoas</p>
-        <button type="button" onClick={() => onDone(list)} className="h-10 rounded-full bg-brand px-5 font-bold active:scale-95">Feito</button>
+        <p className="text-lg font-bold">{tr('Identificar pessoas')}</p>
+        <button type="button" onClick={() => onDone(list)} className="h-10 rounded-full bg-brand px-5 font-bold active:scale-95">{tr('Feito')}</button>
       </div>
 
       <div className="min-h-0 flex-1 px-2">
         <TaggedImage
           src={src}
-          alt="Foto a identificar"
+          alt={tr('Foto a identificar')}
           tags={list}
           pending={pending}
           onPoint={(x, y) => list.length < MAX_TAGS && setPending({ x, y })}
@@ -67,11 +68,11 @@ export default function PhotoTagger({ src, tags, onDone }: { src: string; tags: 
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Quem é? Procura um nome…"
-              aria-label="Procurar pessoa"
+              placeholder={tr('Quem é? Procura um nome…')}
+              aria-label={tr('Procurar pessoa')}
               className="h-11 min-w-0 flex-1 rounded-full bg-zinc-100 px-4 text-base outline-none focus:bg-zinc-200/70"
             />
-            <button type="button" onClick={() => setPending(null)} className="h-11 px-3 font-semibold text-zinc-600">Cancelar</button>
+            <button type="button" onClick={() => setPending(null)} className="h-11 px-3 font-semibold text-zinc-600">{tr('Cancelar')}</button>
           </div>
           <ul className="max-h-60 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {people.map((p) => (
@@ -85,7 +86,7 @@ export default function PhotoTagger({ src, tags, onDone }: { src: string; tags: 
                 </button>
               </li>
             ))}
-            {found.isSuccess && people.length === 0 && <li className="py-3 text-sm text-zinc-500">Ninguém que possas identificar. Só podes identificar quem aceita menções.</li>}
+            {found.isSuccess && people.length === 0 && <li className="py-3 text-sm text-zinc-500">{tr('Ninguém que possas identificar. Só podes identificar quem aceita menções.')}</li>}
           </ul>
         </div>
       )}

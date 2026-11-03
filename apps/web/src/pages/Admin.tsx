@@ -1,4 +1,5 @@
 import { LoadingBlock } from '../components/Loading';
+import { tr } from '../lib/i18n';
 import Icon from '../components/Icon';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -37,18 +38,18 @@ function Row({ item, onDone }: { item: ReportQueueItem; onDone: () => void }) {
       </div>
       {item.owner && (
         <p className="mt-2 text-sm">
-          de <Link to={`/u/${item.owner.username}`} className="font-semibold underline">@{item.owner.username}</Link>
+          {tr('de')} <Link to={`/u/${item.owner.username}`} className="font-semibold underline">@{item.owner.username}</Link>
           {item.owner.status !== 'active' && <span className="ml-1 text-red-600">({item.owner.status})</span>}
-          {item.owner.strikes > 0 && <span className="ml-1 text-amber-700">· {item.owner.strikes} ação(ões) anteriores</span>}
+          {item.owner.strikes > 0 && <span className="ml-1 text-amber-700">· {item.owner.strikes} {tr('ação(ões) anteriores')}</span>}
         </p>
       )}
-      {item.imageUrl && <img src={item.imageUrl} alt="Foto assinalada" className="mt-2 max-h-64 w-full rounded-xl bg-zinc-100 object-contain" />}
+      {item.imageUrl && <img src={item.imageUrl} alt={tr('Foto assinalada')} className="mt-2 max-h-64 w-full rounded-xl bg-zinc-100 object-contain" />}
       <p className="mt-2 whitespace-pre-wrap break-words rounded-xl bg-zinc-50 px-3 py-2 text-[15px] text-zinc-800">{item.preview || '(sem texto)'}</p>
       {err && <p role="alert" className="mt-2 text-sm text-red-600">{err}</p>}
       <div className="mt-3 flex gap-2">
-        <button disabled={busy} onClick={() => act('dismiss')} className={`${btn} bg-zinc-100 text-zinc-800`}>Ignorar</button>
-        {item.type !== 'user' && <button disabled={busy} onClick={() => act('remove')} className={`${btn} bg-amber-500 text-white`}>Remover</button>}
-        <button disabled={busy || !item.owner} onClick={() => act('suspend')} className={`${btn} bg-red-700 text-white`}>Suspender</button>
+        <button disabled={busy} onClick={() => act('dismiss')} className={`${btn} bg-zinc-100 text-zinc-800`}>{tr('Ignorar')}</button>
+        {item.type !== 'user' && <button disabled={busy} onClick={() => act('remove')} className={`${btn} bg-amber-500 text-white`}>{tr('Remover')}</button>}
+        <button disabled={busy || !item.owner} onClick={() => act('suspend')} className={`${btn} bg-red-700 text-white`}>{tr('Suspender')}</button>
       </div>
     </li>
   );
@@ -59,15 +60,15 @@ export default function Admin() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['admin-reports'], queryFn: () => api.adminQueue(), retry: false });
   return (
-    <StackPage title="Moderação">
+    <StackPage title={tr('Moderação')}>
       <div className="px-4 pt-4">
-        {q.isError && <p role="alert" className="py-10 text-center text-zinc-600">Sem acesso</p>}
+        {q.isError && <p role="alert" className="py-10 text-center text-zinc-600">{tr('Sem acesso')}</p>}
         {q.isLoading && <LoadingBlock />}
         {q.isSuccess && q.data.length === 0 && (
           <div className="py-16 text-center">
             <p className="text-zinc-300" aria-hidden><Icon name="sparkles" size={44} className="mx-auto" /></p>
-            <p className="mt-3 text-xl font-bold">Fila vazia</p>
-            <p className="text-zinc-600">Não há denúncias por analisar.</p>
+            <p className="mt-3 text-xl font-bold">{tr('Fila vazia')}</p>
+            <p className="text-zinc-600">{tr('Não há denúncias por analisar.')}</p>
           </div>
         )}
         <ul className="space-y-3">

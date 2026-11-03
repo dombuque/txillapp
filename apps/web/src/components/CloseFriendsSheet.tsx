@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -25,11 +26,11 @@ export default function CloseFriendsSheet({ onClose, layer }: { onClose: () => v
 
   const row = 'flex items-center gap-3 py-2';
   return (
-    <Sheet title="Amigos próximos" onClose={onClose} layer={layer}>
-      <p className="-mt-2 mb-3 text-sm text-zinc-600">Só estas pessoas veem os stories que marcares para amigos próximos. Elas não sabem que estão na lista.</p>
+    <Sheet title={tr('Amigos próximos')} onClose={onClose} layer={layer}>
+      <p className="-mt-2 mb-3 text-sm text-zinc-600">{tr('Só estas pessoas veem os stories que marcares para amigos próximos. Elas não sabem que estão na lista.')}</p>
 
-      <p className="mb-1 text-sm font-semibold text-zinc-500">Na tua lista ({friends.data?.length ?? 0})</p>
-      {friends.data?.length === 0 && <p className="py-2 text-sm text-zinc-500">Ainda ninguém. Escolhe abaixo</p>}
+      <p className="mb-1 text-sm font-semibold text-zinc-500">{tr('Na tua lista (')}{friends.data?.length ?? 0})</p>
+      {friends.data?.length === 0 && <p className="py-2 text-sm text-zinc-500">{tr('Ainda ninguém. Escolhe abaixo')}</p>}
       <ul>
         {friends.data?.map((f) => (
           <li key={f.username} className={row}>
@@ -38,13 +39,13 @@ export default function CloseFriendsSheet({ onClose, layer }: { onClose: () => v
               <span className="block truncate font-semibold">{f.displayName}</span>
               <span className="block truncate text-sm text-zinc-500">@{f.username}</span>
             </span>
-            <button type="button" onClick={() => toggle(f.username, false)} className="rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-bold text-emerald-700 active:scale-95">Na lista</button>
+            <button type="button" onClick={() => toggle(f.username, false)} className="rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-bold text-emerald-700 active:scale-95">{tr('Na lista')}</button>
           </li>
         ))}
       </ul>
 
-      <p className="mb-2 mt-4 text-sm font-semibold text-zinc-500">Adicionar dos teus seguidores</p>
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Procurar…" aria-label="Procurar seguidores" className={pillInput} />
+      <p className="mb-2 mt-4 text-sm font-semibold text-zinc-500">{tr('Adicionar dos teus seguidores')}</p>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('Procurar…')} aria-label={tr('Procurar seguidores')} className={pillInput} />
       <ul className="mt-1">
         {candidates.map((p) => (
           <li key={p.username} className={row}>
@@ -53,7 +54,7 @@ export default function CloseFriendsSheet({ onClose, layer }: { onClose: () => v
               <span className="block truncate font-semibold">{p.displayName}</span>
               <span className="block truncate text-sm text-zinc-500">@{p.username}</span>
             </span>
-            <button type="button" onClick={() => toggle(p.username, true)} className="rounded-full bg-brand px-4 py-1.5 text-sm font-bold text-white active:scale-95">Adicionar</button>
+            <button type="button" onClick={() => toggle(p.username, true)} className="rounded-full bg-brand px-4 py-1.5 text-sm font-bold text-white active:scale-95">{tr('Adicionar')}</button>
           </li>
         ))}
         {followers.isSuccess && candidates.length === 0 && <li className="py-3 text-sm text-zinc-500">{q ? 'Ninguém com esse nome' : 'Não há mais seguidores para adicionar.'}</li>}

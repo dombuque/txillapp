@@ -1,4 +1,5 @@
 import { PontoLoader } from './Loading';
+import { tr } from '../lib/i18n';
 import Icon from './Icon';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
@@ -62,7 +63,7 @@ export default function PullToRefresh({ onRefresh, children }: { onRefresh: () =
     <div className="relative" style={{ transform: shown ? `translateY(${shown}px)` : undefined, transition: pull ? 'none' : 'transform .2s ease-out' }}>
       <div className="pointer-events-none absolute inset-x-0 -top-10 flex h-10 items-center justify-center" aria-hidden={!busy} role={busy ? 'status' : undefined}>
         {busy ? (
-          <PontoLoader size={16} label="A atualizar" />
+          <PontoLoader size={16} label={tr('A atualizar')} />
         ) : (
           <span
             className="block h-4 w-4 rounded-full bg-brand"

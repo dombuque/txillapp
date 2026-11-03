@@ -1,4 +1,5 @@
 import { sized } from '../lib/media';
+import { tr, locale } from '../lib/i18n';
 import { profileShare, shareNow } from '../lib/share';
 import ExploreViewer from '../components/ExploreViewer';
 import Suggestions from '../components/Suggestions';
@@ -71,16 +72,16 @@ export default function ProfilePage() {
       <div className="mx-6 mt-16 text-center">
         <Icon name={missing ? 'search' : 'alert'} size={44} className="mx-auto text-zinc-300" />
         <p className="mt-3 text-xl font-bold">{missing ? 'Essa pessoa não existe' : 'Não consegui abrir este perfil'}</p>
-        <button onClick={() => navigate(-1)} className={`${btnGhost} mt-6`}>Voltar</button>
+        <button onClick={() => navigate(-1)} className={`${btnGhost} mt-6`}>{tr('Voltar')}</button>
       </div>
     );
   }
-  if (!p) return <div className="skel mx-4 mt-6 h-64 rounded-[28px]" role="status" aria-label="A carregar" />;
+  if (!p) return <div className="skel mx-4 mt-6 h-64 rounded-[28px]" role="status" aria-label={tr('A carregar')} />;
 
   const blocked = p.blockedByMe || p.blockedMe;
   const stat = (n: number, label: string, onClick?: () => void) => (
     <button onClick={onClick} disabled={!onClick} className="min-h-12 flex-1 text-center disabled:cursor-default">
-      <span className="block text-xl font-extrabold leading-tight">{n.toLocaleString('pt-PT')}</span>
+      <span className="block text-xl font-extrabold leading-tight">{n.toLocaleString(locale)}</span>
       <span className="text-[13px] text-zinc-600">{label}</span>
     </button>
   );
@@ -112,15 +113,15 @@ export default function ProfilePage() {
       {p.isMe ? (
         <div className="flex items-center justify-between px-5 pb-2">
           <p className="font-semibold">@{p.username}</p>
-          <button onClick={() => navigate('/settings')} aria-label="Definições e privacidade" className="-mr-2 flex h-11 w-11 items-center justify-center rounded-full text-zinc-900 transition active:scale-90">
+          <button onClick={() => navigate('/settings')} aria-label={tr('Definições e privacidade')} className="-mr-2 flex h-11 w-11 items-center justify-center rounded-full text-zinc-900 transition active:scale-90">
             <Icon name="menu" size={26} strokeWidth={2} />
           </button>
         </div>
       ) : (
         <div className="flex items-center gap-1 px-2 pb-2">
-          <button onClick={() => navigate(-1)} aria-label="Voltar" className="flex h-11 w-11 items-center justify-center text-zinc-900"><BackIcon /></button>
+          <button onClick={() => navigate(-1)} aria-label={tr('Voltar')} className="flex h-11 w-11 items-center justify-center text-zinc-900"><BackIcon /></button>
           <p className="min-w-0 flex-1 truncate font-semibold">@{p.username}</p>
-          <button onClick={() => setSheet('menu')} aria-label="Mais opções" className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-900 transition active:bg-zinc-100">
+          <button onClick={() => setSheet('menu')} aria-label={tr('Mais opções')} className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-900 transition active:bg-zinc-100">
             <Icon name="more" size={24} strokeWidth={2.4} />
           </button>
         </div>
@@ -144,10 +145,10 @@ export default function ProfilePage() {
         </div>
         <div className="mt-3 text-left">
           <h1 className="text-xl font-extrabold leading-tight">
-            {p.displayName} {p.verified && <VerifiedBadge size={20} tier={p.verifiedTier} />} {p.isPrivate && <Icon name="lock" size={14} className="inline align-[-2px] text-zinc-500" aria-hidden={false} role="img" aria-label="Conta privada" />}
+            {p.displayName} {p.verified && <VerifiedBadge size={20} tier={p.verifiedTier} />} {p.isPrivate && <Icon name="lock" size={14} className="inline align-[-2px] text-zinc-500" aria-hidden={false} role="img" aria-label={tr('Conta privada')} />}
           </h1>
           {/* O @utilizador já está no topo do ecrã: aqui não se repete. */}
-          {!p.isMe && p.followsYou && !blocked && <span className="mt-1 inline-block rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700">Segue-te</span>}
+          {!p.isMe && p.followsYou && !blocked && <span className="mt-1 inline-block rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700">{tr('Segue-te')}</span>}
 
           {(p.city || p.website) && (
             <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-zinc-600">
@@ -160,7 +161,7 @@ export default function ProfilePage() {
             </p>
           )}
           {!p.bio && p.isMe && (
-            <button onClick={() => setSheet('edit')} className="mt-3 text-sm font-medium text-zinc-600 underline">Adiciona uma bio</button>
+            <button onClick={() => setSheet('edit')} className="mt-3 text-sm font-medium text-zinc-600 underline">{tr('Adiciona uma bio')}</button>
           )}
         </div>
 
@@ -168,15 +169,15 @@ export default function ProfilePage() {
         {/* Bloqueio ao estilo do X: o cabeçalho fica visível, com o aviso. */}
         {p.blockedMe && (
           <div role="status" className="mt-4 rounded-2xl bg-zinc-100 p-4 text-center">
-            <p className="font-bold">Foste bloqueado por @{p.username}</p>
-            <p className="mt-1 text-sm text-zinc-600">Não podes seguir esta conta nem ver as publicações e stories dela.</p>
+            <p className="font-bold">{tr('Foste bloqueado por @')}{p.username}</p>
+            <p className="mt-1 text-sm text-zinc-600">{tr('Não podes seguir esta conta nem ver as publicações e stories dela.')}</p>
           </div>
         )}
         {p.blockedByMe && !p.blockedMe && (
           <div className="mt-4 rounded-2xl bg-zinc-100 p-4 text-center">
-            <p className="font-bold">Bloqueaste @{p.username}</p>
-            <p className="mt-1 text-sm text-zinc-600">A pessoa não vê o teu conteúdo nem te pode seguir.</p>
-            <button onClick={unblock} className={`${btnGhost} mt-3 !py-2.5`}>Desbloquear</button>
+            <p className="font-bold">{tr('Bloqueaste @')}{p.username}</p>
+            <p className="mt-1 text-sm text-zinc-600">{tr('A pessoa não vê o teu conteúdo nem te pode seguir.')}</p>
+            <button onClick={unblock} className={`${btnGhost} mt-3 !py-2.5`}>{tr('Desbloquear')}</button>
           </div>
         )}
 
@@ -185,9 +186,9 @@ export default function ProfilePage() {
           <div className="mt-4 flex gap-2">
             {p.isMe ? (
               <>
-                <button onClick={() => setSheet('edit')} className={`${btnSmall} flex-1`}>Editar perfil</button>
-                <button onClick={share} className={`${btnSmall} flex-1`}>Partilhar perfil</button>
-                <button onClick={() => navigate('/wallet')} aria-label="Carteira de Txills" className={`${btnSmall} w-11 shrink-0 !px-0`}>
+                <button onClick={() => setSheet('edit')} className={`${btnSmall} flex-1`}>{tr('Editar perfil')}</button>
+                <button onClick={share} className={`${btnSmall} flex-1`}>{tr('Partilhar perfil')}</button>
+                <button onClick={() => navigate('/wallet')} aria-label={tr('Carteira de Txills')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
                   <Icon name="wallet" size={18} className="mx-auto" />
                 </button>
               </>
@@ -197,11 +198,11 @@ export default function ProfilePage() {
                   <FollowButton username={p.username} following={p.following} requested={p.requested} isPrivate={p.isPrivate} large />
                 </div>
                 {/* Só se presenteia quem se segue. */}
-                {p.following && <button onClick={() => setSheet('gift')} className={`${btnSmall} flex flex-1 items-center justify-center gap-1.5`}><Icon name="gift" size={18} /> Presentear</button>}
-                <button onClick={() => navigate(`/messages/${p.username}`)} aria-label="Enviar mensagem" className={`${btnSmall} w-11 shrink-0 !px-0`}>
+                {p.following && <button onClick={() => setSheet('gift')} className={`${btnSmall} flex flex-1 items-center justify-center gap-1.5`}><Icon name="gift" size={18} /> {tr('Presentear')}</button>}
+                <button onClick={() => navigate(`/messages/${p.username}`)} aria-label={tr('Enviar mensagem')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
                   <Icon name="send" size={18} className="mx-auto" />
                 </button>
-                <button onClick={share} aria-label="Partilhar perfil" className={`${btnSmall} w-11 shrink-0 !px-0`}>
+                <button onClick={share} aria-label={tr('Partilhar perfil')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
                   <Icon name="share" size={18} className="mx-auto" />
                 </button>
               </>
@@ -211,7 +212,7 @@ export default function ProfilePage() {
 
         {p.isMe && p.pendingRequests > 0 && (
           <button onClick={() => setSheet('requests')} className="mt-4 flex w-full items-center justify-between rounded-2xl bg-rose-50 px-4 py-3 font-semibold text-brand">
-            <span>Pedidos para seguir</span>
+            <span>{tr('Pedidos para seguir')}</span>
             <span className="rounded-full bg-brand px-2.5 py-0.5 text-sm text-white">{p.pendingRequests}</span>
           </button>
         )}
@@ -223,7 +224,7 @@ export default function ProfilePage() {
       {!p.canView && !blocked ? (
         <div className="mx-4 mt-6 rounded-[28px] bg-white p-8 text-center shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
           <p className="text-zinc-300" aria-hidden><Icon name="lock" size={44} className="mx-auto" /></p>
-          <p className="mt-3 text-xl font-extrabold">Esta conta é privada</p>
+          <p className="mt-3 text-xl font-extrabold">{tr('Esta conta é privada')}</p>
           <p className="mt-1 text-zinc-600">
             {p.requested ? 'Pedido enviado. Quando aceitar, vês as publicações e stories.' : 'Segue para ver as publicações e stories.'}
           </p>
@@ -232,7 +233,7 @@ export default function ProfilePage() {
         p.canView && (
           <section
           className="mt-6 px-4"
-          aria-label="Publicações"
+          aria-label={tr('Publicações')}
           // Deslizar para os lados muda de separador: o conteúdo acompanha o dedo (só quando o gesto é claramente horizontal) e assenta ou volta.
           data-no-swipe={tab !== 'all' ? '' : undefined}
           onTouchStart={(e) => { const t = e.touches[0]; swipe.current = e.touches.length === 1 && t.clientX > 20 ? { x: t.clientX, y: t.clientY, at: Date.now(), lock: null } : null; }}
@@ -266,7 +267,7 @@ export default function ProfilePage() {
           }}
           onTouchCancel={() => { swipe.current = null; setDragX(0); }}
         >
-            <div role="tablist" aria-label="Conteúdo do perfil" className="mb-3 flex border-b border-zinc-200">
+            <div role="tablist" aria-label={tr('Conteúdo do perfil')} className="mb-3 flex border-b border-zinc-200">
               {TABS.map((t) => (
                 <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} aria-label={t.label} onClick={() => { setEnter(null); setTab(t.id); }} className={`flex h-12 min-w-0 flex-1 items-center justify-center border-b-2 transition active:bg-zinc-50 ${tab === t.id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-400'}`}>
                   <Icon name={t.icon} size={24} />
@@ -278,7 +279,7 @@ export default function ProfilePage() {
               style={{ transform: dragX ? `translateX(${dragX}px)` : undefined, transition: dragX ? 'none' : 'transform .2s ease-out', touchAction: 'pan-y' }}
               className={`min-h-[40dvh] ${dragX ? '' : slideClass(enter)}`}
             >
-            {posts.isLoading && <p className="py-8 text-center text-sm text-zinc-500">A carregar…</p>}
+            {posts.isLoading && <p className="py-8 text-center text-sm text-zinc-500">{tr('A carregar…')}</p>}
             {posts.isSuccess && items.length === 0 && tab !== 'all' && (
               <p className="mt-8 text-center text-zinc-600">{p.isMe ? EMPTY[tab].me : EMPTY[tab].other}</p>
             )}
@@ -286,7 +287,7 @@ export default function ProfilePage() {
               <div className="mt-8 text-center text-zinc-600">
                 <p className="text-zinc-300" aria-hidden><Icon name="camera" size={36} className="mx-auto" /></p>
                 <p className="mt-2 font-semibold">{p.isMe ? 'Ainda não publicaste nada' : 'Ainda sem publicações'}</p>
-                {p.isMe && <Link to="/new" className="mt-3 inline-block font-semibold text-brand underline">Faz a primeira!</Link>}
+                {p.isMe && <Link to="/new" className="mt-3 inline-block font-semibold text-brand underline">{tr('Faz a primeira!')}</Link>}
               </div>
             )}
             <div className="grid grid-cols-3 gap-1.5">
@@ -301,8 +302,8 @@ export default function ProfilePage() {
                           <span className="absolute right-0 top-0 rounded-full ring-2 ring-white/90"><Avatar name={post.gift.recipient.displayName} username={post.gift.recipient.hasAvatar ? post.gift.recipient.username : undefined} size={26} ring={false} /></span>
                           <span className="absolute left-0 top-0 z-10 rounded-full ring-2 ring-white/90"><Avatar name={post.author.displayName} username={post.author.username} size={26} ring={false} /></span>
                         </span>
-                        <span className="text-[22px] font-black leading-none">{post.gift.amount.toLocaleString('pt-PT')}</span>
-                        <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/85">Txills</span>
+                        <span className="text-[22px] font-black leading-none">{post.gift.amount.toLocaleString(locale)}</span>
+                        <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/85">{tr('Txills')}</span>
                       </span>
                     ) : shown.media[0] ? (
                       <img src={shown.media[0].kind === 'video' ? shown.media[0].posterUrl : sized(shown.media[0].url, 480)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
@@ -312,8 +313,8 @@ export default function ProfilePage() {
                       </span>
                     )}
                     {shown.media.length > 1 && <span aria-label={`${shown.media.length} fotos`} className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-bold text-white"><Icon name="images" size={12} /> {shown.media.length}</span>}
-                    {post.kind === 'gift' && <span aria-label="Presente" className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-brand"><Icon name="gift" size={12} /></span>}
-                    {post.kind === 'repost' && <span aria-label="Repost" className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/55 text-white"><Icon name="repeat" size={12} /></span>}
+                    {post.kind === 'gift' && <span aria-label={tr('Presente')} className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-brand"><Icon name="gift" size={12} /></span>}
+                    {post.kind === 'repost' && <span aria-label={tr('Repost')} className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/55 text-white"><Icon name="repeat" size={12} /></span>}
                   </button>
                 );
               })}
@@ -342,14 +343,14 @@ export default function ProfilePage() {
             <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50" aria-hidden><Icon name="block" /></span>
             <span>
               <span className="block text-[17px] font-semibold">{p.blockedByMe ? 'Já bloqueaste esta conta' : `Bloquear @${p.username}`}</span>
-              <span className="block text-sm text-zinc-600">Deixa de ver o teu conteúdo e de te poder seguir.</span>
+              <span className="block text-sm text-zinc-600">{tr('Deixa de ver o teu conteúdo e de te poder seguir.')}</span>
             </span>
           </button>
           <button onClick={() => setSheet('report')} className="flex w-full items-center gap-4 rounded-2xl px-1 py-3 text-left transition active:bg-zinc-100">
             <span className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="flag" /></span>
             <span>
-              <span className="block text-[17px] font-semibold">Denunciar @{p.username}</span>
-              <span className="block text-sm text-zinc-600">Avisa a moderação. A pessoa não sabe.</span>
+              <span className="block text-[17px] font-semibold">{tr('Denunciar @')}{p.username}</span>
+              <span className="block text-sm text-zinc-600">{tr('Avisa a moderação. A pessoa não sabe.')}</span>
             </span>
           </button>
         </Sheet>
@@ -358,16 +359,16 @@ export default function ProfilePage() {
       {sheet === 'block' && (
         <Sheet title={`Bloquear @${p.username}?`} onClose={close}>
           <ul className="mb-4 list-disc space-y-1 pl-5 text-[15px] text-zinc-700">
-            <li>{p.displayName} deixa de ver as tuas publicações e stories.</li>
-            <li>Não te pode seguir nem interagir contigo.</li>
-            <li>Deixam de se seguir um ao outro.</li>
-            <li>Ela é avisada de que foi bloqueada.</li>
+            <li>{p.displayName} {tr('deixa de ver as tuas publicações e stories.')}</li>
+            <li>{tr('Não te pode seguir nem interagir contigo.')}</li>
+            <li>{tr('Deixam de se seguir um ao outro.')}</li>
+            <li>{tr('Ela é avisada de que foi bloqueada.')}</li>
           </ul>
-          <button onClick={block} className="w-full rounded-full bg-red-700 py-3.5 font-bold text-white transition active:scale-[0.98]">Bloquear</button>
-          <button onClick={close} className={`${btnGhost} mt-3 w-full`}>Cancelar</button>
+          <button onClick={block} className="w-full rounded-full bg-red-700 py-3.5 font-bold text-white transition active:scale-[0.98]">{tr('Bloquear')}</button>
+          <button onClick={close} className={`${btnGhost} mt-3 w-full`}>{tr('Cancelar')}</button>
         </Sheet>
       )}
-      {openPost && <ExploreViewer items={items} startId={openPost.id} title="Publicação" onClose={() => setOpenPost(null)} />}
+      {openPost && <ExploreViewer items={items} startId={openPost.id} title={tr('Publicação')} onClose={() => setOpenPost(null)} />}
     </div>
   );
 }
@@ -382,8 +383,8 @@ function RequestsSheet({ myUsername, onClose }: { myUsername: string; onClose: (
   }
   const list = q.data ?? [];
   return (
-    <Sheet title="Pedidos para seguir" onClose={onClose}>
-      {q.isSuccess && list.length === 0 && <p className="py-8 text-center text-zinc-600">Sem pedidos pendentes</p>}
+    <Sheet title={tr('Pedidos para seguir')} onClose={onClose}>
+      {q.isSuccess && list.length === 0 && <p className="py-8 text-center text-zinc-600">{tr('Sem pedidos pendentes')}</p>}
       {list.map((r) => (
         <div key={r.username} className="flex items-center gap-3 py-2.5">
           <Avatar name={r.displayName} username={r.username} size={44} />
@@ -391,8 +392,8 @@ function RequestsSheet({ myUsername, onClose }: { myUsername: string; onClose: (
             <span className="block truncate font-semibold">{r.displayName}</span>
             <span className="block truncate text-sm text-zinc-600">@{r.username}</span>
           </span>
-          <button onClick={() => answer(r.username, true)} className={`${btnPrimary} !px-4 !py-2 text-sm`}>Aceitar</button>
-          <button onClick={() => answer(r.username, false)} className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-semibold active:scale-95">Recusar</button>
+          <button onClick={() => answer(r.username, true)} className={`${btnPrimary} !px-4 !py-2 text-sm`}>{tr('Aceitar')}</button>
+          <button onClick={() => answer(r.username, false)} className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-semibold active:scale-95">{tr('Recusar')}</button>
         </div>
       ))}
     </Sheet>

@@ -1,4 +1,5 @@
 import { PontoLoader } from '../components/Loading';
+import { tr } from '../lib/i18n';
 import Icon from '../components/Icon';
 import GenderPicker from '../components/GenderPicker';
 import { MIN_AGE, birthDateSchema, earliestBirthDate, latestBirthDate, registerSchema, type RegisterInput } from '@txillapp/shared';
@@ -158,11 +159,11 @@ function BrandPanel() {
     <aside className="relative hidden w-[46%] max-w-[640px] shrink-0 flex-col justify-between overflow-hidden bg-canvas p-14 lg:flex">
       <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-brand/25 blur-3xl" aria-hidden />
       <div className="pointer-events-none absolute -left-28 bottom-10 h-80 w-80 rounded-full bg-amber-300/30 blur-3xl" aria-hidden />
-      <Link to="/" aria-label="Txillapp, página inicial" className="relative w-fit">
+      <Link to="/" aria-label={tr('Txillapp, página inicial')} className="relative w-fit">
         <Wordmark className="h-12" />
       </Link>
       <div className="relative">
-        <p className="text-5xl font-extrabold leading-[1.05] tracking-tight">Posta. Mostra.<br /><span className="text-brand">Txilla.</span></p>
+        <p className="text-5xl font-extrabold leading-[1.05] tracking-tight">{tr('Posta. Mostra.')}<br /><span className="text-brand">{tr('Txilla.')}</span></p>
         <ul className="mt-10 space-y-4 text-xl text-zinc-800">
           {points.map((p) => (
             <li key={p.text} className="flex items-center gap-4">
@@ -173,8 +174,8 @@ function BrandPanel() {
         </ul>
       </div>
       <p className="relative text-sm text-zinc-600">
-        <Link to="/terms" className="hover:underline">Termos</Link> · <Link to="/privacy" className="hover:underline">Privacidade</Link> ·{' '}
-        <a href="mailto:suporte@txillapp.com" className="hover:underline">suporte@txillapp.com</a>
+        <Link to="/terms" className="hover:underline">{tr('Termos')}</Link> · <Link to="/privacy" className="hover:underline">{tr('Privacidade')}</Link> ·{' '}
+        <a href="mailto:suporte@txillapp.com" className="hover:underline">{tr('suporte@txillapp.com')}</a>
       </p>
     </aside>
   );
@@ -211,15 +212,15 @@ function Alert({ children }: { children: ReactNode }) {
 function Availability({ check, okText, onPick, children }: { check: Check; okText: string; onPick?: (v: string) => void; children?: ReactNode }) {
   return (
     <div className="mt-3 min-h-[3.25rem] px-1" aria-live="polite">
-      {check.state === 'checking' && <p className="text-sm text-zinc-600">A verificar… ⏳</p>}
+      {check.state === 'checking' && <p className="text-sm text-zinc-600">{tr('A verificar… ⏳')}</p>}
       {check.state === 'ok' && <p className="text-sm font-medium text-green-600">{okText}</p>}
-      {check.state === 'error' && <p className="text-sm text-zinc-600">Sem rede para verificar agora — confirmamos no fim.</p>}
+      {check.state === 'error' && <p className="text-sm text-zinc-600">{tr('Sem rede para verificar agora — confirmamos no fim.')}</p>}
       {check.state === 'bad' && (
         <>
           <p className="text-sm font-medium text-red-600">{check.message}</p>
           {check.suggestions && check.suggestions.length > 0 && onPick && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="text-sm text-zinc-600">Experimenta:</span>
+              <span className="text-sm text-zinc-600">{tr('Experimenta:')}</span>
               {check.suggestions.map((s) => (
                 <button key={s} type="button" onClick={() => onPick(s)} className="rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-brand shadow-sm active:scale-95">
                   @{s}
@@ -307,7 +308,7 @@ function GoogleButton({ mode, onError }: { mode: 'login' | 'register'; onError: 
   return (
     <div className="mt-5">
       <div className="mb-4 flex items-center gap-3 text-sm text-zinc-600" aria-hidden>
-        <span className="h-px flex-1 bg-zinc-300" /> ou <span className="h-px flex-1 bg-zinc-300" />
+        <span className="h-px flex-1 bg-zinc-300" /> {tr('ou')} <span className="h-px flex-1 bg-zinc-300" />
       </div>
       <div ref={holder} className="flex min-h-[44px] justify-center" />
     </div>
@@ -342,24 +343,24 @@ export function Login() {
   }
 
   return (
-    <Screen footer={<>É novo no txillapp? <Link to="/register" state={location.state} className="font-semibold text-brand">Cria a tua conta</Link></>}>
+    <Screen footer={<>{tr('É novo no txillapp?')} <Link to="/register" state={location.state} className="font-semibold text-brand">{tr('Cria a tua conta')}</Link></>}>
       <h1 className="pt-10 lg:hidden">
         <Wordmark className="h-11" />
       </h1>
-      <p className="mt-7 text-[38px] font-extrabold leading-[1.05]">Qual é a<br />Vibe?</p>
-      <p className="mt-2 text-lg font-light text-zinc-600">Entra e vê o que a malta anda a fazer</p>
+      <p className="mt-7 text-[38px] font-extrabold leading-[1.05]">{tr('Qual é a')}<br />{tr('Vibe?')}</p>
+      <p className="mt-2 text-lg font-light text-zinc-600">{tr('Entra e vê o que a malta anda a fazer')}</p>
 
       <form onSubmit={submit} className="mt-7 space-y-3" noValidate>
         <Field
-          icon={<AtIcon />} value={identifier} onChange={setIdentifier} placeholder="Utilizador ou email" name="username"
+          icon={<AtIcon />} value={identifier} onChange={setIdentifier} placeholder={tr('Utilizador ou email')} name="username"
           autoComplete="username" enterKeyHint="next"
           // "Seguinte" no teclado passa para a senha em vez de submeter.
           onEnter={(e) => { if (e.key === 'Enter') { e.preventDefault(); passRef.current?.focus(); } }}
         />
-        <Field icon={<LockIcon />} value={password} onChange={setPassword} placeholder="Senha" type="password" name="password" autoComplete="current-password" enterKeyHint="go" inputRef={passRef} />
+        <Field icon={<LockIcon />} value={password} onChange={setPassword} placeholder={tr('Senha')} type="password" name="password" autoComplete="current-password" enterKeyHint="go" inputRef={passRef} />
         <Alert>{error}</Alert>
         <button disabled={busy} className={cta}>{busy ? 'A entrar…' : 'Entrar'}</button>
-        <p className="pt-1 text-center"><Link to="/forgot-password" className="text-[15px] font-semibold text-zinc-600 underline">Esqueceste a senha?</Link></p>
+        <p className="pt-1 text-center"><Link to="/forgot-password" className="text-[15px] font-semibold text-zinc-600 underline">{tr('Esqueceste a senha?')}</Link></p>
       </form>
       <GoogleButton mode="login" onError={setError} />
       <div className="pb-6" />
@@ -435,7 +436,7 @@ export function Register() {
   return (
     <Screen>
       <div className="flex items-center gap-4 pt-2">
-        <button onClick={back} aria-label="Voltar" className="-ml-1 text-brand active:scale-90"><BackIcon /></button>
+        <button onClick={back} aria-label={tr('Voltar')} className="-ml-1 text-brand active:scale-90"><BackIcon /></button>
         <div className="flex flex-1 gap-1.5" role="progressbar" aria-valuemin={1} aria-valuemax={steps.length} aria-valuenow={i + 1} aria-label={`Passo ${i + 1} de ${steps.length}`}>
           {steps.map((_, n) => (
             <span key={n} className={`h-1.5 flex-1 rounded-full transition-colors ${n <= i ? 'bg-brand' : 'bg-zinc-300'}`} />
@@ -474,7 +475,7 @@ export function Register() {
           {step.key === 'email' && (
             <Availability check={check} okText="Email livre">
               {check.state === 'bad' && check.taken && (
-                <Link to="/login" className="mt-1 inline-block text-sm font-semibold text-brand underline">Já tens conta? Entra aqui</Link>
+                <Link to="/login" className="mt-1 inline-block text-sm font-semibold text-brand underline">{tr('Já tens conta? Entra aqui')}</Link>
               )}
             </Availability>
           )}
@@ -498,8 +499,8 @@ export function Register() {
                 className="mt-0.5 h-5 w-5 shrink-0 accent-[#d6334f]"
               />
               <span>
-                Li e aceito os <Link to="/terms" target="_blank" className="font-semibold text-brand underline">Termos de Uso</Link> e a{' '}
-                <Link to="/privacy" target="_blank" className="font-semibold text-brand underline">Política de Privacidade</Link>.
+                {tr('Li e aceito os')} <Link to="/terms" target="_blank" className="font-semibold text-brand underline">{tr('Termos de Uso')}</Link> e a{' '}
+                <Link to="/privacy" target="_blank" className="font-semibold text-brand underline">{tr('Política de Privacidade')}</Link>.
               </span>
             </label>
           )}
@@ -556,29 +557,29 @@ export function GoogleUsername() {
   return (
     <Screen>
       <div className="pt-2">
-        <button onClick={() => navigate('/login', { replace: true })} aria-label="Voltar" className="-ml-1 text-brand active:scale-90"><BackIcon /></button>
+        <button onClick={() => navigate('/login', { replace: true })} aria-label={tr('Voltar')} className="-ml-1 text-brand active:scale-90"><BackIcon /></button>
       </div>
       <form onSubmit={submit} className="mt-12 flex flex-1 flex-col" noValidate>
-        <h1 className="text-4xl font-light leading-tight">Quase lá, {first}!</h1>
-        <p className="mt-3 text-xl font-light text-zinc-600">Escolhe o teu @ — é único e é assim que a malta te encontra</p>
+        <h1 className="text-4xl font-light leading-tight">{tr('Quase lá,')} {first}!</h1>
+        <p className="mt-3 text-xl font-light text-zinc-600">{tr('Escolhe o teu @ — é único e é assim que a malta te encontra')}</p>
         <div className="mt-8">
           <Field
             autoFocus icon={<AtIcon />} value={username} onChange={(v) => { setError(''); setUsername(v); }}
-            placeholder="utilizador" autoComplete="username" enterKeyHint="go"
+            placeholder={tr('utilizador')} autoComplete="username" enterKeyHint="go"
             status={check.state === 'ok' ? 'ok' : check.state === 'bad' ? 'bad' : check.state === 'checking' ? 'checking' : undefined}
           />
           <Availability check={check} okText={`@${username.trim().replace(/^@/, '')} está livre`} onPick={setUsername} />
         </div>
-        <p className="mb-3 mt-8 text-lg font-semibold">Como te identificas?</p>
+        <p className="mb-3 mt-8 text-lg font-semibold">{tr('Como te identificas?')}</p>
         <GenderPicker value={gender} onChange={setGender} />
-        <p className="mb-3 mt-8 text-lg font-semibold">Quando nasceste?</p>
-        <Field icon={<CalendarIcon />} value={birth} onChange={(v) => { setError(''); setBirth(v); }} placeholder="AAAA-MM-DD" type="date" min={earliestBirthDate()} max={latestBirthDate()} autoComplete="bday" status={birth ? (birthProblem ? 'bad' : 'ok') : undefined} />
+        <p className="mb-3 mt-8 text-lg font-semibold">{tr('Quando nasceste?')}</p>
+        <Field icon={<CalendarIcon />} value={birth} onChange={(v) => { setError(''); setBirth(v); }} placeholder={tr('AAAA-MM-DD')} type="date" min={earliestBirthDate()} max={latestBirthDate()} autoComplete="bday" status={birth ? (birthProblem ? 'bad' : 'ok') : undefined} />
         {birthProblem && <p className="mt-2 px-1 text-sm font-medium text-red-600">{birthProblem}</p>}
         <label className="mt-6 flex cursor-pointer items-start gap-3 px-1 text-[15px] leading-snug text-zinc-700">
           <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-[#d6334f]" />
           <span>
-            Li e aceito os <Link to="/terms" target="_blank" className="font-semibold text-brand underline">Termos de Uso</Link> e a{' '}
-            <Link to="/privacy" target="_blank" className="font-semibold text-brand underline">Política de Privacidade</Link>.
+            {tr('Li e aceito os')} <Link to="/terms" target="_blank" className="font-semibold text-brand underline">{tr('Termos de Uso')}</Link> e a{' '}
+            <Link to="/privacy" target="_blank" className="font-semibold text-brand underline">{tr('Política de Privacidade')}</Link>.
           </span>
         </label>
         <Alert>{error}</Alert>

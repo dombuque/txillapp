@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom';
+import { tr, locale } from '../lib/i18n';
 import { useOnline } from '../lib/presence';
 import ShareSheet from './ShareSheet';
 import VideoPlayer from './VideoPlayer';
@@ -124,7 +125,7 @@ export default function PostCard({ post }: { post: Post }) {
 export function OnlineDot({ username, className = '' }: { username: string; className?: string }) {
   const on = useOnline(username);
   if (!on) return null;
-  return <span role="img" aria-label="Online" className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500 ${className}`} />;
+  return <span role="img" aria-label={tr('Online')} className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500 ${className}`} />;
 }
 
 /**
@@ -136,7 +137,7 @@ function GiftBlock({ post, g, me }: { post: Post; g: NonNullable<Post['gift']>; 
   return (
     <>
       <div className="flex items-center justify-between gap-2 text-[14px] text-zinc-500">
-        <span className="flex items-center gap-1.5 font-semibold text-brand"><Icon name="gift" size={15} /> Presente</span>
+        <span className="flex items-center gap-1.5 font-semibold text-brand"><Icon name="gift" size={15} /> {tr('Presente')}</span>
         <span className="flex items-center gap-1">
           <time dateTime={post.createdAt}>{timeAgo(post.createdAt)}</time>
           <PostMenu post={post} />
@@ -159,12 +160,12 @@ function GiftBlock({ post, g, me }: { post: Post; g: NonNullable<Post['gift']>; 
         </div>
         <p className="mt-4 text-[16px] leading-tight">
           <Link to={profilePath(sender.username, me)} className="font-extrabold">{sender.displayName}</Link>
-          {sender.verified && <> <VerifiedBadge size={15} tier={sender.verifiedTier} /></>} presenteou{' '}
+          {sender.verified && <> <VerifiedBadge size={15} tier={sender.verifiedTier} /></>} {tr('presenteou')}{' '}
           <Link to={profilePath(g.recipient.username, me)} className="font-extrabold">{g.recipient.displayName}</Link>
           {g.recipient.verified && <> <VerifiedBadge size={15} tier={g.recipient.verifiedTier} /></>}
         </p>
-        <p className="mt-2 text-[40px] font-black leading-none tracking-tight">{g.amount.toLocaleString('pt-PT')}</p>
-        <p className="text-[13px] font-bold uppercase tracking-[0.2em] text-white/85">Txills</p>
+        <p className="mt-2 text-[40px] font-black leading-none tracking-tight">{g.amount.toLocaleString(locale)}</p>
+        <p className="text-[13px] font-bold uppercase tracking-[0.2em] text-white/85">{tr('Txills')}</p>
         {post.body && (
           <p className="relative mx-auto mt-4 max-w-[92%] break-words rounded-2xl bg-white/20 px-4 py-2.5 text-[16px] leading-snug backdrop-blur-sm">
             <span aria-hidden className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 bg-white/20" />
@@ -228,7 +229,7 @@ function QuoteCard({ post, original }: { post: Post; original: Post }) {
           <Link to={profilePath(post.author.username, user?.username)} className="block truncate text-[19px] font-medium leading-tight text-zinc-800">
             {post.author.displayName}
           </Link>
-          <p className="flex items-center gap-1 truncate text-[15px] text-zinc-500"><RepostIcon width={14} height={14} /> repostou</p>
+          <p className="flex items-center gap-1 truncate text-[15px] text-zinc-500"><RepostIcon width={14} height={14} /> {tr('repostou')}</p>
         </div>
         <time className="self-start text-[15px] text-zinc-500" dateTime={post.createdAt}>{timeAgo(post.createdAt)}</time>
         <PostMenu post={post} />
@@ -242,10 +243,10 @@ function QuoteCard({ post, original }: { post: Post; original: Post }) {
           </Link>
           <span className="shrink-0 text-sm text-zinc-500">· {timeAgo(original.createdAt)}</span>
         </div>
-        {original.gift && <p className="mx-3 mt-2 rounded-xl bg-gradient-to-r from-brand to-brand-light py-2 text-center text-lg font-extrabold text-white"><Icon name="gift" size={14} className="inline align-[-2px]" /> {original.gift.amount.toLocaleString('pt-PT')} Txills</p>}
+        {original.gift && <p className="mx-3 mt-2 rounded-xl bg-gradient-to-r from-brand to-brand-light py-2 text-center text-lg font-extrabold text-white"><Icon name="gift" size={14} className="inline align-[-2px]" /> {original.gift.amount.toLocaleString(locale)} {tr('Txills')}</p>}
         {original.body && <p className="line-clamp-4 whitespace-pre-wrap break-words px-3 pt-2 text-[16px] text-zinc-800">{original.body}</p>}
         {original.media[0] ? (
-          <button onClick={() => setViewer(0)} aria-label="Ver a foto em ecrã inteiro" className="mt-2 block w-full">
+          <button onClick={() => setViewer(0)} aria-label={tr('Ver a foto em ecrã inteiro')} className="mt-2 block w-full">
             <img src={sized(original.media[0].url, 720)} alt="" loading="lazy" decoding="async" className="max-h-72 w-full object-cover" />
           </button>
         ) : (
@@ -341,7 +342,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
             <span className={word}>{post.cheered ? 'Brindou' : 'Brindar'}</span>
           </button>
           <button onClick={() => setSheet('comments')} aria-label={`Comentar (${post.comments})`} className={barBtn}>
-            <CommentIcon /> <span className={word}>Comentar</span>
+            <CommentIcon /> <span className={word}>{tr('Comentar')}</span>
           </button>
           <button
             onClick={() => setSheet('repost')}
@@ -353,11 +354,11 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
           </button>
           {!mine && post.canGift && (
             <button onClick={() => setSheet('gift')} aria-label={`Presentear (${post.gifts})`} className={barBtn}>
-              <GiftIcon /> <span className={word}>Presentear</span>
+              <GiftIcon /> <span className={word}>{tr('Presentear')}</span>
             </button>
           )}
-          <button onClick={() => setSheet('share')} aria-label="Partilhar" className={barBtn}>
-            <Icon name="share" size={24} /> <span className={word}>Partilhar</span>
+          <button onClick={() => setSheet('share')} aria-label={tr('Partilhar')} className={barBtn}>
+            <Icon name="share" size={24} /> <span className={word}>{tr('Partilhar')}</span>
           </button>
         </div>
         {sheets}
@@ -378,7 +379,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
       )}
       {post.comments > 0 && (
         <button onClick={() => setSheet('comments')} className={`${shown.length ? '' : 'mt-3'} block min-h-8 text-sm ${dark ? 'text-zinc-300' : 'text-zinc-500'}`}>
-          Ver {post.comments === 1 ? 'o comentário' : `todos os ${post.comments} comentários`}
+          {tr('Ver')} {post.comments === 1 ? 'o comentário' : `todos os ${post.comments} comentários`}
         </button>
       )}
       <div className={`flex items-center border-t ${dark ? 'border-white/20' : shown.length || post.comments > 0 ? 'mt-1 border-zinc-200' : 'mt-3 border-zinc-200'}`}>
@@ -411,7 +412,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
             </span>
           )
         )}
-        <Item label="Partilhar" onClick={() => setSheet('share')}>
+        <Item label={tr('Partilhar')} onClick={() => setSheet('share')}>
           <Icon name="share" size={26} />
         </Item>
       </div>
@@ -464,7 +465,7 @@ function ImageViewer({ post, start, onClose }: { post: Post; start: number; onCl
       style={{ backgroundColor: `rgba(0,0,0,${Math.max(0.35, 1 - drag / 500)})` }}
     >
       <div className="flex items-center justify-between px-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
-        <button onClick={onClose} aria-label="Fechar" className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 text-2xl">×</button>
+        <button onClick={onClose} aria-label={tr('Fechar')} className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 text-2xl">×</button>
         {n > 1 && <span className="rounded-full bg-black/50 px-3 py-1 text-sm font-semibold">{i + 1}/{n}</span>}
         <span className="w-11" aria-hidden />
       </div>
@@ -525,28 +526,28 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
   }
   return (
     <>
-      <button onClick={() => setOpen('menu')} aria-label="Mais opções da publicação" className={`-mr-2 flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-full transition active:bg-zinc-100 ${dark ? 'text-white active:bg-white/20' : 'text-zinc-600'}`}>
+      <button onClick={() => setOpen('menu')} aria-label={tr('Mais opções da publicação')} className={`-mr-2 flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-full transition active:bg-zinc-100 ${dark ? 'text-white active:bg-white/20' : 'text-zinc-600'}`}>
         <Icon name="more" size={20} strokeWidth={2.4} />
       </button>
       {open === 'menu' && (
-        <Sheet title="Publicação" onClose={() => setOpen(null)}>
-          <MenuRow icon={<Icon name="share" />} title="Partilhar" text="No teu status, por ligação ou por outra app." onClick={() => setOpen('share')} />
-          <MenuRow icon={<Icon name="link" />} title="Copiar ligação" text={note || 'Para partilhares onde quiseres.'} onClick={copy} />
+        <Sheet title={tr('Publicação')} onClose={() => setOpen(null)}>
+          <MenuRow icon={<Icon name="share" />} title={tr('Partilhar')} text={tr('No teu status, por ligação ou por outra app.')} onClick={() => setOpen('share')} />
+          <MenuRow icon={<Icon name="link" />} title={tr('Copiar ligação')} text={note || 'Para partilhares onde quiseres.'} onClick={copy} />
           {mine ? (
-            <MenuRow icon={<Icon name="trash" />} title="Apagar" text="Some para toda a gente." onClick={() => setOpen('delete')} />
+            <MenuRow icon={<Icon name="trash" />} title={tr('Apagar')} text={tr('Some para toda a gente.')} onClick={() => setOpen('delete')} />
           ) : (
             <>
-              <MenuRow icon={<Icon name="eye-off" />} title="Não me interessa" text="Esta publicação deixa de aparecer no teu feed." onClick={hide} />
-              <MenuRow icon={<Icon name="flag" />} title="Denunciar" text="Avisa a moderação. A pessoa não sabe." onClick={() => setOpen('report')} />
+              <MenuRow icon={<Icon name="eye-off" />} title={tr('Não me interessa')} text={tr('Esta publicação deixa de aparecer no teu feed.')} onClick={hide} />
+              <MenuRow icon={<Icon name="flag" />} title={tr('Denunciar')} text={tr('Avisa a moderação. A pessoa não sabe.')} onClick={() => setOpen('report')} />
             </>
           )}
         </Sheet>
       )}
       {open === 'delete' && (
-        <Sheet title="Apagar a publicação?" onClose={() => setOpen(null)}>
-          <p className="mb-4 text-zinc-600">Deixa de aparecer para toda a gente, incluindo os reposts. Não dá para desfazer.</p>
-          <button onClick={remove} className="h-12 w-full rounded-full bg-red-700 font-bold text-white active:scale-[0.98]">Apagar</button>
-          <button onClick={() => setOpen(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">Cancelar</button>
+        <Sheet title={tr('Apagar a publicação?')} onClose={() => setOpen(null)}>
+          <p className="mb-4 text-zinc-600">{tr('Deixa de aparecer para toda a gente, incluindo os reposts. Não dá para desfazer.')}</p>
+          <button onClick={remove} className="h-12 w-full rounded-full bg-red-700 font-bold text-white active:scale-[0.98]">{tr('Apagar')}</button>
+          <button onClick={() => setOpen(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar')}</button>
         </Sheet>
       )}
       {open === 'share' && createPortal(<ShareSheet post={post} layer="z-[80]" onClose={() => setOpen(null)} />, document.body)}
@@ -600,31 +601,31 @@ export function RepostSheet({ post, onChange, onClose, layer }: { post: Post; on
           }}
           className="space-y-3"
         >
-          <MentionTextarea value={text} onChange={setText} maxLength={500} rows={3} autoFocus placeholder="O que achas?" aria-label="Comentário" className={`${fieldInput} resize-none`} />
+          <MentionTextarea value={text} onChange={setText} maxLength={500} rows={3} autoFocus placeholder={tr('O que achas?')} aria-label={tr('Comentário')} className={`${fieldInput} resize-none`} />
           <p role="alert" className="min-h-5 text-center text-sm text-red-600">{err}</p>
           <button disabled={busy || !text.trim()} className={`${btnPrimary} w-full py-3.5`}>{busy ? 'A publicar…' : 'Publicar'}</button>
-          <button type="button" onClick={() => setQuote(false)} className={`${btnGhost} w-full`}>Voltar</button>
+          <button type="button" onClick={() => setQuote(false)} className={`${btnGhost} w-full`}>{tr('Voltar')}</button>
         </form>
       ) : (
         <div className="-mt-1 space-y-1">
           {post.reposted ? (
             <MenuRow
               icon={<UndoIcon />}
-              title="Desfazer repost"
-              text="Tira esta publicação do teu perfil."
+              title={tr('Desfazer repost')}
+              text={tr('Tira esta publicação do teu perfil.')}
               disabled={busy}
               onClick={() => run(async () => onChange(await api.unrepost(post.id)))}
             />
           ) : (
             <MenuRow
               icon={<RepostIcon />}
-              title="Repostar"
-              text="Partilha no teu perfil, tal como está."
+              title={tr('Repostar')}
+              text={tr('Partilha no teu perfil, tal como está.')}
               disabled={busy}
               onClick={() => run(async () => { await api.repost(post.id); onChange({ reposted: true, reposts: post.reposts + 1 }); })}
             />
           )}
-          <MenuRow icon={<PencilIcon />} title="Repostar com comentário" text="Acrescenta o que achas ao partilhar." onClick={() => setQuote(true)} />
+          <MenuRow icon={<PencilIcon />} title={tr('Repostar com comentário')} text={tr('Acrescenta o que achas ao partilhar.')} onClick={() => setQuote(true)} />
           {err && <p role="alert" className="pt-1 text-center text-sm text-red-600">{err}</p>}
         </div>
       )}

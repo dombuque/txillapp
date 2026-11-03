@@ -1,4 +1,5 @@
 import { sized } from '../lib/media';
+import { tr } from '../lib/i18n';
 import { PontoLoader } from '../components/Loading';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -99,11 +100,11 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
           <span className={`${circle} ${post.reposted ? '!bg-emerald-500/90' : ''}`}><Icon name="repeat" size={26} /></span>
           <span className="text-sm font-semibold tabular-nums">{post.reposts}</span>
         </button>
-        <button onClick={() => setSheet('share')} aria-label="Partilhar" className={rail}>
+        <button onClick={() => setSheet('share')} aria-label={tr('Partilhar')} className={rail}>
           <span className={circle}><Icon name="share" size={26} /></span>
         </button>
         {!mine && post.canGift && (
-          <button onClick={() => setSheet('gift')} aria-label="Presentear" className={rail}>
+          <button onClick={() => setSheet('gift')} aria-label={tr('Presentear')} className={rail}>
             <span className={circle}><Icon name="gift" size={26} /></span>
           </button>
         )}
@@ -211,19 +212,19 @@ export default function Reels() {
         {q.isSuccess && items.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center px-8 text-center text-white">
             <Icon name="film" size={52} className="mx-auto text-white/70" />
-            <p className="mt-4 text-2xl font-extrabold">Ainda sem reels</p>
-            <p className="mt-2 text-white/75">Sê tu a começar: grava um vídeo até 60 segundos.</p>
-            <Link to="/new" className="mt-6 rounded-full bg-brand px-8 py-3.5 font-bold active:scale-95">Publicar um vídeo</Link>
+            <p className="mt-4 text-2xl font-extrabold">{tr('Ainda sem reels')}</p>
+            <p className="mt-2 text-white/75">{tr('Sê tu a começar: grava um vídeo até 60 segundos.')}</p>
+            <Link to="/new" className="mt-6 rounded-full bg-brand px-8 py-3.5 font-bold active:scale-95">{tr('Publicar um vídeo')}</Link>
           </div>
         )}
-        {q.isError && <p role="alert" className="flex h-full items-center justify-center text-white/80">Ups, falhou</p>}
+        {q.isError && <p role="alert" className="flex h-full items-center justify-center text-white/80">{tr('Ups, falhou')}</p>}
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 mx-auto flex max-w-xl items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
-        <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/', { replace: true }))} aria-label="Fechar" className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
+        <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/', { replace: true }))} aria-label={tr('Fechar')} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
           <Icon name="back" size={24} />
         </button>
-        <span className="text-lg font-extrabold drop-shadow">Reels</span>
+        <span className="text-lg font-extrabold drop-shadow">{tr('Reels')}</span>
         <button onClick={() => setMuted(!isMuted)} aria-label={isMuted ? 'Ligar o som' : 'Desligar o som'} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
           <Icon name={isMuted ? 'volume-off' : 'volume'} size={22} />
         </button>

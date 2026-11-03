@@ -1,4 +1,5 @@
 import { LoadingBlock } from '../components/Loading';
+import { tr } from '../lib/i18n';
 import Icon from '../components/Icon';
 import { track } from '../lib/analytics';
 import { sized } from '../lib/media';
@@ -95,15 +96,15 @@ export default function Search() {
             type="search"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Procura malta e publicações…"
-            aria-label="Pesquisar"
+            placeholder={tr('Procura malta e publicações…')}
+            aria-label={tr('Pesquisar')}
             enterKeyHint="search"
             autoCapitalize="none"
             autoCorrect="off"
             className="min-w-0 flex-1 bg-transparent text-base text-zinc-900 outline-none placeholder:text-zinc-500 [&::-webkit-search-cancel-button]:hidden"
           />
           {text && (
-            <button type="button" onClick={() => setText('')} aria-label="Limpar pesquisa" className="flex h-8 w-8 items-center justify-center text-xl">×</button>
+            <button type="button" onClick={() => setText('')} aria-label={tr('Limpar pesquisa')} className="flex h-8 w-8 items-center justify-center text-xl">×</button>
           )}
         </label>
       </form>
@@ -111,10 +112,10 @@ export default function Search() {
       {!searching && (
         <>
           {recent.length > 0 && (
-            <section className="px-5 pb-4" aria-label="Pesquisas recentes">
+            <section className="px-5 pb-4" aria-label={tr('Pesquisas recentes')}>
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="font-bold">Recentes</h2>
-                <button onClick={forget} className="text-sm font-semibold text-zinc-600 underline">Limpar</button>
+                <h2 className="font-bold">{tr('Recentes')}</h2>
+                <button onClick={forget} className="text-sm font-semibold text-zinc-600 underline">{tr('Limpar')}</button>
               </div>
               <div className="flex flex-wrap gap-2">
                 {recent.map((r) => (
@@ -126,7 +127,7 @@ export default function Search() {
             </section>
           )}
           {((trending.data?.tags.length ?? 0) > 0 || (hot.data?.length ?? 0) > 0) && (
-            <section className="pb-3" aria-label="Em alta">
+            <section className="pb-3" aria-label={tr('Em alta')}>
               <div className="flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {(hot.data ?? []).slice(0, 5).map((pl) => (
                   <button key={pl.name} onClick={() => setText(pl.name)} className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-sky-50 px-4 text-sm font-semibold text-sky-800 transition active:scale-95">
@@ -142,7 +143,7 @@ export default function Search() {
             </section>
           )}
 
-          {explore.isLoading && <div className="grid grid-cols-3 gap-0.5 px-0.5" role="status" aria-label="A carregar">{Array.from({ length: 9 }, (_, n) => <div key={n} className="skel aspect-square" />)}</div>}
+          {explore.isLoading && <div className="grid grid-cols-3 gap-0.5 px-0.5" role="status" aria-label={tr('A carregar')}>{Array.from({ length: 9 }, (_, n) => <div key={n} className="skel aspect-square" />)}</div>}
           {/* Linhas todas da mesma altura (um terço da largura); o primeiro bloco grande ocupa 2×2. As sugestões entram a meio. */}
           {[grid.slice(0, 9), grid.slice(9)].map((chunk, c) =>
             chunk.length === 0 ? null : (
@@ -176,8 +177,8 @@ export default function Search() {
           {explore.isSuccess && grid.length === 0 && (
             <div className="px-6 py-10 text-center text-zinc-600">
               <p className="text-zinc-300" aria-hidden><Icon name="image" size={36} className="mx-auto" /></p>
-              <p className="mt-2 font-semibold">Ainda não há publicações para explorar</p>
-              <p className="text-sm">Quando a malta publicar, aparece aqui.</p>
+              <p className="mt-2 font-semibold">{tr('Ainda não há publicações para explorar')}</p>
+              <p className="text-sm">{tr('Quando a malta publicar, aparece aqui.')}</p>
             </div>
           )}
           {explore.hasNextPage && (
@@ -192,7 +193,7 @@ export default function Search() {
 
       {searching && (
         <>
-          <div role="tablist" aria-label="Resultados" className="mx-4 mb-2 flex gap-2">
+          <div role="tablist" aria-label={tr('Resultados')} className="mx-4 mb-2 flex gap-2">
             {([['people', `Pessoas${q.data ? ` (${people.length})` : ''}`], ['tags', `#Tags${q.data ? ` (${tags.length})` : ''}`], ['posts', `Publicações${q.data ? ` (${posts.length})` : ''}`]] as const).map(([k, label]) => (
               <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`flex-1 rounded-full py-2.5 text-sm font-bold transition ${tab === k ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-700'}`}>
                 {label}
@@ -200,15 +201,15 @@ export default function Search() {
             ))}
           </div>
 
-          {q.isLoading && <LoadingBlock label="A procurar" />}
-          {q.isError && <p role="alert" className="py-10 text-center text-red-600">Ups, a pesquisa falhou</p>}
+          {q.isLoading && <LoadingBlock label={tr('A procurar')} />}
+          {q.isError && <p role="alert" className="py-10 text-center text-red-600">{tr('Ups, a pesquisa falhou')}</p>}
 
           {q.isSuccess && tab === 'people' && (
             <ul className="px-4">
               {people.length === 0 && (
                 <li className="py-10 text-center text-zinc-600">
                   <p className="text-zinc-300" aria-hidden><Icon name="search" size={36} className="mx-auto" /></p>
-                  <p className="mt-2 font-semibold">Ninguém com esse nome</p>
+                  <p className="mt-2 font-semibold">{tr('Ninguém com esse nome')}</p>
                 </li>
               )}
               {people.map((p) => (
@@ -216,7 +217,7 @@ export default function Search() {
                   <Link to={`/u/${p.username}`} onClick={() => remember(term)} className="flex min-w-0 flex-1 items-center gap-3">
                     <Avatar name={p.displayName} username={p.username} size={48} presence />
                     <span className="min-w-0">
-                      <span className="block truncate font-semibold">{p.displayName} {p.verified && <VerifiedBadge size={15} />} {p.isPrivate && <Icon name="lock" size={14} className="inline align-[-2px] text-zinc-500" aria-hidden={false} role="img" aria-label="Conta privada" />}</span>
+                      <span className="block truncate font-semibold">{p.displayName} {p.verified && <VerifiedBadge size={15} />} {p.isPrivate && <Icon name="lock" size={14} className="inline align-[-2px] text-zinc-500" aria-hidden={false} role="img" aria-label={tr('Conta privada')} />}</span>
                       <span className="block truncate text-sm text-zinc-600">@{p.username}{p.followsYou ? ' · segue-te' : ''}</span>
                     </span>
                   </Link>
@@ -233,7 +234,7 @@ export default function Search() {
               {tags.length === 0 && (
                 <li className="py-10 text-center text-zinc-600">
                   <p className="text-zinc-300" aria-hidden><Icon name="tag" size={36} className="mx-auto" /></p>
-                  <p className="mt-2 font-semibold">Nenhuma hashtag assim</p>
+                  <p className="mt-2 font-semibold">{tr('Nenhuma hashtag assim')}</p>
                 </li>
               )}
               {tags.map((t) => (
@@ -255,7 +256,7 @@ export default function Search() {
               {posts.length === 0 && (
                 <li className="py-10 text-center text-zinc-600">
                   <p className="text-zinc-300" aria-hidden><Icon name="inbox" size={36} className="mx-auto" /></p>
-                  <p className="mt-2 font-semibold">Nenhuma publicação encontrada</p>
+                  <p className="mt-2 font-semibold">{tr('Nenhuma publicação encontrada')}</p>
                 </li>
               )}
               {posts.map((p) => (
@@ -280,7 +281,7 @@ export default function Search() {
       )}
 
       {viewing && <ExploreViewer items={grid} startId={viewing} onClose={() => setViewing(null)} />}
-      {open && <ExploreViewer items={[open]} startId={open.id} title="Publicação" onClose={() => setOpen(null)} />}
+      {open && <ExploreViewer items={[open]} startId={open.id} title={tr('Publicação')} onClose={() => setOpen(null)} />}
     </div>
   );
 }

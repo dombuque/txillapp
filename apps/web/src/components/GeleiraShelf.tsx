@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { useState } from 'react';
 import { api, type MyTaste, type TasteItem, type TheirTaste } from '../lib/api';
 import { ICE, KINDS, KIND_ICON, KIND_LABEL } from '../lib/geleira';
@@ -33,7 +34,7 @@ function Tile({ item }: { item: Shown }) {
         )}
       </span>
       <span className="mt-2 line-clamp-2 min-h-[2.15em] w-full break-words text-center text-[12.5px] font-semibold leading-[1.1] text-zinc-800">{item.name}</span>
-      {item.pending ? <span className="mt-1 text-[10px] font-medium text-zinc-500">à espera</span> : <Frost rating={item.rating} />}
+      {item.pending ? <span className="mt-1 text-[10px] font-medium text-zinc-500">{tr('à espera')}</span> : <Frost rating={item.rating} />}
     </>
   );
   return (
@@ -64,7 +65,7 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
   const items = q.data ?? [];
   // O nível vem do servidor (conta tudo, venha quem vier ver, e o título respeita a idade). Fica antes dos return: os hooks têm de ser sempre os mesmos.
   const lv = useQuery({ queryKey: ['geleira-level', username], queryFn: () => api.geleiraLevel(username), retry: false, staleTime: 60_000 });
-  if (q.isLoading) return <div className={`${flush ? '' : 'mx-4'} skel mt-4 ${compact ? 'h-[60px]' : 'h-48'} rounded-[24px]`} role="status" aria-label="A carregar a geleira" />;
+  if (q.isLoading) return <div className={`${flush ? '' : 'mx-4'} skel mt-4 ${compact ? 'h-[60px]' : 'h-48'} rounded-[24px]`} role="status" aria-label={tr('A carregar a geleira')} />;
   if (!isMe && (q.isError || items.length === 0)) return null;
 
   const favorites = items.filter((i) => i.favorite).slice(0, 8);
@@ -104,13 +105,13 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
 
       {items.length === 0 && (!compact || open) ? (
         <div className="mt-4 rounded-2xl bg-white/70 px-4 py-6 text-center ring-1 ring-sky-100">
-          <p className="text-lg font-extrabold">Geleira vazia!</p>
+          <p className="text-lg font-extrabold">{tr('Geleira vazia!')}</p>
           <p className="mx-auto mt-1 max-w-[17rem] text-zinc-600">{isMe ? 'Para a encher, vai a Editar perfil e abre "A minha geleira".' : 'Ainda não há nada para mostrar.'}</p>
         </div>
       ) : (
         !folded && items.length > 0 && (
           <>
-            {favorites.length > 0 && <Shelf title="Os favoritos" icon="heart" items={favorites} />}
+            {favorites.length > 0 && <Shelf title={tr('Os favoritos')} icon="heart" items={favorites} />}
             {KINDS.map((k) => {
               const list = items.filter((i) => i.kind === k);
               return list.length ? <Shelf key={k} title={KIND_LABEL[k]} icon={KIND_ICON[k]} items={list} /> : null;

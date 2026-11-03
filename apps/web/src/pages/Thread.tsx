@@ -1,4 +1,5 @@
 import { track } from '../lib/analytics';
+import { tr, locale } from '../lib/i18n';
 import { sized } from '../lib/media';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
@@ -30,7 +31,7 @@ const MAX_IMAGE = 8 * 1024 * 1024;
 const MAX_VOICE_MS = 120_000;
 const GROUP_MS = 120_000; // mensagens da mesma pessoa com menos de 2 min juntam-se
 
-const clock = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+const clock = (iso: string) => new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
 const sameDay = (a: string, b: string) => new Date(a).toDateString() === new Date(b).toDateString();
 function dayLabel(iso: string) {
@@ -40,7 +41,7 @@ function dayLabel(iso: string) {
   yest.setDate(now.getDate() - 1);
   if (d.toDateString() === now.toDateString()) return 'Hoje';
   if (d.toDateString() === yest.toDateString()) return 'Ontem';
-  return d.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
+  return d.toLocaleDateString(locale, { day: 'numeric', month: 'long', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
 }
 
 /** "Visto há 5 min", "Visto hoje às 14:20", "Visto ontem", "Visto a 3 de out". */
@@ -55,7 +56,7 @@ function seenLabel(iso: string | null) {
   yest.setDate(now.getDate() - 1);
   if (d.toDateString() === now.toDateString()) return `Visto hoje às ${clock(iso)}`;
   if (d.toDateString() === yest.toDateString()) return 'Visto ontem';
-  return `Visto a ${d.toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' })}`;
+  return `Visto a ${d.toLocaleDateString(locale, { day: 'numeric', month: 'short' })}`;
 }
 
 /** Mensagem enviada, à espera do servidor: aparece logo e fica "a enviar" ou "não enviada". */
@@ -100,7 +101,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
   return (
     <div className={`flex select-none flex-col ${mine ? 'items-end' : 'items-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`} {...menuProps}>
       {group && !mine && !prevSame && m.sender && <span className="mb-0.5 px-1 text-[12px] font-bold text-zinc-600">{m.sender.displayName.split(' ')[0]}</span>}
-      {m.storyUrl && <img src={sized(m.storyUrl, 160)} alt="Story" className="mb-1 h-28 w-[72px] rounded-xl object-cover opacity-90" />}
+      {m.storyUrl && <img src={sized(m.storyUrl, 160)} alt={tr('Story')} className="mb-1 h-28 w-[72px] rounded-xl object-cover opacity-90" />}
       {(m.kind === 'story_reply' || m.kind === 'story_reaction') && (
         <p className="mb-0.5 text-xs text-zinc-500">{m.kind === 'story_reaction' ? (mine ? 'Reagiste ao story' : 'Reagiu ao teu story') : mine ? 'Respondeste ao story' : 'Respondeu ao teu story'}</p>
       )}
@@ -122,7 +123,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/25"><Icon name="gift" size={24} /></span>
             <span className="min-w-0">
               <span className="block text-[13px] font-semibold opacity-90">{mine ? 'Enviaste um presente' : 'Enviou-te um presente'}</span>
-              <span className="block text-[24px] font-extrabold leading-tight">{(m.giftAmount ?? 0).toLocaleString('pt-PT')} Txills</span>
+              <span className="block text-[24px] font-extrabold leading-tight">{(m.giftAmount ?? 0).toLocaleString(locale)} {tr('Txills')}</span>
             </span>
           </div>
           <p className="px-4 pb-3 pt-1 text-[15px] leading-snug">{m.body || ' '}</p>
@@ -140,14 +141,14 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
         <span className="mt-1 flex items-center gap-2 px-1 text-[12px] font-semibold text-emerald-700">
           <span className={`h-2 w-2 rounded-full ${m.live ? 'animate-pulse bg-emerald-500' : 'bg-zinc-300'}`} aria-hidden />
           {m.live ? `Em direto até às ${clock(m.liveUntil)}` : 'Partilha em direto terminada'}
-          {m.live && mine && <button type="button" onClick={() => onStopLive(m)} className="rounded-full bg-red-50 px-3 py-1 text-red-700 active:scale-95">Parar</button>}
+          {m.live && mine && <button type="button" onClick={() => onStopLive(m)} className="rounded-full bg-red-50 px-3 py-1 text-red-700 active:scale-95">{tr('Parar')}</button>}
         </span>
       )}
       {!m.viewOnce && m.kind === 'voice' && <div className={`max-w-[86%] ${dim}`}><VoiceMessage m={m} /></div>}
       {!m.viewOnce && m.kind === 'image' && m.mediaUrl && (
         <div className={`max-w-[75%] overflow-hidden ${shape} ${tone} ${dim}`}>
           <a href={m.mediaUrl} target="_blank" rel="noreferrer">
-            <img src={m.mediaUrl} alt="Foto enviada" loading="lazy" draggable={false} className="max-h-72 w-full object-cover" />
+            <img src={m.mediaUrl} alt={tr('Foto enviada')} loading="lazy" draggable={false} className="max-h-72 w-full object-cover" />
           </a>
           {m.body && <p className="px-3 py-2 text-[16px]">{m.body}</p>}
         </div>
@@ -157,12 +158,12 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
       )}
       {m.state === 'failed' ? (
         <span className="mt-1 flex items-center gap-2 px-1 text-[12px] font-semibold text-red-600">
-          <Icon name="alert" size={14} /> Não enviada
-          <button type="button" onClick={() => onRetry(m)} className="underline">Tentar de novo</button>
-          <button type="button" onClick={() => onDiscard(m)} className="text-zinc-500 underline">Apagar</button>
+          <Icon name="alert" size={14} /> {tr('Não enviada')}
+          <button type="button" onClick={() => onRetry(m)} className="underline">{tr('Tentar de novo')}</button>
+          <button type="button" onClick={() => onDiscard(m)} className="text-zinc-500 underline">{tr('Apagar')}</button>
         </span>
       ) : m.state === 'sending' ? (
-        <span className="mt-0.5 px-1 text-[11px] text-zinc-500">A enviar…</span>
+        <span className="mt-0.5 px-1 text-[11px] text-zinc-500">{tr('A enviar…')}</span>
       ) : (
         !nextSame && (
           <span className="mt-0.5 px-1 text-[11px] text-zinc-500">
@@ -476,8 +477,8 @@ export default function Thread() {
     return (
       <div className="mx-6 mt-16 text-center">
         <p className="text-zinc-300" aria-hidden><Icon name="alert" size={44} className="mx-auto" /></p>
-        <p className="mt-3 text-xl font-bold">Não consegui abrir esta conversa</p>
-        <button onClick={() => navigate(-1)} className="mt-4 font-semibold text-brand">Voltar</button>
+        <p className="mt-3 text-xl font-bold">{tr('Não consegui abrir esta conversa')}</p>
+        <button onClick={() => navigate(-1)} className="mt-4 font-semibold text-brand">{tr('Voltar')}</button>
       </div>
     );
   }
@@ -496,7 +497,7 @@ export default function Thread() {
   return (
     <div className="fixed inset-x-0 top-0 mx-auto flex h-dvh max-w-xl flex-col bg-white" style={visibleStyle(vv)}>
       <header className="flex shrink-0 items-center gap-1 border-b border-zinc-100 px-2 py-2">
-        <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/messages', { replace: true }))} aria-label="Voltar" className="flex h-11 w-11 items-center justify-center rounded-full active:bg-zinc-100">
+        <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/messages', { replace: true }))} aria-label={tr('Voltar')} className="flex h-11 w-11 items-center justify-center rounded-full active:bg-zinc-100">
           <BackIcon />
         </button>
         {group && (
@@ -508,7 +509,7 @@ export default function Thread() {
             </span>
             <span className="min-w-0">
               <span className="block truncate font-bold leading-tight">{group.name}</span>
-              <span className="block truncate text-xs text-zinc-500">{group.members.length} pessoas · toca para ver</span>
+              <span className="block truncate text-xs text-zinc-500">{group.members.length} {tr('pessoas · toca para ver')}</span>
             </span>
           </button>
         )}
@@ -516,15 +517,15 @@ export default function Thread() {
           <Link to={`/u/${person.username}`} className="flex min-w-0 items-center gap-3">
             <span className="relative">
               <Avatar name={person.displayName} username={person.hasAvatar ? person.username : undefined} size={38} ring={false} />
-              {person.presence?.online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" aria-label="Online" />}
+              {person.presence?.online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" aria-label={tr('Online')} />}
             </span>
             <span className="min-w-0">
               <span className="block truncate font-bold leading-tight">{person.displayName}</span>
               <span className="block truncate text-xs text-zinc-500">
                 {typing ? (
-                  <span className="font-semibold text-brand">a escrever…</span>
+                  <span className="font-semibold text-brand">{tr('a escrever…')}</span>
                 ) : person.presence?.online ? (
-                  <span className="flex items-center gap-1 font-semibold text-emerald-600"><span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden /> Online</span>
+                  <span className="flex items-center gap-1 font-semibold text-emerald-600"><span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden /> {tr('Online')}</span>
                 ) : (
                   seenLabel(person.presence?.lastSeen ?? null) ?? `@${person.username}`
                 )}
@@ -549,19 +550,19 @@ export default function Thread() {
           {!isGroup && first?.relation && !first.relation.theyFollow && !first.relation.request && person && (
             <div role="note" className="mx-auto mb-2 mt-3 max-w-sm rounded-2xl bg-zinc-50 px-4 py-3 text-center text-[13px] leading-snug text-zinc-600 ring-1 ring-zinc-100">
               <Icon name="info" size={16} className="mx-auto mb-1 text-zinc-500" />
-              <b className="text-zinc-800">{person.displayName.split(' ')[0]} não te segue.</b> Pode não ver nem responder à tua mensagem.
+              <b className="text-zinc-800">{person.displayName.split(' ')[0]} {tr('não te segue.')}</b> {tr('Pode não ver nem responder à tua mensagem.')}
               {first.relation.left !== null && <span className="block">{first.relation.left > 0 ? `Podes enviar mais ${first.relation.left} ${first.relation.left === 1 ? 'mensagem' : 'mensagens'} até responder.` : 'Aguarda que responda, aceite ou te siga para escreveres outra vez.'}</span>}
             </div>
           )}
           {q.hasNextPage && (
-            <button onClick={() => { stick.current = false; void q.fetchNextPage(); }} className="mx-auto mb-2 mt-2 block rounded-full bg-zinc-100 px-4 py-1.5 text-sm font-semibold text-zinc-700">Ver mensagens anteriores</button>
+            <button onClick={() => { stick.current = false; void q.fetchNextPage(); }} className="mx-auto mb-2 mt-2 block rounded-full bg-zinc-100 px-4 py-1.5 text-sm font-semibold text-zinc-700">{tr('Ver mensagens anteriores')}</button>
           )}
           {q.isLoading && (
-            <div className="space-y-3 pt-4" role="status" aria-label="A carregar">
+            <div className="space-y-3 pt-4" role="status" aria-label={tr('A carregar')}>
               {[60, 40, 70, 48].map((w, i) => <div key={i} className={`skel h-10 rounded-[20px] ${i % 2 ? 'ml-auto' : ''}`} style={{ width: `${w}%` }} />)}
             </div>
           )}
-          {q.isSuccess && all.length === 0 && <p className="py-16 text-center text-zinc-500">Diz olá a {person?.displayName.split(' ')[0] ?? 'esta pessoa'}</p>}
+          {q.isSuccess && all.length === 0 && <p className="py-16 text-center text-zinc-500">{tr('Diz olá a')} {person?.displayName.split(' ')[0] ?? 'esta pessoa'}</p>}
           {all.map((m, i) => {
             const prev = all[i - 1];
             const next = all[i + 1];
@@ -574,7 +575,7 @@ export default function Thread() {
             );
           })}
           {typing && (
-            <div className="mt-2 flex w-fit items-center gap-1 rounded-[20px] rounded-bl-md bg-zinc-100 px-3.5 py-3" aria-label="A escrever">
+            <div className="mt-2 flex w-fit items-center gap-1 rounded-[20px] rounded-bl-md bg-zinc-100 px-3.5 py-3" aria-label={tr('A escrever')}>
               {[0, 1, 2].map((d) => (
                 <span key={d} className="h-2 w-2 animate-bounce rounded-full bg-zinc-400" style={{ animationDelay: `${d * 120}ms` }} />
               ))}
@@ -591,20 +592,20 @@ export default function Thread() {
 
       {!isGroup && first?.relation?.request && person ? (
         <div className="shrink-0 border-t border-zinc-100 px-4 pb-[max(0.9rem,env(safe-area-inset-bottom))] pt-3">
-          <p className="text-center text-[14px] leading-snug text-zinc-700"><b>Pedido de mensagem.</b> Não segues {person.displayName.split(' ')[0]}. Se aceitares, podem falar à vontade; se recusares, não és incomodado.</p>
+          <p className="text-center text-[14px] leading-snug text-zinc-700"><b>{tr('Pedido de mensagem.')}</b> {tr('Não segues')} {person.displayName.split(' ')[0]}{tr('. Se aceitares, podem falar à vontade; se recusares, não és incomodado.')}</p>
           <div className="mt-3 grid grid-cols-3 gap-2">
-            <button onClick={() => acceptReq()} className="h-11 rounded-full bg-brand font-bold text-white active:scale-95">Aceitar</button>
-            <button onClick={() => declineReq()} className="h-11 rounded-full bg-zinc-100 font-semibold text-zinc-800 active:scale-95">Recusar</button>
-            <button onClick={() => blockReq()} className="h-11 rounded-full bg-zinc-100 font-semibold text-red-700 active:scale-95">Bloquear</button>
+            <button onClick={() => acceptReq()} className="h-11 rounded-full bg-brand font-bold text-white active:scale-95">{tr('Aceitar')}</button>
+            <button onClick={() => declineReq()} className="h-11 rounded-full bg-zinc-100 font-semibold text-zinc-800 active:scale-95">{tr('Recusar')}</button>
+            <button onClick={() => blockReq()} className="h-11 rounded-full bg-zinc-100 font-semibold text-red-700 active:scale-95">{tr('Bloquear')}</button>
           </div>
         </div>
       ) : first?.relation?.left === 0 && !isGroup ? (
-        <p className="shrink-0 border-t border-zinc-100 px-6 py-4 text-center text-sm text-zinc-600">{person?.displayName.split(' ')[0]} ainda não respondeu. Podes escrever outra vez quando responder, aceitar ou te seguir.</p>
+        <p className="shrink-0 border-t border-zinc-100 px-6 py-4 text-center text-sm text-zinc-600">{person?.displayName.split(' ')[0]} {tr('ainda não respondeu. Podes escrever outra vez quando responder, aceitar ou te seguir.')}</p>
       ) : first?.blocked ? (
-        <p className="shrink-0 border-t border-zinc-100 px-6 py-4 text-center text-sm text-zinc-600">Não podes trocar mensagens com esta conta.</p>
+        <p className="shrink-0 border-t border-zinc-100 px-6 py-4 text-center text-sm text-zinc-600">{tr('Não podes trocar mensagens com esta conta.')}</p>
       ) : rec ? (
         <div className="flex shrink-0 items-center gap-3 border-t border-zinc-100 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-          <button type="button" onClick={() => finishRecording(false)} aria-label="Cancelar gravação" className={`${tool} text-red-600`}>
+          <button type="button" onClick={() => finishRecording(false)} aria-label={tr('Cancelar gravação')} className={`${tool} text-red-600`}>
             <Icon name="trash" size={22} />
           </button>
           <span className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full bg-red-50 px-3 py-2 text-red-600">
@@ -614,14 +615,14 @@ export default function Thread() {
               {rec.bars.map((l, i) => <span key={i} className="w-[3px] shrink-0 rounded-full bg-red-500" style={{ height: `${Math.max(12, Math.round(l * 100))}%` }} />)}
             </span>
           </span>
-          <button type="button" onClick={() => finishRecording(true)} className="h-11 rounded-full bg-brand px-5 font-bold text-white active:scale-95">Enviar</button>
+          <button type="button" onClick={() => finishRecording(true)} className="h-11 rounded-full bg-brand px-5 font-bold text-white active:scale-95">{tr('Enviar')}</button>
         </div>
       ) : (
         <div className="shrink-0 border-t border-zinc-100">
         {once && onceHelp && !isGroup && (
           <p role="status" className="mx-3 mt-2 flex items-center justify-between rounded-2xl bg-zinc-900 px-4 py-2 text-[13px] font-semibold text-white">
-            <span>Visualização única: a próxima mensagem só se abre uma vez.</span>
-            <button type="button" onClick={() => setOnceHelp(false)} aria-label="Fechar a explicação" className="ml-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20"><Icon name="x" size={14} /></button>
+            <span>{tr('Visualização única: a próxima mensagem só se abre uma vez.')}</span>
+            <button type="button" onClick={() => setOnceHelp(false)} aria-label={tr('Fechar a explicação')} className="ml-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20"><Icon name="x" size={14} /></button>
           </p>
         )}
         {suggestion && (
@@ -631,12 +632,12 @@ export default function Thread() {
               <span className="block truncate text-[15px] font-bold leading-tight">{suggestion.title}</span>
               <span className="block text-xs leading-tight text-zinc-600">{suggestion.hint}</span>
             </span>
-            <button type="button" onClick={() => setGift({ amount: suggestion.amount, note: suggestion.note })} className="h-9 shrink-0 rounded-full bg-brand px-4 text-sm font-bold text-white active:scale-95">Presentear</button>
-            <button type="button" onClick={() => setDismissed((d) => new Set(d).add(suggestion.key))} aria-label="Dispensar sugestão" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-zinc-500 active:bg-amber-100"><Icon name="x" size={18} /></button>
+            <button type="button" onClick={() => setGift({ amount: suggestion.amount, note: suggestion.note })} className="h-9 shrink-0 rounded-full bg-brand px-4 text-sm font-bold text-white active:scale-95">{tr('Presentear')}</button>
+            <button type="button" onClick={() => setDismissed((d) => new Set(d).add(suggestion.key))} aria-label={tr('Dispensar sugestão')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-zinc-500 active:bg-amber-100"><Icon name="x" size={18} /></button>
           </div>
         )}
         {panel === 'attach' && (
-          <div className="mx-3 mt-2 flex justify-end gap-1" role="menu" aria-label="Mais">
+          <div className="mx-3 mt-2 flex justify-end gap-1" role="menu" aria-label={tr('Mais')}>
             {([
               ['map-pin', 'Localização', () => { setPanel(null); setPlace(true); }],
               ...(person?.canGift ? [['gift', 'Presente', () => { setPanel(null); setGift({}); }] as const] : []),
@@ -653,10 +654,10 @@ export default function Thread() {
           {err && <p role="alert" className="px-2 pb-1 text-center text-sm text-red-600">{err}</p>}
           {/* Como no Instagram: câmara à esquerda, o campo ao meio e, à direita, voz, galeria, stickers e mais. */}
           <div className="flex items-end gap-1 rounded-[26px] bg-zinc-100 p-1.5 transition-colors focus-within:bg-zinc-200/70">
-            <button type="button" onClick={() => setCamera(true)} aria-label="Abrir a câmara" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-brand-light text-white transition active:scale-90">
+            <button type="button" onClick={() => setCamera(true)} aria-label={tr('Abrir a câmara')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-brand-light text-white transition active:scale-90">
               <Icon name="camera" size={20} />
             </button>
-            <input ref={gallery} type="file" accept={IMAGE_TYPES.join(',')} onChange={pickPhoto} className="sr-only" aria-label="Escolher foto da galeria" />
+            <input ref={gallery} type="file" accept={IMAGE_TYPES.join(',')} onChange={pickPhoto} className="sr-only" aria-label={tr('Escolher foto da galeria')} />
             <textarea
               ref={input}
               value={text}
@@ -667,20 +668,20 @@ export default function Thread() {
               }}
               maxLength={2000}
               rows={1}
-              placeholder="Mensagem…"
-              aria-label="Mensagem"
+              placeholder={tr('Mensagem…')}
+              aria-label={tr('Mensagem')}
               className="max-h-32 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-[16px] outline-none placeholder:text-zinc-500"
             />
             {text.trim() ? (
               // pointerdown sem foco: o teclado não fecha ao enviar.
-              <button type="submit" onPointerDown={(e) => e.preventDefault()} className="h-10 shrink-0 rounded-full bg-brand px-4 font-bold text-white transition active:scale-95">Enviar</button>
+              <button type="submit" onPointerDown={(e) => e.preventDefault()} className="h-10 shrink-0 rounded-full bg-brand px-4 font-bold text-white transition active:scale-95">{tr('Enviar')}</button>
             ) : (
               <>
-                {!isGroup && <button type="button" onClick={() => { if (!once && firstTime('view-once')) setOnceHelp(true); setOnce(!once); }} aria-pressed={once} aria-label="Visualização única" className={`${bar} ${once ? 'bg-brand text-white active:bg-brand' : ''}`}><Icon name="once" size={22} /></button>}
-                <button type="button" onClick={startRecording} className={bar} aria-label="Gravar mensagem de voz"><Icon name="mic" size={22} /></button>
-                <button type="button" onClick={() => gallery.current?.click()} className={bar} aria-label="Enviar foto da galeria"><Icon name="image" size={22} /></button>
-                <button type="button" data-sticker-toggle onClick={() => setPanel(panel === 'stickers' ? null : 'stickers')} aria-label="Stickers" aria-expanded={panel === 'stickers'} className={`${bar} ${panel === 'stickers' ? 'bg-white text-brand' : ''}`}><Icon name="sticker" size={22} /></button>
-                <button type="button" onClick={() => setPanel(panel === 'attach' ? null : 'attach')} aria-label="Mais" aria-expanded={panel === 'attach'} className={`${bar} ${panel === 'attach' ? 'bg-white text-brand' : ''}`}><Icon name="plus" size={22} /></button>
+                {!isGroup && <button type="button" onClick={() => { if (!once && firstTime('view-once')) setOnceHelp(true); setOnce(!once); }} aria-pressed={once} aria-label={tr('Visualização única')} className={`${bar} ${once ? 'bg-brand text-white active:bg-brand' : ''}`}><Icon name="once" size={22} /></button>}
+                <button type="button" onClick={startRecording} className={bar} aria-label={tr('Gravar mensagem de voz')}><Icon name="mic" size={22} /></button>
+                <button type="button" onClick={() => gallery.current?.click()} className={bar} aria-label={tr('Enviar foto da galeria')}><Icon name="image" size={22} /></button>
+                <button type="button" data-sticker-toggle onClick={() => setPanel(panel === 'stickers' ? null : 'stickers')} aria-label={tr('Stickers')} aria-expanded={panel === 'stickers'} className={`${bar} ${panel === 'stickers' ? 'bg-white text-brand' : ''}`}><Icon name="sticker" size={22} /></button>
+                <button type="button" onClick={() => setPanel(panel === 'attach' ? null : 'attach')} aria-label={tr('Mais')} aria-expanded={panel === 'attach'} className={`${bar} ${panel === 'attach' ? 'bg-white text-brand' : ''}`}><Icon name="plus" size={22} /></button>
               </>
             )}
           </div>
@@ -714,21 +715,21 @@ export default function Thread() {
       {members && group && <GroupSheet group={group} onClose={() => setMembers(false)} onChanged={() => void q.refetch()} onLeft={() => navigate('/messages', { replace: true })} />}
       {reporting && <ReportSheet type="message" id={reporting} onClose={() => setReporting(null)} />}
       {menuFor && (
-        <Sheet title="Mensagem" onClose={() => setMenuFor(null)}>
+        <Sheet title={tr('Mensagem')} onClose={() => setMenuFor(null)}>
           {menuFor.fromMe ? (
             <button onClick={() => remove(menuFor)} className="flex w-full items-center gap-4 rounded-2xl px-1 py-3 text-left text-red-700 transition active:bg-red-50">
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-50"><Icon name="trash" /></span>
               <span>
-                <span className="block text-[17px] font-semibold">Apagar para todos</span>
-                <span className="block text-sm text-zinc-600">Desaparece da conversa, sem deixar rasto.</span>
+                <span className="block text-[17px] font-semibold">{tr('Apagar para todos')}</span>
+                <span className="block text-sm text-zinc-600">{tr('Desaparece da conversa, sem deixar rasto.')}</span>
               </span>
             </button>
           ) : (
             <button onClick={() => { setReporting(menuFor.id); setMenuFor(null); }} className="flex w-full items-center gap-4 rounded-2xl px-1 py-3 text-left transition active:bg-zinc-100">
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800"><Icon name="flag" /></span>
               <span>
-                <span className="block text-[17px] font-semibold">Denunciar mensagem</span>
-                <span className="block text-sm text-zinc-600">Avisa a moderação. A pessoa não sabe.</span>
+                <span className="block text-[17px] font-semibold">{tr('Denunciar mensagem')}</span>
+                <span className="block text-sm text-zinc-600">{tr('Avisa a moderação. A pessoa não sabe.')}</span>
               </span>
             </button>
           )}

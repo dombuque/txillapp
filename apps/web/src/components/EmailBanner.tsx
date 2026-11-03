@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { api } from '../lib/api';
 import Icon from './Icon';
 
@@ -12,11 +13,11 @@ export default function EmailBanner() {
       <Icon name="mail" size={20} className="mt-0.5 shrink-0 text-amber-700" />
       <p className="min-w-0 flex-1 leading-snug">
         {resend.isSuccess && resend.data.sent ? (
-          <>Enviámos um link novo para o teu e-mail. Vê também o spam.</>
+          <>{tr('Enviámos um link novo para o teu e-mail. Vê também o spam.')}</>
         ) : resend.isError ? (
-          <>Não consegui reenviar agora. Tenta daqui a pouco.</>
+          <>{tr('Não consegui reenviar agora. Tenta daqui a pouco.')}</>
         ) : (
-          <>Confirma o teu e-mail para publicar, comentar e conversar. Enviámos-te um link.</>
+          <>{tr('Confirma o teu e-mail para publicar, comentar e conversar. Enviámos-te um link.')}</>
         )}
       </p>
       {!resend.isSuccess && (

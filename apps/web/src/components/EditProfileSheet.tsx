@@ -1,4 +1,5 @@
 import Icon, { type IconName } from './Icon';
+import { tr } from '../lib/i18n';
 import MentionTextarea from './MentionTextarea';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -126,10 +127,10 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
   );
 
   return (
-    <Sheet title="Editar perfil" onClose={onClose}>
+    <Sheet title={tr('Editar perfil')} onClose={onClose}>
       <form onSubmit={save} className="space-y-4" noValidate>
         <div className="flex flex-col items-center gap-3">
-          <button type="button" onClick={() => fileRef.current?.click()} disabled={photoBusy} aria-label="Mudar foto de perfil" className="relative rounded-full transition active:scale-95">
+          <button type="button" onClick={() => fileRef.current?.click()} disabled={photoBusy} aria-label={tr('Mudar foto de perfil')} className="relative rounded-full transition active:scale-95">
             <Avatar name={displayName || profile.displayName} username={hasPhoto ? profile.username : undefined} size={96} />
             <span className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-brand text-white" aria-hidden><Icon name="camera" size={18} /></span>
             {photoBusy && <span className="absolute inset-0 flex items-center justify-center rounded-full bg-white/70 text-sm font-semibold">…</span>}
@@ -140,59 +141,59 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
               {hasPhoto ? 'Mudar foto' : 'Pôr uma foto'}
             </button>
             {hasPhoto && (
-              <button type="button" onClick={removePhoto} disabled={photoBusy} className={`${btnGhost} !px-4 !py-2 text-sm`}>Tirar foto</button>
+              <button type="button" onClick={removePhoto} disabled={photoBusy} className={`${btnGhost} !px-4 !py-2 text-sm`}>{tr('Tirar foto')}</button>
             )}
           </div>
         </div>
 
         <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-zinc-700">Nome</span>
+          <span className="mb-1 block text-sm font-semibold text-zinc-700">{tr('Nome')}</span>
           <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={60} className={fieldInput} autoComplete="name" />
         </label>
         <label className="block">
           <span className="mb-1 flex justify-between text-sm font-semibold text-zinc-700">
-            <span>Bio</span>
+            <span>{tr('Bio')}</span>
             <span className={bio.length > 140 ? 'text-brand' : 'text-zinc-500'}>{bio.length}/150</span>
           </span>
-          <MentionTextarea value={bio} onChange={setBio} maxLength={150} rows={3} placeholder="Conta à malta quem és…" className={`${fieldInput} resize-none`} />
+          <MentionTextarea value={bio} onChange={setBio} maxLength={150} rows={3} placeholder={tr('Conta à malta quem és…')} className={`${fieldInput} resize-none`} />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-zinc-700">Cidade ou bairro</span>
+          <span className="mb-1 block text-sm font-semibold text-zinc-700">{tr('Cidade ou bairro')}</span>
           <span className="relative block">
             <Icon name="map-pin" size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input value={city} onChange={(e) => setCity(e.target.value)} maxLength={40} placeholder="Maputo, Polana…" className={`${fieldInput} !pl-10`} autoComplete="address-level2" />
+            <input value={city} onChange={(e) => setCity(e.target.value)} maxLength={40} placeholder={tr('Maputo, Polana…')} className={`${fieldInput} !pl-10`} autoComplete="address-level2" />
           </span>
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-zinc-700">Link</span>
+          <span className="mb-1 block text-sm font-semibold text-zinc-700">{tr('Link')}</span>
           <span className="relative block">
             <Icon name="link" size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input value={website} onChange={(e) => setWebsite(e.target.value)} maxLength={100} placeholder="https://…" inputMode="url" autoCapitalize="none" autoCorrect="off" className={`${fieldInput} !pl-10`} />
+            <input value={website} onChange={(e) => setWebsite(e.target.value)} maxLength={100} placeholder={tr('https://…')} inputMode="url" autoCapitalize="none" autoCorrect="off" className={`${fieldInput} !pl-10`} />
           </span>
         </label>
         <div>
-          <span className="mb-2 block text-sm font-semibold text-zinc-700">Tipo de perfil</span>
-          <div role="radiogroup" aria-label="Tipo de perfil" className="flex gap-3">
+          <span className="mb-2 block text-sm font-semibold text-zinc-700">{tr('Tipo de perfil')}</span>
+          <div role="radiogroup" aria-label={tr('Tipo de perfil')} className="flex gap-3">
             {option(false, 'globe', 'Público', 'Qualquer pessoa vê as tuas publicações e stories e pode seguir-te.')}
             {option(true, 'lock', 'Privado', 'Só vê quem aprovares. Seguir passa a ser um pedido.')}
           </div>
-          {profile.isPrivate && !isPrivate && <p className="mt-2 text-xs text-zinc-600">Ao passar a público, os pedidos pendentes são aceites.</p>}
+          {profile.isPrivate && !isPrivate && <p className="mt-2 text-xs text-zinc-600">{tr('Ao passar a público, os pedidos pendentes são aceites.')}</p>}
         </div>
         <div>
-          <span className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-700"><Icon name="snowflake" size={16} className="text-sky-600" /> A minha geleira · quem vê</span>
-          <div role="radiogroup" aria-label="Quem vê a minha geleira" className="grid grid-cols-2 gap-2">
+          <span className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-700"><Icon name="snowflake" size={16} className="text-sky-600" /> {tr('A minha geleira · quem vê')}</span>
+          <div role="radiogroup" aria-label={tr('Quem vê a minha geleira')} className="grid grid-cols-2 gap-2">
             {([['everyone', 'globe', 'Todos'], ['followers', 'users', 'Seguidores'], ['close_friends', 'heart', 'Amigos próximos'], ['me', 'lock', 'Só eu']] as const).map(([v, ic, label]) => (
               <button key={v} type="button" role="radio" aria-checked={gVis === v} disabled={gVis === null} onClick={() => setGVis(v)} className={`flex h-12 items-center gap-2 rounded-2xl border-2 px-3 text-left text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50 ${gVis === v ? 'border-brand bg-rose-50' : 'border-zinc-200'}`}>
                 <Icon name={ic} size={18} /> {label}
               </button>
             ))}
           </div>
-          <p className="mt-1.5 text-xs text-zinc-600">A geleira é toda pública, para seguidores, para os amigos próximos ou só tua. Não se escolhe item a item.</p>
+          <p className="mt-1.5 text-xs text-zinc-600">{tr('A geleira é toda pública, para seguidores, para os amigos próximos ou só tua. Não se escolhe item a item.')}</p>
           <button type="button" onClick={() => { onClose(); navigate('/geleira'); }} className="mt-2 flex w-full items-center gap-3 rounded-2xl border-2 border-zinc-200 p-3 text-left transition active:scale-[0.99] active:bg-zinc-50">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-400 text-white"><Icon name="snowflake" size={22} /></span>
             <span className="min-w-0 flex-1">
-              <span className="block font-bold">Escolher os meus gostos</span>
-              <span className="block text-sm text-zinc-600">Vibes, bebidas, comidas e sítios de que gostas.</span>
+              <span className="block font-bold">{tr('Escolher os meus gostos')}</span>
+              <span className="block text-sm text-zinc-600">{tr('Vibes, bebidas, comidas e sítios de que gostas.')}</span>
             </span>
             <Icon name="chevron-right" size={20} className="shrink-0 text-zinc-500" />
           </button>

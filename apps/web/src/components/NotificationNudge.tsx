@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { tr } from '../lib/i18n';
 import { useLocation } from 'react-router-dom';
 import { track } from '../lib/analytics';
 import { enablePush, pushState } from '../lib/push';
@@ -75,7 +76,7 @@ export default function NotificationNudge({ ready }: { ready: boolean }) {
   }
 
   return (
-    <div role="dialog" aria-label="Ligar notificações" className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[70] mx-auto max-w-md animate-[rise_.25s_ease-out] rounded-[20px] bg-white p-4 shadow-[0_8px_30px_rgba(0,0,0,0.22)] ring-1 ring-zinc-100">
+    <div role="dialog" aria-label={tr('Ligar notificações')} className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[70] mx-auto max-w-md animate-[rise_.25s_ease-out] rounded-[20px] bg-white p-4 shadow-[0_8px_30px_rgba(0,0,0,0.22)] ring-1 ring-zinc-100">
       <div className="flex items-start gap-3">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-50 text-brand"><Icon name="bell" size={22} /></span>
         <div className="min-w-0 flex-1">

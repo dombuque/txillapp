@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { tr } from '../lib/i18n';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Icon from '../components/Icon';
 import { Wordmark } from '../components/ui';
@@ -31,19 +32,19 @@ export function VerifyEmail() {
     <AuthScreen>
       <h1 className="pt-10"><Wordmark className="h-11" /></h1>
       <div className="mt-10">
-        {state === 'working' && <p className="text-xl text-zinc-600" role="status">A confirmar o teu e-mail…</p>}
+        {state === 'working' && <p className="text-xl text-zinc-600" role="status">{tr('A confirmar o teu e-mail…')}</p>}
         {state === 'ok' && (
           <>
-            <p className="flex items-center gap-2 text-3xl font-extrabold leading-tight"><Icon name="check-circle" size={32} className="text-green-600" /> E-mail confirmado</p>
-            <p className="mt-3 text-lg text-zinc-600">Já podes publicar, comentar e conversar.</p>
-            <Link to="/" className="mt-8 block rounded-full bg-brand py-4 text-center text-lg font-semibold text-white">Entrar no Txillapp</Link>
+            <p className="flex items-center gap-2 text-3xl font-extrabold leading-tight"><Icon name="check-circle" size={32} className="text-green-600" /> {tr('E-mail confirmado')}</p>
+            <p className="mt-3 text-lg text-zinc-600">{tr('Já podes publicar, comentar e conversar.')}</p>
+            <Link to="/" className="mt-8 block rounded-full bg-brand py-4 text-center text-lg font-semibold text-white">{tr('Entrar no Txillapp')}</Link>
           </>
         )}
         {state === 'bad' && (
           <>
-            <p className="flex items-center gap-2 text-3xl font-extrabold leading-tight"><Icon name="alert" size={32} className="text-brand" /> Link inválido</p>
+            <p className="flex items-center gap-2 text-3xl font-extrabold leading-tight"><Icon name="alert" size={32} className="text-brand" /> {tr('Link inválido')}</p>
             <p className="mt-3 text-lg text-zinc-600">{message}</p>
-            <Link to="/" className="mt-8 block rounded-full border-2 border-zinc-300 py-4 text-center text-lg font-semibold">Ir para o Txillapp</Link>
+            <Link to="/" className="mt-8 block rounded-full border-2 border-zinc-300 py-4 text-center text-lg font-semibold">{tr('Ir para o Txillapp')}</Link>
           </>
         )}
       </div>
@@ -74,19 +75,19 @@ export function ForgotPassword() {
   }
 
   return (
-    <AuthScreen footer={<Link to="/login" className="font-semibold text-brand">Voltar a entrar</Link>}>
+    <AuthScreen footer={<Link to="/login" className="font-semibold text-brand">{tr('Voltar a entrar')}</Link>}>
       <h1 className="pt-10 lg:hidden"><Wordmark className="h-11" /></h1>
       {sent ? (
         <div className="mt-10">
-          <p className="flex items-center gap-2 text-3xl font-extrabold leading-tight"><Icon name="mail" size={32} className="text-brand" /> Vê o teu e-mail</p>
-          <p className="mt-3 text-lg text-zinc-600">Se existir uma conta com <b>{email.trim()}</b>, enviámos um link para escolheres uma senha nova. Vale 1 hora. Se não chegar, vê também o spam.</p>
+          <p className="flex items-center gap-2 text-3xl font-extrabold leading-tight"><Icon name="mail" size={32} className="text-brand" /> {tr('Vê o teu e-mail')}</p>
+          <p className="mt-3 text-lg text-zinc-600">{tr('Se existir uma conta com')} <b>{email.trim()}</b>{tr(', enviámos um link para escolheres uma senha nova. Vale 1 hora. Se não chegar, vê também o spam.')}</p>
         </div>
       ) : (
         <>
-          <p className="mt-7 text-[34px] font-extrabold leading-[1.05]">Esqueceste<br />a senha?</p>
-          <p className="mt-2 text-lg font-light text-zinc-600">Diz-nos o teu e-mail e enviamos um link para escolheres outra.</p>
+          <p className="mt-7 text-[34px] font-extrabold leading-[1.05]">{tr('Esqueceste')}<br />{tr('a senha?')}</p>
+          <p className="mt-2 text-lg font-light text-zinc-600">{tr('Diz-nos o teu e-mail e enviamos um link para escolheres outra.')}</p>
           <form onSubmit={submit} className="mt-7 space-y-3" noValidate>
-            <AuthField icon={<Icon name="mail" size={22} />} value={email} onChange={setEmail} placeholder="E-mail" type="email" name="email" autoComplete="email" inputMode="email" autoFocus />
+            <AuthField icon={<Icon name="mail" size={22} />} value={email} onChange={setEmail} placeholder={tr('E-mail')} type="email" name="email" autoComplete="email" inputMode="email" autoFocus />
             <p role="alert" className="min-h-[1.5rem] text-center text-[15px] text-red-600">{error}</p>
             <button disabled={busy} className={AuthCta}>{busy ? 'A enviar…' : 'Enviar link'}</button>
           </form>
@@ -125,20 +126,20 @@ export function ResetPassword() {
   }
 
   return (
-    <AuthScreen footer={<Link to="/login" className="font-semibold text-brand">Voltar a entrar</Link>}>
+    <AuthScreen footer={<Link to="/login" className="font-semibold text-brand">{tr('Voltar a entrar')}</Link>}>
       <h1 className="pt-10 lg:hidden"><Wordmark className="h-11" /></h1>
       {done ? (
         <div className="mt-10">
-          <p className="flex items-center gap-2 text-3xl font-extrabold leading-tight"><Icon name="check-circle" size={32} className="text-green-600" /> Senha mudada</p>
-          <p className="mt-3 text-lg text-zinc-600">Já podes entrar com a senha nova. A levar-te ao login…</p>
+          <p className="flex items-center gap-2 text-3xl font-extrabold leading-tight"><Icon name="check-circle" size={32} className="text-green-600" /> {tr('Senha mudada')}</p>
+          <p className="mt-3 text-lg text-zinc-600">{tr('Já podes entrar com a senha nova. A levar-te ao login…')}</p>
         </div>
       ) : (
         <>
-          <p className="mt-7 text-[34px] font-extrabold leading-[1.05]">Escolhe uma<br />senha nova</p>
-          <p className="mt-2 text-lg font-light text-zinc-600">Mínimo 10 caracteres. Vamos terminar a sessão nos outros aparelhos.</p>
+          <p className="mt-7 text-[34px] font-extrabold leading-[1.05]">{tr('Escolhe uma')}<br />{tr('senha nova')}</p>
+          <p className="mt-2 text-lg font-light text-zinc-600">{tr('Mínimo 10 caracteres. Vamos terminar a sessão nos outros aparelhos.')}</p>
           <form onSubmit={submit} className="mt-7 space-y-3" noValidate>
-            <AuthField icon={<Icon name="lock" size={22} />} value={pass} onChange={setPass} placeholder="Senha nova" type="password" name="new-password" autoComplete="new-password" autoFocus />
-            <AuthField icon={<Icon name="lock" size={22} />} value={again} onChange={setAgain} placeholder="Repete a senha" type="password" name="new-password-again" autoComplete="new-password" />
+            <AuthField icon={<Icon name="lock" size={22} />} value={pass} onChange={setPass} placeholder={tr('Senha nova')} type="password" name="new-password" autoComplete="new-password" autoFocus />
+            <AuthField icon={<Icon name="lock" size={22} />} value={again} onChange={setAgain} placeholder={tr('Repete a senha')} type="password" name="new-password-again" autoComplete="new-password" />
             <p role="alert" className="min-h-[1.5rem] text-center text-[15px] text-red-600">{error}</p>
             <button disabled={busy || !token} className={AuthCta}>{busy ? 'A guardar…' : 'Guardar senha'}</button>
           </form>

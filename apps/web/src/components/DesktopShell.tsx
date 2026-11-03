@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
@@ -43,28 +44,28 @@ function LeftNav() {
   const unread = useQuery({ queryKey: ['unread'], queryFn: api.unreadCount, refetchInterval: 30_000, staleTime: 10_000 });
   const chats = useQuery({ queryKey: ['chat-unread'], queryFn: api.chatUnread, refetchInterval: 20_000, staleTime: 8_000 });
   return (
-    <nav aria-label="Navegação principal" className="sticky top-0 flex h-dvh flex-col items-end justify-between py-3 pr-3 xl:pr-8">
+    <nav aria-label={tr('Navegação principal')} className="sticky top-0 flex h-dvh flex-col items-end justify-between py-3 pr-3 xl:pr-8">
       <div className="flex flex-col items-end gap-1 xl:items-stretch">
-        <Link to="/" aria-label="Início" className="mb-3 flex h-12 items-center px-3 text-zinc-900">
+        <Link to="/" aria-label={tr('Início')} className="mb-3 flex h-12 items-center px-3 text-zinc-900">
           <Wordmark className="h-7" />
         </Link>
-        <Item to="/" end label="Início">{(a) => <HomeIcon filled={a} width={27} height={27} />}</Item>
-        <Item to="/search" label="Pesquisar">{(a) => <SearchIcon width={27} height={27} strokeWidth={a ? 2.6 : 1.8} />}</Item>
-        <Item to="/reels" label="Reels">{() => <Icon name="film" size={27} />}</Item>
-        <Item to="/messages" label="Mensagens" badge={chats.data?.conversations}>{() => <MessagesIcon width={27} height={27} />}</Item>
-        <Item to="/notifications" label="Notificações" badge={unread.data?.count}>{() => <BellIcon width={27} height={27} />}</Item>
-        <Item to="/wallet" label="Carteira">{() => <WalletIcon width={27} height={27} />}</Item>
-        <Item to="/profile" label="Perfil">
+        <Item to="/" end label={tr('Início')}>{(a) => <HomeIcon filled={a} width={27} height={27} />}</Item>
+        <Item to="/search" label={tr('Pesquisar')}>{(a) => <SearchIcon width={27} height={27} strokeWidth={a ? 2.6 : 1.8} />}</Item>
+        <Item to="/reels" label={tr('Reels')}>{() => <Icon name="film" size={27} />}</Item>
+        <Item to="/messages" label={tr('Mensagens')} badge={chats.data?.conversations}>{() => <MessagesIcon width={27} height={27} />}</Item>
+        <Item to="/notifications" label={tr('Notificações')} badge={unread.data?.count}>{() => <BellIcon width={27} height={27} />}</Item>
+        <Item to="/wallet" label={tr('Carteira')}>{() => <WalletIcon width={27} height={27} />}</Item>
+        <Item to="/profile" label={tr('Perfil')}>
           {() => <Avatar name={user?.displayName ?? '?'} username={user?.username} size={28} ring={false} />}
         </Item>
-        <Item to="/settings" label="Definições">{() => <Icon name="shield" size={27} />}</Item>
+        <Item to="/settings" label={tr('Definições')}>{() => <Icon name="shield" size={27} />}</Item>
         <Link
           to="/new/post"
-          aria-label="Nova publicação"
+          aria-label={tr('Nova publicação')}
           className="mt-3 flex h-12 items-center justify-center gap-2 self-end rounded-full bg-brand px-4 font-bold text-white transition hover:brightness-110 active:scale-95 xl:self-stretch"
         >
           <PlusIcon width={22} height={22} strokeWidth={2.6} />
-          <span className="hidden xl:inline">Publicar</span>
+          <span className="hidden xl:inline">{tr('Publicar')}</span>
         </Link>
       </div>
       {user && (
@@ -91,23 +92,23 @@ function RightPanel() {
     if (q.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`);
   };
   return (
-    <aside aria-label="Descobrir" className="sticky top-0 hidden h-dvh w-[320px] flex-col gap-4 overflow-y-auto py-3 pl-8 [scrollbar-width:none] xl:flex [&::-webkit-scrollbar]:hidden">
+    <aside aria-label={tr('Descobrir')} className="sticky top-0 hidden h-dvh w-[320px] flex-col gap-4 overflow-y-auto py-3 pl-8 [scrollbar-width:none] xl:flex [&::-webkit-scrollbar]:hidden">
       <form onSubmit={go} role="search">
         <label className="flex h-12 items-center gap-3 rounded-full bg-zinc-100 px-4 text-zinc-500 focus-within:bg-zinc-200/70">
           <SearchIcon width={20} height={20} />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Pesquisar no Txillapp"
-            aria-label="Pesquisar"
+            placeholder={tr('Pesquisar no Txillapp')}
+            aria-label={tr('Pesquisar')}
             className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500"
           />
         </label>
       </form>
       <Suggestions compact />
       {tags.length > 0 && (
-        <section aria-label="Assuntos do momento" className="rounded-[28px] bg-zinc-50 py-4">
-          <h2 className="px-5 text-lg font-bold">O que está a bombar</h2>
+        <section aria-label={tr('Assuntos do momento')} className="rounded-[28px] bg-zinc-50 py-4">
+          <h2 className="px-5 text-lg font-bold">{tr('O que está a bombar')}</h2>
           <ul className="mt-2">
             {tags.map((t) => (
               <li key={t.tag}>
@@ -121,8 +122,8 @@ function RightPanel() {
         </section>
       )}
       <p className="px-3 text-xs leading-5 text-zinc-500">
-        <Link to="/terms" className="hover:underline">Termos</Link> · <Link to="/privacy" className="hover:underline">Privacidade</Link> ·{' '}
-        <a href="mailto:suporte@txillapp.com" className="hover:underline">Suporte</a> · © Txillapp
+        <Link to="/terms" className="hover:underline">{tr('Termos')}</Link> · <Link to="/privacy" className="hover:underline">{tr('Privacidade')}</Link> ·{' '}
+        <a href="mailto:suporte@txillapp.com" className="hover:underline">{tr('Suporte')}</a> {tr('· © Txillapp')}
       </p>
     </aside>
   );

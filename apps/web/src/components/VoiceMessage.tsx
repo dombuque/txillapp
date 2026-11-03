@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent } from 'react';
+import { tr } from '../lib/i18n';
 import type { ChatMessage } from '../lib/api';
 import Icon from './Icon';
 
@@ -160,7 +161,7 @@ export default function VoiceMessage({ m }: { m: ChatMessage }) {
           ref={track}
           role="slider"
           tabIndex={0}
-          aria-label="Posição da mensagem de voz"
+          aria-label={tr('Posição da mensagem de voz')}
           aria-valuemin={0}
           aria-valuemax={Math.round(len / 1000)}
           aria-valuenow={Math.round(at / 1000)}

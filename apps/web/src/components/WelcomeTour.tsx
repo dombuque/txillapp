@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
@@ -67,7 +68,7 @@ export default function WelcomeTour() {
   const last = i === STEPS.length - 1;
 
   return (
-    <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" aria-label="Visita guiada">
+    <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" aria-label={tr('Visita guiada')}>
       {box ? (
         <div
           aria-hidden
@@ -90,14 +91,14 @@ export default function WelcomeTour() {
             {STEPS.map((_, n) => <span key={n} className={`h-1.5 rounded-full transition-all ${n === i ? 'w-5 bg-brand' : 'w-1.5 bg-zinc-300'}`} />)}
           </div>
           <div className="flex items-center gap-1">
-            {!last && <button onClick={() => finish(false)} className="h-11 px-3 text-sm font-semibold text-zinc-600">Saltar</button>}
+            {!last && <button onClick={() => finish(false)} className="h-11 px-3 text-sm font-semibold text-zinc-600">{tr('Saltar')}</button>}
             {last ? (
               <>
-                <button onClick={() => finish(false)} className="h-11 px-3 text-sm font-semibold text-zinc-600">Depois</button>
-                <button onClick={() => finish(true)} className={`${btnPrimary} !px-5 !py-2.5`}>Encher agora</button>
+                <button onClick={() => finish(false)} className="h-11 px-3 text-sm font-semibold text-zinc-600">{tr('Depois')}</button>
+                <button onClick={() => finish(true)} className={`${btnPrimary} !px-5 !py-2.5`}>{tr('Encher agora')}</button>
               </>
             ) : (
-              <button onClick={() => setI(i + 1)} className={`${btnPrimary} !px-5 !py-2.5`}>Seguinte</button>
+              <button onClick={() => setI(i + 1)} className={`${btnPrimary} !px-5 !py-2.5`}>{tr('Seguinte')}</button>
             )}
           </div>
         </div>

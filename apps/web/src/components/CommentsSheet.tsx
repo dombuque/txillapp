@@ -1,4 +1,5 @@
 import { LoadingBlock } from './Loading';
+import { tr } from '../lib/i18n';
 import Icon from './Icon';
 import MentionTextarea from './MentionTextarea';
 import { Link } from 'react-router-dom';
@@ -68,9 +69,9 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
         <Body text={c.body} />
         <div className="mt-1 flex gap-4 text-xs font-semibold text-zinc-500">
           {cheer.cheers > 0 && <span>{cheer.cheers} {cheer.cheers === 1 ? 'brinde' : 'brindes'}</span>}
-          <button onClick={() => onReply(c)}>Responder</button>
-          {!canDelete && <button onClick={() => setReporting(true)}>Denunciar</button>}
-          {canDelete && <button onClick={remove}>Apagar</button>}
+          <button onClick={() => onReply(c)}>{tr('Responder')}</button>
+          {!canDelete && <button onClick={() => setReporting(true)}>{tr('Denunciar')}</button>}
+          {canDelete && <button onClick={remove}>{tr('Apagar')}</button>}
         </div>
       </div>
       <button
@@ -121,7 +122,7 @@ function Replies({ c, expanded, toggle, canDeleteFor, onReply, onRemoved }: Thre
             <div>
               <button onClick={() => q.fetchNextPage()} className="flex items-center gap-3 py-1 text-xs font-semibold text-zinc-500">
                 <span className="h-px w-7 bg-zinc-300" />
-                Ver mais respostas
+                {tr('Ver mais respostas')}
               </button>
             </div>
           )}
@@ -215,24 +216,24 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Comentários"
+        aria-label={tr('Comentários')}
         style={{ transform: `translateY(${dragY}px)`, transition: dragY ? 'none' : 'transform .2s' }}
         className="animate-[rise_.25s_ease-out] flex h-[78dvh] w-full max-w-xl flex-col rounded-t-[28px] bg-white"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="touch-none border-b border-zinc-200 pb-3 pt-2.5" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
           <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-300" aria-hidden />
-          <h2 className="text-center text-base font-bold">Comentários</h2>
+          <h2 className="text-center text-base font-bold">{tr('Comentários')}</h2>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-2">
-          {q.isLoading && <LoadingBlock label="A carregar a conversa" />}
-          {q.isError && <p role="alert" className="py-10 text-center text-red-600">Ups, não consegui carregar</p>}
+          {q.isLoading && <LoadingBlock label={tr('A carregar a conversa')} />}
+          {q.isError && <p role="alert" className="py-10 text-center text-red-600">{tr('Ups, não consegui carregar')}</p>}
           {q.isSuccess && items.length === 0 && (
             <div className="py-14 text-center">
               <p className="text-zinc-300" aria-hidden><Icon name="comment-off" size={36} className="mx-auto" /></p>
-              <p className="mt-2 text-lg font-bold">Ainda ninguém disse nada</p>
-              <p className="text-zinc-500">Sê o primeiro a puxar conversa</p>
+              <p className="mt-2 text-lg font-bold">{tr('Ainda ninguém disse nada')}</p>
+              <p className="text-zinc-500">{tr('Sê o primeiro a puxar conversa')}</p>
             </div>
           )}
           <div>
@@ -259,14 +260,14 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
 
         {!post.canComment && post.author.id !== user?.id ? (
           <div className="border-t border-zinc-200 px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-center text-zinc-600">
-            <span aria-hidden><Icon name="bell-off" size={16} className="inline align-[-3px]" /></span> {post.author.displayName} desativou os comentários nesta publicação.
+            <span aria-hidden><Icon name="bell-off" size={16} className="inline align-[-3px]" /></span> {post.author.displayName} {tr('desativou os comentários nesta publicação.')}
           </div>
         ) : (
         <div className="border-t border-zinc-200 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {replyTo && (
             <div className="flex items-center justify-between bg-zinc-100 px-4 py-2 text-sm text-zinc-600">
-              <span>A responder a <b>{replyTo.author.displayName}</b></span>
-              <button onClick={() => { setReplyTo(null); setText(''); }} aria-label="Cancelar resposta" className="px-2 text-lg">×</button>
+              <span>{tr('A responder a')} <b>{replyTo.author.displayName}</b></span>
+              <button onClick={() => { setReplyTo(null); setText(''); }} aria-label={tr('Cancelar resposta')} className="px-2 text-lg">×</button>
             </div>
           )}
           <div className="flex justify-between px-4 pt-2 text-2xl">
@@ -293,11 +294,11 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
                 onChange={onType}
                 maxLength={1000}
                 placeholder={replyTo ? `Responder a ${replyTo.author.username}…` : 'Diz lá…'}
-                aria-label="Escrever comentário"
+                aria-label={tr('Escrever comentário')}
                 className="w-full bg-transparent py-2.5 text-[15px] outline-none"
               />
               <button disabled={!text.trim() || busy} className="px-2 py-1 font-semibold text-brand disabled:opacity-60">
-                Publicar
+                {tr('Publicar')}
               </button>
             </div>
           </form>

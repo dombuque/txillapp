@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
@@ -68,12 +69,12 @@ export default function NewChat({ onClose, addTo, onCreated }: { onClose: () => 
         <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-zinc-300" aria-hidden />
         <div className="relative flex shrink-0 items-center justify-center px-4 pb-2 pt-3">
           <h2 className="text-[17px] font-bold">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Fechar" className="absolute right-2 flex h-10 w-10 items-center justify-center rounded-full text-zinc-600 active:bg-zinc-100"><Icon name="x" size={20} /></button>
+          <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="absolute right-2 flex h-10 w-10 items-center justify-center rounded-full text-zinc-600 active:bg-zinc-100"><Icon name="x" size={20} /></button>
         </div>
 
         {naming ? (
           <div className="min-h-0 flex-1 px-5 pt-4">
-            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} autoFocus placeholder="Ex.: Malta da Polana" aria-label="Nome do grupo" className="h-12 w-full rounded-full bg-zinc-100 px-5 text-[16px] outline-none placeholder:text-zinc-500 focus:bg-zinc-200/70" />
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} autoFocus placeholder={tr('Ex.: Malta da Polana')} aria-label={tr('Nome do grupo')} className="h-12 w-full rounded-full bg-zinc-100 px-5 text-[16px] outline-none placeholder:text-zinc-500 focus:bg-zinc-200/70" />
             <div className="mt-5 flex flex-wrap justify-center gap-4">
               {picked.map((p) => (
                 <span key={p.username} className="flex w-16 flex-col items-center gap-1">
@@ -82,14 +83,14 @@ export default function NewChat({ onClose, addTo, onCreated }: { onClose: () => 
                 </span>
               ))}
             </div>
-            <p className="mt-4 text-center text-sm text-zinc-500">{picked.length + 1} pessoas, contigo.</p>
+            <p className="mt-4 text-center text-sm text-zinc-500">{picked.length + 1} {tr('pessoas, contigo.')}</p>
           </div>
         ) : (
           <>
             <div className="shrink-0 px-4 pb-1">
               <label className="flex h-11 items-center gap-2 rounded-full bg-zinc-100 px-4 text-zinc-500 transition focus-within:bg-zinc-200/70">
                 <Icon name="search" size={18} />
-                <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Procurar" aria-label="Procurar pessoas" className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
+                <input value={text} onChange={(e) => setText(e.target.value)} placeholder={tr('Procurar')} aria-label={tr('Procurar pessoas')} className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
               </label>
               {picked.length > 0 && (
                 <div className="mt-3 flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -106,7 +107,7 @@ export default function NewChat({ onClose, addTo, onCreated }: { onClose: () => 
               )}
             </div>
             <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-              {!text.trim() && rows.length > 0 && <li className="px-3 pb-1 pt-3 text-[13px] font-bold text-zinc-500">Sugestões</li>}
+              {!text.trim() && rows.length > 0 && <li className="px-3 pb-1 pt-3 text-[13px] font-bold text-zinc-500">{tr('Sugestões')}</li>}
               {rows.length === 0 && <li className="py-12 text-center text-zinc-500">{text.trim() ? 'Ninguém com esse nome' : 'Procura pelo nome ou @.'}</li>}
               {rows.map((p) => {
                 const on = isPicked(p.username);
@@ -130,10 +131,10 @@ export default function NewChat({ onClose, addTo, onCreated }: { onClose: () => 
         <div className="shrink-0 border-t border-zinc-100 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
           {err && <p role="alert" className="mb-2 text-center text-sm text-red-600">{err}</p>}
           <div className="flex gap-2">
-            {naming && <button type="button" onClick={() => setNaming(false)} className="h-12 rounded-full px-5 font-semibold text-zinc-700 active:bg-zinc-100">Voltar</button>}
+            {naming && <button type="button" onClick={() => setNaming(false)} className="h-12 rounded-full px-5 font-semibold text-zinc-700 active:bg-zinc-100">{tr('Voltar')}</button>}
             <button type="button" onClick={go} disabled={busy || picked.length === 0} className="h-12 flex-1 rounded-full bg-brand text-[16px] font-bold text-white transition active:scale-[0.98] disabled:opacity-40">{busy ? 'A criar…' : label}</button>
           </div>
-          {!addTo && !naming && picked.length === 1 && <p className="mt-2 text-center text-xs text-zinc-500">Escolhe mais pessoas para criar um grupo.</p>}
+          {!addTo && !naming && picked.length === 1 && <p className="mt-2 text-center text-xs text-zinc-500">{tr('Escolhe mais pessoas para criar um grupo.')}</p>}
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { LoadingBlock } from './Loading';
+import { tr } from '../lib/i18n';
 import VideoPlayer from './VideoPlayer';
 import { sized } from '../lib/media';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -128,26 +129,26 @@ export default function StoriesTray() {
   const bubble = 'flex w-[76px] shrink-0 flex-col items-center gap-1.5';
   const label = 'w-full truncate text-center text-xs';
   return (
-    <section aria-label="Stories" className="mb-4">
+    <section aria-label={tr('Stories')} className="mb-4">
       <div className="flex gap-3 overflow-x-auto px-4 pb-1 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className={bubble}>
           <div className="relative">
             {mine ? (
-              <button onClick={() => setViewing(0)} aria-label="Ver o teu story">
+              <button onClick={() => setViewing(0)} aria-label={tr('Ver o teu story')}>
                 <Ring count={mine.count} seenCount={mine.seen ? mine.count : 0} green={mine.closeFriends}><Avatar name={user?.displayName ?? '?'} username={user?.username} size={56} ring={false} /></Ring>
               </button>
             ) : (
-              <label className="block cursor-pointer" aria-label="Criar story">
+              <label className="block cursor-pointer" aria-label={tr('Criar story')}>
                 <Ring count={1} seenCount={1}><Avatar name={user?.displayName ?? '?'} username={user?.username} size={56} ring={false} /></Ring>
                 <input type="file" accept={TYPES.join(',')} onChange={choose} className="sr-only" />
               </label>
             )}
-            <label className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-brand text-base font-bold leading-none text-white" aria-label="Adicionar ao story">
+            <label className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-brand text-base font-bold leading-none text-white" aria-label={tr('Adicionar ao story')}>
               +
               {mine && <input type="file" accept={TYPES.join(',')} onChange={choose} className="sr-only" />}
             </label>
           </div>
-          <span className={`${label} font-medium text-zinc-800`}>O teu story</span>
+          <span className={`${label} font-medium text-zinc-800`}>{tr('O teu story')}</span>
         </div>
 
         {others.map((u, i) => (
@@ -159,7 +160,7 @@ export default function StoriesTray() {
             <span className={`${label} ${u.seen ? 'font-normal text-zinc-500' : 'font-bold text-zinc-900'}`}>{u.username}</span>
           </button>
         ))}
-        {others.length === 0 && <p className="self-center pr-4 text-sm text-zinc-500">Segue pessoas para ver os stories delas</p>}
+        {others.length === 0 && <p className="self-center pr-4 text-sm text-zinc-500">{tr('Segue pessoas para ver os stories delas')}</p>}
       </div>
       {err && <p role="alert" className="px-4 pt-2 text-sm text-red-600">{err}</p>}
 
@@ -264,11 +265,11 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
           className="w-full rounded-full border border-white/60 bg-black/20 px-5 py-3 text-white outline-none backdrop-blur-sm placeholder:text-white/70 focus:border-white"
         />
         {text.trim() ? (
-          <button className="font-semibold text-white">Enviar</button>
+          <button className="font-semibold text-white">{tr('Enviar')}</button>
         ) : (
           <>
-            <button type="button" onClick={cheer} aria-label="Brindar" aria-pressed={cheered} className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-90 ${cheered ? 'text-emerald-300' : 'text-white'}`}><Icon name="cheers" size={28} /></button>
-            {story.sharedFrom && <button type="button" onClick={openShare} aria-label="Partilhar" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white transition active:scale-90"><Icon name="share" size={26} /></button>}
+            <button type="button" onClick={cheer} aria-label={tr('Brindar')} aria-pressed={cheered} className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-90 ${cheered ? 'text-emerald-300' : 'text-white'}`}><Icon name="cheers" size={28} /></button>
+            {story.sharedFrom && <button type="button" onClick={openShare} aria-label={tr('Partilhar')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white transition active:scale-90"><Icon name="share" size={26} /></button>}
           </>
         )}
       </form>
@@ -326,7 +327,7 @@ function CommentsPanel({ story, onClose, canComment, onTyping }: { story: Story;
     <Panel title={`Comentários${list.data ? ` (${list.data.length})` : ''}`} onClose={onClose}>
       <ul className="min-h-[96px]">
         {list.isLoading && <li><LoadingBlock className="py-6" /></li>}
-        {list.isSuccess && list.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda sem comentários. Sê o primeiro</li>}
+        {list.isSuccess && list.data.length === 0 && <li className="py-6 text-center text-zinc-500">{tr('Ainda sem comentários. Sê o primeiro')}</li>}
         {list.data?.map((c) => (
           <li key={c.id} className="flex items-start gap-3 py-2.5">
             <Avatar name={c.author.displayName} username={c.author.hasAvatar ? c.author.username : undefined} size={36} ring={false} />
@@ -339,7 +340,7 @@ function CommentsPanel({ story, onClose, canComment, onTyping }: { story: Story;
             {c.canDelete && (
               <button
                 onClick={async () => { await api.deleteStoryComment(c.id).catch(() => undefined); refresh(); }}
-                aria-label="Apagar comentário"
+                aria-label={tr('Apagar comentário')}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 active:bg-zinc-100"
               >
                 <Icon name="x" size={18} />
@@ -360,14 +361,14 @@ function CommentsPanel({ story, onClose, canComment, onTyping }: { story: Story;
             onFocus={() => onTyping(true)}
             onBlur={() => onTyping(false)}
             maxLength={500}
-            placeholder="Adiciona um comentário…"
-            aria-label="Comentário"
+            placeholder={tr('Adiciona um comentário…')}
+            aria-label={tr('Comentário')}
             className="h-11 w-full rounded-full bg-zinc-100 px-4 text-[15px] outline-none focus:bg-zinc-200/70"
           />
-          <button disabled={!text.trim() || busy} className="px-2 font-bold text-brand disabled:opacity-40">Publicar</button>
+          <button disabled={!text.trim() || busy} className="px-2 font-bold text-brand disabled:opacity-40">{tr('Publicar')}</button>
         </form>
       ) : (
-        <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2.5 text-center text-sm text-zinc-600">Este story não aceita comentários.</p>
+        <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2.5 text-center text-sm text-zinc-600">{tr('Este story não aceita comentários.')}</p>
       )}
       {err && <p role="alert" className="mt-1 text-center text-sm text-red-600">{err}</p>}
     </Panel>
@@ -522,21 +523,21 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
               </p>
             </div>
             {user.isMe && story && (
-              <button {...stop} onClick={() => setPanel('menu')} aria-label="Mais opções" className={circleBtn}>
+              <button {...stop} onClick={() => setPanel('menu')} aria-label={tr('Mais opções')} className={circleBtn}>
                 <DotsIcon />
               </button>
             )}
-            <button {...stop} onClick={onClose} aria-label="Fechar" className={circleBtn}>
+            <button {...stop} onClick={onClose} aria-label={tr('Fechar')} className={circleBtn}>
               <CloseIcon />
             </button>
           </div>
         </div>
 
         {/* Story de uma publicação ou reel: os lados recuam e avançam e o meio abre o post (não só o botão de baixo). */}
-        <button aria-label="Anterior" onClick={tap(() => { setSeePost(false); prev(); })} className={`absolute bottom-28 left-0 top-28 ${story?.sharedFrom ? 'w-[30%]' : 'w-1/3'}`} />
+        <button aria-label={tr('Anterior')} onClick={tap(() => { setSeePost(false); prev(); })} className={`absolute bottom-28 left-0 top-28 ${story?.sharedFrom ? 'w-[30%]' : 'w-1/3'}`} />
         {story?.sharedFrom && (
           <button
-            aria-label="Mostrar a ligação à publicação"
+            aria-label={tr('Mostrar a ligação à publicação')}
             onClick={tap(() => setSeePost((v) => !v))}
             className="absolute bottom-28 left-[30%] top-28 w-[40%]"
           />
@@ -551,7 +552,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
             {story.mediaKind === 'video' ? 'Ver reel' : 'Ver publicação'} <Icon name="chevron-right" size={16} strokeWidth={3} />
           </button>
         )}
-        <button aria-label="Seguinte" onClick={tap(() => { setSeePost(false); next(); })} className={`absolute bottom-28 right-0 top-28 ${story?.sharedFrom ? 'w-[30%]' : 'w-2/3'}`} />
+        <button aria-label={tr('Seguinte')} onClick={tap(() => { setSeePost(false); next(); })} className={`absolute bottom-28 right-0 top-28 ${story?.sharedFrom ? 'w-[30%]' : 'w-2/3'}`} />
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/70 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-16">
           {story?.caption && (
@@ -574,22 +575,22 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
           )}
           {!user.isMe && story && story.canReply && <ReplyBar key={story.id} story={story} username={user.username} onFocusChange={setTyping} />}
           {!user.isMe && story && !story.canReply && (
-            <p className="rounded-full bg-black/40 px-4 py-2 text-center text-sm text-white/90 backdrop-blur-sm">Este story não aceita respostas</p>
+            <p className="rounded-full bg-black/40 px-4 py-2 text-center text-sm text-white/90 backdrop-blur-sm">{tr('Este story não aceita respostas')}</p>
           )}
         </div>
 
         {panel === 'menu' && (
-          <Panel title="O teu story" onClose={() => setPanel(null)}>
-            <button onClick={() => { onClose(); navigate('/settings'); }} className="w-full rounded-xl py-3.5 text-lg active:bg-zinc-100">Definições do story</button>
-            <button onClick={remove} className="w-full rounded-xl py-3.5 text-lg font-semibold text-red-600 active:bg-zinc-100">Apagar story</button>
-            <button onClick={() => setPanel(null)} className="w-full rounded-xl py-3.5 text-lg active:bg-zinc-100">Cancelar</button>
+          <Panel title={tr('O teu story')} onClose={() => setPanel(null)}>
+            <button onClick={() => { onClose(); navigate('/settings'); }} className="w-full rounded-xl py-3.5 text-lg active:bg-zinc-100">{tr('Definições do story')}</button>
+            <button onClick={remove} className="w-full rounded-xl py-3.5 text-lg font-semibold text-red-600 active:bg-zinc-100">{tr('Apagar story')}</button>
+            <button onClick={() => setPanel(null)} className="w-full rounded-xl py-3.5 text-lg active:bg-zinc-100">{tr('Cancelar')}</button>
           </Panel>
         )}
         {panel === 'comments' && story && (
           <CommentsPanel story={story} canComment={user.isMe || story.canReply} onTyping={setTyping} onClose={() => setPanel(null)} />
         )}
         {panel === 'viewers' && (
-          <Panel title="Atividade do story" onClose={() => setPanel(null)}>
+          <Panel title={tr('Atividade do story')} onClose={() => setPanel(null)}>
             <div role="tablist" className="mb-3 flex rounded-full bg-zinc-100 p-1">
               {([['viewers', `Visualizações${story?.viewCount ? ` (${story.viewCount})` : ''}`], ['replies', `Respostas${replies.data ? ` (${replies.data.length})` : ''}`]] as const).map(([k, label]) => (
                 <button
@@ -607,7 +608,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
             {tab === 'replies' && (
               <ul>
                 {replies.isLoading && <li><LoadingBlock className="py-6" /></li>}
-                {replies.isSuccess && replies.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda sem respostas</li>}
+                {replies.isSuccess && replies.data.length === 0 && <li className="py-6 text-center text-zinc-500">{tr('Ainda sem respostas')}</li>}
                 {replies.data?.map((r) => (
                   <li key={r.id} className="flex items-start gap-3 py-2.5">
                     <Avatar name={r.author.displayName} username={r.author.username} size={40} ring={false} />
@@ -625,7 +626,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
             {tab === 'viewers' && (
               <ul>
                 {viewers.isLoading && <li><LoadingBlock className="py-6" /></li>}
-                {viewers.isSuccess && viewers.data.length === 0 && <li className="py-6 text-center text-zinc-500">Ainda ninguém viu</li>}
+                {viewers.isSuccess && viewers.data.length === 0 && <li className="py-6 text-center text-zinc-500">{tr('Ainda ninguém viu')}</li>}
                 {viewers.data?.map((v) => (
                   <li key={v.username} className="flex items-center gap-3 py-2.5">
                     <Avatar name={v.displayName} username={v.username} size={40} ring={false} />
@@ -673,13 +674,13 @@ export function StoryCreator({ file, onClose, onBack }: { file: File; onClose: (
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black" style={visibleStyle(vv)} role="dialog" aria-modal="true" aria-label="Novo story">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black" style={visibleStyle(vv)} role="dialog" aria-modal="true" aria-label={tr('Novo story')}>
       <form onSubmit={share} className="relative flex h-full w-full max-w-xl flex-col">
-        <img src={preview} alt="Pré-visualização do story" className="min-h-0 flex-1 object-contain" />
+        <img src={preview} alt={tr('Pré-visualização do story')} className="min-h-0 flex-1 object-contain" />
         <button type="button" onClick={onBack ?? onClose} aria-label={onBack ? 'Voltar' : 'Cancelar'} className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] px-2 text-3xl leading-none text-white">×</button>
         <div className="space-y-3 bg-black px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
-          <MentionTextarea single up value={caption} onChange={setCaption} maxLength={200} placeholder="Escreve uma legenda…" aria-label="Legenda" className="w-full rounded-full bg-white/15 px-4 py-3 text-white outline-none placeholder:text-white/60 focus:bg-white/25" />
-          <div role="radiogroup" aria-label="Quem vê" className="flex gap-2">
+          <MentionTextarea single up value={caption} onChange={setCaption} maxLength={200} placeholder={tr('Escreve uma legenda…')} aria-label={tr('Legenda')} className="w-full rounded-full bg-white/15 px-4 py-3 text-white outline-none placeholder:text-white/60 focus:bg-white/25" />
+          <div role="radiogroup" aria-label={tr('Quem vê')} className="flex gap-2">
             {([['all', 'globe', 'Os teus stories'], ['close_friends', 'heart', 'Amigos próximos']] as const).map(([v, ic, label]) => (
               <button
                 key={v}

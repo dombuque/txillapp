@@ -1,4 +1,5 @@
 import { useIsFetching, useIsMutating } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { useEffect, useState } from 'react';
 import { Wordmark } from './ui';
 
@@ -48,7 +49,7 @@ export function TopLoader() {
   }, [busy]);
   if (!show) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-[100] h-[3px] overflow-hidden" role="progressbar" aria-label="A carregar" aria-busy="true">
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-[100] h-[3px] overflow-hidden" role="progressbar" aria-label={tr('A carregar')} aria-busy="true">
       <div className="h-full w-2/5 rounded-full bg-brand" style={{ animation: 'barra 1.1s ease-in-out infinite' }} />
     </div>
   );

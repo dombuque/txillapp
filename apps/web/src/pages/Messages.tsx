@@ -1,4 +1,5 @@
 import { reactionText } from '../lib/stickers';
+import { tr } from '../lib/i18n';
 import { RowsSkeleton } from '../components/Loading';
 import Icon from '../components/Icon';
 import NewChat from '../components/NewChat';
@@ -85,22 +86,22 @@ export default function Messages() {
       {/* O @ fica ao centro, como no Instagram; o ícone de nova mensagem à direita (tamanho inteiro, para ficar nítido). */}
       <header className="relative mb-1 flex h-12 items-center justify-center">
         <h1 className="max-w-[70%] truncate text-[20px] font-extrabold leading-tight">{user?.username ?? 'Mensagens'}</h1>
-        <button onClick={() => setCreating(true)} aria-label="Nova conversa ou grupo" className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-zinc-900 active:bg-zinc-100"><Icon name="compose" size={24} strokeWidth={2} /></button>
+        <button onClick={() => setCreating(true)} aria-label={tr('Nova conversa ou grupo')} className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-zinc-900 active:bg-zinc-100"><Icon name="compose" size={24} strokeWidth={2} /></button>
       </header>
       <label className="mb-2 flex h-11 items-center gap-2 rounded-full bg-zinc-100 px-4 text-zinc-500 transition focus-within:bg-zinc-200/70">
         <Icon name="search" size={18} />
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Procurar pessoas e grupos" aria-label="Procurar conversas" className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
-        {text && <button onClick={() => setText('')} aria-label="Limpar" className="flex h-8 w-8 items-center justify-center"><Icon name="x" size={16} /></button>}
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder={tr('Procurar pessoas e grupos')} aria-label={tr('Procurar conversas')} className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
+        {text && <button onClick={() => setText('')} aria-label={tr('Limpar')} className="flex h-8 w-8 items-center justify-center"><Icon name="x" size={16} /></button>}
       </label>
 
       {!term && view === 'all' && <NotesStrip />}
-      <div role="tablist" aria-label="Caixa" className="mb-1 flex items-center gap-5 px-1 pt-1">
-        <button role="tab" aria-selected={view === 'all'} onClick={() => setView('all')} className={`h-10 text-[17px] ${view === 'all' ? 'font-extrabold text-zinc-900' : 'font-semibold text-zinc-500'}`}>Mensagens</button>
+      <div role="tablist" aria-label={tr('Caixa')} className="mb-1 flex items-center gap-5 px-1 pt-1">
+        <button role="tab" aria-selected={view === 'all'} onClick={() => setView('all')} className={`h-10 text-[17px] ${view === 'all' ? 'font-extrabold text-zinc-900' : 'font-semibold text-zinc-500'}`}>{tr('Mensagens')}</button>
         <button role="tab" aria-selected={view === 'requests'} onClick={() => setView('requests')} className={`flex h-10 items-center gap-1.5 text-[17px] ${view === 'requests' ? 'font-extrabold text-zinc-900' : 'font-semibold text-zinc-500'}`}>
-          Pedidos {requestCount > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-bold text-white">{requestCount}</span>}
+          {tr('Pedidos')} {requestCount > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-bold text-white">{requestCount}</span>}
         </button>
       </div>
-      {view === 'requests' && <p className="px-1 pb-2 text-[13px] leading-snug text-zinc-500">Mensagens de quem não segues. Só passam para a caixa normal se aceitares. Quem recusas não é avisado.</p>}
+      {view === 'requests' && <p className="px-1 pb-2 text-[13px] leading-snug text-zinc-500">{tr('Mensagens de quem não segues. Só passam para a caixa normal se aceitares. Quem recusas não é avisado.')}</p>}
 
       {loading && <RowsSkeleton />}
       {!loading && rows.length === 0 && strangers.length === 0 && (
@@ -108,7 +109,7 @@ export default function Messages() {
           <p className="text-zinc-300" aria-hidden><Icon name="messages" size={44} className="mx-auto" /></p>
           <p className="mt-3 text-xl font-bold">{term ? 'Nada com esse nome' : view === 'requests' ? 'Sem pedidos' : 'Ainda sem cochichos'}</p>
           <p className="mx-auto mt-1 max-w-xs text-zinc-600">{term ? 'Tenta outro nome ou começa uma conversa nova.' : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.' : 'Toca no ícone no canto para falar com alguém ou criar um grupo.'}</p>
-          {!term && view === 'all' && <button onClick={() => setCreating(true)} className="mt-4 h-11 rounded-full bg-brand px-6 font-bold text-white active:scale-95">Nova conversa</button>}
+          {!term && view === 'all' && <button onClick={() => setCreating(true)} className="mt-4 h-11 rounded-full bg-brand px-6 font-bold text-white active:scale-95">{tr('Nova conversa')}</button>}
         </div>
       )}
       <ul>
@@ -126,12 +127,12 @@ export default function Messages() {
                 ) : (
                   <Avatar name={r.avatar.names[0].name} username={r.avatar.names[0].username} size={52} ring={false} />
                 )}
-                {r.online && <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" aria-label="Online" />}
+                {r.online && <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" aria-label={tr('Online')} />}
               </span>
               <span className="min-w-0 flex-1">
                 <span className={`flex items-center gap-1.5 text-[17px] ${r.unread ? 'font-extrabold' : 'font-semibold'}`}>
                   <span className="truncate">{r.name}</span>
-                  {r.group && <Icon name="users" size={14} className="shrink-0 text-zinc-400" aria-label="Grupo" />}
+                  {r.group && <Icon name="users" size={14} className="shrink-0 text-zinc-400" aria-label={tr('Grupo')} />}
                 </span>
                 <span className={`block truncate text-[15px] ${r.unread ? 'font-semibold text-zinc-900' : 'text-zinc-500'}`}>{r.sub}</span>
               </span>
@@ -146,7 +147,7 @@ export default function Messages() {
 
       {strangers.length > 0 && (
         <>
-          <p className="px-1 pb-1 pt-4 text-xs font-bold uppercase tracking-wider text-zinc-500">Outras pessoas</p>
+          <p className="px-1 pb-1 pt-4 text-xs font-bold uppercase tracking-wider text-zinc-500">{tr('Outras pessoas')}</p>
           <ul>
             {strangers.map((p) => (
               <li key={p.username}>
@@ -156,7 +157,7 @@ export default function Messages() {
                     <span className="block truncate font-semibold">{p.displayName}</span>
                     <span className="block truncate text-sm text-zinc-500">@{p.username}</span>
                   </span>
-                  <span className="rounded-full bg-zinc-100 px-4 py-1.5 text-sm font-bold">Conversar</span>
+                  <span className="rounded-full bg-zinc-100 px-4 py-1.5 text-sm font-bold">{tr('Conversar')}</span>
                 </Link>
               </li>
             ))}

@@ -1,4 +1,5 @@
 import type { Gender } from '../lib/api';
+import { tr } from '../lib/i18n';
 
 export const GENDERS: { value: Gender; label: string }[] = [
   { value: 'female', label: 'Feminino' },
@@ -12,7 +13,7 @@ export const genderLabel = (g: Gender) => GENDERS.find((x) => x.value === g)?.la
 /** "Como te identificas?" — escolha simples, sempre com a opção de não dizer. */
 export default function GenderPicker({ value, onChange, dark = false }: { value: Gender | null | undefined; onChange: (g: Gender) => void; dark?: boolean }) {
   return (
-    <div role="radiogroup" aria-label="Como te identificas?" className="grid grid-cols-2 gap-3">
+    <div role="radiogroup" aria-label={tr('Como te identificas?')} className="grid grid-cols-2 gap-3">
       {GENDERS.map((g) => {
         const on = value === g.value;
         return (

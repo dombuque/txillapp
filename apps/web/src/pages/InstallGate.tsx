@@ -1,4 +1,5 @@
 import { PontoLoader } from '../components/Loading';
+import { tr } from '../lib/i18n';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../components/Icon';
@@ -21,35 +22,35 @@ export default function InstallGate() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center bg-white px-7 py-10 text-center">
       <img src="/icon-192.png" alt="" width={88} height={88} className="h-22 w-22 rounded-[22px] shadow-lg" />
-      <h1 className="sr-only">Txillapp</h1>
+      <h1 className="sr-only">{tr('Txillapp')}</h1>
 
       {installed ? (
         <>
-          <p className="mt-8 flex items-center gap-2 text-xl font-bold text-green-700"><Icon name="check-circle" size={26} /> Instalado!</p>
-          <p className="mt-3 text-lg text-zinc-600">Abre o Txillapp pelo ícone no ecrã principal do teu telemóvel.</p>
+          <p className="mt-8 flex items-center gap-2 text-xl font-bold text-green-700"><Icon name="check-circle" size={26} /> {tr('Instalado!')}</p>
+          <p className="mt-3 text-lg text-zinc-600">{tr('Abre o Txillapp pelo ícone no ecrã principal do teu telemóvel.')}</p>
         </>
       ) : (
         <>
-          <p className="mt-8 text-2xl font-extrabold leading-tight">Instala o Txillapp para continuar</p>
-          <p className="mt-3 text-lg text-zinc-600">A app abre em ecrã inteiro, mais rápida, com notificações e o ícone no teu telemóvel.</p>
+          <p className="mt-8 text-2xl font-extrabold leading-tight">{tr('Instala o Txillapp para continuar')}</p>
+          <p className="mt-3 text-lg text-zinc-600">{tr('A app abre em ecrã inteiro, mais rápida, com notificações e o ícone no teu telemóvel.')}</p>
 
           {canPrompt && (
             <button onClick={() => void install()} className="mt-8 h-14 w-full rounded-full bg-brand text-lg font-bold text-white shadow-[0_10px_24px_rgba(214,51,79,0.35)] active:scale-[0.98]">
-              Instalar o Txillapp
+              {tr('Instalar o Txillapp')}
             </button>
           )}
           {iosHint && (
             <ol className="mt-8 w-full space-y-3 text-left text-lg">
-              <li className="flex items-center gap-3 rounded-2xl bg-zinc-100 px-4 py-3"><Icon name="share" size={26} className="shrink-0 text-brand" /> Toca em <b>Partilhar</b>, na barra do Safari</li>
-              <li className="flex items-center gap-3 rounded-2xl bg-zinc-100 px-4 py-3"><Icon name="square-plus" size={26} className="shrink-0 text-brand" /> Escolhe <b>Adicionar ao ecrã principal</b></li>
-              <li className="flex items-center gap-3 rounded-2xl bg-zinc-100 px-4 py-3"><Icon name="check" size={26} className="shrink-0 text-brand" /> Abre o Txillapp pelo novo ícone</li>
+              <li className="flex items-center gap-3 rounded-2xl bg-zinc-100 px-4 py-3"><Icon name="share" size={26} className="shrink-0 text-brand" /> {tr('Toca em')} <b>{tr('Partilhar')}</b>{tr(', na barra do Safari')}</li>
+              <li className="flex items-center gap-3 rounded-2xl bg-zinc-100 px-4 py-3"><Icon name="square-plus" size={26} className="shrink-0 text-brand" /> {tr('Escolhe')} <b>{tr('Adicionar ao ecrã principal')}</b></li>
+              <li className="flex items-center gap-3 rounded-2xl bg-zinc-100 px-4 py-3"><Icon name="check" size={26} className="shrink-0 text-brand" /> {tr('Abre o Txillapp pelo novo ícone')}</li>
             </ol>
           )}
-          {iosOpenInSafari && <p className="mt-8 rounded-2xl bg-zinc-100 px-4 py-4 text-lg">No iPhone, a instalação só funciona no <b>Safari</b>. Abre <b>app.txillapp.com</b> nele.</p>}
-          {!canPrompt && !iosHint && !iosOpenInSafari && !unsupported && <div className="mt-8 flex flex-col items-center gap-1 text-zinc-500"><PontoLoader size={18} label="A preparar a instalação" /><p>A preparar a instalação…</p></div>}
+          {iosOpenInSafari && <p className="mt-8 rounded-2xl bg-zinc-100 px-4 py-4 text-lg">{tr('No iPhone, a instalação só funciona no')} <b>{tr('Safari')}</b>{tr('. Abre')} <b>{tr('app.txillapp.com')}</b> {tr('nele.')}</p>}
+          {!canPrompt && !iosHint && !iosOpenInSafari && !unsupported && <div className="mt-8 flex flex-col items-center gap-1 text-zinc-500"><PontoLoader size={18} label={tr('A preparar a instalação')} /><p>{tr('A preparar a instalação…')}</p></div>}
           {unsupported && (
             <div className="mt-8 w-full">
-              <p className="rounded-2xl bg-zinc-100 px-4 py-4 text-zinc-700">Este navegador não consegue instalar a app. No Android usa o <b>Chrome</b>; no iPhone usa o <b>Safari</b>.</p>
+              <p className="rounded-2xl bg-zinc-100 px-4 py-4 text-zinc-700">{tr('Este navegador não consegue instalar a app. No Android usa o')} <b>{tr('Chrome')}</b>{tr('; no iPhone usa o')} <b>{tr('Safari')}</b>.</p>
               <button
                 onClick={() => {
                   try {
@@ -61,14 +62,14 @@ export default function InstallGate() {
                 }}
                 className="mt-4 font-semibold text-brand underline"
               >
-                Continuar no navegador
+                {tr('Continuar no navegador')}
               </button>
             </div>
           )}
         </>
       )}
       <p className="mt-10 text-sm text-zinc-500">
-        <Link to="/terms" className="underline">Termos</Link> · <Link to="/privacy" className="underline">Privacidade</Link>
+        <Link to="/terms" className="underline">{tr('Termos')}</Link> · <Link to="/privacy" className="underline">{tr('Privacidade')}</Link>
       </p>
     </main>
   );

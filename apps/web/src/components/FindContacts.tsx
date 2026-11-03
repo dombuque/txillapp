@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { tr } from '../lib/i18n';
 import { Link } from 'react-router-dom';
 import { api, type Suggestion } from '../lib/api';
 import { canPickContacts, emailsFromFile, hashAll, pickContactEmails } from '../lib/contacts';
@@ -36,25 +37,25 @@ export default function FindContacts({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Sheet title="Amigos nos contactos" onClose={onClose} layer="z-[70]">
+    <Sheet title={tr('Amigos nos contactos')} onClose={onClose} layer="z-[70]">
       {found === null ? (
         <div className="space-y-3">
-          <p className="text-[15px] text-zinc-700">Vê quem dos teus contactos já está no Txillapp. Os contactos ficam no teu telemóvel: só enviamos um resumo cifrado dos emails, só para comparar, e não guardamos nada.</p>
+          <p className="text-[15px] text-zinc-700">{tr('Vê quem dos teus contactos já está no Txillapp. Os contactos ficam no teu telemóvel: só enviamos um resumo cifrado dos emails, só para comparar, e não guardamos nada.')}</p>
           {canPickContacts() ? (
             <>
               <button type="button" disabled={busy} onClick={() => void run(pickContactEmails)} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-brand font-bold text-white transition active:scale-[0.98] disabled:opacity-50">
                 <Icon name="users" size={20} /> {busy ? 'A procurar…' : 'Permitir acesso aos contactos'}
               </button>
-              <p className="text-sm text-zinc-500">O telemóvel vai pedir a tua permissão e mostrar os contactos: escolhe os que quiseres (ou todos).</p>
+              <p className="text-sm text-zinc-500">{tr('O telemóvel vai pedir a tua permissão e mostrar os contactos: escolhe os que quiseres (ou todos).')}</p>
             </>
           ) : (
             <div className="rounded-2xl bg-zinc-50 p-4 text-sm text-zinc-700">
-              <p className="font-semibold text-zinc-900">Neste aparelho a app web não pode ler os contactos.</p>
-              <p className="mt-1">No iPhone isso só é possível na app da App Store, que vai pedir a permissão normal. Enquanto isso, podes importar um ficheiro de contactos (.vcf).</p>
+              <p className="font-semibold text-zinc-900">{tr('Neste aparelho a app web não pode ler os contactos.')}</p>
+              <p className="mt-1">{tr('No iPhone isso só é possível na app da App Store, que vai pedir a permissão normal. Enquanto isso, podes importar um ficheiro de contactos (.vcf).')}</p>
               <button type="button" disabled={busy} onClick={() => file.current?.click()} className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-white font-semibold text-zinc-800 ring-1 ring-zinc-200 transition active:scale-[0.98] disabled:opacity-50">
                 <Icon name="download" size={18} /> {busy ? 'A procurar…' : 'Importar ficheiro de contactos'}
               </button>
-              <p className="mt-2 text-xs text-zinc-500">Na app Contactos do iPhone, escolhe os contactos, toca em Partilhar e guarda o ficheiro .vcf.</p>
+              <p className="mt-2 text-xs text-zinc-500">{tr('Na app Contactos do iPhone, escolhe os contactos, toca em Partilhar e guarda o ficheiro .vcf.')}</p>
             </div>
           )}
           <input ref={file} type="file" accept=".vcf,.csv,text/vcard,text/csv,text/plain" className="hidden" onChange={(e) => {
@@ -66,9 +67,9 @@ export default function FindContacts({ onClose }: { onClose: () => void }) {
         </div>
       ) : found.length === 0 ? (
         <div className="py-6 text-center text-zinc-600">
-          <p className="font-extrabold">Ninguém por agora</p>
+          <p className="font-extrabold">{tr('Ninguém por agora')}</p>
           <p className="mt-1 text-sm">{total ? `Vimos ${total} ${total === 1 ? 'email' : 'emails'} e nenhum está no Txillapp (ou ainda não quer ser encontrado).` : 'Não encontrámos emails nos contactos.'}</p>
-          <button type="button" onClick={() => setFound(null)} className="mt-4 h-11 rounded-full bg-zinc-100 px-6 font-semibold active:scale-95">Tentar outra vez</button>
+          <button type="button" onClick={() => setFound(null)} className="mt-4 h-11 rounded-full bg-zinc-100 px-6 font-semibold active:scale-95">{tr('Tentar outra vez')}</button>
         </div>
       ) : (
         <ul>

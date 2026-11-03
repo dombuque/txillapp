@@ -1,4 +1,5 @@
 import { LoadingBlock } from './Loading';
+import { tr } from '../lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api, type PeopleKind } from '../lib/api';
@@ -13,7 +14,7 @@ export default function PeopleSheet({ postId, kind, onClose, layer }: { postId: 
   return (
     <Sheet title={TITLE[kind]} onClose={onClose} layer={layer}>
       {q.isLoading && <LoadingBlock className="py-6" />}
-      {q.isError && <p role="alert" className="py-6 text-center text-zinc-600">Esta lista não está disponível</p>}
+      {q.isError && <p role="alert" className="py-6 text-center text-zinc-600">{tr('Esta lista não está disponível')}</p>}
       {q.isSuccess && q.data.length === 0 && <p className="py-6 text-center text-zinc-500">{EMPTY[kind]}</p>}
       <ul>
         {q.data?.map((p) => (

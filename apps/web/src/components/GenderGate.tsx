@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { MIN_AGE, birthDateSchema, earliestBirthDate, latestBirthDate } from '@txillapp/shared';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -45,7 +46,7 @@ export default function GenderGate() {
   }
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/50 sm:items-center" role="dialog" aria-modal="true" aria-label="Completa o teu perfil">
+    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/50 sm:items-center" role="dialog" aria-modal="true" aria-label={tr('Completa o teu perfil')}>
       <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-[28px] bg-white px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-6 sm:rounded-[28px]">
         <h2 className="text-2xl font-extrabold">{needGender || needBirth ? 'Só mais um passo' : 'Atualizámos os termos'}</h2>
         <p className="mb-5 mt-1 text-zinc-600">
@@ -56,20 +57,20 @@ export default function GenderGate() {
 
         {needGender && (
           <>
-            <p className="mb-2 font-semibold">Como te identificas?</p>
+            <p className="mb-2 font-semibold">{tr('Como te identificas?')}</p>
             <GenderPicker value={gender} onChange={setGender} />
           </>
         )}
         {needBirth && (
           <>
-            <p className="mb-2 mt-5 font-semibold">Quando nasceste?</p>
+            <p className="mb-2 mt-5 font-semibold">{tr('Quando nasceste?')}</p>
             <input
               type="date"
               min={earliestBirthDate()}
               max={latestBirthDate()}
               value={birth}
               onChange={(e) => setBirth(e.target.value)}
-              aria-label="Data de nascimento"
+              aria-label={tr('Data de nascimento')}
               className="h-14 w-full rounded-2xl border-2 border-zinc-200 px-4 text-lg outline-none focus:border-zinc-500"
             />
             <p className={`mt-1 px-1 text-sm ${birthProblem ? 'font-medium text-red-600' : 'text-zinc-500'}`}>{birthProblem ?? `Para confirmar que tens ${MIN_AGE}+ anos. Ninguém vê esta data.`}</p>
@@ -79,8 +80,8 @@ export default function GenderGate() {
           <label className="mt-5 flex cursor-pointer items-start gap-3 px-1 text-[15px] leading-snug text-zinc-700">
             <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-[#d6334f]" />
             <span>
-              Li e aceito os <Link to="/terms" target="_blank" className="font-semibold text-brand underline">Termos de Uso</Link> e a{' '}
-              <Link to="/privacy" target="_blank" className="font-semibold text-brand underline">Política de Privacidade</Link>.
+              {tr('Li e aceito os')} <Link to="/terms" target="_blank" className="font-semibold text-brand underline">{tr('Termos de Uso')}</Link> e a{' '}
+              <Link to="/privacy" target="_blank" className="font-semibold text-brand underline">{tr('Política de Privacidade')}</Link>.
             </span>
           </label>
         )}

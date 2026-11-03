@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import Icon from '../components/Icon';
@@ -32,9 +33,9 @@ export default function ReelPage() {
       {q.isError && (
         <div className="flex h-full flex-col items-center justify-center px-8 text-center text-white">
           <Icon name="film" size={48} className="text-white/70" />
-          <p className="mt-4 text-xl font-extrabold">Este reel já não está disponível</p>
-          <p className="mt-1 text-white/75">Pode ter sido apagado, ou a conta passou a privada.</p>
-          <Link to="/reels" className="mt-6 rounded-full bg-brand px-7 py-3 font-bold active:scale-95">Ver outros reels</Link>
+          <p className="mt-4 text-xl font-extrabold">{tr('Este reel já não está disponível')}</p>
+          <p className="mt-1 text-white/75">{tr('Pode ter sido apagado, ou a conta passou a privada.')}</p>
+          <Link to="/reels" className="mt-6 rounded-full bg-brand px-7 py-3 font-bold active:scale-95">{tr('Ver outros reels')}</Link>
         </div>
       )}
       {post && isVideo && (
@@ -43,8 +44,8 @@ export default function ReelPage() {
         </div>
       )}
       <div className="pointer-events-none absolute inset-x-0 top-0 mx-auto flex max-w-xl items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
-        <button onClick={close} aria-label="Voltar" className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90"><Icon name="back" size={24} /></button>
-        <span className="text-lg font-extrabold drop-shadow">Reel</span>
+        <button onClick={close} aria-label={tr('Voltar')} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90"><Icon name="back" size={24} /></button>
+        <span className="text-lg font-extrabold drop-shadow">{tr('Reel')}</span>
         <button onClick={() => setMuted(!muted)} aria-label={muted ? 'Ligar o som' : 'Desligar o som'} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
           <Icon name={muted ? 'volume-off' : 'volume'} size={22} />
         </button>

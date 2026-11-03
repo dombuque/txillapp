@@ -1,4 +1,5 @@
 import { track } from '../lib/analytics';
+import { tr } from '../lib/i18n';
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import Icon from './Icon';
@@ -66,7 +67,7 @@ export default function PushToggle() {
     <div className="flex min-h-[56px] items-center gap-3.5 px-4 py-3">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="bell" /></span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[16px] font-medium">Notificações no telemóvel</span>
+        <span className="block text-[16px] font-medium">{tr('Notificações no telemóvel')}</span>
         <span className={`block text-sm ${err ? 'text-red-600' : 'text-zinc-600'}`}>{text}</span>
         {on && (
           <button
@@ -81,14 +82,14 @@ export default function PushToggle() {
             }}
             className="mt-1 text-sm font-semibold text-brand underline"
           >
-            Enviar notificação de teste
+            {tr('Enviar notificação de teste')}
           </button>
         )}
       </span>
       <button
         role="switch"
         aria-checked={on}
-        aria-label="Notificações no telemóvel"
+        aria-label={tr('Notificações no telemóvel')}
         disabled={!available || busy}
         onClick={() => (on ? disable() : enable())}
         className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-40 ${on ? 'bg-brand' : 'bg-zinc-300'}`}
