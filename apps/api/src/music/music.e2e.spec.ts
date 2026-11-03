@@ -83,4 +83,43 @@ describe('música nas notas: catálogo de licenças abertas e crédito (integra�
     await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'só texto' }).expect(204); // sem música continua a funcionar
     await api().delete('/api/v1/notes/me').set(auth(mua)).expect(204);
   });
+
+  it('post com música: guarda-se com o crédito e vê-se no post; faixa inválida é recusada', async () => {
+    const { mua, mub } = u;
+    const post = (await api().post('/api/v1/posts').set(auth(mua)).send({ body: 'Som da praia', music: good }).expect(201)).body;
+    expect(post.music).toMatchObject({ title: 'Marrabenta de teste', artist: 'Artista Livre', license: 'by' });
+    const seen = (await api().get(`/api/v1/posts/code/${post.code}`).set(auth(mub)).expect(200)).body;
+    expect(seen.music).toMatchObject({ title: 'Marrabenta de teste', url: good.url });
+    expect((await api().post('/api/v1/posts').set(auth(mua)).send({ body: 'sem música' }).expect(201)).body.music).toBeNull();
+    await api().post('/api/v1/posts').set(auth(mua)).send({ body: 'x', music: { ...good, url: 'https://evil.example.com/a.mp3' } }).expect(400);
+    await api().post('/api/v1/posts').set(auth(mua)).send({ body: 'x', music: { ...good, license: 'by-nc' } }).expect(400);
+  });
+
+  it('clipe de áudio próprio: só áudio meu e privado; aparece com URL assinado em notas e posts', async () => {
+    const { mua, mub } = u;
+    const WEBM = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3, 4, 5, 6, 7, 8]);
+    const up = async (who: U, mime: string, bytes: Buffer, purpose = 'chat') => {
+      const r = await api().post('/api/v1/media/uploads').set(auth(who)).send({ mime, size: bytes.length, purpose }).expect(201);
+      await api().put(r.body.uploadUrl).set('Content-Type', mime).send(bytes).expect(200);
+      return r.body.assetId as string;
+    };
+    const clip = await up(mua, 'audio/webm', WEBM);
+    const music = { kind: 'clip', mediaId: clip, durationMs: 8000 };
+
+    await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'Ouve isto', music }).expect(204);
+    const note = (await api().get('/api/v1/notes').set(auth(mub)).expect(200)).body.items.find((n: { username: string }) => n.username === mua.username);
+    expect(note.music).toMatchObject({ kind: 'clip', title: 'Áudio original', license: 'own' });
+    expect(note.music.url).toContain('/chat/media/');
+    await api().get(note.music.url).expect(200).expect('Content-Type', /audio\/webm/);
+    await api().delete('/api/v1/notes/me').set(auth(mua)).expect(204);
+
+    const post = (await api().post('/api/v1/posts').set(auth(mua)).send({ body: 'Som meu', music }).expect(201)).body;
+    expect(post.music.url).toContain('/chat/media/');
+
+    // Áudio de outra pessoa, imagem, duração a mais ou sem carregar: recusado.
+    const other = await up(mub, 'audio/webm', WEBM);
+    await api().post('/api/v1/posts').set(auth(mua)).send({ body: 'x', music: { kind: 'clip', mediaId: other, durationMs: 5000 } }).expect(400);
+    await api().post('/api/v1/posts').set(auth(mua)).send({ body: 'x', music: { kind: 'clip', mediaId: clip, durationMs: 90000 } }).expect(400);
+    await api().post('/api/v1/posts').set(auth(mua)).send({ body: 'x', music: { kind: 'clip', mediaId: '00000000-0000-4000-8000-000000000000', durationMs: 5000 } }).expect(400);
+  });
 });

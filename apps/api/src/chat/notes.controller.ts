@@ -5,13 +5,13 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
-import { trackSchema } from '../music/music.service';
+import { musicSchema } from '../music/music.service';
 import { NotesService } from './notes.service';
 
 type AuthedReq = Request & { userId?: string };
 
 const noteSchema = z
-  .object({ body: z.string().trim().max(60).default(''), music: trackSchema.nullable().optional() })
+  .object({ body: z.string().trim().max(60).default(''), music: musicSchema.nullable().optional() })
   .refine((n) => n.body.length > 0 || !!n.music, { message: 'Escreve algo ou escolhe uma música', path: ['body'] });
 const replySchema = z.object({ text: z.string().trim().min(1).max(500) });
 

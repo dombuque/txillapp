@@ -1,4 +1,5 @@
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
+import { musicSchema } from '../music/music.service';
 import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { z } from 'zod';
@@ -13,6 +14,7 @@ type AuthedReq = Request & { userId?: string };
 
 const createSchema = z.object({
   body: z.string().trim().max(2000).default(''),
+  music: musicSchema.nullable().optional(),
   locationLabel: z.string().trim().max(80).optional(),
   mediaIds: z.array(z.string().uuid()).max(MAX_PHOTOS).default([]),
   tags: z.array(z.object({ index: z.number().int().min(0).max(MAX_PHOTOS - 1), username: z.string().min(3).max(30), x: z.number().min(0).max(1), y: z.number().min(0).max(1) })).max(30).default([]),
@@ -68,7 +70,7 @@ export class PostsController {
   @NeedsVerifiedEmail()
   @Post()
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
-    return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds, b.tags);
+    return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds, b.tags, b.music ?? null);
   }
 
   @Get()

@@ -1232,6 +1232,16 @@ export const EN: Record<string, string> = {
   '@{u} já tem dono': '@{u} is already taken',
   '@{u} está livre': '@{u} is free',
 
+  // Clipe de áudio
+  'Original': 'Original',
+  'Áudio original': 'Original audio',
+  'Gravar o meu áudio': 'Record my own audio',
+  'Gravar (até 30 s)': 'Record (up to 30 s)',
+  'A gravar': 'Recording',
+  'Repetir': 'Redo',
+  'Este telemóvel não deixa gravar áudio aqui': 'This phone does not let you record audio here',
+  'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
+
   // Novos
   'Agora': 'Now',
   'Há {n}min': '{n}min ago',

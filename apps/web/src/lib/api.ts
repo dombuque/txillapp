@@ -50,6 +50,8 @@ export class ApiError extends Error {
 }
 
 export interface Post {
+  /** Faixa de licença aberta, com o crédito do autor. */
+  music?: Track | null;
   /** Código curto para links limpos (txillapp.com/p/Ab3xK9q). */
   code: string;
   id: string;
@@ -234,7 +236,9 @@ export interface Conversation {
   unread: number;
 }
 export type NoteAudience = 'mutual' | 'close_friends';
-export interface Track { id: string; title: string; artist: string; url: string; landing: string | null; license: string; licenseUrl: string | null; durationMs: number | null; cover: string | null }
+export interface Track { kind?: 'clip'; mediaId?: string; id: string; title: string; artist: string; url: string; landing: string | null; license: string; licenseUrl: string | null; durationMs: number | null; cover: string | null }
+/** O que se envia ao servidor: uma faixa de licença aberta inteira, ou só os dados do clipe próprio. */
+export const musicPayload = (t: Track | null | undefined) => (!t ? undefined : t.kind === 'clip' ? { kind: 'clip' as const, mediaId: t.mediaId!, durationMs: t.durationMs ?? 1000, title: t.title } : t);
 export interface Note {
   music?: Track | null; username: string; displayName: string; hasAvatar: boolean; body: string; audience: NoteAudience; createdAt: string; expiresAt: string }
 export interface GroupSummary {
@@ -521,7 +525,7 @@ export const api = {
   feed: (cursor?: string): Promise<Page<Post>> => raw(`/feed${qs(cursor, 10)}`),
   markSeen: (ids: string[]): Promise<void> => raw('/feed/seen', post({ ids })),
   hideFromFeed: (postId: string): Promise<void> => raw('/feed/hide', post({ postId })),
-  createPost: (b: { body: string; locationLabel?: string; mediaIds: string[]; tags?: { index: number; username: string; x: number; y: number }[] }): Promise<Post> => raw('/posts', post(b)),
+  createPost: (b: { body: string; music?: Track | null; locationLabel?: string; mediaIds: string[]; tags?: { index: number; username: string; x: number; y: number }[] }): Promise<Post> => raw('/posts', post({ ...b, music: musicPayload(b.music) })),
   cheer: (id: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/posts/${id}/cheers`, post({})),
   /** Presente numa publicação: discreto, mensagem privada ao destinatário, ou post no feed. */
   gift: (id: string, amount: number, key: string, note = '', visibility: GiftVisibility = 'silent'): Promise<{ transactionId: string; post: Post; announcement: Post | null }> =>
@@ -598,7 +602,7 @@ export const api = {
   postPeople: (postId: string, kind: PeopleKind): Promise<{ username: string; displayName: string; hasAvatar: boolean; verified: boolean; at: string }[]> => raw(`/posts/${postId}/people/${kind}`),
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
   notes: (): Promise<{ mine: Note | null; items: Note[] }> => raw('/notes'),
-  setNote: (body: string, music?: Track | null): Promise<void> => raw('/notes/me', { method: 'PUT', body: JSON.stringify({ body, music: music ?? undefined }) }),
+  setNote: (body: string, music?: Track | null): Promise<void> => raw('/notes/me', { method: 'PUT', body: JSON.stringify({ body, music: musicPayload(music) }) }),
   searchMusic: (q: string): Promise<Track[]> => raw(`/music/search?q=${encodeURIComponent(q)}`),
   deleteNote: (): Promise<void> => raw('/notes/me', { method: 'DELETE' }),
   replyNote: (username: string, text: string): Promise<{ id: string }> => raw(`/notes/${encodeURIComponent(username)}/reply`, post({ text })),

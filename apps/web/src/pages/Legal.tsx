@@ -104,7 +104,7 @@ export function Terms() {
         <h2>7. Stories, notas e conteúdo temporário</h2>
         <ul>
           <li><b>Stories e notas</b> duram 24 horas. As <b>notas</b> só as veem os teus seguidores e não se editam: apagas e publicas outra.</li>
-          <li><b>Música nas notas</b>: só se usam faixas de licença aberta (Creative Commons: CC0, domínio público, CC BY e CC BY-SA), de um catálogo público (Openverse). O nome do autor e a licença aparecem junto à faixa. Quando procuras música, o texto que escreves é enviado a esse catálogo; não enviamos mais nada sobre ti.</li>
+          <li><b>Música nas notas e nos posts</b>: só se usam faixas de licença aberta (Creative Commons: CC0, domínio público, CC BY e CC BY-SA), de um catálogo público (Openverse). O nome do autor e a licença aparecem junto à faixa. Quando procuras música, o texto que escreves é enviado a esse catálogo; não enviamos mais nada sobre ti. Também podes gravar um clipe de áudio teu (até 30 segundos): fica guardado de forma privada e só é mostrado a quem vê a nota ou o post.</li>
           <li><b>Visualização única</b>: fotos, voz e mensagens que só se abrem uma vez; depois são apagadas do servidor. Quem recebe pode, mesmo assim, fotografar o ecrã. Não confies nisto para o que não podes arriscar.</li>
           <li><b>Localização em direto</b> só se atualiza enquanto o Txillapp está aberto no teu aparelho e para quando acabar o tempo que escolheste (ou quando a parares).</li>
           <li>Podes partilhar publicações e stories com amigos no chat ou noutras apps. Quando alguém abre o link sem ter entrado, vê apenas uma pré-visualização das publicações <b>públicas</b>, sem poder brindar, comentar nem partilhar.</li>

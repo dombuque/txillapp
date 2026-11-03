@@ -1,5 +1,8 @@
-import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Pool } from 'pg';
 import { z } from 'zod';
+import { PG_POOL } from '../db/db.module';
+import { MediaService } from '../media/media.service';
 
 /** Onde as faixas de licença aberta estão alojadas (o Openverse junta estes e outros). Só se tocam faixas destes sítios. */
 const ALLOWED_HOSTS = [
@@ -55,6 +58,18 @@ export const trackSchema = z.object({
   cover: z.string().url().max(500).nullable().default(null),
 });
 
+/** Clipe de áudio gravado pela própria pessoa (até 30 s): fica no armazenamento privado e é servido com URL assinado. */
+export const clipSchema = z.object({
+  kind: z.literal('clip'),
+  mediaId: z.string().uuid(),
+  durationMs: z.number().int().min(500).max(30_000),
+  title: z.string().trim().max(60).default('Áudio original'),
+});
+
+/** O que uma nota ou um post pode levar: uma faixa de licença aberta ou um clipe próprio. */
+export const musicSchema = z.union([clipSchema, trackSchema]);
+export type MusicInput = z.infer<typeof musicSchema>;
+
 interface OpenverseAudio {
   id: string;
   title?: string;
@@ -77,6 +92,27 @@ const API = 'https://api.openverse.org/v1/audio/';
 export class MusicService {
   private readonly log = new Logger('Music');
   private readonly cache = new Map<string, { at: number; items: Track[] }>();
+
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly media: MediaService,
+  ) {}
+
+  /** Antes de guardar: um clipe tem de ser áudio meu, privado e já carregado (nunca de outra pessoa). */
+  async prepare(userId: string, music: MusicInput | null | undefined): Promise<Record<string, unknown> | null> {
+    if (!music) return null;
+    if (!('kind' in music)) return music as unknown as Record<string, unknown>;
+    const r = await this.pool.query(`SELECT 1 FROM content.media_assets WHERE id = $1 AND owner_id = $2 AND purpose = 'chat' AND status = 'ready' AND mime LIKE 'audio/%'`, [music.mediaId, userId]);
+    if (!r.rowCount) throw new BadRequestException('Áudio inválido ou ainda não carregado');
+    return { kind: 'clip', mediaId: music.mediaId, durationMs: music.durationMs, title: music.title };
+  }
+
+  /** Ao devolver: o clipe ganha um URL assinado e temporário (como as mensagens de voz). */
+  resolve(music: Record<string, unknown> | null): Record<string, unknown> | null {
+    if (!music || music.kind !== 'clip') return music;
+    return { ...music, id: `clip:${music.mediaId as string}`, artist: '', url: this.media.chatUrl(music.mediaId as string), landing: null, license: 'own', licenseUrl: null, cover: null };
+  }
+
 
   async search(term: string): Promise<Track[]> {
     const q = term.trim().slice(0, 60);

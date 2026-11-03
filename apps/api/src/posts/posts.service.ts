@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { MusicService, type MusicInput } from '../music/music.service';
 import { TextFilter } from '../safety/text-filter.service';
 import { Pool, PoolClient } from 'pg';
 import { uuidv7 } from '../common/uuid7';
@@ -16,7 +17,7 @@ export const MAX_PHOTOS = 10;
 export type GiftVisibility = 'silent' | 'private' | 'public';
 
 const FEED_SQL = `
-  SELECT p.id, p.short_code, p.body, p.location_label, p.created_at, p.kind, p.gift_amount, p.repost_of,
+  SELECT p.id, p.short_code, p.body, p.music, p.location_label, p.created_at, p.kind, p.gift_amount, p.repost_of,
          u.id AS author_id, u.username, u.display_name, u.verified AS author_verified, u.verified_tier AS author_tier,
          gr.username AS gift_username, gr.display_name AS gift_display_name, (gr.avatar_media_id IS NOT NULL) AS gift_has_avatar, gr.verified AS gift_verified, gr.verified_tier AS gift_tier,
          ${allowedBy('u', 'comments_allowed')} AS can_comment,
@@ -56,10 +57,12 @@ export class PostsService {
     private readonly notifications: NotificationsService,
     private readonly indexer: SearchIndexer,
     private readonly filter: TextFilter,
+    private readonly musicSvc: MusicService,
   ) {}
 
-  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = []) {
-    this.filter.assertClean(body, locationLabel);
+  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null) {
+    this.filter.assertClean(body, locationLabel, musicIn?.title, 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
+    const music = await this.musicSvc.prepare(userId, musicIn);
     if (mediaIds.length > MAX_PHOTOS) throw new BadRequestException(`No máximo ${MAX_PHOTOS} fotos por publicação`);
     if (new Set(mediaIds).size !== mediaIds.length) throw new BadRequestException('Fotos repetidas');
     if (!body.trim() && mediaIds.length === 0) throw new BadRequestException('Escreve algo ou mete uma foto');
@@ -81,8 +84,8 @@ export class PostsService {
         if (vids.rows[0].n > 0 && mediaIds.length !== 1) throw new BadRequestException('Uma publicação com vídeo tem só esse vídeo');
       }
       const id = uuidv7();
-      await client.query('INSERT INTO content.posts (id, author_id, body, location_label) VALUES ($1, $2, $3, $4)', [
-        id, userId, body.trim(), locationLabel || null,
+      await client.query('INSERT INTO content.posts (id, author_id, body, location_label, music) VALUES ($1, $2, $3, $4, $5)', [
+        id, userId, body.trim(), locationLabel || null, music ? JSON.stringify(music) : null,
       ]);
       for (const tag of extractHashtags(body)) {
         await client.query('INSERT INTO content.post_tags (post_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, tag]);
@@ -514,6 +517,8 @@ export class PostsService {
     code: r.short_code as string,
     body: r.body,
     locationLabel: r.location_label,
+    /** Faixa de licença aberta com o crédito do autor, se o post leva música. */
+    music: this.musicSvc.resolve((r.music as Record<string, unknown> | null) ?? null),
     media: (r.media as { id: string; video: boolean; durationMs: number | null; w: number | null; h: number | null; tags: PhotoTag[] }[]).map((m) => ({
       url: `/api/v1/media/${m.id}`,
       tags: m.tags,

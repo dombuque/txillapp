@@ -6,10 +6,12 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Camera from '../components/Camera';
 import MentionTextarea from '../components/MentionTextarea';
+import MusicPicker from '../components/MusicPicker';
+import TrackCard from '../components/TrackCard';
 import PhotoTagger from '../components/PhotoTagger';
 import PlaceSheet from '../components/PlacePicker';
 import { Avatar, Sheet } from '../components/ui';
-import { api, type PhotoTag } from '../lib/api';
+import { api, type PhotoTag, type Track } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { clearDraft, loadDraft, saveDraft } from '../lib/draft';
 import { takeHandoff } from '../lib/handoff';
@@ -29,6 +31,8 @@ export default function Compose() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const [body, setBody] = useState('');
+  const [music, setMusic] = useState<Track | null>(null);
+  const [pickingMusic, setPickingMusic] = useState(false);
   const [place, setPlace] = useState('');
   const [placeOpen, setPlaceOpen] = useState(false);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -169,6 +173,7 @@ export default function Compose() {
       setProgress(null);
       await api.createPost({
         body,
+        music,
         locationLabel: place || undefined,
         mediaIds,
         tags: photos.flatMap((p, index) => p.tags.map((t) => ({ index, username: t.username, x: t.x, y: t.y }))),
@@ -240,6 +245,15 @@ export default function Compose() {
             aria-label={tr('Texto da publicação')}
             className="min-h-[110px] w-full resize-none bg-transparent text-xl leading-snug outline-none placeholder:text-zinc-500"
           />
+          {music ? (
+            <div className="relative">
+              <TrackCard track={music} />
+              <button type="button" onClick={() => setMusic(null)} aria-label={tr('Tirar a música')} className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-zinc-600 shadow ring-1 ring-zinc-200 active:scale-90"><Icon name="x" size={16} /></button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setPickingMusic(true)} className="mt-1 flex h-10 items-center gap-2 rounded-full bg-zinc-100 px-4 text-sm font-semibold text-zinc-800 active:scale-95"><Icon name="music" size={16} /> {tr('Adicionar música')}</button>
+          )}
+          {pickingMusic && <MusicPicker onPick={(t) => { setMusic(t); setPickingMusic(false); }} onClose={() => setPickingMusic(false)} />}
           {left < 200 && <p className={`text-right text-xs ${left < 50 ? 'font-semibold text-brand' : 'text-zinc-500'}`} aria-live="polite">{left}</p>}
         </div>
 

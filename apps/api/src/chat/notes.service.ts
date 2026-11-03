@@ -1,4 +1,5 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { MusicService, type MusicInput } from '../music/music.service';
 import { TextFilter } from '../safety/text-filter.service';
 import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
@@ -14,6 +15,7 @@ export class NotesService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly chat: ChatService,
     private readonly filter: TextFilter,
+    private readonly musicSvc: MusicService,
   ) {}
 
   /** A minha nota (se ainda vale) e as de quem me deixa vê-las. */
@@ -34,7 +36,7 @@ export class NotesService {
       hasAvatar: r.has_avatar as boolean,
       body: r.body as string,
       /** Faixa de licença aberta com o crédito do autor, se a nota leva música. */
-      music: (r.music as Record<string, unknown> | null) ?? null,
+      music: this.musicSvc.resolve((r.music as Record<string, unknown> | null) ?? null),
       audience: r.audience as NoteAudience,
       createdAt: r.created_at as string,
       expiresAt: r.expires_at as string,
@@ -44,8 +46,9 @@ export class NotesService {
   }
 
   /** Publicar a minha nota (24 horas, para os seguidores). Não se troca: para escrever outra, apaga-se esta primeiro. */
-  async set(me: string, body: string, music: Record<string, unknown> | null = null) {
-    this.filter.assertClean(body, (music as { title?: string; artist?: string } | null)?.title, (music as { title?: string; artist?: string } | null)?.artist);
+  async set(me: string, body: string, musicIn: MusicInput | null = null) {
+    this.filter.assertClean(body, musicIn?.title, 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
+    const music = await this.musicSvc.prepare(me, musicIn);
     await this.pool.query('DELETE FROM social.notes WHERE user_id = $1 AND expires_at <= now()', [me]);
     try {
       await this.pool.query(

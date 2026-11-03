@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom';
 import { tr, locale } from '../lib/i18n';
 import { useOnline } from '../lib/presence';
 import ShareSheet from './ShareSheet';
+import TrackCard from './TrackCard';
 import VideoPlayer from './VideoPlayer';
 import { track } from '../lib/analytics';
 import { postLink } from '../lib/share';
@@ -211,6 +212,7 @@ function PostBody({ post }: { post: Post }) {
       {post.body && <p className="mt-4 whitespace-pre-wrap break-words text-[19px] text-zinc-800"><RichText text={post.body} /></p>}
         </>
       )}
+      {post.music && <TrackCard track={post.music} />}
       <Carousel media={post.media} onOpen={setViewer} reelId={post.id} />
       <Actions post={post} />
       {viewer !== null && <ImageViewer post={post} start={viewer} onClose={() => setViewer(null)} />}
