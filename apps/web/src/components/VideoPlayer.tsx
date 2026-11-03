@@ -47,6 +47,20 @@ const useEffectiveMuted = (reels: boolean) => useSyncExternalStore((cb) => (subs
  * Só para vídeos do nosso domínio (sem CORS) e se algo falhar, o vídeo toca como antes.
  */
 let audioCtx: AudioContext | null = null;
+/**
+ * Safari (iOS 16.4+): o som dos vídeos é "ambiente", como nas apps de redes sociais. Assim o iPhone não o trata como música:
+ * não aparece na Dynamic Island nem no ecrã de bloqueio como leitor, não interrompe a música de outras apps e respeita o botão de silêncio.
+ */
+function ambientAudio() {
+  try {
+    const a = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+    if (a && a.type !== 'ambient') a.type = 'ambient';
+  } catch {
+    /* sem a API (Android, computador): o som toca como antes */
+  }
+}
+ambientAudio();
+
 const routed = new WeakSet<HTMLVideoElement>();
 const isIOS = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 function routeAudio(v: HTMLVideoElement) {
@@ -135,6 +149,7 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
     const v = ref.current;
     if (!v) return;
     if (shouldPlay) {
+      ambientAudio();
       v.muted = silent;
       if (!silent) routeAudio(v);
       else void audioCtx?.resume().catch(() => undefined);
