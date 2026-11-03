@@ -54,6 +54,20 @@ export default function CameraStudio() {
   const [captured, setCaptured] = useState<Captured | null>(null);
   const [story, setStory] = useState<File | null>(null);
   const [err, setErr] = useState('');
+  // Câmara "pro": zoom (do aparelho, ou digital se não tiver), foco por toque, exposição, grelha, temporizador e flash.
+  const [zoom, setZoom] = useState(1);
+  const [zoomCaps, setZoomCaps] = useState<{ min: number; max: number } | null>(null); // null = só zoom digital
+  const [expoCaps, setExpoCaps] = useState<{ min: number; max: number; step: number } | null>(null);
+  const [expo, setExpo] = useState(0);
+  const [grid, setGrid] = useState(false);
+  const [delay, setDelay] = useState<0 | 3 | 10>(0);
+  const [count, setCount] = useState(0);
+  const [screenFlash, setScreenFlash] = useState(false); // flash de ecrã (câmara da frente)
+  const [whiteOut, setWhiteOut] = useState(false);
+  const [focus, setFocus] = useState<{ x: number; y: number; id: number } | null>(null);
+  const [zoomHud, setZoomHud] = useState(false);
+  const zoomRef = useRef(1);
+  const hudTimer = useRef<ReturnType<typeof setTimeout>>();
   // O microfone só se liga no Reel; na publicação pede-se apenas se segurares o botão para gravar vídeo.
   const wantsAudio = mode === 'reel';
 
@@ -70,8 +84,13 @@ export default function CameraStudio() {
         video.current.srcObject = s;
         await video.current.play().catch(() => undefined);
       }
-      const caps = (s.getVideoTracks()[0]?.getCapabilities?.() ?? {}) as MediaTrackCapabilities & { torch?: boolean };
+      const caps = (s.getVideoTracks()[0]?.getCapabilities?.() ?? {}) as MediaTrackCapabilities & { torch?: boolean; zoom?: { min: number; max: number }; exposureCompensation?: { min: number; max: number; step: number } };
       setCanTorch(!!caps.torch);
+      setZoomCaps(caps.zoom && caps.zoom.max > caps.zoom.min ? { min: caps.zoom.min, max: caps.zoom.max } : null);
+      setExpoCaps(caps.exposureCompensation && caps.exposureCompensation.max > caps.exposureCompensation.min ? caps.exposureCompensation : null);
+      zoomRef.current = caps.zoom?.min && caps.zoom.min > 1 ? caps.zoom.min : 1;
+      setZoom(zoomRef.current);
+      setExpo(0);
       setReady(true);
       const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
       setCanFlip(devices.filter((d) => d.kind === 'videoinput').length > 1);
@@ -112,13 +131,64 @@ export default function CameraStudio() {
     }
   }
 
-  function shoot() {
+  // Zoom do aparelho quando existe; senão digital (vale para fotos; num vídeo só o zoom do aparelho entra na gravação).
+  const hwZoom = !!zoomCaps;
+  const zMin = zoomCaps?.min ?? 1;
+  const zMax = zoomCaps ? Math.min(zoomCaps.max, 10) : 5;
+  const canZoom = hwZoom || mode !== 'reel';
+  function applyZoom(z: number) {
+    const v = Math.min(zMax, Math.max(zMin, z));
+    zoomRef.current = v;
+    setZoom(v);
+    setZoomHud(true);
+    clearTimeout(hudTimer.current);
+    hudTimer.current = setTimeout(() => setZoomHud(false), 1200);
+    if (hwZoom) void stream.current?.getVideoTracks()[0]?.applyConstraints({ advanced: [{ zoom: v } as MediaTrackConstraintSet] }).catch(() => undefined);
+  }
+  async function applyExpo(v: number) {
+    setExpo(v);
+    await stream.current?.getVideoTracks()[0]?.applyConstraints({ advanced: [{ exposureCompensation: v } as MediaTrackConstraintSet] }).catch(() => undefined);
+  }
+  // Toque no ecrã: foco (e exposição, se o aparelho deixa). Toque duplo: vira a câmara.
+  const lastTap = useRef({ t: 0, x: 0, y: 0 });
+  function tapScreen(e: ReactPointerEvent<HTMLDivElement>) {
+    if (!ready || recording) return;
+    const now = Date.now();
+    const lt = lastTap.current;
+    const r = e.currentTarget.getBoundingClientRect();
+    if (now - lt.t < 320 && Math.hypot(e.clientX - lt.x, e.clientY - lt.y) < 40) {
+      lastTap.current = { t: 0, x: 0, y: 0 };
+      if (canFlip) setFacing((f) => (f === 'user' ? 'environment' : 'user'));
+      return;
+    }
+    lastTap.current = { t: now, x: e.clientX, y: e.clientY };
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+    setFocus({ x: e.clientX - r.left, y: e.clientY - r.top, id: now });
+    setTimeout(() => setFocus((f) => (f && f.id === now ? null : f)), 2500);
+    void stream.current?.getVideoTracks()[0]?.applyConstraints({ advanced: [{ focusMode: 'single-shot', pointsOfInterest: [{ x, y }] } as MediaTrackConstraintSet] }).catch(() => undefined);
+  }
+  // Pinça com dois dedos.
+  const pinch = useRef<{ d: number; z: number } | null>(null);
+  const dist = (t: React.TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+
+  async function shoot() {
     const v = video.current;
     if (!v || !ready || !v.videoWidth) return;
+    // Câmara da frente sem lanterna: o ecrã faz de flash.
+    if (screenFlash && facing === 'user' && !canTorch) {
+      setWhiteOut(true);
+      await new Promise((r) => setTimeout(r, 280));
+    }
     const c = document.createElement('canvas');
-    c.width = v.videoWidth;
-    c.height = v.videoHeight;
-    c.getContext('2d')!.drawImage(v, 0, 0);
+    // Zoom digital: recorta o centro.
+    const k = hwZoom ? 1 : zoomRef.current;
+    const sw = v.videoWidth / k;
+    const sh = v.videoHeight / k;
+    c.width = Math.round(sw);
+    c.height = Math.round(sh);
+    c.getContext('2d')!.drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height);
+    setWhiteOut(false);
     setFlash(true);
     setTimeout(() => setFlash(false), 140);
     navigator.vibrate?.(15);
@@ -176,17 +246,48 @@ export default function CameraStudio() {
     if (recorder.current?.state === 'recording') recorder.current.stop();
   }
 
+  const countdown = useRef<ReturnType<typeof setInterval>>();
+  useEffect(() => () => clearInterval(countdown.current), []);
+  function act() {
+    if (mode === 'reel') return recording ? stopRecording() : void startRecording();
+    void shoot();
+  }
   function shutter() {
     setErr('');
-    if (mode === 'reel') return recording ? stopRecording() : startRecording();
-    shoot();
+    // Temporizador: conta para trás e depois tira (ou começa a gravar). Tocar outra vez cancela.
+    if (count > 0) {
+      clearInterval(countdown.current);
+      return setCount(0);
+    }
+    if (delay > 0 && !recording) {
+      let n: number = delay;
+      setCount(n);
+      countdown.current = setInterval(() => {
+        n -= 1;
+        if (n <= 0) {
+          clearInterval(countdown.current);
+          setCount(0);
+          act();
+        } else setCount(n);
+      }, 1000);
+      return;
+    }
+    act();
   }
 
   // Toque curto: foto (ou liga/desliga no Reel). Segurar: grava vídeo enquanto o dedo estiver no botão.
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const held = useRef(false);
+  const dragFrom = useRef<{ y: number; z: number } | null>(null);
+  function pressMove(e: ReactPointerEvent<HTMLButtonElement>) {
+    const d = dragFrom.current;
+    if (!d || !held.current || !canZoom || (!hwZoom && mode === 'reel')) return;
+    // Para cima aproxima, para baixo afasta (cada ~180 px dobra ou reduz a metade).
+    applyZoom(d.z * Math.pow(2, (d.y - e.clientY) / 180));
+  }
   function pressDown(e: ReactPointerEvent<HTMLButtonElement>) {
     held.current = false;
+    dragFrom.current = { y: e.clientY, z: zoomRef.current };
     e.currentTarget.setPointerCapture?.(e.pointerId);
     if (mode === 'story' || recording) return;
     holdTimer.current = setTimeout(() => {
@@ -197,6 +298,7 @@ export default function CameraStudio() {
     }, 350);
   }
   function pressUp() {
+    dragFrom.current = null;
     if (holdTimer.current) clearTimeout(holdTimer.current);
     holdTimer.current = null;
     if (held.current) {
@@ -207,6 +309,7 @@ export default function CameraStudio() {
     shutter();
   }
   function pressCancel() {
+    dragFrom.current = null;
     if (holdTimer.current) clearTimeout(holdTimer.current);
     holdTimer.current = null;
     if (held.current) {
@@ -264,8 +367,19 @@ export default function CameraStudio() {
       aria-modal="true"
       aria-label={tr('Câmara')}
       className="fixed inset-0 z-[80] flex flex-col bg-black text-white"
-      onTouchStart={(e) => (touch.current = e.touches.length === 1 ? e.touches[0].clientX : null)}
+      onTouchStart={(e) => {
+        touch.current = e.touches.length === 1 ? e.touches[0].clientX : null;
+        pinch.current = e.touches.length === 2 && canZoom ? { d: dist(e.touches), z: zoomRef.current } : null;
+      }}
+      onTouchMove={(e) => {
+        if (e.touches.length === 2 && pinch.current) applyZoom(pinch.current.z * (dist(e.touches) / pinch.current.d));
+      }}
       onTouchEnd={(e) => {
+        if (pinch.current) {
+          if (e.touches.length < 2) pinch.current = null;
+          touch.current = null;
+          return;
+        }
         const x = touch.current;
         touch.current = null;
         if (x === null) return;
@@ -273,7 +387,29 @@ export default function CameraStudio() {
         if (Math.abs(dx) > 60) shift(dx < 0 ? 1 : -1);
       }}
     >
-      <video ref={video} playsInline muted className={`absolute inset-0 h-full w-full object-cover ${facing === 'user' ? '-scale-x-100' : ''} ${ready ? '' : 'invisible'}`} />
+      <video ref={video} playsInline muted style={{ transform: `scaleX(${facing === 'user' ? -1 : 1}) scale(${hwZoom ? 1 : zoom})` }} className={`absolute inset-0 h-full w-full object-cover ${ready ? '' : 'invisible'}`} />
+      {/* Toque: foco; toque duplo: vira a câmara. */}
+      <div className="absolute inset-0" onPointerUp={tapScreen} aria-hidden />
+      {grid && (
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <span className="absolute inset-y-0 left-1/3 w-px bg-white/35" /><span className="absolute inset-y-0 left-2/3 w-px bg-white/35" />
+          <span className="absolute inset-x-0 top-1/3 h-px bg-white/35" /><span className="absolute inset-x-0 top-2/3 h-px bg-white/35" />
+        </div>
+      )}
+      {focus && (
+        <div className="pointer-events-none absolute z-10" style={{ left: focus.x - 36, top: focus.y - 36 }}>
+          <span className="block h-[72px] w-[72px] animate-[rise_.25s_ease-out] rounded-[22px] border-2 border-amber-300" />
+        </div>
+      )}
+      {focus && expoCaps && (
+        <div className="absolute z-20 flex h-36 w-8 flex-col items-center" style={{ left: Math.min(focus.x + 48, window.innerWidth - 44), top: focus.y - 72 }}>
+          <Icon name="sun" size={18} className="text-amber-300" />
+          <input type="range" aria-label={tr('Exposição')} min={expoCaps.min} max={expoCaps.max} step={expoCaps.step || 0.1} value={expo} onChange={(e) => void applyExpo(Number(e.target.value))} className="mt-12 w-24 -rotate-90 accent-amber-300" />
+        </div>
+      )}
+      {whiteOut && <div className="pointer-events-none absolute inset-0 z-10 bg-white" />}
+      {count > 0 && <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/30"><span className="text-[120px] font-black leading-none drop-shadow-lg">{count}</span></div>}
+      {zoomHud && <div className="pointer-events-none absolute left-1/2 top-24 z-20 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 text-sm font-bold tabular-nums">{zoom.toFixed(1)}×</div>}
       {flash && <div className="pointer-events-none absolute inset-0 bg-white" />}
 
       <div className="relative z-10 flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))]">
@@ -284,6 +420,9 @@ export default function CameraStudio() {
           </span>
         ) : (
           <div className="flex gap-2">
+            <button type="button" onClick={() => setGrid((g) => !g)} aria-pressed={grid} aria-label={tr('Grelha')} className={`${round} ${grid ? '!bg-white !text-zinc-900' : ''}`}><Icon name="grid" size={22} /></button>
+            <button type="button" onClick={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} aria-label={tr('Temporizador')} className={`${round} relative ${delay ? '!bg-white !text-zinc-900' : ''}`}><Icon name="clock" size={22} />{delay > 0 && <span className="absolute -bottom-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-[11px] font-bold text-white">{delay}</span>}</button>
+            {!canTorch && ready && facing === 'user' && <button type="button" onClick={() => setScreenFlash((f) => !f)} aria-pressed={screenFlash} aria-label={tr('Flash de ecrã')} className={`${round} ${screenFlash ? '!bg-white !text-zinc-900' : ''}`}><Icon name="bolt" size={22} /></button>}
             {canTorch && ready && <button type="button" onClick={toggleTorch} aria-pressed={torch} aria-label={tr('Lanterna')} className={`${round} ${torch ? '!bg-white !text-zinc-900' : ''}`}><Icon name="sun" size={22} /></button>}
             {mode === 'post' && <button type="button" onClick={() => navigate('/new/post', { replace: true })} aria-label={tr('Só texto')} className={`${round} text-base font-bold`}>{tr('Aa')}</button>}
             {canFlip && ready && <button type="button" onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} aria-label={tr('Virar câmara')} className={round}><Icon name="flip-camera" size={24} /></button>}
@@ -308,6 +447,16 @@ export default function CameraStudio() {
       {ready && <div className="flex-1" />}
       {err && <p role="alert" className="relative z-10 mx-auto mb-2 rounded-full bg-black/60 px-4 py-1.5 text-center text-sm font-semibold">{err}</p>}
 
+      {ready && canZoom && !recording && (
+        <div className="relative z-10 mb-2 flex justify-center gap-2" role="group" aria-label="Zoom">
+          {[0.5, 1, 2, 3, 5].filter((z) => z >= zMin - 0.01 && z <= zMax + 0.01).map((z) => {
+            const on = Math.abs(zoom - z) < 0.08;
+            return <button key={z} type="button" onClick={() => applyZoom(z)} className={`flex h-9 min-w-9 items-center justify-center rounded-full px-2 text-[13px] font-bold tabular-nums backdrop-blur-md ${on ? 'bg-white text-zinc-900' : 'bg-black/40 text-white'}`}>{on ? `${z}×` : z}</button>;
+          })}
+          {!([0.5, 1, 2, 3, 5] as number[]).some((z) => Math.abs(zoom - z) < 0.08) && <span className="flex h-9 items-center rounded-full bg-white px-3 text-[13px] font-bold tabular-nums text-zinc-900">{zoom.toFixed(1)}×</span>}
+        </div>
+      )}
+
       {/* Modos: o ativo fica a branco; deslizar ou tocar muda. */}
       {!recording && (
         <div className="relative z-10 flex justify-center gap-6 pb-3" role="tablist" aria-label={tr('O que queres publicar')}>
@@ -331,6 +480,7 @@ export default function CameraStudio() {
         <button
           type="button"
           onPointerDown={pressDown}
+          onPointerMove={pressMove}
           onPointerUp={pressUp}
           onPointerCancel={pressCancel}
           onContextMenu={(e) => e.preventDefault()}

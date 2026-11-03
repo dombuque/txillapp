@@ -86,11 +86,40 @@ const KIND_LABEL: Record<string, string> = { image: 'Foto', voice: 'Mensagem de 
 /** Excerto de uma mensagem para citar (na bolha e na barra de resposta). */
 const quoteText = (k: string, body: string) => (k === 'text' || k === 'story_reply' ? body : tr(KIND_LABEL[k] ?? 'Mensagem'));
 
-function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard, onOpenOnce, onStopLive }: { m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onMenu: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
+function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onReply, onRetry, onDiscard, onOpenOnce, onStopLive }: { m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onMenu: (m: ChatMessage) => void; onReply: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
   const mine = m.fromMe;
   const real = !m.id.startsWith('tmp-');
   // Carregar e segurar (ou clique direito): apagar as minhas, denunciar as dos outros.
   const hold = useRef<ReturnType<typeof setTimeout>>();
+  // Deslizar a mensagem para a direita responde-lhe (como no WhatsApp e no Instagram).
+  const [dx, setDx] = useState(0);
+  const swipe = useRef<{ x: number; y: number; on: boolean } | null>(null);
+  const swipeProps = real
+    ? {
+        onTouchStart: (e: React.TouchEvent) => { swipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, on: false }; },
+        onTouchMove: (e: React.TouchEvent) => {
+          const s = swipe.current;
+          if (!s) return;
+          const mx = e.touches[0].clientX - s.x;
+          const my = e.touches[0].clientY - s.y;
+          if (!s.on && mx > 12 && mx > Math.abs(my) * 1.5) {
+            s.on = true;
+            clearTimeout(hold.current);
+          }
+          if (s.on) setDx(Math.min(72, Math.max(0, mx)));
+          else if (Math.abs(my) > 10) clearTimeout(hold.current);
+        },
+        onTouchEnd: () => {
+          const s = swipe.current;
+          swipe.current = null;
+          if (s?.on && dx >= 56) {
+            navigator.vibrate?.(10);
+            onReply(m);
+          }
+          setDx(0);
+        },
+      }
+    : {};
   const menuProps = real
     ? {
         onPointerDown: () => { hold.current = setTimeout(() => onMenu(m), 450); },
@@ -107,7 +136,8 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
   const dim = m.state === 'sending' ? 'opacity-70' : '';
 
   return (
-    <div className={`flex select-none flex-col ${mine ? 'items-end' : 'items-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`} {...menuProps}>
+    <div className={`relative flex select-none flex-col ${mine ? 'items-end' : 'items-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`} style={{ transform: dx ? `translateX(${dx}px)` : undefined, transition: dx ? 'none' : 'transform .18s ease-out', touchAction: 'pan-y' }} {...menuProps} {...swipeProps}>
+      {dx > 8 && <span aria-hidden className="absolute left-[-40px] top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-zinc-700" style={{ opacity: Math.min(1, dx / 56), transform: `translateY(-50%) scale(${dx >= 56 ? 1.15 : 0.85})` }}><Icon name="reply" size={16} /></span>}
       {group && !mine && !prevSame && m.sender && <span className="mb-0.5 px-1 text-[12px] font-bold text-zinc-600">{m.sender.displayName.split(' ')[0]}</span>}
       {m.replyTo && (
         <div className={`mb-0.5 max-w-[78%] rounded-2xl border-l-4 px-3 py-1.5 text-[13px] leading-snug ${mine ? 'border-brand/70 bg-brand/10' : 'border-zinc-400 bg-zinc-50'} text-zinc-600`}>
@@ -621,7 +651,7 @@ export default function Thread() {
             return (
               <div key={m.id}>
                 {newDay && <p className="mx-auto mb-1 mt-5 w-fit rounded-full bg-zinc-100 px-3 py-1 text-[12px] font-semibold text-zinc-600">{dayLabel(m.at)}</p>}
-                <Bubble m={m} group={isGroup} prevSame={!!prev && !newDay && joined(prev, m)} nextSame={!!next && joined(m, next)} seen={seenUpTo(m)} onMenu={setMenuFor} onRetry={retry} onDiscard={discard} onOpenOnce={setOpening} onStopLive={stopSharing} />
+                <Bubble m={m} group={isGroup} prevSame={!!prev && !newDay && joined(prev, m)} nextSame={!!next && joined(m, next)} seen={seenUpTo(m)} onMenu={setMenuFor} onReply={(x) => { setReplying(x); input.current?.focus(); }} onRetry={retry} onDiscard={discard} onOpenOnce={setOpening} onStopLive={stopSharing} />
               </div>
             );
           })}
