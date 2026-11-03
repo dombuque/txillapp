@@ -57,7 +57,7 @@ export default function Landing() {
                 </a>
               )}
             </div>
-            <p className="mt-4 text-sm text-zinc-500">{tr('Para maiores de 13 anos. Funciona no navegador e podes instalar no telemóvel.')}</p>
+            <p className="mt-4 text-sm text-zinc-500">{tr('Para maiores de 15 anos. Funciona no navegador e podes instalar no telemóvel.')}</p>
           </div>
 
           {/* Maqueta do telemóvel, só desenho (sem dados de ninguém). */}

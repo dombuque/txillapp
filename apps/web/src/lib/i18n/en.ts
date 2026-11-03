@@ -375,7 +375,7 @@ export const EN: Record<string, string> = {
   'Outro valor': 'Another amount',
   'Pago! +': 'Paid! +',
   'Para instalar no iPhone, abre este endereço no': 'To install on iPhone, open this address in',
-  'Para maiores de 13 anos. Funciona no navegador e podes instalar no telemóvel.': 'For ages 13 and over. Works in the browser and you can install it on your phone.',
+  'Para maiores de 15 anos. Funciona no navegador e podes instalar no telemóvel.': 'For ages 15 and over. Works in the browser and you can install it on your phone.',
   'Parar': 'Stop',
   'Partilhar': 'Share',
   'Partilhar localização em direto': 'Share live location',
