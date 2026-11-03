@@ -109,7 +109,7 @@ export default function PostCard({ post }: { post: Post }) {
           <p className="mx-6 mb-1.5 flex items-center gap-1.5 text-sm font-medium text-zinc-600">
             <RepostIcon width={16} height={16} />
             <Link to={profilePath(post.author.username, user?.username)} className="font-semibold">
-              {post.author.id === user?.id ? 'Repostaste' : `${post.author.displayName} repostou`}
+              {post.author.id === user?.id ? tr('Repostaste') : `${post.author.displayName} repostou`}
             </Link>
           </p>
           <PostCard post={post.repostOf} />
@@ -332,14 +332,14 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
           </div>
           {post.comments > 0 && (
             <button onClick={() => setSheet('comments')} className="shrink-0 text-[14px] font-medium text-zinc-700 active:opacity-60">
-              {post.comments} {post.comments === 1 ? 'Comentário' : 'Comentários'}
+              {post.comments} {post.comments === 1 ? tr('Comentário') : tr('Comentários')}
             </button>
           )}
         </div>
         <div className="mt-1 flex items-stretch border-t border-zinc-200">
           <button onClick={cheer} aria-pressed={post.cheered} aria-label={post.cheered ? 'Tirar o brinde' : 'Brindar'} className={`${barBtn} ${post.cheered ? '!text-green-700' : ''}`}>
             <span key={String(post.cheered)} className={`inline-flex ${post.cheered ? 'animate-[pop_.4s_ease-out]' : ''}`}><Icon name="cheers" size={24} /></span>
-            <span className={word}>{post.cheered ? 'Brindou' : 'Brindar'}</span>
+            <span className={word}>{post.cheered ? tr('Brindou') : tr('Brindar')}</span>
           </button>
           <button onClick={() => setSheet('comments')} aria-label={`Comentar (${post.comments})`} className={barBtn}>
             <CommentIcon /> <span className={word}>{tr('Comentar')}</span>
@@ -350,7 +350,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
             aria-pressed={post.reposted}
             className={`${barBtn} ${post.reposted ? '!text-green-700' : ''}`}
           >
-            <RepostIcon /> <span className={word}>{post.reposted ? 'Repostado' : 'Repostar'}</span>
+            <RepostIcon /> <span className={word}>{post.reposted ? tr('Repostado') : tr('Repostar')}</span>
           </button>
           {!mine && post.canGift && (
             <button onClick={() => setSheet('gift')} aria-label={`Presentear (${post.gifts})`} className={barBtn}>
@@ -379,13 +379,13 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
       )}
       {post.comments > 0 && (
         <button onClick={() => setSheet('comments')} className={`${shown.length ? '' : 'mt-3'} block min-h-8 text-sm ${dark ? 'text-zinc-300' : 'text-zinc-500'}`}>
-          {tr('Ver')} {post.comments === 1 ? 'o comentário' : `todos os ${post.comments} comentários`}
+          {tr('Ver')} {post.comments === 1 ? tr('o comentário') : `todos os ${post.comments} comentários`}
         </button>
       )}
       <div className={`flex items-center border-t ${dark ? 'border-white/20' : shown.length || post.comments > 0 ? 'mt-1 border-zinc-200' : 'mt-3 border-zinc-200'}`}>
         <Item label={post.cheered ? 'Tirar o brinde' : 'Brindar'} onClick={cheer} pressed={post.cheered} className="flex-[1.6] justify-start">
           <span key={String(post.cheered)} className={`inline-flex ${post.cheered ? 'animate-[pop_.4s_ease-out]' : ''}`}><Icon name="cheers" size={26} /></span>
-          <span className="hidden text-[16px] font-medium min-[380px]:inline">{post.cheered ? 'Brindou' : 'Brindar'}</span>
+          <span className="hidden text-[16px] font-medium min-[380px]:inline">{post.cheered ? tr('Brindou') : tr('Brindar')}</span>
           {count(post.cheers)}
         </Item>
         <Item label={`Comentários (${post.comments})`} onClick={() => setSheet('comments')}>
@@ -508,9 +508,9 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
   async function copy() {
     try {
       await navigator.clipboard.writeText(postLink(post));
-      setNote('Ligação copiada');
+      setNote(tr('Ligação copiada'));
     } catch {
-      setNote('Não consegui copiar');
+      setNote(tr('Não consegui copiar'));
     }
     setTimeout(() => setNote(''), 1800);
   }
@@ -603,7 +603,7 @@ export function RepostSheet({ post, onChange, onClose, layer }: { post: Post; on
         >
           <MentionTextarea value={text} onChange={setText} maxLength={500} rows={3} autoFocus placeholder={tr('O que achas?')} aria-label={tr('Comentário')} className={`${fieldInput} resize-none`} />
           <p role="alert" className="min-h-5 text-center text-sm text-red-600">{err}</p>
-          <button disabled={busy || !text.trim()} className={`${btnPrimary} w-full py-3.5`}>{busy ? 'A publicar…' : 'Publicar'}</button>
+          <button disabled={busy || !text.trim()} className={`${btnPrimary} w-full py-3.5`}>{busy ? tr('A publicar…') : tr('Publicar')}</button>
           <button type="button" onClick={() => setQuote(false)} className={`${btnGhost} w-full`}>{tr('Voltar')}</button>
         </form>
       ) : (

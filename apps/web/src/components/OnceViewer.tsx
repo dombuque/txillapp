@@ -51,7 +51,7 @@ export default function OnceViewer({ id, from, onClose }: { id: string; from: st
         )}
         {c?.kind === 'text' && <p className="max-w-sm whitespace-pre-wrap break-words rounded-3xl bg-white/10 px-6 py-5 text-center text-[22px] font-semibold leading-snug">{c.body}</p>}
       </div>
-      <p className="px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 text-center text-sm text-white/70">{explain ? 'Ao fechar, esta mensagem desaparece para sempre.' : ''}</p>
+      <p className="px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 text-center text-sm text-white/70">{explain ? tr('Ao fechar, esta mensagem desaparece para sempre.') : ''}</p>
     </div>
   );
 }

@@ -57,7 +57,7 @@ export default function PhotoTagger({ src, tags, onDone }: { src: string; tags: 
 
       {!pending && (
         <p className="px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 text-center text-sm text-white/80">
-          {list.length >= MAX_TAGS ? `Máximo de ${MAX_TAGS} pessoas por foto.` : list.length ? 'Toca noutra pessoa para identificar, ou no botão de remover.' : 'Toca na foto, em cima da pessoa que queres identificar.'}
+          {list.length >= MAX_TAGS ? `Máximo de ${MAX_TAGS} pessoas por foto.` : list.length ? tr('Toca noutra pessoa para identificar, ou no botão de remover.') : tr('Toca na foto, em cima da pessoa que queres identificar.')}
         </p>
       )}
 

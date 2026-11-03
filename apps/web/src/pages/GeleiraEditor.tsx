@@ -170,7 +170,7 @@ export default function GeleiraEditor() {
           <div className="px-3 pb-3">
             <button onClick={() => setWorld(!world)} aria-pressed={world} className="flex h-10 w-full items-center justify-center gap-2 rounded-full bg-sky-50 text-sm font-semibold text-sky-800 transition active:scale-[0.98]">
               <Icon name="globe" size={16} />
-              {world ? `A mostrar bebidas de todo o mundo · só ${countryName ?? 'do meu país'}` : `${countryName ? `Bebidas de ${countryName} e de todo o lado` : 'Bebidas do teu país'} · ver de outros países (${hiddenForeign})`}
+              {world ? `A mostrar bebidas de todo o mundo · só ${countryName ?? 'do meu país'}` : `${countryName ? `Bebidas de ${countryName} e de todo o lado` : tr('Bebidas do teu país')} · ver de outros países (${hiddenForeign})`}
             </button>
           </div>
         )}
@@ -194,7 +194,7 @@ export default function GeleiraEditor() {
                         <span className="min-w-0">
                           <span className="flex items-center gap-1 text-[16px] font-semibold leading-tight"><span className="truncate">{i.name}</span>{i.favorite && <Icon name="heart" size={14} className="shrink-0 fill-brand text-brand" aria-label={tr('Favorito')} role="img" aria-hidden={false} />}</span>
                           <span className="block truncate text-[13px] text-zinc-500">
-                            {i.pending ? 'À espera de aprovação' : i.mine ? (i.rating ? ICE[i.rating] : 'Dá-lhe gelo') : others(i) > 0 ? `${fmt(others(i))} na geleira da malta` : 'Ninguém tem ainda. Sê o primeiro'}
+                            {i.pending ? tr('À espera de aprovação') : i.mine ? (i.rating ? ICE[i.rating] : tr('Dá-lhe gelo')) : others(i) > 0 ? `${fmt(others(i))} na geleira da malta` : tr('Ninguém tem ainda. Sê o primeiro')}
                           </span>
                         </span>
                       </button>
@@ -245,16 +245,16 @@ export default function GeleiraEditor() {
       <div className="fixed bottom-0 left-1/2 z-20 w-full max-w-xl -translate-x-1/2 border-t border-zinc-100 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
         <div className="flex items-center gap-3">
           <p className="min-w-0 flex-1 text-sm leading-tight text-zinc-600">
-            <b className="text-zinc-900">{mine.length}</b> {mine.length === 1 ? 'gosto' : 'gostos'}
+            <b className="text-zinc-900">{mine.length}</b> {mine.length === 1 ? tr('gosto') : tr('gostos')}
           </p>
           <button onClick={save} disabled={changes.length === 0 || saving} className="h-12 rounded-full bg-brand px-6 font-bold text-white transition active:scale-95 disabled:bg-brand/40">
-            {saving ? 'A guardar…' : changes.length > 0 ? `Guardar (${changes.length})` : 'Guardar'}
+            {saving ? tr('A guardar…') : changes.length > 0 ? `Guardar (${changes.length})` : tr('Guardar')}
           </button>
         </div>
       </div>
       {leaving && (
         <Sheet title={tr('Sair sem guardar?')} onClose={() => setLeaving(false)}>
-          <p className="mb-4 text-zinc-600">{tr('Tens')} {changes.length} {changes.length === 1 ? 'mudança' : 'mudanças'} {tr('na geleira que ainda não guardaste.')}</p>
+          <p className="mb-4 text-zinc-600">{tr('Tens')} {changes.length} {changes.length === 1 ? tr('mudança') : tr('mudanças')} {tr('na geleira que ainda não guardaste.')}</p>
           <button onClick={() => { setLeaving(false); void save(); }} className="h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98]">{tr('Guardar e sair')}</button>
           <button onClick={leave} className="mt-2 h-12 w-full rounded-full font-semibold text-red-700 active:bg-red-50">{tr('Sair sem guardar')}</button>
           <button onClick={() => setLeaving(false)} className="mt-1 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Continuar a editar')}</button>

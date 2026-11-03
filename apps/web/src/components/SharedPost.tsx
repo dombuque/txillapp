@@ -30,7 +30,7 @@ export default function SharedPost({ post, shape, tone }: { post: Post | null; s
       className={`block w-[240px] overflow-hidden ${shape} ${tone}`}
     >
       <span className="flex items-center gap-2 px-3 pt-2.5 text-[13px] font-semibold opacity-90">
-        <Icon name={video ? 'film' : 'image'} size={14} /> {video ? 'Reel' : 'Publicação'} {tr('de')} {shown.author.displayName}
+        <Icon name={video ? 'film' : 'image'} size={14} /> {video ? tr('Reel') : tr('Publicação')} {tr('de')} {shown.author.displayName}
       </span>
       {thumb ? (
         <span className="relative mt-2 block h-[170px] w-full bg-zinc-200">

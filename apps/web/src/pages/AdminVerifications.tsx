@@ -26,7 +26,7 @@ function Row({ item, onDone }: { item: VerificationItem; onDone: () => void }) {
   const btn = 'h-10 flex-1 rounded-full text-sm font-bold transition active:scale-95 disabled:opacity-40';
   return (
     <li className="rounded-2xl border border-zinc-200 p-4">
-      <p className="text-sm text-zinc-500">{item.kind === 'business' ? 'Negócio ou marca' : 'Pessoa'} · {item.user.followers} {tr('seguidores')}</p>
+      <p className="text-sm text-zinc-500">{item.kind === 'business' ? tr('Negócio ou marca') : tr('Pessoa')} · {item.user.followers} {tr('seguidores')}</p>
       <p className="mt-1 font-bold">{item.fullName}</p>
       <Link to={`/u/${item.user.username}`} className="text-sm font-semibold text-brand underline">@{item.user.username}</Link>
       {item.user.bio && <p className="mt-1 text-sm text-zinc-600">{item.user.bio}</p>}

@@ -48,11 +48,11 @@ export default function GenderGate() {
   return (
     <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/50 sm:items-center" role="dialog" aria-modal="true" aria-label={tr('Completa o teu perfil')}>
       <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-[28px] bg-white px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-6 sm:rounded-[28px]">
-        <h2 className="text-2xl font-extrabold">{needGender || needBirth ? 'Só mais um passo' : 'Atualizámos os termos'}</h2>
+        <h2 className="text-2xl font-extrabold">{needGender || needBirth ? tr('Só mais um passo') : tr('Atualizámos os termos')}</h2>
         <p className="mb-5 mt-1 text-zinc-600">
           {needGender || needBirth
-            ? 'Falta completar o teu perfil. É uma vez só e fica privado.'
-            : 'Novidades: geleira com níveis, selo de verificado, presença online, verificação de identidade e partilha de links. Lê e aceita para continuares.'}
+            ? tr('Falta completar o teu perfil. É uma vez só e fica privado.')
+            : tr('Novidades: geleira com níveis, selo de verificado, presença online, verificação de identidade e partilha de links. Lê e aceita para continuares.')}
         </p>
 
         {needGender && (
@@ -88,7 +88,7 @@ export default function GenderGate() {
 
         {err && <p role="alert" className="mt-3 text-center text-sm text-red-600">{err}</p>}
         <button disabled={!ready || busy} onClick={save} className="mt-5 h-14 w-full rounded-full bg-brand text-lg font-bold text-white transition active:scale-[0.98] disabled:opacity-40">
-          {busy ? 'A guardar…' : 'Continuar'}
+          {busy ? tr('A guardar…') : tr('Continuar')}
         </button>
       </div>
     </div>

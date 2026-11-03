@@ -106,7 +106,7 @@ export default function AdminStats() {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block font-semibold">{p.metric} <span className="font-normal text-zinc-500">· {l?.label ?? ''}</span></span>
-                        <span className="block text-xs text-zinc-500">{status === 'good' ? 'Bom' : status === 'warn' ? 'A melhorar' : 'Fraco'} · {p.n} {tr('medições')}</span>
+                        <span className="block text-xs text-zinc-500">{status === 'good' ? tr('Bom') : status === 'warn' ? tr('A melhorar') : tr('Fraco')} · {p.n} {tr('medições')}</span>
                       </span>
                       <span className="font-bold tabular-nums">{p.p75}{l?.unit ?? ''}</span>
                     </li>

@@ -21,22 +21,22 @@ import { useAuth } from '../lib/auth';
 type SheetName = null | 'contacts' | 'gender' | 'edit' | 'type' | 'comments' | 'gifts' | 'connections' | 'storyReplies' | 'hidden' | 'mentions' | 'dms' | 'closeFriends' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'blocked' | 'password' | 'devices' | 'delete' | 'logout';
 
 const VIEWERS: { value: Viewers; title: string; text: string }[] = [
-  { value: 'everyone', title: 'Todos', text: 'Qualquer pessoa que veja a publicação.' },
-  { value: 'followers', title: 'Só os meus seguidores', text: 'Quem me segue.' },
-  { value: 'off', title: 'Só eu', text: 'Mais ninguém vê os nomes.' },
+  { value: 'everyone', title: tr('Todos'), text: tr('Qualquer pessoa que veja a publicação.') },
+  { value: 'followers', title: tr('Só os meus seguidores'), text: tr('Quem me segue.') },
+  { value: 'off', title: 'Só eu', text: tr('Mais ninguém vê os nomes.') },
 ];
 const viewersLabel = (v: Viewers) => VIEWERS.find((x) => x.value === v)!.title;
 
 const WHO: { value: Who; title: string; text: string }[] = [
-  { value: 'everyone', title: 'Todos', text: 'Qualquer pessoa.' },
-  { value: 'following', title: 'Quem eu sigo', text: 'Só as pessoas que segues.' },
-  { value: 'off', title: 'Ninguém', text: 'Desativado.' },
+  { value: 'everyone', title: tr('Todos'), text: tr('Qualquer pessoa.') },
+  { value: 'following', title: tr('Quem eu sigo'), text: tr('Só as pessoas que segues.') },
+  { value: 'off', title: tr('Ninguém'), text: tr('Desativado.') },
 ];
 const whoLabel = (w: Who) => WHO.find((o) => o.value === w)!.title;
 const CONNECTIONS = [
-  { value: 'everyone', title: 'Todos', text: 'Qualquer pessoa que veja o teu perfil.' },
-  { value: 'followers', title: 'Só seguidores', text: 'Quem te segue.' },
-  { value: 'me', title: 'Só eu', text: 'Ninguém mais vê estas listas.' },
+  { value: 'everyone', title: tr('Todos'), text: tr('Qualquer pessoa que veja o teu perfil.') },
+  { value: 'followers', title: tr('Só seguidores'), text: tr('Quem te segue.') },
+  { value: 'me', title: 'Só eu', text: tr('Ninguém mais vê estas listas.') },
 ] as const;
 
 /** Linha de definição: ícone, nome, valor atual e seta. */
@@ -170,7 +170,7 @@ function VersionRow() {
     <div className="mt-2 px-4 text-center text-xs text-zinc-500">
       <p>{tr('Txillapp · versão de')} {__BUILD__}</p>
       <button type="button" onClick={check} disabled={state === 'checking' || state === 'updating'} className="mt-1.5 h-9 rounded-full px-4 text-sm font-semibold text-brand active:bg-rose-50 disabled:opacity-60">
-        {state === 'checking' ? 'A procurar…' : state === 'updating' ? 'A atualizar…' : 'Procurar atualização'}
+        {state === 'checking' ? tr('A procurar…') : state === 'updating' ? tr('A atualizar…') : tr('Procurar atualização')}
       </button>
       {state === 'latest' && <p role="status" className="text-zinc-600">{tr('Já tens a versão mais recente.')}</p>}
       {state === 'error' && <p role="alert" className="text-red-600">{tr('Não consegui procurar. Tenta outra vez.')}</p>}
@@ -253,7 +253,7 @@ export default function Settings() {
       <Section title={tr('Verificação')}>
         <Link to="/verification" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-50" aria-hidden><VerifiedBadge size={22} tier={ver.data?.tier} /></span>
-          <span className="flex-1 font-semibold">{ver.data?.verified ? 'A tua conta está verificada' : 'Pedir o selo de verificado'}</span>
+          <span className="flex-1 font-semibold">{ver.data?.verified ? tr('A tua conta está verificada') : tr('Pedir o selo de verificado')}</span>
           <span className="text-xl text-zinc-400" aria-hidden>›</span>
         </Link>
       </Section>
@@ -371,7 +371,7 @@ export default function Settings() {
         <ChoiceSheet
           title={tr('Tipo de perfil')}
           intro={tr('Num perfil privado só vê o teu conteúdo quem aprovares; seguir passa a ser um pedido.')}
-          options={[{ value: 'public', title: 'Público', text: 'Qualquer pessoa vê as tuas publicações e stories.' }, { value: 'private', title: 'Privado', text: 'Só os seguidores aprovados.' }]}
+          options={[{ value: 'public', title: tr('Público'), text: tr('Qualquer pessoa vê as tuas publicações e stories.') }, { value: 'private', title: tr('Privado'), text: tr('Só os seguidores aprovados.') }]}
           value={p.isPrivate ? 'private' : 'public'}
           onPick={(v) => savePrivacy({ isPrivate: v === 'private' })}
           onClose={close}
@@ -469,8 +469,8 @@ function PasswordSheet({ onClose, onDone }: { onClose: () => void; onDone: (r: A
   const [ok, setOk] = useState(false);
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (next.length < 10) return setErr('A nova senha precisa de pelo menos 10 caracteres');
-    if (next !== again) return setErr('As duas senhas novas não são iguais');
+    if (next.length < 10) return setErr(tr('A nova senha precisa de pelo menos 10 caracteres'));
+    if (next !== again) return setErr(tr('As duas senhas novas não são iguais'));
     setBusy(true);
     setErr('');
     try {
@@ -497,7 +497,7 @@ function PasswordSheet({ onClose, onDone }: { onClose: () => void; onDone: (r: A
         <input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder={tr('Nova senha (mínimo 10 caracteres)')} aria-label={tr('Nova senha')} autoComplete="new-password" className={fieldInput} />
         <input type="password" value={again} onChange={(e) => setAgain(e.target.value)} placeholder={tr('Repete a nova senha')} aria-label={tr('Repete a nova senha')} autoComplete="new-password" className={fieldInput} />
         <p role="alert" className="min-h-5 text-center text-sm text-red-600">{err}</p>
-        <button disabled={busy || !cur || !next} className={`${btnPrimary} w-full py-3.5`}>{busy ? 'A guardar…' : 'Alterar senha'}</button>
+        <button disabled={busy || !cur || !next} className={`${btnPrimary} w-full py-3.5`}>{busy ? tr('A guardar…') : tr('Alterar senha')}</button>
       </form>
     </Sheet>
   );
@@ -560,7 +560,7 @@ function DeleteSheet({ username, onClose, onDeleted }: { username: string; onClo
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={tr('A tua senha (se a conta tiver)')} aria-label={tr('Senha')} autoComplete="current-password" className={fieldInput} />
         <p role="alert" className="min-h-5 text-center text-sm text-red-600">{err}</p>
         <button disabled={busy || confirm.replace(/^@/, '').toLowerCase() !== username.toLowerCase()} className="w-full rounded-full bg-red-700 py-3.5 font-bold text-white transition active:scale-[0.98] disabled:opacity-50">
-          {busy ? 'A eliminar…' : 'Eliminar a minha conta'}
+          {busy ? tr('A eliminar…') : tr('Eliminar a minha conta')}
         </button>
         <button type="button" onClick={onClose} className={`${btnGhost} w-full`}>{tr('Cancelar')}</button>
       </form>

@@ -188,7 +188,7 @@ export default function VoiceMessage({ m }: { m: ChatMessage }) {
           />
         </div>
         <div className={`mt-0.5 flex items-center justify-between text-xs tabular-nums ${mine ? 'text-white/85' : 'text-zinc-500'}`}>
-          <span>{failed ? 'Não consegui tocar' : mmss(playing || scrub || at > 0 ? at : len)}</span>
+          <span>{failed ? tr('Não consegui tocar') : mmss(playing || scrub || at > 0 ? at : len)}</span>
           {(playing || at > 0) && len > 0 && <span>{mmss(len)}</span>}
         </div>
       </div>

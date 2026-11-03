@@ -120,8 +120,8 @@ export default function StoriesTray() {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    if (!TYPES.includes(f.type)) return setErr('Essa foto não serve. Usa JPEG, PNG ou WebP');
-    if (f.size > MAX_BYTES) return setErr('Foto pesada demais! Máximo 8 MB');
+    if (!TYPES.includes(f.type)) return setErr(tr('Essa foto não serve. Usa JPEG, PNG ou WebP'));
+    if (f.size > MAX_BYTES) return setErr(tr('Foto pesada demais! Máximo 8 MB'));
     setErr('');
     setFile(f);
   }
@@ -549,7 +549,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
             onClick={() => navigate(story.mediaKind === 'video' ? `/r/${story.sharedFrom!.postId}` : `/p/${story.sharedFrom!.postId}`)}
             className="absolute left-1/2 top-1/2 z-10 flex min-h-11 -translate-x-1/2 -translate-y-1/2 animate-[rise_.15s_ease-out] items-center gap-2 rounded-xl bg-zinc-700/90 px-5 text-[16px] font-semibold text-white shadow-lg backdrop-blur-sm active:scale-95"
           >
-            {story.mediaKind === 'video' ? 'Ver reel' : 'Ver publicação'} <Icon name="chevron-right" size={16} strokeWidth={3} />
+            {story.mediaKind === 'video' ? tr('Ver reel') : tr('Ver publicação')} <Icon name="chevron-right" size={16} strokeWidth={3} />
           </button>
         )}
         <button aria-label={tr('Seguinte')} onClick={tap(() => { setSeePost(false); next(); })} className={`absolute bottom-28 right-0 top-28 ${story?.sharedFrom ? 'w-[30%]' : 'w-2/3'}`} />
@@ -570,7 +570,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
           )}
           {!user.isMe && story && (
             <button {...stop} onClick={() => setPanel('comments')} className="pointer-events-auto flex min-h-10 items-center gap-2 rounded-full bg-black/40 px-4 text-sm font-semibold text-white backdrop-blur-sm active:scale-95">
-              <Icon name="comment" size={18} /> {story.commentCount > 0 ? `${story.commentCount} ${story.commentCount === 1 ? 'comentário' : 'comentários'}` : 'Comentar'}
+              <Icon name="comment" size={18} /> {story.commentCount > 0 ? `${story.commentCount} ${story.commentCount === 1 ? tr('comentário') : tr('comentários')}` : tr('Comentar')}
             </button>
           )}
           {!user.isMe && story && story.canReply && <ReplyBar key={story.id} story={story} username={user.username} onFocusChange={setTyping} />}
@@ -696,12 +696,12 @@ export function StoryCreator({ file, onClose, onBack }: { file: File; onClose: (
           </div>
           {audience === 'close_friends' && (
             <button type="button" onClick={() => setListOpen(true)} className="w-full text-center text-sm font-semibold text-emerald-300">
-              {friends.data?.length ? `${friends.data.length} na lista · gerir` : 'A tua lista está vazia · adicionar amigos'}
+              {friends.data?.length ? `${friends.data.length} na lista · gerir` : tr('A tua lista está vazia · adicionar amigos')}
             </button>
           )}
           <p role="alert" className="min-h-5 text-center text-sm text-red-400">{err}</p>
           <button disabled={busy} className={`w-full rounded-full py-3.5 text-lg font-semibold text-white transition active:scale-[0.98] disabled:opacity-50 ${audience === 'close_friends' ? 'bg-emerald-600' : 'bg-brand'}`}>
-            {busy ? 'A publicar…' : audience === 'close_friends' ? 'Partilhar com amigos próximos' : 'Partilhar no story'}
+            {busy ? tr('A publicar…') : audience === 'close_friends' ? tr('Partilhar com amigos próximos') : tr('Partilhar no story')}
           </button>
         </div>
       </form>

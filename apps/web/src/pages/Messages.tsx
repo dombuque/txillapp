@@ -107,8 +107,8 @@ export default function Messages() {
       {!loading && rows.length === 0 && strangers.length === 0 && (
         <div className="mt-10 text-center">
           <p className="text-zinc-300" aria-hidden><Icon name="messages" size={44} className="mx-auto" /></p>
-          <p className="mt-3 text-xl font-bold">{term ? 'Nada com esse nome' : view === 'requests' ? 'Sem pedidos' : 'Ainda sem cochichos'}</p>
-          <p className="mx-auto mt-1 max-w-xs text-zinc-600">{term ? 'Tenta outro nome ou começa uma conversa nova.' : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.' : 'Toca no ícone no canto para falar com alguém ou criar um grupo.'}</p>
+          <p className="mt-3 text-xl font-bold">{term ? tr('Nada com esse nome') : view === 'requests' ? tr('Sem pedidos') : tr('Ainda sem cochichos')}</p>
+          <p className="mx-auto mt-1 max-w-xs text-zinc-600">{term ? tr('Tenta outro nome ou começa uma conversa nova.') : view === 'requests' ? tr('Quando alguém que não segues te escrever, aparece aqui.') : tr('Toca no ícone no canto para falar com alguém ou criar um grupo.')}</p>
           {!term && view === 'all' && <button onClick={() => setCreating(true)} className="mt-4 h-11 rounded-full bg-brand px-6 font-bold text-white active:scale-95">{tr('Nova conversa')}</button>}
         </div>
       )}

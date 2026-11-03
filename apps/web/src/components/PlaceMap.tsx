@@ -114,7 +114,7 @@ export default function PlaceMap({ start, onPick, onClose }: Props) {
             onClick={() => map.current && void search(map.current.getCenter())}
             className="pointer-events-auto h-11 rounded-full bg-white px-5 font-bold text-brand shadow-lg active:scale-95"
           >
-            {loading ? 'A procurar…' : 'Procurar nesta zona'}
+            {loading ? tr('A procurar…') : tr('Procurar nesta zona')}
           </button>
         )}
         <span className="w-11" aria-hidden />

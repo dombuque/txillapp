@@ -114,7 +114,7 @@ function RightPanel() {
               <li key={t.tag}>
                 <Link to={`/tag/${encodeURIComponent(t.tag)}`} className="block px-5 py-2 transition hover:bg-zinc-100">
                   <span className="block font-semibold">#{t.tag}</span>
-                  <span className="text-sm text-zinc-500">{t.rising ? 'A subir agora' : `${t.authors} pessoas a falar disto`}</span>
+                  <span className="text-sm text-zinc-500">{t.rising ? tr('A subir agora') : `${t.authors} pessoas a falar disto`}</span>
                 </Link>
               </li>
             ))}

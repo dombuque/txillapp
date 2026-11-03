@@ -101,7 +101,7 @@ export default function MentionTextarea({ value, onChange, single, up, inline, w
               <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(t.tag, '#')} className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left active:bg-zinc-100">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-50 text-lg font-bold text-brand" aria-hidden>#</span>
                 <span className="min-w-0 flex-1 truncate font-semibold">#{t.tag}</span>
-                <span className="text-sm text-zinc-500">{t.posts} {t.posts === 1 ? 'publicação' : 'publicações'}</span>
+                <span className="text-sm text-zinc-500">{t.posts} {t.posts === 1 ? tr('publicação') : tr('publicações')}</span>
               </button>
             </li>
           ))}

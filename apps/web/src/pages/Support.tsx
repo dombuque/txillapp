@@ -73,17 +73,17 @@ export function About() {
 }
 
 const FAQ: { q: string; a: string }[] = [
-  { q: 'O que são os Txills?', a: 'São a moeda de brincadeira do Txillapp. Servem para presentear quem segues e agradecer um bom post. Por agora são uma demonstração: não valem dinheiro.' },
-  { q: 'Como funcionam os brindes?', a: 'Tocas em "Brindar" num post ou reel para mostrar que gostaste. É grátis e a pessoa é avisada.' },
-  { q: 'Como presenteio alguém?', a: 'Só podes presentear quem segues. Abre o perfil ou o post e toca em "Presentear". Podes deixar o presente em silêncio, privado ou publicá-lo para toda a gente ver.' },
-  { q: 'O que é a geleira?', a: 'A tua vitrine de gostos: vibes, bebidas, comidas e sítios. Edita-a em Editar perfil. Quanto mais paulada tiveres lá, mais sobe de nível.' },
-  { q: 'O que é a visualização única?', a: 'Fotos, voz e mensagens que só se abrem uma vez e depois desaparecem do chat.' },
-  { q: 'Como bloqueio ou denuncio alguém?', a: 'No perfil, toca nos três pontos e escolhe Bloquear. Para denunciar um post, comentário ou conversa, usa o menu dele e escolhe Denunciar. A moderação vê o pedido.' },
-  { q: 'Como pedir o selo de verificado?', a: 'Em Definições, Verificação. A conta tem de cumprir alguns requisitos e depois enviamos o pedido com um documento e uma selfie, que a moderação revê. Os documentos são apagados quando há decisão.' },
-  { q: 'Quem vê quando estou online?', a: 'Só quem também mostra a presença. Em Definições, "Mostrar quando estou online" desliga isso (e também deixas de ver os outros).' },
-  { q: 'Como mudo a privacidade da conta?', a: 'Em Definições, Privacidade da conta: perfil público ou privado, quem comenta, quem te menciona e quem te envia mensagens.' },
-  { q: 'Esqueci-me da senha. E agora?', a: 'No ecrã de entrada, toca em "Esqueci-me da senha". Enviamos-te um email para criares uma nova.' },
-  { q: 'Como elimino a minha conta?', a: 'Em Definições, Conta, "Eliminar conta". Podes descarregar os teus dados antes, na mesma secção.' },
+  { q: tr('O que são os Txills?'), a: tr('São a moeda de brincadeira do Txillapp. Servem para presentear quem segues e agradecer um bom post. Por agora são uma demonstração: não valem dinheiro.') },
+  { q: tr('Como funcionam os brindes?'), a: tr('Tocas em "Brindar" num post ou reel para mostrar que gostaste. É grátis e a pessoa é avisada.') },
+  { q: tr('Como presenteio alguém?'), a: tr('Só podes presentear quem segues. Abre o perfil ou o post e toca em "Presentear". Podes deixar o presente em silêncio, privado ou publicá-lo para toda a gente ver.') },
+  { q: tr('O que é a geleira?'), a: tr('A tua vitrine de gostos: vibes, bebidas, comidas e sítios. Edita-a em Editar perfil. Quanto mais paulada tiveres lá, mais sobe de nível.') },
+  { q: tr('O que é a visualização única?'), a: tr('Fotos, voz e mensagens que só se abrem uma vez e depois desaparecem do chat.') },
+  { q: tr('Como bloqueio ou denuncio alguém?'), a: tr('No perfil, toca nos três pontos e escolhe Bloquear. Para denunciar um post, comentário ou conversa, usa o menu dele e escolhe Denunciar. A moderação vê o pedido.') },
+  { q: tr('Como pedir o selo de verificado?'), a: tr('Em Definições, Verificação. A conta tem de cumprir alguns requisitos e depois enviamos o pedido com um documento e uma selfie, que a moderação revê. Os documentos são apagados quando há decisão.') },
+  { q: tr('Quem vê quando estou online?'), a: tr('Só quem também mostra a presença. Em Definições, "Mostrar quando estou online" desliga isso (e também deixas de ver os outros).') },
+  { q: tr('Como mudo a privacidade da conta?'), a: tr('Em Definições, Privacidade da conta: perfil público ou privado, quem comenta, quem te menciona e quem te envia mensagens.') },
+  { q: tr('Esqueci-me da senha. E agora?'), a: tr('No ecrã de entrada, toca em "Esqueci-me da senha". Enviamos-te um email para criares uma nova.') },
+  { q: tr('Como elimino a minha conta?'), a: tr('Em Definições, Conta, "Eliminar conta". Podes descarregar os teus dados antes, na mesma secção.') },
 ];
 
 /** Ajuda: perguntas frequentes e contacto. */
@@ -124,11 +124,11 @@ export function Help() {
 
 const money = (minor: number, currency: string) => `${(minor / 100).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency === 'MZN' ? 'MT' : currency}`;
 const STATUS: Record<PaymentOrder['status'], { label: string; tone: string }> = {
-  pending: { label: 'À espera', tone: 'bg-amber-100 text-amber-800' },
-  paid: { label: 'Pago', tone: 'bg-emerald-100 text-emerald-800' },
-  failed: { label: 'Falhou', tone: 'bg-red-100 text-red-700' },
-  cancelled: { label: 'Cancelado', tone: 'bg-zinc-100 text-zinc-600' },
-  expired: { label: 'Expirou', tone: 'bg-zinc-100 text-zinc-600' },
+  pending: { label: tr('À espera'), tone: 'bg-amber-100 text-amber-800' },
+  paid: { label: tr('Pago'), tone: 'bg-emerald-100 text-emerald-800' },
+  failed: { label: tr('Falhou'), tone: 'bg-red-100 text-red-700' },
+  cancelled: { label: tr('Cancelado'), tone: 'bg-zinc-100 text-zinc-600' },
+  expired: { label: tr('Expirou'), tone: 'bg-zinc-100 text-zinc-600' },
 };
 
 /** Pedidos e pagamentos: o saldo, recarregar Txills e o histórico de pedidos. */
@@ -238,7 +238,7 @@ export function Orders() {
             )}
             {err && <p role="alert" className="text-center text-sm text-red-600">{err}</p>}
             <button type="button" onClick={pay} disabled={busy || !chosenPkg || (chosen?.needsPhone && phone.trim().length < 9)} className="h-12 w-full rounded-full bg-brand text-[16px] font-bold text-white transition active:scale-[0.98] disabled:opacity-40">
-              {busy ? 'A preparar…' : chosenPkg ? `Pagar ${money(chosenPkg.priceMinor, chosenPkg.currency)}` : 'Escolhe um pacote'}
+              {busy ? tr('A preparar…') : chosenPkg ? `Pagar ${money(chosenPkg.priceMinor, chosenPkg.currency)}` : tr('Escolhe um pacote')}
             </button>
           </div>
         )}
@@ -247,7 +247,7 @@ export function Orders() {
             {current.status === 'pending' && (
               <>
                 <p className="text-lg font-extrabold">{tr('À espera do pagamento')}</p>
-                <p className="text-sm text-zinc-600">{current.provider === 'sandbox' ? 'Pagamento de teste: confirma abaixo.' : `Confirma o pagamento no teu telemóvel${current.phoneTail ? ` (número terminado em ${current.phoneTail})` : ''}.`} {tr('Isto atualiza sozinho.')}</p>
+                <p className="text-sm text-zinc-600">{current.provider === 'sandbox' ? tr('Pagamento de teste: confirma abaixo.') : `Confirma o pagamento no teu telemóvel${current.phoneTail ? ` (número terminado em ${current.phoneTail})` : ''}.`} {tr('Isto atualiza sozinho.')}</p>
                 {current.provider === 'sandbox' && <button type="button" onClick={sandboxPay} disabled={busy} className="h-11 w-full rounded-full bg-emerald-500 font-bold text-white active:scale-[0.98] disabled:opacity-50">{tr('Simular pagamento')}</button>}
                 <button type="button" onClick={cancel} className="h-11 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar pedido')}</button>
               </>

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { funny } from '../lib/copy';
 import { tr } from '../lib/i18n';
 import { useEffect, useMemo, useState } from 'react';
 import { track } from '../lib/analytics';
@@ -99,13 +100,13 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
     track('share', { where: 'chat', video, to: picked.length });
     setBusy(false);
     if (failed.length) return setNote(failed.join(' · '));
-    setNote(picked.length === 1 ? `Enviado a ${picked[0].name}` : `Enviado a ${picked.length} conversas`);
+    setNote(picked.length === 1 ? tr('Enviado a {name}', { name: picked[0].name }) : tr('Enviado a {n} conversas', { n: picked.length }));
     setTimeout(onClose, 900);
   }
 
   // Escolher o status abre primeiro a pré-visualização (como no Instagram): vês como fica, escreves uma legenda e só depois partilhas.
   function toStory(audience: 'all' | 'close_friends') {
-    if (!canStory) return setNote('Só se partilham no status publicações com foto ou vídeo');
+    if (!canStory) return setNote(tr('Só se partilham no status publicações com foto ou vídeo'));
     setPreview(audience);
   }
   async function publishStory() {
@@ -126,9 +127,9 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
   async function copy() {
     try {
       await navigator.clipboard.writeText(url);
-      setNote('Link copiado');
+      setNote(funny('copied'));
     } catch {
-      setNote('Não consegui copiar');
+      setNote(tr('Não consegui copiar'));
     }
   }
   const data = postShare(post.author.displayName, post.body, url);
@@ -141,7 +142,7 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
   async function whatsappStory() {
     track('share', { where: 'whatsapp-status' });
     const m = post.media[0];
-    if (!m) return setNote('Só publicações com foto ou vídeo vão para o status do WhatsApp');
+    if (!m) return setNote(tr('Só publicações com foto ou vídeo vão para o status do WhatsApp'));
     setBusy(true);
     try {
       const res = await fetch(m.kind === 'video' ? m.url : sized(m.url, 1080));
@@ -154,10 +155,10 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
         await navigator.share(caption ? { files: [file], text: caption } : { files: [file] });
         onClose();
       } else {
-        setNote('Este telemóvel não deixa partilhar o ficheiro diretamente. Usa "Partilhar…" ou guarda a foto.');
+        setNote(tr('Este telemóvel não deixa partilhar o ficheiro diretamente. Usa "Partilhar…" ou guarda a foto.'));
       }
     } catch (e) {
-      if ((e as Error).name !== 'AbortError') setNote('Não consegui preparar a foto para o status');
+      if ((e as Error).name !== 'AbortError') setNote(tr('Não consegui preparar a foto para o status'));
     }
     setBusy(false);
   }
@@ -169,8 +170,8 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
     track('share', { where: 'system' });
     const r = await shareNow(data);
     if (r === 'shared') onClose();
-    else if (r === 'copied') setNote('Texto e link copiados');
-    else if (r === 'failed') setNote('Não consegui copiar');
+    else if (r === 'copied') setNote(tr('Texto e link copiados'));
+    else if (r === 'failed') setNote(tr('Não consegui copiar'));
   }
 
   const action = (icon: IconName, label: string, run: () => void, tone = 'bg-zinc-100 text-zinc-900', disabled = false) => (
@@ -203,7 +204,7 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-2">
             {(direct.isLoading || groups.isLoading) && <p className="py-10 text-center text-zinc-500">{tr('A carregar…')}</p>}
-            {!direct.isLoading && list.length === 0 && <p className="py-10 text-center text-zinc-500">{t ? 'Ninguém com esse nome' : 'Ainda não tens conversas. Procura alguém pelo nome.'}</p>}
+            {!direct.isLoading && list.length === 0 && <p className="py-10 text-center text-zinc-500">{t ? tr('Ninguém com esse nome') : tr('Ainda não tens conversas. Procura alguém pelo nome.')}</p>}
             <ul className="grid grid-cols-3 gap-y-4 pt-2">
               {list.map((x) => {
                 const on = isPicked(x.key);
@@ -239,14 +240,14 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
             <div className="shrink-0 border-t border-zinc-100 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
               <input value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} placeholder={tr('Escrever uma mensagem…')} aria-label={tr('Mensagem')} className="h-12 w-full rounded-full bg-zinc-100 px-5 text-[16px] outline-none placeholder:text-zinc-500 focus:bg-zinc-200/70" />
               <button type="button" onClick={sendAll} disabled={busy} className="mt-3 h-12 w-full rounded-full bg-brand text-[17px] font-bold text-white transition active:scale-[0.98] disabled:opacity-60">
-                {busy ? 'A enviar…' : picked.length === 1 ? `Enviar a ${picked[0].name.split(' ')[0]}` : `Enviar a ${picked.length} conversas`}
+                {busy ? tr('A enviar…') : picked.length === 1 ? `Enviar a ${picked[0].name.split(' ')[0]}` : `Enviar a ${picked.length} conversas`}
               </button>
             </div>
           ) : (
             <div className="shrink-0 border-t border-zinc-100 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
               <div className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {action('square-plus', 'Adicionar ao status', () => void toStory('all'), canStory ? 'bg-brand text-white' : 'bg-zinc-100 text-zinc-400')}
-                {action('heart', 'Amigos próximos', () => void toStory('close_friends'), canStory ? 'bg-emerald-500 text-white' : 'bg-zinc-100 text-zinc-400')}
+                {action('square-plus', 'Adicionar ao status', () => void toStory('all'), canStory ? tr('bg-brand text-white') : tr('bg-zinc-100 text-zinc-400'))}
+                {action('heart', 'Amigos próximos', () => void toStory('close_friends'), canStory ? tr('bg-emerald-500 text-white') : tr('bg-zinc-100 text-zinc-400'))}
                 {action('camera', 'Story do WhatsApp', () => void whatsappStory(), 'bg-emerald-500 text-white')}
                 {action('messages', 'WhatsApp', whatsapp, 'bg-emerald-600 text-white')}
                 {letter('Telegram', 'T', 'bg-sky-500', () => network('telegram', `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(data.text)}`))}
@@ -288,7 +289,7 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
                 </button>
               ))}
             </div>
-            <button type="button" onClick={() => void publishStory()} disabled={busy} className="h-12 w-full rounded-full bg-brand text-[17px] font-bold text-white transition active:scale-[0.98] disabled:opacity-60">{busy ? 'A partilhar…' : 'Partilhar no status'}</button>
+            <button type="button" onClick={() => void publishStory()} disabled={busy} className="h-12 w-full rounded-full bg-brand text-[17px] font-bold text-white transition active:scale-[0.98] disabled:opacity-60">{busy ? tr('A partilhar…') : tr('Partilhar no status')}</button>
           </div>
         </div>
       )}

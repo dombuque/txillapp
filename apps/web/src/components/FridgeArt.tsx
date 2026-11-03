@@ -1,3 +1,4 @@
+import { tr } from '../lib/i18n';
 import { useId } from 'react';
 
 /**
@@ -20,14 +21,14 @@ export function geleiraPoints(items: { kind: string; category: string; alcoholic
 /** Nível da geleira pelos pontos, em calão da malta (txilar, maningue, paulada, madala). */
 const STEPS = [1, 10, 25, 50] as const;
 export const geleiraLevel = (points: number) => (points <= 0 ? 0 : points >= STEPS[3] ? 4 : points >= STEPS[2] ? 3 : points >= STEPS[1] ? 2 : 1);
-export const LEVEL_LABEL = ['Geleira seca', 'A txilar', 'Maningue abastecida', 'Paulada garantida', 'Madala da paulada'] as const;
+export const LEVEL_LABEL = [tr('Geleira seca'), tr('A txilar'), tr('Maningue abastecida'), tr('Paulada garantida'), tr('Madala da paulada')];
 /** Quanto falta para o nível seguinte, numa frase. */
 export function nextLevelHint(points: number): string {
   const l = geleiraLevel(points);
-  if (l === 4) return 'Nível máximo: madala da paulada!';
-  if (l === 0) return 'Põe o primeiro gosto para começar a txilar.';
+  if (l === 4) return tr('Nível máximo: madala da paulada!');
+  if (l === 0) return tr('Põe o primeiro gosto para começar a txilar.');
   const falta = STEPS[l] - points;
-  return `Faltam ${falta} ${falta === 1 ? 'ponto' : 'pontos'} para ${LEVEL_LABEL[l + 1].toLowerCase()}. Bebidas com álcool e vibes de festa valem mais.`;
+  return tr(falta === 1 ? 'Falta {n} ponto para {next}. Bebidas com álcool e vibes de festa valem mais.' : 'Faltam {n} pontos para {next}. Bebidas com álcool e vibes de festa valem mais.', { n: falta, next: LEVEL_LABEL[l + 1].toLowerCase() });
 }
 
 const ITEM_COLORS = ['#fb7185', '#fbbf24', '#34d399', '#60a5fa', '#c084fc', '#fb923c', '#f472b6', '#2dd4bf'];
@@ -61,7 +62,7 @@ export default function FridgeArt({ count, level, open = false, invite = false, 
   const dots = Math.min(count, 8);
   const h = Math.round(size * 1.3);
   return (
-    <svg width={size} height={h} viewBox="0 0 100 130" role="img" aria-label={`Geleira: ${LEVEL_LABEL[level] ?? ''}`} className="shrink-0 overflow-visible">
+    <svg width={size} height={h} viewBox="0 0 100 130" role="img" aria-label={`${tr('Geleira')}: ${LEVEL_LABEL[level] ?? ''}`} className="shrink-0 overflow-visible">
       <defs>
         <linearGradient id={`b${id}`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#ffffff" />

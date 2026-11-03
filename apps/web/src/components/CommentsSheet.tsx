@@ -68,7 +68,7 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
         </p>
         <Body text={c.body} />
         <div className="mt-1 flex gap-4 text-xs font-semibold text-zinc-500">
-          {cheer.cheers > 0 && <span>{cheer.cheers} {cheer.cheers === 1 ? 'brinde' : 'brindes'}</span>}
+          {cheer.cheers > 0 && <span>{cheer.cheers} {cheer.cheers === 1 ? tr('brinde') : tr('brindes')}</span>}
           <button onClick={() => onReply(c)}>{tr('Responder')}</button>
           {!canDelete && <button onClick={() => setReporting(true)}>{tr('Denunciar')}</button>}
           {canDelete && <button onClick={remove}>{tr('Apagar')}</button>}
@@ -110,7 +110,7 @@ function Replies({ c, expanded, toggle, canDeleteFor, onReply, onRemoved }: Thre
     <div className="ml-12">
       <button onClick={toggle} className="flex items-center gap-3 py-1 text-xs font-semibold text-zinc-500">
         <span className="h-px w-7 bg-zinc-300" />
-        {expanded ? 'Ocultar respostas' : `Ver ${c.replyCount} ${c.replyCount === 1 ? 'resposta' : 'respostas'}`}
+        {expanded ? tr('Ocultar respostas') : `Ver ${c.replyCount} ${c.replyCount === 1 ? tr('resposta') : tr('respostas')}`}
       </button>
       {expanded && (
         <div>
@@ -253,7 +253,7 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
           </div>
           {q.hasNextPage && (
             <button onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage} className="mx-auto my-3 block text-sm font-semibold text-zinc-500">
-              {q.isFetchingNextPage ? 'A carregar…' : 'Ver mais comentários'}
+              {q.isFetchingNextPage ? tr('A carregar…') : tr('Ver mais comentários')}
             </button>
           )}
         </div>

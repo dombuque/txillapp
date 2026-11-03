@@ -22,7 +22,7 @@ export default function EmailBanner() {
       </p>
       {!resend.isSuccess && (
         <button onClick={() => resend.mutate()} disabled={resend.isPending} className="shrink-0 font-bold text-brand underline disabled:opacity-50">
-          {resend.isPending ? 'A enviar…' : 'Reenviar'}
+          {resend.isPending ? tr('A enviar…') : tr('Reenviar')}
         </button>
       )}
     </div>

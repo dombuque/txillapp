@@ -73,8 +73,13 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
   // O nível vem do servidor (conta tudo, venha quem vier ver, e o título respeita a idade); enquanto carrega usa a conta local.
   const points = geleiraPoints(items);
   const level = lv.data?.level ?? geleiraLevel(points);
-  const title = lv.data?.title ?? LEVEL_LABEL[level];
-  const hint = lv.data ? (lv.data.toNext === null ? `Nível máximo: ${lv.data.title.toLowerCase()}!` : `Faltam ${lv.data.toNext} ${lv.data.toNext === 1 ? 'ponto' : 'pontos'} para ${lv.data.nextTitle!.toLowerCase()}. Bebidas com álcool e vibes de festa valem mais.`) : nextLevelHint(points);
+  // O título e a frase de progresso vêm do servidor em português: traduzem-se aqui.
+  const title = lv.data ? tr(lv.data.title) : LEVEL_LABEL[level];
+  const hint = lv.data
+    ? lv.data.toNext === null
+      ? tr('Nível máximo: {t}!', { t: lv.data.title.toLowerCase() })
+      : tr(lv.data.toNext === 1 ? 'Falta {n} ponto para {next}. Bebidas com álcool e vibes de festa valem mais.' : 'Faltam {n} pontos para {next}. Bebidas com álcool e vibes de festa valem mais.', { n: lv.data.toNext, next: tr(lv.data.nextTitle ?? '').toLowerCase() })
+    : nextLevelHint(points);
 
   const folded = compact && !open;
 
@@ -94,9 +99,9 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
           <FridgeArt count={total} level={level} open={!folded} size={84} />
         )}
         <div className="min-w-0 flex-1">
-          <span className="block text-[18px] font-extrabold leading-tight">{isMe ? 'A minha geleira' : 'Geleira'}</span>
+          <span className="block text-[18px] font-extrabold leading-tight">{isMe ? tr('A minha geleira') : tr('Geleira')}</span>
           <span className="block text-[13px] text-zinc-600">
-            {items.length === 0 ? 'Ainda vazia' : `${total} ${total === 1 ? 'gosto' : 'gostos'}${favorites.length ? ` · ${favorites.length} ${favorites.length === 1 ? 'favorito' : 'favoritos'}` : ''}`}
+            {items.length === 0 ? tr('Ainda vazia') : `${total} ${total === 1 ? tr('gosto') : tr('gostos')}${favorites.length ? ` · ${favorites.length} ${favorites.length === 1 ? tr('favorito') : tr('favoritos')}` : ''}`}
           </span>
           {total > 0 && <span className="mt-1 inline-block rounded-full bg-rose-50 px-2.5 py-0.5 text-[12px] font-bold text-brand">{title}</span>}
           {isMe && !folded && <span className="mt-1 block text-[12px] text-zinc-500">{hint}</span>}
@@ -106,7 +111,7 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
       {items.length === 0 && (!compact || open) ? (
         <div className="mt-4 rounded-2xl bg-white/70 px-4 py-6 text-center ring-1 ring-sky-100">
           <p className="text-lg font-extrabold">{tr('Geleira vazia!')}</p>
-          <p className="mx-auto mt-1 max-w-[17rem] text-zinc-600">{isMe ? 'Para a encher, vai a Editar perfil e abre "A minha geleira".' : 'Ainda não há nada para mostrar.'}</p>
+          <p className="mx-auto mt-1 max-w-[17rem] text-zinc-600">{isMe ? tr('Para a encher, vai a Editar perfil e abre "A minha geleira".') : tr('Ainda não há nada para mostrar.')}</p>
         </div>
       ) : (
         !folded && items.length > 0 && (

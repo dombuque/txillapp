@@ -5,15 +5,15 @@ import { api, type ReportReason, type ReportType } from '../lib/api';
 import { Sheet } from './ui';
 
 const REASONS: { value: ReportReason; label: string; text: string }[] = [
-  { value: 'spam', label: 'Spam', text: 'Publicidade, repetição ou ligações suspeitas.' },
-  { value: 'harassment', label: 'Assédio ou bullying', text: 'Ataques, ameaças ou perseguição.' },
-  { value: 'hate', label: 'Discurso de ódio', text: 'Discriminação ou ataques a um grupo.' },
-  { value: 'nudity', label: 'Nudez ou conteúdo sexual', text: 'Conteúdo impróprio.' },
-  { value: 'violence', label: 'Violência', text: 'Violência explícita ou apelo à violência.' },
-  { value: 'scam', label: 'Burla ou fraude', text: 'Tentativa de enganar ou roubar.' },
-  { value: 'impersonation', label: 'Faz-se passar por outra pessoa', text: 'Conta ou conteúdo falso.' },
-  { value: 'minor', label: 'Envolve menores', text: 'Conteúdo que põe crianças em risco.' },
-  { value: 'other', label: 'Outro motivo', text: 'Algo que não está na lista.' },
+  { value: 'spam', label: tr('Spam'), text: tr('Publicidade, repetição ou ligações suspeitas.') },
+  { value: 'harassment', label: tr('Assédio ou bullying'), text: tr('Ataques, ameaças ou perseguição.') },
+  { value: 'hate', label: tr('Discurso de ódio'), text: tr('Discriminação ou ataques a um grupo.') },
+  { value: 'nudity', label: tr('Nudez ou conteúdo sexual'), text: tr('Conteúdo impróprio.') },
+  { value: 'violence', label: tr('Violência'), text: tr('Violência explícita ou apelo à violência.') },
+  { value: 'scam', label: tr('Burla ou fraude'), text: tr('Tentativa de enganar ou roubar.') },
+  { value: 'impersonation', label: tr('Faz-se passar por outra pessoa'), text: tr('Conta ou conteúdo falso.') },
+  { value: 'minor', label: tr('Envolve menores'), text: tr('Conteúdo que põe crianças em risco.') },
+  { value: 'other', label: tr('Outro motivo'), text: tr('Algo que não está na lista.') },
 ];
 
 /** Denunciar uma publicação, comentário, mensagem ou conta. Fica para a moderação analisar; a outra pessoa não é avisada. */
@@ -81,7 +81,7 @@ export default function ReportSheet({ type, id, onClose, layer }: { type: Exclud
       )}
       {err && <p role="alert" className="mt-2 text-center text-sm text-red-600">{err}</p>}
       <button disabled={!reason || busy} onClick={send} className="mt-4 h-12 w-full rounded-full bg-brand font-bold text-white transition active:scale-[0.98] disabled:opacity-40">
-        {busy ? 'A enviar…' : 'Enviar denúncia'}
+        {busy ? tr('A enviar…') : tr('Enviar denúncia')}
       </button>
     </Sheet>
   );

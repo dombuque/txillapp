@@ -33,7 +33,7 @@ function Row({ item, onDone }: { item: ReportQueueItem; onDone: () => void }) {
     <li className="rounded-2xl border border-zinc-200 p-4">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
         <span className="rounded-full bg-zinc-900 px-2.5 py-0.5 font-bold text-white">{TYPE[item.type]}</span>
-        <span className="font-bold text-brand">{item.reports} {item.reports === 1 ? 'denúncia' : 'denúncias'}</span>
+        <span className="font-bold text-brand">{item.reports} {item.reports === 1 ? tr('denúncia') : tr('denúncias')}</span>
         <span className="text-zinc-500">· {item.reasons.map((r) => REASON[r] ?? r).join(', ')}</span>
       </div>
       {item.owner && (

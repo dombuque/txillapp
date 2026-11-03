@@ -59,8 +59,8 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    if (!TYPES.includes(f.type)) return setErr('Essa foto não serve. Usa JPEG, PNG ou WebP');
-    if (f.size > MAX_BYTES) return setErr('Foto pesada demais! Máximo 12 MB');
+    if (!TYPES.includes(f.type)) return setErr(tr('Essa foto não serve. Usa JPEG, PNG ou WebP'));
+    if (f.size > MAX_BYTES) return setErr(tr('Foto pesada demais! Máximo 12 MB'));
     setPhotoBusy(true);
     setErr('');
     try {
@@ -92,7 +92,7 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
 
   async function save(e: FormEvent) {
     e.preventDefault();
-    if (!displayName.trim()) return setErr('Diz-nos o teu nome');
+    if (!displayName.trim()) return setErr(tr('Diz-nos o teu nome'));
     setBusy(true);
     setErr('');
     try {
@@ -138,7 +138,7 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
           <input ref={fileRef} type="file" accept={TYPES.join(',')} onChange={pickPhoto} className="sr-only" />
           <div className="flex gap-2">
             <button type="button" onClick={() => fileRef.current?.click()} disabled={photoBusy} className={`${btnGhost} !px-4 !py-2 text-sm`}>
-              {hasPhoto ? 'Mudar foto' : 'Pôr uma foto'}
+              {hasPhoto ? tr('Mudar foto') : tr('Pôr uma foto')}
             </button>
             {hasPhoto && (
               <button type="button" onClick={removePhoto} disabled={photoBusy} className={`${btnGhost} !px-4 !py-2 text-sm`}>{tr('Tirar foto')}</button>
@@ -199,7 +199,7 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
           </button>
         </div>
         <p role="alert" className="min-h-5 text-center text-sm text-red-600">{err}</p>
-        <button disabled={busy || photoBusy} className={`${btnPrimary} w-full py-4 text-lg`}>{busy ? 'A guardar…' : 'Guardar'}</button>
+        <button disabled={busy || photoBusy} className={`${btnPrimary} w-full py-4 text-lg`}>{busy ? tr('A guardar…') : tr('Guardar')}</button>
       </form>
     </Sheet>
   );

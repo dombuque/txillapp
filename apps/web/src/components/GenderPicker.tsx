@@ -2,10 +2,10 @@ import type { Gender } from '../lib/api';
 import { tr } from '../lib/i18n';
 
 export const GENDERS: { value: Gender; label: string }[] = [
-  { value: 'female', label: 'Feminino' },
-  { value: 'male', label: 'Masculino' },
-  { value: 'other', label: 'Outro' },
-  { value: 'unspecified', label: 'Prefiro não dizer' },
+  { value: 'female', label: tr('Feminino') },
+  { value: 'male', label: tr('Masculino') },
+  { value: 'other', label: tr('Outro') },
+  { value: 'unspecified', label: tr('Prefiro não dizer') },
 ];
 
 export const genderLabel = (g: Gender) => GENDERS.find((x) => x.value === g)?.label ?? '';

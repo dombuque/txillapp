@@ -45,7 +45,7 @@ export default function Verification() {
   const s = q.data;
 
   async function submit() {
-    if (!doc || !selfie) return setErr('Envia o documento e a selfie');
+    if (!doc || !selfie) return setErr(tr('Envia o documento e a selfie'));
     setBusy(true);
     setErr('');
     try {
@@ -75,7 +75,7 @@ export default function Verification() {
         {s && s.verified && (
           <div className="rounded-3xl bg-sky-50 p-6 text-center">
             <VerifiedBadge size={56} tier={s.tier} />
-            <p className="mt-3 text-xl font-extrabold">{s.tier === 'official' ? 'Conta oficial do Txillapp' : 'A tua conta está verificada'}</p>
+            <p className="mt-3 text-xl font-extrabold">{s.tier === 'official' ? tr('Conta oficial do Txillapp') : tr('A tua conta está verificada')}</p>
             <p className="mt-1 text-sm text-zinc-600">{tr('O selo aparece junto ao teu nome em todo o Txillapp.')}</p>
           </div>
         )}
@@ -118,7 +118,7 @@ export default function Verification() {
                   ))}
                 </div>
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-semibold">{kind === 'person' ? 'Nome completo (como no documento)' : 'Nome do negócio ou do responsável'}</span>
+                  <span className="mb-1.5 block text-sm font-semibold">{kind === 'person' ? tr('Nome completo (como no documento)') : tr('Nome do negócio ou do responsável')}</span>
                   <input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={80} required className={fieldInput} />
                 </label>
                 <label className="block">
@@ -128,7 +128,7 @@ export default function Verification() {
                 <PhotoSlot label={tr('Documento de identificação')} hint={tr('BI, passaporte ou carta de condução (a frente)')} file={doc} onPick={setDoc} />
                 <PhotoSlot label={tr('Selfie')} hint={tr('Uma foto tua, com a cara bem visível')} file={selfie} onPick={setSelfie} />
                 {err && <p role="alert" className="text-center text-sm text-red-600">{err}</p>}
-                <button disabled={busy || !fullName.trim() || proof.trim().length < 10 || !doc || !selfie} className={`${btnPrimary} w-full`}>{busy ? 'A enviar…' : 'Enviar pedido'}</button>
+                <button disabled={busy || !fullName.trim() || proof.trim().length < 10 || !doc || !selfie} className={`${btnPrimary} w-full`}>{busy ? tr('A enviar…') : tr('Enviar pedido')}</button>
                 <p className="text-center text-xs text-zinc-500">{tr('Só a moderação vê os documentos, e são apagados quando decidirmos.')}</p>
               </form>
             )}

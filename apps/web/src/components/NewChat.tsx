@@ -47,7 +47,7 @@ export default function NewChat({ onClose, addTo, onCreated }: { onClose: () => 
       return navigate(`/messages/${picked[0].username}`);
     }
     if (!naming) return setNaming(true);
-    if (!name.trim()) return setErr('Dá um nome ao grupo');
+    if (!name.trim()) return setErr(tr('Dá um nome ao grupo'));
     setBusy(true);
     try {
       const r = await api.chatGroupCreate(name.trim(), picked.map((p) => p.username));
@@ -108,7 +108,7 @@ export default function NewChat({ onClose, addTo, onCreated }: { onClose: () => 
             </div>
             <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
               {!text.trim() && rows.length > 0 && <li className="px-3 pb-1 pt-3 text-[13px] font-bold text-zinc-500">{tr('Sugestões')}</li>}
-              {rows.length === 0 && <li className="py-12 text-center text-zinc-500">{text.trim() ? 'Ninguém com esse nome' : 'Procura pelo nome ou @.'}</li>}
+              {rows.length === 0 && <li className="py-12 text-center text-zinc-500">{text.trim() ? tr('Ninguém com esse nome') : tr('Procura pelo nome ou @.')}</li>}
               {rows.map((p) => {
                 const on = isPicked(p.username);
                 return (
@@ -132,7 +132,7 @@ export default function NewChat({ onClose, addTo, onCreated }: { onClose: () => 
           {err && <p role="alert" className="mb-2 text-center text-sm text-red-600">{err}</p>}
           <div className="flex gap-2">
             {naming && <button type="button" onClick={() => setNaming(false)} className="h-12 rounded-full px-5 font-semibold text-zinc-700 active:bg-zinc-100">{tr('Voltar')}</button>}
-            <button type="button" onClick={go} disabled={busy || picked.length === 0} className="h-12 flex-1 rounded-full bg-brand text-[16px] font-bold text-white transition active:scale-[0.98] disabled:opacity-40">{busy ? 'A criar…' : label}</button>
+            <button type="button" onClick={go} disabled={busy || picked.length === 0} className="h-12 flex-1 rounded-full bg-brand text-[16px] font-bold text-white transition active:scale-[0.98] disabled:opacity-40">{busy ? tr('A criar…') : label}</button>
           </div>
           {!addTo && !naming && picked.length === 1 && <p className="mt-2 text-center text-xs text-zinc-500">{tr('Escolhe mais pessoas para criar um grupo.')}</p>}
         </div>

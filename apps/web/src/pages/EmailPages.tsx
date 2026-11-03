@@ -61,7 +61,7 @@ export function ForgotPassword() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Esse e-mail não parece certo');
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError(tr('Esse e-mail não parece certo'));
     setBusy(true);
     setError('');
     try {
@@ -89,7 +89,7 @@ export function ForgotPassword() {
           <form onSubmit={submit} className="mt-7 space-y-3" noValidate>
             <AuthField icon={<Icon name="mail" size={22} />} value={email} onChange={setEmail} placeholder={tr('E-mail')} type="email" name="email" autoComplete="email" inputMode="email" autoFocus />
             <p role="alert" className="min-h-[1.5rem] text-center text-[15px] text-red-600">{error}</p>
-            <button disabled={busy} className={AuthCta}>{busy ? 'A enviar…' : 'Enviar link'}</button>
+            <button disabled={busy} className={AuthCta}>{busy ? tr('A enviar…') : tr('Enviar link')}</button>
           </form>
         </>
       )}
@@ -110,8 +110,8 @@ export function ResetPassword() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (pass.length < 10) return setError('A senha precisa de pelo menos 10 caracteres');
-    if (pass !== again) return setError('As duas senhas não são iguais');
+    if (pass.length < 10) return setError(tr('A senha precisa de pelo menos 10 caracteres'));
+    if (pass !== again) return setError(tr('As duas senhas não são iguais'));
     setBusy(true);
     setError('');
     try {
@@ -141,7 +141,7 @@ export function ResetPassword() {
             <AuthField icon={<Icon name="lock" size={22} />} value={pass} onChange={setPass} placeholder={tr('Senha nova')} type="password" name="new-password" autoComplete="new-password" autoFocus />
             <AuthField icon={<Icon name="lock" size={22} />} value={again} onChange={setAgain} placeholder={tr('Repete a senha')} type="password" name="new-password-again" autoComplete="new-password" />
             <p role="alert" className="min-h-[1.5rem] text-center text-[15px] text-red-600">{error}</p>
-            <button disabled={busy || !token} className={AuthCta}>{busy ? 'A guardar…' : 'Guardar senha'}</button>
+            <button disabled={busy || !token} className={AuthCta}>{busy ? tr('A guardar…') : tr('Guardar senha')}</button>
           </form>
         </>
       )}

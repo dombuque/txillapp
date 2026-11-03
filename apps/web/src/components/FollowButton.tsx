@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { tr } from '../lib/i18n';
 import { useEffect, useState } from 'react';
 import { api, type FollowState } from '../lib/api';
 
@@ -49,7 +50,7 @@ export default function FollowButton({
         on ? 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200' : 'bg-brand text-white'
       }`}
     >
-      {s.following ? 'A seguir' : s.requested ? 'Pedido enviado' : 'Seguir'}
+      {s.following ? tr('A seguir') : s.requested ? tr('Pedido enviado') : tr('Seguir')}
     </button>
   );
 }

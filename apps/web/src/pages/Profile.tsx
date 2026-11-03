@@ -27,15 +27,15 @@ type SheetName = null | 'report' | 'edit' | 'requests' | 'menu' | 'block' | 'gif
 
 /** Perfil de qualquer pessoa (/u/:username) e o meu (/profile). */
 const TABS: { id: ProfileTab; label: string; icon: IconName }[] = [
-  { id: 'all', label: 'Tudo', icon: 'grid' },
-  { id: 'reels', label: 'Reels', icon: 'film' },
-  { id: 'reposts', label: 'Reposts', icon: 'repeat' },
-  { id: 'gifts', label: 'Presentes', icon: 'gift' },
+  { id: 'all', label: tr('Tudo'), icon: 'grid' },
+  { id: 'reels', label: tr('Reels'), icon: 'film' },
+  { id: 'reposts', label: tr('Reposts'), icon: 'repeat' },
+  { id: 'gifts', label: tr('Presentes'), icon: 'gift' },
 ];
 const EMPTY: Record<Exclude<ProfileTab, 'all'>, { me: string; other: string }> = {
-  reels: { me: 'Ainda não publicaste reels.', other: 'Ainda sem reels.' },
-  reposts: { me: 'Ainda não repostaste nada.', other: 'Ainda sem reposts.' },
-  gifts: { me: 'Os presentes que deres ou receberes e publicares aparecem aqui.', other: 'Ainda sem presentes publicados.' },
+  reels: { me: tr('Ainda não publicaste reels.'), other: tr('Ainda sem reels.') },
+  reposts: { me: tr('Ainda não repostaste nada.'), other: tr('Ainda sem reposts.') },
+  gifts: { me: tr('Os presentes que deres ou receberes e publicares aparecem aqui.'), other: tr('Ainda sem presentes publicados.') },
 };
 
 export default function ProfilePage() {
@@ -71,7 +71,7 @@ export default function ProfilePage() {
     return (
       <div className="mx-6 mt-16 text-center">
         <Icon name={missing ? 'search' : 'alert'} size={44} className="mx-auto text-zinc-300" />
-        <p className="mt-3 text-xl font-bold">{missing ? 'Essa pessoa não existe' : 'Não consegui abrir este perfil'}</p>
+        <p className="mt-3 text-xl font-bold">{missing ? tr('Essa pessoa não existe') : tr('Não consegui abrir este perfil')}</p>
         <button onClick={() => navigate(-1)} className={`${btnGhost} mt-6`}>{tr('Voltar')}</button>
       </div>
     );
@@ -226,7 +226,7 @@ export default function ProfilePage() {
           <p className="text-zinc-300" aria-hidden><Icon name="lock" size={44} className="mx-auto" /></p>
           <p className="mt-3 text-xl font-extrabold">{tr('Esta conta é privada')}</p>
           <p className="mt-1 text-zinc-600">
-            {p.requested ? 'Pedido enviado. Quando aceitar, vês as publicações e stories.' : 'Segue para ver as publicações e stories.'}
+            {p.requested ? tr('Pedido enviado. Quando aceitar, vês as publicações e stories.') : tr('Segue para ver as publicações e stories.')}
           </p>
         </div>
       ) : (
@@ -286,7 +286,7 @@ export default function ProfilePage() {
             {posts.isSuccess && items.length === 0 && tab === 'all' && (
               <div className="mt-8 text-center text-zinc-600">
                 <p className="text-zinc-300" aria-hidden><Icon name="camera" size={36} className="mx-auto" /></p>
-                <p className="mt-2 font-semibold">{p.isMe ? 'Ainda não publicaste nada' : 'Ainda sem publicações'}</p>
+                <p className="mt-2 font-semibold">{p.isMe ? tr('Ainda não publicaste nada') : tr('Ainda sem publicações')}</p>
                 {p.isMe && <Link to="/new" className="mt-3 inline-block font-semibold text-brand underline">{tr('Faz a primeira!')}</Link>}
               </div>
             )}
@@ -322,7 +322,7 @@ export default function ProfilePage() {
             {posts.hasNextPage && (
               <div className="mt-4 text-center">
                 <button onClick={() => posts.fetchNextPage()} disabled={posts.isFetchingNextPage} className={btnGhost}>
-                  {posts.isFetchingNextPage ? 'A carregar…' : 'Ver mais'}
+                  {posts.isFetchingNextPage ? tr('A carregar…') : tr('Ver mais')}
                 </button>
               </div>
             )}
@@ -342,7 +342,7 @@ export default function ProfilePage() {
           <button onClick={() => setSheet('block')} className="flex w-full items-center gap-4 rounded-2xl px-1 py-3 text-left text-red-700 transition active:bg-red-50">
             <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50" aria-hidden><Icon name="block" /></span>
             <span>
-              <span className="block text-[17px] font-semibold">{p.blockedByMe ? 'Já bloqueaste esta conta' : `Bloquear @${p.username}`}</span>
+              <span className="block text-[17px] font-semibold">{p.blockedByMe ? tr('Já bloqueaste esta conta') : `Bloquear @${p.username}`}</span>
               <span className="block text-sm text-zinc-600">{tr('Deixa de ver o teu conteúdo e de te poder seguir.')}</span>
             </span>
           </button>

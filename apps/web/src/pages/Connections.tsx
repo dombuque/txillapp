@@ -58,7 +58,7 @@ function ConnectionList({ username, kind, meUsername }: { username: string; kind
         <div className="py-12 text-center text-zinc-600">
           <Icon name={term ? 'search' : kind === 'followers' ? 'sprout' : 'eye'} size={36} className="mx-auto text-zinc-300" />
           <p className="mt-2 font-semibold">
-            {term ? 'Ninguém com esse nome' : kind === 'followers' ? 'Ainda sem seguidores' : 'Ainda não segue ninguém'}
+            {term ? tr('Ninguém com esse nome') : kind === 'followers' ? tr('Ainda sem seguidores') : tr('Ainda não segue ninguém')}
           </p>
         </div>
       )}
@@ -69,7 +69,7 @@ function ConnectionList({ username, kind, meUsername }: { username: string; kind
               <Avatar name={x.displayName} username={x.username} size={48} ring={false} presence />
               <span className="min-w-0">
                 <span className="block truncate font-semibold">{x.displayName}</span>
-                <span className="block truncate text-sm text-zinc-600">@{x.username}{x.followsYou && x.username !== meUsername ? ' · segue-te' : ''}</span>
+                <span className="block truncate text-sm text-zinc-600">@{x.username}{x.followsYou && x.username !== meUsername ? tr(' · segue-te') : ''}</span>
               </span>
             </Link>
             {x.username !== meUsername && (
@@ -80,7 +80,7 @@ function ConnectionList({ username, kind, meUsername }: { username: string; kind
       </ul>
       {q.hasNextPage && (
         <button onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage} className="mx-auto mt-2 block text-sm font-semibold text-zinc-600">
-          {q.isFetchingNextPage ? 'A carregar…' : 'Ver mais'}
+          {q.isFetchingNextPage ? tr('A carregar…') : tr('Ver mais')}
         </button>
       )}
     </div>

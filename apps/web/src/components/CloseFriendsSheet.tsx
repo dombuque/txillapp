@@ -57,7 +57,7 @@ export default function CloseFriendsSheet({ onClose, layer }: { onClose: () => v
             <button type="button" onClick={() => toggle(p.username, true)} className="rounded-full bg-brand px-4 py-1.5 text-sm font-bold text-white active:scale-95">{tr('Adicionar')}</button>
           </li>
         ))}
-        {followers.isSuccess && candidates.length === 0 && <li className="py-3 text-sm text-zinc-500">{q ? 'Ninguém com esse nome' : 'Não há mais seguidores para adicionar.'}</li>}
+        {followers.isSuccess && candidates.length === 0 && <li className="py-3 text-sm text-zinc-500">{q ? tr('Ninguém com esse nome') : tr('Não há mais seguidores para adicionar.')}</li>}
       </ul>
     </Sheet>
   );

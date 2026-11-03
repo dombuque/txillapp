@@ -129,10 +129,10 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
             <>
               <Icon name="alert" size={48} className="mx-auto text-white/70" />
               <p className="mt-3 text-lg font-bold">
-                {problem === 'denied' ? 'Sem permissão para a câmara' : problem === 'unsupported' ? 'A câmara precisa de ligação segura' : 'Não consegui abrir a câmara'}
+                {problem === 'denied' ? tr('Sem permissão para a câmara') : problem === 'unsupported' ? tr('A câmara precisa de ligação segura') : tr('Não consegui abrir a câmara')}
               </p>
               <p className="mt-1 text-sm text-white/70">
-                {problem === 'denied' ? 'Ativa a câmara nas definições do browser, ou escolhe fotos da galeria.' : 'Podes sempre escolher fotos da galeria.'}
+                {problem === 'denied' ? tr('Ativa a câmara nas definições do browser, ou escolhe fotos da galeria.') : tr('Podes sempre escolher fotos da galeria.')}
               </p>
               <label className="mt-5 inline-flex h-12 cursor-pointer items-center rounded-full bg-brand px-6 font-bold">
                 {tr('Abrir galeria')}

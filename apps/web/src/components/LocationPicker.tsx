@@ -126,7 +126,7 @@ export default function LocationPicker({ onSend, onClose }: { onSend: (p: Picked
           <span className={`${dot} bg-sky-100 text-sky-600`}><Icon name="locate" size={22} /></span>
           <span className="min-w-0">
             <span className="block font-semibold">{tr('Enviar a tua localização atual')}</span>
-            <span className="block text-sm text-zinc-500">{mine ? `Precisão de ${mine.acc} metros` : gpsErr ? 'Sem acesso à localização. Ativa-a nas definições.' : 'A procurar onde estás…'}</span>
+            <span className="block text-sm text-zinc-500">{mine ? `Precisão de ${mine.acc} metros` : gpsErr ? tr('Sem acesso à localização. Ativa-a nas definições.') : tr('A procurar onde estás…')}</span>
           </span>
         </button>
         <button type="button" disabled={!mine} onClick={() => setLiveOpen((v) => !v)} aria-expanded={liveOpen} className={`${row} disabled:opacity-60`}>
@@ -148,7 +148,7 @@ export default function LocationPicker({ onSend, onClose }: { onSend: (p: Picked
             <span className={`${dot} bg-rose-100 text-brand`}><Icon name="map-pin" size={22} /></span>
             <span className="min-w-0">
               <span className="block font-semibold">{tr('Enviar esta localização')}</span>
-              <span className="block truncate text-sm text-zinc-500">{near?.area ?? (loading ? 'A procurar…' : 'O ponto onde está o pino')}</span>
+              <span className="block truncate text-sm text-zinc-500">{near?.area ?? (loading ? tr('A procurar…') : tr('O ponto onde está o pino'))}</span>
             </span>
           </button>
         )}

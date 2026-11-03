@@ -103,7 +103,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
       {group && !mine && !prevSame && m.sender && <span className="mb-0.5 px-1 text-[12px] font-bold text-zinc-600">{m.sender.displayName.split(' ')[0]}</span>}
       {m.storyUrl && <img src={sized(m.storyUrl, 160)} alt={tr('Story')} className="mb-1 h-28 w-[72px] rounded-xl object-cover opacity-90" />}
       {(m.kind === 'story_reply' || m.kind === 'story_reaction') && (
-        <p className="mb-0.5 text-xs text-zinc-500">{m.kind === 'story_reaction' ? (mine ? 'Reagiste ao story' : 'Reagiu ao teu story') : mine ? 'Respondeste ao story' : 'Respondeu ao teu story'}</p>
+        <p className="mb-0.5 text-xs text-zinc-500">{m.kind === 'story_reaction' ? (mine ? tr('Reagiste ao story') : tr('Reagiu ao teu story')) : mine ? tr('Respondeste ao story') : tr('Respondeu ao teu story')}</p>
       )}
       {m.kind === 'story_reaction' && <div className="leading-tight"><Reaction body={m.body} size={64} /></div>}
       {m.viewOnce ? (
@@ -114,7 +114,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
           className={`flex items-center gap-2.5 px-4 py-2.5 text-[15px] font-semibold ${shape} ${m.opened ? 'bg-zinc-100 text-zinc-500' : mine ? 'bg-brand text-white' : 'bg-zinc-900 text-white'} ${dim} ${!mine && !m.opened ? 'active:scale-95' : ''}`}
         >
           <Icon name="once" size={26} />
-          {m.opened ? 'Aberta' : mine ? 'Visualização única · por abrir' : m.kind === 'image' ? 'Foto · toca para abrir' : m.kind === 'voice' ? 'Voz · toca para abrir' : 'Mensagem · toca para abrir'}
+          {m.opened ? tr('Aberta') : mine ? tr('Visualização única · por abrir') : m.kind === 'image' ? tr('Foto · toca para abrir') : m.kind === 'voice' ? tr('Voz · toca para abrir') : tr('Mensagem · toca para abrir')}
         </button>
       ) : null}
       {!m.viewOnce && m.kind === 'gift' && (
@@ -122,7 +122,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
           <div className="flex items-center gap-3 px-4 pt-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/25"><Icon name="gift" size={24} /></span>
             <span className="min-w-0">
-              <span className="block text-[13px] font-semibold opacity-90">{mine ? 'Enviaste um presente' : 'Enviou-te um presente'}</span>
+              <span className="block text-[13px] font-semibold opacity-90">{mine ? tr('Enviaste um presente') : tr('Enviou-te um presente')}</span>
               <span className="block text-[24px] font-extrabold leading-tight">{(m.giftAmount ?? 0).toLocaleString(locale)} {tr('Txills')}</span>
             </span>
           </div>
@@ -140,7 +140,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
       {!m.viewOnce && m.kind === 'location' && m.liveUntil && (
         <span className="mt-1 flex items-center gap-2 px-1 text-[12px] font-semibold text-emerald-700">
           <span className={`h-2 w-2 rounded-full ${m.live ? 'animate-pulse bg-emerald-500' : 'bg-zinc-300'}`} aria-hidden />
-          {m.live ? `Em direto até às ${clock(m.liveUntil)}` : 'Partilha em direto terminada'}
+          {m.live ? `Em direto até às ${clock(m.liveUntil)}` : tr('Partilha em direto terminada')}
           {m.live && mine && <button type="button" onClick={() => onStopLive(m)} className="rounded-full bg-red-50 px-3 py-1 text-red-700 active:scale-95">{tr('Parar')}</button>}
         </span>
       )}
@@ -168,7 +168,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
         !nextSame && (
           <span className="mt-0.5 px-1 text-[11px] text-zinc-500">
             {clock(m.at)}
-            {mine && seen ? ' · Visto' : ''}
+            {mine && seen ? tr(' · Visto') : ''}
           </span>
         )
       )}
@@ -322,8 +322,8 @@ export default function Thread() {
 
   /** Tirada na câmara ou escolhida da galeria: primeiro vê-se e decide-se (legenda, filtro, visualização única); só vai ao tocar em Enviar. */
   function queuePhoto(f: File) {
-    if (!IMAGE_TYPES.includes(f.type)) return setErr('Essa foto não serve. Usa JPEG, PNG ou WebP');
-    if (f.size > MAX_IMAGE) return setErr('Foto pesada demais! Máximo 8 MB');
+    if (!IMAGE_TYPES.includes(f.type)) return setErr(tr('Essa foto não serve. Usa JPEG, PNG ou WebP'));
+    if (f.size > MAX_IMAGE) return setErr(tr('Foto pesada demais! Máximo 8 MB'));
     setErr('');
     setReview(f);
   }
@@ -354,7 +354,7 @@ export default function Thread() {
   async function startRecording() {
     setErr('');
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      return setErr('Gravar voz precisa de ligação segura (HTTPS) e de um browser compatível.');
+      return setErr(tr('Gravar voz precisa de ligação segura (HTTPS) e de um browser compatível.'));
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
@@ -401,7 +401,7 @@ export default function Thread() {
       mr.start();
       setRec({ ms: 0, bars: [] });
     } catch {
-      setErr('Sem permissão para o microfone. Ativa-o no browser.');
+      setErr(tr('Sem permissão para o microfone. Ativa-o no browser.'));
     }
   }
 
@@ -551,7 +551,7 @@ export default function Thread() {
             <div role="note" className="mx-auto mb-2 mt-3 max-w-sm rounded-2xl bg-zinc-50 px-4 py-3 text-center text-[13px] leading-snug text-zinc-600 ring-1 ring-zinc-100">
               <Icon name="info" size={16} className="mx-auto mb-1 text-zinc-500" />
               <b className="text-zinc-800">{person.displayName.split(' ')[0]} {tr('não te segue.')}</b> {tr('Pode não ver nem responder à tua mensagem.')}
-              {first.relation.left !== null && <span className="block">{first.relation.left > 0 ? `Podes enviar mais ${first.relation.left} ${first.relation.left === 1 ? 'mensagem' : 'mensagens'} até responder.` : 'Aguarda que responda, aceite ou te siga para escreveres outra vez.'}</span>}
+              {first.relation.left !== null && <span className="block">{first.relation.left > 0 ? `Podes enviar mais ${first.relation.left} ${first.relation.left === 1 ? tr('mensagem') : tr('mensagens')} até responder.` : tr('Aguarda que responda, aceite ou te siga para escreveres outra vez.')}</span>}
             </div>
           )}
           {q.hasNextPage && (
@@ -585,7 +585,7 @@ export default function Thread() {
         </div>
         {(away || unseen > 0) && (
           <button onClick={jumpDown} aria-label={unseen ? `${unseen} mensagens novas` : 'Ir para o fim'} className="absolute bottom-3 left-1/2 flex h-10 -translate-x-1/2 items-center gap-1.5 rounded-full bg-white px-4 text-sm font-bold text-zinc-800 shadow-[0_2px_12px_rgba(0,0,0,0.2)] ring-1 ring-zinc-100 active:scale-95">
-            <Icon name="chevron-right" size={16} className="rotate-90" /> {unseen ? `${unseen} ${unseen === 1 ? 'nova' : 'novas'}` : 'Fim'}
+            <Icon name="chevron-right" size={16} className="rotate-90" /> {unseen ? `${unseen} ${unseen === 1 ? tr('nova') : tr('novas')}` : tr('Fim')}
           </button>
         )}
       </div>

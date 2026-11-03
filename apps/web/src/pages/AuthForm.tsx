@@ -329,7 +329,7 @@ export function Login() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!identifier.trim() || !password) return setError('Por favor preencha as suas credenciais');
+    if (!identifier.trim() || !password) return setError(tr('Por favor preencha as suas credenciais'));
     setBusy(true);
     setError('');
     try {
@@ -359,7 +359,7 @@ export function Login() {
         />
         <Field icon={<LockIcon />} value={password} onChange={setPassword} placeholder={tr('Senha')} type="password" name="password" autoComplete="current-password" enterKeyHint="go" inputRef={passRef} />
         <Alert>{error}</Alert>
-        <button disabled={busy} className={cta}>{busy ? 'A entrar…' : 'Entrar'}</button>
+        <button disabled={busy} className={cta}>{busy ? tr('A entrar…') : tr('Entrar')}</button>
         <p className="pt-1 text-center"><Link to="/forgot-password" className="text-[15px] font-semibold text-zinc-600 underline">{tr('Esqueceste a senha?')}</Link></p>
       </form>
       <GoogleButton mode="login" onError={setError} />
@@ -507,7 +507,7 @@ export function Register() {
         </div>
         <Alert>{error}</Alert>
         <div className="mt-auto pb-6 pt-2">
-          <button disabled={busy || blocked} className={cta}>{busy ? 'A criar…' : step.cta}</button>
+          <button disabled={busy || blocked} className={cta}>{busy ? tr('A criar…') : step.cta}</button>
           {i === 0 && <GoogleButton mode="register" onError={setError} />}
         </div>
       </form>
@@ -584,7 +584,7 @@ export function GoogleUsername() {
         </label>
         <Alert>{error}</Alert>
         <div className="mt-auto pb-6 pt-4">
-          <button disabled={busy || !ready || (check.state !== 'ok' && check.state !== 'error')} className={cta}>{busy ? 'A criar…' : 'Continuar'}</button>
+          <button disabled={busy || !ready || (check.state !== 'ok' && check.state !== 'error')} className={cta}>{busy ? tr('A criar…') : tr('Continuar')}</button>
         </div>
       </form>
     </Screen>

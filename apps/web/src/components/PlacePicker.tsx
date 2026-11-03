@@ -31,7 +31,7 @@ export function usePlaces() {
     setMsg('');
     if (!('geolocation' in navigator)) {
       setStatus('error');
-      return setMsg('Este dispositivo não sabe dizer onde estás. Escreve à mão.');
+      return setMsg(tr('Este dispositivo não sabe dizer onde estás. Escreve à mão.'));
     }
     setStatus('locating');
     navigator.geolocation.getCurrentPosition(
@@ -43,7 +43,7 @@ export function usePlaces() {
           setStatus('ready');
         } catch {
           setStatus('error');
-          setMsg('Não consegui procurar sítios agora. Escreve à mão.');
+          setMsg(tr('Não consegui procurar sítios agora. Escreve à mão.'));
         }
       },
       (err) => {
@@ -233,7 +233,7 @@ export default function PlaceSheet({ value, onChange, onClose }: PlacePickerProp
         <>
           {started && (status === 'locating' || status === 'searching') && (
             <>
-              <p className="mt-4 text-sm font-semibold text-zinc-500">{status === 'locating' ? 'A apanhar o teu sinal…' : 'A ver o que há por perto…'}</p>
+              <p className="mt-4 text-sm font-semibold text-zinc-500">{status === 'locating' ? tr('A apanhar o teu sinal…') : tr('A ver o que há por perto…')}</p>
               <Skeleton />
             </>
           )}

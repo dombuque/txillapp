@@ -27,7 +27,7 @@ export default function TagPage() {
       <div className="px-4 pt-3">
         {first && (
           <p className="mb-3 text-zinc-600">
-            <b className="text-zinc-900">{first.posts}</b> {first.posts === 1 ? 'publicação' : 'publicações'} · <b className="text-zinc-900">{first.authors}</b> {first.authors === 1 ? 'pessoa' : 'pessoas'}
+            <b className="text-zinc-900">{first.posts}</b> {first.posts === 1 ? tr('publicação') : tr('publicações')} · <b className="text-zinc-900">{first.authors}</b> {first.authors === 1 ? tr('pessoa') : tr('pessoas')}
           </p>
         )}
         <div role="tablist" aria-label={tr('Ordem')} className="mb-4 flex gap-2">
@@ -52,7 +52,7 @@ export default function TagPage() {
       {q.hasNextPage && (
         <div className="mb-6 text-center">
           <button onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage} className={btnGhost}>
-            {q.isFetchingNextPage ? 'A buscar…' : 'Mais'}
+            {q.isFetchingNextPage ? tr('A buscar…') : tr('Mais')}
           </button>
         </div>
       )}

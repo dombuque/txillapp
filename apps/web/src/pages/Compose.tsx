@@ -45,8 +45,8 @@ export default function Compose() {
     if (f) loadVideo(f);
   }
   function loadVideo(f: File) {
-    if (!f.type.startsWith('video/')) return setErr('Isso não é um vídeo');
-    if (f.size > 100 * 1024 * 1024) return setErr('Vídeo pesado demais! Máximo 100 MB');
+    if (!f.type.startsWith('video/')) return setErr(tr('Isso não é um vídeo'));
+    if (f.size > 100 * 1024 * 1024) return setErr(tr('Vídeo pesado demais! Máximo 100 MB'));
     const url = URL.createObjectURL(f);
     const probe = document.createElement('video');
     probe.preload = 'metadata';
@@ -58,7 +58,7 @@ export default function Compose() {
         setErr('');
       } else if (ms > 60_500) {
         URL.revokeObjectURL(url);
-        setErr('O vídeo tem de ter até 60 segundos');
+        setErr(tr('O vídeo tem de ter até 60 segundos'));
       } else {
         setVideo({ file: f, preview: url, durationMs: ms });
         setErr('');
@@ -195,9 +195,9 @@ export default function Compose() {
         <button type="button" onClick={leave} aria-label={tr('Cancelar')} className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-600 active:bg-zinc-100">
           <Icon name="x" size={24} />
         </button>
-        <h1 className="text-lg font-bold">{video ? 'Novo reel' : 'Nova publicação'}</h1>
+        <h1 className="text-lg font-bold">{video ? tr('Novo reel') : tr('Nova publicação')}</h1>
         <button disabled={!canPost} className="h-10 rounded-full bg-brand px-5 font-bold text-white shadow-sm transition active:scale-95 disabled:bg-brand/40 disabled:shadow-none">
-          {busy ? 'A enviar…' : 'Publicar'}
+          {busy ? tr('A enviar…') : tr('Publicar')}
         </button>
       </div>
 
@@ -266,7 +266,7 @@ export default function Compose() {
                   aria-label={`Identificar pessoas na foto ${i + 1}`}
                   className="absolute bottom-2 right-2 flex h-8 items-center gap-1 rounded-full bg-black/60 px-2.5 text-xs font-semibold text-white backdrop-blur-sm active:scale-95"
                 >
-                  <Icon name="users" size={16} className="mr-1 inline align-[-3px]" />{p.tags.length ? p.tags.length : 'Identificar'}
+                  <Icon name="users" size={16} className="mr-1 inline align-[-3px]" />{p.tags.length ? p.tags.length : tr('Identificar')}
                 </button>
                 <button
                   type="button"

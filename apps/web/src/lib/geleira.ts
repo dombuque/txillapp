@@ -1,4 +1,5 @@
 import type { IconName } from '../components/Icon';
+import { tr } from './i18n';
 import type { TasteKind } from './api';
 
 export const KIND_LABEL: Record<TasteKind, string> = { vibe: 'Vibes', bebida: 'Bebidas', comida: 'Comidas', sitio: 'Sítios' };
@@ -7,14 +8,14 @@ export const KINDS: TasteKind[] = ['vibe', 'bebida', 'comida', 'sitio'];
 
 /** Grupos que se podem escolher ao sugerir um item novo, por tipo. */
 export const CATEGORIES: Record<TasteKind, { slug: string; label: string }[]> = {
-  vibe: [{ slug: 'calma', label: 'Calma' }, { slug: 'ar-livre', label: 'Ar livre' }, { slug: 'convivio', label: 'Convívio' }, { slug: 'festa', label: 'Festa' }, { slug: 'musica', label: 'Música' }, { slug: 'desporto', label: 'Desporto' }],
+  vibe: [{ slug: 'calma', label: tr('Calma') }, { slug: 'ar-livre', label: tr('Ar livre') }, { slug: 'convivio', label: tr('Convívio') }, { slug: 'festa', label: tr('Festa') }, { slug: 'musica', label: tr('Música') }, { slug: 'desporto', label: tr('Desporto') }],
   bebida: [
-    { slug: 'refrigerante', label: 'Refrigerantes' }, { slug: 'energia', label: 'Energéticas' }, { slug: 'sumo', label: 'Sumos' }, { slug: 'cafe-cha', label: 'Café e chá' },
-    { slug: 'leite', label: 'Leite e batidos' }, { slug: 'agua', label: 'Água' }, { slug: 'cerveja', label: 'Cervejas' }, { slug: 'tradicional', label: 'Tradicionais' },
-    { slug: 'vinho', label: 'Vinhos' }, { slug: 'destilado', label: 'Destilados' }, { slug: 'cocktail', label: 'Cocktails' },
+    { slug: 'refrigerante', label: tr('Refrigerantes') }, { slug: 'energia', label: tr('Energéticas') }, { slug: 'sumo', label: tr('Sumos') }, { slug: 'cafe-cha', label: tr('Café e chá') },
+    { slug: 'leite', label: tr('Leite e batidos') }, { slug: 'agua', label: tr('Água') }, { slug: 'cerveja', label: tr('Cervejas') }, { slug: 'tradicional', label: tr('Tradicionais') },
+    { slug: 'vinho', label: tr('Vinhos') }, { slug: 'destilado', label: tr('Destilados') }, { slug: 'cocktail', label: tr('Cocktails') },
   ],
-  comida: [{ slug: 'prato-tipico', label: 'Prato típico' }, { slug: 'rua', label: 'De rua' }, { slug: 'marisco', label: 'Marisco' }, { slug: 'grelhados', label: 'Grelhados' }, { slug: 'doce', label: 'Doces' }, { slug: 'petisco', label: 'Petiscos' }],
-  sitio: [{ slug: 'noite', label: 'Noite' }, { slug: 'comer-beber', label: 'Comer e beber' }, { slug: 'ar-livre', label: 'Ar livre' }, { slug: 'dia-a-dia', label: 'Dia a dia' }],
+  comida: [{ slug: 'prato-tipico', label: tr('Prato típico') }, { slug: 'rua', label: tr('De rua') }, { slug: 'marisco', label: tr('Marisco') }, { slug: 'grelhados', label: tr('Grelhados') }, { slug: 'doce', label: tr('Doces') }, { slug: 'petisco', label: tr('Petiscos') }],
+  sitio: [{ slug: 'noite', label: tr('Noite') }, { slug: 'comer-beber', label: tr('Comer e beber') }, { slug: 'ar-livre', label: tr('Ar livre') }, { slug: 'dia-a-dia', label: tr('Dia a dia') }],
 };
 
 /** Escala de gelo: de morno a gelada de rachar. */

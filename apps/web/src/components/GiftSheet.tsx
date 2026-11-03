@@ -50,8 +50,8 @@ export default function GiftSheet({
 
   async function send() {
     const n = custom ? Number(custom) : amount;
-    if (!target) return setErr('Diz-me para quem');
-    if (!Number.isInteger(n) || n < 1) return setErr('O número de Txills tem de ser inteiro');
+    if (!target) return setErr(tr('Diz-me para quem'));
+    if (!Number.isInteger(n) || n < 1) return setErr(tr('O número de Txills tem de ser inteiro'));
     setBusy(true);
     setErr('');
     try {
@@ -93,7 +93,7 @@ export default function GiftSheet({
           <p role="status" className="pb-2 text-center text-green-700">{tr('Já está no feed.')}</p>
         ) : (
           <button onClick={publishNow} disabled={publishing} className={`${btnGhost} mt-2 w-full`}>
-            {publishing ? 'A publicar…' : 'Publicar no feed agora'}
+            {publishing ? tr('A publicar…') : tr('Publicar no feed agora')}
           </button>
         )}
         <p role="alert" className="mt-2 min-h-5 text-center text-sm text-red-600">{err}</p>
@@ -156,7 +156,7 @@ export default function GiftSheet({
 
         <p role="alert" className="min-h-5 text-center text-sm text-red-600">{err}</p>
         <button disabled={busy} onClick={send} className={`${btnPrimary} w-full py-4 text-lg`}>
-          {busy ? 'A enviar…' : `Mandar ${custom || amount} Txills`}
+          {busy ? tr('A enviar…') : `Mandar ${custom || amount} Txills`}
         </button>
       </div>
     </Sheet>

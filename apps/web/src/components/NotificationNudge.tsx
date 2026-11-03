@@ -67,7 +67,7 @@ export default function NotificationNudge({ ready }: { ready: boolean }) {
         return setMode(null);
       }
       if (r === 'denied') return setMode('denied');
-      setErr('O telemóvel não chegou a mostrar o pedido. Toca outra vez em Ligar notificações.');
+      setErr(tr('O telemóvel não chegou a mostrar o pedido. Toca outra vez em Ligar notificações.'));
     } catch (x) {
       setErr((x as Error).message || 'Não consegui ligar as notificações');
     } finally {
@@ -80,19 +80,19 @@ export default function NotificationNudge({ ready }: { ready: boolean }) {
       <div className="flex items-start gap-3">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-50 text-brand"><Icon name="bell" size={22} /></span>
         <div className="min-w-0 flex-1">
-          <p className="text-[17px] font-extrabold leading-tight">{mode === 'ask' ? 'Não percas nada, malta' : 'As notificações estão bloqueadas'}</p>
+          <p className="text-[17px] font-extrabold leading-tight">{mode === 'ask' ? tr('Não percas nada, malta') : tr('As notificações estão bloqueadas')}</p>
           <p className="mt-1 text-[14px] leading-snug text-zinc-600">
             {mode === 'ask'
-              ? 'Liga as notificações para saberes logo quando alguém te escreve, responde ou te segue.'
-              : 'Neste aparelho estão desligadas para o Txillapp. Ativa em Definições do telemóvel › Notificações › Txillapp.'}
+              ? tr('Liga as notificações para saberes logo quando alguém te escreve, responde ou te segue.')
+              : tr('Neste aparelho estão desligadas para o Txillapp. Ativa em Definições do telemóvel › Notificações › Txillapp.')}
           </p>
         </div>
       </div>
       {err && <p role="alert" className="mt-2 text-sm text-red-600">{err}</p>}
       <div className="mt-3 flex justify-end gap-2">
-        <button onClick={later} className="h-10 rounded-full px-4 text-sm font-semibold text-zinc-600 active:bg-zinc-100">{mode === 'ask' ? 'Agora não' : 'Entendi'}</button>
+        <button onClick={later} className="h-10 rounded-full px-4 text-sm font-semibold text-zinc-600 active:bg-zinc-100">{mode === 'ask' ? tr('Agora não') : tr('Entendi')}</button>
         {mode === 'ask' && (
-          <button onClick={turnOn} disabled={busy} className="h-10 rounded-full bg-brand px-5 text-sm font-bold text-white active:scale-95 disabled:opacity-60">{busy ? 'A ligar…' : 'Ligar notificações'}</button>
+          <button onClick={turnOn} disabled={busy} className="h-10 rounded-full bg-brand px-5 text-sm font-bold text-white active:scale-95 disabled:opacity-60">{busy ? tr('A ligar…') : tr('Ligar notificações')}</button>
         )}
       </div>
     </div>

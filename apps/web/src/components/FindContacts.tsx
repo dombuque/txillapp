@@ -44,7 +44,7 @@ export default function FindContacts({ onClose }: { onClose: () => void }) {
           {canPickContacts() ? (
             <>
               <button type="button" disabled={busy} onClick={() => void run(pickContactEmails)} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-brand font-bold text-white transition active:scale-[0.98] disabled:opacity-50">
-                <Icon name="users" size={20} /> {busy ? 'A procurar…' : 'Permitir acesso aos contactos'}
+                <Icon name="users" size={20} /> {busy ? tr('A procurar…') : tr('Permitir acesso aos contactos')}
               </button>
               <p className="text-sm text-zinc-500">{tr('O telemóvel vai pedir a tua permissão e mostrar os contactos: escolhe os que quiseres (ou todos).')}</p>
             </>
@@ -53,7 +53,7 @@ export default function FindContacts({ onClose }: { onClose: () => void }) {
               <p className="font-semibold text-zinc-900">{tr('Neste aparelho a app web não pode ler os contactos.')}</p>
               <p className="mt-1">{tr('No iPhone isso só é possível na app da App Store, que vai pedir a permissão normal. Enquanto isso, podes importar um ficheiro de contactos (.vcf).')}</p>
               <button type="button" disabled={busy} onClick={() => file.current?.click()} className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-white font-semibold text-zinc-800 ring-1 ring-zinc-200 transition active:scale-[0.98] disabled:opacity-50">
-                <Icon name="download" size={18} /> {busy ? 'A procurar…' : 'Importar ficheiro de contactos'}
+                <Icon name="download" size={18} /> {busy ? tr('A procurar…') : tr('Importar ficheiro de contactos')}
               </button>
               <p className="mt-2 text-xs text-zinc-500">{tr('Na app Contactos do iPhone, escolhe os contactos, toca em Partilhar e guarda o ficheiro .vcf.')}</p>
             </div>
@@ -68,7 +68,7 @@ export default function FindContacts({ onClose }: { onClose: () => void }) {
       ) : found.length === 0 ? (
         <div className="py-6 text-center text-zinc-600">
           <p className="font-extrabold">{tr('Ninguém por agora')}</p>
-          <p className="mt-1 text-sm">{total ? `Vimos ${total} ${total === 1 ? 'email' : 'emails'} e nenhum está no Txillapp (ou ainda não quer ser encontrado).` : 'Não encontrámos emails nos contactos.'}</p>
+          <p className="mt-1 text-sm">{total ? `Vimos ${total} ${total === 1 ? tr('email') : tr('emails')} e nenhum está no Txillapp (ou ainda não quer ser encontrado).` : tr('Não encontrámos emails nos contactos.')}</p>
           <button type="button" onClick={() => setFound(null)} className="mt-4 h-11 rounded-full bg-zinc-100 px-6 font-semibold active:scale-95">{tr('Tentar outra vez')}</button>
         </div>
       ) : (

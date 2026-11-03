@@ -126,7 +126,7 @@ function Row({ n, fresh }: { n: AppNotification; fresh: boolean }) {
             <button disabled={busy} onClick={(e) => { e.stopPropagation(); respond(false); }} className="rounded-full border border-zinc-300 px-5 py-2 text-sm font-semibold transition active:scale-95">{tr('Recusar')}</button>
           </div>
         )}
-        {answer && <p role="status" className="mt-2 text-sm font-medium text-zinc-600">{answer === 'accepted' ? 'Pedido aceite' : 'Pedido recusado'}</p>}
+        {answer && <p role="status" className="mt-2 text-sm font-medium text-zinc-600">{answer === 'accepted' ? tr('Pedido aceite') : tr('Pedido recusado')}</p>}
       </div>
     </li>
   );
@@ -189,7 +189,7 @@ export default function Notifications() {
       {q.hasNextPage && (
         <div className="mt-4 text-center">
           <button onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage} className={btnGhost}>
-            {q.isFetchingNextPage ? 'A carregar…' : 'Ver mais'}
+            {q.isFetchingNextPage ? tr('A carregar…') : tr('Ver mais')}
           </button>
         </div>
       )}

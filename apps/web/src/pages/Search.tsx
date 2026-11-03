@@ -1,3 +1,4 @@
+import { funny } from '../lib/copy';
 import { LoadingBlock } from '../components/Loading';
 import { tr } from '../lib/i18n';
 import Icon from '../components/Icon';
@@ -184,7 +185,7 @@ export default function Search() {
           {explore.hasNextPage && (
             <div className="py-5 text-center">
               <button onClick={() => explore.fetchNextPage()} disabled={explore.isFetchingNextPage} className="h-11 rounded-full bg-zinc-100 px-6 font-semibold active:scale-95">
-                {explore.isFetchingNextPage ? 'A carregar…' : 'Ver mais'}
+                {explore.isFetchingNextPage ? tr('A carregar…') : tr('Ver mais')}
               </button>
             </div>
           )}
@@ -218,7 +219,7 @@ export default function Search() {
                     <Avatar name={p.displayName} username={p.username} size={48} presence />
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">{p.displayName} {p.verified && <VerifiedBadge size={15} />} {p.isPrivate && <Icon name="lock" size={14} className="inline align-[-2px] text-zinc-500" aria-hidden={false} role="img" aria-label={tr('Conta privada')} />}</span>
-                      <span className="block truncate text-sm text-zinc-600">@{p.username}{p.followsYou ? ' · segue-te' : ''}</span>
+                      <span className="block truncate text-sm text-zinc-600">@{p.username}{p.followsYou ? tr(' · segue-te') : ''}</span>
                     </span>
                   </Link>
                   <div className="w-28 shrink-0">
@@ -243,7 +244,7 @@ export default function Search() {
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-50 text-xl font-bold text-brand" aria-hidden>#</span>
                     <span className="min-w-0">
                       <span className="block truncate text-[17px] font-bold">#{t.tag}</span>
-                      <span className="block text-sm text-zinc-500">{t.posts} {t.posts === 1 ? 'publicação' : 'publicações'}</span>
+                      <span className="block text-sm text-zinc-500">{t.posts} {t.posts === 1 ? tr('publicação') : tr('publicações')}</span>
                     </span>
                   </Link>
                 </li>
@@ -256,7 +257,7 @@ export default function Search() {
               {posts.length === 0 && (
                 <li className="py-10 text-center text-zinc-600">
                   <p className="text-zinc-300" aria-hidden><Icon name="inbox" size={36} className="mx-auto" /></p>
-                  <p className="mt-2 font-semibold">{tr('Nenhuma publicação encontrada')}</p>
+                  <p className="mt-2 font-semibold">{funny('none')}</p>
                 </li>
               )}
               {posts.map((p) => (
@@ -269,7 +270,7 @@ export default function Search() {
                     )}
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">{p.author.displayName}</span>
-                      <span className="line-clamp-2 break-words text-sm text-zinc-700">{p.body || (p.media.length ? 'Foto' : '')}</span>
+                      <span className="line-clamp-2 break-words text-sm text-zinc-700">{p.body || (p.media.length ? tr('Foto') : '')}</span>
                       <span className="text-xs text-zinc-500">{timeAgo(p.createdAt)}{p.locationLabel ? ` · ${p.locationLabel}` : ''}</span>
                     </span>
                   </button>

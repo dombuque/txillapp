@@ -127,7 +127,7 @@ export default function CameraStudio() {
     const s = stream.current;
     if (!s || !ready) return;
     const type = recorderType();
-    if (!type) return setErr('Este browser não grava vídeo. Escolhe um da galeria.');
+    if (!type) return setErr(tr('Este browser não grava vídeo. Escolhe um da galeria.'));
     chunks.current = [];
     const rec = new MediaRecorder(s, { mimeType: type, videoBitsPerSecond: 4_000_000 });
     rec.ondataavailable = (e) => e.data.size > 0 && chunks.current.push(e.data);
@@ -167,15 +167,15 @@ export default function CameraStudio() {
     setErr('');
     if (!files.length) return;
     const vid = files.find((f) => f.type.startsWith('video/'));
-    if (mode === 'reel' && !vid) return setErr('No Reel só entram vídeos');
+    if (mode === 'reel' && !vid) return setErr(tr('No Reel só entram vídeos'));
     if (vid) {
-      if (mode === 'story') return setErr('Os stories são só de fotos por agora');
-      if (vid.size > 100 * 1024 * 1024) return setErr('Vídeo pesado demais! Máximo 100 MB');
+      if (mode === 'story') return setErr(tr('Os stories são só de fotos por agora'));
+      if (vid.size > 100 * 1024 * 1024) return setErr(tr('Vídeo pesado demais! Máximo 100 MB'));
       return setCaptured({ video: vid });
     }
     const imgs = files.filter((f) => IMAGE_TYPES.includes(f.type));
-    if (!imgs.length) return setErr('Usa fotos JPEG, PNG ou WebP');
-    if (imgs.some((f) => f.size > MAX_IMAGE_BYTES)) return setErr('Uma das fotos é pesada demais! Máximo 8 MB');
+    if (!imgs.length) return setErr(tr('Usa fotos JPEG, PNG ou WebP'));
+    if (imgs.some((f) => f.size > MAX_IMAGE_BYTES)) return setErr(tr('Uma das fotos é pesada demais! Máximo 8 MB'));
     setCaptured({ photos: mode === 'story' ? imgs.slice(0, 1) : imgs.slice(0, 10) });
   }
 
@@ -244,8 +244,8 @@ export default function CameraStudio() {
           ) : (
             <>
               <Icon name="alert" size={48} className="mx-auto text-white/70" />
-              <p className="mt-3 text-lg font-bold">{problem === 'denied' ? 'Sem permissão para a câmara' : problem === 'unsupported' ? 'A câmara precisa de ligação segura' : 'Não consegui abrir a câmara'}</p>
-              <p className="mt-1 text-sm text-white/70">{problem === 'denied' ? 'Ativa a câmara nas definições do browser, ou escolhe da galeria.' : 'Podes sempre escolher da galeria.'}</p>
+              <p className="mt-3 text-lg font-bold">{problem === 'denied' ? tr('Sem permissão para a câmara') : problem === 'unsupported' ? tr('A câmara precisa de ligação segura') : tr('Não consegui abrir a câmara')}</p>
+              <p className="mt-1 text-sm text-white/70">{problem === 'denied' ? tr('Ativa a câmara nas definições do browser, ou escolhe da galeria.') : tr('Podes sempre escolher da galeria.')}</p>
               <label className="mt-5 inline-flex h-12 cursor-pointer items-center rounded-full bg-brand px-6 font-bold">{tr('Abrir galeria')}{galleryInput}</label>
             </>
           )}
@@ -315,7 +315,7 @@ function Review({ mode, captured, onBack, onDone }: { mode: Mode; captured: Capt
       if (photos) onDone(await Promise.all(photos.map((f) => bakeFilter(f, filter))));
       else onDone((captured as { video: File }).video);
     } catch {
-      setErr('Não consegui aplicar o filtro. Tenta outro.');
+      setErr(tr('Não consegui aplicar o filtro. Tenta outro.'));
       setBusy(false);
     }
   }
@@ -362,7 +362,7 @@ function Review({ mode, captured, onBack, onDone }: { mode: Mode; captured: Capt
         )}
         {err && <p role="alert" className="pb-2 text-center text-sm text-red-400">{err}</p>}
         <button type="button" onClick={next} disabled={busy} className="h-12 w-full rounded-full bg-brand text-lg font-bold text-white transition active:scale-[0.98] disabled:opacity-50">
-          {busy ? 'A aplicar…' : 'Seguinte'}
+          {busy ? tr('A aplicar…') : tr('Seguinte')}
         </button>
       </div>
     </div>
