@@ -1243,6 +1243,14 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Qual é a vibe, {v0}?': 'What is the vibe, {v0}?',
+  'Conta lá, {v0}, o que andas a aprontar?': 'Spill it, {v0}, what are you up to?',
+  'Onde é que a malta está hoje, {v0}?': 'Where is the crew at today, {v0}?',
+  'Qual é o plano, {v0}?': 'What is the plan, {v0}?',
+  'Largaste o quê hoje, {v0}?': 'What did you drop today, {v0}?',
+  'Tens fofoca boa, {v0}?': 'Have any good gossip, {v0}?',
+  'Bora, {v0}, solta a vibe!': 'Go on, {v0}, drop the vibe!',
+  'Que bom plano é esse, {v0}?': 'Which good plan is that, {v0}?',
   'Agora': 'Now',
   'Há {n}min': '{n}min ago',
   'Há {n}h': '{n}h ago',

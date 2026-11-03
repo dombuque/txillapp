@@ -191,6 +191,18 @@ export default function Compose() {
   }
 
   const first = user?.displayName.split(' ')[0] ?? '';
+  // Cada vez que abres, uma pergunta diferente.
+  const [ask] = useState(() => [
+    tr('Qual é a vibe, {v0}?', { v0: first }),
+    tr('O que se passa, {v0}?', { v0: first }),
+    tr('Conta lá, {v0}, o que andas a aprontar?', { v0: first }),
+    tr('Onde é que a malta está hoje, {v0}?', { v0: first }),
+    tr('Qual é o plano, {v0}?', { v0: first }),
+    tr('Largaste o quê hoje, {v0}?', { v0: first }),
+    tr('Tens fofoca boa, {v0}?', { v0: first }),
+    tr('Bora, {v0}, solta a vibe!', { v0: first }),
+    tr('Que bom plano é esse, {v0}?', { v0: first }),
+  ][Math.floor(Math.random() * 9)]);
   const left = 2000 - body.length;
   const chip = 'flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-zinc-100 text-sm font-semibold text-zinc-800 transition active:scale-95 active:bg-zinc-200';
   const icon = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true } as const;
@@ -241,7 +253,7 @@ export default function Compose() {
             value={body}
             onChange={setBody}
             maxLength={2000}
-            placeholder={tr('O que se passa, {v0}?', { v0: first })}
+            placeholder={ask}
             aria-label={tr('Texto da publicação')}
             className="min-h-[110px] w-full resize-none bg-transparent text-xl leading-snug outline-none placeholder:text-zinc-500"
           />

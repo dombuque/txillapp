@@ -1,228 +1,450 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { tr } from './i18n';
 
 /**
- * Stickers do Txillapp: autocolantes desenhados na app (SVG, fundo transparente, contorno branco como um recorte).
- * O servidor só guarda o id. Todos partilham a mesma mascote (a cara redonda) com expressões e adereços diferentes.
+ * Stickers do Txillapp: autocolantes minimalistas em SVG (fundo transparente, contorno branco de recorte e sombra suave).
+ * Cada um junta um corpo de cor lisa, uma cara muito simples (olhos e boca), por vezes um adereço, e o texto. O servidor só guarda o id.
  */
-type Eyes = 'open' | 'happy' | 'wink' | 'closed' | 'wide' | 'heart' | 'dizzy';
-type Mouth = 'smile' | 'grin' | 'o' | 'flat' | 'tongue' | 'sad' | 'laugh';
+type Eyes = 'dots' | 'happy' | 'closed' | 'wide' | 'heart' | 'star' | 'dizzy' | 'wink' | 'side' | 'angry' | 'none';
+type Mouth = 'smile' | 'grin' | 'o' | 'flat' | 'sad' | 'tongue' | 'laugh' | 'smirk' | 'kiss' | 'none';
+type Shape = 'round' | 'squircle' | 'blob' | 'drop';
 
-export type StickerCat = 'reacoes' | 'dia' | 'comida' | 'festa';
+export type StickerCat = 'reacoes' | 'dia' | 'comida' | 'festa' | 'amor' | 'malta';
 export const STICKER_CATS: { id: StickerCat; label: string }[] = [
-  { id: 'reacoes', label: 'Reações' },
-  { id: 'dia', label: 'Dia a dia' },
-  { id: 'comida', label: 'Comes e bebes' },
-  { id: 'festa', label: 'Festa' },
+  { id: 'reacoes', label: tr('Reações') },
+  { id: 'dia', label: tr('Dia a dia') },
+  { id: 'comida', label: tr('Comes e bebes') },
+  { id: 'festa', label: tr('Festa') },
+  { id: 'amor', label: tr('Amor e amizade') },
+  { id: 'malta', label: tr('Malta') },
 ];
 
 interface Def {
   id: string;
   cat: StickerCat;
   text: string;
-  from: string;
-  to: string;
+  /** Cor lisa do corpo. */
+  color: string;
+  shape?: Shape;
   eyes: Eyes;
   mouth: Mouth;
-  prop: JSX.Element | null;
-  /** Adereço desenhado por cima da cara (chapéu, óculos…). */
-  hat?: JSX.Element;
+  cheeks?: boolean;
+  /** Atrás do corpo (balões, brilhos…). */
+  back?: ReactNode;
+  /** Por cima da cara (óculos, chapéus, lágrimas…). */
+  front?: ReactNode;
 }
 
-const W = '#fff';
-const INK = '#2a1a1f';
+const INK = '#1f1b24';
+const WHITE = '#fff';
 
-const flame = (
-  <g transform="translate(60 14)">
-    <path d="M0-16c3 6 11 9 11 19a11 11 0 0 1-22 0c0-5 3-7 5-10 1 3 2 4 4 4 0-6-1-9 2-13z" fill="#ffb02e" stroke="#e8481f" strokeWidth="3" strokeLinejoin="round" />
-    <path d="M0 0c2 3 5 4 5 8a5 5 0 0 1-10 0c0-3 3-4 5-8z" fill="#fff3b0" />
-  </g>
-);
-const check = <path d="M86 26l7 7 13-14" fill="none" stroke="#fff" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />;
-const checkBadge = (<g><circle cx="96" cy="28" r="15" fill="#10b981" stroke={W} strokeWidth="3" />{check}</g>);
-const clock = (
-  <g transform="translate(97 28)"><circle r="15" fill="#fff" stroke="#2563eb" strokeWidth="4" /><path d="M0-8V0l6 4" fill="none" stroke="#2563eb" strokeWidth="3.5" strokeLinecap="round" /></g>
-);
-const pin = (
-  <g transform="translate(96 26)"><path d="M0 18C-12 4-13-2-13-7a13 13 0 0 1 26 0c0 5-1 11-13 25z" fill="#ef4444" stroke={W} strokeWidth="3" strokeLinejoin="round" /><circle cy="-7" r="5" fill="#fff" /></g>
-);
-const coins = (
-  <g><circle cx="94" cy="30" r="13" fill="#fbbf24" stroke="#b45309" strokeWidth="3.5" /><text x="94" y="36" textAnchor="middle" fontSize="17" fontWeight="900" fill="#b45309">$</text>
-    <circle cx="22" cy="34" r="9" fill="#fcd34d" stroke="#b45309" strokeWidth="3" /></g>
-);
-const cheers = (
+// ── cores lisas
+const C = { coral: '#ff6b6b', red: '#e5484d', orange: '#ff9f43', yellow: '#ffd23f', lime: '#a3e635', green: '#34c985', teal: '#2ec4b6', sky: '#4cc3ff', blue: '#4f7cff', violet: '#9b72ff', pink: '#ff8cc6', cream: '#ffe9c7', gray: '#c7c3d1' };
+
+// ── adereços (coordenadas no quadro 120 x 134; o corpo está centrado em 60,56)
+const sunglasses = (
   <g>
-    <g transform="rotate(-16 36 30)"><path d="M26 14h20l-2 24a8 8 0 0 1-16 0z" fill="#fde68a" stroke="#b45309" strokeWidth="3" strokeLinejoin="round" /><path d="M27 18h18" stroke="#fff" strokeWidth="5" strokeLinecap="round" /></g>
-    <g transform="rotate(16 84 30)"><path d="M74 14h20l-2 24a8 8 0 0 1-16 0z" fill="#fde68a" stroke="#b45309" strokeWidth="3" strokeLinejoin="round" /><path d="M75 18h18" stroke="#fff" strokeWidth="5" strokeLinecap="round" /></g>
-    <path d="M58 6l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#fff" />
+    <rect x="31" y="43" width="26" height="16" rx="7" fill={INK} />
+    <rect x="63" y="43" width="26" height="16" rx="7" fill={INK} />
+    <path d="M57 49h6" stroke={INK} strokeWidth="3.5" />
+    <path d="M36 47l7-2" stroke={WHITE} strokeWidth="2.4" strokeLinecap="round" opacity=".55" />
+    <path d="M68 47l7-2" stroke={WHITE} strokeWidth="2.4" strokeLinecap="round" opacity=".55" />
   </g>
 );
-const hearts = (
-  <g fill="#ef4444" stroke={W} strokeWidth="2.5" strokeLinejoin="round">
-    <path d="M96 40c-9-6-14-11-14-17a8 8 0 0 1 14-4 8 8 0 0 1 14 4c0 6-5 11-14 17z" />
-    <path d="M24 30c-6-4-9-7-9-11a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 4-3 7-9 11z" />
+const partyHat = (
+  <g>
+    <path d="M60 4 44 28h32z" fill={C.pink} />
+    <path d="M52 17h16M48 23h24" stroke={WHITE} strokeWidth="3" strokeLinecap="round" />
+    <circle cx="60" cy="5" r="4.5" fill={C.yellow} />
+  </g>
+);
+const crown = <path d="M38 24l-3-17 11 8 14-13 14 13 11-8-3 17z" fill={C.yellow} stroke={INK} strokeWidth="3" strokeLinejoin="round" />;
+const headphones = (
+  <g>
+    <path d="M28 54a32 32 0 0 1 64 0" fill="none" stroke={INK} strokeWidth="5" strokeLinecap="round" />
+    <rect x="21" y="48" width="12" height="22" rx="6" fill={C.violet} stroke={INK} strokeWidth="3" />
+    <rect x="87" y="48" width="12" height="22" rx="6" fill={C.violet} stroke={INK} strokeWidth="3" />
+  </g>
+);
+const cap = (
+  <g>
+    <path d="M30 34a30 26 0 0 1 60 0z" fill={C.blue} />
+    <path d="M26 34h54a10 4 0 0 1 10 6H26z" fill={C.blue} stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
+    <circle cx="60" cy="10" r="3" fill={INK} />
+  </g>
+);
+const flameTop = (
+  <g transform="translate(60 10)">
+    <path d="M0-14c3 6 11 9 11 19a11 11 0 0 1-22 0c0-5 3-7 5-10 1 3 2 4 4 4 0-6-1-9 2-13z" fill={C.orange} />
+    <path d="M0 0c2 3 5 4 5 8a5 5 0 0 1-10 0c0-3 3-4 5-8z" fill={C.yellow} />
+  </g>
+);
+const sweat = <path d="M92 28c5 7 8 11 8 16a8 8 0 0 1-16 0c0-5 3-9 8-16z" fill={C.sky} stroke={WHITE} strokeWidth="2.5" strokeLinejoin="round" />;
+const tears = (
+  <g fill={C.sky} stroke={WHITE} strokeWidth="2" strokeLinejoin="round">
+    <path d="M38 62c4 5 6 8 6 12a6 6 0 0 1-12 0c0-4 2-7 6-12z" />
+    <path d="M82 62c4 5 6 8 6 12a6 6 0 0 1-12 0c0-4 2-7 6-12z" />
+  </g>
+);
+const zzz = (
+  <g fill={WHITE} stroke={INK} strokeWidth="3" strokeLinejoin="round" fontWeight="900" fontFamily="inherit" paintOrder="stroke">
+    <text x="84" y="26" fontSize="20">Z</text>
+    <text x="98" y="14" fontSize="14">z</text>
   </g>
 );
 const sparkles = (
-  <g fill="#fff" stroke="#f472b6" strokeWidth="2" strokeLinejoin="round">
-    <path d="M94 14l4 11 11 4-11 4-4 11-4-11-11-4 11-4z" />
-    <path d="M24 22l2.5 6.5 6.5 2.5-6.5 2.5L24 40l-2.5-6.5L15 31l6.5-2.5z" />
+  <g fill={C.yellow} stroke={WHITE} strokeWidth="2" strokeLinejoin="round">
+    <path d="M96 20l3 8 8 3-8 3-3 8-3-8-8-3 8-3z" />
+    <path d="M22 28l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" />
   </g>
 );
-const party = (
+const hearts = (
+  <g fill={C.red} stroke={WHITE} strokeWidth="2" strokeLinejoin="round">
+    <path d="M96 38c-8-5-12-9-12-14a7 7 0 0 1 12-3 7 7 0 0 1 12 3c0 5-4 9-12 14z" />
+    <path d="M22 30c-6-4-9-7-9-11a5 5 0 0 1 9-2 5 5 0 0 1 9 2c0 4-3 7-9 11z" />
+  </g>
+);
+const beer = (
+  <g transform="rotate(12 96 52)">
+    <rect x="84" y="36" width="20" height="30" rx="4" fill={C.yellow} stroke={INK} strokeWidth="3" />
+    <path d="M104 42h5a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4h-5" fill="none" stroke={INK} strokeWidth="3" />
+    <path d="M82 38q3-10 11-7 5-6 12 0 7 1 3 9z" fill={WHITE} stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
+  </g>
+);
+const coffee = (
   <g>
-    <path d="M60 2L44 26h32z" fill="#f472b6" stroke="#be185d" strokeWidth="3" strokeLinejoin="round" />
-    <path d="M51 16h18M47 22h26" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
-    <circle cx="60" cy="3" r="4.5" fill="#fde047" stroke="#ca8a04" strokeWidth="2" />
-    <g fill="#38bdf8"><rect x="90" y="18" width="7" height="7" rx="1.5" transform="rotate(20 93 21)" /><rect x="20" y="26" width="7" height="7" rx="1.5" fill="#fbbf24" transform="rotate(-20 23 29)" /></g>
+    <path d="M82 40h24v15a11 11 0 0 1-11 11h-2a11 11 0 0 1-11-11z" fill={WHITE} stroke={INK} strokeWidth="3" strokeLinejoin="round" />
+    <path d="M106 45h4a5 5 0 0 1 0 12h-4" fill="none" stroke={INK} strokeWidth="3" />
+    <path d="M90 33q-3-4 0-8M98 33q-3-4 0-8" fill="none" stroke={INK} strokeWidth="3" strokeLinecap="round" />
   </g>
 );
-const sweat = (
-  <path d="M94 18c5 7 8 11 8 16a8 8 0 0 1-16 0c0-5 3-9 8-16z" fill="#7dd3fc" stroke="#0284c7" strokeWidth="3" strokeLinejoin="round" />
+const pizza = (
+  <g transform="rotate(-12 96 52)">
+    <path d="M82 34l30 4-19 34z" fill={C.yellow} stroke={INK} strokeWidth="3" strokeLinejoin="round" />
+    <circle cx="95" cy="46" r="3.6" fill={C.red} />
+    <circle cx="101" cy="55" r="3" fill={C.red} />
+  </g>
 );
-const moon = (
+const phone = (
+  <g transform="rotate(14 98 52)">
+    <rect x="88" y="34" width="20" height="34" rx="5" fill={INK} />
+    <rect x="91.5" y="39" width="13" height="22" rx="2" fill={C.sky} />
+  </g>
+);
+const clock = (
+  <g transform="translate(97 48)">
+    <circle r="15" fill={WHITE} stroke={INK} strokeWidth="3.5" />
+    <path d="M0-8V0l6 4" fill="none" stroke={INK} strokeWidth="3.2" strokeLinecap="round" />
+  </g>
+);
+const pin = (
+  <g transform="translate(97 46)">
+    <path d="M0 22C-12 8-13 2-13-4a13 13 0 0 1 26 0c0 6-1 12-13 26z" fill={C.red} stroke={WHITE} strokeWidth="3" strokeLinejoin="round" />
+    <circle cy="-4" r="5" fill={WHITE} />
+  </g>
+);
+const coins = (
   <g>
-    <path d="M100 14a17 17 0 1 0 9 30 14 14 0 0 1-9-30z" fill="#fde68a" stroke="#b45309" strokeWidth="3" strokeLinejoin="round" />
-    <text x="24" y="30" fontSize="17" fontWeight="900" fill="#fff" stroke="#4338ca" strokeWidth="3" paintOrder="stroke">Z</text>
-    <text x="36" y="18" fontSize="12" fontWeight="900" fill="#fff" stroke="#4338ca" strokeWidth="2.5" paintOrder="stroke">z</text>
+    <circle cx="96" cy="46" r="13" fill={C.yellow} stroke={INK} strokeWidth="3.2" />
+    <text x="96" y="52" textAnchor="middle" fontSize="17" fontWeight="900" fill={INK} fontFamily="inherit">$</text>
+    <circle cx="20" cy="40" r="8" fill={C.yellow} stroke={INK} strokeWidth="3" />
   </g>
 );
-const fork = (
-  <g transform="rotate(20 94 30)" fill="none" stroke="#7c2d12" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M86 10v14a6 6 0 0 0 12 0V10M92 10v38" /><path d="M92 24v24" />
+const ball = (
+  <g transform="translate(97 50)">
+    <circle r="14" fill={WHITE} stroke={INK} strokeWidth="3.4" />
+    <path d="M0-6l6 4-2 7h-8l-2-7z" fill={INK} />
+  </g>
+);
+const balloon = (
+  <g>
+    <path d="M98 30c-12 0-17 9-15 18 2 8 9 12 15 12s13-4 15-12c2-9-3-18-15-18z" fill={C.pink} stroke={WHITE} strokeWidth="2.5" />
+    <path d="M98 60q-3 12 3 22" fill="none" stroke={INK} strokeWidth="2.4" strokeLinecap="round" />
+  </g>
+);
+const gift = (
+  <g>
+    <rect x="80" y="46" width="30" height="22" rx="3" fill={C.violet} stroke={INK} strokeWidth="3" />
+    <rect x="76" y="40" width="38" height="9" rx="3" fill={C.pink} stroke={INK} strokeWidth="3" />
+    <path d="M95 40v28" stroke={INK} strokeWidth="3" />
+  </g>
+);
+const mic = (
+  <g transform="rotate(18 98 50)">
+    <rect x="91" y="30" width="14" height="22" rx="7" fill={INK} />
+    <path d="M91 40h14" stroke={WHITE} strokeWidth="2" opacity=".5" />
+    <path d="M98 52v18" stroke={INK} strokeWidth="4" strokeLinecap="round" />
   </g>
 );
 const note = (
-  <g fill="#fff" stroke="#6b21a8" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
-    <path d="M92 40V16l16-4v24" fill="none" /><circle cx="86" cy="40" r="6" /><circle cx="102" cy="36" r="6" />
-    <path d="M22 28l8-2v14" fill="none" /><circle cx="19" cy="40" r="5" />
+  <g fill={WHITE} stroke={INK} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
+    <path d="M92 44V22l16-4v22" fill="none" />
+    <circle cx="86" cy="46" r="6" />
+    <circle cx="102" cy="42" r="6" />
+  </g>
+);
+const thumb = (
+  <g transform="translate(97 52)">
+    <path d="M-10 4h6l7-14c3 0 5 2 4 6l-1 5h8c3 0 5 3 4 6l-3 11c-1 3-3 4-6 4h-12c-2 0-3-1-3-3z" fill={C.yellow} stroke={INK} strokeWidth="3" strokeLinejoin="round" />
   </g>
 );
 const sun = (
-  <g stroke="#ca8a04" strokeWidth="3.5" strokeLinecap="round"><path d="M96 8v6M110 22h-6M82 22h6M106 12l-4 4M86 12l4 4" /></g>
+  <g transform="translate(98 28)">
+    <circle r="9" fill={C.yellow} stroke={INK} strokeWidth="2.6" />
+    <path d="M0-16v-4M0 16v4M-16 0h-4M16 0h4M-11-11l-3-3M11 11l3 3M11-11l3-3M-11 11l-3 3" stroke={INK} strokeWidth="2.6" strokeLinecap="round" />
+  </g>
 );
-const thumb = (
-  <g transform="translate(96 30)"><path d="M-10 4h6l7-14c3 0 5 2 4 6l-1 5h8c3 0 5 3 4 6l-3 11c-1 3-3 4-6 4h-12c-2 0-3-1-3-3z" fill="#fde68a" stroke="#b45309" strokeWidth="3" strokeLinejoin="round" /></g>
+const moon = <path d="M100 18a17 17 0 1 0 9 30 14 14 0 0 1-9-30z" fill={C.yellow} stroke={INK} strokeWidth="3" strokeLinejoin="round" />;
+const rain = (
+  <g>
+    <path d="M80 30a12 12 0 0 1 22-6 10 10 0 0 1 14 9H80z" fill={C.gray} stroke={INK} strokeWidth="2.8" strokeLinejoin="round" />
+    <path d="M86 40l-3 8M96 40l-3 8M106 40l-3 8" stroke={C.sky} strokeWidth="3.2" strokeLinecap="round" />
+  </g>
 );
-
-const beer = (
-  <g transform="rotate(14 94 30)"><rect x="82" y="16" width="20" height="28" rx="4" fill="#fcd34d" stroke="#b45309" strokeWidth="3" /><path d="M102 22h6a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4h-6" fill="none" stroke="#b45309" strokeWidth="3" /><path d="M80 18q4-9 12-6 4-5 11 0 6 1 2 8z" fill="#fff" stroke="#b45309" strokeWidth="2.5" strokeLinejoin="round" /></g>
-);
-const coffee = (
-  <g><path d="M80 22h24v14a10 10 0 0 1-10 10h-4a10 10 0 0 1-10-10z" fill="#fff" stroke="#7c2d12" strokeWidth="3" strokeLinejoin="round" /><path d="M104 26h5a5 5 0 0 1 0 12h-5" fill="none" stroke="#7c2d12" strokeWidth="3" /><path d="M88 16q-3-4 0-8M96 16q-3-4 0-8" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" /></g>
-);
-const pizza = (
-  <g transform="rotate(-12 96 30)"><path d="M82 12l28 4-18 32z" fill="#fbbf24" stroke="#b45309" strokeWidth="3" strokeLinejoin="round" /><circle cx="94" cy="24" r="3.5" fill="#ef4444" /><circle cx="100" cy="32" r="3" fill="#ef4444" /></g>
-);
-const phone = (
-  <g transform="rotate(14 96 30)"><rect x="86" y="12" width="20" height="34" rx="5" fill="#1f2937" stroke="#fff" strokeWidth="3" /><rect x="90" y="18" width="12" height="20" rx="2" fill="#60a5fa" /></g>
-);
-const tear = (
-  <g fill="#7dd3fc" stroke="#0284c7" strokeWidth="2.5" strokeLinejoin="round"><path d="M38 66c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z" /><path d="M82 66c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z" /></g>
-);
-const star = (
-  <path d="M96 12l5 11 12 1-9 8 3 12-11-6-11 6 3-12-9-8 12-1z" fill="#fde047" stroke="#b45309" strokeWidth="3" strokeLinejoin="round" />
-);
-const crown = (
-  <g transform="translate(60 12)"><path d="M-17 12l-3-18 11 8 9-14 9 14 11-8-3 18z" fill="#fde047" stroke="#b45309" strokeWidth="3" strokeLinejoin="round" /></g>
-);
+const star = <path d="M98 22l5 11 12 1-9 8 3 12-11-6-11 6 3-12-9-8 12-1z" fill={C.yellow} stroke={INK} strokeWidth="3" strokeLinejoin="round" />;
 const bang = (
-  <g strokeLinejoin="round"><path d="M92 8l12 2-2 20-8 1z" fill="#ef4444" stroke="#fff" strokeWidth="2.5" /><circle cx="98" cy="42" r="5" fill="#ef4444" stroke="#fff" strokeWidth="2.5" /></g>
+  <g>
+    <path d="M94 16l12 2-2 20-8 1z" fill={C.red} stroke={WHITE} strokeWidth="2.5" strokeLinejoin="round" />
+    <circle cx="100" cy="48" r="5" fill={C.red} stroke={WHITE} strokeWidth="2.5" />
+  </g>
 );
-const think = (
-  <g fill="#fff" stroke="#64748b" strokeWidth="3"><circle cx="88" cy="22" r="11" /><circle cx="78" cy="38" r="5" /><circle cx="73" cy="46" r="3" /><text x="88" y="28" textAnchor="middle" fontSize="17" fontWeight="900" fill="#64748b" stroke="none">?</text></g>
+const question = (
+  <g fill={WHITE} stroke={INK} strokeWidth="3">
+    <circle cx="94" cy="26" r="13" />
+    <text x="94" y="33" textAnchor="middle" fontSize="19" fontWeight="900" fill={INK} stroke="none" fontFamily="inherit">?</text>
+  </g>
 );
-const house = (
-  <g transform="translate(96 28)"><path d="M-14 4l14-14 14 14v14h-28z" fill="#fde68a" stroke="#b45309" strokeWidth="3" strokeLinejoin="round" /><rect x="-4" y="6" width="8" height="12" fill="#b45309" /></g>
+const fork = (
+  <g transform="rotate(20 98 54)" fill="none" stroke={INK} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M90 32v14a6 6 0 0 0 12 0V32M96 32v40" />
+  </g>
 );
-const ball = (
-  <g transform="translate(96 30)"><circle r="14" fill="#fff" stroke="#1f2937" strokeWidth="3.5" /><path d="M0-6l6 4-2 7h-8l-2-7z" fill="#1f2937" /></g>
+const cake = (
+  <g>
+    <path d="M80 70h32V52a16 12 0 0 0-32 0z" fill={C.pink} stroke={INK} strokeWidth="3" strokeLinejoin="round" />
+    <path d="M80 60q8 6 16 0t16 0" fill="none" stroke={WHITE} strokeWidth="3.4" />
+    <circle cx="96" cy="38" r="5" fill={C.red} stroke={INK} strokeWidth="2.4" />
+  </g>
+);
+const beard = (
+  <g>
+    <path d="M36 66c0 22 10 30 24 30s24-8 24-30c-6 8-14 11-24 11S42 74 36 66z" fill={WHITE} stroke={INK} strokeWidth="3" strokeLinejoin="round" />
+  </g>
+);
+const ice = (
+  <g stroke={C.sky} strokeWidth="3.6" strokeLinecap="round">
+    <path d="M98 22v16M90 30h16M92 24l12 12M104 24L92 36" />
+  </g>
+);
+const flag = (
+  <g>
+    <path d="M90 76V26" stroke={INK} strokeWidth="3.6" strokeLinecap="round" />
+    <path d="M90 28h22l-6 9 6 9H90z" fill={C.green} stroke={INK} strokeWidth="2.8" strokeLinejoin="round" />
+  </g>
+);
+const trophy = (
+  <g>
+    <path d="M84 26h28v14a14 14 0 0 1-28 0z" fill={C.yellow} stroke={INK} strokeWidth="3" strokeLinejoin="round" />
+    <path d="M84 30h-7a6 6 0 0 0 7 10M112 30h7a6 6 0 0 1-7 10" fill="none" stroke={INK} strokeWidth="3" />
+    <path d="M98 54v8M90 66h16" stroke={INK} strokeWidth="3.6" strokeLinecap="round" />
+  </g>
+);
+const kissMark = (
+  <g fill={C.red} stroke={WHITE} strokeWidth="2" strokeLinejoin="round">
+    <path d="M96 40c-8-5-12-9-12-14a7 7 0 0 1 12-3 7 7 0 0 1 12 3c0 5-4 9-12 14z" />
+  </g>
 );
 
+// ── os stickers (os ids antigos mantêm-se: mensagens já enviadas continuam a aparecer)
 export const STICKERS: Def[] = [
   // Reações
-  { id: 'bora', cat: 'reacoes', text: 'BORA!', from: '#ff8a5b', to: '#e5334f', eyes: 'wide', mouth: 'grin', prop: null, hat: flame },
-  { id: 'fixe', cat: 'reacoes', text: 'TÁ FIXE', from: '#6ee7b7', to: '#10b981', eyes: 'happy', mouth: 'grin', prop: thumb },
-  { id: 'ok', cat: 'reacoes', text: 'OK', from: '#cbd5e1', to: '#64748b', eyes: 'open', mouth: 'smile', prop: checkBadge },
-  { id: 'rir', cat: 'reacoes', text: 'AHAHAH', from: '#fde047', to: '#eab308', eyes: 'happy', mouth: 'laugh', prop: sun },
-  { id: 'morri', cat: 'reacoes', text: 'MORRI', from: '#fde047', to: '#f59e0b', eyes: 'happy', mouth: 'laugh', prop: tear },
-  { id: 'amor', cat: 'reacoes', text: 'ADORO', from: '#fca5a5', to: '#ef4444', eyes: 'heart', mouth: 'smile', prop: hearts },
-  { id: 'uau', cat: 'reacoes', text: 'UAU!', from: '#f9a8d4', to: '#a855f7', eyes: 'wide', mouth: 'o', prop: sparkles },
-  { id: 'ups', cat: 'reacoes', text: 'UPS…', from: '#fdba74', to: '#f97316', eyes: 'wide', mouth: 'flat', prop: sweat },
-  { id: 'hmm', cat: 'reacoes', text: 'HMMM', from: '#bfdbfe', to: '#6366f1', eyes: 'open', mouth: 'flat', prop: think },
-  { id: 'snif', cat: 'reacoes', text: 'SNIF', from: '#93c5fd', to: '#3b82f6', eyes: 'open', mouth: 'sad', prop: tear },
-  { id: 'grr', cat: 'reacoes', text: 'GRRR', from: '#fca5a5', to: '#b91c1c', eyes: 'wide', mouth: 'grin', prop: bang },
-  { id: 'rei', cat: 'reacoes', text: 'LENDA', from: '#fde68a', to: '#f59e0b', eyes: 'wink', mouth: 'grin', prop: null, hat: crown },
-  { id: 'estrela', cat: 'reacoes', text: 'ESTRELA', from: '#fef08a', to: '#facc15', eyes: 'happy', mouth: 'smile', prop: star },
+  { id: 'bora', cat: 'reacoes', text: 'BORA!', color: C.coral, eyes: 'wide', mouth: 'grin', front: flameTop },
+  { id: 'fixe', cat: 'reacoes', text: 'TÁ FIXE', color: C.green, eyes: 'happy', mouth: 'grin', front: thumb },
+  { id: 'ok', cat: 'reacoes', text: 'OK', color: C.gray, shape: 'squircle', eyes: 'dots', mouth: 'smile' },
+  { id: 'rir', cat: 'reacoes', text: 'AHAHAH', color: C.yellow, eyes: 'happy', mouth: 'laugh' },
+  { id: 'morri', cat: 'reacoes', text: 'MORRI', color: C.yellow, shape: 'blob', eyes: 'closed', mouth: 'laugh', front: tears },
+  { id: 'uau', cat: 'reacoes', text: 'UAU!', color: C.violet, eyes: 'wide', mouth: 'o', back: sparkles },
+  { id: 'ups', cat: 'reacoes', text: 'UPS…', color: C.orange, eyes: 'wide', mouth: 'flat', front: sweat },
+  { id: 'hmm', cat: 'reacoes', text: 'HMMM', color: C.sky, shape: 'squircle', eyes: 'side', mouth: 'flat', front: question },
+  { id: 'snif', cat: 'reacoes', text: 'SNIF', color: C.sky, shape: 'drop', eyes: 'dots', mouth: 'sad', front: tears },
+  { id: 'grr', cat: 'reacoes', text: 'GRRR', color: C.red, eyes: 'angry', mouth: 'grin', front: bang },
+  { id: 'rei', cat: 'reacoes', text: 'LENDA', color: C.yellow, eyes: 'wink', mouth: 'smirk', front: crown },
+  { id: 'estrela', cat: 'reacoes', text: 'ESTRELA', color: C.pink, shape: 'blob', eyes: 'star', mouth: 'smile', back: star },
+  { id: 'cool', cat: 'reacoes', text: 'COOL', color: C.teal, eyes: 'none', mouth: 'smirk', front: sunglasses },
+  { id: 'sim', cat: 'reacoes', text: 'SIM!', color: C.green, shape: 'squircle', eyes: 'happy', mouth: 'smile', cheeks: true },
+  { id: 'nao', cat: 'reacoes', text: 'NÃO!', color: C.red, shape: 'squircle', eyes: 'angry', mouth: 'flat' },
+  { id: 'choque', cat: 'reacoes', text: 'CHOQUE', color: C.lime, shape: 'blob', eyes: 'wide', mouth: 'o', front: bang },
+  { id: 'tonto', cat: 'reacoes', text: 'TONTO', color: C.violet, eyes: 'dizzy', mouth: 'tongue' },
+  { id: 'vergonha', cat: 'reacoes', text: 'VERGONHA', color: C.pink, eyes: 'closed', mouth: 'smile', cheeks: true, front: sweat },
+
   // Dia a dia
-  { id: 'bom-dia', cat: 'dia', text: 'BOM DIA', from: '#fde68a', to: '#fb923c', eyes: 'happy', mouth: 'smile', prop: sun },
-  { id: 'dormir', cat: 'dia', text: 'BOA NOITE', from: '#a5b4fc', to: '#4f46e5', eyes: 'closed', mouth: 'smile', prop: moon },
-  { id: 'ja-vou', cat: 'dia', text: 'JÁ VOU', from: '#93c5fd', to: '#3b82f6', eyes: 'wide', mouth: 'o', prop: clock },
-  { id: 'a-caminho', cat: 'dia', text: 'A CAMINHO', from: '#c4b5fd', to: '#7c3aed', eyes: 'open', mouth: 'smile', prop: pin },
-  { id: 'cheguei', cat: 'dia', text: 'CHEGUEI', from: '#86efac', to: '#16a34a', eyes: 'happy', mouth: 'grin', prop: pin },
-  { id: 'em-casa', cat: 'dia', text: 'EM CASA', from: '#fcd34d', to: '#d97706', eyes: 'closed', mouth: 'smile', prop: house },
-  { id: 'liga-me', cat: 'dia', text: 'LIGA-ME', from: '#a5b4fc', to: '#6366f1', eyes: 'open', mouth: 'o', prop: phone },
-  { id: 'ocupado', cat: 'dia', text: 'OCUPADO', from: '#cbd5e1', to: '#475569', eyes: 'wide', mouth: 'flat', prop: clock },
-  { id: 'obrigado', cat: 'dia', text: 'OBRIGADO', from: '#f9a8d4', to: '#d946ef', eyes: 'happy', mouth: 'smile', prop: sparkles },
-  { id: 'desculpa', cat: 'dia', text: 'DESCULPA', from: '#fdba74', to: '#ea580c', eyes: 'open', mouth: 'sad', prop: sweat },
-  { id: 'saudades', cat: 'dia', text: 'SAUDADES', from: '#fda4af', to: '#e11d48', eyes: 'open', mouth: 'sad', prop: hearts },
+  { id: 'bom-dia', cat: 'dia', text: 'BOM DIA', color: C.yellow, eyes: 'happy', mouth: 'smile', cheeks: true, front: sun },
+  { id: 'dormir', cat: 'dia', text: 'BOA NOITE', color: C.violet, shape: 'squircle', eyes: 'closed', mouth: 'smile', front: zzz, back: moon },
+  { id: 'ja-vou', cat: 'dia', text: 'JÁ VOU', color: C.sky, eyes: 'wide', mouth: 'o', front: clock },
+  { id: 'a-caminho', cat: 'dia', text: 'A CAMINHO', color: C.violet, eyes: 'dots', mouth: 'smile', front: pin },
+  { id: 'cheguei', cat: 'dia', text: 'CHEGUEI', color: C.green, eyes: 'happy', mouth: 'grin', front: flag },
+  { id: 'em-casa', cat: 'dia', text: 'EM CASA', color: C.orange, shape: 'squircle', eyes: 'closed', mouth: 'smile', cheeks: true },
+  { id: 'liga-me', cat: 'dia', text: 'LIGA-ME', color: C.blue, eyes: 'dots', mouth: 'o', front: phone },
+  { id: 'ocupado', cat: 'dia', text: 'OCUPADO', color: C.gray, shape: 'squircle', eyes: 'wide', mouth: 'flat', front: clock },
+  { id: 'obrigado', cat: 'dia', text: 'OBRIGADO', color: C.pink, eyes: 'happy', mouth: 'smile', cheeks: true, back: sparkles },
+  { id: 'desculpa', cat: 'dia', text: 'DESCULPA', color: C.orange, shape: 'drop', eyes: 'dots', mouth: 'sad', front: sweat },
+  { id: 'saudades', cat: 'dia', text: 'SAUDADES', color: C.coral, eyes: 'dots', mouth: 'sad', front: hearts },
+  { id: 'trabalho', cat: 'dia', text: 'A TRABALHAR', color: C.teal, shape: 'squircle', eyes: 'dots', mouth: 'flat', front: coffee },
+  { id: 'chuva', cat: 'dia', text: 'CHUVA', color: C.sky, shape: 'drop', eyes: 'dots', mouth: 'sad', front: rain },
+  { id: 'calor', cat: 'dia', text: 'QUE CALOR', color: C.orange, eyes: 'wide', mouth: 'tongue', front: sweat, back: sun },
+  { id: 'atrasado', cat: 'dia', text: 'ATRASADO', color: C.red, shape: 'blob', eyes: 'wide', mouth: 'o', front: clock },
+  { id: 'cansado', cat: 'dia', text: 'CANSADO', color: C.gray, shape: 'blob', eyes: 'closed', mouth: 'flat', front: zzz },
+  { id: 'que-sono', cat: 'dia', text: 'QUE SONO', color: C.violet, eyes: 'closed', mouth: 'o', front: zzz },
+
   // Comes e bebes
-  { id: 'fome', cat: 'comida', text: 'TÔ COM FOME', from: '#fdba74', to: '#ea580c', eyes: 'wide', mouth: 'tongue', prop: fork },
-  { id: 'pizza', cat: 'comida', text: 'PIZZA?', from: '#fde68a', to: '#f97316', eyes: 'happy', mouth: 'tongue', prop: pizza },
-  { id: 'gelada', cat: 'comida', text: 'UMA GELADA', from: '#fde68a', to: '#f59e0b', eyes: 'happy', mouth: 'grin', prop: beer },
-  { id: 'cafe', cat: 'comida', text: 'CAFÉ?', from: '#d6b48c', to: '#92400e', eyes: 'happy', mouth: 'smile', prop: coffee },
-  { id: 'saude', cat: 'comida', text: 'SAÚDE!', from: '#fde68a', to: '#f59e0b', eyes: 'happy', mouth: 'laugh', prop: null, hat: cheers },
-  { id: 'paga', cat: 'comida', text: 'PAGAS TU!', from: '#fcd34d', to: '#f59e0b', eyes: 'wink', mouth: 'tongue', prop: coins },
+  { id: 'fome', cat: 'comida', text: 'TÔ COM FOME', color: C.orange, eyes: 'wide', mouth: 'tongue', front: fork },
+  { id: 'pizza', cat: 'comida', text: 'PIZZA?', color: C.yellow, eyes: 'happy', mouth: 'tongue', front: pizza },
+  { id: 'gelada', cat: 'comida', text: 'UMA GELADA', color: C.yellow, eyes: 'happy', mouth: 'grin', front: beer },
+  { id: 'cafe', cat: 'comida', text: 'CAFÉ?', color: C.cream, shape: 'squircle', eyes: 'happy', mouth: 'smile', front: coffee },
+  { id: 'saude', cat: 'comida', text: 'SAÚDE!', color: C.yellow, eyes: 'happy', mouth: 'laugh', front: beer },
+  { id: 'paga', cat: 'comida', text: 'PAGAS TU!', color: C.orange, eyes: 'wink', mouth: 'tongue', front: coins },
+  { id: 'almoco', cat: 'comida', text: 'ALMOÇO?', color: C.green, shape: 'squircle', eyes: 'happy', mouth: 'smile', front: fork },
+  { id: 'jantar', cat: 'comida', text: 'JANTAR?', color: C.violet, eyes: 'wide', mouth: 'smile', front: fork },
+  { id: 'sede', cat: 'comida', text: 'COM SEDE', color: C.sky, shape: 'drop', eyes: 'wide', mouth: 'tongue', front: beer },
+  { id: 'docinho', cat: 'comida', text: 'DOCINHO', color: C.pink, eyes: 'heart', mouth: 'tongue', front: cake },
+  { id: 'brasa', cat: 'comida', text: 'NA BRASA', color: C.red, shape: 'blob', eyes: 'happy', mouth: 'grin', front: flameTop },
+  { id: 'cerveja-gelada', cat: 'comida', text: 'BEM GELADA', color: C.teal, eyes: 'wink', mouth: 'smirk', front: ice },
+  { id: 'cafe-forte', cat: 'comida', text: 'CAFÉ FORTE', color: C.coral, eyes: 'wide', mouth: 'grin', front: coffee },
+
   // Festa
-  { id: 'festa', cat: 'festa', text: 'FESTA!', from: '#d8b4fe', to: '#9333ea', eyes: 'happy', mouth: 'laugh', prop: note },
-  { id: 'parabens', cat: 'festa', text: 'PARABÉNS', from: '#fbcfe8', to: '#ec4899', eyes: 'happy', mouth: 'laugh', prop: null, hat: party },
-  { id: 'sair', cat: 'festa', text: 'VAMOS SAIR', from: '#c4b5fd', to: '#7c3aed', eyes: 'wink', mouth: 'grin', prop: note },
-  { id: 'som', cat: 'festa', text: 'AUMENTA O SOM', from: '#f0abfc', to: '#c026d3', eyes: 'closed', mouth: 'grin', prop: note },
-  { id: 'jogo', cat: 'festa', text: 'HOJE HÁ JOGO', from: '#86efac', to: '#15803d', eyes: 'wide', mouth: 'grin', prop: ball },
-  { id: 'vitoria', cat: 'festa', text: 'GANHÁMOS!', from: '#fde047', to: '#ca8a04', eyes: 'happy', mouth: 'laugh', prop: null, hat: crown },
+  { id: 'festa', cat: 'festa', text: 'FESTA!', color: C.violet, eyes: 'happy', mouth: 'laugh', front: note },
+  { id: 'parabens', cat: 'festa', text: 'PARABÉNS', color: C.pink, eyes: 'happy', mouth: 'laugh', front: partyHat },
+  { id: 'sair', cat: 'festa', text: 'VAMOS SAIR', color: C.blue, eyes: 'wink', mouth: 'grin', front: note },
+  { id: 'som', cat: 'festa', text: 'AUMENTA O SOM', color: C.violet, eyes: 'closed', mouth: 'grin', front: headphones },
+  { id: 'jogo', cat: 'festa', text: 'HOJE HÁ JOGO', color: C.green, eyes: 'wide', mouth: 'grin', front: ball },
+  { id: 'vitoria', cat: 'festa', text: 'GANHÁMOS!', color: C.yellow, eyes: 'happy', mouth: 'laugh', front: trophy },
+  { id: 'dj', cat: 'festa', text: 'DJ NA CASA', color: C.coral, eyes: 'none', mouth: 'smirk', front: headphones },
+  { id: 'dancar', cat: 'festa', text: 'DANÇA!', color: C.pink, shape: 'blob', eyes: 'happy', mouth: 'grin', front: note },
+  { id: 'balao', cat: 'festa', text: 'FESTA JÁ', color: C.sky, eyes: 'happy', mouth: 'smile', back: balloon },
+  { id: 'presente', cat: 'festa', text: 'PRESENTE!', color: C.violet, shape: 'squircle', eyes: 'happy', mouth: 'grin', front: gift },
+  { id: 'microfone', cat: 'festa', text: 'MICROFONE', color: C.teal, eyes: 'closed', mouth: 'laugh', front: mic },
+  { id: 'bone', cat: 'festa', text: 'BORA SAIR', color: C.blue, eyes: 'dots', mouth: 'smirk', front: cap },
+
+  // Amor e amizade
+  { id: 'amor', cat: 'amor', text: 'ADORO', color: C.coral, eyes: 'heart', mouth: 'smile', back: hearts },
+  { id: 'beijinho', cat: 'amor', text: 'BEIJINHO', color: C.pink, eyes: 'closed', mouth: 'kiss', cheeks: true, front: kissMark },
+  { id: 'abraco', cat: 'amor', text: 'ABRAÇO', color: C.orange, shape: 'blob', eyes: 'closed', mouth: 'smile', cheeks: true, back: hearts },
+  { id: 'meu-mano', cat: 'amor', text: 'MEU MANO', color: C.blue, eyes: 'none', mouth: 'smirk', front: sunglasses },
+  { id: 'crush', cat: 'amor', text: 'CRUSH', color: C.pink, shape: 'drop', eyes: 'heart', mouth: 'o', cheeks: true },
+  { id: 'ciumes', cat: 'amor', text: 'CIÚMES', color: C.lime, eyes: 'side', mouth: 'flat' },
+  { id: 'meu-amor', cat: 'amor', text: 'MEU AMOR', color: C.red, shape: 'squircle', eyes: 'heart', mouth: 'grin', front: hearts },
+  { id: 'parceiro', cat: 'amor', text: 'PARCEIRO', color: C.teal, eyes: 'wink', mouth: 'grin', front: thumb },
+  { id: 'miss-you', cat: 'amor', text: 'ESTOU CONTIGO', color: C.violet, shape: 'blob', eyes: 'closed', mouth: 'smile', cheeks: true },
+  { id: 'obrigadao', cat: 'amor', text: 'VALEU!', color: C.green, eyes: 'happy', mouth: 'grin', front: thumb },
+
+  // Malta
+  { id: 'malta', cat: 'malta', text: 'MALTA!', color: C.coral, shape: 'squircle', eyes: 'happy', mouth: 'laugh', front: partyHat },
+  { id: 'maningue', cat: 'malta', text: 'MANINGUE FIXE', color: C.green, eyes: 'wide', mouth: 'grin', front: thumb },
+  { id: 'txilar', cat: 'malta', text: 'TXILAR', color: C.sky, eyes: 'closed', mouth: 'smile', cheeks: true, front: sunglasses },
+  { id: 'paulada', cat: 'malta', text: 'PAULADA!', color: C.violet, shape: 'blob', eyes: 'wide', mouth: 'laugh', front: beer, back: sparkles },
+  { id: 'madala', cat: 'malta', text: 'MADALA', color: C.gray, eyes: 'dots', mouth: 'smile', front: beard },
+  { id: 'gelado', cat: 'malta', text: 'GELADO', color: C.teal, shape: 'squircle', eyes: 'wink', mouth: 'smirk', front: ice },
+  { id: 'bora-malta', cat: 'malta', text: 'BORA MALTA', color: C.orange, eyes: 'happy', mouth: 'grin', front: flag },
+  { id: 'chefe', cat: 'malta', text: 'O CHEFE', color: C.yellow, shape: 'blob', eyes: 'none', mouth: 'smirk', front: sunglasses, back: crown },
 ];
 
-function eyes(kind: Eyes) {
-  const stroke = { fill: 'none', stroke: INK, strokeWidth: 4, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
-  switch (kind) {
-    case 'happy':
-      return <g {...stroke}><path d="M42 50q6-8 12 0M66 50q6-8 12 0" /></g>;
-    case 'closed':
-      return <g {...stroke}><path d="M42 48q6 7 12 0M66 48q6 7 12 0" /></g>;
-    case 'wink':
-      return <g><circle cx="48" cy="49" r="4.5" fill={INK} /><path d="M66 50q6-8 12 0" {...stroke} /></g>;
-    case 'wide':
-      return <g><circle cx="48" cy="48" r="8" fill="#fff" stroke={INK} strokeWidth="3" /><circle cx="48" cy="49" r="4" fill={INK} /><circle cx="72" cy="48" r="8" fill="#fff" stroke={INK} strokeWidth="3" /><circle cx="72" cy="49" r="4" fill={INK} /></g>;
-    case 'heart':
-      return <g fill="#ef4444" stroke={INK} strokeWidth="2.5" strokeLinejoin="round"><path d="M48 58c-8-5-11-8-11-12a5 5 0 0 1 11-1 5 5 0 0 1 11 1c0 4-3 7-11 12z" transform="translate(0 -4) scale(1)" /><path d="M72 58c-8-5-11-8-11-12a5 5 0 0 1 11-1 5 5 0 0 1 11 1c0 4-3 7-11 12z" transform="translate(0 -4)" /></g>;
-    case 'dizzy':
-      return <g {...stroke}><path d="M43 44l10 10M53 44L43 54M67 44l10 10M77 44L67 54" /></g>;
+// ── corpo
+function body(shape: Shape, color: string) {
+  switch (shape) {
+    case 'squircle':
+      return <rect x="22" y="18" width="76" height="76" rx="30" fill={color} />;
+    case 'blob':
+      return <path d="M60 16c22 0 40 14 40 38 0 26-16 42-40 42S20 80 20 54c0-23 18-38 40-38z" fill={color} />;
+    case 'drop':
+      return <path d="M60 10C74 30 98 44 98 66a38 36 0 0 1-76 0c0-22 24-36 38-56z" fill={color} />;
     default:
-      return <g><circle cx="48" cy="49" r="4.5" fill={INK} /><circle cx="72" cy="49" r="4.5" fill={INK} /><circle cx="49.5" cy="47.5" r="1.4" fill="#fff" /><circle cx="73.5" cy="47.5" r="1.4" fill="#fff" /></g>;
+      return <circle cx="60" cy="56" r="39" fill={color} />;
+  }
+}
+
+// ── cara
+function eyes(kind: Eyes) {
+  const line = { fill: 'none', stroke: INK, strokeWidth: 4.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  switch (kind) {
+    case 'none':
+      return null;
+    case 'happy':
+      return <g {...line}><path d="M39 52q7-9 14 0M67 52q7-9 14 0" /></g>;
+    case 'closed':
+      return <g {...line}><path d="M39 50q7 8 14 0M67 50q7 8 14 0" /></g>;
+    case 'wink':
+      return <g><circle cx="46" cy="50" r="4.8" fill={INK} /><path d="M67 52q7-9 14 0" {...line} /></g>;
+    case 'wide':
+      return <g><circle cx="46" cy="49" r="9" fill={WHITE} /><circle cx="46" cy="50" r="4.6" fill={INK} /><circle cx="74" cy="49" r="9" fill={WHITE} /><circle cx="74" cy="50" r="4.6" fill={INK} /></g>;
+    case 'side':
+      return <g><circle cx="46" cy="50" r="8" fill={WHITE} /><circle cx="49" cy="50" r="4.2" fill={INK} /><circle cx="74" cy="50" r="8" fill={WHITE} /><circle cx="77" cy="50" r="4.2" fill={INK} /></g>;
+    case 'heart':
+      return (
+        <g fill={C.red}>
+          <path d="M46 60c-8-5-11-8-11-12a5.5 5.5 0 0 1 11-1 5.5 5.5 0 0 1 11 1c0 4-3 7-11 12z" />
+          <path d="M74 60c-8-5-11-8-11-12a5.5 5.5 0 0 1 11-1 5.5 5.5 0 0 1 11 1c0 4-3 7-11 12z" />
+        </g>
+      );
+    case 'star':
+      return (
+        <g fill={INK}>
+          <path d="M46 42l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z" />
+          <path d="M74 42l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z" />
+        </g>
+      );
+    case 'dizzy':
+      return <g {...line}><path d="M40 44l12 12M52 44L40 56M68 44l12 12M80 44L68 56" /></g>;
+    case 'angry':
+      return (
+        <g>
+          <path d="M37 40l17 6M83 40L66 46" {...line} />
+          <circle cx="46" cy="52" r="4.4" fill={INK} />
+          <circle cx="74" cy="52" r="4.4" fill={INK} />
+        </g>
+      );
+    default:
+      return <g fill={INK}><circle cx="46" cy="50" r="4.8" /><circle cx="74" cy="50" r="4.8" /></g>;
   }
 }
 
 function mouth(kind: Mouth) {
-  const stroke = { fill: 'none', stroke: INK, strokeWidth: 4, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  const line = { fill: 'none', stroke: INK, strokeWidth: 4.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
   switch (kind) {
+    case 'none':
+      return null;
     case 'grin':
-      return <path d="M44 62q16 18 32 0z" fill="#7f1d1d" stroke={INK} strokeWidth="3.5" strokeLinejoin="round" />;
+      return <path d="M44 66h32a16 14 0 0 1-32 0z" fill={INK} />;
     case 'laugh':
-      return <g><path d="M42 61q18 24 36 0z" fill="#7f1d1d" stroke={INK} strokeWidth="3.5" strokeLinejoin="round" /><path d="M50 72q10-7 20 0q-10 6-20 0z" fill="#fb7185" /></g>;
+      return (
+        <g>
+          <path d="M42 64h36a18 17 0 0 1-36 0z" fill={INK} />
+          <path d="M51 76q9-7 18 0q-9 6-18 0z" fill={C.coral} />
+        </g>
+      );
     case 'o':
-      return <ellipse cx="60" cy="68" rx="6" ry="7.5" fill="#7f1d1d" stroke={INK} strokeWidth="3.5" />;
+      return <ellipse cx="60" cy="72" rx="6.5" ry="8" fill={INK} />;
     case 'flat':
-      return <path d="M50 68h20" {...stroke} />;
+      return <path d="M50 72h20" {...line} />;
     case 'sad':
-      return <path d="M49 72q11-10 22 0" {...stroke} />;
+      return <path d="M49 76q11-10 22 0" {...line} />;
+    case 'smirk':
+      return <path d="M50 70q8 7 20-1" {...line} />;
+    case 'kiss':
+      return <path d="M54 68q6-5 12 0q-6 9-12 0z" fill={C.red} />;
     case 'tongue':
-      return <g><path d="M46 63q14 12 28 0" {...stroke} /><path d="M56 69v6a4 4 0 0 0 8 0v-6" fill="#fb7185" stroke={INK} strokeWidth="3" strokeLinejoin="round" /></g>;
+      return (
+        <g>
+          <path d="M46 68q14 12 28 0" {...line} />
+          <path d="M56 74v6a4 4 0 0 0 8 0v-6" fill={C.coral} stroke={INK} strokeWidth="3" strokeLinejoin="round" />
+        </g>
+      );
     default:
-      return <path d="M47 63q13 12 26 0" {...stroke} />;
+      return <path d="M47 67q13 12 26 0" {...line} />;
   }
 }
 
-/** O sticker: recorte com fundo transparente (a mascote, o adereço, o texto) com contorno branco e sombra suave. */
+/** O sticker: recorte com fundo transparente (corpo liso, cara simples, adereço e texto) com contorno branco e sombra suave. */
 export function Sticker({ id, size = 132, bare = false }: { id: string; size?: number; bare?: boolean }) {
   const uid = useId().replace(/:/g, '');
   const s = STICKERS.find((x) => x.id === id);
@@ -231,32 +453,33 @@ export function Sticker({ id, size = 132, bare = false }: { id: string; size?: n
   return (
     <svg role="img" aria-label={`Sticker: ${s.text}`} width={size} height={h} viewBox={bare ? '0 4 120 118' : '0 0 120 134'} className="shrink-0 overflow-visible">
       <defs>
-        <linearGradient id={`g${uid}`} x1="0.2" y1="0" x2="0.8" y2="1">
-          <stop offset="0" stopColor={s.from} />
-          <stop offset="1" stopColor={s.to} />
-        </linearGradient>
-        <radialGradient id={`s${uid}`} cx="0.35" cy="0.25" r="0.6">
-          <stop offset="0" stopColor="#fff" stopOpacity="0.55" />
-          <stop offset="1" stopColor="#fff" stopOpacity="0" />
-        </radialGradient>
         <filter id={`f${uid}`} x="-20%" y="-20%" width="140%" height="140%">
-          <feMorphology in="SourceAlpha" operator="dilate" radius="3.2" result="grow" />
+          <feMorphology in="SourceAlpha" operator="dilate" radius="3.4" result="grow" />
           <feFlood floodColor="#fff" result="white" />
           <feComposite in="white" in2="grow" operator="in" result="edge" />
-          <feDropShadow in="edge" dx="0" dy="2.5" stdDeviation="2.5" floodColor="#000" floodOpacity="0.28" result="shadow" />
+          <feDropShadow in="edge" dx="0" dy="2.5" stdDeviation="2.4" floodColor="#000" floodOpacity="0.26" result="shadow" />
           <feMerge><feMergeNode in="shadow" /><feMergeNode in="edge" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
-      <g filter={`url(#${uid ? `f${uid}` : ''})`}>
-        {s.prop}
-        <circle cx="60" cy="56" r="38" fill={`url(#g${uid})`} stroke={INK} strokeWidth="3.5" />
-        <ellipse cx="46" cy="36" rx="16" ry="9" fill={`url(#s${uid})`} />
-        <circle cx="38" cy="66" r="6" fill="#fff" opacity="0.28" />
-        <circle cx="82" cy="66" r="6" fill="#fff" opacity="0.28" />
+      <g filter={`url(#f${uid})`}>
+        {s.back}
+        {body(s.shape ?? 'round', s.color)}
+        {/* um brilho pequeno, só para dar volume sem degradês */}
+        <path d="M36 36q4-8 14-10" fill="none" stroke={WHITE} strokeWidth="4.5" strokeLinecap="round" opacity=".45" />
+        {s.cheeks && (
+          <g fill={C.coral} opacity=".55">
+            <ellipse cx="35" cy="64" rx="6.5" ry="4.2" />
+            <ellipse cx="85" cy="64" rx="6.5" ry="4.2" />
+          </g>
+        )}
         {eyes(s.eyes)}
         {mouth(s.mouth)}
-        {s.hat}
-        {!bare && <text x="60" y="120" textAnchor="middle" fontSize={s.text.length > 9 ? 15 : 19} fontWeight="900" letterSpacing="0.5" fill="#fff" stroke={INK} strokeWidth="5" strokeLinejoin="round" paintOrder="stroke" fontFamily="inherit">{s.text}</text>}
+        {s.front}
+        {!bare && (
+          <text x="60" y="122" textAnchor="middle" fontSize={s.text.length > 12 ? 12.5 : s.text.length > 9 ? 15 : 19} fontWeight="900" letterSpacing="0.4" fill={WHITE} stroke={INK} strokeWidth="5" strokeLinejoin="round" paintOrder="stroke" fontFamily="inherit">
+            {s.text}
+          </text>
+        )}
       </g>
     </svg>
   );
@@ -267,7 +490,7 @@ export function StickerButton({ id, size = 132, className = '' }: { id: string; 
   const [big, setBig] = useState(false);
   return (
     <>
-      <button type="button" onClick={() => setBig(true)} aria-label="Ver sticker em grande" className={`block transition active:scale-95 ${className}`}>
+      <button type="button" onClick={() => setBig(true)} aria-label={tr('Ver sticker em grande')} className={`block transition active:scale-95 ${className}`}>
         <Sticker id={id} size={size} />
       </button>
       {big &&
@@ -307,7 +530,7 @@ export function StickerPicker({ onPick, onClose }: { onPick: (id: string) => voi
   }, [onClose]);
   const [cat, setCat] = useState<StickerCat | 'recentes'>(() => (readRecent().length ? 'recentes' : 'reacoes'));
   const [recent, setRecent] = useState<string[]>(readRecent);
-  const tabs: { id: StickerCat | 'recentes'; label: string }[] = [...(recent.length ? [{ id: 'recentes' as const, label: 'Recentes' }] : []), ...STICKER_CATS];
+  const tabs: { id: StickerCat | 'recentes'; label: string }[] = [...(recent.length ? [{ id: 'recentes' as const, label: tr('Recentes') }] : []), ...STICKER_CATS];
   const list = cat === 'recentes' ? recent.map((id) => STICKERS.find((s) => s.id === id)!).filter(Boolean) : STICKERS.filter((s) => s.cat === cat);
   function pick(id: string) {
     const next = [id, ...recent.filter((x) => x !== id)].slice(0, 8);
@@ -337,13 +560,13 @@ export function StickerPicker({ onPick, onClose }: { onPick: (id: string) => voi
 
 /** Reações a stories: a mesma mascote dos stickers, sem texto. Guardam-se como :nome: (os emojis antigos continuam a aparecer). */
 export const REACTIONS: { id: string; label: string; art: string }[] = [
-  { id: ':rir:', label: 'Rir', art: 'rir' },
-  { id: ':uau:', label: 'Uau', art: 'uau' },
-  { id: ':amor:', label: 'Adorar', art: 'amor' },
-  { id: ':snif:', label: 'Triste', art: 'snif' },
-  { id: ':palmas:', label: 'Fixe', art: 'fixe' },
-  { id: ':fogo:', label: 'Bora', art: 'bora' },
-  { id: ':brinde:', label: 'Brindar', art: 'saude' },
+  { id: ':rir:', label: tr('Rir'), art: 'rir' },
+  { id: ':uau:', label: tr('Uau'), art: 'uau' },
+  { id: ':amor:', label: tr('Adorar'), art: 'amor' },
+  { id: ':snif:', label: tr('Triste'), art: 'snif' },
+  { id: ':palmas:', label: tr('Fixe'), art: 'fixe' },
+  { id: ':fogo:', label: tr('Bora'), art: 'bora' },
+  { id: ':brinde:', label: tr('Brindar'), art: 'saude' },
 ];
 
 export function Reaction({ body, size = 40 }: { body: string; size?: number }) {

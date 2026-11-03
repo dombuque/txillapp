@@ -101,6 +101,8 @@ function ClipRecorder({ onPick }: { onPick: (t: Track) => void }) {
   );
 }
 
+const GENRES = ['chill', 'dance', 'afro', 'pop', 'rock', 'hip hop', 'jazz', 'piano', 'acoustic'];
+
 /** Escolher uma faixa de música de licença aberta (Creative Commons): pesquisa, ouve-se um pedaço e usa-se. O crédito do autor segue com a faixa. */
 export default function MusicPicker({ onPick, onClose }: { onPick: (t: Track) => void; onClose: () => void }) {
   const [term, setTerm] = useState('');
@@ -112,11 +114,9 @@ export default function MusicPicker({ onPick, onClose }: { onPick: (t: Track) =>
 
   // Procura meio segundo depois de parares de escrever.
   useEffect(() => {
-    const q = term.trim();
-    if (q.length < 2) {
-      setItems(null);
-      return;
-    }
+    const typed = term.trim();
+    // Sem pesquisa, já mostra uma lista (o género escolhido ou o primeiro).
+    const q = typed.length >= 2 ? typed : GENRES[0];
     const t = setTimeout(async () => {
       setBusy(true);
       setErr('');
@@ -127,7 +127,7 @@ export default function MusicPicker({ onPick, onClose }: { onPick: (t: Track) =>
         setItems([]);
       }
       setBusy(false);
-    }, 500);
+    }, typed.length >= 2 ? 500 : 0);
     return () => clearTimeout(t);
   }, [term]);
 
@@ -159,6 +159,11 @@ export default function MusicPicker({ onPick, onClose }: { onPick: (t: Track) =>
         <Icon name="search" size={18} />
         <input value={term} onChange={(e) => setTerm(e.target.value)} autoFocus placeholder={tr('Procurar música ou sons')} aria-label={tr('Procurar música ou sons')} className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
       </label>
+      <div className="mt-2 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {GENRES.map((g) => (
+          <button key={g} type="button" onClick={() => setTerm(g)} className={`h-8 shrink-0 rounded-full px-3 text-[13px] font-semibold ${term.trim() === g || (!term.trim() && g === GENRES[0]) ? 'bg-brand text-white' : 'bg-zinc-100 text-zinc-700'}`}>{g}</button>
+        ))}
+      </div>
       <div className="mt-3"><ClipRecorder onPick={onPick} /></div>
       <p className="mt-3 text-xs text-zinc-500">{tr('Só músicas e sons de licença aberta (Creative Commons), com o crédito de quem os fez. Para a música do momento, ainda não há licença.')}</p>
       {err && <p role="alert" className="mt-2 text-sm text-red-600">{err}</p>}
