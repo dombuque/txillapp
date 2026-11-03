@@ -86,7 +86,7 @@ export class MusicService {
     if (hit && Date.now() - hit.at < 600_000) return hit.items;
     let res: Response;
     try {
-      const url = `${API}?${new URLSearchParams({ q, license: 'cc0,pdm,by,by-sa', page_size: '15', category: 'music', mature: 'false' })}`;
+      const url = `${API}?${new URLSearchParams({ q, license: 'cc0,pdm,by,by-sa', page_size: '15', mature: 'false' })}`;
       res = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'Txillapp/1.0 (+https://txillapp.com)' }, signal: AbortSignal.timeout(8000) });
     } catch (e) {
       this.log.warn(`Openverse indisponível: ${(e as Error).message}`);
