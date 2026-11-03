@@ -15,7 +15,7 @@ import TaggedImage from './TaggedImage';
 import RichText from './RichText';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, type Page, type Post, type PeopleKind } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import CommentsSheet from './CommentsSheet';
@@ -29,7 +29,10 @@ type Feed = InfiniteData<Page<Post>>;
 export const profilePath = (username: string, me?: string) => (username === me ? '/profile' : `/u/${username}`);
 
 /** Carrossel de fotos: deslizar na horizontal, com contador e pontos como no Instagram. */
-function Carousel({ media, onOpen }: { media: Post['media']; onOpen: (index: number) => void }) {
+function Carousel({ media, onOpen, reelId }: { media: Post['media']; onOpen: (index: number) => void; reelId?: string }) {
+  const navigate = useNavigate();
+  // Tocar num vídeo do feed abre os Reels já nesse vídeo (e a pessoa fica no Reels).
+  const onOpenReel = reelId ? () => navigate(`/reels?start=${reelId}`) : undefined;
   const [i, setI] = useState(0);
   const [showTags, setShowTags] = useState(false);
   if (media.length === 0) return null;
@@ -44,7 +47,7 @@ function Carousel({ media, onOpen }: { media: Post['media']; onOpen: (index: num
         {media.map((m, n) => (m.kind === 'video' ? (
           // Vídeo: toca sozinho quando está à vista, sem som; o botão do canto liga o som.
           <div key={m.url} className="block w-full shrink-0 snap-center">
-            <VideoPlayer src={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={m.width} height={m.height} className="w-full" />
+            <VideoPlayer src={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={m.width} height={m.height} className="w-full" onOpen={onOpenReel} />
           </div>
         ) : (
           // Tocar na foto abre-a inteira, em ecrã completo (como no X).
@@ -208,7 +211,7 @@ function PostBody({ post }: { post: Post }) {
       {post.body && <p className="mt-4 whitespace-pre-wrap break-words text-[19px] text-zinc-800"><RichText text={post.body} /></p>}
         </>
       )}
-      <Carousel media={post.media} onOpen={setViewer} />
+      <Carousel media={post.media} onOpen={setViewer} reelId={post.id} />
       <Actions post={post} />
       {viewer !== null && <ImageViewer post={post} start={viewer} onClose={() => setViewer(null)} />}
     </article>

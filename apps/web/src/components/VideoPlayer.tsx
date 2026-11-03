@@ -50,7 +50,9 @@ let audioCtx: AudioContext | null = null;
 const routed = new WeakSet<HTMLVideoElement>();
 const isIOS = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 function routeAudio(v: HTMLVideoElement) {
-  if (!isIOS || routed.has(v) || !v.currentSrc.startsWith(location.origin)) return;
+  // `currentSrc` só se preenche depois de o navegador escolher o recurso (tarde demais na primeira vez): `src` já vem resolvido.
+  const url = v.currentSrc || v.src;
+  if (!isIOS || routed.has(v) || !url.startsWith(location.origin)) return;
   try {
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctx) return;
@@ -80,10 +82,12 @@ interface Props {
   id?: string;
   /** Reels: em vez de repetir sem fim, o vídeo termina e pergunta se se quer ver mais (ou rever). */
   onMore?: () => void;
+  /** Feed: tocar no vídeo abre-o (por exemplo, nos Reels) em vez de só ligar o som. */
+  onOpen?: () => void;
 }
 
 /** Vídeo curto: toca sozinho quando está à vista, sem som; toca-se para ligar/desligar o som. */
-export default function VideoPlayer({ src, poster, durationMs, width, height, active, cover = false, className = '', onProgress, id, onMore }: Props) {
+export default function VideoPlayer({ src, poster, durationMs, width, height, active, cover = false, className = '', onProgress, id, onMore, onOpen }: Props) {
   const [ended, setEnded] = useState(false);
   const ref = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -173,7 +177,9 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
               setFlash(userPaused ? 'play' : 'pause');
               setTimeout(() => setFlash(null), 700);
             }
-          : undefined
+          : onOpen
+            ? onOpen
+            : undefined
       }
     >
       <video

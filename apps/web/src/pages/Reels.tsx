@@ -1,10 +1,10 @@
 import { sized } from '../lib/media';
 import { tr } from '../lib/i18n';
 import { PontoLoader } from '../components/Loading';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { slideClass, takeSlide, useSwipeTabs } from '../lib/swipeNav';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { PostMenu, RepostSheet } from '../components/PostCard';
 import ShareSheet from '../components/ShareSheet';
 import CommentsSheet from '../components/CommentsSheet';
@@ -135,7 +135,14 @@ export default function Reels() {
     getNextPageParam: (l) => l.nextCursor ?? undefined,
   });
   const seen = new Set<string>();
-  const items = (q.data?.pages.flatMap((p) => p.items) ?? []).filter((p) => p.media[0]?.kind === 'video' && !seen.has(p.id) && !!seen.add(p.id));
+  // Vindo do feed com ?start=<id>: esse reel passa à frente e os outros seguem-se (deslizando para cima).
+  const [params] = useSearchParams();
+  const startId = params.get('start');
+  const startPost = useQuery({ queryKey: ['post', startId], queryFn: () => api.getPost(startId!), enabled: !!startId, retry: false });
+  const listed = q.data?.pages.flatMap((p) => p.items) ?? [];
+  const lead = startPost.data && startPost.data.media[0]?.kind === 'video' ? [startPost.data] : [];
+  // Enquanto o reel de partida carrega, não se mostra a lista (para não saltar de um reel para outro).
+  const items = (startId && startPost.isLoading ? [] : [...lead, ...listed]).filter((p) => p.media[0]?.kind === 'video' && !seen.has(p.id) && !!seen.add(p.id));
   const current = activeId ?? items[0]?.id ?? null;
   const idx = items.findIndex((p) => p.id === current);
 
@@ -208,7 +215,7 @@ export default function Reels() {
             <Reel post={p} active={p.id === current} onChange={(c) => patch(p.id, c)} onMore={() => void goNext(p.id)} />
           </div>
         ))}
-        {q.isLoading && <div className="flex h-full items-center justify-center"><PontoLoader size={26} /></div>}
+        {(q.isLoading || (!!startId && startPost.isLoading)) && <div className="flex h-full items-center justify-center"><PontoLoader size={26} /></div>}
         {q.isSuccess && items.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center px-8 text-center text-white">
             <Icon name="film" size={52} className="mx-auto text-white/70" />
