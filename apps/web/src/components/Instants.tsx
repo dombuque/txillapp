@@ -140,7 +140,8 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   const [flash, setFlash] = useState(false);
   const [sent, setSent] = useState<string | null>(null); // id do último Zás, para desfazer
   const undoTimer = useRef<ReturnType<typeof setTimeout>>();
-  const [light, setLight] = useState(false); // flash ligado
+  const [light, setLight] = useState(false); // flash ligado (lanterna ao vivo, ou ecrã aceso na câmara da frente)
+  const [canTorch, setCanTorch] = useState(false);
   const [lit, setLit] = useState(false); // ecrã aceso (flash da câmara da frente)
   const [delay, setDelay] = useState<0 | 3 | 10>(0); // temporizador
   const [count, setCount] = useState<number | null>(null);
@@ -170,6 +171,9 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
           video.current.srcObject = s;
           await video.current.play().catch(() => undefined);
         }
+        const caps = (s.getVideoTracks()[0]?.getCapabilities?.() ?? {}) as { torch?: boolean };
+        setCanTorch(!!caps.torch);
+        setLight(false);
         setReady(true);
       } catch {
         if (!dead) setProblem(true);
@@ -181,6 +185,19 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   }, [facing]);
   useEffect(() => () => { releaseCamera(2_000); clearTimeout(undoTimer.current); clearInterval(countTimer.current); }, []);
 
+  /** Flash: com lanterna (câmara de trás) acende já, como na câmara dos posts; sem ela, o ecrã acende no disparo. */
+  async function toggleLight() {
+    const next = !light;
+    const track = (video.current?.srcObject as MediaStream | null)?.getVideoTracks()[0];
+    if (canTorch && track) {
+      try {
+        await track.applyConstraints({ advanced: [{ torch: next } as MediaTrackConstraintSet] });
+      } catch {
+        setCanTorch(false);
+      }
+    }
+    setLight(next);
+  }
   function pickAudience(a: Audience) {
     // Sem amigos próximos ainda: abre já a lista para os escolher.
     if (a === 'close' && friendsList.isSuccess && friendsList.data.length === 0) setSetupClose(true);
@@ -194,19 +211,9 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   async function shoot() {
     const v = video.current;
     if (!v || !ready || !v.videoWidth || busy) return;
-    // Flash: lanterna na câmara de trás (se o aparelho deixar); na da frente acende o ecrã.
-    const track = (v.srcObject as MediaStream | null)?.getVideoTracks()[0];
-    let torch = false;
-    if (light) {
-      if (facing === 'environment' && (track?.getCapabilities?.() as { torch?: boolean } | undefined)?.torch) {
-        try {
-          await track!.applyConstraints({ advanced: [{ torch: true } as MediaTrackConstraintSet] });
-          torch = true;
-        } catch {
-          /* sem lanterna */
-        }
-      }
-      if (!torch) setLit(true);
+    // Sem lanterna (câmara da frente): o ecrã acende um instante antes de tirar.
+    if (light && !canTorch) {
+      setLit(true);
       await new Promise((r) => setTimeout(r, 380));
     }
     const c = document.createElement('canvas');
@@ -220,7 +227,6 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
     }
     g.drawImage(v, 0, 0);
     setLit(false);
-    if (torch) track!.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] }).catch(() => undefined);
     navigator.vibrate?.(15);
     setFlash(true);
     setTimeout(() => setFlash(false), 140);
@@ -285,7 +291,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
           {lit && <div className="pointer-events-none absolute inset-0 z-10 bg-white" />}
           {count !== null && <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-[120px] font-black drop-shadow-[0_4px_20px_rgba(0,0,0,0.6)]" aria-live="assertive">{count}</div>}
           <div className="absolute right-3 top-3 z-10 flex flex-col gap-2">
-            <button type="button" onClick={() => setLight((v) => !v)} aria-pressed={light} aria-label={tr('Flash')} className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-md transition active:scale-90 ${light ? 'bg-amber-300 text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}><Icon name="sun" size={20} /></button>
+            <button type="button" onClick={() => void toggleLight()} aria-pressed={light} aria-label={canTorch ? tr('Lanterna') : tr('Flash de ecrã')} className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-md transition active:scale-90 ${light ? 'bg-amber-300 text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}><Icon name="sun" size={20} /></button>
             <button type="button" onClick={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} aria-label={tr('Temporizador')} className={`flex h-10 w-10 items-center justify-center rounded-full text-[13px] font-extrabold backdrop-blur-md transition active:scale-90 ${delay ? 'bg-white text-zinc-900' : 'bg-black/35 text-white ring-1 ring-white/15'}`}>{delay ? `${delay}s` : <Icon name="clock" size={20} />}</button>
           </div>
           {!ready && <p className="absolute inset-0 flex items-center justify-center px-12 text-center text-white/80">{problem ? tr('Não consegui abrir a câmara. Os Zás só se mandam na hora.') : tr('A acordar a câmara…')}</p>}
