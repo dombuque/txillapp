@@ -196,7 +196,7 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [cheered, setCheered] = useState(false);
+  const [cheered, setCheered] = useState(!!story.cheered);
   const [sharing, setSharing] = useState<Post | null>(null);
 
   async function openShare() {
@@ -208,10 +208,17 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
       setTimeout(() => setMsg(null), 2200);
     }
   }
+  // Brindar é como o gosto do Instagram: alterna, conta ao autor e mostra quem brindou. Não envia mensagem.
   async function cheer() {
-    if (cheered) return;
-    setCheered(true);
-    await send(':brinde:');
+    const next = !cheered;
+    setCheered(next);
+    try {
+      await api.cheerStory(story.id, next);
+    } catch (x) {
+      setCheered(!next);
+      setMsg((x as Error).message);
+      setTimeout(() => setMsg(null), 2200);
+    }
   }
 
   async function send(body: string) {
@@ -563,6 +570,9 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
               <button {...stop} onClick={() => { setTab('viewers'); setPanel('viewers'); }} aria-label={`${story.viewCount ?? 0} visualizações`} className="flex min-h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
                 <EyeIcon /> {story.viewCount ?? 0}
               </button>
+              <button {...stop} onClick={() => { setTab('viewers'); setPanel('viewers'); }} aria-label={`${story.cheerCount ?? 0} ${tr('brindes')}`} className="flex min-h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
+                <Icon name="cheers" size={18} /> {story.cheerCount ?? 0}
+              </button>
               <button {...stop} onClick={() => setPanel('comments')} aria-label={`${story.commentCount} comentários`} className="flex min-h-11 items-center gap-2 rounded-full bg-white/20 px-4 text-sm font-semibold text-white backdrop-blur-sm transition active:scale-95">
                 <Icon name="comment" size={18} /> {story.commentCount}
               </button>
@@ -634,6 +644,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
                       <p className="truncate font-semibold">{v.displayName}</p>
                       <p className="truncate text-sm text-zinc-500">@{v.username}</p>
                     </div>
+                    {v.cheered && <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-brand" aria-label={tr('Brindou')}><Icon name="cheers" size={16} /></span>}
                     <span className="shrink-0 text-sm text-zinc-500">{timeAgo(v.viewedAt)}</span>
                   </li>
                 ))}

@@ -182,6 +182,9 @@ export interface Story {
   author: { username: string; displayName: string };
   seen: boolean;
   viewCount: number | null;
+  /** Este espectador já brindou o story? E, só para o autor, quantos brindes. */
+  cheered?: boolean;
+  cheerCount?: number | null;
   /** Só para o autor: quantas respostas/reacções recebeu. */
   replyCount: number | null;
   /** Comentários públicos (o número é visível a quem vê o story). */
@@ -585,7 +588,8 @@ export const api = {
   replyStory: (id: string, body: string): Promise<{ id: string; kind: 'reply' | 'reaction' }> => raw(`/stories/${id}/replies`, post({ body })),
   storyReplies: (id: string): Promise<{ id: string; body: string; kind: 'reply' | 'reaction'; createdAt: string; author: { username: string; displayName: string } }[]> =>
     raw(`/stories/${id}/replies`),
-  storyViewers: (id: string): Promise<{ username: string; displayName: string; viewedAt: string }[]> => raw(`/stories/${id}/viewers`),
+  storyViewers: (id: string): Promise<{ username: string; displayName: string; viewedAt: string; cheered?: boolean }[]> => raw(`/stories/${id}/viewers`),
+  cheerStory: (id: string, on: boolean): Promise<{ cheered: boolean }> => raw(`/stories/${id}/cheer`, { method: on ? 'PUT' : 'DELETE' }),
 
   nearbyPlaces: (lat: number, lng: number): Promise<NearbyPlaces> => raw(`/places/nearby?lat=${lat}&lng=${lng}`),
   postPeople: (postId: string, kind: PeopleKind): Promise<{ username: string; displayName: string; hasAvatar: boolean; verified: boolean; at: string }[]> => raw(`/posts/${postId}/people/${kind}`),
