@@ -22,7 +22,7 @@ import { detectIntent } from '../lib/chatIntent';
 import { firstTime } from '../lib/firstTime';
 import { isSharing, startLive, stopLive } from '../lib/liveLocation';
 import { useTyping } from '../lib/chatLive';
-import { Reaction, StickerButton, StickerPicker } from '../lib/stickers';
+import { REACTIONS, Reaction, StickerButton, StickerPicker } from '../lib/stickers';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { useAuth } from '../lib/auth';
 
@@ -76,7 +76,13 @@ interface Draft {
   durationMs?: number;
   waveform?: string;
   localUrl?: string;
+  /** Id da mensagem a que se responde. */
+  replyTo?: string;
 }
+
+const KIND_LABEL: Record<string, string> = { image: 'Foto', voice: 'Mensagem de voz', sticker: 'Sticker', post: 'Publicação', location: 'Localização', gift: 'Presente' };
+/** Excerto de uma mensagem para citar (na bolha e na barra de resposta). */
+const quoteText = (k: string, body: string) => (k === 'text' || k === 'story_reply' ? body : tr(KIND_LABEL[k] ?? 'Mensagem'));
 
 function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard, onOpenOnce, onStopLive }: { m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onMenu: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
   const mine = m.fromMe;
@@ -101,6 +107,18 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
   return (
     <div className={`flex select-none flex-col ${mine ? 'items-end' : 'items-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`} {...menuProps}>
       {group && !mine && !prevSame && m.sender && <span className="mb-0.5 px-1 text-[12px] font-bold text-zinc-600">{m.sender.displayName.split(' ')[0]}</span>}
+      {m.replyTo && (
+        <div className={`mb-0.5 max-w-[78%] rounded-2xl border-l-4 px-3 py-1.5 text-[13px] leading-snug ${mine ? 'border-brand/70 bg-brand/10' : 'border-zinc-400 bg-zinc-50'} text-zinc-600`}>
+          {m.replyTo.gone ? (
+            <span className="italic">{tr('Mensagem apagada')}</span>
+          ) : (
+            <>
+              <span className="block truncate font-bold text-zinc-700">{m.replyTo.fromMe ? tr('Tu') : m.replyTo.name}</span>
+              <span className="line-clamp-2 break-words">{quoteText(m.replyTo.kind, m.replyTo.body)}</span>
+            </>
+          )}
+        </div>
+      )}
       {m.storyUrl && <img src={sized(m.storyUrl, 160)} alt={tr('Story')} className="mb-1 h-28 w-[72px] rounded-xl object-cover opacity-90" />}
       {(m.kind === 'story_reply' || m.kind === 'story_reaction') && (
         <p className="mb-0.5 text-xs text-zinc-500">{m.kind === 'story_reaction' ? (mine ? tr('Reagiste ao story') : tr('Reagiu ao teu story')) : mine ? tr('Respondeste ao story') : tr('Respondeu ao teu story')}</p>
@@ -156,6 +174,16 @@ function Bubble({ m, prevSame, nextSame, seen, group, onMenu, onRetry, onDiscard
       {!m.viewOnce && (m.kind === 'text' || m.kind === 'story_reply') && (
         <p className={`max-w-[82%] whitespace-pre-wrap break-words px-4 py-2.5 text-[16px] leading-snug ${shape} ${tone} ${dim}`}>{m.body}</p>
       )}
+      {!!m.reactions?.length && (
+        <button type="button" onClick={() => onMenu(m)} aria-label={tr('Reações')} className={`-mt-2 flex items-center gap-1 rounded-full bg-white px-1.5 py-0.5 shadow-[0_1px_6px_rgba(0,0,0,0.18)] ring-1 ring-zinc-100 ${mine ? 'mr-3' : 'ml-3'}`}>
+          {m.reactions.map((r) => (
+            <span key={r.reaction} className={`flex items-center rounded-full ${r.mine ? 'bg-brand/10' : ''}`}>
+              <Reaction body={r.reaction} size={22} />
+              {r.count > 1 && <span className="pr-1 text-[11px] font-bold text-zinc-700">{r.count}</span>}
+            </span>
+          ))}
+        </button>
+      )}
       {m.state === 'failed' ? (
         <span className="mt-1 flex items-center gap-2 px-1 text-[12px] font-semibold text-red-600">
           <Icon name="alert" size={14} /> {tr('Não enviada')}
@@ -185,6 +213,7 @@ export default function Thread() {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const [menuFor, setMenuFor] = useState<ChatMessage | null>(null);
+  const [replying, setReplying] = useState<ChatMessage | null>(null);
   const [reporting, setReporting] = useState<string | null>(null);
   const [rec, setRec] = useState<{ ms: number; bars: number[] } | null>(null);
   const [outbox, setOutbox] = useState<Msg[]>([]);
@@ -274,6 +303,11 @@ export default function Thread() {
 
   /** Mostra a mensagem logo; o envio acontece por trás e, se falhar, fica a pedir para tentar de novo. */
   async function dispatch(d: Draft, tmpId = `tmp-${Date.now()}-${seq.current++}`) {
+    // Uma mensagem nova leva a resposta pendente (ao tentar de novo, mantém a que já tinha).
+    if (!drafts.current.has(tmpId) && replying && !d.replyTo) {
+      d = { ...d, replyTo: replying.id };
+      setReplying(null);
+    }
     drafts.current.set(tmpId, d);
     const msg: Msg = { id: tmpId, fromMe: true, body: d.once ? '' : d.kind === 'gift' ? (d.note ?? '') : d.body, kind: d.kind, giftAmount: d.giftAmount, viewOnce: !!d.once, storyUrl: null, mediaUrl: d.once ? null : (d.localUrl ?? null), durationMs: d.durationMs ?? null, waveform: d.waveform ?? null, at: new Date().toISOString(), state: 'sending' };
     setOutbox((o) => (o.some((x) => x.id === tmpId) ? o.map((x) => (x.id === tmpId ? msg : x)) : [...o, msg]));
@@ -282,7 +316,7 @@ export default function Thread() {
     try {
       const mediaId = d.file ? await api.uploadChatFile(d.file, d.mime ?? d.file.type) : undefined;
       track('message_send', { kind: d.kind });
-      const msg = { kind: d.kind, body: d.body, mediaId, durationMs: d.durationMs, waveform: d.waveform, lat: d.lat, lng: d.lng, once: d.once, liveMinutes: d.liveMinutes };
+      const msg = { kind: d.kind, body: d.body, mediaId, durationMs: d.durationMs, waveform: d.waveform, lat: d.lat, lng: d.lng, once: d.once, liveMinutes: d.liveMinutes, replyTo: d.replyTo };
       const r = isGroup ? await api.chatGroupSend(groupId, msg) : await api.chatSend(username, msg);
       drafts.current.delete(tmpId);
       if (d.liveMinutes) startLive(r.id, Date.now() + d.liveMinutes * 60_000);
@@ -438,6 +472,18 @@ export default function Thread() {
     r.cancelled = !send;
     r.mr.stop();
   };
+
+  /** Reagir à mensagem (tocar na que já tenho tira-a). */
+  async function react(m: ChatMessage, id: string, already: boolean) {
+    setMenuFor(null);
+    try {
+      if (already) await api.chatUnreact(m.id);
+      else await api.chatReact(m.id, id);
+      await q.refetch();
+    } catch (x) {
+      setErr((x as Error).message);
+    }
+  }
 
   async function remove(m: ChatMessage) {
     setMenuFor(null);
@@ -649,6 +695,15 @@ export default function Thread() {
             ))}
           </div>
         )}
+        {replying && (
+          <div className="mx-3 mt-2 flex items-center gap-2 rounded-2xl border-l-4 border-brand bg-zinc-50 py-1.5 pl-3 pr-1.5">
+            <span className="min-w-0 flex-1 text-[13px] leading-snug">
+              <span className="block truncate font-bold text-zinc-700">{tr('A responder a {v0}', { v0: replying.fromMe ? tr('ti') : ((replying as Msg).sender?.displayName.split(' ')[0] ?? person?.displayName.split(' ')[0] ?? '') })}</span>
+              <span className="block truncate text-zinc-600">{quoteText(replying.kind, replying.body)}</span>
+            </span>
+            <button type="button" onClick={() => setReplying(null)} aria-label={tr('Cancelar resposta')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-zinc-500 active:bg-zinc-200"><Icon name="x" size={18} /></button>
+          </div>
+        )}
         {panel === 'stickers' && <StickerPicker onPick={sendSticker} onClose={() => setPanel(null)} />}
         <form onSubmit={submit} className="px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
           {err && <p role="alert" className="px-2 pb-1 text-center text-sm text-red-600">{err}</p>}
@@ -716,6 +771,20 @@ export default function Thread() {
       {reporting && <ReportSheet type="message" id={reporting} onClose={() => setReporting(null)} />}
       {menuFor && (
         <Sheet title={tr('Mensagem')} onClose={() => setMenuFor(null)}>
+          <div className="flex justify-between gap-1 pb-2" role="group" aria-label={tr('Reagir')}>
+            {REACTIONS.map((r) => {
+              const mine = menuFor.reactions?.some((x) => x.mine && x.reaction === r.id);
+              return (
+                <button key={r.id} type="button" aria-label={r.label} aria-pressed={!!mine} onClick={() => react(menuFor, r.id, !!mine)} className={`flex h-12 w-12 items-center justify-center rounded-full transition active:scale-90 ${mine ? 'bg-brand/15 ring-2 ring-brand/40' : 'bg-zinc-100'}`}>
+                  <Reaction body={r.id} size={34} />
+                </button>
+              );
+            })}
+          </div>
+          <button onClick={() => { setReplying(menuFor); setMenuFor(null); input.current?.focus(); }} className="flex w-full items-center gap-4 rounded-2xl px-1 py-3 text-left transition active:bg-zinc-100">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800"><Icon name="reply" /></span>
+            <span className="block text-[17px] font-semibold">{tr('Responder')}</span>
+          </button>
           {menuFor.fromMe ? (
             <button onClick={() => remove(menuFor)} className="flex w-full items-center gap-4 rounded-2xl px-1 py-3 text-left text-red-700 transition active:bg-red-50">
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-50"><Icon name="trash" /></span>

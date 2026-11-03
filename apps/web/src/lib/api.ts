@@ -280,6 +280,10 @@ export interface ChatMessage {
   /** Localização em direto ainda a decorrer, e até quando. */
   live?: boolean;
   liveUntil?: string | null;
+  /** Mensagem a que esta responde (um excerto). */
+  replyTo?: { id: string; gone: true } | { id: string; gone: false; fromMe: boolean; name: string; kind: ChatMessage['kind']; body: string } | null;
+  /** Reações: uma por pessoa; aqui agrupadas. */
+  reactions?: { reaction: string; count: number; mine: boolean }[];
   at: string;
 }
 /** Online agora, ou a hora a que foi visto pela última vez. null = escondido por uma das partes. */
@@ -608,7 +612,7 @@ export const api = {
   replyNote: (username: string, text: string): Promise<{ id: string }> => raw(`/notes/${encodeURIComponent(username)}/reply`, post({ text })),
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),
   chatGroupThread: (id: string, cursor?: string): Promise<GroupThread> => raw(`/chat/groups/${id}${cursor ? `?cursor=${cursor}` : ''}`),
-  chatGroupSend: (id: string, msg: { body?: string; kind?: ChatMessage['kind']; mediaId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number }): Promise<{ id: string }> =>
+  chatGroupSend: (id: string, msg: { body?: string; kind?: ChatMessage['kind']; mediaId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; replyTo?: string }): Promise<{ id: string }> =>
     raw(`/chat/groups/${id}/messages`, post(msg)),
   chatGroupCreate: (name: string, members: string[]): Promise<{ id: string }> => raw('/chat/groups', post({ name, members })),
   chatGroupRename: (id: string, name: string): Promise<void> => raw(`/chat/groups/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
@@ -616,11 +620,13 @@ export const api = {
   chatGroupRemove: (id: string, username: string): Promise<void> => raw(`/chat/groups/${id}/members/${encodeURIComponent(username)}`, { method: 'DELETE' }),
   chatUnread: (): Promise<{ conversations: number; requests?: number }> => raw('/chat/unread'),
   chatThread: (username: string, cursor?: string): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${cursor ? `?cursor=${cursor}` : ''}`),
-  chatSend: (username: string, msg: { body?: string; kind?: ChatMessage['kind']; mediaId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; once?: boolean; liveMinutes?: 15 | 60 | 480 }): Promise<{ id: string }> =>
+  chatSend: (username: string, msg: { body?: string; kind?: ChatMessage['kind']; mediaId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; once?: boolean; liveMinutes?: 15 | 60 | 480; replyTo?: string }): Promise<{ id: string }> =>
     raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
   /** Abrir uma mensagem de visualização única: devolve o conteúdo uma vez. */
   chatOpen: (id: string): Promise<{ kind: ChatMessage['kind']; body: string; mediaUrl: string | null; durationMs: number | null; waveform: string | null }> => raw(`/chat/messages/${id}/open`, post({})),
   chatLiveUpdate: (id: string, lat: number, lng: number): Promise<void> => raw(`/chat/messages/${id}/location`, { method: 'PUT', body: JSON.stringify({ lat, lng }) }),
+  chatReact: (id: string, reaction: string): Promise<void> => raw(`/chat/messages/${id}/reaction`, { method: 'PUT', body: JSON.stringify({ reaction }) }),
+  chatUnreact: (id: string): Promise<void> => raw(`/chat/messages/${id}/reaction`, { method: 'DELETE' }),
   chatLiveStop: (id: string): Promise<void> => raw(`/chat/messages/${id}/live`, { method: 'DELETE' }),
   chatAccept: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/accept`, post({})),
   chatDecline: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/decline`, post({})),

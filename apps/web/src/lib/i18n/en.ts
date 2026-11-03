@@ -1243,6 +1243,15 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Mensagem apagada': 'Deleted message',
+  'Tu': 'You',
+  'Mensagem de voz': 'Voice message',
+  'Sticker': 'Sticker',
+  'Localização': 'Location',
+  'Reações': 'Reactions',
+  'Reagir': 'React',
+  'A responder a {v0}': 'Replying to {v0}',
+  'ti': 'yourself',
   'Qual é a vibe, {v0}?': 'What is the vibe, {v0}?',
   'Conta lá, {v0}, o que andas a aprontar?': 'Spill it, {v0}, what are you up to?',
   'Onde é que a malta está hoje, {v0}?': 'Where is the crew at today, {v0}?',

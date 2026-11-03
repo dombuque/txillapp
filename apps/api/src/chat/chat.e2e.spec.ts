@@ -199,6 +199,34 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     await api().get('/api/v1/chat/stream').expect(401);
   });
 
+  it('reagir a mensagens (uma por pessoa) e responder citando uma mensagem da mesma conversa', async () => {
+    const { ch: a, ci: b, cg: outsider } = u;
+    const first = (await send(a, b, 'Vais à festa?').expect(201)).body.id as string;
+    const reply = await api().post(`/api/v1/chat/with/${a.username}`).set(auth(b)).send({ body: 'Vou sim!', replyTo: first }).expect(201);
+    // citar uma mensagem de outra conversa não cola: fica sem resposta
+    const other = (await send(outsider, a, 'olá').expect(201)).body.id as string;
+    const stray = await api().post(`/api/v1/chat/with/${a.username}`).set(auth(b)).send({ body: 'ignora', replyTo: other }).expect(201);
+
+    await api().put(`/api/v1/chat/messages/${first}/reaction`).set(auth(b)).send({ reaction: ':rir:' }).expect(204);
+    await api().put(`/api/v1/chat/messages/${first}/reaction`).set(auth(b)).send({ reaction: ':amor:' }).expect(204); // muda, não soma
+    await api().put(`/api/v1/chat/messages/${first}/reaction`).set(auth(a)).send({ reaction: ':amor:' }).expect(204);
+    await api().put(`/api/v1/chat/messages/${first}/reaction`).set(auth(b)).send({ reaction: 'rir' }).expect(400);
+    await api().put(`/api/v1/chat/messages/${first}/reaction`).set(auth(outsider)).send({ reaction: ':rir:' }).expect(404); // fora da conversa
+
+    const t = await thread(a, b);
+    const m1 = t.items.find((i: { id: string }) => i.id === first);
+    expect(m1.reactions).toEqual([{ reaction: ':amor:', count: 2, mine: true }]);
+    const m2 = t.items.find((i: { id: string }) => i.id === reply.body.id);
+    expect(m2.replyTo).toMatchObject({ id: first, gone: false, fromMe: true, body: 'Vais à festa?' });
+    expect(t.items.find((i: { id: string }) => i.id === stray.body.id).replyTo).toBeNull();
+
+    await api().delete(`/api/v1/chat/messages/${first}/reaction`).set(auth(a)).expect(204);
+    expect((await thread(b, a)).items.find((i: { id: string }) => i.id === first).reactions).toEqual([{ reaction: ':amor:', count: 1, mine: true }]);
+    // apagada a original, a citação mostra "apagada"
+    await api().delete(`/api/v1/chat/messages/${first}`).set(auth(a)).expect(204);
+    expect((await thread(a, b)).items.find((i: { id: string }) => i.id === reply.body.id).replyTo).toEqual({ id: first, gone: true });
+  });
+
   it('stickers e localização: só stickers válidos; localização guarda-se arredondada; aparecem na conversa', async () => {
     const { ce: cc, cf: cd } = u;
     const post = (from: U, to: U, b: object) => api().post(`/api/v1/chat/with/${to.username}`).set(auth(from)).send(b);

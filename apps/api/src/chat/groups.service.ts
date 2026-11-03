@@ -134,7 +134,7 @@ export class GroupsService {
       )
     ).rows as { id: string; username: string; displayName: string; hasAvatar: boolean; role: 'admin' | 'member' }[];
     const { rows } = await this.pool.query(
-      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.created_at
+      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.reply_to, m.created_at
          FROM social.messages m WHERE m.group_id = $1 AND m.deleted_at IS NULL AND ($2::uuid IS NULL OR m.id < $2) ORDER BY m.id DESC LIMIT $3`,
       [groupId, cursor ?? null, PAGE + 1],
     );
@@ -160,8 +160,8 @@ export class GroupsService {
     const place = await this.chat.validateOutgoing(me, msg);
     const id = uuidv7();
     await this.pool.query(
-      'INSERT INTO social.messages (id, group_id, sender_id, body, kind, media_id, duration_ms, waveform, lat, lng) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
-      [id, groupId, me, msg.kind === 'location' ? msg.body.slice(0, 80) : msg.body, msg.kind, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place?.lat ?? null, place?.lng ?? null],
+      'INSERT INTO social.messages (id, group_id, sender_id, body, kind, media_id, duration_ms, waveform, lat, lng, reply_to) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, (SELECT r.id FROM social.messages r WHERE r.id = $11::uuid AND r.group_id = $2 AND r.deleted_at IS NULL))',
+      [id, groupId, me, msg.kind === 'location' ? msg.body.slice(0, 80) : msg.body, msg.kind, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place?.lat ?? null, place?.lng ?? null, msg.replyTo ?? null],
     );
     await this.pool.query('UPDATE social.group_members SET read_id = $3 WHERE group_id = $1 AND user_id = $2', [groupId, me, id]);
     await this.pool.query('UPDATE social.groups SET last_message_at = now() WHERE id = $1', [groupId]);

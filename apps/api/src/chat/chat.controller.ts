@@ -28,7 +28,9 @@ const sendSchema = z.object({
   mediaId: z.string().uuid().optional(),
   durationMs: z.number().int().min(0).max(300_000).optional(),
   waveform: z.string().regex(/^[0-9]{8,96}$/).optional(),
+  replyTo: z.string().uuid().optional(),
 });
+const reactSchema = z.object({ reaction: z.string().regex(/^:[a-z]{2,12}:$/) });
 
 @Controller('chat')
 export class ChatController {
@@ -188,6 +190,22 @@ export class ChatController {
   @HttpCode(204)
   stopLive(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
     return this.chat.stopLive(req.userId!, id);
+  }
+
+  /** Reagir a uma mensagem (uma reação por pessoa; muda se escolher outra). */
+  @Put('messages/:id/reaction')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  react(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(reactSchema)) b: z.infer<typeof reactSchema>) {
+    return this.chat.react(req.userId!, id, b.reaction);
+  }
+
+  @Delete('messages/:id/reaction')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  unreact(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.chat.react(req.userId!, id, null);
   }
 
   @Delete('messages/:id')

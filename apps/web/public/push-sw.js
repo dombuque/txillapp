@@ -9,16 +9,27 @@ self.addEventListener('push', (event) => {
     data = { body: event.data ? event.data.text() : '' };
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Txillapp', {
-      body: data.body || '',
-      icon: '/icon-192.png',
-      badge: '/badge-96.png',
-      tag: data.tag,
-      // Mesma conversa/pessoa: a notificação nova substitui a antiga mas volta a avisar (som e vibração).
-      renotify: !!data.tag,
-      timestamp: Date.now(),
-      lang: 'pt',
-      data: { url: data.url || '/' },
+    // Se estás a olhar para o chat (app à frente, em qualquer conversa), a mensagem já aparece lá: não se avisa em cima.
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const inChat = String(data.url || '').startsWith('/messages') && list.some((c) => {
+        try {
+          return c.visibilityState === 'visible' && new URL(c.url).pathname.startsWith('/messages');
+        } catch {
+          return false;
+        }
+      });
+      if (inChat) return undefined;
+      return self.registration.showNotification(data.title || 'Txillapp', {
+        body: data.body || '',
+        icon: '/icon-192.png',
+        badge: '/badge-96.png',
+        tag: data.tag,
+        // Mesma conversa/pessoa: a notificação nova substitui a antiga mas volta a avisar (som e vibração).
+        renotify: !!data.tag,
+        timestamp: Date.now(),
+        lang: 'pt',
+        data: { url: data.url || '/' },
+      });
     }),
   );
 });
