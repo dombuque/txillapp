@@ -1,8 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { tr } from '../lib/i18n';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type Note } from '../lib/api';
+import { api, type Note, type Track } from '../lib/api';
+import MusicPicker, { licenseLabel } from './MusicPicker';
 import { useAuth } from '../lib/auth';
 import Icon from './Icon';
 import { Avatar, Sheet, fieldInput, timeAgo } from './ui';
@@ -10,10 +11,10 @@ import { Avatar, Sheet, fieldInput, timeAgo } from './ui';
 const LIMIT = 60;
 
 /** O balão da nota, por cima da foto: texto curto em 3 linhas, com o "bico" a apontar para a pessoa. */
-function Bubble({ text, dim = false }: { text: string; dim?: boolean }) {
+function Bubble({ text, dim = false, music = false }: { text: string; dim?: boolean; music?: boolean }) {
   return (
     <span className={`relative mb-1.5 block max-w-[84px] rounded-[14px] bg-white px-2 py-1.5 text-center text-[11px] font-medium leading-[1.15] shadow-[0_1px_6px_rgba(0,0,0,0.18)] ring-1 ring-zinc-100 ${dim ? 'text-zinc-500' : 'text-zinc-800'}`}>
-      <span className="line-clamp-3 break-words">{text}</span>
+      <span className="line-clamp-3 break-words">{music && <Icon name="music" size={11} className="mr-0.5 inline align-[-1px]" />}{text}</span>
       <span aria-hidden className="absolute -bottom-1 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rotate-45 bg-white" />
     </span>
   );
@@ -36,7 +37,7 @@ export default function NotesStrip() {
     <>
       <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label={tr('Notas')}>
         <button onClick={() => setEditing(true)} aria-label={mine ? 'A tua nota' : 'Deixar uma nota'} className="flex w-[84px] shrink-0 flex-col items-center active:scale-95">
-          <span className="flex h-[54px] items-end"><Bubble text={mine ? mine.body : 'Deixa uma nota'} dim={!mine} /></span>
+          <span className="flex h-[54px] items-end"><Bubble text={mine ? mine.body || mine.music?.title || '' : 'Deixa uma nota'} dim={!mine} music={!!mine?.music} /></span>
           <span className="relative">
             <Avatar name={user.displayName} username={user.username} size={64} ring={false} />
             {!mine && (
@@ -47,7 +48,7 @@ export default function NotesStrip() {
         </button>
         {items.map((n) => (
           <button key={n.username} onClick={() => setViewing(n)} aria-label={`Nota de ${n.displayName}: ${n.body}`} className="flex w-[84px] shrink-0 flex-col items-center active:scale-95">
-            <span className="flex h-[54px] items-end"><Bubble text={n.body} /></span>
+            <span className="flex h-[54px] items-end"><Bubble text={n.body || n.music?.title || ''} music={!!n.music} /></span>
             <Avatar name={n.displayName} username={n.hasAvatar ? n.username : undefined} size={64} ring={false} presence />
             <span className="mt-1 w-full truncate text-center text-[12px] text-zinc-600">{n.displayName.split(' ')[0]}</span>
           </button>
@@ -59,10 +60,48 @@ export default function NotesStrip() {
   );
 }
 
+
+/** Leitor de uma faixa de nota: toca/pára e mostra o crédito do autor e a licença (obrigatório nas licenças Creative Commons). */
+function TrackCard({ track }: { track: Track }) {
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const [on, setOn] = useState(false);
+  useEffect(() => () => audio.current?.pause(), []);
+  function toggle() {
+    if (on) {
+      audio.current?.pause();
+      setOn(false);
+      return;
+    }
+    const a = audio.current ?? new Audio(track.url);
+    a.onended = () => setOn(false);
+    a.onerror = () => setOn(false);
+    audio.current = a;
+    setOn(true);
+    void a.play().catch(() => setOn(false));
+  }
+  return (
+    <div className="mt-3 flex items-center gap-3 rounded-2xl bg-zinc-50 p-3 text-left ring-1 ring-zinc-100">
+      <button type="button" onClick={toggle} aria-label={on ? tr('Parar') : tr('Ouvir')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white active:scale-95">
+        <Icon name={on ? 'pause' : 'play'} size={18} fill="currentColor" />
+      </button>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-semibold">{track.title}</span>
+        <span className="block truncate text-xs text-zinc-500">
+          {track.artist || tr('Autor desconhecido')} ·{' '}
+          {track.licenseUrl ? <a href={track.licenseUrl} target="_blank" rel="noopener noreferrer" className="underline">{licenseLabel(track.license)}</a> : licenseLabel(track.license)}
+          {track.landing && <> · <a href={track.landing} target="_blank" rel="noopener noreferrer" className="underline">{tr('Origem')}</a></>}
+        </span>
+      </span>
+    </div>
+  );
+}
+
 /** Publicar a minha nota, ou apagá-la. Não se edita: apaga-se e escreve-se outra. */
 function NoteEditor({ current, onClose }: { current: Note | null; onClose: () => void }) {
   const qc = useQueryClient();
   const [body, setBody] = useState('');
+  const [music, setMusic] = useState<Track | null>(null);
+  const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -84,7 +123,8 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
     <Sheet title={tr('A tua nota')} onClose={onClose}>
       {current ? (
         <>
-          <p className="mx-auto max-w-xs break-words rounded-[18px] bg-zinc-100 px-4 py-3 text-center text-[17px] font-medium leading-snug">{current.body}</p>
+          {current.body && <p className="mx-auto max-w-xs break-words rounded-[18px] bg-zinc-100 px-4 py-3 text-center text-[17px] font-medium leading-snug">{current.body}</p>}
+          {current.music && <TrackCard track={current.music} />}
           <p className="mt-2 text-center text-xs text-zinc-500">{timeAgo(current.createdAt)} {tr('· visível para os teus seguidores. Uma nota não se edita: apaga-a para publicar outra.')}</p>
           {err && <p role="alert" className="mt-2 text-center text-sm text-red-600">{err}</p>}
           <button disabled={busy} onClick={() => setConfirmDelete(true)} className="mt-3 h-12 w-full rounded-full font-semibold text-red-700 active:bg-red-50">{tr('Apagar nota')}</button>
@@ -95,9 +135,18 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
             <textarea value={body} onChange={(e) => setBody(e.target.value.replace(/\n/g, ' ').slice(0, LIMIT))} rows={2} autoFocus placeholder={tr('O que se passa?')} aria-label={tr('Nota')} className={`${fieldInput} resize-none`} />
             <span className={`mt-1 block text-right text-xs ${body.length >= LIMIT ? 'text-brand' : 'text-zinc-500'}`}>{body.length}/{LIMIT}</span>
           </label>
-          <p className="mt-1 text-xs text-zinc-500">{tr('Fica 24 horas por cima da tua foto, para os teus seguidores. Quem vê pode responder-te por mensagem.')}</p>
+          {music ? (
+            <div className="relative">
+              <TrackCard track={music} />
+              <button type="button" onClick={() => setMusic(null)} aria-label={tr('Tirar a música')} className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-zinc-600 shadow ring-1 ring-zinc-200 active:scale-90"><Icon name="x" size={16} /></button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setPicking(true)} className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-zinc-100 font-semibold text-zinc-800 active:scale-[0.98]"><Icon name="music" size={18} /> {tr('Adicionar música')}</button>
+          )}
+          {picking && <MusicPicker onPick={(t) => { setMusic(t); setPicking(false); }} onClose={() => setPicking(false)} />}
+          <p className="mt-2 text-xs text-zinc-500">{tr('Fica 24 horas por cima da tua foto, para os teus seguidores. Quem vê pode responder-te por mensagem.')}</p>
           {err && <p role="alert" className="mt-2 text-center text-sm text-red-600">{err}</p>}
-          <button disabled={busy || !body.trim()} onClick={() => run(() => api.setNote(body.trim()))} className="mt-3 h-12 w-full rounded-full bg-brand font-bold text-white transition active:scale-[0.98] disabled:opacity-40">{tr('Partilhar nota')}</button>
+          <button disabled={busy || (!body.trim() && !music)} onClick={() => run(() => api.setNote(body.trim(), music))} className="mt-3 h-12 w-full rounded-full bg-brand font-bold text-white transition active:scale-[0.98] disabled:opacity-40">{tr('Partilhar nota')}</button>
         </>
       )}
       {confirmDelete && (
@@ -136,7 +185,8 @@ function NoteView({ note, onClose }: { note: Note; onClose: () => void }) {
     <Sheet title={note.displayName} onClose={onClose}>
       <div className="flex flex-col items-center text-center">
         <Avatar name={note.displayName} username={note.hasAvatar ? note.username : undefined} size={72} ring={false} />
-        <p className="mt-3 max-w-xs break-words rounded-[18px] bg-zinc-100 px-4 py-3 text-[17px] font-medium leading-snug">{note.body}</p>
+        {note.body && <p className="mt-3 max-w-xs break-words rounded-[18px] bg-zinc-100 px-4 py-3 text-[17px] font-medium leading-snug">{note.body}</p>}
+        {note.music && <div className="w-full"><TrackCard track={note.music} /></div>}
         <p className="mt-1.5 text-xs text-zinc-500">{timeAgo(note.createdAt)}</p>
       </div>
       <form onSubmit={(e) => { e.preventDefault(); void reply(); }} className="mt-4 flex gap-2">

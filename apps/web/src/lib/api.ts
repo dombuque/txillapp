@@ -228,7 +228,9 @@ export interface Conversation {
   unread: number;
 }
 export type NoteAudience = 'mutual' | 'close_friends';
-export interface Note { username: string; displayName: string; hasAvatar: boolean; body: string; audience: NoteAudience; createdAt: string; expiresAt: string }
+export interface Track { id: string; title: string; artist: string; url: string; landing: string | null; license: string; licenseUrl: string | null; durationMs: number | null; cover: string | null }
+export interface Note {
+  music?: Track | null; username: string; displayName: string; hasAvatar: boolean; body: string; audience: NoteAudience; createdAt: string; expiresAt: string }
 export interface GroupSummary {
   kind: 'group';
   id: string;
@@ -589,7 +591,8 @@ export const api = {
   postPeople: (postId: string, kind: PeopleKind): Promise<{ username: string; displayName: string; hasAvatar: boolean; verified: boolean; at: string }[]> => raw(`/posts/${postId}/people/${kind}`),
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
   notes: (): Promise<{ mine: Note | null; items: Note[] }> => raw('/notes'),
-  setNote: (body: string): Promise<void> => raw('/notes/me', { method: 'PUT', body: JSON.stringify({ body }) }),
+  setNote: (body: string, music?: Track | null): Promise<void> => raw('/notes/me', { method: 'PUT', body: JSON.stringify({ body, music: music ?? undefined }) }),
+  searchMusic: (q: string): Promise<Track[]> => raw(`/music/search?q=${encodeURIComponent(q)}`),
   deleteNote: (): Promise<void> => raw('/notes/me', { method: 'DELETE' }),
   replyNote: (username: string, text: string): Promise<{ id: string }> => raw(`/notes/${encodeURIComponent(username)}/reply`, post({ text })),
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),

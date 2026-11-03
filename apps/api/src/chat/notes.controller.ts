@@ -5,11 +5,14 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
+import { trackSchema } from '../music/music.service';
 import { NotesService } from './notes.service';
 
 type AuthedReq = Request & { userId?: string };
 
-const noteSchema = z.object({ body: z.string().trim().min(1).max(60) });
+const noteSchema = z
+  .object({ body: z.string().trim().max(60).default(''), music: trackSchema.nullable().optional() })
+  .refine((n) => n.body.length > 0 || !!n.music, { message: 'Escreve algo ou escolhe uma música', path: ['body'] });
 const replySchema = z.object({ text: z.string().trim().min(1).max(500) });
 
 @Controller('notes')
@@ -27,7 +30,7 @@ export class NotesController {
   @HttpCode(204)
   @Throttle({ default: { limit: 20, ttl: 3_600_000 } })
   set(@Req() req: AuthedReq, @Body(new ZodPipe(noteSchema)) b: z.infer<typeof noteSchema>) {
-    return this.notes.set(req.userId!, b.body);
+    return this.notes.set(req.userId!, b.body, b.music ?? null);
   }
 
   @Delete('me')

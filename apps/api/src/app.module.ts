@@ -13,6 +13,7 @@ import { Client } from '@elastic/elasticsearch';
 import { ES_CLIENT, SearchIndexModule } from './search/search-index';
 import { IMAGE_CLASSIFIER, type ImageClassifier } from './moderation/image-moderation.service';
 import { ChatModule } from './chat/chat.module';
+import { MusicModule } from './music/music.module';
 import { VerificationModule } from './verification/verification.module';
 import { CommentsModule } from './comments/comments.module';
 import { DbModule } from './db/db.module';
@@ -56,6 +57,7 @@ export class AppModule {
         PostsModule,
         CommentsModule,
         ChatModule,
+        MusicModule,
         VerificationModule,
         ModerationModule,
         StoriesModule,

@@ -1009,6 +1009,16 @@ export const EN: Record<string, string> = {
   'Enviado a {name}': 'Sent to {name}',
   'Enviado a {n} conversas': 'Sent to {n} chats',
 
+  // Música
+  'Procurar música': 'Search music',
+  'Só músicas de licença aberta (Creative Commons), com o crédito de quem as fez. Para a música do momento, ainda não há licença.': 'Only openly licensed music (Creative Commons), with credit to the people who made it. For the hit of the moment, there is no licence yet.',
+  'Ouvir': 'Listen',
+  'Autor desconhecido': 'Unknown artist',
+  'Domínio público': 'Public domain',
+  'Origem': 'Source',
+  'Tirar a música': 'Remove the music',
+  'Adicionar música': 'Add music',
+
   // Novos
   'Agora': 'Now',
   'Há {n}min': '{n}min ago',
