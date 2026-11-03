@@ -105,7 +105,11 @@ export function Terms() {
         <ul>
           <li><b>Stories e notas</b> duram 24 horas. As <b>notas</b> só as veem os teus seguidores e não se editam: apagas e publicas outra.</li>
           <li><b>Música nas notas e nos posts</b>: só se usam faixas de licença aberta (Creative Commons: CC0, domínio público, CC BY e CC BY-SA), de um catálogo público (Openverse). O nome do autor e a licença aparecem junto à faixa. Quando procuras música, o texto que escreves é enviado a esse catálogo; não enviamos mais nada sobre ti. Também podes gravar um clipe de áudio teu (até 30 segundos): fica guardado de forma privada e só é mostrado a quem vê a nota ou o post.</li>
-          <li><b>Visualização única</b>: fotos, voz e mensagens que só se abrem uma vez; depois são apagadas do servidor. Quem recebe pode, mesmo assim, fotografar o ecrã. Não confies nisto para o que não podes arriscar.</li>
+          <li><b>Música nos stories</b>: tal como nas notas e nos posts, só faixas de licença aberta, com o autor e a licença à vista.</li>
+          <li><b>Zás</b>: são fotos tiradas na hora (sem galeria), com uma legenda curta, que duram 24 horas. Tu escolhes se vão para os <b>Amigos</b> (quem se segue contigo) ou só para os <b>Próximos</b>. Cada pessoa vê cada Zás <b>uma só vez</b>, e tu vês quem o viu e como reagiu. Tens 6 segundos para desfazer o envio e podes apagar um Zás quando quiseres. Quem recebe pode, mesmo assim, fotografar o ecrã; a app não consegue impedir nem detetar capturas de ecrã. O «ver uma vez» é cumprido pela app e não é uma garantia absoluta.</li>
+          <li><b>Vídeos nas mensagens</b>: podes enviar vídeos (até 60 segundos e 100 MB), normais ou de visualização única. Há um limite de vídeos por hora para proteger o serviço, e os vídeos são verificados como as outras fotos e vídeos.</li>
+          <li><b>Visualização única</b>: fotos, vídeos, voz e mensagens que só se abrem uma vez; depois de abertas, o ficheiro é apagado do servidor em poucos minutos (até 15). Os ficheiros de mensagens apagadas são apagados na hora. Quem recebe pode, mesmo assim, fotografar o ecrã. Não confies nisto para o que não podes arriscar.</li>
+          <li><b>Reações e respostas</b>: podes reagir a mensagens (com um duplo toque, um brinde) e responder a uma mensagem em concreto. Quem enviou a mensagem vê a reação.</li>
           <li><b>Localização em direto</b> só se atualiza enquanto o Txillapp está aberto no teu aparelho e para quando acabar o tempo que escolheste (ou quando a parares).</li>
           <li>Podes partilhar publicações e stories com amigos no chat ou noutras apps. Quando alguém abre o link sem ter entrado, vê apenas uma pré-visualização das publicações <b>públicas</b>, sem poder brindar, comentar nem partilhar.</li>
         </ul>
@@ -165,6 +169,9 @@ export function Privacy() {
           <li><b>Verificação:</b> se pedires o selo, o teu nome, a prova que indicares, uma foto de um documento e uma selfie (apagados logo que há decisão).</li>
           <li><b>Localização em direto:</b> se a partilhares numa conversa, a tua posição vai-se atualizando só enquanto a app está aberta e durante o tempo que escolheste.</li>
           <li><b>Utilização:</b> aberturas da app, ecrãs vistos, desempenho e erros. São estatísticas nossas, sem terceiros, e podes desligá-las em Definições → «Ajudar a melhorar o Txillapp». Também guardamos o que já viste no feed, para não repetir sempre o mesmo.</li>
+          <li><b>Zás:</b> a foto, a legenda, para quem a enviaste (Amigos ou Próximos), a hora, quem a viu e como reagiu. Uma miniatura minúscula e desfocada (24×32 pontos) serve só para o atalho. Duram 24 horas.</li>
+          <li><b>Notificações:</b> se as ativares, guardamos o identificador do teu aparelho para as enviar. O texto nunca mostra o conteúdo das mensagens nem qual foi a reação; podes desligá-las quando quiseres.</li>
+          <li><b>Reações a mensagens:</b> a reação que deixas e quem a deixou, visíveis para quem está na conversa.</li>
           <li><b>Fotos e vídeos:</b> são verificados automaticamente no nosso servidor (nudez e conteúdo sexual) antes de ficarem visíveis. Nada é enviado a terceiros.</li>
         </ul>
       </section>
@@ -208,7 +215,7 @@ export function Privacy() {
       <section>
         <h2>7. Cookies e armazenamento</h2>
         <p>
-          Usamos apenas o essencial: um cookie de sessão seguro (para manteres a sessão iniciada) e armazenamento local no teu aparelho (por exemplo, rascunhos de publicações).
+          Usamos apenas o essencial: um cookie de sessão seguro (para manteres a sessão iniciada) e armazenamento local no teu aparelho (por exemplo, vários rascunhos de publicações, e se silenciaste a música).
           Não usamos cookies de publicidade.
         </p>
       </section>
@@ -217,7 +224,7 @@ export function Privacy() {
         <p>
           Enquanto a conta existir. Ao eliminares a conta, os dados pessoais são removidos ou anonimizados e as tuas fotos e mensagens deixam de estar acessíveis.
           Alguns registos de segurança podem ser mantidos por um período limitado para prevenir abuso.
-          Stories e notas deixam de aparecer ao fim de 24 horas. O conteúdo de visualização única é apagado do servidor quando é aberto. Os documentos de uma verificação são apagados logo que há decisão.
+          Stories, notas e Zás deixam de aparecer ao fim de 24 horas. O conteúdo de visualização única (incluindo fotos e vídeos) é apagado do servidor em poucos minutos depois de aberto, e os ficheiros de mensagens apagadas são apagados na hora. Os documentos de uma verificação são apagados logo que há decisão.
         </p>
       </section>
       <section>
