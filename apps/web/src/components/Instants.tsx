@@ -102,7 +102,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       dead = true;
     };
   }, [facing]);
-  useEffect(() => () => { releaseCamera(5_000); clearTimeout(undoTimer.current); }, []);
+  useEffect(() => () => { releaseCamera(2_000); clearTimeout(undoTimer.current); }, []);
 
   async function shoot() {
     const v = video.current;

@@ -3,7 +3,7 @@
  * pedir permissão outra vez a cada passo. Desliga-se sozinha ao fim de IDLE_MS, ou logo que a app vai para segundo plano.
  * O microfone só é pedido (uma vez) quando se entra no modo Reel.
  */
-const IDLE_MS = 90_000;
+const IDLE_MS = 30_000;
 
 let cur: { stream: MediaStream; facing: 'environment' | 'user' } | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;

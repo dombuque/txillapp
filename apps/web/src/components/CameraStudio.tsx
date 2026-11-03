@@ -53,8 +53,8 @@ export default function CameraStudio() {
   const [captured, setCaptured] = useState<Captured | null>(null);
   const [story, setStory] = useState<File | null>(null);
   const [err, setErr] = useState('');
-  // Na publicação também se pode gravar vídeo (segurando o botão), por isso leva som.
-  const wantsAudio = mode !== 'story';
+  // O microfone só se liga no Reel; na publicação pede-se apenas se segurares o botão para gravar vídeo.
+  const wantsAudio = mode === 'reel';
 
   const start = useCallback(async () => {
     setReady(false);
@@ -124,15 +124,33 @@ export default function CameraStudio() {
     c.toBlob((blob) => blob && setCaptured({ photos: [new File([blob], `txill-${Date.now()}.jpg`, { type: 'image/jpeg' })] }), 'image/jpeg', 0.92);
   }
 
-  function startRecording() {
-    const s = stream.current;
+  const wantRec = useRef(false); // largaste o botão antes de o microfone ligar? então não chega a gravar
+  async function startRecording() {
+    let s = stream.current;
     if (!s || !ready) return;
+    wantRec.current = true;
+    // Sem som (publicação): liga o microfone só agora e desliga quando a gravação acabar.
+    let extraAudio: MediaStreamTrack | null = null;
+    if (!s.getAudioTracks().length) {
+      try {
+        const a = await navigator.mediaDevices.getUserMedia({ audio: true });
+        extraAudio = a.getAudioTracks()[0] ?? null;
+        if (extraAudio) s = new MediaStream([...s.getVideoTracks(), extraAudio]);
+      } catch {
+        /* sem microfone: grava só imagem */
+      }
+      if (!wantRec.current) {
+        extraAudio?.stop();
+        return;
+      }
+    }
     const type = recorderType();
     if (!type) return setErr(tr('Este browser não grava vídeo. Escolhe um da galeria.'));
     chunks.current = [];
     const rec = new MediaRecorder(s, { mimeType: type, videoBitsPerSecond: 4_000_000 });
     rec.ondataavailable = (e) => e.data.size > 0 && chunks.current.push(e.data);
     rec.onstop = () => {
+      extraAudio?.stop();
       const base = type.split(';')[0];
       const blob = new Blob(chunks.current, { type: base });
       if (blob.size > 0) setCaptured({ video: new File([blob], `txill-${Date.now()}.${base === 'video/mp4' ? 'mp4' : 'webm'}`, { type: base }) });
@@ -150,6 +168,7 @@ export default function CameraStudio() {
     }, 100);
   }
   function stopRecording() {
+    wantRec.current = false;
     if (timer.current) clearInterval(timer.current);
     timer.current = null;
     setRecording(false);
