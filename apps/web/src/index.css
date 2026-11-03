@@ -46,6 +46,7 @@ body {
 
 body {
   @apply bg-white text-zinc-900 antialiased;
+  padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
   -webkit-tap-highlight-color: transparent;
 }

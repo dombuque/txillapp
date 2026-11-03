@@ -32,7 +32,7 @@ function ConnectionList({ username, kind, meUsername }: { username: string; kind
 
   return (
     <div className="h-full overflow-y-auto overscroll-contain pb-6">
-      <form role="search" onSubmit={(e) => e.preventDefault()} className="sticky top-0 z-[1] bg-white px-4 pb-2 pt-2">
+      <form role="search" onSubmit={(e) => e.preventDefault()} className="sticky top-[env(safe-area-inset-top)] z-[1] bg-white px-4 pb-2 pt-2">
         <label className="flex items-center gap-2.5 rounded-xl bg-zinc-100 px-3.5 py-2.5 text-zinc-600 focus-within:bg-zinc-200/70">
           <SearchIcon width={18} height={18} />
           <input

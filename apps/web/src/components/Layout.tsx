@@ -62,7 +62,7 @@ export default function Layout() {
     <div className="mx-auto min-h-dvh max-w-xl bg-white pb-24 lg:pb-8">
       {/* O topo com o logo, as notificações e a pesquisa só aparece no Início: nos outros ecrãs cada um tem o seu topo. */}
       {pathname === '/' && (
-        <header className="sticky top-0 z-30 flex items-center justify-center bg-white py-3 lg:hidden">
+        <header className="sticky top-[env(safe-area-inset-top)] z-30 flex items-center justify-center bg-white py-3 lg:hidden">
           <NavLink to="/notifications" aria-label={count > 0 ? `Notificações (${count} por ler)` : 'Notificações'} className="absolute left-3 flex h-11 w-11 items-center justify-center text-zinc-900">
             <span className="relative">
               <BellIcon width={26} height={26} />

@@ -495,7 +495,7 @@ export default function Thread() {
   const joined = (a: Msg, b: Msg) => a.fromMe === b.fromMe && sameDay(a.at, b.at) && new Date(b.at).getTime() - new Date(a.at).getTime() < GROUP_MS && a.kind !== 'story_reaction' && b.kind !== 'story_reaction';
 
   return (
-    <div className="fixed inset-x-0 top-0 mx-auto flex h-dvh max-w-xl flex-col bg-white" style={visibleStyle(vv)}>
+    <div className="fixed inset-x-0 top-0 mx-auto flex h-dvh max-w-xl flex-col bg-white pt-[env(safe-area-inset-top)]" style={visibleStyle(vv)}>
       <header className="flex shrink-0 items-center gap-1 border-b border-zinc-100 px-2 py-2">
         <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/messages', { replace: true }))} aria-label={tr('Voltar')} className="flex h-11 w-11 items-center justify-center rounded-full active:bg-zinc-100">
           <BackIcon />

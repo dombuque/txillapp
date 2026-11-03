@@ -138,7 +138,7 @@ export default function GeleiraEditor() {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-xl flex-col bg-white">
-      <header className="sticky top-0 z-20 border-b border-zinc-100 bg-white">
+      <header className="sticky top-[env(safe-area-inset-top)] z-20 border-b border-zinc-100 bg-white">
         <div className="flex items-center gap-1 px-2 py-2">
           <button onClick={back} aria-label={tr('Voltar')} className="flex h-11 w-11 items-center justify-center rounded-full active:bg-zinc-100"><BackIcon /></button>
           <h1 className="min-w-0 flex-1 truncate text-[20px] font-extrabold">{tr('A minha geleira')}</h1>
