@@ -113,9 +113,12 @@ function ChatVideo({ src }: { src: string }) {
   );
 }
 
-function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onReply, onRetry, onDiscard, onOpenOnce, onStopLive, onCheer }: { onCheer: (m: ChatMessage) => void; m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; flash: boolean; onJump: (id: string) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onMenu: (m: ChatMessage) => void; onReply: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
+function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onReply, onRetry, onDiscard, onOpenOnce, onStopLive, onCheer, avatars }: { avatars?: { me: { name: string; username?: string }; peer?: { name: string; username?: string } }; onCheer: (m: ChatMessage) => void; m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; flash: boolean; onJump: (id: string) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onMenu: (m: ChatMessage) => void; onReply: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
   const mine = m.fromMe;
   const real = !m.id.startsWith('tmp-');
+  // Resposta a uma nota: o servidor manda «Em resposta à tua nota “…”: texto». Mostra-se como no Instagram: a nota num balão e, por baixo, a resposta.
+  const noteReply = !m.viewOnce && m.kind === 'text' ? /^Em resposta à tua nota “([\s\S]*?)”: ([\s\S]*)$/.exec(m.body) : null;
+  const noteOwner = mine ? avatars?.peer : avatars?.me;
   // Carregar e segurar (ou clique direito): apagar as minhas, denunciar as dos outros.
   const hold = useRef<ReturnType<typeof setTimeout>>();
   // Duplo toque na mensagem: brinda-a (só põe; tirar é pelo menu).
@@ -177,6 +180,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onR
     <div id={real ? `msg-${m.id}` : undefined} className={`relative flex select-none flex-col rounded-3xl transition-colors duration-500 ${flash ? 'bg-brand/15' : ''} ${mine ? 'items-end' : 'items-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`} style={{ transform: dx ? `translateX(${dx}px)` : undefined, transition: dx ? 'none' : 'transform .18s ease-out', touchAction: 'pan-y' }} {...menuProps} {...swipeProps} {...tapProps}>
       {dx > 8 && <span aria-hidden className="absolute left-[-40px] top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-zinc-700" style={{ opacity: Math.min(1, dx / 56), transform: `translateY(-50%) scale(${dx >= 56 ? 1.15 : 0.85})` }}><Icon name="reply" size={16} /></span>}
       {group && !mine && !prevSame && m.sender && <span className="mb-0.5 px-1 text-[12px] font-bold text-zinc-600">{m.sender.displayName.split(' ')[0]}</span>}
+      {m.replyTo && <span className="mb-1 px-1 text-[12px] text-zinc-500">{mine ? tr('Respondeste') : !m.replyTo.gone && m.replyTo.fromMe ? tr('Respondeu-te') : tr('Respondeu')}</span>}
       {m.replyTo && (
         <button
           type="button"
@@ -251,8 +255,21 @@ function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onR
           {m.body && <p className="px-3 py-2 text-[16px]">{m.body}</p>}
         </div>
       )}
+      {noteReply && (
+        <div className={`mb-1 flex max-w-[82%] flex-col ${mine ? 'items-end' : 'items-start'}`}>
+          <span className="mb-1.5 px-1 text-[12px] text-zinc-500">{mine ? tr('Respondeste à nota') : tr('Respondeu à tua nota')}</span>
+          <div className={`flex flex-col ${mine ? 'items-end border-r-2 pr-2' : 'items-start border-l-2 pl-2'} border-zinc-200`}>
+            <p className="relative max-w-full whitespace-pre-wrap break-words rounded-[22px] bg-zinc-100 px-4 py-3 text-center text-[15px] font-medium leading-snug text-zinc-800">
+              {noteReply[1]}
+              <span aria-hidden className="absolute -bottom-1.5 left-3 h-3 w-3 rounded-full bg-zinc-100" />
+              <span aria-hidden className="absolute -bottom-3.5 left-1.5 h-1.5 w-1.5 rounded-full bg-zinc-100" />
+            </p>
+            {noteOwner && <span className="mt-3.5 block"><Avatar name={noteOwner.name} username={noteOwner.username} size={64} ring={false} /></span>}
+          </div>
+        </div>
+      )}
       {!m.viewOnce && (m.kind === 'text' || m.kind === 'story_reply') && (
-        <p className={`max-w-[82%] whitespace-pre-wrap break-words px-4 py-2.5 text-[16px] leading-snug ${shape} ${tone} ${dim}`}>{m.body}</p>
+        <p className={`max-w-[82%] whitespace-pre-wrap break-words px-4 py-2.5 text-[16px] leading-snug ${shape} ${tone} ${dim}`}>{noteReply ? noteReply[2] : m.body}</p>
       )}
       {!!m.reactions?.length && (
         <button type="button" onClick={() => onMenu(m)} aria-label={tr('Reações')} className={`-mt-2 flex items-center gap-1 rounded-full bg-white px-1.5 py-0.5 shadow-[0_1px_6px_rgba(0,0,0,0.18)] ring-1 ring-zinc-100 ${mine ? 'mr-3' : 'ml-3'}`}>
@@ -290,6 +307,7 @@ export default function Thread() {
   const isGroup = !!groupId;
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const [menuFor, setMenuFor] = useState<ChatMessage | null>(null);
@@ -801,8 +819,8 @@ export default function Thread() {
             const newDay = !prev || !sameDay(prev.at, m.at);
             return (
               <div key={m.id}>
-                {newDay && <p className="mx-auto mb-1 mt-5 w-fit rounded-full bg-zinc-100 px-3 py-1 text-[12px] font-semibold text-zinc-600">{dayLabel(m.at)}</p>}
-                <Bubble m={m} group={isGroup} flash={flashId === m.id} onJump={jumpTo} prevSame={!!prev && !newDay && joined(prev, m)} nextSame={!!next && joined(m, next)} seen={seenUpTo(m)} onMenu={setMenuFor} onReply={(x) => { setReplying(x); input.current?.focus(); }} onRetry={retry} onDiscard={discard} onOpenOnce={setOpening} onStopLive={stopSharing} onCheer={cheerMsg} />
+                {newDay && <p className="mx-auto mb-2 mt-6 w-fit text-[12px] font-semibold uppercase tracking-wide text-zinc-500">{dayLabel(m.at)}</p>}
+                <Bubble m={m} group={isGroup} flash={flashId === m.id} onJump={jumpTo} prevSame={!!prev && !newDay && joined(prev, m)} nextSame={!!next && joined(m, next)} seen={seenUpTo(m)} onMenu={setMenuFor} onReply={(x) => { setReplying(x); input.current?.focus(); }} onRetry={retry} onDiscard={discard} onOpenOnce={setOpening} onStopLive={stopSharing} onCheer={cheerMsg} avatars={{ me: { name: user?.displayName ?? '', username: user?.username }, peer: person ? { name: person.displayName, username: person.hasAvatar ? person.username : undefined } : undefined }} />
               </div>
             );
           })}
