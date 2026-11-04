@@ -3,7 +3,7 @@ import { tr } from '../lib/i18n';
 import { track } from '../lib/analytics';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Camera from '../components/Camera';
 import MentionTextarea from '../components/MentionTextarea';
 import MusicPicker from '../components/MusicPicker';
@@ -31,6 +31,22 @@ export default function Compose() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const [body, setBody] = useState('');
+  // Vindo de outra app (por exemplo o Bilhete+): ?texto= e ?link= preenchem a publicação. A pessoa revê e publica; nada é enviado sozinho.
+  const [params] = useSearchParams();
+  useEffect(() => {
+    const texto = (params.get('texto') ?? '').slice(0, 1500);
+    if (!texto) return;
+    let link = '';
+    try {
+      const u = new URL(params.get('link') ?? '');
+      if (u.protocol === 'https:' && !u.username && !u.password) link = u.href;
+    } catch {
+      /* sem ligação válida */
+    }
+    setBody(`${texto}${link ? `
+${link}` : ''}`.slice(0, 2000));
+    navigate('/new/post', { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [music, setMusic] = useState<Track | null>(null);
   const [pickingMusic, setPickingMusic] = useState(false);
   const [place, setPlace] = useState('');
