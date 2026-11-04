@@ -84,7 +84,7 @@ export default function InstantsDock() {
           } else setMode('cam');
         }}
         aria-label={total ? tr('Zás: {n} por ver', { n: total }) : tr('Mandar um Zás')}
-        className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-0 z-20 h-[124px] w-[120px]"
+        className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-0 z-20 h-[150px] w-[150px]"
         style={{ transform: away ? 'translateX(66%)' : 'translateX(38%)', transition: 'transform .4s cubic-bezier(.2,.9,.3,1.15)' }}
       >
         {/* Baralho em leque, como no Instagram: as cartas dos Zás por ver (foto desfocada), a da frente com a foto de perfil. */}
@@ -93,16 +93,16 @@ export default function InstantsDock() {
           return (
             <span
               key={o?.username ?? 'vazio'}
-              className="absolute bottom-3 right-6 h-[92px] w-[70px] overflow-hidden rounded-[20px] bg-gradient-to-br from-brand to-[#ff9a5b] shadow-[0_6px_16px_rgba(0,0,0,0.3)] ring-[3px] ring-white"
-              style={{ transform: `translate(${-depth * 15}px, ${-depth * 7}px) rotate(${-8 - depth * 10}deg)`, transformOrigin: '70% 90%', zIndex: 3 - depth }}
+              className="absolute bottom-3 right-6 h-[116px] w-[88px] overflow-hidden rounded-[24px] bg-gradient-to-br from-brand to-[#ff9a5b] shadow-[0_6px_16px_rgba(0,0,0,0.3)] ring-[3px] ring-white"
+              style={{ transform: `translate(${-depth * 24}px, ${-depth * 9}px) rotate(${-8 - depth * 12}deg)`, transformOrigin: '70% 90%', zIndex: 3 - depth }}
             >
               {o?.preview && <img src={o.preview} alt="" draggable={false} className="absolute inset-0 h-full w-full scale-125 object-cover blur-[3px]" />}
-              {depth > 0 && <span className="absolute inset-0 bg-white/25" />}
+              {depth > 0 && <span className="absolute inset-0 bg-white/15" />}
               {!o && <span className="absolute inset-0 flex items-center justify-center text-white"><Icon name="plus" size={34} strokeWidth={2.6} className="drop-shadow" /></span>}
             </span>
           );
         })}
-        {top && <span className="absolute bottom-[74px] right-[58px] z-[5] rounded-full bg-white p-[2px] shadow-md"><Avatar name={top.displayName} username={top.hasAvatar ? top.username : undefined} size={34} ring={false} /></span>}
+        {top && <span className="absolute bottom-[100px] right-[78px] z-[5] rounded-full bg-white p-[2px] shadow-md"><Avatar name={top.displayName} username={top.hasAvatar ? top.username : undefined} size={40} ring={false} /></span>}
         <NewBadge id="zas" className="absolute left-0 top-0 z-[6]" />
         {total > 0 && <span className="absolute right-2 top-1 z-[6] flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1 text-[11px] font-bold text-white ring-2 ring-white">{total > 9 ? '9+' : total}</span>}
       </button>
