@@ -551,6 +551,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
   const tap = (fn: () => void) => () => {
     if (Date.now() - downAt.current < 250) fn(); // toque curto navega; segurar só pausa
   };
+  const swipeUp = useRef<{ x: number; y: number } | null>(null);
   const stop = { onPointerDown: (e: React.PointerEvent) => e.stopPropagation() };
   const circleBtn = 'flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-sm transition active:scale-90';
 
@@ -561,6 +562,31 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
         onPointerDown={() => { downAt.current = Date.now(); setHeld(true); }}
         onPointerUp={() => setHeld(false)}
         onPointerLeave={() => setHeld(false)}
+        onTouchStart={(e) => { swipeUp.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+        onTouchEnd={(e) => {
+          const st = swipeUp.current;
+          swipeUp.current = null;
+          if (!st) return;
+          const dx = e.changedTouches[0].clientX - st.x;
+          const dy = e.changedTouches[0].clientY - st.y;
+          // O meu story: arrastar para cima mostra as visualizações e os brindes.
+          if (user.isMe) {
+            if (story && dy < -70 && -dy > Math.abs(dx) * 1.5 && !panel) {
+              navigator.vibrate?.(8);
+              setTab('viewers');
+              setPanel('viewers');
+            }
+            return;
+          }
+          // Arrastar para cima: abre a escrita da mensagem (o foco tem de acontecer já, dentro do gesto, para o teclado abrir).
+          if (dy < -70 && -dy > Math.abs(dx) * 1.5) {
+            const field = e.currentTarget.querySelector<HTMLElement>('[aria-label^="Responder ao story"]');
+            if (field) {
+              navigator.vibrate?.(8);
+              field.focus();
+            }
+          }
+        }}
       >
         {story && (
           <>

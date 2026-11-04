@@ -8,6 +8,7 @@ import { blockedBetween, canView, sameCountry } from '../social/visibility';
  * + quem é o autor para ti (quem segues pesa muito; quem tens brindado/comentado nos últimos 30 dias, também)
  * + interação com a publicação (brindes, comentários, reposts, presentes), com teto, e que decai mais devagar
  * + um pouco de variedade (um empurrão pequeno e estável durante a sessão, que muda de sessão para sessão)
+ * + novidades de quem segues e as tuas (últimas 6 h, ainda por ver): vêm sempre primeiro, da mais recente para a mais antiga
  * − o que já viste (desce muito; só volta quando já não há novidades)
  * − a 2.ª, 3.ª… publicação seguida do mesmo autor (não enche o ecrã de uma pessoa só)
  *
@@ -105,6 +106,8 @@ export const RANKED_SQL = `
            + 0.35 * ln(1 + b.affinity)
            + 0.4 * LEAST(ln(1 + b.engagement), 2.5) * exp(-b.age_h / 72.0)
            + CASE WHEN b.has_media THEN 0.08 ELSE 0 END
+           -- Novidades de quem segues (e as tuas): nas últimas 6 h, ainda por ver, passam à frente de tudo, da mais recente para a mais antiga.
+           + CASE WHEN (b.followed OR b.is_self) AND NOT b.seen AND b.age_h < 6 THEN 4.0 ELSE 0 END
            + 0.12 * b.jitter
            - CASE WHEN b.seen THEN 1.6 ELSE 0 END AS raw
       FROM base b
