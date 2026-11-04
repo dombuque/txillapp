@@ -33,7 +33,8 @@ export default function FollowButton({
       }
       // O que se vê muda: stories, sugestões, feed e o próprio perfil.
       for (const key of ['stories', 'suggestions', 'feed']) qc.invalidateQueries({ queryKey: [key] });
-      qc.invalidateQueries({ queryKey: ['profile', username] });
+      // Todos os perfis em cache: o dela(e) e o meu (o número de «a seguir»).
+      qc.invalidateQueries({ queryKey: ['profile'] });
       qc.invalidateQueries({ queryKey: ['profile-posts', username] });
     } catch {
       setS(prev);
