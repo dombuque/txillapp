@@ -1243,6 +1243,8 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Ver quem repostou': 'See who reposted',
+  'Ver quem brindou': 'See who cheered',
   'Texto por cima da foto': 'Text over the photo',
   'Escreve aqui…': 'Write here…',
   'Mover o texto': 'Move the text',

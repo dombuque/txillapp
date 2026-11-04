@@ -100,7 +100,7 @@ export default function PlaceMap({ start, onPick, onClose }: Props) {
 
   const round = 'flex h-11 w-11 items-center justify-center rounded-full bg-white text-zinc-900 shadow-lg active:scale-90';
   return (
-    <div role="dialog" aria-modal="true" aria-label={tr('Mapa de locais')} className="fixed inset-0 z-[75] bg-zinc-100">
+    <div role="dialog" aria-modal="true" data-swipe="off" aria-label={tr('Mapa de locais')} className="fixed inset-0 z-[75] bg-zinc-100">
       <div ref={box} className="absolute inset-0" />
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex items-center justify-between gap-2 px-4 pt-[max(1rem,env(safe-area-inset-top))]">

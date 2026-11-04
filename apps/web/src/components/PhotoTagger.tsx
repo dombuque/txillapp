@@ -38,7 +38,7 @@ export default function PhotoTagger({ src, tags, onDone }: { src: string; tags: 
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={tr('Identificar pessoas')} className="fixed inset-0 z-[80] flex flex-col bg-black text-white" style={visibleStyle(vv)}>
+    <div role="dialog" aria-modal="true" data-swipe="off" aria-label={tr('Identificar pessoas')} className="fixed inset-0 z-[80] flex flex-col bg-black text-white" style={visibleStyle(vv)}>
       <div className="flex items-center justify-between px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
         <p className="text-lg font-bold">{tr('Identificar pessoas')}</p>
         <button type="button" onClick={() => onDone(list)} className="h-10 rounded-full bg-brand px-5 font-bold active:scale-95">{tr('Feito')}</button>

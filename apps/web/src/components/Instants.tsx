@@ -421,8 +421,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
             <span key={sent} aria-hidden className="block h-1 rounded-full bg-brand" style={{ animation: 'shrink 6s linear forwards' }} />
           </div>
         )}
-        <div className="mx-auto flex max-w-[360px] items-center justify-center gap-4">
-          <button type="button" onClick={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} aria-label={tr('Temporizador')} className={`flex h-14 w-14 items-center justify-center rounded-full text-[15px] font-extrabold backdrop-blur transition active:scale-90 ${delay ? 'bg-white text-zinc-900' : 'bg-white/10 text-white'}`}>{delay ? `${delay}s` : <Icon name="clock" size={24} />}</button>
+        <div className="mx-auto grid max-w-[250px] grid-cols-3 place-items-center">
           <button type="button" onClick={toggleLight} aria-pressed={light} aria-label={canTorch ? tr('Lanterna') : tr('Flash de ecrã')} className={`flex h-14 w-14 items-center justify-center rounded-full backdrop-blur transition active:scale-90 ${light ? 'bg-amber-300 text-zinc-900' : 'bg-white/10 text-white'}`}><FlashIcon on={light} size={25} /></button>
           <button type="button" onClick={press} disabled={!ready || busy} aria-label={count !== null ? tr('Cancelar') : tr('Tirar e enviar')} className="relative flex h-[86px] w-[86px] items-center justify-center rounded-full transition active:scale-90 disabled:opacity-50">
             <span className="absolute inset-0 rounded-full bg-[conic-gradient(from_200deg,#ff5c5c,#ff9a5b,#ffd166,#ff5c5c)] p-[4px]"><span className="block h-full w-full rounded-full bg-[#08080b]" /></span>
@@ -857,7 +856,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
   }
 
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={`Zás de ${who.displayName}`} {...dragProps} className="fixed inset-0 z-[96] flex flex-col bg-black text-white" style={{ backgroundColor: drag ? `rgba(0,0,0,${Math.max(0.3, 1 - drag / 400)})` : undefined }}>
+    <div role="dialog" aria-modal="true" data-swipe="own" aria-label={`Zás de ${who.displayName}`} {...dragProps} className="fixed inset-0 z-[96] flex flex-col bg-black text-white" style={{ backgroundColor: drag ? `rgba(0,0,0,${Math.max(0.3, 1 - drag / 400)})` : undefined }}>
       <SquircleDefs />
       <div className="flex shrink-0 items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="flex h-11 w-11 items-center justify-center rounded-full active:scale-90"><Icon name="x" size={28} /></button>

@@ -513,7 +513,7 @@ function ImageViewer({ post, start, onClose }: { post: Post; start: number; onCl
   return (
     <div
       role="dialog"
-      aria-modal="true"
+      aria-modal="true" data-swipe="own"
       aria-label={tr('Fotos de {v0}', { v0: post.author.displayName })}
       className="fixed inset-0 z-[60] flex flex-col text-white"
       style={{ backgroundColor: `rgba(0,0,0,${Math.max(0.35, 1 - drag / 500)})` }}

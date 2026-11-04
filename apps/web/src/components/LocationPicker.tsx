@@ -100,7 +100,7 @@ export default function LocationPicker({ onSend, onClose }: { onSend: (p: Picked
   const dot = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full';
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={tr('Enviar localização')} className="fixed inset-0 z-[80] flex flex-col bg-white">
+    <div role="dialog" aria-modal="true" data-swipe="off" aria-label={tr('Enviar localização')} className="fixed inset-0 z-[80] flex flex-col bg-white">
       <div className="relative min-h-0 flex-[0_0_46%]">
         <div ref={box} className="absolute inset-0 bg-zinc-200" />
         <span className="pointer-events-none absolute left-1/2 top-1/2 z-[500] -translate-x-1/2 -translate-y-full drop-shadow-[0_3px_3px_rgba(0,0,0,0.35)]" aria-hidden>

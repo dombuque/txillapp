@@ -107,7 +107,7 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
   );
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={tr('Câmara')} className="fixed inset-0 z-[80] flex flex-col bg-black text-white">
+    <div role="dialog" aria-modal="true" data-swipe="off" aria-label={tr('Câmara')} className="fixed inset-0 z-[80] flex flex-col bg-black text-white">
       <video
         ref={video}
         playsInline

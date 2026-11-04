@@ -67,7 +67,7 @@ export default function NewChat({ onClose, addTo, onCreated }: { onClose: () => 
   const { dy, props: drag } = useSwipeDown(onClose);
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40" onClick={onClose} role="presentation" style={{ touchAction: 'none' }} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
-      <div role="dialog" aria-modal="true" aria-label={title} style={{ transform: dy ? `translateY(${dy}px)` : undefined, transition: dy ? 'none' : 'transform .2s ease-out' }} className="flex h-[78dvh] max-h-[640px] w-full max-w-xl animate-[rise_.25s_ease-out] flex-col rounded-t-[28px] bg-white" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" data-swipe="own" aria-label={title} style={{ transform: dy ? `translateY(${dy}px)` : undefined, transition: dy ? 'none' : 'transform .2s ease-out' }} className="flex h-[78dvh] max-h-[640px] w-full max-w-xl animate-[rise_.25s_ease-out] flex-col rounded-t-[28px] bg-white" onClick={(e) => e.stopPropagation()}>
         <div {...drag} className="shrink-0" style={{ touchAction: 'none' }}>
         <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-zinc-300" aria-hidden />
         <div className="relative flex shrink-0 items-center justify-center px-4 pb-2 pt-3">

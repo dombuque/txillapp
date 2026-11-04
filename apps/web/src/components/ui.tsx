@@ -170,7 +170,7 @@ export function Sheet({ title, onClose, children, layer = 'z-50' }: { title: str
       <div
         ref={box}
         role="dialog"
-        aria-modal="true"
+        aria-modal="true" data-swipe="own"
         aria-label={title}
         className="animate-[rise_.25s_ease-out] max-h-[85dvh] w-full max-w-xl overflow-y-auto overscroll-contain rounded-t-[28px] bg-white px-6 pb-8 pt-3"
         style={{ ...(vv ? { maxHeight: Math.round(vv.height * 0.94) } : {}), transform: dy ? `translateY(${dy}px)` : undefined, transition: dy ? 'none' : 'transform .2s ease-out', touchAction: 'pan-y' }}

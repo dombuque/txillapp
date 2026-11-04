@@ -215,7 +215,7 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
     <div className={`fixed inset-0 ${layer} flex items-end justify-center bg-black/40`} onClick={onClose} role="presentation" style={{ touchAction: 'none' }} {...drag}>
       <div
         role="dialog"
-        aria-modal="true"
+        aria-modal="true" data-swipe="own"
         aria-label={tr('Comentários')}
         style={{ transform: `translateY(${dragY}px)`, transition: dragY ? 'none' : 'transform .2s' }}
         className="animate-[rise_.25s_ease-out] flex h-[78dvh] w-full max-w-xl flex-col rounded-t-[28px] bg-white"

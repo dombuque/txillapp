@@ -24,6 +24,7 @@ import Connections from './pages/Connections';
 import Feed from './pages/Feed';
 import Notifications from './pages/Notifications';
 import UpdateBanner from './components/UpdateBanner';
+import SwipeClose from './components/SwipeClose';
 import { screenOf, setAnalyticsEnabled, startAnalytics, track } from './lib/analytics';
 import InstallPrompt from './components/InstallPrompt';
 import ChatLive from './lib/chatLive';
@@ -132,6 +133,7 @@ createRoot(document.getElementById('root')!).render(
         <TopLoader />
         <Live />
         <UpdateBanner />
+        <SwipeClose />
         <BrowserRouter>
           <Gate>
           <Routes>
