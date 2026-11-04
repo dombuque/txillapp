@@ -2,14 +2,14 @@ import Icon from '../components/Icon';
 import { tr, locale } from '../lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import GeleiraShelf from '../components/GeleiraShelf';
 import GiftSheet from '../components/GiftSheet';
 import { Page, btnPrimary, timeAgo } from '../components/ui';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
-const labels = { welcome_bonus: 'Boas-vindas, malta!', transfer: 'Transferência', gift: 'Presente' } as const;
+const labels: Record<string, string> = { welcome_bonus: 'Boas-vindas, malta!', transfer: 'Txills oferecidos', gift: 'Presente', invite: 'Convite', topup: 'Txills recarregados' };
 
 export default function Wallet() {
   const { user } = useAuth();
@@ -47,6 +47,10 @@ export default function Wallet() {
         <Icon name="gift" size={20} /> {tr('Presentear alguém')}
       </button>
 
+      <Link to="/invites" className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-zinc-100 font-semibold text-zinc-800 active:bg-zinc-200">
+        <Icon name="user-plus" size={19} /> {tr('Ver os meus convites')}
+      </Link>
+
       <GeleiraShelf username={user!.username} isMe flush />
 
       <section className="mt-8 rounded-[28px] bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
@@ -56,7 +60,7 @@ export default function Wallet() {
           {data.history.map((h) => (
             <li key={h.id} className="flex items-center justify-between py-4">
               <div className="min-w-0">
-                <p className="truncate font-medium">{labels[h.type]}{h.counterparty ? ` · ${h.counterparty.displayName}` : ''}</p>
+                <p className="truncate font-medium">{labels[h.type] ?? h.type}{h.counterparty ? ` · ${h.counterparty.displayName}` : ''}</p>
                 <p className="truncate text-sm text-zinc-500">{timeAgo(h.createdAt)}</p>
                 {h.note && <p className="mt-0.5 line-clamp-2 break-words text-sm text-zinc-700"><span aria-hidden></span> {h.note}</p>}
               </div>
