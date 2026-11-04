@@ -1,4 +1,5 @@
 import { useOnline } from '../lib/presence';
+import { useStoryRing } from '../lib/storyRing';
 import { tr } from '../lib/i18n';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject, type TouchEvent } from 'react';
@@ -71,6 +72,8 @@ function PresenceDot({ username, size }: { username: string; size: number }) {
 export function Avatar({ name, username, size = 40, ring = true, presence = false }: { name: string; username?: string; size?: number; ring?: boolean; /** mostra a bolinha de online */ presence?: boolean }) {
   const version = useAvatarVersion();
   const [failed, setFailed] = useState<string | null>(null);
+  // O anel diz se a pessoa tem story: coral (por ver), verde (amigos próximos, por ver), cinzento (já visto) ou nenhum.
+  const story = useStoryRing(ring ? username : undefined);
   const src = username ? `/api/v1/avatars/${encodeURIComponent(username)}?v=${version}` : null;
   const initials = name
     .split(' ')
@@ -81,7 +84,7 @@ export function Avatar({ name, username, size = 40, ring = true, presence = fals
   const circle = (
     <span
       style={{ width: size, height: size, fontSize: Math.max(11, size * 0.3) }}
-      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-rose-50 font-bold text-brand ${ring ? 'ring-[1.5px] ring-brand ring-offset-2' : ''}`}
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-rose-50 font-bold text-brand ${ring && story === 'unseen' ? 'ring-2 ring-brand ring-offset-2' : ring && story === 'close' ? 'ring-2 ring-emerald-500 ring-offset-2' : ring && story === 'seen' ? 'ring-2 ring-zinc-300 ring-offset-2' : ''}`}
     >
       {src && failed !== src ? <img src={src} alt="" onError={() => setFailed(src)} className="h-full w-full object-cover" draggable={false} /> : initials}
     </span>

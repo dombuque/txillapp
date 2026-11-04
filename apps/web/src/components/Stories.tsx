@@ -91,7 +91,7 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
   const q = useQuery({ queryKey: ['stories', username], queryFn: () => api.storiesOf(username), retry: false });
   const list = q.data ?? [];
   const { press, preview, wasHeld } = useAvatarPreview(username, displayName, hasAvatar);
-  const avatar = <Avatar name={displayName} username={hasAvatar ? username : undefined} size={size} ring={list.length === 0} presence={!isMe} />;
+  const avatar = <Avatar name={displayName} username={hasAvatar ? username : undefined} size={size} ring={false} presence={!isMe} />;
   const guard = 'select-none [-webkit-touch-callout:none] [&_img]:pointer-events-none';
   if (list.length === 0) return <><span className={`block ${guard}`} {...press}>{avatar}</span>{preview}</>;
   const ownSeen = isMe && readOwnSeen() === list[list.length - 1].createdAt;

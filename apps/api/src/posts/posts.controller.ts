@@ -54,6 +54,22 @@ export class FeedController {
     return this.posts.explore(req.userId!, topic ?? null, cursor, n);
   }
 
+  @Get('prefs')
+  prefs(@Req() req: AuthedReq) {
+    return this.posts.prefs(req.userId!);
+  }
+
+  @Put('prefs')
+  setPref(@Req() req: AuthedReq, @Body(new ZodPipe(z.object({ topic: z.string().min(2).max(30), pref: z.union([z.literal(-1), z.literal(0), z.literal(1)]) }))) b: { topic: string; pref: -1 | 0 | 1 }) {
+    return this.posts.setPref(req.userId!, b.topic, b.pref);
+  }
+
+  @Delete('prefs')
+  @HttpCode(204)
+  resetPrefs(@Req() req: AuthedReq) {
+    return this.posts.resetAlgorithm(req.userId!);
+  }
+
   @Get('explore/topics')
   exploreTopics(@Req() req: AuthedReq, @Query('all') all?: string) {
     return this.posts.exploreTopics(req.userId!, all === '1');
@@ -77,7 +93,7 @@ export class FeedController {
   @Get('reels')
   reels(@Req() req: AuthedReq, @Query('cursor') cursor?: string, @Query('limit') limit?: string) {
     const n = Math.min(Math.max(Number(limit) || 6, 1), 15);
-    return this.posts.rankedFeed(req.userId!, cursor, n, 'reels');
+    return this.posts.explore(req.userId!, null, cursor, n, true);
   }
 
   @Post('seen')
@@ -115,6 +131,12 @@ export class PostsController {
   people(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Param('kind') kind: string) {
     if (kind !== 'reposts' && kind !== 'cheers' && kind !== 'gifts') throw new BadRequestException('Lista inválida');
     return this.posts.people(req.userId!, id, kind);
+  }
+
+  /** Interessado (1) ou não interessado (-1): ensina o algoritmo. */
+  @Put(':id/interest')
+  interest(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(z.object({ value: z.union([z.literal(-1), z.literal(1)]) }))) b: { value: -1 | 1 }) {
+    return this.posts.setInterest(req.userId!, id, b.value);
   }
 
   @Put(':id/save')

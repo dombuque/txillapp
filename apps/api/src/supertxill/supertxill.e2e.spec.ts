@@ -356,4 +356,37 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     expect(classify('Texto sem nada de especial aqui')).toEqual([]);
     expect(classify('golo golo golo futebol campeonato jogo equipa estadio treino cerveja').length).toBeLessThanOrEqual(3);
   });
+
+  it('ensinar o algoritmo: preferências por tema e interessado / não interessado', async () => {
+    const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+    const up = async (u: U) => {
+      const r = await api().post('/api/v1/media/uploads').set(auth(u)).send({ mime: 'image/png', size: PNG.length }).expect(201);
+      await api().put(r.body.uploadUrl).set('Content-Type', 'image/png').send(PNG).expect(200);
+      return r.body.assetId as string;
+    };
+    const au = await signup('al0');
+    const me = await signup('al1');
+    const mk = async (body: string) => {
+      const mediaId = await up(au);
+      return (await api().post('/api/v1/posts').set(auth(au)).send({ body, mediaIds: [mediaId] }).expect(201)).body as { id: string };
+    };
+    const a = await mk(`Cerveja gelada no bar com a malta ${run}`);
+    const b = await mk(`Golo de futebol no estadio ${run}`);
+    const ids = async (topic: string) => ((await api().get(`/api/v1/feed/explore?topic=${topic}&limit=30`).set(auth(me)).expect(200)).body as { items: { id: string }[] }).items.map((x) => x.id);
+    expect(await ids('bebidas')).toContain(a.id);
+    expect(await ids('desporto')).toContain(b.id);
+    // Não interessado: esconde a publicação.
+    await api().put(`/api/v1/posts/${a.id}/interest`).set(auth(me)).send({ value: -1 }).expect(200);
+    expect(await ids('bebidas')).not.toContain(a.id);
+    await api().put(`/api/v1/posts/${b.id}/interest`).set(auth(me)).send({ value: 5 }).expect(400);
+    // Preferências por tema.
+    expect((await api().put('/api/v1/feed/prefs').set(auth(me)).send({ topic: 'desporto', pref: 1 }).expect(200)).body).toEqual({ desporto: 1 });
+    await api().put('/api/v1/feed/prefs').set(auth(me)).send({ topic: 'tema-inventado', pref: 1 }).expect(400);
+    expect((await api().get('/api/v1/feed/prefs').set(auth(me)).expect(200)).body).toEqual({ desporto: 1 });
+    // Repor.
+    await api().delete('/api/v1/feed/prefs').set(auth(me)).expect(204);
+    expect((await api().get('/api/v1/feed/prefs').set(auth(me)).expect(200)).body).toEqual({});
+    expect(await ids('bebidas')).toContain(a.id); // voltou a aparecer
+    await api().put(`/api/v1/posts/${a.id}/interest`).send({ value: 1 }).expect(401);
+  });
 });

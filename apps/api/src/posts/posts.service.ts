@@ -8,7 +8,9 @@ import { NotificationsService, mentionableBy } from '../notifications/notificati
 import { allowedBy, blockedBetween, canView, inMyNetwork, listVisibleTo } from '../social/visibility';
 import { SearchIndexer } from '../search/search-index';
 import { extractHashtags, prefixQuery } from '../common/hashtags';
-import { classify, topicLabel } from '../common/topics';
+import { TOPICS, classify, topicLabel } from '../common/topics';
+
+const TOPIC_IDS = new Set(TOPICS.map((t) => t.id));
 import { RANKED_SQL, decodeCursor, encodeCursor } from './feed';
 import { WalletService } from '../wallet/wallet.service';
 
@@ -475,7 +477,7 @@ export class PostsService implements OnModuleInit {
    *  - variedade: no máximo 2 publicações por conta e uma pequena aleatoriedade diária, para descobrir coisas novas.
    * Com `topic`, só desse tema (e sem o peso do interesse). Só publicações com foto ou vídeo que a pessoa pode ver, de adultos.
    */
-  async explore(viewerId: string, topic: string | null, cursor: string | undefined, limit: number) {
+  async explore(viewerId: string, topic: string | null, cursor: string | undefined, limit: number, videoOnly = false) {
     const offset = cursor && /^\d{1,5}$/.test(cursor) ? Number(cursor) : 0;
     const t = topic && /^[a-z]{2,20}$/.test(topic) ? topic : null;
     const { rows } = await this.pool.query(
@@ -485,6 +487,8 @@ export class PostsService implements OnModuleInit {
            UNION ALL SELECT unnest(p.topics), 2.0 FROM content.comments c JOIN content.posts p ON p.id = c.post_id WHERE c.author_id = $1 AND c.created_at > now() - interval '60 days' AND p.topics IS NOT NULL
            UNION ALL SELECT unnest(p.topics), 3.0 FROM content.saved_posts s JOIN content.posts p ON p.id = s.post_id WHERE s.user_id = $1 AND p.topics IS NOT NULL
            UNION ALL SELECT unnest(p.topics), 0.4 FROM social.follows f JOIN content.posts p ON p.author_id = f.followee_id AND p.created_at > now() - interval '30 days' WHERE f.follower_id = $1 AND p.topics IS NOT NULL
+           UNION ALL SELECT unnest(p.topics), 2.5 * fb.value FROM content.post_feedback fb JOIN content.posts p ON p.id = fb.post_id WHERE fb.user_id = $1 AND p.topics IS NOT NULL
+           UNION ALL SELECT topic, 8.0 * pref FROM social.explore_prefs WHERE user_id = $1
          ) x GROUP BY topic),
        tot AS (SELECT GREATEST(COALESCE(sum(wt), 0), 1) AS s FROM w),
        cand AS (
@@ -500,10 +504,13 @@ export class PostsService implements OnModuleInit {
             AND EXISTS (SELECT 1 FROM content.post_media pm WHERE pm.post_id = p.id)
             AND ${ADULT} AND ${canView()} AND ${inMyNetwork()}
             AND ($2::text IS NULL OR $2 = ANY(p.topics))
+            AND (NOT $5::boolean OR EXISTS (SELECT 1 FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id WHERE pm.post_id = p.id AND ma.mime LIKE 'video/%'))
+            AND NOT EXISTS (SELECT 1 FROM content.feed_impressions hi WHERE hi.user_id = $1 AND hi.post_id = p.id AND hi.hidden)
+            AND NOT EXISTS (SELECT 1 FROM content.post_feedback fb WHERE fb.user_id = $1 AND fb.post_id = p.id AND fb.value < 0)
           ORDER BY p.id DESC LIMIT 800),
        scored AS (
          SELECT c.id, c.author_id,
-                (0.25 + 1.6 * CASE WHEN $2::text IS NULL THEN COALESCE((SELECT sum(w.wt) FROM w WHERE w.topic = ANY(c.topics)), 0) / (SELECT s FROM tot) ELSE 0 END)
+                (0.25 + 1.6 * CASE WHEN $2::text IS NULL THEN greatest(COALESCE((SELECT sum(w.wt) FROM w WHERE w.topic = ANY(c.topics)), 0), -0.2 * (SELECT s FROM tot)) / (SELECT s FROM tot) ELSE 0 END)
                 * (0.4 + least(2.5, (c.cheers + 2 * c.comments + 3 * c.reposts + 1) / (c.reach + 20) * 6))
                 * (0.3 + exp(-extract(epoch FROM (now() - c.created_at)) / 3600 / 96))
                 * (CASE WHEN c.followed THEN 1.25 ELSE 1 END)
@@ -512,7 +519,7 @@ export class PostsService implements OnModuleInit {
            FROM cand c),
        ranked AS (SELECT id, score, row_number() OVER (PARTITION BY author_id ORDER BY score DESC) AS rn FROM scored)
        SELECT id FROM ranked WHERE rn <= 2 ORDER BY score DESC OFFSET $3 LIMIT $4`,
-      [viewerId, t, offset, limit + 1],
+      [viewerId, t, offset, limit + 1, videoOnly],
     );
     const ids = rows.slice(0, limit).map((r) => r.id as string);
     if (!ids.length) return { items: [], nextCursor: null };
@@ -520,6 +527,34 @@ export class PostsService implements OnModuleInit {
     const order = new Map(ids.map((id, i) => [id, i]));
     full.rows.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
     return { items: await this.hydrate(viewerId, full.rows), nextCursor: rows.length > limit ? String(offset + limit) : null };
+  }
+
+  /** As minhas preferências por tema (1 = mais, -1 = menos). */
+  async prefs(userId: string) {
+    const { rows } = await this.pool.query('SELECT topic, pref FROM social.explore_prefs WHERE user_id = $1', [userId]);
+    return Object.fromEntries(rows.map((r) => [r.topic as string, r.pref as number]));
+  }
+
+  async setPref(userId: string, topic: string, pref: -1 | 0 | 1) {
+    if (!TOPIC_IDS.has(topic)) throw new BadRequestException('Tema desconhecido');
+    if (pref === 0) await this.pool.query('DELETE FROM social.explore_prefs WHERE user_id = $1 AND topic = $2', [userId, topic]);
+    else await this.pool.query('INSERT INTO social.explore_prefs (user_id, topic, pref) VALUES ($1, $2, $3) ON CONFLICT (user_id, topic) DO UPDATE SET pref = EXCLUDED.pref, updated_at = now()', [userId, topic, pref]);
+    return this.prefs(userId);
+  }
+
+  /** Volta ao início: apaga as preferências e o "interessado / não interessado" (o histórico de brindes e comentários mantém-se). */
+  async resetAlgorithm(userId: string) {
+    await this.pool.query('DELETE FROM social.explore_prefs WHERE user_id = $1', [userId]);
+    await this.pool.query('DELETE FROM content.post_feedback WHERE user_id = $1', [userId]);
+    await this.pool.query('UPDATE content.feed_impressions SET hidden = false WHERE user_id = $1 AND hidden', [userId]);
+  }
+
+  /** "Interessado" / "Não interessado" numa publicação: ensina o algoritmo. Não interessado também a esconde. */
+  async setInterest(userId: string, postId: string, value: -1 | 1) {
+    await this.assertPost(userId, postId);
+    await this.pool.query('INSERT INTO content.post_feedback (user_id, post_id, value) VALUES ($1, $2, $3) ON CONFLICT (user_id, post_id) DO UPDATE SET value = EXCLUDED.value, created_at = now()', [userId, postId, value]);
+    if (value < 0) await this.hideFromFeed(userId, postId);
+    return { value };
   }
 
   /** Os temas para os chips do Explorar: os que têm publicações visíveis, com os teus interesses primeiro. */
