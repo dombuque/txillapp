@@ -1,3 +1,4 @@
+import ScrollRow from '../components/ScrollRow';
 import { BookmarkIcon } from '../components/PostCard';
 import { funny } from '../lib/copy';
 import { LoadingBlock } from '../components/Loading';
@@ -119,7 +120,7 @@ export default function Search() {
 
       {/* Filtros do Explorar: "Para ti" (aprende contigo) e os temas do Txillapp. */}
       {!searching && (
-        <div role="tablist" aria-label={tr('Temas')} className="flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <ScrollRow label={tr('Temas')} className="flex gap-2 px-4 pb-3">
           <button type="button" onClick={() => setAllOpen(true)} aria-label={tr('Todos os filtros')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-900 active:scale-95"><Icon name="sliders" size={20} /></button>
           {[{ id: null as string | null, label: tr('Para ti') }, ...(topics.data ?? []).map((t) => ({ id: t.id as string | null, label: tr(t.label) }))].map((t) => (
             <button
@@ -132,7 +133,7 @@ export default function Search() {
               {t.label}
             </button>
           ))}
-        </div>
+        </ScrollRow>
       )}
 
       {!searching && (
@@ -154,7 +155,7 @@ export default function Search() {
           )}
           {((trending.data?.tags.length ?? 0) > 0 || (hot.data?.length ?? 0) > 0) && (
             <section className="pb-3" aria-label={tr('Em alta')}>
-              <div className="flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <ScrollRow className="flex gap-2 px-4 pb-1">
                 {(hot.data ?? []).slice(0, 5).map((pl) => (
                   <button key={pl.name} onClick={() => setText(pl.name)} className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-sky-50 px-4 text-sm font-semibold text-sky-800 transition active:scale-95">
                     <Icon name="map-pin" size={15} /> {pl.name}
@@ -165,7 +166,7 @@ export default function Search() {
                     #{t.tag}{t.rising && <Icon name="trending" size={14} strokeWidth={2.2} className="text-orange-600" />}
                   </Link>
                 ))}
-              </div>
+              </ScrollRow>
             </section>
           )}
 
