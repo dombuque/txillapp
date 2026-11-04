@@ -44,6 +44,17 @@ export default function ProfilePage() {
   const qc = useQueryClient();
   const username = param ?? user!.username;
   const navigate = useNavigate();
+  /** Convidar a malta: abre logo a partilha do telemóvel (ou o WhatsApp) com a tua ligação de convite. */
+  async function inviteCrew() {
+    try {
+      const d = await api.invites();
+      const text = tr('Entra no Txillapp com o meu convite e ganhamos Txills os dois:');
+      if (navigator.share) return void (await navigator.share({ title: 'Txillapp', text, url: d.link }));
+      window.open(`https://wa.me/?text=${encodeURIComponent(`${text} ${d.link}`)}`, '_blank', 'noopener');
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') navigate('/invites');
+    }
+  }
   const [sheet, setSheet] = useState<SheetName>(null);
   const [openPost, setOpenPost] = useState<Post | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -188,7 +199,7 @@ export default function ProfilePage() {
               <>
                 <button onClick={() => setSheet('edit')} className={`${btnSmall} flex-1`}>{tr('Editar perfil')}</button>
                 <button onClick={share} className={`${btnSmall} flex-1`}>{tr('Partilhar perfil')}</button>
-                <button onClick={() => navigate('/invites')} aria-label={tr('Convidar amigos')} title={tr('Convidar amigos')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
+                <button onClick={() => void inviteCrew()} aria-label={tr('Convidar a malta')} title={tr('Convidar a malta')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
                   <Icon name="user-plus" size={18} className="mx-auto" />
                 </button>
                 <button onClick={() => navigate('/wallet')} aria-label={tr('Carteira de Txills')} className={`${btnSmall} w-11 shrink-0 !px-0`}>

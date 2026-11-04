@@ -1243,6 +1243,7 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Convidar a malta': 'Invite the crew',
   'Convite de {v0}: os dois ganham Txills quando entrares a sério.': 'Invite from {v0}: you both earn Txills when you really join in.',
   'Contas repetidas, emails temporários e registos em massa não contam. Os Txills são pontos da app.': 'Duplicate accounts, temporary emails and mass sign-ups do not count. Txills are points inside the app.',
   'Até {a} convites por dia e {b} no total. Depois disso o convite continua a funcionar, mas sem Txills.': 'Up to {a} invites per day and {b} in total. After that the invite still works, but without Txills.',
