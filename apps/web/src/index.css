@@ -86,6 +86,12 @@ body {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
+/* A barra de progresso do story corre na GPU (sem voltar a desenhar o story 20 vezes por segundo). */
+@keyframes story-bar {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
 @keyframes rise {
   from { transform: translateY(40px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }

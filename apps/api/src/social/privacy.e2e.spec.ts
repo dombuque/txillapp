@@ -199,8 +199,8 @@ describe('privacidade, bloqueios, notificações, pesquisa, foto e segurança da
     expect(seen.filter((x) => x.kind === 'repost' && x.repostOf?.id === p.id)).toHaveLength(2);
     expect(seen.find((x) => x.id === p.id)).toMatchObject({ reposts: 2, reposted: false });
     expect((await feedOf(sharer)).find((x) => x.id === p.id)).toMatchObject({ reposted: true });
-    const mine = (await api().get(`/api/v1/users/${sharer.username}/posts`).set(auth(viewer)).expect(200)).body.items;
-    expect(mine.some((x: { id: string }) => x.id === first.body.id)).toBe(true); // aparece no perfil de quem repostou
+    const mine = (await api().get(`/api/v1/users/${sharer.username}/posts?tab=reposts`).set(auth(viewer)).expect(200)).body.items;
+    expect(mine.some((x: { id: string }) => x.id === first.body.id)).toBe(true); // aparece no separador de reposts de quem repostou
 
     // Regras.
     const own = await rp(author, p.id).expect(201); // o dono também pode repostar a própria publicação

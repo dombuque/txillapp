@@ -157,7 +157,7 @@ describe('menções (@utilizador) e amigos próximos (integração)', () => {
     expect(again.repostOf.id).toBe(quote.id);
     expect(again.repostOf.body).toBe('concordo');
     expect(again.repostOf.repostOf.id).toBe(original.id); // o original aparece dentro da citação
-    const feed = ((await api().get(`/api/v1/users/${md.username}/posts`).set(auth(ma)).expect(200)).body.items as { id: string; repostOf: { repostOf: { id: string } } }[]).find((x) => x.id === again.id)!;
+    const feed = ((await api().get(`/api/v1/users/${md.username}/posts?tab=reposts`).set(auth(ma)).expect(200)).body.items as { id: string; repostOf: { repostOf: { id: string } } }[]).find((x) => x.id === again.id)!;
     expect(feed.repostOf.repostOf.id).toBe(original.id);
   });
 

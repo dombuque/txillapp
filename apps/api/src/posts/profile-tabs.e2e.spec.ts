@@ -65,7 +65,7 @@ describe('separadores do perfil: publicações, reels, reposts, presentes, ident
       expect((await tab(pta, ptb, 'gifts')).map((p) => p.kind)).toEqual(['gift']);
     }
 
-    // Sem separador (ou desconhecido): tudo o que a pessoa tem, como antes.
-    expect((await tab(pta, ptb, 'nada')).map((p) => p.kind)).toContain('repost');
+    // Sem separador (ou desconhecido): a grelha não leva reposts (esses estão no separador dos reposts).
+    expect((await tab(pta, ptb, 'nada')).map((p) => p.kind)).not.toContain('repost');
   });
 });

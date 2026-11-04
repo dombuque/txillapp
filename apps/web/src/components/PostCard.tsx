@@ -196,7 +196,31 @@ function GiftBlock({ post, g, me }: { post: Post; g: NonNullable<Post['gift']>; 
           </p>
         )}
       </div>
+      {post.repostOf && <GiftedPost original={post.repostOf} me={me} />}
     </>
+  );
+}
+
+/** A publicação que foi presenteada, dentro do cartão do presente (toca para a abrir). */
+function GiftedPost({ original, me }: { original: Post; me?: string }) {
+  const m = original.media[0];
+  const video = m?.kind === 'video';
+  const thumb = m ? (video ? m.posterUrl : sized(m.url, 480)) : null;
+  return (
+    <Link to={video ? `/r/${original.code ?? original.id}` : `/p/${original.code ?? original.id}`} className="mt-3 block overflow-hidden rounded-2xl border border-zinc-200 active:bg-zinc-50">
+      <span className="flex items-center gap-2.5 px-3 pt-3">
+        <Avatar name={original.author.displayName} username={original.author.username} size={30} ring={false} />
+        <span className="min-w-0 truncate font-semibold">{original.author.displayName}</span>
+        <span className="shrink-0 text-sm text-zinc-500">· {timeAgo(original.createdAt)}</span>
+      </span>
+      {original.body && <span className="line-clamp-3 block whitespace-pre-wrap break-words px-3 pt-2 text-[16px] text-zinc-800">{original.body}</span>}
+      {thumb ? (
+        <span className="relative mt-2 block h-56 w-full bg-zinc-200">
+          <img src={thumb} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+          {video && <span className="absolute inset-0 flex items-center justify-center"><span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 text-white"><Icon name="play" size={24} fill="currentColor" /></span></span>}
+        </span>
+      ) : <span className="block h-3" />}
+    </Link>
   );
 }
 

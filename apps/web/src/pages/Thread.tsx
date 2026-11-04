@@ -30,6 +30,7 @@ import { NewBadge } from '../components/WhatsNew';
 import { REACTIONS, Reaction, StickerButton, StickerPicker } from '../lib/stickers';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { useAuth } from '../lib/auth';
+import { ChatStoryThumb } from '../components/Stories';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE = 8 * 1024 * 1024;
@@ -114,7 +115,7 @@ function ChatVideo({ src }: { src: string }) {
   );
 }
 
-function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onReply, onRetry, onDiscard, onOpenOnce, onStopLive, onCheer, avatars }: { avatars?: { me: { name: string; username?: string }; peer?: { name: string; username?: string } }; onCheer: (m: ChatMessage) => void; m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; flash: boolean; onJump: (id: string) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onMenu: (m: ChatMessage) => void; onReply: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
+function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onReply, onRetry, onDiscard, onOpenOnce, onStopLive, onCheer, avatars }: { avatars?: { peerHandle?: string; me: { name: string; username?: string }; peer?: { name: string; username?: string } }; onCheer: (m: ChatMessage) => void; m: Msg; prevSame: boolean; nextSame: boolean; seen: boolean; group: boolean; flash: boolean; onJump: (id: string) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onMenu: (m: ChatMessage) => void; onReply: (m: ChatMessage) => void; onRetry: (m: Msg) => void; onDiscard: (m: Msg) => void }) {
   const mine = m.fromMe;
   const real = !m.id.startsWith('tmp-');
   // Resposta a uma nota: o servidor manda «Em resposta à tua nota “…”: texto». Mostra-se como no Instagram: a nota num balão e, por baixo, a resposta.
@@ -199,7 +200,9 @@ function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onR
           )}
         </button>
       )}
-      {m.storyUrl && <img src={sized(m.storyUrl, 160)} alt={tr('Story')} className="mb-1 h-28 w-[72px] rounded-xl object-cover opacity-90" />}
+      {m.storyUrl && (avatars?.peerHandle || avatars?.me.username) && (
+        <ChatStoryThumb src={m.storyUrl} thumb={sized(m.storyUrl, 160)} alt={tr('Story')} ownerUsername={mine ? (avatars.peerHandle ?? '') : (avatars.me.username ?? '')} ownerName={mine ? (avatars.peer?.name ?? '') : avatars.me.name} isMe={!mine} />
+      )}
       {(m.kind === 'story_reply' || m.kind === 'story_reaction') && (
         <p className="mb-0.5 text-xs text-zinc-500">{m.kind === 'story_reaction' ? (mine ? tr('Reagiste ao story') : tr('Reagiu ao teu story')) : mine ? tr('Respondeste ao story') : tr('Respondeu ao teu story')}</p>
       )}
@@ -825,7 +828,7 @@ export default function Thread() {
             return (
               <div key={m.id}>
                 {newDay && <p className="mx-auto mb-2 mt-6 w-fit text-[12px] font-semibold uppercase tracking-wide text-zinc-500">{dayLabel(m.at)}</p>}
-                <Bubble m={m} group={isGroup} flash={flashId === m.id} onJump={jumpTo} prevSame={!!prev && !newDay && joined(prev, m)} nextSame={!!next && joined(m, next)} seen={seenUpTo(m)} onMenu={setMenuFor} onReply={(x) => { setReplying(x); input.current?.focus(); }} onRetry={retry} onDiscard={discard} onOpenOnce={setOpening} onStopLive={stopSharing} onCheer={cheerMsg} avatars={{ me: { name: user?.displayName ?? '', username: user?.username }, peer: person ? { name: person.displayName, username: person.hasAvatar ? person.username : undefined } : undefined }} />
+                <Bubble m={m} group={isGroup} flash={flashId === m.id} onJump={jumpTo} prevSame={!!prev && !newDay && joined(prev, m)} nextSame={!!next && joined(m, next)} seen={seenUpTo(m)} onMenu={setMenuFor} onReply={(x) => { setReplying(x); input.current?.focus(); }} onRetry={retry} onDiscard={discard} onOpenOnce={setOpening} onStopLive={stopSharing} onCheer={cheerMsg} avatars={{ peerHandle: isGroup ? undefined : username, me: { name: user?.displayName ?? '', username: user?.username }, peer: person ? { name: person.displayName, username: person.hasAvatar ? person.username : undefined } : undefined }} />
               </div>
             );
           })}

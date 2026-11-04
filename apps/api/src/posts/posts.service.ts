@@ -465,7 +465,8 @@ export class PostsService {
     const client = await this.pool.connect();
     try {
       const text = String(note ?? rows[0].metadata?.note ?? '').trim().slice(0, 280);
-      const id = await this.insertGiftPost(client, userId, rows[0].recipient_id, Number(rows[0].amount), transactionId, text);
+      const gifted = typeof rows[0].metadata?.postId === 'string' ? (rows[0].metadata.postId as string) : null;
+      const id = await this.insertGiftPost(client, userId, rows[0].recipient_id, Number(rows[0].amount), transactionId, text, gifted);
       return { post: await this.getOne(userId, id) };
     } finally {
       client.release();
@@ -494,7 +495,7 @@ export class PostsService {
           [uuidv7(), p.postId, p.userId, p.toId, p.amount, r.transactionId],
         );
       }
-      const announcementId = p.visibility === 'public' ? await this.insertGiftPost(client, p.userId, p.toId, p.amount, r.transactionId, note) : null;
+      const announcementId = p.visibility === 'public' ? await this.insertGiftPost(client, p.userId, p.toId, p.amount, r.transactionId, note, p.postId ?? null) : null;
       await client.query('COMMIT');
       if (!r.replayed) {
         await this.notifications.notify({
@@ -512,14 +513,14 @@ export class PostsService {
   }
 
   /** Cria (uma só vez por presente) o post "X presenteou Y". */
-  private async insertGiftPost(client: PoolClient, userId: string, toId: string, amount: number, transactionId: string, note: string) {
+  private async insertGiftPost(client: PoolClient, userId: string, toId: string, amount: number, transactionId: string, note: string, giftedPostId: string | null = null) {
     const existing = await client.query('SELECT id FROM content.posts WHERE gift_transaction_id = $1', [transactionId]);
     if (existing.rows[0]) return existing.rows[0].id as string;
     const id = uuidv7();
     await client.query(
-      `INSERT INTO content.posts (id, author_id, body, kind, gift_recipient_id, gift_amount, gift_transaction_id)
-       VALUES ($1, $2, $3, 'gift', $4, $5, $6)`,
-      [id, userId, note, toId, amount, transactionId],
+      `INSERT INTO content.posts (id, author_id, body, kind, gift_recipient_id, gift_amount, gift_transaction_id, repost_of)
+       VALUES ($1, $2, $3, 'gift', $4, $5, $6, $7)`,
+      [id, userId, note, toId, amount, transactionId, giftedPostId],
     );
     return id;
   }

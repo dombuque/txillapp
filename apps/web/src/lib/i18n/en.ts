@@ -1243,6 +1243,8 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Este story já expirou': 'This story has expired',
+  'Ver o story': 'View the story',
   'editado': 'edited',
   'Editar a publicação': 'Edit post',
   'Ninguém pode comentar esta publicação.': 'Nobody can comment on this post.',

@@ -21,7 +21,6 @@ import { Avatar, Sheet, timeAgo, useAvatarVersion } from './ui';
 import { createPortal } from 'react-dom';
 
 const DURATION_MS = 5000;
-const TICK_MS = 50;
 const MAX_BYTES = 8 * 1024 * 1024;
 const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
@@ -446,12 +445,12 @@ function StoryMusic({ track, paused, stop }: { track: Track; paused: boolean; st
   );
 }
 
-function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start: number; onClose: () => void; onOwnSeen: (latestAt: string) => void }) {
+function Viewer({ users, start, startStoryId, onClose, onOwnSeen }: { users: TrayUser[]; start: number; startStoryId?: string; onClose: () => void; onOwnSeen: (latestAt: string) => void }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [u, setU] = useState(start);
   const [s, setS] = useState(0);
-  const [pct, setPct] = useState(0);
+  const [round, setRound] = useState(0); // reinicia a barra (voltar atrás no primeiro story)
   const [held, setHeld] = useState(false);
   const [panel, setPanel] = useState<null | 'menu' | 'viewers' | 'comments'>(null);
   const [typing, setTyping] = useState(false);
@@ -463,7 +462,8 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
   const openedAt = useRef(here);
   useEffect(() => { if (here !== openedAt.current) onClose(); }, [here]); // eslint-disable-line react-hooks/exhaustive-deps
   const user = users[u];
-  const q = useQuery({ queryKey: ['stories', user.username], queryFn: () => api.storiesOf(user.username) });
+  // Sempre a lista fresca do servidor (a da cache pode ter os "vistos" desatualizados).
+  const q = useQuery({ queryKey: ['stories', user.username], queryFn: () => api.storiesOf(user.username), refetchOnMount: 'always' });
   const list = q.data ?? [];
   const story = list[s];
   const paused = held || typing || panel !== null;
@@ -478,30 +478,28 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
     enabled: panel === 'viewers' && !!story,
   });
 
-  useEffect(() => { setS(0); setPct(0); }, [u]);
+  useEffect(() => { setS(0); }, [u]);
   // Como no Instagram: abre no primeiro story ainda não visto dessa pessoa (ou no primeiro, se já viu todos).
   const startedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!q.isSuccess || startedFor.current === user.username) return;
+    if (!q.isSuccess || q.isFetching || startedFor.current === user.username) return;
     startedFor.current = user.username;
+    const wanted = startStoryId ? list.findIndex((x) => x.id === startStoryId) : -1;
     const firstNew = list.findIndex((x) => !x.seen);
-    setS(firstNew === -1 ? 0 : firstNew);
-    setPct(0);
-  }, [q.isSuccess, user.username, list]);
-  useEffect(() => setPct(0), [s]);
+    setS(wanted !== -1 ? wanted : firstNew === -1 ? 0 : firstNew);
+  }, [q.isSuccess, q.isFetching, user.username, list]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!story) return;
     if (!user.isMe) api.viewStory(story.id).catch(() => undefined);
     else if (s === list.length - 1) onOwnSeen(user.latestAt); // chegou ao último dos meus: ficam como vistos
   }, [story?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Reels partilhados duram o que dura o vídeo (até 30 s); fotos, 5 s. A barra anda sozinha (CSS) e avisa quando chega ao fim.
+  const total = story?.mediaKind === 'video' && story.durationMs ? Math.min(story.durationMs, 30_000) : DURATION_MS;
+  // Já deixa o próximo story descarregado: a passagem fica instantânea.
   useEffect(() => {
-    if (!story || paused) return;
-    // Reels partilhados duram o que dura o vídeo (até 30 s); fotos, 5 s.
-    const total = story.mediaKind === 'video' && story.durationMs ? Math.min(story.durationMs, 30_000) : DURATION_MS;
-    const t = setInterval(() => setPct((p) => p + (100 * TICK_MS) / total), TICK_MS);
-    return () => clearInterval(t);
-  }, [story?.id, paused]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (pct >= 100) next(); }); // eslint-disable-line react-hooks/exhaustive-deps
+    const nx = list[s + 1];
+    if (nx && nx.mediaKind !== 'video') new Image().src = sized(nx.mediaUrl, 1080);
+  }, [s, list]);
   useEffect(() => {
     if (q.isSuccess && list.length === 0) next();
   }, [q.isSuccess, list.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -528,7 +526,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
   function prev() {
     if (s > 0) setS(s - 1);
     else if (u > 0) setU(u - 1);
-    else setPct(0);
+    else setRound((r) => r + 1);
   }
   async function remove() {
     if (!story) return;
@@ -606,7 +604,9 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
           <div className="flex gap-1" aria-hidden>
             {list.map((_, i) => (
               <span key={i} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/35">
-                <span className="block h-full rounded-full bg-white" style={{ width: i < s ? '100%' : i === s ? `${Math.min(pct, 100)}%` : '0%' }} />
+                {i < s ? <span className="block h-full w-full rounded-full bg-white" /> : i === s && story ? (
+                  <span key={`${story.id}-${round}`} onAnimationEnd={next} className="block h-full w-full origin-left rounded-full bg-white" style={{ animation: `story-bar ${total}ms linear forwards`, animationPlayState: paused ? 'paused' : 'running' }} />
+                ) : null}
               </span>
             ))}
           </div>
@@ -652,8 +652,8 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
         <button aria-label={tr('Seguinte')} onClick={tap(() => { setSeePost(false); next(); })} className={`absolute bottom-28 right-0 top-28 ${story?.sharedFrom ? 'w-[30%]' : 'w-2/3'}`} />
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/70 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-16">
-          {story?.music && <StoryMusic key={story.id} track={story.music} paused={paused} stop={stop} />}
-          {story?.caption && (
+          {!typing && story?.music && <StoryMusic key={story.id} track={story.music} paused={paused} stop={stop} />}
+          {!typing && story?.caption && (
             <p {...stop} className="pointer-events-auto max-w-full break-words rounded-2xl bg-black/40 px-4 py-2 text-center text-lg text-white backdrop-blur-sm [&_a]:underline [&_a]:text-white"><RichText text={story.caption} /></p>
           )}
           {user.isMe && story && (
@@ -669,7 +669,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
               </button>
             </div>
           )}
-          {!user.isMe && story && (
+          {!user.isMe && story && !typing && (
             <button {...stop} onClick={() => setPanel('comments')} className="pointer-events-auto flex min-h-10 items-center gap-2 rounded-full bg-black/40 px-4 text-sm font-semibold text-white backdrop-blur-sm active:scale-95">
               <Icon name="comment" size={18} /> {story.commentCount > 0 ? `${story.commentCount} ${story.commentCount === 1 ? tr('comentário') : tr('comentários')}` : tr('Comentar')}
             </button>
@@ -750,6 +750,39 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
 }
 
 /** Criador de story (foto + legenda + quem vê). `onBack`, se existir, volta ao passo anterior (a câmara) em vez de cancelar. */
+/**
+ * A miniatura de um story dentro do chat (resposta a um story): toca para o ver. Ao fechar, ficas na conversa.
+ * Se o story já expirou (24 h), avisa em vez de abrir.
+ */
+export function ChatStoryThumb({ src, ownerUsername, ownerName, isMe, thumb, alt }: { src: string; ownerUsername: string; ownerName: string; isMe: boolean; thumb: string; alt: string }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState<{ tray: TrayUser; id: string } | null>(null);
+  const [gone, setGone] = useState(false);
+  async function show() {
+    setGone(false);
+    try {
+      const list = await qc.fetchQuery({ queryKey: ['stories', ownerUsername], queryFn: () => api.storiesOf(ownerUsername), staleTime: 0 });
+      const hit = list.find((x) => x.mediaUrl === src);
+      if (!hit) return void setGone(true);
+      setOpen({
+        id: hit.id,
+        tray: { username: ownerUsername, displayName: ownerName, isMe, count: list.length, seenCount: list.filter((x) => x.seen).length, seen: false, closeFriends: list.every((x) => x.audience === 'close_friends'), latestAt: list[list.length - 1].createdAt },
+      });
+    } catch {
+      setGone(true);
+    }
+  }
+  return (
+    <>
+      <button type="button" onClick={(e) => { e.stopPropagation(); void show(); }} aria-label={tr('Ver o story')} className="mb-1 block text-left">
+        <img src={thumb} alt={alt} className="h-28 w-[72px] rounded-xl object-cover opacity-90 active:opacity-70" />
+        {gone && <span className="mt-0.5 block w-[72px] text-[11px] leading-tight text-zinc-500">{tr('Este story já expirou')}</span>}
+      </button>
+      {open && <Viewer users={[open.tray]} start={0} startStoryId={open.id} onOwnSeen={writeOwnSeen} onClose={() => { setOpen(null); qc.invalidateQueries({ queryKey: ['stories'] }); }} />}
+    </>
+  );
+}
+
 export function StoryCreator({ file, onClose, onBack }: { file: File; onClose: () => void; onBack?: () => void }) {
   const qc = useQueryClient();
   const [preview] = useState(() => URL.createObjectURL(file));

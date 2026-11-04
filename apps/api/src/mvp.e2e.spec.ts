@@ -149,6 +149,11 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
 
     const feed = await api().get('/api/v1/posts?limit=5').set(auth(ana)).expect(200);
     expect(feed.body.items[0]).toMatchObject({ id: post.body.id, comments: 1, gifts: 1, cheers: 0, cheered: false });
+    // Presente público num post: o anúncio leva a publicação presenteada lá dentro.
+    const pub = await api().post(`/api/v1/posts/${post.body.id}/gifts`).set(auth(ana)).set('Idempotency-Key', `gift-${run}-pub`).send({ amount: 3, note: 'Bom post', visibility: 'public' }).expect(201);
+    expect(pub.body.announcement.kind).toBe('gift');
+    expect(pub.body.announcement.repostOf.id).toBe(post.body.id);
+    expect(pub.body.announcement.gift.amount).toBe(3);
   });
 
   async function uploadPng(u: { token: string }) {
