@@ -183,13 +183,16 @@ export default function ProfilePage() {
 
         {/* Botões compactos, como nas redes sociais. */}
         {!blocked && (
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
             {p.isMe ? (
               <>
                 <button onClick={() => setSheet('edit')} className={`${btnSmall} flex-1`}>{tr('Editar perfil')}</button>
                 <button onClick={share} className={`${btnSmall} flex-1`}>{tr('Partilhar perfil')}</button>
                 <button onClick={() => navigate('/wallet')} aria-label={tr('Carteira de Txills')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
                   <Icon name="wallet" size={18} className="mx-auto" />
+                </button>
+                <button onClick={() => navigate('/invites')} className={`${btnSmall} flex basis-full items-center justify-center gap-2`}>
+                  <Icon name="user-plus" size={18} /> {tr('Convidar amigos')}
                 </button>
               </>
             ) : (
