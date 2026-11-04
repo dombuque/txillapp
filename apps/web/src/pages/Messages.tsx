@@ -119,18 +119,18 @@ export default function Messages() {
             <Link to={r.to} className="flex items-center gap-3 rounded-2xl px-1 py-3 active:bg-zinc-100">
               <span className="relative shrink-0">
                 {r.group ? (
-                  <span className="relative block h-[52px] w-[52px]">
+                  <span className="relative m-[5px] block h-[52px] w-[52px]">
                     {r.avatar.names.slice(0, 2).map((a, i) => (
                       <span key={i} className={`absolute rounded-full ring-2 ring-white ${i === 0 ? 'left-0 top-0' : 'bottom-0 right-0'}`}><Avatar name={a.name} username={a.username} size={32} ring={false} /></span>
                     ))}
                     {r.avatar.names.length === 0 && <span className="flex h-full w-full items-center justify-center rounded-full bg-zinc-100 text-zinc-600"><Icon name="users" size={24} /></span>}
                   </span>
                 ) : (
-                  <span className={`block rounded-full p-[3px] ${r.unread ? 'bg-gradient-to-tr from-brand to-[#ff9a5b]' : ''}`}>
-                    <span className={`block rounded-full ${r.unread ? 'bg-white p-[2px]' : ''}`}><Avatar name={r.avatar.names[0].name} username={r.avatar.names[0].username} size={r.unread ? 52 : 58} ring={false} /></span>
+                  <span className={`flex h-[62px] w-[62px] items-center justify-center rounded-full ${r.unread ? 'bg-gradient-to-tr from-brand to-[#ff9a5b]' : ''}`}>
+                    <span className={`flex h-[56px] w-[56px] items-center justify-center rounded-full ${r.unread ? 'bg-white' : ''}`}><Avatar name={r.avatar.names[0].name} username={r.avatar.names[0].username} size={r.unread ? 50 : 56} ring={false} /></span>
                   </span>
                 )}
-                {r.online && <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" aria-label={tr('Online')} />}
+                {r.online && <span className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" aria-label={tr('Online')} />}
               </span>
               <span className="min-w-0 flex-1">
                 <span className={`flex items-center gap-1.5 text-[17px] ${r.unread ? 'font-extrabold' : 'font-semibold'}`}>
