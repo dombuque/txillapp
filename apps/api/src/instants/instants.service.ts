@@ -128,8 +128,10 @@ export class InstantsService {
     const own = await this.pool.query('SELECT 1 FROM social.instants WHERE id = $1 AND author_id = $2', [id, me]);
     if (!own.rowCount) throw new NotFoundException('Instant não encontrado');
     const { rows } = await this.pool.query(
-      `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", v.viewed_at AS "at"
-         FROM social.instant_views v JOIN identity.users u ON u.id = v.viewer_id WHERE v.instant_id = $1 ORDER BY v.viewed_at DESC LIMIT 200`,
+      `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", v.viewed_at AS "at", r.reaction
+         FROM social.instant_views v JOIN identity.users u ON u.id = v.viewer_id
+         LEFT JOIN social.instant_reactions r ON r.instant_id = v.instant_id AND r.user_id = v.viewer_id
+        WHERE v.instant_id = $1 ORDER BY v.viewed_at DESC LIMIT 200`,
       [id],
     );
     return rows;

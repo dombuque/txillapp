@@ -11,15 +11,15 @@ import { markSeen } from '../lib/whatsNew';
 import { NewBadge } from './WhatsNew';
 import CloseFriendsSheet from './CloseFriendsSheet';
 import FlashIcon from './FlashIcon';
+import { renderZasImage } from '../lib/zasImage';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { FUN_FX, createFunRenderer, type FunRenderer } from '../lib/funFilters';
 import { Avatar, Sheet, timeAgo } from './ui';
 
-/** Guardar a foto de um Zás: no telemóvel abre a folha de partilha ("Guardar imagem"); no computador descarrega o ficheiro. */
-async function saveInstant(it: { id: string; url: string }) {
+/** Guardar o Zás como está desenhado (foto na moldura, com a legenda): no telemóvel abre a folha de partilha ("Guardar imagem"); no computador descarrega o PNG. */
+async function saveInstant(it: { id: string; url: string; caption?: string }) {
   try {
-    const b = await (await fetch(it.url)).blob();
-    const f = new File([b], `zas-${it.id.slice(0, 8)}.jpg`, { type: b.type || 'image/jpeg' });
+    const f = new File([await renderZasImage(it.url, it.caption ?? '')], `zas-${it.id.slice(0, 8)}.png`, { type: 'image/png' });
     if (navigator.canShare?.({ files: [f] })) return void (await navigator.share({ files: [f] }));
     const a = document.createElement('a');
     a.href = URL.createObjectURL(f);
@@ -49,6 +49,21 @@ export default function InstantsDock() {
   const [mode, setMode] = useState<null | 'view' | 'cam'>(null);
   const [queue, setQueue] = useState<{ username: string; displayName: string }[]>([]);
   const [at, setAt] = useState(0);
+  // Como o atalho do Instagram: espreita a meio e sai de vez quando a lista pára de mexer.
+  const [away, setAway] = useState(true);
+  useEffect(() => {
+    let t = window.setTimeout(() => setAway(false), 500);
+    const onScroll = () => {
+      setAway(true);
+      window.clearTimeout(t);
+      t = window.setTimeout(() => setAway(false), 900);
+    };
+    document.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('scroll', onScroll, true);
+      window.clearTimeout(t);
+    };
+  }, []);
   if (!user) return null;
   const refresh = () => void qc.invalidateQueries({ queryKey: ['instants'] });
   const others = data?.others ?? [];
@@ -68,21 +83,23 @@ export default function InstantsDock() {
           } else setMode('cam');
         }}
         aria-label={total ? tr('Zás: {n} por ver', { n: total }) : tr('Mandar um Zás')}
-        className="fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom))] right-3 z-20 flex h-[60px] w-12 items-center justify-center rounded-[20px] bg-gradient-to-br from-brand to-[#ff9a5b] text-white shadow-[0_4px_14px_rgba(214,51,79,0.5)] ring-2 ring-white active:scale-90"
+        className="fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom))] right-0 z-20 h-[76px] w-[84px] active:scale-95"
+        style={{ transform: away ? 'translateX(52%)' : 'translateX(0)', transition: 'transform .4s cubic-bezier(.2,.9,.3,1.15)' }}
       >
-        {top ? (
-          <>
-            {/* Miniatura minúscula e desfocada feita pelo servidor: dá a ideia sem mostrar a foto (só se vê uma vez). */}
-            {top.preview && <img src={top.preview} alt="" draggable={false} className="absolute inset-0 h-full w-full scale-110 rounded-[inherit] object-cover blur-[2px]" />}
-            <span className="absolute inset-0 rounded-[inherit] bg-black/15" />
-            <span className="absolute -bottom-1.5 -left-1.5 rounded-full bg-white p-[2px] shadow"><Avatar name={top.displayName} username={top.hasAvatar ? top.username : undefined} size={26} ring={false} /></span>
-            <span className="absolute inset-0 flex items-center justify-center"><Icon name="bolt" size={22} fill="currentColor" className="drop-shadow" /></span>
-          </>
-        ) : (
-          <Icon name="bolt" size={24} fill="currentColor" />
-        )}
-        <NewBadge id="zas" className="absolute -left-4 -top-3" />
-        {total > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1 text-[11px] font-bold text-white ring-2 ring-white">{total > 9 ? '9+' : total}</span>}
+        {/* Um baralho: as cartas dos Zás por ver, com a de trás a espreitar por baixo, e assim sucessivamente. */}
+        {(others.length ? [...others.slice(0, 3)].reverse() : [null]).map((o, idx, arr) => {
+          const depth = arr.length - 1 - idx;
+          return (
+            <span key={o?.username ?? 'vazio'} className="absolute right-4 top-3 h-[60px] w-[48px] overflow-hidden rounded-[18px] bg-gradient-to-br from-brand to-[#ff9a5b] shadow-[0_4px_12px_rgba(214,51,79,0.45)] ring-2 ring-white" style={{ transform: `translate(${-depth * 11}px, ${depth * -4}px) rotate(${-depth * 7}deg)`, zIndex: 3 - depth }}>
+              {o?.preview && <img src={o.preview} alt="" draggable={false} className="absolute inset-0 h-full w-full scale-110 object-cover blur-[2px]" />}
+              <span className="absolute inset-0 bg-black/10" />
+              {depth === 0 && <span className="absolute inset-0 flex items-center justify-center text-white"><Icon name="bolt" size={22} fill="currentColor" className="drop-shadow" /></span>}
+            </span>
+          );
+        })}
+        {top && <span className="absolute bottom-1 right-12 z-[5] rounded-full bg-white p-[2px] shadow"><Avatar name={top.displayName} username={top.hasAvatar ? top.username : undefined} size={26} ring={false} /></span>}
+        <NewBadge id="zas" className="absolute left-0 top-0 z-[6]" />
+        {total > 0 && <span className="absolute right-2 top-1 z-[6] flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1 text-[11px] font-bold text-white ring-2 ring-white">{total > 9 ? '9+' : total}</span>}
       </button>
       {top && (
         <span aria-hidden className="pointer-events-none fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom)+0.6rem)] right-[4.4rem] z-20 flex max-w-[11rem] items-center gap-1 truncate rounded-full bg-zinc-900/85 px-2.5 py-1 text-[12px] font-semibold text-white shadow-md">
@@ -204,6 +221,12 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
         }
         const caps = (s.getVideoTracks()[0]?.getCapabilities?.() ?? {}) as { torch?: boolean };
         setCanTorch(!!caps.torch);
+        // Se o aparelho não deu 3:4, tenta forçá-lo (evita a imagem cortada dentro da moldura).
+        const vt = s.getVideoTracks()[0];
+        const st = vt?.getSettings?.();
+        if (vt && st?.width && st?.height && Math.abs(Math.min(st.width, st.height) / Math.max(st.width, st.height) - 0.75) > 0.04) {
+          vt.applyConstraints({ aspectRatio: 3 / 4 }).catch(() => undefined);
+        }
         setLight(false);
         setReady(true);
       } catch {
@@ -549,7 +572,7 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
   const [items, setItems] = useState<InstantItem[] | null>(null);
   const [err, setErr] = useState('');
   const [open, setOpen] = useState<string | null>(null);
-  const [who, setWho] = useState<{ username: string; displayName: string; hasAvatar: boolean; at: string }[] | null>(null);
+  const [who, setWho] = useState<{ username: string; displayName: string; hasAvatar: boolean; at: string; reaction?: string | null }[] | null>(null);
   const showWho = (id: string) => api.instantViewers(id).then(setWho).catch((e) => setErr((e as Error).message));
   const [del, setDel] = useState<InstantItem | null>(null);
   const [menu, setMenu] = useState<InstantItem | null>(null);
@@ -558,8 +581,7 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
 
   // Guardar na galeria / partilhar: no telemóvel abre a folha de partilha (com "Guardar imagem"); no computador descarrega o ficheiro.
   async function photoOf(it: InstantItem) {
-    const b = await (await fetch(it.url)).blob();
-    return new File([b], `zas-${it.id.slice(0, 8)}.jpg`, { type: b.type || 'image/jpeg' });
+    return new File([await renderZasImage(it.url, it.caption)], `zas-${it.id.slice(0, 8)}.png`, { type: 'image/png' });
   }
   async function save(it: InstantItem) {
     setMenu(null);
@@ -686,6 +708,7 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
                 <li key={v.username} className="flex items-center gap-3 py-2">
                   <Avatar name={v.displayName} username={v.hasAvatar ? v.username : undefined} size={40} ring={false} />
                   <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{v.displayName}</span><span className="block text-sm text-zinc-500">@{v.username} · {hm(v.at)}</span></span>
+                  {v.reaction && <Reaction body={v.reaction} size={30} />}
                 </li>
               ))}
             </ul>
@@ -702,14 +725,14 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
 function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who: { username: string; displayName: string }; own: boolean; onClose: () => void; onFinish?: () => void; onCamera?: () => void; startId?: string }) {
   const [items, setItems] = useState<InstantItem[] | null>(null);
   const [i, setI] = useState(0);
-  const [viewers, setViewers] = useState<{ username: string; displayName: string; hasAvatar: boolean; at: string }[] | null>(null);
+  const [viewers, setViewers] = useState<{ username: string; displayName: string; hasAvatar: boolean; at: string; reaction?: string | null }[] | null>(null);
   const [err, setErr] = useState('');
   const [reply, setReply] = useState('');
   const [note, setNote] = useState('');
   const marked = useRef(new Set<string>());
   // Arrastar para baixo fecha (o cartão acompanha o dedo); duplo toque na foto reage com um brinde.
   const [drag, setDrag] = useState(0);
-  const touch = useRef<{ x: number; y: number; on: boolean } | null>(null);
+  const touch = useRef<{ x: number; y: number; on: boolean; up?: boolean } | null>(null);
   const [pop, setPop] = useState<{ n: number; id: string } | null>(null);
   const tapTimer = useRef<number | null>(null);
 
@@ -758,13 +781,21 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
       if (!t) return;
       const dy = e.touches[0].clientY - t.y;
       const dx = e.touches[0].clientX - t.x;
-      if (!t.on && dy > 12 && dy > Math.abs(dx) * 1.5) t.on = true;
+      if (!t.on && !t.up) {
+        if (dy > 12 && dy > Math.abs(dx) * 1.5) t.on = true;
+        else if (own && dy < -12 && -dy > Math.abs(dx) * 1.5) t.up = true;
+      }
       if (t.on) setDrag(Math.max(0, dy));
     },
-    onTouchEnd: () => {
+    onTouchEnd: (e: React.TouchEvent) => {
       const t = touch.current;
       touch.current = null;
       if (t?.on && drag > 110) onClose();
+      // Nos meus Zás, deslizar para cima mostra quem viu e as reações.
+      if (t?.up && e.changedTouches[0].clientY - t.y < -60) {
+        navigator.vibrate?.(8);
+        void showViewers();
+      }
       setDrag(0);
     },
   };
@@ -816,21 +847,13 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={`Zás de ${who.displayName}`} className="fixed inset-0 z-[96] flex flex-col bg-black text-white" style={{ backgroundColor: drag ? `rgba(0,0,0,${Math.max(0.3, 1 - drag / 400)})` : undefined }}>
       <SquircleDefs />
-      <div className="mt-[max(0.5rem,env(safe-area-inset-top))] flex min-h-0 flex-1 items-center justify-center px-5">
-      <div {...dragProps} className="relative h-full max-h-[600px] overflow-hidden bg-zinc-900" style={{ ...SQUIRCLE, transform: drag ? `translateY(${drag}px) scale(${Math.max(0.85, 1 - drag / 1500)})` : undefined, transition: drag ? 'none' : 'transform .2s ease-out', touchAction: 'pan-x', aspectRatio: '3 / 4', maxWidth: '100%' }}>
-        {cur ? <img src={cur.url} alt={cur.caption || tr('Zás')} draggable={false} onContextMenu={(e) => e.preventDefault()} className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover [-webkit-touch-callout:none]" /> : <p className="absolute inset-0 flex items-center justify-center text-white/70">{err || tr('A carregar…')}</p>}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/55 to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/60 to-transparent" />
-
-        {/* Metades do ecrã: anterior / seguinte. */}
-        <button type="button" aria-label={tr('Anterior')} onClick={() => tapZone(() => setI((k) => Math.max(0, k - 1)))} className="absolute inset-y-16 left-0 w-1/3" />
-        <button type="button" aria-label={tr('Seguinte')} onClick={() => tapZone(next)} className="absolute inset-y-16 right-0 w-2/3" />
-        {pop && <span key={pop.n} aria-hidden className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center opacity-0 animate-[burst_.9s_ease-out_forwards]"><Reaction body={pop.id} size={120} /></span>}
-
-        <div className="absolute inset-x-6 top-4 flex gap-1" aria-hidden>
+      <div className="shrink-0 px-5 pt-[max(0.5rem,env(safe-area-inset-top))]">
+        {!own && (
+        <div className="mb-3 flex gap-1" aria-hidden>
           {(items ?? [{ id: 'x' }]).map((x, k) => <span key={x.id} className={`h-1 flex-1 rounded-full ${k <= i ? 'bg-white' : 'bg-white/35'}`} />)}
         </div>
-        <div className="absolute inset-x-5 top-8 flex items-center gap-3">
+        )}
+        <div className="flex items-center gap-3 px-1">
           <Avatar name={who.displayName} username={who.username} size={38} ring={false} />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[16px] font-bold leading-tight drop-shadow">{own ? tr('Os teus Zás') : who.displayName}</span>
@@ -844,8 +867,21 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
           <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 backdrop-blur-md active:scale-90"><Icon name="x" size={22} /></button>
         </div>
 
-        {cur?.caption && <CurvedCaption text={cur.caption} arc="bottom" />}
-        {(err || note) && cur && <p role={err ? 'alert' : 'status'} className={`absolute inset-x-8 top-24 rounded-full px-4 py-2 text-center text-sm font-semibold ${err ? 'bg-red-600/90' : 'bg-emerald-600/90'}`}>{err || note}</p>}
+      </div>
+      <div className="mt-3 flex min-h-0 flex-1 items-center justify-center px-5">
+      <div {...dragProps} className="relative h-full max-h-[600px] overflow-hidden bg-zinc-900" style={{ ...SQUIRCLE, transform: drag ? `translateY(${drag}px) scale(${Math.max(0.85, 1 - drag / 1500)})` : undefined, transition: drag ? 'none' : 'transform .2s ease-out', touchAction: 'pan-x', aspectRatio: '3 / 4', maxWidth: '100%' }}>
+        {cur ? <img src={cur.url} alt={cur.caption || tr('Zás')} draggable={false} onContextMenu={(e) => e.preventDefault()} className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover [-webkit-touch-callout:none]" /> : <p className="absolute inset-0 flex items-center justify-center text-white/70">{err || tr('A carregar…')}</p>}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/35 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/60 to-transparent" />
+
+        {/* Metades do ecrã: anterior / seguinte. */}
+        <button type="button" aria-label={tr('Anterior')} onClick={() => tapZone(() => setI((k) => Math.max(0, k - 1)))} className="absolute inset-y-16 left-0 w-1/3" />
+        <button type="button" aria-label={tr('Seguinte')} onClick={() => tapZone(next)} className="absolute inset-y-16 right-0 w-2/3" />
+        {pop && <span key={pop.n} aria-hidden className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center opacity-0 animate-[burst_.9s_ease-out_forwards]"><Reaction body={pop.id} size={120} /></span>}
+
+        {cur?.caption && <CurvedCaption text={cur.caption} arc="top" />}
+        {own && cur && <div className="pointer-events-none absolute inset-x-0 bottom-4 z-[3] flex flex-col items-center text-white/85 drop-shadow" aria-hidden><Icon name="chevron-right" size={20} className="-rotate-90" /><span className="text-[11px] font-bold uppercase tracking-wider">{tr('{n} viram', { n: cur.views ?? 0 })}</span></div>}
+        {(err || note) && cur && <p role={err ? 'alert' : 'status'} className={`absolute inset-x-8 top-6 z-10 rounded-full px-4 py-2 text-center text-sm font-semibold ${err ? 'bg-red-600/90' : 'bg-emerald-600/90'}`}>{err || note}</p>}
       </div>
       </div>
 
@@ -886,6 +922,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
                 <li key={v.username} className="flex items-center gap-3 py-2">
                   <Avatar name={v.displayName} username={v.hasAvatar ? v.username : undefined} size={40} ring={false} />
                   <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{v.displayName}</span><span className="block text-sm text-zinc-500">@{v.username} · {hm(v.at)}</span></span>
+                  {v.reaction && <Reaction body={v.reaction} size={30} />}
                 </li>
               ))}
             </ul>

@@ -514,7 +514,7 @@ export const api = {
   profile: (username: string): Promise<Profile> => raw(`/users/${encodeURIComponent(username)}`),
   userPosts: (username: string, cursor?: string, tab: ProfileTab = 'all'): Promise<Page<Post>> => raw(`/users/${encodeURIComponent(username)}/posts${qs(cursor, 18)}${(qs(cursor, 18) ? '&' : '?')}tab=${tab}`),
   follow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/follow`, post({})),
-  unfollow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/follow`, { method: 'DELETE' }),
+  unfollow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/unfollow`, post({})),
   followers: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/followers${qs(cursor, undefined, q)}`),
   following: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/following${qs(cursor, undefined, q)}`),
   updateMe: (b: { displayName?: string; bio?: string; isPrivate?: boolean; website?: string; city?: string }): Promise<{ id: string; username: string; displayName: string; bio: string | null; isPrivate: boolean; website: string | null; city: string | null }> =>
@@ -602,7 +602,7 @@ export const api = {
   instantCreate: (mediaId: string, caption: string, audience: 'friends' | 'close' = 'friends'): Promise<{ id: string; expiresAt: string }> => raw('/instants', post({ mediaId, caption, audience })),
   instantView: (id: string): Promise<void> => raw(`/instants/${id}/view`, post({})),
   instantReact: (id: string, reaction: string): Promise<void> => raw(`/instants/${id}/reaction`, { method: 'PUT', body: JSON.stringify({ reaction }) }),
-  instantViewers: (id: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; at: string }[]> => raw(`/instants/${id}/viewers`),
+  instantViewers: (id: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; at: string; reaction?: string | null }[]> => raw(`/instants/${id}/viewers`),
   instantDelete: (id: string): Promise<void> => raw(`/instants/${id}`, { method: 'DELETE' }),
   storiesOf: (username: string): Promise<Story[]> => raw(`/stories/user/${encodeURIComponent(username)}`),
   createStory: (mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all', music?: Track | null): Promise<Story> => raw('/stories', post({ mediaId, caption, audience, music: musicPayload(music) })),

@@ -1,7 +1,7 @@
 import { useOnline } from '../lib/presence';
 import { tr } from '../lib/i18n';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject, type TouchEvent } from 'react';
 
 const BRAND = '#d6334f';
 
@@ -103,7 +103,56 @@ export function timeAgo(iso: string) {
   return tr('Há {n}d', { n: Math.floor(s / 86400) });
 }
 
-/** Folha inferior (bottom sheet) acessível, com pega de arrastar visual. */
+/** A página de trás não anda enquanto há uma folha aberta (vários níveis contam-se). */
+let scrollLocks = 0;
+export function useScrollLock() {
+  useEffect(() => {
+    if (scrollLocks++ === 0) document.documentElement.style.overflow = 'hidden';
+    return () => {
+      if (--scrollLocks === 0) document.documentElement.style.overflow = '';
+    };
+  }, []);
+}
+
+/**
+ * Arrastar para baixo fecha (folhas e visualizadores). O gesto só começa quando o conteúdo está no topo e nunca chega ao que está por baixo
+ * (o feed não se mexe nem recarrega): os eventos de toque ficam aqui.
+ */
+export function useSwipeDown(onClose: () => void, scroller?: RefObject<HTMLElement>) {
+  const [dy, setDy] = useState(0);
+  const st = useRef<{ y: number; on: boolean; t: number } | null>(null);
+  const props = {
+    onTouchStart(e: TouchEvent) {
+      e.stopPropagation();
+      st.current = { y: e.touches[0].clientY, on: false, t: Date.now() };
+    },
+    onTouchMove(e: TouchEvent) {
+      e.stopPropagation();
+      const s = st.current;
+      if (!s) return;
+      const y = e.touches[0].clientY;
+      const top = (scroller?.current?.scrollTop ?? 0) <= 0;
+      if (!s.on) {
+        if (!top || y < s.y) s.y = y; // enquanto o conteúdo anda, a linha de partida acompanha
+        else if (y - s.y > 8) {
+          s.on = true;
+          s.t = Date.now();
+        }
+      }
+      if (s.on) setDy(Math.max(0, y - s.y));
+    },
+    onTouchEnd(e: TouchEvent) {
+      e.stopPropagation();
+      const s = st.current;
+      st.current = null;
+      if (s?.on && (dy > 120 || (dy > 50 && dy / Math.max(1, Date.now() - s.t) > 0.6))) onClose();
+      setDy(0);
+    },
+  };
+  return { dy, props };
+}
+
+/** Folha inferior (bottom sheet) acessível, com pega de arrastar: puxar para baixo fecha. */
 export function Sheet({ title, onClose, children, layer = 'z-50' }: { title: string; onClose: () => void; children: ReactNode; layer?: string }) {
   // Esc fecha (teclado/acessibilidade).
   useEffect(() => {
@@ -113,14 +162,18 @@ export function Sheet({ title, onClose, children, layer = 'z-50' }: { title: str
   }, [onClose]);
   // iPhone: com o teclado aberto a folha sobe e fica na zona visível (o que escreves nunca fica tapado).
   const vv = useVisualViewport();
+  useScrollLock();
+  const box = useRef<HTMLDivElement>(null);
+  const { dy, props: drag } = useSwipeDown(onClose, box);
   return (
-    <div className={`fixed inset-0 ${layer} flex items-end justify-center bg-black/40`} style={visibleStyle(vv)} onClick={onClose} role="presentation">
+    <div className={`fixed inset-0 ${layer} flex items-end justify-center bg-black/40`} style={{ ...visibleStyle(vv), backgroundColor: dy ? `rgba(0,0,0,${Math.max(0.1, 0.4 - dy / 700)})` : undefined, touchAction: 'none' }} onClick={onClose} role="presentation" {...drag}>
       <div
+        ref={box}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="animate-[rise_.25s_ease-out] max-h-[85dvh] w-full max-w-xl overflow-y-auto rounded-t-[28px] bg-white px-6 pb-8 pt-3"
-        style={vv ? { maxHeight: Math.round(vv.height * 0.94) } : undefined}
+        className="animate-[rise_.25s_ease-out] max-h-[85dvh] w-full max-w-xl overflow-y-auto overscroll-contain rounded-t-[28px] bg-white px-6 pb-8 pt-3"
+        style={{ ...(vv ? { maxHeight: Math.round(vv.height * 0.94) } : {}), transform: dy ? `translateY(${dy}px)` : undefined, transition: dy ? 'none' : 'transform .2s ease-out', touchAction: 'pan-y' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-zinc-300" aria-hidden />

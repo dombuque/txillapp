@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import Icon from './Icon';
-import { Avatar } from './ui';
+import { Avatar, useScrollLock, useSwipeDown } from './ui';
 
 interface Person { username: string; displayName: string; hasAvatar: boolean }
 
@@ -63,13 +63,17 @@ export default function NewChat({ onClose, addTo, onCreated }: { onClose: () => 
   const label = addTo ? `Adicionar ${picked.length || ''}`.trim() : picked.length === 1 ? 'Conversar' : picked.length > 1 ? (naming ? 'Criar grupo' : 'Seguinte') : 'Escolhe pessoas';
 
   const title = addTo ? 'Adicionar ao grupo' : naming ? 'Nome do grupo' : 'Nova conversa';
+  useScrollLock();
+  const { dy, props: drag } = useSwipeDown(onClose);
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40" onClick={onClose} role="presentation">
-      <div role="dialog" aria-modal="true" aria-label={title} className="flex h-[78dvh] max-h-[640px] w-full max-w-xl animate-[rise_.25s_ease-out] flex-col rounded-t-[28px] bg-white" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40" onClick={onClose} role="presentation" style={{ touchAction: 'none' }} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label={title} style={{ transform: dy ? `translateY(${dy}px)` : undefined, transition: dy ? 'none' : 'transform .2s ease-out' }} className="flex h-[78dvh] max-h-[640px] w-full max-w-xl animate-[rise_.25s_ease-out] flex-col rounded-t-[28px] bg-white" onClick={(e) => e.stopPropagation()}>
+        <div {...drag} className="shrink-0" style={{ touchAction: 'none' }}>
         <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-zinc-300" aria-hidden />
         <div className="relative flex shrink-0 items-center justify-center px-4 pb-2 pt-3">
           <h2 className="text-[17px] font-bold">{title}</h2>
           <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="absolute right-2 flex h-10 w-10 items-center justify-center rounded-full text-zinc-600 active:bg-zinc-100"><Icon name="x" size={20} /></button>
+        </div>
         </div>
 
         {naming ? (

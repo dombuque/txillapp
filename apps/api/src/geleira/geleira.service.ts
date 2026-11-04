@@ -202,17 +202,26 @@ export class GeleiraService {
                       WHEN i.kind = 'sitio' THEN CASE WHEN i.category = 'noite' THEN 3 ELSE 1 END
                       ELSE 1 END) + CASE WHEN ui.favorite THEN 1 ELSE 0 END), 0)::int
                 FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id WHERE ui.user_id = $1 AND i.status = 'curated') AS taste_points,
-              -- Os Txills também contam: 1 ponto por cada 200, até 15.
-              (SELECT least(15, floor(coalesce(sum(a.balance), 0) / 200))::int FROM ledger.accounts a WHERE a.user_id = $1) AS txill_points`,
+              -- Os Txills também contam, mas pouco: 1 ponto por cada 200, até 5 (dinheiro não faz uma paulada).
+              (SELECT least(5, floor(coalesce(sum(a.balance), 0) / 200))::int FROM ledger.accounts a WHERE a.user_id = $1) AS txill_points,
+              -- Para subir aos níveis de topo é preciso ter mesmo bebidas com álcool e gostos avaliados (1 a 5).
+              (SELECT count(*)::int FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id WHERE ui.user_id = $1 AND i.status = 'curated' AND i.kind = 'bebida' AND i.alcoholic) AS alc_n,
+              (SELECT count(*)::int FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id WHERE ui.user_id = $1 AND i.status = 'curated' AND ui.rating IS NOT NULL) AS rated_n`,
       [owner[0].id],
     );
     const points = (rows[0].taste_points as number) + ((rows[0].txill_points as number) ?? 0);
     const steps = [1, 10, 25, 50];
-    const level = points <= 0 ? 0 : points >= steps[3] ? 4 : points >= steps[2] ? 3 : points >= steps[1] ? 2 : 1;
+    const byPoints = points <= 0 ? 0 : points >= steps[3] ? 4 : points >= steps[2] ? 3 : points >= steps[1] ? 2 : 1;
+    // Os dois níveis de cima pedem substância: bebidas com álcool e gostos avaliados. Sem isso, ficam no nível 2.
+    const alc = rows[0].alc_n as number;
+    const rated = rows[0].rated_n as number;
+    const needs = [0, 0, 0, 3, 6];
+    const level = Math.min(byPoints, alc >= needs[4] && rated >= needs[4] ? 4 : alc >= needs[3] && rated >= needs[3] ? 3 : 2);
+    const held = level < byPoints;
     const age = owner[0].birth_date ? Math.floor((Date.now() - new Date(owner[0].birth_date as string).getTime()) / 31_557_600_000) : null;
     const top = age !== null && age >= 45 ? 'Madala da paulada' : age !== null && age >= 30 ? 'Mestre da paulada' : 'Lenda da paulada';
     const titles = ['Geleira seca', 'A txilar', 'Maningue abastecida', 'Paulada garantida', top];
-    return { points, tasteContribution: rows[0].taste_points as number, txillContribution: (rows[0].txill_points as number) ?? 0, level, title: titles[level], toNext: level >= 4 ? null : steps[level] - points, nextTitle: level >= 4 ? null : level === 3 ? top : titles[level + 1] };
+    return { points, tasteContribution: rows[0].taste_points as number, txillContribution: (rows[0].txill_points as number) ?? 0, level, title: titles[level], toNext: level >= 4 ? null : held ? null : steps[level] - points, hint: held ? (level >= 2 ? `Para subir: pelo menos ${needs[level + 1]} bebidas com álcool e ${needs[level + 1]} gostos avaliados` : null) : null, nextTitle: level >= 4 ? null : level === 3 ? top : titles[level + 1] };
   }
 
   async settings(userId: string) {

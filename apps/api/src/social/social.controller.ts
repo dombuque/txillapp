@@ -127,6 +127,13 @@ export class SocialController {
     return this.social.follow(req.userId!, username);
   }
 
+  /** O mesmo que o DELETE, por POST: há redes e aparelhos que não deixam passar DELETE. */
+  @Post('users/:username/unfollow')
+  @HttpCode(200)
+  unfollowPost(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.social.unfollow(req.userId!, username);
+  }
+
   @Delete('users/:username/follow')
   unfollow(@Req() req: AuthedReq, @Param('username') username: string) {
     return this.social.unfollow(req.userId!, username);

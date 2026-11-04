@@ -816,8 +816,8 @@ export default function Thread() {
           <div ref={end} />
         </div>
         {(away || unseen > 0) && (
-          <button onClick={jumpDown} aria-label={unseen ? `${unseen} mensagens novas` : 'Ir para o fim'} className="absolute bottom-3 left-1/2 flex h-10 -translate-x-1/2 items-center gap-1.5 rounded-full bg-white px-4 text-sm font-bold text-zinc-800 shadow-[0_2px_12px_rgba(0,0,0,0.2)] ring-1 ring-zinc-100 active:scale-95">
-            <Icon name="chevron-right" size={16} className="rotate-90" /> {unseen ? `${unseen} ${unseen === 1 ? tr('nova') : tr('novas')}` : tr('Fim')}
+          <button onClick={jumpDown} aria-label={unseen ? `${unseen} mensagens novas` : 'Ir para o fim'} className={`absolute bottom-3 left-1/2 flex h-10 -translate-x-1/2 items-center justify-center gap-1.5 rounded-full bg-white text-sm font-bold ${unseen ? 'px-4' : 'w-10'} text-zinc-800 shadow-[0_2px_12px_rgba(0,0,0,0.2)] ring-1 ring-zinc-100 active:scale-95`}>
+            <Icon name="chevron-right" size={16} className="rotate-90" />{unseen ? ` ${unseen} ${unseen === 1 ? tr('nova') : tr('novas')}` : null}
           </button>
         )}
       </div>
@@ -891,7 +891,7 @@ export default function Thread() {
           </div>
         )}
         {panel === 'stickers' && <StickerPicker onPick={sendSticker} onClose={() => setPanel(null)} />}
-        <form onSubmit={submit} className="px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
+        <form onSubmit={submit} className="px-3 pb-[max(1.25rem,calc(env(safe-area-inset-bottom)+0.6rem))] pt-2">
           {err && <p role="alert" className="px-2 pb-1 text-center text-sm text-red-600">{err}</p>}
           {/* Como no Instagram: câmara à esquerda, o campo ao meio e, à direita, voz, galeria, stickers e mais. */}
           <div className="flex items-end gap-1 rounded-[26px] bg-zinc-100 p-1.5 transition-colors focus-within:bg-zinc-200/70">
