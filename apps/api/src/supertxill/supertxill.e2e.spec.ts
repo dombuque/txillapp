@@ -6,6 +6,7 @@ import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
 import { MSG } from './constants';
+import { classify } from '../common/topics';
 import { SuperTxillService } from './supertxill.service';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
@@ -343,5 +344,16 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     await api().put(`/api/v1/blocks/${author3.username}`).set(auth(me)).expect((r) => { if (r.status >= 400) throw new Error(`block ${r.status}`); });
     expect(((await api().get('/api/v1/feed/explore').set(auth(me)).expect(200)).body as { items: { id: string }[] }).items.map((x) => x.id)).not.toContain(outro.id);
     await api().get('/api/v1/feed/explore').expect(401);
+  });
+
+  it('temas: o humor é classificado por assunto e as hashtags pesam mais', () => {
+    expect(classify('Quando o chefe marca reunião na sexta-feira à tarde kkk')).toEqual(expect.arrayContaining(['humor-trabalho']));
+    expect(classify('A minha namorada quando eu esqueço o aniversário')).toEqual(expect.arrayContaining(['humor-relacoes']));
+    expect(classify('O chapa hoje estava cheio e o trânsito parado, só em Maputo')).toEqual(expect.arrayContaining(['humor-rua']));
+    expect(classify('o meu filho com a birra na loja')).toEqual(expect.arrayContaining(['humor-familia']));
+    expect(classify('Matapa com caranguejo para o almoço')).toContain('comida');
+    expect(classify('bom dia', ['futebol'])).toContain('desporto');
+    expect(classify('Texto sem nada de especial aqui')).toEqual([]);
+    expect(classify('golo golo golo futebol campeonato jogo equipa estadio treino cerveja').length).toBeLessThanOrEqual(3);
   });
 });

@@ -55,8 +55,8 @@ export class FeedController {
   }
 
   @Get('explore/topics')
-  exploreTopics(@Req() req: AuthedReq) {
-    return this.posts.exploreTopics(req.userId!);
+  exploreTopics(@Req() req: AuthedReq, @Query('all') all?: string) {
+    return this.posts.exploreTopics(req.userId!, all === '1');
   }
 
   /** Publicações de um sítio: ?label=...&mode=at|near. */

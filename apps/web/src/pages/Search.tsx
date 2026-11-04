@@ -37,7 +37,8 @@ export default function Search() {
   const hot = useQuery({ queryKey: ['places-hot'], queryFn: api.hotPlaces, staleTime: 60_000 });
   // Explorar: o "Para ti" (o algoritmo do Txillapp) ou um tema. Só publicações com foto ou vídeo.
   const [topic, setTopic] = useState<string | null>(null);
-  const topics = useQuery({ queryKey: ['explore-topics'], queryFn: api.exploreTopics, staleTime: 5 * 60_000, retry: false });
+  const [allOpen, setAllOpen] = useState(false); // ecrã com todos os filtros
+  const topics = useQuery({ queryKey: ['explore-topics'], queryFn: () => api.exploreTopics(), staleTime: 5 * 60_000, retry: false });
   const explore = useInfiniteQuery({
     queryKey: ['explore', topic],
     queryFn: ({ pageParam }) => api.explore(topic, pageParam),
@@ -119,6 +120,7 @@ export default function Search() {
       {/* Filtros do Explorar: "Para ti" (aprende contigo) e os temas do Txillapp. */}
       {!searching && (
         <div role="tablist" aria-label={tr('Temas')} className="flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <button type="button" onClick={() => setAllOpen(true)} aria-label={tr('Todos os filtros')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-900 active:scale-95"><Icon name="sliders" size={20} /></button>
           {[{ id: null as string | null, label: tr('Para ti') }, ...(topics.data ?? []).map((t) => ({ id: t.id as string | null, label: tr(t.label) }))].map((t) => (
             <button
               key={t.id ?? 'fy'}
@@ -307,6 +309,25 @@ export default function Search() {
       {viewing && <ExploreViewer items={grid} startId={viewing} onClose={() => setViewing(null)} />}
       {open && <ExploreViewer items={[open]} startId={open.id} title={tr('Publicação')} onClose={() => setOpen(null)} />}
       {ai !== null && <SuperTxillPanel onClose={() => setAi(null)} />}
+      {allOpen && <AllFilters current={topic} onPick={(t) => { setTopic(t); setAllOpen(false); }} onClose={() => setAllOpen(false)} />}
     </div>
+  );
+}
+
+/** Todos os filtros do Explorar: os teus interesses primeiro, com quantas publicações há de cada tema. */
+function AllFilters({ current, onPick, onClose }: { current: string | null; onPick: (t: string | null) => void; onClose: () => void }) {
+  const all = useQuery({ queryKey: ['explore-topics', 'all'], queryFn: () => api.exploreTopics(true), staleTime: 5 * 60_000, retry: false });
+  return (
+    <Sheet title={tr('Todos os filtros')} onClose={onClose}>
+      <div className="flex flex-wrap gap-2 pb-2">
+        <button onClick={() => onPick(null)} className={`h-10 rounded-full px-4 text-[14px] font-semibold ${current === null ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-800'}`}>{tr('Para ti')}</button>
+        {(all.data ?? []).map((t) => (
+          <button key={t.id} onClick={() => onPick(t.id)} className={`h-10 rounded-full px-4 text-[14px] font-semibold ${current === t.id ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-800'}`}>
+            {tr(t.label)} <span className={`ml-1 text-[12px] font-medium ${current === t.id ? 'text-white/70' : 'text-zinc-500'}`}>{t.count}</span>
+          </button>
+        ))}
+      </div>
+      {all.isLoading && <p className="py-6 text-center text-zinc-500">{tr('A carregar…')}</p>}
+    </Sheet>
   );
 }

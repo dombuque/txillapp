@@ -523,7 +523,7 @@ export class PostsService implements OnModuleInit {
   }
 
   /** Os temas para os chips do Explorar: os que têm publicações visíveis, com os teus interesses primeiro. */
-  async exploreTopics(viewerId: string) {
+  async exploreTopics(viewerId: string, all = false) {
     const { rows } = await this.pool.query(
       `WITH w AS (
          SELECT topic, sum(wt) AS wt FROM (
@@ -535,7 +535,7 @@ export class PostsService implements OnModuleInit {
           WHERE p.kind = 'post' AND p.created_at > now() - interval '45 days' AND p.author_id <> $1 AND p.topics IS NOT NULL
             AND EXISTS (SELECT 1 FROM content.post_media pm WHERE pm.post_id = p.id) AND ${ADULT} AND ${canView()} AND ${inMyNetwork()})
        SELECT vis.topic, count(*)::int AS n, COALESCE(max(w.wt), 0) AS mine FROM vis LEFT JOIN w ON w.topic = vis.topic GROUP BY vis.topic
-       ORDER BY COALESCE(max(w.wt), 0) DESC, count(*) DESC LIMIT 14`,
+       ORDER BY COALESCE(max(w.wt), 0) DESC, count(*) DESC LIMIT ${all ? 80 : 14}`,
       [viewerId],
     );
     return rows.map((r) => ({ id: r.topic as string, label: topicLabel(r.topic as string), count: r.n as number }));
