@@ -12,11 +12,17 @@ import { Avatar, Sheet, fieldInput, timeAgo } from './ui';
 const LIMIT = 60;
 
 /** O balão da nota, por cima da foto: texto curto em 3 linhas, com o "bico" a apontar para a pessoa. */
-function Bubble({ text, dim = false, music = false }: { text: string; dim?: boolean; music?: boolean }) {
+function Bubble({ text, dim = false, music = false, cheers = 0 }: { text: string; dim?: boolean; music?: boolean; cheers?: number }) {
   return (
     <span className={`relative mb-1.5 block max-w-[84px] rounded-[14px] bg-white px-2 py-1.5 text-center text-[11px] font-medium leading-[1.15] shadow-[0_1px_6px_rgba(0,0,0,0.18)] ring-1 ring-zinc-100 ${dim ? 'text-zinc-500' : 'text-zinc-800'}`}>
       <span className="line-clamp-3 break-words">{music && <Icon name="music" size={11} className="mr-0.5 inline align-[-1px]" />}{text}</span>
       <span aria-hidden className="absolute -bottom-1 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rotate-45 bg-white" />
+      {/* Brinde: aparece no topo da nota, a quem brindou e ao dono. */}
+      {cheers > 0 && (
+        <span role="img" aria-label={`${cheers} ${cheers === 1 ? 'brinde' : 'brindes'}`} className="absolute -right-2 -top-2.5 flex h-[22px] min-w-[22px] items-center justify-center gap-0.5 rounded-full bg-white px-1 text-green-700 shadow-[0_1px_5px_rgba(0,0,0,0.25)] ring-1 ring-green-100">
+          <Icon name="cheers" size={14} />{cheers > 1 && <span className="text-[10px] font-bold tabular-nums">{cheers}</span>}
+        </span>
+      )}
     </span>
   );
 }
@@ -38,7 +44,7 @@ export default function NotesStrip() {
     <>
       <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label={tr('Notas')}>
         <button onClick={() => setEditing(true)} aria-label={mine ? 'A tua nota' : 'Deixar uma nota'} className="flex w-[84px] shrink-0 flex-col items-center active:scale-95">
-          <span className="flex h-[54px] items-end"><Bubble text={mine ? mine.body || mine.music?.title || '' : 'Deixa uma nota'} dim={!mine} music={!!mine?.music} /></span>
+          <span className="flex h-[54px] items-end"><Bubble text={mine ? mine.body || mine.music?.title || '' : 'Deixa uma nota'} dim={!mine} music={!!mine?.music} cheers={mine?.cheers ?? 0} /></span>
           <span className="relative">
             <Avatar name={user.displayName} username={user.username} size={64} ring={false} />
             {!mine && (
@@ -49,7 +55,7 @@ export default function NotesStrip() {
         </button>
         {items.map((n) => (
           <button key={n.username} onClick={() => setViewing(n)} aria-label={tr('Nota de {v0}: {v1}', { v0: n.displayName, v1: n.body })} className="flex w-[84px] shrink-0 flex-col items-center active:scale-95">
-            <span className="flex h-[54px] items-end"><Bubble text={n.body || n.music?.title || ''} music={!!n.music} /></span>
+            <span className="flex h-[54px] items-end"><Bubble text={n.body || n.music?.title || ''} music={!!n.music} cheers={n.cheered ? 1 : 0} /></span>
             <Avatar name={n.displayName} username={n.hasAvatar ? n.username : undefined} size={64} ring={false} presence />
             <span className="mt-1 w-full truncate text-center text-[12px] text-zinc-600">{n.displayName.split(' ')[0]}</span>
           </button>

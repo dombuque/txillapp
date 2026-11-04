@@ -61,6 +61,8 @@ export default function Layout() {
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl bg-white pb-28 lg:pb-8">
+      {/* Faixa branca atrás do relógio e da barra de estado: sem ela, o que passa por baixo do topo fixo vê-se desfocado através dela. */}
+      <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-30 bg-white lg:hidden" style={{ height: 'env(safe-area-inset-top)' }} />
       {/* O topo com o logo, as notificações e a pesquisa só aparece no Início: nos outros ecrãs cada um tem o seu topo. */}
       {pathname === '/' && (
         <header className="sticky top-[env(safe-area-inset-top)] z-30 flex items-center justify-center bg-white py-3 lg:hidden">
