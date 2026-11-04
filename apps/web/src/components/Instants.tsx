@@ -94,7 +94,7 @@ export default function InstantsDock() {
             <span key={o?.username ?? 'vazio'} className="absolute right-5 top-4 h-[80px] w-[64px] overflow-hidden rounded-[22px] bg-gradient-to-br from-brand to-[#ff9a5b] shadow-[0_6px_16px_rgba(0,0,0,0.28)] ring-[3px] ring-white" style={{ transform: `translate(${-depth * 13}px, ${depth * -5}px) rotate(${-6 - depth * 8}deg)`, zIndex: 3 - depth }}>
               {o?.preview && <img src={o.preview} alt="" draggable={false} className="absolute inset-0 h-full w-full scale-110 object-cover blur-[2px]" />}
               <span className="absolute inset-0 bg-black/10" />
-              {depth === 0 && <span className="absolute inset-0 flex items-center justify-center text-white"><Icon name="bolt" size={22} fill="currentColor" className="drop-shadow" /></span>}
+              {depth === 0 && <span className="absolute inset-0 flex items-center justify-center text-white">{o ? <Icon name="bolt" size={26} fill="currentColor" className="drop-shadow" /> : <Icon name="plus" size={34} strokeWidth={2.6} className="drop-shadow" />}</span>}
             </span>
           );
         })}
