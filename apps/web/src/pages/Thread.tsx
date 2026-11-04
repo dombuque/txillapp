@@ -15,6 +15,7 @@ import LocationPicker, { type Picked } from '../components/LocationPicker';
 import GiftSheet from '../components/GiftSheet';
 import ReportSheet from '../components/ReportSheet';
 import SharedPost from '../components/SharedPost';
+import LinkPreview, { Linkified, firstUrl } from '../components/LinkPreview';
 import TileMap from '../components/TileMap';
 import VoiceMessage from '../components/VoiceMessage';
 import OfflineBar from '../components/OfflineBar';
@@ -269,8 +270,12 @@ function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onR
         </div>
       )}
       {!m.viewOnce && (m.kind === 'text' || m.kind === 'story_reply') && (
-        <p className={`max-w-[82%] whitespace-pre-wrap break-words px-4 py-2.5 text-[16px] leading-snug ${shape} ${tone} ${dim}`}>{noteReply ? noteReply[2] : m.body}</p>
+        <p className={`max-w-[82%] whitespace-pre-wrap break-words px-4 py-2.5 text-[16px] leading-snug ${shape} ${tone} ${dim}`}>{m.kind === 'text' ? <Linkified text={noteReply ? noteReply[2] : m.body} /> : (noteReply ? noteReply[2] : m.body)}</p>
       )}
+      {!m.viewOnce && m.kind === 'text' && real && (() => {
+        const u = firstUrl(noteReply ? noteReply[2] : m.body);
+        return u ? <div className="mt-1 max-w-[82%]"><LinkPreview url={u} shape={shape} tone={tone} /></div> : null;
+      })()}
       {!!m.reactions?.length && (
         <button type="button" onClick={() => onMenu(m)} aria-label={tr('Reações')} className={`-mt-2 flex items-center gap-1 rounded-full bg-white px-1.5 py-0.5 shadow-[0_1px_6px_rgba(0,0,0,0.18)] ring-1 ring-zinc-100 ${mine ? 'mr-3' : 'ml-3'}`}>
           {m.reactions.map((r) => (
