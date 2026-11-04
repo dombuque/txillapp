@@ -61,7 +61,8 @@ function Shelf({ title, icon, items }: { title: string; icon: Parameters<typeof 
 /** Botão da geleira na linha de ações do perfil: abre/fecha a prateleira para baixo. Nos perfis dos outros só aparece se houver o que mostrar. */
 export function GeleiraToggle({ username, isMe, open, onToggle, icon = false, grow = false }: { username: string; isMe: boolean; open: boolean; onToggle: () => void; icon?: boolean; grow?: boolean }) {
   const q = useQuery({ queryKey: ['geleira', isMe ? 'me' : username], queryFn: (): Promise<(MyTaste | TheirTaste)[]> => (isMe ? api.geleiraMine() : api.geleiraOf(username)), retry: false });
-  const total = (q.data ?? []).length;
+  const shown = (q.data ?? []).filter((i) => i.kind === 'bebida' || i.kind === 'comida');
+  const total = shown.length;
   if (!isMe && (q.isError || total === 0)) return null;
   return (
     <button
@@ -70,7 +71,7 @@ export function GeleiraToggle({ username, isMe, open, onToggle, icon = false, gr
       aria-label={open ? tr('Fechar a geleira') : tr('Abrir a geleira')}
       className={`flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-[14px] font-bold transition active:scale-95 ${icon ? `${grow ? 'flex-1' : 'w-11'} !px-0` : 'flex-1'} ${open ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-900'}`}
     >
-      <FridgeArt count={total} level={geleiraLevel(geleiraPoints((q.data ?? []).filter((i) => !('pending' in i && (i as { pending?: boolean }).pending))))} open={open} size={24} />
+      <FridgeArt count={total} level={geleiraLevel(geleiraPoints(shown.filter((i) => !('pending' in i && (i as { pending?: boolean }).pending))))} open={open} size={24} />
       {!icon && <span>{tr('Geleira')}</span>}
       {!icon && <Icon name="chevron-right" size={14} className={`transition ${open ? 'rotate-90' : ''}`} />}
     </button>
@@ -82,7 +83,8 @@ export function GeleiraToggle({ username, isMe, open, onToggle, icon = false, gr
 export default function GeleiraShelf({ username, isMe, flush = false, compact = false, pointed = false }: { username: string; isMe: boolean; flush?: boolean; compact?: boolean; pointed?: boolean }) {
   const [open, setOpen] = useState(!compact);
   const q = useQuery({ queryKey: ['geleira', isMe ? 'me' : username], queryFn: (): Promise<(MyTaste | TheirTaste)[]> => (isMe ? api.geleiraMine() : api.geleiraOf(username)), retry: false });
-  const items = q.data ?? [];
+  // Na geleira só aparecem as bebidas e as comidas; as vibes e os sítios ficam só nas Definições (Editar perfil).
+  const items = (q.data ?? []).filter((i) => i.kind === 'bebida' || i.kind === 'comida');
   // O nível vem do servidor (conta tudo, venha quem vier ver, e o título respeita a idade). Fica antes dos return: os hooks têm de ser sempre os mesmos.
   const lv = useQuery({ queryKey: ['geleira-level', username], queryFn: () => api.geleiraLevel(username), retry: false, staleTime: 60_000 });
   if (q.isLoading) return <div className={`${flush ? '' : 'mx-4'} skel mt-4 ${compact ? 'h-[60px]' : 'h-48'} rounded-[24px]`} role="status" aria-label={tr('A carregar a geleira')} />;
