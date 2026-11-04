@@ -32,7 +32,10 @@ export default function SwipeClose() {
       if (e.touches.length !== 1 || !(e.target instanceof Element)) return;
       const modal = e.target.closest('[aria-modal="true"]') as HTMLElement | null;
       if (!modal || modal.closest('[data-swipe]')) return;
-      if (e.target.closest('input,textarea,select,video,[role="slider"],[data-swipe="off"],[data-swipe="own"]')) return;
+      // Janelas com data-swipe-all (câmara dos Zás) aceitam o gesto também sobre o vídeo e o campo da legenda, menos se estiveres a escrever.
+      const all = modal.hasAttribute('data-swipe-all');
+      if (e.target.closest(all ? 'textarea,select,[role="slider"],[data-swipe="off"],[data-swipe="own"]' : 'input,textarea,select,video,[role="slider"],[data-swipe="off"],[data-swipe="own"]')) return;
+      if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) return;
       const sc = scroller(e.target, modal);
       if (sc && sc.scrollTop > 0) return;
       if (!modal.querySelector(CLOSERS)) return;

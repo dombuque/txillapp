@@ -338,7 +338,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   const small = 'flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition active:scale-90';
   const recent = others.slice(0, 3);
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={tr('Mandar um Zás')} className="fixed inset-0 z-[90] flex flex-col bg-[#08080b] text-white" style={{ background: 'radial-gradient(120% 60% at 50% 105%, rgba(255,92,92,.28), transparent 60%), #08080b', ...visibleStyle(vv) }}>
+    <div role="dialog" aria-modal="true" data-swipe-all aria-label={tr('Mandar um Zás')} className="fixed inset-0 z-[90] flex flex-col bg-[#08080b] text-white" style={{ background: 'radial-gradient(120% 60% at 50% 105%, rgba(255,92,92,.28), transparent 60%), #08080b', ...visibleStyle(vv) }}>
       <SquircleDefs />
       {/* Em cima, sobre o preto: fechar, o nome e os teus Zás. */}
       <div className={`shrink-0 items-center justify-between px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] ${editing ? 'hidden' : 'flex'}`}>
