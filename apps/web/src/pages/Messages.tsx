@@ -96,7 +96,7 @@ export default function Messages() {
       </label>
 
       {!term && view === 'all' && <NotesStrip />}
-      <div role="tablist" aria-label={tr('Caixa')} className="mb-1 flex items-center gap-5 px-1 pt-1">
+      <div role="tablist" aria-label={tr('Caixa')} className="mb-1 flex items-center justify-between px-1 pt-1">
         <button role="tab" aria-selected={view === 'all'} onClick={() => setView('all')} className={`h-10 text-[17px] ${view === 'all' ? 'font-extrabold text-zinc-900' : 'font-semibold text-zinc-500'}`}>{tr('Mensagens')}</button>
         <button role="tab" aria-selected={view === 'requests'} onClick={() => setView('requests')} className={`flex h-10 items-center gap-1.5 text-[17px] ${view === 'requests' ? 'font-extrabold text-zinc-900' : 'font-semibold text-zinc-500'}`}>
           {tr('Pedidos')} {requestCount > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-bold text-white">{requestCount}</span>}
@@ -126,7 +126,9 @@ export default function Messages() {
                     {r.avatar.names.length === 0 && <span className="flex h-full w-full items-center justify-center rounded-full bg-zinc-100 text-zinc-600"><Icon name="users" size={24} /></span>}
                   </span>
                 ) : (
-                  <Avatar name={r.avatar.names[0].name} username={r.avatar.names[0].username} size={52} ring={false} />
+                  <span className={`block rounded-full p-[3px] ${r.unread ? 'bg-gradient-to-tr from-brand to-[#ff9a5b]' : ''}`}>
+                    <span className={`block rounded-full ${r.unread ? 'bg-white p-[2px]' : ''}`}><Avatar name={r.avatar.names[0].name} username={r.avatar.names[0].username} size={r.unread ? 52 : 58} ring={false} /></span>
+                  </span>
                 )}
                 {r.online && <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" aria-label={tr('Online')} />}
               </span>
@@ -135,12 +137,9 @@ export default function Messages() {
                   <span className="truncate">{r.name}</span>
                   {r.group && <Icon name="users" size={14} className="shrink-0 text-zinc-400" aria-label={tr('Grupo')} />}
                 </span>
-                <span className={`block truncate text-[15px] ${r.unread ? 'font-semibold text-zinc-900' : 'text-zinc-500'}`}>{r.sub}</span>
+                <span className={`flex text-[15px] ${r.unread ? 'font-semibold text-zinc-900' : 'text-zinc-500'}`}><span className="truncate">{r.sub}</span><span className="shrink-0 whitespace-pre"> · {timeAgo(r.at).replace('Há ', '')}</span></span>
               </span>
-              <span className="flex shrink-0 flex-col items-end gap-1.5">
-                <span className="text-xs text-zinc-500">{timeAgo(r.at)}</span>
-                {r.unread > 0 && <span aria-label={tr('{v0} por ler', { v0: r.unread })} className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-bold text-white">{r.unread > 9 ? '9+' : r.unread}</span>}
-              </span>
+              {r.unread > 0 && <span aria-label={tr('{v0} por ler', { v0: r.unread })} className="h-3 w-3 shrink-0 rounded-full bg-brand" />}
             </Link>
           </li>
         ))}
