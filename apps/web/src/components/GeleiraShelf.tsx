@@ -78,7 +78,7 @@ export function GeleiraToggle({ username, isMe, open, onToggle, icon = false, gr
 
 /** A geleira: vitrine de gostos (vibes, bebidas, comidas, sítios), só para ver. Editar fica em "Editar perfil". Nos perfis dos outros só mostra o que a pessoa deixa ver. */
 /** `compact`: fechada por omissão (cabeçalho e uma fila de bolinhas); toca-se para abrir as prateleiras. */
-export default function GeleiraShelf({ username, isMe, flush = false, compact = false }: { username: string; isMe: boolean; flush?: boolean; compact?: boolean }) {
+export default function GeleiraShelf({ username, isMe, flush = false, compact = false, pointed = false }: { username: string; isMe: boolean; flush?: boolean; compact?: boolean; pointed?: boolean }) {
   const [open, setOpen] = useState(!compact);
   const q = useQuery({ queryKey: ['geleira', isMe ? 'me' : username], queryFn: (): Promise<(MyTaste | TheirTaste)[]> => (isMe ? api.geleiraMine() : api.geleiraOf(username)), retry: false });
   const items = q.data ?? [];
@@ -107,7 +107,7 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
       aria-label={folded ? 'Abrir a geleira' : 'Geleira'}
       // Fechada, qualquer parte do cartão abre a geleira (o frigorífico, o texto, o espaço à volta).
       {...(folded ? { role: 'button', tabIndex: 0, 'aria-expanded': false, onClick: () => setOpen(true), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true); } } } : {})}
-      className={`${folded ? 'cursor-pointer active:scale-[0.99] ' : ''}transition ${flush ? '' : 'mx-4'} mt-4 overflow-hidden rounded-[24px] border border-sky-100 bg-gradient-to-b from-sky-50 via-white to-cyan-50/60 px-4 shadow-[0_2px_12px_rgba(14,116,144,0.1)] ${folded ? 'pb-3 pt-3' : 'pb-6 pt-4'}`}
+      className={`${folded ? 'cursor-pointer active:scale-[0.99] ' : ''}transition ${flush ? '' : 'mx-4'} mt-4 overflow-hidden rounded-[24px] border ${pointed ? 'border-sky-300' : 'border-sky-100'} bg-gradient-to-b from-sky-50 via-white to-cyan-50/60 px-4 shadow-[0_2px_12px_rgba(14,116,144,0.1)] ${folded ? 'pb-3 pt-3' : 'pb-6 pt-4'}`}
     >
       <div className="flex items-center gap-4 pb-1">
         {compact ? (

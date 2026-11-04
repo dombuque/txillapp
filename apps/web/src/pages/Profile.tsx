@@ -249,6 +249,14 @@ export default function ProfilePage() {
           </>
         )}
 
+        {/* A geleira abre para baixo, dentro do mesmo cartão, com a ponta a apontar para o botão. */}
+        {!blocked && p.canView && geleiraOpen && (
+          <div className="relative">
+            <span aria-hidden className={`absolute top-[6px] z-10 h-5 w-5 rotate-45 rounded-tl-md border-l-2 border-t-2 border-sky-300 bg-sky-50 ${p.isMe ? 'right-[calc((100%-30px)/12-10px)]' : 'right-[12px]'}`} />
+            <GeleiraShelf username={p.username} isMe={p.isMe} flush pointed />
+          </div>
+        )}
+
         {p.isMe && p.pendingRequests > 0 && (
           <button onClick={() => setSheet('requests')} className="mt-4 flex w-full items-center justify-between rounded-2xl bg-rose-50 px-4 py-3 font-semibold text-brand">
             <span>{tr('Pedidos para seguir')}</span>
@@ -257,7 +265,6 @@ export default function ProfilePage() {
         )}
       </section>
 
-      {p.canView && !blocked && geleiraOpen && <GeleiraShelf username={p.username} isMe={p.isMe} />}
       {showSuggestions && p.canView && !blocked && <div className="mt-4"><Suggestions /></div>}
 
       {!p.canView && !blocked ? (
