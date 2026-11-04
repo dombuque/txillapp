@@ -21,6 +21,13 @@ export class SuperTxillController {
     return this.bot.thread(req.userId!);
   }
 
+  /** O modelo próprio: pessoas para ti, a partir dos dados do Txillapp. */
+  @Get('for-you')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  forYou(@Req() req: AuthedReq) {
+    return this.bot.forYou(req.userId!);
+  }
+
   @Post('ask')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   ask(@Req() req: AuthedReq, @Body(new ZodPipe(askSchema)) b: z.infer<typeof askSchema>) {

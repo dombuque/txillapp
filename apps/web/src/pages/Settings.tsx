@@ -148,6 +148,41 @@ function ChoiceSheet<T extends string>({ title, intro, options, value, onPick, o
 }
 
 /** "Instalar a app" nas definições: botão no Android, instruções no iPhone, e "instalada" quando já está. */
+const NOTIFY_LABELS: Record<string, [string, string]> = {
+  messages: ['Mensagens', 'Conversas e grupos'],
+  follows: ['Seguidores', 'Quem começa a seguir-te e pedidos aceites'],
+  comments: ['Comentários e respostas', 'Na tua publicação, no teu comentário e nos teus stories'],
+  mentions: ['Menções e marcações', 'Quando alguém te menciona ou te identifica'],
+  reposts: ['Reposts', 'Quando repostam uma publicação tua'],
+  gifts: ['Brindes', 'Quando te oferecem Txills'],
+  reactions: ['Reações', 'Nas tuas notas e nos teus Zás'],
+  invites: ['Convites', 'Quando alguém entra com o teu convite'],
+};
+
+/** Cada tipo de aviso liga-se ou desliga-se (nada na lista e nada no telemóvel). Os pedidos de seguir ficam sempre na lista. */
+function NotifyPrefs() {
+  const q = useQuery({ queryKey: ['notify-settings'], queryFn: api.notifySettings });
+  const qc = useQueryClient();
+  if (!q.data) return null;
+  const off = q.data.off;
+  async function set(cat: string, on: boolean) {
+    const next = on ? off.filter((c) => c !== cat) : [...off, cat];
+    qc.setQueryData(['notify-settings'], { ...q.data!, off: next });
+    try {
+      await api.saveNotifySettings(next);
+    } catch {
+      void qc.invalidateQueries({ queryKey: ['notify-settings'] });
+    }
+  }
+  return (
+    <>
+      {q.data.categories.filter((c) => NOTIFY_LABELS[c]).map((c) => (
+        <Toggle key={c} icon={<Icon name="bell" />} label={tr(NOTIFY_LABELS[c][0])} text={tr(NOTIFY_LABELS[c][1])} on={!off.includes(c)} onChange={(v) => void set(c, v)} />
+      ))}
+    </>
+  );
+}
+
 function InstallRow() {
   const { installed, canPrompt, iosHint, iosOpenInSafari, goToApp, install } = useInstall();
   if (installed) return <Row icon={<Icon name="check-circle" />} label={tr('App instalada')} onClick={() => undefined} />;
@@ -297,6 +332,10 @@ export default function Settings() {
       <Section title={tr('Notificações')}>
         <InstallRow />
         <PushToggle />
+      </Section>
+
+      <Section title={tr('O que me pode notificar')}>
+        <NotifyPrefs />
       </Section>
 
       <Section title={tr('Privacidade dos dados')}>

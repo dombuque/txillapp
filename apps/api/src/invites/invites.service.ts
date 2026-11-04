@@ -177,7 +177,7 @@ export class InvitesService implements OnModuleInit, OnModuleDestroy {
     for (const d of due) {
       await this.wallet.credit(d.inviter_id as string, INVITE.REWARD, `invite:out:${d.invitee_id}`, { invite: 'out' }, undefined, 'invite');
       await this.pool.query(`UPDATE social.referrals SET status = 'paid', paid_at = now(), amount = $2 WHERE invitee_id = $1`, [d.invitee_id, INVITE.REWARD]);
-      void this.push.send(d.inviter_id as string, { title: 'Convite', body: `${d.invitee_name as string} entrou com o teu convite: +${INVITE.REWARD} Txills`, url: '/invites', tag: `invite:${d.invitee_id as string}` });
+      void this.push.send(d.inviter_id as string, { title: 'Convite', body: `${d.invitee_name as string} entrou com o teu convite: +${INVITE.REWARD} Txills`, url: '/invites', tag: `invite:${d.invitee_id as string}`, category: 'invites' });
       paid++;
     }
     return { qualified, paid };

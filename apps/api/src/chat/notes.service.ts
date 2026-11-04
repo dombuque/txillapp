@@ -81,7 +81,7 @@ export class NotesService {
     if (cheered) {
       await this.pool.query('INSERT INTO social.note_cheers (note_user_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [owner, me]);
       const name = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0]?.display_name as string;
-      void this.push.send(owner, { title: name, body: 'brindou a tua nota', url: '/messages', tag: `note-cheer:${owner}` });
+      void this.push.send(owner, { title: name, body: 'brindou a tua nota', url: '/messages', tag: `note-cheer:${owner}`, category: 'reactions' });
     }
     const cheers = (await this.pool.query('SELECT count(*)::int AS n FROM social.note_cheers WHERE note_user_id = $1', [owner])).rows[0].n as number;
     return { cheered, cheers };

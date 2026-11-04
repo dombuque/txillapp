@@ -139,7 +139,7 @@ export class InstantsService implements OnModuleInit {
       // Avisa o dono (só a primeira vez que reajo a este Zás; o texto não diz qual foi a reação).
       if (prev === undefined) {
         const row = (await this.pool.query('SELECT i.author_id, (SELECT display_name FROM identity.users WHERE id = $2) AS name FROM social.instants i WHERE i.id = $1', [id, me])).rows[0];
-        if (row) void this.push.send(row.author_id as string, { title: row.name as string, body: 'reagiu ao teu Zás', url: '/messages', tag: `zas-react:${id}` });
+        if (row) void this.push.send(row.author_id as string, { title: row.name as string, body: 'reagiu ao teu Zás', url: '/messages', tag: `zas-react:${id}`, category: 'reactions' });
       }
     }
   }

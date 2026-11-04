@@ -148,7 +148,7 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
   const data = postShare(post.author.displayName, post.body, url);
   function whatsapp() {
     track('share', { where: 'whatsapp' });
-    window.open(`https://wa.me/?text=${encodeURIComponent(`${data.text}\n${url}`)}`, '_blank', 'noopener');
+    window.open(`https://wa.me/?text=${encodeURIComponent(data.text ? `${data.text}\n${url}` : url)}`, '_blank', 'noopener');
   }
   // O WhatsApp não tem ligação direta ao status: o que se consegue é entregar a foto ou vídeo ao menu de partilha do telemóvel,
   // onde o WhatsApp oferece "Status". Por isso envia-se o ficheiro (não o link) e a pessoa escolhe o Status.

@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common'
 import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
-import { PushService } from '../push/push.service';
+import { PushService, type NotifyCategory } from '../push/push.service';
 import { allowedBy, blockedBetween, canView } from '../social/visibility';
 
 /** @utilizador num texto (o @ não pode vir colado a letras, para não apanhar e-mails). */
@@ -18,6 +18,13 @@ export const mentionableBy = (u = 'u', viewer = '$1') =>
   `(NOT ${u}.is_private OR EXISTS (SELECT 1 FROM social.follows mf WHERE mf.follower_id = ${viewer} AND mf.followee_id = ${u}.id)))`;
 
 export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified';
+
+/** A categoria que a pessoa pode desligar (os avisos de bloqueio e de verificação ficam sempre). */
+export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
+  follow: 'follows', follow_request: 'follows', request_accepted: 'follows',
+  comment: 'comments', reply: 'comments', story_reply: 'comments',
+  mention: 'mentions', tag: 'mentions', repost: 'reposts', gift: 'gifts',
+};
 
 /** Tipos que não se repetem enquanto houver uma igual por ler (evita spam de seguir/deixar de seguir). */
 const DEDUPE_UNREAD = new Set<NotificationKind>(['blocked', 'follow', 'follow_request']);
@@ -38,6 +45,9 @@ export class NotificationsService {
   async notify(n: { userId: string; actorId: string; kind: NotificationKind; data?: Record<string, unknown> }): Promise<void> {
     if (n.userId === n.actorId) return;
     try {
+      // Categoria desligada: nem na lista nem no telemóvel (os pedidos de seguir ficam sempre na lista, porque têm botões).
+      const cat = CATEGORY_OF[n.kind];
+      if (cat && n.kind !== 'follow_request' && (await this.push.off(n.userId)).includes(cat)) return;
       if (DEDUPE_UNREAD.has(n.kind)) {
         const dup = await this.pool.query(
           'SELECT 1 FROM social.notifications WHERE user_id = $1 AND actor_id = $2 AND kind = $3 AND read_at IS NULL',
@@ -75,7 +85,7 @@ export class NotificationsService {
       verified: { body: 'agora tem a conta verificada', url: profile },
     };
     const m = t[n.kind];
-    if (m) await this.push.send(n.userId, { title: who, body: m.body, url: m.url, tag: `${n.kind}:${n.actorId}` });
+    if (m) await this.push.send(n.userId, { title: who, body: m.body, url: m.url, tag: `${n.kind}:${n.actorId}`, category: CATEGORY_OF[n.kind] });
   }
 
   /** Avisa as pessoas mencionadas em `text` que o autor pode mencionar e que podem ver o conteúdo dele. */

@@ -5,7 +5,13 @@ import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
 
+/** O que a pessoa pode ligar ou desligar nas notificações. */
+export const NOTIFY_CATEGORIES = ['messages', 'follows', 'comments', 'mentions', 'reposts', 'gifts', 'reactions', 'invites'] as const;
+export type NotifyCategory = (typeof NOTIFY_CATEGORIES)[number];
+
 export interface PushPayload {
+  /** A que categoria pertence (se a pessoa a desligou, não se envia). */
+  category?: NotifyCategory;
   title: string;
   body: string;
   /** Caminho dentro da app que abre ao tocar na notificação. */
@@ -31,6 +37,19 @@ export class PushService {
     if (this.enabled) webpush.setVapidDetails(config.VAPID_SUBJECT, config.VAPID_PUBLIC_KEY!, config.VAPID_PRIVATE_KEY!);
   }
 
+  /** As categorias que a pessoa desligou. */
+  async off(userId: string): Promise<NotifyCategory[]> {
+    const r = await this.pool.query('SELECT off FROM social.notification_prefs WHERE user_id = $1', [userId]);
+    return ((r.rows[0]?.off as string[] | undefined) ?? []).filter((c): c is NotifyCategory => (NOTIFY_CATEGORIES as readonly string[]).includes(c));
+  }
+
+  async setOff(userId: string, off: NotifyCategory[]) {
+    await this.pool.query(
+      `INSERT INTO social.notification_prefs (user_id, off) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET off = EXCLUDED.off, updated_at = now()`,
+      [userId, [...new Set(off)]],
+    );
+  }
+
   publicKey() {
     return { publicKey: this.enabled ? this.config.VAPID_PUBLIC_KEY! : null };
   }
@@ -52,11 +71,12 @@ export class PushService {
   async send(userId: string, payload: PushPayload): Promise<void> {
     if (!this.enabled) return;
     try {
+      if (payload.category && (await this.off(userId)).includes(payload.category)) return;
       const { rows } = await this.pool.query('SELECT endpoint, p256dh, auth FROM social.push_subscriptions WHERE user_id = $1', [userId]);
       await Promise.all(
         rows.map(async (r) => {
           try {
-            await webpush.sendNotification({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }, JSON.stringify(payload), { TTL: 86_400, urgency: 'high' });
+            await webpush.sendNotification({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }, JSON.stringify({ title: payload.title, body: payload.body, url: payload.url, tag: payload.tag }), { TTL: 86_400, urgency: 'high' });
           } catch (e) {
             const status = (e as { statusCode?: number }).statusCode;
             if (status === 404 || status === 410) await this.pool.query('DELETE FROM social.push_subscriptions WHERE endpoint = $1', [r.endpoint]);

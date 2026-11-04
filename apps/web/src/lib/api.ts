@@ -521,9 +521,9 @@ const qs = (cursor?: string, limit?: number, q?: string) => {
 
 export const api = {
   register: (b: unknown): Promise<AuthResponse> => raw('/auth/register', post(b)),
-  aiThread: (): Promise<{ messages: { id: string; role: 'user' | 'assistant'; body: string; at: string }[]; pending: boolean; enabled: boolean }> => raw('/supertxill'),
-  aiAsk: (text: string): Promise<{ id: string }> => raw('/supertxill/ask', post({ text })),
-  aiClear: (): Promise<void> => raw('/supertxill/clear', post({})),
+  aiForYou: (): Promise<Omit<Suggestion, 'mutual'>[]> => raw('/supertxill/for-you'),
+  notifySettings: (): Promise<{ categories: string[]; off: string[] }> => raw('/notifications/settings'),
+  saveNotifySettings: (off: string[]): Promise<void> => raw('/notifications/settings', { method: 'PUT', body: JSON.stringify({ off }) }),
   invites: (): Promise<InvitesInfo> => raw('/invites/me'),
   invitePreview: (code: string): Promise<{ username: string; displayName: string }> => raw(`/invites/preview/${encodeURIComponent(code)}`),
   login: (b: unknown): Promise<AuthResponse> => raw('/auth/login', post(b)),

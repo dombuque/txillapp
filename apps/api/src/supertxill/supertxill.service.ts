@@ -5,6 +5,7 @@ import { AppConfig, CONFIG } from '../config';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { TextFilter } from '../safety/text-filter.service';
+import { blockedBetween, sameCountry } from '../social/visibility';
 import { MSG, SYSTEM_PROMPT } from './constants';
 
 type Turn = { role: 'user' | 'assistant'; content: string };
@@ -36,6 +37,57 @@ export class SuperTxillService {
 
   get enabled() {
     return !!this.config.ANTHROPIC_API_KEY;
+  }
+
+  /**
+   * "Para ti": o modelo próprio do Txillapp, só com dados da app e a correr no nosso servidor (nada sai para fora).
+   * Filtragem colaborativa sobre quem se segue: encontra as pessoas com gostos de seguir mais parecidos com os teus
+   * (semelhança de cosseno entre as listas de seguidos) e recomenda quem elas seguem e tu ainda não.
+   * Soma os gostos da geleira em comum (só de quem a tem visível e deixa usá-la) e se a pessoa já te segue.
+   * Respeita: aceitar ser sugerido, bloqueios, país, quem já dispensaste.
+   */
+  async forYou(userId: string, limit = 12) {
+    const { rows } = await this.pool.query(
+      `WITH mine AS (SELECT followee_id FROM social.follows WHERE follower_id = $1),
+            n AS (SELECT count(*)::float AS n FROM mine),
+            sizes AS (SELECT follower_id, count(*)::float AS n FROM social.follows GROUP BY follower_id),
+            sim AS (
+              SELECT f.follower_id AS w, count(*)::float / sqrt(GREATEST((SELECT n FROM n), 1) * GREATEST(sz.n, 1)) AS s
+                FROM social.follows f JOIN mine m ON m.followee_id = f.followee_id JOIN sizes sz ON sz.follower_id = f.follower_id
+               WHERE f.follower_id <> $1 GROUP BY f.follower_id, sz.n ORDER BY s DESC LIMIT 60),
+            cf AS (
+              SELECT f.followee_id AS u, sum(sim.s) AS score
+                FROM sim JOIN social.follows f ON f.follower_id = sim.w GROUP BY f.followee_id),
+            taste AS (
+              SELECT o.user_id AS u, count(*)::int AS shared, (array_agg(i.name ORDER BY o.favorite DESC, i.name))[1] AS item
+                FROM taste.user_items me
+                JOIN identity.users mu ON mu.id = $1 AND mu.geleira_matching
+                JOIN taste.user_items o ON o.item_id = me.item_id AND o.user_id <> $1 AND o.visibility = 'everyone'
+                JOIN identity.users ou ON ou.id = o.user_id AND ou.geleira_matching
+                JOIN taste.items i ON i.id = me.item_id AND i.status = 'curated' AND NOT i.alcoholic
+               WHERE me.user_id = $1 GROUP BY o.user_id)
+       SELECT u.username, u.display_name, u.is_private,
+              COALESCE(cf.score, 0) AS cf, COALESCE(taste.shared, 0) AS shared, taste.item,
+              EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = u.id AND f.followee_id = $1) AS follows_me,
+              EXISTS (SELECT 1 FROM social.follow_requests r WHERE r.requester_id = $1 AND r.target_id = u.id) AS requested
+         FROM identity.users u LEFT JOIN cf ON cf.u = u.id LEFT JOIN taste ON taste.u = u.id
+        WHERE u.id <> $1 AND u.status = 'active' AND u.suggestable AND ${sameCountry('u.country')}
+          AND NOT ${blockedBetween('u.id', '$1')}
+          AND NOT EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id)
+          AND NOT EXISTS (SELECT 1 FROM social.suggestion_dismissals d WHERE d.user_id = $1 AND d.dismissed_id = u.id)
+        ORDER BY (COALESCE(cf.score, 0) + 0.15 * COALESCE(taste.shared, 0) + CASE WHEN EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = u.id AND f.followee_id = $1) THEN 0.3 ELSE 0 END) DESC, u.id DESC
+        LIMIT $2`,
+      [userId, limit],
+    );
+    return rows.map((r) => ({
+      username: r.username as string,
+      displayName: r.display_name as string,
+      isPrivate: r.is_private as boolean,
+      requested: r.requested as boolean,
+      followsYou: r.follows_me as boolean,
+      // O "porquê" é sempre dado a partir de dados que a própria pessoa tem direito a ver.
+      reason: r.shared > 0 ? `Também curte ${r.item as string}` : r.cf > 0 ? 'Malta com gostos parecidos aos teus segue' : r.follows_me ? 'Segue-te' : 'Novo no Txillapp',
+    }));
   }
 
   /** O histórico da pessoa (do mais antigo para o mais recente) e se há uma resposta a caminho. */

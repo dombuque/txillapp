@@ -24,14 +24,8 @@ export const profileShare = (displayName: string, username: string, origin = SIT
   url: `${origin}/u/${username}`,
 });
 
-export const postShare = (displayName: string, body: string, url: string): ShareData => {
-  const snippet = body.trim().replace(/\s+/g, ' ');
-  return {
-    title: `${displayName} no Txillapp`,
-    text: snippet ? `${displayName} no Txillapp: “${snippet.length > 100 ? `${snippet.slice(0, 100).trimEnd()}…` : snippet}”` : `Vê esta publicação de ${displayName} no Txillapp:`,
-    url,
-  };
-};
+/** Só a ligação: o cartão de pré-visualização já mostra o autor e o texto da publicação, por isso não se repete em texto. */
+export const postShare = (displayName: string, _body: string, url: string): ShareData => ({ title: `${displayName} no Txillapp`, text: '', url });
 
 /**
  * Abre o menu de partilha do aparelho com o texto já escrito. Sem menu de partilha (computador), copia o texto com o link.
@@ -47,7 +41,7 @@ export async function shareNow(data: ShareData): Promise<'shared' | 'copied' | '
     }
   }
   try {
-    await navigator.clipboard.writeText(`${data.text}\n${data.url}`);
+    await navigator.clipboard.writeText(data.text ? `${data.text}\n${data.url}` : data.url);
     return 'copied';
   } catch {
     return 'failed';

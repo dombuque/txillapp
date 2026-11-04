@@ -104,4 +104,47 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     await api().get('/api/v1/supertxill').expect(401);
     await api().post('/api/v1/supertxill/ask').send({ text: 'x' }).expect(401);
   });
+
+  it('"Para ti": recomenda quem malta parecida com a pessoa segue, sem expor nomes, e respeita não-sugerível e bloqueios', async () => {
+    const me = await signup('ml0');
+    const peer = await signup('ml1'); // segue o mesmo que eu
+    const star = await signup('ml2'); // seguido pelo peer, ainda não por mim
+    const hidden = await signup('ml3'); // seguido pelo peer mas não aceita ser sugerido
+    const common = await signup('ml4'); // seguido por mim e pelo peer
+    const follow = (a: U, b: U) => api().post(`/api/v1/users/${b.username}/follow`).set(auth(a)).expect((r) => { if (r.status >= 400) throw new Error(`follow ${r.status}`); });
+    await follow(me, common);
+    await follow(peer, common);
+    await follow(peer, star);
+    await follow(peer, hidden);
+    await pool.query('UPDATE identity.users SET suggestable = false WHERE id = $1', [hidden.id]);
+    const list = (await api().get('/api/v1/supertxill/for-you').set(auth(me)).expect(200)).body as { username: string; reason: string }[];
+    const names = list.map((x) => x.username);
+    expect(names).toContain(star.username);
+    expect(names).not.toContain(hidden.username);
+    expect(names).not.toContain(common.username);
+    expect(names).not.toContain(me.username);
+    expect(names.indexOf(star.username)).toBeLessThan(names.indexOf(peer.username) === -1 ? 999 : names.indexOf(peer.username) + 1);
+    expect(list.find((x) => x.username === star.username)!.reason).not.toContain(peer.username);
+    await api().put(`/api/v1/blocks/${star.username}`).set(auth(me)).expect((r) => { if (r.status >= 400) throw new Error(`block ${r.status}`); });
+    const after = ((await api().get('/api/v1/supertxill/for-you').set(auth(me)).expect(200)).body as { username: string }[]).map((x) => x.username);
+    expect(after).not.toContain(star.username);
+    await api().get('/api/v1/supertxill/for-you').expect(401);
+  });
+
+  it('preferências de notificações: desligar uma categoria deixa de criar essas notificações; os pedidos de seguir ficam sempre', async () => {
+    const a = await signup('nf0');
+    const b = await signup('nf1');
+    const c = await signup('nf2');
+    const d = (await api().get('/api/v1/notifications/settings').set(auth(a)).expect(200)).body;
+    expect(d.off).toEqual([]);
+    expect(d.categories).toContain('comments');
+    await api().put('/api/v1/notifications/settings').set(auth(a)).send({ off: ['follows', 'gifts'] }).expect(204);
+    await api().put('/api/v1/notifications/settings').set(auth(a)).send({ off: ['coisa-inventada'] }).expect(400);
+    await api().post(`/api/v1/users/${a.username}/follow`).set(auth(b)).expect((r) => { if (r.status >= 400) throw new Error(`follow ${r.status}`); });
+    expect((await pool.query("SELECT 1 FROM social.notifications WHERE user_id = $1 AND kind = 'follow'", [a.id])).rowCount).toBe(0);
+    await api().put('/api/v1/notifications/settings').set(auth(a)).send({ off: [] }).expect(204);
+    await api().post(`/api/v1/users/${a.username}/follow`).set(auth(c)).expect((r) => { if (r.status >= 400) throw new Error(`follow ${r.status}`); });
+    expect((await pool.query("SELECT 1 FROM social.notifications WHERE user_id = $1 AND kind = 'follow'", [a.id])).rowCount).toBe(1);
+    await api().get('/api/v1/notifications/settings').expect(401);
+  });
 });

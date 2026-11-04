@@ -28,6 +28,9 @@ export default defineConfig({
         orientation: 'portrait',
         lang: 'pt',
         categories: ['social'],
+        // As ligações do Txillapp abrem na app instalada (onde há sessão), na janela que já está aberta (Chrome/Edge/Android).
+        handle_links: 'preferred',
+        launch_handler: { client_mode: ['navigate-existing', 'auto'] },
         icons: [
           { src: 'icon-192.png?v=3', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'icon-512.png?v=3', sizes: '512x512', type: 'image/png', purpose: 'any' },

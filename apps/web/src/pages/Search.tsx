@@ -7,7 +7,6 @@ import { sized } from '../lib/media';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Fragment, useEffect, useState } from 'react';
-import BotAvatar from '../components/BotAvatar';
 import SuperTxillPanel from '../components/SuperTxillPanel';
 import { Link, useSearchParams } from 'react-router-dom';
 import ExploreViewer from '../components/ExploreViewer';
@@ -100,7 +99,7 @@ export default function Search() {
             type="search"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={tr('Procura ou pergunta ao SuperTxill…')}
+            placeholder={tr('Procura malta e publicações…')}
             aria-label={tr('Pesquisar')}
             enterKeyHint="search"
             autoCapitalize="none"
@@ -112,12 +111,6 @@ export default function Search() {
           )}
           <button type="button" onClick={() => setAi('')} aria-label={tr('Abrir o SuperTxill')} className="flex h-8 w-8 shrink-0 items-center justify-center text-brand active:scale-90"><Icon name="bolt" size={20} fill="currentColor" /></button>
         </label>
-        {term.length >= 2 && (
-          <button type="button" onClick={() => { setText(''); setAi(term); }} className="mt-2 flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left active:bg-zinc-100">
-            <BotAvatar size={44} />
-            <span className="min-w-0 flex-1"><span className="block font-semibold">{tr('Perguntar ao SuperTxill')}</span><span className="block truncate text-sm text-zinc-500">{term}</span></span>
-          </button>
-        )}
       </form>
 
       {!searching && (
@@ -293,7 +286,7 @@ export default function Search() {
 
       {viewing && <ExploreViewer items={grid} startId={viewing} onClose={() => setViewing(null)} />}
       {open && <ExploreViewer items={[open]} startId={open.id} title={tr('Publicação')} onClose={() => setOpen(null)} />}
-      {ai !== null && <SuperTxillPanel initial={ai || undefined} onClose={() => setAi(null)} />}
+      {ai !== null && <SuperTxillPanel onClose={() => setAi(null)} />}
     </div>
   );
 }
