@@ -71,7 +71,8 @@ export default function InstantsDock() {
   const total = others.reduce((n, o) => n + o.count, 0);
   const top = others[0];
   // Uma carta por Zás (não por pessoa): quem tem vários Zás faz o baralho crescer. Até 4 cartas.
-  const cards = others.flatMap((o) => Array.from({ length: Math.min(o.count, 3) }, () => o)).slice(0, 4);
+  // Intercalado: carta de cada pessoa por rodada, para o baralho mostrar pessoas diferentes quando há mais de uma.
+  const cards = [0, 1, 2].flatMap((r) => others.filter((o) => o.count > r)).slice(0, 4);
 
   return (
     <>
@@ -86,7 +87,7 @@ export default function InstantsDock() {
           } else setMode('cam');
         }}
         aria-label={total ? tr('Zás: {n} por ver', { n: total }) : tr('Mandar um Zás')}
-        className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-0 z-20 h-[150px] w-[170px]"
+        className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-0 z-20 h-[140px] w-[150px]"
         style={{ transform: away ? 'translateX(66%)' : 'translateX(38%)', transition: 'transform .4s cubic-bezier(.2,.9,.3,1.15)' }}
       >
         {/* Baralho em leque, como no Instagram: as cartas dos Zás por ver (foto desfocada), a da frente com a foto de perfil. */}
@@ -95,16 +96,22 @@ export default function InstantsDock() {
           return (
             <span
               key={`${o?.username ?? 'vazio'}-${idx}`}
-              className="absolute bottom-3 right-6 h-[116px] w-[88px] overflow-hidden rounded-[24px] bg-gradient-to-br from-brand to-[#ff9a5b] shadow-[0_6px_16px_rgba(0,0,0,0.3)] ring-[3px] ring-white"
-              style={{ transform: `translate(${-depth * 17}px, ${-depth * 8}px) rotate(${-8 - depth * 10}deg)`, transformOrigin: '70% 90%', zIndex: 3 - depth }}
+              className="absolute bottom-3 right-6 h-[100px] w-[76px] overflow-hidden rounded-[20px] bg-gradient-to-br from-brand to-[#ff9a5b] shadow-[0_6px_16px_rgba(0,0,0,0.3)] ring-[3px] ring-white"
+              style={{ transform: `translate(${-depth * 11}px, ${-depth * 5}px) rotate(${-6 - depth * 6}deg)`, transformOrigin: '70% 90%', zIndex: 3 - depth }}
             >
-              {o?.preview && <img src={o.preview} alt="" draggable={false} className="absolute inset-0 h-full w-full scale-125 object-cover blur-[3px]" />}
-              {depth > 0 && <span className="absolute inset-0 bg-white/15" />}
+              {o?.preview && <img src={o.preview} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover" />}
+              {depth > 0 && <span className="absolute inset-0 bg-black/10" />}
               {!o && <span className="absolute inset-0 flex items-center justify-center text-white"><Icon name="plus" size={34} strokeWidth={2.6} className="drop-shadow" /></span>}
             </span>
           );
         })}
-        {top && <span className="absolute bottom-[100px] right-[78px] z-[5] rounded-full bg-white p-[2px] shadow-md"><Avatar name={top.displayName} username={top.hasAvatar ? top.username : undefined} size={40} ring={false} /></span>}
+        {top && (
+          <span className="absolute bottom-[104px] right-[86px] z-[5] flex -space-x-3">
+            {others.slice(0, 2).map((o) => (
+              <span key={o.username} className="rounded-full bg-white p-[2px] shadow-md"><Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={34} ring={false} /></span>
+            ))}
+          </span>
+        )}
         <NewBadge id="zas" className="absolute left-0 top-0 z-[6]" />
         {total > 0 && <span className="absolute right-2 top-1 z-[6] flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1 text-[11px] font-bold text-white ring-2 ring-white">{total > 9 ? '9+' : total}</span>}
       </button>

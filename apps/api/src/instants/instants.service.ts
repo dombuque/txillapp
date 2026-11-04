@@ -38,10 +38,10 @@ export class InstantsService {
       [mediaId, me],
     );
     if (!ok.rowCount) throw new BadRequestException('Foto inválida ou ainda não carregada');
-    // Pré-visualização: miniatura minúscula e muito desfocada (a foto verdadeira só chega a quem abre o Zás).
+    // Pré-visualização: miniatura pequena (96×128) para o atalho dos Zás; a foto em tamanho real só chega a quem abre o Zás.
     let preview: string | null = null;
     try {
-      const thumb = await sharp(await this.media.chatBytes(mediaId)).rotate().resize(24, 32, { fit: 'cover' }).blur(1.2).jpeg({ quality: 35 }).toBuffer();
+      const thumb = await sharp(await this.media.chatBytes(mediaId)).rotate().resize(96, 128, { fit: 'cover' }).jpeg({ quality: 62 }).toBuffer();
       preview = `data:image/jpeg;base64,${thumb.toString('base64')}`;
     } catch {
       /* sem miniatura: o atalho mostra só o raio */
