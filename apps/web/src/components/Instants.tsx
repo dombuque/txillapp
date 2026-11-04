@@ -16,20 +16,29 @@ import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { FUN_FX, createFunRenderer, type FunRenderer } from '../lib/funFilters';
 import { Avatar, Sheet, timeAgo } from './ui';
 
-/** Guardar o Zás como está desenhado (foto na moldura, com a legenda): no telemóvel abre a folha de partilha ("Guardar imagem"); no computador descarrega o PNG. */
-async function saveInstant(it: { id: string; url: string; caption?: string }) {
+/** Descarrega um ficheiro (sem folha de partilha). */
+function downloadFile(f: File) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(f);
+  a.download = f.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+}
+
+/**
+ * Guardar o Zás como está desenhado (foto na moldura, com a legenda).
+ * 'gallery': no telemóvel abre a folha do sistema, onde está «Guardar imagem» / «Guardar nas Fotografias» (a web não grava nas Fotografias de outra forma).
+ * 'file': descarrega o PNG (Ficheiros/Transferências).
+ */
+async function saveInstant(it: { id: string; url: string; caption?: string }, mode: 'gallery' | 'file' = 'gallery') {
   try {
     const f = new File([await renderZasImage(it.url, it.caption ?? '')], `zas-${it.id.slice(0, 8)}.png`, { type: 'image/png' });
-    // Guardar = descarregar o ficheiro (sem abrir a folha de partilha). No Android fica na galeria; no iPhone, na app Ficheiros.
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(f);
-    a.download = f.name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 8000);
-  } catch {
-    window.open(it.url, '_blank');
+    if (mode === 'gallery' && navigator.canShare?.({ files: [f] })) return void (await navigator.share({ files: [f] }));
+    downloadFile(f);
+  } catch (e) {
+    if ((e as Error).name !== 'AbortError') window.open(it.url, '_blank');
   }
 }
 const hm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -584,20 +593,9 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
   async function photoOf(it: InstantItem) {
     return new File([await renderZasImage(it.url, it.caption)], `zas-${it.id.slice(0, 8)}.png`, { type: 'image/png' });
   }
-  async function save(it: InstantItem) {
+  async function save(it: InstantItem, mode: 'gallery' | 'file' = 'gallery') {
     setMenu(null);
-    try {
-      const f = await photoOf(it);
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(f);
-      a.download = f.name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 8000);
-    } catch {
-      window.open(it.url, '_blank');
-    }
+    await saveInstant(it, mode);
   }
   async function share(it: InstantItem) {
     setMenu(null);
@@ -682,7 +680,8 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
       {menu && (
         <Sheet title={tr('Zás')} onClose={() => setMenu(null)} layer="z-[100]">
           {([
-            ['download', tr('Guardar na galeria'), tr('Fica no teu telemóvel.'), () => void save(menu), false],
+            ['image', tr('Guardar na galeria'), tr('Abre «Guardar imagem» no telemóvel.'), () => void save(menu, 'gallery'), false],
+            ['download', tr('Descarregar'), tr('Ficheiro PNG com a moldura e a legenda.'), () => void save(menu, 'file'), false],
             ['share', tr('Partilhar'), tr('Manda a foto a quem quiseres.'), () => void share(menu), false],
             ['trash', tr('Apagar'), tr('Desaparece para toda a gente.'), () => { setDel(menu); setMenu(null); }, true],
           ] as const).map(([ic, label, text, run, danger]) => (

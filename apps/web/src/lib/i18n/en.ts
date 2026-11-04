@@ -1243,6 +1243,9 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Ficheiro PNG com a moldura e a legenda.': 'PNG file with the frame and caption.',
+  'Abre «Guardar imagem» no telemóvel.': 'Opens Save Image on your phone.',
+  'Descarregar': 'Download',
   'Reação enviada': 'Reaction sent',
   'Respondeu': 'Replied',
   'Respondeu-te': 'Replied to you',
