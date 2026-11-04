@@ -31,6 +31,7 @@ import { REACTIONS, Reaction, StickerButton, StickerPicker } from '../lib/sticke
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 import { useAuth } from '../lib/auth';
 import { ChatStoryThumb } from '../components/Stories';
+import { senderColor } from '../lib/senderColor';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE = 8 * 1024 * 1024;
@@ -181,7 +182,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onR
   return (
     <div id={real ? `msg-${m.id}` : undefined} className={`relative flex select-none flex-col rounded-3xl transition-colors duration-500 ${flash ? 'bg-brand/15' : ''} ${mine ? 'items-end' : 'items-start'} ${prevSame ? 'mt-0.5' : 'mt-3'}`} style={{ transform: dx ? `translateX(${dx}px)` : undefined, transition: dx ? 'none' : 'transform .18s ease-out', touchAction: 'pan-y' }} {...menuProps} {...swipeProps} {...tapProps}>
       {dx > 8 && <span aria-hidden className="absolute left-[-40px] top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-zinc-700" style={{ opacity: Math.min(1, dx / 56), transform: `translateY(-50%) scale(${dx >= 56 ? 1.15 : 0.85})` }}><Icon name="reply" size={16} /></span>}
-      {group && !mine && !prevSame && m.sender && <span className="mb-0.5 px-1 text-[12px] font-bold text-zinc-600">{m.sender.displayName.split(' ')[0]}</span>}
+      {group && !mine && !prevSame && m.sender && <span className="mb-0.5 px-1 text-[12px] font-bold" style={{ color: senderColor(m.sender.username) }}>{m.sender.displayName.split(' ')[0]}</span>}
       {m.replyTo && <span className="mb-1 px-1 text-[12px] text-zinc-500">{mine ? tr('Respondeste') : !m.replyTo.gone && m.replyTo.fromMe ? tr('Respondeu-te') : tr('Respondeu')}</span>}
       {m.replyTo && (
         <button

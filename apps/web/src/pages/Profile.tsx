@@ -253,7 +253,7 @@ export default function ProfilePage() {
         {!blocked && p.canView && geleiraOpen && (
           <div className="relative">
             {/* A ponta fica fora do cartão, no espaço entre o botão e a geleira, a ligar os dois. */}
-            <span aria-hidden className={`absolute top-[6px] z-10 h-0 w-0 border-x-[11px] border-b-[10px] border-x-transparent border-b-rose-300 ${p.isMe ? 'right-[calc((100%-30px)/12-11px)]' : 'right-[11px]'}`} />
+            <span aria-hidden className={`absolute top-[6px] z-10 h-0 w-0 border-x-[11px] border-b-[10px] border-x-transparent border-b-zinc-300 ${p.isMe ? 'right-[calc((100%-30px)/12-11px)]' : 'right-[11px]'}`} />
             <GeleiraShelf username={p.username} isMe={p.isMe} flush pointed />
           </div>
         )}
