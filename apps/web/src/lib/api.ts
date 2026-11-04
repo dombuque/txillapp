@@ -756,6 +756,8 @@ export const api = {
   searchTags: (q: string): Promise<{ tags: TagCount[] }> => raw(`/search/tags?q=${encodeURIComponent(q)}`),
   tagPage: (tag: string, sort: 'recent' | 'top', cursor?: string): Promise<TagPage> => raw(`/tags/${encodeURIComponent(tag)}?sort=${sort}&limit=10${cursor ? `&cursor=${cursor}` : ''}`),
   adminStats: (days: number): Promise<AdminStats> => raw(`/admin/stats?days=${days}`),
+  explore: (topic: string | null, cursor?: string): Promise<Page<Post>> => raw(`/feed/explore?limit=18${topic ? `&topic=${encodeURIComponent(topic)}` : ''}${cursor ? `&cursor=${cursor}` : ''}`),
+  exploreTopics: (): Promise<{ id: string; label: string; count: number }[]> => raw('/feed/explore/topics'),
   reels: (cursor?: string): Promise<Page<Post>> => raw(`/feed/reels${cursor ? `?cursor=${cursor}&limit=6` : '?limit=6'}`),
   /**
    * Envia um vídeo curto: mostra o progresso do envio, espera pela conversão no servidor (MP4 até 60 s)

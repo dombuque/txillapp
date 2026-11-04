@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { OnModuleInit, BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { MusicService, type MusicInput } from '../music/music.service';
 import { TextFilter } from '../safety/text-filter.service';
 import { Pool, PoolClient } from 'pg';
@@ -8,6 +8,7 @@ import { NotificationsService, mentionableBy } from '../notifications/notificati
 import { allowedBy, blockedBetween, canView, inMyNetwork, listVisibleTo } from '../social/visibility';
 import { SearchIndexer } from '../search/search-index';
 import { extractHashtags, prefixQuery } from '../common/hashtags';
+import { classify, topicLabel } from '../common/topics';
 import { RANKED_SQL, decodeCursor, encodeCursor } from './feed';
 import { WalletService } from '../wallet/wallet.service';
 
@@ -54,7 +55,7 @@ export type ProfileTab = 'posts' | 'reels' | 'reposts' | 'gifts' | 'tagged';
 export const PROFILE_TABS: readonly ProfileTab[] = ['posts', 'reels', 'reposts', 'gifts', 'tagged'];
 
 @Injectable()
-export class PostsService {
+export class PostsService implements OnModuleInit {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly wallet: WalletService,
@@ -63,6 +64,11 @@ export class PostsService {
     private readonly filter: TextFilter,
     private readonly musicSvc: MusicService,
   ) {}
+
+  onModuleInit() {
+    // Em segundo plano: não atrasa o arranque.
+    void this.backfillTopics().catch(() => undefined);
+  }
 
   async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null) {
     this.filter.assertClean(body, locationLabel, musicIn?.title, 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
@@ -94,8 +100,8 @@ export class PostsService {
       if (!adult) geo = null;
       const dp = geo?.coarse ? 2 : 3;
       const q = (n: number) => Math.round(n * 10 ** dp) / 10 ** dp;
-      await client.query('INSERT INTO content.posts (id, author_id, body, location_label, music, location_lat, location_lng) VALUES ($1, $2, $3, $4, $5, $6, $7)', [
-        id, userId, body.trim(), locationLabel || null, music ? JSON.stringify(music) : null, locationLabel && geo ? q(geo.lat) : null, locationLabel && geo ? q(geo.lng) : null,
+      await client.query('INSERT INTO content.posts (id, author_id, body, location_label, music, location_lat, location_lng, topics) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [
+        id, userId, body.trim(), locationLabel || null, music ? JSON.stringify(music) : null, locationLabel && geo ? q(geo.lat) : null, locationLabel && geo ? q(geo.lng) : null, classify(`${body} ${locationLabel ?? ''}`, extractHashtags(body)),
       ]);
       for (const tag of extractHashtags(body)) {
         await client.query('INSERT INTO content.post_tags (post_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, tag]);
@@ -167,7 +173,7 @@ export class PostsService {
       if (!body && cur.media === 0) throw new BadRequestException('Escreve algo');
       this.filter.assertClean(body);
       if (body !== cur.body) {
-        await this.pool.query('UPDATE content.posts SET body = $2, edited_at = now() WHERE id = $1', [postId, body]);
+        await this.pool.query('UPDATE content.posts SET body = $2, edited_at = now(), topics = $3 WHERE id = $1', [postId, body, classify(body, extractHashtags(body))]);
         await this.pool.query('DELETE FROM content.post_tags WHERE post_id = $1', [postId]);
         for (const tag of extractHashtags(body)) await this.pool.query('INSERT INTO content.post_tags (post_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING', [postId, tag]);
         this.indexer.postChanged(postId);
@@ -444,6 +450,95 @@ export class PostsService {
       next = ((await this.pool.query('SELECT created_at FROM content.saved_posts WHERE user_id = $1 AND post_id = $2', [userId, page[page.length - 1].id])).rows[0]?.created_at as Date | undefined)?.toISOString() ?? null;
     }
     return { items: await this.hydrate(userId, page), nextCursor: next };
+  }
+
+  /** Classifica (em lotes) as publicações antigas que ainda não têm temas. Corre ao arrancar; é barato e só trata o que falta. */
+  async backfillTopics(max = 5000) {
+    let done = 0;
+    while (done < max) {
+      const { rows } = await this.pool.query("SELECT id, body, location_label FROM content.posts WHERE topics IS NULL AND removed_at IS NULL ORDER BY id DESC LIMIT 500");
+      if (!rows.length) break;
+      for (const r of rows) {
+        const body = String(r.body ?? '');
+        await this.pool.query('UPDATE content.posts SET topics = $2 WHERE id = $1', [r.id, classify(`${body} ${r.location_label ?? ''}`, extractHashtags(body))]);
+      }
+      done += rows.length;
+    }
+    return done;
+  }
+
+  /**
+   * O algoritmo do Explorar ("Para ti"), nosso e só com dados do Txillapp:
+   *  - interesse: os temas do que a pessoa brindou, comentou, guardou e das contas que segue (com pesos diferentes);
+   *  - qualidade: reações por pessoa alcançada (e não só quantas), para não ganhar só quem já é grande;
+   *  - frescura: decai com os dias; contas seguidas sobem um pouco; o que já viste desce;
+   *  - variedade: no máximo 2 publicações por conta e uma pequena aleatoriedade diária, para descobrir coisas novas.
+   * Com `topic`, só desse tema (e sem o peso do interesse). Só publicações com foto ou vídeo que a pessoa pode ver, de adultos.
+   */
+  async explore(viewerId: string, topic: string | null, cursor: string | undefined, limit: number) {
+    const offset = cursor && /^\d{1,5}$/.test(cursor) ? Number(cursor) : 0;
+    const t = topic && /^[a-z]{2,20}$/.test(topic) ? topic : null;
+    const { rows } = await this.pool.query(
+      `WITH w AS (
+         SELECT topic, sum(wt) AS wt FROM (
+           SELECT unnest(p.topics) AS topic, 1.0 AS wt FROM content.cheers c JOIN content.posts p ON p.id = c.post_id WHERE c.user_id = $1 AND c.created_at > now() - interval '60 days' AND p.topics IS NOT NULL
+           UNION ALL SELECT unnest(p.topics), 2.0 FROM content.comments c JOIN content.posts p ON p.id = c.post_id WHERE c.author_id = $1 AND c.created_at > now() - interval '60 days' AND p.topics IS NOT NULL
+           UNION ALL SELECT unnest(p.topics), 3.0 FROM content.saved_posts s JOIN content.posts p ON p.id = s.post_id WHERE s.user_id = $1 AND p.topics IS NOT NULL
+           UNION ALL SELECT unnest(p.topics), 0.4 FROM social.follows f JOIN content.posts p ON p.author_id = f.followee_id AND p.created_at > now() - interval '30 days' WHERE f.follower_id = $1 AND p.topics IS NOT NULL
+         ) x GROUP BY topic),
+       tot AS (SELECT GREATEST(COALESCE(sum(wt), 0), 1) AS s FROM w),
+       cand AS (
+         SELECT p.id, p.author_id, p.topics, p.created_at,
+                (SELECT count(*) FROM content.cheers c WHERE c.post_id = p.id)::float AS cheers,
+                (SELECT count(*) FROM content.comments c WHERE c.post_id = p.id)::float AS comments,
+                (SELECT count(*) FROM content.posts r WHERE r.repost_of = p.id AND r.kind = 'repost' AND r.removed_at IS NULL)::float AS reposts,
+                (SELECT count(*) FROM content.feed_impressions i WHERE i.post_id = p.id)::float AS reach,
+                EXISTS (SELECT 1 FROM content.feed_impressions i WHERE i.post_id = p.id AND i.user_id = $1) AS seen,
+                EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = p.author_id) AS followed
+           FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+          WHERE p.kind = 'post' AND p.created_at > now() - interval '45 days' AND p.author_id <> $1
+            AND EXISTS (SELECT 1 FROM content.post_media pm WHERE pm.post_id = p.id)
+            AND ${ADULT} AND ${canView()} AND ${inMyNetwork()}
+            AND ($2::text IS NULL OR $2 = ANY(p.topics))
+          ORDER BY p.id DESC LIMIT 800),
+       scored AS (
+         SELECT c.id, c.author_id,
+                (0.25 + 1.6 * CASE WHEN $2::text IS NULL THEN COALESCE((SELECT sum(w.wt) FROM w WHERE w.topic = ANY(c.topics)), 0) / (SELECT s FROM tot) ELSE 0 END)
+                * (0.4 + least(2.5, (c.cheers + 2 * c.comments + 3 * c.reposts + 1) / (c.reach + 20) * 6))
+                * (0.3 + exp(-extract(epoch FROM (now() - c.created_at)) / 3600 / 96))
+                * (CASE WHEN c.followed THEN 1.25 ELSE 1 END)
+                * (CASE WHEN c.seen THEN 0.45 ELSE 1 END)
+                + (abs(hashtext($1::text || c.id::text || current_date::text)) % 1000) / 1000.0 * 0.06 AS score
+           FROM cand c),
+       ranked AS (SELECT id, score, row_number() OVER (PARTITION BY author_id ORDER BY score DESC) AS rn FROM scored)
+       SELECT id FROM ranked WHERE rn <= 2 ORDER BY score DESC OFFSET $3 LIMIT $4`,
+      [viewerId, t, offset, limit + 1],
+    );
+    const ids = rows.slice(0, limit).map((r) => r.id as string);
+    if (!ids.length) return { items: [], nextCursor: null };
+    const full = await this.pool.query(`${FEED_SQL} WHERE p.id = ANY($2)`, [viewerId, ids]);
+    const order = new Map(ids.map((id, i) => [id, i]));
+    full.rows.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+    return { items: await this.hydrate(viewerId, full.rows), nextCursor: rows.length > limit ? String(offset + limit) : null };
+  }
+
+  /** Os temas para os chips do Explorar: os que têm publicações visíveis, com os teus interesses primeiro. */
+  async exploreTopics(viewerId: string) {
+    const { rows } = await this.pool.query(
+      `WITH w AS (
+         SELECT topic, sum(wt) AS wt FROM (
+           SELECT unnest(p.topics) AS topic, 1.0 AS wt FROM content.cheers c JOIN content.posts p ON p.id = c.post_id WHERE c.user_id = $1 AND p.topics IS NOT NULL
+           UNION ALL SELECT unnest(p.topics), 3.0 FROM content.saved_posts s JOIN content.posts p ON p.id = s.post_id WHERE s.user_id = $1 AND p.topics IS NOT NULL
+         ) x GROUP BY topic),
+       vis AS (
+         SELECT unnest(p.topics) AS topic FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+          WHERE p.kind = 'post' AND p.created_at > now() - interval '45 days' AND p.author_id <> $1 AND p.topics IS NOT NULL
+            AND EXISTS (SELECT 1 FROM content.post_media pm WHERE pm.post_id = p.id) AND ${ADULT} AND ${canView()} AND ${inMyNetwork()})
+       SELECT vis.topic, count(*)::int AS n, COALESCE(max(w.wt), 0) AS mine FROM vis LEFT JOIN w ON w.topic = vis.topic GROUP BY vis.topic
+       ORDER BY COALESCE(max(w.wt), 0) DESC, count(*) DESC LIMIT 14`,
+      [viewerId],
+    );
+    return rows.map((r) => ({ id: r.topic as string, label: topicLabel(r.topic as string), count: r.n as number }));
   }
 
   /** Uma publicação pelo código curto dos links (ou pelo id, nos links antigos). */

@@ -304,4 +304,44 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     expect(((await api().get('/api/v1/feed/saved').set(auth(b)).expect(200)).body as { items: unknown[] }).items).toEqual([]);
     await api().put(`/api/v1/posts/${p2.id}/save`).set(auth(b)).expect(404);
   });
+
+  it('Explorar: temas, "Para ti" que aprende com o que se brinda, só o que se pode ver (sem menores nem bloqueados)', async () => {
+    const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+    const up = async (u: U) => {
+      const r = await api().post('/api/v1/media/uploads').set(auth(u)).send({ mime: 'image/png', size: PNG.length }).expect(201);
+      await api().put(r.body.uploadUrl).set('Content-Type', 'image/png').send(PNG).expect(200);
+      return r.body.assetId as string;
+    };
+    const author = await signup('xa0');
+    const author2 = await signup('xa1');
+    const me = await signup('xv0');
+    const mk = async (u: U, body: string) => {
+      const mediaId = await up(u);
+      return (await api().post('/api/v1/posts').set(auth(u)).send({ body, mediaIds: [mediaId] }).expect(201)).body as { id: string };
+    };
+    const futebol = await mk(author, `Golo no estadio hoje, grande jogo de futebol ${run}`);
+    const cerveja = await mk(author2, `Uma cerveja gelada com a malta no bar ${run}`);
+    const t = (await pool.query('SELECT id, topics FROM content.posts WHERE id = ANY($1)', [[futebol.id, cerveja.id]])).rows;
+    expect(t.find((x) => x.id === futebol.id).topics).toContain('desporto');
+    expect(t.find((x) => x.id === cerveja.id).topics).toContain('bebidas');
+    // Por tema.
+    const des = (await api().get('/api/v1/feed/explore?topic=desporto').set(auth(me)).expect(200)).body as { items: { id: string }[] };
+    expect(des.items.map((x) => x.id)).toContain(futebol.id);
+    expect(des.items.map((x) => x.id)).not.toContain(cerveja.id);
+    const topics = (await api().get('/api/v1/feed/explore/topics').set(auth(me)).expect(200)).body as { id: string; label: string }[];
+    expect(topics.map((x) => x.id)).toEqual(expect.arrayContaining(['desporto', 'bebidas']));
+    // "Para ti": depois de brindar desporto, o desporto sobe acima do resto.
+    await api().post(`/api/v1/posts/${futebol.id}/cheers`).set(auth(me)).expect((r) => { if (r.status >= 400) throw new Error(`cheer ${r.status}`); });
+    const author3 = await signup('xa2');
+    const outro = await mk(author3, `Futebol de rua, golo bonito ${run}`);
+    const fy = (await api().get('/api/v1/feed/explore').set(auth(me)).expect(200)).body as { items: { id: string }[] };
+    const ids = fy.items.map((x) => x.id);
+    expect(ids).toContain(outro.id);
+    expect(ids.indexOf(outro.id)).toBeLessThan(ids.indexOf(cerveja.id) === -1 ? 999 : ids.indexOf(cerveja.id));
+    expect(ids).not.toContain(me.id);
+    // Bloqueio: o autor bloqueado desaparece.
+    await api().put(`/api/v1/blocks/${author3.username}`).set(auth(me)).expect((r) => { if (r.status >= 400) throw new Error(`block ${r.status}`); });
+    expect(((await api().get('/api/v1/feed/explore').set(auth(me)).expect(200)).body as { items: { id: string }[] }).items.map((x) => x.id)).not.toContain(outro.id);
+    await api().get('/api/v1/feed/explore').expect(401);
+  });
 });

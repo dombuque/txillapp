@@ -1,3 +1,4 @@
+import { BookmarkIcon } from '../components/PostCard';
 import { funny } from '../lib/copy';
 import { LoadingBlock } from '../components/Loading';
 import { tr } from '../lib/i18n';
@@ -34,18 +35,19 @@ export default function Search() {
   const [tab, setTab] = useState<'people' | 'tags' | 'posts'>('people');
   const trending = useQuery({ queryKey: ['trending'], queryFn: api.trending, staleTime: 60_000 });
   const hot = useQuery({ queryKey: ['places-hot'], queryFn: api.hotPlaces, staleTime: 60_000 });
-  // Explorar: publicações com foto ou vídeo do feed de descoberta, mais os reels, sem repetir.
+  // Explorar: o "Para ti" (o algoritmo do Txillapp) ou um tema. Só publicações com foto ou vídeo.
+  const [topic, setTopic] = useState<string | null>(null);
+  const topics = useQuery({ queryKey: ['explore-topics'], queryFn: api.exploreTopics, staleTime: 5 * 60_000, retry: false });
   const explore = useInfiniteQuery({
-    queryKey: ['explore'],
-    queryFn: ({ pageParam }) => api.feed(pageParam),
+    queryKey: ['explore', topic],
+    queryFn: ({ pageParam }) => api.explore(topic, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (l) => l.nextCursor ?? undefined,
     staleTime: 60_000,
   });
-  const reelsQ = useQuery({ queryKey: ['explore-reels'], queryFn: () => api.reels(), staleTime: 60_000 });
   const grid = (() => {
     const seen = new Set<string>();
-    const all = [...(reelsQ.data?.items ?? []), ...(explore.data?.pages.flatMap((x) => x.items) ?? [])];
+    const all = explore.data?.pages.flatMap((x) => x.items) ?? [];
     return all
       .map((p) => (p.kind === 'repost' && p.repostOf ? p.repostOf : p))
       .filter((p) => p.media.length > 0 && !seen.has(p.id) && !!seen.add(p.id));
@@ -92,8 +94,8 @@ export default function Search() {
 
   return (
     <div className="pb-6">
-      <form role="search" onSubmit={(e) => { e.preventDefault(); if (term.length >= 2) remember(term); }} className="px-4 pb-3 pt-2">
-        <label className="flex items-center gap-2.5 rounded-full bg-zinc-100 px-4 py-3 text-zinc-600 focus-within:bg-zinc-200/70">
+      <form role="search" onSubmit={(e) => { e.preventDefault(); if (term.length >= 2) remember(term); }} className="flex items-center gap-2 px-4 pb-2 pt-2">
+        <label className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full bg-zinc-100 px-4 py-3 text-zinc-600 focus-within:bg-zinc-200/70">
           <SearchIcon width={20} height={20} />
           <input
             type="search"
@@ -111,7 +113,25 @@ export default function Search() {
           )}
           <button type="button" onClick={() => setAi('')} aria-label={tr('Abrir o SuperTxill')} className="flex h-8 w-8 shrink-0 items-center justify-center text-brand active:scale-90"><Icon name="bolt" size={20} fill="currentColor" /></button>
         </label>
+        <Link to="/saved" aria-label={tr('Guardados')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-zinc-900 active:bg-zinc-100"><BookmarkIcon on={false} size={26} /></Link>
       </form>
+
+      {/* Filtros do Explorar: "Para ti" (aprende contigo) e os temas do Txillapp. */}
+      {!searching && (
+        <div role="tablist" aria-label={tr('Temas')} className="flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {[{ id: null as string | null, label: tr('Para ti') }, ...(topics.data ?? []).map((t) => ({ id: t.id as string | null, label: tr(t.label) }))].map((t) => (
+            <button
+              key={t.id ?? 'fy'}
+              role="tab"
+              aria-selected={topic === t.id}
+              onClick={() => setTopic(t.id)}
+              className={`h-10 shrink-0 rounded-full px-4 text-[14px] font-semibold transition active:scale-95 ${topic === t.id ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-800'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {!searching && (
         <>

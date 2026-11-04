@@ -46,6 +46,19 @@ export class FeedController {
   }
 
   /** Vídeos curtos (Reels): os que mais te vão interessar, sem repetir os que já viste. */
+  /** O Explorar: o 'Para ti' (nosso algoritmo) ou um tema. */
+  @Get('explore')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  explore(@Req() req: AuthedReq, @Query('topic') topic?: string, @Query('cursor') cursor?: string, @Query('limit') limit?: string) {
+    const n = Math.min(Math.max(Number(limit) || 18, 1), 30);
+    return this.posts.explore(req.userId!, topic ?? null, cursor, n);
+  }
+
+  @Get('explore/topics')
+  exploreTopics(@Req() req: AuthedReq) {
+    return this.posts.exploreTopics(req.userId!);
+  }
+
   /** Publicações de um sítio: ?label=...&mode=at|near. */
   @Get('place')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
