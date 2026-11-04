@@ -20,7 +20,7 @@ function Bubble({ text, dim = false, track = '', cheers = 0 }: { text: string; d
       <span aria-hidden className="absolute -bottom-1 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rotate-45 bg-white" />
       {/* Brinde: aparece no topo da nota, a quem brindou e ao dono. */}
       {cheers > 0 && (
-        <span role="img" aria-label={`${cheers} ${cheers === 1 ? 'brinde' : 'brindes'}`} className="absolute -right-2 -top-2.5 flex h-[22px] min-w-[22px] items-center justify-center gap-0.5 rounded-full bg-white px-1 text-green-700 shadow-[0_1px_5px_rgba(0,0,0,0.25)] ring-1 ring-green-100">
+        <span role="img" aria-label={`${cheers} ${cheers === 1 ? 'brinde' : 'brindes'}`} className="absolute -right-2 -top-2.5 flex h-[22px] min-w-[22px] items-center justify-center gap-0.5 rounded-full bg-white px-1 text-amber-600 shadow-[0_1px_5px_rgba(0,0,0,0.25)] ring-1 ring-amber-100">
           <Icon name="cheers" size={14} />{cheers > 1 && <span className="text-[10px] font-bold tabular-nums">{cheers}</span>}
         </span>
       )}
@@ -177,7 +177,7 @@ function NoteView({ note, onClose }: { note: Note; onClose: () => void }) {
         {note.music && <div className="w-full"><TrackCard track={note.music} autoplay /></div>}
         <p className="mt-1.5 text-xs text-zinc-500">{timeAgo(note.createdAt)}</p>
       </div>
-      <button type="button" onClick={() => void cheer()} aria-pressed={cheered} className={`mx-auto mt-4 flex h-11 items-center gap-2 rounded-full px-6 font-semibold transition active:scale-95 ${cheered ? 'bg-green-100 text-green-800' : 'bg-zinc-100 text-zinc-800'}`}>
+      <button type="button" onClick={() => void cheer()} aria-pressed={cheered} className={`mx-auto mt-4 flex h-11 items-center gap-2 rounded-full px-6 font-semibold transition active:scale-95 ${cheered ? 'bg-amber-100 text-amber-800' : 'bg-zinc-100 text-zinc-800'}`}>
         <span key={String(cheered)} className={`inline-flex ${cheered ? 'animate-[pop_.4s_ease-out]' : ''}`}><Icon name="cheers" size={20} /></span> {cheered ? tr('Brindou') : tr('Brindar')}
       </button>
       <form onSubmit={(e) => { e.preventDefault(); void reply(); }} className="mt-3 flex gap-2">

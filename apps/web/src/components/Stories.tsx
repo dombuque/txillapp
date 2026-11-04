@@ -306,7 +306,7 @@ function ReplyBar({ story, username, onFocusChange }: { story: Story; username: 
           <button className="font-semibold text-white">{tr('Enviar')}</button>
         ) : (
           <>
-            <button type="button" onClick={cheer} aria-label={tr('Brindar')} aria-pressed={cheered} className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-90 ${cheered ? 'text-emerald-300' : 'text-white'}`}><Icon name="cheers" size={28} /></button>
+            <button type="button" onClick={cheer} aria-label={tr('Brindar')} aria-pressed={cheered} className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-90 ${cheered ? 'text-amber-300' : 'text-white'}`}><Icon name="cheers" size={28} /></button>
             {story.sharedFrom && <button type="button" onClick={openShare} aria-label={tr('Partilhar')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white transition active:scale-90"><Icon name="share" size={26} /></button>}
           </>
         )}

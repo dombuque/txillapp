@@ -359,8 +359,8 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
 
   const btn = `flex min-h-12 min-w-0 items-center justify-center gap-1.5 px-1 transition active:scale-95 min-[360px]:px-2 ${dark ? 'text-white' : 'text-zinc-800'}`;
   const count = (n: number) => (n > 0 ? <span className="text-[15px] tabular-nums">{n}</span> : null);
-  const Item = ({ label, children, onClick, pressed, className = 'flex-1' }: { label: string; children: ReactNode; onClick: () => void; pressed?: boolean; className?: string }) => (
-    <button onClick={onClick} aria-label={label} aria-pressed={pressed} className={`${btn} ${className} ${pressed ? (dark ? '!text-green-400' : '!text-green-700') : ''}`}>
+  const Item = ({ label, children, onClick, pressed, className = 'flex-1', tone = 'beer' }: { label: string; children: ReactNode; onClick: () => void; pressed?: boolean; className?: string; tone?: 'beer' | 'green' }) => (
+    <button onClick={onClick} aria-label={label} aria-pressed={pressed} className={`${btn} ${className} ${pressed ? (tone === 'green' ? (dark ? '!text-green-400' : '!text-green-700') : dark ? '!text-amber-400' : '!text-amber-600') : ''}`}>
       {children}
     </button>
   );
@@ -417,7 +417,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
           )}
         </div>
         <div className="mt-1 flex items-stretch border-t border-zinc-200">
-          <button onClick={cheer} aria-pressed={post.cheered} aria-label={post.cheered ? 'Tirar o brinde' : 'Brindar'} className={`${barBtn} ${post.cheered ? '!text-green-700' : ''}`}>
+          <button onClick={cheer} aria-pressed={post.cheered} aria-label={post.cheered ? 'Tirar o brinde' : 'Brindar'} className={`${barBtn} ${post.cheered ? '!text-amber-600' : ''}`}>
             <span key={String(post.cheered)} className={`inline-flex ${post.cheered ? 'animate-[pop_.4s_ease-out]' : ''}`}><Icon name="cheers" size={24} /></span>
             <span className={word}>{post.cheered ? tr('Brindou') : tr('Brindar')}</span>
           </button>
@@ -473,7 +473,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
           {count(post.comments)}
         </Item>
         {(post.kind === 'post' || post.kind === 'gift' || (post.kind === 'repost' && !!post.body)) && (
-          <Item label={post.reposted ? tr('Reposte feito ({n})', { n: post.reposts }) : tr('Repostar ({n})', { n: post.reposts })} onClick={() => setSheet('repost')} pressed={post.reposted}>
+          <Item label={post.reposted ? tr('Reposte feito ({n})', { n: post.reposts }) : tr('Repostar ({n})', { n: post.reposts })} onClick={() => setSheet('repost')} tone="green" pressed={post.reposted}>
             <RepostIcon />
             {count(post.reposts)}
           </Item>
