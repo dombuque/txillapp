@@ -407,7 +407,9 @@ export default function CameraStudio() {
   }
 
   const round = 'flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-md transition active:scale-90';
-  const accept = mode === 'reel' ? 'video/*' : mode === 'story' ? IMAGE_TYPES.join(',') : `${IMAGE_TYPES.join(',')},video/*`;
+  // Tipos concretos (sem 'image/*' nem 'video/*'): o iPhone deixa de oferecer "Tirar foto ou vídeo" aqui, que já estás na câmara.
+  const VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
+  const accept = mode === 'reel' ? VIDEO_TYPES.join(',') : mode === 'story' ? IMAGE_TYPES.join(',') : [...IMAGE_TYPES, ...VIDEO_TYPES].join(',');
   const galleryInput = <input type="file" multiple={mode === 'post'} accept={accept} onChange={gallery} className="sr-only" aria-label={tr('Escolher da galeria')} />;
   const R = 41;
   const C = 2 * Math.PI * R;
