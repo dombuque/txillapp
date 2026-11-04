@@ -19,7 +19,7 @@ export interface Feature {
 export const FEATURES: Feature[] = [
   { id: 'zas', icon: 'bolt', title: tr('Zás!'), text: tr('Fotos na hora que duram 24 h e só se veem uma vez. Está no canto das mensagens.'), path: '/messages' },
   { id: 'reacoes', icon: 'heart', title: tr('Reage e responde nas mensagens'), text: tr('Segura numa mensagem para reagir ou responder.'), path: '/messages' },
-  { id: 'stickers', icon: 'sticker', title: tr('Mais de 90 stickers'), text: tr('Desenhos novos e mais engraçados para as conversas.'), path: '/messages' },
+  { id: 'stickers', icon: 'sticker', title: tr('Mais de 550 stickers'), text: tr('Desenhos novos e mais engraçados para as conversas.'), path: '/messages' },
   { id: 'video-longo', icon: 'video', title: tr('Grava vídeo com o dedo'), text: tr('Na câmara, segura o botão para gravar e larga para parar.'), path: '/new' },
 ];
 

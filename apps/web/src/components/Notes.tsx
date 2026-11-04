@@ -16,7 +16,7 @@ function Bubble({ text, dim = false, track = '', cheers = 0 }: { text: string; d
   return (
     <span className={`relative mb-1.5 block max-w-[84px] rounded-[14px] bg-white px-2 py-1.5 text-center text-[11px] font-medium leading-[1.15] shadow-[0_1px_6px_rgba(0,0,0,0.18)] ring-1 ring-zinc-100 ${dim ? 'text-zinc-500' : 'text-zinc-800'}`}>
       {text && <span className={`${track ? 'line-clamp-2' : 'line-clamp-3'} block break-words`}>{text}</span>}
-      {track && <span className={`line-clamp-2 block break-words ${text ? 'mt-0.5 text-[10px] text-zinc-500' : ''}`}><Icon name="music" size={11} className="mr-0.5 inline align-[-1px]" />{track}</span>}
+      {track && <span className={`block ${text ? 'mt-0.5 truncate text-[10px] text-zinc-500' : 'line-clamp-3 break-words'}`}><Icon name="music" size={11} className="mr-0.5 inline align-[-1px]" />{track}</span>}
       <span aria-hidden className="absolute -bottom-1 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rotate-45 bg-white" />
       {/* Brinde: aparece no topo da nota, a quem brindou e ao dono. */}
       {cheers > 0 && (
