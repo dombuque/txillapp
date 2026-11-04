@@ -30,7 +30,7 @@ export interface Outgoing {
   waveform?: string;
   lat?: number;
   lng?: number;
-  /** Visualização única (texto, foto ou voz, só em conversas diretas). */
+  /** Visualização única (texto, foto, voz ou vídeo; nos grupos cada pessoa abre uma vez). */
   once?: boolean;
   /** Localização em direto durante estes minutos (15, 60 ou 480). */
   liveMinutes?: number;
@@ -441,11 +441,12 @@ export class ChatService {
   async open(me: string, messageId: string) {
     const m = (
       await this.pool.query(
-        `SELECT m.sender_id, c.user_a, c.user_b FROM social.messages m JOIN social.conversations c ON c.id = m.conversation_id
+        `SELECT m.sender_id, m.group_id, c.user_a, c.user_b FROM social.messages m LEFT JOIN social.conversations c ON c.id = m.conversation_id
           WHERE m.id = $1 AND m.deleted_at IS NULL AND m.view_once`,
         [messageId],
       )
     ).rows[0];
+    if (m?.group_id) return this.openInGroup(me, messageId, m.group_id as string, m.sender_id as string);
     if (!m || (m.user_a !== me && m.user_b !== me) || m.sender_id === me) throw new NotFoundException('Mensagem não encontrada');
     const { rows } = await this.pool.query(
       `UPDATE social.messages m SET viewed_at = now(), body = '', media_id = NULL, waveform = NULL
@@ -459,6 +460,38 @@ export class ChatService {
     if (rows[0].media_id) await this.media.expireIn(rows[0].media_id as string, 15);
     this.events.emit(m.sender_id as string, { type: 'read', from: await this.usernameOf(me) });
     const r = rows[0];
+    return {
+      kind: r.kind as MessageKind,
+      body: r.body as string,
+      mediaUrl: r.media_id ? this.media.chatUrl(r.media_id as string) : null,
+      durationMs: r.duration_ms as number | null,
+      waveform: (r.waveform as string | null) ?? null,
+    };
+  }
+
+  /**
+   * Visualização única num grupo: cada pessoa abre uma vez. O conteúdo só desaparece do servidor quando todos os outros membros já abriram.
+   */
+  private async openInGroup(me: string, messageId: string, groupId: string, senderId: string) {
+    const member = await this.pool.query('SELECT 1 FROM social.group_members WHERE group_id = $1 AND user_id = $2', [groupId, me]);
+    if (!member.rowCount || senderId === me) throw new NotFoundException('Mensagem não encontrada');
+    const ins = await this.pool.query('INSERT INTO social.message_views (message_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING 1', [messageId, me]);
+    if (!ins.rowCount) throw new GoneException('Já abriste esta mensagem');
+    const r = (await this.pool.query('SELECT body, media_id, kind, duration_ms, waveform FROM social.messages WHERE id = $1', [messageId])).rows[0];
+    if (!r) throw new GoneException('Esta mensagem já não existe');
+    const left = (
+      await this.pool.query(
+        `SELECT count(*)::int AS n FROM social.group_members x WHERE x.group_id = $1 AND x.user_id <> $2
+            AND NOT EXISTS (SELECT 1 FROM social.message_views v WHERE v.message_id = $3 AND v.user_id = x.user_id)`,
+        [groupId, senderId, messageId],
+      )
+    ).rows[0].n as number;
+    if (left === 0) {
+      // Já todos abriram: apaga o conteúdo (o ficheiro fica só uns minutos para acabar de ver).
+      await this.pool.query("UPDATE social.messages SET viewed_at = now(), body = '', media_id = NULL, waveform = NULL WHERE id = $1", [messageId]);
+      if (r.media_id) await this.media.expireIn(r.media_id as string, 15);
+    }
+    this.events.emit(senderId, { type: 'message', group: groupId });
     return {
       kind: r.kind as MessageKind,
       body: r.body as string,

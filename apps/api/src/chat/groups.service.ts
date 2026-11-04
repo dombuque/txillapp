@@ -92,12 +92,12 @@ export class GroupsService {
               (SELECT count(*) FROM social.group_members x WHERE x.group_id = g.id)::int AS members,
               (SELECT json_agg(t) FROM (SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar"
                   FROM social.group_members x JOIN identity.users u ON u.id = x.user_id WHERE x.group_id = g.id AND x.user_id <> $1 ORDER BY x.joined_at LIMIT 3) t) AS preview,
-              lm.body AS last_body, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, su.display_name AS last_name,
+              CASE WHEN lm.view_once THEN '' ELSE lm.body END AS last_body, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, su.display_name AS last_name,
               (SELECT count(*) FROM social.messages m WHERE m.group_id = g.id AND m.sender_id <> $1 AND m.deleted_at IS NULL
                   AND (gm.read_id IS NULL OR m.id > gm.read_id))::int AS unread
          FROM social.group_members gm
          JOIN social.groups g ON g.id = gm.group_id
-         LEFT JOIN LATERAL (SELECT body, kind, sender_id, created_at FROM social.messages WHERE group_id = g.id AND deleted_at IS NULL ORDER BY id DESC LIMIT 1) lm ON true
+         LEFT JOIN LATERAL (SELECT body, kind, sender_id, created_at, view_once FROM social.messages WHERE group_id = g.id AND deleted_at IS NULL ORDER BY id DESC LIMIT 1) lm ON true
          LEFT JOIN identity.users su ON su.id = lm.sender_id
         WHERE gm.user_id = $1
         ORDER BY COALESCE(lm.created_at, g.created_at) DESC LIMIT 100`,
@@ -134,9 +134,10 @@ export class GroupsService {
       )
     ).rows as { id: string; username: string; displayName: string; hasAvatar: boolean; role: 'admin' | 'member' }[];
     const { rows } = await this.pool.query(
-      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.reply_to, m.created_at
+      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.reply_to, m.created_at, m.view_once,
+              CASE WHEN m.sender_id = $4 THEN EXISTS (SELECT 1 FROM social.message_views v WHERE v.message_id = m.id) ELSE EXISTS (SELECT 1 FROM social.message_views v WHERE v.message_id = m.id AND v.user_id = $4) END AS viewed_at
          FROM social.messages m WHERE m.group_id = $1 AND m.deleted_at IS NULL AND ($2::uuid IS NULL OR m.id < $2) ORDER BY m.id DESC LIMIT $3`,
-      [groupId, cursor ?? null, PAGE + 1],
+      [groupId, cursor ?? null, PAGE + 1, me],
     );
     const page = rows.slice(0, PAGE);
     if (!cursor && page[0]) {
@@ -160,8 +161,8 @@ export class GroupsService {
     const place = await this.chat.validateOutgoing(me, msg);
     const id = uuidv7();
     await this.pool.query(
-      'INSERT INTO social.messages (id, group_id, sender_id, body, kind, media_id, duration_ms, waveform, lat, lng, reply_to) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, (SELECT r.id FROM social.messages r WHERE r.id = $11::uuid AND r.group_id = $2 AND r.deleted_at IS NULL))',
-      [id, groupId, me, msg.kind === 'location' ? msg.body.slice(0, 80) : msg.body, msg.kind, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place?.lat ?? null, place?.lng ?? null, msg.replyTo ?? null],
+      'INSERT INTO social.messages (id, group_id, sender_id, body, kind, media_id, duration_ms, waveform, lat, lng, view_once, reply_to) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $12, (SELECT r.id FROM social.messages r WHERE r.id = $11::uuid AND r.group_id = $2 AND r.deleted_at IS NULL))',
+      [id, groupId, me, msg.kind === 'location' ? msg.body.slice(0, 80) : msg.body, msg.kind, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place?.lat ?? null, place?.lng ?? null, msg.replyTo ?? null, !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice' || msg.kind === 'video')],
     );
     await this.pool.query('UPDATE social.group_members SET read_id = $3 WHERE group_id = $1 AND user_id = $2', [groupId, me, id]);
     await this.pool.query('UPDATE social.groups SET last_message_at = now() WHERE id = $1', [groupId]);

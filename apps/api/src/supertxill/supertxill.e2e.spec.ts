@@ -168,4 +168,33 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     await api().patch(`/api/v1/posts/${post.id}`).set(auth(a)).send({ commentsOff: false }).expect(200);
     await api().post(`/api/v1/posts/${post.id}/comments`).set(auth(b)).send({ body: 'agora sim' }).expect(201);
   });
+
+  it('visualização única em grupos: cada pessoa abre uma vez; o conteúdo só some quando todos abriram', async () => {
+    const a = await signup('go0');
+    const b = await signup('go1');
+    const c = await signup('go2');
+    for (const u of [b, c]) {
+      await api().post(`/api/v1/users/${u.username}/follow`).set(auth(a)).expect((r) => { if (r.status >= 400) throw new Error(`follow ${r.status}`); });
+      await api().post(`/api/v1/users/${a.username}/follow`).set(auth(u)).expect((r) => { if (r.status >= 400) throw new Error(`follow ${r.status}`); });
+    }
+    const g = (await api().post('/api/v1/chat/groups').set(auth(a)).send({ name: 'Grupo único', members: [b.username, c.username] }).expect(201)).body as { id: string };
+    const sent = (await api().post(`/api/v1/chat/groups/${g.id}/messages`).set(auth(a)).send({ kind: 'text', body: 'segredo', once: true }).expect(201)).body as { id: string };
+    const view = async (u: U) => ((await api().get(`/api/v1/chat/groups/${g.id}`).set(auth(u)).expect(200)).body.items as { id: string; body: string; viewOnce: boolean; opened: boolean }[]).find((m) => m.id === sent.id)!;
+    expect(await view(b)).toMatchObject({ body: '', viewOnce: true, opened: false });
+    expect(await view(a)).toMatchObject({ viewOnce: true, opened: false });
+    await api().post(`/api/v1/chat/messages/${sent.id}/open`).set(auth(a)).expect(404); // o autor não abre a sua
+    const first = await api().post(`/api/v1/chat/messages/${sent.id}/open`).set(auth(b)).expect(200);
+    expect(first.body.body).toBe('segredo');
+    await api().post(`/api/v1/chat/messages/${sent.id}/open`).set(auth(b)).expect(410); // cada pessoa abre uma vez
+    expect(await view(b)).toMatchObject({ opened: true, body: '' });
+    expect(await view(c)).toMatchObject({ opened: false });
+    expect(await view(a)).toMatchObject({ opened: true });
+    expect((await pool.query('SELECT body FROM social.messages WHERE id = $1', [sent.id])).rows[0].body).toBe('segredo'); // a c ainda não abriu
+    const second = await api().post(`/api/v1/chat/messages/${sent.id}/open`).set(auth(c)).expect(200);
+    expect(second.body.body).toBe('segredo');
+    expect((await pool.query('SELECT body FROM social.messages WHERE id = $1', [sent.id])).rows[0].body).toBe(''); // todos abriram: apagado
+    // Quem não é do grupo não abre.
+    const out = await signup('go3');
+    await api().post(`/api/v1/chat/messages/${sent.id}/open`).set(auth(out)).expect(404);
+  });
 });

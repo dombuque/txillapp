@@ -459,7 +459,7 @@ export default function Thread() {
     if (!body) return;
     setText('');
     input.current?.focus(); // o teclado fica aberto para a mensagem seguinte
-    void dispatch({ kind: 'text', body, once: once && !isGroup });
+    void dispatch({ kind: 'text', body, once });
     setOnce(false);
   }
 
@@ -490,13 +490,13 @@ export default function Thread() {
     if (!['video/mp4', 'video/quicktime', 'video/webm'].includes(f.type)) return setErr(tr('Usa um vídeo MP4, MOV ou WebM'));
     if (f.size > 100 * 1024 * 1024) return setErr(tr('Vídeo pesado demais! Máximo 100 MB'));
     setErr('');
-    void dispatch({ kind: 'video', body: '', file: f, mime: f.type, localUrl: URL.createObjectURL(f), once: once && !isGroup });
+    void dispatch({ kind: 'video', body: '', file: f, mime: f.type, localUrl: URL.createObjectURL(f), once });
     setOnce(false);
   }
   function sendReviewed(r: { file: File; caption: string; once: boolean }) {
     setReview(null);
     setText('');
-    void dispatch({ kind: 'image', body: r.caption, file: r.file, mime: r.file.type, localUrl: URL.createObjectURL(r.file), once: r.once && !isGroup });
+    void dispatch({ kind: 'image', body: r.caption, file: r.file, mime: r.file.type, localUrl: URL.createObjectURL(r.file), once: r.once });
     setOnce(false);
   }
 
@@ -556,7 +556,7 @@ export default function Thread() {
         const durationMs = Math.min(Date.now() - r.start, 300_000);
         const mime = (mr.mimeType || 'audio/webm').split(';')[0];
         const blob = new Blob(r.chunks, { type: mime });
-        void dispatch({ kind: 'voice', body: '', file: blob, mime, durationMs, waveform: toWaveform(r.levels), localUrl: URL.createObjectURL(blob), once: once && !isGroup });
+        void dispatch({ kind: 'voice', body: '', file: blob, mime, durationMs, waveform: toWaveform(r.levels), localUrl: URL.createObjectURL(blob), once });
         setOnce(false);
       };
       mr.start();
@@ -877,7 +877,7 @@ export default function Thread() {
         </div>
       ) : (
         <div className="shrink-0 border-t border-zinc-100">
-        {once && onceHelp && !isGroup && (
+        {once && onceHelp && (
           <p role="status" className="mx-3 mt-2 flex items-center justify-between rounded-2xl bg-zinc-900 px-4 py-2 text-[13px] font-semibold text-white">
             <span>{tr('Visualização única: a próxima mensagem só se abre uma vez.')}</span>
             <button type="button" onClick={() => setOnceHelp(false)} aria-label={tr('Fechar a explicação')} className="ml-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20"><Icon name="x" size={14} /></button>
@@ -952,7 +952,7 @@ export default function Thread() {
               <button type="submit" onPointerDown={(e) => e.preventDefault()} className="h-10 shrink-0 rounded-full bg-brand px-4 font-bold text-white transition active:scale-95">{tr('Enviar')}</button>
             ) : (
               <>
-                {!isGroup && <button type="button" onClick={() => { if (!once && firstTime('view-once')) setOnceHelp(true); setOnce(!once); }} aria-pressed={once} aria-label={tr('Visualização única')} className={`${bar} ${once ? 'bg-brand text-white active:bg-brand' : ''}`}><Icon name="once" size={22} /></button>}
+                <button type="button" onClick={() => { if (!once && firstTime('view-once')) setOnceHelp(true); setOnce(!once); }} aria-pressed={once} aria-label={tr('Visualização única')} className={`${bar} ${once ? 'bg-brand text-white active:bg-brand' : ''}`}><Icon name="once" size={22} /></button>
                 <button type="button" onClick={startRecording} className={bar} aria-label={tr('Gravar mensagem de voz')}><Icon name="mic" size={22} /></button>
                 <button type="button" onClick={() => gallery.current?.click()} className={bar} aria-label={tr('Enviar foto ou vídeo da galeria')}><Icon name="image" size={22} /></button>
                 <button type="button" data-sticker-toggle onClick={() => { markSeen('stickers'); setPanel(panel === 'stickers' ? null : 'stickers'); }} aria-label={tr('Stickers')} aria-expanded={panel === 'stickers'} className={`${bar} relative ${panel === 'stickers' ? 'bg-white text-brand' : ''}`}><Icon name="sticker" size={22} /><NewBadge id="stickers" className="absolute -right-2 -top-2" /></button>
@@ -985,7 +985,7 @@ export default function Thread() {
         />
       )}
       {place && <LocationPicker onSend={sendPlace} onClose={() => setPlace(false)} />}
-      {review && <ChatPhotoReview file={review} name={person?.displayName.split(' ')[0] ?? group?.name ?? 'o chat'} canOnce={!isGroup} initialCaption={text.trim()} onCancel={() => setReview(null)} onSend={sendReviewed} />}
+      {review && <ChatPhotoReview file={review} name={person?.displayName.split(' ')[0] ?? group?.name ?? 'o chat'} canOnce initialCaption={text.trim()} onCancel={() => setReview(null)} onSend={sendReviewed} />}
       {opening && <OnceViewer id={opening.id} from={person?.displayName ?? ''} onClose={() => { setOpening(null); void q.refetch(); }} />}
       {members && group && <GroupSheet group={group} onClose={() => setMembers(false)} onChanged={() => void q.refetch()} onLeft={() => navigate('/messages', { replace: true })} />}
       {reporting && <ReportSheet type="message" id={reporting} onClose={() => setReporting(null)} />}
