@@ -70,6 +70,8 @@ export default function InstantsDock() {
   const others = data?.others ?? [];
   const total = others.reduce((n, o) => n + o.count, 0);
   const top = others[0];
+  // Uma carta por Zás (não por pessoa): quem tem vários Zás faz o baralho crescer. Até 4 cartas.
+  const cards = others.flatMap((o) => Array.from({ length: Math.min(o.count, 3) }, () => o)).slice(0, 4);
 
   return (
     <>
@@ -84,17 +86,17 @@ export default function InstantsDock() {
           } else setMode('cam');
         }}
         aria-label={total ? tr('Zás: {n} por ver', { n: total }) : tr('Mandar um Zás')}
-        className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-0 z-20 h-[150px] w-[150px]"
+        className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-0 z-20 h-[150px] w-[170px]"
         style={{ transform: away ? 'translateX(66%)' : 'translateX(38%)', transition: 'transform .4s cubic-bezier(.2,.9,.3,1.15)' }}
       >
         {/* Baralho em leque, como no Instagram: as cartas dos Zás por ver (foto desfocada), a da frente com a foto de perfil. */}
-        {(others.length ? [...others.slice(0, 3)].reverse() : [null]).map((o, idx, arr) => {
+        {(cards.length ? [...cards].reverse() : [null]).map((o, idx, arr) => {
           const depth = arr.length - 1 - idx;
           return (
             <span
-              key={o?.username ?? 'vazio'}
+              key={`${o?.username ?? 'vazio'}-${idx}`}
               className="absolute bottom-3 right-6 h-[116px] w-[88px] overflow-hidden rounded-[24px] bg-gradient-to-br from-brand to-[#ff9a5b] shadow-[0_6px_16px_rgba(0,0,0,0.3)] ring-[3px] ring-white"
-              style={{ transform: `translate(${-depth * 24}px, ${-depth * 9}px) rotate(${-8 - depth * 12}deg)`, transformOrigin: '70% 90%', zIndex: 3 - depth }}
+              style={{ transform: `translate(${-depth * 17}px, ${-depth * 8}px) rotate(${-8 - depth * 10}deg)`, transformOrigin: '70% 90%', zIndex: 3 - depth }}
             >
               {o?.preview && <img src={o.preview} alt="" draggable={false} className="absolute inset-0 h-full w-full scale-125 object-cover blur-[3px]" />}
               {depth > 0 && <span className="absolute inset-0 bg-white/15" />}
