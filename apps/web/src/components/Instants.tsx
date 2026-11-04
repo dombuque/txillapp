@@ -756,8 +756,8 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
     if (!cur) return;
     navigator.vibrate?.(8);
     setPop((p) => ({ n: (p?.n ?? 0) + 1, id }));
-    api.instantReact(cur.id, id).catch(() => undefined);
-    void sendDm({ kind: 'sticker', body: art });
+    // A reação fica só no Zás (o dono vê-a em «quem viu»); não vai para as mensagens. Só as respostas escritas vão para o chat.
+    api.instantReact(cur.id, id).then(() => { setNote(tr('Reação enviada')); setTimeout(() => setNote(''), 1500); }).catch((e) => setErr((e as Error).message));
   }
   /** Toque numa metade: vai para o outro Zás; dois toques seguidos reagem com um brinde (e não mudam de Zás). */
   function tapZone(go: () => void) {
