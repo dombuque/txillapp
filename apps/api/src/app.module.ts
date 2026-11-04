@@ -35,6 +35,7 @@ import { WalletModule } from './wallet/wallet.module';
 import { InvitesModule } from './invites/invites.module';
 import { BackofficeModule } from './backoffice/backoffice.module';
 import { StaffModule } from './staff/staff.module';
+import { SuperTxillModule } from './supertxill/supertxill.module';
 import { PaymentsModule } from './payments/payments.module';
 
 @Module({})
@@ -56,6 +57,7 @@ export class AppModule {
         WalletModule,
         InvitesModule,
         StaffModule,
+        SuperTxillModule,
         BackofficeModule,
         PaymentsModule,
         MediaModule,

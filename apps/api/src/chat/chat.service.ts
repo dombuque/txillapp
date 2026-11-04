@@ -5,7 +5,6 @@ import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { PostsService } from '../posts/posts.service';
 import { PushService } from '../push/push.service';
-import { SUPERTXILL_ID, WELCOME } from '../supertxill/constants';
 import { MediaService } from '../media/media.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
@@ -49,30 +48,6 @@ export class ChatService {
     private readonly posts: PostsService,
     private readonly filter: TextFilter,
   ) {}
-
-  /** O SuperTxill regista aqui o que fazer quando alguém lhe escreve (evita uma dependência circular entre os dois). */
-  private botHandler?: (userId: string, text: string) => void;
-  setBotHandler(fn: (userId: string, text: string) => void) {
-    this.botHandler = fn;
-  }
-  private readonly botReady = new Set<string>();
-
-  /** Todas as pessoas têm o SuperTxill na lista de conversas, com uma mensagem de boas-vindas (não como «pedido»). */
-  private async ensureBot(me: string) {
-    if (me === SUPERTXILL_ID || this.botReady.has(me)) return;
-    const conv = (await this.conversation(me, SUPERTXILL_ID, true))!;
-    const has = await this.pool.query('SELECT 1 FROM social.messages WHERE conversation_id = $1 LIMIT 1', [conv]);
-    if (!has.rowCount) {
-      await this.pool.query("INSERT INTO social.messages (id, conversation_id, sender_id, body, kind) VALUES ($1, $2, $3, $4, 'text')", [uuidv7(), conv, SUPERTXILL_ID, WELCOME]);
-      await this.pool.query(
-        `UPDATE social.conversations SET last_message_at = now(),
-                accepted_a = CASE WHEN user_a = $2 THEN true ELSE accepted_a END, accepted_b = CASE WHEN user_b = $2 THEN true ELSE accepted_b END
-          WHERE id = $1`,
-        [conv, me],
-      );
-    }
-    this.botReady.add(me);
-  }
 
   private async userByName(username: string) {
     const { rows } = await this.pool.query(
@@ -186,7 +161,6 @@ export class ChatService {
 
   /** Conversas, da mais recente para a mais antiga, com a última mensagem e quantas por ler. */
   async list(me: string) {
-    await this.ensureBot(me).catch(() => undefined);
     const { rows } = await this.pool.query(
       `SELECT c.id, o.id AS other_id, o.username, o.display_name, (o.avatar_media_id IS NOT NULL) AS has_avatar, o.status, o.show_presence AS o_show, o.last_seen_at,
               lm.body AS last_body, lm.view_once AS last_once, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at,
@@ -359,15 +333,6 @@ export class ChatService {
     if (msg.kind === 'text' || msg.kind === 'image') this.filter.assertClean(msg.body);
     const other = await this.userByName(username);
     if (other.id === me) throw new BadRequestException('Não podes enviar mensagens a ti próprio');
-    // O SuperTxill: só texto; não segue as regras de seguir/pedidos (é a IA da app). A resposta chega a seguir, em segundo plano.
-    if (other.id === SUPERTXILL_ID) {
-      if (msg.kind !== 'text') throw new BadRequestException('O SuperTxill só lê texto, por agora');
-      const sent = await this.insert(me, other.id, msg.body.slice(0, 1500), 'text', null, null, null, null, null, {});
-      this.botHandler?.(me, msg.body);
-      return sent;
-    }
-    // Quando é o SuperTxill a responder, entra sempre (a pessoa escolheu falar com ele).
-    if (me === SUPERTXILL_ID) return this.insert(me, other.id, msg.body.slice(0, 2000), 'text', null, null, null, null, null, {});
     const ok = await this.pool.query(
       `SELECT ${blockedBetween('u.id', '$1')} AS blocked, ${allowedBy('u', 'dms_allowed')} AS allowed,
               EXISTS (SELECT 1 FROM social.conversations c WHERE c.user_a = LEAST($1::uuid, u.id) AND c.user_b = GREATEST($1::uuid, u.id)) AS spoke

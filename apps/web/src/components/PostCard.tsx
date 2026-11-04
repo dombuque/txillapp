@@ -295,7 +295,12 @@ function QuoteCard({ post, original }: { post: Post; original: Post }) {
         </div>
         {original.gift && <p className="mx-3 mt-2 rounded-xl bg-gradient-to-r from-brand to-brand-light py-2 text-center text-lg font-extrabold text-white"><Icon name="gift" size={14} className="inline align-[-2px]" /> {original.gift.amount.toLocaleString(locale)} {tr('Txills')}</p>}
         {original.body && <p className="line-clamp-4 whitespace-pre-wrap break-words px-3 pt-2 text-[16px] text-zinc-800">{original.body}</p>}
-        {original.media[0] ? (
+        {original.media[0]?.kind === 'video' ? (
+          <Link to={`/r/${original.code ?? original.id}`} aria-label={tr('Ver o vídeo')} className="relative mt-2 block h-64 w-full bg-zinc-900">
+            {original.media[0].posterUrl && <img src={original.media[0].posterUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />}
+            <span className="absolute inset-0 flex items-center justify-center"><span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/50 text-white"><Icon name="play" size={28} fill="currentColor" /></span></span>
+          </Link>
+        ) : original.media[0] ? (
           <button onClick={() => tapText(() => setViewer(0))} aria-label={tr('Ver a foto em ecrã inteiro')} className="mt-2 block w-full">
             <img src={sized(original.media[0].url, 720)} alt="" loading="lazy" decoding="async" className="max-h-72 w-full object-cover" />
           </button>

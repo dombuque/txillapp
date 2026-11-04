@@ -57,21 +57,22 @@ export class NotificationsService {
   /** Também no telemóvel. O título é quem fez a ação (o iPhone já diz que é do Txillapp) e o texto é genérico: nunca leva o conteúdo (o ecrã de bloqueio é público). */
   private async pushFor(n: { userId: string; actorId: string; kind: NotificationKind; data?: Record<string, unknown> }) {
     if (!this.push.enabled) return;
-    const a = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [n.actorId])).rows[0];
+    const a = (await this.pool.query('SELECT display_name, username FROM identity.users WHERE id = $1', [n.actorId])).rows[0];
+    const profile = a?.username ? `/u/${a.username as string}` : '/notifications';
     const who = (a?.display_name as string | undefined) ?? 'Alguém';
     const postId = n.data?.postId as string | undefined;
     const t: Partial<Record<NotificationKind, { body: string; url: string }>> = {
-      follow: { body: 'começou a seguir-te', url: '/notifications' },
+      follow: { body: 'começou a seguir-te', url: profile },
       follow_request: { body: 'quer seguir-te', url: '/notifications' },
-      request_accepted: { body: 'aceitou o teu pedido', url: '/notifications' },
+      request_accepted: { body: 'aceitou o teu pedido', url: profile },
       gift: { body: 'presenteou-te', url: '/wallet' },
       comment: { body: 'comentou a tua publicação', url: postId ? `/p/${postId}?comments=1` : '/notifications' },
       reply: { body: 'respondeu ao teu comentário', url: postId ? `/p/${postId}?comments=1` : '/notifications' },
       repost: { body: 'repostou a tua publicação', url: postId ? `/p/${postId}` : '/notifications' },
       mention: { body: 'mencionou-te', url: postId ? `/p/${postId}` : '/notifications' },
       tag: { body: 'identificou-te numa foto', url: postId ? `/p/${postId}` : '/notifications' },
-      story_reply: { body: 'respondeu ao teu story', url: '/notifications' },
-      verified: { body: 'agora tem a conta verificada', url: '/notifications' },
+      story_reply: { body: 'respondeu ao teu story', url: n.data?.replyKind === 'comment' ? '/profile' : a?.username ? `/messages/${a.username as string}` : '/notifications' },
+      verified: { body: 'agora tem a conta verificada', url: profile },
     };
     const m = t[n.kind];
     if (m) await this.push.send(n.userId, { title: who, body: m.body, url: m.url, tag: `${n.kind}:${n.actorId}` });

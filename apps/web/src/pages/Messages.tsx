@@ -2,7 +2,8 @@ import { reactionText } from '../lib/stickers';
 import { tr } from '../lib/i18n';
 import { RowsSkeleton } from '../components/Loading';
 import Icon from '../components/Icon';
-import BotAvatar, { BOT_USERNAME } from '../components/BotAvatar';
+import BotAvatar from '../components/BotAvatar';
+import SuperTxillPanel from '../components/SuperTxillPanel';
 import InstantsDock from '../components/Instants';
 import NewChat from '../components/NewChat';
 import NotesStrip from '../components/Notes';
@@ -47,6 +48,7 @@ export default function Messages() {
   const groups = useQuery({ queryKey: ['chat-groups'], queryFn: api.chatGroups, refetchInterval: 60_000 });
   const [text, setText] = useState('');
   const [creating, setCreating] = useState(false);
+  const [ai, setAi] = useState<string | null>(null); // SuperTxill aberto ('' = vazio, texto = pergunta já feita)
   const term = text.trim().toLowerCase().replace(/^@/, '');
   const people = useQuery({ queryKey: ['mentionable', term], queryFn: () => api.mentionable(term), enabled: term.length >= 1, staleTime: 30_000 });
 
@@ -92,9 +94,16 @@ export default function Messages() {
       </header>
       <label className="mb-2 flex h-11 items-center gap-2 rounded-full bg-zinc-100 px-4 text-zinc-500 transition focus-within:bg-zinc-200/70">
         <Icon name="search" size={18} />
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder={tr('Procurar pessoas e grupos')} aria-label={tr('Procurar conversas')} className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder={tr('Procurar ou perguntar ao SuperTxill')} aria-label={tr('Procurar conversas')} className="min-w-0 flex-1 bg-transparent text-[16px] text-zinc-900 outline-none placeholder:text-zinc-500" />
         {text && <button onClick={() => setText('')} aria-label={tr('Limpar')} className="flex h-8 w-8 items-center justify-center"><Icon name="x" size={16} /></button>}
+        <button type="button" onClick={() => setAi('')} aria-label={tr('Abrir o SuperTxill')} className="flex h-8 w-8 shrink-0 items-center justify-center text-brand active:scale-90"><Icon name="bolt" size={20} fill="currentColor" /></button>
       </label>
+      {text.trim().length >= 2 && (
+        <button type="button" onClick={() => { const q = text.trim(); setText(''); setAi(q); }} className="mb-2 flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left active:bg-zinc-100">
+          <BotAvatar size={44} />
+          <span className="min-w-0 flex-1"><span className="block font-semibold">{tr('Perguntar ao SuperTxill')}</span><span className="block truncate text-sm text-zinc-500">{text.trim()}</span></span>
+        </button>
+      )}
 
       {!term && view === 'all' && <NotesStrip />}
       <div role="tablist" aria-label={tr('Caixa')} className="mb-1 flex items-center justify-between px-1 pt-1">
@@ -128,7 +137,7 @@ export default function Messages() {
                   </span>
                 ) : (
                   <span className={`flex h-[62px] w-[62px] items-center justify-center rounded-full ${r.unread ? 'bg-gradient-to-tr from-brand to-[#ff9a5b]' : ''}`}>
-                    <span className={`flex h-[56px] w-[56px] items-center justify-center rounded-full ${r.unread ? 'bg-white' : ''}`}>{r.key === `d:${BOT_USERNAME}` ? <BotAvatar size={r.unread ? 50 : 56} /> : <Avatar name={r.avatar.names[0].name} username={r.avatar.names[0].username} size={r.unread ? 50 : 56} ring={false} />}</span>
+                    <span className={`flex h-[56px] w-[56px] items-center justify-center rounded-full ${r.unread ? 'bg-white' : ''}`}><Avatar name={r.avatar.names[0].name} username={r.avatar.names[0].username} size={r.unread ? 50 : 56} ring={false} /></span>
                   </span>
                 )}
                 {r.online && <span className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" aria-label={tr('Online')} />}
@@ -136,7 +145,6 @@ export default function Messages() {
               <span className="min-w-0 flex-1">
                 <span className={`flex items-center gap-1.5 text-[17px] ${r.unread ? 'font-extrabold' : 'font-semibold'}`}>
                   <span className="truncate">{r.name}</span>
-                  {r.key === `d:${BOT_USERNAME}` && <span className="shrink-0 rounded-md bg-brand/10 px-1.5 py-0.5 text-[11px] font-extrabold text-brand">IA</span>}
                   {r.group && <Icon name="users" size={14} className="shrink-0 text-zinc-400" aria-label={tr('Grupo')} />}
                 </span>
                 <span className={`flex text-[15px] ${r.unread ? 'font-semibold text-zinc-900' : 'text-zinc-500'}`}><span className="truncate">{r.sub}</span><span className="shrink-0 whitespace-pre"> · {timeAgo(r.at).replace('Há ', '')}</span></span>
@@ -167,6 +175,7 @@ export default function Messages() {
         </>
       )}
       {creating && <NewChat onClose={() => setCreating(false)} />}
+      {ai !== null && <SuperTxillPanel initial={ai || undefined} onClose={() => setAi(null)} />}
       <InstantsDock />
     </section>
   );

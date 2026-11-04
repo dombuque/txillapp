@@ -1,22 +1,26 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Pool } from 'pg';
-import { ChatEvents } from '../chat/chat.events';
-import { ChatService } from '../chat/chat.service';
 import { AppConfig, CONFIG } from '../config';
+import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { TextFilter } from '../safety/text-filter.service';
-import { MSG, SUPERTXILL_ID, SUPERTXILL_USERNAME, SYSTEM_PROMPT } from './constants';
+import { MSG, SYSTEM_PROMPT } from './constants';
 
 type Turn = { role: 'user' | 'assistant'; content: string };
 
+/** Uma resposta presa há mais do que isto conta como falhada (o servidor reiniciou a meio, por exemplo). */
+const STALE_MS = 2 * 60_000;
+/** Quantas mensagens guarda cada pessoa. */
+const KEEP = 60;
+
 /**
- * O SuperTxill: a IA do Txillapp, no chat. Quando alguém lhe escreve, a resposta é preparada em segundo plano (com «a escrever…»)
- * e chega como mensagem normal. Só vê a conversa com a própria pessoa: nunca lê as outras conversas, contas ou Txills.
- * Grátis para quem usa, com limite por pessoa/dia e um teto mensal para toda a app.
+ * O SuperTxill: a IA do Txillapp, na barra de pesquisa (como a Meta IA no Instagram). Não é uma conta nem uma conversa com alguém.
+ * A pergunta é guardada logo e a resposta é preparada em segundo plano: a pessoa pode fechar o ecrã e vê-la quando voltar.
+ * Só vê o que a própria pessoa lhe perguntou: nunca mensagens, contas ou Txills de ninguém. Grátis, com limite por dia e um teto mensal.
  */
 @Injectable()
-export class SuperTxillService implements OnModuleInit {
+export class SuperTxillService {
   private readonly log = new Logger('SuperTxill');
   private client?: Anthropic;
   private running = 0;
@@ -27,24 +31,44 @@ export class SuperTxillService implements OnModuleInit {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(CONFIG) private readonly config: AppConfig,
-    private readonly chat: ChatService,
-    private readonly events: ChatEvents,
     private readonly filter: TextFilter,
   ) {}
-
-  onModuleInit() {
-    this.chat.setBotHandler((userId) => this.enqueue(userId));
-  }
 
   get enabled() {
     return !!this.config.ANTHROPIC_API_KEY;
   }
 
-  /** Fila em segundo plano: poucas respostas ao mesmo tempo, para não rebentar o limite de pedidos nem o custo. */
-  private enqueue(userId: string) {
-    this.queue.push(() => this.reply(userId));
-    this.pump();
+  /** O histórico da pessoa (do mais antigo para o mais recente) e se há uma resposta a caminho. */
+  async thread(userId: string) {
+    const { rows } = await this.pool.query('SELECT id, role, body, created_at FROM social.ai_messages WHERE user_id = $1 ORDER BY id DESC LIMIT 40', [userId]);
+    const messages = rows.reverse().map((r) => ({ id: r.id as string, role: r.role as 'user' | 'assistant', body: r.body as string, at: r.created_at as string }));
+    const last = messages[messages.length - 1];
+    const pending = !!last && last.role === 'user' && Date.now() - new Date(last.at).getTime() < STALE_MS;
+    return { messages, pending, enabled: this.enabled };
   }
+
+  async clear(userId: string) {
+    await this.pool.query('DELETE FROM social.ai_messages WHERE user_id = $1', [userId]);
+  }
+
+  private async save(userId: string, role: 'user' | 'assistant', body: string) {
+    const id = uuidv7();
+    await this.pool.query('INSERT INTO social.ai_messages (id, user_id, role, body) VALUES ($1, $2, $3, $4)', [id, userId, role, body.slice(0, 4000)]);
+    // Guarda só as últimas mensagens.
+    await this.pool.query('DELETE FROM social.ai_messages WHERE user_id = $1 AND id < (SELECT id FROM social.ai_messages WHERE user_id = $1 ORDER BY id DESC OFFSET $2 LIMIT 1)', [userId, KEEP]);
+    return id;
+  }
+
+  /** A pessoa pergunta. Guarda a pergunta e prepara a resposta em segundo plano. */
+  async ask(userId: string, text: string) {
+    this.filter.assertClean(text);
+    const id = await this.save(userId, 'user', text);
+    this.queue.push(() => this.answer(userId));
+    this.pump();
+    return { id };
+  }
+
+  /** Fila em segundo plano: poucas respostas ao mesmo tempo, para não rebentar o limite de pedidos nem o custo. */
   private pump() {
     while (this.running < 3 && this.queue.length) {
       const job = this.queue.shift()!;
@@ -71,25 +95,15 @@ export class SuperTxillService implements OnModuleInit {
   /** Conta o uso do mês; devolve falso se o teto mensal já foi atingido. */
   private async underMonthlyCap(): Promise<boolean> {
     const month = new Date().toISOString().slice(0, 7);
-    const r = await this.pool.query(
-      `INSERT INTO social.bot_budget (month, n) VALUES ($1, 1) ON CONFLICT (month) DO UPDATE SET n = social.bot_budget.n + 1 RETURNING n`,
-      [month],
-    );
+    const r = await this.pool.query(`INSERT INTO social.bot_budget (month, n) VALUES ($1, 1) ON CONFLICT (month) DO UPDATE SET n = social.bot_budget.n + 1 RETURNING n`, [month]);
     return (r.rows[0].n as number) <= this.config.SUPERTXILL_MONTHLY_CAP;
   }
 
-  /** O que foi dito nesta conversa (só entre a pessoa e o SuperTxill), do mais antigo para o mais recente. */
+  /** O que foi dito (só entre a pessoa e o SuperTxill), a começar por uma mensagem dela. */
   private async history(userId: string): Promise<Turn[]> {
-    const { rows } = await this.pool.query(
-      `SELECT m.sender_id, m.body FROM social.messages m
-         JOIN social.conversations c ON c.id = m.conversation_id
-        WHERE c.user_a = LEAST($1::uuid, $2::uuid) AND c.user_b = GREATEST($1::uuid, $2::uuid)
-          AND m.deleted_at IS NULL AND m.kind = 'text' AND m.view_once = false AND m.body <> ''
-        ORDER BY m.id DESC LIMIT 12`,
-      [userId, SUPERTXILL_ID],
-    );
-    const turns: Turn[] = rows.reverse().map((r) => ({ role: r.sender_id === SUPERTXILL_ID ? ('assistant' as const) : ('user' as const), content: String(r.body).slice(0, 1500) }));
-    while (turns.length && turns[0].role !== 'user') turns.shift(); // a API começa sempre por uma mensagem da pessoa
+    const { rows } = await this.pool.query('SELECT role, body FROM social.ai_messages WHERE user_id = $1 ORDER BY id DESC LIMIT 12', [userId]);
+    const turns: Turn[] = rows.reverse().map((r) => ({ role: r.role as 'user' | 'assistant', content: String(r.body).slice(0, 1500) }));
+    while (turns.length && turns[0].role !== 'user') turns.shift();
     return turns;
   }
 
@@ -114,20 +128,13 @@ export class SuperTxillService implements OnModuleInit {
       .trim();
   }
 
-  /** Prepara e envia a resposta a quem escreveu. Nunca deixa a pessoa sem resposta: em caso de falha, diz que falhou. */
-  private async reply(userId: string) {
-    const user = (await this.pool.query('SELECT username FROM identity.users WHERE id = $1 AND status = \'active\'', [userId])).rows[0];
-    if (!user) return;
-    const say = (text: string) => this.chat.send(SUPERTXILL_ID, user.username as string, { kind: 'text', body: text });
-
-    if (!this.enabled) return void (await say(MSG.off));
-    if (!(await this.underDailyLimit(userId))) return void (await say(MSG.daily));
-    if (!(await this.underMonthlyCap())) return void (await say(MSG.monthly));
-
-    // «A escrever…» enquanto a resposta é preparada.
-    const ping = () => this.events.emit(userId, { type: 'typing', from: SUPERTXILL_USERNAME });
-    ping();
-    const tick = setInterval(ping, 3000);
+  /** Prepara e guarda a resposta. Nunca deixa a pessoa sem resposta: em caso de falha, diz que falhou. */
+  private async answer(userId: string) {
+    const exists = (await this.pool.query("SELECT 1 FROM identity.users WHERE id = $1 AND status = 'active'", [userId])).rowCount;
+    if (!exists) return;
+    if (!this.enabled) return void (await this.save(userId, 'assistant', MSG.off));
+    if (!(await this.underDailyLimit(userId))) return void (await this.save(userId, 'assistant', MSG.daily));
+    if (!(await this.underMonthlyCap())) return void (await this.save(userId, 'assistant', MSG.monthly));
     let text: string;
     try {
       text = (await this.llm(await this.history(userId))).slice(0, 1800).trim();
@@ -137,9 +144,7 @@ export class SuperTxillService implements OnModuleInit {
     } catch (e) {
       this.log.warn(`a IA falhou: ${(e as Error).message}`);
       text = MSG.error;
-    } finally {
-      clearInterval(tick);
     }
-    await say(text);
+    await this.save(userId, 'assistant', text);
   }
 }
