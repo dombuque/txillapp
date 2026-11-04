@@ -19,6 +19,7 @@ import LinkPreview, { Linkified, firstUrl } from '../components/LinkPreview';
 import TileMap from '../components/TileMap';
 import VoiceMessage from '../components/VoiceMessage';
 import OfflineBar from '../components/OfflineBar';
+import BotAvatar, { BOT_USERNAME } from '../components/BotAvatar';
 import { Avatar, Sheet } from '../components/ui';
 import { api, type ChatMessage, type ChatThread, type GroupThread } from '../lib/api';
 import { detectIntent } from '../lib/chatIntent';
@@ -310,6 +311,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onR
 export default function Thread() {
   const { username = '', id: groupId = '' } = useParams();
   const isGroup = !!groupId;
+  const isBot = !isGroup && username.toLowerCase() === BOT_USERNAME; // o SuperTxill só fala por texto
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -743,14 +745,16 @@ export default function Thread() {
         {person && (
           <Link to={`/u/${person.username}`} className="flex min-w-0 items-center gap-3">
             <span className="relative">
-              <Avatar name={person.displayName} username={person.hasAvatar ? person.username : undefined} size={38} ring={false} />
-              {person.presence?.online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" aria-label={tr('Online')} />}
+              {isBot ? <BotAvatar size={38} /> : <Avatar name={person.displayName} username={person.hasAvatar ? person.username : undefined} size={38} ring={false} />}
+              {!isBot && person.presence?.online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" aria-label={tr('Online')} />}
             </span>
             <span className="min-w-0">
               <span className="block truncate font-bold leading-tight">{person.displayName}</span>
               <span className="block truncate text-xs text-zinc-500">
                 {typing ? (
                   <span className="font-semibold text-brand">{tr('a escrever…')}</span>
+                ) : isBot ? (
+                  <span>{tr('IA do Txillapp · pode errar')}</span>
                 ) : person.presence?.online ? (
                   <span className="flex items-center gap-1 font-semibold text-emerald-600"><span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden /> {tr('Online')}</span>
                 ) : (
@@ -918,9 +922,9 @@ export default function Thread() {
           {err && <p role="alert" className="px-2 pb-1 text-center text-sm text-red-600">{err}</p>}
           {/* Como no Instagram: câmara à esquerda, o campo ao meio e, à direita, voz, galeria, stickers e mais. */}
           <div className="flex items-end gap-1 rounded-[26px] bg-zinc-100 p-1.5 transition-colors focus-within:bg-zinc-200/70">
-            <button type="button" onClick={() => setCamera(true)} aria-label={tr('Abrir a câmara')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-brand-light text-white transition active:scale-90">
+            {!isBot && <button type="button" onClick={() => setCamera(true)} aria-label={tr('Abrir a câmara')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-brand-light text-white transition active:scale-90">
               <Icon name="camera" size={20} />
-            </button>
+            </button>}
             <input ref={gallery} type="file" accept={`${IMAGE_TYPES.join(',')},video/mp4,video/quicktime,video/webm`} onChange={pickPhoto} className="sr-only" aria-label={tr('Escolher foto ou vídeo da galeria')} />
             <textarea
               ref={input}
@@ -947,7 +951,7 @@ export default function Thread() {
             {text.trim() ? (
               // pointerdown sem foco: o teclado não fecha ao enviar.
               <button type="submit" onPointerDown={(e) => e.preventDefault()} className="h-10 shrink-0 rounded-full bg-brand px-4 font-bold text-white transition active:scale-95">{tr('Enviar')}</button>
-            ) : (
+            ) : isBot ? null : (
               <>
                 {!isGroup && <button type="button" onClick={() => { if (!once && firstTime('view-once')) setOnceHelp(true); setOnce(!once); }} aria-pressed={once} aria-label={tr('Visualização única')} className={`${bar} ${once ? 'bg-brand text-white active:bg-brand' : ''}`}><Icon name="once" size={22} /></button>}
                 <button type="button" onClick={startRecording} className={bar} aria-label={tr('Gravar mensagem de voz')}><Icon name="mic" size={22} /></button>

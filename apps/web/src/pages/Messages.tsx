@@ -2,6 +2,7 @@ import { reactionText } from '../lib/stickers';
 import { tr } from '../lib/i18n';
 import { RowsSkeleton } from '../components/Loading';
 import Icon from '../components/Icon';
+import BotAvatar, { BOT_USERNAME } from '../components/BotAvatar';
 import InstantsDock from '../components/Instants';
 import NewChat from '../components/NewChat';
 import NotesStrip from '../components/Notes';
@@ -127,7 +128,7 @@ export default function Messages() {
                   </span>
                 ) : (
                   <span className={`flex h-[62px] w-[62px] items-center justify-center rounded-full ${r.unread ? 'bg-gradient-to-tr from-brand to-[#ff9a5b]' : ''}`}>
-                    <span className={`flex h-[56px] w-[56px] items-center justify-center rounded-full ${r.unread ? 'bg-white' : ''}`}><Avatar name={r.avatar.names[0].name} username={r.avatar.names[0].username} size={r.unread ? 50 : 56} ring={false} /></span>
+                    <span className={`flex h-[56px] w-[56px] items-center justify-center rounded-full ${r.unread ? 'bg-white' : ''}`}>{r.key === `d:${BOT_USERNAME}` ? <BotAvatar size={r.unread ? 50 : 56} /> : <Avatar name={r.avatar.names[0].name} username={r.avatar.names[0].username} size={r.unread ? 50 : 56} ring={false} />}</span>
                   </span>
                 )}
                 {r.online && <span className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" aria-label={tr('Online')} />}
@@ -135,6 +136,7 @@ export default function Messages() {
               <span className="min-w-0 flex-1">
                 <span className={`flex items-center gap-1.5 text-[17px] ${r.unread ? 'font-extrabold' : 'font-semibold'}`}>
                   <span className="truncate">{r.name}</span>
+                  {r.key === `d:${BOT_USERNAME}` && <span className="shrink-0 rounded-md bg-brand/10 px-1.5 py-0.5 text-[11px] font-extrabold text-brand">IA</span>}
                   {r.group && <Icon name="users" size={14} className="shrink-0 text-zinc-400" aria-label={tr('Grupo')} />}
                 </span>
                 <span className={`flex text-[15px] ${r.unread ? 'font-semibold text-zinc-900' : 'text-zinc-500'}`}><span className="truncate">{r.sub}</span><span className="shrink-0 whitespace-pre"> · {timeAgo(r.at).replace('Há ', '')}</span></span>

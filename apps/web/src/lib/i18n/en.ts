@@ -1243,6 +1243,7 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'IA do Txillapp · pode errar': 'Txillapp AI · can make mistakes',
   'Ligação externa: abre fora do Txillapp': 'External link: opens outside Txillapp',
   'Ligação não segura (http)': 'Insecure link (http)',
   'Perfil indisponível': 'Profile unavailable',

@@ -43,6 +43,13 @@ const schema = z.object({
   ELASTICSEARCH_INDEX_PREFIX: z.string().regex(/^[a-z0-9_-]{1,40}$/).default('txillapp'),
   /** Se definido, /api/v1/metrics (Prometheus) fica disponível com este token. */
   METRICS_TOKEN: z.string().min(16).optional(),
+  /** SuperTxill (a IA do chat). Sem ANTHROPIC_API_KEY responde só que ainda está a acordar. O modelo e os limites mudam-se aqui, sem mexer no código. */
+  ANTHROPIC_API_KEY: z.string().min(20).optional(),
+  SUPERTXILL_MODEL: z.string().default('claude-opus-5-5'),
+  /** Respostas por pessoa e por dia (UTC). */
+  SUPERTXILL_DAILY_LIMIT: z.coerce.number().int().min(1).max(500).default(20),
+  /** Respostas por mês, em toda a app: o teto do custo. */
+  SUPERTXILL_MONTHLY_CAP: z.coerce.number().int().min(1).max(1_000_000).default(3000),
   /** Chaves VAPID (notificações no telemóvel). Sem elas as notificações push ficam desligadas. Gera com: npx web-push generate-vapid-keys */
   VAPID_PUBLIC_KEY: z.string().min(20).optional(),
   VAPID_PRIVATE_KEY: z.string().min(20).optional(),
