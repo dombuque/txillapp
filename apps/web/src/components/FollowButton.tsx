@@ -22,7 +22,9 @@ export default function FollowButton({
     try {
       if (s.following || s.requested) {
         setS({ following: false, requested: false });
-        onChange?.(await api.unfollow(username));
+        // (Não pôr o await dentro de onChange?.(…): sem onChange os argumentos nem são avaliados e o pedido nunca sai.)
+        const r = await api.unfollow(username);
+        onChange?.(r);
       } else {
         setS(isPrivate ? { following: false, requested: true } : { following: true, requested: false });
         const r = await api.follow(username);
