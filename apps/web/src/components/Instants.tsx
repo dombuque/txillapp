@@ -20,14 +20,16 @@ import { Avatar, Sheet, timeAgo } from './ui';
 async function saveInstant(it: { id: string; url: string; caption?: string }) {
   try {
     const f = new File([await renderZasImage(it.url, it.caption ?? '')], `zas-${it.id.slice(0, 8)}.png`, { type: 'image/png' });
-    if (navigator.canShare?.({ files: [f] })) return void (await navigator.share({ files: [f] }));
+    // Guardar = descarregar o ficheiro (sem abrir a folha de partilha). No Android fica na galeria; no iPhone, na app Ficheiros.
     const a = document.createElement('a');
     a.href = URL.createObjectURL(f);
     a.download = f.name;
+    document.body.appendChild(a);
     a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  } catch (e) {
-    if ((e as Error).name !== 'AbortError') window.open(it.url, '_blank');
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+  } catch {
+    window.open(it.url, '_blank');
   }
 }
 const hm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -586,14 +588,15 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
     setMenu(null);
     try {
       const f = await photoOf(it);
-      if (navigator.canShare?.({ files: [f] })) return void (await navigator.share({ files: [f] }));
       const a = document.createElement('a');
       a.href = URL.createObjectURL(f);
       a.download = f.name;
+      document.body.appendChild(a);
       a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    } catch (e) {
-      if ((e as Error).name !== 'AbortError') window.open(it.url, '_blank');
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+    } catch {
+      window.open(it.url, '_blank');
     }
   }
   async function share(it: InstantItem) {
