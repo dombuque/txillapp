@@ -84,21 +84,25 @@ export default function InstantsDock() {
           } else setMode('cam');
         }}
         aria-label={total ? tr('Zás: {n} por ver', { n: total }) : tr('Mandar um Zás')}
-        className="fixed bottom-[calc(7rem+env(safe-area-inset-bottom))] right-0 z-20 h-[104px] w-[104px]"
+        className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-0 z-20 h-[124px] w-[120px]"
         style={{ transform: away ? 'translateX(66%)' : 'translateX(38%)', transition: 'transform .4s cubic-bezier(.2,.9,.3,1.15)' }}
       >
-        {/* Um baralho: as cartas dos Zás por ver, com a de trás a espreitar por baixo, e assim sucessivamente. */}
+        {/* Baralho em leque, como no Instagram: as cartas dos Zás por ver (foto desfocada), a da frente com a foto de perfil. */}
         {(others.length ? [...others.slice(0, 3)].reverse() : [null]).map((o, idx, arr) => {
           const depth = arr.length - 1 - idx;
           return (
-            <span key={o?.username ?? 'vazio'} className="absolute right-5 top-4 h-[80px] w-[64px] overflow-hidden rounded-[22px] bg-gradient-to-br from-brand to-[#ff9a5b] shadow-[0_6px_16px_rgba(0,0,0,0.28)] ring-[3px] ring-white" style={{ transform: `translate(${-depth * 13}px, ${depth * -5}px) rotate(${-6 - depth * 8}deg)`, zIndex: 3 - depth }}>
-              {o?.preview && <img src={o.preview} alt="" draggable={false} className="absolute inset-0 h-full w-full scale-110 object-cover blur-[2px]" />}
-              <span className="absolute inset-0 bg-black/10" />
-              {depth === 0 && <span className="absolute inset-0 flex items-center justify-center text-white">{o ? <Icon name="bolt" size={26} fill="currentColor" className="drop-shadow" /> : <Icon name="plus" size={34} strokeWidth={2.6} className="drop-shadow" />}</span>}
+            <span
+              key={o?.username ?? 'vazio'}
+              className="absolute bottom-3 right-6 h-[92px] w-[70px] overflow-hidden rounded-[20px] bg-gradient-to-br from-brand to-[#ff9a5b] shadow-[0_6px_16px_rgba(0,0,0,0.3)] ring-[3px] ring-white"
+              style={{ transform: `translate(${-depth * 15}px, ${-depth * 7}px) rotate(${-8 - depth * 10}deg)`, transformOrigin: '70% 90%', zIndex: 3 - depth }}
+            >
+              {o?.preview && <img src={o.preview} alt="" draggable={false} className="absolute inset-0 h-full w-full scale-125 object-cover blur-[3px]" />}
+              {depth > 0 && <span className="absolute inset-0 bg-white/25" />}
+              {!o && <span className="absolute inset-0 flex items-center justify-center text-white"><Icon name="plus" size={34} strokeWidth={2.6} className="drop-shadow" /></span>}
             </span>
           );
         })}
-        {top && <span className="absolute left-3 top-1 z-[5] rounded-full bg-white p-[2px] shadow"><Avatar name={top.displayName} username={top.hasAvatar ? top.username : undefined} size={30} ring={false} /></span>}
+        {top && <span className="absolute bottom-[74px] right-[58px] z-[5] rounded-full bg-white p-[2px] shadow-md"><Avatar name={top.displayName} username={top.hasAvatar ? top.username : undefined} size={34} ring={false} /></span>}
         <NewBadge id="zas" className="absolute left-0 top-0 z-[6]" />
         {total > 0 && <span className="absolute right-2 top-1 z-[6] flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1 text-[11px] font-bold text-white ring-2 ring-white">{total > 9 ? '9+' : total}</span>}
       </button>
@@ -345,16 +349,6 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
         <button type="button" onClick={onClose} aria-label={tr('Fechar')} className={small}><Icon name="x" size={26} /></button>
         <span className="flex items-center gap-1.5 text-[22px] font-black italic tracking-tight"><Icon name="bolt" size={20} fill="currentColor" className="text-brand" /> Zás</span>
         <div className="flex items-center gap-2">
-          {total > 0 && (
-            <button type="button" onClick={() => { setQueue(others); setAt(0); }} aria-label={tr('Zás: {n} por ver', { n: total })} className="relative flex h-11 items-center rounded-full bg-white/10 py-1 pl-1 pr-3 backdrop-blur active:scale-95">
-              <span className="flex -space-x-3">
-                {recent.map((o) => (
-                  <span key={o.username} className="rounded-full ring-2 ring-brand"><Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={34} ring={false} /></span>
-                ))}
-              </span>
-              <span className="ml-2 text-[14px] font-extrabold">{total > 9 ? '9+' : total}</span>
-            </button>
-          )}
           <button type="button" onClick={() => setGrid(true)} aria-label={tr('Os meus Zás')} className={small}><Icon name="grid" size={23} /></button>
         </div>
       </div>
