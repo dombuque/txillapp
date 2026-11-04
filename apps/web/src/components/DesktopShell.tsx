@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { tr } from '../lib/i18n';
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useDesktop } from '../lib/useDesktop';
@@ -136,7 +136,9 @@ function RightPanel() {
  */
 export default function DesktopShell() {
   const desktop = useDesktop();
-  if (!desktop) return <Outlet />;
+  // O backoffice usa o ecrã todo, sem a moldura da app.
+  const backoffice = useLocation().pathname.startsWith('/backoffice');
+  if (!desktop || backoffice) return <Outlet />;
   return (
     <div className="grid min-h-dvh grid-cols-[minmax(0,1fr)_minmax(0,36rem)_minmax(0,1fr)] bg-white">
       <div className="flex justify-end"><LeftNav /></div>

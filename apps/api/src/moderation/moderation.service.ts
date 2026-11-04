@@ -101,7 +101,7 @@ export class ModerationService {
    * Decide sobre um conteúdo denunciado: ignorar, remover o conteúdo, ou suspender a conta do dono.
    * Fica registado no audit_log e todas as denúncias abertas desse conteúdo fecham juntas.
    */
-  async resolve(admin: string, type: ReportType, id: string, action: 'dismiss' | 'remove' | 'suspend') {
+  async resolve(admin: string, type: ReportType, id: string, action: 'dismiss' | 'remove' | 'suspend', note?: string) {
     const open = await this.pool.query(`SELECT target_user_id FROM social.reports WHERE target_type = $1 AND target_id = $2 AND status = 'open' LIMIT 1`, [type, id]);
     if (!open.rows[0]) throw new NotFoundException('Sem denúncias abertas para este conteúdo');
     const owner = open.rows[0].target_user_id as string | null;
@@ -128,12 +128,12 @@ export class ModerationService {
         await client.query('UPDATE identity.sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [owner]);
       }
       await client.query(
-        `UPDATE social.reports SET status = $3, resolution = $4, resolved_by = $5, resolved_at = now()
+        `UPDATE social.reports SET status = $3, resolution = $4, resolved_by = $5, resolved_at = now(), resolution_note = $6
           WHERE target_type = $1 AND target_id = $2 AND status = 'open'`,
-        [type, id, action === 'dismiss' ? 'dismissed' : 'actioned', action, admin],
+        [type, id, action === 'dismiss' ? 'dismissed' : 'actioned', action, admin, note?.trim() || null],
       );
       await client.query('INSERT INTO audit.audit_log (id, actor_id, action, target, metadata) VALUES ($1, $2, $3, $4, $5)', [
-        uuidv7(), admin, `moderation.${action}`, `${type}:${id}`, { owner },
+        uuidv7(), admin, `moderation.${action}`, `${type}:${id}`, { owner, note: note?.trim() || undefined },
       ]);
       await client.query('COMMIT');
       if (action === 'remove' && type === 'post') this.indexer.postRemoved(id);

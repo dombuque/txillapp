@@ -46,6 +46,12 @@ const AdminVerifications = lazy(() => import('./pages/AdminVerifications'));
 const Verification = lazy(() => import('./pages/Verification'));
 const PublicPost = lazy(() => import('./pages/PublicPost'));
 const Invites = lazy(() => import('./pages/Invites'));
+const BoLayout = lazy(() => import('./pages/backoffice/Layout'));
+const BoHome = lazy(() => import('./pages/backoffice/Home'));
+const BoReports = lazy(() => import('./pages/backoffice/Reports'));
+const BoUsers = lazy(() => import('./pages/backoffice/Users'));
+const BoUser = lazy(() => import('./pages/backoffice/UserSheet'));
+const BoAudit = lazy(() => import('./pages/backoffice/Audit'));
 const SupportAbout = lazy(() => import('./pages/Support').then((m) => ({ default: m.About })));
 const SupportHelp = lazy(() => import('./pages/Support').then((m) => ({ default: m.Help })));
 const SupportOrders = lazy(() => import('./pages/Support').then((m) => ({ default: m.Orders })));
@@ -103,6 +109,11 @@ function Live() {
 }
 
 /** Só para quem já entrou. Sem sessão → login. */
+/** Em admin.txillapp.com a página inicial é o backoffice (não o feed). */
+function AdminHostRedirect({ children }: { children: ReactNode }) {
+  return window.location.hostname.startsWith('admin.') ? <Navigate to="/backoffice" replace /> : <>{children}</>;
+}
+
 function Private({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const here = useLocation();
@@ -156,6 +167,13 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/tag/:tag" element={<Private><TagPage /></Private>} />
               <Route path="/admin/verifications" element={<Private><Suspense fallback={null}><AdminVerifications /></Suspense></Private>} />
               <Route path="/about" element={<Private><Suspense fallback={null}><SupportAbout /></Suspense></Private>} />
+              <Route path="/backoffice" element={<Private><Suspense fallback={null}><BoLayout /></Suspense></Private>}>
+                <Route index element={<Suspense fallback={null}><BoHome /></Suspense>} />
+                <Route path="reports" element={<Suspense fallback={null}><BoReports /></Suspense>} />
+                <Route path="users" element={<Suspense fallback={null}><BoUsers /></Suspense>} />
+                <Route path="users/:id" element={<Suspense fallback={null}><BoUser /></Suspense>} />
+                <Route path="audit" element={<Suspense fallback={null}><BoAudit /></Suspense>} />
+              </Route>
               <Route path="/invites" element={<Private><Suspense fallback={null}><Invites /></Suspense></Private>} />
               <Route path="/help" element={<Private><Suspense fallback={null}><SupportHelp /></Suspense></Private>} />
               <Route path="/orders" element={<Private><Suspense fallback={null}><SupportOrders /></Suspense></Private>} />
@@ -174,7 +192,7 @@ createRoot(document.getElementById('root')!).render(
                   </Private>
                 }
               >
-                <Route path="/" element={<Feed />} />
+                <Route path="/" element={<AdminHostRedirect><Feed /></AdminHostRedirect>} />
                 <Route path="/new" element={<CameraStudio />} />
                 <Route path="/new/post" element={<Compose />} />
                 <Route path="/wallet" element={<Wallet />} />

@@ -25,7 +25,7 @@ const reportSchema = z.object({
   reason: z.enum(REPORT_REASONS),
   note: z.string().trim().max(500).optional(),
 });
-const resolveSchema = z.object({ type: z.enum(REPORT_TYPES), id: z.string().uuid(), action: z.enum(['dismiss', 'remove', 'suspend']) });
+const resolveSchema = z.object({ type: z.enum(REPORT_TYPES), id: z.string().uuid(), action: z.enum(['dismiss', 'remove', 'suspend']), note: z.string().trim().max(300).optional() });
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -49,6 +49,6 @@ export class ModerationController {
   @UseGuards(AdminGuard)
   @HttpCode(204)
   resolve(@Req() req: AuthedReq, @Body(new ZodPipe(resolveSchema)) b: z.infer<typeof resolveSchema>) {
-    return this.moderation.resolve(req.userId!, b.type, b.id, b.action);
+    return this.moderation.resolve(req.userId!, b.type, b.id, b.action, b.note);
   }
 }

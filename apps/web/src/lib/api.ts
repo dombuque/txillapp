@@ -204,6 +204,16 @@ export interface Story {
 export type Gender = 'female' | 'male' | 'other' | 'unspecified';
 export type ReportType = 'post' | 'comment' | 'story' | 'user' | 'message' | 'media';
 export type ReportReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence' | 'scam' | 'impersonation' | 'minor' | 'other';
+export interface BoUserRow { id: string; username: string; display_name: string; email: string; status: 'active' | 'suspended' | 'deleted'; is_admin: boolean; created_at: string; country: string | null; verified: boolean; posts: number; followers: number; reports: number; last_seen: string | null }
+export interface BoUserSheet {
+  user: { id: string; username: string; display_name: string; email: string; status: 'active' | 'suspended' | 'deleted'; is_admin: boolean; is_private: boolean; created_at: string; country: string | null; terms_version: string | null; email_verified_at: string | null; has_avatar: boolean; posts: number; followers: number; following: number; messages: number; sessions: number; last_seen: string | null; txills: string };
+  reportsAgainst: { target_type: string; target_id: string; reason: string; status: string; resolution: string | null; resolution_note: string | null; created_at: string; reporter: string | null }[];
+  invite: { invited: number; paid: number; came_from: { status: string; reason: string | null; inviter: string } | null };
+  notes: { id: string; body: string; created_at: string; author: string | null }[];
+  history: { action: string; metadata: Record<string, unknown>; created_at: string; actor: string | null }[];
+}
+export interface BoDecided { type: string; id: string; reports: number; reasons: string[]; resolvedAt: string; resolution: string; note: string | null; decidedBy: string | null; owner: string | null; preview: string }
+export interface BoAuditRow { id: string; action: string; target: string | null; metadata: Record<string, unknown>; created_at: string; actor: string | null }
 export interface ReportQueueItem {
   type: ReportType;
   id: string;
@@ -695,7 +705,19 @@ export const api = {
   verificationWithdraw: (): Promise<void> => raw('/verification/request', { method: 'DELETE' }),
   adminVerifications: (): Promise<VerificationItem[]> => raw('/admin/verifications'),
   verificationDecide: (id: string, action: 'approve' | 'reject', reason?: string, tier?: 'verified' | 'official'): Promise<void> => raw(`/admin/verifications/${id}/decide`, post({ action, reason, tier })),
-  adminResolve: (type: ReportType, id: string, action: 'dismiss' | 'remove' | 'suspend'): Promise<void> => raw('/admin/reports/resolve', post({ type, id, action })),
+  adminResolve: (type: ReportType, id: string, action: 'dismiss' | 'remove' | 'suspend', note?: string): Promise<void> => raw('/admin/reports/resolve', post({ type, id, action, note })),
+  boOverview: (): Promise<Record<string, number>> => raw('/admin/overview'),
+  boUsers: (q: string, status: string, cursor?: string): Promise<{ items: BoUserRow[]; nextCursor: string | null }> =>
+    raw(`/admin/users?${new URLSearchParams({ ...(q ? { q } : {}), ...(status ? { status } : {}), ...(cursor ? { cursor } : {}) }).toString()}`),
+  boUser: (id: string): Promise<BoUserSheet> => raw(`/admin/users/${id}`),
+  boVerifyEmail: (id: string, reason: string): Promise<void> => raw(`/admin/users/${id}/verify-email`, post({ reason })),
+  boSuspend: (id: string, reason: string): Promise<void> => raw(`/admin/users/${id}/suspend`, post({ reason })),
+  boReactivate: (id: string, reason: string): Promise<void> => raw(`/admin/users/${id}/reactivate`, post({ reason })),
+  boNote: (id: string, body: string): Promise<void> => raw(`/admin/users/${id}/notes`, post({ body })),
+  boDecided: (status: 'actioned' | 'dismissed', cursor?: string): Promise<{ items: BoDecided[]; nextCursor: string | null }> =>
+    raw(`/admin/reports/decided?${new URLSearchParams({ status, ...(cursor ? { cursor } : {}) }).toString()}`),
+  boAudit: (action: string, actor: string, cursor?: string): Promise<{ items: BoAuditRow[]; nextCursor: string | null }> =>
+    raw(`/admin/audit?${new URLSearchParams({ ...(action ? { action } : {}), ...(actor ? { actor } : {}), ...(cursor ? { cursor } : {}) }).toString()}`),
   /** Ficheiro com todos os meus dados (JSON). */
   async exportData(): Promise<Blob> {
     const res = await fetch('/api/v1/me/export', { headers: authHeader() });
