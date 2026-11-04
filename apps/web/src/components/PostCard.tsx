@@ -371,7 +371,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
     { kind: 'reposts', n: post.reposts, label: post.reposts === 1 ? 'repost' : 'reposts' },
     { kind: 'gifts', n: post.gifts, label: post.gifts === 1 ? 'presente' : 'presentes' },
   ];
-  const shown = post.kind === 'repost' ? [] : rows.filter((r) => r.n > 0 && post.lists?.[r.kind]);
+  const shown = rows.filter((r) => r.n > 0 && post.lists?.[r.kind] && (post.kind !== 'repost' || r.kind === 'cheers'));
 
   // Vão para o topo da página: dentro de um cartão aberto numa folha ou no visualizador (que têm transformações) ficariam presas e escondidas.
   const top = layer ?? 'z-[80]';
@@ -393,7 +393,7 @@ function Actions({ post, dark = false, layer }: { post: Post; dark?: boolean; la
       { kind: 'reposts', n: post.reposts, icon: 'repeat', label: rows[1].label },
       { kind: 'gifts', n: post.gifts, icon: 'present', label: rows[2].label },
     ];
-    const canSee = (k: PeopleKind) => post.kind !== 'repost' && !!post.lists?.[k];
+    const canSee = (k: PeopleKind) => (post.kind !== 'repost' || k === 'cheers') && !!post.lists?.[k];
     // Quatro colunas iguais, ícone em cima e nome por baixo: o texto nunca sai do cartão, em qualquer largura.
     const barBtn = 'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-zinc-800 transition active:scale-95 [&>svg]:shrink-0';
     const word = 'block max-w-full truncate text-[12px] font-medium leading-tight min-[400px]:text-[13px]';

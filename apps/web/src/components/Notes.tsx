@@ -12,10 +12,11 @@ import { Avatar, Sheet, fieldInput, timeAgo } from './ui';
 const LIMIT = 60;
 
 /** O balão da nota, por cima da foto: texto curto em 3 linhas, com o "bico" a apontar para a pessoa. */
-function Bubble({ text, dim = false, music = false, cheers = 0 }: { text: string; dim?: boolean; music?: boolean; cheers?: number }) {
+function Bubble({ text, dim = false, track = '', cheers = 0 }: { text: string; dim?: boolean; track?: string; cheers?: number }) {
   return (
     <span className={`relative mb-1.5 block max-w-[84px] rounded-[14px] bg-white px-2 py-1.5 text-center text-[11px] font-medium leading-[1.15] shadow-[0_1px_6px_rgba(0,0,0,0.18)] ring-1 ring-zinc-100 ${dim ? 'text-zinc-500' : 'text-zinc-800'}`}>
-      <span className="line-clamp-3 break-words">{music && <Icon name="music" size={11} className="mr-0.5 inline align-[-1px]" />}{text}</span>
+      {text && <span className={`${track ? 'line-clamp-2' : 'line-clamp-3'} block break-words`}>{text}</span>}
+      {track && <span className={`line-clamp-2 block break-words ${text ? 'mt-0.5 text-[10px] text-zinc-500' : ''}`}><Icon name="music" size={11} className="mr-0.5 inline align-[-1px]" />{track}</span>}
       <span aria-hidden className="absolute -bottom-1 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rotate-45 bg-white" />
       {/* Brinde: aparece no topo da nota, a quem brindou e ao dono. */}
       {cheers > 0 && (
@@ -44,7 +45,7 @@ export default function NotesStrip() {
     <>
       <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label={tr('Notas')}>
         <button onClick={() => setEditing(true)} aria-label={mine ? 'A tua nota' : 'Deixar uma nota'} className="flex w-[84px] shrink-0 flex-col items-center active:scale-95">
-          <span className="flex h-[54px] items-end"><Bubble text={mine ? mine.body || mine.music?.title || '' : 'Deixa uma nota'} dim={!mine} music={!!mine?.music} cheers={mine?.cheers ?? 0} /></span>
+          <span className="flex h-[54px] items-end"><Bubble text={mine ? mine.body : 'Deixa uma nota'} dim={!mine} track={mine?.music ? `${mine.music.title}${mine.music.artist ? ` · ${mine.music.artist}` : ''}` : ''} cheers={mine?.cheers ?? 0} /></span>
           <span className="relative">
             <Avatar name={user.displayName} username={user.username} size={64} ring={false} />
             {!mine && (
@@ -55,7 +56,7 @@ export default function NotesStrip() {
         </button>
         {items.map((n) => (
           <button key={n.username} onClick={() => setViewing(n)} aria-label={tr('Nota de {v0}: {v1}', { v0: n.displayName, v1: n.body })} className="flex w-[84px] shrink-0 flex-col items-center active:scale-95">
-            <span className="flex h-[54px] items-end"><Bubble text={n.body || n.music?.title || ''} music={!!n.music} cheers={n.cheered ? 1 : 0} /></span>
+            <span className="flex h-[54px] items-end"><Bubble text={n.body} track={n.music ? `${n.music.title}${n.music.artist ? ` · ${n.music.artist}` : ''}` : ''} cheers={n.cheered ? 1 : 0} /></span>
             <Avatar name={n.displayName} username={n.hasAvatar ? n.username : undefined} size={64} ring={false} presence />
             <span className="mt-1 w-full truncate text-center text-[12px] text-zinc-600">{n.displayName.split(' ')[0]}</span>
           </button>
@@ -96,7 +97,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
       {current ? (
         <>
           {current.body && <p className="mx-auto max-w-xs break-words rounded-[18px] bg-zinc-100 px-4 py-3 text-center text-[17px] font-medium leading-snug">{current.body}</p>}
-          {current.music && <TrackCard track={current.music} />}
+          {current.music && <TrackCard track={current.music} autoplay />}
           {!!current.cheers && <p className="mt-3 flex items-center justify-center gap-1.5 text-sm font-semibold text-zinc-700"><Icon name="cheers" size={18} /> {current.cheers} {current.cheers === 1 ? tr('brinde') : tr('brindes')}</p>}
           <p className="mt-2 text-center text-xs text-zinc-500">{timeAgo(current.createdAt)} {tr('· visível para os teus seguidores. Uma nota não se edita: apaga-a para publicar outra.')}</p>
           {err && <p role="alert" className="mt-2 text-center text-sm text-red-600">{err}</p>}
@@ -173,7 +174,7 @@ function NoteView({ note, onClose }: { note: Note; onClose: () => void }) {
       <div className="flex flex-col items-center text-center">
         <Avatar name={note.displayName} username={note.hasAvatar ? note.username : undefined} size={72} ring={false} />
         {note.body && <p className="mt-3 max-w-xs break-words rounded-[18px] bg-zinc-100 px-4 py-3 text-[17px] font-medium leading-snug">{note.body}</p>}
-        {note.music && <div className="w-full"><TrackCard track={note.music} /></div>}
+        {note.music && <div className="w-full"><TrackCard track={note.music} autoplay /></div>}
         <p className="mt-1.5 text-xs text-zinc-500">{timeAgo(note.createdAt)}</p>
       </div>
       <button type="button" onClick={() => void cheer()} aria-pressed={cheered} className={`mx-auto mt-4 flex h-11 items-center gap-2 rounded-full px-6 font-semibold transition active:scale-95 ${cheered ? 'bg-green-100 text-green-800' : 'bg-zinc-100 text-zinc-800'}`}>
