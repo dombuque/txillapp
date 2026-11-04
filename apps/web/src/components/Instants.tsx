@@ -106,12 +106,6 @@ export default function InstantsDock() {
         <NewBadge id="zas" className="absolute left-0 top-0 z-[6]" />
         {total > 0 && <span className="absolute right-2 top-1 z-[6] flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1 text-[11px] font-bold text-white ring-2 ring-white">{total > 9 ? '9+' : total}</span>}
       </button>
-      {top && (
-        <span aria-hidden className="pointer-events-none fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom)+0.6rem)] right-[4.4rem] z-20 flex max-w-[11rem] items-center gap-1 truncate rounded-full bg-zinc-900/85 px-2.5 py-1 text-[12px] font-semibold text-white shadow-md">
-          {top.close && <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />}
-          <span className="truncate">{top.displayName.split(' ')[0]} · {timeAgo(top.latestAt)}</span>
-        </span>
-      )}
       {gridOpen && <MyInstants username={user.username} onClose={() => setGridOpen(false)} />}
       {mode === 'cam' && <InstantsHub onClose={() => { setMode(null); refresh(); }} />}
       {mode === 'view' && queue[at] && (

@@ -94,7 +94,7 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
           <button onClick={cheer} aria-label={post.cheered ? 'Tirar o brinde' : 'Brindar'} aria-pressed={post.cheered} className={rail}>
             <span className={`${circle} ${post.cheered ? '!bg-white/90' : ''}`}><Icon name="cheers" size={26} className={post.cheered ? 'text-brand' : ''} /></span>
           </button>
-          <button type="button" disabled={!post.lists?.cheers || post.cheers === 0} onClick={() => setPeople('cheers')} aria-label={tr('Ver quem brindou')} className="min-h-8 min-w-10 text-sm font-semibold tabular-nums underline-offset-4 enabled:underline">{post.cheers}</button>
+          <button type="button" disabled={!post.lists?.cheers || post.cheers === 0} onClick={() => setPeople('cheers')} aria-label={tr('Ver quem brindou')} className="min-h-8 min-w-10 text-sm font-semibold tabular-nums text-white underline-offset-4 disabled:text-white enabled:underline">{post.cheers}</button>
         </div>
         <button onClick={() => setSheet('comments')} aria-label={tr('Comentários ({v0})', { v0: post.comments })} className={rail}>
           <span className={circle}><Icon name="comment" size={26} /></span>
@@ -104,7 +104,7 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
           <button onClick={() => setSheet('repost')} aria-label={post.reposted ? `Reposte feito (${post.reposts})` : `Repostar (${post.reposts})`} aria-pressed={post.reposted} className={rail}>
             <span className={`${circle} ${post.reposted ? '!bg-emerald-500/90' : ''}`}><Icon name="repeat" size={26} /></span>
           </button>
-          <button type="button" disabled={!post.lists?.reposts || post.reposts === 0} onClick={() => setPeople('reposts')} aria-label={tr('Ver quem repostou')} className="min-h-8 min-w-10 text-sm font-semibold tabular-nums underline-offset-4 enabled:underline">{post.reposts}</button>
+          <button type="button" disabled={!post.lists?.reposts || post.reposts === 0} onClick={() => setPeople('reposts')} aria-label={tr('Ver quem repostou')} className="min-h-8 min-w-10 text-sm font-semibold tabular-nums text-white underline-offset-4 disabled:text-white enabled:underline">{post.reposts}</button>
         </div>
         <button onClick={() => setSheet('share')} aria-label={tr('Partilhar')} className={rail}>
           <span className={circle}><Icon name="share" size={26} /></span>
