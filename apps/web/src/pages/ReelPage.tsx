@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { tr } from '../lib/i18n';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState, type TouchEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import Icon from '../components/Icon';
 import { PontoLoader } from '../components/Loading';
@@ -27,8 +27,34 @@ export default function ReelPage() {
     if (post && !isVideo) navigate(`/p/${post.id}`, { replace: true });
   }, [post, isVideo, navigate]);
 
+  // Arrastar para a direita fecha o reel (como voltar no iPhone). Não conta dentro de janelas abertas nem sobre a barra de progresso.
+  const t = useRef<{ x: number; y: number; ok: boolean } | null>(null);
+  const [dx, setDx] = useState(0);
+  const start = (e: TouchEvent) => {
+    const el = e.target as Element;
+    t.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, ok: !el.closest('[aria-modal="true"],input,textarea,select,[role="slider"],[data-swipe]') };
+  };
+  const move = (e: TouchEvent) => {
+    const s = t.current;
+    if (!s || !s.ok) return;
+    const mx = e.touches[0].clientX - s.x;
+    const my = e.touches[0].clientY - s.y;
+    if (mx > 12 && mx > Math.abs(my) * 1.8) setDx(Math.min(mx, 160));
+    else if (Math.abs(my) > 14) s.ok = false;
+  };
+  const end = (e: TouchEvent) => {
+    const s = t.current;
+    t.current = null;
+    const moved = s?.ok ? e.changedTouches[0].clientX - s.x : 0;
+    setDx(0);
+    if (s?.ok && moved > 90) {
+      navigator.vibrate?.(8);
+      close();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-40 bg-black" style={visibleStyle(vv)}>
+    <div className="fixed inset-0 z-40 bg-black" style={{ ...visibleStyle(vv), transform: dx ? `translateX(${dx * 0.5}px)` : undefined, transition: dx ? 'none' : 'transform .2s ease-out' }} onTouchStart={start} onTouchMove={move} onTouchEnd={end}>
       {q.isLoading && <div className="flex h-full items-center justify-center"><PontoLoader size={26} /></div>}
       {q.isError && (
         <div className="flex h-full flex-col items-center justify-center px-8 text-center text-white">

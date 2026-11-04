@@ -632,39 +632,44 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
       <button onClick={() => setOpen('menu')} aria-label={tr('Mais opções da publicação')} className={dark ? 'flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm transition active:scale-90' : '-mr-2 flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-full text-zinc-600 transition active:bg-zinc-100'}>
         <Icon name="more" size={20} strokeWidth={2.4} />
       </button>
+      {createPortal(
+        <>
       {open === 'menu' && (
-        <Sheet title={tr('Publicação')} onClose={() => setOpen(null)}>
-          <MenuRow icon={<Icon name="share" />} title={tr('Partilhar')} text={tr('No teu status, por ligação ou por outra app.')} onClick={() => setOpen('share')} />
-          <MenuRow icon={<Icon name="link" />} title={tr('Copiar ligação')} text={note || 'Para partilhares onde quiseres.'} onClick={copy} />
-          {mine && !(post.kind === 'repost' && !post.body) && <MenuRow icon={<Icon name="pencil" />} title={tr('Editar')} text={tr('Muda o texto da publicação.')} onClick={() => { setDraft(post.body); setOpen('edit'); }} />}
-          {mine && <MenuRow icon={<Icon name="comment" />} title={post.commentsOff ? tr('Ativar comentários') : tr('Desativar comentários')} text={post.commentsOff ? tr('Voltam a poder comentar.') : tr('Ninguém pode comentar esta publicação.')} onClick={toggleComments} />}
-          {mine ? (
-            <MenuRow icon={<Icon name="trash" />} title={tr('Apagar')} text={tr('Some para toda a gente.')} onClick={() => setOpen('delete')} />
-          ) : (
-            <>
-              <MenuRow icon={<Icon name="eye-off" />} title={tr('Não me interessa')} text={tr('Esta publicação deixa de aparecer no teu feed.')} onClick={hide} />
-              <MenuRow icon={<Icon name="flag" />} title={tr('Denunciar')} text={tr('Avisa a moderação. A pessoa não sabe.')} onClick={() => setOpen('report')} />
-            </>
+            <Sheet title={tr('Publicação')} onClose={() => setOpen(null)}>
+              <MenuRow icon={<Icon name="share" />} title={tr('Partilhar')} text={tr('No teu status, por ligação ou por outra app.')} onClick={() => setOpen('share')} />
+              <MenuRow icon={<Icon name="link" />} title={tr('Copiar ligação')} text={note || 'Para partilhares onde quiseres.'} onClick={copy} />
+              {mine && !(post.kind === 'repost' && !post.body) && <MenuRow icon={<Icon name="pencil" />} title={tr('Editar')} text={tr('Muda o texto da publicação.')} onClick={() => { setDraft(post.body); setOpen('edit'); }} />}
+              {mine && <MenuRow icon={<Icon name="comment" />} title={post.commentsOff ? tr('Ativar comentários') : tr('Desativar comentários')} text={post.commentsOff ? tr('Voltam a poder comentar.') : tr('Ninguém pode comentar esta publicação.')} onClick={toggleComments} />}
+              {mine ? (
+                <MenuRow icon={<Icon name="trash" />} title={tr('Apagar')} text={tr('Some para toda a gente.')} onClick={() => setOpen('delete')} />
+              ) : (
+                <>
+                  <MenuRow icon={<Icon name="eye-off" />} title={tr('Não me interessa')} text={tr('Esta publicação deixa de aparecer no teu feed.')} onClick={hide} />
+                  <MenuRow icon={<Icon name="flag" />} title={tr('Denunciar')} text={tr('Avisa a moderação. A pessoa não sabe.')} onClick={() => setOpen('report')} />
+                </>
+              )}
+            </Sheet>
           )}
-        </Sheet>
-      )}
-      {open === 'edit' && (
-        <Sheet title={tr('Editar a publicação')} onClose={() => setOpen(null)}>
-          <MentionTextarea value={draft} onChange={setDraft} maxLength={2000} rows={5} autoFocus aria-label={tr('Texto')} className={`${fieldInput} resize-none`} />
-          <p role="alert" className="min-h-5 text-center text-sm text-red-600">{editErr}</p>
-          <button onClick={saveEdit} disabled={saving} className="h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98] disabled:opacity-60">{tr('Guardar')}</button>
-          <button onClick={() => setOpen(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar')}</button>
-        </Sheet>
-      )}
-      {open === 'delete' && (
-        <Sheet title={tr('Apagar a publicação?')} onClose={() => setOpen(null)}>
-          <p className="mb-4 text-zinc-600">{tr('Deixa de aparecer para toda a gente, incluindo os reposts. Não dá para desfazer.')}</p>
-          <button onClick={remove} className="h-12 w-full rounded-full bg-red-700 font-bold text-white active:scale-[0.98]">{tr('Apagar')}</button>
-          <button onClick={() => setOpen(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar')}</button>
-        </Sheet>
+          {open === 'edit' && (
+            <Sheet title={tr('Editar a publicação')} onClose={() => setOpen(null)}>
+              <MentionTextarea value={draft} onChange={setDraft} maxLength={2000} rows={5} autoFocus aria-label={tr('Texto')} className={`${fieldInput} resize-none`} />
+              <p role="alert" className="min-h-5 text-center text-sm text-red-600">{editErr}</p>
+              <button onClick={saveEdit} disabled={saving} className="h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98] disabled:opacity-60">{tr('Guardar')}</button>
+              <button onClick={() => setOpen(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar')}</button>
+            </Sheet>
+          )}
+          {open === 'delete' && (
+            <Sheet title={tr('Apagar a publicação?')} onClose={() => setOpen(null)}>
+              <p className="mb-4 text-zinc-600">{tr('Deixa de aparecer para toda a gente, incluindo os reposts. Não dá para desfazer.')}</p>
+              <button onClick={remove} className="h-12 w-full rounded-full bg-red-700 font-bold text-white active:scale-[0.98]">{tr('Apagar')}</button>
+              <button onClick={() => setOpen(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar')}</button>
+            </Sheet>
+          )}
+          {open === 'report' && <ReportSheet type="post" id={post.id} onClose={() => setOpen(null)} />}
+        </>,
+        document.body,
       )}
       {open === 'share' && createPortal(<ShareSheet post={post} layer="z-[80]" onClose={() => setOpen(null)} />, document.body)}
-      {open === 'report' && <ReportSheet type="post" id={post.id} onClose={() => setOpen(null)} />}
     </>
   );
 }

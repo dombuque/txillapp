@@ -15,7 +15,9 @@ export default function StackPage({ title, children }: { title: string; children
   const back = () => (window.history.length > 1 ? navigate(-1) : navigate('/', { replace: true }));
   const start = (e: TouchEvent) => {
     const el = e.target as Element;
-    const ok = !el.closest('[class*="snap-x"],input,textarea,select,video,[role="slider"],[aria-modal="true"],[data-swipe]');
+    // Também a partir da margem esquerda (como o gesto de voltar do iPhone), mesmo por cima de fotos e vídeos.
+    const edge = e.touches[0].clientX < 28;
+    const ok = !el.closest('[aria-modal="true"],input,textarea,select,[role="slider"]') && (edge || !el.closest('[class*="snap-x"],video,[data-swipe]'));
     t.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, ok };
   };
   const move = (e: TouchEvent) => {
