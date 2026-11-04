@@ -1,3 +1,4 @@
+import { playChime } from '../lib/chime';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { tr } from '../lib/i18n';
 import { track } from '../lib/analytics';
@@ -85,6 +86,8 @@ function routeAudio(v: HTMLVideoElement) {
   void audioCtx?.resume().catch(() => undefined);
 }
 
+/** Quantas vezes mais o reel repete sozinho (toca 3 vezes no total) antes de mostrar o fim. */
+const REEL_REPEATS = 2;
 const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
 
 interface Props {
@@ -111,6 +114,8 @@ interface Props {
 /** Vídeo curto: toca sozinho quando está à vista, sem som; toca-se para ligar/desligar o som. */
 export default function VideoPlayer({ src, poster, durationMs, width, height, active, cover = false, className = '', onProgress, id, onMore, renderEnd, onOpen }: Props) {
   const [ended, setEnded] = useState(false);
+  // Como no Instagram: o reel repete algumas vezes antes de parar e mostrar o fim.
+  const loops = useRef(0);
   const ref = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const reels = active !== undefined;
@@ -122,6 +127,8 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
   const [visible, setVisible] = useState(typeof document === 'undefined' || document.visibilityState === 'visible');
   const [failed, setFailed] = useState(false);
   const watch = useRef({ started: 0, total: 0 });
+  useEffect(() => { loops.current = 0; setEnded(false); }, [active, src]);
+  useEffect(() => { if (ended && !isMuted) playChime(); }, [ended]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Feed: toca quando ≥ 60% está visível.
   useEffect(() => {
@@ -212,7 +219,16 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
         muted={silent}
         autoPlay={active === undefined ? undefined : active}
         loop={!onMore}
-        onEnded={onMore ? () => setEnded(true) : undefined}
+        onEnded={onMore ? () => {
+          const v = ref.current;
+          if (v && loops.current < REEL_REPEATS) {
+            loops.current += 1;
+            v.currentTime = 0;
+            void v.play().catch(() => undefined);
+          } else {
+            setEnded(true);
+          }
+        } : undefined}
         playsInline
         disablePictureInPicture
         disableRemotePlayback
@@ -235,6 +251,7 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
           {renderEnd({
             replay: () => {
               const v = ref.current;
+              loops.current = 0;
               setEnded(false);
               if (v) { v.currentTime = 0; void v.play().catch(() => undefined); }
             },
@@ -251,6 +268,7 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
             type="button"
             onClick={() => {
               const v = ref.current;
+              loops.current = 0;
               setEnded(false);
               if (v) { v.currentTime = 0; void v.play().catch(() => undefined); }
             }}
