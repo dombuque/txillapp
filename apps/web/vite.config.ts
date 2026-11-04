@@ -19,7 +19,7 @@ export default defineConfig({
         name: 'Txillapp',
         short_name: 'Txillapp',
         description: 'Rede social, showoff e Txills',
-        theme_color: '#d6334f',
+        theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
