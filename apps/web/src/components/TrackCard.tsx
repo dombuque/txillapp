@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Track } from '../lib/api';
-import { MUSIC_MUTE_EVENT, isMuted, playTrack, setMusicMuted, stopTrack } from '../lib/musicPlayer';
+import { MUSIC_MUTE_EVENT, allowAuto, autoAllowed, isMuted, playTrack, setMusicMuted, stopTrack } from '../lib/musicPlayer';
 import { tr } from '../lib/i18n';
 import Icon from './Icon';
 import { licenseLabel } from './MusicPicker';
@@ -42,28 +42,33 @@ export default function TrackCard({ track, autoplay = false }: { track: Track; a
 
   useEffect(() => () => stopTrack(me.current), []);
 
-  // Toca sozinha quando o post está bem à vista; pára quando sai ou a app vai para segundo plano.
+  // Toca sozinha só quando o post já está bem à vista (e parado um instante), e só depois de teres posto uma faixa a tocar à mão.
   useEffect(() => {
     if (!autoplay || !root.current) return;
+    let dwell: number | undefined;
     const io = new IntersectionObserver(
       ([e]) => {
-        visible.current = e.isIntersecting && e.intersectionRatio >= 0.6;
+        visible.current = e.isIntersecting && e.intersectionRatio >= 0.75;
+        window.clearTimeout(dwell);
         if (visible.current) {
-          if (!userPaused.current && !playing.current) void playRef.current();
+          dwell = window.setTimeout(() => {
+            if (visible.current && autoAllowed() && !userPaused.current && !playing.current) void playRef.current();
+          }, 700);
         } else {
           userPaused.current = false;
           stopTrack(me.current);
         }
       },
-      { threshold: [0, 0.6] },
+      { threshold: [0, 0.75] },
     );
     io.observe(root.current);
     const vis = () => {
       if (document.visibilityState === 'hidden') stopTrack(me.current);
-      else if (visible.current && !userPaused.current && !playing.current) void playRef.current();
+      else if (visible.current && autoAllowed() && !userPaused.current && !playing.current) void playRef.current();
     };
     document.addEventListener('visibilitychange', vis);
     return () => {
+      window.clearTimeout(dwell);
       io.disconnect();
       document.removeEventListener('visibilitychange', vis);
     };
@@ -72,9 +77,11 @@ export default function TrackCard({ track, autoplay = false }: { track: Track; a
   function toggle() {
     if (on) {
       userPaused.current = true;
+      allowAuto(false); // parou à mão: os próximos posts não tocam sozinhos
       stopTrack(me.current);
     } else {
       userPaused.current = false;
+      allowAuto(true); // pôs a tocar: os próximos posts tocam sozinhos
       void play();
     }
   }

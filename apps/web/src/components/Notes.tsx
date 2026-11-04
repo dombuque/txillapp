@@ -91,6 +91,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
         <>
           {current.body && <p className="mx-auto max-w-xs break-words rounded-[18px] bg-zinc-100 px-4 py-3 text-center text-[17px] font-medium leading-snug">{current.body}</p>}
           {current.music && <TrackCard track={current.music} />}
+          {!!current.cheers && <p className="mt-3 flex items-center justify-center gap-1.5 text-sm font-semibold text-zinc-700"><Icon name="cheers" size={18} /> {current.cheers} {current.cheers === 1 ? tr('brinde') : tr('brindes')}</p>}
           <p className="mt-2 text-center text-xs text-zinc-500">{timeAgo(current.createdAt)} {tr('· visível para os teus seguidores. Uma nota não se edita: apaga-a para publicar outra.')}</p>
           {err && <p role="alert" className="mt-2 text-center text-sm text-red-600">{err}</p>}
           <button disabled={busy} onClick={() => setConfirmDelete(true)} className="mt-3 h-12 w-full rounded-full font-semibold text-red-700 active:bg-red-50">{tr('Apagar nota')}</button>
@@ -132,6 +133,20 @@ function NoteView({ note, onClose }: { note: Note; onClose: () => void }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const qc = useQueryClient();
+  const [cheered, setCheered] = useState(!!note.cheered);
+  async function cheer() {
+    navigator.vibrate?.(8);
+    setCheered((c) => !c);
+    try {
+      const r = await api.cheerNote(note.username);
+      setCheered(r.cheered);
+      void qc.invalidateQueries({ queryKey: ['notes'] });
+    } catch (e) {
+      setCheered((c) => !c);
+      setErr((e as Error).message);
+    }
+  }
 
   async function reply() {
     if (!text.trim()) return;
@@ -155,7 +170,10 @@ function NoteView({ note, onClose }: { note: Note; onClose: () => void }) {
         {note.music && <div className="w-full"><TrackCard track={note.music} /></div>}
         <p className="mt-1.5 text-xs text-zinc-500">{timeAgo(note.createdAt)}</p>
       </div>
-      <form onSubmit={(e) => { e.preventDefault(); void reply(); }} className="mt-4 flex gap-2">
+      <button type="button" onClick={() => void cheer()} aria-pressed={cheered} className={`mx-auto mt-4 flex h-11 items-center gap-2 rounded-full px-6 font-semibold transition active:scale-95 ${cheered ? 'bg-green-100 text-green-800' : 'bg-zinc-100 text-zinc-800'}`}>
+        <span key={String(cheered)} className={`inline-flex ${cheered ? 'animate-[pop_.4s_ease-out]' : ''}`}><Icon name="cheers" size={20} /></span> {cheered ? tr('Brindou') : tr('Brindar')}
+      </button>
+      <form onSubmit={(e) => { e.preventDefault(); void reply(); }} className="mt-3 flex gap-2">
         <input value={text} onChange={(e) => setText(e.target.value)} maxLength={400} placeholder={tr('Responder à nota…')} aria-label={tr('Responder à nota')} className={fieldInput} />
         <button disabled={busy || !text.trim()} className="h-[50px] shrink-0 rounded-full bg-brand px-5 font-bold text-white active:scale-95 disabled:opacity-40">{tr('Enviar')}</button>
       </form>

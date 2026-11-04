@@ -186,7 +186,7 @@ export class SearchIndexer implements OnModuleInit {
 
   /* ───────────── pesquisa ───────────── */
 
-  /** Ids de publicações, da mais relevante para a menos (com um bónus para as recentes). */
+  /** Ids de publicações, da mais relevante para a menos (com um bónus forte para as recentes: um post novo passa à frente de um antigo parecido). */
   async searchPosts(term: string, size: number): Promise<string[]> {
     const r = await this.client!.search({
       index: this.posts,
@@ -204,7 +204,7 @@ export class SearchIndexer implements OnModuleInit {
               minimum_should_match: 1,
             },
           },
-          functions: [{ gauss: { created_at: { origin: 'now', scale: '14d', decay: 0.5 } } }],
+          functions: [{ gauss: { created_at: { origin: 'now', scale: '3d', decay: 0.5 } } }],
           boost_mode: 'multiply',
         },
       },

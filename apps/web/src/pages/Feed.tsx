@@ -55,6 +55,39 @@ export default function Feed() {
   const posts = (q.data?.pages.flatMap((p) => p.items) ?? []).filter((p) => !seenIds.has(p.id) && !!seenIds.add(p.id));
   const firstSeen = posts.findIndex((p: Post) => p.feed?.seen);
 
+  // Carregar mais sem depender do botão: ao chegar perto do fim carrega sozinho, e insistir em puxar para cima no fim também carrega.
+  const more = useRef<HTMLDivElement>(null);
+  const loadMore = useRef(() => {});
+  loadMore.current = () => {
+    if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage();
+  };
+  useEffect(() => {
+    const el = more.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(([e]) => e.isIntersecting && loadMore.current(), { rootMargin: '700px 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [q.hasNextPage, posts.length]);
+  useEffect(() => {
+    let y0 = 0;
+    const atEnd = () => window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+    const start = (e: TouchEvent) => { y0 = e.touches[0].clientY; };
+    const end = (e: TouchEvent) => {
+      if (atEnd() && y0 - e.changedTouches[0].clientY > 24) loadMore.current();
+    };
+    const wheel = (e: WheelEvent) => {
+      if (e.deltaY > 0 && atEnd()) loadMore.current();
+    };
+    window.addEventListener('touchstart', start, { passive: true });
+    window.addEventListener('touchend', end, { passive: true });
+    window.addEventListener('wheel', wheel, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', start);
+      window.removeEventListener('touchend', end);
+      window.removeEventListener('wheel', wheel);
+    };
+  }, []);
+
   // Sinal de novidades: de tempos a tempos espreita a primeira página sem mexer no que estás a ler. Não atualiza sozinho:
   // mostra um aviso e, ao tocar (ou ao puxar para atualizar), traz as novas.
   const peek = useQuery({
@@ -126,7 +159,7 @@ export default function Feed() {
       ))}
       {q.isSuccess && (posts.length === 0 || (posts.length === 1 && !early)) && <Suggestions />}
       {q.hasNextPage && (
-        <div className="mb-6 text-center">
+        <div ref={more} className="mb-6 text-center">
           <button onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage} className={btnGhost}>
             {q.isFetchingNextPage ? tr('A buscar mais vibe…') : tr('Mais vibe')}
           </button>

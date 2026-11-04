@@ -1243,6 +1243,12 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Reposts': 'Reposts',
+  'Ainda ninguém.': 'Nobody yet.',
+  'Escreve um comentário…': 'Write a comment…',
+  'Ver os {n} comentários e comentar…': 'See all {n} comments and comment…',
+  'Ainda sem comentários. Sê o primeiro!': 'No comments yet. Be the first!',
+  'Atividade da publicação': 'Post activity',
   'VHS': 'VHS',
   'Calor': 'Heat',
   'Neon': 'Neon',

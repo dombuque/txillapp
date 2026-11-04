@@ -4,6 +4,7 @@ import { TextFilter } from '../safety/text-filter.service';
 import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
 import { blockedBetween } from '../social/visibility';
+import { PushService } from '../push/push.service';
 import { ChatService } from './chat.service';
 
 export type NoteAudience = 'mutual' | 'close_friends';
@@ -16,12 +17,15 @@ export class NotesService {
     private readonly chat: ChatService,
     private readonly filter: TextFilter,
     private readonly musicSvc: MusicService,
+    private readonly push: PushService,
   ) {}
 
   /** A minha nota (se ainda vale) e as de quem me deixa vê-las. */
   async list(me: string) {
     const { rows } = await this.pool.query(
-      `SELECT n.user_id, n.body, n.music, n.audience, n.created_at, n.expires_at, u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar
+      `SELECT n.user_id, n.body, n.music, n.audience, n.created_at, n.expires_at, u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar,
+              (SELECT count(*)::int FROM social.note_cheers c WHERE c.note_user_id = n.user_id) AS cheers,
+              EXISTS (SELECT 1 FROM social.note_cheers c WHERE c.note_user_id = n.user_id AND c.user_id = $1) AS cheered
          FROM social.notes n JOIN identity.users u ON u.id = n.user_id AND u.status = 'active'
         WHERE n.expires_at > now()
           AND (n.user_id = $1 OR (
@@ -40,6 +44,8 @@ export class NotesService {
       audience: r.audience as NoteAudience,
       createdAt: r.created_at as string,
       expiresAt: r.expires_at as string,
+      cheers: r.cheers as number,
+      cheered: r.cheered as boolean,
     });
     const mine = rows.find((r) => r.user_id === me);
     return { mine: mine ? map(mine) : null, items: rows.filter((r) => r.user_id !== me).map(map) };
@@ -63,6 +69,22 @@ export class NotesService {
 
   async remove(me: string) {
     await this.pool.query('DELETE FROM social.notes WHERE user_id = $1', [me]);
+  }
+
+  /** Brindar a nota de alguém (só quem a pode ver): põe ou tira o meu brinde. O dono é avisado só da primeira vez. */
+  async cheer(me: string, username: string) {
+    const visible = (await this.list(me)).items.find((n) => n.username.toLowerCase() === username.toLowerCase());
+    if (!visible) throw new NotFoundException('Essa nota já não está disponível');
+    const owner = (await this.pool.query('SELECT id FROM identity.users WHERE lower(username) = lower($1)', [visible.username])).rows[0].id as string;
+    const del = await this.pool.query('DELETE FROM social.note_cheers WHERE note_user_id = $1 AND user_id = $2', [owner, me]);
+    const cheered = !del.rowCount;
+    if (cheered) {
+      await this.pool.query('INSERT INTO social.note_cheers (note_user_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [owner, me]);
+      const name = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0]?.display_name as string;
+      void this.push.send(owner, { title: name, body: 'brindou a tua nota', url: '/messages', tag: `note-cheer:${owner}` });
+    }
+    const cheers = (await this.pool.query('SELECT count(*)::int AS n FROM social.note_cheers WHERE note_user_id = $1', [owner])).rows[0].n as number;
+    return { cheered, cheers };
   }
 
   /** Responder a uma nota: vai como mensagem normal, a dizer a que nota responde (só quem pode ver a nota). */

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import CommentsSheet from '../components/CommentsSheet';
+import PostActivity from '../components/PostActivity';
 import PostCard from '../components/PostCard';
 import StackPage from '../components/StackPage';
 import { api } from '../lib/api';
@@ -34,6 +35,7 @@ export default function PostPage() {
         )}
         {q.data && <PostCard post={q.data} />}
       </div>
+      {shown && !video && <PostActivity post={shown} onOpenComments={() => navigate(`/p/${postId}?comments=1`, { replace: true })} />}
       {q.data && params.get('comments') && (
         <CommentsSheet post={q.data} onClose={() => navigate(`/p/${postId}`, { replace: true })} onDelta={() => void q.refetch()} />
       )}

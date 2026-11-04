@@ -244,7 +244,7 @@ export interface Track { kind?: 'clip'; mediaId?: string; id: string; title: str
 /** O que se envia ao servidor: uma faixa de licença aberta inteira, ou só os dados do clipe próprio. */
 export const musicPayload = (t: Track | null | undefined) => (!t ? undefined : t.kind === 'clip' ? { kind: 'clip' as const, mediaId: t.mediaId!, durationMs: t.durationMs ?? 1000, title: t.title } : t);
 export interface Note {
-  music?: Track | null; username: string; displayName: string; hasAvatar: boolean; body: string; audience: NoteAudience; createdAt: string; expiresAt: string }
+  music?: Track | null; username: string; displayName: string; hasAvatar: boolean; body: string; audience: NoteAudience; createdAt: string; expiresAt: string; cheers?: number; cheered?: boolean }
 export interface GroupSummary {
   kind: 'group';
   id: string;
@@ -626,6 +626,7 @@ export const api = {
   setNote: (body: string, music?: Track | null): Promise<void> => raw('/notes/me', { method: 'PUT', body: JSON.stringify({ body, music: musicPayload(music) }) }),
   searchMusic: (q: string): Promise<Track[]> => raw(`/music/search?q=${encodeURIComponent(q)}`),
   deleteNote: (): Promise<void> => raw('/notes/me', { method: 'DELETE' }),
+  cheerNote: (username: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/notes/${encodeURIComponent(username)}/cheer`, post({})),
   replyNote: (username: string, text: string): Promise<{ id: string }> => raw(`/notes/${encodeURIComponent(username)}/reply`, post({ text })),
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),
   chatGroupThread: (id: string, cursor?: string): Promise<GroupThread> => raw(`/chat/groups/${id}${cursor ? `?cursor=${cursor}` : ''}`),

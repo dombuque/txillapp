@@ -39,6 +39,13 @@ export class NotesController {
     return this.notes.remove(req.userId!);
   }
 
+  @Post(':username/cheer')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  cheer(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.notes.cheer(req.userId!, username);
+  }
+
   @NeedsVerifiedEmail()
   @Post(':username/reply')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })

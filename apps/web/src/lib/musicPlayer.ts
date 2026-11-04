@@ -12,6 +12,23 @@ let unlocked = false;
 let owner: symbol | null = null;
 let onStop: (() => void) | null = null;
 
+const AUTO_KEY = 'tx_music_auto';
+/** A música só toca sozinha nos posts depois de a pessoa ter carregado em "tocar" numa faixa (e enquanto não a parar à mão). */
+export const autoAllowed = () => {
+  try {
+    return localStorage.getItem(AUTO_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+export const allowAuto = (on: boolean) => {
+  try {
+    localStorage.setItem(AUTO_KEY, on ? '1' : '0');
+  } catch {
+    /* sem armazenamento: vale só até fechar a app */
+  }
+};
+
 export const isMuted = () => {
   try {
     return localStorage.getItem(MUTE_KEY) === '1';
