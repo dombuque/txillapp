@@ -120,6 +120,9 @@ function Private({ children }: { children: ReactNode }) {
   const here = useLocation();
   if (loading) return <Splash />;
   // txillapp.com sem sessão mostra a apresentação; a app instalada vai direto ao login.
+  // Em admin.txillapp.com não há apresentação pública: sem sessão vai ao login e depois ao backoffice.
+  const onAdminHost = window.location.hostname.startsWith('admin.');
+  if (!user && onAdminHost) return <Navigate to="/login" replace state={{ from: here.pathname === '/' ? '/backoffice' : here.pathname + here.search }} />;
   if (!user && here.pathname === '/' && !isStandalone()) return <Landing />;
   // Guarda para onde ia (ex.: um perfil partilhado) e volta lá depois de entrar.
   return user ? <>{children}</> : <Navigate to="/login" replace state={{ from: here.pathname + here.search }} />;
