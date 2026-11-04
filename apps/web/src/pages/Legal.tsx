@@ -166,7 +166,7 @@ export function Privacy() {
         <ul>
           <li><b>Conta:</b> nome, @utilizador, email, senha (guardada só em forma cifrada), data de nascimento (só para validar a idade, nunca é mostrada) e, se quiseres, género.</li>
           <li><b>O que publicas:</b> posts, fotos, stories, comentários, brindes, mensagens e as pessoas que identificas ou mencionas.</li>
-          <li><b>Localização:</b> só o <i>nome do sítio</i> que escolheres. Nunca guardamos a tua posição exata.</li>
+          <li><b>Localização:</b> o <i>nome do sítio</i> que escolheres e, quando o escolhes da lista, a posição <i>desse sítio</i> (arredondada), para quem toca no nome ver as publicações feitas ali ou perto. Nunca guardamos a tua posição exata. Contas de menores de 18 anos não guardam a posição do sítio nem aparecem nas publicações por sítio. Podes tirar o local de uma publicação quando quiseres. O mapa usa os mosaicos do OpenStreetMap, que veem o teu endereço de rede e a zona que consultas.</li>
           <li><b>Segurança:</b> sessões e dispositivos com sessão iniciada (tipo de browser, datas de acesso) e registos de ações sensíveis.</li>
           <li><b>Carteira:</b> o teu saldo de Txills e os movimentos (presentes enviados e recebidos).</li>
           <li><b>Pagamentos:</b> se recarregares Txills, guardamos o pedido (pacote, valor, método de pagamento, estado e datas) e só os últimos 3 dígitos do teu telemóvel. Os dados completos do pagamento ficam com o fornecedor (M-Pesa, e-Mola ou cartão) e nós não os guardamos.</li>

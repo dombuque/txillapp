@@ -268,7 +268,11 @@ function PostBody({ post }: { post: Post }) {
               {post.author.displayName}
               {post.author.verified && <> <VerifiedBadge tier={post.author.verifiedTier} /></>}
             </Link>
-          <p className="truncate text-[15px] text-zinc-500">{post.locationLabel ?? `@${post.author.username}`}</p>
+          {post.locationLabel ? (
+            <Link to={`/place/${encodeURIComponent(post.locationLabel)}`} className="flex items-center gap-1 truncate text-[15px] text-zinc-600 active:text-zinc-900"><Icon name="map-pin" size={14} className="shrink-0" /><span className="truncate">{post.locationLabel}</span></Link>
+          ) : (
+            <p className="truncate text-[15px] text-zinc-500">@{post.author.username}</p>
+          )}
         </div>
         <time className="self-start text-[15px] text-zinc-500" dateTime={post.createdAt}>
           {timeAgo(post.createdAt)}
@@ -617,6 +621,11 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
     }
     setSaving(false);
   }
+  async function clearPlace() {
+    await api.updatePost(post.id, { clearLocation: true }).catch(() => undefined);
+    setOpen(null);
+    for (const key of ['feed', 'profile-posts', 'post', 'reels', 'place']) await qc.invalidateQueries({ queryKey: [key] });
+  }
   async function toggleComments() {
     await api.updatePost(post.id, { commentsOff: !post.commentsOff }).catch(() => undefined);
     setOpen(null);
@@ -639,6 +648,7 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
               <MenuRow icon={<Icon name="share" />} title={tr('Partilhar')} text={tr('No teu status, por ligação ou por outra app.')} onClick={() => setOpen('share')} />
               <MenuRow icon={<Icon name="link" />} title={tr('Copiar ligação')} text={note || 'Para partilhares onde quiseres.'} onClick={copy} />
               {mine && !(post.kind === 'repost' && !post.body) && <MenuRow icon={<Icon name="pencil" />} title={tr('Editar')} text={tr('Muda o texto da publicação.')} onClick={() => { setDraft(post.body); setOpen('edit'); }} />}
+              {mine && post.locationLabel && <MenuRow icon={<Icon name="map-pin" />} title={tr('Tirar o local')} text={tr('O sítio deixa de aparecer nesta publicação.')} onClick={clearPlace} />}
               {mine && <MenuRow icon={<Icon name="comment" />} title={post.commentsOff ? tr('Ativar comentários') : tr('Desativar comentários')} text={post.commentsOff ? tr('Voltam a poder comentar.') : tr('Ninguém pode comentar esta publicação.')} onClick={toggleComments} />}
               {mine ? (
                 <MenuRow icon={<Icon name="trash" />} title={tr('Apagar')} text={tr('Some para toda a gente.')} onClick={() => setOpen('delete')} />

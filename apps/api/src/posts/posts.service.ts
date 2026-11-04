@@ -16,8 +16,11 @@ export const MAX_PHOTOS = 10;
 /** Como se dá um presente: discreto, mensagem privada ao destinatário, ou post no feed. */
 export type GiftVisibility = 'silent' | 'private' | 'public';
 
+/** Descoberta por sítio: só autores com 18 anos ou mais (ou o próprio). Sem data de nascimento conta como menor. */
+const ADULT = "(u.birth_date <= (current_date - interval '18 years') OR p.author_id = $1)";
+
 const FEED_SQL = `
-  SELECT p.id, p.short_code, p.body, p.music, p.location_label, p.created_at, p.edited_at, p.comments_off, p.kind, p.gift_amount, p.repost_of,
+  SELECT p.id, p.short_code, p.body, p.music, p.location_label, p.created_at, p.edited_at, p.comments_off, p.location_lat, p.location_lng, p.kind, p.gift_amount, p.repost_of,
          u.id AS author_id, u.username, u.display_name, u.verified AS author_verified, u.verified_tier AS author_tier,
          gr.username AS gift_username, gr.display_name AS gift_display_name, (gr.avatar_media_id IS NOT NULL) AS gift_has_avatar, gr.verified AS gift_verified, gr.verified_tier AS gift_tier,
          (${allowedBy('u', 'comments_allowed')} AND NOT p.comments_off) AS can_comment,
@@ -60,7 +63,7 @@ export class PostsService {
     private readonly musicSvc: MusicService,
   ) {}
 
-  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null) {
+  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null) {
     this.filter.assertClean(body, locationLabel, musicIn?.title, 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
     const music = await this.musicSvc.prepare(userId, musicIn);
     if (mediaIds.length > MAX_PHOTOS) throw new BadRequestException(`No máximo ${MAX_PHOTOS} fotos por publicação`);
@@ -84,8 +87,14 @@ export class PostsService {
         if (vids.rows[0].n > 0 && mediaIds.length !== 1) throw new BadRequestException('Uma publicação com vídeo tem só esse vídeo');
       }
       const id = uuidv7();
-      await client.query('INSERT INTO content.posts (id, author_id, body, location_label, music) VALUES ($1, $2, $3, $4, $5)', [
-        id, userId, body.trim(), locationLabel || null, music ? JSON.stringify(music) : null,
+      // A posição do SÍTIO escolhido (arredondada; zonas e cidades ainda mais): nunca a posição exata de quem publica.
+      // Menores de 18 anos: só o nome do sítio, nunca a posição (e ficam fora da descoberta por sítio).
+      const adult = !!geo && !!(await client.query("SELECT 1 FROM identity.users WHERE id = $1 AND birth_date <= (current_date - interval '18 years')", [userId])).rowCount;
+      if (!adult) geo = null;
+      const dp = geo?.coarse ? 2 : 3;
+      const q = (n: number) => Math.round(n * 10 ** dp) / 10 ** dp;
+      await client.query('INSERT INTO content.posts (id, author_id, body, location_label, music, location_lat, location_lng) VALUES ($1, $2, $3, $4, $5, $6, $7)', [
+        id, userId, body.trim(), locationLabel || null, music ? JSON.stringify(music) : null, locationLabel && geo ? q(geo.lat) : null, locationLabel && geo ? q(geo.lng) : null,
       ]);
       for (const tag of extractHashtags(body)) {
         await client.query('INSERT INTO content.post_tags (post_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, tag]);
@@ -148,7 +157,7 @@ export class PostsService {
 
   /** Apagar a própria publicação: fica escondida para todos (reposts dela também deixam de aparecer). */
   /** O autor edita o texto e/ou liga/desliga os comentários. Só as publicações dele; o texto passa pelo mesmo filtro. */
-  async update(userId: string, postId: string, b: { body?: string; commentsOff?: boolean }) {
+  async update(userId: string, postId: string, b: { body?: string; commentsOff?: boolean; clearLocation?: boolean }) {
     const cur = (await this.pool.query('SELECT body, kind, (SELECT count(*) FROM content.post_media m WHERE m.post_id = p.id)::int AS media FROM content.posts p WHERE id = $1 AND author_id = $2 AND removed_at IS NULL', [postId, userId])).rows[0];
     if (!cur) throw new NotFoundException('Publicação não encontrada');
     if (b.body !== undefined) {
@@ -164,6 +173,8 @@ export class PostsService {
       }
     }
     if (b.commentsOff !== undefined) await this.pool.query('UPDATE content.posts SET comments_off = $2 WHERE id = $1', [postId, b.commentsOff]);
+    // O autor pode tirar o local a qualquer momento (nome e posição).
+    if (b.clearLocation) await this.pool.query('UPDATE content.posts SET location_label = NULL, location_lat = NULL, location_lng = NULL WHERE id = $1', [postId]);
     return this.getOne(userId, postId);
   }
 
@@ -378,6 +389,38 @@ export class PostsService {
     return { items: await this.hydrate(viewerId, page), nextCursor: sort === 'recent' && rows.length > limit ? page[page.length - 1].id : null };
   }
 
+  /**
+   * Publicações de um sítio: `at` = com este mesmo nome de sítio; `near` = perto (até 10 km) do ponto desse sítio.
+   * Só o que o espectador pode ver (privacidade, bloqueios e a sua rede/país).
+   */
+  async byPlace(viewerId: string, label: string, mode: 'at' | 'near', cursor: string | undefined, limit: number) {
+    if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
+    const name = label.trim().slice(0, 80);
+    if (!name) throw new BadRequestException('Sítio em falta');
+    // O ponto do sítio: a média das posições guardadas em publicações com este nome (arredondadas).
+    // Só com publicações que ESTE espectador pode ver e de adultos; a mediana impede que alguém desloque o sítio com posições falsas.
+    const c = (await this.pool.query(
+      `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY p.location_lat) AS lat, percentile_cont(0.5) WITHIN GROUP (ORDER BY p.location_lng) AS lng
+         FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+        WHERE lower(p.location_label) = lower($2) AND p.location_lat IS NOT NULL AND ${ADULT} AND ${canView()} AND ${inMyNetwork()}`,
+      [viewerId, name],
+    )).rows[0];
+    const center = c?.lat != null ? { lat: Number(c.lat), lng: Number(c.lng) } : null;
+    const cond =
+      mode === 'near'
+        ? center
+          ? `p.location_lat IS NOT NULL AND p.location_lat BETWEEN $5 - 0.1 AND $5 + 0.1 AND p.location_lng BETWEEN $6 - 0.1 / GREATEST(cos(radians($5)), 0.01) AND $6 + 0.1 / GREATEST(cos(radians($5)), 0.01)
+             AND 2 * 6371 * asin(sqrt(sin(radians(p.location_lat - $5) / 2) ^ 2 + cos(radians($5)) * cos(radians(p.location_lat)) * sin(radians(p.location_lng - $6) / 2) ^ 2)) <= 10 AND $2::text IS NOT NULL`
+          : 'false AND $2::text IS NOT NULL'
+        : 'lower(p.location_label) = lower($2)';
+    const { rows } = await this.pool.query(
+      `${FEED_SQL} WHERE p.kind = 'post' AND ${ADULT} AND ${cond} AND ($3::uuid IS NULL OR p.id < $3) AND ${canView()} AND ${inMyNetwork()} ORDER BY p.id DESC LIMIT $4`,
+      mode === 'near' && center ? [viewerId, name, cursor ?? null, limit + 1, center.lat, center.lng] : [viewerId, name, cursor ?? null, limit + 1],
+    );
+    const page = rows.slice(0, limit);
+    return { label: name, mode, hasNear: !!center, center, items: await this.hydrate(viewerId, page), nextCursor: rows.length > limit ? page[page.length - 1].id : null };
+  }
+
   /** Uma publicação pelo código curto dos links (ou pelo id, nos links antigos). */
   async getByCode(userId: string, code: string) {
     if (!/^[A-Za-z0-9-]{6,36}$/.test(code)) throw new NotFoundException('Publicação não encontrada');
@@ -558,6 +601,8 @@ export class PostsService {
     canComment: r.can_comment,
     /** O autor desativou os comentários desta publicação. */
     commentsOff: r.comments_off as boolean,
+    /** Posição (arredondada) do sítio, se foi escolhido da lista: serve para o mapa e para ver publicações perto. */
+    locationGeo: r.location_lat != null ? { lat: r.location_lat as number, lng: r.location_lng as number } : null,
     editedAt: (r.edited_at as string | null) ?? null,
     /** Só se presenteia quem se segue (e que aceite presentes). `authorFollowed` explica ao ecrã porque não. */
     canGift: r.can_gift && r.author_followed,

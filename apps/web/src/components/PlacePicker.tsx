@@ -10,14 +10,21 @@ const PlaceMap = lazy(() => import('./PlaceMap'));
 const kindIcon: Record<string, IconName> = { praia: 'waves', bar: 'cheers', restaurante: 'utensils', lazer: 'trees', turismo: 'camera', local: 'map-pin' };
 
 type Status = 'idle' | 'locating' | 'searching' | 'ready' | 'error';
+/** A posição do SÍTIO escolhido (nunca a da pessoa). `coarse`: zona ou cidade (arredonda-se mais). */
+export interface PlaceGeo {
+  lat: number;
+  lng: number;
+  coarse?: boolean;
+}
 export interface PlacePickerProps {
   value: string;
-  onChange: (v: string) => void;
+  onChange: (v: string, geo?: PlaceGeo) => void;
 }
 interface Option {
   label: string;
   sub?: string;
   icon: IconName;
+  geo?: PlaceGeo;
 }
 
 /** Lógica de localização: pede a posição, procura sítios perto e guarda as coordenadas só em memória (para ordenar sugestões). */
@@ -120,8 +127,8 @@ export default function PlaceSheet({ value, onChange, onClose }: PlacePickerProp
     retry: false,
   });
 
-  const pick = (label: string) => {
-    onChange(label);
+  const pick = (label: string, geo?: PlaceGeo) => {
+    onChange(label, geo);
     onClose();
   };
 
@@ -129,10 +136,10 @@ export default function PlaceSheet({ value, onChange, onClose }: PlacePickerProp
   if (data) {
     for (const p of data.places) {
       const d = p.distanceM < 1000 ? `${p.distanceM} m` : `${(p.distanceM / 1000).toFixed(1)} km`;
-      nearby.push({ label: p.name, sub: `${d}${data.area ? ` · ${data.area}` : ''}`, icon: kindIcon[p.kind] ?? 'map-pin' });
+      nearby.push({ label: p.name, sub: `${d}${data.area ? ` · ${data.area}` : ''}`, icon: kindIcon[p.kind] ?? 'map-pin', geo: { lat: p.lat, lng: p.lng } });
     }
-    if (data.area) nearby.push({ label: data.area, sub: data.city ?? undefined, icon: 'home' });
-    if (data.city && data.city !== data.area) nearby.push({ label: data.city, icon: 'city' });
+    if (data.area) nearby.push({ label: data.area, sub: data.city ?? undefined, icon: 'home', geo: at ? { lat: at.lat, lng: at.lng, coarse: true } : undefined });
+    if (data.city && data.city !== data.area) nearby.push({ label: data.city, icon: 'city', geo: at ? { lat: at.lat, lng: at.lng, coarse: true } : undefined });
   }
   // Sem sugestões perto (sem permissão, sem sinal ou sem resultados): abre logo a pesquisa para escrever.
   const noNearby = status === 'error' || (status === 'ready' && nearby.length === 0);
@@ -249,7 +256,7 @@ export default function PlaceSheet({ value, onChange, onClose }: PlacePickerProp
               <p className="mb-1 mt-4 text-sm font-semibold text-zinc-500">{tr('Perto de ti')}</p>
               <ul>
                 {nearby.map((o, i) => (
-                  <Row key={`${o.label}-${i}`} o={o} onPick={() => pick(data?.area && o.label !== data.area && o.sub?.includes('·') ? `${o.label}, ${data.area}` : o.label)} />
+                  <Row key={`${o.label}-${i}`} o={o} onPick={() => pick(data?.area && o.label !== data.area && o.sub?.includes('·') ? `${o.label}, ${data.area}` : o.label, o.geo)} />
                 ))}
               </ul>
             </>

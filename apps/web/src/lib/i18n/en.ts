@@ -1243,6 +1243,13 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'O sítio deixa de aparecer nesta publicação.': 'The place no longer shows on this post.',
+  'Nada por perto, por agora': 'Nothing nearby, for now',
+  'Ainda ninguém publicou aqui': 'Nobody has posted here yet',
+  'Não consegui ver este sítio agora': 'Could not load this place now',
+  'Ainda não há publicações com a posição deste sítio, por isso não dá para ver o que há por perto.': 'No posts have this place position yet, so nearby cannot be shown.',
+  'Perto': 'Nearby',
+  'Neste sítio': 'At this place',
   'A nossa terra': 'Our land',
   'Estudo e trabalho': 'Study and work',
   'Música e dança': 'Music and dance',

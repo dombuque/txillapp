@@ -45,6 +45,7 @@ const Admin = lazy(() => import('./pages/Admin'));
 const AdminVerifications = lazy(() => import('./pages/AdminVerifications'));
 const Verification = lazy(() => import('./pages/Verification'));
 const PublicPost = lazy(() => import('./pages/PublicPost'));
+const PlacePage = lazy(() => import('./pages/PlacePage'));
 const Invites = lazy(() => import('./pages/Invites'));
 const BoLayout = lazy(() => import('./pages/backoffice/Layout'));
 const BoHome = lazy(() => import('./pages/backoffice/Home'));
@@ -169,6 +170,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/admin/stats" element={<Private><Suspense fallback={null}><AdminStats /></Suspense></Private>} />
               <Route path="/reels" element={<Private><Reels /></Private>} />
               <Route path="/tag/:tag" element={<Private><TagPage /></Private>} />
+              <Route path="/place/:name" element={<Private><Suspense fallback={<Splash />}><PlacePage /></Suspense></Private>} />
               <Route path="/admin/verifications" element={<Private><Suspense fallback={null}><AdminVerifications /></Suspense></Private>} />
               <Route path="/about" element={<Private><Suspense fallback={null}><SupportAbout /></Suspense></Private>} />
               <Route path="/backoffice" element={<Private><Suspense fallback={null}><BoLayout /></Suspense></Private>}>

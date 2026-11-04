@@ -197,4 +197,52 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     const out = await signup('go3');
     await api().post(`/api/v1/chat/messages/${sent.id}/open`).set(auth(out)).expect(404);
   });
+
+  it('posts por sítio: no mesmo sítio e perto (só com o ponto do sítio, arredondado); respeita bloqueios', async () => {
+    const a = await signup('pl0');
+    const b = await signup('pl1');
+    const mk = async (u: U, body: string, label: string, lat?: number, lng?: number) =>
+      (await api().post('/api/v1/posts').set(auth(u)).set('Idempotency-Key', `pl-${run}-${body}`).send({ body, locationLabel: label, locationLat: lat, locationLng: lng }).expect(201)).body as { id: string };
+    const p1 = await mk(a, `um${run}`, `Praia do Tofo ${run}`, -23.8512345, 35.5443211);
+    await mk(a, `dois${run}`, `praia do tofo ${run}`, -23.8512, 35.5443);
+    const p3 = await mk(a, `tres${run}`, 'Barra', -23.8, 35.5); // perto (~7 km)
+    await mk(a, `quatro${run}`, 'Maputo', -25.96, 32.58); // longe
+    expect((await pool.query('SELECT location_lat, location_lng FROM content.posts WHERE id = $1', [p1.id])).rows[0]).toEqual({ location_lat: -23.851, location_lng: 35.544 }); // arredondado
+    const at = (await api().get(`/api/v1/feed/place?label=Praia%20do%20Tofo%20${run}&mode=at`).set(auth(b)).expect(200)).body as { items: { id: string; body: string }[]; hasNear: boolean };
+    expect(at.items.map((x) => x.body).sort()).toEqual([`dois${run}`, `um${run}`]);
+    expect(at.hasNear).toBe(true);
+    const near = (await api().get(`/api/v1/feed/place?label=Praia%20do%20Tofo%20${run}&mode=near`).set(auth(b)).expect(200)).body as { items: { id: string; body: string }[] };
+    expect(near.items.map((x) => x.body).filter((x) => x.endsWith(run)).sort()).toEqual([`dois${run}`, `tres${run}`, `um${run}`]);
+    expect(near.items.some((x) => x.body === `quatro${run}`)).toBe(false);
+    expect(p3.id).toBeTruthy();
+    await api().put(`/api/v1/blocks/${a.username}`).set(auth(b)).expect((r) => { if (r.status >= 400) throw new Error(`block ${r.status}`); });
+    expect(((await api().get(`/api/v1/feed/place?label=Praia%20do%20Tofo%20${run}&mode=at`).set(auth(b)).expect(200)).body as { items: unknown[] }).items).toEqual([]);
+    await api().get('/api/v1/feed/place?label=x').expect(401);
+  });
+
+  it('sítios e segurança: menores ficam fora da descoberta e sem posição; o ponto só vem de posts que se podem ver; dá para tirar o local', async () => {
+    const adult = await signup('sa0');
+    const viewer = await signup('sa1');
+    const minorName = `sm${run}${n++}`.slice(0, 28);
+    const rm = await api().post('/api/v1/auth/register').set('X-Forwarded-For', `10.9.1.${(n % 250) + 1}`).send({ email: `${minorName}@example.com`, username: minorName, displayName: 'Menor Teste', password: 'password-bem-longa-1', birthDate: `${new Date().getUTCFullYear() - 16}-01-01`, acceptTerms: true }).expect(201);
+    const minor: U = { token: rm.body.accessToken, id: rm.body.user.id, username: minorName };
+    const label = `Escola Teste ${run}`;
+    const mk = async (u: U, body: string, lat?: number, lng?: number) =>
+      (await api().post('/api/v1/posts').set(auth(u)).send({ body, locationLabel: label, locationLat: lat, locationLng: lng }).expect(201)).body as { id: string };
+    const mp = await mk(minor, `menor${run}`, -25.9, 32.5);
+    const ap = await mk(adult, `adulto${run}`, -25.9, 32.5);
+    expect((await pool.query('SELECT location_lat FROM content.posts WHERE id = $1', [mp.id])).rows[0].location_lat).toBeNull(); // menor: sem posição
+    const at = (await api().get(`/api/v1/feed/place?label=${encodeURIComponent(label)}&mode=at`).set(auth(viewer)).expect(200)).body as { items: { body: string }[] };
+    expect(at.items.map((x) => x.body)).toEqual([`adulto${run}`]); // o post do menor não aparece
+    // O ponto do sítio não se deduz de posts que o espectador não pode ver (conta privada).
+    await pool.query('UPDATE identity.users SET is_private = true WHERE id = $1', [adult.id]);
+    const hidden = (await api().get(`/api/v1/feed/place?label=${encodeURIComponent(label)}&mode=near`).set(auth(viewer)).expect(200)).body as { hasNear: boolean; center: unknown; items: unknown[] };
+    expect(hidden.hasNear).toBe(false);
+    expect(hidden.center).toBeNull();
+    expect(hidden.items).toEqual([]);
+    await pool.query('UPDATE identity.users SET is_private = false WHERE id = $1', [adult.id]);
+    // Tirar o local.
+    await api().patch(`/api/v1/posts/${ap.id}`).set(auth(adult)).send({ clearLocation: true }).expect(200);
+    expect((await pool.query('SELECT location_label, location_lat FROM content.posts WHERE id = $1', [ap.id])).rows[0]).toEqual({ location_label: null, location_lat: null });
+  });
 });

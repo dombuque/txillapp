@@ -50,6 +50,7 @@ ${link}` : ''}`.slice(0, 2000));
   const [music, setMusic] = useState<Track | null>(null);
   const [pickingMusic, setPickingMusic] = useState(false);
   const [place, setPlace] = useState('');
+  const [placeGeo, setPlaceGeo] = useState<{ lat: number; lng: number; coarse?: boolean } | null>(null); // o ponto do sítio escolhido (se veio da lista)
   const [placeOpen, setPlaceOpen] = useState(false);
   const [photos, setPhotos] = useState<Photo[]>([]);
   // Um vídeo curto (até 60 s) em vez de fotos.
@@ -206,6 +207,7 @@ ${link}` : ''}`.slice(0, 2000));
         body,
         music,
         locationLabel: place || undefined,
+        ...(place && placeGeo ? { locationLat: placeGeo.lat, locationLng: placeGeo.lng, locationCoarse: placeGeo.coarse } : {}),
         mediaIds,
         tags: photos.flatMap((p, index) => p.tags.map((t) => ({ index, username: t.username, x: t.x, y: t.y }))),
       });
@@ -287,7 +289,7 @@ ${link}` : ''}`.slice(0, 2000));
             {place ? (
               <span className="mt-0.5 inline-flex max-w-full items-center gap-1 rounded-full bg-rose-50 py-0.5 pl-2.5 pr-1 text-sm font-semibold text-brand">
                 <button type="button" onClick={() => setPlaceOpen(true)} className="truncate"><Icon name="map-pin" size={16} className="mr-1 inline align-[-3px]" />{place}</button>
-                <button type="button" onClick={() => setPlace('')} aria-label={tr('Tirar o local')} className="px-1.5 text-base">×</button>
+                <button type="button" onClick={() => { setPlace(''); setPlaceGeo(null); }} aria-label={tr('Tirar o local')} className="px-1.5 text-base">×</button>
               </span>
             ) : (
               <p className="text-sm text-zinc-500">@{user?.username}</p>
@@ -402,7 +404,7 @@ ${link}` : ''}`.slice(0, 2000));
           onClose={() => setCameraOpen(false)}
         />
       )}
-      {placeOpen && <PlaceSheet value={place} onChange={setPlace} onClose={() => setPlaceOpen(false)} />}
+      {placeOpen && <PlaceSheet value={place} onChange={(v, g) => { setPlace(v); setPlaceGeo(g ?? null); }} onClose={() => setPlaceOpen(false)} />}
     </form>
   );
 }

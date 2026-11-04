@@ -59,6 +59,8 @@ export interface Post {
   locationLabel: string | null;
   media: { url: string; tags: PhotoTag[]; kind?: 'image' | 'video'; posterUrl?: string; durationMs?: number | null; width?: number | null; height?: number | null }[];
   createdAt: string;
+  /** Posição (arredondada) do sítio escolhido; serve para o mapa e para ver publicações perto. */
+  locationGeo?: { lat: number; lng: number } | null;
   author: { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null };
   cheers: number;
   comments: number;
@@ -567,7 +569,7 @@ export const api = {
   feed: (cursor?: string): Promise<Page<Post>> => raw(`/feed${qs(cursor, 10)}`),
   markSeen: (ids: string[]): Promise<void> => raw('/feed/seen', post({ ids })),
   hideFromFeed: (postId: string): Promise<void> => raw('/feed/hide', post({ postId })),
-  createPost: (b: { body: string; music?: Track | null; locationLabel?: string; mediaIds: string[]; tags?: { index: number; username: string; x: number; y: number }[] }): Promise<Post> => raw('/posts', post({ ...b, music: musicPayload(b.music) })),
+  createPost: (b: { body: string; music?: Track | null; locationLabel?: string; locationLat?: number; locationLng?: number; locationCoarse?: boolean; mediaIds: string[]; tags?: { index: number; username: string; x: number; y: number }[] }): Promise<Post> => raw('/posts', post({ ...b, music: musicPayload(b.music) })),
   cheer: (id: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/posts/${id}/cheers`, post({})),
   /** Presente numa publicação: discreto, mensagem privada ao destinatário, ou post no feed. */
   gift: (id: string, amount: number, key: string, note = '', visibility: GiftVisibility = 'silent'): Promise<{ transactionId: string; post: Post; announcement: Post | null }> =>
@@ -640,7 +642,9 @@ export const api = {
   mentionsExist: (names: string[]): Promise<string[]> => raw(`/mentions/exist?names=${encodeURIComponent(names.join(','))}`),
   mentionable: (q: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; following: boolean; verified?: boolean }[]> => raw(`/mentionable?q=${encodeURIComponent(q)}`),
   viewStory: (id: string): Promise<void> => raw(`/stories/${id}/view`, post({})),
-  updatePost: (id: string, b: { body?: string; commentsOff?: boolean }): Promise<Post> => raw(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
+  placePosts: (label: string, mode: 'at' | 'near', cursor?: string): Promise<{ label: string; mode: 'at' | 'near'; hasNear: boolean; center: { lat: number; lng: number } | null; items: Post[]; nextCursor: string | null }> =>
+    raw(`/feed/place?label=${encodeURIComponent(label)}&mode=${mode}${cursor ? `&cursor=${cursor}` : ''}`),
+  updatePost: (id: string, b: { body?: string; commentsOff?: boolean; clearLocation?: boolean }): Promise<Post> => raw(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
   setStoryComments: (id: string, commentsOff: boolean): Promise<{ commentsOff: boolean }> => raw(`/stories/${id}`, { method: 'PATCH', body: JSON.stringify({ commentsOff }) }),
   deleteStory: (id: string): Promise<void> => raw(`/stories/${id}`, { method: 'DELETE' }),
   replyStory: (id: string, body: string): Promise<{ id: string; kind: 'reply' | 'reaction' }> => raw(`/stories/${id}/replies`, post({ body })),

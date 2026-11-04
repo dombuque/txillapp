@@ -13,7 +13,7 @@ type Spot = NearbyPlaces['places'][number];
 
 interface Props {
   start: { lat: number; lng: number } | null;
-  onPick: (label: string) => void;
+  onPick: (label: string, geo?: { lat: number; lng: number }) => void;
   onClose: () => void;
 }
 
@@ -134,7 +134,7 @@ export default function PlaceMap({ start, onPick, onClose }: Props) {
               <span className="block truncate font-bold">{selected.name}</span>
               <span className="block truncate text-sm text-zinc-500">{area ?? 'Perto daqui'}</span>
             </span>
-            <button type="button" onClick={() => onPick(area ? `${selected.name}, ${area}` : selected.name)} className="h-11 rounded-full bg-brand px-5 font-bold text-white active:scale-95">
+            <button type="button" onClick={() => onPick(area ? `${selected.name}, ${area}` : selected.name, { lat: selected.lat, lng: selected.lng })} className="h-11 rounded-full bg-brand px-5 font-bold text-white active:scale-95">
               {tr('Usar')}
             </button>
           </div>

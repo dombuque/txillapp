@@ -16,10 +16,13 @@ const createSchema = z.object({
   body: z.string().trim().max(2000).default(''),
   music: musicSchema.nullable().optional(),
   locationLabel: z.string().trim().max(80).optional(),
+  locationLat: z.number().min(-90).max(90).optional(),
+  locationLng: z.number().min(-180).max(180).optional(),
+  locationCoarse: z.boolean().optional(),
   mediaIds: z.array(z.string().uuid()).max(MAX_PHOTOS).default([]),
   tags: z.array(z.object({ index: z.number().int().min(0).max(MAX_PHOTOS - 1), username: z.string().min(3).max(30), x: z.number().min(0).max(1), y: z.number().min(0).max(1) })).max(30).default([]),
 });
-const updateSchema = z.object({ body: z.string().max(2000).optional(), commentsOff: z.boolean().optional() });
+const updateSchema = z.object({ body: z.string().max(2000).optional(), commentsOff: z.boolean().optional(), clearLocation: z.boolean().optional() });
 const repostSchema = z.object({ body: z.string().trim().max(500).default('') });
 const giftSchema = z.object({
   amount: z.number().int().positive(),
@@ -43,6 +46,14 @@ export class FeedController {
   }
 
   /** Vídeos curtos (Reels): os que mais te vão interessar, sem repetir os que já viste. */
+  /** Publicações de um sítio: ?label=...&mode=at|near. */
+  @Get('place')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  place(@Req() req: AuthedReq, @Query('label') label = '', @Query('mode') mode = 'at', @Query('cursor') cursor?: string, @Query('limit') limit?: string) {
+    const n = Math.min(Math.max(Number(limit) || 10, 1), 30);
+    return this.posts.byPlace(req.userId!, label, mode === 'near' ? 'near' : 'at', cursor, n);
+  }
+
   @Get('reels')
   reels(@Req() req: AuthedReq, @Query('cursor') cursor?: string, @Query('limit') limit?: string) {
     const n = Math.min(Math.max(Number(limit) || 6, 1), 15);
@@ -71,7 +82,7 @@ export class PostsController {
   @NeedsVerifiedEmail()
   @Post()
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
-    return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds, b.tags, b.music ?? null);
+    return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds, b.tags, b.music ?? null, b.locationLat != null && b.locationLng != null ? { lat: b.locationLat, lng: b.locationLng, coarse: b.locationCoarse } : null);
   }
 
   @Get()

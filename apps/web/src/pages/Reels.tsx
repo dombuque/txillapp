@@ -86,7 +86,7 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
           {!mine && post.authorFollowed === false && <FollowButton username={post.author.username} following={false} requested={false} isPrivate={false} />}
         </div>
         {post.body && (video || post.media.length > 0) && <p className="mt-2 line-clamp-3 text-[15px] leading-snug"><RichText text={post.body} /></p>}
-        {post.locationLabel && <p className="mt-1 flex items-center gap-1 text-sm text-white/80"><Icon name="globe" size={14} /> {post.locationLabel}</p>}
+        {post.locationLabel && <Link to={`/place/${encodeURIComponent(post.locationLabel)}`} className="mt-1 flex w-fit items-center gap-1 text-sm text-white/90 underline-offset-2 active:underline"><Icon name="map-pin" size={14} /> {post.locationLabel}</Link>}
       </div>
 
       <div className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-3 flex flex-col items-center gap-3">
