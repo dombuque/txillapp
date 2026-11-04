@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
 import sharp from 'sharp';
 import { uuidv7 } from '../common/uuid7';
@@ -19,13 +19,40 @@ const visible = (i = 'i', v = '$1') =>
           AND EXISTS (SELECT 1 FROM social.follows f2 WHERE f2.follower_id = ${i}.author_id AND f2.followee_id = ${v})))))`;
 
 @Injectable()
-export class InstantsService {
+export class InstantsService implements OnModuleInit {
+  private readonly log = new Logger('Instants');
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly media: MediaService,
     private readonly filter: TextFilter,
     private readonly push: PushService,
   ) {}
+
+  /** Miniatura do atalho: 96×128, nítida (a foto em tamanho real só chega a quem abre o Zás). */
+  private async thumb(mediaId: string): Promise<string | null> {
+    try {
+      const t = await sharp(await this.media.chatBytes(mediaId)).rotate().resize(96, 128, { fit: 'cover' }).jpeg({ quality: 62 }).toBuffer();
+      return `data:image/jpeg;base64,${t.toString('base64')}`;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Os Zás ativos feitos com a miniatura antiga (minúscula e desfocada) ganham a nova, para o atalho se ver bem. */
+  async onModuleInit() {
+    void (async () => {
+      try {
+        const { rows } = await this.pool.query("SELECT id, media_id FROM social.instants WHERE expires_at > now() AND (preview IS NULL OR length(preview) < 2000) LIMIT 200");
+        for (const r of rows) {
+          const p = await this.thumb(r.media_id as string);
+          if (p) await this.pool.query('UPDATE social.instants SET preview = $2 WHERE id = $1', [r.id, p]);
+        }
+        if (rows.length) this.log.log(`miniaturas atualizadas: ${rows.length}`);
+      } catch (e) {
+        this.log.warn(`não consegui atualizar as miniaturas: ${(e as Error).message}`);
+      }
+    })();
+  }
 
   async create(me: string, mediaId: string, caption: string, audience: 'friends' | 'close' = 'friends') {
     this.filter.assertClean(caption);
@@ -39,13 +66,7 @@ export class InstantsService {
     );
     if (!ok.rowCount) throw new BadRequestException('Foto inválida ou ainda não carregada');
     // Pré-visualização: miniatura pequena (96×128) para o atalho dos Zás; a foto em tamanho real só chega a quem abre o Zás.
-    let preview: string | null = null;
-    try {
-      const thumb = await sharp(await this.media.chatBytes(mediaId)).rotate().resize(96, 128, { fit: 'cover' }).jpeg({ quality: 62 }).toBuffer();
-      preview = `data:image/jpeg;base64,${thumb.toString('base64')}`;
-    } catch {
-      /* sem miniatura: o atalho mostra só o raio */
-    }
+    const preview = await this.thumb(mediaId);
     const id = uuidv7();
     const r = await this.pool.query('INSERT INTO social.instants (id, author_id, media_id, caption, audience, preview) VALUES ($1, $2, $3, $4, $5, $6) RETURNING expires_at', [id, me, mediaId, caption, audience, preview]);
     return { id, expiresAt: r.rows[0].expires_at as string };

@@ -106,7 +106,7 @@ export default function InstantsDock() {
           );
         })}
         {top && (
-          <span className="absolute bottom-[104px] right-[86px] z-[5] flex -space-x-3">
+          <span className="absolute bottom-[76px] right-[84px] z-[5] flex -space-x-3">
             {others.slice(0, 2).map((o) => (
               <span key={o.username} className="rounded-full bg-white p-[2px] shadow-md"><Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={34} ring={false} /></span>
             ))}
