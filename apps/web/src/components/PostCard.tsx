@@ -629,8 +629,8 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
   }
   return (
     <>
-      <button onClick={() => setOpen('menu')} aria-label={tr('Mais opções da publicação')} className={dark ? 'flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm transition active:scale-90' : '-mr-2 flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-full text-zinc-600 transition active:bg-zinc-100'}>
-        <Icon name="more" size={20} strokeWidth={2.4} />
+      <button onClick={() => setOpen('menu')} aria-label={tr('Mais opções da publicação')} className={dark ? 'flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-black/55 text-white ring-1 ring-white/30 backdrop-blur-sm transition active:scale-90' : '-mr-2 flex h-10 w-10 shrink-0 items-center justify-center self-start rounded-full text-zinc-900 transition active:bg-zinc-100'}>
+        <Icon name="more" size={dark ? 28 : 26} strokeWidth={3} />
       </button>
       {createPortal(
         <>
