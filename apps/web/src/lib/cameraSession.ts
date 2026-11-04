@@ -30,6 +30,22 @@ if (typeof document !== 'undefined') {
   });
 }
 
+/** Retrato 3:4 inteiro: se o aparelho abriu noutro formato (a imagem fica cortada na moldura), insiste até ele mudar. */
+async function fixPortrait(s: MediaStream) {
+  const t = s.getVideoTracks()[0];
+  if (!t) return;
+  for (let i = 0; i < 4; i++) {
+    const st = t.getSettings?.();
+    if (st?.width && st?.height && Math.abs(Math.min(st.width, st.height) / Math.max(st.width, st.height) - 0.75) < 0.04) return;
+    try {
+      await t.applyConstraints({ width: { ideal: 1080 }, height: { ideal: 1440 }, aspectRatio: { ideal: 3 / 4 } });
+    } catch {
+      /* o aparelho não aceita: fica como está */
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
+
 /** Devolve a câmara pedida, reaproveitando a que já está ligada (sem novo pedido de permissão). */
 export async function acquireCamera(facing: 'environment' | 'user', audio: boolean, portrait = false): Promise<MediaStream> {
   if (timer) clearTimeout(timer);
@@ -62,5 +78,6 @@ export async function acquireCamera(facing: 'environment' | 'user', audio: boole
       /* sem microfone */
     }
   }
+  if (portrait) await fixPortrait(cur.stream);
   return cur.stream;
 }
