@@ -683,6 +683,7 @@ function Viewer({ users, start, onClose, onOwnSeen }: { users: TrayUser[]; start
         {panel === 'menu' && (
           <Panel title={tr('O teu story')} onClose={() => setPanel(null)}>
             <button onClick={() => { onClose(); navigate('/settings'); }} className="w-full rounded-xl py-3.5 text-lg active:bg-zinc-100">{tr('Definições do story')}</button>
+            {story && <button onClick={async () => { await api.setStoryComments(story.id, !story.commentsOff).catch(() => undefined); setPanel(null); await qc.invalidateQueries({ queryKey: ['stories', user.username] }); }} className="w-full rounded-xl py-3.5 text-lg active:bg-zinc-100">{story.commentsOff ? tr('Ativar comentários') : tr('Desativar comentários')}</button>}
             <button onClick={remove} className="w-full rounded-xl py-3.5 text-lg font-semibold text-red-600 active:bg-zinc-100">{tr('Apagar story')}</button>
             <button onClick={() => setPanel(null)} className="w-full rounded-xl py-3.5 text-lg active:bg-zinc-100">{tr('Cancelar')}</button>
           </Panel>

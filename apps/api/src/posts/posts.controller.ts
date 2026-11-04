@@ -1,6 +1,6 @@
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { musicSchema } from '../music/music.service';
-import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
@@ -19,6 +19,7 @@ const createSchema = z.object({
   mediaIds: z.array(z.string().uuid()).max(MAX_PHOTOS).default([]),
   tags: z.array(z.object({ index: z.number().int().min(0).max(MAX_PHOTOS - 1), username: z.string().min(3).max(30), x: z.number().min(0).max(1), y: z.number().min(0).max(1) })).max(30).default([]),
 });
+const updateSchema = z.object({ body: z.string().max(2000).optional(), commentsOff: z.boolean().optional() });
 const repostSchema = z.object({ body: z.string().trim().max(500).default('') });
 const giftSchema = z.object({
   amount: z.number().int().positive(),
@@ -83,6 +84,11 @@ export class PostsController {
   people(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Param('kind') kind: string) {
     if (kind !== 'reposts' && kind !== 'cheers' && kind !== 'gifts') throw new BadRequestException('Lista inválida');
     return this.posts.people(req.userId!, id, kind);
+  }
+
+  @Patch(':id')
+  update(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(updateSchema)) b: z.infer<typeof updateSchema>) {
+    return this.posts.update(req.userId!, id, b);
   }
 
   @Delete(':id')

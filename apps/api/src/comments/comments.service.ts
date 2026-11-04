@@ -121,7 +121,7 @@ export class CommentsService {
   /** Visível e com os comentários permitidos pelo autor (todos / quem ele segue / ninguém). Devolve o id do autor. */
   private async assertCanComment(viewerId: string, postId: string): Promise<string> {
     const r = await this.pool.query(
-      `SELECT u.id AS author_id, ${allowedBy('u', 'comments_allowed')} AS allowed
+      `SELECT u.id AS author_id, (${allowedBy('u', 'comments_allowed')} AND NOT p.comments_off) AS allowed
          FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL WHERE p.id = $2 AND ${canView()}`,
       [viewerId, postId],
     );

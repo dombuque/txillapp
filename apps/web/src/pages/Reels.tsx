@@ -79,7 +79,7 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
         </div>
       )}
 
-      <div className="absolute bottom-6 left-4 right-20 text-white">
+      <div className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-4 right-20 text-white">
         <div className="flex items-center gap-2.5">
           <Link to={`/u/${post.author.username}`}><Avatar name={post.author.displayName} username={post.author.username} size={40} ring={false} /></Link>
           <Link to={`/u/${post.author.username}`} className="min-w-0 truncate font-bold">{post.author.displayName}</Link>
@@ -89,7 +89,7 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
         {post.locationLabel && <p className="mt-1 flex items-center gap-1 text-sm text-white/80"><Icon name="globe" size={14} /> {post.locationLabel}</p>}
       </div>
 
-      <div className="absolute bottom-6 right-3 flex flex-col items-center gap-5">
+      <div className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-3 flex flex-col items-center gap-3">
         <div className="flex flex-col items-center">
           <button onClick={cheer} aria-label={post.cheered ? 'Tirar o brinde' : 'Brindar'} aria-pressed={post.cheered} className={rail}>
             <span className={`${circle} ${post.cheered ? '!bg-white/90' : ''}`}><Icon name="cheers" size={26} className={post.cheered ? 'text-brand' : ''} /></span>

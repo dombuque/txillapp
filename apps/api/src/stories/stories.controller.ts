@@ -134,6 +134,11 @@ export class StoriesController {
     return this.stories.viewers(req.userId!, id);
   }
 
+  @Patch(':id')
+  setComments(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(z.object({ commentsOff: z.boolean() }))) b: { commentsOff: boolean }) {
+    return this.stories.setCommentsOff(req.userId!, id, b.commentsOff);
+  }
+
   @Delete(':id')
   @HttpCode(204)
   remove(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {

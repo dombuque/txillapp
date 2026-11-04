@@ -101,12 +101,20 @@ export class StoriesService {
               (SELECT count(*) FROM content.story_replies r WHERE r.story_id = s.id)::int AS reply_count,
               (SELECT count(*) FROM content.story_comments sc WHERE sc.story_id = s.id)::int AS comment_count,
               (u.id <> $1 AND (u.story_replies = 'everyone' OR (u.story_replies = 'following' AND
-                 EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = u.id AND f.followee_id = $1)))) AS can_reply
+                 EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = u.id AND f.followee_id = $1))) AND NOT s.comments_off) AS can_reply,
+              s.comments_off
          FROM content.stories s JOIN identity.users u ON u.id = s.author_id
         WHERE u.username = $2 AND s.expires_at > now() AND ${canView('u')} AND ${notHidden('s.author_id')} AND ${audienceOk()} AND ${sharedOk()} ORDER BY s.id ASC`,
       [viewerId, username],
     );
     return rows.map((r) => this.toDto(r, viewerId));
+  }
+
+  /** O autor liga ou desliga as respostas e os comentários deste story. */
+  async setCommentsOff(userId: string, storyId: string, off: boolean) {
+    const r = await this.pool.query('UPDATE content.stories SET comments_off = $3 WHERE id = $1 AND author_id = $2 AND expires_at > now()', [storyId, userId, off]);
+    if (!r.rowCount) throw new NotFoundException('Story não encontrado ou já expirou');
+    return { commentsOff: off };
   }
 
   async view(viewerId: string, storyId: string) {
@@ -116,9 +124,9 @@ export class StoriesService {
   }
 
   /** Story activo e visível para este espectador (perfis privados só para seguidores). */
-  private async visibleStory(viewerId: string, storyId: string): Promise<{ author_id: string; media_id: string; story_replies: string; author_follows_viewer: boolean }> {
+  private async visibleStory(viewerId: string, storyId: string): Promise<{ author_id: string; media_id: string; story_replies: string; author_follows_viewer: boolean; comments_off: boolean }> {
     const s = await this.pool.query(
-      `SELECT s.author_id, s.media_id, u.story_replies,
+      `SELECT s.author_id, s.media_id, u.story_replies, s.comments_off,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = u.id AND f.followee_id = $1) AS author_follows_viewer
          FROM content.stories s JOIN identity.users u ON u.id = s.author_id
         WHERE s.id = $2 AND s.expires_at > now() AND ${canView('u')} AND ${notHidden('s.author_id')} AND ${audienceOk()} AND ${sharedOk()}`,
@@ -163,7 +171,7 @@ export class StoriesService {
     const s = await this.visibleStory(userId, storyId);
     if (s.author_id === userId) throw new BadRequestException('Não podes responder ao teu próprio story');
     // O autor decide quem pode responder: todos, só quem ele segue, ou ninguém.
-    if (s.story_replies === 'off' || (s.story_replies === 'following' && !s.author_follows_viewer)) {
+    if (s.comments_off || s.story_replies === 'off' || (s.story_replies === 'following' && !s.author_follows_viewer)) {
       throw new ForbiddenException('Este story não aceita respostas');
     }
     const id = uuidv7();
@@ -206,7 +214,7 @@ export class StoriesService {
   async comment(userId: string, storyId: string, body: string) {
     this.filter.assertClean(body);
     const s = await this.visibleStory(userId, storyId);
-    if (s.author_id !== userId && (s.story_replies === 'off' || (s.story_replies === 'following' && !s.author_follows_viewer))) {
+    if (s.author_id !== userId && (s.comments_off || s.story_replies === 'off' || (s.story_replies === 'following' && !s.author_follows_viewer))) {
       throw new ForbiddenException('Este story não aceita comentários');
     }
     const id = uuidv7();
@@ -348,7 +356,7 @@ export class StoriesService {
               (SELECT m.duration_ms FROM content.media_assets m WHERE m.id = s.media_id) AS duration_ms,
               s.shared_post_id,
               (SELECT json_build_object('username', su.username, 'displayName', su.display_name) FROM content.posts sp JOIN identity.users su ON su.id = sp.author_id WHERE sp.id = s.shared_post_id) AS shared_from,
-              false AS seen, 0 AS view_count, false AS cheered, 0 AS cheer_count, 0 AS reply_count, 0 AS comment_count, false AS can_reply
+              false AS seen, 0 AS view_count, false AS cheered, 0 AS cheer_count, 0 AS reply_count, 0 AS comment_count, false AS can_reply, s.comments_off
          FROM content.stories s JOIN identity.users u ON u.id = s.author_id WHERE s.id = $1`,
       [id],
     );
@@ -380,5 +388,6 @@ export class StoriesService {
     commentCount: (r.comment_count ?? 0) as number,
     /** Se este espectador pode responder (depende da definição do autor). */
     canReply: !!r.can_reply,
+    commentsOff: !!r.comments_off,
   });
 }

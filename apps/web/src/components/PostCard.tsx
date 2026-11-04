@@ -162,7 +162,7 @@ function GiftBlock({ post, g, me }: { post: Post; g: NonNullable<Post['gift']>; 
       <div className="flex items-center justify-between gap-2 text-[14px] text-zinc-500">
         <span className="flex items-center gap-1.5 font-semibold text-brand"><Icon name="gift" size={15} /> {tr('Presente')}</span>
         <span className="flex items-center gap-1">
-          <time dateTime={post.createdAt}>{timeAgo(post.createdAt)}</time>
+          <time dateTime={post.createdAt}>{timeAgo(post.createdAt)}{post.editedAt ? ` · ${tr('editado')}` : ''}</time>
           <PostMenu post={post} />
         </span>
       </div>
@@ -281,7 +281,7 @@ function QuoteCard({ post, original }: { post: Post; original: Post }) {
           </Link>
           <p className="flex items-center gap-1 truncate text-[15px] text-zinc-500"><RepostIcon width={14} height={14} /> {tr('repostou')}</p>
         </div>
-        <time className="self-start text-[15px] text-zinc-500" dateTime={post.createdAt}>{timeAgo(post.createdAt)}</time>
+        <time className="self-start text-[15px] text-zinc-500" dateTime={post.createdAt}>{timeAgo(post.createdAt)}{post.editedAt ? ` · ${tr('editado')}` : ''}</time>
         <PostMenu post={post} />
       </header>
       <p onClick={(e) => { if (!(e.target as HTMLElement).closest('a')) tapText(); }} className="mt-4 whitespace-pre-wrap break-words text-[19px] text-zinc-800"><RichText text={post.body} /></p>
@@ -560,8 +560,11 @@ function ImageViewer({ post, start, onClose }: { post: Post; start: number; onCl
 export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean }) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [open, setOpen] = useState<null | 'menu' | 'report' | 'delete' | 'share'>(null);
+  const [open, setOpen] = useState<null | 'menu' | 'report' | 'delete' | 'share' | 'edit'>(null);
   const [note, setNote] = useState('');
+  const [draft, setDraft] = useState(post.body);
+  const [saving, setSaving] = useState(false);
+  const [editErr, setEditErr] = useState('');
   const mine = post.author.id === user?.id;
 
   async function copy() {
@@ -578,6 +581,23 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
     setOpen(null);
     await qc.invalidateQueries({ queryKey: ['feed'] });
   }
+  async function saveEdit() {
+    setSaving(true);
+    setEditErr('');
+    try {
+      await api.updatePost(post.id, { body: draft });
+      setOpen(null);
+      for (const key of ['feed', 'profile-posts', 'post', 'reels']) await qc.invalidateQueries({ queryKey: [key] });
+    } catch (e) {
+      setEditErr((e as Error).message);
+    }
+    setSaving(false);
+  }
+  async function toggleComments() {
+    await api.updatePost(post.id, { commentsOff: !post.commentsOff }).catch(() => undefined);
+    setOpen(null);
+    for (const key of ['feed', 'profile-posts', 'post', 'reels']) await qc.invalidateQueries({ queryKey: [key] });
+  }
   async function remove() {
     await api.removePost(post.id).catch(() => undefined);
     setOpen(null);
@@ -585,13 +605,15 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
   }
   return (
     <>
-      <button onClick={() => setOpen('menu')} aria-label={tr('Mais opções da publicação')} className={`-mr-2 flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-full transition active:bg-zinc-100 ${dark ? 'text-white active:bg-white/20' : 'text-zinc-600'}`}>
+      <button onClick={() => setOpen('menu')} aria-label={tr('Mais opções da publicação')} className={dark ? 'flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm transition active:scale-90' : '-mr-2 flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-full text-zinc-600 transition active:bg-zinc-100'}>
         <Icon name="more" size={20} strokeWidth={2.4} />
       </button>
       {open === 'menu' && (
         <Sheet title={tr('Publicação')} onClose={() => setOpen(null)}>
           <MenuRow icon={<Icon name="share" />} title={tr('Partilhar')} text={tr('No teu status, por ligação ou por outra app.')} onClick={() => setOpen('share')} />
           <MenuRow icon={<Icon name="link" />} title={tr('Copiar ligação')} text={note || 'Para partilhares onde quiseres.'} onClick={copy} />
+          {mine && !(post.kind === 'repost' && !post.body) && <MenuRow icon={<Icon name="pencil" />} title={tr('Editar')} text={tr('Muda o texto da publicação.')} onClick={() => { setDraft(post.body); setOpen('edit'); }} />}
+          {mine && <MenuRow icon={<Icon name="comment" />} title={post.commentsOff ? tr('Ativar comentários') : tr('Desativar comentários')} text={post.commentsOff ? tr('Voltam a poder comentar.') : tr('Ninguém pode comentar esta publicação.')} onClick={toggleComments} />}
           {mine ? (
             <MenuRow icon={<Icon name="trash" />} title={tr('Apagar')} text={tr('Some para toda a gente.')} onClick={() => setOpen('delete')} />
           ) : (
@@ -600,6 +622,14 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
               <MenuRow icon={<Icon name="flag" />} title={tr('Denunciar')} text={tr('Avisa a moderação. A pessoa não sabe.')} onClick={() => setOpen('report')} />
             </>
           )}
+        </Sheet>
+      )}
+      {open === 'edit' && (
+        <Sheet title={tr('Editar a publicação')} onClose={() => setOpen(null)}>
+          <MentionTextarea value={draft} onChange={setDraft} maxLength={2000} rows={5} autoFocus aria-label={tr('Texto')} className={`${fieldInput} resize-none`} />
+          <p role="alert" className="min-h-5 text-center text-sm text-red-600">{editErr}</p>
+          <button onClick={saveEdit} disabled={saving} className="h-12 w-full rounded-full bg-brand font-bold text-white active:scale-[0.98] disabled:opacity-60">{tr('Guardar')}</button>
+          <button onClick={() => setOpen(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar')}</button>
         </Sheet>
       )}
       {open === 'delete' && (

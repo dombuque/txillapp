@@ -17,10 +17,10 @@ export const MAX_PHOTOS = 10;
 export type GiftVisibility = 'silent' | 'private' | 'public';
 
 const FEED_SQL = `
-  SELECT p.id, p.short_code, p.body, p.music, p.location_label, p.created_at, p.kind, p.gift_amount, p.repost_of,
+  SELECT p.id, p.short_code, p.body, p.music, p.location_label, p.created_at, p.edited_at, p.comments_off, p.kind, p.gift_amount, p.repost_of,
          u.id AS author_id, u.username, u.display_name, u.verified AS author_verified, u.verified_tier AS author_tier,
          gr.username AS gift_username, gr.display_name AS gift_display_name, (gr.avatar_media_id IS NOT NULL) AS gift_has_avatar, gr.verified AS gift_verified, gr.verified_tier AS gift_tier,
-         ${allowedBy('u', 'comments_allowed')} AS can_comment,
+         (${allowedBy('u', 'comments_allowed')} AND NOT p.comments_off) AS can_comment,
          ${allowedBy('u', 'gifts_allowed')} AS can_gift,
          ${listVisibleTo('u', 'reposts_visible')} AS reposts_list, ${listVisibleTo('u', 'cheers_visible')} AS cheers_list, ${listVisibleTo('u', 'gifts_visible')} AS gifts_list,
          EXISTS (SELECT 1 FROM social.follows af2 WHERE af2.follower_id = $1 AND af2.followee_id = u.id) AS author_followed,
@@ -147,6 +147,26 @@ export class PostsService {
   }
 
   /** Apagar a própria publicação: fica escondida para todos (reposts dela também deixam de aparecer). */
+  /** O autor edita o texto e/ou liga/desliga os comentários. Só as publicações dele; o texto passa pelo mesmo filtro. */
+  async update(userId: string, postId: string, b: { body?: string; commentsOff?: boolean }) {
+    const cur = (await this.pool.query('SELECT body, kind, (SELECT count(*) FROM content.post_media m WHERE m.post_id = p.id)::int AS media FROM content.posts p WHERE id = $1 AND author_id = $2 AND removed_at IS NULL', [postId, userId])).rows[0];
+    if (!cur) throw new NotFoundException('Publicação não encontrada');
+    if (b.body !== undefined) {
+      const body = b.body.trim();
+      if (cur.kind === 'repost' && cur.body === '') throw new BadRequestException('Um repost simples não se edita');
+      if (!body && cur.media === 0) throw new BadRequestException('Escreve algo');
+      this.filter.assertClean(body);
+      if (body !== cur.body) {
+        await this.pool.query('UPDATE content.posts SET body = $2, edited_at = now() WHERE id = $1', [postId, body]);
+        await this.pool.query('DELETE FROM content.post_tags WHERE post_id = $1', [postId]);
+        for (const tag of extractHashtags(body)) await this.pool.query('INSERT INTO content.post_tags (post_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING', [postId, tag]);
+        this.indexer.postChanged(postId);
+      }
+    }
+    if (b.commentsOff !== undefined) await this.pool.query('UPDATE content.posts SET comments_off = $2 WHERE id = $1', [postId, b.commentsOff]);
+    return this.getOne(userId, postId);
+  }
+
   async removeOwn(userId: string, postId: string) {
     const r = await this.pool.query(
       `UPDATE content.posts SET removed_at = now(), removed_by = 'author' WHERE id = $1 AND author_id = $2 AND removed_at IS NULL`,
@@ -535,6 +555,9 @@ export class PostsService {
     cheered: r.cheered,
     /** Conforme as definições do autor: quem pode comentar e quem pode presentear. */
     canComment: r.can_comment,
+    /** O autor desativou os comentários desta publicação. */
+    commentsOff: r.comments_off as boolean,
+    editedAt: (r.edited_at as string | null) ?? null,
     /** Só se presenteia quem se segue (e que aceite presentes). `authorFollowed` explica ao ecrã porque não. */
     canGift: r.can_gift && r.author_followed,
     authorFollowed: r.author_followed as boolean,

@@ -68,6 +68,8 @@ export interface Post {
   gift: { amount: number; recipient: { username: string; displayName: string; hasAvatar: boolean; verified?: boolean; verifiedTier?: 'verified' | 'official' | null } } | null;
   /** Conforme as definições do autor. */
   canComment: boolean;
+  commentsOff?: boolean;
+  editedAt?: string | null;
   canGift: boolean;
   /** Eu sigo o autor? Só se presenteia quem se segue. */
   authorFollowed: boolean;
@@ -200,6 +202,7 @@ export interface Story {
   commentCount: number;
   /** O autor aceita respostas deste espectador? */
   canReply: boolean;
+  commentsOff?: boolean;
 }
 export type Gender = 'female' | 'male' | 'other' | 'unspecified';
 export type ReportType = 'post' | 'comment' | 'story' | 'user' | 'message' | 'media';
@@ -637,6 +640,8 @@ export const api = {
   mentionsExist: (names: string[]): Promise<string[]> => raw(`/mentions/exist?names=${encodeURIComponent(names.join(','))}`),
   mentionable: (q: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; following: boolean; verified?: boolean }[]> => raw(`/mentionable?q=${encodeURIComponent(q)}`),
   viewStory: (id: string): Promise<void> => raw(`/stories/${id}/view`, post({})),
+  updatePost: (id: string, b: { body?: string; commentsOff?: boolean }): Promise<Post> => raw(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
+  setStoryComments: (id: string, commentsOff: boolean): Promise<{ commentsOff: boolean }> => raw(`/stories/${id}`, { method: 'PATCH', body: JSON.stringify({ commentsOff }) }),
   deleteStory: (id: string): Promise<void> => raw(`/stories/${id}`, { method: 'DELETE' }),
   replyStory: (id: string, body: string): Promise<{ id: string; kind: 'reply' | 'reaction' }> => raw(`/stories/${id}/replies`, post({ body })),
   storyReplies: (id: string): Promise<{ id: string; body: string; kind: 'reply' | 'reaction'; createdAt: string; author: { username: string; displayName: string } }[]> =>

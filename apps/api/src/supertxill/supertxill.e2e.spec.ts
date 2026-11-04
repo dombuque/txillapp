@@ -147,4 +147,25 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     expect((await pool.query("SELECT 1 FROM social.notifications WHERE user_id = $1 AND kind = 'follow'", [a.id])).rowCount).toBe(1);
     await api().get('/api/v1/notifications/settings').expect(401);
   });
+
+  it('editar publicação (só o autor, filtro, marcada como editada) e comentários desativados por publicação e por story', async () => {
+    const a = await signup('ed0');
+    const b = await signup('ed1');
+    const post = (await api().post('/api/v1/posts').set(auth(a)).set('Idempotency-Key', `ed-${run}`).send({ body: 'olá #um' }).expect(201)).body;
+    const e = (await api().patch(`/api/v1/posts/${post.id}`).set(auth(a)).send({ body: 'olá editado #dois' }).expect(200)).body;
+    expect(e.body).toBe('olá editado #dois');
+    expect(e.editedAt).toBeTruthy();
+    expect((await pool.query('SELECT tag FROM content.post_tags WHERE post_id = $1', [post.id])).rows.map((r) => r.tag)).toEqual(['dois']);
+    await api().patch(`/api/v1/posts/${post.id}`).set(auth(b)).send({ body: 'roubado' }).expect(404);
+    await api().patch(`/api/v1/posts/${post.id}`).set(auth(a)).send({ body: 'vou matar-te seu filho da puta' }).expect(422);
+    await api().patch(`/api/v1/posts/${post.id}`).set(auth(a)).send({ body: '  ' }).expect(400);
+    // Comentários.
+    await api().post(`/api/v1/posts/${post.id}/comments`).set(auth(b)).send({ body: 'fixe' }).expect(201);
+    const off = (await api().patch(`/api/v1/posts/${post.id}`).set(auth(a)).send({ commentsOff: true }).expect(200)).body;
+    expect(off.commentsOff).toBe(true);
+    expect(off.canComment).toBe(false);
+    await api().post(`/api/v1/posts/${post.id}/comments`).set(auth(b)).send({ body: 'outra' }).expect(403);
+    await api().patch(`/api/v1/posts/${post.id}`).set(auth(a)).send({ commentsOff: false }).expect(200);
+    await api().post(`/api/v1/posts/${post.id}/comments`).set(auth(b)).send({ body: 'agora sim' }).expect(201);
+  });
 });

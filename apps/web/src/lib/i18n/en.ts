@@ -1243,6 +1243,14 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'editado': 'edited',
+  'Editar a publicação': 'Edit post',
+  'Ninguém pode comentar esta publicação.': 'Nobody can comment on this post.',
+  'Voltam a poder comentar.': 'People can comment again.',
+  'Desativar comentários': 'Turn comments off',
+  'Ativar comentários': 'Turn comments on',
+  'Muda o texto da publicação.': 'Change the post text.',
+  'Editar': 'Edit',
   'Isto é calculado pelo Txillapp, só com dados do Txillapp: quem segues e os gostos da tua geleira. Nada sai para fora. Só aparecem pessoas que aceitam ser sugeridas. Podes desligar o uso da geleira nas Definições.': 'This is worked out by Txillapp, using only Txillapp data: who you follow and the tastes in your geleira. Nothing leaves the app. Only people who accept suggestions appear. You can turn off the use of your geleira in Settings.',
   'Ainda não tenho malta para te mostrar. Segue algumas pessoas e põe gostos na tua geleira, e eu aprendo contigo.': 'Nothing to show yet. Follow some people and add tastes to your geleira, and I will learn from you.',
   'Não consegui ver agora. Tenta daqui a pouco.': 'Could not load now. Try again soon.',
