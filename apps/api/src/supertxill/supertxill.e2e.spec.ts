@@ -245,4 +245,40 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     await api().patch(`/api/v1/posts/${ap.id}`).set(auth(adult)).send({ clearLocation: true }).expect(200);
     expect((await pool.query('SELECT location_label, location_lat FROM content.posts WHERE id = $1', [ap.id])).rows[0]).toEqual({ location_label: null, location_lat: null });
   });
+
+  it('estatísticas do próprio perfil: alcance, interações, visitas, destaque; público só com gente suficiente e sem identificar ninguém', async () => {
+    const owner = await signup('in0');
+    const fan = await signup('in1');
+    const post = (await api().post('/api/v1/posts').set(auth(owner)).send({ body: `estatistica${run}` }).expect(201)).body as { id: string };
+    await api().post('/api/v1/feed/seen').set(auth(fan)).send({ ids: [post.id] }).expect((r) => { if (r.status >= 400) throw new Error(`seen ${r.status}`); });
+    await api().post(`/api/v1/posts/${post.id}/cheers`).set(auth(fan)).expect((r) => { if (r.status >= 400) throw new Error(`cheer ${r.status}`); });
+    await api().post(`/api/v1/posts/${post.id}/comments`).set(auth(fan)).send({ body: 'fixe' }).expect(201);
+    await api().get(`/api/v1/users/${owner.username}`).set(auth(fan)).expect(200); // visita ao perfil
+    await api().get(`/api/v1/users/${owner.username}`).set(auth(fan)).expect(200); // a mesma pessoa no mesmo dia conta uma vez
+    await api().get(`/api/v1/users/${owner.username}`).set(auth(owner)).expect(200); // o dono não conta
+    await new Promise((r) => setTimeout(r, 300));
+    const g = (await api().get('/api/v1/insights?days=7&tz=120').set(auth(owner)).expect(200)).body;
+    expect(g.days).toBe(7);
+    expect(g.overview).toMatchObject({ reach: 1, interactions: 2, profileVisitors: 1, followers: 0 });
+    expect(g.interactions).toMatchObject({ cheers: 1, comments: 1 });
+    expect(g.series).toHaveLength(7);
+    expect(g.hours).toHaveLength(24);
+    expect(g.top[0]).toMatchObject({ id: post.id, cheers: 1, comments: 1, reach: 1 });
+    expect(g.audience).toMatchObject({ enough: false, minimum: 20 });
+    // Cada pessoa só vê as suas: o fan não tem nada.
+    const f = (await api().get('/api/v1/insights?days=bad').set(auth(fan)).expect(200)).body;
+    expect(f.days).toBe(30);
+    expect(f.overview.reach).toBe(0);
+    await api().get('/api/v1/insights').expect(401);
+    // Com seguidores que cheguem, o público aparece (agregado).
+    for (let k = 0; k < 20; k++) {
+      const u = await signup(`ig${k}`);
+      await api().post(`/api/v1/users/${owner.username}/follow`).set(auth(u)).expect((r) => { if (r.status >= 400) throw new Error(`follow ${r.status}`); });
+    }
+    const big = (await api().get('/api/v1/insights?days=30').set(auth(owner)).expect(200)).body;
+    expect(big.audience.enough).toBe(true);
+    expect(big.overview.followers).toBe(20);
+    expect(big.overview.newFollowers).toBe(20);
+    expect(JSON.stringify(big.audience)).not.toContain(owner.username);
+  });
 });

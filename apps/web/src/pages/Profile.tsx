@@ -202,6 +202,9 @@ export default function ProfilePage() {
                 <button onClick={() => void inviteCrew()} aria-label={tr('Convidar a malta')} title={tr('Convidar a malta')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
                   <Icon name="user-plus" size={18} className="mx-auto" />
                 </button>
+                <button onClick={() => navigate('/insights')} aria-label={tr('Estatísticas do perfil')} title={tr('Estatísticas do perfil')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
+                  <Icon name="trending" size={18} className="mx-auto" />
+                </button>
                 <button onClick={() => navigate('/wallet')} aria-label={tr('Carteira de Txills')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
                   <Icon name="wallet" size={18} className="mx-auto" />
                 </button>

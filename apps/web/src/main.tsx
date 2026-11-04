@@ -46,6 +46,7 @@ const AdminVerifications = lazy(() => import('./pages/AdminVerifications'));
 const Verification = lazy(() => import('./pages/Verification'));
 const PublicPost = lazy(() => import('./pages/PublicPost'));
 const PlacePage = lazy(() => import('./pages/PlacePage'));
+const Insights = lazy(() => import('./pages/Insights'));
 const Invites = lazy(() => import('./pages/Invites'));
 const BoLayout = lazy(() => import('./pages/backoffice/Layout'));
 const BoHome = lazy(() => import('./pages/backoffice/Home'));
@@ -166,6 +167,7 @@ createRoot(document.getElementById('root')!).render(
               {/* Páginas próprias em ecrã inteiro (como a Atividade do Instagram): sem a barra de baixo. */}
               <Route path="/notifications" element={<Private><Notifications /></Private>} />
               <Route path="/geleira" element={<Private><GeleiraEditor /></Private>} />
+              <Route path="/insights" element={<Private><Suspense fallback={<Splash />}><Insights /></Suspense></Private>} />
               <Route path="/settings" element={<Private><Settings /></Private>} />
               <Route path="/admin/stats" element={<Private><Suspense fallback={null}><AdminStats /></Suspense></Private>} />
               <Route path="/reels" element={<Private><Reels /></Private>} />

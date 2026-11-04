@@ -642,6 +642,7 @@ export const api = {
   mentionsExist: (names: string[]): Promise<string[]> => raw(`/mentions/exist?names=${encodeURIComponent(names.join(','))}`),
   mentionable: (q: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; following: boolean; verified?: boolean }[]> => raw(`/mentionable?q=${encodeURIComponent(q)}`),
   viewStory: (id: string): Promise<void> => raw(`/stories/${id}/view`, post({})),
+  insights: (days: 7 | 30 | 90, tz: number): Promise<Insights> => raw(`/insights?days=${days}&tz=${tz}`),
   placePosts: (label: string, mode: 'at' | 'near', cursor?: string): Promise<{ label: string; mode: 'at' | 'near'; hasNear: boolean; center: { lat: number; lng: number } | null; items: Post[]; nextCursor: string | null }> =>
     raw(`/feed/place?label=${encodeURIComponent(label)}&mode=${mode}${cursor ? `&cursor=${cursor}` : ''}`),
   updatePost: (id: string, b: { body?: string; commentsOff?: boolean; clearLocation?: boolean }): Promise<Post> => raw(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
@@ -805,3 +806,15 @@ export const api = {
   },
   newKey,
 };
+
+export interface InsightsBucket { label: string; value: number; pct: number }
+export interface Insights {
+  days: number;
+  overview: { reach: number; reachDelta: number; interactions: number; interactionsDelta: number; followers: number; newFollowers: number; newFollowersDelta: number; profileVisitors: number; profileVisitorsDelta: number; storyViews: number };
+  interactions: { cheers: number; comments: number; reposts: number; gifts: number; storyCheers: number; storyReplies: number };
+  series: { day: string; reach: number; interactions: number; followers: number }[];
+  hours: { hour: number; value: number }[];
+  weekdays: { dow: number; value: number }[];
+  top: { id: string; code: string; body: string; mediaUrl: string | null; video: boolean; createdAt: string; cheers: number; comments: number; reposts: number; gifts: number; reach: number }[];
+  audience: { enough: false; minimum: number; followers: number } | { enough: true; followers: number; gender: InsightsBucket[]; ages: InsightsBucket[]; countries: InsightsBucket[]; cities: InsightsBucket[]; interests: InsightsBucket[] };
+}

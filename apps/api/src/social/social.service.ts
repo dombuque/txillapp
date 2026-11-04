@@ -1,3 +1,4 @@
+import { InsightsService } from '../insights/insights.service';
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { TextFilter } from '../safety/text-filter.service';
 import { TERMS_VERSION } from '@txillapp/shared';
@@ -34,6 +35,7 @@ export class SocialService {
     private readonly notifications: NotificationsService,
     private readonly indexer: SearchIndexer,
     private readonly filter: TextFilter,
+    private readonly insights: InsightsService,
   ) {}
 
   /* ───────────── perfil ───────────── */
@@ -60,6 +62,7 @@ export class SocialService {
     const r = rows[0];
     if (!r) throw new NotFoundException('Utilizador não encontrado');
     const isMe = r.id === viewerId;
+    if (!isMe && r.can_view && !r.blocked_me && !r.blocked_by_me) void this.insights.recordProfileView(r.id as string, viewerId);
     return {
       id: r.id,
       username: r.username,

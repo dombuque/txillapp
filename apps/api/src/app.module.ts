@@ -34,6 +34,7 @@ import { StoriesModule } from './stories/stories.module';
 import { WalletModule } from './wallet/wallet.module';
 import { InvitesModule } from './invites/invites.module';
 import { BackofficeModule } from './backoffice/backoffice.module';
+import { InsightsModule } from './insights/insights.module';
 import { StaffModule } from './staff/staff.module';
 import { SuperTxillModule } from './supertxill/supertxill.module';
 import { PaymentsModule } from './payments/payments.module';
@@ -57,6 +58,7 @@ export class AppModule {
         WalletModule,
         InvitesModule,
         StaffModule,
+        InsightsModule,
         SuperTxillModule,
         BackofficeModule,
         PaymentsModule,
