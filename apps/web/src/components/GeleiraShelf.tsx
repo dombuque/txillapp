@@ -59,7 +59,7 @@ function Shelf({ title, icon, items }: { title: string; icon: Parameters<typeof 
 }
 
 /** Botão da geleira na linha de ações do perfil: abre/fecha a prateleira para baixo. Nos perfis dos outros só aparece se houver o que mostrar. */
-export function GeleiraToggle({ username, isMe, open, onToggle, icon = false }: { username: string; isMe: boolean; open: boolean; onToggle: () => void; icon?: boolean }) {
+export function GeleiraToggle({ username, isMe, open, onToggle, icon = false, grow = false }: { username: string; isMe: boolean; open: boolean; onToggle: () => void; icon?: boolean; grow?: boolean }) {
   const q = useQuery({ queryKey: ['geleira', isMe ? 'me' : username], queryFn: (): Promise<(MyTaste | TheirTaste)[]> => (isMe ? api.geleiraMine() : api.geleiraOf(username)), retry: false });
   const total = (q.data ?? []).length;
   if (!isMe && (q.isError || total === 0)) return null;
@@ -68,7 +68,7 @@ export function GeleiraToggle({ username, isMe, open, onToggle, icon = false }: 
       onClick={onToggle}
       aria-expanded={open}
       aria-label={open ? tr('Fechar a geleira') : tr('Abrir a geleira')}
-      className={`flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-[14px] font-bold transition active:scale-95 ${icon ? 'w-11 !px-0' : 'flex-1'} ${open ? 'bg-sky-100 text-sky-900 ring-1 ring-sky-200' : 'bg-zinc-100 text-zinc-900'}`}
+      className={`flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-[14px] font-bold transition active:scale-95 ${icon ? `${grow ? 'flex-1' : 'w-11'} !px-0` : 'flex-1'} ${open ? 'bg-sky-100 text-sky-900 ring-1 ring-sky-200' : 'bg-zinc-100 text-zinc-900'}`}
     >
       <Icon name="snowflake" size={18} />
       {!icon && <span>{tr('Geleira')}</span>}

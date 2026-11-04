@@ -28,6 +28,16 @@ import { useAuth } from '../lib/auth';
 type SheetName = null | 'report' | 'edit' | 'requests' | 'menu' | 'block' | 'gift' | 'qr';
 
 /** Perfil de qualquer pessoa (/u/:username) e o meu (/profile). */
+/** Símbolo do QR (três cantos e pontos), no mesmo traço dos outros ícones. */
+function QrGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="mx-auto" aria-hidden>
+      <rect x="3.5" y="3.5" width="6" height="6" rx="1.2" /><rect x="14.5" y="3.5" width="6" height="6" rx="1.2" /><rect x="3.5" y="14.5" width="6" height="6" rx="1.2" />
+      <path d="M14.5 14.5h2.5v2.5M20.5 14.5v.01M14.5 20.5h.01M17.5 20.5h3M20.5 17.5v3" />
+    </svg>
+  );
+}
+
 const TABS: { id: ProfileTab; label: string; icon: IconName | 'bookmark' }[] = [
   { id: 'all', label: tr('Tudo'), icon: 'grid' },
   { id: 'reels', label: tr('Reels'), icon: 'film' },
@@ -204,10 +214,20 @@ export default function ProfilePage() {
           <>
             <div className="mt-4 flex gap-2">
               {p.isMe ? (
+                // Tudo em símbolos, numa só linha e sempre no mesmo sítio.
                 <>
-                  <button onClick={() => setSheet('edit')} className={`${btnSmall} flex-1`}>{tr('Editar perfil')}</button>
-                  <button onClick={() => setSheet('qr')} className={`${btnSmall} flex-1`}>{tr('Partilhar perfil')}</button>
-                  <GeleiraToggle username={p.username} isMe open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} />
+                  {([
+                    ['pencil', tr('Editar perfil'), () => setSheet('edit')],
+                    ['qr', tr('Partilhar perfil'), () => setSheet('qr')],
+                    ['user-plus', tr('Convidar a malta'), () => void inviteCrew()],
+                    ['trending', tr('Estatísticas do perfil'), () => navigate('/insights')],
+                    ['wallet', tr('Carteira de Txills'), () => navigate('/wallet')],
+                  ] as const).map(([icon, label, go]) => (
+                    <button key={label} onClick={go} aria-label={label} title={label} className={`${btnSmall} flex-1 !px-0`}>
+                      {icon === 'qr' ? <QrGlyph /> : <Icon name={icon} size={20} className="mx-auto" />}
+                    </button>
+                  ))}
+                  <GeleiraToggle username={p.username} isMe open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon grow />
                 </>
               ) : (
                 <>
@@ -226,22 +246,6 @@ export default function ProfilePage() {
                 </>
               )}
             </div>
-            {p.isMe && (
-              // Atalhos em quatro colunas iguais: ícone e nome, sem sair do cartão.
-              <div className="mt-2 grid grid-cols-4 gap-2">
-                {([
-                  ['user-plus', tr('Convidar'), () => void inviteCrew()],
-                  ['bookmark', tr('Guardados'), () => setTab('saved')],
-                  ['trending', tr('Estatísticas'), () => navigate('/insights')],
-                  ['wallet', tr('Carteira'), () => navigate('/wallet')],
-                ] as const).map(([icon, label, go]) => (
-                  <button key={label} onClick={go} className="flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-zinc-100 px-1 text-zinc-900 transition active:scale-95">
-                    {icon === 'bookmark' ? <BookmarkIcon on={false} size={20} /> : <Icon name={icon} size={20} />}
-                    <span className="max-w-full truncate text-[12px] font-semibold leading-tight">{label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
           </>
         )}
 
