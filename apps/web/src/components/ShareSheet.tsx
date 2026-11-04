@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { funny } from '../lib/copy';
 import { tr } from '../lib/i18n';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { track } from '../lib/analytics';
 import { renderGiftCard } from '../lib/giftCard';
 import { api, type Post } from '../lib/api';
@@ -152,20 +152,36 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
   }
   // O WhatsApp não tem ligação direta ao status: o que se consegue é entregar a foto ou vídeo ao menu de partilha do telemóvel,
   // onde o WhatsApp oferece "Status". Por isso envia-se o ficheiro (não o link) e a pessoa escolhe o Status.
+  // O ficheiro do status: o vídeo (ou a foto) tal como está, sem moldura. Para os vídeos descarrega-se logo ao abrir a partilha:
+  // se só se descarregasse depois do toque, o telemóvel podia recusar a partilha por ter demorado.
+  async function buildStoryFile(): Promise<File | null> {
+    const m = post.media[0];
+    if (!m) return null;
+    const isVideo = m.kind === 'video';
+    const res = await fetch(isVideo ? m.url : sized(m.url, 1080));
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    // Alguns servidores respondem com um tipo genérico (octet-stream): o WhatsApp só toca o vídeo se for mesmo "video/mp4".
+    const type = isVideo ? 'video/mp4' : blob.type.startsWith('image/') ? blob.type : 'image/jpeg';
+    const ext = isVideo ? 'mp4' : type.includes('png') ? 'png' : type.includes('webp') ? 'webp' : 'jpg';
+    return new File([blob], `txillapp-${post.code ?? post.id}.${ext}`, { type });
+  }
+  const storyFile = useRef<Promise<File | null> | null>(null);
+  useEffect(() => {
+    if (video && post.media[0] && typeof navigator.canShare === 'function') storyFile.current = buildStoryFile().catch(() => null);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function whatsappStory() {
     track('share', { where: 'whatsapp-status' });
     const m = post.media[0];
     if (!m) return setNote(tr('Só publicações com foto ou vídeo vão para o status do WhatsApp'));
     setBusy(true);
     try {
-      const res = await fetch(m.kind === 'video' ? m.url : sized(m.url, 1080));
-      const blob = await res.blob();
-      // A foto (ou o vídeo) segue como é, sem moldura; a legenda leva só o link curto, clicável.
-      const ext = blob.type.includes('mp4') || blob.type.includes('video') ? 'mp4' : blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
-      const file = new File([blob], `txillapp-${post.code ?? post.id}.${ext}`, { type: blob.type });
-      const caption = url;
+      const file = await (storyFile.current ?? buildStoryFile());
+      if (!file) throw new Error('sem ficheiro');
+      // A legenda leva só o link curto, clicável (nos vídeos vai só o ficheiro, para o WhatsApp o tocar como vídeo).
       if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
-        await navigator.share(caption ? { files: [file], text: caption } : { files: [file] });
+        await navigator.share(m.kind === 'video' ? { files: [file] } : { files: [file], text: url });
         onClose();
       } else {
         setNote(tr('Este telemóvel não deixa partilhar o ficheiro diretamente. Usa "Partilhar…" ou guarda a foto.'));
