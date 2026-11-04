@@ -5,7 +5,7 @@ import GenderPicker from '../components/GenderPicker';
 import { MIN_AGE, birthDateSchema, earliestBirthDate, latestBirthDate, registerSchema, type RegisterInput } from '@txillapp/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type Ref, type SVGProps } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Wordmark } from '../components/ui';
 import { ApiError, api, type Gender } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -394,6 +394,20 @@ export function Register() {
   const [data, setData] = useState<Partial<RegisterInput>>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // Convite: vem na ligação (?convite=CÓDIGO) e fica guardado até o registo acabar.
+  const [params] = useSearchParams();
+  const [invite, setInvite] = useState<{ code: string; displayName: string } | null>(null);
+  useEffect(() => {
+    let code = (params.get('convite') ?? '').trim().toUpperCase().slice(0, 20);
+    try {
+      if (code) localStorage.setItem('tx_invite', code);
+      else code = localStorage.getItem('tx_invite') ?? '';
+    } catch {
+      /* sem armazenamento: só vale a ligação aberta */
+    }
+    if (!code) return;
+    api.invitePreview(code).then((p) => setInvite({ code, displayName: p.displayName })).catch(() => { try { localStorage.removeItem('tx_invite'); } catch { /* nada */ } });
+  }, [params]);
   const step = steps[i];
   const value = String(data[step.key] ?? '');
   const kind = step.key === 'username' || step.key === 'email' ? step.key : null;
@@ -409,7 +423,8 @@ export function Register() {
     if (i < steps.length - 1) return setI(i + 1);
     setBusy(true);
     try {
-      signIn(await api.register({ ...data, username: String(data.username).replace(/^@/, '') }));
+      signIn(await api.register({ ...data, username: String(data.username).replace(/^@/, ''), inviteCode: invite?.code }));
+      try { localStorage.removeItem('tx_invite'); } catch { /* nada */ }
       navigate(from, { replace: true });
     } catch (x) {
       const msg = (x as Error).message;
@@ -445,6 +460,7 @@ export function Register() {
       </div>
 
       <form onSubmit={next} className="mt-12 flex flex-1 flex-col" noValidate>
+        {invite && i === 0 && <p className="mb-4 rounded-2xl bg-emerald-50 px-4 py-2.5 text-center text-[15px] font-semibold text-emerald-800">{tr('Convite de {v0}: os dois ganham Txills quando entrares a sério.', { v0: invite.displayName })}</p>}
         <h1 className="text-4xl font-light leading-tight">{step.title}</h1>
         <p className="mt-3 text-xl font-light text-zinc-600">{step.sub}</p>
         <div className="mt-8">

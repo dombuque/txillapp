@@ -1,6 +1,11 @@
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { MIN_AGE, TERMS_VERSION } from '@txillapp/shared';
+
+const INVITE_REWARD = 100;
+const INVITE_HOLD = 7;
+const INVITE_DAY = 5;
+const INVITE_TOTAL = 50;
 import { BackIcon } from '../components/icons';
 import { Wordmark } from '../components/ui';
 
@@ -86,6 +91,7 @@ export function Terms() {
           <li>A geleira tem um <b>nível</b>, calculado por pontos. As bebidas com álcool e as vibes de festa valem mais, as outras valem menos, um favorito dá mais um ponto, e os teus <b>Txills também contam</b> (1 ponto por cada 200, até 5). O nível tem nome em calão da malta (por exemplo, «Paulada garantida»).</li>
           <li>O título do nível mais alto <b>muda com a tua idade</b> (por exemplo, «Madala da paulada» só a partir dos 45 anos). A idade vem da data de nascimento que deste ao criar a conta; a data nunca é mostrada a ninguém.</li>
           <li>Como os Txills contam para o nível, quem vê a tua geleira pode ter uma ideia aproximada de quantos tens. Se não queres isso, põe a geleira como <b>só eu</b>: então o nível também não aparece a mais ninguém.</li>
+          <li><b>Convites</b>: tens um código para trazer a malta. Quando quem convidas confirma o email e fica ativo (publica algo ou segue 3 pessoas), essa pessoa ganha {INVITE_REWARD} Txills e tu ganhas outros {INVITE_REWARD} passados {INVITE_HOLD} dias, se ela continuar por cá. Há um máximo de {INVITE_DAY} convites por dia e {INVITE_TOTAL} no total, e um teto mensal para toda a app. Contas repetidas, emails temporários e registos em massa não contam, e podemos anular Txills ganhos assim. Os Txills dos convites são pontos da app, como os outros.</li>
           <li>Os Txills não são dinheiro (ver ponto 1) e a pontuação é só uma brincadeira: não dá direito a prémios nem a dinheiro.</li>
           <li>Podes <b>recarregar Txills</b> em Definições → «Pedidos e pagamentos», com os métodos que estiverem disponíveis. Os Txills comprados entram na carteira e usam-se como os outros: não se trocam por dinheiro. Um pedido que não for pago em 30 minutos expira; se o pagamento chegar depois, os Txills são entregues na mesma. Para qualquer problema com um pagamento, escreve para o suporte.</li>
         </ul>
@@ -172,6 +178,7 @@ export function Privacy() {
           <li><b>Zás:</b> a foto, a legenda, para quem a enviaste (Amigos ou Próximos), a hora, quem a viu e como reagiu. Uma miniatura minúscula e desfocada (24×32 pontos) serve só para o atalho. Duram 24 horas.</li>
           <li><b>Notificações:</b> se as ativares, guardamos o identificador do teu aparelho para as enviar. O texto nunca mostra o conteúdo das mensagens nem qual foi a reação; podes desligá-las quando quiseres.</li>
           <li><b>Reações a mensagens:</b> a reação que deixas e quem a deixou, visíveis para quem está na conversa.</li>
+          <li><b>Convites:</b> o teu código, quem convidaste e em que estado está cada convite. Guardamos também uma impressão da rede de quem se regista com um convite (nunca o endereço em si), só para detetar registos em massa.</li>
           <li><b>Fotos e vídeos:</b> são verificados automaticamente no nosso servidor (nudez e conteúdo sexual) antes de ficarem visíveis. Nada é enviado a terceiros.</li>
         </ul>
       </section>

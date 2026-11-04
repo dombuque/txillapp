@@ -45,6 +45,7 @@ const Admin = lazy(() => import('./pages/Admin'));
 const AdminVerifications = lazy(() => import('./pages/AdminVerifications'));
 const Verification = lazy(() => import('./pages/Verification'));
 const PublicPost = lazy(() => import('./pages/PublicPost'));
+const Invites = lazy(() => import('./pages/Invites'));
 const SupportAbout = lazy(() => import('./pages/Support').then((m) => ({ default: m.About })));
 const SupportHelp = lazy(() => import('./pages/Support').then((m) => ({ default: m.Help })));
 const SupportOrders = lazy(() => import('./pages/Support').then((m) => ({ default: m.Orders })));
@@ -155,6 +156,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/tag/:tag" element={<Private><TagPage /></Private>} />
               <Route path="/admin/verifications" element={<Private><Suspense fallback={null}><AdminVerifications /></Suspense></Private>} />
               <Route path="/about" element={<Private><Suspense fallback={null}><SupportAbout /></Suspense></Private>} />
+              <Route path="/invites" element={<Private><Suspense fallback={null}><Invites /></Suspense></Private>} />
               <Route path="/help" element={<Private><Suspense fallback={null}><SupportHelp /></Suspense></Private>} />
               <Route path="/orders" element={<Private><Suspense fallback={null}><SupportOrders /></Suspense></Private>} />
               <Route path="/language" element={<Private><Suspense fallback={null}><SupportLanguage /></Suspense></Private>} />

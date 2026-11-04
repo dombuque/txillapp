@@ -54,7 +54,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    const { tokens, user } = await this.auth.register(body, req.headers['user-agent']);
+    const { tokens, user } = await this.auth.register(body, req.headers['user-agent'], req.ip);
     return this.respond(res, tokens, user);
   }
 

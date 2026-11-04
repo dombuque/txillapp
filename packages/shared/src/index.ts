@@ -58,6 +58,8 @@ export const registerSchema = z.object({
   username: usernameSchema,
   displayName: z.string().trim().min(1).max(60),
   password: passwordSchema,
+  /** Código de quem convidou (opcional). */
+  inviteCode: z.string().trim().max(20).optional(),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 

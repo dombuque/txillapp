@@ -164,7 +164,7 @@ export class WalletService {
    * Credita Txills comprados (emissão → carteira) no mesmo livro de partidas dobradas, de forma idempotente por `key`.
    * `client` opcional para compor com a atualização do pedido na mesma transação.
    */
-  async credit(userId: string, amount: number, key: string, metadata: Record<string, unknown>, client?: PoolClient): Promise<{ transactionId: string; replayed: boolean }> {
+  async credit(userId: string, amount: number, key: string, metadata: Record<string, unknown>, client?: PoolClient, type: 'topup' | 'invite' = 'topup'): Promise<{ transactionId: string; replayed: boolean }> {
     if (!Number.isInteger(amount) || amount < 1) throw new UnprocessableEntityException('Montante inválido');
     const accountId = await this.ensureWallet(userId);
     const own = !client;
@@ -177,7 +177,7 @@ export class WalletService {
         return { transactionId: dup.rows[0].id, replayed: true };
       }
       await c.query('SELECT 1 FROM ledger.accounts WHERE id = $1 FOR UPDATE', [accountId]);
-      const txId = await this.post(c, { type: 'topup', actorId: userId, key, legs: [[ISSUANCE_ACCOUNT, -amount], [accountId, amount]], metadata });
+      const txId = await this.post(c, { type, actorId: userId, key, legs: [[ISSUANCE_ACCOUNT, -amount], [accountId, amount]], metadata });
       if (own) await c.query('COMMIT');
       return { transactionId: txId, replayed: false };
     } catch (e) {

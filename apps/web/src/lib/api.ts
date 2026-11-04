@@ -243,6 +243,14 @@ export type NoteAudience = 'mutual' | 'close_friends';
 export interface Track { kind?: 'clip'; mediaId?: string; id: string; title: string; artist: string; url: string; landing: string | null; license: string; licenseUrl: string | null; durationMs: number | null; cover: string | null }
 /** O que se envia ao servidor: uma faixa de licença aberta inteira, ou só os dados do clipe próprio. */
 export const musicPayload = (t: Track | null | undefined) => (!t ? undefined : t.kind === 'clip' ? { kind: 'clip' as const, mediaId: t.mediaId!, durationMs: t.durationMs ?? 1000, title: t.title } : t);
+export interface InvitesInfo {
+  code: string;
+  link: string;
+  stats: { invited: number; active: number; pending: number; paid: number; earned: number; today: number };
+  rules: { reward: number; perDay: number; maxPaid: number; holdDays: number };
+  eligible: boolean;
+  note: string | null;
+}
 export interface Note {
   music?: Track | null; username: string; displayName: string; hasAvatar: boolean; body: string; audience: NoteAudience; createdAt: string; expiresAt: string; cheers?: number; cheered?: boolean }
 export interface GroupSummary {
@@ -501,6 +509,8 @@ const qs = (cursor?: string, limit?: number, q?: string) => {
 
 export const api = {
   register: (b: unknown): Promise<AuthResponse> => raw('/auth/register', post(b)),
+  invites: (): Promise<InvitesInfo> => raw('/invites/me'),
+  invitePreview: (code: string): Promise<{ username: string; displayName: string }> => raw(`/invites/preview/${encodeURIComponent(code)}`),
   login: (b: unknown): Promise<AuthResponse> => raw('/auth/login', post(b)),
   // Partilha o pedido em curso: dois refresh com o mesmo token (StrictMode, vários separadores) seriam tratados como reutilização.
   refresh: (): Promise<AuthResponse> => refreshOnce(),

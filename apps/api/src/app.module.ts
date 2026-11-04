@@ -32,6 +32,7 @@ import { SocialModule } from './social/social.module';
 import { InstantsModule } from './instants/instants.module';
 import { StoriesModule } from './stories/stories.module';
 import { WalletModule } from './wallet/wallet.module';
+import { InvitesModule } from './invites/invites.module';
 import { PaymentsModule } from './payments/payments.module';
 
 @Module({})
@@ -51,6 +52,7 @@ export class AppModule {
         AccountModule,
         AnalyticsModule,
         WalletModule,
+        InvitesModule,
         PaymentsModule,
         MediaModule,
         PushModule,
