@@ -68,9 +68,9 @@ export function GeleiraToggle({ username, isMe, open, onToggle, icon = false, gr
       onClick={onToggle}
       aria-expanded={open}
       aria-label={open ? tr('Fechar a geleira') : tr('Abrir a geleira')}
-      className={`flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-[14px] font-bold transition active:scale-95 ${icon ? `${grow ? 'flex-1' : 'w-11'} !px-0` : 'flex-1'} ${open ? 'bg-sky-100 text-sky-900 ring-1 ring-sky-200' : 'bg-zinc-100 text-zinc-900'}`}
+      className={`flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-[14px] font-bold transition active:scale-95 ${icon ? `${grow ? 'flex-1' : 'w-11'} !px-0` : 'flex-1'} ${open ? 'bg-sky-200 text-sky-900 ring-1 ring-sky-300' : 'bg-sky-50 text-sky-900 ring-1 ring-sky-200'}`}
     >
-      <Icon name="snowflake" size={18} />
+      <FridgeArt count={total} level={geleiraLevel(geleiraPoints((q.data ?? []).filter((i) => !('pending' in i && (i as { pending?: boolean }).pending))))} open={open} size={24} />
       {!icon && <span>{tr('Geleira')}</span>}
       <Icon name="chevron-right" size={14} className={`transition ${open ? 'rotate-90' : ''}`} />
     </button>
