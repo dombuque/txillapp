@@ -863,18 +863,24 @@ export default function Thread() {
       ) : first?.blocked ? (
         <p className="shrink-0 border-t border-zinc-100 px-6 py-4 text-center text-sm text-zinc-600">{tr('Não podes trocar mensagens com esta conta.')}</p>
       ) : rec ? (
-        <div className="flex shrink-0 items-center gap-3 border-t border-zinc-100 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-          <button type="button" onClick={() => finishRecording(false)} aria-label={tr('Cancelar gravação')} className={`${tool} text-red-600`}>
-            <Icon name="trash" size={22} />
+        <div className="flex shrink-0 items-center gap-2 border-t border-zinc-100 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+          <button type="button" onClick={() => finishRecording(false)} aria-label={tr('Cancelar gravação')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition active:scale-90">
+            <Icon name="trash" size={20} />
           </button>
-          <span className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full bg-red-50 px-3 py-2 text-red-600">
-            <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-red-600" aria-hidden />
-            <span className="w-10 shrink-0 font-semibold tabular-nums">{mmss(rec.ms)}</span>
-            <span className="flex h-7 min-w-0 flex-1 items-center justify-end gap-[2px]" aria-hidden>
-              {rec.bars.map((l, i) => <span key={i} className="w-[3px] shrink-0 rounded-full bg-red-500" style={{ height: `${Math.max(12, Math.round(l * 100))}%` }} />)}
+          {/* A gravar: ponto a pulsar, tempo e a onda em direto a correr da direita para a esquerda. */}
+          <span className="flex h-11 min-w-0 flex-1 items-center gap-2.5 rounded-full bg-zinc-900 px-4 text-white">
+            <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
+              <span className="absolute inset-0 animate-ping rounded-full bg-brand opacity-70" />
+              <span className="relative h-2.5 w-2.5 rounded-full bg-brand" />
+            </span>
+            <span className="w-10 shrink-0 text-[15px] font-semibold tabular-nums">{mmss(rec.ms)}</span>
+            <span className="flex h-7 min-w-0 flex-1 items-center justify-end gap-[2px] overflow-hidden" aria-hidden>
+              {rec.bars.map((l, i) => <span key={i} className="shrink-0 rounded-full bg-white/80" style={{ width: 2.5, height: `${Math.max(12, Math.round(l * 100))}%` }} />)}
             </span>
           </span>
-          <button type="button" onClick={() => finishRecording(true)} className="h-11 rounded-full bg-brand px-5 font-bold text-white active:scale-95">{tr('Enviar')}</button>
+          <button type="button" onClick={() => finishRecording(true)} aria-label={tr('Enviar')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white transition active:scale-90">
+            <Icon name="send" size={20} />
+          </button>
         </div>
       ) : (
         <div className="shrink-0 border-t border-zinc-100">

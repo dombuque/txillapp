@@ -119,11 +119,13 @@ export default function VoiceMessage({ m }: { m: ChatMessage }) {
 
   // Este leitor tem os seus próprios toques: não deixa abrir o menu de carregar-e-segurar da mensagem.
   const stop = { onPointerDown: (e: PointerEvent) => e.stopPropagation() };
-  const on = mine ? 'bg-white' : 'bg-brand';
-  const off = mine ? 'bg-white/40' : 'bg-zinc-300';
+  // Pílula limpa: a parte já ouvida enche a onda; o resto fica esbatido.
+  const played = mine ? 'bg-white' : 'bg-zinc-900';
+  const rest = mine ? 'bg-white/35' : 'bg-zinc-300';
+  const shown = playing || scrub || at > 0 ? at : len;
 
   return (
-    <div className={`flex w-[272px] max-w-full items-center gap-2.5 rounded-[20px] px-3 py-2.5 ${mine ? 'rounded-br-md bg-brand text-white' : 'rounded-bl-md bg-zinc-100 text-zinc-900'}`}>
+    <div className={`flex w-[264px] max-w-full items-center gap-2.5 rounded-full py-1.5 pl-1.5 pr-3.5 ${mine ? 'bg-brand text-white' : 'bg-zinc-100 text-zinc-900'}`}>
       <audio
         ref={audio}
         src={m.mediaUrl ?? undefined}
@@ -151,57 +153,60 @@ export default function VoiceMessage({ m }: { m: ChatMessage }) {
         {...stop}
         onClick={toggle}
         aria-label={playing ? 'Pausar' : 'Ouvir mensagem de voz'}
-        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-90 ${mine ? 'bg-white/25' : 'bg-white shadow-sm'}`}
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-90 ${mine ? 'bg-white text-brand' : 'bg-zinc-900 text-white'}`}
       >
-        <Icon name={playing ? 'pause' : 'play'} size={22} fill="currentColor" />
+        <Icon name={playing ? 'pause' : 'play'} size={19} fill="currentColor" />
       </button>
 
-      <div className="min-w-0 flex-1">
-        <div
-          ref={track}
-          role="slider"
-          tabIndex={0}
-          aria-label={tr('Posição da mensagem de voz')}
-          aria-valuemin={0}
-          aria-valuemax={Math.round(len / 1000)}
-          aria-valuenow={Math.round(at / 1000)}
-          aria-valuetext={`${mmss(at)} de ${mmss(len)}`}
-          onKeyDown={onKey}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            e.currentTarget.setPointerCapture(e.pointerId);
-            setScrub(true);
-            fromPointer(e);
-          }}
-          onPointerMove={(e) => scrub && fromPointer(e)}
-          onPointerUp={() => setScrub(false)}
-          onPointerCancel={() => setScrub(false)}
-          className="relative flex h-9 cursor-pointer touch-none items-center gap-[2px]"
-        >
-          {heights.map((h, i) => (
-            <span key={i} className={`w-[3px] shrink-0 rounded-full ${(i + 0.5) / BARS <= frac ? on : off}`} style={{ height: `${Math.round(h * 100)}%`, flex: '1 1 0' }} />
-          ))}
-          <span
-            aria-hidden
-            className={`absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full shadow transition-transform ${mine ? 'bg-white' : 'bg-brand'} ${scrub ? 'scale-125' : ''}`}
-            style={{ left: `${frac * 100}%` }}
-          />
-        </div>
-        <div className={`mt-0.5 flex items-center justify-between text-xs tabular-nums ${mine ? 'text-white/85' : 'text-zinc-500'}`}>
-          <span>{failed ? tr('Não consegui tocar') : mmss(playing || scrub || at > 0 ? at : len)}</span>
-          {(playing || at > 0) && len > 0 && <span>{mmss(len)}</span>}
-        </div>
+      <div
+        ref={track}
+        role="slider"
+        tabIndex={0}
+        aria-label={tr('Posição da mensagem de voz')}
+        aria-valuemin={0}
+        aria-valuemax={Math.round(len / 1000)}
+        aria-valuenow={Math.round(at / 1000)}
+        aria-valuetext={`${mmss(at)} de ${mmss(len)}`}
+        onKeyDown={onKey}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          e.currentTarget.setPointerCapture(e.pointerId);
+          setScrub(true);
+          fromPointer(e);
+        }}
+        onPointerMove={(e) => scrub && fromPointer(e)}
+        onPointerUp={() => setScrub(false)}
+        onPointerCancel={() => setScrub(false)}
+        className="relative flex h-10 min-w-0 flex-1 cursor-pointer touch-none items-center gap-[2px]"
+      >
+        {heights.map((h, i) => {
+          const done = (i + 0.5) / BARS <= frac;
+          const now = playing && Math.abs((i + 0.5) / BARS - frac) < 1 / BARS; // a barra do momento "respira"
+          return (
+            <span
+              key={i}
+              className={`shrink-0 rounded-full transition-[height,background-color] duration-150 ${done ? played : rest}`}
+              style={{ width: 2.5, height: `${Math.round((now ? Math.min(1, h + 0.18) : h) * 100)}%`, flex: '1 1 0', minWidth: 2 }}
+            />
+          );
+        })}
+        {scrub && <span aria-hidden className={`absolute top-1/2 h-4 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full ${mine ? 'bg-white' : 'bg-zinc-900'}`} style={{ left: `${frac * 100}%` }} />}
       </div>
 
-      <button
-        type="button"
-        {...stop}
-        onClick={nextRate}
-        aria-label={tr('Velocidade {v0}×. Tocar para mudar', { v0: speed })}
-        className={`flex h-8 min-w-[2.6rem] shrink-0 items-center justify-center rounded-full px-2 text-xs font-extrabold tabular-nums transition active:scale-90 ${mine ? 'bg-white/25 text-white' : 'bg-white text-zinc-700 shadow-sm'}`}
-      >
-        {speed === 1 ? '1×' : `${speed}×`}
-      </button>
+      <div className="flex w-11 shrink-0 flex-col items-end leading-none">
+        <span className={`text-[12px] font-semibold tabular-nums ${mine ? 'text-white/90' : 'text-zinc-600'}`}>{failed ? '!' : mmss(shown)}</span>
+        {(playing || at > 0 || speed !== 1) && (
+          <button
+            type="button"
+            {...stop}
+            onClick={nextRate}
+            aria-label={tr('Velocidade {v0}×. Tocar para mudar', { v0: speed })}
+            className={`mt-1 rounded-full px-1.5 py-[2px] text-[10px] font-extrabold tabular-nums transition active:scale-90 ${mine ? 'bg-white/25 text-white' : 'bg-white text-zinc-700 shadow-sm'}`}
+          >
+            {speed === 1 ? '1×' : `${speed}×`}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
