@@ -110,15 +110,48 @@ function Carousel({ media, onOpen, reelId, onDouble }: { media: Post['media']; o
 }
 
 /** Atualiza a publicação em todas as listas em cache (feed, perfis), incluindo quando aparece dentro de um repost. */
+/** Marcador: guardar a publicação (privado). Cheio quando está guardada. */
+function BookmarkIcon({ on, size = 22 }: { on: boolean; size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill={on ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M6.5 4.5h11a1 1 0 0 1 1 1V20l-6.5-4.2L5.5 20V5.5a1 1 0 0 1 1-1z" />
+    </svg>
+  );
+}
+
+function SaveButton({ post }: { post: Post }) {
+  const patch = usePatch(post.id);
+  const [note, setNote] = useState('');
+  async function toggle() {
+    const next = !post.saved;
+    patch({ saved: next }); // otimista
+    try {
+      await (next ? api.savePost(post.id) : api.unsavePost(post.id));
+      setNote(next ? tr('Guardada') : '');
+      if (next) setTimeout(() => setNote(''), 1500);
+    } catch {
+      patch({ saved: !next });
+    }
+  }
+  return (
+    <button type="button" onClick={toggle} aria-pressed={!!post.saved} aria-label={post.saved ? tr('Tirar dos guardados') : tr('Guardar')} className={`relative flex h-10 w-9 shrink-0 items-center justify-center self-start rounded-full transition active:scale-90 ${post.saved ? 'text-zinc-900' : 'text-zinc-700'}`}>
+      <BookmarkIcon on={!!post.saved} size={24} />
+      {note && <span role="status" className="pointer-events-none absolute -bottom-6 right-0 z-10 whitespace-nowrap rounded-full bg-zinc-900 px-2.5 py-0.5 text-[11px] font-bold text-white">{note}</span>}
+    </button>
+  );
+}
+
 function usePatch(id: string) {
   const qc = useQueryClient();
   return (p: Partial<Post>) => {
     const merge = (i: Post): Post =>
       i.id === id ? { ...i, ...p } : i.repostOf?.id === id ? { ...i, repostOf: { ...i.repostOf, ...p } } : i;
-    for (const key of ['feed', 'profile-posts', 'explore']) {
+    for (const key of ['feed', 'profile-posts', 'explore', 'place', 'tag']) {
       qc.setQueriesData<Feed>({ queryKey: [key] }, (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map(merge) })) });
     }
     qc.setQueriesData<Page<Post>>({ queryKey: ['explore-reels'] }, (d) => d && { ...d, items: d.items.map(merge) });
+    qc.setQueriesData<Post>({ queryKey: ['post'] }, (d) => (d && typeof d === 'object' && 'id' in d ? merge(d) : d));
+    qc.setQueriesData<{ pages: { items: Post[] }[] }>({ queryKey: ['saved'] }, (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map(merge) })) });
   };
 }
 
@@ -275,8 +308,9 @@ function PostBody({ post }: { post: Post }) {
           )}
         </div>
         <time className="self-start text-[15px] text-zinc-500" dateTime={post.createdAt}>
-          {timeAgo(post.createdAt)}
+          {timeAgo(post.createdAt)}{post.editedAt ? ` · ${tr('editado')}` : ''}
         </time>
+        <SaveButton post={post} />
         <PostMenu post={post} />
       </header>
       {post.body && <p onClick={(e) => { if (!(e.target as HTMLElement).closest('a')) tapText(); }} className="mt-4 whitespace-pre-wrap break-words text-[19px] text-zinc-800"><RichText text={post.body} /></p>}
@@ -621,6 +655,12 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
     }
     setSaving(false);
   }
+  async function toggleSave() {
+    const next = !post.saved;
+    await (next ? api.savePost(post.id) : api.unsavePost(post.id)).catch(() => undefined);
+    setOpen(null);
+    for (const key of ['feed', 'profile-posts', 'post', 'reels', 'place', 'saved']) await qc.invalidateQueries({ queryKey: [key] });
+  }
   async function clearPlace() {
     await api.updatePost(post.id, { clearLocation: true }).catch(() => undefined);
     setOpen(null);
@@ -646,7 +686,8 @@ export function PostMenu({ post, dark = false }: { post: Post; dark?: boolean })
       {open === 'menu' && (
             <Sheet title={tr('Publicação')} onClose={() => setOpen(null)}>
               <MenuRow icon={<Icon name="share" />} title={tr('Partilhar')} text={tr('No teu status, por ligação ou por outra app.')} onClick={() => setOpen('share')} />
-              <MenuRow icon={<Icon name="link" />} title={tr('Copiar ligação')} text={note || 'Para partilhares onde quiseres.'} onClick={copy} />
+              <MenuRow icon={<BookmarkIcon on={!!post.saved} size={22} />} title={post.saved ? tr('Tirar dos guardados') : tr('Guardar')} text={tr('Só tu vês os teus guardados.')} onClick={toggleSave} />
+          <MenuRow icon={<Icon name="link" />} title={tr('Copiar ligação')} text={note || 'Para partilhares onde quiseres.'} onClick={copy} />
               {mine && !(post.kind === 'repost' && !post.body) && <MenuRow icon={<Icon name="pencil" />} title={tr('Editar')} text={tr('Muda o texto da publicação.')} onClick={() => { setDraft(post.body); setOpen('edit'); }} />}
               {mine && post.locationLabel && <MenuRow icon={<Icon name="map-pin" />} title={tr('Tirar o local')} text={tr('O sítio deixa de aparecer nesta publicação.')} onClick={clearPlace} />}
               {mine && <MenuRow icon={<Icon name="comment" />} title={post.commentsOff ? tr('Ativar comentários') : tr('Desativar comentários')} text={post.commentsOff ? tr('Voltam a poder comentar.') : tr('Ninguém pode comentar esta publicação.')} onClick={toggleComments} />}

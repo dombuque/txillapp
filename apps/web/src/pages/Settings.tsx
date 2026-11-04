@@ -278,6 +278,11 @@ export default function Settings() {
       )}
 
       <Section title={tr('O teu perfil')}>
+        <Link to="/saved" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="star" /></span>
+          <span className="flex-1 font-semibold">{tr('Guardados')}</span>
+          <span className="text-xl text-zinc-400" aria-hidden>›</span>
+        </Link>
         <Link to="/insights" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="trending" /></span>
           <span className="flex-1 font-semibold">{tr('Estatísticas do perfil')}</span>

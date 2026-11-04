@@ -1243,6 +1243,13 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Toca no marcador de uma publicação para a guardares aqui.': 'Tap the bookmark on a post to save it here.',
+  'Ainda não guardaste nada': 'Nothing saved yet',
+  'Não consegui ver os guardados agora': 'Could not load saved posts now',
+  'Só tu vês os teus guardados.': 'Only you see your saved posts.',
+  'Guardados': 'Saved',
+  'Tirar dos guardados': 'Remove from saved',
+  'Guardada': 'Saved',
   'novos': 'new',
   'novo': 'new',
   'Sáb': 'Sat',

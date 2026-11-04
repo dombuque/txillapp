@@ -281,4 +281,27 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     expect(big.overview.newFollowers).toBe(20);
     expect(JSON.stringify(big.audience)).not.toContain(owner.username);
   });
+
+  it('guardar publicações: privado, lista pessoal por ordem, e o que deixa de se poder ver sai da lista', async () => {
+    const a = await signup('sv0');
+    const b = await signup('sv1');
+    const p1 = (await api().post('/api/v1/posts').set(auth(a)).send({ body: `guardar1${run}` }).expect(201)).body as { id: string };
+    const p2 = (await api().post('/api/v1/posts').set(auth(a)).send({ body: `guardar2${run}` }).expect(201)).body as { id: string };
+    expect((await api().put(`/api/v1/posts/${p1.id}/save`).set(auth(b)).expect(200)).body.saved).toBe(true);
+    await api().put(`/api/v1/posts/${p1.id}/save`).set(auth(b)).expect(200); // repetir não duplica
+    await api().put(`/api/v1/posts/${p2.id}/save`).set(auth(b)).expect(200);
+    const list = (await api().get('/api/v1/feed/saved').set(auth(b)).expect(200)).body as { items: { id: string; saved: boolean }[] };
+    expect(list.items.map((x) => x.id)).toEqual([p2.id, p1.id]); // o mais recente primeiro
+    expect(list.items.every((x) => x.saved)).toBe(true);
+    // Privado: o autor não vê nada disto e o seu próprio post não aparece como guardado.
+    expect(((await api().get('/api/v1/feed/saved').set(auth(a)).expect(200)).body as { items: unknown[] }).items).toEqual([]);
+    expect(((await api().get(`/api/v1/posts/${p1.id}`).set(auth(a)).expect(200)).body as { saved: boolean }).saved).toBe(false);
+    await api().put(`/api/v1/posts/${p1.id}/save`).expect(401);
+    // Tirar dos guardados.
+    expect((await api().delete(`/api/v1/posts/${p1.id}/save`).set(auth(b)).expect(200)).body.saved).toBe(false);
+    // Se o autor bloqueia, deixa de se ver.
+    await api().put(`/api/v1/blocks/${b.username}`).set(auth(a)).expect((r) => { if (r.status >= 400) throw new Error(`block ${r.status}`); });
+    expect(((await api().get('/api/v1/feed/saved').set(auth(b)).expect(200)).body as { items: unknown[] }).items).toEqual([]);
+    await api().put(`/api/v1/posts/${p2.id}/save`).set(auth(b)).expect(404);
+  });
 });

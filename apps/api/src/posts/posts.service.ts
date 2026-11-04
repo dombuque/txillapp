@@ -38,7 +38,8 @@ const FEED_SQL = `
          (SELECT count(*) FROM content.cheers c WHERE c.post_id = p.id)::int AS cheers,
          (SELECT count(*) FROM content.comments c WHERE c.post_id = p.id)::int AS comments,
          (SELECT count(*) FROM content.gifts g WHERE g.post_id = p.id)::int AS gifts,
-         EXISTS (SELECT 1 FROM content.cheers c WHERE c.post_id = p.id AND c.user_id = $1) AS cheered
+         EXISTS (SELECT 1 FROM content.cheers c WHERE c.post_id = p.id AND c.user_id = $1) AS cheered,
+         EXISTS (SELECT 1 FROM content.saved_posts sv WHERE sv.post_id = p.id AND sv.user_id = $1) AS saved
     FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
     LEFT JOIN identity.users gr ON gr.id = p.gift_recipient_id`;
 
@@ -421,6 +422,30 @@ export class PostsService {
     return { label: name, mode, hasNear: !!center, center, items: await this.hydrate(viewerId, page), nextCursor: rows.length > limit ? page[page.length - 1].id : null };
   }
 
+  /** Guardar ou tirar dos guardados (privado). */
+  async setSaved(userId: string, postId: string, on: boolean) {
+    await this.assertPost(userId, postId);
+    if (on) await this.pool.query('INSERT INTO content.saved_posts (user_id, post_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userId, postId]);
+    else await this.pool.query('DELETE FROM content.saved_posts WHERE user_id = $1 AND post_id = $2', [userId, postId]);
+    return { saved: on };
+  }
+
+  /** Os meus guardados, do mais recente para o mais antigo. Só o que ainda posso ver (apagadas, privadas e bloqueios ficam de fora). */
+  async listSaved(userId: string, cursor: string | undefined, limit: number) {
+    if (cursor && Number.isNaN(Date.parse(cursor))) throw new BadRequestException('cursor inválido');
+    const { rows } = await this.pool.query(
+      `${FEED_SQL} JOIN content.saved_posts sv2 ON sv2.post_id = p.id AND sv2.user_id = $1
+        WHERE ($2::timestamptz IS NULL OR sv2.created_at < $2) AND ${canView()} ORDER BY sv2.created_at DESC LIMIT $3`,
+      [userId, cursor ?? null, limit + 1],
+    );
+    const page = rows.slice(0, limit);
+    let next: string | null = null;
+    if (rows.length > limit && page.length) {
+      next = ((await this.pool.query('SELECT created_at FROM content.saved_posts WHERE user_id = $1 AND post_id = $2', [userId, page[page.length - 1].id])).rows[0]?.created_at as Date | undefined)?.toISOString() ?? null;
+    }
+    return { items: await this.hydrate(userId, page), nextCursor: next };
+  }
+
   /** Uma publicação pelo código curto dos links (ou pelo id, nos links antigos). */
   async getByCode(userId: string, code: string) {
     if (!/^[A-Za-z0-9-]{6,36}$/.test(code)) throw new NotFoundException('Publicação não encontrada');
@@ -601,6 +626,8 @@ export class PostsService {
     canComment: r.can_comment,
     /** O autor desativou os comentários desta publicação. */
     commentsOff: r.comments_off as boolean,
+    /** Guardada por quem está a ver (privado). */
+    saved: !!r.saved,
     /** Posição (arredondada) do sítio, se foi escolhido da lista: serve para o mapa e para ver publicações perto. */
     locationGeo: r.location_lat != null ? { lat: r.location_lat as number, lng: r.location_lng as number } : null,
     editedAt: (r.edited_at as string | null) ?? null,

@@ -1,6 +1,6 @@
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
 import { musicSchema } from '../music/music.service';
-import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
@@ -54,6 +54,13 @@ export class FeedController {
     return this.posts.byPlace(req.userId!, label, mode === 'near' ? 'near' : 'at', cursor, n);
   }
 
+  /** Os meus guardados (privado). */
+  @Get('saved')
+  saved(@Req() req: AuthedReq, @Query('cursor') cursor?: string, @Query('limit') limit?: string) {
+    const n = Math.min(Math.max(Number(limit) || 12, 1), 30);
+    return this.posts.listSaved(req.userId!, cursor, n);
+  }
+
   @Get('reels')
   reels(@Req() req: AuthedReq, @Query('cursor') cursor?: string, @Query('limit') limit?: string) {
     const n = Math.min(Math.max(Number(limit) || 6, 1), 15);
@@ -95,6 +102,18 @@ export class PostsController {
   people(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Param('kind') kind: string) {
     if (kind !== 'reposts' && kind !== 'cheers' && kind !== 'gifts') throw new BadRequestException('Lista inválida');
     return this.posts.people(req.userId!, id, kind);
+  }
+
+  @Put(':id/save')
+  @HttpCode(200)
+  save(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.posts.setSaved(req.userId!, id, true);
+  }
+
+  @Delete(':id/save')
+  @HttpCode(200)
+  unsave(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.posts.setSaved(req.userId!, id, false);
   }
 
   @Patch(':id')

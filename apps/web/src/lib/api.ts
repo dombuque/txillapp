@@ -61,6 +61,8 @@ export interface Post {
   createdAt: string;
   /** Posição (arredondada) do sítio escolhido; serve para o mapa e para ver publicações perto. */
   locationGeo?: { lat: number; lng: number } | null;
+  /** Guardada por mim (privado). */
+  saved?: boolean;
   author: { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null };
   cheers: number;
   comments: number;
@@ -642,6 +644,9 @@ export const api = {
   mentionsExist: (names: string[]): Promise<string[]> => raw(`/mentions/exist?names=${encodeURIComponent(names.join(','))}`),
   mentionable: (q: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; following: boolean; verified?: boolean }[]> => raw(`/mentionable?q=${encodeURIComponent(q)}`),
   viewStory: (id: string): Promise<void> => raw(`/stories/${id}/view`, post({})),
+  savePost: (id: string): Promise<{ saved: boolean }> => raw(`/posts/${id}/save`, { method: 'PUT' }),
+  unsavePost: (id: string): Promise<{ saved: boolean }> => raw(`/posts/${id}/save`, { method: 'DELETE' }),
+  savedPosts: (cursor?: string): Promise<{ items: Post[]; nextCursor: string | null }> => raw(`/feed/saved${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
   insights: (days: 7 | 30 | 90, tz: number): Promise<Insights> => raw(`/insights?days=${days}&tz=${tz}`),
   placePosts: (label: string, mode: 'at' | 'near', cursor?: string): Promise<{ label: string; mode: 'at' | 'near'; hasNear: boolean; center: { lat: number; lng: number } | null; items: Post[]; nextCursor: string | null }> =>
     raw(`/feed/place?label=${encodeURIComponent(label)}&mode=${mode}${cursor ? `&cursor=${cursor}` : ''}`),
