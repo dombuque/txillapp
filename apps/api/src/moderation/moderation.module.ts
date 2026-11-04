@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
-import { AdminGuard, ModerationController } from './moderation.controller';
+import { ModerationController } from './moderation.controller';
 import { ImageModerationService } from './image-moderation.service';
 import { ModerationService } from './moderation.service';
 
@@ -8,7 +8,7 @@ import { ModerationService } from './moderation.service';
 @Module({
   imports: [AuthModule],
   controllers: [ModerationController],
-  providers: [ModerationService, ImageModerationService, AdminGuard],
+  providers: [ModerationService, ImageModerationService],
   exports: [ModerationService, ImageModerationService],
 })
 export class ModerationModule {}

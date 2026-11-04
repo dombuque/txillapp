@@ -1,23 +1,13 @@
-import { Body, CanActivate, Controller, ExecutionContext, ForbiddenException, Get, HttpCode, Injectable, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
+import { Needs, StaffGuard } from '../staff/staff.guard';
 import { ModerationService, REPORT_REASONS, REPORT_TYPES, USER_REPORT_TYPES } from './moderation.service';
 
 type AuthedReq = Request & { userId?: string };
-
-/** Só contas de moderação (is_admin). Corre depois do JwtAuthGuard. */
-@Injectable()
-export class AdminGuard implements CanActivate {
-  constructor(private readonly moderation: ModerationService) {}
-  async canActivate(ctx: ExecutionContext) {
-    const req = ctx.switchToHttp().getRequest<AuthedReq>();
-    if (!req.userId || !(await this.moderation.isAdmin(req.userId))) throw new ForbiddenException();
-    return true;
-  }
-}
 
 const reportSchema = z.object({
   type: z.enum(USER_REPORT_TYPES),
@@ -40,13 +30,15 @@ export class ModerationController {
   }
 
   @Get('admin/reports')
-  @UseGuards(AdminGuard)
+  @UseGuards(StaffGuard)
+  @Needs('reports.read')
   queue(@Query('status') status?: string) {
     return this.moderation.queue(status === 'dismissed' || status === 'actioned' ? status : 'open');
   }
 
   @Post('admin/reports/resolve')
-  @UseGuards(AdminGuard)
+  @UseGuards(StaffGuard)
+  @Needs('reports.decide')
   @HttpCode(204)
   resolve(@Req() req: AuthedReq, @Body(new ZodPipe(resolveSchema)) b: z.infer<typeof resolveSchema>) {
     return this.moderation.resolve(req.userId!, b.type, b.id, b.action, b.note);

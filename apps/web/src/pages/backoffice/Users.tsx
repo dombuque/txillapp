@@ -2,7 +2,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { Badge, ago, btnGhost, statusBadge, td, th } from './bo';
+import { Badge, PageHeader, ago, btnGhost, statusBadge, td, th } from './bo';
 
 /** Procurar contas por @, nome ou email. */
 export default function BackofficeUsers() {
@@ -26,8 +26,8 @@ export default function BackofficeUsers() {
 
   return (
     <>
-      <h1 className="text-2xl font-extrabold">Utilizadores</h1>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      <PageHeader title="Utilizadores" description="Procura por @, nome ou email e abre a ficha: dados, queixas, convites, notas e histórico." />
+      <div className="flex flex-wrap items-center gap-3">
         <input value={text} onChange={(e) => setText(e.target.value)} autoFocus placeholder="Procurar por @, nome ou email" aria-label="Procurar contas" className="h-10 w-full max-w-md rounded-lg border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-900" />
         <select value={status} onChange={(e) => setParams(e.target.value ? { status: e.target.value } : {})} aria-label="Estado" className="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-sm">
           <option value="">Todos os estados</option>
@@ -37,7 +37,7 @@ export default function BackofficeUsers() {
         </select>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-2xl border border-zinc-200 bg-white">
+      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-[0_1px_2px_rgba(15,18,25,0.06)] ring-1 ring-zinc-200/70">
         <table className="w-full min-w-[820px]">
           <thead className="border-b border-zinc-200 bg-zinc-50">
             <tr>

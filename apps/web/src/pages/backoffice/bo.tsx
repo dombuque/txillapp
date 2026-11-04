@@ -20,7 +20,7 @@ export function Badge({ tone = 'zinc', children }: { tone?: 'zinc' | 'green' | '
 export const statusBadge = (s: string) => <Badge tone={s === 'active' ? 'green' : s === 'suspended' ? 'red' : 'zinc'}>{s === 'active' ? 'ativa' : s === 'suspended' ? 'suspensa' : 'eliminada'}</Badge>;
 
 export const Card = ({ title, children, right }: { title?: string; children: ReactNode; right?: ReactNode }) => (
-  <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+  <section className="rounded-2xl bg-white p-5 shadow-[0_1px_2px_rgba(15,18,25,0.06)] ring-1 ring-zinc-200/70">
     {(title || right) && (
       <div className="mb-3 flex items-center justify-between">
         {title && <h2 className="text-base font-bold text-zinc-900">{title}</h2>}
@@ -71,3 +71,42 @@ export function ReasonDialog({ title, help, confirm, danger, onCancel, onConfirm
     </div>
   );
 }
+
+/* ───── Quem sou (equipas e permissões), partilhado pelo backoffice ───── */
+import { createContext, useContext } from 'react';
+import type { BoMe } from '../../lib/api';
+
+export const StaffContext = createContext<BoMe | null>(null);
+export const useStaff = () => useContext(StaffContext);
+export const useCan = (perm: string) => !!useStaff()?.permissions.includes(perm);
+
+/** Cabeçalho de página: título, descrição e ações à direita. */
+export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
+  return (
+    <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 className="text-[26px] font-extrabold leading-tight tracking-tight text-zinc-900">{title}</h1>
+        {description && <p className="mt-1 max-w-2xl text-[15px] text-zinc-500">{description}</p>}
+      </div>
+      {actions && <div className="flex items-center gap-2">{actions}</div>}
+    </header>
+  );
+}
+
+/** Estado vazio com um pequeno desenho. */
+export function Empty({ title, text }: { title: string; text?: string }) {
+  return (
+    <div className="flex flex-col items-center rounded-2xl border border-dashed border-zinc-300 bg-white/60 px-6 py-14 text-center">
+      <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-400" aria-hidden>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5L20 7" /></svg>
+      </span>
+      <p className="font-bold text-zinc-800">{title}</p>
+      {text && <p className="mt-1 max-w-sm text-sm text-zinc-500">{text}</p>}
+    </div>
+  );
+}
+
+/** Pequena etiqueta de tecla (atalhos). */
+export const Kbd = ({ children }: { children: ReactNode }) => <kbd className="rounded border border-zinc-300 bg-zinc-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-zinc-600">{children}</kbd>;
+
+export const TEAM_TONE: Record<string, 'zinc' | 'green' | 'red' | 'amber' | 'blue'> = { administracao: 'red', moderacao: 'amber', suporte: 'blue', verificacao: 'green', financas: 'zinc', crescimento: 'green', auditoria: 'zinc' };

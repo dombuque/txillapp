@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { Badge, Card, ReasonDialog, ago, btnDanger, btnGhost, btnPrimary, statusBadge, when } from './bo';
+import { Badge, Card, ReasonDialog, ago, btnDanger, btnGhost, btnPrimary, statusBadge, useCan, when } from './bo';
 
 const ACTION: Record<string, string> = {
   'backoffice.verify_email': 'Confirmou o email',
@@ -20,6 +20,9 @@ const ACTION: Record<string, string> = {
 export default function BackofficeUser() {
   const { id = '' } = useParams();
   const qc = useQueryClient();
+  const canVerify = useCan('users.verify_email');
+  const canSuspend = useCan('users.suspend');
+  const canNote = useCan('users.notes');
   const q = useQuery({ queryKey: ['bo-user', id], queryFn: () => api.boUser(id), retry: false });
   const [dialog, setDialog] = useState<null | 'verify' | 'suspend' | 'reactivate'>(null);
   const [note, setNote] = useState('');
@@ -66,9 +69,9 @@ export default function BackofficeUser() {
       {err && <p role="alert" className="mt-2 text-sm text-red-600">{err}</p>}
 
       <div className="mt-5 flex flex-wrap gap-2">
-        {!u.email_verified_at && u.status !== 'deleted' && <button type="button" onClick={() => setDialog('verify')} className={btnPrimary}>Confirmar email à mão</button>}
-        {u.status === 'active' && !u.is_admin && <button type="button" onClick={() => setDialog('suspend')} className={btnDanger}>Suspender</button>}
-        {u.status === 'suspended' && <button type="button" onClick={() => setDialog('reactivate')} className={btnPrimary}>Reativar</button>}
+        {canVerify && !u.email_verified_at && u.status !== 'deleted' && <button type="button" onClick={() => setDialog('verify')} className={btnPrimary}>Confirmar email à mão</button>}
+        {canSuspend && u.status === 'active' && !u.is_admin && <button type="button" onClick={() => setDialog('suspend')} className={btnDanger}>Suspender</button>}
+        {canSuspend && u.status === 'suspended' && <button type="button" onClick={() => setDialog('reactivate')} className={btnPrimary}>Reativar</button>}
         <a href={`/u/${u.username}`} target="_blank" rel="noreferrer" className={btnGhost}>Ver o perfil na app</a>
       </div>
 
@@ -114,10 +117,10 @@ export default function BackofficeUser() {
           </Card>
 
           <Card title="Notas internas">
-            <div className="flex gap-2">
+            {canNote && <div className="flex gap-2">
               <input value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void addNote()} maxLength={1000} placeholder="Escreve uma nota (só a equipa vê)" aria-label="Nova nota" className="h-10 flex-1 rounded-lg border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900" />
               <button type="button" disabled={noteBusy || !note.trim()} onClick={() => void addNote()} className={btnPrimary}>Guardar</button>
-            </div>
+            </div>}
             <ul className="mt-3 space-y-2 text-sm">
               {notes.map((n) => <li key={n.id} className="rounded-lg bg-amber-50 px-3 py-2"><p className="whitespace-pre-wrap break-words">{n.body}</p><p className="mt-1 text-xs text-zinc-500">@{n.author ?? '—'} · {when(n.created_at)}</p></li>)}
               {notes.length === 0 && <li className="text-zinc-500">Sem notas.</li>}

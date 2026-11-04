@@ -34,6 +34,7 @@ import { StoriesModule } from './stories/stories.module';
 import { WalletModule } from './wallet/wallet.module';
 import { InvitesModule } from './invites/invites.module';
 import { BackofficeModule } from './backoffice/backoffice.module';
+import { StaffModule } from './staff/staff.module';
 import { PaymentsModule } from './payments/payments.module';
 
 @Module({})
@@ -54,6 +55,7 @@ export class AppModule {
         AnalyticsModule,
         WalletModule,
         InvitesModule,
+        StaffModule,
         BackofficeModule,
         PaymentsModule,
         MediaModule,

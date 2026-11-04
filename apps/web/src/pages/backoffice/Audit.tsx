@@ -1,7 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { btnGhost, td, th, when } from './bo';
+import { PageHeader, btnGhost, td, th, when } from './bo';
 
 const GROUPS = [
   ['', 'Tudo'],
@@ -29,15 +29,14 @@ export default function BackofficeAudit() {
   const rows = q.data?.pages.flatMap((p) => p.items) ?? [];
   return (
     <>
-      <h1 className="text-2xl font-extrabold">Auditoria</h1>
-      <p className="mt-1 text-zinc-600">Quem fez o quê e quando. Os registos não se apagam.</p>
-      <div className="mt-4 flex flex-wrap gap-3">
+      <PageHeader title="Auditoria" description="Quem fez o quê e quando. Os registos não se apagam." />
+      <div className="flex flex-wrap gap-3">
         <select value={action} onChange={(e) => setAction(e.target.value)} aria-label="Tipo de ação" className="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-sm">
           {GROUPS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
         <input value={actorText} onChange={(e) => setActorText(e.target.value)} placeholder="Quem (@utilizador)" aria-label="Quem" className="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-900" />
       </div>
-      <div className="mt-4 overflow-x-auto rounded-2xl border border-zinc-200 bg-white">
+      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-[0_1px_2px_rgba(15,18,25,0.06)] ring-1 ring-zinc-200/70">
         <table className="w-full min-w-[720px]">
           <thead className="border-b border-zinc-200 bg-zinc-50"><tr><th className={th}>Quando</th><th className={th}>Quem</th><th className={th}>Ação</th><th className={th}>Alvo</th><th className={th}>Detalhe</th></tr></thead>
           <tbody className="divide-y divide-zinc-100">

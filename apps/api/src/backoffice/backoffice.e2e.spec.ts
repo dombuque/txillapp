@@ -98,4 +98,51 @@ describe('Backoffice: contas, motivos, notas, auditoria e histórico de queixas 
     const mine = hist.find((h: { id: string }) => h.id === p.id);
     expect(mine).toMatchObject({ type: 'post', resolution: 'remove', note: 'spam claro', decidedBy: admin.username, owner: bad.username });
   });
+
+  it('equipas: cada uma só pode o que lhe cabe; a Administração gere a equipa e nunca fica sem ninguém', async () => {
+    const boss = await signup('bog');
+    const sup = await signup('boh');
+    const mod = await signup('boi');
+    const target = await signup('boj');
+    await pool.query('UPDATE identity.users SET is_admin = true WHERE id = $1', [boss.id]);
+
+    // Quem não é da equipa não entra; depois de entrar numa equipa, sim.
+    await api().get('/api/v1/admin/me').set(auth(sup)).expect(403);
+    await api().post('/api/v1/admin/staff').set(auth(boss)).send({ username: sup.username, teams: ['suporte'], reason: 'nova pessoa no suporte' }).expect(204);
+    await api().post('/api/v1/admin/staff').set(auth(boss)).send({ username: mod.username, teams: ['moderacao', 'auditoria'], reason: 'moderadora e auditora' }).expect(204);
+    const me = (await api().get('/api/v1/admin/me').set(auth(sup)).expect(200)).body;
+    expect(me.teams).toEqual(['suporte']);
+    expect(me.permissions).toEqual(expect.arrayContaining(['users.view', 'users.verify_email']));
+    expect(me.permissions).not.toContain('users.suspend');
+
+    // Suporte: vê contas e confirma email, mas não suspende, não vê a auditoria nem gere a equipa.
+    await api().get(`/api/v1/admin/users/${target.id}`).set(auth(sup)).expect(200);
+    await api().post(`/api/v1/admin/users/${target.id}/verify-email`).set(auth(sup)).send({ reason: 'sem receber email' }).expect(204);
+    await api().post(`/api/v1/admin/users/${target.id}/suspend`).set(auth(sup)).send({ reason: 'não devia' }).expect(403);
+    await api().get('/api/v1/admin/audit').set(auth(sup)).expect(403);
+    await api().get('/api/v1/admin/staff').set(auth(sup)).expect(403);
+    await api().get('/api/v1/admin/reports/decided').set(auth(sup)).expect(403);
+    await api().get('/api/v1/admin/reports').set(auth(sup)).expect(403);
+
+    // Moderação + Auditoria: suspende, vê a auditoria e as queixas, não gere a equipa nem confirma emails.
+    await api().post(`/api/v1/admin/users/${target.id}/suspend`).set(auth(mod)).send({ reason: 'abuso' }).expect(204);
+    await api().get('/api/v1/admin/audit').set(auth(mod)).expect(200);
+    await api().get('/api/v1/admin/reports').set(auth(mod)).expect(200);
+    await api().post(`/api/v1/admin/users/${target.id}/verify-email`).set(auth(mod)).send({ reason: 'não devia' }).expect(403);
+    await api().post('/api/v1/admin/staff').set(auth(mod)).send({ username: target.username, teams: ['suporte'], reason: 'tentativa' }).expect(403);
+
+    // A Administração vê a equipa, muda equipas, e o acesso retirado deixa de valer.
+    const team = (await api().get('/api/v1/admin/staff').set(auth(boss)).expect(200)).body as { username: string; teams: string[] }[];
+    expect(team.find((m) => m.username === mod.username)?.teams.sort()).toEqual(['auditoria', 'moderacao']);
+    await api().post('/api/v1/admin/staff').set(auth(boss)).send({ username: sup.username, teams: ['suporte', 'verificacao'], reason: 'passa também a verificar' }).expect(204);
+    expect((await api().get('/api/v1/admin/me').set(auth(sup)).expect(200)).body.permissions).toContain('verification.decide');
+    await api().post(`/api/v1/admin/staff/${mod.id}/remove`).set(auth(boss)).send({ reason: 'saiu da equipa' }).expect(204);
+    await api().get('/api/v1/admin/me').set(auth(mod)).expect(403);
+
+    // Equipa desconhecida e último administrador.
+    await api().post('/api/v1/admin/staff').set(auth(boss)).send({ username: sup.username, teams: ['inventada'], reason: 'teste' }).expect(400);
+    await pool.query("UPDATE identity.users SET is_admin = false WHERE is_admin AND id <> $1", [boss.id]); // só resta o boss
+    await api().post('/api/v1/admin/staff').set(auth(boss)).send({ username: boss.username, teams: ['suporte'], reason: 'deixar a administração' }).expect(403);
+    await api().post(`/api/v1/admin/staff/${boss.id}/remove`).set(auth(boss)).send({ reason: 'sair' }).expect(403);
+  });
 });

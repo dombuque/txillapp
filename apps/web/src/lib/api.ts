@@ -204,6 +204,8 @@ export interface Story {
 export type Gender = 'female' | 'male' | 'other' | 'unspecified';
 export type ReportType = 'post' | 'comment' | 'story' | 'user' | 'message' | 'media';
 export type ReportReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence' | 'scam' | 'impersonation' | 'minor' | 'other';
+export interface BoMe { teams: string[]; permissions: string[]; catalog: { id: string; name: string; description: string }[] }
+export interface BoStaffMember { id: string; username: string; displayName: string; email: string; teams: string[]; active: boolean; lastSeen: string | null }
 export interface BoUserRow { id: string; username: string; display_name: string; email: string; status: 'active' | 'suspended' | 'deleted'; is_admin: boolean; created_at: string; country: string | null; verified: boolean; posts: number; followers: number; reports: number; last_seen: string | null }
 export interface BoUserSheet {
   user: { id: string; username: string; display_name: string; email: string; status: 'active' | 'suspended' | 'deleted'; is_admin: boolean; is_private: boolean; created_at: string; country: string | null; terms_version: string | null; email_verified_at: string | null; has_avatar: boolean; posts: number; followers: number; following: number; messages: number; sessions: number; last_seen: string | null; txills: string };
@@ -707,6 +709,10 @@ export const api = {
   verificationDecide: (id: string, action: 'approve' | 'reject', reason?: string, tier?: 'verified' | 'official'): Promise<void> => raw(`/admin/verifications/${id}/decide`, post({ action, reason, tier })),
   adminResolve: (type: ReportType, id: string, action: 'dismiss' | 'remove' | 'suspend', note?: string): Promise<void> => raw('/admin/reports/resolve', post({ type, id, action, note })),
   boOverview: (): Promise<Record<string, number>> => raw('/admin/overview'),
+  boMe: (): Promise<BoMe> => raw('/admin/me'),
+  boStaff: (): Promise<BoStaffMember[]> => raw('/admin/staff'),
+  boSetTeams: (username: string, teams: string[], reason: string): Promise<void> => raw('/admin/staff', post({ username, teams, reason })),
+  boRemoveStaff: (id: string, reason: string): Promise<void> => raw(`/admin/staff/${id}/remove`, post({ reason })),
   boUsers: (q: string, status: string, cursor?: string): Promise<{ items: BoUserRow[]; nextCursor: string | null }> =>
     raw(`/admin/users?${new URLSearchParams({ ...(q ? { q } : {}), ...(status ? { status } : {}), ...(cursor ? { cursor } : {}) }).toString()}`),
   boUser: (id: string): Promise<BoUserSheet> => raw(`/admin/users/${id}`),

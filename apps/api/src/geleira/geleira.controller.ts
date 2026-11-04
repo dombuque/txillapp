@@ -4,7 +4,7 @@ import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
-import { AdminGuard } from '../moderation/moderation.controller';
+import { Needs, StaffGuard } from '../staff/staff.guard';
 import { GeleiraService, KINDS } from './geleira.service';
 
 type AuthedReq = Request & { userId?: string };
@@ -81,13 +81,15 @@ export class GeleiraController {
   }
 
   @Get('admin/geleira')
-  @UseGuards(AdminGuard)
+  @UseGuards(StaffGuard)
+  @Needs('catalog.manage')
   pending() {
     return this.geleira.pending();
   }
 
   @Post('admin/geleira/:itemId')
-  @UseGuards(AdminGuard)
+  @UseGuards(StaffGuard)
+  @Needs('catalog.manage')
   @HttpCode(204)
   decide(@Param('itemId', ParseUUIDPipe) itemId: string, @Body(new ZodPipe(decideSchema)) b: z.infer<typeof decideSchema>) {
     return this.geleira.decide(itemId, b.approve);

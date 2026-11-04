@@ -4,7 +4,7 @@ import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
-import { AdminGuard } from '../moderation/moderation.controller';
+import { Needs, StaffGuard } from '../staff/staff.guard';
 import { VerificationService } from './verification.service';
 
 type AuthedReq = Request & { userId?: string };
@@ -42,13 +42,15 @@ export class VerificationController {
   }
 
   @Get('admin/verifications')
-  @UseGuards(AdminGuard)
+  @UseGuards(StaffGuard)
+  @Needs('verification.decide')
   queue(@Query('status') status?: string) {
     return this.verification.queue(status === 'approved' || status === 'rejected' ? status : 'pending');
   }
 
   @Post('admin/verifications/:id/decide')
-  @UseGuards(AdminGuard)
+  @UseGuards(StaffGuard)
+  @Needs('verification.decide')
   @HttpCode(204)
   decide(@Req() req: AuthedReq, @Param('id') id: string, @Body(new ZodPipe(decideSchema)) b: z.infer<typeof decideSchema>) {
     return this.verification.decide(req.userId!, id, b.action, b.reason, b.tier);

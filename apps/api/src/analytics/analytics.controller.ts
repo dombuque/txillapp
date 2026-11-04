@@ -4,7 +4,7 @@ import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
-import { AdminGuard } from '../moderation/moderation.controller';
+import { Needs, StaffGuard } from '../staff/staff.guard';
 import { AnalyticsService, EVENT_NAMES } from './analytics.service';
 
 type AuthedReq = Request & { userId?: string };
@@ -31,7 +31,8 @@ export class AnalyticsController {
   }
 
   @Get('admin/stats')
-  @UseGuards(AdminGuard)
+  @UseGuards(StaffGuard)
+  @Needs('stats.view')
   stats(@Query('days') days?: string) {
     return this.analytics.stats(Math.min(Math.max(Number(days) || 14, 3), 90));
   }
