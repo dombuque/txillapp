@@ -19,7 +19,9 @@ export default function PullToRefresh({ onRefresh, children }: { onRefresh: () =
 
   useEffect(() => {
     const down = (e: TouchEvent) => {
-      start.current = window.scrollY <= 0 && e.touches.length === 1 ? e.touches[0].clientY : null;
+      // Dentro de uma folha ou visualizador (qualquer modal) a página de trás não se puxa.
+      const inModal = e.target instanceof Element && !!e.target.closest('[aria-modal="true"]');
+      start.current = !inModal && window.scrollY <= 0 && e.touches.length === 1 ? e.touches[0].clientY : null;
     };
     const move = (e: TouchEvent) => {
       if (start.current === null) return;

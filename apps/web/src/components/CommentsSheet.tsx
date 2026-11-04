@@ -10,7 +10,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useRef, useState, type FormEvent, type TouchEvent } from 'react';
 import { api, type Comment, type Post } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { Avatar, Sheet, timeAgo } from './ui';
+import { Avatar, Sheet, timeAgo, useScrollLock, useSwipeDown } from './ui';
 
 const QUICK = ['🥂', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
 
@@ -161,8 +161,10 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [dragY, setDragY] = useState(0);
-  const startY = useRef<number | null>(null);
+  // Arrastar para baixo fecha; a página por trás nunca se mexe (nem o feed recarrega).
+  useScrollLock();
+  const listRef = useRef<HTMLDivElement>(null);
+  const { dy: dragY, props: drag } = useSwipeDown(onClose, listRef);
 
   const q = useInfiniteQuery({
     queryKey: ['comments', post.id],
@@ -209,19 +211,8 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
     if (c.parentId) qc.invalidateQueries({ queryKey: ['replies', c.parentId] });
   }
 
-  // Arrastar o cabeçalho para baixo fecha a folha (gesto típico de telemóvel).
-  const onTouchStart = (e: TouchEvent) => (startY.current = e.touches[0].clientY);
-  const onTouchMove = (e: TouchEvent) => {
-    if (startY.current !== null) setDragY(Math.max(0, e.touches[0].clientY - startY.current));
-  };
-  const onTouchEnd = () => {
-    if (dragY > 100) onClose();
-    setDragY(0);
-    startY.current = null;
-  };
-
   return (
-    <div className={`fixed inset-0 ${layer} flex items-end justify-center bg-black/40`} onClick={onClose} role="presentation">
+    <div className={`fixed inset-0 ${layer} flex items-end justify-center bg-black/40`} onClick={onClose} role="presentation" style={{ touchAction: 'none' }} {...drag}>
       <div
         role="dialog"
         aria-modal="true"
@@ -230,12 +221,12 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
         className="animate-[rise_.25s_ease-out] flex h-[78dvh] w-full max-w-xl flex-col rounded-t-[28px] bg-white"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="touch-none border-b border-zinc-200 pb-3 pt-2.5" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+        <div className="border-b border-zinc-200 pb-3 pt-2.5">
           <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-300" aria-hidden />
           <h2 className="text-center text-base font-bold">{tr('Comentários')}</h2>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-2">
+        <div ref={listRef} className="flex-1 overflow-y-auto overscroll-contain px-4 py-2" style={{ touchAction: 'pan-y' }}>
           {q.isLoading && <LoadingBlock label={tr('A carregar a conversa')} />}
           {q.isError && <p role="alert" className="py-10 text-center text-red-600">{tr('Ups, não consegui carregar')}</p>}
           {q.isSuccess && items.length === 0 && (

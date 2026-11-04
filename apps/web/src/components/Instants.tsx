@@ -791,6 +791,15 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
       const t = touch.current;
       touch.current = null;
       if (t?.on && drag > 110) onClose();
+      // Deslizar para a direita volta atrás (ao chat).
+      if (t && !t.on && !t.up) {
+        const dx = e.changedTouches[0].clientX - t.x;
+        const dy = e.changedTouches[0].clientY - t.y;
+        if (dx > 90 && dx > Math.abs(dy) * 1.5) {
+          navigator.vibrate?.(8);
+          onClose();
+        }
+      }
       // Nos meus Zás, deslizar para cima mostra quem viu e as reações.
       if (t?.up && e.changedTouches[0].clientY - t.y < -60) {
         navigator.vibrate?.(8);
@@ -845,7 +854,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
   }
 
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={`Zás de ${who.displayName}`} className="fixed inset-0 z-[96] flex flex-col bg-black text-white" style={{ backgroundColor: drag ? `rgba(0,0,0,${Math.max(0.3, 1 - drag / 400)})` : undefined }}>
+    <div role="dialog" aria-modal="true" aria-label={`Zás de ${who.displayName}`} {...dragProps} className="fixed inset-0 z-[96] flex flex-col bg-black text-white" style={{ backgroundColor: drag ? `rgba(0,0,0,${Math.max(0.3, 1 - drag / 400)})` : undefined }}>
       <SquircleDefs />
       <div className="shrink-0 px-5 pt-[max(0.5rem,env(safe-area-inset-top))]">
         {!own && (
@@ -869,7 +878,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
 
       </div>
       <div className="mt-3 flex min-h-0 flex-1 items-center justify-center px-5">
-      <div {...dragProps} className="relative h-full max-h-[600px] overflow-hidden bg-zinc-900" style={{ ...SQUIRCLE, transform: drag ? `translateY(${drag}px) scale(${Math.max(0.85, 1 - drag / 1500)})` : undefined, transition: drag ? 'none' : 'transform .2s ease-out', touchAction: 'pan-x', aspectRatio: '3 / 4', maxWidth: '100%' }}>
+      <div className="relative h-full max-h-[600px] overflow-hidden bg-zinc-900" style={{ ...SQUIRCLE, transform: drag ? `translateY(${drag}px) scale(${Math.max(0.85, 1 - drag / 1500)})` : undefined, transition: drag ? 'none' : 'transform .2s ease-out', touchAction: 'pan-x', aspectRatio: '3 / 4', maxWidth: '100%' }}>
         {cur ? <img src={cur.url} alt={cur.caption || tr('Zás')} draggable={false} onContextMenu={(e) => e.preventDefault()} className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover [-webkit-touch-callout:none]" /> : <p className="absolute inset-0 flex items-center justify-center text-white/70">{err || tr('A carregar…')}</p>}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/35 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/60 to-transparent" />
