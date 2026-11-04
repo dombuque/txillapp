@@ -124,7 +124,7 @@ export default function InstantsDock() {
           </span>
         )}
         <NewBadge id="zas" className="absolute left-0 top-0 z-[6]" />
-        {total > 0 && <span className="absolute right-2 top-1 z-[6] flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1 text-[11px] font-bold text-white ring-2 ring-white">{total > 9 ? '9+' : total}</span>}
+        {total > 0 && <span className="absolute left-1 top-8 z-[6] flex h-6 items-center justify-center whitespace-nowrap rounded-full bg-brand px-2.5 text-[12px] font-extrabold text-white shadow-md ring-2 ring-white">{total > 99 ? '99+' : total} {total === 1 ? tr('novo') : tr('novos')}</span>}
       </button>
       {gridOpen && <MyInstants username={user.username} onClose={() => setGridOpen(false)} />}
       {mode === 'cam' && <InstantsHub onClose={() => { setMode(null); refresh(); }} />}

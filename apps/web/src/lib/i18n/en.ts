@@ -1243,6 +1243,8 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'novos': 'new',
+  'novo': 'new',
   'Sáb': 'Sat',
   'Sex': 'Fri',
   'Qui': 'Thu',
