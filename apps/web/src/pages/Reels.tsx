@@ -1,3 +1,5 @@
+import TeachBar from '../components/TeachBar';
+import { BookmarkIcon } from '../components/PostCard';
 import { sized } from '../lib/media';
 import { tr } from '../lib/i18n';
 import { PontoLoader } from '../components/Loading';
@@ -69,6 +71,19 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
   const video = v?.kind === 'video';
   const [photo, setPhoto] = useState(0);
   const mine = post.author.id === user?.id;
+  const sec = useRef<HTMLElement>(null);
+  // Reels de quem não segues: mostra "Interessado / Não interessado" e sobe o resto para lhe dar espaço.
+  const teach = !mine && post.authorFollowed === false;
+  const lift = teach ? 'bottom-[calc(max(1.5rem,env(safe-area-inset-bottom))+3.6rem)]' : 'bottom-[max(1.5rem,env(safe-area-inset-bottom))]';
+  async function toggleSave() {
+    const next = !post.saved;
+    onChange({ saved: next });
+    try {
+      await (next ? api.savePost(post.id) : api.unsavePost(post.id));
+    } catch {
+      onChange({ saved: !next });
+    }
+  }
 
   // Conta como "visto" depois de 1 s em cena.
   useEffect(() => {
@@ -89,7 +104,7 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
   const rail = 'flex flex-col items-center gap-1 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]';
   const circle = 'flex h-12 w-12 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm transition active:scale-90';
   return (
-    <section className="relative h-full w-full snap-start snap-always bg-black" aria-label={`${video ? 'Reel' : 'Publicação'} de ${post.author.displayName}`}>
+    <section ref={sec} className="relative h-full w-full snap-start snap-always bg-black" aria-label={`${video ? 'Reel' : 'Publicação'} de ${post.author.displayName}`}>
       {video ? (
         <VideoPlayer src={v.url} poster={v.posterUrl} active={active} cover durationMs={null} className="h-full w-full" onProgress={setProgress} id={post.id} onMore={onMore} renderEnd={(a) => <ReelEnd post={post} mine={mine} {...a} />} />
       ) : post.media.length > 0 ? (
@@ -106,6 +121,9 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
       )}
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 to-transparent" />
+      {teach && (
+        <TeachBar post={post} dark onNo={() => sec.current?.nextElementSibling?.scrollIntoView({ behavior: 'smooth' })} className="absolute inset-x-3 bottom-[max(0.9rem,env(safe-area-inset-bottom))] z-10" />
+      )}
       {video && (
         <div className="absolute inset-x-0 bottom-0 h-[3px] bg-white/25" aria-hidden>
           <div className="h-full bg-white" style={{ width: `${progress * 100}%` }} />
@@ -117,7 +135,7 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
         </div>
       )}
 
-      <div className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-4 right-20 text-white">
+      <div className={`absolute ${lift} left-4 right-20 text-white`}>
         <div className="flex items-center gap-2.5">
           <Link to={`/u/${post.author.username}`}><Avatar name={post.author.displayName} username={post.author.username} size={40} ring={false} /></Link>
           <Link to={`/u/${post.author.username}`} className="min-w-0 truncate font-bold">{post.author.displayName}</Link>
@@ -127,7 +145,7 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
         {post.locationLabel && <Link to={`/place/${encodeURIComponent(post.locationLabel)}`} className="mt-1 flex w-fit items-center gap-1 text-sm text-white/90 underline-offset-2 active:underline"><Icon name="map-pin" size={14} /> {post.locationLabel}</Link>}
       </div>
 
-      <div className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-3 flex flex-col items-center gap-3">
+      <div className={`absolute ${lift} right-3 flex flex-col items-center gap-3`}>
         <div className="flex flex-col items-center">
           <button onClick={cheer} aria-label={post.cheered ? 'Tirar o brinde' : 'Brindar'} aria-pressed={post.cheered} className={rail}>
             <span className={`${circle} ${post.cheered ? '!bg-white/90' : ''}`}><Icon name="cheers" size={26} className={post.cheered ? 'text-brand' : ''} /></span>
@@ -152,6 +170,9 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
             <span className={circle}><Icon name="gift" size={26} /></span>
           </button>
         )}
+        <button onClick={() => void toggleSave()} aria-pressed={!!post.saved} aria-label={post.saved ? tr('Tirar dos guardados') : tr('Guardar')} className={rail}>
+          <span className={`${circle} ${post.saved ? '!bg-white/90 !text-zinc-900' : ''}`}><BookmarkIcon on={!!post.saved} size={26} /></span>
+        </button>
         <div className={rail}><PostMenu post={post} dark /></div>
       </div>
 
@@ -273,12 +294,17 @@ export default function Reels() {
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 mx-auto flex max-w-xl items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
-        <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/', { replace: true }))} aria-label={tr('Fechar')} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
-          <Icon name="back" size={24} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/', { replace: true }))} aria-label={tr('Fechar')} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
+            <Icon name="back" size={24} />
+          </button>
+          <button onClick={() => navigate('/new')} aria-label={tr('Novo reel')} title={tr('Novo reel')} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
+            <Icon name="plus" size={26} strokeWidth={2.4} />
+          </button>
+        </div>
         <span className="text-lg font-extrabold drop-shadow">{tr('Reels')}</span>
-        <button onClick={() => setMuted(!isMuted)} aria-label={isMuted ? 'Ligar o som' : 'Desligar o som'} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
-          <Icon name={isMuted ? 'volume-off' : 'volume'} size={22} />
+        <button onClick={() => navigate('/reels/filtros')} aria-label={tr('Filtros dos reels')} title={tr('Filtros dos reels')} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
+          <Icon name="sliders" size={22} />
         </button>
       </div>
     </div>

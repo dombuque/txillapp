@@ -1,3 +1,4 @@
+import TeachBar from './TeachBar';
 import { createPortal } from 'react-dom';
 import { tr, locale } from '../lib/i18n';
 import { useOnline } from '../lib/presence';
@@ -281,10 +282,12 @@ const BurstCup = ({ n }: { n: number }) => n > 0 ? <span key={n} aria-hidden cla
 /** Cartão normal de uma publicação. */
 function PostBody({ post }: { post: Post }) {
   const { user } = useAuth();
+  const [gone, setGone] = useState(false);
   const [viewer, setViewer] = useState<number | null>(null);
   const g = post.gift;
   const { burst, brindar } = useBrindar(post);
   const tapText = useTap(brindar);
+  if (gone) return <p role="status" className="mx-4 mb-5 rounded-2xl bg-zinc-100 px-4 py-3 text-center text-[14px] font-semibold text-zinc-600">{tr('Ok, vamos mostrar menos disto.')}</p>;
   return (
     <article className="relative mx-1.5 mb-5 rounded-[26px] bg-white px-3.5 pt-4 min-[360px]:mx-2 min-[360px]:px-4 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
       {g ? <GiftBlock post={post} g={g} me={user?.username} /> : (
@@ -319,6 +322,8 @@ function PostBody({ post }: { post: Post }) {
       {post.music && <TrackCard track={post.music} autoplay />}
       <Carousel media={post.media} onOpen={setViewer} reelId={post.id} onDouble={brindar} />
       <Actions post={post} />
+      {/* Publicações que o algoritmo te mostra (de quem não segues): ensina o que queres ver. */}
+      {post.feed?.source === 'discover' && post.author.id !== user?.id && <TeachBar post={post} onNo={() => setGone(true)} className="mb-3 mt-1" />}
       <BurstCup n={burst} />
       {viewer !== null && <ImageViewer post={post} start={viewer} onClose={() => setViewer(null)} />}
     </article>

@@ -1243,6 +1243,16 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Apaga estas escolhas e o "Interessado / Não interessado" que deste.': 'Clears these choices and the Interested / Not interested you gave.',
+  'Escolhe o que queres ver mais ou menos. Isto muda os reels e o Explorar. O algoritmo também aprende com o que brindas, comentas e guardas, e com o "Interessado / Não interessado" nos reels.': 'Pick what you want to see more or less of. This changes reels and Explore. The algorithm also learns from what you cheer, comment on and save, and from Interested / Not interested on reels.',
+  'Repor o algoritmo': 'Reset the algorithm',
+  'Normal': 'Normal',
+  'Menos': 'Less',
+  'Filtros dos reels': 'Reels filters',
+  'Ok, vamos mostrar menos disto.': 'OK, we will show less of this.',
+  'Boa! Vamos mostrar mais disto.': 'Nice! We will show more like this.',
+  'Interessado': 'Interested',
+  'Não interessado': 'Not interested',
   'Para trás': 'Back',
   'Coreografias': 'Choreography',
   'Cabelo e barbearia': 'Hair and barbershop',

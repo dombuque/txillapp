@@ -757,6 +757,10 @@ export const api = {
   tagPage: (tag: string, sort: 'recent' | 'top', cursor?: string): Promise<TagPage> => raw(`/tags/${encodeURIComponent(tag)}?sort=${sort}&limit=10${cursor ? `&cursor=${cursor}` : ''}`),
   adminStats: (days: number): Promise<AdminStats> => raw(`/admin/stats?days=${days}`),
   explore: (topic: string | null, cursor?: string): Promise<Page<Post>> => raw(`/feed/explore?limit=18${topic ? `&topic=${encodeURIComponent(topic)}` : ''}${cursor ? `&cursor=${cursor}` : ''}`),
+  setInterest: (id: string, value: 1 | -1): Promise<{ value: number }> => raw(`/posts/${id}/interest`, { method: 'PUT', body: JSON.stringify({ value }) }),
+  explorePrefs: (): Promise<Record<string, number>> => raw('/feed/prefs'),
+  setExplorePref: (topic: string, pref: -1 | 0 | 1): Promise<Record<string, number>> => raw('/feed/prefs', { method: 'PUT', body: JSON.stringify({ topic, pref }) }),
+  resetExplore: (): Promise<void> => raw('/feed/prefs', { method: 'DELETE' }),
   exploreTopics: (all = false): Promise<{ id: string; label: string; count: number }[]> => raw(`/feed/explore/topics${all ? '?all=1' : ''}`),
   reels: (cursor?: string): Promise<Page<Post>> => raw(`/feed/reels${cursor ? `?cursor=${cursor}&limit=6` : '?limit=6'}`),
   /**
