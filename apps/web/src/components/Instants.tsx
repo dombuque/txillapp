@@ -50,6 +50,7 @@ export default function InstantsDock() {
   const [queue, setQueue] = useState<{ username: string; displayName: string }[]>([]);
   const [at, setAt] = useState(0);
   // Como o atalho do Instagram: espreita a meio e sai de vez quando a lista pára de mexer.
+  const [gridOpen, setGridOpen] = useState(false);
   const [away, setAway] = useState(true);
   useEffect(() => {
     let t = window.setTimeout(() => setAway(false), 500);
@@ -107,6 +108,7 @@ export default function InstantsDock() {
           <span className="truncate">{top.displayName.split(' ')[0]} · {timeAgo(top.latestAt)}</span>
         </span>
       )}
+      {gridOpen && <MyInstants username={user.username} onClose={() => setGridOpen(false)} />}
       {mode === 'cam' && <InstantsHub onClose={() => { setMode(null); refresh(); }} />}
       {mode === 'view' && queue[at] && (
         <InstantViewer
@@ -115,6 +117,7 @@ export default function InstantsDock() {
           own={false}
           onClose={() => { setMode(null); refresh(); }}
           onCamera={() => setMode('cam')}
+          onGrid={() => { setMode(null); setGridOpen(true); }}
           onFinish={() => (at + 1 < queue.length ? setAt(at + 1) : setMode('cam'))}
         />
       )}
@@ -722,7 +725,7 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
 }
 
 /** Ver os Zás de alguém: foto a ecrã cheio com cantos bem redondos, cada um abre-se uma só vez. Toca à direita para o seguinte e à esquerda para o anterior. */
-function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who: { username: string; displayName: string }; own: boolean; onClose: () => void; onFinish?: () => void; onCamera?: () => void; startId?: string }) {
+function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId }: { who: { username: string; displayName: string }; own: boolean; onClose: () => void; onFinish?: () => void; onCamera?: () => void; onGrid?: () => void; startId?: string }) {
   const [items, setItems] = useState<InstantItem[] | null>(null);
   const [i, setI] = useState(0);
   const [viewers, setViewers] = useState<{ username: string; displayName: string; hasAvatar: boolean; at: string; reaction?: string | null }[] | null>(null);
@@ -856,29 +859,15 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={`Zás de ${who.displayName}`} {...dragProps} className="fixed inset-0 z-[96] flex flex-col bg-black text-white" style={{ backgroundColor: drag ? `rgba(0,0,0,${Math.max(0.3, 1 - drag / 400)})` : undefined }}>
       <SquircleDefs />
-      <div className="shrink-0 px-5 pt-[max(0.5rem,env(safe-area-inset-top))]">
-        {!own && (
-        <div className="mb-3 flex gap-1" aria-hidden>
-          {(items ?? [{ id: 'x' }]).map((x, k) => <span key={x.id} className={`h-1 flex-1 rounded-full ${k <= i ? 'bg-white' : 'bg-white/35'}`} />)}
+      <div className="flex shrink-0 items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="flex h-11 w-11 items-center justify-center rounded-full active:scale-90"><Icon name="x" size={28} /></button>
+        <div className="flex items-center gap-1">
+          {onGrid && <button type="button" onClick={onGrid} aria-label={tr('Os meus Zás')} className="flex h-11 w-11 items-center justify-center rounded-full active:scale-90"><Icon name="grid" size={25} /></button>}
+          {onCamera && <button type="button" onClick={onCamera} aria-label={tr('Mandar o meu Zás')} className="flex h-11 w-11 items-center justify-center rounded-full active:scale-90"><Icon name="camera" size={26} /></button>}
         </div>
-        )}
-        <div className="flex items-center gap-3 px-1">
-          <Avatar name={who.displayName} username={who.username} size={38} ring={false} />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[16px] font-bold leading-tight drop-shadow">{own ? tr('Os teus Zás') : who.displayName}</span>
-            {cur && <span className={`block text-xs drop-shadow ${own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? 'font-bold text-amber-300' : 'text-white/80'}`}>{hm(cur.at)} · {leftLabel(cur.expiresAt)}</span>}
-          </span>
-          {onCamera ? (
-            <button type="button" onClick={onCamera} aria-label={tr('Mandar o meu Zás')} className="flex h-10 items-center gap-1.5 rounded-full bg-brand pl-3 pr-3.5 text-[13px] font-black italic active:scale-90"><Icon name="camera" size={16} />{tr('O meu')}</button>
-          ) : (
-            <span className="flex items-center gap-1 rounded-full bg-brand px-2.5 py-1 text-[12px] font-black italic"><Icon name="bolt" size={12} fill="currentColor" />Zás</span>
-          )}
-          <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 backdrop-blur-md active:scale-90"><Icon name="x" size={22} /></button>
-        </div>
-
       </div>
-      <div className="mt-3 flex min-h-0 flex-1 items-center justify-center px-5">
-      <div className="relative h-full max-h-[600px] overflow-hidden bg-zinc-900" style={{ ...SQUIRCLE, transform: drag ? `translateY(${drag}px) scale(${Math.max(0.85, 1 - drag / 1500)})` : undefined, transition: drag ? 'none' : 'transform .2s ease-out', touchAction: 'pan-x', aspectRatio: '3 / 4', maxWidth: '100%' }}>
+      <div className="mt-2 flex min-h-0 flex-1 items-center justify-center px-9">
+      <div className="relative h-full max-h-[470px] overflow-hidden bg-zinc-900" style={{ ...SQUIRCLE, transform: drag ? `translateY(${drag}px) scale(${Math.max(0.85, 1 - drag / 1500)})` : undefined, transition: drag ? 'none' : 'transform .2s ease-out', touchAction: 'pan-x', aspectRatio: '3 / 4', maxWidth: '100%' }}>
         {cur ? <img src={cur.url} alt={cur.caption || tr('Zás')} draggable={false} onContextMenu={(e) => e.preventDefault()} className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover [-webkit-touch-callout:none]" /> : <p className="absolute inset-0 flex items-center justify-center text-white/70">{err || tr('A carregar…')}</p>}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/35 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/60 to-transparent" />
@@ -892,6 +881,13 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
         {own && cur && <div className="pointer-events-none absolute inset-x-0 bottom-4 z-[3] flex flex-col items-center text-white/85 drop-shadow" aria-hidden><Icon name="chevron-right" size={20} className="-rotate-90" /><span className="text-[11px] font-bold uppercase tracking-wider">{tr('{n} viram', { n: cur.views ?? 0 })}</span></div>}
         {(err || note) && cur && <p role={err ? 'alert' : 'status'} className={`absolute inset-x-8 top-6 z-10 rounded-full px-4 py-2 text-center text-sm font-semibold ${err ? 'bg-red-600/90' : 'bg-emerald-600/90'}`}>{err || note}</p>}
       </div>
+      </div>
+
+      <div className="flex shrink-0 items-center justify-center gap-2 px-4 pb-1 pt-3 text-[14px]">
+        <Avatar name={who.displayName} username={who.username} size={30} ring={false} />
+        <span className="max-w-[40%] truncate font-semibold">{own ? tr('Os teus Zás') : who.username}</span>
+        {cur && <span className={own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? 'font-bold text-amber-300' : 'text-white/65'}>{own ? `${hm(cur.at)} · ${leftLabel(cur.expiresAt)}` : timeAgo(cur.at).replace('Há ', '')}</span>}
+        {items && items.length > 1 && <span className="text-white/50">· {i + 1}/{items.length}</span>}
       </div>
 
       <div className="shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
@@ -908,9 +904,13 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, startId }: { who
           </div>
         ) : (
           <>
-            <div className="mb-3 flex justify-center gap-2" role="group" aria-label={tr('Reagir')}>
-              {REACTIONS.map((r) => (
-                <button key={r.id} type="button" aria-label={r.label} onClick={() => react(r.id, r.art)} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/12 transition active:scale-90"><Reaction body={r.id} size={32} /></button>
+            <div className="mx-auto mb-3 flex max-w-[320px] flex-col items-center gap-2" role="group" aria-label={tr('Reagir')}>
+              {[REACTIONS.slice(0, 4), REACTIONS.slice(4)].map((row, k) => (
+                <div key={k} className="flex justify-center gap-3">
+                  {row.map((r) => (
+                    <button key={r.id} type="button" aria-label={r.label} onClick={() => react(r.id, r.art)} className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-white/10 transition active:scale-90"><Reaction body={r.id} size={34} /></button>
+                  ))}
+                </div>
               ))}
             </div>
             <form onSubmit={sendReply} className="flex items-center gap-2 rounded-full bg-white/12 p-1.5 pl-5">
