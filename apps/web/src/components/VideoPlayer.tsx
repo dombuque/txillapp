@@ -102,12 +102,14 @@ interface Props {
   id?: string;
   /** Reels: em vez de repetir sem fim, o vídeo termina e pergunta se se quer ver mais (ou rever). */
   onMore?: () => void;
+  /** O cartão de fim do reel (o do Txillapp): recebe o que fazer para rever e para passar ao seguinte. */
+  renderEnd?: (a: { replay: () => void; more: () => void }) => React.ReactNode;
   /** Feed: tocar no vídeo abre-o (por exemplo, nos Reels) em vez de só ligar o som. */
   onOpen?: () => void;
 }
 
 /** Vídeo curto: toca sozinho quando está à vista, sem som; toca-se para ligar/desligar o som. */
-export default function VideoPlayer({ src, poster, durationMs, width, height, active, cover = false, className = '', onProgress, id, onMore, onOpen }: Props) {
+export default function VideoPlayer({ src, poster, durationMs, width, height, active, cover = false, className = '', onProgress, id, onMore, renderEnd, onOpen }: Props) {
   const [ended, setEnded] = useState(false);
   const ref = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -228,7 +230,19 @@ export default function VideoPlayer({ src, poster, durationMs, width, height, ac
           </span>
         </span>
       )}
-      {ended && onMore && (
+      {ended && onMore && renderEnd && (
+        <div className="absolute inset-0 z-10" onClick={(e) => e.stopPropagation()}>
+          {renderEnd({
+            replay: () => {
+              const v = ref.current;
+              setEnded(false);
+              if (v) { v.currentTime = 0; void v.play().catch(() => undefined); }
+            },
+            more: () => { setEnded(false); onMore(); },
+          })}
+        </div>
+      )}
+      {ended && onMore && !renderEnd && (
         // Fim do reel, como no Instagram: não repete sozinho, deixa escolher.
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/70 px-8 text-center text-white backdrop-blur-sm" onClick={(e) => e.stopPropagation()}>
           <p className="text-xl font-extrabold">{tr('Queres ver mais?')}</p>

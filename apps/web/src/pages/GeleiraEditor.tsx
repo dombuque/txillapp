@@ -192,7 +192,7 @@ export default function GeleiraEditor() {
                       <button onClick={() => (i.mine ? setOpen(expanded ? null : i.id) : toggle(i))} aria-expanded={i.mine ? expanded : undefined} className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left active:opacity-70">
                         <TasteBubble item={i} size={46} className={i.mine ? '' : 'opacity-70 saturate-50'} />
                         <span className="min-w-0">
-                          <span className="flex items-center gap-1 text-[16px] font-semibold leading-tight"><span className="truncate">{i.name}</span>{i.favorite && <Icon name="heart" size={14} className="shrink-0 fill-brand text-brand" aria-label={tr('Favorito')} role="img" aria-hidden={false} />}</span>
+                          <span className="flex items-center gap-1 text-[16px] font-semibold leading-tight"><span className="truncate">{tr(i.name)}</span>{i.favorite && <Icon name="heart" size={14} className="shrink-0 fill-brand text-brand" aria-label={tr('Favorito')} role="img" aria-hidden={false} />}</span>
                           <span className="block truncate text-[13px] text-zinc-500">
                             {i.pending ? tr('À espera de aprovação') : i.mine ? (i.rating ? ICE[i.rating] : tr('Dá-lhe gelo')) : others(i) > 0 ? `${fmt(others(i))} na geleira da malta` : tr('Ninguém tem ainda. Sê o primeiro')}
                           </span>

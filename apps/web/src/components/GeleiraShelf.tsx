@@ -23,7 +23,7 @@ function Frost({ rating }: { rating: number | null }) {
 
 /** Um gosto: bolinha de vidro com o ícone, o nome e a nota. O favorito leva um coração. */
 function Tile({ item }: { item: Shown }) {
-  const label = `${item.name}${item.rating ? `, ${ICE[item.rating]}` : ''}${item.favorite ? ', favorito' : ''}`;
+  const label = `${tr(item.name)}${item.rating ? `, ${ICE[item.rating]}` : ''}${item.favorite ? ', favorito' : ''}`;
   const inner = (
     <>
       <span className="relative">
@@ -34,7 +34,7 @@ function Tile({ item }: { item: Shown }) {
           </span>
         )}
       </span>
-      <span className="mt-2 line-clamp-2 min-h-[2.15em] w-full break-words text-center text-[12.5px] font-semibold leading-[1.1] text-zinc-800">{item.name}</span>
+      <span className="mt-2 line-clamp-2 min-h-[2.15em] w-full break-words text-center text-[12.5px] font-semibold leading-[1.1] text-zinc-800">{tr(item.name)}</span>
       {item.pending ? <span className="mt-1 text-[10px] font-medium text-zinc-500">{tr('à espera')}</span> : <Frost rating={item.rating} />}
     </>
   );
@@ -55,6 +55,25 @@ function Shelf({ title, icon, items }: { title: string; icon: Parameters<typeof 
       </div>
       <div aria-hidden className="h-[6px] rounded-full bg-gradient-to-r from-sky-200/70 via-white to-sky-200/70 shadow-[0_3px_5px_rgba(14,116,144,0.18)] ring-1 ring-white/80" />
     </div>
+  );
+}
+
+/** Botão da geleira na linha de ações do perfil: abre/fecha a prateleira para baixo. Nos perfis dos outros só aparece se houver o que mostrar. */
+export function GeleiraToggle({ username, isMe, open, onToggle, icon = false }: { username: string; isMe: boolean; open: boolean; onToggle: () => void; icon?: boolean }) {
+  const q = useQuery({ queryKey: ['geleira', isMe ? 'me' : username], queryFn: (): Promise<(MyTaste | TheirTaste)[]> => (isMe ? api.geleiraMine() : api.geleiraOf(username)), retry: false });
+  const total = (q.data ?? []).length;
+  if (!isMe && (q.isError || total === 0)) return null;
+  return (
+    <button
+      onClick={onToggle}
+      aria-expanded={open}
+      aria-label={open ? tr('Fechar a geleira') : tr('Abrir a geleira')}
+      className={`flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-[14px] font-bold transition active:scale-95 ${icon ? 'w-11 !px-0' : 'flex-1'} ${open ? 'bg-sky-100 text-sky-900 ring-1 ring-sky-200' : 'bg-zinc-100 text-zinc-900'}`}
+    >
+      <Icon name="snowflake" size={18} />
+      {!icon && <span>{tr('Geleira')}</span>}
+      <Icon name="chevron-right" size={14} className={`transition ${open ? 'rotate-90' : ''}`} />
+    </button>
   );
 }
 

@@ -1,8 +1,8 @@
 import type { IconName } from '../components/Icon';
-import { tr } from './i18n';
+import { locale, tr } from './i18n';
 import type { TasteKind } from './api';
 
-export const KIND_LABEL: Record<TasteKind, string> = { vibe: 'Vibes', bebida: 'Bebidas', comida: 'Comidas', sitio: 'Sítios' };
+export const KIND_LABEL: Record<TasteKind, string> = { vibe: tr('Vibes'), bebida: tr('Bebidas'), comida: tr('Comidas'), sitio: tr('Sítios') };
 export const KIND_ICON: Record<TasteKind, IconName> = { vibe: 'sparkles', bebida: 'cheers', comida: 'utensils', sitio: 'map-pin' };
 export const KINDS: TasteKind[] = ['vibe', 'bebida', 'comida', 'sitio'];
 
@@ -19,4 +19,4 @@ export const CATEGORIES: Record<TasteKind, { slug: string; label: string }[]> = 
 };
 
 /** Escala de gelo: de morno a gelada de rachar. */
-export const ICE = ['', 'Morno', 'Fresquinho', 'Fresco', 'Gelado', 'Gelada de rachar'];
+export const ICE = locale.startsWith('en') ? ['', 'Lukewarm', 'Cool', 'Fresh', 'Cold', 'Ice cold'] : ['', 'Morno', 'Fresquinho', 'Fresco', 'Gelado', 'Gelada de rachar'];

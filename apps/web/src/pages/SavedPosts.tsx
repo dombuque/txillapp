@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import Icon from '../components/Icon';
+import { BookmarkIcon } from '../components/PostCard';
 import { LoadingBlock } from '../components/Loading';
 import PostCard from '../components/PostCard';
 import StackPage from '../components/StackPage';
@@ -24,7 +24,7 @@ export default function SavedPosts() {
       {q.isError && <p role="alert" className="py-16 text-center text-zinc-600">{tr('Não consegui ver os guardados agora')}</p>}
       {q.isSuccess && items.length === 0 && (
         <div className="px-8 py-16 text-center">
-          <p className="text-zinc-300" aria-hidden><Icon name="star" size={44} className="mx-auto" /></p>
+          <p className="text-zinc-300" aria-hidden><span className="mx-auto block w-fit"><BookmarkIcon on={false} size={44} /></span></p>
           <p className="mt-3 text-xl font-bold">{tr('Ainda não guardaste nada')}</p>
           <p className="mt-1 text-zinc-600">{tr('Toca no marcador de uma publicação para a guardares aqui.')}</p>
         </div>

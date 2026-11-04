@@ -381,7 +381,7 @@ export interface GeleiraLevel { points: number; level: number; title: string; to
 export interface PaymentPackage { id: string; name: string; txills: number; priceMinor: number; currency: string }
 export interface PaymentsConfig { providers: { id: 'sandbox' | 'mpesa' | 'emola' | 'card'; label: string; needsPhone: boolean }[]; packages: PaymentPackage[] }
 export interface PaymentOrder { id: string; packageId: string; txills: number; amountMinor: number; currency: string; provider: string; status: 'pending' | 'paid' | 'failed' | 'cancelled' | 'expired'; phoneTail: string | null; createdAt: string; paidAt: string | null }
-export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts';
+export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved';
 export interface VerificationStatus {
   items: { key: string; label: string; ok: boolean; hint: string }[];
   eligible: boolean;

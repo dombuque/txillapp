@@ -14,7 +14,7 @@ import PeopleSheet from '../components/PeopleSheet';
 import Icon from '../components/Icon';
 import RichText from '../components/RichText';
 import VideoPlayer, { setMuted, useMuted } from '../components/VideoPlayer';
-import { Avatar } from '../components/ui';
+import { Avatar, Wordmark } from '../components/ui';
 import { api, type PeopleKind, type Post } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { track } from '../lib/analytics';
@@ -22,6 +22,44 @@ import { trackSeen } from '../lib/seen';
 import { useVisualViewport, visibleStyle } from '../lib/useVisualViewport';
 
 /** Um vídeo em ecrã inteiro com os botões à direita (brindar, comentar, partilhar, presentear). */
+/**
+ * O fim de um reel no Txillapp: a última imagem esbatida, quem fez o reel (com seguir), rever ou passar ao seguinte,
+ * e a marca. Fica sempre igual, para se reconhecer.
+ */
+function ReelEnd({ post, mine, replay, more }: { post: Post; mine: boolean; replay: () => void; more: () => void }) {
+  return (
+    <div className="flex h-full w-full animate-[rise_.25s_ease-out] flex-col items-center justify-between bg-gradient-to-b from-black/75 via-black/80 to-black/90 px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-24 text-center text-white backdrop-blur-md">
+      <div className="flex flex-col items-center">
+        <p className="mb-5 text-sm font-bold uppercase tracking-[0.22em] text-white/70">{tr('Fim do reel')}</p>
+        <Link to={`/u/${post.author.username}`} className="rounded-full p-1 ring-4 ring-brand">
+          <Avatar name={post.author.displayName} username={post.author.username} size={84} ring={false} />
+        </Link>
+        <Link to={`/u/${post.author.username}`} className="mt-3 text-xl font-extrabold">{post.author.displayName}</Link>
+        <p className="text-sm text-white/70">@{post.author.username}</p>
+        {!mine && post.authorFollowed === false && (
+          <div className="mt-4 w-40"><FollowButton username={post.author.username} following={false} requested={false} isPrivate={false} /></div>
+        )}
+      </div>
+
+      <div className="flex flex-col items-center gap-5">
+        <button type="button" onClick={replay} aria-label={tr('Ver outra vez')} className="relative flex h-20 w-20 items-center justify-center rounded-full bg-white/15 transition active:scale-90">
+          <span aria-hidden className="absolute inset-0 animate-ping rounded-full ring-2 ring-white/40 [animation-duration:2.4s]" />
+          <Icon name="undo" size={34} strokeWidth={2.2} />
+        </button>
+        <p className="-mt-2 text-sm font-semibold text-white/80">{tr('Ver outra vez')}</p>
+        <button type="button" onClick={more} className="flex h-12 min-w-[220px] items-center justify-center gap-2 rounded-full bg-brand px-8 font-bold shadow-lg active:scale-95">
+          {tr('Próximo reel')} <Icon name="arrow-up" size={18} strokeWidth={2.6} />
+        </button>
+      </div>
+
+      <div className="flex flex-col items-center gap-1">
+        <Wordmark className="h-7 brightness-0 invert" />
+        <p className="text-xs text-white/60">{tr('Txilla com a malta')}</p>
+      </div>
+    </div>
+  );
+}
+
 export function Reel({ post, active, onChange, onMore }: { post: Post; active: boolean; onChange: (p: Partial<Post>) => void; onMore?: () => void }) {
   const { user } = useAuth();
   const [progress, setProgress] = useState(0);
@@ -53,7 +91,7 @@ export function Reel({ post, active, onChange, onMore }: { post: Post; active: b
   return (
     <section className="relative h-full w-full snap-start snap-always bg-black" aria-label={`${video ? 'Reel' : 'Publicação'} de ${post.author.displayName}`}>
       {video ? (
-        <VideoPlayer src={v.url} poster={v.posterUrl} active={active} cover durationMs={null} className="h-full w-full" onProgress={setProgress} id={post.id} onMore={onMore} />
+        <VideoPlayer src={v.url} poster={v.posterUrl} active={active} cover durationMs={null} className="h-full w-full" onProgress={setProgress} id={post.id} onMore={onMore} renderEnd={(a) => <ReelEnd post={post} mine={mine} {...a} />} />
       ) : post.media.length > 0 ? (
         // Foto (ou várias, que se deslizam): ocupa o ecrã todo, sem cortar.
         <div className="flex h-full w-full snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-no-swipe onScroll={(e) => setPhoto(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}>

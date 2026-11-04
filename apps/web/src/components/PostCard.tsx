@@ -111,7 +111,7 @@ function Carousel({ media, onOpen, reelId, onDouble }: { media: Post['media']; o
 
 /** Atualiza a publicação em todas as listas em cache (feed, perfis), incluindo quando aparece dentro de um repost. */
 /** Marcador: guardar a publicação (privado). Cheio quando está guardada. */
-function BookmarkIcon({ on, size = 22 }: { on: boolean; size?: number }) {
+export function BookmarkIcon({ on, size = 22 }: { on: boolean; size?: number }) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} fill={on ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M6.5 4.5h11a1 1 0 0 1 1 1V20l-6.5-4.2L5.5 20V5.5a1 1 0 0 1 1-1z" />

@@ -12,7 +12,9 @@ import { useRef, useState } from 'react';
 import { slideClass } from '../lib/swipeNav';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import EditProfileSheet from '../components/EditProfileSheet';
-import GeleiraShelf from '../components/GeleiraShelf';
+import GeleiraShelf, { GeleiraToggle } from '../components/GeleiraShelf';
+import ProfileQrSheet from '../components/ProfileQrSheet';
+import { BookmarkIcon } from '../components/PostCard';
 import FollowButton from '../components/FollowButton';
 import GiftSheet from '../components/GiftSheet';
 import RichText from '../components/RichText';
@@ -23,19 +25,22 @@ import { Avatar, Sheet, btnGhost, btnPrimary, btnSmall } from '../components/ui'
 import { ApiError, api, type Post, type ProfileTab } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
-type SheetName = null | 'report' | 'edit' | 'requests' | 'menu' | 'block' | 'gift';
+type SheetName = null | 'report' | 'edit' | 'requests' | 'menu' | 'block' | 'gift' | 'qr';
 
 /** Perfil de qualquer pessoa (/u/:username) e o meu (/profile). */
-const TABS: { id: ProfileTab; label: string; icon: IconName }[] = [
+const TABS: { id: ProfileTab; label: string; icon: IconName | 'bookmark' }[] = [
   { id: 'all', label: tr('Tudo'), icon: 'grid' },
   { id: 'reels', label: tr('Reels'), icon: 'film' },
   { id: 'reposts', label: tr('Reposts'), icon: 'repeat' },
   { id: 'gifts', label: tr('Presentes'), icon: 'gift' },
+  // Só no meu perfil (privado): depois dos presentes.
+  { id: 'saved', label: tr('Guardados'), icon: 'bookmark' },
 ];
 const EMPTY: Record<Exclude<ProfileTab, 'all'>, { me: string; other: string }> = {
   reels: { me: tr('Ainda não publicaste reels.'), other: tr('Ainda sem reels.') },
   reposts: { me: tr('Ainda não repostaste nada.'), other: tr('Ainda sem reposts.') },
   gifts: { me: tr('Os presentes que deres ou receberes e publicares aparecem aqui.'), other: tr('Ainda sem presentes publicados.') },
+  saved: { me: tr('Toca no marcador de uma publicação para a guardares aqui. Só tu vês isto.'), other: '' },
 };
 
 export default function ProfilePage() {
@@ -56,6 +61,7 @@ export default function ProfilePage() {
     }
   }
   const [sheet, setSheet] = useState<SheetName>(null);
+  const [geleiraOpen, setGeleiraOpen] = useState(false);
   const [openPost, setOpenPost] = useState<Post | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const close = () => setSheet(null);
@@ -65,12 +71,13 @@ export default function ProfilePage() {
   // As sugestões de pessoas só aparecem às vezes (ritmo no aparelho), não em todas as visitas ao perfil.
   const [showSuggestions] = useState(() => shouldShowSuggestions('profile', { minGapHours: 8, base: 0.25, step: 0.2 }));
   const [tab, setTab] = useState<ProfileTab>('all');
+  const tabs = TABS.filter((x) => x.id !== 'saved' || username === user?.username);
   const swipe = useRef<{ x: number; y: number; at: number; lock: 'h' | 'v' | null } | null>(null);
   const [dragX, setDragX] = useState(0);
   const [enter, setEnter] = useState<'left' | 'right' | null>(null);
   const posts = useInfiniteQuery({
     queryKey: ['profile-posts', username, tab],
-    queryFn: ({ pageParam }) => api.userPosts(username, pageParam, tab),
+    queryFn: ({ pageParam }) => (tab === 'saved' ? api.savedPosts(pageParam) : api.userPosts(username, pageParam, tab)),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (l) => l.nextCursor ?? undefined,
     enabled: !!p?.canView,
@@ -192,43 +199,50 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Botões compactos, como nas redes sociais. */}
+        {/* Botões compactos, como nas redes sociais. A geleira é um botão da mesma linha: ao tocar, abre-se para baixo. */}
         {!blocked && (
-          <div className="mt-4 flex gap-2">
-            {p.isMe ? (
-              <>
-                <button onClick={() => setSheet('edit')} className={`${btnSmall} flex-1`}>{tr('Editar perfil')}</button>
-                <button onClick={share} className={`${btnSmall} flex-1`}>{tr('Partilhar perfil')}</button>
-                <button onClick={() => void inviteCrew()} aria-label={tr('Convidar a malta')} title={tr('Convidar a malta')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
-                  <Icon name="user-plus" size={18} className="mx-auto" />
-                </button>
-                <button onClick={() => navigate('/saved')} aria-label={tr('Guardados')} title={tr('Guardados')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
-                  <Icon name="star" size={18} className="mx-auto" />
-                </button>
-                <button onClick={() => navigate('/insights')} aria-label={tr('Estatísticas do perfil')} title={tr('Estatísticas do perfil')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
-                  <Icon name="trending" size={18} className="mx-auto" />
-                </button>
-                <button onClick={() => navigate('/wallet')} aria-label={tr('Carteira de Txills')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
-                  <Icon name="wallet" size={18} className="mx-auto" />
-                </button>
-
-              </>
-            ) : (
-              <>
-                <div className="flex-1">
-                  <FollowButton username={p.username} following={p.following} requested={p.requested} isPrivate={p.isPrivate} large />
-                </div>
-                {/* Só se presenteia quem se segue. */}
-                {p.following && <button onClick={() => setSheet('gift')} className={`${btnSmall} flex flex-1 items-center justify-center gap-1.5`}><Icon name="gift" size={18} /> {tr('Presentear')}</button>}
-                <button onClick={() => navigate(`/messages/${p.username}`)} aria-label={tr('Enviar mensagem')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
-                  <Icon name="send" size={18} className="mx-auto" />
-                </button>
-                <button onClick={share} aria-label={tr('Partilhar perfil')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
-                  <Icon name="share" size={18} className="mx-auto" />
-                </button>
-              </>
+          <>
+            <div className="mt-4 flex gap-2">
+              {p.isMe ? (
+                <>
+                  <button onClick={() => setSheet('edit')} className={`${btnSmall} flex-1`}>{tr('Editar perfil')}</button>
+                  <button onClick={() => setSheet('qr')} className={`${btnSmall} flex-1`}>{tr('Partilhar perfil')}</button>
+                  <GeleiraToggle username={p.username} isMe open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} />
+                </>
+              ) : (
+                <>
+                  <div className="flex-1">
+                    <FollowButton username={p.username} following={p.following} requested={p.requested} isPrivate={p.isPrivate} large />
+                  </div>
+                  {/* Só se presenteia quem se segue. */}
+                  {p.following && <button onClick={() => setSheet('gift')} className={`${btnSmall} flex flex-1 items-center justify-center gap-1.5`}><Icon name="gift" size={18} /> {tr('Presentear')}</button>}
+                  <button onClick={() => navigate(`/messages/${p.username}`)} aria-label={tr('Enviar mensagem')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
+                    <Icon name="send" size={18} className="mx-auto" />
+                  </button>
+                  <button onClick={() => setSheet('qr')} aria-label={tr('Partilhar perfil')} className={`${btnSmall} w-11 shrink-0 !px-0`}>
+                    <Icon name="share" size={18} className="mx-auto" />
+                  </button>
+                  {p.canView && <GeleiraToggle username={p.username} isMe={false} open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon />}
+                </>
+              )}
+            </div>
+            {p.isMe && (
+              // Atalhos em quatro colunas iguais: ícone e nome, sem sair do cartão.
+              <div className="mt-2 grid grid-cols-4 gap-2">
+                {([
+                  ['user-plus', tr('Convidar'), () => void inviteCrew()],
+                  ['bookmark', tr('Guardados'), () => setTab('saved')],
+                  ['trending', tr('Estatísticas'), () => navigate('/insights')],
+                  ['wallet', tr('Carteira'), () => navigate('/wallet')],
+                ] as const).map(([icon, label, go]) => (
+                  <button key={label} onClick={go} className="flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-zinc-100 px-1 text-zinc-900 transition active:scale-95">
+                    {icon === 'bookmark' ? <BookmarkIcon on={false} size={20} /> : <Icon name={icon} size={20} />}
+                    <span className="max-w-full truncate text-[12px] font-semibold leading-tight">{label}</span>
+                  </button>
+                ))}
+              </div>
             )}
-          </div>
+          </>
         )}
 
         {p.isMe && p.pendingRequests > 0 && (
@@ -239,7 +253,7 @@ export default function ProfilePage() {
         )}
       </section>
 
-      {p.canView && !blocked && <GeleiraShelf username={p.username} isMe={p.isMe} compact />}
+      {p.canView && !blocked && geleiraOpen && <GeleiraShelf username={p.username} isMe={p.isMe} />}
       {showSuggestions && p.canView && !blocked && <div className="mt-4"><Suggestions /></div>}
 
       {!p.canView && !blocked ? (
@@ -269,8 +283,8 @@ export default function ProfilePage() {
               s0.lock = Math.abs(dx) > Math.abs(dy) * 1.1 ? 'h' : 'v';
               if (s0.lock === 'v') return;
             }
-            const at = TABS.findIndex((x) => x.id === tab);
-            const edge = (dx > 0 && at === 0) || (dx < 0 && at === TABS.length - 1);
+            const at = tabs.findIndex((x) => x.id === tab);
+            const edge = (dx > 0 && at === 0) || (dx < 0 && at === tabs.length - 1);
             setDragX(edge ? dx * 0.2 : dx);
           }}
           onTouchEnd={(e) => {
@@ -279,19 +293,19 @@ export default function ProfilePage() {
             if (!s0 || s0.lock !== 'h') return setDragX(0);
             const dx = e.changedTouches[0].clientX - s0.x;
             const quick = Date.now() - s0.at < 320;
-            const i = TABS.findIndex((x) => x.id === tab) + (dx < 0 ? 1 : -1);
+            const i = tabs.findIndex((x) => x.id === tab) + (dx < 0 ? 1 : -1);
             setDragX(0);
-            if ((Math.abs(dx) > 55 || (quick && Math.abs(dx) > 28)) && i >= 0 && i < TABS.length) {
+            if ((Math.abs(dx) > 55 || (quick && Math.abs(dx) > 28)) && i >= 0 && i < tabs.length) {
               setEnter(dx < 0 ? 'right' : 'left');
-              setTab(TABS[i].id);
+              setTab(tabs[i].id);
             }
           }}
           onTouchCancel={() => { swipe.current = null; setDragX(0); }}
         >
             <div role="tablist" aria-label={tr('Conteúdo do perfil')} className="mb-3 flex border-b border-zinc-200">
-              {TABS.map((t) => (
+              {tabs.map((t) => (
                 <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} aria-label={t.label} onClick={() => { setEnter(null); setTab(t.id); }} className={`flex h-12 min-w-0 flex-1 items-center justify-center border-b-2 transition active:bg-zinc-50 ${tab === t.id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-400'}`}>
-                  <Icon name={t.icon} size={24} />
+                  {t.icon === 'bookmark' ? <BookmarkIcon on={tab === t.id} size={24} /> : <Icon name={t.icon} size={24} />}
                 </button>
               ))}
             </div>
@@ -356,6 +370,7 @@ export default function ProfilePage() {
         <div role="status" className="fixed bottom-24 left-1/2 z-40 -translate-x-1/2 rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white shadow-lg">{toast}</div>
       )}
       {sheet === 'edit' && <EditProfileSheet profile={p} onClose={close} />}
+      {sheet === 'qr' && <ProfileQrSheet username={p.username} displayName={p.displayName} onClose={close} />}
       {sheet === 'requests' && <RequestsSheet myUsername={p.username} onClose={close} />}
       {sheet === 'gift' && <GiftSheet recipient={{ username: p.username, displayName: p.displayName }} onClose={close} />}
       {sheet === 'menu' && (
