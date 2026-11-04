@@ -212,7 +212,7 @@ export default function ProfilePage() {
         {/* Botões compactos, como nas redes sociais. A geleira é um botão da mesma linha: ao tocar, abre-se para baixo. */}
         {!blocked && (
           <>
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex gap-1.5">
               {p.isMe ? (
                 // Tudo em símbolos, numa só linha e sempre no mesmo sítio.
                 <>

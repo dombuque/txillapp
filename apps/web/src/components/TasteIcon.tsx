@@ -6,6 +6,7 @@ import {
   Users, Utensils, UtensilsCrossed, Waves, Wheat, Wine, Zap, Armchair, ChefHat, Clapperboard, MapPin, TreePalm, type LucideIcon,
 } from 'lucide-react';
 import type { TasteItem } from '../lib/api';
+import DrinkArt from './DrinkArt';
 
 /** Um ícone por item do catálogo (nada de prateleiras com tudo igual). */
 const BY_SLUG: Record<string, LucideIcon> = {
@@ -88,7 +89,7 @@ export default function TasteBubble({ item, size = 44, className = '' }: { item:
       className={`relative flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${pal.bg} ${pal.fg} shadow-[0_3px_8px_rgba(0,0,0,0.12)] ring-1 ring-white ${className}`}
       style={{ width: size, height: size }}
     >
-      <Glyph size={Math.round(size * 0.46)} strokeWidth={1.7} />
+      {item.kind === 'bebida' ? <DrinkArt slug={item.slug} category={item.category} size={Math.round(size * 0.74)} /> : <Glyph size={Math.round(size * 0.46)} strokeWidth={1.7} />}
     </span>
   );
 }

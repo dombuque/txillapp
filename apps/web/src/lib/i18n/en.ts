@@ -1243,6 +1243,7 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'Para a encher, abre Editar perfil e escolhe a tua geleira.': 'To fill it, open Edit profile and pick your geleira.',
   'Toca no marcador de uma publicação para a guardares aqui. Só tu vês isto.': 'Tap the bookmark on a post to save it here. Only you see this.',
   'Txilla com a malta': 'Txill with the crew',
   'Próximo reel': 'Next reel',

@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { tr } from '../lib/i18n';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { api, type MyTaste, type TasteItem, type TheirTaste } from '../lib/api';
 import { ICE, KINDS, KIND_ICON, KIND_LABEL } from '../lib/geleira';
 import TasteBubble from './TasteIcon';
@@ -72,7 +71,7 @@ export function GeleiraToggle({ username, isMe, open, onToggle, icon = false, gr
     >
       <FridgeArt count={total} level={geleiraLevel(geleiraPoints((q.data ?? []).filter((i) => !('pending' in i && (i as { pending?: boolean }).pending))))} open={open} size={24} />
       {!icon && <span>{tr('Geleira')}</span>}
-      <Icon name="chevron-right" size={14} className={`transition ${open ? 'rotate-90' : ''}`} />
+      {!icon && <Icon name="chevron-right" size={14} className={`transition ${open ? 'rotate-90' : ''}`} />}
     </button>
   );
 }
@@ -126,18 +125,12 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
           {total > 0 && <span className="mt-1 inline-block rounded-full bg-rose-50 px-2.5 py-0.5 text-[12px] font-bold text-brand">{title}</span>}
           {isMe && !folded && <span className="mt-1 block text-[12px] text-zinc-500">{hint}</span>}
         </div>
-        {isMe && (
-          <Link to="/geleira" onClick={(e) => e.stopPropagation()} aria-label={tr('Editar a minha geleira')} className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-white px-3.5 text-sm font-bold text-zinc-900 shadow-sm ring-1 ring-sky-100 transition active:scale-95">
-            <Icon name="pencil" size={16} /> {tr('Editar')}
-          </Link>
-        )}
       </div>
 
       {items.length === 0 && (!compact || open) ? (
         <div className="mt-4 rounded-2xl bg-white/70 px-4 py-6 text-center ring-1 ring-sky-100">
           <p className="text-lg font-extrabold">{tr('Geleira vazia!')}</p>
-          <p className="mx-auto mt-1 max-w-[17rem] text-zinc-600">{isMe ? tr('Escolhe as bebidas, comidas, vibes e sítios de que gostas.') : tr('Ainda não há nada para mostrar.')}</p>
-          {isMe && <Link to="/geleira" className="mt-3 inline-flex h-11 items-center rounded-full bg-brand px-6 font-bold text-white active:scale-95">{tr('Encher a minha geleira')}</Link>}
+          <p className="mx-auto mt-1 max-w-[17rem] text-zinc-600">{isMe ? tr('Para a encher, abre Editar perfil e escolhe a tua geleira.') : tr('Ainda não há nada para mostrar.')}</p>
         </div>
       ) : (
         !folded && items.length > 0 && (
