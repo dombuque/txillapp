@@ -43,6 +43,15 @@ export default function CameraStudio() {
   const chunks = useRef<Blob[]>([]);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [mode, setMode] = useState<Mode>('post');
+  // Enquadramento 3:4 inteiro na publicação (sem cortar o campo de visão: a imagem deixa de parecer ampliada).
+  const framed = mode === 'post';
+  // Filtro escolhido antes de tirar a foto (vê-se já no ecrã e segue para a revisão).
+  const [liveFilter, setLiveFilter] = useState<Filter>(FILTERS[0]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Texto por cima da foto que vais tirar.
+  const [textOn, setTextOn] = useState(false);
+  const [overlay, setOverlay] = useState('');
+  const [overlayY, setOverlayY] = useState(0.42);
   const [facing, setFacing] = useState<'environment' | 'user'>('environment');
   const [ready, setReady] = useState(false);
   const [problem, setProblem] = useState<Problem>(null);
@@ -79,7 +88,7 @@ export default function CameraStudio() {
     if (!navigator.mediaDevices?.getUserMedia) return setProblem('unsupported');
     try {
       // Reaproveita a câmara já ligada: não volta a pedir permissão ao mudar de modo ou voltar dos filtros.
-      const s = await acquireCamera(facing, wantsAudio);
+      const s = await acquireCamera(facing, wantsAudio, framed);
       stream.current = s;
       if (video.current) {
         video.current.srcObject = s;
@@ -98,7 +107,7 @@ export default function CameraStudio() {
     } catch (e) {
       setProblem((e as DOMException).name === 'NotAllowedError' ? 'denied' : 'failed');
     }
-  }, [facing, wantsAudio]);
+  }, [facing, wantsAudio, framed]);
 
   // A câmara só fica à vista enquanto estás a captar; ao sair continua ligada uns instantes (ver cameraSession).
   const live = !captured && !story && !desktop;
@@ -195,11 +204,49 @@ export default function CameraStudio() {
       g.scale(-1, 1);
     }
     g.drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height);
+    // Texto escrito por cima: entra na foto (posição relativa ao que se vê no ecrã).
+    const txt = overlay.trim();
+    if (txt) {
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      const frameH = framed ? Math.min(window.innerHeight, (window.innerWidth * 4) / 3) : window.innerHeight;
+      const frameTop = (window.innerHeight - frameH) / 2;
+      const yFrac = Math.min(0.92, Math.max(0.08, (overlayY * window.innerHeight - frameTop) / frameH));
+      const fs = Math.round(c.width * 0.068);
+      g.font = `800 ${fs}px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      const words = txt.split(/\s+/);
+      const lines: string[] = [];
+      let cur = '';
+      for (const w of words) {
+        const t = cur ? `${cur} ${w}` : w;
+        if (g.measureText(t).width > c.width * 0.8 && cur) {
+          lines.push(cur);
+          cur = w;
+        } else cur = t;
+      }
+      if (cur) lines.push(cur);
+      const lh = fs * 1.3;
+      const bw = Math.min(c.width * 0.9, Math.max(...lines.map((l) => g.measureText(l).width)) + fs * 1.2);
+      const bh = lines.length * lh + fs * 0.6;
+      const cy = yFrac * c.height;
+      g.fillStyle = 'rgba(0,0,0,0.5)';
+      g.beginPath();
+      g.roundRect(c.width / 2 - bw / 2, cy - bh / 2, bw, bh, fs * 0.5);
+      g.fill();
+      g.fillStyle = '#fff';
+      lines.forEach((l, i) => g.fillText(l, c.width / 2, cy - bh / 2 + fs * 0.3 + lh * (i + 0.5)));
+    }
     setWhiteOut(false);
     setFlash(true);
     setTimeout(() => setFlash(false), 140);
     navigator.vibrate?.(15);
-    c.toBlob((blob) => blob && setCaptured({ photos: [new File([blob], `txill-${Date.now()}.jpg`, { type: 'image/jpeg' })] }), 'image/jpeg', 0.92);
+    c.toBlob((blob) => {
+      if (!blob) return;
+      setCaptured({ photos: [new File([blob], `txill-${Date.now()}.jpg`, { type: 'image/jpeg' })] });
+      setOverlay('');
+      setTextOn(false);
+    }, 'image/jpeg', 0.92);
   }
 
   const wantRec = useRef(false); // largaste o botão antes de o microfone ligar? então não chega a gravar
@@ -349,6 +396,7 @@ export default function CameraStudio() {
     if (recording) return;
     const i = MODES.findIndex((m) => m.id === mode) + d;
     if (i >= 0 && i < MODES.length) setMode(MODES[i].id);
+    else if (i === -1) navigate('/new/post', { replace: true });
   };
 
   function proceed(files: File[] | File) {
@@ -366,7 +414,7 @@ export default function CameraStudio() {
 
   if (desktop) return null;
   if (story) return <StoryCreator file={story} onClose={() => navigate('/', { replace: true })} onBack={() => { setStory(null); setCaptured(null); }} />;
-  if (captured) return <Review mode={mode} captured={captured} onBack={() => setCaptured(null)} onDone={proceed} />;
+  if (captured) return <Review mode={mode} captured={captured} initialFilter={liveFilter} onBack={() => setCaptured(null)} onDone={proceed} />;
 
   return (
     <div
@@ -394,7 +442,8 @@ export default function CameraStudio() {
         if (Math.abs(dx) > 60) shift(dx < 0 ? 1 : -1);
       }}
     >
-      <video ref={video} playsInline muted style={{ transform: `scaleX(${facing === 'user' ? -1 : 1}) scale(${hwZoom ? 1 : zoom})` }} className={`absolute inset-0 h-full w-full object-cover ${ready ? '' : 'invisible'}`} />
+      <video ref={video} playsInline muted style={{ transform: `scaleX(${facing === 'user' ? -1 : 1}) scale(${hwZoom ? 1 : zoom})`, filter: cssFilter(liveFilter) }} className={`absolute object-cover ${framed ? 'inset-x-0 top-1/2 w-full -translate-y-1/2 aspect-[3/4]' : 'inset-0 h-full w-full'} ${ready ? '' : 'invisible'}`} />
+      {liveFilter.tint && <div aria-hidden className="pointer-events-none absolute inset-0 mix-blend-soft-light" style={{ background: `rgba(${liveFilter.tint[0]},${liveFilter.tint[1]},${liveFilter.tint[2]},${Math.min(1, liveFilter.tint[3] * 3)})` }} />}
       {/* Toque: foco; toque duplo: vira a câmara. */}
       <div className="absolute inset-0" onPointerUp={tapScreen} aria-hidden />
       {grid && (
@@ -414,6 +463,39 @@ export default function CameraStudio() {
           <input type="range" aria-label={tr('Exposição')} min={expoCaps.min} max={expoCaps.max} step={expoCaps.step || 0.1} value={expo} onChange={(e) => void applyExpo(Number(e.target.value))} className="mt-12 w-24 -rotate-90 accent-amber-300" />
         </div>
       )}
+      {(textOn || overlay) && (
+        <div className="absolute inset-x-5 z-20 flex items-center gap-2" style={{ top: `${overlayY * 100}%`, transform: 'translateY(-50%)' }}>
+          <span
+            role="slider"
+            aria-label={tr('Mover o texto')}
+            aria-valuenow={Math.round(overlayY * 100)}
+            tabIndex={0}
+            className="flex h-10 w-7 shrink-0 items-center justify-center rounded-full bg-black/50 text-white/80"
+            style={{ touchAction: 'none' }}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => { e.stopPropagation(); setOverlayY(Math.min(0.85, Math.max(0.12, e.touches[0].clientY / window.innerHeight))); }}
+          >
+            <Icon name="chevron-right" size={18} className="rotate-90" />
+          </span>
+          <input
+            value={overlay}
+            onChange={(e) => setOverlay(e.target.value.slice(0, 80))}
+            onFocus={() => setTextOn(true)}
+            onBlur={() => setTextOn(false)}
+            autoFocus={textOn}
+            placeholder={tr('Escreve aqui…')}
+            aria-label={tr('Texto por cima da foto')}
+            className="min-w-0 flex-1 rounded-2xl bg-black/50 px-4 py-2.5 text-center text-[22px] font-extrabold text-white outline-none placeholder:text-white/60"
+          />
+        </div>
+      )}
+      {filtersOpen && (
+        <div role="radiogroup" aria-label={tr('Filtros')} className="absolute inset-x-0 bottom-44 z-20 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ touchAction: 'pan-x' }} onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
+          {FILTERS.map((f) => (
+            <button key={f.id} type="button" role="radio" aria-checked={liveFilter.id === f.id} onClick={() => setLiveFilter(f)} className={`h-9 shrink-0 rounded-full px-3.5 text-[13px] font-bold backdrop-blur-md transition active:scale-95 ${liveFilter.id === f.id ? 'bg-white text-zinc-900' : 'bg-black/45 text-white ring-1 ring-white/15'}`}>{f.name}</button>
+          ))}
+        </div>
+      )}
       {whiteOut && <div className="pointer-events-none absolute inset-0 z-10 bg-white" />}
       {count > 0 && <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/30"><span className="text-[120px] font-black leading-none drop-shadow-lg">{count}</span></div>}
       {zoomHud && <div className="pointer-events-none absolute left-1/2 top-24 z-20 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 text-sm font-bold tabular-nums">{zoom.toFixed(1)}×</div>}
@@ -431,7 +513,8 @@ export default function CameraStudio() {
             <button type="button" onClick={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} aria-label={tr('Temporizador')} className={`${round} relative ${delay ? '!bg-white !text-zinc-900' : ''}`}><Icon name="clock" size={22} />{delay > 0 && <span className="absolute -bottom-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-[11px] font-bold text-white">{delay}</span>}</button>
             {!canTorch && ready && facing === 'user' && <button type="button" onClick={() => setScreenFlash((f) => !f)} aria-pressed={screenFlash} aria-label={tr('Flash de ecrã')} className={`${round} ${screenFlash ? '!bg-white !text-zinc-900' : ''}`}><FlashIcon on={screenFlash} size={22} /></button>}
             {canTorch && ready && <button type="button" onClick={toggleTorch} aria-pressed={torch} aria-label={tr('Lanterna')} className={`${round} ${torch ? '!bg-white !text-zinc-900' : ''}`}><FlashIcon on={torch} size={22} /></button>}
-            {mode === 'post' && <button type="button" onClick={() => navigate('/new/post', { replace: true })} aria-label={tr('Só texto')} className={`${round} text-base font-bold`}>{tr('Aa')}</button>}
+            {mode !== 'reel' && <button type="button" onClick={() => setTextOn((t) => !t)} aria-pressed={textOn} aria-label={tr('Escrever por cima da foto')} className={`${round} text-base font-bold ${textOn ? '!bg-white !text-zinc-900' : ''}`}>{tr('Aa')}</button>}
+            {mode !== 'reel' && <button type="button" onClick={() => setFiltersOpen((o) => !o)} aria-pressed={filtersOpen} aria-label={tr('Filtros')} className={`${round} ${filtersOpen || liveFilter.id !== 'normal' ? '!bg-white !text-zinc-900' : ''}`}><Icon name="sparkles" size={22} /></button>}
             {canFlip && ready && <button type="button" onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} aria-label={tr('Virar câmara')} className={round}><Icon name="flip-camera" size={24} /></button>}
           </div>
         )}
@@ -467,8 +550,8 @@ export default function CameraStudio() {
       {/* Modos: o ativo fica a branco; deslizar ou tocar muda. */}
       {!recording && (
         <div className="relative z-10 flex justify-center gap-6 pb-3" role="tablist" aria-label={tr('O que queres publicar')}>
-          {MODES.map((m) => (
-            <button key={m.id} role="tab" aria-selected={mode === m.id} onClick={() => setMode(m.id)} className={`h-11 px-1 text-[15px] font-bold uppercase tracking-wide transition ${mode === m.id ? 'text-white' : 'text-white/55'}`}>
+          {[{ id: 'text' as const, label: 'Texto' }, ...MODES].map((m) => (
+            <button key={m.id} role="tab" aria-selected={mode === m.id} onClick={() => (m.id === 'text' ? navigate('/new/post', { replace: true }) : setMode(m.id))} className={`h-11 px-1 text-[15px] font-bold uppercase tracking-wide transition ${mode === m.id ? 'text-white' : 'text-white/55'}`}>
               {m.label}
             </button>
           ))}
@@ -516,12 +599,12 @@ export default function CameraStudio() {
 }
 
 /** Passo dos filtros: a foto (ou o vídeo) tal como vai sair, com os filtros por baixo. */
-function Review({ mode, captured, onBack, onDone }: { mode: Mode; captured: Captured; onBack: () => void; onDone: (files: File[] | File) => void }) {
+function Review({ mode, captured, initialFilter, onBack, onDone }: { mode: Mode; captured: Captured; initialFilter: Filter; onBack: () => void; onDone: (files: File[] | File) => void }) {
   const photos = 'photos' in captured ? captured.photos : null;
   const previews = useMemo(() => (photos ? photos.map((f) => URL.createObjectURL(f)) : []), [photos]);
   const videoUrl = useMemo(() => ('video' in captured ? URL.createObjectURL(captured.video) : null), [captured]);
   useEffect(() => () => { previews.forEach(URL.revokeObjectURL); if (videoUrl) URL.revokeObjectURL(videoUrl); }, [previews, videoUrl]);
-  const [filter, setFilter] = useState<Filter>(FILTERS[0]);
+  const [filter, setFilter] = useState<Filter>(initialFilter);
   const [i, setI] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');

@@ -497,11 +497,14 @@ function ImageViewer({ post, start, onClose }: { post: Post; start: number; onCl
     return () => window.removeEventListener('keydown', key);
   }, [start, onClose]);
 
-  const onTouchStart = (e: React.TouchEvent) => (startY.current = e.touches[0].clientY);
+  // Os toques ficam aqui: o feed por baixo não se mexe nem recarrega.
+  const onTouchStart = (e: React.TouchEvent) => { e.stopPropagation(); startY.current = e.touches[0].clientY; };
   const onTouchMove = (e: React.TouchEvent) => {
+    e.stopPropagation();
     if (startY.current !== null) setDrag(Math.max(0, e.touches[0].clientY - startY.current));
   };
-  const onTouchEnd = () => {
+  const onTouchEnd = (e: React.TouchEvent) => {
+    e.stopPropagation();
     if (drag > 110) onClose();
     setDrag(0);
     startY.current = null;

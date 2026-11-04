@@ -3,6 +3,7 @@ import { funny } from '../lib/copy';
 import { tr } from '../lib/i18n';
 import { useEffect, useMemo, useState } from 'react';
 import { track } from '../lib/analytics';
+import { renderGiftCard } from '../lib/giftCard';
 import { api, type Post } from '../lib/api';
 import { sized } from '../lib/media';
 import { postLink, postShare, shareNow } from '../lib/share';
@@ -38,8 +39,16 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
   const [preview, setPreview] = useState<'all' | 'close_friends' | null>(null);
   const [caption, setCaption] = useState('');
   const url = postLink(post);
+  // Presente: a pré-visualização mostra o cartão que vai para o status.
+  const [giftUrl, setGiftUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!preview || post.kind !== 'gift' || giftUrl) return;
+    let dead = false;
+    void renderGiftCard(post).then((b) => !dead && setGiftUrl(URL.createObjectURL(b))).catch(() => undefined);
+    return () => { dead = true; };
+  }, [preview]); // eslint-disable-line react-hooks/exhaustive-deps
   const video = post.media[0]?.kind === 'video';
-  const canStory = post.kind === 'post' && post.media.length > 0;
+  const canStory = (post.kind === 'post' && post.media.length > 0) || (post.kind === 'gift' && !!post.gift);
 
   const direct = useQuery({ queryKey: ['chat-list'], queryFn: api.chatList, staleTime: 30_000 });
   const groups = useQuery({ queryKey: ['chat-groups'], queryFn: api.chatGroups, staleTime: 30_000 });
@@ -113,7 +122,11 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
     if (!preview) return;
     setBusy(true);
     try {
-      await api.shareToStory(post.id, preview, caption.trim());
+      if (post.kind === 'gift') {
+        // Presente: o cartão desenhado (e não um texto) vai para o status como imagem.
+        const f = new File([await renderGiftCard(post)], 'presente.png', { type: 'image/png' });
+        await api.createStory(await api.uploadImage(f), caption.trim(), preview);
+      } else await api.shareToStory(post.id, preview, caption.trim());
       track('share', { where: 'story', video });
       setPreview(null);
       setNote(preview === 'all' ? 'Adicionado ao teu status' : 'Partilhado com amigos próximos');
@@ -271,7 +284,7 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
               {post.media[0]?.kind === 'video' ? (
                 <video src={post.media[0].url} poster={post.media[0].posterUrl ?? undefined} className="h-full w-full object-cover" autoPlay muted loop playsInline />
               ) : (
-                <img src={post.media[0]?.url} alt="" className="h-full w-full object-cover" />
+                <img src={post.kind === 'gift' ? (giftUrl ?? undefined) : post.media[0]?.url} alt="" className="h-full w-full object-cover" />
               )}
               <div className="absolute inset-x-0 top-0 flex items-center gap-2 bg-gradient-to-b from-black/55 to-transparent p-3 text-white">
                 <Avatar name={post.author.displayName} username={post.author.username} size={30} ring={false} />
