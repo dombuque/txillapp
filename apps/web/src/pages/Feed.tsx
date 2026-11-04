@@ -1,3 +1,4 @@
+import ProfileNudge from '../components/ProfileNudge';
 import { PostSkeleton } from '../components/Loading';
 import { tr } from '../lib/i18n';
 import Icon from '../components/Icon';
@@ -118,6 +119,7 @@ export default function Feed() {
         </div>
       )}
       <WhatsNewCard />
+      <ProfileNudge />
       <StoriesTray />
       {q.isLoading && (
         <>

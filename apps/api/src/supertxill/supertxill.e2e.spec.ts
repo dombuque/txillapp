@@ -307,6 +307,7 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
   });
 
   it('Explorar: temas, "Para ti" que aprende com o que se brinda, só o que se pode ver (sem menores nem bloqueados)', async () => {
+    await pool.query("UPDATE content.posts SET topics = '{}' WHERE topics && ARRAY['bebidas','desporto'] AND body NOT LIKE '%' || $1 || '%'", [run]);
     const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
     const up = async (u: U) => {
       const r = await api().post('/api/v1/media/uploads').set(auth(u)).send({ mime: 'image/png', size: PNG.length }).expect(201);
@@ -358,6 +359,7 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
   });
 
   it('ensinar o algoritmo: preferências por tema e interessado / não interessado', async () => {
+    await pool.query("UPDATE content.posts SET topics = '{}' WHERE topics && ARRAY['bebidas','desporto'] AND body NOT LIKE '%' || $1 || '%'", [run]);
     const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
     const up = async (u: U) => {
       const r = await api().post('/api/v1/media/uploads').set(auth(u)).send({ mime: 'image/png', size: PNG.length }).expect(201);
@@ -388,5 +390,22 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     expect((await api().get('/api/v1/feed/prefs').set(auth(me)).expect(200)).body).toEqual({});
     expect(await ids('bebidas')).toContain(a.id); // voltou a aparecer
     await api().put(`/api/v1/posts/${a.id}/interest`).send({ value: 1 }).expect(401);
+  });
+
+  it('perfil completo: mostra o que falta e sobe quando se preenche', async () => {
+    const a = await signup('pc0');
+    const b = await signup('pc1');
+    const c = await signup('pc2');
+    const d = await signup('pc3');
+    const g0 = (await api().get('/api/v1/users/me/completeness').set(auth(a)).expect(200)).body as { percent: number; steps: { id: string; done: boolean }[] };
+    expect(g0.percent).toBe(0);
+    expect(g0.steps.map((x) => x.id)).toEqual(['photo', 'bio', 'post', 'follow', 'geleira']);
+    await api().patch('/api/v1/users/me').set(auth(a)).send({ bio: 'Malta do Txilla' }).expect(200);
+    await api().post('/api/v1/posts').set(auth(a)).send({ body: `primeiro ${run}` }).expect(201);
+    for (const u of [b, c, d]) await api().post(`/api/v1/users/${u.username}/follow`).set(auth(a)).expect((r) => { if (r.status >= 400) throw new Error(`follow ${r.status}`); });
+    const g1 = (await api().get('/api/v1/users/me/completeness').set(auth(a)).expect(200)).body as { percent: number; steps: { id: string; done: boolean }[] };
+    expect(g1.steps.filter((x) => x.done).map((x) => x.id)).toEqual(['bio', 'post', 'follow']);
+    expect(g1.percent).toBe(60);
+    await api().get('/api/v1/users/me/completeness').expect(401);
   });
 });

@@ -181,7 +181,7 @@ export class StoriesService {
     ]);
     // A resposta também chega ao autor como mensagem, para continuar a conversa no chat.
     await this.chat.sendStoryReply(userId, s.author_id, body, kind === 'reaction' ? 'story_reaction' : 'story_reply', s.media_id);
-    await this.notifications.notify({ userId: s.author_id, actorId: userId, kind: 'story_reply', data: { storyId, replyKind: kind, snippet: body.slice(0, 80) } });
+    // A resposta chega como mensagem no chat (com o seu próprio aviso): não vai também para as notificações.
     return { id, kind };
   }
 

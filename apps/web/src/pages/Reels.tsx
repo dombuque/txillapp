@@ -294,14 +294,10 @@ export default function Reels() {
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 mx-auto flex max-w-xl items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
-        <div className="flex items-center gap-2">
-          <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/', { replace: true }))} aria-label={tr('Fechar')} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
-            <Icon name="back" size={24} />
-          </button>
-          <button onClick={() => navigate('/new')} aria-label={tr('Novo reel')} title={tr('Novo reel')} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
-            <Icon name="plus" size={26} strokeWidth={2.4} />
-          </button>
-        </div>
+        {/* Sem seta de voltar: nos reels o deslize para os lados muda de aba. */}
+        <button onClick={() => navigate('/new')} aria-label={tr('Novo reel')} title={tr('Novo reel')} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
+          <Icon name="plus" size={26} strokeWidth={2.4} />
+        </button>
         <span className="text-lg font-extrabold drop-shadow">{tr('Reels')}</span>
         <button onClick={() => navigate('/reels/filtros')} aria-label={tr('Filtros dos reels')} title={tr('Filtros dos reels')} className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm active:scale-90">
           <Icon name="sliders" size={22} />

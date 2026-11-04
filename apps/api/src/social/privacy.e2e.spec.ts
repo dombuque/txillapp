@@ -170,12 +170,12 @@ describe('privacidade, bloqueios, notificações, pesquisa, foto e segurança da
 
     const mine = await notes(author);
     const kinds = mine.slice(0, mine.length - base).map((x) => x.kind).sort();
-    expect(kinds).toEqual(['comment', 'follow', 'gift', 'story_reply']);
+    expect(kinds).toEqual(['comment', 'follow', 'gift']); // a resposta ao story chega como mensagem, não como notificação
     expect(mine.find((x) => x.kind === 'gift')).toMatchObject({ actor: { username: fan.username }, data: { amount: 7, note: 'parabéns' } });
     expect(mine.find((x) => x.kind === 'comment')!.data.snippet).toBe('bom post!');
     expect((await notes(fan)).some((x) => x.kind === 'reply' && x.actor.username === author.username)).toBe(true); // a resposta avisa quem foi respondido
 
-    expect((await api().get('/api/v1/notifications/unread-count').set(auth(author)).expect(200)).body.count).toBeGreaterThanOrEqual(4);
+    expect((await api().get('/api/v1/notifications/unread-count').set(auth(author)).expect(200)).body.count).toBeGreaterThanOrEqual(3);
     await api().post('/api/v1/notifications/read').set(auth(author)).expect(204);
     expect((await api().get('/api/v1/notifications/unread-count').set(auth(author)).expect(200)).body.count).toBe(0);
     await api().get('/api/v1/notifications').expect(401);

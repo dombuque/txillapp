@@ -61,6 +61,12 @@ export class SocialController {
     return this.social.setConsent(req.userId!, b.birthDate);
   }
 
+  /** O que falta para o perfil estar a 100%. */
+  @Get('users/me/completeness')
+  completeness(@Req() req: AuthedReq) {
+    return this.social.completeness(req.userId!);
+  }
+
   @Put('users/me/welcomed')
   welcomed(@Req() req: AuthedReq) {
     return this.social.setWelcomed(req.userId!);

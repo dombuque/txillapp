@@ -10,16 +10,20 @@ export default function ScrollRow({ children, className = '', label }: { childre
   const [edge, setEdge] = useState({ left: false, right: false });
   const drag = useRef<{ x: number; start: number; moved: boolean } | null>(null);
 
+  // Só no computador (rato): no telemóvel o deslize é todo nativo, sem JavaScript a cada frame.
+  const fine = typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
   const measure = useCallback(() => {
     const el = box.current;
-    if (!el) return;
-    setEdge({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
-  }, []);
+    if (!el || !fine) return;
+    const left = el.scrollLeft > 4;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+    setEdge((e) => (e.left === left && e.right === right ? e : { left, right }));
+  }, [fine]);
 
   useEffect(() => {
-    measure();
     const el = box.current;
-    if (!el) return;
+    if (!el || !fine) return;
+    measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     // A roda vertical do rato anda para os lados quando há mais para ver (só se não for já um gesto horizontal).
@@ -36,7 +40,7 @@ export default function ScrollRow({ children, className = '', label }: { childre
       ro.disconnect();
       el.removeEventListener('wheel', wheel);
     };
-  }, [measure]);
+  }, [measure, fine]);
 
   const by = (dir: 1 | -1) => box.current?.scrollBy({ left: dir * Math.max(160, (box.current?.clientWidth ?? 300) * 0.7), behavior: 'smooth' });
   const arrow = 'absolute top-0 z-10 hidden h-10 w-9 items-center justify-center bg-white/95 text-zinc-900 shadow-sm md:flex';
@@ -48,7 +52,7 @@ export default function ScrollRow({ children, className = '', label }: { childre
         ref={box}
         role="presentation"
         aria-label={label}
-        onScroll={measure}
+        onScroll={fine ? measure : undefined}
         onPointerDown={(e) => {
           // Só com o rato (no toque, o navegador já desliza sozinho).
           if (e.pointerType !== 'mouse' || e.button !== 0) return;
@@ -65,7 +69,7 @@ export default function ScrollRow({ children, className = '', label }: { childre
         onPointerLeave={() => { drag.current = null; }}
         // Se arrastou, o clique no fim não conta como escolha de um chip.
         onClickCapture={(e) => { if (drag.current?.moved) { e.preventDefault(); e.stopPropagation(); } }}
-        className={`overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
+        className={`overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
       >
         {children}
       </div>

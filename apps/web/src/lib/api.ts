@@ -647,6 +647,7 @@ export const api = {
   savePost: (id: string): Promise<{ saved: boolean }> => raw(`/posts/${id}/save`, { method: 'PUT' }),
   unsavePost: (id: string): Promise<{ saved: boolean }> => raw(`/posts/${id}/save`, { method: 'DELETE' }),
   savedPosts: (cursor?: string): Promise<{ items: Post[]; nextCursor: string | null }> => raw(`/feed/saved${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
+  completeness: (): Promise<{ percent: number; steps: { id: 'photo' | 'bio' | 'post' | 'follow' | 'geleira'; done: boolean }[] }> => raw('/users/me/completeness'),
   insights: (days: 7 | 30 | 90, tz: number): Promise<Insights> => raw(`/insights?days=${days}&tz=${tz}`),
   placePosts: (label: string, mode: 'at' | 'near', cursor?: string): Promise<{ label: string; mode: 'at' | 'near'; hasNear: boolean; center: { lat: number; lng: number } | null; items: Post[]; nextCursor: string | null }> =>
     raw(`/feed/place?label=${encodeURIComponent(label)}&mode=${mode}${cursor ? `&cursor=${cursor}` : ''}`),
@@ -759,6 +760,7 @@ export const api = {
   explore: (topic: string | null, cursor?: string): Promise<Page<Post>> => raw(`/feed/explore?limit=18${topic ? `&topic=${encodeURIComponent(topic)}` : ''}${cursor ? `&cursor=${cursor}` : ''}`),
   setInterest: (id: string, value: 1 | -1): Promise<{ value: number }> => raw(`/posts/${id}/interest`, { method: 'PUT', body: JSON.stringify({ value }) }),
   explorePrefs: (): Promise<Record<string, number>> => raw('/feed/prefs'),
+  exploreActivity: (): Promise<{ id: string; label: string }[]> => raw('/feed/algorithm'),
   setExplorePref: (topic: string, pref: -1 | 0 | 1): Promise<Record<string, number>> => raw('/feed/prefs', { method: 'PUT', body: JSON.stringify({ topic, pref }) }),
   resetExplore: (): Promise<void> => raw('/feed/prefs', { method: 'DELETE' }),
   exploreTopics: (all = false): Promise<{ id: string; label: string; count: number }[]> => raw(`/feed/explore/topics${all ? '?all=1' : ''}`),

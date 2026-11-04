@@ -40,6 +40,23 @@ export class SocialService {
 
   /* ───────────── perfil ───────────── */
 
+  /** Quanto do perfil está preenchido: foto, bio, primeira publicação, seguir malta e encher a geleira. */
+  async completeness(userId: string) {
+    const r = (
+      await this.pool.query(
+        `SELECT (u.avatar_media_id IS NOT NULL) AS photo,
+                (char_length(btrim(COALESCE(u.bio, ''))) > 0) AS bio,
+                EXISTS (SELECT 1 FROM content.posts p WHERE p.author_id = u.id AND p.removed_at IS NULL AND p.kind = 'post') AS post,
+                (SELECT count(*) FROM social.follows f WHERE f.follower_id = u.id) >= 3 AS follow,
+                (SELECT count(*) FROM taste.user_items t WHERE t.user_id = u.id) >= 3 AS geleira
+           FROM identity.users u WHERE u.id = $1`,
+        [userId],
+      )
+    ).rows[0];
+    const steps = (['photo', 'bio', 'post', 'follow', 'geleira'] as const).map((id) => ({ id, done: !!r?.[id] }));
+    return { percent: Math.round((steps.filter((s) => s.done).length / steps.length) * 100), steps };
+  }
+
   async profile(viewerId: string, username: string) {
     const { rows } = await this.pool.query(
       `SELECT u.id, u.username, u.display_name, u.bio, u.website, u.city, u.created_at, u.is_private, u.show_connections,

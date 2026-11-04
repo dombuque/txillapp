@@ -8,9 +8,9 @@ import Icon, { type IconName } from '../components/Icon';
 import ReportSheet from '../components/ReportSheet';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { slideClass } from '../lib/swipeNav';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import EditProfileSheet from '../components/EditProfileSheet';
 import GeleiraShelf, { GeleiraToggle } from '../components/GeleiraShelf';
 import ProfileQrSheet from '../components/ProfileQrSheet';
@@ -72,12 +72,20 @@ export default function ProfilePage() {
   }
   const [sheet, setSheet] = useState<SheetName>(null);
   const [geleiraOpen, setGeleiraOpen] = useState(false);
+  const [search, setSearch] = useSearchParams();
   const [openPost, setOpenPost] = useState<Post | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const close = () => setSheet(null);
 
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username), retry: false });
   const p = q.data;
+  // Vindo do lembrete de perfil completo: abre logo o editar perfil.
+  useEffect(() => {
+    if (p?.isMe && search.get('edit') === '1') {
+      setSheet('edit');
+      setSearch({}, { replace: true });
+    }
+  }, [p?.isMe]); // eslint-disable-line react-hooks/exhaustive-deps
   // As sugestões de pessoas só aparecem às vezes (ritmo no aparelho), não em todas as visitas ao perfil.
   const [showSuggestions] = useState(() => shouldShowSuggestions('profile', { minGapHours: 8, base: 0.25, step: 0.2 }));
   const [tab, setTab] = useState<ProfileTab>('all');
@@ -220,7 +228,6 @@ export default function ProfilePage() {
                     ['pencil', tr('Editar perfil'), () => setSheet('edit')],
                     ['qr', tr('Partilhar perfil'), () => setSheet('qr')],
                     ['user-plus', tr('Convidar a malta'), () => void inviteCrew()],
-                    ['trending', tr('Estatísticas do perfil'), () => navigate('/insights')],
                     ['wallet', tr('Carteira de Txills'), () => navigate('/wallet')],
                   ] as const).map(([icon, label, go]) => (
                     <button key={label} onClick={go} aria-label={label} title={label} className={`${btnSmall} flex-1 !px-0`}>

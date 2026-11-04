@@ -529,6 +529,21 @@ export class PostsService implements OnModuleInit {
     return { items: await this.hydrate(viewerId, full.rows), nextCursor: rows.length > limit ? String(offset + limit) : null };
   }
 
+  /** O que o algoritmo aprendeu contigo (só atividade: brindes, comentários, guardados, seguidos e "interessado"): os temas por ordem. */
+  async activityTopics(userId: string) {
+    const { rows } = await this.pool.query(
+      `SELECT topic, sum(wt) AS wt FROM (
+         SELECT unnest(p.topics) AS topic, 1.0 AS wt FROM content.cheers c JOIN content.posts p ON p.id = c.post_id WHERE c.user_id = $1 AND c.created_at > now() - interval '60 days' AND p.topics IS NOT NULL
+         UNION ALL SELECT unnest(p.topics), 2.0 FROM content.comments c JOIN content.posts p ON p.id = c.post_id WHERE c.author_id = $1 AND c.created_at > now() - interval '60 days' AND p.topics IS NOT NULL
+         UNION ALL SELECT unnest(p.topics), 3.0 FROM content.saved_posts s JOIN content.posts p ON p.id = s.post_id WHERE s.user_id = $1 AND p.topics IS NOT NULL
+         UNION ALL SELECT unnest(p.topics), 0.4 FROM social.follows f JOIN content.posts p ON p.author_id = f.followee_id AND p.created_at > now() - interval '30 days' WHERE f.follower_id = $1 AND p.topics IS NOT NULL
+         UNION ALL SELECT unnest(p.topics), 2.5 * fb.value FROM content.post_feedback fb JOIN content.posts p ON p.id = fb.post_id WHERE fb.user_id = $1 AND p.topics IS NOT NULL
+       ) x GROUP BY topic HAVING sum(wt) > 0 ORDER BY sum(wt) DESC LIMIT 8`,
+      [userId],
+    );
+    return rows.map((r) => ({ id: r.topic as string, label: topicLabel(r.topic as string) }));
+  }
+
   /** As minhas preferências por tema (1 = mais, -1 = menos). */
   async prefs(userId: string) {
     const { rows } = await this.pool.query('SELECT topic, pref FROM social.explore_prefs WHERE user_id = $1', [userId]);

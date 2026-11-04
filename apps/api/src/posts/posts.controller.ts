@@ -54,6 +54,12 @@ export class FeedController {
     return this.posts.explore(req.userId!, topic ?? null, cursor, n);
   }
 
+  /** O que o algoritmo aprendeu com a tua atividade. */
+  @Get('algorithm')
+  algorithm(@Req() req: AuthedReq) {
+    return this.posts.activityTopics(req.userId!);
+  }
+
   @Get('prefs')
   prefs(@Req() req: AuthedReq) {
     return this.posts.prefs(req.userId!);

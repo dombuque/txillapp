@@ -554,7 +554,7 @@ export class ChatService {
     this.events.emit(other, { type: 'message', from });
     // Também no telemóvel, sem o texto da mensagem.
     const sender = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0].display_name as string;
-    const what: Partial<Record<MessageKind, string>> = { image: 'enviou-te uma foto', video: 'enviou-te um vídeo', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo', gift: 'enviou-te um presente' };
+    const what: Partial<Record<MessageKind, string>> = { story_reply: 'respondeu ao teu story', story_reaction: 'reagiu ao teu story', image: 'enviou-te uma foto', video: 'enviou-te um vídeo', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo', gift: 'enviou-te um presente' };
     if (!this.events.isActive(other, `u:${from}`)) void this.push.send(other, { title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : extra.once ? 'enviou-te uma mensagem de visualização única' : extra.liveMinutes ? 'está a partilhar a localização em direto' : (what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' });
     return { id, kind };
   }
