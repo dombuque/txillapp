@@ -14,7 +14,7 @@ function Frost({ rating }: { rating: number | null }) {
   return (
     <span className="mt-1 flex justify-center gap-[3px]" aria-hidden>
       {[1, 2, 3, 4, 5].map((n) => (
-        <span key={n} className={`h-[5px] w-[5px] rounded-full ${rating && n <= rating ? 'bg-sky-500' : 'bg-sky-200/70'}`} />
+        <span key={n} className={`h-[5px] w-[5px] rounded-full ${rating && n <= rating ? 'bg-rose-500' : 'bg-rose-200/70'}`} />
       ))}
     </span>
   );
@@ -46,13 +46,13 @@ function Tile({ item }: { item: Shown }) {
 function Shelf({ title, icon, items }: { title: string; icon: Parameters<typeof Icon>[0]['name']; items: Shown[] }) {
   return (
     <div className="mt-5">
-      <h3 className="mb-2 flex items-center gap-1.5 px-0.5 text-[12px] font-bold uppercase tracking-[0.12em] text-sky-800/70">
-        <Icon name={icon} size={14} /> {title} <span className="font-semibold text-sky-800/45">{items.length}</span>
+      <h3 className="mb-2 flex items-center gap-1.5 px-0.5 text-[12px] font-bold uppercase tracking-[0.12em] text-rose-800/70">
+        <Icon name={icon} size={14} /> {title} <span className="font-semibold text-rose-800/45">{items.length}</span>
       </h3>
       <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-3 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((i) => <Tile key={i.id} item={i} />)}
       </div>
-      <div aria-hidden className="h-[6px] rounded-full bg-gradient-to-r from-sky-200/70 via-white to-sky-200/70 shadow-[0_3px_5px_rgba(14,116,144,0.18)] ring-1 ring-white/80" />
+      <div aria-hidden className="h-[6px] rounded-full bg-gradient-to-r from-rose-200/70 via-white to-rose-200/70 shadow-[0_3px_5px_rgba(214,51,79,0.18)] ring-1 ring-white/80" />
     </div>
   );
 }
@@ -67,7 +67,7 @@ export function GeleiraToggle({ username, isMe, open, onToggle, icon = false, gr
       onClick={onToggle}
       aria-expanded={open}
       aria-label={open ? tr('Fechar a geleira') : tr('Abrir a geleira')}
-      className={`flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-[14px] font-bold transition active:scale-95 ${icon ? `${grow ? 'flex-1' : 'w-11'} !px-0` : 'flex-1'} ${open ? 'bg-sky-200 text-sky-900 ring-1 ring-sky-300' : 'bg-sky-50 text-sky-900 ring-1 ring-sky-200'}`}
+      className={`flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-[14px] font-bold transition active:scale-95 ${icon ? `${grow ? 'flex-1' : 'w-11'} !px-0` : 'flex-1'} ${open ? 'bg-rose-200 text-rose-900 ring-1 ring-rose-300' : 'bg-rose-50 text-rose-900 ring-1 ring-rose-200'}`}
     >
       <FridgeArt count={total} level={geleiraLevel(geleiraPoints((q.data ?? []).filter((i) => !('pending' in i && (i as { pending?: boolean }).pending))))} open={open} size={24} />
       {!icon && <span>{tr('Geleira')}</span>}
@@ -107,7 +107,7 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
       aria-label={folded ? 'Abrir a geleira' : 'Geleira'}
       // Fechada, qualquer parte do cartão abre a geleira (o frigorífico, o texto, o espaço à volta).
       {...(folded ? { role: 'button', tabIndex: 0, 'aria-expanded': false, onClick: () => setOpen(true), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true); } } } : {})}
-      className={`${folded ? 'cursor-pointer active:scale-[0.99] ' : ''}transition ${flush ? '' : 'mx-4'} mt-4 overflow-hidden rounded-[24px] border ${pointed ? 'border-sky-300' : 'border-sky-100'} bg-gradient-to-b from-sky-50 via-white to-cyan-50/60 px-4 shadow-[0_2px_12px_rgba(14,116,144,0.1)] ${folded ? 'pb-3 pt-3' : 'pb-6 pt-4'}`}
+      className={`${folded ? 'cursor-pointer active:scale-[0.99] ' : ''}transition ${flush ? '' : 'mx-4'} mt-4 overflow-hidden rounded-[24px] border ${pointed ? 'border-rose-300' : 'border-rose-100'} bg-gradient-to-b from-rose-50 via-white to-orange-50/60 px-4 shadow-[0_2px_12px_rgba(214,51,79,0.1)] ${folded ? 'pb-3 pt-3' : 'pb-6 pt-4'}`}
     >
       <div className="flex items-center gap-4 pb-1">
         {compact ? (
@@ -128,7 +128,7 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
       </div>
 
       {items.length === 0 && (!compact || open) ? (
-        <div className="mt-4 rounded-2xl bg-white/70 px-4 py-6 text-center ring-1 ring-sky-100">
+        <div className="mt-4 rounded-2xl bg-white/70 px-4 py-6 text-center ring-1 ring-rose-100">
           <p className="text-lg font-extrabold">{tr('Geleira vazia!')}</p>
           <p className="mx-auto mt-1 max-w-[17rem] text-zinc-600">{isMe ? tr('Para a encher, abre Editar perfil e escolhe a tua geleira.') : tr('Ainda não há nada para mostrar.')}</p>
         </div>

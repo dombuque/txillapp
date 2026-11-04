@@ -252,7 +252,8 @@ export default function ProfilePage() {
         {/* A geleira abre para baixo, dentro do mesmo cartão, com a ponta a apontar para o botão. */}
         {!blocked && p.canView && geleiraOpen && (
           <div className="relative">
-            <span aria-hidden className={`absolute top-[6px] z-10 h-5 w-5 rotate-45 rounded-tl-md border-l-2 border-t-2 border-sky-300 bg-sky-50 ${p.isMe ? 'right-[calc((100%-30px)/12-10px)]' : 'right-[12px]'}`} />
+            {/* A ponta fica fora do cartão, no espaço entre o botão e a geleira, a ligar os dois. */}
+            <span aria-hidden className={`absolute top-[6px] z-10 h-0 w-0 border-x-[11px] border-b-[10px] border-x-transparent border-b-rose-300 ${p.isMe ? 'right-[calc((100%-30px)/12-11px)]' : 'right-[11px]'}`} />
             <GeleiraShelf username={p.username} isMe={p.isMe} flush pointed />
           </div>
         )}
