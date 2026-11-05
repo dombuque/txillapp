@@ -1,3 +1,4 @@
+import { buzz } from '../lib/haptics';
 import { useRef, useState, type ReactNode, type TouchEvent } from 'react';
 import { tr } from '../lib/i18n';
 import { useNavigate } from 'react-router-dom';
@@ -34,7 +35,7 @@ export default function StackPage({ title, children }: { title: string; children
     const moved = s?.ok ? e.changedTouches[0].clientX - s.x : 0;
     setDx(0);
     if (s?.ok && moved > 90) {
-      navigator.vibrate?.(8);
+      buzz(8);
       back();
     }
   };

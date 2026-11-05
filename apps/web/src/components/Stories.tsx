@@ -1,3 +1,4 @@
+import { buzz } from '../lib/haptics';
 import { LoadingBlock } from './Loading';
 import { tr } from '../lib/i18n';
 import VideoPlayer from './VideoPlayer';
@@ -71,7 +72,7 @@ function useAvatarPreview(username: string, displayName: string, hasAvatar: bool
   const clear = () => clearTimeout(timer.current);
   const press = hasAvatar
     ? {
-        onPointerDown: () => { held.current = false; timer.current = setTimeout(() => { held.current = true; navigator.vibrate?.(15); setShow(true); }, 400); },
+        onPointerDown: () => { held.current = false; timer.current = setTimeout(() => { held.current = true; buzz(15); setShow(true); }, 400); },
         onPointerUp: clear,
         onPointerLeave: clear,
         onPointerCancel: clear,
@@ -575,7 +576,7 @@ function Viewer({ users, start, startStoryId, onClose, onOwnSeen }: { users: Tra
           // O meu story: arrastar para cima mostra as visualizações e os brindes.
           if (user.isMe) {
             if (story && dy < -70 && -dy > Math.abs(dx) * 1.5 && !panel) {
-              navigator.vibrate?.(8);
+              buzz(8);
               setTab('viewers');
               setPanel('viewers');
             }
@@ -585,7 +586,7 @@ function Viewer({ users, start, startStoryId, onClose, onOwnSeen }: { users: Tra
           if (dy < -70 && -dy > Math.abs(dx) * 1.5) {
             const field = e.currentTarget.querySelector<HTMLElement>('[aria-label^="Responder ao story"]');
             if (field) {
-              navigator.vibrate?.(8);
+              buzz(8);
               field.focus();
             }
           }

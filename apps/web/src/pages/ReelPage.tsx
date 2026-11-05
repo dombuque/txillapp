@@ -1,3 +1,4 @@
+import { buzz } from '../lib/haptics';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { tr } from '../lib/i18n';
 import { useEffect, useRef, useState, type TouchEvent } from 'react';
@@ -48,7 +49,7 @@ export default function ReelPage() {
     const moved = s?.ok ? e.changedTouches[0].clientX - s.x : 0;
     setDx(0);
     if (s?.ok && moved > 90) {
-      navigator.vibrate?.(8);
+      buzz(8);
       close();
     }
   };

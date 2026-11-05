@@ -808,6 +808,8 @@ export const api = {
     return res.blob();
   },
   pushKey: (): Promise<{ publicKey: string | null }> => raw('/push/key'),
+  pushDevice: (token: string, platform: 'android' | 'ios'): Promise<void> => raw('/push/device', post({ token, platform })),
+  pushDeviceRemove: (token: string): Promise<void> => raw('/push/device', { method: 'DELETE', body: JSON.stringify({ token }) }),
   pushSubscribe: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }): Promise<void> => raw('/push/subscribe', post(sub)),
   pushTest: (): Promise<void> => raw('/push/test', post({})),
   pushUnsubscribe: (endpoint: string): Promise<void> => raw('/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint }) }),

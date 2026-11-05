@@ -1,3 +1,4 @@
+import { buzz } from '../lib/haptics';
 import { track } from '../lib/analytics';
 import { tr, locale } from '../lib/i18n';
 import { sized } from '../lib/media';
@@ -157,7 +158,7 @@ function Bubble({ m, prevSame, nextSame, seen, group, flash, onJump, onMenu, onR
           const s = swipe.current;
           swipe.current = null;
           if (s?.on && dx >= 56) {
-            navigator.vibrate?.(10);
+            buzz(10);
             onReply(m);
           }
           setDx(0);
@@ -615,7 +616,7 @@ export default function Thread() {
 
   /** Duplo toque: brinda a mensagem (se ainda não brindei). */
   async function cheerMsg(m: ChatMessage) {
-    navigator.vibrate?.(8);
+    buzz(8);
     if (m.reactions?.some((x) => x.mine && x.reaction === ':brinde:')) return;
     try {
       await api.chatReact(m.id, ':brinde:');

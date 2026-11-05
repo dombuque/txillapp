@@ -1,10 +1,12 @@
+import { hideSplash, initNative } from './lib/native';
+import { syncNativePush } from './lib/nativePush';
 import Reels from './pages/Reels';
 import { api, staffSession } from './lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode, Suspense, lazy, type ReactNode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import './index.css';
 import DesktopShell from './components/DesktopShell';
 import Layout from './components/Layout';
@@ -109,10 +111,24 @@ function Analytics() {
 }
 
 /** Mantém a ligação em tempo real do chat enquanto houver sessão (uma só, em toda a app). */
+/** Dentro da app Android: barra de estado, botão voltar, ligações e ecrã de abertura. */
+function NativeInit() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    void initNative((p) => navigate(p));
+    const t = setTimeout(() => void hideSplash(), 350);
+    return () => clearTimeout(t);
+  }, [navigate]);
+  return null;
+}
+
 function Live() {
   const { user } = useAuth();
   useEffect(() => {
-    if (user) void syncPush();
+    if (user) {
+      void syncPush();
+      void syncNativePush();
+    }
   }, [user]);
   return user ? <ChatLive /> : null;
 }
@@ -171,6 +187,7 @@ createRoot(document.getElementById('root')!).render(
         <UpdateBanner />
         <SwipeClose />
         <BrowserRouter>
+          <NativeInit />
           <Gate>
           <Routes>
             <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />

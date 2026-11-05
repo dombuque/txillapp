@@ -1,3 +1,4 @@
+import { buzz } from '../lib/haptics';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -307,7 +308,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
     g.drawImage(src, 0, 0);
     setLit(false);
     if (torchOn && vtrack) vtrack.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] }).catch(() => undefined);
-    navigator.vibrate?.(15);
+    buzz(15);
     setFlash(true);
     setTimeout(() => setFlash(false), 140);
     setBusy(true);
@@ -381,7 +382,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
             const dx = e.changedTouches[0].clientX - st.x;
             const dy = e.changedTouches[0].clientY - st.y;
             if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-              navigator.vibrate?.(6);
+              buzz(6);
               cycleFx(dx < 0 ? 1 : -1);
             }
           }}
@@ -647,7 +648,7 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
                   <button
                     type="button"
                     onClick={() => { if (held.current) { held.current = false; return; } setOpen(it.id); }}
-                    onPointerDown={() => { held.current = false; hold.current = setTimeout(() => { held.current = true; navigator.vibrate?.(15); setMenu(it); }, 450); }}
+                    onPointerDown={() => { held.current = false; hold.current = setTimeout(() => { held.current = true; buzz(15); setMenu(it); }, 450); }}
                     onPointerUp={() => clearTimeout(hold.current)}
                     onPointerLeave={() => clearTimeout(hold.current)}
                     onPointerCancel={() => clearTimeout(hold.current)}
@@ -756,7 +757,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
 
   function react(id: string, art: string) {
     if (!cur) return;
-    navigator.vibrate?.(8);
+    buzz(8);
     setPop((p) => ({ n: (p?.n ?? 0) + 1, id }));
     // A reação fica só no Zás (o dono vê-a em «quem viu»); não vai para as mensagens. Só as respostas escritas vão para o chat.
     api.instantReact(cur.id, id).then(() => { setNote(tr('Reação enviada')); setTimeout(() => setNote(''), 1500); }).catch((e) => setErr((e as Error).message));
@@ -797,13 +798,13 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
         const dx = e.changedTouches[0].clientX - t.x;
         const dy = e.changedTouches[0].clientY - t.y;
         if (dx > 90 && dx > Math.abs(dy) * 1.5) {
-          navigator.vibrate?.(8);
+          buzz(8);
           onClose();
         }
       }
       // Nos meus Zás, deslizar para cima mostra quem viu e as reações.
       if (t?.up && e.changedTouches[0].clientY - t.y < -60) {
-        navigator.vibrate?.(8);
+        buzz(8);
         void showViewers();
       }
       setDrag(0);

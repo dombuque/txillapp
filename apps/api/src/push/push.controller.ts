@@ -11,6 +11,7 @@ const subSchema = z.object({
   endpoint: z.string().url().max(1000),
   keys: z.object({ p256dh: z.string().min(10).max(200), auth: z.string().min(10).max(100) }),
 });
+const deviceSchema = z.object({ token: z.string().min(20).max(400), platform: z.enum(['android', 'ios']) });
 const unsubSchema = z.object({ endpoint: z.string().url().max(1000) });
 
 @Controller('push')
@@ -28,6 +29,20 @@ export class PushController {
   subscribe(@Req() req: AuthedReq, @Body(new ZodPipe(subSchema)) b: z.infer<typeof subSchema>) {
     if (!this.push.enabled) throw new ServiceUnavailableException('Notificações push não estão ativas neste servidor');
     return this.push.subscribe(req.userId!, b);
+  }
+
+  /** App nativa (Android): regista o código do aparelho no Firebase. */
+  @Post('device')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  device(@Req() req: AuthedReq, @Body(new ZodPipe(deviceSchema)) b: z.infer<typeof deviceSchema>) {
+    return this.push.registerDevice(req.userId!, b.token, b.platform);
+  }
+
+  @Delete('device')
+  @HttpCode(204)
+  removeDevice(@Req() req: AuthedReq, @Body(new ZodPipe(z.object({ token: z.string().min(20).max(400) }))) b: { token: string }) {
+    return this.push.removeDevice(req.userId!, b.token);
   }
 
   /** "Enviar notificação de teste" (Definições): chega a todos os aparelhos desta conta. */

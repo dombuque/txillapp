@@ -1,3 +1,4 @@
+import { forgetNativePush } from './nativePush';
 import type { AuthResponse, PublicUser } from '@txillapp/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
@@ -60,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [signIn, qc]);
 
   const signOut = useCallback(async () => {
+    await forgetNativePush();
     await api.logout().catch(() => undefined);
     setAccessToken(null);
     setUser(null);

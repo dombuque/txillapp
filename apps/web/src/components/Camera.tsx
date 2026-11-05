@@ -1,3 +1,4 @@
+import { buzz } from '../lib/haptics';
 import Icon from './Icon';
 import { tr } from '../lib/i18n';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
@@ -92,7 +93,7 @@ export default function Camera({ count, max, onShot, onGallery, onClose }: Camer
     );
     setFlash(true);
     setTimeout(() => setFlash(false), 140);
-    navigator.vibrate?.(15);
+    buzz(15);
   }
 
   function gallery(e: ChangeEvent<HTMLInputElement>) {

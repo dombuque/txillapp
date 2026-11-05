@@ -1,3 +1,4 @@
+import { buzz } from '../lib/haptics';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { tr } from '../lib/i18n';
 import { markSeen } from '../lib/whatsNew';
@@ -241,7 +242,7 @@ export default function CameraStudio() {
     setWhiteOut(false);
     setFlash(true);
     setTimeout(() => setFlash(false), 140);
-    navigator.vibrate?.(15);
+    buzz(15);
     c.toBlob((blob) => {
       if (!blob) return;
       setCaptured({ photos: [new File([blob], `txill-${Date.now()}.jpg`, { type: 'image/jpeg' })] });
@@ -285,7 +286,7 @@ export default function CameraStudio() {
     recorder.current = rec;
     setSeconds(0);
     setRecording(true);
-    navigator.vibrate?.(20);
+    buzz(20);
     const t0 = Date.now();
     timer.current = setInterval(() => {
       const sec = (Date.now() - t0) / 1000;

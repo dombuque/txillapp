@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { registerSW } from 'virtual:pwa-register';
+import { isNative } from '../lib/native';
 
 /** O registo do service worker e a função que aplica a versão nova (para o botão "Procurar atualização" das Definições). */
 let current: { reg?: ServiceWorkerRegistration; apply?: ((reload?: boolean) => Promise<void>) | null; waiting: boolean } = { waiting: false };
@@ -40,6 +41,8 @@ export async function hardReload() {
  */
 export default function UpdateBanner() {
   useEffect(() => {
+    // Na app Android os ficheiros vão dentro da app (atualiza pela loja): não há service worker.
+    if (isNative()) return;
     let reg: ServiceWorkerRegistration | undefined;
     let waiting = false;
     let apply: ((reload?: boolean) => Promise<void>) | null = null;

@@ -1,3 +1,4 @@
+import { isNative } from './native';
 import { track } from './analytics';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
@@ -30,7 +31,7 @@ if (typeof window !== 'undefined') {
 
 export const standalone = () =>
   typeof window !== 'undefined' &&
-  (window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
+  (isNative() || window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
 
 /** iPhone/iPad. No iOS não existe botão de instalar para sites: o Safari só permite "Adicionar ao ecrã principal". */
 const ios = () => typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));

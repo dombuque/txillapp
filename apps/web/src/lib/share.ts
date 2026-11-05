@@ -1,5 +1,7 @@
 /** Mensagens prontas para partilhar o Txillapp (WhatsApp, SMS, redes...): o texto já vem escrito, só falta enviar. */
 
+import { isNative } from './native';
+
 export const SITE_URL = 'https://txillapp.com';
 
 export interface ShareData {
@@ -32,6 +34,15 @@ export const postShare = (displayName: string, _body: string, url: string): Shar
  * Devolve o que aconteceu, para a interface avisar.
  */
 export async function shareNow(data: ShareData): Promise<'shared' | 'copied' | 'failed' | 'cancelled'> {
+  if (isNative()) {
+    try {
+      const { Share } = await import('@capacitor/share');
+      await Share.share({ title: data.title, text: data.text || undefined, url: data.url, dialogTitle: data.title });
+      return 'shared';
+    } catch (e) {
+      if (/cancel/i.test((e as Error).message)) return 'cancelled';
+    }
+  }
   if (typeof navigator.share === 'function') {
     try {
       await navigator.share(data);

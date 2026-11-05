@@ -86,4 +86,20 @@ describe('notificações no telemóvel (Web Push)', () => {
     await api().delete('/api/v1/push/subscribe').set(auth(qa)).send({ endpoint: sub('b').endpoint }).expect(204);
     expect((await pool.query('SELECT count(*)::int AS n FROM social.push_subscriptions WHERE user_id = $1', [qa.id])).rows[0].n).toBe(0);
   });
+
+  it('app Android: regista o código do aparelho (passa para quem entrou por último) e remove-o', async () => {
+    const { qa, qb } = u;
+    const token = `fcm-${run}-${'x'.repeat(30)}`;
+    await api().post('/api/v1/push/device').set(auth(qa)).send({ token: 'curto', platform: 'android' }).expect(400);
+    await api().post('/api/v1/push/device').set(auth(qa)).send({ token, platform: 'android' }).expect(204);
+    await api().post('/api/v1/push/device').set(auth(qa)).send({ token, platform: 'android' }).expect(204); // repetir não duplica
+    await api().post('/api/v1/push/device').set(auth(qb)).send({ token, platform: 'android' }).expect(204); // o aparelho mudou de conta
+    const rows = (await pool.query('SELECT user_id FROM social.push_devices WHERE token = $1', [token])).rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].user_id).toBe(qb.id);
+    await api().delete('/api/v1/push/device').set(auth(qa)).send({ token }).expect(204); // não é dele: nada muda
+    expect((await pool.query('SELECT 1 FROM social.push_devices WHERE token = $1', [token])).rowCount).toBe(1);
+    await api().delete('/api/v1/push/device').set(auth(qb)).send({ token }).expect(204);
+    expect((await pool.query('SELECT 1 FROM social.push_devices WHERE token = $1', [token])).rowCount).toBe(0);
+  });
 });

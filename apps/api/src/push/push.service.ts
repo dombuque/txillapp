@@ -4,6 +4,7 @@ import webpush from 'web-push';
 import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
+import { FcmSender } from './fcm';
 
 /** O que a pessoa pode ligar ou desligar nas notificações. */
 export const NOTIFY_CATEGORIES = ['messages', 'follows', 'comments', 'mentions', 'reposts', 'gifts', 'reactions', 'invites'] as const;
@@ -28,13 +29,16 @@ export interface PushPayload {
 export class PushService {
   private readonly log = new Logger('Push');
   readonly enabled: boolean;
+  private readonly fcm: FcmSender;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(CONFIG) private readonly config: AppConfig,
   ) {
-    this.enabled = !!(config.VAPID_PUBLIC_KEY && config.VAPID_PRIVATE_KEY);
-    if (this.enabled) webpush.setVapidDetails(config.VAPID_SUBJECT, config.VAPID_PUBLIC_KEY!, config.VAPID_PRIVATE_KEY!);
+    this.fcm = new FcmSender(config.FCM_SERVICE_ACCOUNT_JSON);
+    const web = !!(config.VAPID_PUBLIC_KEY && config.VAPID_PRIVATE_KEY);
+    this.enabled = web || this.fcm.enabled;
+    if (web) webpush.setVapidDetails(config.VAPID_SUBJECT, config.VAPID_PUBLIC_KEY!, config.VAPID_PRIVATE_KEY!);
   }
 
   /** As categorias que a pessoa desligou. */
@@ -51,7 +55,20 @@ export class PushService {
   }
 
   publicKey() {
-    return { publicKey: this.enabled ? this.config.VAPID_PUBLIC_KEY! : null };
+    return { publicKey: this.config.VAPID_PUBLIC_KEY && this.config.VAPID_PRIVATE_KEY ? this.config.VAPID_PUBLIC_KEY : null };
+  }
+
+  /** App nativa: guarda o código do aparelho (FCM) desta conta. O mesmo aparelho pode mudar de conta. */
+  async registerDevice(userId: string, token: string, platform: 'android' | 'ios') {
+    await this.pool.query(
+      `INSERT INTO social.push_devices (token, user_id, platform) VALUES ($1, $2, $3)
+       ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, platform = EXCLUDED.platform, updated_at = now()`,
+      [token, userId, platform],
+    );
+  }
+
+  async removeDevice(userId: string, token: string) {
+    await this.pool.query('DELETE FROM social.push_devices WHERE user_id = $1 AND token = $2', [userId, token]);
   }
 
   async subscribe(userId: string, sub: { endpoint: string; keys: { p256dh: string; auth: string } }) {
@@ -72,6 +89,20 @@ export class PushService {
     if (!this.enabled) return;
     try {
       if (payload.category && (await this.off(userId)).includes(payload.category)) return;
+      if (this.fcm.enabled) {
+        const devices = (await this.pool.query('SELECT token FROM social.push_devices WHERE user_id = $1', [userId])).rows;
+        await Promise.all(
+          devices.map(async (d) => {
+            try {
+              const r = await this.fcm.send(d.token as string, payload);
+              if (r === 'dead') await this.pool.query('DELETE FROM social.push_devices WHERE token = $1', [d.token]);
+              else if (r === 'error') this.log.warn('falha no push nativo');
+            } catch (e) {
+              this.log.warn(`falha no push nativo: ${(e as Error).message}`);
+            }
+          }),
+        );
+      }
       const { rows } = await this.pool.query('SELECT endpoint, p256dh, auth FROM social.push_subscriptions WHERE user_id = $1', [userId]);
       await Promise.all(
         rows.map(async (r) => {

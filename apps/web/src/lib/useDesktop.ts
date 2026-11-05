@@ -1,3 +1,4 @@
+import { isNative } from './native';
 import { useSyncExternalStore } from 'react';
 
 /** Largura a partir da qual a app passa a ter o formato de computador (menu à esquerda, painel à direita). */
@@ -18,4 +19,4 @@ export const useDesktop = () =>
 
 /** A app instalada (PWA) abre direto no login/feed: a página de apresentação é para quem chega pelo navegador. */
 export const isStandalone = () =>
-  window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  isNative() || window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;

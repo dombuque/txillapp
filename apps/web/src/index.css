@@ -170,3 +170,28 @@ body {
 
 /* Quem prefere menos movimento: sem a animação do copo (a contagem fica, só sem o encolher). */
 @media (prefers-reduced-motion: reduce) { [class*='animate-[burst'] { display: none !important; } [class*='shrink_6s'] { animation: none !important; } }
+
+/* Dentro da app Android: comporta-se como app, não como página web. */
+.native,
+.native body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+.native input,
+.native textarea,
+.native [contenteditable='true'],
+.native .selectable {
+  -webkit-user-select: text;
+  user-select: text;
+}
+.native img,
+.native a {
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+}
+.native {
+  touch-action: manipulation;
+}

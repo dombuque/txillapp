@@ -1,3 +1,4 @@
+import { buzz } from '../lib/haptics';
 import TeachBar from './TeachBar';
 import { createPortal } from 'react-dom';
 import { tr, locale } from '../lib/i18n';
@@ -264,7 +265,7 @@ function useBrindar(post: Post) {
   const patch = usePatch(post.id);
   async function brindar() {
     setBurst((n) => n + 1);
-    navigator.vibrate?.(8);
+    buzz(8);
     if (post.cheered) return;
     track('cheer', { on: true, source: post.feed?.source ?? 'other' });
     patch({ cheered: true, cheers: post.cheers + 1 });

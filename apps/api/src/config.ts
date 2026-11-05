@@ -68,6 +68,8 @@ const schema = z.object({
   PUBLIC_URL: z.string().url().default('http://localhost:5173'),
   /** Onde fica o backoffice (para as ligações de convite da equipa). Sem isto usa o PUBLIC_URL. */
   ADMIN_URL: z.string().url().optional(),
+  /** Conta de serviço do Firebase (JSON numa linha) para as notificações da app Android. Sem isto, só há push web. */
+  FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
   /** Só para testes: guarda os e-mails em memória em vez de os enviar. */
   MAIL_CAPTURE: z.enum(['true', 'false']).default('false'),
   /**

@@ -1,21 +1,23 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
-/**
- * Txillapp para Android (e mais tarde iOS). A app nativa abre o Txillapp em produção dentro de um WebView:
- * as atualizações chegam sem passar pela loja, e a sessão (cookie) e a API são as mesmas da web.
- */
+/** Txillapp para Android (e mais tarde iOS): a app leva dentro os ficheiros do Txillapp. */
 const config: CapacitorConfig = {
   appId: 'com.txillapp.app',
   appName: 'Txillapp',
   webDir: 'dist',
+  // Os ficheiros da app vão dentro do APK (abre logo, sem esperar pela rede) e usam o endereço txillapp.com:
+  // a API é a mesma de sempre (os pedidos a /api saem para a rede, ver MainActivity), por isso as sessões e as ligações funcionam como no site.
   server: {
-    url: 'https://txillapp.com',
+    hostname: 'txillapp.com',
     androidScheme: 'https',
-    allowNavigation: ['txillapp.com', '*.txillapp.com'],
+    allowNavigation: ['txillapp.com'],
   },
-  android: { allowMixedContent: false },
+  appendUserAgent: 'TxillappAndroid',
+  backgroundColor: '#ffffff',
+  android: { allowMixedContent: false, backgroundColor: '#ffffff' },
   plugins: {
-    SplashScreen: { launchShowDuration: 800, backgroundColor: '#ffffff' },
+    SplashScreen: { launchShowDuration: 0, launchAutoHide: false, backgroundColor: '#ffffff', androidScaleType: 'CENTER_INSIDE' },
+    StatusBar: { overlaysWebView: false, style: 'DARK', backgroundColor: '#ffffff' },
   },
 };
 

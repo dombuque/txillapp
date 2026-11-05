@@ -1,3 +1,4 @@
+import { buzz } from '../lib/haptics';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { tr } from '../lib/i18n';
 import { useEffect, useRef, useState } from 'react';
@@ -143,7 +144,7 @@ function NoteView({ note, onClose }: { note: Note; onClose: () => void }) {
   const qc = useQueryClient();
   const [cheered, setCheered] = useState(!!note.cheered);
   async function cheer() {
-    navigator.vibrate?.(8);
+    buzz(8);
     setCheered((c) => !c);
     try {
       const r = await api.cheerNote(note.username);
