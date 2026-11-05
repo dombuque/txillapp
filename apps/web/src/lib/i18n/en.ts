@@ -1243,6 +1243,12 @@ export const EN: Record<string, string> = {
   'Áudio inválido ou ainda não carregado': 'Invalid audio or not uploaded yet',
 
   // Novos
+  'A preparar o vídeo…': 'Preparing the video…',
+  'A enviar… {v0}%': 'Uploading… {v0}%',
+  'O vídeo do story pode ter até 30 segundos': 'A story video can be up to 30 seconds',
+  'Esse ficheiro não serve. Usa uma foto (JPEG, PNG, WebP) ou um vídeo (MP4, MOV)': 'That file does not work. Use a photo (JPEG, PNG, WebP) or a video (MP4, MOV)',
+  'Faltam {n} pontos para {next}. Variedade e gostos avaliados valem mais.': 'You need {n} more points for {next}. Variety and rated tastes count more.',
+  'Falta {n} ponto para {next}. Variedade e gostos avaliados valem mais.': 'You need {n} more point for {next}. Variety and rated tastes count more.',
   'Encher a geleira (3 gostos)': 'Fill your geleira (3 tastes)',
   'Seguir 3 pessoas': 'Follow 3 people',
   'Fazer o primeiro post': 'Make your first post',

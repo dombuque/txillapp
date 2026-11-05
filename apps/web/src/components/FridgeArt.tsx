@@ -2,24 +2,19 @@ import { tr } from '../lib/i18n';
 import { useId } from 'react';
 
 /**
- * Pontuação da geleira, a premiar o que é da pesada: bebidas com álcool e vibes de festa valem mais; o resto vale pouco.
- * Os favoritos dão mais um ponto. Quem tem muita paulada na geleira sobe depressa de nível.
+ * Pontuação da geleira: quantidade, variedade (grupos diferentes) e gostos avaliados. Não premeia álcool: serve para toda a malta.
+ * É a mesma conta do servidor (que manda quando carrega); aqui só serve enquanto o nível não chega.
  */
-export function geleiraPoints(items: { kind: string; category: string; alcoholic: boolean; favorite?: boolean; pending?: boolean }[]): number {
-  let n = 0;
-  for (const i of items) {
-    if (i.pending) continue;
-    let p = 1;
-    if (i.kind === 'bebida') p = i.alcoholic ? 4 : 1;
-    else if (i.kind === 'vibe') p = i.category === 'festa' ? 4 : i.category === 'musica' || i.category === 'convivio' ? 3 : 2;
-    else if (i.kind === 'sitio') p = i.category === 'noite' ? 3 : 1;
-    n += p + (i.favorite ? 1 : 0);
-  }
-  return n;
+export function geleiraPoints(items: { kind: string; category: string; alcoholic?: boolean; favorite?: boolean; rating?: number | null; pending?: boolean }[]): number {
+  const list = items.filter((i) => !i.pending && (i.kind === 'bebida' || i.kind === 'comida'));
+  const fav = list.filter((i) => i.favorite).length;
+  const rated = list.filter((i) => i.rating != null).length;
+  const cats = new Set(list.map((i) => `${i.kind}:${i.category}`)).size;
+  return list.length + fav + Math.floor(rated / 2) + cats;
 }
 
 /** Nível da geleira pelos pontos, em calão da malta (txilar, maningue, paulada, madala). */
-const STEPS = [1, 10, 25, 50] as const;
+const STEPS = [1, 12, 30, 60] as const;
 export const geleiraLevel = (points: number) => (points <= 0 ? 0 : points >= STEPS[3] ? 4 : points >= STEPS[2] ? 3 : points >= STEPS[1] ? 2 : 1);
 export const LEVEL_LABEL = [tr('Geleira seca'), tr('A txilar'), tr('Maningue abastecida'), tr('Paulada garantida'), tr('Madala da paulada')];
 /** Quanto falta para o nível seguinte, numa frase. */
@@ -28,7 +23,7 @@ export function nextLevelHint(points: number): string {
   if (l === 4) return tr('Nível máximo: madala da paulada!');
   if (l === 0) return tr('Põe o primeiro gosto para começar a txilar.');
   const falta = STEPS[l] - points;
-  return tr(falta === 1 ? 'Falta {n} ponto para {next}. Bebidas com álcool e vibes de festa valem mais.' : 'Faltam {n} pontos para {next}. Bebidas com álcool e vibes de festa valem mais.', { n: falta, next: LEVEL_LABEL[l + 1].toLowerCase() });
+  return tr(falta === 1 ? 'Falta {n} ponto para {next}. Variedade e gostos avaliados valem mais.' : 'Faltam {n} pontos para {next}. Variedade e gostos avaliados valem mais.', { n: falta, next: LEVEL_LABEL[l + 1] });
 }
 
 const ITEM_COLORS = ['#fb7185', '#fbbf24', '#34d399', '#60a5fa', '#c084fc', '#fb923c', '#f472b6', '#2dd4bf'];

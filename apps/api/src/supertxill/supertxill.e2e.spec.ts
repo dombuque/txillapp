@@ -7,6 +7,11 @@ import { migrate } from '../db/migrate';
 import { createApp } from '../main';
 import { MSG } from './constants';
 import { classify } from '../common/topics';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import ffmpegPath from 'ffmpeg-static';
 import { SuperTxillService } from './supertxill.service';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
@@ -407,5 +412,33 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     expect(g1.steps.filter((x) => x.done).map((x) => x.id)).toEqual(['bio', 'post', 'follow']);
     expect(g1.percent).toBe(60);
     await api().get('/api/v1/users/me/completeness').expect(401);
+  });
+
+  it('story com vídeo: aceita até 30 s e recusa mais longo', async () => {
+    const a = await signup('sv9');
+    const dir = mkdtempSync(join(tmpdir(), 'txstory-'));
+    const make = (secs: number) => {
+      const f = join(dir, `v${secs}.mp4`);
+      execFileSync(ffmpegPath as unknown as string, ['-y', '-f', 'lavfi', '-i', `testsrc=size=320x568:rate=10:duration=${secs}`, '-f', 'lavfi', '-i', `sine=frequency=440:duration=${secs}`, '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', f], { stdio: 'ignore' });
+      return readFileSync(f);
+    };
+    const upload = async (bytes: Buffer) => {
+      const r = await api().post('/api/v1/media/uploads').set(auth(a)).send({ mime: 'video/mp4', size: bytes.length }).expect(201);
+      await api().put(r.body.uploadUrl).set('Content-Type', 'video/mp4').send(bytes).expect(200);
+      const id = r.body.assetId as string;
+      await api().post(`/api/v1/media/${id}/complete`).set(auth(a)).expect(200);
+      for (let n = 0; n < 80; n++) {
+        const st = (await api().get(`/api/v1/media/${id}/status`).set(auth(a)).expect(200)).body as { status: string };
+        if (st.status !== 'processing') break;
+        await new Promise((res) => setTimeout(res, 500));
+      }
+      return id;
+    };
+    const short = await upload(make(2));
+    const ok = (await api().post('/api/v1/stories').set(auth(a)).send({ mediaId: short }).expect(201)).body as { mediaKind: string };
+    expect(ok.mediaKind).toBe('video');
+    const long = await upload(make(33));
+    const bad = await api().post('/api/v1/stories').set(auth(a)).send({ mediaId: long }).expect(400);
+    expect(JSON.stringify(bad.body)).toContain('30 segundos');
   });
 });

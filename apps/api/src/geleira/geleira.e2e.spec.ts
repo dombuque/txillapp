@@ -174,9 +174,8 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
     expect((await api().get('/api/v1/settings/privacy').set(auth(u.gc))).body.welcomed).toBe(true);
   });
 
-  it('nível da geleira: pontos premeiam álcool e vibes de festa; título do topo respeita a idade; quem não pode ver não vê', async () => {
+  it('nível da geleira: premeia variedade e gostos avaliados (não o álcool nem os Txills); título do topo respeita a idade; quem não pode ver não vê', async () => {
     const { ga, gb } = u;
-    const setBalance = (x: U, n: number) => pool.query(`INSERT INTO ledger.accounts (id, user_id, kind, balance) VALUES (gen_random_uuid(), $1, 'user_wallet', $2) ON CONFLICT (user_id) DO UPDATE SET balance = $2`, [x.id, n]);
     const level = (viewer: U, of: U) => api().get(`/api/v1/users/${of.username}/geleira/level`).set(auth(viewer));
     await api().put('/api/v1/geleira/me/settings').set(auth(ga)).send({ visibility: 'everyone' }).expect(200);
     await pool.query('DELETE FROM taste.user_items WHERE user_id = $1', [ga.id]);
@@ -184,25 +183,25 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
     expect(mine.level).toBe(0);
     expect(mine.title).toBe('Geleira seca');
 
-    // Uma cerveja (álcool, 4 pontos) pesa mais do que uma água (1 ponto).
-    const beer = (await pool.query(`SELECT id FROM taste.items WHERE status = 'curated' AND kind = 'bebida' AND alcoholic LIMIT 1`)).rows[0].id as string;
-    const water = (await pool.query(`SELECT id FROM taste.items WHERE status = 'curated' AND kind = 'bebida' AND NOT alcoholic LIMIT 1`)).rows[0].id as string;
-    await pool.query(`INSERT INTO taste.user_items (user_id, item_id) VALUES ($1, $2), ($1, $3)`, [ga.id, beer, water]);
-    await setBalance(ga, 0);
-    expect((await level(gb, ga).expect(200)).body).toMatchObject({ points: 5, level: 1, title: 'A txilar', toNext: 5, txillContribution: 0 });
-    // Os Txills também contam: 1 ponto por cada 200, até 5.
-    await setBalance(ga, 1000);
-    expect((await level(gb, ga).expect(200)).body).toMatchObject({ points: 10, level: 2, txillContribution: 5 });
-    await setBalance(ga, 100000);
-    expect((await level(gb, ga).expect(200)).body.txillContribution).toBe(5); // tem teto
-    await setBalance(ga, 0);
+    // Duas bebidas e duas comidas: começa a txilar, mas está longe de "abastecida".
+    const pick = async (kind: string, alc: boolean, n: number) =>
+      (await pool.query(`SELECT id FROM taste.items WHERE status = 'curated' AND kind = $1 AND alcoholic = $2 ORDER BY category, name LIMIT $3`, [kind, alc, n])).rows.map((r) => r.id as string);
+    const four = [...(await pick('bebida', true, 2)), ...(await pick('comida', false, 2))];
+    for (const id of four) await pool.query('INSERT INTO taste.user_items (user_id, item_id) VALUES ($1, $2)', [ga.id, id]);
+    const small = (await level(gb, ga).expect(200)).body;
+    expect(small).toMatchObject({ level: 1, title: 'A txilar', txillContribution: 0 });
+    expect(small.points).toBeLessThan(12);
+    // O álcool não pesa mais do que o resto: quatro sem álcool dão os mesmos pontos.
+    await pool.query('DELETE FROM taste.user_items WHERE user_id = $1', [ga.id]);
+    for (const id of [...(await pick('bebida', false, 2)), ...(await pick('comida', false, 2))]) await pool.query('INSERT INTO taste.user_items (user_id, item_id) VALUES ($1, $2)', [ga.id, id]);
+    expect((await level(gb, ga).expect(200)).body.level).toBe(1);
+
+    // Muita coisa, mas sem gostos avaliados: o topo não é alcançado (fica no nível 2).
+    await pool.query(`INSERT INTO taste.user_items (user_id, item_id) SELECT $1, i.id FROM taste.items i WHERE i.status = 'curated' AND i.kind IN ('bebida', 'comida') ON CONFLICT DO NOTHING`, [ga.id]);
+    expect((await level(gb, ga).expect(200)).body.level).toBe(2);
+    await pool.query(`UPDATE taste.user_items SET rating = 4, favorite = true WHERE user_id = $1`, [ga.id]);
 
     // O título do topo depende da idade (sem nunca mostrar a data): 20 anos, 35 e 60.
-    await pool.query(`UPDATE taste.user_items SET favorite = true WHERE user_id = $1`, [ga.id]); // +2 pontos
-    await pool.query(`INSERT INTO taste.user_items (user_id, item_id, favorite) SELECT $1, i.id, true FROM taste.items i WHERE i.status = 'curated' AND i.alcoholic AND i.id <> $2 LIMIT 12`, [ga.id, beer]);
-    // Sem gostos avaliados, mesmo com muitas bebidas, o topo não é alcançado (fica no nível 2).
-    expect((await level(gb, ga).expect(200)).body.level).toBe(2);
-    await pool.query(`UPDATE taste.user_items SET rating = 4 WHERE user_id = $1`, [ga.id]);
     const top = async (birth: string) => {
       await pool.query('UPDATE identity.users SET birth_date = $2 WHERE id = $1', [ga.id, birth]);
       return (await level(gb, ga).expect(200)).body;

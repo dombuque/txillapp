@@ -195,33 +195,37 @@ export class GeleiraService {
       [username, viewerId],
     );
     if (!owner[0] || !owner[0].can || !owner[0].shown) throw new NotFoundException('Sem geleira para mostrar');
+    // O nível premeia quantidade, variedade e gostos avaliados (nunca o álcool nem os Txills). Só contam bebidas e comidas, que é o que a geleira mostra.
     const { rows } = await this.pool.query(
-      `SELECT (SELECT coalesce(sum(
-                (CASE WHEN i.kind = 'bebida' THEN CASE WHEN i.alcoholic THEN 4 ELSE 1 END
-                      WHEN i.kind = 'vibe' THEN CASE i.category WHEN 'festa' THEN 4 WHEN 'musica' THEN 3 WHEN 'convivio' THEN 3 ELSE 2 END
-                      WHEN i.kind = 'sitio' THEN CASE WHEN i.category = 'noite' THEN 3 ELSE 1 END
-                      ELSE 1 END) + CASE WHEN ui.favorite THEN 1 ELSE 0 END), 0)::int
-                FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id WHERE ui.user_id = $1 AND i.status = 'curated') AS taste_points,
-              -- Os Txills também contam, mas pouco: 1 ponto por cada 200, até 5 (dinheiro não faz uma paulada).
-              (SELECT least(5, floor(coalesce(sum(a.balance), 0) / 200))::int FROM ledger.accounts a WHERE a.user_id = $1) AS txill_points,
-              -- Para subir aos níveis de topo é preciso ter mesmo bebidas com álcool e gostos avaliados (1 a 5).
-              (SELECT count(*)::int FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id WHERE ui.user_id = $1 AND i.status = 'curated' AND i.kind = 'bebida' AND i.alcoholic) AS alc_n,
-              (SELECT count(*)::int FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id WHERE ui.user_id = $1 AND i.status = 'curated' AND ui.rating IS NOT NULL) AS rated_n`,
+      `SELECT count(*)::int AS n,
+              count(*) FILTER (WHERE ui.favorite)::int AS fav,
+              count(*) FILTER (WHERE ui.rating IS NOT NULL)::int AS rated,
+              count(DISTINCT i.category)::int AS cats
+         FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id
+        WHERE ui.user_id = $1 AND i.status = 'curated' AND i.kind IN ('bebida', 'comida')`,
       [owner[0].id],
     );
-    const points = (rows[0].taste_points as number) + ((rows[0].txill_points as number) ?? 0);
-    const steps = [1, 10, 25, 50];
+    const { n, fav, rated, cats } = rows[0] as { n: number; fav: number; rated: number; cats: number };
+    const points = n + fav + Math.floor(rated / 2) + cats;
+    const steps = [1, 12, 30, 60];
     const byPoints = points <= 0 ? 0 : points >= steps[3] ? 4 : points >= steps[2] ? 3 : points >= steps[1] ? 2 : 1;
-    // Os dois níveis de cima pedem substância: bebidas com álcool e gostos avaliados. Sem isso, ficam no nível 2.
-    const alc = rows[0].alc_n as number;
-    const rated = rows[0].rated_n as number;
-    const needs = [0, 0, 0, 3, 6];
-    const level = Math.min(byPoints, alc >= needs[4] && rated >= needs[4] ? 4 : alc >= needs[3] && rated >= needs[3] ? 3 : 2);
+    // Os dois níveis de cima pedem substância: variedade (grupos diferentes) e gostos avaliados.
+    const gate = cats >= 6 && rated >= 10 ? 4 : cats >= 4 && rated >= 5 ? 3 : 2;
+    const level = Math.min(byPoints, gate);
     const held = level < byPoints;
     const age = owner[0].birth_date ? Math.floor((Date.now() - new Date(owner[0].birth_date as string).getTime()) / 31_557_600_000) : null;
     const top = age !== null && age >= 45 ? 'Madala da paulada' : age !== null && age >= 30 ? 'Mestre da paulada' : 'Lenda da paulada';
     const titles = ['Geleira seca', 'A txilar', 'Maningue abastecida', 'Paulada garantida', top];
-    return { points, tasteContribution: rows[0].taste_points as number, txillContribution: (rows[0].txill_points as number) ?? 0, level, title: titles[level], toNext: level >= 4 ? null : held ? null : steps[level] - points, hint: held ? (level >= 2 ? `Para subir: pelo menos ${needs[level + 1]} bebidas com álcool e ${needs[level + 1]} gostos avaliados` : null) : null, nextTitle: level >= 4 ? null : level === 3 ? top : titles[level + 1] };
+    return {
+      points,
+      tasteContribution: points,
+      txillContribution: 0,
+      level,
+      title: titles[level],
+      toNext: level >= 4 ? null : held ? null : steps[level] - points,
+      hint: held ? (level >= 2 ? `Para subir: mais variedade (${level === 2 ? 4 : 6} grupos diferentes) e gostos avaliados (${level === 2 ? 5 : 10})` : null) : null,
+      nextTitle: level >= 4 ? null : level === 3 ? top : titles[level + 1],
+    };
   }
 
   async settings(userId: string) {

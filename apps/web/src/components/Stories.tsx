@@ -23,6 +23,9 @@ import { createPortal } from 'react-dom';
 const DURATION_MS = 5000;
 const MAX_BYTES = 8 * 1024 * 1024;
 const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+const MAX_VIDEO_S = 30;
 
 /**
  * Anel dos stories, como no Instagram: gradiente para os por ver, cinzento para os vistos,
@@ -151,8 +154,10 @@ export default function StoriesTray() {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    if (!TYPES.includes(f.type)) return setErr(tr('Essa foto não serve. Usa JPEG, PNG ou WebP'));
-    if (f.size > MAX_BYTES) return setErr(tr('Foto pesada demais! Máximo 8 MB'));
+    const isVideo = VIDEO_TYPES.includes(f.type);
+    if (!TYPES.includes(f.type) && !isVideo) return setErr(tr('Esse ficheiro não serve. Usa uma foto (JPEG, PNG, WebP) ou um vídeo (MP4, MOV)'));
+    if (!isVideo && f.size > MAX_BYTES) return setErr(tr('Foto pesada demais! Máximo 8 MB'));
+    if (isVideo && f.size > MAX_VIDEO_BYTES) return setErr(tr('Vídeo pesado demais! Máximo 100 MB'));
     setErr('');
     setFile(f);
   }
@@ -171,12 +176,12 @@ export default function StoriesTray() {
             ) : (
               <label className="block cursor-pointer" aria-label={tr('Criar story')}>
                 <Ring count={1} seenCount={1}><Avatar name={user?.displayName ?? '?'} username={user?.username} size={56} ring={false} /></Ring>
-                <input type="file" accept={TYPES.join(',')} onChange={choose} className="sr-only" />
+                <input type="file" accept={[...TYPES, ...VIDEO_TYPES].join(',')} onChange={choose} className="sr-only" />
               </label>
             )}
             <label className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-brand text-base font-bold leading-none text-white" aria-label={tr('Adicionar ao story')}>
               +
-              {mine && <input type="file" accept={TYPES.join(',')} onChange={choose} className="sr-only" />}
+              {mine && <input type="file" accept={[...TYPES, ...VIDEO_TYPES].join(',')} onChange={choose} className="sr-only" />}
             </label>
           </div>
           <span className={`${label} font-medium text-zinc-800`}>{tr('O teu story')}</span>
@@ -795,13 +800,29 @@ export function StoryCreator({ file, onClose, onBack }: { file: File; onClose: (
   const [err, setErr] = useState('');
   const [music, setMusic] = useState<Track | null>(null);
   const [pickMusic, setPickMusic] = useState(false);
+  const isVideo = file.type.startsWith('video/');
+  const [stage, setStage] = useState('');
 
   async function share(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setErr('');
     try {
-      const mediaId = await api.uploadImage(file);
+      let mediaId: string;
+      if (isVideo) {
+        // O vídeo do story tem no máximo 30 s.
+        const secs = await new Promise<number>((res) => {
+          const v = document.createElement('video');
+          v.preload = 'metadata';
+          v.onloadedmetadata = () => res(v.duration);
+          v.onerror = () => res(0);
+          v.src = preview;
+        });
+        if (secs > MAX_VIDEO_S + 1) throw new Error(tr('O vídeo do story pode ter até 30 segundos'));
+        mediaId = await api.uploadVideo(file, { progress: (f) => setStage(tr('A enviar… {v0}%', { v0: Math.round(f * 100) })), stage: (s) => s === 'processing' && setStage(tr('A preparar o vídeo…')) });
+      } else {
+        mediaId = await api.uploadImage(file);
+      }
       await api.createStory(mediaId, caption.trim(), audience, music);
       await qc.invalidateQueries({ queryKey: ['stories'] });
       onClose();
@@ -814,7 +835,11 @@ export function StoryCreator({ file, onClose, onBack }: { file: File; onClose: (
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black" style={visibleStyle(vv)} role="dialog" aria-modal="true" aria-label={tr('Novo story')}>
       <form onSubmit={share} className="relative flex h-full w-full max-w-xl flex-col">
-        <img src={preview} alt={tr('Pré-visualização do story')} className="min-h-0 flex-1 object-contain" />
+        {isVideo ? (
+          <video src={preview} autoPlay loop muted playsInline controls={false} aria-label={tr('Pré-visualização do story')} className="min-h-0 flex-1 bg-black object-contain" />
+        ) : (
+          <img src={preview} alt={tr('Pré-visualização do story')} className="min-h-0 flex-1 object-contain" />
+        )}
         <button type="button" onClick={onBack ?? onClose} aria-label={onBack ? 'Voltar' : 'Cancelar'} className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] px-2 text-3xl leading-none text-white">×</button>
         <div className="space-y-3 bg-black px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
           <MentionTextarea single up value={caption} onChange={setCaption} maxLength={200} placeholder={tr('Escreve uma legenda…')} aria-label={tr('Legenda')} className="w-full rounded-full bg-white/15 px-4 py-3 text-white outline-none placeholder:text-white/60 focus:bg-white/25" />
@@ -848,7 +873,7 @@ export function StoryCreator({ file, onClose, onBack }: { file: File; onClose: (
           )}
           <p role="alert" className="min-h-5 text-center text-sm text-red-400">{err}</p>
           <button disabled={busy} className={`w-full rounded-full py-3.5 text-lg font-semibold text-white transition active:scale-[0.98] disabled:opacity-50 ${audience === 'close_friends' ? 'bg-emerald-600' : 'bg-brand'}`}>
-            {busy ? tr('A publicar…') : audience === 'close_friends' ? tr('Partilhar com amigos próximos') : tr('Partilhar no story')}
+            {busy ? (stage || tr('A publicar…')) : audience === 'close_friends' ? tr('Partilhar com amigos próximos') : tr('Partilhar no story')}
           </button>
         </div>
       </form>

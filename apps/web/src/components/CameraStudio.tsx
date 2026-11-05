@@ -17,6 +17,7 @@ const MODES: { id: Mode; label: string }[] = [
   { id: 'reel', label: 'Reel' },
 ];
 const MAX_REEL_S = 60;
+const MAX_STORY_S = 30;
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
@@ -289,7 +290,7 @@ export default function CameraStudio() {
     timer.current = setInterval(() => {
       const sec = (Date.now() - t0) / 1000;
       setSeconds(sec);
-      if (sec >= MAX_REEL_S) stopRecording();
+      if (sec >= (mode === 'story' ? MAX_STORY_S : MAX_REEL_S)) stopRecording();
     }, 100);
   }
   function stopRecording() {
@@ -343,7 +344,7 @@ export default function CameraStudio() {
     held.current = false;
     dragFrom.current = { y: e.clientY, z: zoomRef.current };
     e.currentTarget.setPointerCapture?.(e.pointerId);
-    if (mode === 'story' || recording) return;
+    if (recording) return;
     holdTimer.current = setTimeout(() => {
       held.current = true;
       markSeen('video-longo');
@@ -380,7 +381,6 @@ export default function CameraStudio() {
     const vid = files.find((f) => f.type.startsWith('video/'));
     if (mode === 'reel' && !vid) return setErr(tr('No Reel só entram vídeos'));
     if (vid) {
-      if (mode === 'story') return setErr(tr('Os stories são só de fotos por agora'));
       if (vid.size > 100 * 1024 * 1024) return setErr(tr('Vídeo pesado demais! Máximo 100 MB'));
       return setCaptured({ video: vid });
     }
@@ -400,7 +400,7 @@ export default function CameraStudio() {
   };
 
   function proceed(files: File[] | File) {
-    if (mode === 'story' && !(files instanceof File)) return setStory(files[0]);
+    if (mode === 'story') return setStory(files instanceof File ? files : files[0]);
     if (files instanceof File) setHandoff({ video: files });
     else setHandoff({ photos: files });
     navigate('/new/post', { replace: true });
@@ -409,7 +409,7 @@ export default function CameraStudio() {
   const round = 'flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-md transition active:scale-90';
   // Tipos concretos (sem 'image/*' nem 'video/*'): o iPhone deixa de oferecer "Tirar foto ou vídeo" aqui, que já estás na câmara.
   const VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
-  const accept = mode === 'reel' ? VIDEO_TYPES.join(',') : mode === 'story' ? IMAGE_TYPES.join(',') : [...IMAGE_TYPES, ...VIDEO_TYPES].join(',');
+  const accept = mode === 'reel' ? VIDEO_TYPES.join(',') : [...IMAGE_TYPES, ...VIDEO_TYPES].join(',');
   const galleryInput = <input type="file" multiple={mode === 'post'} accept={accept} onChange={gallery} className="sr-only" aria-label={tr('Escolher da galeria')} />;
   const R = 41;
   const C = 2 * Math.PI * R;

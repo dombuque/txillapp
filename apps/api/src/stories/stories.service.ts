@@ -44,7 +44,10 @@ export class StoriesService {
           AND NOT EXISTS (SELECT 1 FROM content.stories s WHERE s.media_id = a.id)`,
       [mediaId, userId],
     );
-    if (!ok.rowCount) throw new BadRequestException('Foto inválida ou ainda não carregada');
+    if (!ok.rowCount) throw new BadRequestException('Ficheiro inválido ou ainda não carregado');
+    // Vídeo no story: até 30 segundos.
+    const long = await this.pool.query("SELECT 1 FROM content.media_assets a WHERE a.id = $1 AND a.mime LIKE 'video/%' AND a.duration_ms > 31000", [mediaId]);
+    if (long.rowCount) throw new BadRequestException('O vídeo do story pode ter até 30 segundos');
     const id = uuidv7();
     await this.pool.query('INSERT INTO content.stories (id, author_id, media_id, caption, audience, music) VALUES ($1, $2, $3, $4, $5, $6)', [
       id, userId, mediaId, caption || null, audience, music ? JSON.stringify(music) : null,
