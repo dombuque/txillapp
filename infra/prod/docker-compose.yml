@@ -45,6 +45,7 @@ services:
     environment:
       DATABASE_URL: postgres://txill:${POSTGRES_PASSWORD}@postgres:5432/txillapp
       NODE_ENV: production
+      ADMIN_URL: https://admin.txillapp.com
     volumes:
       - uploads:/data/uploads # só usado com STORAGE_DRIVER=local (e como pasta temporária dos vídeos)
       - models:/data/models # modelo de verificação de fotos (descarrega uma vez)

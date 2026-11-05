@@ -182,6 +182,21 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
             <Route path="/google-username" element={<PublicOnly><GoogleUsername /></PublicOnly>} />
+            {/* Equipa do backoffice: sessão própria, fora da rede social. */}
+            <Route path="/admin/stats" element={<StaffRoute><Suspense fallback={null}><AdminStats /></Suspense></StaffRoute>} />
+            <Route path="/admin/verifications" element={<StaffRoute><Suspense fallback={null}><AdminVerifications /></Suspense></StaffRoute>} />
+            <Route path="/backoffice/login" element={<Suspense fallback={null}><BoLogin /></Suspense>} />
+            <Route path="/backoffice/setup" element={<Suspense fallback={null}><BoSetup /></Suspense>} />
+            <Route path="/backoffice" element={<StaffRoute><Suspense fallback={null}><BoLayout /></Suspense></StaffRoute>}>
+                  <Route index element={<Suspense fallback={null}><BoHome /></Suspense>} />
+                  <Route path="reports" element={<Suspense fallback={null}><BoReports /></Suspense>} />
+                  <Route path="users" element={<Suspense fallback={null}><BoUsers /></Suspense>} />
+                  <Route path="users/:id" element={<Suspense fallback={null}><BoUser /></Suspense>} />
+                  <Route path="audit" element={<Suspense fallback={null}><BoAudit /></Suspense>} />
+                  <Route path="team" element={<Suspense fallback={null}><BoTeam /></Suspense>} />
+                  <Route path="venues" element={<Suspense fallback={null}><BoVenues /></Suspense>} />
+            </Route>
+            <Route path="/admin" element={<StaffRoute><Suspense fallback={null}><Admin /></Suspense></StaffRoute>} />
             <Route element={<Private><DesktopShell /></Private>}>
               {/* Páginas próprias em ecrã inteiro (como a Atividade do Instagram): sem a barra de baixo. */}
               <Route path="/notifications" element={<Private><Notifications /></Private>} />
@@ -191,30 +206,16 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/saved" element={<Private><Suspense fallback={<Splash />}><SavedPosts /></Suspense></Private>} />
               <Route path="/insights" element={<Private><Suspense fallback={<Splash />}><Insights /></Suspense></Private>} />
               <Route path="/settings" element={<Private><Settings /></Private>} />
-              <Route path="/admin/stats" element={<StaffRoute><Suspense fallback={null}><AdminStats /></Suspense></StaffRoute>} />
               <Route path="/reels" element={<Private><Reels /></Private>} />
               <Route path="/reels/filtros" element={<Private><Suspense fallback={<Splash />}><ReelPrefs /></Suspense></Private>} />
               <Route path="/tag/:tag" element={<Private><TagPage /></Private>} />
               <Route path="/place/:name" element={<Private><Suspense fallback={<Splash />}><PlacePage /></Suspense></Private>} />
-              <Route path="/admin/verifications" element={<StaffRoute><Suspense fallback={null}><AdminVerifications /></Suspense></StaffRoute>} />
               <Route path="/about" element={<Private><Suspense fallback={null}><SupportAbout /></Suspense></Private>} />
-              <Route path="/backoffice/login" element={<Suspense fallback={null}><BoLogin /></Suspense>} />
-              <Route path="/backoffice/setup" element={<Suspense fallback={null}><BoSetup /></Suspense>} />
-              <Route path="/backoffice" element={<StaffRoute><Suspense fallback={null}><BoLayout /></Suspense></StaffRoute>}>
-                <Route index element={<Suspense fallback={null}><BoHome /></Suspense>} />
-                <Route path="reports" element={<Suspense fallback={null}><BoReports /></Suspense>} />
-                <Route path="users" element={<Suspense fallback={null}><BoUsers /></Suspense>} />
-                <Route path="users/:id" element={<Suspense fallback={null}><BoUser /></Suspense>} />
-                <Route path="audit" element={<Suspense fallback={null}><BoAudit /></Suspense>} />
-                <Route path="team" element={<Suspense fallback={null}><BoTeam /></Suspense>} />
-                <Route path="venues" element={<Suspense fallback={null}><BoVenues /></Suspense>} />
-              </Route>
               <Route path="/invites" element={<Private><Suspense fallback={null}><Invites /></Suspense></Private>} />
               <Route path="/help" element={<Private><Suspense fallback={null}><SupportHelp /></Suspense></Private>} />
               <Route path="/orders" element={<Private><Suspense fallback={null}><SupportOrders /></Suspense></Private>} />
               <Route path="/language" element={<Private><Suspense fallback={null}><SupportLanguage /></Suspense></Private>} />
               <Route path="/verification" element={<Private><Suspense fallback={null}><Verification /></Suspense></Private>} />
-              <Route path="/admin" element={<StaffRoute><Suspense fallback={null}><Admin /></Suspense></StaffRoute>} />
               <Route path="/r/:postId" element={<PrivateOrPublic><ReelPage /></PrivateOrPublic>} />
               <Route path="/p/:postId" element={<PrivateOrPublic><PostPage /></PrivateOrPublic>} />
               <Route path="/messages/g/:id" element={<Private><Thread /></Private>} />
