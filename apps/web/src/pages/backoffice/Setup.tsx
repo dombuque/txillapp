@@ -1,8 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
 import QRCode from 'qrcode';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api, staffSession } from '../../lib/api';
+import { api, staffSession, type StaffSetupInfo } from '../../lib/api';
 import { StaffFrame, field, submit } from './Login';
 
 /**
@@ -13,7 +12,14 @@ export default function StaffSetup() {
   const [params] = useSearchParams();
   const token = params.get('token') ?? '';
   const navigate = useNavigate();
-  const info = useQuery({ queryKey: ['staff-setup', token], queryFn: () => api.staffSetupInfo(token), enabled: token.length > 0, retry: false, staleTime: Infinity, gcTime: 0 });
+  const [data, setData] = useState<StaffSetupInfo | null>(null);
+  const [loadErr, setLoadErr] = useState('');
+  useEffect(() => {
+    if (!token) return;
+    let live = true;
+    api.staffSetupInfo(token).then((d) => live && setData(d)).catch((e: Error) => live && setLoadErr(e.message || 'Não foi possível abrir a ligação.'));
+    return () => { live = false; };
+  }, [token]);
   const [qr, setQr] = useState('');
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
@@ -21,17 +27,17 @@ export default function StaffSetup() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   useEffect(() => {
-    if (info.data) void QRCode.toDataURL(info.data.otpauth, { margin: 1, width: 220 }).then(setQr).catch(() => setQr(''));
-  }, [info.data]);
+    if (data) void QRCode.toDataURL(data.otpauth, { margin: 1, width: 220 }).then(setQr).catch(() => setQr(''));
+  }, [data]);
 
-  if (!token || info.isError) {
+  if (!token || loadErr) {
     return (
-      <StaffFrame title="Ligação inválida" text={info.isError ? (info.error as Error).message : 'Falta a ligação de convite. Pede uma nova à Administração.'}>
+      <StaffFrame title="Ligação inválida" text={loadErr || 'Falta a ligação de convite. Pede uma nova à Administração.'}>
         <a href="/backoffice/login" className="text-sm font-semibold underline">Ir para a entrada</a>
       </StaffFrame>
     );
   }
-  if (info.isLoading || !info.data) return <StaffFrame title="A preparar…">{null}</StaffFrame>;
+  if (!data) return <StaffFrame title="A preparar…">{null}</StaffFrame>;
 
   const weak = password.length < 12;
   const mismatch = again.length > 0 && again !== password;
@@ -50,14 +56,14 @@ export default function StaffSetup() {
   }
 
   return (
-    <StaffFrame title={`Olá, ${info.data.name}`} text={`Define a senha da conta ${info.data.email} e liga os dois passos.`}>
+    <StaffFrame title={`Olá, ${data.name}`} text={`Define a senha da conta ${data.email} e liga os dois passos.`}>
       <form onSubmit={(e) => void go(e)} className="space-y-4">
         <div className="rounded-xl bg-zinc-50 p-4 text-center ring-1 ring-zinc-200">
           <p className="text-sm font-semibold">1. Lê este QR numa app autenticadora</p>
           <p className="text-xs text-zinc-500">Google Authenticator, Authy, 1Password, Microsoft Authenticator…</p>
           {qr && <img src={qr} alt="QR dos dois passos" width={220} height={220} className="mx-auto mt-2 rounded-lg bg-white" />}
           <p className="mt-2 text-xs text-zinc-500">Sem câmara? Escreve esta chave na app:</p>
-          <p className="mt-1 break-all font-mono text-sm font-semibold tracking-wider">{info.data.secret.match(/.{1,4}/g)?.join(' ')}</p>
+          <p className="mt-1 break-all font-mono text-sm font-semibold tracking-wider">{data.secret.match(/.{1,4}/g)?.join(' ')}</p>
         </div>
         <label className="block text-sm font-semibold text-zinc-700">2. Escolhe a senha (mínimo 12 caracteres)
           <input type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} className={field} />
