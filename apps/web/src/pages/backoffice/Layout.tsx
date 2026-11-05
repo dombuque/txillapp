@@ -11,7 +11,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
   { title: 'Operação', items: [
     { to: '/backoffice', label: 'Resumo', icon: 'home', end: true },
     { to: '/backoffice/reports', label: 'Queixas', icon: 'flag', perm: 'reports.read', badge: 'reports' },
-    { to: '/admin/verifications', label: 'Pedidos de selo', icon: 'shield', perm: 'verification.decide', badge: 'verifications' },
+    { to: '/backoffice/verifications', label: 'Pedidos de selo', icon: 'shield', perm: 'verification.decide', badge: 'verifications' },
     { to: '/backoffice/venues', label: 'Locais', icon: 'map-pin', perm: 'catalog.manage' },
   ] },
   { title: 'Pessoas', items: [
@@ -20,7 +20,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
   ] },
   { title: 'Sistema', items: [
     { to: '/backoffice/audit', label: 'Auditoria', icon: 'file-text', perm: 'audit.read' },
-    { to: '/admin/stats', label: 'Estatísticas', icon: 'trending', perm: 'stats.view' },
+    { to: '/backoffice/stats', label: 'Estatísticas', icon: 'trending', perm: 'stats.view' },
   ] },
 ];
 

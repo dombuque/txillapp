@@ -62,7 +62,7 @@ function Detail({ item, canDecide, onDone, noteRef }: { item: ReportQueueItem; c
           {item.owner.status !== 'active' && <Badge tone="red">{item.owner.status}</Badge>}
         </div>
       )}
-      {item.imageUrl && <img src={item.imageUrl} alt="Foto assinalada" className="mt-4 max-h-80 rounded-xl bg-zinc-100 object-contain" />}
+      {item.imageUrl && <ReportImage key={item.imageUrl} url={item.imageUrl} />}
       <p className="mt-4 whitespace-pre-wrap break-words rounded-xl border border-zinc-200 px-4 py-3 text-[15px] leading-relaxed">{item.preview || '(sem texto)'}</p>
       {canDecide ? (
         <>
@@ -170,4 +170,19 @@ export default function BackofficeReports() {
       {tab === 'dismissed' && <Decided status="dismissed" />}
     </>
   );
+}
+
+/** A foto assinalada: pede-se com a sessão da equipa (cada visualização fica na auditoria). */
+function ReportImage({ url }: { url: string }) {
+  const [src, setSrc] = useState('');
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    let made = '';
+    api.boReviewImage(url).then((u) => { made = u; if (live) setSrc(u); }).catch(() => live && setFailed(true));
+    return () => { live = false; if (made) URL.revokeObjectURL(made); };
+  }, [url]);
+  if (failed) return <p className="mt-4 rounded-xl bg-zinc-100 p-4 text-sm text-zinc-600">Não foi possível mostrar a foto (pode já ter sido apagada).</p>;
+  if (!src) return <div className="mt-4 h-40 animate-pulse rounded-xl bg-zinc-100" aria-label="A carregar a foto" />;
+  return <img src={src} alt="Foto assinalada" className="mt-4 max-h-96 rounded-xl bg-zinc-100 object-contain" />;
 }

@@ -14,7 +14,7 @@ export default function BackofficeHome() {
 
   const attention: { to: string; n: number | undefined; label: string; icon: IconName; perm: string }[] = [
     { to: '/backoffice/reports', n: d?.reports_open, label: 'queixas por decidir', icon: 'flag', perm: 'reports.read' },
-    { to: '/admin/verifications', n: d?.verifications_pending, label: 'pedidos de selo', icon: 'shield', perm: 'verification.decide' },
+    { to: '/backoffice/verifications', n: d?.verifications_pending, label: 'pedidos de selo', icon: 'shield', perm: 'verification.decide' },
     { to: '/backoffice/users?status=suspended', n: d?.suspended, label: 'contas suspensas', icon: 'lock', perm: 'users.view' },
     { to: '/backoffice/users', n: d?.unverified_old, label: 'sem email confirmado há mais de 1 dia', icon: 'mail', perm: 'users.view' },
   ];

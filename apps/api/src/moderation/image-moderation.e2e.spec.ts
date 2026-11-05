@@ -86,7 +86,11 @@ describe('verificação automática de fotos (nudez / conteúdo sexual)', () => 
     await api().get(`/api/v1/media/${m.assetId}`).expect(200);
 
     const q = ((await api().get('/api/v1/admin/reports').set(sauth()).expect(200)).body as { type: string; id: string; imageUrl: string | null; preview: string; owner: { username: string } }[]).find((x) => x.id === m.assetId)!;
-    expect(q).toMatchObject({ type: 'media', imageUrl: `/api/v1/media/${m.assetId}`, owner: { username: ia.username } });
+    expect(q).toMatchObject({ type: 'media', imageUrl: `/api/v1/media/review/${m.assetId}`, owner: { username: ia.username } });
+    // A equipa vê a foto assinalada (e fica na auditoria); a rede social não.
+    await api().get(`/api/v1/media/review/${m.assetId}`).set(sauth()).expect(200);
+    await api().get(`/api/v1/media/review/${m.assetId}`).set(auth(ia)).expect(401);
+    expect((await pool.query("SELECT 1 FROM audit.audit_log WHERE action = 'moderation.view_media' AND target = $1", [`media:${m.assetId}`])).rowCount).toBe(1);
     expect(q.preview).toMatch(/verificação automática/i);
 
     await api().post('/api/v1/admin/reports/resolve').set(sauth()).send({ type: 'media', id: m.assetId, action: 'remove' }).expect(204);

@@ -60,7 +60,7 @@ export const staffSession = {
   },
 };
 /** Rotas da equipa (usam a sessão de equipa, nunca a da rede social). */
-const isStaffPath = (p: string) => p.startsWith('/admin') || p === '/staff-auth/me' || p === '/staff-auth/logout' || p.startsWith('/venues/admin/') || /^\/venues\/[^/?]+\/verified/.test(p);
+const isStaffPath = (p: string) => p.startsWith('/admin') || p === '/staff-auth/me' || p === '/staff-auth/logout' || p.startsWith('/media/review/') || p.startsWith('/venues/admin/') || /^\/venues\/[^/?]+\/verified/.test(p);
 /** Cabeçalho de autorização para pedidos fora do `raw` (por exemplo, o canal em tempo real). */
 export const authHeader = (): Record<string, string> => (accessToken ? { Authorization: `Bearer ${accessToken}` } : {});
 export const setAccessToken = (t: string | null) => {
@@ -781,6 +781,13 @@ export const api = {
   staffLogin: (email: string, password: string, code: string): Promise<{ token: string }> => raw('/staff-auth/login', post({ email, password, code })),
   staffSetupInfo: (token: string): Promise<StaffSetupInfo> => raw(`/staff-auth/setup?token=${encodeURIComponent(token)}`),
   staffSetup: (token: string, password: string, code: string): Promise<{ token: string }> => raw('/staff-auth/setup', post({ token, password, code })),
+  /** Foto assinalada (precisa da sessão da equipa, por isso vai por fetch e não por <img src>). */
+  boReviewImage: async (path: string): Promise<string> => {
+    const res = await fetch(path, { headers: { Authorization: `Bearer ${staffToken ?? ''}`, 'X-Requested-With': 'txillapp' } });
+    if (res.status === 401) staffSession.clear();
+    if (!res.ok) throw new ApiError(res.status, 'Não foi possível abrir a foto');
+    return URL.createObjectURL(await res.blob());
+  },
   staffMe: (): Promise<{ email: string; name: string }> => raw('/staff-auth/me'),
   staffLogout: (): Promise<void> => raw('/staff-auth/logout', { method: 'POST' }),
   boUsers: (q: string, status: string, cursor?: string): Promise<{ items: BoUserRow[]; nextCursor: string | null }> =>

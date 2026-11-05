@@ -4,6 +4,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
+import { Needs, StaffGuard } from '../staff/staff.guard';
 import { MediaService, parseIdParam } from './media.service';
 
 const requestSchema = z.object({ mime: z.string().max(50), size: z.number().int().positive(), purpose: z.enum(['public', 'chat']).default('public') });
@@ -40,6 +41,18 @@ export class MediaController {
   @UseGuards(JwtAuthGuard)
   status(@Req() req: Request & { userId?: string }, @Param('id') id: string) {
     return this.media.status(req.userId!, parseIdParam(id));
+  }
+
+  /** Só a equipa: a foto de uma queixa por decidir (mesmo que seja de uma conversa privada). Cada visualização fica na auditoria. */
+  @Get('review/:id')
+  @UseGuards(StaffGuard)
+  @Needs('reports.read')
+  @SkipThrottle()
+  async review(@Req() req: Request & { userId?: string }, @Param('id') id: string, @Res() res: Response) {
+    const r = await this.media.reviewImage(parseIdParam(id), req.userId!);
+    res.setHeader('Content-Type', r.mime);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(r.bytes);
   }
 
   // Imagens públicas e imutáveis: não contam para o limite de pedidos (um feed carrega dezenas).

@@ -39,7 +39,7 @@ export default function BackofficeVenues() {
             <tbody>
               {rows.map((v) => (
                 <tr key={v.slug} className="border-t border-zinc-100">
-                  <td className={td}><Link to={`/v/${v.slug}`} className="font-semibold underline-offset-2 hover:underline">{v.name}</Link>{v.city ? <span className="block text-xs text-zinc-500">{v.city}</span> : null}</td>
+                  <td className={td}><Link to={`/v/${v.slug}`} target="_blank" rel="noreferrer" className="font-semibold underline-offset-2 hover:underline">{v.name}</Link>{v.city ? <span className="block text-xs text-zinc-500">{v.city}</span> : null}</td>
                   <td className={td}>{KIND[v.kind] ?? v.kind}</td>
                   <td className={td}>@{v.owner}</td>
                   <td className={td}>{v.checkins}</td>

@@ -1,11 +1,11 @@
-import { LoadingBlock } from '../components/Loading';
-import { tr } from '../lib/i18n';
+import { LoadingBlock } from '../../components/Loading';
+import { tr } from '../../lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import BarChart from '../components/BarChart';
-import Icon from '../components/Icon';
-import StackPage from '../components/StackPage';
-import { api } from '../lib/api';
+import BarChart from '../../components/BarChart';
+import Icon from '../../components/Icon';
+import { PageHeader } from './bo';
+import { api } from '../../lib/api';
 
 // Limites "bom / a melhorar" dos Core Web Vitals (Google). A cor nunca vai sozinha: leva ícone e texto.
 const LIMITS: Record<string, { good: number; poor: number; unit: string; label: string }> = {
@@ -34,32 +34,41 @@ export default function AdminStats() {
   const q = useQuery({ queryKey: ['admin-stats', days], queryFn: () => api.adminStats(days), retry: false });
   const s = q.data;
   return (
-    <StackPage title={tr('Estatísticas')}>
-      <div className="space-y-4 px-4 pb-10 pt-4">
-        <div role="tablist" aria-label={tr('Período')} className="flex gap-2">
-          {[7, 14, 30].map((d) => (
-            <button key={d} role="tab" aria-selected={days === d} onClick={() => setDays(d)} className={`flex-1 rounded-full py-2.5 text-sm font-bold ${days === d ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-700'}`}>
-              {d} {tr('dias')}
-            </button>
-          ))}
-        </div>
+    <>
+      <PageHeader
+        title={tr('Estatísticas')}
+        description="Quem usa o Txillapp, retenção, funil, feed, desempenho e erros."
+        actions={
+          <div role="tablist" aria-label={tr('Período')} className="flex gap-1 rounded-lg bg-zinc-200/70 p-1">
+            {[7, 14, 30].map((d) => (
+              <button key={d} role="tab" aria-selected={days === d} onClick={() => setDays(d)} className={`h-8 rounded-md px-4 text-sm font-semibold ${days === d ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-600 hover:text-zinc-900'}`}>
+                {d} {tr('dias')}
+              </button>
+            ))}
+          </div>
+        }
+      />
+      <div className="space-y-4">
         {q.isError && <p role="alert" className="py-10 text-center text-zinc-600">{tr('Sem acesso')}</p>}
         {q.isLoading && <LoadingBlock />}
         {s && (
           <>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-4 gap-4">
               <Tile label={tr('Contas ativas')} value={String(s.totals.users)} hint={`${s.totals.posts} publicações · ${s.totals.messages} mensagens`} />
               <Tile label={tr('Ativos hoje (DAU)')} value={String(s.active.dau)} hint={`${s.active.wau} na semana · ${s.active.mau} no mês`} />
               <Tile label={tr('Voltam no dia 1')} value={pct(s.retention.d1)} hint={`de ${s.retention.d1Base} contas novas`} />
               <Tile label={tr('Voltam no dia 7')} value={pct(s.retention.d7)} hint={`de ${s.retention.d7Base} contas novas`} />
             </div>
 
-            <BarChart title={tr('Pessoas que abriram a app')} data={s.series.opens} />
-            <BarChart title={tr('Contas novas')} data={s.series.signups} />
-            <BarChart title={tr('Publicações')} data={s.series.posts} />
-            <BarChart title={tr('Brindes')} data={s.series.cheers} />
-            <BarChart title={tr('Comentários')} data={s.series.comments} />
-            <BarChart title={tr('Mensagens')} data={s.series.messages} />
+            <div className="grid grid-cols-3 gap-4">
+              <BarChart title={tr('Pessoas que abriram a app')} data={s.series.opens} />
+              <BarChart title={tr('Contas novas')} data={s.series.signups} />
+              <BarChart title={tr('Publicações')} data={s.series.posts} />
+              <BarChart title={tr('Brindes')} data={s.series.cheers} />
+              <BarChart title={tr('Comentários')} data={s.series.comments} />
+              <BarChart title={tr('Mensagens')} data={s.series.messages} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
 
             <section className="rounded-2xl border border-zinc-200 bg-white p-4" aria-label={tr('Funil das contas novas')}>
               <h2 className="font-bold">{tr('Funil das contas novas (')}{days} {tr('dias)')}</h2>
@@ -93,7 +102,7 @@ export default function AdminStats() {
             </section>
 
             <section className="rounded-2xl border border-zinc-200 bg-white p-4" aria-label={tr('Desempenho')}>
-              <h2 className="font-bold">{tr('Desempenho no telemóvel (percentil 75)')}</h2>
+              <h2 className="font-bold">{tr('Desempenho (percentil 75)')}</h2>
               {s.perf.length === 0 && <p className="mt-2 text-sm text-zinc-500">{tr('Ainda sem medições.')}</p>}
               <ul className="mt-2 divide-y divide-zinc-100">
                 {s.perf.map((p) => {
@@ -134,9 +143,10 @@ export default function AdminStats() {
                 {tr('Instalada como app:')} {s.platform.find((p) => p.platform === 'pwa')?.users ?? 0} {tr('· no browser:')} {s.platform.find((p) => p.platform === 'browser')?.users ?? 0}
               </p>
             </section>
+            </div>
           </>
         )}
       </div>
-    </StackPage>
+    </>
   );
 }

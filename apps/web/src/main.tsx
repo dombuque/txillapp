@@ -40,9 +40,8 @@ import Settings from './pages/Settings';
 import { ComingSoon } from './pages/Simple';
 import Wallet from './pages/Wallet';
 
-const AdminStats = lazy(() => import('./pages/AdminStats'));
-const Admin = lazy(() => import('./pages/Admin'));
-const AdminVerifications = lazy(() => import('./pages/AdminVerifications'));
+const BoStats = lazy(() => import('./pages/backoffice/Stats'));
+const BoVerifications = lazy(() => import('./pages/backoffice/Verifications'));
 const Verification = lazy(() => import('./pages/Verification'));
 const PublicPost = lazy(() => import('./pages/PublicPost'));
 const PlacePage = lazy(() => import('./pages/PlacePage'));
@@ -183,8 +182,6 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
             <Route path="/google-username" element={<PublicOnly><GoogleUsername /></PublicOnly>} />
             {/* Equipa do backoffice: sessão própria, fora da rede social. */}
-            <Route path="/admin/stats" element={<StaffRoute><Suspense fallback={null}><AdminStats /></Suspense></StaffRoute>} />
-            <Route path="/admin/verifications" element={<StaffRoute><Suspense fallback={null}><AdminVerifications /></Suspense></StaffRoute>} />
             <Route path="/backoffice/login" element={<Suspense fallback={null}><BoLogin /></Suspense>} />
             <Route path="/backoffice/setup" element={<Suspense fallback={null}><BoSetup /></Suspense>} />
             <Route path="/backoffice" element={<StaffRoute><Suspense fallback={null}><BoLayout /></Suspense></StaffRoute>}>
@@ -195,8 +192,12 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="audit" element={<Suspense fallback={null}><BoAudit /></Suspense>} />
                   <Route path="team" element={<Suspense fallback={null}><BoTeam /></Suspense>} />
                   <Route path="venues" element={<Suspense fallback={null}><BoVenues /></Suspense>} />
+                  <Route path="stats" element={<Suspense fallback={null}><BoStats /></Suspense>} />
+                  <Route path="verifications" element={<Suspense fallback={null}><BoVerifications /></Suspense>} />
             </Route>
-            <Route path="/admin" element={<StaffRoute><Suspense fallback={null}><Admin /></Suspense></StaffRoute>} />
+            <Route path="/admin" element={<Navigate to="/backoffice/reports" replace />} />
+            <Route path="/admin/verifications" element={<Navigate to="/backoffice/verifications" replace />} />
+            <Route path="/admin/stats" element={<Navigate to="/backoffice/stats" replace />} />
             <Route element={<Private><DesktopShell /></Private>}>
               {/* Páginas próprias em ecrã inteiro (como a Atividade do Instagram): sem a barra de baixo. */}
               <Route path="/notifications" element={<Private><Notifications /></Private>} />

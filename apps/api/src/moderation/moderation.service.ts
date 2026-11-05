@@ -93,7 +93,7 @@ export class ModerationService {
       firstAt: r.first_at as string,
       owner: r.owner_username ? { username: r.owner_username as string, displayName: r.owner_name as string, status: r.owner_status as string, strikes: r.owner_strikes as number } : null,
       preview: (r.preview as string).slice(0, 200),
-      imageUrl: r.target_type === 'media' ? `/api/v1/media/${r.target_id}` : null,
+      imageUrl: r.target_type === 'media' ? `/api/v1/media/review/${r.target_id}` : null,
     }));
   }
 

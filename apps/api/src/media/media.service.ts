@@ -355,6 +355,23 @@ export class MediaService implements OnModuleInit {
     return { path: join(this.dir, id), mime: rows[0].mime as string };
   }
 
+  /**
+   * Foto assinalada para a equipa decidir (inclui fotos privadas de conversas). Só se vê enquanto houver uma queixa por decidir
+   * sobre ela, e cada visualização fica no registo de auditoria.
+   */
+  async reviewImage(id: string, actorUserId: string): Promise<{ bytes: Buffer; mime: string }> {
+    const { rows } = await this.pool.query(
+      `SELECT a.mime, a.purpose FROM content.media_assets a
+        WHERE a.id = $1 AND a.status = 'ready' AND a.mime LIKE 'image/%'
+          AND EXISTS (SELECT 1 FROM social.reports r WHERE r.target_type = 'media' AND r.target_id = a.id AND r.status = 'open')`,
+      [id],
+    );
+    if (!rows[0]) throw new NotFoundException();
+    const bytes = this.s3 ? await this.s3.read(id, this.scopeOf(rows[0].purpose as string)) : await readFile(join(this.dir, id));
+    await this.pool.query('INSERT INTO audit.audit_log (id, actor_id, action, target, metadata) VALUES ($1, $2, $3, $4, $5)', [uuidv7(), actorUserId, 'moderation.view_media', `media:${id}`, { purpose: rows[0].purpose }]);
+    return { bytes, mime: rows[0].mime as string };
+  }
+
   /** Ficheiro da foto de perfil de uma pessoa, se tiver. */
   async avatarOf(username: string): Promise<Served | null> {
     const { rows } = await this.pool.query(

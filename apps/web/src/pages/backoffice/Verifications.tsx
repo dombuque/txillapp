@@ -1,10 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { tr } from '../lib/i18n';
+import { tr } from '../../lib/i18n';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { LoadingBlock } from '../components/Loading';
-import StackPage from '../components/StackPage';
-import { api, type VerificationItem } from '../lib/api';
+import { LoadingBlock } from '../../components/Loading';
+import { PageHeader } from './bo';
+import { api, type VerificationItem } from '../../lib/api';
 
 function Row({ item, onDone }: { item: VerificationItem; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -25,10 +24,10 @@ function Row({ item, onDone }: { item: VerificationItem; onDone: () => void }) {
   }
   const btn = 'h-10 flex-1 rounded-full text-sm font-bold transition active:scale-95 disabled:opacity-40';
   return (
-    <li className="rounded-2xl border border-zinc-200 p-4">
+    <li className="rounded-2xl border border-zinc-200 bg-white p-5">
       <p className="text-sm text-zinc-500">{item.kind === 'business' ? tr('Negócio ou marca') : tr('Pessoa')} · {item.user.followers} {tr('seguidores')}</p>
       <p className="mt-1 font-bold">{item.fullName}</p>
-      <Link to={`/u/${item.user.username}`} className="text-sm font-semibold text-brand underline">@{item.user.username}</Link>
+      <span className="text-sm font-semibold text-brand">@{item.user.username}</span>
       {item.user.bio && <p className="mt-1 text-sm text-zinc-600">{item.user.bio}</p>}
       <p className="mt-2 whitespace-pre-wrap break-words rounded-xl bg-zinc-50 p-3 text-sm">{item.proof}</p>
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -62,15 +61,16 @@ export default function AdminVerifications() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['admin-verifications'], queryFn: () => api.adminVerifications(), refetchOnWindowFocus: true });
   return (
-    <StackPage title={tr('Pedidos de verificação')}>
-      <div className="px-4 pt-4">
+    <>
+      <PageHeader title={tr('Pedidos de selo')} description="Vê o documento e a selfie e decide. Recusar exige um motivo, que a pessoa vai ver." />
+      <div>
         {q.isLoading && <LoadingBlock />}
         {q.isError && <p role="alert" className="text-center text-red-600">{tr('Não foi possível carregar.')}</p>}
         {q.data && q.data.length === 0 && <p className="mt-10 text-center text-zinc-500">{tr('Sem pedidos por rever.')}</p>}
-        <ul className="space-y-3">
+        <ul className="grid grid-cols-2 gap-4">
           {q.data?.map((i) => <Row key={i.id} item={i} onDone={() => void qc.invalidateQueries({ queryKey: ['admin-verifications'] })} />)}
         </ul>
       </div>
-    </StackPage>
+    </>
   );
 }
