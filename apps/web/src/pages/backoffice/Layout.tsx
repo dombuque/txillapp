@@ -13,6 +13,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
     { to: '/backoffice', label: 'Resumo', icon: 'home', end: true },
     { to: '/backoffice/reports', label: 'Queixas', icon: 'flag', perm: 'reports.read', badge: 'reports' },
     { to: '/admin/verifications', label: 'Pedidos de selo', icon: 'shield', perm: 'verification.decide', badge: 'verifications' },
+    { to: '/backoffice/venues', label: 'Locais', icon: 'map-pin', perm: 'catalog.manage' },
   ] },
   { title: 'Pessoas', items: [
     { to: '/backoffice/users', label: 'Utilizadores', icon: 'user', perm: 'users.view' },

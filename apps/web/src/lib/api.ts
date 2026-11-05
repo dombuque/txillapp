@@ -649,6 +649,8 @@ export const api = {
   savedPosts: (cursor?: string): Promise<{ items: Post[]; nextCursor: string | null }> => raw(`/feed/saved${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
   completeness: (): Promise<{ percent: number; steps: { id: 'photo' | 'bio' | 'post' | 'follow' | 'geleira'; done: boolean }[] }> => raw('/users/me/completeness'),
   insights: (days: 7 | 30 | 90, tz: number): Promise<Insights> => raw(`/insights?days=${days}&tz=${tz}`),
+  boVenues: (filter: 'pending' | 'all'): Promise<{ slug: string; name: string; kind: string; city: string | null; verified: boolean; owner: string; checkins: number; createdAt: string }[]> => raw(`/venues/admin/list?filter=${filter}`),
+  boVerifyVenue: (slug: string, verified: boolean): Promise<{ slug: string; verified: boolean }> => raw(`/venues/${encodeURIComponent(slug)}/verified`, { method: 'PUT', body: JSON.stringify({ verified }) }),
   venue: (slug: string): Promise<Venue> => raw(`/venues/${encodeURIComponent(slug)}`),
   findVenue: (name: string): Promise<Venue | null> => raw(`/venues/find?name=${encodeURIComponent(name)}`),
   myVenues: (): Promise<Venue[]> => raw('/venues/mine'),

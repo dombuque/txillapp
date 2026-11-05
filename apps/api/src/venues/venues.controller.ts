@@ -30,6 +30,14 @@ export class VenuesController {
     return this.venues.create(req.userId!, b);
   }
 
+  /** Para a equipa: os locais (por verificar, ou todos). */
+  @Get('admin/list')
+  @UseGuards(StaffGuard)
+  @Needs('catalog.manage')
+  adminList(@Query('filter') filter?: string) {
+    return this.venues.adminList(filter === 'all' ? 'all' : 'pending');
+  }
+
   @Get('mine')
   mine(@Req() req: AuthedReq) {
     return this.venues.mine(req.userId!);
@@ -60,7 +68,7 @@ export class VenuesController {
   @Put(':slug/verified')
   @UseGuards(StaffGuard)
   @Needs('catalog.manage')
-  verify(@Param('slug') slug: string, @Body(new ZodPipe(z.object({ verified: z.boolean() }))) b: { verified: boolean }) {
-    return this.venues.setVerified(slug, b.verified);
+  verify(@Req() req: AuthedReq, @Param('slug') slug: string, @Body(new ZodPipe(z.object({ verified: z.boolean() }))) b: { verified: boolean }) {
+    return this.venues.setVerified(req.userId!, slug, b.verified);
   }
 }

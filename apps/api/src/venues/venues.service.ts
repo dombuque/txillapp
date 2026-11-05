@@ -105,11 +105,25 @@ export class VenuesService {
     return this.get(userId, slug);
   }
 
-  /** A equipa verifica (ou tira o selo a) um local. */
-  async setVerified(slug: string, verified: boolean) {
-    const r = await this.pool.query('UPDATE content.venues SET verified = $2 WHERE slug = $1', [slug.toLowerCase(), verified]);
+  /** A equipa verifica (ou tira o selo a) um local; fica no registo de auditoria. */
+  async setVerified(actorId: string, slug: string, verified: boolean) {
+    const r = await this.pool.query('UPDATE content.venues SET verified = $2 WHERE slug = $1 RETURNING id', [slug.toLowerCase(), verified]);
     if (!r.rowCount) throw new NotFoundException('Local não encontrado');
+    await this.pool.query('INSERT INTO audit.audit_log (id, actor_id, action, target, metadata) VALUES ($1, $2, $3, $4, $5)', [uuidv7(), actorId, verified ? 'moderation.venue_verified' : 'moderation.venue_unverified', `venue:${r.rows[0].id as string}`, { slug }]);
     return { slug, verified };
+  }
+
+  /** Para a equipa: os locais, os por verificar primeiro. */
+  async adminList(filter: 'pending' | 'all') {
+    const { rows } = await this.pool.query(
+      `SELECT v.slug, v.name, v.kind, v.city, v.verified, v.created_at, u.username AS owner,
+              (SELECT count(*) FROM content.checkins c WHERE c.venue_id = v.id)::int AS checkins
+         FROM content.venues v JOIN identity.users u ON u.id = v.owner_id
+        WHERE ($1 = 'all' OR NOT v.verified)
+        ORDER BY v.verified ASC, v.created_at DESC LIMIT 200`,
+      [filter],
+    );
+    return rows.map((r) => ({ slug: r.slug as string, name: r.name as string, kind: r.kind as string, city: (r.city as string | null) ?? null, verified: !!r.verified, owner: r.owner as string, checkins: r.checkins as number, createdAt: r.created_at as string }));
   }
 
   /** O dono muda o QR (se ele andou a circular fora do local). */

@@ -59,6 +59,7 @@ const BoUsers = lazy(() => import('./pages/backoffice/Users'));
 const BoUser = lazy(() => import('./pages/backoffice/UserSheet'));
 const BoAudit = lazy(() => import('./pages/backoffice/Audit'));
 const BoTeam = lazy(() => import('./pages/backoffice/Team'));
+const BoVenues = lazy(() => import('./pages/backoffice/Venues'));
 const SupportAbout = lazy(() => import('./pages/Support').then((m) => ({ default: m.About })));
 const SupportHelp = lazy(() => import('./pages/Support').then((m) => ({ default: m.Help })));
 const SupportOrders = lazy(() => import('./pages/Support').then((m) => ({ default: m.Orders })));
@@ -190,6 +191,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="users/:id" element={<Suspense fallback={null}><BoUser /></Suspense>} />
                 <Route path="audit" element={<Suspense fallback={null}><BoAudit /></Suspense>} />
                 <Route path="team" element={<Suspense fallback={null}><BoTeam /></Suspense>} />
+                <Route path="venues" element={<Suspense fallback={null}><BoVenues /></Suspense>} />
               </Route>
               <Route path="/invites" element={<Private><Suspense fallback={null}><Invites /></Suspense></Private>} />
               <Route path="/help" element={<Private><Suspense fallback={null}><SupportHelp /></Suspense></Private>} />
