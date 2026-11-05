@@ -31,6 +31,36 @@ async function shrinkImage(file: Blob): Promise<Blob> {
 }
 
 let accessToken: string | null = null;
+
+/**
+ * Sessão da equipa do backoffice: separada da rede social (outro login, outro token). Fica só neste separador (sessionStorage) e dura 8 h.
+ */
+const STAFF_KEY = 'txill.staff';
+let staffToken: string | null = (() => {
+  try {
+    return sessionStorage.getItem(STAFF_KEY);
+  } catch {
+    return null;
+  }
+})();
+export const staffSession = {
+  has: () => !!staffToken,
+  set(t: string) {
+    staffToken = t;
+    try {
+      sessionStorage.setItem(STAFF_KEY, t);
+    } catch { /* sem armazenamento: a sessão dura até fechar o separador */ }
+  },
+  clear() {
+    staffToken = null;
+    try {
+      sessionStorage.removeItem(STAFF_KEY);
+    } catch { /* nada a limpar */ }
+    window.dispatchEvent(new Event('txill:staff-out'));
+  },
+};
+/** Rotas da equipa (usam a sessão de equipa, nunca a da rede social). */
+const isStaffPath = (p: string) => p.startsWith('/admin') || p === '/staff-auth/me' || p === '/staff-auth/logout' || p.startsWith('/venues/admin/') || /^\/venues\/[^/?]+\/verified/.test(p);
 /** Cabeçalho de autorização para pedidos fora do `raw` (por exemplo, o canal em tempo real). */
 export const authHeader = (): Record<string, string> => (accessToken ? { Authorization: `Bearer ${accessToken}` } : {});
 export const setAccessToken = (t: string | null) => {
@@ -212,7 +242,8 @@ export type Gender = 'female' | 'male' | 'other' | 'unspecified';
 export type ReportType = 'post' | 'comment' | 'story' | 'user' | 'message' | 'media';
 export type ReportReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence' | 'scam' | 'impersonation' | 'minor' | 'other';
 export interface BoMe { teams: string[]; permissions: string[]; catalog: { id: string; name: string; description: string }[] }
-export interface BoStaffMember { id: string; username: string; displayName: string; email: string; teams: string[]; active: boolean; lastSeen: string | null }
+export interface BoStaffMember { id: string; email: string; name: string; teams: string[]; active: boolean; pending: boolean; lastLogin: string | null; createdAt: string }
+export interface StaffSetupInfo { email: string; name: string; secret: string; otpauth: string }
 export interface BoUserRow { id: string; username: string; display_name: string; email: string; status: 'active' | 'suspended' | 'deleted'; is_admin: boolean; created_at: string; country: string | null; verified: boolean; posts: number; followers: number; reports: number; last_seen: string | null }
 export interface BoUserSheet {
   user: { id: string; username: string; display_name: string; email: string; status: 'active' | 'suspended' | 'deleted'; is_admin: boolean; is_private: boolean; created_at: string; country: string | null; terms_version: string | null; email_verified_at: string | null; has_avatar: boolean; posts: number; followers: number; following: number; messages: number; sessions: number; last_seen: string | null; txills: string };
@@ -489,12 +520,17 @@ async function raw(path: string, init: RequestInit = {}, retry = true): Promise<
     headers: {
       'Content-Type': 'application/json',
       'X-Requested-With': 'txillapp',
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...(isStaffPath(path) ? (staffToken ? { Authorization: `Bearer ${staffToken}` } : {}) : path.startsWith('/staff-auth/') ? {} : accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...init.headers,
     },
   });
+  // Sessão de equipa caducada ou retirada: volta ao login do backoffice (sem tentar renovar a da rede social).
+  if (res.status === 401 && isStaffPath(path)) {
+    if (staffToken) staffSession.clear();
+    throw new ApiError(401, 'A sessão da equipa terminou. Entra outra vez.');
+  }
   // Access token expirado: renova uma vez e repete o pedido.
-  if (res.status === 401 && retry && !path.startsWith('/auth/')) {
+  if (res.status === 401 && retry && !path.startsWith('/auth/') && !path.startsWith('/staff-auth/')) {
     await refreshOnce();
     return raw(path, init, false);
   }
@@ -738,8 +774,15 @@ export const api = {
   boOverview: (): Promise<Record<string, number>> => raw('/admin/overview'),
   boMe: (): Promise<BoMe> => raw('/admin/me'),
   boStaff: (): Promise<BoStaffMember[]> => raw('/admin/staff'),
-  boSetTeams: (username: string, teams: string[], reason: string): Promise<void> => raw('/admin/staff', post({ username, teams, reason })),
-  boRemoveStaff: (id: string, reason: string): Promise<void> => raw(`/admin/staff/${id}/remove`, post({ reason })),
+  boInvite: (email: string, name: string, teams: string[]): Promise<{ accountId: string; setupUrl: string; expiresInMinutes: number }> => raw('/admin/staff/invite', post({ email, name, teams })),
+  boSetTeams: (id: string, teams: string[], reason: string): Promise<void> => raw(`/admin/staff/${id}/teams`, post({ teams, reason })),
+  boSetActive: (id: string, active: boolean, reason: string): Promise<void> => raw(`/admin/staff/${id}/active`, post({ active, reason })),
+  boResetAccess: (id: string, reason: string): Promise<{ setupUrl: string; expiresInMinutes: number }> => raw(`/admin/staff/${id}/reset`, post({ reason })),
+  staffLogin: (email: string, password: string, code: string): Promise<{ token: string }> => raw('/staff-auth/login', post({ email, password, code })),
+  staffSetupInfo: (token: string): Promise<StaffSetupInfo> => raw(`/staff-auth/setup?token=${encodeURIComponent(token)}`),
+  staffSetup: (token: string, password: string, code: string): Promise<{ token: string }> => raw('/staff-auth/setup', post({ token, password, code })),
+  staffMe: (): Promise<{ email: string; name: string }> => raw('/staff-auth/me'),
+  staffLogout: (): Promise<void> => raw('/staff-auth/logout', { method: 'POST' }),
   boUsers: (q: string, status: string, cursor?: string): Promise<{ items: BoUserRow[]; nextCursor: string | null }> =>
     raw(`/admin/users?${new URLSearchParams({ ...(q ? { q } : {}), ...(status ? { status } : {}), ...(cursor ? { cursor } : {}) }).toString()}`),
   boUser: (id: string): Promise<BoUserSheet> => raw(`/admin/users/${id}`),

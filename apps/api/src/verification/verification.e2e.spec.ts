@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
+import { staffLogin } from '../staff/staff-test';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
@@ -19,6 +20,8 @@ describe('verificação de perfis: requisitos, documentos, revisão e anúncio (
   const api = () => request(app.getHttpServer());
   const auth = (x: U) => ({ Authorization: `Bearer ${x.token}` });
   const u: Record<string, U> = {};
+  let staff = '';
+  const sauth = () => ({ Authorization: `Bearer ${staff}` });
 
   async function signup(name: string): Promise<U> {
     const username = `${name}${run}`.slice(0, 28);
@@ -39,7 +42,7 @@ describe('verificação de perfis: requisitos, documentos, revisão e anúncio (
     app = await createApp(loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'd'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test' }));
     await app.init();
     for (const n of ['va', 'vb', 'vc', 'vd']) u[n] = await signup(n);
-    await pool.query('UPDATE identity.users SET is_admin = true WHERE id = $1', [u.va.id]);
+    staff = (await staffLogin(app, 'va')).token;
   }, 60_000);
 
   afterAll(async () => {
@@ -81,15 +84,15 @@ describe('verificação de perfis: requisitos, documentos, revisão e anúncio (
     expect((await me(vb)).request.status).toBe('pending');
 
     // Só a moderação vê a fila, com ligações privadas para os documentos.
-    await api().get('/api/v1/admin/verifications').set(auth(vc)).expect(403);
-    const queue = (await api().get('/api/v1/admin/verifications').set(auth(va)).expect(200)).body as { id: string; docUrl: string; selfieUrl: string; fullName: string }[];
+    await api().get('/api/v1/admin/verifications').set(auth(vc)).expect(401);
+    const queue = (await api().get('/api/v1/admin/verifications').set(sauth()).expect(200)).body as { id: string; docUrl: string; selfieUrl: string; fullName: string }[];
     const item = queue.find((q) => q.fullName === 'Nome Completo')!;
     expect(item.docUrl).toContain('/chat/media/');
     await api().get(item.docUrl).expect(200);
 
     // Recusar exige motivo; a pessoa vê o motivo e só pode voltar a pedir passados 30 dias.
-    await api().post(`/api/v1/admin/verifications/${item.id}/decide`).set(auth(va)).send({ action: 'reject' }).expect(400);
-    await api().post(`/api/v1/admin/verifications/${item.id}/decide`).set(auth(va)).send({ action: 'reject', reason: 'Foto ilegível' }).expect(204);
+    await api().post(`/api/v1/admin/verifications/${item.id}/decide`).set(sauth()).send({ action: 'reject' }).expect(400);
+    await api().post(`/api/v1/admin/verifications/${item.id}/decide`).set(sauth()).send({ action: 'reject', reason: 'Foto ilegível' }).expect(204);
     s = await me(vb);
     expect(s.request).toMatchObject({ status: 'rejected', reason: 'Foto ilegível' });
     expect(s.retryAfter).not.toBeNull();
@@ -101,10 +104,10 @@ describe('verificação de perfis: requisitos, documentos, revisão e anúncio (
     await pool.query(`UPDATE identity.verification_requests SET reviewed_at = now() - interval '31 days' WHERE user_id = $1`, [vb.id]);
     const [y1, y2] = [await upload(vb), await upload(vb)];
     await api().post('/api/v1/verification/request').set(auth(vb)).send(body(y1, y2)).expect(204);
-    const again = ((await api().get('/api/v1/admin/verifications').set(auth(va)).expect(200)).body as { id: string }[])[0];
-    await api().post(`/api/v1/admin/verifications/${again.id}/decide`).set(auth(vc)).send({ action: 'approve' }).expect(403);
-    await api().post(`/api/v1/admin/verifications/${again.id}/decide`).set(auth(va)).send({ action: 'approve', tier: 'official' }).expect(204);
-    await api().post(`/api/v1/admin/verifications/${again.id}/decide`).set(auth(va)).send({ action: 'approve' }).expect(404); // já decidido
+    const again = ((await api().get('/api/v1/admin/verifications').set(sauth()).expect(200)).body as { id: string }[])[0];
+    await api().post(`/api/v1/admin/verifications/${again.id}/decide`).set(auth(vc)).send({ action: 'approve' }).expect(401);
+    await api().post(`/api/v1/admin/verifications/${again.id}/decide`).set(sauth()).send({ action: 'approve', tier: 'official' }).expect(204);
+    await api().post(`/api/v1/admin/verifications/${again.id}/decide`).set(sauth()).send({ action: 'approve' }).expect(404); // já decidido
 
     s = await me(vb);
     expect(s).toMatchObject({ verified: true, tier: 'official' });

@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
+import { staffLogin } from '../staff/staff-test';
 import { MediaService } from '../media/media.service';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
@@ -19,6 +20,9 @@ describe('denúncias, moderação e apagar publicações (integração)', () => 
   const api = () => request(app.getHttpServer());
   const auth = (x: U) => ({ Authorization: `Bearer ${x.token}` });
   const u: Record<string, U> = {};
+  let staff = '';
+  let staffId = '';
+  const sauth = () => ({ Authorization: `Bearer ${staff}` });
 
   async function signup(name: string): Promise<U> {
     const username = `${name}${run}`.slice(0, 28);
@@ -27,7 +31,7 @@ describe('denúncias, moderação e apagar publicações (integração)', () => 
   }
   const post = async (a: U, body: string) => (await api().post('/api/v1/posts').set(auth(a)).send({ body }).expect(201)).body;
   const report = (x: U, type: string, id: string, reason = 'spam') => api().post('/api/v1/reports').set(auth(x)).send({ type, id, reason });
-  const queue = async (x: U) => (await api().get('/api/v1/admin/reports').set(auth(x)).expect(200)).body as { type: string; id: string; reports: number; reasons: string[]; owner: { username: string } }[];
+  const queue = async (x: U) => (await api().get('/api/v1/admin/reports').set(sauth()).expect(200)).body as { type: string; id: string; reports: number; reasons: string[]; owner: { username: string } }[];
 
   beforeAll(async () => {
     await migrate(DB);
@@ -35,7 +39,9 @@ describe('denúncias, moderação e apagar publicações (integração)', () => 
     app = await createApp(loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'd'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test' }));
     await app.init();
     for (const n of ['ra', 'rb', 'rc', 'rd']) u[n] = await signup(n);
-    await pool.query('UPDATE identity.users SET is_admin = true WHERE id = $1', [u.ra.id]);
+    const st = await staffLogin(app, 'ra');
+    staff = st.token;
+    staffId = st.userId;
   }, 60_000);
 
   afterAll(async () => {
@@ -65,32 +71,31 @@ describe('denúncias, moderação e apagar publicações (integração)', () => 
     await report(rc, 'post', p.id, 'harassment').expect(204); // repetir não duplica
     await report(rd, 'post', p.id, 'spam').expect(204);
 
-    await api().get('/api/v1/admin/reports').set(auth(rc)).expect(403); // não é moderação
+    await api().get('/api/v1/admin/reports').set(auth(rc)).expect(401); // não é moderação
     const q = (await queue(ra)).find((x) => x.id === p.id)!;
     expect(q).toMatchObject({ type: 'post', reports: 2, owner: { username: rb.username } });
     expect(q.reasons.sort()).toEqual(['harassment', 'spam']);
 
-    await api().post('/api/v1/admin/reports/resolve').set(auth(rc)).send({ type: 'post', id: p.id, action: 'remove' }).expect(403);
-    await api().post('/api/v1/admin/reports/resolve').set(auth(ra)).send({ type: 'post', id: p.id, action: 'remove' }).expect(204);
+    await api().post('/api/v1/admin/reports/resolve').set(auth(rc)).send({ type: 'post', id: p.id, action: 'remove' }).expect(401);
+    await api().post('/api/v1/admin/reports/resolve').set(sauth()).send({ type: 'post', id: p.id, action: 'remove' }).expect(204);
     await api().get(`/api/v1/posts/${p.id}`).set(auth(rd)).expect(404); // removido
     expect((await queue(ra)).some((x) => x.id === p.id)).toBe(false); // a fila fechou
-    const log = await pool.query(`SELECT action FROM audit.audit_log WHERE actor_id = $1 AND target = $2`, [ra.id, `post:${p.id}`]);
+    const log = await pool.query(`SELECT action FROM audit.audit_log WHERE actor_id = $1 AND target = $2`, [staffId, `post:${p.id}`]);
     expect(log.rows.map((r) => r.action)).toEqual(['moderation.remove']);
   });
 
-  it('suspender a conta do dono: perde as sessões e não entra mais; contas de moderação são intocáveis', async () => {
+  it('suspender a conta do dono: perde as sessões e não entra mais', async () => {
     const { ra, rb, rc } = u;
     const p = await post(rb, 'segundo conteúdo duvidoso');
     await report(rc, 'post', p.id, 'scam').expect(204);
-    await api().post('/api/v1/admin/reports/resolve').set(auth(ra)).send({ type: 'post', id: p.id, action: 'suspend' }).expect(204);
+    await api().post('/api/v1/admin/reports/resolve').set(sauth()).send({ type: 'post', id: p.id, action: 'suspend' }).expect(204);
     await api().post('/api/v1/auth/login').send({ identifier: rb.username, password: PASSWORD }).expect(401);
     const row = (await pool.query('SELECT status FROM identity.users WHERE id = $1', [rb.id])).rows[0];
     expect(row.status).toBe('suspended');
 
     const pa = await post(ra, 'conteúdo da moderação');
     await report(rc, 'post', pa.id, 'spam').expect(204);
-    await api().post('/api/v1/admin/reports/resolve').set(auth(ra)).send({ type: 'post', id: pa.id, action: 'suspend' }).expect(403);
-    await api().post('/api/v1/admin/reports/resolve').set(auth(ra)).send({ type: 'post', id: pa.id, action: 'dismiss' }).expect(204);
+    await api().post('/api/v1/admin/reports/resolve').set(sauth()).send({ type: 'post', id: pa.id, action: 'dismiss' }).expect(204);
     await api().get(`/api/v1/posts/${pa.id}`).set(auth(rc)).expect(200); // ignorada: continua visível
   });
 

@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
+import { staffLogin } from '../staff/staff-test';
 import { ImageClassifier } from './image-moderation.service';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
@@ -29,6 +30,8 @@ describe('verificação automática de fotos (nudez / conteúdo sexual)', () => 
   const run = Date.now().toString(36);
   const api = () => request(app.getHttpServer());
   const u: Record<string, U> = {};
+  let staff = '';
+  const sauth = () => ({ Authorization: `Bearer ${staff}` });
   const auth = (x: U) => ({ Authorization: `Bearer ${x.token}` });
 
   async function signup(name: string): Promise<U> {
@@ -49,7 +52,7 @@ describe('verificação automática de fotos (nudez / conteúdo sexual)', () => 
     );
     await app.init();
     for (const n of ['ia', 'ib']) u[n] = await signup(n);
-    await pool.query('UPDATE identity.users SET is_admin = true WHERE id = $1', [u.ib.id]);
+    staff = (await staffLogin(app, 'ib')).token;
   }, 60_000);
 
   afterAll(async () => {
@@ -82,11 +85,11 @@ describe('verificação automática de fotos (nudez / conteúdo sexual)', () => 
     await put(m.uploadUrl, maybe).expect(200);
     await api().get(`/api/v1/media/${m.assetId}`).expect(200);
 
-    const q = ((await api().get('/api/v1/admin/reports').set(auth(ib)).expect(200)).body as { type: string; id: string; imageUrl: string | null; preview: string; owner: { username: string } }[]).find((x) => x.id === m.assetId)!;
+    const q = ((await api().get('/api/v1/admin/reports').set(sauth()).expect(200)).body as { type: string; id: string; imageUrl: string | null; preview: string; owner: { username: string } }[]).find((x) => x.id === m.assetId)!;
     expect(q).toMatchObject({ type: 'media', imageUrl: `/api/v1/media/${m.assetId}`, owner: { username: ia.username } });
     expect(q.preview).toMatch(/verificação automática/i);
 
-    await api().post('/api/v1/admin/reports/resolve').set(auth(ib)).send({ type: 'media', id: m.assetId, action: 'remove' }).expect(204);
+    await api().post('/api/v1/admin/reports/resolve').set(sauth()).send({ type: 'media', id: m.assetId, action: 'remove' }).expect(204);
     await api().get(`/api/v1/media/${m.assetId}`).expect(404);
     // as pessoas não conseguem denunciar "media" à mão
     await api().post('/api/v1/reports').set(auth(ia)).send({ type: 'media', id: m.assetId, reason: 'spam' }).expect(400);

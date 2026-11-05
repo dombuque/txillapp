@@ -42,6 +42,7 @@ export class BackofficeService {
               (SELECT max(s.created_at) FROM identity.sessions s WHERE s.user_id = u.id) AS last_seen
          FROM identity.users u
         WHERE ($1::text IS NULL OR u.username ILIKE $1 ESCAPE '\\' OR u.display_name ILIKE $1 ESCAPE '\\' OR u.email ILIKE $1 ESCAPE '\\')
+          AND u.status <> 'staff'
           AND ($2::text IS NULL OR u.status = $2)
           AND ($3::uuid IS NULL OR u.id < $3)
         ORDER BY u.id DESC LIMIT $4`,

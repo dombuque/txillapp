@@ -66,6 +66,8 @@ const schema = z.object({
   MAIL_FROM: z.string().default('Txillapp <suporte@txillapp.com>'),
   /** Endereço público da app, usado nos links dos e-mails. */
   PUBLIC_URL: z.string().url().default('http://localhost:5173'),
+  /** Onde fica o backoffice (para as ligações de convite da equipa). Sem isto usa o PUBLIC_URL. */
+  ADMIN_URL: z.string().url().optional(),
   /** Só para testes: guarda os e-mails em memória em vez de os enviar. */
   MAIL_CAPTURE: z.enum(['true', 'false']).default('false'),
   /**

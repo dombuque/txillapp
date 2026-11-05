@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
+import { staffLogin } from '../staff/staff-test';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
@@ -18,6 +19,8 @@ describe('estatísticas de utilização e métricas (integração)', () => {
   const api = () => request(app.getHttpServer());
   const auth = (x: U) => ({ Authorization: `Bearer ${x.token}` });
   const u: Record<string, U> = {};
+  let staff = '';
+  const sauth = () => ({ Authorization: `Bearer ${staff}` });
   const METRICS = 'm'.repeat(24);
 
   async function signup(name: string): Promise<U> {
@@ -33,7 +36,7 @@ describe('estatísticas de utilização e métricas (integração)', () => {
     app = await createApp(loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'a'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test', METRICS_TOKEN: METRICS }));
     await app.init();
     for (const n of ['ya', 'yb']) u[n] = await signup(n);
-    await pool.query('UPDATE identity.users SET is_admin = true WHERE id = $1', [u.yb.id]);
+    staff = (await staffLogin(app, 'yb')).token;
   }, 60_000);
 
   afterAll(async () => {
@@ -73,11 +76,11 @@ describe('estatísticas de utilização e métricas (integração)', () => {
 
   it('painel: só moderação; devolve números coerentes (ativos, funil, séries sem buracos, desempenho)', async () => {
     const { ya, yb } = u;
-    await api().get('/api/v1/admin/stats').set(auth(ya)).expect(403);
+    await api().get('/api/v1/admin/stats').set(auth(ya)).expect(401);
     await send(yb, [{ name: 'app_open' }, { name: 'perf', props: { metric: 'LCP', value: 2400 } }, { name: 'client_error', props: { message: 'boom' } }]).expect(204);
     await api().post('/api/v1/posts').set(auth(yb)).send({ body: 'para as estatísticas' }).expect(201);
 
-    const s = (await api().get('/api/v1/admin/stats?days=7').set(auth(yb)).expect(200)).body;
+    const s = (await api().get('/api/v1/admin/stats?days=7').set(sauth()).expect(200)).body;
     expect(s.days).toBe(7);
     expect(s.series.posts).toHaveLength(7); // um valor por dia, mesmo sem dados
     expect(s.series.posts[6].value).toBeGreaterThanOrEqual(1);

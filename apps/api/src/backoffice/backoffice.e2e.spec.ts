@@ -5,6 +5,8 @@ import { Pool } from 'pg';
 import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
+import { staffLogin } from '../staff/staff-test';
+import { totp } from '../staff/totp';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 
@@ -25,6 +27,13 @@ describe('Backoffice: contas, motivos, notas, auditoria e histórico de queixas 
     return { token: r.body.accessToken, id: r.body.user.id, username, email };
   }
 
+  /** Conta de equipa já configurada, no formato de U (id = identidade interna, usada na auditoria). */
+  async function mkStaff(name: string, teams: string[] = ['administracao']): Promise<U & { accountId: string }> {
+    const st = await staffLogin(app, name, teams);
+    const r = (await pool.query('SELECT u.id, u.username FROM identity.staff_accounts a JOIN identity.users u ON u.id = a.user_id WHERE a.id = $1', [st.accountId])).rows[0];
+    return { token: st.token, id: r.id, username: r.username, email: st.email, accountId: st.accountId };
+  }
+
   beforeAll(async () => {
     await migrate(DB);
     pool = new Pool({ connectionString: DB });
@@ -38,14 +47,13 @@ describe('Backoffice: contas, motivos, notas, auditoria e histórico de queixas 
   });
 
   it('só a moderação entra; pesquisa por @ e email; ficha; confirmar email, suspender e reativar exigem motivo e ficam na auditoria', async () => {
-    const admin = await signup('boa');
+    const admin = await mkStaff('boa');
     const user = await signup('bob');
     const peer = await signup('boc');
-    await pool.query('UPDATE identity.users SET is_admin = true WHERE id = $1', [admin.id]);
 
-    // Quem não é da moderação não entra.
-    await api().get('/api/v1/admin/users').set(auth(user)).expect(403);
-    await api().get('/api/v1/admin/overview').set(auth(user)).expect(403);
+    // Quem não é da equipa (a sessão da rede social não vale) não entra.
+    await api().get('/api/v1/admin/users').set(auth(user)).expect(401);
+    await api().get('/api/v1/admin/overview').set(auth(user)).expect(401);
 
     // Resumo e pesquisa (por @ e por email).
     expect((await api().get('/api/v1/admin/overview').set(auth(admin)).expect(200)).body).toHaveProperty('reports_open');
@@ -86,10 +94,9 @@ describe('Backoffice: contas, motivos, notas, auditoria e histórico de queixas 
   });
 
   it('queixas decididas ficam no histórico com quem decidiu e porquê', async () => {
-    const admin = await signup('bod');
+    const admin = await mkStaff('bod');
     const bad = await signup('boe');
     const rep = await signup('bof');
-    await pool.query('UPDATE identity.users SET is_admin = true, email_verified_at = now() WHERE id = $1', [admin.id]);
     await pool.query('UPDATE identity.users SET email_verified_at = now() WHERE id IN ($1, $2)', [bad.id, rep.id]);
     const p = (await api().post('/api/v1/posts').set(auth(bad)).send({ body: 'conteúdo duvidoso', mediaIds: [] }).expect(201)).body;
     await api().post('/api/v1/reports').set(auth(rep)).send({ type: 'post', id: p.id, reason: 'spam' }).expect(204);
@@ -99,50 +106,77 @@ describe('Backoffice: contas, motivos, notas, auditoria e histórico de queixas 
     expect(mine).toMatchObject({ type: 'post', resolution: 'remove', note: 'spam claro', decidedBy: admin.username, owner: bad.username });
   });
 
-  it('equipas: cada uma só pode o que lhe cabe; a Administração gere a equipa e nunca fica sem ninguém', async () => {
-    const boss = await signup('bog');
-    const sup = await signup('boh');
-    const mod = await signup('boi');
+  it('equipas: cada uma só pode o que lhe cabe; a Administração convida e gere; a senha só se define pela ligação, com dois passos', async () => {
+    const boss = await mkStaff('bog');
+    const sup = await mkStaff('boh', ['suporte']);
+    const mod = await mkStaff('boi', ['moderacao', 'auditoria']);
     const target = await signup('boj');
-    await pool.query('UPDATE identity.users SET is_admin = true WHERE id = $1', [boss.id]);
 
-    // Quem não é da equipa não entra; depois de entrar numa equipa, sim.
-    await api().get('/api/v1/admin/me').set(auth(sup)).expect(403);
-    await api().post('/api/v1/admin/staff').set(auth(boss)).send({ username: sup.username, teams: ['suporte'], reason: 'nova pessoa no suporte' }).expect(204);
-    await api().post('/api/v1/admin/staff').set(auth(boss)).send({ username: mod.username, teams: ['moderacao', 'auditoria'], reason: 'moderadora e auditora' }).expect(204);
+    // Sessão da rede social nunca entra; a de equipa entra só no que a equipa pode.
+    await api().get('/api/v1/admin/me').set(auth(target)).expect(401);
     const me = (await api().get('/api/v1/admin/me').set(auth(sup)).expect(200)).body;
     expect(me.teams).toEqual(['suporte']);
     expect(me.permissions).toEqual(expect.arrayContaining(['users.view', 'users.verify_email']));
     expect(me.permissions).not.toContain('users.suspend');
 
-    // Suporte: vê contas e confirma email, mas não suspende, não vê a auditoria nem gere a equipa.
     await api().get(`/api/v1/admin/users/${target.id}`).set(auth(sup)).expect(200);
     await api().post(`/api/v1/admin/users/${target.id}/verify-email`).set(auth(sup)).send({ reason: 'sem receber email' }).expect(204);
     await api().post(`/api/v1/admin/users/${target.id}/suspend`).set(auth(sup)).send({ reason: 'não devia' }).expect(403);
     await api().get('/api/v1/admin/audit').set(auth(sup)).expect(403);
     await api().get('/api/v1/admin/staff').set(auth(sup)).expect(403);
-    await api().get('/api/v1/admin/reports/decided').set(auth(sup)).expect(403);
     await api().get('/api/v1/admin/reports').set(auth(sup)).expect(403);
 
-    // Moderação + Auditoria: suspende, vê a auditoria e as queixas, não gere a equipa nem confirma emails.
     await api().post(`/api/v1/admin/users/${target.id}/suspend`).set(auth(mod)).send({ reason: 'abuso' }).expect(204);
     await api().get('/api/v1/admin/audit').set(auth(mod)).expect(200);
     await api().get('/api/v1/admin/reports').set(auth(mod)).expect(200);
     await api().post(`/api/v1/admin/users/${target.id}/verify-email`).set(auth(mod)).send({ reason: 'não devia' }).expect(403);
-    await api().post('/api/v1/admin/staff').set(auth(mod)).send({ username: target.username, teams: ['suporte'], reason: 'tentativa' }).expect(403);
+    await api().post('/api/v1/admin/staff/invite').set(auth(mod)).send({ email: 'x@equipa.test', name: 'X', teams: ['suporte'] }).expect(403);
 
-    // A Administração vê a equipa, muda equipas, e o acesso retirado deixa de valer.
-    const team = (await api().get('/api/v1/admin/staff').set(auth(boss)).expect(200)).body as { username: string; teams: string[] }[];
-    expect(team.find((m) => m.username === mod.username)?.teams.sort()).toEqual(['auditoria', 'moderacao']);
-    await api().post('/api/v1/admin/staff').set(auth(boss)).send({ username: sup.username, teams: ['suporte', 'verificacao'], reason: 'passa também a verificar' }).expect(204);
-    expect((await api().get('/api/v1/admin/me').set(auth(sup)).expect(200)).body.permissions).toContain('verification.decide');
-    await api().post(`/api/v1/admin/staff/${mod.id}/remove`).set(auth(boss)).send({ reason: 'saiu da equipa' }).expect(204);
-    await api().get('/api/v1/admin/me').set(auth(mod)).expect(403);
+    // Convite: a ligação é de uso único; a senha é definida pela pessoa, com código dos dois passos.
+    const email = `novo${run}@equipa.test`;
+    const inv = (await api().post('/api/v1/admin/staff/invite').set(auth(boss)).send({ email, name: 'Pessoa Nova', teams: ['suporte'] }).expect(201)).body as { accountId: string; setupUrl: string };
+    const token = new URL(inv.setupUrl).searchParams.get('token')!;
+    await api().post('/api/v1/staff-auth/login').send({ email, password: 'qualquer-senha-longa-1', code: '123456' }).expect(401); // ainda sem senha
+    const info = (await api().get('/api/v1/staff-auth/setup').query({ token }).expect(200)).body as { email: string; secret: string; otpauth: string };
+    expect(info).toMatchObject({ email });
+    expect(info.otpauth).toContain('otpauth://totp/');
+    await api().post('/api/v1/staff-auth/setup').send({ token, password: 'curta', code: totp(info.secret) }).expect(400);
+    await api().post('/api/v1/staff-auth/setup').send({ token, password: 'senha-bem-comprida-1', code: '000000' }).expect(400);
+    const done = (await api().post('/api/v1/staff-auth/setup').send({ token, password: 'senha-bem-comprida-1', code: totp(info.secret) }).expect(200)).body as { token: string };
+    await api().get('/api/v1/staff-auth/me').set({ Authorization: `Bearer ${done.token}` }).expect(200);
+    await api().post('/api/v1/staff-auth/setup').send({ token, password: 'senha-bem-comprida-1', code: totp(info.secret) }).expect(404); // uso único
 
-    // Equipa desconhecida e último administrador.
-    await api().post('/api/v1/admin/staff').set(auth(boss)).send({ username: sup.username, teams: ['inventada'], reason: 'teste' }).expect(400);
-    await pool.query("UPDATE identity.users SET is_admin = false WHERE is_admin AND id <> $1", [boss.id]); // só resta o boss
-    await api().post('/api/v1/admin/staff').set(auth(boss)).send({ username: boss.username, teams: ['suporte'], reason: 'deixar a administração' }).expect(403);
-    await api().post(`/api/v1/admin/staff/${boss.id}/remove`).set(auth(boss)).send({ reason: 'sair' }).expect(403);
+    // Login: senha e código certos entram; errados não.
+    await api().post('/api/v1/staff-auth/login').send({ email, password: 'senha-errada-qualquer', code: totp(info.secret) }).expect(401);
+    await api().post('/api/v1/staff-auth/login').send({ email, password: 'senha-bem-comprida-1', code: '000000' }).expect(401);
+    const login = (await api().post('/api/v1/staff-auth/login').send({ email, password: 'senha-bem-comprida-1', code: totp(info.secret) }).expect(200)).body as { token: string };
+    const novo = { Authorization: `Bearer ${login.token}` };
+    expect((await api().get('/api/v1/admin/me').set(novo).expect(200)).body.teams).toEqual(['suporte']);
+    // O token de equipa não serve como sessão da rede social.
+    await api().get('/api/v1/users/me').set(novo).expect(401);
+
+    // A Administração vê a equipa, muda equipas, repõe e desativa; o acesso retirado deixa de valer logo.
+    const team = (await api().get('/api/v1/admin/staff').set(auth(boss)).expect(200)).body as { id: string; email: string; teams: string[] }[];
+    expect(team.find((m) => m.email === email)?.teams).toEqual(['suporte']);
+    expect(JSON.stringify(team)).not.toMatch(/password|secret|totp_/i);
+    await api().post(`/api/v1/admin/staff/${inv.accountId}/teams`).set(auth(boss)).send({ teams: ['suporte', 'verificacao'], reason: 'passa também a verificar' }).expect(204);
+    expect((await api().get('/api/v1/admin/me').set(novo).expect(200)).body.permissions).toContain('verification.decide');
+    await api().post(`/api/v1/admin/staff/${inv.accountId}/teams`).set(auth(boss)).send({ teams: ['inventada'], reason: 'teste' }).expect(400);
+    await api().post(`/api/v1/admin/staff/${inv.accountId}/reset`).set(auth(boss)).send({ reason: 'perdeu o telemóvel' }).expect(200);
+    await api().get('/api/v1/admin/me').set(novo).expect(401); // sessões antigas caem
+    await api().post(`/api/v1/admin/staff/${inv.accountId}/active`).set(auth(boss)).send({ active: false, reason: 'saiu da equipa' }).expect(204);
+    await api().post('/api/v1/staff-auth/login').send({ email, password: 'senha-bem-comprida-1', code: totp(info.secret) }).expect(401);
+
+    // Auditoria dos passos sensíveis e último administrador.
+    expect((await pool.query("SELECT count(*)::int AS n FROM audit.audit_log WHERE action LIKE 'staff.%' AND target = $1", [`staff:${inv.accountId}`])).rows[0].n).toBeGreaterThanOrEqual(4);
+    await pool.query('UPDATE identity.staff_accounts SET active = false WHERE id <> $1 AND user_id IN (SELECT id FROM identity.users WHERE is_admin)', [boss.accountId]);
+    await api().post(`/api/v1/admin/staff/${boss.accountId}/teams`).set(auth(boss)).send({ teams: ['suporte'], reason: 'deixar a administração' }).expect(403);
+    await api().post(`/api/v1/admin/staff/${boss.accountId}/active`).set(auth(boss)).send({ active: false, reason: 'sair' }).expect(403);
+  });
+
+  it('5 tentativas falhadas bloqueiam o login da equipa, mesmo com a senha e o código certos', async () => {
+    const st = await staffLogin(app, 'bloq');
+    for (let i = 0; i < 5; i++) await api().post('/api/v1/staff-auth/login').send({ email: st.email, password: 'senha-errada-qualquer', code: '000000' }).expect(401);
+    await api().post('/api/v1/staff-auth/login').send({ email: st.email, password: st.password, code: totp(st.secret) }).expect(429);
   });
 });

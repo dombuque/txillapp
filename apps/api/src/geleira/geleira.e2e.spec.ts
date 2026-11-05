@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
+import { staffLogin } from '../staff/staff-test';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
@@ -116,12 +117,11 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
     await api().put(`/api/v1/geleira/me/items/${a.id}`).set(auth(u.gc)).send({}).expect(404);
     // Nem na geleira pública de quem o tem, enquanto pendente.
     expect((await theirs(u.gc, u.gb)).some((i) => i.name === nome)).toBe(false);
-    await api().get('/api/v1/admin/geleira').set(auth(u.gb)).expect(403);
-    await pool.query('UPDATE identity.users SET is_admin = true WHERE id = $1', [u.ga.id]);
-    expect((await api().get('/api/v1/admin/geleira').set(auth(u.ga)).expect(200)).body.some((i: { id: string }) => i.id === a.id)).toBe(true);
-    await api().post(`/api/v1/admin/geleira/${a.id}`).set(auth(u.ga)).send({ approve: true }).expect(204);
+    await api().get('/api/v1/admin/geleira').set(auth(u.gb)).expect(401);
+    const st = { Authorization: `Bearer ${(await staffLogin(app, 'ga')).token}` };
+    expect((await api().get('/api/v1/admin/geleira').set(st).expect(200)).body.some((i: { id: string }) => i.id === a.id)).toBe(true);
+    await api().post(`/api/v1/admin/geleira/${a.id}`).set(st).send({ approve: true }).expect(204);
     expect((await theirs(u.gc, u.gb)).some((i) => i.name === nome)).toBe(true);
-    await pool.query('UPDATE identity.users SET is_admin = false WHERE id = $1', [u.ga.id]);
   });
 
   it('bebidas por país: as do país vêm primeiro e as de outros países ficam marcadas como estrangeiras', async () => {

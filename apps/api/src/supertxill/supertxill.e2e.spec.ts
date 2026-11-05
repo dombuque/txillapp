@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
+import { staffLogin } from '../staff/staff-test';
 import { MSG } from './constants';
 import { classify } from '../common/topics';
 import { execFileSync } from 'node:child_process';
@@ -465,18 +466,15 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     expect(rot.qrToken).not.toBe(v.qrToken);
     await api().post(`/api/v1/venues/${v.slug}/qr/rotate`).set(auth(fan)).expect(404);
     // Selo: só a equipa.
-    await api().put(`/api/v1/venues/${v.slug}/verified`).set(auth(fan)).send({ verified: true }).expect(403);
-    await pool.query('UPDATE identity.users SET is_admin = true WHERE id = $1', [owner.id]);
-    await api().put(`/api/v1/venues/${v.slug}/verified`).set(auth(owner)).send({ verified: true }).expect(200);
-    await pool.query('UPDATE identity.users SET is_admin = false WHERE id = $1', [owner.id]);
+    await api().put(`/api/v1/venues/${v.slug}/verified`).set(auth(fan)).send({ verified: true }).expect(401);
+    const st = { Authorization: `Bearer ${(await staffLogin(app, 'selo')).token}` };
+    await api().put(`/api/v1/venues/${v.slug}/verified`).set(st).send({ verified: true }).expect(200);
     expect(((await api().get(`/api/v1/venues/${v.slug}`).set(auth(fan)).expect(200)).body as { verified: boolean }).verified).toBe(true);
-    const pending = (await api().get('/api/v1/venues/admin/list').set(auth(fan)).expect(403));
-    expect(pending.status).toBe(403);
-    await pool.query('UPDATE identity.users SET is_admin = true WHERE id = $1', [owner.id]);
-    const all = (await api().get('/api/v1/venues/admin/list?filter=all').set(auth(owner)).expect(200)).body as { slug: string; verified: boolean }[];
+    const pending = (await api().get('/api/v1/venues/admin/list').set(auth(fan)).expect(401));
+    expect(pending.status).toBe(401);
+    const all = (await api().get('/api/v1/venues/admin/list?filter=all').set(st).expect(200)).body as { slug: string; verified: boolean }[];
     expect(all.find((x) => x.slug === v.slug)).toMatchObject({ verified: true });
     expect((await pool.query("SELECT 1 FROM audit.audit_log WHERE action = 'moderation.venue_verified' AND metadata->>'slug' = $1", [v.slug])).rowCount).toBe(1);
-    await pool.query('UPDATE identity.users SET is_admin = false WHERE id = $1', [owner.id]);
     // Limite de locais por pessoa e texto ofensivo.
     for (const n of ['Dois', 'Tres']) await api().post('/api/v1/venues').set(auth(owner)).send({ name: `${n} Local ${run}`, kind: 'cafe' }).expect(201);
     await api().post('/api/v1/venues').set(auth(owner)).send({ name: `Quatro Local ${run}`, kind: 'cafe' }).expect(403);

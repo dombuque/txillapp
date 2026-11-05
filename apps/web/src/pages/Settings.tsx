@@ -371,26 +371,6 @@ export default function Settings() {
         <Row icon={<Icon name="phone" />} label={tr('Dispositivos com sessão iniciada')} onClick={() => setSheet('devices')} />
       </Section>
 
-      {p?.isAdmin && (
-        <Section title={tr('Moderação')}>
-          <Link to="/admin/stats" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="sparkles" /></span>
-            <span className="flex-1 font-semibold">{tr('Estatísticas da plataforma')}</span>
-            <span className="text-xl text-zinc-400" aria-hidden>›</span>
-          </Link>
-          <Link to="/admin/verifications" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="check-circle" /></span>
-            <span className="flex-1 font-semibold">{tr('Pedidos de verificação')}</span>
-            <span className="text-xl text-zinc-400" aria-hidden>›</span>
-          </Link>
-          <Link to="/admin" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="shield" /></span>
-            <span className="flex-1 font-semibold">{tr('Fila de denúncias')}</span>
-            <span className="text-xl text-zinc-400" aria-hidden>›</span>
-          </Link>
-        </Section>
-      )}
-
       <Section title={tr('Apoio e informações')}>
         <Link to="/invites" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="user-plus" /></span>

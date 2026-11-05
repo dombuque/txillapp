@@ -2,8 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import Icon, { type IconName } from '../../components/Icon';
-import { api } from '../../lib/api';
-import { useAuth } from '../../lib/auth';
+import { api, staffSession } from '../../lib/api';
 import { Wordmark } from '../../components/ui';
 import { Kbd, StaffContext, ago } from './bo';
 
@@ -63,8 +62,14 @@ function Palette({ onClose }: { onClose: () => void }) {
 
 /** Backoffice do Txillapp: barra lateral escura, menu por equipa e conteúdo largo, para computador. */
 export default function BackofficeLayout() {
-  const { user } = useAuth();
+  const navigate = useNavigate();
   const [palette, setPalette] = useState(false);
+  const who = useQuery({ queryKey: ['bo-who'], queryFn: api.staffMe, retry: false, staleTime: 5 * 60_000 });
+  async function leave() {
+    await api.staffLogout().catch(() => undefined);
+    staffSession.clear();
+    navigate('/backoffice/login', { replace: true });
+  }
   const me = useQuery({ queryKey: ['bo-me'], queryFn: api.boMe, retry: false });
   const ov = useQuery({ queryKey: ['bo-overview'], queryFn: api.boOverview, retry: false, enabled: me.isSuccess, refetchInterval: 60_000 });
   useEffect(() => {
@@ -82,7 +87,7 @@ export default function BackofficeLayout() {
         <div>
           <p className="text-xl font-bold">Sem acesso</p>
           <p className="mt-1 text-zinc-600">Esta área é só para a equipa do Txillapp.</p>
-          <Link to="/" className="mt-4 inline-block rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white">Voltar à app</Link>
+          <Link to="/backoffice/login" onClick={() => staffSession.clear()} className="mt-4 inline-block rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white">Entrar com outra conta</Link>
         </div>
       </div>
     );
@@ -121,9 +126,10 @@ export default function BackofficeLayout() {
             })}
           </nav>
           <div className="border-t border-white/10 p-4">
-            <p className="truncate text-sm font-semibold text-white">@{user?.username}</p>
+            <p className="truncate text-sm font-semibold text-white">{who.data?.name ?? 'Equipa'}</p>
+            <p className="truncate text-xs text-zinc-500">{who.data?.email}</p>
             <p className="mt-0.5 text-xs text-zinc-500">{teamNames.join(' · ') || 'Equipa'}</p>
-            <Link to="/" className="mt-2 inline-block text-xs text-zinc-400 underline hover:text-white">Voltar à app</Link>
+            <button type="button" onClick={() => void leave()} className="mt-2 inline-block text-xs text-zinc-400 underline hover:text-white">Sair da equipa</button>
           </div>
         </aside>
         <main className="min-w-0 flex-1 px-8 py-8">

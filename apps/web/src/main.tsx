@@ -1,8 +1,8 @@
 import Reels from './pages/Reels';
-import { api } from './lib/api';
+import { api, staffSession } from './lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StrictMode, Suspense, lazy, type ReactNode, useEffect } from 'react';
+import { StrictMode, Suspense, lazy, type ReactNode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import './index.css';
@@ -53,6 +53,8 @@ const VenuePage = lazy(() => import('./pages/VenuePage'));
 const Venues = lazy(() => import('./pages/Venues'));
 const Invites = lazy(() => import('./pages/Invites'));
 const BoLayout = lazy(() => import('./pages/backoffice/Layout'));
+const BoLogin = lazy(() => import('./pages/backoffice/Login'));
+const BoSetup = lazy(() => import('./pages/backoffice/Setup'));
 const BoHome = lazy(() => import('./pages/backoffice/Home'));
 const BoReports = lazy(() => import('./pages/backoffice/Reports'));
 const BoUsers = lazy(() => import('./pages/backoffice/Users'));
@@ -122,6 +124,18 @@ function AdminHostRedirect({ children }: { children: ReactNode }) {
   return window.location.hostname.startsWith('admin.') ? <Navigate to="/backoffice" replace /> : <>{children}</>;
 }
 
+/** Rotas da equipa: precisam da sessão de equipa (login próprio, separado da rede social). */
+function StaffRoute({ children }: { children: ReactNode }) {
+  const here = useLocation();
+  const [, bump] = useState(0);
+  useEffect(() => {
+    const f = () => bump((n) => n + 1);
+    window.addEventListener('txill:staff-out', f);
+    return () => window.removeEventListener('txill:staff-out', f);
+  }, []);
+  return staffSession.has() ? <>{children}</> : <Navigate to="/backoffice/login" replace state={{ from: here.pathname + here.search }} />;
+}
+
 function Private({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const here = useLocation();
@@ -129,7 +143,7 @@ function Private({ children }: { children: ReactNode }) {
   // txillapp.com sem sessão mostra a apresentação; a app instalada vai direto ao login.
   // Em admin.txillapp.com não há apresentação pública: sem sessão vai ao login e depois ao backoffice.
   const onAdminHost = window.location.hostname.startsWith('admin.');
-  if (!user && onAdminHost) return <Navigate to="/login" replace state={{ from: here.pathname === '/' ? '/backoffice' : here.pathname + here.search }} />;
+  if (!user && onAdminHost) return <Navigate to="/backoffice" replace />;
   if (!user && here.pathname === '/' && !isStandalone()) return <Landing />;
   // Guarda para onde ia (ex.: um perfil partilhado) e volta lá depois de entrar.
   return user ? <>{children}</> : <Navigate to="/login" replace state={{ from: here.pathname + here.search }} />;
@@ -177,14 +191,16 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/saved" element={<Private><Suspense fallback={<Splash />}><SavedPosts /></Suspense></Private>} />
               <Route path="/insights" element={<Private><Suspense fallback={<Splash />}><Insights /></Suspense></Private>} />
               <Route path="/settings" element={<Private><Settings /></Private>} />
-              <Route path="/admin/stats" element={<Private><Suspense fallback={null}><AdminStats /></Suspense></Private>} />
+              <Route path="/admin/stats" element={<StaffRoute><Suspense fallback={null}><AdminStats /></Suspense></StaffRoute>} />
               <Route path="/reels" element={<Private><Reels /></Private>} />
               <Route path="/reels/filtros" element={<Private><Suspense fallback={<Splash />}><ReelPrefs /></Suspense></Private>} />
               <Route path="/tag/:tag" element={<Private><TagPage /></Private>} />
               <Route path="/place/:name" element={<Private><Suspense fallback={<Splash />}><PlacePage /></Suspense></Private>} />
-              <Route path="/admin/verifications" element={<Private><Suspense fallback={null}><AdminVerifications /></Suspense></Private>} />
+              <Route path="/admin/verifications" element={<StaffRoute><Suspense fallback={null}><AdminVerifications /></Suspense></StaffRoute>} />
               <Route path="/about" element={<Private><Suspense fallback={null}><SupportAbout /></Suspense></Private>} />
-              <Route path="/backoffice" element={<Private><Suspense fallback={null}><BoLayout /></Suspense></Private>}>
+              <Route path="/backoffice/login" element={<Suspense fallback={null}><BoLogin /></Suspense>} />
+              <Route path="/backoffice/setup" element={<Suspense fallback={null}><BoSetup /></Suspense>} />
+              <Route path="/backoffice" element={<StaffRoute><Suspense fallback={null}><BoLayout /></Suspense></StaffRoute>}>
                 <Route index element={<Suspense fallback={null}><BoHome /></Suspense>} />
                 <Route path="reports" element={<Suspense fallback={null}><BoReports /></Suspense>} />
                 <Route path="users" element={<Suspense fallback={null}><BoUsers /></Suspense>} />
@@ -198,7 +214,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/orders" element={<Private><Suspense fallback={null}><SupportOrders /></Suspense></Private>} />
               <Route path="/language" element={<Private><Suspense fallback={null}><SupportLanguage /></Suspense></Private>} />
               <Route path="/verification" element={<Private><Suspense fallback={null}><Verification /></Suspense></Private>} />
-              <Route path="/admin" element={<Private><Suspense fallback={null}><Admin /></Suspense></Private>} />
+              <Route path="/admin" element={<StaffRoute><Suspense fallback={null}><Admin /></Suspense></StaffRoute>} />
               <Route path="/r/:postId" element={<PrivateOrPublic><ReelPage /></PrivateOrPublic>} />
               <Route path="/p/:postId" element={<PrivateOrPublic><PostPage /></PrivateOrPublic>} />
               <Route path="/messages/g/:id" element={<Private><Thread /></Private>} />

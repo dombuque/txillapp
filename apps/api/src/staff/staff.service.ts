@@ -37,7 +37,7 @@ export class StaffService {
     const r = (
       await this.pool.query(
         `SELECT u.is_admin, coalesce(m.teams, '{}') AS teams, coalesce(m.active, false) AS active
-           FROM identity.users u LEFT JOIN identity.staff_members m ON m.user_id = u.id WHERE u.id = $1 AND u.status = 'active'`,
+           FROM identity.users u LEFT JOIN identity.staff_members m ON m.user_id = u.id WHERE u.id = $1 AND u.status IN ('active', 'staff')`,
         [userId],
       )
     ).rows[0];

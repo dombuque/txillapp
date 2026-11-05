@@ -1,3 +1,5 @@
+import { Reflector } from '@nestjs/core';
+import { NEEDS } from '../staff/staff.guard';
 import {
   Body, CanActivate, Controller, Delete, ExecutionContext, Get, HttpCode, Injectable, Param, ParseUUIDPipe,
   Post, Query, Req, Res, UnauthorizedException, UseGuards,
@@ -15,9 +17,11 @@ const COOKIE_PATH = '/api/v1/auth';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private readonly auth: AuthService) {}
+  constructor(private readonly auth: AuthService, private readonly reflector: Reflector) {}
 
   async canActivate(ctx: ExecutionContext) {
+    // Rotas da equipa do backoffice (@Needs): têm o seu próprio login, separado da rede social.
+    if (this.reflector.getAllAndOverride(NEEDS, [ctx.getHandler(), ctx.getClass()])) return true;
     const req = ctx.switchToHttp().getRequest<Request & { userId?: string }>();
     const header = req.headers.authorization;
     if (!header?.startsWith('Bearer ')) throw new UnauthorizedException();

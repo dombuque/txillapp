@@ -2,9 +2,9 @@ import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
-import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { Needs, StaffGuard } from '../staff/staff.guard';
+import { StaffAuthService } from '../staff/staff-auth.service';
 import { StaffService, TEAMS } from '../staff/staff.service';
 import { BackofficeService } from './backoffice.service';
 
@@ -12,13 +12,16 @@ type AuthedReq = Request & { userId?: string };
 
 const reasonSchema = z.object({ reason: z.string().trim().min(3, 'Escreve o motivo').max(300) });
 const noteSchema = z.object({ body: z.string().trim().min(1).max(1000) });
-const staffSchema = z.object({ username: z.string().trim().min(1).max(60), teams: z.array(z.enum(TEAMS.map((t) => t.id) as [string, ...string[]])).min(1), reason: z.string().trim().min(3).max(300) });
+const teamIds = TEAMS.map((t) => t.id) as [string, ...string[]];
+const inviteSchema = z.object({ email: z.string().trim().toLowerCase().email().max(254), name: z.string().trim().min(1).max(80), teams: z.array(z.enum(teamIds)).min(1) });
+const teamsSchema = z.object({ teams: z.array(z.enum(teamIds)).min(1), reason: z.string().trim().min(3).max(300) });
+const activeSchema = z.object({ active: z.boolean(), reason: z.string().trim().min(3).max(300) });
 
 /** Backoffice (computador): só contas de moderação. */
 @Controller('admin')
-@UseGuards(JwtAuthGuard, StaffGuard)
+@UseGuards(StaffGuard)
 export class BackofficeController {
-  constructor(private readonly bo: BackofficeService, private readonly staff: StaffService) {}
+  constructor(private readonly bo: BackofficeService, private readonly staff: StaffService, private readonly staffAuth: StaffAuthService) {}
 
   /** Quem sou: equipas e permissões (para o menu). */
   @Get('me')
@@ -26,24 +29,41 @@ export class BackofficeController {
     return this.staff.me(req.userId!);
   }
 
+  /** A equipa: as contas de equipa (separadas da rede social). */
   @Get('staff')
   @Needs('staff.manage')
   team() {
-    return this.staff.list();
+    return this.staffAuth.list();
   }
 
-  @Post('staff')
+  /** Convida uma pessoa: cria a conta e devolve a ligação de uso único para definir a senha e os dois passos. */
+  @Post('staff/invite')
   @Needs('staff.manage')
-  @HttpCode(204)
-  setTeams(@Req() req: AuthedReq, @Body(new ZodPipe(staffSchema)) b: z.infer<typeof staffSchema>) {
-    return this.staff.setTeams(req.userId!, b.username, b.teams, b.reason);
+  @Throttle({ default: { limit: 20, ttl: 3_600_000 } })
+  invite(@Req() req: AuthedReq, @Body(new ZodPipe(inviteSchema)) b: z.infer<typeof inviteSchema>) {
+    return this.staffAuth.invite(req.userId!, b);
   }
 
-  @Post('staff/:id/remove')
+  @Post('staff/:id/teams')
   @Needs('staff.manage')
   @HttpCode(204)
-  removeStaff(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(reasonSchema)) b: z.infer<typeof reasonSchema>) {
-    return this.staff.remove(req.userId!, id, b.reason);
+  setTeams(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(teamsSchema)) b: z.infer<typeof teamsSchema>) {
+    return this.staffAuth.setTeams(req.userId!, id, b.teams, b.reason);
+  }
+
+  @Post('staff/:id/active')
+  @Needs('staff.manage')
+  @HttpCode(204)
+  setActive(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(activeSchema)) b: z.infer<typeof activeSchema>) {
+    return this.staffAuth.setActive(req.userId!, id, b.active, b.reason);
+  }
+
+  /** Repor o acesso (perdeu a senha ou o telemóvel): nova ligação de configuração. */
+  @Post('staff/:id/reset')
+  @Needs('staff.manage')
+  @HttpCode(200)
+  reset(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(reasonSchema)) b: z.infer<typeof reasonSchema>) {
+    return this.staffAuth.resetAccess(req.userId!, id, b.reason);
   }
 
   @Get('overview')
