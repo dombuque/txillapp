@@ -76,6 +76,23 @@ describeDb('auth (integração, PostgreSQL real)', () => {
     expect(me.body.displayName).toBe('Teste');
   });
 
+  it('app nativa: o token de renovação vem no corpo e volta por cabeçalho (sem cookie); o browser nunca o recebe no corpo', async () => {
+    const api = request(app.getHttpServer());
+    const csrf = { 'X-Requested-With': 'txillapp' };
+    const web = await api.post('/api/v1/auth/login').send({ identifier: email, password }).expect(200);
+    expect(web.body.refreshToken).toBeUndefined();
+    const m = await api.post('/api/v1/auth/login').set({ 'X-Client': 'txillapp-mobile' }).send({ identifier: email, password }).expect(200);
+    expect(m.body.refreshToken).toEqual(expect.any(String));
+    // Sem cookie, o cabeçalho renova e roda o token.
+    const mobile = { ...csrf, 'X-Client': 'txillapp-mobile' };
+    const r1 = await api.post('/api/v1/auth/refresh').set({ ...mobile, 'X-Refresh-Token': m.body.refreshToken }).expect(200);
+    expect(r1.body.refreshToken).toEqual(expect.any(String));
+    expect(r1.body.refreshToken).not.toBe(m.body.refreshToken);
+    await api.post('/api/v1/auth/refresh').set({ ...csrf, 'X-Refresh-Token': r1.body.refreshToken }).expect(401); // sem X-Client o cabeçalho não vale
+    await api.post('/api/v1/auth/logout').set({ ...mobile, 'X-Refresh-Token': r1.body.refreshToken }).expect(204);
+    await api.post('/api/v1/auth/refresh').set({ ...mobile, 'X-Refresh-Token': r1.body.refreshToken }).expect(401);
+  });
+
   it('rotação do refresh token e deteção de reutilização', async () => {
     const api = request(app.getHttpServer());
     const login = await api.post('/api/v1/auth/login').send({ identifier: email, password }).expect(200);

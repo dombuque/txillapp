@@ -37,6 +37,18 @@ function requireCsrfHeader(req: Request) {
   if (req.headers['x-requested-with'] !== 'txillapp') throw new UnauthorizedException();
 }
 
+/**
+ * App nativa (React Native): não usa o cookie. Envia `X-Client: txillapp-mobile`, recebe o token de renovação no corpo da resposta
+ * (para guardar no cofre do telemóvel) e devolve-o no cabeçalho `X-Refresh-Token`. O browser continua só com o cookie HttpOnly.
+ */
+const isMobile = (req: Request) => req.headers['x-client'] === 'txillapp-mobile';
+const refreshTokenOf = (req: Request): string | undefined => {
+  const fromCookie = req.cookies?.[COOKIE] as string | undefined;
+  if (fromCookie) return fromCookie;
+  const h = req.headers['x-refresh-token'];
+  return isMobile(req) && typeof h === 'string' && h.length >= 20 && h.length <= 400 ? h : undefined;
+};
+
 const passwordChangeSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: passwordSchema });
 const deleteSchema = z.object({ confirmUsername: z.string().min(1).max(60), password: z.string().max(128).optional() });
 const tokenSchema = z.object({ token: z.string().min(20).max(200) });
@@ -79,7 +91,7 @@ export class AuthController {
   @HttpCode(200)
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<AuthResponse> {
     requireCsrfHeader(req);
-    const token = req.cookies?.[COOKIE];
+    const token = refreshTokenOf(req);
     if (!token) throw new UnauthorizedException();
     try {
       const { tokens, user } = await this.auth.refresh(token, req.headers['user-agent']);
@@ -166,7 +178,7 @@ export class AuthController {
   @HttpCode(204)
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     requireCsrfHeader(req);
-    const token = req.cookies?.[COOKIE];
+    const token = refreshTokenOf(req);
     if (token) await this.auth.logout(token);
     res.clearCookie(COOKIE, { path: COOKIE_PATH });
   }
@@ -271,6 +283,7 @@ export class AuthController {
       path: COOKIE_PATH,
       maxAge: REFRESH_TTL_MS,
     });
-    return { accessToken: tokens.accessToken, user };
+    const mobile = !!res.req && isMobile(res.req);
+    return mobile ? ({ accessToken: tokens.accessToken, user, refreshToken: tokens.refreshToken } as AuthResponse) : { accessToken: tokens.accessToken, user };
   }
 }

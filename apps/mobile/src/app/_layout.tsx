@@ -1,0 +1,72 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AuthProvider, useAuth } from '@/lib/auth';
+import { colors } from '@/lib/theme';
+
+void SplashScreen.preventAutoHideAsync();
+
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
+
+/** Sem sessão → entrada; com sessão → a app. */
+function Gate() {
+  const { user, loading, offline, retry } = useAuth();
+  const router = useRouter();
+  const segments = useSegments();
+
+  useEffect(() => {
+    if (!loading) void SplashScreen.hideAsync();
+  }, [loading]);
+
+  useEffect(() => {
+    if (loading || offline) return;
+    const onLogin = segments[0] === 'login';
+    if (!user && !onLogin) router.replace('/login');
+    else if (user && onLogin) router.replace('/');
+  }, [user, loading, offline, segments, router]);
+
+  if (loading) return <View style={styles.center}><ActivityIndicator color={colors.brand} /></View>;
+  if (offline) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.title}>Sem ligação</Text>
+        <Text style={styles.sub}>Não consegui ligar ao Txillapp. Verifica a internet e tenta outra vez.</Text>
+        <Pressable onPress={retry} style={styles.btn} accessibilityRole="button"><Text style={styles.btnText}>Tentar outra vez</Text></Pressable>
+      </View>
+    );
+  }
+  return (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.white } }}>
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="login" options={{ animation: 'fade' }} />
+    </Stack>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <StatusBar style="dark" />
+            <Gate />
+          </AuthProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}
+
+const styles = StyleSheet.create({
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white, padding: 32, gap: 10 },
+  title: { fontSize: 22, fontWeight: '800', color: colors.ink },
+  sub: { fontSize: 15, color: colors.muted, textAlign: 'center' },
+  btn: { marginTop: 10, backgroundColor: colors.brand, paddingHorizontal: 22, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
+  btnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+});

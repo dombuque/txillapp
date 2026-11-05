@@ -1,7 +1,7 @@
 {
   "name": "txillapp",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": ["apps/api", "apps/web", "packages/*"],
   "engines": { "node": ">=22" },
   "scripts": {
     "infra:up": "docker compose -f infra/docker/docker-compose.yml up -d",
