@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, SetMetadata, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { Permission, StaffService } from './staff.service';
 import { StaffAuthService } from './staff-auth.service';
 
@@ -21,6 +21,8 @@ export class StaffGuard implements CanActivate {
   ) {}
   async canActivate(ctx: ExecutionContext) {
     const req = ctx.switchToHttp().getRequest<Request & { userId?: string; staffAccountId?: string }>();
+    // Dados da equipa nunca ficam em cache do browser.
+    ctx.switchToHttp().getResponse<Response>().setHeader('Cache-Control', 'no-store');
     const header = req.headers.authorization;
     if (!header?.startsWith('Bearer ')) throw new UnauthorizedException();
     const s = await this.auth.authenticate(header.slice(7));
