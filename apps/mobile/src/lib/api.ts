@@ -1,9 +1,10 @@
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import { SITE_URL } from './config';
 
 /** Resposta de entrada: a app nativa recebe também o token de renovação (guardado no cofre do telemóvel, nunca em texto simples). */
 export interface PublicUser { id: string; username: string; displayName: string }
-export interface AuthResult { accessToken: string; refreshToken: string; user: PublicUser }
+export interface AuthResult { accessToken: string; /** Só na app nativa; na web vai no cookie. */ refreshToken?: string; user: PublicUser }
 
 export interface PostMedia { url: string; kind?: 'image' | 'video'; posterUrl?: string; width?: number | null; height?: number | null; durationMs?: number | null }
 export interface Author { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null }
@@ -33,21 +34,24 @@ export class ApiError extends Error {
 }
 
 const REFRESH_KEY = 'txill.refresh';
+const isWeb = Platform.OS === 'web';
 let accessToken: string | null = null;
 let onExpired: (() => void) | null = null;
 export const setSessionExpiredHandler = (f: (() => void) | null) => { onExpired = f; };
 export const setAccessToken = (t: string | null) => { accessToken = t; };
 
+/** Token de renovação: no cofre do telemóvel (app nativa). Na web não se guarda nada: a sessão vive num cookie HttpOnly do servidor. */
 export const refreshStore = {
-  get: () => SecureStore.getItemAsync(REFRESH_KEY).catch(() => null),
-  set: (t: string) => SecureStore.setItemAsync(REFRESH_KEY, t).catch(() => undefined),
-  clear: () => SecureStore.deleteItemAsync(REFRESH_KEY).catch(() => undefined),
+  get: (): Promise<string | null> => (isWeb ? Promise.resolve('cookie') : SecureStore.getItemAsync(REFRESH_KEY).catch(() => null)),
+  set: (t: string) => (isWeb ? Promise.resolve() : SecureStore.setItemAsync(REFRESH_KEY, t).catch(() => undefined)),
+  clear: () => (isWeb ? Promise.resolve() : SecureStore.deleteItemAsync(REFRESH_KEY).catch(() => undefined)),
 };
 
-const baseHeaders = { 'Content-Type': 'application/json', 'X-Requested-With': 'txillapp', 'X-Client': 'txillapp-mobile' };
+const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'X-Requested-With': 'txillapp', ...(isWeb ? {} : { 'X-Client': 'txillapp-mobile' }) };
 
 async function call(path: string, init: RequestInit = {}, auth = true): Promise<Response> {
   return fetch(`${SITE_URL}/api/v1${path}`, {
+    ...(isWeb ? { credentials: 'include' as const } : {}),
     ...init,
     headers: { ...baseHeaders, ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(init.headers as Record<string, string> | undefined) },
   });
@@ -69,10 +73,10 @@ export function refreshSession(): Promise<AuthResult> {
   return (refreshing ??= (async () => {
     const token = await refreshStore.get();
     if (!token) throw new ApiError(401, 'Sem sessão');
-    const res = await call('/auth/refresh', { method: 'POST', headers: { 'X-Refresh-Token': token } }, false);
+    const res = await call('/auth/refresh', { method: 'POST', headers: isWeb ? {} : { 'X-Refresh-Token': token } }, false);
     const r = (await parse(res)) as AuthResult;
     accessToken = r.accessToken;
-    await refreshStore.set(r.refreshToken);
+    if (r.refreshToken) await refreshStore.set(r.refreshToken);
     return r;
   })()
     .catch(async (e) => {
@@ -103,12 +107,12 @@ export const api = {
   async login(identifier: string, password: string): Promise<AuthResult> {
     const r = (await parse(await call('/auth/login', post({ identifier, password }), false))) as AuthResult;
     accessToken = r.accessToken;
-    await refreshStore.set(r.refreshToken);
+    if (r.refreshToken) await refreshStore.set(r.refreshToken);
     return r;
   },
   async logout(): Promise<void> {
     const token = await refreshStore.get();
-    if (token) await call('/auth/logout', { method: 'POST', headers: { 'X-Refresh-Token': token } }, false).catch(() => undefined);
+    if (token) await call('/auth/logout', { method: 'POST', headers: isWeb ? {} : { 'X-Refresh-Token': token } }, false).catch(() => undefined);
     accessToken = null;
     await refreshStore.clear();
   },

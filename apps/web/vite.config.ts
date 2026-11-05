@@ -38,7 +38,7 @@ export default defineConfig({
         ],
       },
       // Nunca fazer cache de respostas da API (podem ser privadas/financeiras).
-      workbox: { navigateFallbackDenylist: [/^\/api\//], importScripts: ['push-sw.js'], clientsClaim: true, cleanupOutdatedCaches: true },
+      workbox: { navigateFallbackDenylist: [/^\/api\//, /^\/beta(\/|$)/], importScripts: ['push-sw.js'], clientsClaim: true, cleanupOutdatedCaches: true },
     }),
   ],
   server: {

@@ -1,5 +1,7 @@
 /** Onde fica a API. Em desenvolvimento pode apontar para outro servidor com EXPO_PUBLIC_API_URL (sem barra no fim). */
-export const SITE_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'https://txillapp.com').replace(/\/$/, '');
+import { Platform } from 'react-native';
+
+export const SITE_URL = (process.env.EXPO_PUBLIC_API_URL ?? (Platform.OS === 'web' ? '' : 'https://txillapp.com')).replace(/\/$/, '');
 
 /** Endereço absoluto de um caminho da API (ex.: /api/v1/media/abc). Endereços completos ficam como estão. */
 export const abs = (path: string | null | undefined): string | undefined => (!path ? undefined : /^https?:\/\//.test(path) ? path : `${SITE_URL}${path}`);

@@ -28,11 +28,22 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": true,
-      "permissions": ["CAMERA", "RECORD_AUDIO", "ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "POST_NOTIFICATIONS", "VIBRATE"]
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "VIBRATE"
+      ]
     },
     "web": {
-      "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "output": "static",
+      "favicon": "./assets/images/favicon.png",
+      "name": "Txillapp",
+      "shortName": "Txillapp",
+      "backgroundColor": "#ffffff",
+      "themeColor": "#ffffff"
     },
     "plugins": [
       "expo-router",
@@ -48,7 +59,8 @@
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": true,
+      "baseUrl": "/beta"
     }
   }
 }
