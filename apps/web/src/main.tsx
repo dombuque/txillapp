@@ -49,6 +49,8 @@ const PlacePage = lazy(() => import('./pages/PlacePage'));
 const Insights = lazy(() => import('./pages/Insights'));
 const SavedPosts = lazy(() => import('./pages/SavedPosts'));
 const ReelPrefs = lazy(() => import('./pages/ReelPrefs'));
+const VenuePage = lazy(() => import('./pages/VenuePage'));
+const Venues = lazy(() => import('./pages/Venues'));
 const Invites = lazy(() => import('./pages/Invites'));
 const BoLayout = lazy(() => import('./pages/backoffice/Layout'));
 const BoHome = lazy(() => import('./pages/backoffice/Home'));
@@ -169,6 +171,8 @@ createRoot(document.getElementById('root')!).render(
               {/* Páginas próprias em ecrã inteiro (como a Atividade do Instagram): sem a barra de baixo. */}
               <Route path="/notifications" element={<Private><Notifications /></Private>} />
               <Route path="/geleira" element={<Private><GeleiraEditor /></Private>} />
+              <Route path="/v/:slug" element={<Private><Suspense fallback={<Splash />}><VenuePage /></Suspense></Private>} />
+              <Route path="/locais" element={<Private><Suspense fallback={<Splash />}><Venues /></Suspense></Private>} />
               <Route path="/saved" element={<Private><Suspense fallback={<Splash />}><SavedPosts /></Suspense></Private>} />
               <Route path="/insights" element={<Private><Suspense fallback={<Splash />}><Insights /></Suspense></Private>} />
               <Route path="/settings" element={<Private><Settings /></Private>} />

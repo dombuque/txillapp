@@ -1,6 +1,6 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { lazy, Suspense, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import Icon from '../components/Icon';
 import { LoadingBlock } from '../components/Loading';
 import PostCard from '../components/PostCard';
@@ -23,12 +23,20 @@ export default function PlacePage() {
     getNextPageParam: (l) => l.nextCursor ?? undefined,
     retry: false,
   });
+  const venue = useQuery({ queryKey: ['venue-by-name', label.toLowerCase()], queryFn: () => api.findVenue(label), staleTime: 5 * 60_000, retry: false });
   const first = q.data?.pages[0];
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
   const center = first?.center ?? null;
   return (
     <StackPage title={label}>
       <div className="px-4 pt-3">
+        {venue.data && (
+          <Link to={`/v/${venue.data.slug}`} className="mb-3 flex items-center gap-3 rounded-2xl bg-zinc-900 px-4 py-3 text-white active:scale-[0.99]">
+            <Icon name="check-circle" size={22} />
+            <span className="min-w-0 flex-1"><span className="block font-bold">{tr('Página do local')}{venue.data.verified ? ` · ${tr('Verificado')}` : ''}</span><span className="block text-sm text-white/70">{venue.data.checkins} {tr('check-ins')}</span></span>
+            <span aria-hidden className="text-xl text-white/60">›</span>
+          </Link>
+        )}
         {center && (
           <Suspense fallback={<div className="h-56 w-full animate-pulse rounded-3xl bg-zinc-100" />}>
             <PlacePostsMap center={center} label={label} items={items} />

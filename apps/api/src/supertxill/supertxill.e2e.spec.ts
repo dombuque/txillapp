@@ -441,4 +441,39 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     const bad = await api().post('/api/v1/stories').set(auth(a)).send({ mediaId: long }).expect(400);
     expect(JSON.stringify(bad.body)).toContain('30 segundos');
   });
+
+  it('locais: criar, página, check-in só com o QR do local, um de 6 em 6 horas, selo só pela equipa', async () => {
+    const owner = await signup('vo0');
+    const fan = await signup('vo1');
+    const name = `Bar do Teste ${run}`;
+    const v = (await api().post('/api/v1/venues').set(auth(owner)).send({ name, kind: 'bar', city: 'Maputo', lat: -25.9692, lng: 32.5732 }).expect(201)).body as { slug: string; qrToken?: string; mine: boolean; verified: boolean };
+    expect(v.mine).toBe(true);
+    expect(v.verified).toBe(false);
+    expect(v.qrToken).toHaveLength(24);
+    // Os outros veem a página, mas nunca o código do QR.
+    const seen = (await api().get(`/api/v1/venues/${v.slug}`).set(auth(fan)).expect(200)).body as { qrToken?: string; mine: boolean; name: string };
+    expect(seen).toMatchObject({ mine: false, name });
+    expect(seen.qrToken).toBeUndefined();
+    expect(((await api().get(`/api/v1/venues/find?name=${encodeURIComponent(name.toLowerCase())}`).set(auth(fan)).expect(200)).body as { slug: string }).slug).toBe(v.slug);
+    // Check-in: código errado não entra; o certo entra uma vez.
+    await api().post(`/api/v1/venues/${v.slug}/checkin`).set(auth(fan)).send({ token: 'codigo-errado-123456' }).expect(403);
+    const ok = (await api().post(`/api/v1/venues/${v.slug}/checkin`).set(auth(fan)).send({ token: v.qrToken }).expect(201)).body as { checkins: number; checkedIn: boolean };
+    expect(ok).toMatchObject({ checkins: 1, checkedIn: true });
+    await api().post(`/api/v1/venues/${v.slug}/checkin`).set(auth(fan)).send({ token: v.qrToken }).expect(409);
+    // Se o dono muda o QR, o código antigo deixa de servir.
+    const rot = (await api().post(`/api/v1/venues/${v.slug}/qr/rotate`).set(auth(owner)).expect(201)).body as { qrToken: string };
+    expect(rot.qrToken).not.toBe(v.qrToken);
+    await api().post(`/api/v1/venues/${v.slug}/qr/rotate`).set(auth(fan)).expect(404);
+    // Selo: só a equipa.
+    await api().put(`/api/v1/venues/${v.slug}/verified`).set(auth(fan)).send({ verified: true }).expect(403);
+    await pool.query('UPDATE identity.users SET is_admin = true WHERE id = $1', [owner.id]);
+    await api().put(`/api/v1/venues/${v.slug}/verified`).set(auth(owner)).send({ verified: true }).expect(200);
+    await pool.query('UPDATE identity.users SET is_admin = false WHERE id = $1', [owner.id]);
+    expect(((await api().get(`/api/v1/venues/${v.slug}`).set(auth(fan)).expect(200)).body as { verified: boolean }).verified).toBe(true);
+    // Limite de locais por pessoa e texto ofensivo.
+    for (const n of ['Dois', 'Tres']) await api().post('/api/v1/venues').set(auth(owner)).send({ name: `${n} Local ${run}`, kind: 'cafe' }).expect(201);
+    await api().post('/api/v1/venues').set(auth(owner)).send({ name: `Quatro Local ${run}`, kind: 'cafe' }).expect(403);
+    await api().post('/api/v1/venues').set(auth(fan)).send({ name: 'vou matar-te seu filho da puta', kind: 'bar' }).expect(422);
+    await api().get('/api/v1/venues/mine').expect(401);
+  });
 });

@@ -649,6 +649,12 @@ export const api = {
   savedPosts: (cursor?: string): Promise<{ items: Post[]; nextCursor: string | null }> => raw(`/feed/saved${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
   completeness: (): Promise<{ percent: number; steps: { id: 'photo' | 'bio' | 'post' | 'follow' | 'geleira'; done: boolean }[] }> => raw('/users/me/completeness'),
   insights: (days: 7 | 30 | 90, tz: number): Promise<Insights> => raw(`/insights?days=${days}&tz=${tz}`),
+  venue: (slug: string): Promise<Venue> => raw(`/venues/${encodeURIComponent(slug)}`),
+  findVenue: (name: string): Promise<Venue | null> => raw(`/venues/find?name=${encodeURIComponent(name)}`),
+  myVenues: (): Promise<Venue[]> => raw('/venues/mine'),
+  createVenue: (b: { name: string; kind: string; city?: string; about?: string }): Promise<Venue> => raw('/venues', post(b)),
+  venueCheckin: (slug: string, token: string): Promise<Venue> => raw(`/venues/${encodeURIComponent(slug)}/checkin`, post({ token })),
+  rotateVenueQr: (slug: string): Promise<Venue> => raw(`/venues/${encodeURIComponent(slug)}/qr/rotate`, post({})),
   placePosts: (label: string, mode: 'at' | 'near', cursor?: string): Promise<{ label: string; mode: 'at' | 'near'; hasNear: boolean; center: { lat: number; lng: number } | null; items: Post[]; nextCursor: string | null }> =>
     raw(`/feed/place?label=${encodeURIComponent(label)}&mode=${mode}${cursor ? `&cursor=${cursor}` : ''}`),
   updatePost: (id: string, b: { body?: string; commentsOff?: boolean; clearLocation?: boolean }): Promise<Post> => raw(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
@@ -830,4 +836,22 @@ export interface Insights {
   weekdays: { dow: number; value: number }[];
   top: { id: string; code: string; body: string; mediaUrl: string | null; video: boolean; createdAt: string; cheers: number; comments: number; reposts: number; gifts: number; reach: number }[];
   audience: { enough: false; minimum: number; followers: number } | { enough: true; followers: number; gender: InsightsBucket[]; ages: InsightsBucket[]; countries: InsightsBucket[]; cities: InsightsBucket[]; interests: InsightsBucket[] };
+}
+
+export interface Venue {
+  id: string;
+  slug: string;
+  name: string;
+  kind: 'bar' | 'restaurante' | 'discoteca' | 'cafe' | 'hotel' | 'evento' | 'outro';
+  city: string | null;
+  about: string | null;
+  verified: boolean;
+  lat: number | null;
+  lng: number | null;
+  checkins: number;
+  checkinsToday: number;
+  mine: boolean;
+  /** Só o dono o recebe. */
+  qrToken?: string;
+  checkedIn: boolean;
 }
