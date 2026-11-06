@@ -198,12 +198,13 @@ function ZasStack({ others, total, snoozed, rise, shrink, slide, pan, onOpen, on
   useEffect(() => {
     Animated.spring(rise, { toValue: 1, useNativeDriver: false, bounciness: 10, speed: 12 }).start();
   }, [rise]);
-  const W = 50;
-  const H = 62;
+  // Como a pilha do Instagram: cartões altos, a espreitar da borda direita, logo acima da barra de baixo.
+  const W = 66;
+  const H = 94;
   const layers = others.slice(0, 3).map((o, i) => ({ o, i })).reverse();
-  const rot = ['-2deg', '-9deg', '8deg'];
-  const dx = [0, -9, -3];
-  const dy = [0, -6, -11];
+  const rot = ['-6deg', '9deg', '-14deg'];
+  const dx = [0, -14, -6];
+  const dy = [0, -10, -18];
   if (snoozed) {
     // Oculta: só uma aba junto à borda; tocar ou deslizar para a esquerda repõe.
     return (
@@ -217,7 +218,7 @@ function ZasStack({ others, total, snoozed, rise, shrink, slide, pan, onOpen, on
   return (
     <Animated.View
       {...(pan as object)}
-      style={[st.stack, { right: 16, bottom: 16, opacity: rise, transform: [{ translateX: slide }, { translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }, { scale: Animated.multiply(shrink, press ? 0.95 : 1) }] }]}
+      style={[st.stack, { right: -22, bottom: 44, opacity: rise, transform: [{ translateX: slide }, { translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }, { scale: Animated.multiply(shrink, press ? 0.95 : 1) }] }]}
     >
       <Pressable
         onPress={onOpen}
