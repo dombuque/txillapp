@@ -222,7 +222,7 @@ function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, on
   return (
     <Animated.View
       {...(pan as object)}
-      style={[st.stack, { right: -22, bottom, opacity: rise, transform: [{ translateX: slide }, { translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }, { scale: Animated.multiply(shrink, press ? 0.95 : 1) }] }]}
+      style={[st.stack, { right: -36, bottom, opacity: rise, transform: [{ translateX: slide }, { translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }, { scale: Animated.multiply(shrink, press ? 0.95 : 1) }] }]}
     >
       <Pressable
         onPress={onOpen}
@@ -233,10 +233,10 @@ function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, on
         style={[{ width: W + 16, height: H + 16, alignItems: 'center', justifyContent: 'center' }, noSelect]}
       >
         {total === 0 ? (
-          // Sem Zás por ver: um cartão escuro com a câmara, a entrada para mandar um Zás (como a pilha vazia do Instagram).
-          <View style={[st.layer, { zIndex: 3, transform: [{ rotate: '-4deg' }] }]}>
+          // Sem Zás por ver: um cartão escuro com o símbolo do Zás (o raio) e um "+" no canto, a entrada para mandar um Zás.
+          <View style={[st.layer, { zIndex: 3, transform: [{ rotate: '-6deg' }] }]}>
             <View style={{ width: W, height: H, borderRadius: 14, backgroundColor: '#18181b', borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.25)' }}>
-              <Icon name="camera" size={22} color="#fff" />
+              <Icon name="bolt" size={26} solid color={colors.brand} />
             </View>
           </View>
         ) : layers.map(({ o, i }) => (
@@ -244,6 +244,11 @@ function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, on
             <StackThumb o={o} w={W} h={H} />
           </View>
         ))}
+        {total === 0 && (
+          <View style={[st.count, { minWidth: 24, paddingHorizontal: 0 }]}>
+            <Icon name="plus" size={14} color="#fff" strokeWidth={3} />
+          </View>
+        )}
         {total > 0 && <View style={st.count}>
           <Icon name="bolt" size={11} solid color="#fff" />
           <Text style={st.countText}>{total > 99 ? '99+' : total}</Text>
