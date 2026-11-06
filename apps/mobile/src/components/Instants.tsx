@@ -807,12 +807,6 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
               </Animated.View>
             )}
             {cur?.caption ? <CurvedCaption w={cardW} h={cardH} text={cur.caption} arc="top" /> : null}
-            {own && cur ? (
-              <View pointerEvents="none" style={st.swipeUp}>
-                <View style={{ transform: [{ rotate: '-90deg' }] }}><Icon name="chevron-right" size={20} color="rgba(255,255,255,0.85)" /></View>
-                <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.85)' }}>{cur.views ?? 0} viram</Text>
-              </View>
-            ) : null}
             {(err || note) && cur ? (
               <Text accessibilityRole={err ? 'alert' : 'text'} style={[st.toast, { backgroundColor: err ? 'rgba(220,38,38,0.9)' : 'rgba(5,150,105,0.9)' }]}>{err || note}</Text>
             ) : null}

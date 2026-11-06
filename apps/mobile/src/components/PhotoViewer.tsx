@@ -117,7 +117,7 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, onClose }
         </Animated.View>
 
         {footer ? <View style={[styles.rail, { bottom: footH + 12 }]} pointerEvents="box-none">{footer}</View> : null}
-        <View style={[styles.foot, { paddingBottom: Math.max(insets.bottom, 8) + 4 }]} onLayout={(e) => setFootH(Math.round(e.nativeEvent.layout.height))}>
+        <View style={[styles.foot, { paddingBottom: Math.max(insets.bottom, 8) + 56 }]} onLayout={(e) => setFootH(Math.round(e.nativeEvent.layout.height))}>
           <Text style={styles.who}>
             {author.displayName} <Text style={styles.handle}>@{author.username}</Text>
           </Text>
@@ -138,11 +138,12 @@ const styles = StyleSheet.create({
   close: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)' },
   count: { borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 4 },
   countText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  foot: { backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 16, paddingRight: 84, paddingTop: 12, minHeight: 64 },
+  // Autor e descrição: bem acima do fundo (como na Tcheka), com espaço para a fila de ações à direita.
+  foot: { backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 16, paddingRight: 84, paddingTop: 14, minHeight: 64 },
   rail: { position: 'absolute', right: 10, zIndex: 5 },
-  who: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  who: { color: '#fff', fontSize: 15, fontWeight: '700' },
   handle: { color: colors.zinc300, fontWeight: '400' },
-  body: { marginTop: 2, color: '#f4f4f5', fontSize: 14 },
+  body: { marginTop: 4, color: '#f4f4f5', fontSize: 15, lineHeight: 21 },
   tagBox: { position: 'absolute', width: 220 },
   tag: { maxWidth: 220, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.8)', paddingHorizontal: 10, paddingVertical: 4 },
   tagText: { color: '#fff', fontSize: 14, fontWeight: '600' },
