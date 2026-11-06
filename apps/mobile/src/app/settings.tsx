@@ -37,8 +37,9 @@ export default function Settings() {
         <Text style={styles.h}>Mais</Text>
         <Row icon="shield" label="Privacidade e segurança" onPress={() => site('/settings')} />
         <Row icon="bell" label="Notificações" onPress={() => site('/settings')} />
-        <Row icon="wallet" label="Carteira de Txills" onPress={() => site('/wallet')} />
-        <Row icon="user-plus" label="Convidar a malta" onPress={() => site('/invites')} />
+        <Row icon="inbox" label="Guardados" onPress={() => router.push('/saved' as never)} />
+        <Row icon="wallet" label="Carteira de Txills" onPress={() => router.push('/wallet' as never)} />
+        <Row icon="user-plus" label="Convidar a malta" onPress={() => router.push('/invites' as never)} />
         <Row icon="info" label="Termos, privacidade e ajuda" onPress={() => site('/help')} />
         <View style={{ height: 12 }} />
         <Row icon="logout" label="Sair da conta" onPress={out} danger />

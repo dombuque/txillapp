@@ -27,7 +27,9 @@
 | Stories (ver e criar) | `components/Stories.tsx` | por fazer |
 | Reels e filtros do algoritmo | `pages/Reels.tsx`, `ReelPrefs.tsx` | por fazer |
 | Definições | `pages/Settings.tsx` | mínimo (conta e sair; o resto abre o site) |
-| Guardados, Locais, Geleira, Carteira, Convites | `pages/*` | por fazer |
-| Publicação / reel / hashtag / sítio / local | `PostPage.tsx`, `ReelPage.tsx`, `TagPage.tsx`, `PlacePage.tsx`, `VenuePage.tsx` | por fazer |
+| Guardados, Carteira, Convites, Seguidores/A seguir | `saved`, `wallet`, `invites`, `u/[username]/connections` | feito (testado no browser) |
+| Locais, Geleira | `pages/*` | por fazer |
+| Publicação, hashtag | `p/[id]`, `t/[tag]` | feito (hashtag e menções tocáveis) |
+| Reel / sítio / local | `ReelPage.tsx`, `PlacePage.tsx`, `VenuePage.tsx` | por fazer |
 
 O backoffice fica só no site (é para computador).

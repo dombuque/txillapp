@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { Text, type TextStyle } from 'react-native';
 import { colors } from '@/lib/theme';
 
@@ -6,6 +7,7 @@ const TOKEN = /(?<![\p{L}\p{N}_.&#])(?:@([a-zA-Z0-9_.]{3,30})|#([\p{L}\p{N}_]{2,
 
 /** Texto com @menções e #hashtags a coral, em negrito (como no site). */
 export function RichText({ text, style }: { text: string; style?: TextStyle }) {
+  const router = useRouter();
   const out: React.ReactNode[] = [];
   let last = 0;
   for (const m of text.matchAll(TOKEN)) {
@@ -14,7 +16,7 @@ export function RichText({ text, style }: { text: string; style?: TextStyle }) {
     const name = m[1] ? m[1].replace(/\.+$/, '') : m[2];
     const mark = m[1] ? '@' : '#';
     out.push(
-      <Text key={start} style={{ color: colors.brand, fontWeight: '600' }}>
+      <Text key={start} onPress={() => router.push((m[1] ? `/u/${name}` : `/t/${encodeURIComponent(name)}`) as never)} accessibilityRole="link" style={{ color: colors.brand, fontWeight: '600' }}>
         {mark}
         {name}
       </Text>,

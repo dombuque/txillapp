@@ -59,6 +59,25 @@ export interface AppNotification {
   actor: { username: string; displayName: string };
 }
 export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved';
+export interface Person { username: string; displayName: string; following: boolean; followsYou: boolean; isPrivate?: boolean; requested?: boolean; verified?: boolean }
+export interface InvitesInfo {
+  code: string;
+  link: string;
+  stats: { invited: number; active: number; pending: number; paid: number; earned: number; today: number };
+  rules: { reward: number; perDay: number; maxPaid: number; holdDays: number };
+  eligible: boolean;
+  note: string | null;
+}
+export interface WalletView {
+  currency: string;
+  balance: number;
+  history: { id: string; amount: number; type: string; createdAt: string; counterparty: { username: string; displayName: string } | null; note: string | null }[];
+}
+export interface TagPage { tag: string; posts: number; authors: number; items: Post[]; nextCursor: string | null }
+function qsp(cursor?: string, q?: string) {
+  const p = [cursor ? `cursor=${encodeURIComponent(cursor)}` : '', q ? `q=${encodeURIComponent(q)}` : ''].filter(Boolean).join('&');
+  return p ? `?${p}` : '';
+}
 export interface FollowState { following: boolean; requested: boolean; followers: number }
 export interface Profile {
   id: string;
@@ -306,7 +325,11 @@ export const api = {
   unfollow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/unfollow`, post({})),
   block: (username: string): Promise<void> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'PUT' }),
   unblock: (username: string): Promise<void> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'DELETE' }),
-  invites: (): Promise<{ link: string }> => raw('/invites/me'),
+  invites: (): Promise<InvitesInfo> => raw('/invites/me'),
+  followers: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/followers${qsp(cursor, q)}`),
+  following: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/following${qsp(cursor, q)}`),
+  wallet: (): Promise<WalletView> => raw('/wallet'),
+  tagPage: (tag: string, sort: 'recent' | 'top', cursor?: string): Promise<TagPage> => raw(`/tags/${encodeURIComponent(tag)}?sort=${sort}&limit=10${cursor ? `&cursor=${cursor}` : ''}`),
   getPost: (idOrCode: string): Promise<Post> => raw(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrCode) ? `/posts/${idOrCode}` : `/posts/code/${encodeURIComponent(idOrCode)}`),
   notifications: (cursor?: string): Promise<Page<AppNotification>> => raw(`/notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
   markNotificationsRead: (): Promise<void> => raw('/notifications/read', post({})),

@@ -13,6 +13,7 @@ import { cardShadow, colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
 import { BookmarkIcon } from './BookmarkIcon';
 import { Icon, type IconName } from './Icon';
+import { FollowButton } from './FollowButton';
 import { GiftSheet } from './PostSheets';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
@@ -41,40 +42,6 @@ function QrGlyph() {
       <Rect x={3.5} y={14.5} width={6} height={6} rx={1.2} />
       <Path d="M14.5 14.5h2.5v2.5M20.5 14.5v.01M14.5 20.5h.01M17.5 20.5h3M20.5 17.5v3" />
     </Svg>
-  );
-}
-
-/** Seguir / A seguir / Pedido enviado (perfis privados). Responde já e volta atrás se falhar. */
-function FollowButton({ username, following, requested, isPrivate }: { username: string; following: boolean; requested: boolean; isPrivate: boolean }) {
-  const qc = useQueryClient();
-  const [s, setS] = useState({ following, requested });
-  const [busy, setBusy] = useState(false);
-  async function toggle() {
-    if (busy) return;
-    setBusy(true);
-    const prev = s;
-    try {
-      if (s.following || s.requested) {
-        setS({ following: false, requested: false });
-        await api.unfollow(username);
-      } else {
-        setS(isPrivate ? { following: false, requested: true } : { following: true, requested: false });
-        const r: FollowState = await api.follow(username);
-        setS({ following: r.following, requested: r.requested });
-      }
-      for (const key of ['stories', 'suggestions', 'feed', 'profile']) void qc.invalidateQueries({ queryKey: [key] });
-      void qc.invalidateQueries({ queryKey: ['profile-posts', username] });
-    } catch {
-      setS(prev);
-    } finally {
-      setBusy(false);
-    }
-  }
-  const on = s.following || s.requested;
-  return (
-    <Pressable onPress={() => void toggle()} disabled={busy} style={[styles.small, { flex: 1 }, on ? null : { backgroundColor: colors.brand }, busy && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ selected: s.following }}>
-      <Text style={[styles.smallText, !on && { color: '#fff' }]}>{s.following ? 'A seguir' : s.requested ? 'Pedido enviado' : 'Seguir'}</Text>
-    </Pressable>
   );
 }
 
@@ -205,8 +172,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={84} />
           <View style={{ flex: 1, flexDirection: 'row', minWidth: 0 }}>
             {stat(p.counts.posts, 'publicações')}
-            {stat(p.counts.followers, 'seguidores', p.canSeeConnections ? () => soon('Seguidores') : undefined)}
-            {stat(p.counts.following, 'a seguir', p.canSeeConnections ? () => soon('A seguir') : undefined)}
+            {stat(p.counts.followers, 'seguidores', p.canSeeConnections ? () => router.push(`/u/${p.username}/connections?tab=followers` as never) : undefined)}
+            {stat(p.counts.following, 'a seguir', p.canSeeConnections ? () => router.push(`/u/${p.username}/connections?tab=following` as never) : undefined)}
           </View>
         </View>
         <View style={{ marginTop: 12 }}>
@@ -251,7 +218,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
                 <Pressable onPress={() => soon('Editar perfil')} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Editar perfil"><Icon name="pencil" size={20} /></Pressable>
                 <Pressable onPress={() => void shareProfile()} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Partilhar perfil"><QrGlyph /></Pressable>
                 <Pressable onPress={() => void inviteCrew()} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Convidar a malta"><Icon name="user-plus" size={20} /></Pressable>
-                <Pressable onPress={() => soon('Carteira de Txills')} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Carteira de Txills"><Icon name="wallet" size={20} /></Pressable>
+                <Pressable onPress={() => router.push('/wallet' as never)} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Carteira de Txills"><Icon name="wallet" size={20} /></Pressable>
               </>
             ) : (
               <>

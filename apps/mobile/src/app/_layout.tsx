@@ -53,6 +53,11 @@ function Gate() {
       <Stack.Screen name="p/[id]" />
       <Stack.Screen name="messages/[username]" />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="saved" />
+      <Stack.Screen name="wallet" />
+      <Stack.Screen name="invites" />
+      <Stack.Screen name="t/[tag]" />
+      <Stack.Screen name="u/[username]/connections" />
       <Stack.Screen name="stories/[username]" options={{ animation: 'fade' }} />
       <Stack.Screen name="stories/new" options={{ animation: 'slide_from_bottom' }} />
     </Stack>
