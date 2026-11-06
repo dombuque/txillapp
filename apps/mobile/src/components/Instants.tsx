@@ -137,7 +137,7 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
 
   return (
     <>
-      {total > 0 && (
+      {(
         <ZasStack
           others={others}
           total={total}
@@ -148,6 +148,7 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
           pan={pan.panHandlers}
           onRestore={() => setSnooze(false)}
           onOpen={() => {
+            if (total === 0) return setMode('cam');
             setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName })));
             setAt(0);
             setMode('view');
@@ -223,18 +224,25 @@ function ZasStack({ others, total, snoozed, rise, shrink, slide, pan, onOpen, on
         onPressIn={() => setPress(true)}
         onPressOut={() => setPress(false)}
         accessibilityRole="button"
-        accessibilityLabel={`Zás: ${total} por ver`}
+        accessibilityLabel={total > 0 ? `Zás: ${total} por ver` : 'Mandar um Zás'}
         style={[{ width: W + 16, height: H + 16, alignItems: 'center', justifyContent: 'center' }, noSelect]}
       >
-        {layers.map(({ o, i }) => (
+        {total === 0 ? (
+          // Sem Zás por ver: um cartão escuro com a câmara, a entrada para mandar um Zás (como a pilha vazia do Instagram).
+          <View style={[st.layer, { zIndex: 3, transform: [{ rotate: '-4deg' }] }]}>
+            <View style={{ width: W, height: H, borderRadius: 14, backgroundColor: '#18181b', borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.25)' }}>
+              <Icon name="camera" size={22} color="#fff" />
+            </View>
+          </View>
+        ) : layers.map(({ o, i }) => (
           <View key={o.username} style={[st.layer, { zIndex: 3 - i, transform: [{ translateX: dx[i] }, { translateY: dy[i] }, { rotate: rot[i] }] }]}>
             <StackThumb o={o} w={W} h={H} />
           </View>
         ))}
-        <View style={st.count}>
+        {total > 0 && <View style={st.count}>
           <Icon name="bolt" size={11} solid color="#fff" />
           <Text style={st.countText}>{total > 99 ? '99+' : total}</Text>
-        </View>
+        </View>}
       </Pressable>
     </Animated.View>
   );

@@ -59,6 +59,7 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, onClose }
   const { width, height } = useWindowDimensions();
   const [i, setI] = useState(start);
   const [pagerH, setPagerH] = useState(Math.round(height * 0.6));
+  const [footH, setFootH] = useState(96);
   const list = useRef<FlatList<ViewerPhoto>>(null);
   const drag = useRef(new Animated.Value(0)).current;
   const n = photos.length;
@@ -115,13 +116,13 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, onClose }
           />
         </Animated.View>
 
-        {footer ? <View style={[styles.rail, { bottom: Math.max(insets.bottom, 8) + 96 }]} pointerEvents="box-none">{footer}</View> : null}
-        <View style={[styles.foot, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+        {footer ? <View style={[styles.rail, { bottom: footH + 12 }]} pointerEvents="box-none">{footer}</View> : null}
+        <View style={[styles.foot, { paddingBottom: Math.max(insets.bottom, 8) + 4 }]} onLayout={(e) => setFootH(Math.round(e.nativeEvent.layout.height))}>
           <Text style={styles.who}>
             {author.displayName} <Text style={styles.handle}>@{author.username}</Text>
           </Text>
           {body ? (
-            <Text numberOfLines={2} style={styles.body}>
+            <Text numberOfLines={5} style={styles.body}>
               <RichText text={body} style={{ color: '#f4f4f5', fontSize: 14 }} />
             </Text>
           ) : null}

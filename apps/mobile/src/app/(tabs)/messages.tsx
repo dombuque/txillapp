@@ -10,7 +10,7 @@ import { NotesStrip } from '@/components/Notes';
 import { REACTIONS } from '@/components/StoryParts';
 import { Pulse } from '@/components/ChatParts';
 import { Bolt, SuperTxillPanel } from '@/components/SuperTxillPanel';
-import { InstantsDock, openZasCamera, zasListScrolling } from '@/components/Instants';
+import { InstantsDock, zasListScrolling } from '@/components/Instants';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { api, type ChatMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -116,12 +116,6 @@ export default function Messages() {
   const header = (
     <View>
       <View style={styles.top}>
-        {!(Platform.OS === 'web' && width >= 1024) && (
-          <Pressable onPress={openZasCamera} style={styles.zas} accessibilityRole="button" accessibilityLabel="Mandar um Zás">
-            <Icon name="camera" size={24} color={colors.brand} />
-            <Text style={styles.zasText}>Zás</Text>
-          </Pressable>
-        )}
         <Text style={styles.handle} numberOfLines={1}>{user?.username ?? 'Mensagens'}</Text>
         <Pressable onPress={() => router.push('/messages/new' as never)} hitSlop={8} style={styles.compose} accessibilityRole="button" accessibilityLabel="Nova conversa ou grupo"><Icon name="compose" size={24} /></Pressable>
       </View>
