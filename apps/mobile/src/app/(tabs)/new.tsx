@@ -13,7 +13,7 @@ import { TrackCard } from '@/components/TrackCard';
 import { Sheet } from '@/components/Sheet';
 import { api, uploadMedia } from '@/lib/api';
 import { musicApi, type Track } from '@/lib/api.music';
-import { clearDraft, loadDraft, newDraftKey, saveDraft } from '@/lib/drafts';
+import { clearDraft, listDrafts, loadDraft, newDraftKey, saveDraft } from '@/lib/drafts';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 
@@ -57,6 +57,10 @@ export default function Compose() {
   const [err, setErr] = useState('');
   const [music, setMusic] = useState<Track | null>(null);
   const [pickMusic, setPickMusic] = useState(false);
+  const [hasDrafts, setHasDrafts] = useState(false);
+  useEffect(() => {
+    if (user) void listDrafts(user.username).then((l) => setHasDrafts(l.length > 0)).catch(() => undefined);
+  }, [user, step]);
   const { draft } = useLocalSearchParams<{ draft?: string }>();
   const draftKey = useRef(draft || newDraftKey(user?.username ?? 'eu'));
 
@@ -162,8 +166,13 @@ export default function Compose() {
             <Tile icon="image" title="Galeria" sub="Até 10 fotos" tone={['#6366f1', '#a855f7']} onPress={() => void add('library', 'photo')} />
             <Tile icon="video" title="Vídeo" sub="Até 60 s" tone={['#0ea5e9', '#22d3ee']} onPress={() => void add('library', 'video')} />
             <Tile icon="pencil" title="Só texto" sub="Uma ideia, um desabafo" tone={['#18181b', '#52525b']} onPress={() => setStep('write')} />
-            <Tile icon="file-text" title="Rascunhos" sub="O que deixaste a meio" tone={['#0d9488', '#34d399']} onPress={() => router.push('/drafts' as never)} />
           </View>
+          {hasDrafts ? (
+            <Pressable onPress={() => router.push('/drafts' as never)} style={styles.draftsLink} accessibilityRole="button">
+              <Icon name="file-text" size={18} color={colors.zinc800} />
+              <Text style={styles.draftsText}>Rascunhos</Text>
+            </Pressable>
+          ) : null}
           {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
         </ScrollView>
       </View>
@@ -239,7 +248,7 @@ export default function Compose() {
         </Pressable>
       </View>
 
-      {pickMusic && <MusicPicker onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
+      {pickMusic && <MusicPicker hint={`${body} ${place}`} onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
 
       {placeOpen && (
         <Sheet title="Onde estás?" onClose={() => setPlaceOpen(false)}>
@@ -254,6 +263,8 @@ export default function Compose() {
 }
 
 const styles = StyleSheet.create({
+  draftsLink: { marginTop: 16, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 18, paddingVertical: 10 },
+  draftsText: { fontSize: 15, fontWeight: '600', color: colors.zinc800 },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingBottom: 8, paddingTop: 4 },
   x: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   title: { fontSize: 18, fontWeight: '800', color: colors.zinc900 },

@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { PostCard } from '@/components/PostCard';
-import { InstantsDock } from '@/components/Instants';
 import { StoriesTray } from '@/components/StoriesTray';
 import { Wordmark } from '@/components/Wordmark';
 import { api, type Post } from '@/lib/api';
@@ -129,7 +128,6 @@ export default function Feed() {
         maxToRenderPerBatch={4}
       />
       </PullView>
-      <InstantsDock />
     </View>
   );
 }

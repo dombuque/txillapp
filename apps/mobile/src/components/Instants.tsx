@@ -49,12 +49,12 @@ export const openZasCamera = () => cameraListeners.forEach((l) => l());
 /**
  * Zás (os Instants): uma foto tirada na hora, com uma legenda curta, que dura 24 h e cada pessoa vê uma só vez.
  * Só chega aos amigos próximos e a quem se segue mutuamente. Quando há Zás por ver, aparece uma pílula flutuante (canto de baixo,
- * à direita) com a faísca do Zás, as fotos de quem postou e quantos são. Pôr dentro de uma vista que ocupe o ecrã todo (flex: 1).
+ * à direita) com a faísca do Zás, as fotos de quem postou e quantos são. Pôr dentro de uma vista que ocupe o ecrã todo (flex: 1),
+ * acima da barra de abas (por isso `bottom` é pequeno). Como no site, monta-se só nas Mensagens (e só uma vez, senão a câmara abria duas).
  * `collapsed`: encolhe a pílula só para as fotos (por ex. enquanto a lista rola).
  */
 export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
   const { user } = useAuth();
-  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['instants'], queryFn: instantsApi.tray, refetchInterval: 60_000, enabled: !!user });
@@ -67,8 +67,8 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
     cameraListeners.add(open);
     return () => void cameraListeners.delete(open);
   }, []);
-  // O Zás é só para o telemóvel: no computador (web larga) não aparece.
-  if (!user || (Platform.OS === 'web' && width >= 768)) return null;
+  // O Zás é só para o telemóvel: no computador (web larga, como no site: 1024 px) não aparece.
+  if (!user || (Platform.OS === 'web' && width >= 1024)) return null;
   const refresh = () => void qc.invalidateQueries({ queryKey: ['instants'] });
   const others = data?.others ?? [];
   const total = others.reduce((n, o) => n + o.count, 0);
@@ -84,7 +84,7 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
           }}
           accessibilityRole="button"
           accessibilityLabel={`Zás: ${total} por ver`}
-          style={[st.pill, { bottom: insets.bottom + 104, paddingRight: collapsed ? 6 : 16 }]}
+          style={[st.pill, { bottom: 52, paddingRight: collapsed ? 6 : 16 }]}
         >
           <View style={{ flexDirection: 'row' }}>
             {others.slice(0, 3).map((o, i) => (

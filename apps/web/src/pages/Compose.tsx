@@ -315,7 +315,7 @@ ${link}` : ''}`.slice(0, 2000));
           ) : (
             <button type="button" onClick={() => setPickingMusic(true)} className="mt-1 flex h-10 items-center gap-2 rounded-full bg-zinc-100 px-4 text-sm font-semibold text-zinc-800 active:scale-95"><Icon name="music" size={16} /> {tr('Adicionar música')}</button>
           )}
-          {pickingMusic && <MusicPicker onPick={(t) => { setMusic(t); setPickingMusic(false); }} onClose={() => setPickingMusic(false)} />}
+          {pickingMusic && <MusicPicker hint={`${body} ${place}`} onPick={(t) => { setMusic(t); setPickingMusic(false); }} onClose={() => setPickingMusic(false)} />}
           {left < 200 && <p className={`text-right text-xs ${left < 50 ? 'font-semibold text-brand' : 'text-zinc-500'}`} aria-live="polite">{left}</p>}
         </div>
 

@@ -7,6 +7,7 @@ import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, T
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
+import { Bolt, SuperTxillPanel } from '@/components/SuperTxillPanel';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { api, type Post } from '@/lib/api';
 import { sized } from '@/lib/config';
@@ -23,6 +24,7 @@ export default function Search() {
   const [term, setTerm] = useState('');
   const [tab, setTab] = useState<'people' | 'tags' | 'posts'>('people');
   const [topic, setTopic] = useState<string | null>(null);
+  const [ai, setAi] = useState(false); // SuperTxill aberto
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -105,6 +107,7 @@ export default function Search() {
           <Icon name="search" size={20} color={colors.zinc600} />
           <TextInput value={text} onChangeText={setText} placeholder="Procura malta e publicações…" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.input} accessibilityLabel="Pesquisar" />
           {text ? <Pressable onPress={() => setText('')} hitSlop={8} accessibilityLabel="Limpar pesquisa"><Text style={{ fontSize: 22, color: colors.zinc600, paddingHorizontal: 6 }}>×</Text></Pressable> : null}
+          <Pressable onPress={() => setAi(true)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
         </View>
       </View>
 
@@ -225,6 +228,7 @@ export default function Search() {
           </>
         )}
       </ScrollView>
+      {ai && <SuperTxillPanel onClose={() => setAi(false)} />}
     </View>
   );
 }

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { suggestMusic } from '../lib/musicSuggest';
 import { api, type Track } from '../lib/api';
 import { tr } from '../lib/i18n';
 import Icon from './Icon';
@@ -104,7 +105,9 @@ function ClipRecorder({ onPick }: { onPick: (t: Track) => void }) {
 const GENRES = ['chill', 'dance', 'afro', 'pop', 'rock', 'hip hop', 'jazz', 'piano', 'acoustic'];
 
 /** Escolher uma faixa de música de licença aberta (Creative Commons): pesquisa, ouve-se um pedaço e usa-se. O crédito do autor segue com a faixa. */
-export default function MusicPicker({ onPick, onClose }: { onPick: (t: Track) => void; onClose: () => void }) {
+export default function MusicPicker({ onPick, onClose, hint }: { onPick: (t: Track) => void; onClose: () => void; /** O que a pessoa escreveu (texto e local): serve para sugerir o género. */ hint?: string }) {
+  const suggestion = useMemo(() => suggestMusic(hint), [hint]);
+  const base: string = suggestion?.genre ?? GENRES[0];
   const [term, setTerm] = useState('');
   const [items, setItems] = useState<Track[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -116,7 +119,7 @@ export default function MusicPicker({ onPick, onClose }: { onPick: (t: Track) =>
   useEffect(() => {
     const typed = term.trim();
     // Sem pesquisa, já mostra uma lista (o género escolhido ou o primeiro).
-    const q = typed.length >= 2 ? typed : GENRES[0];
+    const q = typed.length >= 2 ? typed : base;
     const t = setTimeout(async () => {
       setBusy(true);
       setErr('');
@@ -129,7 +132,7 @@ export default function MusicPicker({ onPick, onClose }: { onPick: (t: Track) =>
       setBusy(false);
     }, typed.length >= 2 ? 500 : 0);
     return () => clearTimeout(t);
-  }, [term]);
+  }, [term, base]);
 
   // Pára o som ao sair.
   useEffect(() => () => audio.current?.pause(), []);
@@ -161,10 +164,10 @@ export default function MusicPicker({ onPick, onClose }: { onPick: (t: Track) =>
       </label>
       <div className="mt-2 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {GENRES.map((g) => (
-          <button key={g} type="button" onClick={() => setTerm(g)} className={`h-8 shrink-0 rounded-full px-3 text-[13px] font-semibold ${term.trim() === g || (!term.trim() && g === GENRES[0]) ? 'bg-brand text-white' : 'bg-zinc-100 text-zinc-700'}`}>{g}</button>
+          <button key={g} type="button" onClick={() => setTerm(g)} className={`h-8 shrink-0 rounded-full px-3 text-[13px] font-semibold ${term.trim() === g || (!term.trim() && g === base) ? 'bg-brand text-white' : 'bg-zinc-100 text-zinc-700'}`}>{g}</button>
         ))}
       </div>
-      <div className="mt-3"><ClipRecorder onPick={onPick} /></div>
+      {suggestion && !term.trim() && <p className="mt-2 text-[13px] font-semibold text-brand">{tr('Sugerido para o teu post ({v0}): {v1}', { v0: tr(suggestion.why), v1: suggestion.genre })}</p>}
       <p className="mt-3 text-xs text-zinc-500">{tr('Só músicas e sons de licença aberta (Creative Commons), com o crédito de quem os fez. Para a música do momento, ainda não há licença.')}</p>
       {err && <p role="alert" className="mt-2 text-sm text-red-600">{err}</p>}
       <ul className="mt-3 max-h-[46dvh] overflow-y-auto">

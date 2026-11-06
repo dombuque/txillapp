@@ -109,7 +109,7 @@ export default function NewStory() {
         </Pressable>
       </View>
       {listOpen && <CloseFriendsSheet onClose={() => setListOpen(false)} />}
-      {pickMusic && <MusicPicker onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
+      {pickMusic && <MusicPicker hint={caption} onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
     </KeyboardAvoidingView>
   );
 }

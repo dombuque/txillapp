@@ -880,7 +880,7 @@ export function StoryCreator({ file, onClose, onBack }: { file: File; onClose: (
         </div>
       </form>
       {listOpen && <CloseFriendsSheet layer="z-[70]" onClose={() => setListOpen(false)} />}
-      {pickMusic && <MusicPicker onPick={(t) => { setMusic(t); setPickMusic(false); }} onClose={() => setPickMusic(false)} />}
+      {pickMusic && <MusicPicker hint={caption} onPick={(t) => { setMusic(t); setPickMusic(false); }} onClose={() => setPickMusic(false)} />}
     </div>
   );
 }

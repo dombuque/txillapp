@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { Icon } from '@/components/Icon';
 import { Sheet, useSheetScroll } from '@/components/Sheet';
 import { musicApi, type Track } from '@/lib/api.music';
+import { suggestMusic } from '@/lib/musicSuggest';
 import { uploadMedia } from '@/lib/api';
 import { playTrack, stopTrack } from '@/lib/musicPlayer';
 import { colors } from '@/lib/theme';
@@ -132,15 +133,17 @@ function ClipRecorder({ onPick }: { onPick: (t: Track) => void }) {
 }
 
 /** Escolher uma faixa de música de licença aberta (Creative Commons): pesquisa, ouve-se um pedaço e usa-se. O crédito do autor segue com a faixa. */
-export function MusicPicker({ onPick, onClose }: { onPick: (t: Track) => void; onClose: () => void }) {
+export function MusicPicker({ onPick, onClose, hint }: { onPick: (t: Track) => void; onClose: () => void; /** O que a pessoa escreveu (texto e local): serve para sugerir o género. */ hint?: string }) {
   return (
     <Sheet title="Música e sons" onClose={onClose}>
-      <PickerBody onPick={onPick} />
+      <PickerBody onPick={onPick} hint={hint} />
     </Sheet>
   );
 }
 
-function PickerBody({ onPick }: { onPick: (t: Track) => void }) {
+function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: string }) {
+  const suggestion = useMemo(() => suggestMusic(hint), [hint]);
+  const base: string = suggestion?.genre ?? GENRES[0];
   const me = useRef(Symbol('picker'));
   const sheetScroll = useSheetScroll();
   const [term, setTerm] = useState('');
@@ -152,7 +155,7 @@ function PickerBody({ onPick }: { onPick: (t: Track) => void }) {
   // Procura meio segundo depois de parares de escrever. Sem pesquisa, mostra já uma lista (o primeiro género).
   useEffect(() => {
     const typed = term.trim();
-    const q = typed.length >= 2 ? typed : GENRES[0];
+    const q = typed.length >= 2 ? typed : base;
     let alive = true;
     const t = setTimeout(async () => {
       setBusy(true);
@@ -172,7 +175,7 @@ function PickerBody({ onPick }: { onPick: (t: Track) => void }) {
       alive = false;
       clearTimeout(t);
     };
-  }, [term]);
+  }, [term, base]);
 
   // Pára o som ao sair.
   useEffect(() => () => stopTrack(me.current), []);
@@ -211,7 +214,7 @@ function PickerBody({ onPick }: { onPick: (t: Track) => void }) {
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.chips} contentContainerStyle={{ gap: 6 }}>
         {GENRES.map((g, i) => {
-          const on = typed === g || (!typed && i === 0);
+          const on = typed === g || (!typed && g === base);
           return (
             <Pressable key={g} onPress={() => setTerm(g)} style={[s.chip, on && { backgroundColor: colors.brand }]} accessibilityRole="button">
               <Text style={[s.chipTxt, on && { color: '#fff' }]}>{g}</Text>
@@ -219,7 +222,7 @@ function PickerBody({ onPick }: { onPick: (t: Track) => void }) {
           );
         })}
       </ScrollView>
-      <View style={{ marginTop: 12 }}><ClipRecorder onPick={pick} /></View>
+      {suggestion && !typed ? <Text style={s.sugg}>Sugerido para o teu post ({suggestion.why}): {suggestion.genre}</Text> : null}
       <Text style={s.note}>Só músicas e sons de licença aberta (Creative Commons), com o crédito de quem os fez. Para a música do momento, ainda não há licença.</Text>
       {!!err && <Text style={s.err}>{err}</Text>}
       <View style={{ marginTop: 12 }}>
@@ -243,6 +246,7 @@ function PickerBody({ onPick }: { onPick: (t: Track) => void }) {
 }
 
 const s = StyleSheet.create({
+  sugg: { marginTop: 8, fontSize: 13, fontWeight: '600', color: colors.brand },
   scroll: { flexGrow: 0, maxHeight: 520 },
   scrollIn: { paddingHorizontal: 24, paddingBottom: 8 },
   search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16 },

@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
+import { InstantsDock, openZasCamera } from '@/components/Instants';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { api, type ChatMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -42,6 +43,7 @@ export default function Messages() {
   const router = useRouter();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [view, setView] = useState<'all' | 'requests'>('all');
   const [text, setText] = useState('');
   const direct = useQuery({ queryKey: ['chat-list'], queryFn: api.chatList, refetchInterval: 60_000 });
@@ -85,6 +87,12 @@ export default function Messages() {
   const header = (
     <View>
       <View style={styles.top}>
+        {!(Platform.OS === 'web' && width >= 1024) && (
+          <Pressable onPress={openZasCamera} style={styles.zas} accessibilityRole="button" accessibilityLabel="Mandar um Zás">
+            <Icon name="camera" size={24} color={colors.brand} />
+            <Text style={styles.zasText}>Zás</Text>
+          </Pressable>
+        )}
         <Text style={styles.handle} numberOfLines={1}>{user?.username ?? 'Mensagens'}</Text>
         <Pressable onPress={() => router.push('/messages/new' as never)} hitSlop={8} style={styles.compose} accessibilityRole="button" accessibilityLabel="Nova conversa ou grupo"><Icon name="compose" size={24} /></Pressable>
       </View>
@@ -176,12 +184,15 @@ export default function Messages() {
         }
       />
       </PullView>
+      <InstantsDock />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   top: { height: 48, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  zas: { position: 'absolute', left: 0, top: 2, height: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 10, paddingRight: 12, borderRadius: 999 },
+  zasText: { fontSize: 15, fontWeight: '900', letterSpacing: -0.3, color: colors.brand },
   compose: { position: 'absolute', right: 16, top: 0, bottom: 0, width: 40, alignItems: 'center', justifyContent: 'center' },
   handle: { maxWidth: '70%', fontSize: 20, fontWeight: '800', color: colors.zinc900 },
   search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, marginBottom: 8 },
