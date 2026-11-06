@@ -4,13 +4,14 @@ import { tr } from '../lib/i18n';
 export const GENDERS: { value: Gender; label: string }[] = [
   { value: 'female', label: tr('Feminino') },
   { value: 'male', label: tr('Masculino') },
-  { value: 'other', label: tr('Outro') },
-  { value: 'unspecified', label: tr('Prefiro não dizer') },
 ];
 
-export const genderLabel = (g: Gender) => GENDERS.find((x) => x.value === g)?.label ?? '';
+/** Contas antigas podem ter outro valor guardado: continua a mostrar-se, mas já não se oferece a quem escolhe. */
+const LEGACY: Partial<Record<Gender, string>> = { other: 'Outro', unspecified: 'Prefiro não dizer' };
 
-/** "Como te identificas?" — escolha simples, sempre com a opção de não dizer. */
+export const genderLabel = (g: Gender) => GENDERS.find((x) => x.value === g)?.label ?? (LEGACY[g] ? tr(LEGACY[g]!) : '');
+
+/** "Como te identificas?" — Feminino ou Masculino. */
 export default function GenderPicker({ value, onChange, dark = false }: { value: Gender | null | undefined; onChange: (g: Gender) => void; dark?: boolean }) {
   return (
     <div role="radiogroup" aria-label={tr('Como te identificas?')} className="grid grid-cols-2 gap-3">
