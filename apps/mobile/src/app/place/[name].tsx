@@ -1,7 +1,8 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { Empty } from '@/components/Empty';
 import { Icon } from '@/components/Icon';
 import { PostCard } from '@/components/PostCard';

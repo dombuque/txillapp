@@ -449,7 +449,7 @@ function Carousel({ media, width, reelId, onDouble, onOpen }: { media: Post['med
               style={{ width, height: h }}
               onPress={() => tap(m.kind === 'video' ? (reelId ? () => router.push(`/r/${reelId}` as never) : undefined) : () => onOpen?.(index))}
               accessibilityRole="button"
-              accessibilityLabel={m.kind === 'video' ? 'Abrir o reel' : `Ver a foto ${index + 1} de ${media.length} em ecrã inteiro (toca duas vezes para brindar)`}
+              accessibilityLabel={m.kind === 'video' ? 'Abrir a tcheka' : `Ver a foto ${index + 1} de ${media.length} em ecrã inteiro (toca duas vezes para brindar)`}
             >
               <Image source={{ uri: sized(m.kind === 'video' ? m.posterUrl ?? m.url : m.url, 720) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} accessibilityIgnoresInvertColors />
               {m.kind === 'video' && (

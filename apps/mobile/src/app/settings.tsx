@@ -2,7 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { Avatar } from '@/components/Avatar';
 import { BookmarkIcon } from '@/components/BookmarkIcon';
 import { Icon, type IconName } from '@/components/Icon';
@@ -236,7 +237,7 @@ function RegionInfo() {
       <IconDot><Icon name="map-pin" size={20} /></IconDot>
       <View style={{ flex: 1 }}>
         <Text style={st.labelB}>A tua região: {geo.isLoading ? '…' : name}</Text>
-        <Text style={st.text}>Cada país é a sua rede: sugestões, reels e pesquisa mostram o que é daqui. Quem segues vês sempre.</Text>
+        <Text style={st.text}>Cada país é a sua rede: sugestões, Tcheka e pesquisa mostram o que é daqui. Quem segues vês sempre.</Text>
       </View>
     </View>
   );

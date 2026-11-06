@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { api, type Comment, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { detectPaymentAsk } from '@/lib/chatIntent';
@@ -11,9 +12,20 @@ import { Icon } from './Icon';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
+import { Sticker } from './StickerPanel';
 import { VerifiedBadge } from './VerifiedBadge';
 
-const QUICK = ['🥂', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
+// Reações rápidas desenhadas com a mascote do Txillapp; ao tocar, escrevem o emoji no comentário (conteúdo do utilizador).
+const QUICK_ART: Record<string, string> = { ':brinde:': 'saude', ':palmas:': 'fixe', ':fogo:': 'bora', ':snif:': 'snif', ':amor:': 'amor', ':uau:': 'uau', ':rir:': 'rir' };
+const QUICK: { e: string; id: string; label: string }[] = [
+  { e: '\u{1F942}', id: ':brinde:', label: 'Brinde' },
+  { e: '\u{1F64C}', id: ':palmas:', label: 'Fixe' },
+  { e: '\u{1F525}', id: ':fogo:', label: 'Bora' },
+  { e: '\u{1F622}', id: ':snif:', label: 'Triste' },
+  { e: '\u{1F60D}', id: ':amor:', label: 'Adorar' },
+  { e: '\u{1F62E}', id: ':uau:', label: 'Uau' },
+  { e: '\u{1F602}', id: ':rir:', label: 'Rir' },
+];
 
 interface RowProps {
   c: Comment;
@@ -274,8 +286,8 @@ export function CommentsSheet({ post, onClose, onDelta, onGift }: { post: Post; 
             </View>
           )}
           <View style={styles.quick}>
-            {QUICK.map((e) => (
-              <Pressable key={e} onPress={() => { setText((t) => t + e); input.current?.focus(); }} accessibilityLabel={`Adicionar ${e}`}><Text style={{ fontSize: 24 }}>{e}</Text></Pressable>
+            {QUICK.map((q) => (
+              <Pressable key={q.id} onPress={() => { setText((t) => t + q.e); input.current?.focus(); }} accessibilityLabel={`Adicionar ${q.label}`}><View style={{ width: 40, height: 29, overflow: 'hidden' }}><Sticker id={QUICK_ART[q.id]} size={40} /></View></Pressable>
             ))}
           </View>
           <View style={styles.compose}>

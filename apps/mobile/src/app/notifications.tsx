@@ -1,7 +1,8 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { Avatar } from '@/components/Avatar';
 import { Icon, type IconName } from '@/components/Icon';
 import { ReactionArt } from '@/components/StoryParts';
@@ -188,7 +189,7 @@ const styles = StyleSheet.create({
   h: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4, fontSize: 14, fontWeight: '700', color: colors.zinc600 },
   row: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
   badge: { position: 'absolute', right: -4, bottom: -4, width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.white, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.12)' },
-  line: { fontSize: 15, lineHeight: 20, color: colors.zinc900 },
+  line: { fontSize: 15, lineHeight: 20.6, color: colors.zinc900 },
   sub: { marginTop: 4, fontSize: 14, color: colors.zinc600 },
   btns: { marginTop: 10, flexDirection: 'row', gap: 8 },
   accept: { borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 20, paddingVertical: 8 },

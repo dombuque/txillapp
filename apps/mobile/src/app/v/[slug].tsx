@@ -1,7 +1,8 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, PontoLoader } from '@/components/PontoLoader';
 import { Empty } from '@/components/Empty';
 import { Icon } from '@/components/Icon';
 import { PostCard } from '@/components/PostCard';
@@ -94,7 +95,7 @@ export default function VenueScreen() {
   return (
     <StackPage title={v?.name ?? 'Local'}>
       {q.isLoading ? (
-        <ActivityIndicator style={{ marginTop: 64 }} color={colors.brand} />
+        <View style={{ alignItems: "center", paddingVertical: 64 }}><PontoLoader size={20} /></View>
       ) : q.isError ? (
         <Empty icon="map-pin" title="Este local não existe" />
       ) : (
@@ -104,7 +105,7 @@ export default function VenueScreen() {
           ListHeaderComponent={head}
           onEndReached={() => posts.hasNextPage && !posts.isFetchingNextPage && void posts.fetchNextPage()}
           ListEmptyComponent={
-            posts.isLoading ? <ActivityIndicator style={{ margin: 40 }} color={colors.brand} /> : posts.isSuccess ? (
+            posts.isLoading ? <View style={{ alignItems: "center", paddingVertical: 40 }}><PontoLoader size={20} /></View> : posts.isSuccess ? (
               <Text style={{ marginHorizontal: 24, paddingVertical: 32, textAlign: 'center', fontSize: 16, color: colors.zinc500 }}>Ainda ninguém publicou aqui. Sê o primeiro e põe este local nos teus posts.</Text>
             ) : undefined
           }

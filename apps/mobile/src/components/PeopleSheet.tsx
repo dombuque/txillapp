@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { feedApi, type PeopleKind } from '@/lib/api.feed';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';

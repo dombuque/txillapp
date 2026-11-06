@@ -9,6 +9,8 @@ import { colors } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
 import { GiftSheet } from './PostSheets';
 import { StickerPanel } from './StickerPanel';
+import { NewBadge } from './WhatsNew';
+import { markSeen } from '@/lib/whatsNew';
 
 /**
  * A barra de escrever do chat, igual à do site: câmara à esquerda (degradê), o campo ao meio e, à direita,
@@ -136,9 +138,10 @@ export function ChatComposer({
     );
   }
 
-  const Bar = ({ icon, label, onPress, on, size = 22 }: { icon: IconName; label: string; onPress: () => void; on?: boolean; size?: number }) => (
-    <Pressable onPress={onPress} style={[styles.bar, on && { backgroundColor: colors.brand }]} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: !!on }}>
-      <Icon name={icon} size={size} color={on ? '#fff' : colors.zinc800} />
+  const Bar = ({ icon, label, onPress, on, size = 22, light, badge }: { icon: IconName; label: string; onPress: () => void; on?: boolean; size?: number; light?: boolean; badge?: boolean }) => (
+    <Pressable onPress={onPress} style={[styles.bar, on && { backgroundColor: light ? '#fff' : colors.brand }, badge && { overflow: 'visible' }]} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: !!on }}>
+      <Icon name={icon} size={size} color={on ? (light ? colors.brand : '#fff') : colors.zinc800} />
+      {badge && <View style={{ position: 'absolute', right: -8, top: -8 }}><NewBadge id="stickers" /></View>}
     </Pressable>
   );
 
@@ -182,8 +185,8 @@ export function ChatComposer({
               <Bar icon="once" label="Visualização única" on={once} onPress={() => { if (!once) setOnceHelp(true); setOnce(!once); }} />
               <Bar icon="mic" label="Gravar mensagem de voz" onPress={() => void startRecording()} />
               <Bar icon="image" label="Enviar foto ou vídeo da galeria" onPress={() => void pick('library')} />
-              <Bar icon="sticker" label="Stickers" on={panel === 'stickers'} onPress={() => setPanel(panel === 'stickers' ? null : 'stickers')} />
-              <Bar icon="plus" label="Mais" on={panel === 'attach'} onPress={() => setPanel(panel === 'attach' ? null : 'attach')} />
+              <Bar icon="sticker" label="Stickers" light badge on={panel === 'stickers'} onPress={() => { markSeen('stickers'); setPanel(panel === 'stickers' ? null : 'stickers'); }} />
+              <Bar icon="plus" label="Mais" light on={panel === 'attach'} onPress={() => setPanel(panel === 'attach' ? null : 'attach')} />
             </>
           )}
         </View>

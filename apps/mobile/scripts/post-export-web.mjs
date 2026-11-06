@@ -4,8 +4,9 @@ import { join } from 'node:path';
 
 const dir = process.argv[2] ?? 'dist';
 const base = process.argv[3] ?? ''; // '' = na raiz do site (txillapp.com)
+// Sem viewport-fit=cover (como o site antigo): a página começa por baixo da zona do sistema do iPhone e não aparece o desfoque no topo.
 const tags = [
-  '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content"/>',
+  '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, interactive-widget=resizes-content"/>',
   '<meta name="theme-color" content="#ffffff"/>',
   '<meta name="apple-mobile-web-app-capable" content="yes"/>',
   '<meta name="mobile-web-app-capable" content="yes"/>',
@@ -21,6 +22,7 @@ const tags = [
   '<meta property="og:title" content="Txillapp"/>',
   '<meta property="og:description" content="A rede da malta: partilha momentos, faz showoff e oferece Txills."/>',
   '<meta property="og:image" content="https://txillapp.com/og-image.png"/>',
+  `<script src="${base}/boot.js"></script>`,
   `<script src="${base}/register-sw.js" defer></script>`,
   '<style>html,body{background:#fff;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}</style>',
 ].join('');

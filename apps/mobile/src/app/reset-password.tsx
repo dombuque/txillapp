@@ -1,7 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { Wordmark } from '@/components/Wordmark';
 import { ApiError } from '@/lib/api';
@@ -56,7 +57,7 @@ export default function ResetPassword() {
             <View style={{ minHeight: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="alert"><Text style={{ fontSize: 15, color: colors.red600, textAlign: 'center' }}>{error}</Text></View>
             <Pressable onPress={() => void submit()} disabled={disabled} style={({ pressed }) => [st.ctaWrap, disabled && { opacity: 0.5 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
               <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={st.cta}>
-                {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.ctaText}>Guardar senha</Text>}
+                {busy ? <ActivityIndicator color="#fff" style={{ height: 28 }} /> : <Text style={st.ctaText}>Guardar senha</Text>}
               </LinearGradient>
             </Pressable>
           </View>

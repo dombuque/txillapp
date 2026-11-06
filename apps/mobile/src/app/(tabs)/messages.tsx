@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { NotesStrip } from '@/components/Notes';
+import { Pulse } from '@/components/ChatParts';
 import { Bolt, SuperTxillPanel } from '@/components/SuperTxillPanel';
 import { InstantsDock, openZasCamera, zasListScrolling } from '@/components/Instants';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
@@ -43,7 +44,7 @@ interface Row {
 
 function Skeleton() {
   return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 8 }} accessibilityElementsHidden>
+    <Pulse style={{ paddingVertical: 8 }}>
       {[0, 1, 2, 3, 4].map((i) => (
         <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }}>
           <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.zinc100 }} />

@@ -4,7 +4,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as SecureStore from 'expo-secure-store';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Animated, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, uploadMedia } from '@/lib/api';
 import { instantsApi, type InstantItem, type InstantViewer as Viewer } from '@/lib/api.geleira';
@@ -42,6 +43,7 @@ const noSelect = (Platform.OS === 'web' ? { userSelect: 'none', WebkitTouchCallo
 const countShadow = (Platform.OS === 'web' ? { filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.9))' } : {}) as never;
 const INTRO_KEY = 'tx_instants_intro';
 const AUDIENCE_KEY = 'tx_zas_audience';
+const SNOOZE_KEY = 'tx_zas_snooze';
 
 const hm = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 const hoursLeft = (iso: string) => `${Math.max(1, Math.ceil((new Date(iso).getTime() - Date.now()) / 3_600_000))}h`;
@@ -59,32 +61,19 @@ const scrollListeners = new Set<() => void>();
 export const zasListScrolling = () => scrollListeners.forEach((l) => l());
 
 /**
- * Distância (px) da base da pílula ao topo da barra de baixo. No site a pílula está a `6.5rem + safe-area` do fundo do ecrã e a barra
- * ocupa `4 + 48 + 1 + max(piso, safe-area)` (piso: 1.35rem no iOS, 0.35rem no resto): ~50 px acima da barra num iPhone com entalhe.
- * Na app a barra está no fluxo, por isso o `bottom` é relativo ao topo dela.
- */
-function pillGap(inset: number) {
-  const ios = Platform.OS === 'ios' || (Platform.OS === 'web' && typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent));
-  const floor = ios ? 21.6 : 5.6;
-  return 104 + inset - (53 + Math.max(floor, inset));
-}
-
-/**
  * Zás (os Instants): uma foto tirada na hora, com uma legenda curta, que dura 24 h e cada pessoa vê uma só vez.
- * Só chega aos amigos próximos e a quem se segue mutuamente. Quando há Zás por ver, aparece uma pílula flutuante (canto de baixo,
- * à direita) com a faísca do Zás, as fotos de quem postou e quantos são. Pôr dentro de uma vista que ocupe o ecrã todo (flex: 1),
- * acima da barra de abas (a distância vem de `pillGap`). Como no site, monta-se só nas Mensagens (e só uma vez, senão a câmara abria duas).
- * `collapsed`: encolhe a pílula só para as fotos (por ex. enquanto a lista rola).
+ * Só chega aos amigos próximos e a quem se segue mutuamente. Quando há Zás por ver, aparece uma mini pilha de fotos desfocadas
+ * (canto de baixo, à direita, como os Instants do Instagram) com o número de novos. Pôr dentro de uma vista que ocupe o espaço
+ * todo acima da barra de abas (flex: 1). Monta-se só nas Mensagens (e só uma vez, senão a câmara abria duas).
+ * `collapsed`: encolhe a pilha (por ex. enquanto a lista rola). Premir e deslizar para a direita oculta-a 24 h; para a esquerda repõe.
  */
 export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
   const { user } = useAuth();
   const { width } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['instants'], queryFn: instantsApi.tray, refetchInterval: 60_000, enabled: !!user });
   // Como o atalho do Instagram: espreita a meio e sai de vez quando a lista pára de mexer.
   const [away, setAway] = useState(true);
-  const tail = useRef(new Animated.Value(6)).current;
   useEffect(() => {
     let t = setTimeout(() => setAway(false), 500);
     const onScroll = () => {
@@ -99,9 +88,38 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
     };
   }, []);
   const small = collapsed || away;
+  // Entrada com mola (como o "rise" do site), encolher ao rolar e soneca (deslizar para a direita).
+  const rise = useRef(new Animated.Value(0)).current;
+  const shrink = useRef(new Animated.Value(1)).current;
+  const slide = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(tail, { toValue: small ? 6 : 16, duration: 300, useNativeDriver: false }).start();
-  }, [small, tail]);
+    Animated.spring(shrink, { toValue: small ? 0.86 : 1, useNativeDriver: false, bounciness: 6 }).start();
+  }, [small, shrink]);
+  const [snoozed, setSnoozed] = useState(false);
+  useEffect(() => {
+    void remember(SNOOZE_KEY).then((v) => setSnoozed(Number(v) > Date.now()));
+  }, []);
+  const setSnooze = useRef((on: boolean) => {
+    setSnoozed(on);
+    void remember(SNOOZE_KEY, on ? String(Date.now() + 24 * 3_600_000) : '0');
+    Animated.spring(slide, { toValue: 0, useNativeDriver: false, bounciness: 0 }).start();
+  }).current;
+  const snoozedRef = useRef(snoozed);
+  snoozedRef.current = snoozed;
+  // Premir e deslizar: para a direita oculta (24 h), para a esquerda repõe.
+  const reset = () => Animated.spring(slide, { toValue: 0, useNativeDriver: false, bounciness: 0 }).start();
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.2,
+      onPanResponderMove: (_e, g) => slide.setValue(snoozedRef.current ? Math.min(0, g.dx) : Math.max(0, g.dx)),
+      onPanResponderRelease: (_e, g) => {
+        if (!snoozedRef.current && g.dx > 40) setSnooze(true);
+        else if (snoozedRef.current && g.dx < -30) setSnooze(false);
+        else reset();
+      },
+      onPanResponderTerminate: () => reset(),
+    }),
+  ).current;
   const [mode, setMode] = useState<null | 'view' | 'cam'>(null);
   const [queue, setQueue] = useState<Who[]>([]);
   const [at, setAt] = useState(0);
@@ -120,34 +138,21 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
   return (
     <>
       {total > 0 && (
-        <Pressable
-          onPress={() => {
+        <ZasStack
+          others={others}
+          total={total}
+          snoozed={snoozed}
+          rise={rise}
+          shrink={shrink}
+          slide={slide}
+          pan={pan.panHandlers}
+          onRestore={() => setSnooze(false)}
+          onOpen={() => {
             setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName })));
             setAt(0);
             setMode('view');
           }}
-          accessibilityRole="button"
-          accessibilityLabel={`Zás: ${total} por ver`}
-          style={({ pressed }) => [st.pill, { bottom: pillGap(insets.bottom), transform: [{ scale: pressed ? 0.95 : 1 }] }]}
-        >
-          <View style={{ flexDirection: 'row' }}>
-            {others.slice(0, 3).map((o, i) => (
-              <View key={o.username} style={[st.pillAva, i > 0 && { marginLeft: -10 }]}>
-                <Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={38} />
-              </View>
-            ))}
-            <View style={st.bolt}>
-              <Icon name="bolt" size={12} solid strokeWidth={2} color="#fff" />
-            </View>
-          </View>
-          {!small && (
-            <View style={{ marginLeft: 10 }}>
-              <Text style={{ fontSize: 16, lineHeight: 20, fontWeight: '900', letterSpacing: -0.3, color: colors.brand }}>Zás</Text>
-              <Text style={{ fontSize: 12, lineHeight: 16, fontWeight: '600', color: colors.zinc600 }}>{total > 99 ? '99+' : total} {total === 1 ? 'novo' : 'novos'}</Text>
-            </View>
-          )}
-          <Animated.View style={{ width: tail }} />
-        </Pressable>
+        />
       )}
       {gridOpen && <MyInstants username={user.username} onClose={() => { setGridOpen(false); refresh(); }} />}
       {mode === 'cam' && <InstantsHub onClose={() => { setMode(null); refresh(); }} />}
@@ -163,6 +168,75 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
         />
       )}
     </>
+  );
+}
+
+type TrayOther = { username: string; displayName: string; hasAvatar: boolean; count: number; preview: string | null };
+
+/** Miniatura squircle com moldura branca; desfocada (a pré-visualização já é minúscula), para não revelar a foto. */
+function StackThumb({ o, w, h }: { o: TrayOther; w: number; h: number }) {
+  const web = Platform.OS === 'web';
+  return (
+    <View style={[{ width: w, height: h, backgroundColor: '#fff', padding: 2.5 }, squircle(w)]}>
+      <View style={[{ flex: 1, backgroundColor: colors.zinc200 }, squircle(w - 5)]}>
+        {o.preview ? (
+          <Image source={{ uri: o.preview }} style={[StyleSheet.absoluteFill, web ? ({ filter: 'blur(6px)', transform: [{ scale: 1.25 }] } as object) : null]} contentFit="cover" blurRadius={web ? 0 : 16} accessibilityIgnoresInvertColors />
+        ) : (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={w - 5} />
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+/** A mini pilha de fotos dos Zás por ver: canto de baixo à direita (16 px de margem), a de cima é a mais recente. */
+function ZasStack({ others, total, snoozed, rise, shrink, slide, pan, onOpen, onRestore }: { others: TrayOther[]; total: number; snoozed: boolean; rise: Animated.Value; shrink: Animated.Value; slide: Animated.Value; pan: object; onOpen: () => void; onRestore: () => void }) {
+  const [press, setPress] = useState(false);
+  useEffect(() => {
+    Animated.spring(rise, { toValue: 1, useNativeDriver: false, bounciness: 10, speed: 12 }).start();
+  }, [rise]);
+  const W = 50;
+  const H = 62;
+  const layers = others.slice(0, 3).map((o, i) => ({ o, i })).reverse();
+  const rot = ['-2deg', '-9deg', '8deg'];
+  const dx = [0, -9, -3];
+  const dy = [0, -6, -11];
+  if (snoozed) {
+    // Oculta: só uma aba junto à borda; tocar ou deslizar para a esquerda repõe.
+    return (
+      <Animated.View {...(pan as object)} style={[st.stack, { right: 0, bottom: 28, transform: [{ translateX: slide }] }]}>
+        <Pressable onPress={onRestore} accessibilityRole="button" accessibilityLabel="Mostrar os Zás outra vez" style={st.edge}>
+          <Icon name="bolt" size={14} solid color="#fff" />
+        </Pressable>
+      </Animated.View>
+    );
+  }
+  return (
+    <Animated.View
+      {...(pan as object)}
+      style={[st.stack, { right: 16, bottom: 16, opacity: rise, transform: [{ translateX: slide }, { translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }, { scale: Animated.multiply(shrink, press ? 0.95 : 1) }] }]}
+    >
+      <Pressable
+        onPress={onOpen}
+        onPressIn={() => setPress(true)}
+        onPressOut={() => setPress(false)}
+        accessibilityRole="button"
+        accessibilityLabel={`Zás: ${total} por ver`}
+        style={[{ width: W + 16, height: H + 16, alignItems: 'center', justifyContent: 'center' }, noSelect]}
+      >
+        {layers.map(({ o, i }) => (
+          <View key={o.username} style={[st.layer, { zIndex: 3 - i, transform: [{ translateX: dx[i] }, { translateY: dy[i] }, { rotate: rot[i] }] }]}>
+            <StackThumb o={o} w={W} h={H} />
+          </View>
+        ))}
+        <View style={st.count}>
+          <Icon name="bolt" size={11} solid color="#fff" />
+          <Text style={st.countText}>{total > 99 ? '99+' : total}</Text>
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -289,7 +363,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
               <Text style={{ fontSize: 22, fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.4, color: '#fff' }}>Zás</Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              {others.length > 0 && (
+              {others.length > 0 && !isWeb && (
                 <Pressable
                   onPress={() => { setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName }))); setAt(0); }}
                   accessibilityRole="button"
@@ -816,9 +890,11 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
 }
 
 const st = StyleSheet.create({
-  pill: { position: 'absolute', right: 12, zIndex: 20, height: 54, flexDirection: 'row', alignItems: 'center', borderRadius: 999, backgroundColor: '#fff', paddingVertical: 6, paddingLeft: 6, paddingRight: 0, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 8px 26px rgba(0,0,0,0.2)' },
-  pillAva: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', padding: 2, boxShadow: '0 0 0 2px #d6334f' },
-  bolt: { position: 'absolute', right: -4, top: -4, zIndex: 10, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 2px #fff' },
+  stack: { position: 'absolute', zIndex: 20 },
+  layer: { position: 'absolute', left: 8, top: 8,boxShadow: '0 6px 18px rgba(0,0,0,0.25)', borderRadius: 18 },
+  count: { position: 'absolute', right: -2, top: -2, zIndex: 10, minWidth: 28, height: 24, borderRadius: 12, paddingHorizontal: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: colors.brand, boxShadow: '0 0 0 2px #fff, 0 2px 6px rgba(0,0,0,0.25)' },
+  countText: { fontSize: 12, fontWeight: '800', color: '#fff' },
+  edge: { width: 22, height: 54, borderTopLeftRadius: 16, borderBottomLeftRadius: 16, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.25)' },
   hubTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 8 },
   small: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
   cam: { borderRadius: 52, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181b' },

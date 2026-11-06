@@ -4,7 +4,8 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, FlatList, Linking, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, FlatList, Linking, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError, api, type Post, type ProfileTab } from '@/lib/api';
@@ -27,13 +28,13 @@ import { VerifiedBadge } from './VerifiedBadge';
 
 const TABS: { id: ProfileTab; label: string; icon: IconName | 'bookmark' }[] = [
   { id: 'all', label: 'Tudo', icon: 'grid' },
-  { id: 'reels', label: 'Reels', icon: 'film' },
+  { id: 'reels', label: 'Tcheka', icon: 'film' },
   { id: 'reposts', label: 'Reposts', icon: 'repeat' },
   { id: 'gifts', label: 'Presentes', icon: 'gift' },
   { id: 'saved', label: 'Guardados', icon: 'bookmark' },
 ];
 const EMPTY: Record<Exclude<ProfileTab, 'all'>, { me: string; other: string }> = {
-  reels: { me: 'Ainda não publicaste reels.', other: 'Ainda sem reels.' },
+  reels: { me: 'Ainda não publicaste na Tcheka.', other: 'Ainda sem nada na Tcheka.' },
   reposts: { me: 'Ainda não repostaste nada.', other: 'Ainda sem reposts.' },
   gifts: { me: 'Os presentes que deres ou receberes e publicares aparecem aqui.', other: 'Ainda sem presentes publicados.' },
   saved: { me: 'Toca no marcador de uma publicação para a guardares aqui. Só tu vês isto.', other: '' },
@@ -277,7 +278,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           <View style={styles.tabs} accessibilityRole="tablist">
             {tabs.map((t) => (
               <Pressable key={t.id} onPress={() => setTab(t.id)} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id }} accessibilityLabel={t.label} style={[styles.tab, tab === t.id && { borderBottomColor: colors.zinc900 }]}>
-                {t.icon === 'bookmark' ? <BookmarkIcon on={tab === t.id} size={24} /> : <Icon name={t.icon} size={24} color={tab === t.id ? colors.zinc900 : colors.zinc500} />}
+                {t.icon === 'bookmark' ? <BookmarkIcon on={tab === t.id} size={24} /> : <Icon name={t.icon} size={24} color={tab === t.id ? colors.zinc900 : '#a1a1aa'} />}
               </Pressable>
             ))}
           </View>

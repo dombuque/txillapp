@@ -35,7 +35,9 @@ export default function GroupThreadScreen() {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (l: GroupThread) => l.nextCursor ?? undefined,
     refetchInterval: 30_000, // o tempo real faz o trabalho; isto é só uma rede de segurança
-    retry: false,
+    retry: 2,
+    retryDelay: (n) => Math.min(400 * 2 ** n, 2000),
+    staleTime: 15_000,
   });
   const first = q.data?.pages[0];
   const group = first?.group;
@@ -75,7 +77,7 @@ export default function GroupThreadScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={st.header}>
-        <BackButton fallback="/messages" />
+        <BackButton fallback="/messages" style={{ width: 44, height: 44, borderRadius: 22 }} />
         {group && (
           <Pressable onPress={() => setMembers(true)} accessibilityLabel={`Ver membros de ${group.name}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
             <View style={{ width: 40, height: 40 }}>

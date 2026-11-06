@@ -191,7 +191,7 @@ function SharedPost({ post, radius, tone, ink }: { post: ChatMessage['post']; ra
     <Pressable onPress={go} style={[st.shared, tone, radius, { overflow: 'hidden' }]} accessibilityRole="link">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingTop: 10 }}>
         <Icon name={video ? 'film' : 'image'} size={14} color={ink} />
-        <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: ink, opacity: 0.9 }} numberOfLines={1}>{video ? 'Reel' : 'Publicação'} de {shown.author.displayName}</Text>
+        <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: ink, opacity: 0.9 }} numberOfLines={1}>{video ? 'TCHEKA' : 'Publicação'} de {shown.author.displayName}</Text>
       </View>
       {thumb ? (
         <View style={{ marginTop: 8, height: 170, width: '100%', backgroundColor: colors.zinc200 }}>

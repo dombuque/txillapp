@@ -47,7 +47,7 @@ export default function About() {
         </Group>
         <View style={{ marginHorizontal: 24, marginTop: 24, alignItems: 'center' }}>
           <Text style={{ textAlign: 'center', fontSize: 14, color: colors.zinc500 }}>
-            O Txillapp é a rede da malta: fotos, vídeos, stories, reels e chat, com Txills para brindar e presentear.
+            O Txillapp é a rede da malta: fotos, vídeos, stories, Tcheka e chat, com Txills para brindar e presentear.
           </Text>
           {user && ver.data?.verified ? <View style={{ marginTop: 6 }}><VerifiedBadge size={14} tier={ver.data.tier} /></View> : null}
         </View>

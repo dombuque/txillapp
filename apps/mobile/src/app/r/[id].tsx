@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackButton } from '@/components/BackButton';
 import { Icon } from '@/components/Icon';
@@ -9,7 +10,7 @@ import { api, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Reel } from '../(tabs)/reels';
 
-/** Um reel aberto a partir de uma ligação, partilha ou story: ecrã inteiro, a tocar, com a seta de voltar. */
+/** Uma tcheka aberta a partir de uma ligação, partilha ou story: ecrã inteiro, a tocar, com a seta de voltar. */
 export default function ReelPage() {
   const { id = '' } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -36,9 +37,9 @@ export default function ReelPage() {
       {q.isError && (
         <View style={st.center}>
           <Icon name="film" size={48} color="rgba(255,255,255,0.7)" />
-          <Text style={st.title}>Este reel já não está disponível</Text>
+          <Text style={st.title}>Esta tcheka já não está disponível</Text>
           <Text style={{ marginTop: 4, color: 'rgba(255,255,255,0.75)', textAlign: 'center' }}>Pode ter sido apagado, ou a conta passou a privada.</Text>
-          <Pressable onPress={() => router.replace('/reels' as never)} style={st.cta}><Text style={{ color: '#fff', fontWeight: '700' }}>Ver outros reels</Text></Pressable>
+          <Pressable onPress={() => router.replace('/reels' as never)} style={st.cta}><Text style={{ color: '#fff', fontWeight: '700' }}>Ver outras tchekas</Text></Pressable>
         </View>
       )}
       {post && isVideo && (
@@ -48,7 +49,7 @@ export default function ReelPage() {
       )}
       <View style={[st.top, { paddingTop: Math.max(insets.top, 12) }]} pointerEvents="box-none">
         <BackButton onPress={close} color="#fff" />
-        <Text style={st.head}>Reel</Text>
+        <Text style={st.head}>Tcheka</Text>
         <View style={{ width: 44 }} />
       </View>
     </View>

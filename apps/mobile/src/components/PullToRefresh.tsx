@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Platform, RefreshControl, StyleSheet, View, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Platform, RefreshControl, StyleSheet, View, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { colors } from '@/lib/theme';
 
 const TRIGGER = 76;

@@ -1,7 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { googleSignup } from '@/components/GoogleButton';
 import { Icon } from '@/components/Icon';
 import { ApiError, api } from '@/lib/api';
@@ -131,7 +132,7 @@ export default function GoogleUsername() {
       <View style={{ marginTop: 'auto', paddingBottom: 24 }}>
         <Pressable onPress={() => void submit()} disabled={blocked} style={({ pressed }) => [st.ctaWrap, blocked && { opacity: 0.5 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
           <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={st.cta}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.ctaText}>Continuar</Text>}
+            {busy ? <ActivityIndicator color="#fff" style={{ height: 28 }} /> : <Text style={st.ctaText}>Continuar</Text>}
           </LinearGradient>
         </Pressable>
       </View>

@@ -5,7 +5,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Easing, PanResponder, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Alert, Animated, Easing, PanResponder, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
@@ -227,7 +228,7 @@ export default function StoryViewer() {
 
         {shared && seePost && (
           <Pressable onPress={() => { setAway(true); router.push(`/${cur.mediaKind === 'video' ? 'r' : 'p'}/${cur.sharedFrom!.postId}` as never); }} style={st.seePost} accessibilityRole="button">
-            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{cur.mediaKind === 'video' ? 'Ver reel' : 'Ver publicação'}</Text>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{cur.mediaKind === 'video' ? 'Ver tcheka' : 'Ver publicação'}</Text>
             <Icon name="chevron-right" size={16} color="#fff" strokeWidth={3} />
           </Pressable>
         )}

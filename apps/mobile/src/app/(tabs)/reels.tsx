@@ -5,7 +5,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { ActivityIndicator, Animated, AppState, FlatList, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Animated, AppState, Easing, FlatList, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { BookmarkIcon } from '@/components/BookmarkIcon';
@@ -94,18 +95,28 @@ function useAppVisible() {
 
 /** A barra de progresso de baixo: 3px, fundo branco 25%, a avançar a branco. Tem o seu próprio estado para não repintar o reel. */
 function ProgressBar({ player, bottom }: { player: VideoPlayer; bottom: number }) {
-  const [p, setP] = useState(0);
+  const w = useRef(new Animated.Value(0)).current;
+  const last = useRef(0);
   useEffect(() => {
     player.timeUpdateEventInterval = 0.25;
     const sub = player.addListener('timeUpdate', ({ currentTime }) => {
       const d = player.duration;
-      setP(d > 0 ? Math.min(1, Math.max(0, currentTime / d)) : 0);
+      const p = d > 0 ? Math.min(1, Math.max(0, currentTime / d)) : 0;
+      if (p < last.current) {
+        // Voltou ao início (repetição): salta sem animar para trás.
+        w.stopAnimation();
+        w.setValue(p);
+      } else {
+        // Entre duas atualizações o preenchimento avança a direito, sem saltos.
+        Animated.timing(w, { toValue: p, duration: 260, easing: Easing.linear, useNativeDriver: false }).start();
+      }
+      last.current = p;
     });
     return () => sub.remove();
-  }, [player]);
+  }, [player, w]);
   return (
     <View style={[st.progress, { bottom }]} pointerEvents="none">
-      <View style={{ height: '100%', width: `${p * 100}%`, backgroundColor: '#fff' }} />
+      <Animated.View style={{ height: '100%', backgroundColor: '#fff', width: w.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }} />
     </View>
   );
 }
@@ -190,7 +201,6 @@ function ReelEnd({ post, mine, replay, more, bottomInset }: { post: Post; mine: 
     <Animated.View style={[st.end, { opacity: rise, paddingBottom: Math.max(32, bottomInset) }]}>
       <LinearGradient colors={['rgba(0,0,0,0.75)', 'rgba(0,0,0,0.8)', 'rgba(0,0,0,0.9)']} style={StyleSheet.absoluteFill} />
       <View style={{ alignItems: 'center' }}>
-        <Text style={st.endKicker}>FIM DO REEL</Text>
         <Pressable onPress={go} style={st.endRing} accessibilityRole="button"><Avatar name={post.author.displayName} username={post.author.username} size={84} /></Pressable>
         <Pressable onPress={go} accessibilityRole="button"><Text style={st.endName}>{post.author.displayName}</Text></Pressable>
         <Text style={st.endUser}>@{post.author.username}</Text>
@@ -206,7 +216,7 @@ function ReelEnd({ post, mine, replay, more, bottomInset }: { post: Post; mine: 
         </Pressable>
         <Text style={st.endReplay}>Ver outra vez</Text>
         <Pressable onPress={more} style={({ pressed }) => [st.endNext, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button">
-          <Text style={st.endNextText}>Próximo reel</Text>
+          <Text style={st.endNextText}>Próximo</Text>
           <Icon name="arrow-up" size={18} strokeWidth={2.6} color="#fff" />
         </Pressable>
       </View>
@@ -373,12 +383,12 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
   const circle = (on?: boolean, tone?: string) => [st.circle, on && { backgroundColor: tone ?? 'rgba(255,255,255,0.9)' }];
   const count = (n: number, kind: PeopleKind, enabled: boolean) => (
     <Pressable disabled={!enabled || n === 0} onPress={() => setPeople(kind)} style={st.countBtn} accessibilityRole="button" accessibilityLabel={kind === 'cheers' ? 'Ver quem brindou' : 'Ver quem repostou'}>
-      <Text style={[st.railText, enabled && n > 0 && { textDecorationLine: 'underline' }]}>{n}</Text>
+      <Text style={st.railText}>{n}</Text>
     </Pressable>
   );
 
   return (
-    <View style={[{ height, width: '100%', backgroundColor: '#000', overflow: 'hidden' }, isWeb && ({ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as object)]} accessibilityLabel={`Reel de ${post.author.displayName}`}>
+    <View style={[{ height, width: '100%', backgroundColor: '#000', overflow: 'hidden' }, isWeb && ({ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as object)]} accessibilityLabel={`Tcheka de ${post.author.displayName}`}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onScreenTap} accessibilityRole="button" accessibilityLabel="Tocar ou pausar (duplo toque para brindar)">
         <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} allowsPictureInPicture={false} playsInline pointerEvents="none" />
         {m.posterUrl && !started ? <Image source={{ uri: abs(m.posterUrl) }} style={StyleSheet.absoluteFill} contentFit="contain" pointerEvents="none" /> : null}
@@ -420,33 +430,33 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
 
       <View style={[st.rails, { bottom: railsBottom }]} pointerEvents="box-none">
         <View style={{ alignItems: 'center' }}>
-          <Pressable onPress={() => void cheer()} style={st.rail} accessibilityRole="button" accessibilityLabel={post.cheered ? 'Tirar o brinde' : 'Brindar'} accessibilityState={{ selected: !!post.cheered }}>
+          <Pressable onPress={() => void cheer()} style={({ pressed }) => [st.rail, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={post.cheered ? 'Tirar o brinde' : 'Brindar'} accessibilityState={{ selected: !!post.cheered }}>
             <View style={circle(post.cheered)}><Icon name="cheers" size={26} color={post.cheered ? colors.brand : '#fff'} /></View>
           </Pressable>
           {count(post.cheers, 'cheers', !!post.lists?.cheers)}
         </View>
-        <Pressable onPress={() => setSheet('comments')} style={st.rail} accessibilityRole="button" accessibilityLabel={`Comentários (${post.comments})`}>
+        <Pressable onPress={() => setSheet('comments')} style={({ pressed }) => [st.rail, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={`Comentários (${post.comments})`}>
           <View style={circle()}><Icon name="comment" size={26} color="#fff" /></View>
           <Text style={st.railText}>{post.comments}</Text>
         </Pressable>
         <View style={{ alignItems: 'center' }}>
-          <Pressable onPress={() => setSheet('repost')} style={st.rail} accessibilityRole="button" accessibilityLabel={post.reposted ? `Reposte feito (${post.reposts})` : `Repostar (${post.reposts})`} accessibilityState={{ selected: !!post.reposted }}>
+          <Pressable onPress={() => setSheet('repost')} style={({ pressed }) => [st.rail, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={post.reposted ? `Reposte feito (${post.reposts})` : `Repostar (${post.reposts})`} accessibilityState={{ selected: !!post.reposted }}>
             <View style={circle(post.reposted, 'rgba(16,185,129,0.9)')}><Icon name="repeat" size={26} color="#fff" /></View>
           </Pressable>
           {count(post.reposts, 'reposts', !!post.lists?.reposts)}
         </View>
-        <Pressable onPress={() => setSheet('share')} style={st.rail} accessibilityRole="button" accessibilityLabel="Partilhar">
+        <Pressable onPress={() => setSheet('share')} style={({ pressed }) => [st.rail, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Partilhar">
           <View style={circle()}><Icon name="share" size={26} color="#fff" /></View>
         </Pressable>
         {!mine && post.canGift && (
-          <Pressable onPress={() => setSheet('gift')} style={st.rail} accessibilityRole="button" accessibilityLabel="Presentear">
+          <Pressable onPress={() => setSheet('gift')} style={({ pressed }) => [st.rail, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Presentear">
             <View style={circle()}><Icon name="gift" size={26} color="#fff" /></View>
           </Pressable>
         )}
-        <Pressable onPress={() => void save()} style={st.rail} accessibilityRole="button" accessibilityLabel={post.saved ? 'Tirar dos guardados' : 'Guardar'} accessibilityState={{ selected: !!post.saved }}>
+        <Pressable onPress={() => void save()} style={({ pressed }) => [st.rail, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={post.saved ? 'Tirar dos guardados' : 'Guardar'} accessibilityState={{ selected: !!post.saved }}>
           <View style={circle(!!post.saved)}><BookmarkIcon on={!!post.saved} size={26} color={post.saved ? colors.zinc900 : '#fff'} /></View>
         </Pressable>
-        <Pressable onPress={() => setSheet('menu')} style={st.rail} accessibilityRole="button" accessibilityLabel="Mais opções">
+        <Pressable onPress={() => setSheet('menu')} style={({ pressed }) => [st.rail, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Mais opções">
           <View style={circle()}><Icon name="more" size={26} color="#fff" strokeWidth={3} /></View>
         </Pressable>
       </View>
@@ -585,7 +595,7 @@ export default function Reels() {
               ) : (
                 <View style={[st.center, { height, paddingHorizontal: 32 }]}>
                   <Icon name="film" size={52} color="rgba(255,255,255,0.7)" />
-                  <Text style={st.emptyTitle}>Ainda sem reels</Text>
+                  <Text style={st.emptyTitle}>Ainda sem tchekas</Text>
                   <Text style={st.emptySub}>Sê tu a começar: grava um vídeo até 60 segundos.</Text>
                   <Pressable onPress={() => router.push('/new' as never)} style={({ pressed }) => [st.cta, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button"><Text style={st.ctaText}>Publicar um vídeo</Text></Pressable>
                 </View>
@@ -595,9 +605,9 @@ export default function Reels() {
         )}
         <View style={[st.top, { paddingTop: Math.max(insets.top, 12) }]} pointerEvents="box-none">
           {/* Sem seta de voltar: nos reels o deslize para os lados muda de aba. */}
-          <Pressable onPress={() => router.push('/new' as never)} style={({ pressed }) => [st.topBtn, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Novo reel"><Icon name="plus" size={26} color="#fff" strokeWidth={2.4} /></Pressable>
-          <Text style={st.topTitle}>Reels</Text>
-          <Pressable onPress={() => router.push('/reels/filtros' as never)} style={({ pressed }) => [st.topBtn, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Filtros dos reels"><Icon name="sliders" size={22} color="#fff" /></Pressable>
+          <Pressable onPress={() => router.push('/new' as never)} style={({ pressed }) => [st.topBtn, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Nova tcheka"><Icon name="plus" size={26} color="#fff" strokeWidth={2.4} /></Pressable>
+          <Text style={st.topTitle}>Tcheka</Text>
+          <Pressable onPress={() => router.push('/reels/filtros' as never)} style={({ pressed }) => [st.topBtn, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Filtros das tchekas"><Icon name="sliders" size={22} color="#fff" /></Pressable>
         </View>
       </View>
     </View>
@@ -608,7 +618,7 @@ const st = StyleSheet.create({
   column: { flex: 1, width: '100%', maxWidth: 576, alignSelf: 'center', backgroundColor: '#000' },
   center: { alignItems: 'center', justifyContent: 'center' },
   shade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '50%' },
-  progress: { position: 'absolute', left: 16, right: 16, height: 2, borderRadius: 1, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.22)' },
+  progress: { position: 'absolute', left: 0, right: 0, height: 3, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.25)' },
   flashWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   flash: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   failed: { paddingHorizontal: 24, textAlign: 'center', fontSize: 14, color: 'rgba(255,255,255,0.8)' },

@@ -1,9 +1,10 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { colors } from '@/lib/theme';
 import { Bubble, TypingBubble, dayLabel, sameDay, type Msg } from './ChatBubbles';
-import { DayDivider } from './ChatParts';
+import { DayDivider, Pulse } from './ChatParts';
 
 const JOIN_MS = 120_000; // mensagens da mesma pessoa com menos de 2 min juntam-se
 
@@ -47,9 +48,9 @@ export function ChatList({
   return (
     <View style={{ flex: 1 }}>
       {loading ? (
-        <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 12 }} accessibilityLabel="A carregar">
+        <Pulse style={{ paddingHorizontal: 16, paddingTop: 16, gap: 12 }}>
           {[60, 40, 70, 48].map((w, i) => <View key={i} style={{ height: 40, width: `${w}%`, borderRadius: 20, backgroundColor: colors.zinc100, alignSelf: i % 2 ? 'flex-end' : 'flex-start' }} />)}
-        </View>
+        </Pulse>
       ) : (
         <FlatList
           ref={list}
@@ -57,7 +58,7 @@ export function ChatList({
           data={items}
           extraData={`${flashId}|${seenId}`}
           keyExtractor={(m) => m.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, paddingTop: 8 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, paddingTop: 8, flexGrow: 1, justifyContent: 'flex-end' }}
           onScroll={(e) => setAway(e.nativeEvent.contentOffset.y > 320)}
           scrollEventThrottle={64}
           onScrollToIndexFailed={(info) => list.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true })}

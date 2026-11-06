@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, type Post } from '@/lib/api';
 import { extraApi } from '@/lib/api.extra';
@@ -28,11 +29,11 @@ interface Target {
 const EMERALD = '#10b981';
 const EMERALD_DARK = '#059669';
 
-/** O link limpo de uma publicação ou reel: txillapp.com/p/Ab3xK9q (reels: /r/…). Sempre no site público. */
+/** O link limpo de uma publicação ou tcheka: txillapp.com/p/Ab3xK9q (tchekas: /r/…). Sempre no site público. */
 const linkOf = (post: Post) => `${SITE_URL || 'https://txillapp.com'}/${post.media[0]?.kind === 'video' ? 'r' : 'p'}/${post.code}`;
 
 /**
- * Partilhar uma publicação ou reel (igual ao ShareSheet do site): pesquisa no topo, grelha das conversas recentes
+ * Partilhar uma publicação ou tcheka (igual ao ShareSheet do site): pesquisa no topo, grelha das conversas recentes
  * (toca para escolher várias) e, em baixo, as ações: status, amigos próximos, WhatsApp, Telegram, Facebook, X, copiar link e
  * o menu do telemóvel. Escolhidas pessoas, a barra de baixo passa a ser uma mensagem opcional e o botão Enviar.
  */

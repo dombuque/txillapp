@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { ReportSheet } from '@/components/ReportSheet';
 import { Sheet } from '@/components/Sheet';
@@ -7,6 +7,17 @@ import { REACTIONS, ReactionArt } from '@/components/StoryParts';
 import { api, raw } from '@/lib/api';
 import { colors } from '@/lib/theme';
 import type { Msg } from './ChatBubbles';
+
+/** Esqueleto a pulsar (como o animate-pulse do site): opacidade 1 -> 0.5 -> 1 em 2 s. */
+export function Pulse({ children, style }: { children?: ReactNode; style?: object }) {
+  const o = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const a = Animated.loop(Animated.sequence([Animated.timing(o, { toValue: 0.5, duration: 1000, useNativeDriver: true }), Animated.timing(o, { toValue: 1, duration: 1000, useNativeDriver: true })]));
+    a.start();
+    return () => a.stop();
+  }, [o]);
+  return <Animated.View style={[style, { opacity: o }]}>{children}</Animated.View>;
+}
 
 /** Tirar a minha reação a uma mensagem (o `api.ts` só tem o pôr). */
 export const unreact = (id: string): Promise<void> => raw(`/chat/messages/${id}/reaction`, { method: 'DELETE' }) as Promise<void>;

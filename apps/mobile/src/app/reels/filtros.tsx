@@ -142,7 +142,7 @@ export default function ReelPrefs() {
 
 
         <Text style={[st.h3, { marginTop: 36 }]}>Constrói o teu algoritmo</Text>
-        <Text style={st.sub}>Escolhe como o Explorar e os Reels te mostram as coisas</Text>
+        <Text style={st.sub}>Escolhe como o Explorar e as Tchekas te mostram as coisas</Text>
         {opt('De onde vem o que vês', 'following', [['less', 'Descobrir mais'], ['balanced', 'Equilibrado'], ['more', 'Mais de quem sigo']])}
         {opt('Ordem', 'freshness', [['recent', 'Mais recentes'], ['balanced', 'Equilibrado'], ['popular', 'Mais populares']])}
         {opt('Tipo de conteúdo', 'media', [['all', 'Tudo'], ['photos', 'Fotos'], ['videos', 'Vídeos']])}
@@ -153,7 +153,7 @@ export default function ReelPrefs() {
         </View>
 
         <Text style={[st.h3, { marginTop: 36 }]}>Pessoas</Text>
-        <Text style={st.sub}>Quem queres ver mais ou menos no Explorar e nos Reels</Text>
+        <Text style={st.sub}>Quem queres ver mais ou menos no Explorar e nas Tchekas</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TextInput value={who} onChangeText={setWho} placeholder="@utilizador" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} style={[st.input, { flex: 1 }]} accessibilityLabel="Utilizador" />
           <Pressable onPress={() => void addPerson(1)} disabled={!who.trim()} style={[st.mini, { backgroundColor: colors.brand }, !who.trim() && { opacity: 0.5 }]} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Mais</Text></Pressable>

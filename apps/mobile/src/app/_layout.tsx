@@ -3,7 +3,8 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BrandLoader } from '@/components/PontoLoader';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
@@ -29,6 +30,30 @@ function WebTopInset({ children }: { children: React.ReactNode }) {
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 
 /** Mantém a ligação em tempo real das mensagens (só com sessão iniciada). */
+/** A app já arrancou: tira o ecrã de arranque (web). */
+function useBootDone() {
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    document.getElementById('tx-boot')?.remove();
+    try { window.sessionStorage.removeItem('tx_reload'); } catch { /* nada */ }
+  }, []);
+}
+
+/** Se um ecrã falhar, mostra isto em vez de uma página em branco. */
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
+  return (
+    <View style={styles.center}>
+      <Text style={styles.title}>Ups, algo correu mal</Text>
+      <Text style={styles.sub}>Já tomámos nota. Tenta outra vez.</Text>
+      <Pressable onPress={() => void retry()} style={styles.btn} accessibilityRole="button"><Text style={styles.btnText}>Tentar outra vez</Text></Pressable>
+      {Platform.OS === 'web' ? (
+        <Pressable onPress={() => window.location.reload()} style={{ marginTop: 12 }} accessibilityRole="button"><Text style={{ color: colors.zinc600, fontSize: 15, textDecorationLine: 'underline' }}>Recarregar a página</Text></Pressable>
+      ) : null}
+      {__DEV__ ? <Text style={[styles.sub, { marginTop: 16, fontSize: 12 }]}>{error.message}</Text> : null}
+    </View>
+  );
+}
+
 function ChatLive() {
   const { user } = useAuth();
   useChatStream(undefined, !!user);
@@ -41,6 +66,7 @@ function ChatLive() {
 
 /** Sem sessão → entrada; com sessão → a app. */
 function Gate() {
+  useBootDone();
   const { user, loading, offline, retry } = useAuth();
   const router = useRouter();
   const segments = useSegments();
@@ -82,7 +108,7 @@ function Gate() {
     }
   }, [user, loading, offline, segments, router]);
 
-  if (loading) return <View style={styles.center}><ActivityIndicator color={colors.brand} /></View>;
+  if (loading) return <BrandLoader />;
   if (offline) {
     return (
       <View style={styles.center}>

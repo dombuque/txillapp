@@ -270,10 +270,13 @@ export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, e
       {!editing && (
         <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: Math.max(16, insets.bottom) }}>
           {sentBox}
-          <View style={{ alignSelf: 'center', width: '100%', maxWidth: 250, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ alignSelf: 'center', width: '100%', maxWidth: 250, flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flex: 1, alignItems: 'center' }}>
             <Pressable onPress={() => setLight((v) => !v)} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={canTorch ? 'Lanterna' : 'Flash de ecrã'} style={({ pressed }) => [small, { backgroundColor: light ? '#fcd34d' : 'rgba(255,255,255,0.1)', transform: [{ scale: pressed ? 0.9 : 1 }] }]}>
               <FlashIcon on={light} size={25} />
             </Pressable>
+            </View>
+            <View style={{ flex: 1, alignItems: 'center' }}>
             <Pressable onPress={press} disabled={!ready || busy} accessibilityRole="button" accessibilityLabel={count !== null ? 'Cancelar' : 'Tirar e enviar'} style={({ pressed }) => [{ width: 86, height: 86, borderRadius: 43, alignItems: 'center', justifyContent: 'center', opacity: !ready || busy ? 0.5 : 1, transform: [{ scale: pressed ? 0.9 : 1 }] }]}>
               <View style={web({ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderRadius: 43, padding: 4, backgroundImage: 'conic-gradient(from 200deg, #ff5c5c, #ff9a5b, #ffd166, #ff5c5c)' })}>
                 <View style={{ flex: 1, borderRadius: 39, backgroundColor: '#08080b' }} />
@@ -282,9 +285,12 @@ export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, e
                 <Icon name="bolt" size={30} solid color={busy ? '#fff' : colors.brand} />
               </View>
             </Pressable>
+            </View>
+            <View style={{ flex: 1, alignItems: 'center' }}>
             <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} accessibilityRole="button" accessibilityLabel="Virar câmara" style={({ pressed }) => [small, { backgroundColor: 'rgba(255,255,255,0.1)', transform: [{ scale: pressed ? 0.9 : 1 }] }]}>
               <Icon name="flip-camera" size={25} color="#fff" />
             </Pressable>
+            </View>
           </View>
           {/* Para quem vai: amigos (próximos e mútuos) ou só os amigos próximos. */}
           <View accessibilityRole="radiogroup" accessibilityLabel="Para quem vai" style={{ alignSelf: 'center', marginTop: 20, flexDirection: 'row', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.1)', padding: 4 }}>

@@ -26,10 +26,15 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
   const chats = useQuery({ queryKey: ['chat-unread'], queryFn: api.chatUnread, refetchInterval: 20_000, staleTime: 8_000 });
   const chatCount = chats.data?.conversations ?? 0;
 
+  // Na câmara / nova publicação a barra de baixo desaparece: fica só o menu da própria câmara.
+  const onNew = state.routes[state.index]?.name === 'new';
+
   const press = (focused: boolean, key: string) => {
     if (!focused) navigateToTab(key);
     else emitTabPress(state.routes.find((r) => r.key === key)?.name ?? '');
   };
+
+  if (onNew) return null;
 
   return (
     <View style={onReels ? [styles.floatWrap, { bottom: Math.max(insets.bottom, 8) }] : undefined} pointerEvents="box-none">
@@ -64,7 +69,7 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
             );
           }
           const icon: IconName = r.name === 'index' ? 'home' : r.name === 'reels' ? 'film' : 'messages';
-          const label = r.name === 'index' ? 'Início' : r.name === 'reels' ? 'Reels' : 'Mensagens';
+          const label = r.name === 'index' ? 'Início' : r.name === 'reels' ? 'Tcheka' : 'Mensagens';
           return (
             <Pressable key={r.key} onPress={go} style={styles.tab} accessibilityRole="button" accessibilityLabel={label}>
               <View>

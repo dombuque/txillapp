@@ -146,7 +146,7 @@ export default function Thread() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={st.header}>
-        <BackButton fallback="/messages" />
+        <BackButton fallback="/messages" style={{ width: 44, height: 44, borderRadius: 22 }} />
         {person && (
           <Pressable onPress={() => router.push(`/u/${person.username}` as never)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
             <View>

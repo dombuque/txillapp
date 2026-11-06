@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { PontoLoader } from '@/components/PontoLoader';
 import { Empty } from '@/components/Empty';
 import { Icon } from '@/components/Icon';
 import { StackPage } from '@/components/StackPage';
@@ -30,7 +31,7 @@ export default function Drafts() {
   return (
     <StackPage title="Rascunhos">
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 8 }}>
-        {items === null && <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} />}
+        {items === null && <View style={{ alignItems: "center", paddingVertical: 40 }}><PontoLoader size={20} /></View>}
         {items?.length === 0 && <Empty icon="file-text" title="Sem rascunhos." text="Quando saíres de uma publicação sem a publicar, podes guardá-la aqui." />}
         {items?.map((d) => {
           const photos = d.photos.length;

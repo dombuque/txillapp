@@ -1,7 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { GoogleButton } from '@/components/GoogleButton';
@@ -66,7 +67,7 @@ function BrandPanel() {
   const router = useRouter();
   const points = [
     { icon: 'image', text: 'Fotos, vídeos e stories de quem segues' },
-    { icon: 'film', text: 'Reels para criar e descobrir' },
+    { icon: 'film', text: 'Tchekas para criar e descobrir' },
     { icon: 'comment', text: 'Chat em tempo real com a tua malta' },
     { icon: 'shield', text: 'Tu decides quem te vê' },
   ] as const;
@@ -206,7 +207,7 @@ export default function Login() {
         </View>
         <Pressable onPress={() => void submit()} disabled={busy} style={({ pressed }) => [styles.ctaWrap, busy && { opacity: 0.5 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
           <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.cta}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>Entrar</Text>}
+            {busy ? <ActivityIndicator color="#fff" style={{ height: 28 }} /> : <Text style={styles.ctaText}>Entrar</Text>}
           </LinearGradient>
         </Pressable>
         <Text style={styles.forgot} onPress={() => router.push('/forgot-password' as never)} accessibilityRole="link">Esqueceste a senha?</Text>

@@ -70,7 +70,8 @@ export function NewChatSheet({ onClose, addTo }: { onClose: () => void; addTo?: 
   const title = addTo ? 'Adicionar ao grupo' : naming ? 'Nome do grupo' : 'Nova conversa';
 
   return (
-    <Sheet title={title} onClose={onClose} full>
+    <Sheet title={title} onClose={onClose} full plain>
+      <Text style={{ textAlign: 'center', fontSize: 17, fontWeight: '700', color: colors.zinc900, paddingHorizontal: 16, paddingBottom: 8 }}>{title}</Text>
       {naming ? (
         <View style={{ flex: 1, paddingHorizontal: 20 }}>
           <TextInput value={name} onChangeText={setName} maxLength={40} autoFocus placeholder="Ex.: Malta da Polana" placeholderTextColor={colors.zinc500} accessibilityLabel="Nome do grupo" style={styles.nameInput} />
