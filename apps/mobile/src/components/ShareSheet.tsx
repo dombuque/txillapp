@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { useEffect, useMemo, useState } from 'react';
-import { Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, type Post } from '@/lib/api';
@@ -249,6 +249,10 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, busy, 
   post: Post; audience: 'all' | 'close_friends'; setAudience: (a: 'all' | 'close_friends') => void; caption: string; setCaption: (c: string) => void; busy: boolean; onBack: () => void; onPublish: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const win = useWindowDimensions();
+  // Moldura 9:16 com tamanho real (só `aspectRatio` colapsa a zero no Safari): cabe na largura e deixa espaço aos controlos.
+  const ph = Math.max(240, Math.min(win.height - insets.top - insets.bottom - 260, 640));
+  const pw = Math.min(360, win.width - 32, Math.round(ph * 9 / 16));
   const m = post.media[0];
   const still = m?.kind === 'video' ? abs(m.posterUrl) : sized(m?.url, 1080);
   return (
@@ -258,7 +262,7 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, busy, 
         <Text style={{ fontSize: 17, fontWeight: '700', color: '#fff' }}>Pré-visualização</Text>
       </View>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 }}>
-        <View style={st.phone}>
+        <View style={[st.phone, { width: pw, height: Math.round(pw * 16 / 9) }]}>
           {still ? <Image source={{ uri: still }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
           {m?.kind === 'video' ? <View style={st.playBadge}><Icon name="play" size={28} color="#fff" solid /></View> : null}
           <View style={st.phoneTop}>
@@ -310,7 +314,7 @@ const st = StyleSheet.create({
   actCircle: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   actLabel: { width: '100%', textAlign: 'center', fontSize: 12, fontWeight: '500', lineHeight: 15, color: colors.zinc700 },
   back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  phone: { aspectRatio: 9 / 16, maxHeight: '100%', maxWidth: 360, borderRadius: 22, overflow: 'hidden', backgroundColor: colors.zinc900 },
+  phone: { borderRadius: 22, overflow: 'hidden', backgroundColor: colors.zinc900 },
   phoneTop: { position: 'absolute', left: 0, right: 0, top: 0, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: 'rgba(0,0,0,0.3)' },
   phoneCaption: { position: 'absolute', left: 12, right: 12, bottom: 16, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 12, paddingVertical: 8, textAlign: 'center', fontSize: 16, fontWeight: '600', color: '#fff' },
   playBadge: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
