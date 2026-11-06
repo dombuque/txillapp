@@ -20,7 +20,7 @@ export function GroupComposer({
   send: (msg: GroupSendBody) => Promise<unknown>;
   onSent: () => void;
   bottom: number;
-  replyTo?: { id: string; text: string } | null;
+  replyTo?: { id: string; text: string; who?: string } | null;
   onClearReply?: () => void;
 }) {
   const [text, setText] = useState('');
@@ -136,7 +136,7 @@ export function GroupComposer({
   );
 
   return (
-    <View>
+    <View style={{ borderTopWidth: 1, borderTopColor: colors.zinc100 }}>
       {panel === 'attach' && (
         <View style={styles.attach}>
           <Pressable onPress={() => void sendPlace()} style={styles.attachItem}><View style={styles.attachIcon}><Icon name="map-pin" size={22} /></View><Text style={styles.attachLabel}>Localização</Text></Pressable>
@@ -144,12 +144,15 @@ export function GroupComposer({
       )}
       {replyTo && (
         <View style={styles.reply}>
-          <Text style={styles.replyText} numberOfLines={2}>A responder: {replyTo.text}</Text>
-          <Pressable onPress={onClearReply} hitSlop={8}><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.replyText, { fontWeight: '700' }]} numberOfLines={1}>A responder a {replyTo.who ?? ''}</Text>
+            <Text style={[styles.replyText, { color: colors.zinc600 }]} numberOfLines={1}>{replyTo.text}</Text>
+          </View>
+          <Pressable onPress={onClearReply} hitSlop={8} style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Cancelar resposta"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
         </View>
       )}
       {panel === 'stickers' && <StickerPanel onPick={(id) => { setPanel(null); void dispatch({ kind: 'sticker', body: id }); }} />}
-      <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: Math.max(bottom, 12) }}>
+      <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: Math.max(20, bottom + 10) }}>
         {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
         <View style={styles.composer}>
           <Pressable onPress={() => void pick('camera')} disabled={busy} accessibilityRole="button" accessibilityLabel="Abrir a câmara">
@@ -188,8 +191,8 @@ const styles = StyleSheet.create({
   attachItem: { width: 84, alignItems: 'center', gap: 6, paddingVertical: 8 },
   attachIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   attachLabel: { fontSize: 12, fontWeight: '600', color: colors.zinc700 },
-  reply: { marginHorizontal: 12, marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 16, borderLeftWidth: 4, borderLeftColor: colors.brand, backgroundColor: '#fafafa', paddingVertical: 6, paddingLeft: 12, paddingRight: 8 },
-  replyText: { flex: 1, fontSize: 13, color: colors.zinc700 },
+  reply: { marginHorizontal: 12, marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 16, borderLeftWidth: 4, borderLeftColor: colors.brand, backgroundColor: '#fafafa', paddingVertical: 6, paddingLeft: 12, paddingRight: 6 },
+  replyText: { fontSize: 13, lineHeight: 18, color: colors.zinc700 },
   rec: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.zinc100 },
   recX: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.red600 },

@@ -20,6 +20,8 @@ export interface Draft {
   place: string;
   /** Endereços das fotos/vídeo escolhidos (mesma ordem em `video`). */
   photos: { uri: string; video?: boolean; mime?: string; durationMs?: number }[];
+  /** Pessoas identificadas em cada foto (mesma ordem de `photos`). */
+  tags?: { username: string; displayName: string; x: number; y: number }[][];
   savedAt: number;
 }
 export interface DraftItem extends Draft { key: string }

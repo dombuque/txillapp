@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { Icon, type IconName } from '@/components/Icon';
+import { ReactionArt } from '@/components/StoryParts';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
 import { api, type AppNotification } from '@/lib/api';
@@ -38,7 +39,7 @@ function describe(n: AppNotification): { text: ReactNode; sub?: string } {
     case 'reply': return { text: 'respondeu ao teu comentário', sub: quote };
     case 'story_reply':
       if (n.data.replyKind === 'comment') return { text: 'comentou o teu story', sub: quote };
-      return n.data.replyKind === 'reaction' ? { text: `reagiu ao teu story ${n.data.snippet ?? ''}` } : { text: 'respondeu ao teu story', sub: quote };
+      return n.data.replyKind === 'reaction' ? { text: <>reagiu ao teu story <ReactionArt body={n.data.snippet ?? ''} size={26} /></> } : { text: 'respondeu ao teu story', sub: quote };
     case 'repost': return { text: 'repostou a tua publicação', sub: quote };
     case 'tag': return { text: 'identificou-te numa foto' };
     case 'mention': return { text: 'mencionou-te', sub: quote };
@@ -153,13 +154,13 @@ export default function Notifications() {
         refreshControl={pull.control}
         data={data}
         keyExtractor={(e) => (e.kind === 'h' ? e.id : e.n.id)}
-        renderItem={({ item }) => (item.kind === 'h' ? <Text style={styles.h}>{item.label}</Text> : <Row n={item.n} fresh={item.fresh} />)}
+        renderItem={({ item }) => (item.kind === 'h' ? <Text style={[styles.h, item.id === 'h-old' && { paddingTop: 16 }]}>{item.label}</Text> : <Row n={item.n} fresh={item.fresh} />)}
         ListEmptyComponent={
           q.isLoading ? (
             <ActivityIndicator color={colors.brand} style={{ marginTop: 40 }} />
           ) : q.isError ? (
             <View style={styles.empty} accessibilityRole="alert">
-              <Text style={styles.emptyTitle}>Ups, não consegui carregar</Text>
+              <Text style={styles.errTitle}>Ups, não consegui carregar</Text>
               <Pressable onPress={() => void q.refetch()} style={styles.ghost}><Text style={styles.ghostText}>Tentar outra vez</Text></Pressable>
             </View>
           ) : (
@@ -172,7 +173,7 @@ export default function Notifications() {
         }
         ListFooterComponent={
           q.hasNextPage ? (
-            <Pressable onPress={() => void q.fetchNextPage()} disabled={q.isFetchingNextPage} style={[styles.ghost, { alignSelf: 'center', marginVertical: 16 }]}>
+            <Pressable onPress={() => void q.fetchNextPage()} disabled={q.isFetchingNextPage} style={[styles.ghost, { alignSelf: 'center', marginBottom: 16 }]}>
               <Text style={styles.ghostText}>{q.isFetchingNextPage ? 'A carregar…' : 'Ver mais'}</Text>
             </Pressable>
           ) : <View style={{ height: 24 }} />
@@ -184,7 +185,7 @@ export default function Notifications() {
 }
 
 const styles = StyleSheet.create({
-  h: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4, fontSize: 14, fontWeight: '700', color: colors.zinc600 },
+  h: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4, fontSize: 14, fontWeight: '700', color: colors.zinc600 },
   row: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
   badge: { position: 'absolute', right: -4, bottom: -4, width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.white, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.12)' },
   line: { fontSize: 15, lineHeight: 20, color: colors.zinc900 },
@@ -198,6 +199,7 @@ const styles = StyleSheet.create({
   empty: { marginHorizontal: 24, marginTop: 64, alignItems: 'center' },
   emptyTitle: { fontSize: 18, fontWeight: '800', color: colors.zinc900, textAlign: 'center' },
   emptySub: { marginTop: 8, fontSize: 18, fontWeight: '300', color: colors.zinc600, textAlign: 'center' },
-  ghost: { marginTop: 16, height: 44, paddingHorizontal: 24, borderRadius: 999, borderWidth: 1, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
-  ghostText: { fontSize: 15, fontWeight: '600', color: colors.zinc800 },
+  errTitle: { fontSize: 18, color: colors.zinc900, textAlign: 'center' },
+  ghost: { marginTop: 16, height: 48, paddingHorizontal: 24, borderRadius: 999, borderWidth: 1, borderColor: colors.zinc300, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  ghostText: { fontSize: 16, fontWeight: '600', color: colors.zinc800 },
 });

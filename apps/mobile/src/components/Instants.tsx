@@ -15,6 +15,11 @@ import { Avatar } from './Avatar';
 import { Icon } from './Icon';
 import { Sheet } from './Sheet';
 import { CloseFriendsSheet, REACTIONS, ReactionArt } from './StoryParts';
+import { CurvedCaption } from './zas/CurvedCaption';
+import { squircle } from './zas/squircle';
+import { useVisibleViewport } from './zas/useVisibleViewport';
+import { WebZasStudio } from './zas/WebZasStudio';
+import { saveZas, shareZas } from './zas/zasImage';
 
 type Audience = 'friends' | 'close';
 type Who = { username: string; displayName: string };
@@ -32,6 +37,9 @@ async function remember(key: string, value?: string): Promise<string | null> {
     return null;
   }
 }
+/** Sem seleção/menu do sistema ao premir (a pressão longa abre o nosso menu) e a sombra do contador, como no site. */
+const noSelect = (Platform.OS === 'web' ? { userSelect: 'none', WebkitTouchCallout: 'none' } : {}) as never;
+const countShadow = (Platform.OS === 'web' ? { filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.9))' } : {}) as never;
 const INTRO_KEY = 'tx_instants_intro';
 const AUDIENCE_KEY = 'tx_zas_audience';
 
@@ -197,17 +205,12 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
     void remember(AUDIENCE_KEY, a);
   }
 
-  async function shoot() {
-    if (busy) return;
+  /** Envia a foto (uri local ou blob:) como Zás, com 6 s para desfazer. */
+  async function send(uri: string, mime: string) {
+    setBusy(true);
     setErr('');
     try {
-      const p = await ImagePicker.requestCameraPermissionsAsync();
-      if (!p.granted) return setErr('Preciso de acesso à câmara.');
-      const r = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.9, allowsEditing: false });
-      const a = r.canceled ? null : r.assets[0];
-      if (!a) return;
-      setBusy(true);
-      const mediaId = await uploadMedia(a.uri, a.mimeType ?? 'image/jpeg');
+      const mediaId = await uploadMedia(uri, mime);
       const res = await instantsApi.create(mediaId, caption.trim(), audience);
       setCaption('');
       setSent(res.id);
@@ -221,6 +224,29 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
     }
     setBusy(false);
   }
+  /** Nativo: a câmara do telemóvel (sem galeria). Na web a câmara é a ao vivo (WebZasStudio). */
+  async function shoot() {
+    if (busy) return;
+    setErr('');
+    try {
+      const p = await ImagePicker.requestCameraPermissionsAsync();
+      if (!p.granted) return setErr('Preciso de acesso à câmara.');
+      const r = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.9, allowsEditing: false });
+      const a = r.canceled ? null : r.assets[0];
+      if (!a) return;
+      await send(a.uri, a.mimeType ?? 'image/jpeg');
+    } catch (e) {
+      setErr((e as Error).message || 'Não consegui tirar a foto');
+    }
+  }
+  async function sendBlob(blob: Blob) {
+    const url = URL.createObjectURL(blob);
+    try {
+      await send(url, 'image/jpeg');
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(url), 8000);
+    }
+  }
   async function undo() {
     if (!sent) return;
     const id = sent;
@@ -230,55 +256,14 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   }
 
   // Cartão 3:4 que cabe no espaço que sobra.
+  const isWeb = Platform.OS === 'web';
+  const vv = useVisibleViewport();
+  const [editing, setEditing] = useState(false);
+  const [capEdit, setCapEdit] = useState(false);
   const cardH = Math.min(520, height - insets.top - insets.bottom - 330);
   const cardW = Math.min(cardH * 0.75, width - 64);
-  return (
-    <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <View style={{ flex: 1, backgroundColor: '#08080b', paddingTop: Math.max(8, insets.top) }}>
-        <LinearGradient colors={['transparent', 'rgba(255,92,92,0.28)']} start={{ x: 0.5, y: 0.4 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
-        <View style={st.hubTop}>
-          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" style={st.small}><Icon name="x" size={26} color="#fff" /></Pressable>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Icon name="bolt" size={20} solid color={colors.brand} />
-            <Text style={{ fontSize: 22, fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.4, color: '#fff' }}>Zás</Text>
-          </View>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {others.length > 0 && (
-              <Pressable
-                onPress={() => { setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName }))); setAt(0); }}
-                accessibilityRole="button"
-                accessibilityLabel="Ver os Zás que recebeste"
-                style={st.small}
-              >
-                <Icon name="eye" size={23} color="#fff" />
-              </Pressable>
-            )}
-            <Pressable onPress={() => setGrid(true)} accessibilityRole="button" accessibilityLabel="Os meus Zás" style={st.small}><Icon name="grid" size={23} color="#fff" /></Pressable>
-          </View>
-        </View>
+  const sentBox = sent ? (
 
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <View style={[st.cam, { width: cardW, height: cardW / 0.75 }]}>
-            <Pressable onPress={() => void shoot()} disabled={busy} accessibilityRole="button" accessibilityLabel="Abrir a câmara" style={{ alignItems: 'center', gap: 10 }}>
-              <Icon name="camera" size={44} color="rgba(255,255,255,0.7)" />
-              <Text style={{ fontSize: 15, fontWeight: '600', color: 'rgba(255,255,255,0.7)' }}>Toca no raio para tirar o Zás</Text>
-            </Pressable>
-            <TextInput
-              value={caption}
-              onChangeText={setCaption}
-              maxLength={80}
-              placeholder="Adicionar legenda…"
-              placeholderTextColor="rgba(255,255,255,0.55)"
-              accessibilityLabel="Legenda"
-              returnKeyType="done"
-              style={st.caption}
-            />
-            {err ? <Text accessibilityRole="alert" style={st.err}>{err}</Text> : null}
-          </View>
-        </View>
-
-        <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: Math.max(16, insets.bottom) }}>
-          {sent && (
             <View accessibilityLiveRegion="polite" style={st.sent}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingLeft: 20, paddingRight: 8 }}>
                 <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>Zás enviado!</Text>
@@ -288,7 +273,64 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
               </View>
               <Animated.View style={{ height: 4, borderRadius: 2, backgroundColor: colors.brand, width: bar.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }} />
             </View>
-          )}
+          ) : null;
+  const rootStyle = isWeb
+    ? ({ flex: 1, backgroundColor: '#08080b', backgroundImage: 'radial-gradient(120% 60% at 50% 105%, rgba(255,92,92,.28), transparent 60%)', paddingTop: Math.max(8, insets.top), ...(vv ? { position: 'absolute', left: 0, right: 0, top: vv.top, height: vv.height } : null) } as never)
+    : { flex: 1, backgroundColor: '#08080b', paddingTop: Math.max(8, insets.top) };
+  return (
+    <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <View style={rootStyle}>
+        {!isWeb && <LinearGradient colors={['transparent', 'rgba(255,92,92,0.28)']} start={{ x: 0.5, y: 0.4 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />}
+        {!(isWeb && editing) && (
+          <View style={st.hubTop}>
+            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" style={st.small}><Icon name="x" size={26} color="#fff" /></Pressable>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Icon name="bolt" size={20} solid color={colors.brand} />
+              <Text style={{ fontSize: 22, fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.4, color: '#fff' }}>Zás</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {others.length > 0 && (
+                <Pressable
+                  onPress={() => { setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName }))); setAt(0); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ver os Zás que recebeste"
+                  style={st.small}
+                >
+                  <Icon name="eye" size={23} color="#fff" />
+                </Pressable>
+              )}
+              <Pressable onPress={() => setGrid(true)} accessibilityRole="button" accessibilityLabel="Os meus Zás" style={st.small}><Icon name="grid" size={23} color="#fff" /></Pressable>
+            </View>
+          </View>
+        )}
+
+        {isWeb ? (
+          <WebZasStudio caption={caption} onCaption={setCaption} audience={audience} onAudience={pickAudience} busy={busy} err={err} editing={editing} onEditing={setEditing} onCapture={(b) => void sendBlob(b)} sentBox={sentBox} />
+        ) : (
+          <>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={[st.cam, squircle(cardW), { width: cardW, height: cardW / 0.75 }]}>
+            <Pressable onPress={() => void shoot()} disabled={busy} accessibilityRole="button" accessibilityLabel="Abrir a câmara" style={{ alignItems: 'center', gap: 10 }}>
+              <Icon name="camera" size={44} color="rgba(255,255,255,0.7)" />
+              <Text style={{ fontSize: 15, fontWeight: '600', color: 'rgba(255,255,255,0.7)' }}>Toca no raio para tirar o Zás</Text>
+            </Pressable>
+            <CurvedCaption w={cardW} h={cardW / 0.75} text={caption || 'Adicionar legenda…'} hint={!caption} caret={capEdit} caretFirst={!caption} />
+            <TextInput
+              value={caption}
+              onChangeText={setCaption}
+              onFocus={() => setCapEdit(true)}
+              onBlur={() => setCapEdit(false)}
+              maxLength={80}
+              accessibilityLabel="Legenda"
+              returnKeyType="done"
+              style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '40%', zIndex: 5, opacity: 0, fontSize: 16 }}
+            />
+            {err ? <Text accessibilityRole="alert" style={st.err}>{err}</Text> : null}
+          </View>
+        </View>
+
+        <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: Math.max(16, insets.bottom) }}>
+          {sentBox}
           <View style={{ alignItems: 'center' }}>
             <Pressable onPress={() => void shoot()} disabled={busy} accessibilityRole="button" accessibilityLabel="Tirar e enviar" style={[st.shutterRing, busy && { opacity: 0.5 }]}>
               <LinearGradient colors={['#ff5c5c', '#ff9a5b', '#ffd166', '#ff5c5c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
@@ -311,6 +353,8 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
             })}
           </View>
         </View>
+          </>
+        )}
 
         {intro && (
           <View style={st.introWrap}>
@@ -374,6 +418,7 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
   const [open, setOpen] = useState<string | null>(null);
   const [who, setWho] = useState<Viewer[] | null>(null);
   const [del, setDel] = useState<InstantItem | null>(null);
+  const [menu, setMenu] = useState<InstantItem | null>(null);
   const load = useCallback(() => instantsApi.of(username).then(setItems).catch((e) => setErr((e as Error).message)), [username]);
   useEffect(() => {
     void load();
@@ -409,9 +454,18 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
               {items.map((it) => {
                 const top = it.reactions?.[0];
                 return (
-                  <Pressable key={it.id} onPress={() => setOpen(it.id)} onLongPress={() => setDel(it)} delayLongPress={450} accessibilityRole="button" accessibilityLabel={it.caption || 'Zás'} style={{ width: cell, height: Math.round(cell / 0.75), borderRadius: 22, overflow: 'hidden', backgroundColor: colors.zinc800 }}>
+                  <Pressable
+                    key={it.id}
+                    onPress={() => setOpen(it.id)}
+                    onLongPress={() => setMenu(it)}
+                    delayLongPress={450}
+                    {...(Platform.OS === 'web' ? ({ onContextMenu: (e: { preventDefault: () => void }) => { e.preventDefault(); setMenu(it); } } as object) : null)}
+                    accessibilityRole="button"
+                    accessibilityLabel={it.caption || 'Zás'}
+                    style={({ pressed }) => [{ width: cell, height: Math.round(cell / 0.75), backgroundColor: colors.zinc800, transform: [{ scale: pressed ? 0.97 : 1 }], opacity: pressed ? 0.8 : 1 }, squircle(cell), noSelect]}
+                  >
                     <Image source={{ uri: it.url }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
-                    <Pressable onPress={() => void showWho(it.id)} accessibilityRole="button" accessibilityLabel="Quem viu" style={st.views}>
+                    <Pressable onPress={() => void showWho(it.id)} accessibilityRole="button" accessibilityLabel="Quem viu" style={[st.views, countShadow]}>
                       {top ? (
                         <>
                           <ReactionArt body={top.reaction} size={20} />
@@ -436,6 +490,39 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
           <Icon name="bolt" size={20} solid color={colors.brand} />
           <Text style={{ fontSize: 17, fontWeight: '700', color: colors.zinc900 }}>Mandar um Zás</Text>
         </Pressable>
+        {menu && (
+          <Sheet title="Zás" onClose={() => setMenu(null)}>
+            <View style={{ paddingHorizontal: 24 }}>
+              {(Platform.OS === 'web'
+                ? ([
+                    ['image', 'Guardar na galeria', 'Abre «Guardar imagem» no telemóvel.', () => void saveZas(menu, 'gallery'), false],
+                    ['download', 'Descarregar', 'Ficheiro PNG com a moldura e a legenda.', () => void saveZas(menu, 'file'), false],
+                    ['share', 'Partilhar', 'Manda a foto a quem quiseres.', () => void shareZas(menu), false],
+                    ['trash', 'Apagar', 'Desaparece para toda a gente.', () => setDel(menu), true],
+                  ] as const)
+                : ([
+                    ['share', 'Partilhar', 'Manda a foto a quem quiseres (ou guarda-a).', () => void shareZas(menu), false],
+                    ['trash', 'Apagar', 'Desaparece para toda a gente.', () => setDel(menu), true],
+                  ] as const)
+              ).map(([ic, label, text, run, danger]) => (
+                <Pressable
+                  key={label}
+                  onPress={() => { setMenu(null); run(); }}
+                  accessibilityRole="button"
+                  style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 16, borderRadius: 16, paddingVertical: 12, backgroundColor: pressed ? (danger ? colors.rose50 : colors.zinc100) : 'transparent' })}
+                >
+                  <View style={{ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: danger ? colors.rose50 : colors.zinc100 }}>
+                    <Icon name={ic} size={22} color={danger ? '#b91c1c' : colors.zinc800} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 17, fontWeight: '600', color: danger ? '#b91c1c' : colors.zinc900 }}>{label}</Text>
+                    <Text style={{ fontSize: 14, color: colors.zinc600 }}>{text}</Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </Sheet>
+        )}
         {del && (
           <Sheet title="Apagar o Zás?" onClose={() => setDel(null)}>
             <View style={{ paddingHorizontal: 24 }}>
@@ -496,6 +583,9 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
   const [popId, setPopId] = useState<string | null>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+  const ownRef = useRef(own);
+  ownRef.current = own;
+  const viewersRef = useRef<() => Promise<void>>(async () => undefined);
 
   useEffect(() => {
     instantsApi
@@ -574,6 +664,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
       setErr((e as Error).message);
     }
   }
+  viewersRef.current = showViewers;
   async function sendReply() {
     const body = reply.trim();
     if (!body) return;
@@ -590,10 +681,12 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
   // Arrastar para baixo fecha (o cartão acompanha o dedo).
   const pan = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_e, g) => g.dy > 12 && g.dy > Math.abs(g.dx) * 1.5,
+      onMoveShouldSetPanResponder: (_e, g) => (g.dy > 12 || (ownRef.current && g.dy < -12)) && Math.abs(g.dy) > Math.abs(g.dx) * 1.5,
       onPanResponderMove: (_e, g) => drag.setValue(Math.max(0, g.dy)),
       onPanResponderRelease: (_e, g) => {
-        if (g.dy > 110) closeRef.current();
+        // Nos meus Zás, deslizar para cima mostra quem viu e as reações.
+        if (ownRef.current && g.dy < -60) void viewersRef.current();
+        else if (g.dy > 110) closeRef.current();
         else Animated.spring(drag, { toValue: 0, useNativeDriver: Platform.OS !== 'web', bounciness: 0 }).start();
       },
     }),
@@ -616,7 +709,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
         </View>
 
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 8 }}>
-          <View style={{ width: cardW, height: cardH, borderRadius: 52, overflow: 'hidden', backgroundColor: colors.zinc900 }}>
+          <View style={[{ width: cardW, height: cardH, backgroundColor: colors.zinc900 }, squircle(cardW)]}>
             {cur ? (
               <Image source={{ uri: cur.url }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={cur.caption || 'Zás'} />
             ) : (
@@ -634,13 +727,10 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
                 <ReactionArt body={popId} size={120} />
               </Animated.View>
             )}
-            {cur?.caption ? (
-              <View pointerEvents="none" style={st.capWrap}>
-                <Text style={st.cap} numberOfLines={3}>{cur.caption}</Text>
-              </View>
-            ) : null}
+            {cur?.caption ? <CurvedCaption w={cardW} h={cardH} text={cur.caption} arc="top" /> : null}
             {own && cur ? (
               <View pointerEvents="none" style={st.swipeUp}>
+                <View style={{ transform: [{ rotate: '-90deg' }] }}><Icon name="chevron-right" size={20} color="rgba(255,255,255,0.85)" /></View>
                 <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.85)' }}>{cur.views ?? 0} viram</Text>
               </View>
             ) : null}
@@ -678,6 +768,11 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
                 <Icon name="eye" size={18} color="#fff" />
                 <Text style={{ fontSize: 16, fontWeight: '600', color: '#fff' }}>{cur?.views ?? 0} viram</Text>
               </Pressable>
+              {cur && (
+                <Pressable onPress={() => void saveZas(cur)} accessibilityRole="button" accessibilityLabel="Guardar na galeria" style={[st.glass, { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }]}>
+                  <Icon name="download" size={20} color="#fff" />
+                </Pressable>
+              )}
               <Pressable onPress={() => void remove()} accessibilityRole="button" accessibilityLabel="Apagar Zás" style={[st.glass, { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }]}>
                 <Icon name="trash" size={20} color="#fca5a5" />
               </Pressable>
@@ -727,7 +822,6 @@ const st = StyleSheet.create({
   hubTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 8 },
   small: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
   cam: { borderRadius: 52, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181b' },
-  caption: { position: 'absolute', left: 24, right: 24, top: 28, textAlign: 'center', fontSize: 18, fontWeight: '800', letterSpacing: 1.2, color: '#fff', paddingVertical: 4 },
   err: { position: 'absolute', left: 32, right: 32, bottom: 24, overflow: 'hidden', borderRadius: 22, backgroundColor: 'rgba(220,38,38,0.9)', paddingHorizontal: 16, paddingVertical: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: '#fff' },
   sent: { alignSelf: 'center', width: '100%', maxWidth: 384, marginBottom: 12, overflow: 'hidden', borderRadius: 28, backgroundColor: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' },
   shutterRing: { width: 86, height: 86, borderRadius: 43, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
@@ -745,8 +839,6 @@ const st = StyleSheet.create({
   big: { height: 48, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   vTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
   vBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  capWrap: { position: 'absolute', left: 28, right: 28, top: 36, alignItems: 'center' },
-  cap: { textAlign: 'center', fontSize: 18, fontWeight: '800', letterSpacing: 1.2, color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.6)' } as never,
   swipeUp: { position: 'absolute', left: 0, right: 0, bottom: 16, alignItems: 'center' },
   toast: { position: 'absolute', left: 32, right: 32, top: 24, overflow: 'hidden', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: '#fff' },
   info: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12 },

@@ -1,0 +1,152 @@
+import { pushApi } from '@/lib/api.settings';
+
+/**
+ * Web Push (só na web; o service worker é o /sw.js, que importa o /push-sw.js). Porta de apps/web/src/lib/push.ts.
+ * No nativo não há Web Push: as funções devolvem 'none'.
+ */
+const toKey = (b64: string) => {
+  const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+};
+const sameKey = (a: ArrayBuffer | null, b: Uint8Array) => !!a && a.byteLength === b.length && new Uint8Array(a).every((v, i) => v === b[i]);
+
+const supported = () => typeof navigator !== 'undefined' && typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+/** A subscrição tem de ser da chave atual do servidor; se a chave mudou, a antiga já não recebe nada e refaz-se. */
+async function freshSubscription(reg: ServiceWorkerRegistration, publicKey: string): Promise<PushSubscription> {
+  const key = toKey(publicKey);
+  let sub = await reg.pushManager.getSubscription();
+  if (sub && !sameKey(sub.options?.applicationServerKey ?? null, key)) {
+    await sub.unsubscribe().catch(() => undefined);
+    sub = null;
+  }
+  return sub ?? reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key as BufferSource });
+}
+
+async function registerSubscription(sub: PushSubscription) {
+  const j = sub.toJSON();
+  await pushApi.pushSubscribe({ endpoint: sub.endpoint, keys: { p256dh: j.keys!.p256dh, auth: j.keys!.auth } });
+}
+
+/** Estado das notificações neste aparelho: 'on' ligadas, 'ask' dá para pedir, 'denied' bloqueadas, 'off-server' sem chave no servidor, 'none' sem suporte. */
+export async function pushState(): Promise<'on' | 'ask' | 'denied' | 'off-server' | 'none'> {
+  try {
+    if (!supported()) return 'none';
+    const { publicKey } = await pushApi.pushKey().catch(() => ({ publicKey: null }));
+    if (!publicKey) return 'off-server';
+    if (Notification.permission === 'denied') return 'denied';
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    return sub && Notification.permission === 'granted' ? 'on' : 'ask';
+  } catch {
+    return 'none';
+  }
+}
+
+const wait = <T,>(p: Promise<T>, ms: number, msg: string) => Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(msg)), ms))]);
+
+const askPermission = () =>
+  new Promise<NotificationPermission>((resolve) => {
+    const r = Notification.requestPermission((p) => resolve(p)) as unknown as Promise<NotificationPermission> | undefined;
+    if (r && typeof r.then === 'function') void r.then(resolve);
+  });
+
+/** Pede a permissão (só dentro de um toque) e liga as notificações deste aparelho à conta. 'on', 'denied' ou 'off' (fechou o pedido). */
+export async function enablePush(): Promise<'on' | 'denied' | 'off'> {
+  const ios = /iP(hone|ad|od)/.test(navigator.userAgent);
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  if (ios && !standalone) throw new Error('No iPhone, abre o Txillapp pelo ícone no ecrã principal (Partilhar › Adicionar ao ecrã principal) e tenta outra vez.');
+  const perm = await askPermission();
+  if (perm === 'denied') return 'denied';
+  if (perm !== 'granted') return 'off';
+  const { publicKey } = await wait(pushApi.pushKey(), 10_000, 'Sem ligação ao servidor. Tenta outra vez.');
+  if (!publicKey) throw new Error('As notificações ainda não estão ativas neste servidor.');
+  const reg = await wait(navigator.serviceWorker.ready, 8_000, 'O serviço de notificações ainda não arrancou. Fecha e abre a app e tenta outra vez.');
+  const sub = await wait(freshSubscription(reg, publicKey), 15_000, 'Não consegui registar este telemóvel. Tenta outra vez daqui a pouco.');
+  await wait(registerSubscription(sub), 10_000, 'Sem ligação ao servidor. Tenta outra vez.');
+  return 'on';
+}
+
+export async function disablePush(): Promise<void> {
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  if (sub) {
+    await pushApi.pushUnsubscribe(sub.endpoint).catch(() => undefined);
+    await sub.unsubscribe();
+  }
+}
+
+/** Ao abrir com sessão: se já estavam ligadas neste aparelho, confirma que a subscrição é válida e desta conta. Nunca pede permissão. */
+export async function syncPush(): Promise<void> {
+  try {
+    if (!supported() || Notification.permission !== 'granted') return;
+    const reg = await navigator.serviceWorker.ready;
+    if (!(await reg.pushManager.getSubscription())) return;
+    const { publicKey } = await pushApi.pushKey().catch(() => ({ publicKey: null }));
+    if (!publicKey) return;
+    await registerSubscription(await freshSubscription(reg, publicKey));
+  } catch {
+    /* sem rede ou sem suporte: tenta na próxima vez */
+  }
+}
+
+/* ───────────── instalar e atualizar a app (PWA) ───────────── */
+interface InstallEvent extends Event { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> }
+const deferred = () => (typeof window === 'undefined' ? null : ((window as unknown as { __txInstall?: InstallEvent | null }).__txInstall ?? null));
+
+const ios = () => typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+const iosSafari = () => ios() && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA/.test(navigator.userAgent);
+export const mobileDevice = () => typeof navigator !== 'undefined' && (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || ios());
+export const isInstalled = () => typeof window !== 'undefined' && (window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
+
+/** O que mostrar na linha "Instalar a app": nada, já instalada, instalar com um toque ou as instruções do iPhone. */
+export function installState(): 'none' | 'installed' | 'prompt' | 'ios' | 'ios-safari' {
+  if (isInstalled()) return 'installed';
+  if (!mobileDevice()) return 'none';
+  if (deferred()) return 'prompt';
+  if (iosSafari()) return 'ios';
+  if (ios()) return 'ios-safari';
+  return 'none';
+}
+export async function installApp(): Promise<void> {
+  const e = deferred();
+  if (!e) return;
+  await e.prompt();
+  await e.userChoice;
+  (window as unknown as { __txInstall?: null }).__txInstall = null;
+}
+
+/** Procura já uma versão nova do service worker: se houver, aplica-a (recarrega); senão diz que já tens a última. */
+export async function checkForUpdate(): Promise<'updating' | 'latest' | 'error'> {
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    if (!reg) return 'latest';
+    await reg.update();
+    for (let i = 0; i < 8 && !reg.installing && !reg.waiting; i++) await new Promise((r) => setTimeout(r, 500));
+    const next = reg.installing ?? reg.waiting;
+    if (!next) return 'latest';
+    await new Promise<void>((done) => {
+      if (next.state === 'activated') return done();
+      next.addEventListener('statechange', () => next.state === 'activated' && done());
+      setTimeout(done, 8000);
+    });
+    location.reload();
+    return 'updating';
+  } catch {
+    return 'error';
+  }
+}
+
+/** Último recurso: apaga as cópias guardadas e a instalação do service worker e recarrega a app do zero. */
+export async function hardReload() {
+  try {
+    const regs = await navigator.serviceWorker?.getRegistrations();
+    await Promise.all((regs ?? []).map((r) => r.unregister()));
+    const keys = await caches?.keys();
+    await Promise.all((keys ?? []).map((k) => caches.delete(k)));
+  } catch {
+    /* segue para recarregar na mesma */
+  }
+  location.reload();
+}

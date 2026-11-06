@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GoogleButton } from '@/components/GoogleButton';
 import { Icon } from '@/components/Icon';
 import { ApiError, api, inviteStore } from '@/lib/api';
@@ -94,6 +94,7 @@ export default function Register() {
   const router = useRouter();
   const { signUp } = useAuth();
   const styles2 = authStyles();
+  const legal = (p: string) => (Platform.OS === 'web' ? router.push(p as never) : void Linking.openURL(`${SITE_URL || 'https://txillapp.com'}${p}`));
   const [i, setI] = useState(0);
   const [data, setData] = useState<Partial<Record<Key, string>> & { acceptTerms?: boolean }>({});
   const [error, setError] = useState('');
@@ -249,8 +250,8 @@ export default function Register() {
             <Pressable onPress={() => { setError(''); setData({ ...data, acceptTerms: !data.acceptTerms }); }} style={st.terms} accessibilityRole="checkbox" accessibilityState={{ checked: !!data.acceptTerms }}>
               <View style={[st.box, data.acceptTerms && { backgroundColor: colors.brand, borderColor: colors.brand }]}>{data.acceptTerms && <Icon name="check" size={14} color="#fff" strokeWidth={3} />}</View>
               <Text style={st.termsText}>
-                Li e aceito os <Text style={st.link} onPress={() => void Linking.openURL(`${SITE_URL || 'https://txillapp.com'}/terms`)}>Termos de Uso</Text> e a{' '}
-                <Text style={st.link} onPress={() => void Linking.openURL(`${SITE_URL || 'https://txillapp.com'}/privacy`)}>Política de Privacidade</Text>.
+                Li e aceito os <Text style={st.link} onPress={() => legal('/terms')}>Termos de Uso</Text> e a{' '}
+                <Text style={st.link} onPress={() => legal('/privacy')}>Política de Privacidade</Text>.
               </Text>
             </Pressable>
           )}

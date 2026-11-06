@@ -1,15 +1,20 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { PostCard } from '@/components/PostCard';
+import { ProfileNudge } from '@/components/ProfileNudge';
 import { StoriesTray } from '@/components/StoriesTray';
+import { Suggestions } from '@/components/Suggestions';
+import { WhatsNewCard } from '@/components/WhatsNew';
 import { Wordmark } from '@/components/Wordmark';
 import { api, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { trackSeen } from '@/lib/seen';
+import { isSnoozed, shouldShowSuggestions } from '@/lib/suggestPacing';
 import { cardShadow, colors } from '@/lib/theme';
 
 /** Topo do Início: sino à esquerda, logótipo ao centro, pesquisa à direita (como no site). */
@@ -56,7 +61,18 @@ function Skeleton() {
 /** Início: stories no topo e as publicações de quem segues e do que o Txillapp descobre para ti. */
 export default function Feed() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { user } = useAuth();
+  // As sugestões de pessoas aparecem só às vezes entre os posts (ritmo neste aparelho).
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [snoozed, setSnoozed] = useState(true);
+  useEffect(() => {
+    void shouldShowSuggestions('feed', { minGapHours: 10, base: 0.4, step: 0.2 }).then(setShowSuggestions);
+    void isSnoozed().then(setSnoozed);
+  }, []);
+  // A app ainda é nova e há pouca gente: quem segue poucas pessoas vê logo, em todas as visitas, quem pode conhecer (a não ser que dispense).
+  const me = useQuery({ queryKey: ['profile', user?.username], queryFn: () => api.profile(user!.username), enabled: !!user, staleTime: 60_000 });
+  const early = !!me.data && me.data.counts.following < 25 && !snoozed;
   const q = useInfiniteQuery({
     queryKey: ['feed'],
     queryFn: ({ pageParam }) => api.feed(pageParam),
@@ -69,7 +85,35 @@ export default function Feed() {
   const posts: Post[] = (q.data?.pages.flatMap((p) => p.items) ?? []).filter((p) => !seen.has(p.id) && !!seen.add(p.id));
   const firstSeen = posts.findIndex((p) => p.feed?.seen);
 
-  const pull = usePullToRefresh(() => q.refetch(), q.isRefetching && !q.isFetchingNextPage);
+  // Sinal de novidades: de tempos a tempos espreita a primeira página sem mexer no que estás a ler. Não atualiza sozinho:
+  // mostra um aviso e, ao tocar (ou ao puxar para atualizar), traz as novas.
+  const peek = useQuery({
+    queryKey: ['feed-peek'],
+    queryFn: () => api.feed(),
+    enabled: q.isSuccess,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+    gcTime: 0,
+  });
+  const have = new Set(posts.map((p) => p.id));
+  const fresh = (peek.data?.items ?? []).filter((p) => !have.has(p.id) && !p.feed?.seen).length;
+  const list = useRef<FlatList<Post>>(null);
+  async function showNew() {
+    list.current?.scrollToOffset({ offset: 0, animated: true });
+    await q.refetch();
+    void peek.refetch();
+  }
+
+  // Regista como vista a publicação que esteve pelo menos 60% no ecrã durante 1 segundo.
+  const onViewable = useRef(({ viewableItems }: { viewableItems: { item: Post; isViewable: boolean }[] }) => {
+    for (const v of viewableItems) if (v.isViewable) trackSeen(v.item.id);
+  }).current;
+  const viewability = useRef({ itemVisiblePercentThreshold: 60, minimumViewTime: 1000 }).current;
+
+  const pull = usePullToRefresh(async () => {
+    await q.refetch();
+    void peek.refetch();
+  }, q.isRefetching && !q.isFetchingNextPage);
   const onEnd = useCallback(() => {
     if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage();
   }, [q]);
@@ -78,7 +122,18 @@ export default function Feed() {
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <Header />
       <PullView pull={pull}>
+      {fresh > 0 && (
+        <View style={styles.freshWrap} pointerEvents="box-none">
+          <Pressable onPress={() => void showNew()} style={({ pressed }) => [styles.fresh, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button">
+            <Icon name="arrow-up" size={16} strokeWidth={3} color="#fff" />
+            <Text style={styles.freshText}>{fresh === 1 ? 'Há novidades' : `${fresh} novidades`}</Text>
+          </Pressable>
+        </View>
+      )}
       <FlatList
+        ref={list}
+        onViewableItemsChanged={onViewable}
+        viewabilityConfig={viewability}
         onScroll={pull.onScroll}
         scrollEventThrottle={16}
         data={q.isLoading || q.isError ? [] : posts}
@@ -92,9 +147,16 @@ export default function Feed() {
               </View>
             )}
             <PostCard post={item} me={user?.id} />
+            {((early && index === 0) || (!early && index === 1 && showSuggestions)) && <Suggestions />}
           </>
         )}
-        ListHeaderComponent={<View style={{ paddingTop: 4 }}><StoriesTray /></View>}
+        ListHeaderComponent={
+          <View style={{ paddingTop: 4 }}>
+            <WhatsNewCard />
+            <ProfileNudge />
+            <StoriesTray />
+          </View>
+        }
         ListEmptyComponent={
           q.isLoading ? (
             <>
@@ -113,11 +175,17 @@ export default function Feed() {
               <Icon name="cheers" size={52} color={colors.zinc300} />
               <Text style={[styles.msgTitle, { marginTop: 16, fontSize: 24 }]}>Ainda ninguém brindou por aqui</Text>
               <Text style={styles.msgSub}>Sê tu a começar a festa!</Text>
+              <Pressable onPress={() => router.push('/new' as never)} style={styles.cta} accessibilityRole="button">
+                <Text style={styles.ctaText}>Faz a primeira publicação</Text>
+              </Pressable>
             </View>
           )
         }
         ListFooterComponent={
-          q.isFetchingNextPage ? <ActivityIndicator color={colors.brand} style={{ marginBottom: 24 }} /> : <View style={{ height: 8 }} />
+          <>
+            {q.isSuccess && (posts.length === 0 || (posts.length === 1 && !early)) && <Suggestions />}
+            {q.isFetchingNextPage ? <ActivityIndicator color={colors.brand} style={{ marginBottom: 24 }} /> : <View style={{ height: 8 }} />}
+          </>
         }
         onEndReached={onEnd}
         onEndReachedThreshold={1.5}
@@ -142,6 +210,11 @@ const styles = StyleSheet.create({
   caughtUp: { marginHorizontal: 24, marginBottom: 24, marginTop: 8, alignItems: 'center' },
   caughtTitle: { fontSize: 18, fontWeight: '800', color: colors.zinc900, lineHeight: 28 },
   caughtSub: { fontSize: 14, color: colors.zinc600, lineHeight: 20, textAlign: 'center' },
+  freshWrap: { position: 'absolute', top: 8, left: 0, right: 0, zIndex: 30, alignItems: 'center' },
+  fresh: { height: 40, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 20, backgroundColor: colors.brand, paddingLeft: 12, paddingRight: 16, boxShadow: '0 4px 14px rgba(214,51,79,0.45)' },
+  freshText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  cta: { marginTop: 24, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 32, paddingVertical: 14 },
+  ctaText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   msg: { marginHorizontal: 24, marginTop: 40, alignItems: 'center' },
   msgTitle: { fontSize: 18, fontWeight: '800', color: colors.zinc900, textAlign: 'center' },
   msgSub: { marginTop: 8, fontSize: 18, fontWeight: '300', color: colors.zinc600, textAlign: 'center' },

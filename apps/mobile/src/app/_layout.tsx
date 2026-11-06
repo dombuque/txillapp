@@ -7,6 +7,7 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from '
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { syncPush } from '@/lib/push';
 import { useChatStream } from '@/lib/realtime';
 import { colors } from '@/lib/theme';
 
@@ -28,6 +29,10 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, sta
 function ChatLive() {
   const { user } = useAuth();
   useChatStream(undefined, !!user);
+  // Notificações push (web): volta a ligar a subscrição se já foi dada a permissão.
+  useEffect(() => {
+    if (user) void syncPush().catch(() => undefined);
+  }, [user]);
   return null;
 }
 
@@ -46,9 +51,32 @@ function Gate() {
     const onLogin = segments[0] === 'login' || segments[0] === 'register' || segments[0] === 'forgot-password' || segments[0] === 'google-username';
     // Links dos emails: servem com ou sem sessão (confirmar conta e repor a senha).
     const onEmailLink = segments[0] === 'verify-email' || segments[0] === 'reset-password';
-    if (onEmailLink) return;
-    if (!user && !onLogin) router.replace('/login');
-    else if (user && onLogin) router.replace('/');
+    // Páginas abertas a todos (termos e privacidade): também com sessão fechada.
+    const onPublic = segments[0] === 'terms' || segments[0] === 'privacy';
+    if (onEmailLink || onPublic) return;
+    if (!user && !onLogin) {
+      // Guarda o endereço pedido (por exemplo, uma publicação partilhada) para voltar a ele depois de entrar.
+      try {
+        if (Platform.OS === 'web') {
+          const here = window.location.pathname + window.location.search;
+          if (here !== '/' && !here.startsWith('/login')) window.sessionStorage.setItem('tx_return', here);
+        }
+      } catch {
+        /* sem armazenamento: vai para o início */
+      }
+      router.replace('/login');
+    } else if (user && onLogin) {
+      let back = '/';
+      try {
+        if (Platform.OS === 'web') {
+          back = window.sessionStorage.getItem('tx_return') || '/';
+          window.sessionStorage.removeItem('tx_return');
+        }
+      } catch {
+        back = '/';
+      }
+      router.replace(back as never);
+    }
   }, [user, loading, offline, segments, router]);
 
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.brand} /></View>;

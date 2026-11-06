@@ -1,10 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { BookmarkIcon } from '@/components/BookmarkIcon';
 import { Icon, type IconName } from '@/components/Icon';
+import { FindContacts } from '@/components/FindContacts';
 import { EditProfileSheet } from '@/components/ProfileSheets';
 import { Sheet } from '@/components/Sheet';
 import { StackPage } from '@/components/StackPage';
@@ -12,13 +14,15 @@ import { CloseFriendsSheet } from '@/components/StoryParts';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { ApiError, api, type Gender, type PrivacySettings, type Viewers, type Who } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { pushApi } from '@/lib/api.settings';
 import { SITE_URL } from '@/lib/config';
+import { checkForUpdate, disablePush, enablePush, hardReload, installApp, installState, pushState } from '@/lib/push';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
 const site = (path: string) => void Linking.openURL(`${SITE_URL || 'https://txillapp.com'}${path}`);
 
-type SheetName = null | 'gender' | 'edit' | 'type' | 'comments' | 'gifts' | 'connections' | 'storyReplies' | 'hidden' | 'mentions' | 'dms' | 'closeFriends' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'blocked' | 'password' | 'devices' | 'delete' | 'logout';
+type SheetName = null | 'gender' | 'edit' | 'type' | 'comments' | 'gifts' | 'connections' | 'storyReplies' | 'hidden' | 'mentions' | 'dms' | 'closeFriends' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'blocked' | 'password' | 'devices' | 'delete' | 'logout' | 'contacts';
 
 const VIEWERS: { value: Viewers; title: string; text: string }[] = [
   { value: 'everyone', title: 'Todos', text: 'Qualquer pessoa que veja a publicação.' },
@@ -136,6 +140,86 @@ function NotifyPrefs() {
         <Toggle key={c} icon={<Icon name="bell" size={20} />} label={NOTIFY_LABELS[c][0]} text={NOTIFY_LABELS[c][1]} on={!off.includes(c)} onChange={(v) => void set(c, v)} />
       ))}
     </>
+  );
+}
+
+/** Linha "Instalar a app" (só na web): instalar com um toque no Android, instruções no iPhone. */
+function InstallRow() {
+  const [state, setState] = useState(installState());
+  if (state === 'none') return null;
+  if (state === 'installed') return <Row icon={<Icon name="check-circle" size={20} color={colors.zinc800} />} label="App instalada" />;
+  const how = state === 'ios' ? 'No Safari: toca em Partilhar (o quadrado com a seta) e depois em "Adicionar ao ecrã principal".' : 'Para instalar no iPhone, abre este endereço no Safari.';
+  return <Row icon={<Icon name="phone" size={20} color={colors.zinc800} />} label="Instalar a app" onPress={() => (state === 'prompt' ? void installApp().then(() => setState(installState())) : window.alert(how))} />;
+}
+
+/** Ligar ou desligar as notificações no telemóvel (Web Push). Funciona na app instalada, em HTTPS. */
+function PushToggle() {
+  const [state, setState] = useState<'checking' | 'none' | 'off-server' | 'denied' | 'ask' | 'on'>('checking');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    let alive = true;
+    void pushState().then((s) => alive && setState(s));
+    return () => { alive = false; };
+  }, []);
+  async function enable() {
+    setBusy(true);
+    setErr('');
+    try {
+      const r = await enablePush();
+      setState(r === 'on' ? 'on' : r === 'denied' ? 'denied' : 'ask');
+    } catch (x) {
+      setErr((x as Error).message || 'Não consegui ligar as notificações');
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function disable() {
+    setBusy(true);
+    try { await disablePush(); setState('ask'); } finally { setBusy(false); }
+  }
+  const text =
+    state === 'none' ? 'Instala a app no ecrã principal e abre-a por lá (no iPhone: iOS 16.4 ou mais recente).'
+    : state === 'off-server' ? 'Ainda não estão ativas neste servidor.'
+    : state === 'denied' ? 'Bloqueadas no browser: ativa-as nas definições do site.'
+    : err || 'Avisa-te de mensagens, comentários e pedidos, sem mostrar o conteúdo.';
+  const on = state === 'on';
+  const available = state === 'on' || state === 'ask';
+  return (
+    <View style={st.row}>
+      <IconDot><Icon name="bell" size={20} color={colors.zinc800} /></IconDot>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={st.labelB}>Notificações no telemóvel</Text>
+        <Text style={[st.text, !!err && { color: colors.red600 }]}>{text}</Text>
+        {on ? <Text style={{ marginTop: 4, fontSize: 14, fontWeight: '600', color: colors.brand, textDecorationLine: 'underline' }} onPress={() => { setErr(''); pushApi.pushTest().catch((x: Error) => setErr(x.message)); }} accessibilityRole="button">Enviar notificação de teste</Text> : null}
+      </View>
+      <Switch value={on} disabled={!available || busy} onValueChange={(v) => void (v ? enable() : disable())} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Notificações no telemóvel" />
+    </View>
+  );
+}
+
+/** A versão da app e o botão para procurar já uma atualização (e, se ficar presa, recarregar do zero). */
+function VersionRow() {
+  const [state, setState] = useState<'idle' | 'checking' | 'latest' | 'updating' | 'error'>('idle');
+  async function check() {
+    setState('checking');
+    setState(await checkForUpdate());
+  }
+  const busy = state === 'checking' || state === 'updating';
+  return (
+    <View style={{ marginTop: 8, paddingHorizontal: 16, alignItems: 'center' }}>
+      <Text style={{ fontSize: 12, color: colors.zinc500, textAlign: 'center' }}>Txillapp · versão {Constants.expoConfig?.version ?? '—'}</Text>
+      {Platform.OS === 'web' ? (
+        <>
+          <Pressable onPress={() => void check()} disabled={busy} style={({ pressed }) => [{ marginTop: 6, height: 36, borderRadius: 18, paddingHorizontal: 16, justifyContent: 'center' }, pressed && { backgroundColor: colors.rose50 }, busy && { opacity: 0.6 }]} accessibilityRole="button">
+            <Text style={{ fontSize: 14, fontWeight: '600', color: colors.brand }}>{state === 'checking' ? 'A procurar…' : state === 'updating' ? 'A atualizar…' : 'Procurar atualização'}</Text>
+          </Pressable>
+          {state === 'latest' ? <Text style={{ fontSize: 12, color: colors.zinc600 }}>Já tens a versão mais recente.</Text> : null}
+          {state === 'error' ? <Text style={{ fontSize: 12, color: colors.red600 }} accessibilityRole="alert">Não consegui procurar. Tenta outra vez.</Text> : null}
+          {state === 'latest' || state === 'error' ? <Text style={{ marginTop: 4, fontSize: 12, fontWeight: '600', color: colors.zinc600, textDecorationLine: 'underline' }} onPress={() => void hardReload()} accessibilityRole="button">Ainda vês a versão antiga? Recarregar do zero</Text> : null}
+        </>
+      ) : null}
+    </View>
   );
 }
 
@@ -266,10 +350,18 @@ export default function Settings() {
 
         <Section title="Convidar">
           <Row icon={ic('user-plus')} label="Convida a tua malta" onPress={() => go('/invites')} />
+          {Platform.OS === 'web' ? <Row icon={ic('users')} label="Encontrar amigos nos contactos" onPress={() => setSheet('contacts')} /> : null}
           {p ? <Toggle icon={ic('search')} label="Deixar que me encontrem pelos contactos" text="Quem tem o teu email nos contactos pode sugerir-te a seguir. Só vê que estás no Txillapp." on={p.findByContacts} onChange={(v) => void savePrivacy({ findByContacts: v })} /> : null}
         </Section>
 
         <Section title="Região"><RegionInfo /></Section>
+        {Platform.OS === 'web' ? (
+          <Section title="Notificações">
+            <InstallRow />
+            <PushToggle />
+          </Section>
+        ) : null}
+
         <Section title="O que me pode notificar"><NotifyPrefs /></Section>
 
         <Section title="Privacidade dos dados">
@@ -288,6 +380,8 @@ export default function Settings() {
           <Row icon={ic('shield')} label="Sobre" value="Perfil, privacidade e termos" onPress={() => go('/about')} />
         </Section>
 
+        <VersionRow />
+
         <Section title="Conta">
           <Row icon={ic('download')} label={exporting ? 'A preparar…' : 'Descarregar os meus dados'} onPress={() => void downloadData()} />
           <Row icon={ic('logout')} label="Terminar sessão" onPress={() => setSheet('logout')} />
@@ -295,6 +389,7 @@ export default function Settings() {
         </Section>
       </ScrollView>
 
+      {sheet === 'contacts' && <FindContacts onClose={close} />}
       {sheet === 'gender' && p && (
         <Sheet title="Como te identificas?" onClose={close}>
           <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingBottom: 8 }}>

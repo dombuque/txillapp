@@ -6,13 +6,18 @@ import { useRouter } from 'expo-router';
 import { memo, useEffect, useRef, useState } from 'react';
 import { Animated, FlatList, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { api, type Page, type Post } from '@/lib/api';
-import { SITE_URL, sized } from '@/lib/config';
+import type { PeopleKind } from '@/lib/api.feed';
+import { sized } from '@/lib/config';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { BookmarkIcon } from './BookmarkIcon';
 import { CommentsSheet } from './CommentsSheet';
 import { Icon } from './Icon';
+import { PeopleSheet } from './PeopleSheet';
+import { PhotoViewer } from './PhotoViewer';
+import { RichText } from './RichText';
+import { TeachBar } from './TeachBar';
 import { GiftSheet, PostMenuSheet, RepostSheet } from './PostSheets';
 import { ShareSheet } from './ShareSheet';
 import { TrackCard } from './TrackCard';
@@ -73,6 +78,9 @@ function BurstCup({ n }: { n: number }) {
   );
 }
 
+/** O meu perfil vive em /profile; os outros em /u/:username. */
+const profileOf = (a: { id?: string; username: string }, me?: string) => (a.id && a.id === me ? '/profile' : `/u/${a.username}`);
+
 /** Atualiza uma publicação na lista do feed (também dentro de um repost). */
 function usePatch(id: string) {
   const qc = useQueryClient();
@@ -87,12 +95,15 @@ function usePatch(id: string) {
 
 /** O cartão de uma publicação, igual ao do site: cantos de 26, sombra suave, autor, texto, fotos e a barra de ações. */
 function PostCardBase({ post, me }: { post: Post; me?: string }) {
+  const router = useRouter();
   if (post.kind === 'repost' && post.repostOf && !post.body) {
     return (
       <View>
         <View style={styles.repostBar}>
           <Icon name="repeat" size={16} color={colors.zinc600} />
-          <Text style={styles.repostText}>{post.author.id === me ? 'Repostaste' : `${post.author.displayName} repostou`}</Text>
+          <Pressable onPress={() => router.push(profileOf(post.author, me) as never)} accessibilityRole="link">
+            <Text style={[styles.repostText, { fontWeight: '600' }]}>{post.author.id === me ? 'Repostaste' : `${post.author.displayName} repostou`}</Text>
+          </Pressable>
         </View>
         <PostCard post={post.repostOf} me={me} />
       </View>
@@ -101,15 +112,27 @@ function PostCardBase({ post, me }: { post: Post; me?: string }) {
   return <PostBody post={post} me={me} />;
 }
 
+type SheetState = null | 'menu' | 'comments' | 'repost' | 'share' | { gift: { username: string; displayName: string; amount?: number; note?: string } } | { people: PeopleKind };
+type GiftExtra = { recipient: { username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null } };
+
 function PostBody({ post, me }: { post: Post; me?: string }) {
   const { width } = useWindowDimensions();
+  const router = useRouter();
   const patch = usePatch(post.id);
   const { burst, brindar } = useBrindar(post, patch);
+  const tapText = useTap(() => void brindar());
   const mine = post.author.id === me;
   const margin = width >= 360 ? 8 : 6;
   const pad = width >= 360 ? 16 : 14;
   const inner = width - margin * 2 - pad * 2;
-  const [sheet, setSheet] = useState<null | 'menu' | 'comments' | 'repost' | 'share' | { gift: { username: string; displayName: string; amount?: number; note?: string } }>(null);
+  const [sheet, setSheet] = useState<SheetState>(null);
+  const [gone, setGone] = useState(false);
+  // Foto em ecrã inteiro: `of` é a publicação cujas fotos se veem (a original, num repost com comentário).
+  const [viewer, setViewer] = useState<null | { of: Post; start: number }>(null);
+  const quote = post.kind === 'repost' && !!post.repostOf && !!post.body ? post.repostOf : null;
+  const g = post.gift;
+  const goAuthor = () => router.push(profileOf(post.author, me) as never);
+  const openPost = (o: Post) => router.push((o.media[0]?.kind === 'video' ? `/r/${o.code ?? o.id}` : `/p/${o.code ?? o.id}`) as never);
 
   async function toggleSave() {
     const next = !post.saved;
@@ -121,47 +144,98 @@ function PostBody({ post, me }: { post: Post; me?: string }) {
     }
   }
 
+  if (gone) {
+    return (
+      <View style={[styles.gone, { marginHorizontal: 16 }]} accessibilityRole="alert">
+        <Text style={styles.goneText}>Ok, vamos mostrar menos disto.</Text>
+      </View>
+    );
+  }
+
+  const menuBtn = (
+    <Pressable onPress={() => setSheet('menu')} hitSlop={6} style={styles.more} accessibilityRole="button" accessibilityLabel="Mais opções da publicação">
+      <Icon name="more" size={26} strokeWidth={3} />
+    </Pressable>
+  );
+  const giftTo = { username: post.author.username, displayName: post.author.displayName };
+
   return (
     <View style={[styles.card, cardShadow, { marginHorizontal: margin, paddingHorizontal: pad }]}>
-      <View style={styles.header}>
-        <Avatar name={post.author.displayName} username={post.author.username} size={52} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <View style={styles.nameRow}>
-            <Text style={[styles.name, { flexShrink: 1 }]} numberOfLines={1}>{post.author.displayName}</Text>
-            {post.author.verified && <VerifiedBadge size={16} tier={post.author.verifiedTier} />}
-          </View>
-          {post.locationLabel ? (
-            <View style={styles.locRow}>
-              <Icon name="map-pin" size={14} color={colors.zinc600} />
-              <Text style={styles.loc} numberOfLines={1}>{post.locationLabel}</Text>
-            </View>
-          ) : (
-            <Text style={styles.handle} numberOfLines={1}>@{post.author.username}</Text>
-          )}
-        </View>
-        <Text style={styles.time}>
-          {timeAgo(post.createdAt)}
-          {post.editedAt ? ' · editado' : ''}
-        </Text>
-        <Pressable onPress={() => void toggleSave()} hitSlop={6} style={styles.save} accessibilityRole="button" accessibilityLabel={post.saved ? 'Tirar dos guardados' : 'Guardar'}>
-          <BookmarkIcon on={!!post.saved} size={24} />
-        </Pressable>
-        <Pressable onPress={() => setSheet('menu')} hitSlop={6} style={styles.more} accessibilityRole="button" accessibilityLabel="Mais opções da publicação">
-          <Icon name="more" size={26} strokeWidth={3} />
-        </Pressable>
-      </View>
-
-      {post.kind === 'gift' && post.gift ? (
-        <GiftBlock post={post} g={post.gift} me={me} onDouble={() => void brindar()} />
+      {g ? (
+        <GiftBlock post={post} g={g} me={me} onDouble={() => void brindar()} menu={menuBtn} onOpenPost={openPost} />
       ) : (
         <>
-          {post.body ? <Text style={styles.body}>{post.body}</Text> : null}
-          <Carousel media={post.media} width={inner} reelId={post.id} onDouble={() => void brindar()} />
+          <View style={styles.header}>
+            <Pressable onPress={goAuthor} accessibilityRole="link" accessibilityLabel={`Perfil de ${post.author.displayName}`}>
+              <Avatar name={post.author.displayName} username={post.author.username} size={52} />
+            </Pressable>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Pressable onPress={goAuthor} style={styles.nameRow} accessibilityRole="link">
+                <Text style={[styles.name, { flexShrink: 1 }]} numberOfLines={1}>{post.author.displayName}</Text>
+                {post.author.verified && <VerifiedBadge size={16} tier={post.author.verifiedTier} />}
+              </Pressable>
+              {quote ? (
+                <View style={styles.locRow}>
+                  <Icon name="repeat" size={14} color={colors.zinc500} />
+                  <Text style={styles.handle} numberOfLines={1}>repostou</Text>
+                </View>
+              ) : post.locationLabel ? (
+                <Pressable onPress={() => router.push(`/place/${encodeURIComponent(post.locationLabel as string)}` as never)} style={styles.locRow} accessibilityRole="link">
+                  <Icon name="map-pin" size={14} color={colors.zinc600} />
+                  <Text style={styles.loc} numberOfLines={1}>{post.locationLabel}</Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.handle} numberOfLines={1}>@{post.author.username}</Text>
+              )}
+            </View>
+            <Text style={styles.time}>
+              {timeAgo(post.createdAt)}
+              {post.editedAt ? ' · editado' : ''}
+            </Text>
+            {!quote && (
+              <Pressable onPress={() => void toggleSave()} hitSlop={6} style={styles.save} accessibilityRole="button" accessibilityLabel={post.saved ? 'Tirar dos guardados' : 'Guardar'}>
+                <BookmarkIcon on={!!post.saved} size={24} />
+              </Pressable>
+            )}
+            {menuBtn}
+          </View>
+          {post.body ? (
+            <Pressable onPress={() => tapText()} accessibilityLabel="Texto (toca duas vezes para brindar)">
+              <RichText text={post.body} style={styles.body} />
+            </Pressable>
+          ) : null}
         </>
       )}
-      <BurstCup n={burst} />
       {post.music ? <TrackCard track={post.music} autoplay /> : null}
-      <Actions post={post} mine={mine} patch={patch} open={(k) => setSheet(k === 'gift' ? { gift: { username: post.author.username, displayName: post.author.displayName } } : k)} />
+      {quote ? (
+        <QuoteBox original={quote} me={me} onPhoto={() => setViewer({ of: quote, start: 0 })} onOpen={openPost} onDouble={() => void brindar()} />
+      ) : (
+        <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} />
+      )}
+      <BurstCup n={burst} />
+      <Actions post={post} mine={mine} patch={patch} open={(k) => setSheet(k === 'gift' ? { gift: giftTo } : k)} people={(k) => setSheet({ people: k })} />
+      {/* Publicações que o algoritmo te mostra (de quem não segues): ensina o que queres ver. */}
+      {post.feed?.source === 'discover' && !mine ? <TeachBar postId={post.id} onNo={() => setGone(true)} /> : null}
+      {viewer && (
+        <PhotoViewer
+          photos={viewer.of.media.filter((m) => m.kind !== 'video').map((m) => ({ url: m.url, width: m.width, height: m.height, tags: m.tags }))}
+          start={viewer.of.media.slice(0, viewer.start).filter((m) => m.kind !== 'video').length}
+          author={viewer.of.author}
+          body={viewer.of.body}
+          onClose={() => setViewer(null)}
+          footer={
+            <ViewerBar
+              post={viewer.of}
+              full={viewer.of.id === post.id}
+              mine={mine}
+              onOpen={(k) => {
+                setViewer(null);
+                setTimeout(() => setSheet(k === 'gift' ? { gift: giftTo } : k), 350);
+              }}
+            />
+          }
+        />
+      )}
       {sheet === 'menu' && <PostMenuSheet post={post} mine={mine} onClose={() => setSheet(null)} onSaved={(saved) => patch({ saved })} onShare={() => setSheet('share')} />}
       {sheet === 'share' && <ShareSheet post={post} onClose={() => setSheet(null)} />}
       {sheet === 'comments' && (
@@ -173,7 +247,8 @@ function PostBody({ post, me }: { post: Post; me?: string }) {
         />
       )}
       {sheet === 'repost' && <RepostSheet post={post} onChange={patch} onClose={() => setSheet(null)} />}
-      {typeof sheet === 'object' && sheet && (
+      {typeof sheet === 'object' && sheet && 'people' in sheet && <PeopleSheet postId={post.id} kind={sheet.people} onClose={() => setSheet(null)} />}
+      {typeof sheet === 'object' && sheet && 'gift' in sheet && (
         <GiftSheet
           recipient={sheet.gift}
           postId={sheet.gift.username === post.author.username && !sheet.gift.amount ? post.id : undefined}
@@ -185,12 +260,84 @@ function PostBody({ post, me }: { post: Post; me?: string }) {
   );
 }
 
+/** Barra de ações por baixo da foto em ecrã inteiro: brindar, comentar, repostar, presentear (as outras fecham a foto e abrem a folha). */
+function ViewerBar({ post, full, mine, onOpen }: { post: Post; full: boolean; mine: boolean; onOpen: (k: 'comments' | 'repost' | 'gift' | 'share') => void }) {
+  const patch = usePatch(post.id);
+  async function cheer() {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    patch({ cheered: !post.cheered, cheers: post.cheers + (post.cheered ? -1 : 1) });
+    try {
+      patch(await api.cheer(post.id));
+    } catch {
+      patch({ cheered: post.cheered, cheers: post.cheers });
+    }
+  }
+  const B = ({ icon, n, on, label, onPress }: { icon: Parameters<typeof Icon>[0]['name']; n?: number; on?: boolean; label: string; onPress: () => void }) => (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.vBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={label}>
+      <Icon name={icon} size={24} color={on ? colors.amber300 : '#fff'} />
+      {n ? <Text style={[styles.vCount, on && { color: colors.amber300 }]}>{n}</Text> : null}
+    </Pressable>
+  );
+  return (
+    <View style={styles.vBar}>
+      <B icon="cheers" n={post.cheers} on={post.cheered} label={post.cheered ? 'Tirar o brinde' : 'Brindar'} onPress={() => void cheer()} />
+      {full && (
+        <>
+          <B icon="comment" n={post.comments} label="Comentar" onPress={() => onOpen('comments')} />
+          <B icon="repeat" n={post.reposts} on={post.reposted} label="Repostar" onPress={() => onOpen('repost')} />
+          {!mine && post.canGift ? <B icon="present" n={post.gifts} label="Presentear" onPress={() => onOpen('gift')} /> : null}
+          <B icon="share" label="Partilhar" onPress={() => onOpen('share')} />
+        </>
+      )}
+    </View>
+  );
+}
+
+/** Repost com comentário: a publicação original numa caixa com borda. */
+function QuoteBox({ original, me, onPhoto, onOpen, onDouble }: { original: Post; me?: string; onPhoto: () => void; onOpen: (p: Post) => void; onDouble?: () => void }) {
+  const router = useRouter();
+  const tap = useTap(onDouble);
+  const m = original.media[0];
+  return (
+    <View style={styles.quote}>
+      <Pressable onPress={() => router.push(profileOf(original.author, me) as never)} style={styles.quoteHead} accessibilityRole="link">
+        <Avatar name={original.author.displayName} username={original.author.username} size={30} />
+        <Text style={[styles.quoteName, { flexShrink: 1 }]} numberOfLines={1}>{original.author.displayName}</Text>
+        {original.author.verified && <VerifiedBadge size={14} tier={original.author.verifiedTier} />}
+        <Text style={styles.quoteTime}>· {timeAgo(original.createdAt)}</Text>
+      </Pressable>
+      {original.gift ? (
+        <View style={styles.quoteGift}>
+          <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
+          <Icon name="gift" size={14} color="#fff" />
+          <Text style={styles.quoteGiftText}>{original.gift.amount.toLocaleString('pt-PT')} Txills</Text>
+        </View>
+      ) : null}
+      {original.body ? <Text style={styles.quoteBody} numberOfLines={4}>{original.body}</Text> : null}
+      {m?.kind === 'video' ? (
+        <Pressable onPress={() => onOpen(original)} style={styles.quoteMedia} accessibilityRole="button" accessibilityLabel="Ver o vídeo">
+          {m.posterUrl ? <Image source={{ uri: sized(m.posterUrl, 720) }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors /> : null}
+          <View style={styles.playWrap} pointerEvents="none">
+            <View style={styles.play}><Icon name="play" size={28} color="#fff" solid /></View>
+          </View>
+        </Pressable>
+      ) : m ? (
+        <Pressable onPress={() => tap(onPhoto)} style={[styles.quoteMedia, { height: 288 }]} accessibilityRole="button" accessibilityLabel="Ver a foto em ecrã inteiro">
+          <Image source={{ uri: sized(m.url, 720) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} accessibilityIgnoresInvertColors />
+        </Pressable>
+      ) : (
+        <View style={{ height: 12 }} />
+      )}
+    </View>
+  );
+}
 
 /** Cartão de presente (X presenteou Y): degradê coral, as duas fotos, o valor e a mensagem. Duplo toque também brinda. */
-function GiftBlock({ post, g, me, onDouble }: { post: Post; g: NonNullable<Post['gift']>; me?: string; onDouble?: () => void }) {
+function GiftBlock({ post, g, me, onDouble, menu, onOpenPost }: { post: Post; g: NonNullable<Post['gift']>; me?: string; onDouble?: () => void; menu?: React.ReactNode; onOpenPost?: (p: Post) => void }) {
   const router = useRouter();
   const tap = useTap(onDouble);
   const sender = post.author;
+  const rec = (g as unknown as GiftExtra).recipient;
   const go = (u: string) => router.push((u === (me ?? '') ? '/profile' : `/u/${u}`) as never);
   return (
     <>
@@ -199,46 +346,90 @@ function GiftBlock({ post, g, me, onDouble }: { post: Post; g: NonNullable<Post[
           <Icon name="gift" size={15} color={colors.brand} />
           <Text style={{ fontSize: 14, fontWeight: '600', color: colors.brand }}>Presente</Text>
         </View>
-        <Text style={{ fontSize: 14, color: colors.zinc500 }}>{timeAgo(post.createdAt)}{post.editedAt ? ' · editado' : ''}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text style={{ fontSize: 14, color: colors.zinc500 }}>{timeAgo(post.createdAt)}{post.editedAt ? ' · editado' : ''}</Text>
+          {menu}
+        </View>
       </View>
       <Pressable onPress={() => tap()} style={styles.giftCard} accessibilityLabel="Presente (toca duas vezes para brindar)">
         <LinearGradient colors={[colors.brand, '#e8475f', '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
         <View style={[styles.giftDot, { left: -24, top: -24, width: 96, height: 96, borderRadius: 48 }]} />
         <View style={[styles.giftDot, { right: -16, bottom: -32, width: 112, height: 112, borderRadius: 56 }]} />
+        <View style={[styles.giftDot, { right: 32, top: 16, width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.5)' }]} />
+        <View style={[styles.giftDot, { left: 40, top: 64, width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)' }]} />
         <View style={{ width: 132, height: 76, alignSelf: 'center' }}>
-          <Pressable onPress={() => go(g.recipient.username)} style={[styles.giftAva, { right: 0 }]} accessibilityLabel={`Perfil de ${g.recipient.displayName}`}>
-            <Avatar name={g.recipient.displayName} username={g.recipient.username} size={68} />
+          <Pressable onPress={() => go(rec.username)} style={[styles.giftAva, { right: 0 }]} accessibilityLabel={`Perfil de ${rec.displayName}`}>
+            <Avatar name={rec.displayName} username={rec.username} size={68} />
           </Pressable>
           <Pressable onPress={() => go(sender.username)} style={[styles.giftAva, { left: 0, zIndex: 2 }]} accessibilityLabel={`Perfil de ${sender.displayName}`}>
             <Avatar name={sender.displayName} username={sender.username} size={68} />
           </Pressable>
           <View style={styles.giftBadge}><Icon name="gift" size={20} color={colors.brand} /></View>
         </View>
-        <Text style={styles.giftLine}>
-          <Text style={{ fontWeight: '800' }} onPress={() => go(sender.username)}>{sender.displayName}</Text> presenteou <Text style={{ fontWeight: '800' }} onPress={() => go(g.recipient.username)}>{g.recipient.displayName}</Text>
-        </Text>
+        <View style={styles.giftLineRow}>
+          <Text style={styles.giftLine} onPress={() => go(sender.username)}><Text style={{ fontWeight: '800' }}>{sender.displayName}</Text></Text>
+          {sender.verified ? <VerifiedBadge size={15} tier={sender.verifiedTier} /> : null}
+          <Text style={styles.giftLine}>presenteou</Text>
+          <Text style={styles.giftLine} onPress={() => go(rec.username)}><Text style={{ fontWeight: '800' }}>{rec.displayName}</Text></Text>
+          {rec.verified ? <VerifiedBadge size={15} tier={rec.verifiedTier} /> : null}
+        </View>
         <Text style={styles.giftAmount}>{g.amount.toLocaleString('pt-PT')}</Text>
         <Text style={styles.giftUnit}>TXILLS</Text>
         {post.body ? <Text style={styles.giftNote}>{post.body}</Text> : null}
       </Pressable>
+      {post.repostOf ? <GiftedPost original={post.repostOf} onOpen={onOpenPost} /> : null}
     </>
   );
 }
 
-/** Fotos e vídeos: arredondados (12), no máximo 448 de altura, com contador e pontos, como no site. */
-function Carousel({ media, width, reelId, onDouble }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void }) {
+/** A publicação que foi presenteada, dentro do cartão do presente (toca para a abrir). */
+function GiftedPost({ original, onOpen }: { original: Post; onOpen?: (p: Post) => void }) {
+  const m = original.media[0];
+  const video = m?.kind === 'video';
+  const thumb = m ? (video ? m.posterUrl : sized(m.url, 480)) : null;
+  return (
+    <Pressable onPress={() => onOpen?.(original)} style={({ pressed }) => [styles.gifted, pressed && { backgroundColor: '#fafafa' }]} accessibilityRole="link">
+      <View style={styles.giftedHead}>
+        <Avatar name={original.author.displayName} username={original.author.username} size={30} />
+        <Text style={[styles.quoteName, { flexShrink: 1 }]} numberOfLines={1}>{original.author.displayName}</Text>
+        <Text style={styles.quoteTime}>· {timeAgo(original.createdAt)}</Text>
+      </View>
+      {original.body ? <Text style={styles.quoteBody} numberOfLines={3}>{original.body}</Text> : null}
+      {thumb ? (
+        <View style={[styles.quoteMedia, { height: 224, backgroundColor: colors.zinc200 }]}>
+          <Image source={{ uri: thumb }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} accessibilityIgnoresInvertColors />
+          {video && (
+            <View style={styles.playWrap} pointerEvents="none">
+              <View style={[styles.play, { width: 48, height: 48, borderRadius: 24 }]}><Icon name="play" size={24} color="#fff" solid /></View>
+            </View>
+          )}
+        </View>
+      ) : (
+        <View style={{ height: 12 }} />
+      )}
+    </Pressable>
+  );
+}
+
+/** Fotos e vídeos: arredondados (12), no máximo 448 de altura, com contador, pontos e pessoas identificadas. Tocar numa foto abre-a inteira. */
+function Carousel({ media, width, reelId, onDouble, onOpen }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void; onOpen?: (index: number) => void }) {
   const router = useRouter();
   const tap = useTap(onDouble);
   const [i, setI] = useState(0);
+  const [showTags, setShowTags] = useState(false);
   if (media.length === 0) return null;
   const heightOf = (m: Post['media'][number]) => {
     const natural = m.width && m.height ? (width * m.height) / m.width : width;
     return Math.min(448, Math.max(120, natural));
   };
   const h = heightOf(media[i] ?? media[0]);
+  const tags = media[i]?.tags ?? [];
   const onView = ({ viewableItems }: { viewableItems: { index?: number | null }[] }) => {
     const first = viewableItems[0]?.index;
-    if (first != null) setI(first);
+    if (first != null) {
+      setI(first);
+      setShowTags(false);
+    }
   };
   return (
     <View style={{ marginTop: 12 }}>
@@ -251,8 +442,13 @@ function Carousel({ media, width, reelId, onDouble }: { media: Post['media']; wi
           keyExtractor={(m) => m.url}
           onViewableItemsChanged={onView}
           viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
-          renderItem={({ item: m }) => (
-            <Pressable style={{ width, height: h }} onPress={() => tap(m.kind === 'video' && reelId ? () => router.push(`/r/${reelId}` as never) : undefined)} accessibilityRole="button" accessibilityLabel={m.kind === 'video' ? 'Abrir o reel' : 'Foto (toca duas vezes para brindar)'}>
+          renderItem={({ item: m, index }) => (
+            <Pressable
+              style={{ width, height: h }}
+              onPress={() => tap(m.kind === 'video' ? (reelId ? () => router.push(`/r/${reelId}` as never) : undefined) : () => onOpen?.(index))}
+              accessibilityRole="button"
+              accessibilityLabel={m.kind === 'video' ? 'Abrir o reel' : `Ver a foto ${index + 1} de ${media.length} em ecrã inteiro (toca duas vezes para brindar)`}
+            >
               <Image source={{ uri: sized(m.kind === 'video' ? m.posterUrl ?? m.url : m.url, 720) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} accessibilityIgnoresInvertColors />
               {m.kind === 'video' && (
                 <View style={styles.playWrap} pointerEvents="none">
@@ -264,6 +460,23 @@ function Carousel({ media, width, reelId, onDouble }: { media: Post['media']; wi
             </Pressable>
           )}
         />
+        {tags.length > 0 && (
+          <>
+            <Pressable onPress={() => setShowTags((v) => !v)} style={styles.tagsBtn} accessibilityRole="button" accessibilityLabel={`${tags.length} pessoa(s) identificadas`}>
+              <Icon name="users" size={16} color="#fff" />
+              <Text style={styles.counterText}>{tags.length}</Text>
+            </Pressable>
+            {showTags && (
+              <View style={styles.tagsList}>
+                {tags.map((t) => (
+                  <Pressable key={t.username} onPress={() => router.push(`/u/${t.username}` as never)} style={styles.tagPill} accessibilityRole="link">
+                    <Text style={styles.tagPillText}>@{t.username}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </>
+        )}
         {media.length > 1 && (
           <View style={styles.counter} pointerEvents="none">
             <Text style={styles.counterText}>{i + 1}/{media.length}</Text>
@@ -282,7 +495,7 @@ function Carousel({ media, width, reelId, onDouble }: { media: Post['media']; wi
 }
 
 /** Contadores em cima e, por baixo da linha, as ações com ícone e nome (Brindar, Comentar, Repostar, Presentear, Partilhar). */
-function Actions({ post, mine, patch, open }: { post: Post; mine: boolean; patch: (p: Partial<Post>) => void; open: (k: 'comments' | 'repost' | 'gift' | 'share') => void }) {
+function Actions({ post, mine, patch, open, people }: { post: Post; mine: boolean; patch: (p: Partial<Post>) => void; open: (k: 'comments' | 'repost' | 'gift' | 'share') => void; people: (k: PeopleKind) => void }) {
   const cheer = useMutation({
     mutationFn: () => api.cheer(post.id),
     onMutate: () => {
@@ -293,12 +506,12 @@ function Actions({ post, mine, patch, open }: { post: Post; mine: boolean; patch
     onError: () => patch({ cheered: post.cheered, cheers: post.cheers }),
   });
   const chips = [
-    { n: post.cheers, icon: 'cheers' as const },
-    { n: post.reposts, icon: 'repeat' as const },
-    { n: post.gifts, icon: 'present' as const },
+    { kind: 'cheers' as const, n: post.cheers, icon: 'cheers' as const, label: post.cheers === 1 ? 'brinde' : 'brindes' },
+    { kind: 'reposts' as const, n: post.reposts, icon: 'repeat' as const, label: post.reposts === 1 ? 'repost' : 'reposts' },
+    { kind: 'gifts' as const, n: post.gifts, icon: 'present' as const, label: post.gifts === 1 ? 'presente' : 'presentes' },
   ].filter((c) => c.n > 0);
-
-  const share = () => open('share');
+  // Só se pode ver quem foi se o dono deixar (e num repost só os brindes).
+  const canSee = (k: PeopleKind) => (post.kind !== 'repost' || k === 'cheers') && !!post.lists?.[k];
 
   const Btn = ({ label, icon, onPress, color = colors.zinc800, size = 22, strokeWidth }: { label: string; icon: Parameters<typeof Icon>[0]['name']; onPress: () => void; color?: string; size?: number; strokeWidth?: number }) => (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.barBtn, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={label}>
@@ -311,12 +524,19 @@ function Actions({ post, mine, patch, open }: { post: Post; mine: boolean; patch
     <>
       <View style={styles.counts}>
         <View style={styles.chips}>
-          {chips.map((c) => (
-            <View key={c.icon} style={styles.chip}>
-              <Icon name={c.icon} size={18} color={colors.zinc700} />
-              <Text style={styles.chipText}>{c.n}</Text>
-            </View>
-          ))}
+          {chips.map((c) =>
+            canSee(c.kind) ? (
+              <Pressable key={c.icon} onPress={() => people(c.kind)} style={({ pressed }) => [styles.chip, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={`${c.n} ${c.label}: ver quem`}>
+                <Icon name={c.icon} size={18} color={colors.zinc700} />
+                <Text style={styles.chipText}>{c.n}</Text>
+              </Pressable>
+            ) : (
+              <View key={c.icon} style={styles.chip} accessibilityLabel={`${c.n} ${c.label}`}>
+                <Icon name={c.icon} size={18} color={colors.zinc700} />
+                <Text style={styles.chipText}>{c.n}</Text>
+              </View>
+            ),
+          )}
         </View>
         {post.comments > 0 && (
           <Pressable onPress={() => open('comments')} hitSlop={6}>
@@ -329,7 +549,7 @@ function Actions({ post, mine, patch, open }: { post: Post; mine: boolean; patch
         <Btn label="Comentar" icon="comment" onPress={() => open('comments')} />
         <Btn label={post.reposted ? 'Repostado' : 'Repostar'} icon="repeat" color={post.reposted ? colors.green700 : colors.zinc800} onPress={() => open('repost')} />
         {!mine && post.canGift && <Btn label="Presentear" icon="present" onPress={() => open('gift')} />}
-        <Btn label="Partilhar" icon="share" size={24} onPress={share} />
+        <Btn label="Partilhar" icon="share" size={24} onPress={() => open('share')} />
       </View>
     </>
   );
@@ -338,12 +558,32 @@ function Actions({ post, mine, patch, open }: { post: Post; mine: boolean; patch
 export const PostCard = memo(PostCardBase);
 
 const styles = StyleSheet.create({
+  gone: { marginBottom: 20, borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12 },
+  goneText: { textAlign: 'center', fontSize: 14, fontWeight: '600', color: colors.zinc600 },
+  tagsBtn: { position: 'absolute', left: 12, bottom: 12, height: 32, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10 },
+  tagsList: { position: 'absolute', left: 12, right: 12, bottom: 56, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  tagPill: { borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: 12, paddingVertical: 4 },
+  tagPillText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  vBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginTop: 4 },
+  vBtn: { minHeight: 48, minWidth: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
+  vCount: { color: '#fff', fontSize: 15 },
+  quote: { marginTop: 12, overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: colors.zinc200 },
+  quoteHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingTop: 12 },
+  quoteName: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },
+  quoteTime: { fontSize: 14, color: colors.zinc500 },
+  quoteGift: { marginHorizontal: 12, marginTop: 8, overflow: 'hidden', borderRadius: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  quoteGiftText: { fontSize: 18, fontWeight: '800', color: '#fff' },
+  quoteBody: { paddingHorizontal: 12, paddingTop: 8, fontSize: 16, lineHeight: 24, color: colors.zinc800 },
+  quoteMedia: { marginTop: 8, height: 256, overflow: 'hidden', backgroundColor: colors.zinc900 },
+  gifted: { marginTop: 12, overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: colors.zinc200 },
+  giftedHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingTop: 12 },
+  giftLineRow: { marginTop: 16, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 4 },
   giftHead: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   giftCard: { marginTop: 8, overflow: 'hidden', borderRadius: 24, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 20, alignItems: 'center', boxShadow: '0 6px 18px rgba(214,51,79,0.35)' },
   giftDot: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.1)' },
   giftAva: { position: 'absolute', top: 0, borderRadius: 38, borderWidth: 4, borderColor: 'rgba(255,255,255,0.9)' },
   giftBadge: { position: 'absolute', bottom: -4, left: 48, zIndex: 3, width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' },
-  giftLine: { marginTop: 16, fontSize: 16, lineHeight: 20, color: '#fff', textAlign: 'center' },
+  giftLine: { fontSize: 16, lineHeight: 20, color: '#fff', textAlign: 'center' },
   giftAmount: { marginTop: 8, fontSize: 40, lineHeight: 40, fontWeight: '900', color: '#fff', letterSpacing: -1 },
   giftUnit: { fontSize: 13, fontWeight: '700', letterSpacing: 2.6, color: 'rgba(255,255,255,0.85)' },
   giftNote: { marginTop: 16, maxWidth: '92%', overflow: 'hidden', borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, lineHeight: 22, color: '#fff', textAlign: 'center' },

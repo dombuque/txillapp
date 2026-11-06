@@ -1,9 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import { useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api, uploadMedia, type Profile } from '@/lib/api';
+import { type TasteVisibility } from '@/lib/api.geleira';
+import { settingsApi } from '@/lib/api.settings';
 import { colors } from '@/lib/theme';
 import { Avatar, bumpAvatars } from './Avatar';
 import { Icon, type IconName } from './Icon';
@@ -12,6 +15,7 @@ import { Sheet } from './Sheet';
 /** Editar foto, nome, bio, cidade, link e tipo de perfil (público ou privado). */
 export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClose: () => void }) {
   const qc = useQueryClient();
+  const router = useRouter();
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [bio, setBio] = useState(profile.bio ?? '');
   const [city, setCity] = useState(profile.city ?? '');
@@ -22,6 +26,12 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
   const [photoBusy, setPhotoBusy] = useState(false);
   const [err, setErr] = useState('');
   const [locating, setLocating] = useState(false);
+  // Quem vê a geleira (inteira). Só se guarda se mudar.
+  const gSettings = useQuery({ queryKey: ['geleira', 'settings'], queryFn: settingsApi.geleiraSettings, staleTime: 30_000 });
+  const [gVis, setGVis] = useState<TasteVisibility | null>(null);
+  useEffect(() => {
+    if (gSettings.data && gVis === null) setGVis(gSettings.data.visibility);
+  }, [gSettings.data, gVis]);
 
   /** Preenche "Cidade ou bairro" com o sítio onde estás agora (só o nome fica guardado, nunca as coordenadas). */
   async function useMyLocation() {
@@ -81,6 +91,10 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
     setErr('');
     try {
       await api.updateMe({ displayName: displayName.trim(), bio: bio.trim(), isPrivate, city: city.trim(), website: website.trim() });
+      if (gVis && gSettings.data && gVis !== gSettings.data.visibility) {
+        await settingsApi.setGeleiraSettings({ visibility: gVis });
+        void qc.invalidateQueries({ queryKey: ['geleira'] });
+      }
       for (const k of ['profile', 'feed', 'privacy']) void qc.invalidateQueries({ queryKey: [k] });
       onClose();
     } catch (e) {
@@ -141,6 +155,29 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
           </View>
           {profile.isPrivate && !isPrivate && <Text style={{ marginTop: 8, fontSize: 12, color: colors.zinc600 }}>Ao passar a público, os pedidos pendentes são aceites.</Text>}
         </View>
+        <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <Icon name="snowflake" size={16} color="#0284c7" />
+            <Text style={st.label}>A minha geleira · quem vê</Text>
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} accessibilityRole="radiogroup">
+            {([['everyone', 'globe', 'Todos'], ['followers', 'users', 'Seguidores'], ['close_friends', 'heart', 'Amigos próximos'], ['me', 'lock', 'Só eu']] as const).map(([v, ic, text]) => (
+              <Pressable key={v} onPress={() => setGVis(v)} disabled={gVis === null} accessibilityRole="radio" accessibilityState={{ checked: gVis === v, disabled: gVis === null }} style={[st.gopt, gVis === v && { borderColor: colors.brand, backgroundColor: colors.rose50 }, gVis === null && { opacity: 0.5 }]}>
+                <Icon name={ic} size={18} />
+                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc900 }}>{text}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={{ marginTop: 6, fontSize: 12, color: colors.zinc600 }}>A geleira é toda pública, para seguidores, para os amigos próximos ou só tua. Não se escolhe item a item.</Text>
+          <Pressable onPress={() => { onClose(); router.push('/geleira' as never); }} style={({ pressed }) => [st.gshort, pressed && { backgroundColor: '#fafafa' }]} accessibilityRole="button">
+            <View style={st.gicon}><Icon name="snowflake" size={22} color="#fff" /></View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>Escolher os meus gostos</Text>
+              <Text style={{ fontSize: 14, color: colors.zinc600 }}>Vibes, bebidas, comidas e sítios de que gostas.</Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.zinc500} />
+          </Pressable>
+        </View>
         <Text style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.red600 }} accessibilityRole="alert">{err}</Text>
         <Pressable onPress={() => void save()} disabled={busy || photoBusy} style={({ pressed }) => [st.save, (busy || photoBusy) && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.saveText}>Guardar</Text>}
@@ -192,6 +229,9 @@ const st = StyleSheet.create({
   ghostText: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },
   save: { height: 58, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 24px rgba(214,51,79,0.35)' },
   saveText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  gopt: { width: '48.5%', height: 48, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 16, borderWidth: 2, borderColor: colors.zinc200, paddingHorizontal: 12 },
+  gshort: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 2, borderColor: colors.zinc200, padding: 12 },
+  gicon: { width: 44, height: 44, borderRadius: 16, backgroundColor: '#0ea5e9', alignItems: 'center', justifyContent: 'center' },
   req: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
   accept: { borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 14, paddingVertical: 8 },
   decline: { borderRadius: 999, borderWidth: 1, borderColor: colors.zinc300, paddingHorizontal: 14, paddingVertical: 8 },

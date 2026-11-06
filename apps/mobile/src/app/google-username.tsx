@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { googleSignup } from '@/components/GoogleButton';
 import { Icon } from '@/components/Icon';
 import { ApiError, api } from '@/lib/api';
@@ -28,7 +28,7 @@ export default function GoogleUsername() {
   const usernameOk = check.state === 'ok' || check.state === 'error';
   if (!state?.signupToken) return <Redirect href={'/login' as never} />;
   const first = state.displayName.split(' ')[0];
-  const site = SITE_URL || 'https://txillapp.com';
+  const legal = (p: string) => (Platform.OS === 'web' ? router.push(p as never) : void Linking.openURL(`${SITE_URL || 'https://txillapp.com'}${p}`));
 
   const onDate = (t: string) => {
     const d = t.replace(/\D/g, '').slice(0, 8);
@@ -121,8 +121,8 @@ export default function GoogleUsername() {
         <Pressable onPress={() => { setError(''); setTerms(!terms); }} style={st.terms} accessibilityRole="checkbox" accessibilityState={{ checked: terms }}>
           <View style={[st.box, terms && { backgroundColor: colors.brand, borderColor: colors.brand }]}>{terms && <Icon name="check" size={14} color="#fff" strokeWidth={3} />}</View>
           <Text style={st.termsText}>
-            Li e aceito os <Text style={st.link} onPress={() => void Linking.openURL(`${site}/terms`)}>Termos de Uso</Text> e a{' '}
-            <Text style={st.link} onPress={() => void Linking.openURL(`${site}/privacy`)}>Política de Privacidade</Text>.
+            Li e aceito os <Text style={st.link} onPress={() => legal('/terms')}>Termos de Uso</Text> e a{' '}
+            <Text style={st.link} onPress={() => legal('/privacy')}>Política de Privacidade</Text>.
           </Text>
         </Pressable>
       </View>

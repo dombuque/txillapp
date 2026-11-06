@@ -11,7 +11,7 @@
  */
 import { useQueryClient } from '@tanstack/react-query';
 import { fetch as expoFetch } from 'expo/fetch';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import { SITE_URL } from '@/lib/config';
 import { refreshSession } from '@/lib/api';
@@ -21,6 +21,34 @@ export interface ChatEvent { type: string; from?: string; group?: string }
 const POLL_MS = 4000;
 const RETRY_STREAM_MS = 60_000;
 const isWeb = Platform.OS === 'web';
+
+const typingSubs = new Set<(e: ChatEvent) => void>();
+
+/** "A escrever…" da pessoa `from` (some 5 s depois do último aviso ou quando chega uma mensagem dela). */
+export function useTyping(from: string): boolean {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    if (!from) return;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const f = (e: ChatEvent) => {
+      if (e.from !== from) return;
+      if (e.type === 'typing') {
+        setOn(true);
+        clearTimeout(t);
+        t = setTimeout(() => setOn(false), 5000);
+      } else if (e.type === 'message') {
+        clearTimeout(t);
+        setOn(false);
+      }
+    };
+    typingSubs.add(f);
+    return () => {
+      typingSubs.delete(f);
+      clearTimeout(t);
+    };
+  }, [from]);
+  return on;
+}
 
 export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) {
   const qc = useQueryClient();
@@ -48,6 +76,7 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
       let e: ChatEvent;
       try { e = JSON.parse(data) as ChatEvent; } catch { return; }
       if (e.type === 'ping') return;
+      typingSubs.forEach((f) => f(e));
       cb.current?.(e);
       if (e.type !== 'typing') refresh(e);
     }

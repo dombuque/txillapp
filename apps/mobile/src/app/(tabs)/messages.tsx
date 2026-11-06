@@ -1,10 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
+import { NotesStrip } from '@/components/Notes';
+import { Bolt, SuperTxillPanel } from '@/components/SuperTxillPanel';
 import { InstantsDock, openZasCamera, zasListScrolling } from '@/components/Instants';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { api, type ChatMessage } from '@/lib/api';
@@ -38,6 +41,22 @@ interface Row {
   group: boolean;
 }
 
+function Skeleton() {
+  return (
+    <View style={{ paddingHorizontal: 16, paddingVertical: 8 }} accessibilityElementsHidden>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }}>
+          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.zinc100 }} />
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={{ height: 14, width: '66%', borderRadius: 7, backgroundColor: colors.zinc100 }} />
+            <View style={{ height: 12, width: '33%', borderRadius: 6, backgroundColor: colors.zinc100 }} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /** Lista de conversas e grupos, com pesquisa e pedidos de mensagem, como no site. */
 export default function Messages() {
   const router = useRouter();
@@ -46,6 +65,8 @@ export default function Messages() {
   const { width } = useWindowDimensions();
   const [view, setView] = useState<'all' | 'requests'>('all');
   const [text, setText] = useState('');
+  const [ai, setAi] = useState(false);
+  const [focus, setFocus] = useState(false);
   const direct = useQuery({ queryKey: ['chat-list'], queryFn: api.chatList, refetchInterval: 60_000 });
   const groups = useQuery({ queryKey: ['chat-groups'], queryFn: api.chatGroups, refetchInterval: 60_000 });
   const term = text.trim().toLowerCase().replace(/^@/, '');
@@ -96,11 +117,13 @@ export default function Messages() {
         <Text style={styles.handle} numberOfLines={1}>{user?.username ?? 'Mensagens'}</Text>
         <Pressable onPress={() => router.push('/messages/new' as never)} hitSlop={8} style={styles.compose} accessibilityRole="button" accessibilityLabel="Nova conversa ou grupo"><Icon name="compose" size={24} /></Pressable>
       </View>
-      <View style={styles.search}>
+      <View style={[styles.search, focus && { backgroundColor: 'rgba(228,228,231,0.7)' }]}>
         <Icon name="search" size={18} color={colors.zinc500} />
-        <TextInput value={text} onChangeText={setText} placeholder="Procurar pessoas e grupos" placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel="Procurar conversas" />
-        {text ? <Pressable onPress={() => setText('')} hitSlop={8} accessibilityLabel="Limpar"><Icon name="x" size={16} /></Pressable> : null}
+        <TextInput value={text} onChangeText={setText} placeholder="Procurar pessoas e grupos" placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel="Procurar conversas" onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} />
+        {text ? <Pressable onPress={() => setText('')} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Limpar"><Icon name="x" size={16} /></Pressable> : null}
+        <Pressable onPress={() => setAi(true)} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
       </View>
+      {!term && view === 'all' && <NotesStrip />}
       <View style={styles.tabs} accessibilityRole="tablist">
         <Pressable onPress={() => setView('all')} accessibilityRole="tab" accessibilityState={{ selected: view === 'all' }}>
           <Text style={[styles.tab, view === 'all' ? styles.tabOn : styles.tabOff]}>Mensagens</Text>
@@ -132,14 +155,18 @@ export default function Messages() {
               {r.group ? (
                 <View style={{ width: 62, height: 62 }}>
                   {r.names.slice(0, 2).map((a, i) => (
-                    <View key={i} style={[styles.pair, i === 0 ? { left: 5, top: 5 } : { right: 5, bottom: 5 }]}><Avatar name={a.name} username={a.username} size={32} /></View>
+                    <View key={i} style={[styles.pair, i === 0 ? { left: 3, top: 3 } : { right: 3, bottom: 3 }]}><Avatar name={a.name} username={a.username} size={32} /></View>
                   ))}
                   {r.names.length === 0 && <View style={styles.groupEmpty}><Icon name="users" size={24} color={colors.zinc600} /></View>}
                 </View>
               ) : (
-                <View style={[styles.ring, r.unread ? { backgroundColor: colors.brand } : null]}>
-                  <View style={[styles.ringIn, r.unread ? { backgroundColor: colors.white } : null]}><Avatar name={r.names[0].name} username={r.names[0].username} size={r.unread ? 52 : 56} /></View>
-                </View>
+                r.unread ? (
+                  <LinearGradient colors={[colors.brand, '#ff9a5b']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.ring}>
+                    <View style={[styles.ringIn, { backgroundColor: colors.white }]}><Avatar name={r.names[0].name} username={r.names[0].username} size={50} /></View>
+                  </LinearGradient>
+                ) : (
+                  <View style={styles.ring}><View style={styles.ringIn}><Avatar name={r.names[0].name} username={r.names[0].username} size={56} /></View></View>
+                )
               )}
               {r.online && <View style={styles.online} />}
             </View>
@@ -157,11 +184,12 @@ export default function Messages() {
           </Pressable>
         )}
         ListEmptyComponent={
-          loading ? <ActivityIndicator color={colors.brand} style={{ marginTop: 40 }} /> : strangers.length > 0 ? <View /> : (
+          loading ? <Skeleton /> : strangers.length > 0 ? <View /> : (
             <View style={styles.empty}>
               <Icon name="messages" size={44} color={colors.zinc300} />
               <Text style={styles.emptyTitle}>{term ? 'Nada com esse nome' : view === 'requests' ? 'Sem pedidos' : 'Ainda sem cochichos'}</Text>
-              <Text style={styles.emptySub}>{term ? 'Tenta outro nome ou começa uma conversa nova.' : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.' : 'Procura alguém pelo nome para começar a conversar.'}</Text>
+              <Text style={styles.emptySub}>{term ? 'Tenta outro nome ou começa uma conversa nova.' : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.' : 'Toca no ícone no canto para falar com alguém ou criar um grupo.'}</Text>
+              {!term && view === 'all' && <Pressable onPress={() => router.push('/messages/new' as never)} style={styles.newBtn} accessibilityRole="button"><Text style={styles.newBtnText}>Nova conversa</Text></Pressable>}
             </View>
           )
         }
@@ -170,11 +198,11 @@ export default function Messages() {
             <View>
               <Text style={styles.others}>OUTRAS PESSOAS</Text>
               {strangers.map((p) => (
-                <Pressable key={p.username} onPress={() => router.push(`/messages/${p.username}` as never)} style={styles.row}>
+                <Pressable key={p.username} onPress={() => router.push(`/messages/${p.username}` as never)} style={({ pressed }) => [styles.row, { paddingVertical: 10 }, pressed && { backgroundColor: colors.zinc100 }]}>
                   <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={46} />
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.name} numberOfLines={1}>{p.displayName}</Text>
-                    <Text style={styles.sub} numberOfLines={1}>@{p.username}</Text>
+                    <Text style={[styles.name, { fontSize: 16 }]} numberOfLines={1}>{p.displayName}</Text>
+                    <Text style={[styles.sub, { fontSize: 14 }]} numberOfLines={1}>@{p.username}</Text>
                   </View>
                   <View style={styles.chat}><Text style={styles.chatText}>Conversar</Text></View>
                 </Pressable>
@@ -184,6 +212,7 @@ export default function Messages() {
         }
       />
       </PullView>
+      {ai && <SuperTxillPanel onClose={() => setAi(false)} />}
       <InstantsDock />
     </View>
   );
@@ -193,9 +222,12 @@ const styles = StyleSheet.create({
   top: { height: 48, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   zas: { position: 'absolute', left: 0, top: 2, height: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 10, paddingRight: 12, borderRadius: 999 },
   zasText: { fontSize: 15, fontWeight: '900', letterSpacing: -0.3, color: colors.brand },
-  compose: { position: 'absolute', right: 16, top: 0, bottom: 0, width: 40, alignItems: 'center', justifyContent: 'center' },
+  compose: { position: 'absolute', right: 0, top: 2, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   handle: { maxWidth: '70%', fontSize: 20, fontWeight: '800', color: colors.zinc900 },
   search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, marginBottom: 8 },
+  sBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  newBtn: { marginTop: 16, height: 44, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
+  newBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
   input: { flex: 1, minWidth: 0, fontSize: 16, color: colors.zinc900, padding: 0, outlineStyle: 'none' } as object,
   tabs: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingTop: 4, marginBottom: 4 },
   tab: { height: 40, lineHeight: 40, fontSize: 17 },
@@ -207,15 +239,15 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingHorizontal: 4, paddingVertical: 12 },
   ring: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center' },
   ringIn: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  pair: { position: 'absolute', borderRadius: 18, borderWidth: 2, borderColor: colors.white },
+  pair: { position: 'absolute', width: 36, height: 36, borderRadius: 18, padding: 2, backgroundColor: colors.white },
   groupEmpty: { flex: 1, borderRadius: 31, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   online: { position: 'absolute', right: 4, bottom: 4, width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: colors.white, backgroundColor: '#10b981' },
-  name: { fontSize: 17, color: colors.zinc900, flexShrink: 1 },
+  name: { fontSize: 17, fontWeight: '600', color: colors.zinc900, flexShrink: 1 },
   sub: { fontSize: 15, color: colors.zinc500 },
   dot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.brand },
   empty: { marginTop: 40, alignItems: 'center', paddingHorizontal: 24 },
   emptyTitle: { marginTop: 12, fontSize: 20, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
-  emptySub: { marginTop: 4, fontSize: 16, color: colors.zinc600, textAlign: 'center' },
+  emptySub: { marginTop: 4, maxWidth: 320, fontSize: 16, color: colors.zinc600, textAlign: 'center' },
   others: { paddingHorizontal: 4, paddingBottom: 4, paddingTop: 16, fontSize: 12, fontWeight: '700', letterSpacing: 1, color: colors.zinc500 },
   chat: { borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 6 },
   chatText: { fontSize: 14, fontWeight: '700', color: colors.zinc900 },
