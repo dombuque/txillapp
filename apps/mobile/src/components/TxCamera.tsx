@@ -1,6 +1,6 @@
 import type React from 'react';
 import { createElement, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
@@ -8,7 +8,7 @@ import { acquireCamera, releaseCamera } from './zas/cameraSession';
 
 /**
  * A câmara oficial do Txillapp no browser (publicações, status). Ecrã inteiro, com a identidade da marca:
- * obturador com anel coral em degradê, filtros de cor (carrossel e a deslizar no visor), grelha dos terços, zoom por pinça,
+ * obturador com anel coral em degradê, filtros de cor (carrossel e a deslizar no visor), layout (várias fotos numa só), zoom por pinça,
  * flash/lanterna, temporizador, virar câmara, foto ou vídeo (até 60 s), e a galeria lá dentro. Precisa de HTTPS ou localhost (regra dos browsers).
  * Só deve ser montada quando `liveCameraSupported()`.
  */
@@ -59,6 +59,23 @@ export function applyLook(c: HTMLCanvasElement, l: Look) {
   g.putImageData(img, 0, 0);
 }
 
+/** Layout (como no Instagram): várias fotos numa imagem só. Cada célula é [x, y, largura, altura] em fração da moldura. */
+type Cell = [number, number, number, number];
+export const LAYOUTS: { id: string; name: string; cells: Cell[] }[] = [
+  { id: '2v', name: '2 lado a lado', cells: [[0, 0, 0.5, 1], [0.5, 0, 0.5, 1]] },
+  { id: '2h', name: '2 em cima e baixo', cells: [[0, 0, 1, 0.5], [0, 0.5, 1, 0.5]] },
+  { id: '3', name: '1 grande + 2', cells: [[0, 0, 0.5, 1], [0.5, 0, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]] },
+  { id: '4', name: '4', cells: [[0, 0, 0.5, 0.5], [0.5, 0, 0.5, 0.5], [0, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]] },
+  { id: '6', name: '6', cells: [[0, 0, 0.5, 1 / 3], [0.5, 0, 0.5, 1 / 3], [0, 1 / 3, 0.5, 1 / 3], [0.5, 1 / 3, 0.5, 1 / 3], [0, 2 / 3, 0.5, 1 / 3], [0.5, 2 / 3, 0.5, 1 / 3]] },
+];
+const GAP = 3; // a linha branca entre as fotos
+/** Desenha `src` a preencher o retângulo (cover), cortando o que sobra. */
+function cover(g: CanvasRenderingContext2D, src: CanvasImageSource, srcW: number, srcH: number, x: number, y: number, w: number, h: number) {
+  const k = Math.max(w / srcW, h / srcH);
+  const sw = w / k, sh = h / k;
+  g.drawImage(src, (srcW - sw) / 2, (srcH - sh) / 2, sw, sh, x, y, w, h);
+}
+
 const buzz = (ms: number) => { try { navigator.vibrate?.(ms); } catch { /* sem vibração */ } };
 
 export function TxCamera({
@@ -91,11 +108,17 @@ export function TxCamera({
   const [countdown, setCountdown] = useState<number | null>(null);
   const [look, setLook] = useState(0);
   const [lookName, setLookName] = useState<string | null>(null);
-  const [grid, setGrid] = useState(false);
+  const [area, setArea] = useState({ w: 0, h: 0 });
+  // Layout: qual (ou nenhum), o seletor aberto, e as fotos já tiradas (uma por célula).
+  const [layout, setLayout] = useState<number | null>(null);
+  const [layoutOpen, setLayoutOpen] = useState(false);
+  const [cells, setCells] = useState<string[]>([]);
+  const cellCanvases = useRef<HTMLCanvasElement[]>([]);
   const [zoom, setZoom] = useState(1);
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const full = mode === 'photo' && count >= max;
+  const topPad = Math.max(insets.top, 12);
 
   const start = useCallback(async () => {
     setReady(false);
@@ -164,20 +187,109 @@ export function TxCamera({
       await new Promise((r) => setTimeout(r, 420));
     }
     const c = document.createElement('canvas');
-    // Zoom: recorta o centro do sensor na proporção do zoom (o mesmo que se vê no visor).
-    const sw = Math.round(v.videoWidth / zoom), sh = Math.round(v.videoHeight / zoom);
-    c.width = sw;
-    c.height = sh;
     const g = c.getContext('2d')!;
-    if (facing === 'user') { g.translate(c.width, 0); g.scale(-1, 1); } // selfie: sai como a viste (espelhada)
-    g.drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, sw, sh);
+    const cell = layout !== null ? cellRects()[cells.length] : null;
+    if (cell) {
+      // Layout: recorta do sensor exatamente o que a célula ativa mostra no visor (o visor é "cover" com o zoom).
+      const k = Math.max(area.w / v.videoWidth, area.h / v.videoHeight) * zoom;
+      const vx0 = (v.videoWidth - area.w / k) / 2, vy0 = (v.videoHeight - area.h / k) / 2;
+      const sx = vx0 + cell.x / k, sy = vy0 + cell.y / k, sw = cell.w / k, sh = cell.h / k;
+      c.width = Math.round(sw);
+      c.height = Math.round(sh);
+      if (facing === 'user') { g.translate(c.width, 0); g.scale(-1, 1); g.drawImage(v, v.videoWidth - sx - sw, sy, sw, sh, 0, 0, c.width, c.height); }
+      else g.drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
+    } else {
+      // Zoom: recorta o centro do sensor na proporção do zoom (o mesmo que se vê no visor).
+      const sw = Math.round(v.videoWidth / zoom), sh = Math.round(v.videoHeight / zoom);
+      c.width = sw;
+      c.height = sh;
+      if (facing === 'user') { g.translate(c.width, 0); g.scale(-1, 1); } // selfie: sai como a viste (espelhada)
+      g.drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, sw, sh);
+    }
     applyLook(c, LOOKS[look]);
     setLit(false);
     if (torchOn && vtrack) vtrack.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] }).catch(() => undefined);
     buzz(15);
     setFlash(true);
     setTimeout(() => setFlash(false), 140);
+    if (cell) return addCell(c);
     c.toBlob((blob) => blob && onShot({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' }), 'image/jpeg', 0.9);
+  }
+
+  // ----- Layout: a moldura (4:5, centrada entre os controlos), as células em píxeis do visor, juntar tudo numa foto.
+  const frame = (() => {
+    const fw = Math.min(area.w - 24, 560);
+    const fh = Math.min(fw * 1.25, Math.max(200, area.h - topPad - 70 - 220));
+    const w = Math.min(fw, fh / 1.25);
+    return { x: (area.w - w) / 2, y: topPad + 64 + Math.max(0, (area.h - topPad - 64 - 220 - w * 1.25) / 2), w, h: w * 1.25 };
+  })();
+  function cellRects(): { x: number; y: number; w: number; h: number }[] {
+    if (layout === null) return [];
+    return LAYOUTS[layout].cells.map(([cx, cy, cw, ch]) => ({ x: frame.x + cx * frame.w + GAP / 2, y: frame.y + cy * frame.h + GAP / 2, w: cw * frame.w - GAP, h: ch * frame.h - GAP }));
+  }
+  function addCell(c: HTMLCanvasElement) {
+    const next = [...cellCanvases.current, c];
+    cellCanvases.current = next;
+    setCells(next.map((x) => x.toDataURL('image/jpeg', 0.7)));
+    if (layout !== null && next.length >= LAYOUTS[layout].cells.length) void finishLayout(next);
+  }
+  function undoCell() {
+    cellCanvases.current = cellCanvases.current.slice(0, -1);
+    setCells((c) => c.slice(0, -1));
+  }
+  function leaveLayout() {
+    cellCanvases.current = [];
+    setCells([]);
+    setLayout(null);
+    setLayoutOpen(false);
+  }
+  async function finishLayout(list: HTMLCanvasElement[]) {
+    if (layout === null) return;
+    const W = 1080, H = 1350;
+    const out = document.createElement('canvas');
+    out.width = W;
+    out.height = H;
+    const g = out.getContext('2d')!;
+    g.fillStyle = '#fff';
+    g.fillRect(0, 0, W, H);
+    const gap = Math.round((GAP / frame.w) * W);
+    LAYOUTS[layout].cells.forEach(([cx, cy, cw, ch], i) => {
+      if (!list[i]) return;
+      const x = Math.round(cx * W + gap / 2), y = Math.round(cy * H + gap / 2), w = Math.round(cw * W - gap), h = Math.round(ch * H - gap);
+      g.save();
+      g.beginPath();
+      g.rect(x, y, w, h);
+      g.clip();
+      cover(g, list[i], list[i].width, list[i].height, x, y, w, h);
+      g.restore();
+    });
+    const blob = await new Promise<Blob | null>((r) => out.toBlob(r, 'image/jpeg', 0.9));
+    leaveLayout();
+    buzz(20);
+    if (blob) onShot({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' });
+  }
+  /** Da galeria com layout ativo: cada foto escolhida enche a célula seguinte (cortada ao tamanho dela). */
+  async function fillFromFiles(files: File[]) {
+    if (layout === null) return onGallery(files);
+    const rects = cellRects();
+    let list = cellCanvases.current;
+    for (const f of files.filter((x) => x.type.startsWith('image/'))) {
+      if (list.length >= rects.length) break;
+      const url = URL.createObjectURL(f);
+      try {
+        const img = await new Promise<HTMLImageElement>((res, rej) => { const i = document.createElement('img'); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+        const r = rects[list.length];
+        const c = document.createElement('canvas');
+        const k = Math.min(1, 1400 / Math.max(r.w, r.h));
+        c.width = Math.round(r.w * 2 * k);
+        c.height = Math.round(r.h * 2 * k);
+        cover(c.getContext('2d')!, img, img.naturalWidth, img.naturalHeight, 0, 0, c.width, c.height);
+        list = [...list, c];
+      } catch { /* ficheiro que não é imagem legível */ } finally { URL.revokeObjectURL(url); }
+    }
+    cellCanvases.current = list;
+    setCells(list.map((x) => x.toDataURL('image/jpeg', 0.7)));
+    if (list.length >= rects.length) void finishLayout(list);
   }
 
   function record() {
@@ -224,11 +336,10 @@ export function TxCamera({
   const mm = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   const mirror = facing === 'user' ? 'scaleX(-1)' : 'none';
   const fill = { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover' };
-  const topPad = Math.max(insets.top, 12);
   const botPad = Math.max(insets.bottom, 20);
 
   return (
-    <View style={st.root} accessibilityViewIsModal>
+    <View style={st.root} accessibilityViewIsModal onLayout={(e: LayoutChangeEvent) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
       {dom(
         'div',
         {
@@ -258,7 +369,22 @@ export function TxCamera({
         },
         dom('video', { ref: video, playsInline: true, muted: true, autoPlay: true, style: { ...fill, transform: `${mirror === 'none' ? '' : mirror + ' '}scale(${zoom})`, filter: lookCss(LOOKS[look]), visibility: ready ? 'visible' : 'hidden', transition: 'filter 180ms' } }),
         LOOKS[look].tint && dom('div', { key: 'tint', style: { position: 'absolute', inset: 0, pointerEvents: 'none', backgroundColor: `rgba(${LOOKS[look].tint!.join(',')})` } }),
-        grid && dom('div', { key: 'grid', style: { position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.45) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.45) 1px, transparent 1px)', backgroundSize: '33.34% 33.34%', backgroundPosition: '-1px -1px' } }),
+        layout !== null && area.w > 0 && dom(
+          'div',
+          { key: 'frame', style: { position: 'absolute', left: frame.x, top: frame.y, width: frame.w, height: frame.h, pointerEvents: 'none', boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)', borderRadius: 6 } },
+          ...cellRects().map((r, i) =>
+            dom('div', {
+              key: i,
+              style: {
+                position: 'absolute', left: r.x - frame.x, top: r.y - frame.y, width: r.w, height: r.h, overflow: 'hidden', borderRadius: 4,
+                boxSizing: 'border-box',
+                border: i === cells.length ? '2px solid #d6334f' : '1px solid rgba(255,255,255,0.7)',
+                backgroundColor: i < cells.length ? '#000' : i === cells.length ? 'transparent' : 'rgba(0,0,0,0.45)',
+                backgroundImage: i < cells.length ? `url(${cells[i]})` : undefined, backgroundSize: 'cover', backgroundPosition: 'center',
+              },
+            }),
+          ),
+        ),
       )}
       {/* Sombras suaves em cima e em baixo, para os controlos se lerem sobre qualquer cena. */}
       <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, top: 0, height: 140, backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)' })} />
@@ -285,9 +411,11 @@ export function TxCamera({
                 {delay > 0 && <View style={st.delayBadge}><Text style={st.delayText}>{delay}</Text></View>}
               </Pressable>
             )}
-            <Pressable onPress={() => setGrid((v) => !v)} style={[st.round, grid && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityState={{ selected: grid }} accessibilityLabel="Grelha">
-              <Icon name="grid" size={22} color={grid ? colors.zinc900 : '#fff'} />
-            </Pressable>
+            {mode === 'photo' && (
+              <Pressable onPress={() => setLayoutOpen((v) => !v)} style={[st.round, layout !== null && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityState={{ selected: layout !== null }} accessibilityLabel="Layout: várias fotos numa só">
+                <Icon name="grid" size={22} color={layout !== null ? colors.zinc900 : '#fff'} />
+              </Pressable>
+            )}
             {canFlip && ready ? (
               <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} style={st.round} accessibilityRole="button" accessibilityLabel="Virar câmara"><Icon name="flip-camera" size={22} color="#fff" /></Pressable>
             ) : null}
@@ -311,14 +439,29 @@ export function TxCamera({
               <Icon name="alert" size={48} color="rgba(255,255,255,0.7)" />
               <Text style={st.pTitle}>{problem === 'denied' ? 'Sem permissão para a câmara' : problem === 'unsupported' ? 'A câmara precisa de ligação segura' : 'Não consegui abrir a câmara'}</Text>
               <Text style={st.pSub}>{problem === 'denied' ? 'Ativa a câmara nas definições do browser, ou escolhe da galeria.' : 'Podes sempre escolher da galeria.'}</Text>
-              <GalleryPick onFiles={onGallery} onOpen={openGallery} style={st.open}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Abrir galeria</Text></GalleryPick>
+              <GalleryPick onFiles={(f) => void fillFromFiles(f)} onOpen={openGallery} style={st.open}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Abrir galeria</Text></GalleryPick>
             </View>
           )}
         </View>
       )}
 
       <View style={[st.bottom, { paddingBottom: botPad }]}>
-        {ready && !recording && mode !== 'text' && (
+        {layoutOpen && !recording && mode === 'photo' ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 52, marginBottom: 12 }} accessibilityRole="tablist" accessibilityLabel="Layout">
+            <Pressable onPress={leaveLayout} style={[st.lookChip, layout === null && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: layout === null }}>
+              <Text style={[st.lookText, layout === null && { color: colors.zinc900 }]}>Sem layout</Text>
+            </Pressable>
+            {LAYOUTS.map((l, i) => (
+              <Pressable key={l.id} onPress={() => { cellCanvases.current = []; setCells([]); setLayout(i); setLayoutOpen(false); }} style={[st.layoutChip, layout === i && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: layout === i }} accessibilityLabel={l.name}>
+                <View style={{ width: 22, height: 27, position: 'relative' }}>
+                  {l.cells.map(([cx, cy, cw, ch], k) => (
+                    <View key={k} style={{ position: 'absolute', left: cx * 22 + 1, top: cy * 27 + 1, width: cw * 22 - 2, height: ch * 27 - 2, borderRadius: 2, backgroundColor: layout === i ? colors.zinc900 : '#fff' }} />
+                  ))}
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : ready && !recording && mode !== 'text' && (
           <ScrollView ref={looksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 44, marginBottom: 12 }} accessibilityRole="tablist" accessibilityLabel="Filtros">
             {LOOKS.map((l, i) => (
               <Pressable key={l.id} onPress={() => pickLook(i)} style={[st.lookChip, look === i && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: look === i }}>
@@ -339,7 +482,7 @@ export function TxCamera({
         <View style={st.row}>
           <View style={st.side}>
             {!recording && (
-              <GalleryPick onFiles={onGallery} onOpen={openGallery} style={st.gallery}><Icon name="images" size={24} color="#fff" strokeWidth={2} /></GalleryPick>
+              <GalleryPick onFiles={(f) => void fillFromFiles(f)} onOpen={openGallery} style={st.gallery}><Icon name="images" size={24} color="#fff" strokeWidth={2} /></GalleryPick>
             )}
           </View>
           <Pressable
@@ -359,7 +502,14 @@ export function TxCamera({
             )}
           </Pressable>
           <View style={[st.side, { alignItems: 'flex-end' }]}>
-            {count > 0 && onDone && !recording ? (
+            {layout !== null ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{cells.length}/{LAYOUTS[layout].cells.length}</Text>
+                <Pressable onPress={cells.length ? undoCell : leaveLayout} style={st.round} accessibilityRole="button" accessibilityLabel={cells.length ? 'Tirar a última foto do layout' : 'Sair do layout'}>
+                  <Icon name={cells.length ? 'undo' : 'x'} size={20} color="#fff" strokeWidth={2.2} />
+                </Pressable>
+              </View>
+            ) : count > 0 && onDone && !recording ? (
               <Pressable onPress={onDone} style={st.doneBtn} accessibilityRole="button" accessibilityLabel={`${doneLabel}, ${count}`}>
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{doneLabel}</Text>
                 <View style={st.doneCount}><Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{count}</Text></View>
@@ -414,6 +564,7 @@ const st = StyleSheet.create({
   looks: { paddingHorizontal: 16, gap: 6, alignItems: 'center' },
   lookChip: { height: 34, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
   lookOn: { backgroundColor: '#fff', borderColor: '#fff' },
+  layoutChip: { height: 40, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
   lookText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   zoomBadge: { position: 'absolute', alignSelf: 'center', zIndex: 3, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 5 },
   zoomText: { color: '#fff', fontSize: 13, fontWeight: '700' },
