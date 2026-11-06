@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { Animated, Dimensions, Keyboard, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
-import { Icon } from './Icon';
 
 /** Os conteúdos rolantes avisam a folha de onde estão (só se fecha a arrastar quando estão no topo). */
 const ScrollCtx = createContext<{ top: React.MutableRefObject<boolean> } | null>(null);
@@ -59,9 +58,6 @@ export function Sheet({ title, onClose, children, full = false, plain = false }:
             {title && !plain ? (
               <View style={styles.head}>
                 <Text style={styles.title}>{title}</Text>
-                <Pressable onPress={close} hitSlop={8} style={styles.x} accessibilityRole="button" accessibilityLabel="Fechar">
-                  <Icon name="x" size={22} color={colors.zinc600} strokeWidth={2.2} />
-                </Pressable>
               </View>
             ) : null}
             {children}
@@ -76,7 +72,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: 'flex-end', alignItems: 'center' },
   sheet: { width: '100%', maxWidth: 576, backgroundColor: colors.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 12 },
   handle: { alignSelf: 'center', width: 40, height: 6, borderRadius: 3, backgroundColor: colors.zinc300, marginBottom: 12 },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, marginBottom: 16 },
+  head: { paddingHorizontal: 24, marginBottom: 16 },
   title: { fontSize: 20, fontWeight: '700', color: colors.zinc900 },
-  x: { width: 44, height: 44, marginRight: -10, alignItems: 'center', justifyContent: 'center' },
 });

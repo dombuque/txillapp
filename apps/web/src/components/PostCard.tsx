@@ -190,8 +190,10 @@ export function OnlineDot({ username, className = '' }: { username: string; clas
  * O cartão de um presente: as duas fotos cruzadas ao centro com o símbolo do presente, "X presenteou Y", o valor em Txills
  * e a mensagem num balão, tudo num bilhete a degradê. Em cima, só a hora e o menu.
  */
-function GiftBlock({ post, g, me }: { post: Post; g: NonNullable<Post['gift']>; me?: string }) {
+function GiftBlock({ post, g, me, onDouble }: { post: Post; g: NonNullable<Post['gift']>; me?: string; onDouble?: () => void }) {
   const sender = post.author;
+  // Duplo toque no cartão do presente (fora das ligações e botões) também brinda.
+  const tap = useTap(onDouble);
   return (
     <>
       <div className="flex items-center justify-between gap-2 text-[14px] text-zinc-500">
@@ -201,7 +203,7 @@ function GiftBlock({ post, g, me }: { post: Post; g: NonNullable<Post['gift']>; 
           <PostMenu post={post} />
         </span>
       </div>
-      <div className="relative isolate mt-2 overflow-hidden rounded-3xl bg-gradient-to-br from-brand via-[#e8475f] to-[#ff8a5b] px-5 pb-5 pt-6 text-center text-white shadow-[0_6px_18px_rgba(214,51,79,0.35)]">
+      <div className="relative isolate mt-2 overflow-hidden rounded-3xl bg-gradient-to-br from-brand via-[#e8475f] to-[#ff8a5b] px-5 pb-5 pt-6 text-center text-white shadow-[0_6px_18px_rgba(214,51,79,0.35)]" onClick={(e) => { if (!(e.target as HTMLElement).closest('a,button')) tap(); }}>
         <span aria-hidden className="pointer-events-none absolute -left-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
         <span aria-hidden className="pointer-events-none absolute -bottom-8 -right-4 h-28 w-28 rounded-full bg-white/10" />
         <span aria-hidden className="pointer-events-none absolute right-8 top-4 h-2 w-2 rounded-full bg-white/50" />
@@ -291,7 +293,7 @@ function PostBody({ post }: { post: Post }) {
   if (gone) return <p role="status" className="mx-4 mb-5 rounded-2xl bg-zinc-100 px-4 py-3 text-center text-[14px] font-semibold text-zinc-600">{tr('Ok, vamos mostrar menos disto.')}</p>;
   return (
     <article className="relative mx-1.5 mb-5 rounded-[26px] bg-white px-3.5 pt-4 min-[360px]:mx-2 min-[360px]:px-4 shadow-[0_2px_16px_rgba(0,0,0,0.09)]">
-      {g ? <GiftBlock post={post} g={g} me={user?.username} /> : (
+      {g ? <GiftBlock post={post} g={g} me={user?.username} onDouble={brindar} /> : (
         <>
       <header className="flex items-center gap-3">
         {(

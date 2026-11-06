@@ -72,7 +72,6 @@ export default function NewChat({ onClose, addTo, onCreated }: { onClose: () => 
         <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-zinc-300" aria-hidden />
         <div className="relative flex shrink-0 items-center justify-center px-4 pb-2 pt-3">
           <h2 className="text-[17px] font-bold">{title}</h2>
-          <button type="button" onClick={onClose} aria-label={tr('Fechar')} className="absolute right-2 flex h-10 w-10 items-center justify-center rounded-full text-zinc-600 active:bg-zinc-100"><Icon name="x" size={20} /></button>
         </div>
         </div>
 

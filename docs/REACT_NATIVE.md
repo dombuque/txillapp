@@ -17,7 +17,8 @@
 | Comentários, menu da publicação, presentear, repostar | `components/CommentsSheet.tsx`, `PostCard.tsx`, `GiftSheet.tsx` | feito |
 | Partilhar (para conversas e status) | `components/ShareSheet.tsx` | por fazer (usa o menu do telemóvel) |
 | Notificações | `pages/Notifications.tsx` | feito |
-| Pesquisa e Explorar | `pages/Search.tsx` | por fazer |
+| Pesquisa e Explorar (temas, em alta, grelha, resultados) | `pages/Search.tsx` | feito (faltam SuperTxill, sugestões e visualizador em ecrã inteiro) |
+| Cartão de presente no feed | `components/PostCard.tsx` (GiftBlock) | por fazer (hoje aparece como publicação normal) |
 | Mensagens e conversa (tempo real) | `pages/Messages.tsx`, `Thread.tsx` | por fazer |
 | Perfil (meu e dos outros): cabeçalho, botões, separadores, grelha, seguir, bloquear, denunciar | `pages/Profile.tsx` | feito (faltam editar perfil, QR, geleira, seguidores, pedidos) |
 | Publicação aberta (`/p/:id`) | `pages/PostPage.tsx` | feito (faltam atividade e reels em ecrã inteiro) |

@@ -180,11 +180,8 @@ export function Sheet({ title, onClose, children, layer = 'z-50' }: { title: str
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-zinc-300" aria-hidden />
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4">
           <h2 className="text-xl font-bold">{title}</h2>
-          <button onClick={onClose} aria-label={tr('Fechar')} className="-mr-2 flex h-11 w-11 items-center justify-center rounded-full text-2xl text-zinc-600">
-            ×
-          </button>
         </div>
         {children}
       </div>

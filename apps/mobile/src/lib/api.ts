@@ -84,6 +84,13 @@ export interface Profile {
   activeStories: number;
   counts: { posts: number; followers: number; following: number };
 }
+export interface SearchResults {
+  query: string;
+  people: { username: string; displayName: string; verified?: boolean; isPrivate: boolean; following: boolean; requested: boolean; followsYou: boolean }[];
+  posts: Post[];
+  tags: { tag: string; posts: number }[];
+}
+export interface TrendingTag { tag: string; posts: number; rising?: boolean }
 export interface TrayUser { username: string; displayName: string; isMe: boolean; count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
@@ -187,6 +194,11 @@ export const api = {
   unrepost: (id: string): Promise<{ reposted: boolean; reposts: number }> => raw(`/posts/${id}/repost`, { method: 'DELETE' }),
   markSeen: (ids: string[]): Promise<void> => raw('/feed/seen', post({ ids })),
   stories: (): Promise<TrayUser[]> => raw('/stories'),
+  search: (q: string): Promise<SearchResults> => raw(`/search?q=${encodeURIComponent(q)}`),
+  trending: (): Promise<{ tags: TrendingTag[] }> => raw('/search/trending'),
+  hotPlaces: (): Promise<{ name: string; posts: number }[]> => raw('/places/hot'),
+  explore: (topic: string | null, cursor?: string): Promise<Page<Post>> => raw(`/feed/explore?limit=18${topic ? `&topic=${encodeURIComponent(topic)}` : ''}${cursor ? `&cursor=${cursor}` : ''}`),
+  exploreTopics: (all = false): Promise<{ id: string; label: string; count: number }[]> => raw(`/feed/explore/topics${all ? '?all=1' : ''}`),
   profile: (username: string): Promise<Profile> => raw(`/users/${encodeURIComponent(username)}`),
   userPosts: (username: string, cursor?: string, tab: ProfileTab = 'all'): Promise<Page<Post>> => raw(`/users/${encodeURIComponent(username)}/posts?limit=18${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}&tab=${tab}`),
   savedPosts: (cursor?: string): Promise<Page<Post>> => raw(`/feed/saved${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),

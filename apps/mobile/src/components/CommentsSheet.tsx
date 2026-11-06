@@ -30,6 +30,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift }: RowPro
   const [text, setText] = useState({ body: c.body, editedAt: c.editedAt ?? null });
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [sel, setSel] = useState<{ start: number; end: number } | undefined>();
   const [saving, setSaving] = useState(false);
   const [editErr, setEditErr] = useState('');
   const [gone, setGone] = useState(false);
@@ -96,7 +97,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift }: RowPro
         </View>
         {editing ? (
           <View style={{ marginTop: 4 }}>
-            <TextInput value={draft} onChangeText={setDraft} maxLength={1000} multiline autoFocus style={styles.edit} accessibilityLabel="Editar comentário" />
+            <TextInput value={draft} onChangeText={setDraft} selection={sel} onSelectionChange={() => setSel(undefined)} maxLength={1000} multiline autoFocus style={styles.edit} accessibilityLabel="Editar comentário" />
             {editErr ? <Text style={styles.err}>{editErr}</Text> : null}
             <View style={styles.editBtns}>
               <Pressable onPress={() => { setEditing(false); setEditErr(''); }} style={styles.cancel}><Text style={styles.cancelText}>Cancelar</Text></Pressable>
@@ -122,7 +123,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift }: RowPro
         <View style={styles.links}>
           {cheer.cheers > 0 && <Text style={styles.link}>{cheer.cheers} {cheer.cheers === 1 ? 'brinde' : 'brindes'}</Text>}
           <Pressable onPress={() => onReply(c)} hitSlop={6}><Text style={styles.link}>Responder</Text></Pressable>
-          {mine && !editing && <Pressable onPress={() => { setDraft(text.body); setEditing(true); }} hitSlop={6}><Text style={styles.link}>Editar</Text></Pressable>}
+          {mine && !editing && <Pressable onPress={() => { setDraft(text.body); setSel({ start: text.body.length, end: text.body.length }); setEditing(true); }} hitSlop={6}><Text style={styles.link}>Editar</Text></Pressable>}
           {!mine && !canDelete && <Pressable onPress={() => setReporting(true)} hitSlop={6}><Text style={styles.link}>Denunciar</Text></Pressable>}
           {canDelete && <Pressable onPress={confirmDelete} hitSlop={6}><Text style={styles.link}>Apagar</Text></Pressable>}
         </View>
