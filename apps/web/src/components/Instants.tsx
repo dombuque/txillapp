@@ -9,7 +9,6 @@ import { tr } from '../lib/i18n';
 import Icon from './Icon';
 import { REACTIONS, Reaction } from '../lib/stickers';
 import { markSeen } from '../lib/whatsNew';
-import { NewBadge } from './WhatsNew';
 import CloseFriendsSheet from './CloseFriendsSheet';
 import FlashIcon from './FlashIcon';
 import { renderZasImage } from '../lib/zasImage';
@@ -50,8 +49,8 @@ const leftLabel = (iso: string) => {
 
 /**
  * Zás (os Instants): uma foto tirada na hora, com uma legenda curta, que dura 24 h e cada pessoa vê uma só vez.
- * Só chega aos amigos próximos e a quem se segue mutuamente. Fica no canto da caixa de mensagens (como no Instagram):
- * uma pilha de fotos que abre a câmara, onde o obturador envia logo.
+ * Só chega aos amigos próximos e a quem se segue mutuamente. Quando há Zás por ver, aparece uma pílula no canto da caixa de mensagens;
+ * a câmara abre pelo botão do topo das Mensagens, onde o obturador envia logo.
  */
 export default function InstantsDock() {
   const { user } = useAuth();
@@ -77,56 +76,46 @@ export default function InstantsDock() {
       window.clearTimeout(t);
     };
   }, []);
+  useEffect(() => {
+    const open = () => { markSeen('zas'); setMode('cam'); };
+    window.addEventListener('zas:camera', open);
+    return () => window.removeEventListener('zas:camera', open);
+  }, []);
   if (!user) return null;
   const refresh = () => void qc.invalidateQueries({ queryKey: ['instants'] });
   const others = data?.others ?? [];
   const total = others.reduce((n, o) => n + o.count, 0);
-  const top = others[0];
-  // Uma carta por Zás (não por pessoa): quem tem vários Zás faz o baralho crescer. Até 4 cartas.
-  // Intercalado: carta de cada pessoa por rodada, para o baralho mostrar pessoas diferentes quando há mais de uma.
-  const cards = [0, 1, 2].flatMap((r) => others.filter((o) => o.count > r)).slice(0, 4);
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => {
-          markSeen('zas');
-          if (others.length) {
+      {/* O ícone do Zás só aparece quando há Zás postados por ver: uma pílula com a faísca do Zás, as fotos de quem postou e quantos são. */}
+      {total > 0 && (
+        <button
+          type="button"
+          onClick={() => {
+            markSeen('zas');
             setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName })));
             setAt(0);
             setMode('view');
-          } else setMode('cam');
-        }}
-        aria-label={total ? tr('Zás: {n} por ver', { n: total }) : tr('Mandar um Zás')}
-        className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-0 z-20 h-[140px] w-[150px]"
-        style={{ transform: away ? 'translateX(66%)' : 'translateX(38%)', transition: 'transform .4s cubic-bezier(.2,.9,.3,1.15)' }}
-      >
-        {/* Baralho em leque, como no Instagram: as cartas dos Zás por ver (foto desfocada), a da frente com a foto de perfil. */}
-        {(cards.length ? [...cards].reverse() : [null]).map((o, idx, arr) => {
-          const depth = arr.length - 1 - idx;
-          return (
-            <span
-              key={`${o?.username ?? 'vazio'}-${idx}`}
-              className="absolute bottom-3 right-6 h-[100px] w-[76px] overflow-hidden rounded-[20px] bg-gradient-to-br from-brand to-[#ff9a5b] shadow-[0_6px_16px_rgba(0,0,0,0.3)] ring-[3px] ring-white"
-              style={{ transform: `translate(${-depth * 11}px, ${-depth * 5}px) rotate(${-6 - depth * 6}deg)`, transformOrigin: '70% 90%', zIndex: 3 - depth }}
-            >
-              {o?.preview && <img src={o.preview} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover" />}
-              {depth > 0 && <span className="absolute inset-0 bg-black/10" />}
-              {!o && <span className="absolute inset-0 flex items-center justify-center text-white"><Icon name="plus" size={34} strokeWidth={2.6} className="drop-shadow" /></span>}
-            </span>
-          );
-        })}
-        {top && (
-          <span className="absolute bottom-[76px] right-[84px] z-[5] flex -space-x-3">
-            {others.slice(0, 2).map((o) => (
-              <span key={o.username} className="rounded-full bg-white p-[2px] shadow-md"><Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={34} ring={false} /></span>
+          }}
+          aria-label={tr('Zás: {n} por ver', { n: total })}
+          className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-3 z-20 flex h-[54px] items-center rounded-full bg-white py-1.5 pl-1.5 shadow-[0_8px_26px_rgba(0,0,0,0.2)] ring-1 ring-zinc-100 transition active:scale-95"
+          style={{ paddingRight: away ? 6 : 16, transition: 'padding .3s ease, transform .15s' }}
+        >
+          <span className="relative flex -space-x-2.5">
+            {others.slice(0, 3).map((o) => (
+              <span key={o.username} className="rounded-full bg-white p-[2px] ring-2 ring-brand"><Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={38} ring={false} /></span>
             ))}
+            <span className="absolute -right-1 -top-1 z-10 flex h-[22px] w-[22px] items-center justify-center rounded-full bg-brand text-white shadow ring-2 ring-white"><Icon name="bolt" size={12} fill="currentColor" strokeWidth={2} /></span>
           </span>
-        )}
-        <NewBadge id="zas" className="absolute left-0 top-0 z-[6]" />
-        {total > 0 && <span className="absolute left-1 top-8 z-[6] flex h-6 items-center justify-center whitespace-nowrap rounded-full bg-brand px-2.5 text-[12px] font-extrabold text-white shadow-md ring-2 ring-white">{total > 99 ? '99+' : total} {total === 1 ? tr('novo') : tr('novos')}</span>}
-      </button>
+          {!away && (
+            <span className="ml-2.5 flex flex-col text-left leading-tight">
+              <span className="text-[16px] font-black tracking-tight text-brand">Zás</span>
+              <span className="text-[12px] font-semibold text-zinc-600">{total > 99 ? '99+' : total} {total === 1 ? tr('novo') : tr('novos')}</span>
+            </span>
+          )}
+        </button>
+      )}
       {gridOpen && <MyInstants username={user.username} onClose={() => setGridOpen(false)} />}
       {mode === 'cam' && <InstantsHub onClose={() => { setMode(null); refresh(); }} />}
       {mode === 'view' && queue[at] && (

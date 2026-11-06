@@ -89,6 +89,7 @@ export default function Messages() {
       {/* O @ fica ao centro, como no Instagram; o ícone de nova mensagem à direita (tamanho inteiro, para ficar nítido). */}
       <header className="relative mb-1 flex h-12 items-center justify-center">
         <h1 className="max-w-[70%] truncate text-[20px] font-extrabold leading-tight">{user?.username ?? 'Mensagens'}</h1>
+        <button onClick={() => window.dispatchEvent(new Event('zas:camera'))} aria-label={tr('Mandar um Zás')} className="absolute left-0 top-1/2 flex h-11 items-center gap-1 -translate-y-1/2 rounded-full pl-2.5 pr-3 text-brand active:bg-rose-50"><Icon name="camera" size={24} /><span className="text-[15px] font-black tracking-tight">Zás</span></button>
         <button onClick={() => setCreating(true)} aria-label={tr('Nova conversa ou grupo')} className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-zinc-900 active:bg-zinc-100"><Icon name="compose" size={24} strokeWidth={2} /></button>
       </header>
       <label className="mb-2 flex h-11 items-center gap-2 rounded-full bg-zinc-100 px-4 text-zinc-500 transition focus-within:bg-zinc-200/70">
