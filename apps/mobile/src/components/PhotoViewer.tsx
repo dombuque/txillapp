@@ -115,6 +115,7 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, onClose }
           />
         </Animated.View>
 
+        {footer ? <View style={[styles.rail, { bottom: Math.max(insets.bottom, 8) + 96 }]} pointerEvents="box-none">{footer}</View> : null}
         <View style={[styles.foot, { paddingBottom: Math.max(insets.bottom, 8) }]}>
           <Text style={styles.who}>
             {author.displayName} <Text style={styles.handle}>@{author.username}</Text>
@@ -124,7 +125,6 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, onClose }
               <RichText text={body} style={{ color: '#f4f4f5', fontSize: 14 }} />
             </Text>
           ) : null}
-          {footer}
         </View>
       </Animated.View>
     </Modal>
@@ -137,7 +137,8 @@ const styles = StyleSheet.create({
   close: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)' },
   count: { borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 4 },
   countText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  foot: { backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 16, paddingTop: 12 },
+  foot: { backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 16, paddingRight: 84, paddingTop: 12, minHeight: 64 },
+  rail: { position: 'absolute', right: 10, zIndex: 5 },
   who: { color: '#fff', fontSize: 14, fontWeight: '600' },
   handle: { color: colors.zinc300, fontWeight: '400' },
   body: { marginTop: 2, color: '#f4f4f5', fontSize: 14 },

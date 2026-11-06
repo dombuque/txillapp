@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { enterImmersive, leaveImmersive } from '@/lib/immersive';
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +13,7 @@ import { Reel } from '../(tabs)/reels';
 
 /** Uma tcheka aberta a partir de uma ligação, partilha ou story: ecrã inteiro, a tocar, com a seta de voltar. */
 export default function ReelPage() {
+  useEffect(() => { enterImmersive(); return () => leaveImmersive(); }, []);
   const { id = '' } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const qc = useQueryClient();

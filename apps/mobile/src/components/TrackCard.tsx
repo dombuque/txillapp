@@ -15,7 +15,7 @@ export { useMusicMuted };
  * post está bem à vista no ecrã, p.ex. via onViewableItemsChanged da lista); só toca sozinha depois de a pessoa ter posto
  * uma faixa a tocar à mão, como no site.
  */
-export function TrackCard({ track, autoplay = false, visible = false }: { track: Track; autoplay?: boolean; visible?: boolean }) {
+export function TrackCard({ track, autoplay = false, visible = false, playNow = false }: { track: Track; autoplay?: boolean; visible?: boolean; /** Toca logo ao aparecer (ex.: ao abrir uma nota de música, que é um toque da pessoa). */ playNow?: boolean }) {
   const me = useRef(Symbol('track'));
   const [on, setOn] = useState(false);
   const [muted, toggleMute] = useMusicMuted();
@@ -32,6 +32,9 @@ export function TrackCard({ track, autoplay = false, visible = false }: { track:
   playRef.current = play;
 
   useEffect(() => () => stopTrack(me.current), []);
+  useEffect(() => {
+    if (playNow) void playRef.current();
+  }, [playNow, track.url]);
 
   // Toca sozinha um instante depois de o post ficar à vista; pára quando sai ou a app vai para segundo plano.
   useEffect(() => {

@@ -276,8 +276,8 @@ function ViewerBar({ post, full, mine, onOpen }: { post: Post; full: boolean; mi
   }
   const B = ({ icon, n, on, label, onPress }: { icon: Parameters<typeof Icon>[0]['name']; n?: number; on?: boolean; label: string; onPress: () => void }) => (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.vBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={label}>
-      <Icon name={icon} size={24} color={on ? colors.amber300 : '#fff'} />
-      {n ? <Text style={[styles.vCount, on && { color: colors.amber300 }]}>{n}</Text> : null}
+      <View style={[styles.vCircle, on && { backgroundColor: 'rgba(255,255,255,0.9)' }]}><Icon name={icon} size={26} color={on ? colors.brand : '#fff'} /></View>
+      {n ? <Text style={styles.vCount}>{n}</Text> : null}
     </Pressable>
   );
   return (
@@ -566,9 +566,11 @@ const styles = StyleSheet.create({
   tagsList: { position: 'absolute', left: 12, right: 12, bottom: 56, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   tagPill: { borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: 12, paddingVertical: 4 },
   tagPillText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  vBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginTop: 4 },
-  vBtn: { minHeight: 48, minWidth: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
-  vCount: { color: '#fff', fontSize: 15 },
+  // Ações da foto em ecrã inteiro: fila vertical à direita, como na Tcheka.
+  vBar: { alignItems: 'center', gap: 14 },
+  vBtn: { alignItems: 'center', gap: 4 },
+  vCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+  vCount: { color: '#fff', fontSize: 13, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 },
   quote: { marginTop: 12, overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: colors.zinc200 },
   quoteHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingTop: 12 },
   quoteName: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },

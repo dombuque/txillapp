@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { NotesStrip } from '@/components/Notes';
+import { REACTIONS } from '@/components/StoryParts';
 import { Pulse } from '@/components/ChatParts';
 import { Bolt, SuperTxillPanel } from '@/components/SuperTxillPanel';
 import { InstantsDock, openZasCamera, zasListScrolling } from '@/components/Instants';
@@ -25,7 +26,7 @@ function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, g
   if (m.kind === 'gift') return `${m.fromMe ? 'Tu: ' : ''}Presente`;
   if (m.kind === 'sticker') return `${you}Sticker`;
   if (m.kind === 'location') return `${you}Localização`;
-  if (m.kind === 'story_reaction') return m.fromMe ? 'Reagiste ao story' : 'Reagiu ao teu story';
+  if (m.kind === 'story_reaction') return `${m.fromMe ? 'Reagiste ao story' : 'Reagiu ao teu story'}: ${REACTIONS.find((x) => x.id === m.body)?.label ?? m.body}`;
   if (m.kind === 'story_reply') return `${m.fromMe ? 'Respondeste ao story' : 'Respondeu ao teu story'}: ${m.body}`;
   return `${group ? '' : you}${m.body}`;
 }
@@ -54,7 +55,7 @@ function Skeleton() {
           </View>
         </View>
       ))}
-    </View>
+    </Pulse>
   );
 }
 

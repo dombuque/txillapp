@@ -121,7 +121,7 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
           {current ? (
             <>
               {!!current.body && <Text style={styles.big}>{current.body}</Text>}
-              {current.music && <TrackCard track={current.music} autoplay />}
+              {current.music && <TrackCard track={current.music} autoplay playNow />}
               {!!current.cheers && (
                 <View style={styles.cheerRow}><Icon name="cheers" size={18} color={colors.zinc700} /><Text style={styles.cheerRowText}>{current.cheers} {current.cheers === 1 ? 'brinde' : 'brindes'}</Text></View>
               )}
@@ -207,7 +207,7 @@ function NoteView({ note, onClose }: { note: Note; onClose: () => void }) {
         <View style={{ alignItems: 'center' }}>
           <Avatar name={note.displayName} username={note.hasAvatar ? note.username : undefined} size={72} />
           {!!note.body && <Text style={[styles.big, { marginTop: 12 }]}>{note.body}</Text>}
-          {note.music && <View style={{ width: '100%' }}><TrackCard track={note.music} autoplay /></View>}
+          {note.music && <View style={{ width: '100%' }}><TrackCard track={note.music} autoplay playNow /></View>}
           <Text style={[styles.hint, { marginTop: 6 }]}>{timeAgo(note.createdAt)}</Text>
         </View>
         <Pressable onPress={() => void cheer()} accessibilityRole="button" accessibilityState={{ selected: cheered }} style={[styles.cheerBtn, { backgroundColor: cheered ? '#fef3c7' : colors.zinc100 }]}>

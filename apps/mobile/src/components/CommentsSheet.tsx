@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import * as Haptics from 'expo-haptics';
 import { useRef, useState } from 'react';
 import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
@@ -12,20 +13,11 @@ import { Icon } from './Icon';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
-import { Sticker } from './StickerPanel';
 import { VerifiedBadge } from './VerifiedBadge';
 
 // Reações rápidas desenhadas com a mascote do Txillapp; ao tocar, escrevem o emoji no comentário (conteúdo do utilizador).
-const QUICK_ART: Record<string, string> = { ':brinde:': 'saude', ':palmas:': 'fixe', ':fogo:': 'bora', ':snif:': 'snif', ':amor:': 'amor', ':uau:': 'uau', ':rir:': 'rir' };
-const QUICK: { e: string; id: string; label: string }[] = [
-  { e: '\u{1F942}', id: ':brinde:', label: 'Brinde' },
-  { e: '\u{1F64C}', id: ':palmas:', label: 'Fixe' },
-  { e: '\u{1F525}', id: ':fogo:', label: 'Bora' },
-  { e: '\u{1F622}', id: ':snif:', label: 'Triste' },
-  { e: '\u{1F60D}', id: ':amor:', label: 'Adorar' },
-  { e: '\u{1F62E}', id: ':uau:', label: 'Uau' },
-  { e: '\u{1F602}', id: ':rir:', label: 'Rir' },
-];
+// As mesmas reações rápidas do site (vão para o texto do comentário).
+const QUICK = ['🥂', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
 
 interface RowProps {
   c: Comment;
@@ -95,9 +87,16 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift }: RowPro
     ]);
   }
   if (gone) return null;
+  // Segurar no comentário abre o menu (responder, editar, apagar, denunciar), como no Instagram.
+  const [menu, setMenu] = useState(false);
+  const openMenu = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    setMenu(true);
+  };
+  const startEdit = () => { setDraft(text.body); setSel({ start: text.body.length, end: text.body.length }); setEditing(true); };
 
   return (
-    <View style={styles.row}>
+    <Pressable onLongPress={openMenu} delayLongPress={380} style={styles.row} accessibilityHint="Segura para mais opções">
       <View style={{ alignSelf: 'flex-start' }}>
         <Avatar name={c.author.displayName} username={c.author.username} size={isReply ? 28 : 36} />
       </View>
@@ -135,16 +134,23 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift }: RowPro
         <View style={styles.links}>
           {cheer.cheers > 0 && <Text style={styles.link}>{cheer.cheers} {cheer.cheers === 1 ? 'brinde' : 'brindes'}</Text>}
           <Pressable onPress={() => onReply(c)} hitSlop={6}><Text style={styles.link}>Responder</Text></Pressable>
-          {mine && !editing && <Pressable onPress={() => { setDraft(text.body); setSel({ start: text.body.length, end: text.body.length }); setEditing(true); }} hitSlop={6}><Text style={styles.link}>Editar</Text></Pressable>}
-          {!mine && !canDelete && <Pressable onPress={() => setReporting(true)} hitSlop={6}><Text style={styles.link}>Denunciar</Text></Pressable>}
-          {canDelete && <Pressable onPress={confirmDelete} hitSlop={6}><Text style={styles.link}>Apagar</Text></Pressable>}
         </View>
       </View>
       <Pressable onPress={() => void toggle()} hitSlop={8} style={{ alignSelf: 'flex-start', paddingTop: 4 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? 'Tirar o brinde' : 'Brindar comentário'}>
         <Icon name="cheers" size={20} color={cheer.cheered ? colors.brand : '#a1a1aa'} />
       </Pressable>
       {reporting && <ReportSheet type="comment" id={c.id} onClose={() => setReporting(false)} />}
-    </View>
+      {menu && (
+        <Sheet onClose={() => setMenu(false)}>
+          <View style={styles.menu}>
+            <Pressable onPress={() => { setMenu(false); onReply(c); }} style={styles.menuRow} accessibilityRole="button"><Icon name="reply" size={22} /><Text style={styles.menuText}>Responder</Text></Pressable>
+            {mine && !editing && <Pressable onPress={() => { setMenu(false); startEdit(); }} style={styles.menuRow} accessibilityRole="button"><Icon name="pencil" size={22} /><Text style={styles.menuText}>Editar</Text></Pressable>}
+            {canDelete && <Pressable onPress={() => { setMenu(false); setTimeout(confirmDelete, 250); }} style={styles.menuRow} accessibilityRole="button"><Icon name="trash" size={22} color={colors.red600} /><Text style={[styles.menuText, { color: colors.red600 }]}>Apagar</Text></Pressable>}
+            {!mine && <Pressable onPress={() => { setMenu(false); setTimeout(() => setReporting(true), 250); }} style={styles.menuRow} accessibilityRole="button"><Icon name="flag" size={22} /><Text style={styles.menuText}>Denunciar</Text></Pressable>}
+          </View>
+        </Sheet>
+      )}
+    </Pressable>
   );
 }
 
@@ -241,7 +247,7 @@ export function CommentsSheet({ post, onClose, onDelta, onGift }: { post: Post; 
       <View style={styles.head}><Text style={styles.headTitle}>Comentários</Text></View>
       <FlatList
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8 }}
+        contentContainerStyle={{ paddingVertical: 8 }}
         data={items}
         keyExtractor={(c) => c.id}
         keyboardShouldPersistTaps="handled"
@@ -286,8 +292,8 @@ export function CommentsSheet({ post, onClose, onDelta, onGift }: { post: Post; 
             </View>
           )}
           <View style={styles.quick}>
-            {QUICK.map((q) => (
-              <Pressable key={q.id} onPress={() => { setText((t) => t + q.e); input.current?.focus(); }} accessibilityLabel={`Adicionar ${q.label}`}><View style={{ width: 40, height: 29, overflow: 'hidden' }}><Sticker id={QUICK_ART[q.id]} size={40} /></View></Pressable>
+            {QUICK.map((e) => (
+              <Pressable key={e} onPress={() => { setText((t) => t + e); input.current?.focus(); }} accessibilityLabel={`Adicionar ${e}`} style={({ pressed }) => [pressed && { transform: [{ scale: 1.25 }] }]}><Text style={{ fontSize: 24, lineHeight: 32 }}>{e}</Text></Pressable>
             ))}
           </View>
           <View style={styles.compose}>
@@ -307,13 +313,16 @@ export function CommentsSheet({ post, onClose, onDelta, onGift }: { post: Post; 
 const styles = StyleSheet.create({
   head: { borderBottomWidth: 1, borderBottomColor: colors.zinc200, paddingBottom: 12 },
   headTitle: { textAlign: 'center', fontSize: 16, fontWeight: '700', color: colors.zinc900 },
-  row: { flexDirection: 'row', gap: 12, paddingVertical: 10 },
+  row: { flexDirection: 'row', gap: 12, paddingVertical: 10, paddingHorizontal: 16 },
   who: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   user: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },
   ago: { fontSize: 14, color: colors.zinc500, marginLeft: 4 },
   body: { fontSize: 15, lineHeight: 20, color: colors.zinc800 },
   links: { marginTop: 4, flexDirection: 'row', gap: 16 },
   link: { fontSize: 12, fontWeight: '600', color: colors.zinc500 },
+  menu: { paddingHorizontal: 8, paddingBottom: 8 },
+  menuRow: { height: 56, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, borderRadius: 16 },
+  menuText: { fontSize: 17, fontWeight: '500', color: colors.zinc900 },
   thread: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
   threadLine: { width: 28, height: 1, backgroundColor: colors.zinc300 },
   edit: { borderWidth: 1, borderColor: colors.zinc300, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, minHeight: 72, textAlignVertical: 'top', color: colors.zinc900 },

@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { enterImmersive, leaveImmersive } from '@/lib/immersive';
 import { Animated, AppState, Easing, FlatList, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -488,6 +489,12 @@ export default function Reels() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
+  // Ecrã todo (também a zona do relógio e da bateria no iPhone) enquanto a Tcheka está à frente.
+  useEffect(() => {
+    if (!focused) return;
+    enterImmersive();
+    return () => leaveImmersive();
+  }, [focused]);
   const { start: startId } = useLocalSearchParams<{ start?: string }>();
   const [height, setHeight] = useState(0);
   const [active, setActive] = useState(0);
