@@ -71,15 +71,17 @@ export class NotificationsService {
     const profile = a?.username ? `/u/${a.username as string}` : '/notifications';
     const who = (a?.display_name as string | undefined) ?? 'Alguém';
     const postId = n.data?.postId as string | undefined;
+    const commentId = n.data?.commentId as string | undefined;
+    const atComment = postId ? `/p/${postId}?comments=1${commentId ? `&c=${commentId}` : ''}` : '/notifications';
     const t: Partial<Record<NotificationKind, { body: string; url: string }>> = {
       follow: { body: 'começou a seguir-te', url: profile },
       follow_request: { body: 'quer seguir-te', url: '/notifications' },
       request_accepted: { body: 'aceitou o teu pedido', url: profile },
       gift: { body: 'presenteou-te', url: '/wallet' },
-      comment: { body: 'comentou a tua publicação', url: postId ? `/p/${postId}?comments=1` : '/notifications' },
-      reply: { body: 'respondeu ao teu comentário', url: postId ? `/p/${postId}?comments=1` : '/notifications' },
+      comment: { body: 'comentou a tua publicação', url: atComment },
+      reply: { body: 'respondeu ao teu comentário', url: atComment },
       repost: { body: 'repostou a tua publicação', url: postId ? `/p/${postId}` : '/notifications' },
-      mention: { body: 'mencionou-te', url: postId ? `/p/${postId}` : '/notifications' },
+      mention: { body: 'mencionou-te', url: commentId ? atComment : postId ? `/p/${postId}` : '/notifications' },
       tag: { body: 'identificou-te numa foto', url: postId ? `/p/${postId}` : '/notifications' },
       story_reply: { body: 'respondeu ao teu story', url: n.data?.replyKind === 'comment' ? '/profile' : a?.username ? `/messages/${a.username as string}` : '/notifications' },
       verified: { body: 'agora tem a conta verificada', url: profile },

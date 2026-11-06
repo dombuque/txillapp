@@ -10,7 +10,7 @@ import { colors } from '@/lib/theme';
 
 /** Uma publicação aberta a partir de uma notificação, de um perfil ou de uma ligação. */
 export default function PostPage() {
-  const { id = '' } = useLocalSearchParams<{ id: string }>();
+  const { id = '', comments, c } = useLocalSearchParams<{ id: string; comments?: string; c?: string }>();
   const { user } = useAuth();
   const router = useRouter();
   const q = useQuery({ queryKey: ['post', id], queryFn: () => api.getPost(id), retry: false });
@@ -25,7 +25,7 @@ export default function PostPage() {
             <Text style={styles.goneText}>Pode ter sido apagada, ou a conta passou a privada.</Text>
           </View>
         )}
-        {q.data && <PostCard post={q.data} me={user?.id} detail />}
+        {q.data && <PostCard post={q.data} me={user?.id} detail openComments={comments === '1' || !!c} highlightComment={c || undefined} />}
       </ScrollView>
     </StackPage>
   );

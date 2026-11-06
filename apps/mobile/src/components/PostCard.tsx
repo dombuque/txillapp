@@ -94,7 +94,7 @@ function usePatch(id: string) {
 }
 
 /** O cartão de uma publicação, igual ao do site: cantos de 26, sombra suave, autor, texto, fotos e a barra de ações. */
-function PostCardBase({ post, me, detail }: { post: Post; me?: string; /** Já estamos na página desta publicação: tocar no cartão não a volta a abrir. */ detail?: boolean }) {
+function PostCardBase({ post, me, detail, openComments, highlightComment }: { post: Post; me?: string; /** Já estamos na página desta publicação: tocar no cartão não a volta a abrir. */ detail?: boolean; /** Abre logo os comentários (vindo de uma notificação), realçando `highlightComment`. */ openComments?: boolean; highlightComment?: string }) {
   const router = useRouter();
   if (post.kind === 'repost' && post.repostOf && !post.body) {
     return (
@@ -109,13 +109,13 @@ function PostCardBase({ post, me, detail }: { post: Post; me?: string; /** Já e
       </View>
     );
   }
-  return <PostBody post={post} me={me} detail={detail} />;
+  return <PostBody post={post} me={me} detail={detail} openComments={openComments} highlightComment={highlightComment} />;
 }
 
 type SheetState = null | 'menu' | 'comments' | 'repost' | 'share' | { gift: { username: string; displayName: string; amount?: number; note?: string } } | { people: PeopleKind };
 type GiftExtra = { recipient: { username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null } };
 
-function PostBody({ post, me, detail }: { post: Post; me?: string; detail?: boolean }) {
+function PostBody({ post, me, detail, openComments, highlightComment }: { post: Post; me?: string; detail?: boolean; openComments?: boolean; highlightComment?: string }) {
   const { width } = useWindowDimensions();
   const router = useRouter();
   const patch = usePatch(post.id);
@@ -127,7 +127,7 @@ function PostBody({ post, me, detail }: { post: Post; me?: string; detail?: bool
   const margin = width >= 360 ? 8 : 6;
   const pad = width >= 360 ? 16 : 14;
   const inner = width - margin * 2 - pad * 2;
-  const [sheet, setSheet] = useState<SheetState>(null);
+  const [sheet, setSheet] = useState<SheetState>(openComments ? 'comments' : null);
   const [gone, setGone] = useState(false);
   // Foto em ecrã inteiro: `of` é a publicação cujas fotos se veem (a original, num repost com comentário).
   const [viewer, setViewer] = useState<null | { of: Post; start: number }>(null);
@@ -243,6 +243,7 @@ function PostBody({ post, me, detail }: { post: Post; me?: string; detail?: bool
       {sheet === 'comments' && (
         <CommentsSheet
           post={post}
+          highlight={highlightComment}
           onClose={() => setSheet(null)}
           onDelta={(d) => patch({ comments: Math.max(0, post.comments + d) })}
           onGift={(to, amount, note) => setSheet({ gift: { ...to, amount, note } })}

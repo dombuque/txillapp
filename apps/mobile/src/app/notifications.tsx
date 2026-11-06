@@ -52,10 +52,11 @@ function describe(n: AppNotification): { text: ReactNode; sub?: string } {
 /** Para onde leva tocar numa notificação. */
 function targetOf(n: AppNotification): string | null {
   const post = n.data.postId;
+  const c = n.data.commentId ? `?comments=1&c=${n.data.commentId}` : '?comments=1';
   switch (n.kind) {
     case 'comment':
-    case 'reply': return post ? `/p/${post}?comments=1` : null;
-    case 'mention':
+    case 'reply': return post ? `/p/${post}${c}` : null;
+    case 'mention': return post ? `/p/${post}${n.data.commentId ? c : ''}` : `/u/${n.actor.username}`;
     case 'tag':
     case 'repost':
     case 'gift': return post ? `/p/${post}` : n.kind === 'gift' ? '/wallet' : `/u/${n.actor.username}`;

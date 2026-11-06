@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { api, type Comment, type Post } from '@/lib/api';
@@ -27,9 +27,11 @@ interface RowProps {
   onReply: (c: Comment) => void;
   onRemoved: (c: Comment) => void;
   onGift: (c: Comment, amount: number, note: string) => void;
+  /** Veio de uma notificação: este comentário fica realçado. */
+  highlighted?: boolean;
 }
 
-function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift }: RowProps) {
+function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highlighted }: RowProps) {
   const [cheer, setCheer] = useState({ cheered: c.cheered, cheers: c.cheers });
   const [text, setText] = useState({ body: c.body, editedAt: c.editedAt ?? null });
   const [editing, setEditing] = useState(false);
@@ -96,7 +98,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift }: RowPro
   const startEdit = () => { setDraft(text.body); setSel({ start: text.body.length, end: text.body.length }); setEditing(true); };
 
   return (
-    <Pressable onLongPress={openMenu} delayLongPress={380} style={styles.row} accessibilityHint="Segura para mais opções">
+    <Pressable onLongPress={openMenu} delayLongPress={380} style={[styles.row, highlighted && { backgroundColor: colors.rose50 }]} accessibilityHint="Segura para mais opções">
       <View style={{ alignSelf: 'flex-start' }}>
         <Avatar name={c.author.displayName} username={c.author.username} size={isReply ? 28 : 36} />
       </View>
@@ -154,7 +156,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift }: RowPro
   );
 }
 
-function Replies({ c, meId, expanded, toggle, canDeleteFor, onReply, onRemoved, onGift }: { c: Comment; meId?: string; expanded: boolean; toggle: () => void; canDeleteFor: (c: Comment) => boolean; onReply: (c: Comment) => void; onRemoved: (c: Comment) => void; onGift: RowProps['onGift'] }) {
+function Replies({ c, meId, expanded, toggle, canDeleteFor, onReply, onRemoved, onGift, highlight }: { c: Comment; meId?: string; expanded: boolean; toggle: () => void; canDeleteFor: (c: Comment) => boolean; onReply: (c: Comment) => void; onRemoved: (c: Comment) => void; onGift: RowProps['onGift']; highlight?: string }) {
   const q = useInfiniteQuery({
     queryKey: ['replies', c.id],
     queryFn: ({ pageParam }) => api.replies(c.id, pageParam),
@@ -173,7 +175,7 @@ function Replies({ c, meId, expanded, toggle, canDeleteFor, onReply, onRemoved, 
       {expanded && (
         <View>
           {items.map((r) => (
-            <Row key={r.id} c={r} mine={r.author.id === meId} isReply canDelete={canDeleteFor(r)} onReply={onReply} onRemoved={onRemoved} onGift={onGift} />
+            <Row key={r.id} c={r} mine={r.author.id === meId} isReply canDelete={canDeleteFor(r)} onReply={onReply} onRemoved={onRemoved} onGift={onGift} highlighted={r.id === highlight} />
           ))}
           {q.isLoading && <ActivityIndicator color={colors.brand} style={{ margin: 8 }} />}
           {q.hasNextPage && (
@@ -189,7 +191,7 @@ function Replies({ c, meId, expanded, toggle, canDeleteFor, onReply, onRemoved, 
 }
 
 /** Comentários de uma publicação: igual ao do site (responder, brindar, editar, apagar, denunciar e aviso de pedido de pagamento). */
-export function CommentsSheet({ post, onClose, onDelta, onGift }: { post: Post; onClose: () => void; onDelta: (n: number) => void; onGift: (to: { username: string; displayName: string }, amount: number, note: string) => void }) {
+export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { post: Post; onClose: () => void; onDelta: (n: number) => void; onGift: (to: { username: string; displayName: string }, amount: number, note: string) => void; /** Comentário a realçar (vindo de uma notificação). */ highlight?: string }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const input = useRef<React.ComponentRef<typeof TextInput>>(null);
@@ -206,6 +208,21 @@ export function CommentsSheet({ post, onClose, onDelta, onGift }: { post: Post; 
     getNextPageParam: (l) => l.nextCursor ?? undefined,
   });
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
+  // Vindo de uma notificação: leva ao comentário. Se não está entre os de cima, é uma resposta: abrem-se as conversas para o mostrar.
+  const list = useRef<FlatList<Comment>>(null);
+  const jumped = useRef(false);
+  useEffect(() => {
+    if (!highlight || jumped.current || !q.isSuccess) return;
+    const k = items.findIndex((c) => c.id === highlight);
+    if (k >= 0) {
+      jumped.current = true;
+      setTimeout(() => list.current?.scrollToIndex({ index: k, animated: true, viewPosition: 0.3 }), 250);
+    } else if (!q.hasNextPage) {
+      jumped.current = true;
+      setExpanded((s) => { const n = new Set(s); items.forEach((c) => { if (c.replyCount > 0) n.add(c.id); }); return n; });
+    } else if (!q.isFetchingNextPage) void q.fetchNextPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlight, items.length, q.isSuccess, q.hasNextPage, q.isFetchingNextPage]);
   const canDeleteFor = (c: Comment) => c.author.id === user?.id || post.author.id === user?.id;
 
   function reply(c: Comment) {
@@ -246,6 +263,8 @@ export function CommentsSheet({ post, onClose, onDelta, onGift }: { post: Post; 
     <Sheet title="Comentários" onClose={onClose} full plain>
       <View style={styles.head}><Text style={styles.headTitle}>Comentários</Text></View>
       <FlatList
+        ref={list}
+        onScrollToIndexFailed={() => undefined}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingVertical: 8 }}
         data={items}
@@ -253,9 +272,10 @@ export function CommentsSheet({ post, onClose, onDelta, onGift }: { post: Post; 
         keyboardShouldPersistTaps="handled"
         renderItem={({ item: c }) => (
           <View>
-            <Row c={c} mine={c.author.id === user?.id} canDelete={canDeleteFor(c)} onReply={reply} onRemoved={removed} onGift={gift} />
+            <Row c={c} mine={c.author.id === user?.id} canDelete={canDeleteFor(c)} onReply={reply} onRemoved={removed} onGift={gift} highlighted={c.id === highlight} />
             <Replies
               c={c}
+              highlight={highlight}
               meId={user?.id}
               expanded={expanded.has(c.id)}
               toggle={() => setExpanded((s) => { const n = new Set(s); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n; })}
