@@ -103,7 +103,7 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
           <TextInput value={bio} onChangeText={setBio} maxLength={150} multiline placeholder="Conta à malta quem és…" placeholderTextColor={colors.zinc500} style={[st.input, { minHeight: 84, textAlignVertical: 'top' }]} accessibilityLabel="Bio" />
         </View>
         <View>{label('Cidade ou bairro')}<TextInput value={city} onChangeText={setCity} maxLength={40} placeholder="Maputo, Polana…" placeholderTextColor={colors.zinc500} style={st.input} accessibilityLabel="Cidade ou bairro" /></View>
-        <View>{label('Link')}<TextInput value={website} onChangeText={setWebsite} maxLength={100} placeholder="https://…" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} keyboardType="url" style={st.input} accessibilityLabel="Link" /></View>
+        <View>{label('Link')}<TextInput value={website} onChangeText={setWebsite} maxLength={100} placeholder="o-teu-site.com" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} keyboardType="url" style={st.input} accessibilityLabel="Link" /></View>
         <View>
           {label('Tipo de perfil')}
           <View style={{ flexDirection: 'row', gap: 12 }} accessibilityRole="radiogroup">

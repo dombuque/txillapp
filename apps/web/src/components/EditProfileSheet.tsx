@@ -168,7 +168,7 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
           <span className="mb-1 block text-sm font-semibold text-zinc-700">{tr('Link')}</span>
           <span className="relative block">
             <Icon name="link" size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input value={website} onChange={(e) => setWebsite(e.target.value)} maxLength={100} placeholder={tr('https://…')} inputMode="url" autoCapitalize="none" autoCorrect="off" className={`${fieldInput} !pl-10`} />
+            <input value={website} onChange={(e) => setWebsite(e.target.value)} maxLength={100} placeholder={tr('o-teu-site.com')} inputMode="url" autoCapitalize="none" autoCorrect="off" className={`${fieldInput} !pl-10`} />
           </span>
         </label>
         <div>

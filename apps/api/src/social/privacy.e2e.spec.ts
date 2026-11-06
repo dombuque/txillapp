@@ -367,6 +367,8 @@ describe('privacidade, bloqueios, notificações, pesquisa, foto e segurança da
     const r = (await api().patch('/api/v1/users/me').set(auth(pa)).send({ website: 'https://txillapp.com/mim', city: 'Maputo' }).expect(200)).body;
     expect(r).toMatchObject({ website: 'https://txillapp.com/mim', city: 'Maputo' });
     expect((await profile(u.pb, pa)).city).toBe('Maputo');
+    const bare = (await api().patch('/api/v1/users/me').set(auth(pa)).send({ website: 'txillapp.com/mim' }).expect(200)).body;
+    expect(bare.website).toBe('https://txillapp.com/mim'); // sem https também serve
     const cleared = (await api().patch('/api/v1/users/me').set(auth(pa)).send({ website: '', city: '' }).expect(200)).body;
     expect(cleared).toMatchObject({ website: null, city: null });
   });

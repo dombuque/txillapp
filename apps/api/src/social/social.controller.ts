@@ -15,7 +15,14 @@ const updateSchema = z.object({
   bio: z.string().trim().max(150).optional(),
   isPrivate: z.boolean().optional(),
   /** Ligação do perfil (só http/https) e cidade; vazio apaga. */
-  website: z.string().trim().max(100).refine((v) => v === '' || /^https?:\/\/[^\s]+\.[^\s]{2,}$/i.test(v), 'Escreve um link válido (https://…)').optional(),
+  // Sem "https://" também serve: acrescenta-se aqui, para a app e o site não obrigarem a escrevê-lo.
+  website: z
+    .string()
+    .trim()
+    .max(100)
+    .transform((v) => (v !== '' && !/^[a-z][a-z0-9+.-]*:\/\//i.test(v) ? `https://${v}` : v))
+    .refine((v) => v === '' || /^https?:\/\/[^\s]+\.[^\s]{2,}$/i.test(v), 'Escreve um link válido (por exemplo, o-teu-site.com)')
+    .optional(),
   city: z.string().trim().max(40).optional(),
 });
 
