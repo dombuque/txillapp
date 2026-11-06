@@ -38,15 +38,21 @@ async function toJpeg(f: File): Promise<File | null> {
       i.onerror = () => reject(new Error('img'));
       i.src = url;
     });
-    const max = 2048;
-    const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
-    const c = document.createElement('canvas');
-    c.width = Math.max(1, Math.round(img.naturalWidth * scale));
-    c.height = Math.max(1, Math.round(img.naturalHeight * scale));
-    c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
-    const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.88));
-    if (!blob || blob.size > MAX_BYTES) return null;
-    return new File([blob], (f.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+    if (img.decode) await img.decode().catch(() => undefined);
+    if (!img.naturalWidth || !img.naturalHeight) return null;
+    // Tenta em tamanhos decrescentes até caber no limite (fotos enormes do iPhone, panorâmicas…).
+    for (const [max, q] of [[2048, 0.88], [1600, 0.82], [1280, 0.78]] as const) {
+      const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * scale));
+      c.height = Math.max(1, Math.round(img.naturalHeight * scale));
+      const g = c.getContext('2d');
+      if (!g) return null;
+      g.drawImage(img, 0, 0, c.width, c.height);
+      const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', q));
+      if (blob && blob.size > 0 && blob.size <= MAX_BYTES) return new File([blob], (f.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+    }
+    return null;
   } catch {
     return null;
   } finally {
@@ -186,7 +192,7 @@ export default function Compose() {
         let file: File = f;
         if (!IMAGE_TYPES.includes(f.type) || f.size > MAX_BYTES) {
           const conv = await toJpeg(f);
-          if (!conv) { problem = IMAGE_TYPES.includes(f.type) ? 'Uma das fotos é pesada demais! Máximo 8 MB' : 'Uma das fotos não serve. Usa JPEG, PNG ou WebP'; continue; }
+          if (!conv) { problem = `Não consegui ler a foto ${f.name || ''} (${f.type || 'tipo desconhecido'}, ${(f.size / 1048576).toFixed(1)} MB). Tenta exportá-la como JPEG.`; continue; }
           file = conv;
         }
         next.push({ uri: URL.createObjectURL(file), video: false, mime: file.type, tags: [] });

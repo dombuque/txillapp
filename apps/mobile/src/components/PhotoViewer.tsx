@@ -111,7 +111,8 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, onClose }
             keyExtractor={(p) => p.url}
             getItemLayout={(_d, k) => ({ length: width, offset: width * k, index: k })}
             initialScrollIndex={start}
-            onMomentumScrollEnd={(e) => setI(Math.round(e.nativeEvent.contentOffset.x / width))}
+            onScroll={(e) => { const k = Math.round(e.nativeEvent.contentOffset.x / Math.max(1, width)); if (k >= 0 && k < n) setI(k); }}
+            scrollEventThrottle={32}
             renderItem={({ item, index }) => <Photo photo={item} w={width} h={pagerH} index={index} total={n} onTag={openTag} />}
           />
         </Animated.View>

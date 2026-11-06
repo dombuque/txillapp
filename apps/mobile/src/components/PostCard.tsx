@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { memo, useEffect, useRef, useState } from 'react';
-import { Animated, FlatList, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, FlatList, Pressable, Share, StyleSheet, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { api, type Page, type Post } from '@/lib/api';
 import type { PeopleKind } from '@/lib/api.feed';
 import { sized } from '@/lib/config';
@@ -426,10 +426,11 @@ function Carousel({ media, width, reelId, onDouble, onOpen }: { media: Post['med
   };
   const h = heightOf(media[i] ?? media[0]);
   const tags = media[i]?.tags ?? [];
-  const onView = ({ viewableItems }: { viewableItems: { index?: number | null }[] }) => {
-    const first = viewableItems[0]?.index;
-    if (first != null) {
-      setI(first);
+  // Na web os eventos de "item visível" não disparam com a paginação: a página atual lê-se da posição do scroll.
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const n = Math.round(e.nativeEvent.contentOffset.x / Math.max(1, width));
+    if (n !== i && n >= 0 && n < media.length) {
+      setI(n);
       setShowTags(false);
     }
   };
@@ -442,8 +443,8 @@ function Carousel({ media, width, reelId, onDouble, onOpen }: { media: Post['med
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           keyExtractor={(m) => m.url}
-          onViewableItemsChanged={onView}
-          viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+          onScroll={onScroll}
+          scrollEventThrottle={32}
           renderItem={({ item: m, index }) => (
             <Pressable
               style={{ width, height: h }}
