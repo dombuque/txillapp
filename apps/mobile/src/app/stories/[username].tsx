@@ -14,7 +14,7 @@ import { RichText } from '@/components/RichText';
 import { ActivityPanel, CommentsPanel, Panel, ReplyBar, useKeyboardHeight } from '@/components/StoryParts';
 import { api, type Story } from '@/lib/api';
 import { abs, sized } from '@/lib/config';
-import { writeOwnSeen } from '@/lib/ownSeen';
+import { useOwnSeen, writeOwnSeen } from '@/lib/ownSeen';
 import { useAuth } from '@/lib/auth';
 import { timeAgo } from '@/lib/time';
 
@@ -68,6 +68,8 @@ export default function StoryViewer() {
   const tray = useQuery({ queryKey: ['stories'], queryFn: api.stories });
   const stories = q.data ?? [];
   const [i, setI] = useState(0);
+  const [ready, setReady] = useState(false); // já se escolheu por onde começar
+  const ownSeen = useOwnSeen();
   const [held, setHeld] = useState(false);
   const [typing, setTyping] = useState(false);
   const [panel, setPanel] = useState<null | 'menu' | 'viewers' | 'comments'>(null);
@@ -114,8 +116,10 @@ export default function StoryViewer() {
   useEffect(() => {
     if (!q.isSuccess || q.isFetching || started.current === username) return;
     started.current = username;
-    const firstNew = stories.findIndex((x) => !x.seen);
-    setI(mine || firstNew === -1 ? 0 : firstNew);
+    // Os meus: o servidor não conta o autor, por isso "visto" é o que este aparelho guardou (hora do último visto).
+    const firstNew = mine ? stories.findIndex((x) => !ownSeen || x.createdAt > ownSeen) : stories.findIndex((x) => !x.seen);
+    setI(firstNew === -1 ? 0 : firstNew);
+    setReady(true);
   }, [q.isSuccess, q.isFetching, username]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (q.isSuccess && stories.length === 0) next();
@@ -124,10 +128,11 @@ export default function StoryViewer() {
   useEffect(() => {
     setVideoMs(null);
     setSeePost(false);
-    if (cur && !mine) void api.viewStory(cur.id).catch(() => undefined);
-    // Os meus: ao chegar ao último, ficam como vistos (o servidor não conta o autor).
-    else if (cur && mine && i === stories.length - 1) void writeOwnSeen((tray.data ?? []).find((t) => t.isMe)?.latestAt ?? cur.createdAt);
-  }, [cur?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!ready || !cur) return;
+    if (!mine) void api.viewStory(cur.id).catch(() => undefined);
+    // Os meus: fica guardado até onde vi (o servidor não conta o autor); no último, o anel apaga-se.
+    else if (!ownSeen || cur.createdAt > ownSeen) void writeOwnSeen(i === stories.length - 1 ? ((tray.data ?? []).find((t) => t.isMe)?.latestAt ?? cur.createdAt) : cur.createdAt);
+  }, [cur?.id, ready]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!seePost) return;
     const t = setTimeout(() => setSeePost(false), 4000);
