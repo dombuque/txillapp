@@ -663,7 +663,7 @@ const st = StyleSheet.create({
   endNextText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   endBrand: { fontSize: 12, color: 'rgba(255,255,255,0.6)' },
   peopleMsg: { paddingVertical: 24, textAlign: 'center', color: colors.zinc500, fontSize: 16 },
-  person: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  person: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 24 },
   personName: { fontWeight: '600', fontSize: 16, color: colors.zinc900 },
   personUser: { fontSize: 14, color: colors.zinc500 },
 });

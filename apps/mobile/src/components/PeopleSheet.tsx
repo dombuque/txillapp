@@ -46,7 +46,7 @@ export function PeopleSheet({ postId, kind, onClose }: { postId: string; kind: P
 
 const st = StyleSheet.create({
   msg: { paddingVertical: 24, textAlign: 'center', color: colors.zinc600, fontSize: 16 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, paddingVertical: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 24 },
   name: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },
   handle: { fontSize: 14, color: colors.zinc500 },
 });
