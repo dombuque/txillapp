@@ -1,15 +1,15 @@
 # Pôr o Txillapp no ar (txillapp.com)
 
-Arquitetura: **1 servidor (Contabo Cloud VPS) + Docker Compose + Nginx + PostgreSQL + Redis + Cloudflare (DNS/CDN/segurança) + Cloudflare R2 (ficheiros) + cópias de segurança cifradas para fora do servidor**. Tudo o que é código/config está em `infra/prod/` e nos `Dockerfile` de `apps/api` e `apps/web`.
+Arquitetura: **1 servidor (Contabo Cloud VPS) + Docker Compose + Nginx + PostgreSQL + Redis + Cloudflare (DNS/CDN/segurança) + Cloudflare R2 (ficheiros) + cópias de segurança cifradas para fora do servidor**. Tudo o que é código/config está em `infra/prod/` e nos `Dockerfile` de `apps/api` e `apps/web` (este último constrói o nginx: exporta a app React Native de `apps/mobile` para web como site principal e o site antigo de `apps/web` só para `admin.`; ver `docs/REACT_NATIVE.md`).
 
 ## 1. Subdomínios
 
 | Subdomínio | O que é | Como |
 |---|---|---|
-| `app.txillapp.com` | A aplicação (PWA). **A API também responde aqui em `/api`** | Cloudflare (laranja) → nginx |
-| `api.txillapp.com` | A mesma API, para apps nativas (Capacitor) e integrações | Cloudflare (laranja) → nginx |
+| `txillapp.com` (e `app.`) | A aplicação React Native exportada para web (PWA), de `apps/mobile`. **A API também responde aqui em `/api`** | Cloudflare (laranja) → nginx |
+| `api.txillapp.com` | A mesma API, para as apps nativas (React Native/Expo) e integrações | Cloudflare (laranja) → nginx |
 | `media.txillapp.com` | Fotos, capas e vídeos aprovados | Domínio personalizado do **bucket público** do R2 |
-| `admin.txillapp.com` | Moderação e estatísticas | Cloudflare (laranja) → nginx, **protegido por Cloudflare Access** |
+| `admin.txillapp.com` | Moderação e estatísticas (o site antigo React/Vite de `apps/web`, só aqui) | Cloudflare (laranja) → nginx, **protegido por Cloudflare Access** |
 | `monitor.txillapp.com` | Grafana | Cloudflare (laranja) → nginx, **protegido por Cloudflare Access** |
 
 **Porque a app usa `/api` no mesmo endereço (e não `api.` como único caminho):** sem CORS, sem pedidos de pré-verificação (menos latência por pedido), os cookies de sessão ficam num só sítio e o tempo real (chat) é mais simples. `api.txillapp.com` fica pronto para a app nativa mais tarde.
@@ -99,7 +99,9 @@ Monitorização e pesquisa (opcionais): `docker compose --profile monitoring up 
 ## 6. Atualizar
 
 ```bash
-cd ~/txillapp && git pull && cd infra/prod && docker compose up -d --build && docker image prune -f
+cd /opt/txillapp && git pull && cd infra/prod && docker compose up -d --build && docker image prune -f
+# Só o site (a maior parte das alterações): docker compose up -d --build nginx
+# Só a API: docker compose up -d --build api
 ```
 
 As migrações correm sozinhas (`migrate`) antes de a API arrancar. As pessoas veem "Há uma versão nova 🎉" na app. Para reverter: `git checkout <commit-anterior>` e repetir (as migrações só avançam; escreve migrações compatíveis com a versão anterior).

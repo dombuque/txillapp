@@ -1,12 +1,14 @@
 # Txillapp — Arquitectura Técnica (v0.1, para validação)
 
-Estado: **proposta**. Nenhum código de aplicação foi escrito. A implementação só começa após validação deste documento (ver §10, decisões em aberto).
+Estado: documento de proposta inicial; o que mudou na prática está anotado em *Nota (2026-11)*. Para o estado real do site/app ver `docs/REACT_NATIVE.md` e `docs/DEPLOY.md`.
+
+> **Nota (2026-11):** o cliente principal é a app React Native/Expo em `apps/mobile`, exportada para web em txillapp.com (PWA) e compilada para Android/iOS. O `apps/web` (React + Vite) ficou só como painel de moderação em admin.txillapp.com. Não existe `apps/admin` separado.
 
 ## 1. Diagrama de arquitectura
 
 ```mermaid
 flowchart TD
-  C[PWA React / futuras apps Android-iOS] --> E[DNS + CDN + WAF]
+  C[App React Native: web PWA + Android/iOS] --> E[DNS + CDN + WAF]
   E --> LB[Load Balancer]
   LB --> API[API NestJS /api/v1 - stateless x N]
   LB --> WS[Gateway WebSocket - mesmo código, escalável à parte]
@@ -34,9 +36,9 @@ Princípios práticos: monólito modular + processos `api`, `worker`, `relay` a 
 ```
 txillapp/
   apps/
-    web/            # React + Vite + TS strict + Tailwind + PWA
+    mobile/         # React Native/Expo: site principal (web) + apps Android/iOS
+    web/            # React + Vite (hoje só a moderação em admin.)
     api/            # NestJS (entrypoints: main.ts, worker.ts, relay.ts)
-    admin/          # painel admin (React, mesma lib de UI, rotas protegidas + MFA)
   packages/
     ui/             # design system acessível
     api-client/     # cliente gerado do OpenAPI (reutilizável por RN/Flutter)

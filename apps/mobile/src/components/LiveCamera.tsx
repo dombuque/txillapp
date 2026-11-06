@@ -35,6 +35,8 @@ export function LiveCamera({ count, max, onShot, onGallery, onClose, onDone, onT
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const full = mode === 'photo' && count >= max;
+  // No iPhone, o seletor de fotos não devolve nada enquanto a câmara está ligada: desliga-se ao abrir a galeria e religa-se quando o seletor fecha.
+  const pausedForPicker = useRef(false);
 
   const stop = () => {
     stream.current?.getTracks().forEach((t) => t.stop());
@@ -68,6 +70,18 @@ export function LiveCamera({ count, max, onShot, onGallery, onClose, onDone, onT
     void start();
     return stop;
   }, [start]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const back = () => {
+      if (!pausedForPicker.current) return;
+      pausedForPicker.current = false;
+      void start();
+    };
+    window.addEventListener('focus', back);
+    document.addEventListener('visibilitychange', back);
+    return () => { window.removeEventListener('focus', back); document.removeEventListener('visibilitychange', back); };
+  }, [start]);
+  const openGallery = () => { pausedForPicker.current = true; stop(); };
   useEffect(() => () => {
     clearInterval(timer.current);
     if (recorder.current?.state === 'recording') recorder.current.stop();
@@ -148,7 +162,7 @@ export function LiveCamera({ count, max, onShot, onGallery, onClose, onDone, onT
               <Icon name="alert" size={48} color="rgba(255,255,255,0.7)" />
               <Text style={styles.pTitle}>{problem === 'denied' ? 'Sem permissão para a câmara' : problem === 'unsupported' ? 'A câmara precisa de ligação segura' : 'Não consegui abrir a câmara'}</Text>
               <Text style={styles.pSub}>{problem === 'denied' ? 'Ativa a câmara nas definições do browser, ou escolhe da galeria.' : 'Podes sempre escolher da galeria.'}</Text>
-              <GalleryPick onFiles={onGallery} style={styles.open}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Abrir galeria</Text></GalleryPick>
+              <GalleryPick onFiles={onGallery} onOpen={openGallery} style={styles.open}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Abrir galeria</Text></GalleryPick>
             </>
           )}
         </View>
@@ -165,7 +179,7 @@ export function LiveCamera({ count, max, onShot, onGallery, onClose, onDone, onT
       ) : null}
 
       <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 28) }]}>
-        <GalleryPick onFiles={onGallery} style={[round, { width: 56, height: 56, borderRadius: 16 }]}><Icon name="image" size={26} color="#fff" strokeWidth={2} /></GalleryPick>
+        <GalleryPick onFiles={onGallery} onOpen={openGallery} style={[round, { width: 56, height: 56, borderRadius: 16 }]}><Icon name="image" size={26} color="#fff" strokeWidth={2} /></GalleryPick>
         <Pressable onPress={mode === 'photo' ? shoot : record} disabled={!ready || full} style={[styles.shutter, (!ready || full) && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel={mode === 'photo' ? 'Tirar foto' : recording ? 'Parar de gravar' : 'Gravar vídeo'}>
           {mode === 'video' ? (recording ? <View style={styles.stopSq} /> : <View style={[styles.shutterIn, { backgroundColor: colors.brand }]} />) : <View style={styles.shutterIn} />}
         </Pressable>
@@ -182,14 +196,15 @@ export function LiveCamera({ count, max, onShot, onGallery, onClose, onDone, onT
 }
 
 /** Botão que abre o seletor de ficheiros do browser (fotos e vídeos). */
-function GalleryPick({ onFiles, style, children }: { onFiles: (f: File[]) => void; style?: object; children: React.ReactNode }) {
+function GalleryPick({ onFiles, onOpen, style, children }: { onFiles: (f: File[]) => void; onOpen?: () => void; style?: object; children: React.ReactNode }) {
   return (
     <View style={style as never} accessibilityRole="button" accessibilityLabel="Galeria">
       {children}
       {createElement('input', {
         type: 'file',
         multiple: true,
-        accept: 'image/jpeg,image/png,image/webp,video/*',
+        accept: 'image/*,video/*',
+        onClick: () => onOpen?.(),
         'aria-label': 'Escolher da galeria',
         style: { position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' },
         onChange: (e: { target: HTMLInputElement }) => {
