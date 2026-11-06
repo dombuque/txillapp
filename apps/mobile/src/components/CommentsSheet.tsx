@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { useRef, useState, useEffect } from 'react';
 import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -200,6 +200,18 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // "a escrever…": avisa o servidor enquanto se escreve (no máximo de 2 em 2 s) e pergunta quem mais está a escrever.
+  const lastPing = useRef(0);
+  const typers = useQuery({ queryKey: ['typing', post.id], queryFn: () => api.typers(post.id), refetchInterval: 3000, staleTime: 0, gcTime: 0 });
+  function onType(t: string) {
+    setText(t);
+    const now = Date.now();
+    if (t.trim() && now - lastPing.current > 2000) {
+      lastPing.current = now;
+      void api.typingPing(post.id).catch(() => undefined);
+    }
+  }
+  const typing = typers.data ?? [];
 
   const q = useInfiniteQuery({
     queryKey: ['comments', post.id],
@@ -311,6 +323,11 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
               <Pressable onPress={() => { setReplyTo(null); setText(''); }} hitSlop={8} accessibilityLabel="Cancelar resposta"><Text style={{ fontSize: 18, color: colors.zinc600, paddingHorizontal: 8 }}>×</Text></Pressable>
             </View>
           )}
+          {typing.length > 0 && (
+            <Text style={styles.typing} accessibilityLiveRegion="polite">
+              {typing.length === 1 ? `${typing[0]} está a escrever…` : typing.length === 2 ? `${typing[0]} e ${typing[1]} estão a escrever…` : `${typing[0]} e mais ${typing.length - 1} estão a escrever…`}
+            </Text>
+          )}
           <View style={styles.quick}>
             {QUICK.map((e) => (
               <Pressable key={e} onPress={() => { setText((t) => t + e); input.current?.focus(); }} accessibilityLabel={`Adicionar ${e}`} style={({ pressed }) => [pressed && { transform: [{ scale: 1.25 }] }]}><Text style={{ fontSize: 24, lineHeight: 32 }}>{e}</Text></Pressable>
@@ -319,7 +336,7 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
           <View style={styles.compose}>
             <Avatar name={user?.displayName ?? '?'} username={user?.username} size={36} />
             <View style={styles.field}>
-              <TextInput ref={input} value={text} onChangeText={setText} maxLength={1000} placeholder={replyTo ? `Responder a ${replyTo.author.username}…` : 'Diz lá…'} placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel="Escrever comentário" returnKeyType="send" onSubmitEditing={() => void submit()} />
+              <TextInput ref={input} value={text} onChangeText={onType} maxLength={1000} placeholder={replyTo ? `Responder a ${replyTo.author.username}…` : 'Diz lá…'} placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel="Escrever comentário" returnKeyType="send" onSubmitEditing={() => void submit()} />
               <Pressable onPress={() => void submit()} disabled={!text.trim() || busy} hitSlop={6}><Text style={[styles.publish, (!text.trim() || busy) && { opacity: 0.6 }]}>Publicar</Text></Pressable>
             </View>
           </View>
@@ -366,6 +383,7 @@ const styles = StyleSheet.create({
   bar: { borderTopWidth: 1, borderTopColor: colors.zinc200, paddingBottom: 4 },
   replying: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 8 },
   replyingText: { fontSize: 14, color: colors.zinc600 },
+  typing: { paddingHorizontal: 16, paddingTop: 8, fontSize: 13, color: colors.zinc500, fontStyle: 'italic' },
   quick: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   compose: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 8 },
   field: { flex: 1, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.zinc300, borderRadius: 999, paddingLeft: 16, paddingRight: 8 },

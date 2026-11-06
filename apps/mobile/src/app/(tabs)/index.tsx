@@ -12,6 +12,8 @@ import { StoriesTray } from '@/components/StoriesTray';
 import { useTabPress } from '@/lib/tabPress';
 import { Suggestions } from '@/components/Suggestions';
 import { WhatsNewCard } from '@/components/WhatsNew';
+import { EmailBanner } from '@/components/EmailBanner';
+import { WelcomeTour } from '@/components/WelcomeTour';
 import { Wordmark } from '@/components/Wordmark';
 import { api, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -134,6 +136,7 @@ export default function Feed() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <Header />
+      <WelcomeTour />
       <PullView pull={pull}>
       {fresh > 0 && (
         <View style={styles.freshWrap} pointerEvents="box-none">
@@ -168,6 +171,7 @@ export default function Feed() {
         )}
         ListHeaderComponent={
           <View style={{ paddingTop: 4 }}>
+            <EmailBanner />
             <WhatsNewCard />
             <ProfileNudge />
             <StoriesTray />

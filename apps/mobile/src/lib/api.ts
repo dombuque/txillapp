@@ -102,6 +102,8 @@ export interface PrivacySettings {
   giftsVisible: Viewers;
   showConnections: 'everyone' | 'followers' | 'me';
   suggestable: boolean;
+  /** Já viu (ou saltou) a visita guiada. */
+  welcomed?: boolean;
 }
 export interface StorySettings { replies: Who; hidden: { username: string; displayName: string }[] }
 export interface DeviceSession { id: string; device: string; firstSeen: string; lastUsed: string; current: boolean }
@@ -458,6 +460,13 @@ export const api = {
   resetExplore: (): Promise<void> => raw('/feed/prefs', { method: 'DELETE' }),
   privacy: (): Promise<PrivacySettings> => raw('/settings/privacy'),
   setPrivacy: (b: Partial<PrivacySettings>): Promise<PrivacySettings> => raw('/settings/privacy', { method: 'PATCH', body: JSON.stringify(b) }),
+  setWelcomed: (): Promise<PrivacySettings> => raw('/users/me/welcomed', { method: 'PUT' }),
+  /** Esta conta ainda tem de confirmar o e-mail? (sem isso não publica, comenta nem conversa) */
+  emailStatus: (): Promise<{ required: boolean; verified: boolean }> => raw('/auth/email/status'),
+  resendVerification: (): Promise<{ sent: boolean }> => raw('/auth/email/resend', { method: 'POST' }),
+  /** "A escrever…" nos comentários de uma publicação. */
+  typingPing: (postId: string): Promise<void> => raw('/presence/typing', post({ postId })),
+  typers: async (postId: string): Promise<string[]> => ((await raw(`/presence/typing?postId=${postId}`)) as { names: string[] }).names,
   storySettings: (): Promise<StorySettings> => raw('/stories/settings'),
   setStoryReplies: (replies: Who): Promise<StorySettings> => raw('/stories/settings', { method: 'PATCH', body: JSON.stringify({ replies }) }),
   hideStoryFrom: (username: string): Promise<StorySettings> => raw(`/stories/hidden/${encodeURIComponent(username)}`, { method: 'PUT' }),
