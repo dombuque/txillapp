@@ -15,6 +15,7 @@ import { BookmarkIcon } from './BookmarkIcon';
 import { Icon, type IconName } from './Icon';
 import { FollowButton } from './FollowButton';
 import { GiftSheet } from './PostSheets';
+import { EditProfileSheet, RequestsSheet } from './ProfileSheets';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
@@ -87,7 +88,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [tab, setTab] = useState<ProfileTab>('all');
-  const [sheet, setSheet] = useState<null | 'menu' | 'gift' | 'report'>(null);
+  const [sheet, setSheet] = useState<null | 'menu' | 'gift' | 'report' | 'edit' | 'requests'>(null);
 
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username), retry: false });
   const p = q.data;
@@ -194,7 +195,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
               ) : null}
             </View>
           )}
-          {!p.bio && p.isMe ? <Pressable onPress={() => soon('Editar perfil')}><Text style={styles.addBio}>Adiciona uma bio</Text></Pressable> : null}
+          {!p.bio && p.isMe ? <Pressable onPress={() => setSheet('edit')}><Text style={styles.addBio}>Adiciona uma bio</Text></Pressable> : null}
         </View>
 
         {p.blockedMe && (
@@ -215,7 +216,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           <View style={styles.btnRow}>
             {p.isMe ? (
               <>
-                <Pressable onPress={() => soon('Editar perfil')} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Editar perfil"><Icon name="pencil" size={20} /></Pressable>
+                <Pressable onPress={() => setSheet('edit')} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Editar perfil"><Icon name="pencil" size={20} /></Pressable>
                 <Pressable onPress={() => void shareProfile()} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Partilhar perfil"><QrGlyph /></Pressable>
                 <Pressable onPress={() => void inviteCrew()} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Convidar a malta"><Icon name="user-plus" size={20} /></Pressable>
                 <Pressable onPress={() => router.push('/wallet' as never)} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Carteira de Txills"><Icon name="wallet" size={20} /></Pressable>
@@ -236,7 +237,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
         )}
 
         {p.isMe && p.pendingRequests > 0 && (
-          <Pressable onPress={() => soon('Pedidos para seguir')} style={styles.requests}>
+          <Pressable onPress={() => setSheet('requests')} style={styles.requests}>
             <Text style={styles.requestsText}>Pedidos para seguir</Text>
             <View style={styles.requestsN}><Text style={styles.requestsNText}>{p.pendingRequests}</Text></View>
           </Pressable>
@@ -281,6 +282,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   return (
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <FlatList data={[] as never[]} renderItem={() => null} ListHeaderComponent={header} ListFooterComponent={<View style={{ height: 32 }} />} showsVerticalScrollIndicator={false} />
+      {sheet === 'edit' && <EditProfileSheet profile={p} onClose={() => setSheet(null)} />}
+      {sheet === 'requests' && <RequestsSheet username={p.username} onClose={() => setSheet(null)} />}
       {sheet === 'menu' && (
         <Sheet title={`@${p.username}`} onClose={() => setSheet(null)}>
           <View style={{ paddingHorizontal: 24 }}>
