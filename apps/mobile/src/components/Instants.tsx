@@ -222,7 +222,7 @@ function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, on
   return (
     <Animated.View
       {...(pan as object)}
-      style={[st.stack, { right: -36, bottom, opacity: rise, transform: [{ translateX: slide }, { translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }, { scale: Animated.multiply(shrink, press ? 0.95 : 1) }] }]}
+      style={[st.stack, { right: -22, bottom, opacity: rise, transform: [{ translateX: slide }, { translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }, { scale: Animated.multiply(shrink, press ? 0.95 : 1) }] }]}
     >
       <Pressable
         onPress={onOpen}
@@ -245,8 +245,8 @@ function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, on
           </View>
         ))}
         {total === 0 && (
-          <View style={[st.count, { minWidth: 24, paddingHorizontal: 0 }]}>
-            <Icon name="plus" size={14} color="#fff" strokeWidth={3} />
+          <View style={[st.count, { minWidth: 28, height: 28, borderRadius: 14, paddingHorizontal: 0 }]}>
+            <Icon name="plus" size={16} color="#fff" strokeWidth={3} />
           </View>
         )}
         {total > 0 && <View style={st.count}>
@@ -897,7 +897,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
 const st = StyleSheet.create({
   stack: { position: 'absolute', zIndex: 20 },
   layer: { position: 'absolute', left: 8, top: 8,boxShadow: '0 6px 18px rgba(0,0,0,0.25)', borderRadius: 18 },
-  count: { position: 'absolute', right: -2, top: -2, zIndex: 10, minWidth: 28, height: 24, borderRadius: 12, paddingHorizontal: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: colors.brand, boxShadow: '0 0 0 2px #fff, 0 2px 6px rgba(0,0,0,0.25)' },
+  count: { position: 'absolute', left: -2, top: -2, zIndex: 10, minWidth: 28, height: 24, borderRadius: 12, paddingHorizontal: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: colors.brand, boxShadow: '0 0 0 2px #fff, 0 2px 6px rgba(0,0,0,0.25)' },
   countText: { fontSize: 12, fontWeight: '800', color: '#fff' },
   edge: { width: 22, height: 54, borderTopLeftRadius: 16, borderBottomLeftRadius: 16, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.25)' },
   hubTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 8 },

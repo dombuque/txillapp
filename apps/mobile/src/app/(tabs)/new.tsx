@@ -33,7 +33,7 @@ async function toJpeg(f: File): Promise<File | null> {
   const url = URL.createObjectURL(f);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const i = new Image();
+      const i = document.createElement('img');
       i.onload = () => resolve(i);
       i.onerror = () => reject(new Error('img'));
       i.src = url;
@@ -168,19 +168,16 @@ export default function Compose() {
   async function addFiles(files: File[]) {
     let problem = '';
     const next: Asset[] = [];
-    let count = photos.length;
-    let vid = !!video;
+    let count = assets.length;
     for (const f of files) {
       if (f.type.startsWith('video/')) {
-        if (vid || count > 0) { problem = 'Vídeo e fotos não se misturam'; continue; }
+        if (count >= MAX_PHOTOS) { problem = `Máximo de ${MAX_PHOTOS} fotos e vídeos por publicação`; continue; }
         if (f.size > 100 * 1024 * 1024) { problem = 'Vídeo pesado demais! Máximo 100 MB'; continue; }
         const uri = URL.createObjectURL(f);
         const ms = await probeDuration(uri);
         if (ms > 60_500) { URL.revokeObjectURL(uri); problem = 'O vídeo tem de ter até 60 segundos'; continue; }
         next.push({ uri, video: true, mime: f.type, durationMs: ms || undefined, tags: [] });
-        vid = true;
-      } else if (vid) {
-        problem = 'Vídeo e fotos não se misturam';
+        count += 1;
       } else if (count >= MAX_PHOTOS) {
         problem = `Máximo de ${MAX_PHOTOS} fotos por publicação`;
         break;
@@ -198,13 +195,13 @@ export default function Compose() {
     }
     setErr(problem);
     if (next.length) {
-      setAssets((cur) => (next[0].video ? next.slice(0, 1) : [...cur.filter((a) => !a.video), ...next].slice(0, MAX_PHOTOS)));
+      setAssets((cur) => [...cur, ...next].slice(0, MAX_PHOTOS));
       setStep('write');
     }
   }
   function shot(s: Shot) {
     if (s.video) {
-      setAssets([{ uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [] }]);
+      setAssets((cur) => [...cur, { uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [] }].slice(0, MAX_PHOTOS));
       setCameraOpen(false);
       setStep('write');
     } else {
@@ -359,7 +356,7 @@ export default function Compose() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.canvas, paddingTop: insets.top }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.top}>
         <Pressable onPress={leave} style={styles.x} accessibilityRole="button" accessibilityLabel="Cancelar"><Icon name="x" size={24} strokeWidth={2} /></Pressable>
-        <Text style={styles.title}>{video ? 'Nova tcheka' : 'Nova publicação'}</Text>
+        <Text style={styles.title}>{video && photos.length === 0 ? 'Nova tcheka' : 'Nova publicação'}</Text>
         <Pressable onPress={() => void submit()} disabled={!canPost} style={[styles.publish, !canPost && { backgroundColor: 'rgba(214,51,79,0.4)' }]} accessibilityRole="button">
           {busy ? <ActivityIndicator color="#fff" size="small" style={{ height: 28 }} /> : <Text style={styles.publishText}>Publicar</Text>}
         </Pressable>
@@ -447,17 +444,17 @@ export default function Compose() {
 
           <View style={styles.chips}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Pressable onPress={pickPhoto} disabled={photos.length >= MAX_PHOTOS || !!video} style={[styles.chip, (photos.length >= MAX_PHOTOS || !!video) && chipOff]} accessibilityRole="button">
+              <Pressable onPress={pickPhoto} disabled={assets.length >= MAX_PHOTOS} style={[styles.chip, assets.length >= MAX_PHOTOS && chipOff]} accessibilityRole="button">
                 <Icon name="camera" size={20} color={colors.zinc800} /><Text style={styles.chipText}>Foto</Text>
               </Pressable>
-              <Pressable onPress={pickVideo} disabled={photos.length > 0 || !!video} style={[styles.chip, (photos.length > 0 || !!video) && chipOff]} accessibilityRole="button">
+              <Pressable onPress={pickVideo} disabled={assets.length >= MAX_PHOTOS} style={[styles.chip, assets.length >= MAX_PHOTOS && chipOff]} accessibilityRole="button">
                 <Icon name="video" size={20} color={colors.zinc800} /><Text style={styles.chipText}>Vídeo</Text>
               </Pressable>
               <Pressable onPress={() => setPlaceOpen(true)} style={styles.chip} accessibilityRole="button">
                 <Icon name="map-pin" size={20} color={colors.zinc800} /><Text style={styles.chipText}>Local</Text>
               </Pressable>
             </View>
-            {photos.length > 0 ? <Text style={styles.count}>{photos.length}/{MAX_PHOTOS} fotos</Text> : null}
+            {assets.length > 0 ? <Text style={styles.count}>{assets.length}/{MAX_PHOTOS}</Text> : null}
           </View>
         </View>
 

@@ -1,14 +1,15 @@
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Avatar } from '@/components/Avatar';
+import { FollowButton } from '@/components/FollowButton';
 import { Icon, type IconName } from '@/components/Icon';
 import { ReactionArt } from '@/components/StoryParts';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
-import { api, type AppNotification } from '@/lib/api';
+import { ApiError, api, type AppNotification } from '@/lib/api';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
@@ -60,6 +61,7 @@ function targetOf(n: AppNotification): string | null {
     case 'gift': return post ? `/p/${post}` : n.kind === 'gift' ? '/wallet' : `/u/${n.actor.username}`;
     case 'story_reply': return n.data.replyKind === 'comment' ? '/profile' : `/messages/${n.actor.username}`;
     case 'follow':
+    case 'follow_request':
     case 'verified':
     case 'request_accepted': return `/u/${n.actor.username}`;
     default: return null;
@@ -72,7 +74,12 @@ function Row({ n, fresh }: { n: AppNotification; fresh: boolean }) {
   const target = targetOf(n);
   const [answer, setAnswer] = useState<'accepted' | 'declined' | null>(null);
   const [busy, setBusy] = useState(false);
+  // Depois de aceitar: "Seguir de volta", se ainda não segues a pessoa.
+  const [back, setBack] = useState<{ isPrivate: boolean } | null>(null);
   const { text, sub } = describe(n);
+  // Os pedidos ainda pendentes vêm do servidor: um pedido já respondido (noutro aparelho, ou antes) não volta a mostrar os botões.
+  const pending = useQuery({ queryKey: ['requests'], queryFn: api.followRequests, enabled: n.kind === 'follow_request', staleTime: 10_000 });
+  const stillPending = n.kind === 'follow_request' && (!pending.isSuccess || pending.data.some((r: { username: string }) => r.username === n.actor.username));
 
   async function respond(accept: boolean) {
     setBusy(true);
@@ -80,8 +87,25 @@ function Row({ n, fresh }: { n: AppNotification; fresh: boolean }) {
       await (accept ? api.acceptRequest(n.actor.username) : api.declineRequest(n.actor.username));
       setAnswer(accept ? 'accepted' : 'declined');
       void qc.invalidateQueries({ queryKey: ['profile'] });
-    } catch {
-      setAnswer(null);
+      void qc.invalidateQueries({ queryKey: ['requests'] });
+      if (accept) {
+        try {
+          const p = await api.profile(n.actor.username);
+          if (!p.following && !p.requested) setBack({ isPrivate: p.isPrivate });
+        } catch {
+          /* sem perfil: fica só "Pedido aceite" */
+        }
+      }
+    } catch (e) {
+      const st = e instanceof ApiError ? e.status : 0;
+      if (st === 404 || st === 409) {
+        // Já estava respondido (ou já segue): não há nada a aceitar.
+        setAnswer(accept ? 'accepted' : 'declined');
+        void qc.invalidateQueries({ queryKey: ['requests'] });
+      } else {
+        Alert.alert('Não consegui responder ao pedido', (e as Error).message || 'Verifica a internet e tenta outra vez.');
+        setAnswer(null);
+      }
     } finally {
       setBusy(false);
     }
@@ -100,13 +124,14 @@ function Row({ n, fresh }: { n: AppNotification; fresh: boolean }) {
           <Text style={{ fontWeight: '700' }}>{n.actor.username}</Text> {text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt)}</Text>
         </Text>
         {sub ? <Text style={styles.sub} numberOfLines={3}>{sub}</Text> : null}
-        {n.kind === 'follow_request' && !answer && (
+        {n.kind === 'follow_request' && !answer && stillPending && (
           <View style={styles.btns}>
             <Pressable disabled={busy} onPress={() => void respond(true)} style={styles.accept}><Text style={styles.acceptText}>Aceitar</Text></Pressable>
             <Pressable disabled={busy} onPress={() => void respond(false)} style={styles.decline}><Text style={styles.declineText}>Recusar</Text></Pressable>
           </View>
         )}
         {answer ? <Text style={styles.answer}>{answer === 'accepted' ? 'Pedido aceite' : 'Pedido recusado'}</Text> : null}
+        {back ? <View style={{ marginTop: 8, width: 140, flexDirection: 'row' }}><FollowButton username={n.actor.username} following={false} requested={false} isPrivate={back.isPrivate} /></View> : null}
       </View>
     </Pressable>
   );
