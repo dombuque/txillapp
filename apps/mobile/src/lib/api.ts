@@ -138,6 +138,20 @@ export interface ChatThread {
   items: ChatMessage[];
   nextCursor: string | null;
 }
+export interface Story {
+  id: string;
+  mediaUrl: string;
+  caption: string | null;
+  audience: 'all' | 'close_friends';
+  mediaKind: 'image' | 'video';
+  durationMs: number | null;
+  sharedFrom: { postId: string; username: string; displayName: string } | null;
+  createdAt: string;
+  expiresAt: string;
+  author: { username: string; displayName: string };
+  seen: boolean;
+  viewCount: number | null;
+}
 export interface TrayUser { username: string; displayName: string; isMe: boolean; count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
@@ -237,6 +251,16 @@ export const api = {
     if (r.refreshToken) await refreshStore.set(r.refreshToken);
     return r;
   },
+  async register(b: { email: string; username: string; displayName: string; password: string; birthDate: string; acceptTerms: true; gender?: string; inviteCode?: string }): Promise<AuthResult> {
+    const r = (await parse(await call('/auth/register', post(b), false))) as AuthResult;
+    accessToken = r.accessToken;
+    if (r.refreshToken) await refreshStore.set(r.refreshToken);
+    return r;
+  },
+  usernameAvailable: (u: string): Promise<{ available: boolean; reason?: 'invalid' | 'reserved' | 'taken'; suggestions?: string[] }> => raw(`/auth/username-available?username=${encodeURIComponent(u)}`),
+  emailAvailable: (e: string): Promise<{ available: boolean; reason?: 'invalid' | 'taken' }> => raw(`/auth/email-available?email=${encodeURIComponent(e)}`),
+  forgotPassword: (email: string): Promise<{ ok: boolean }> => raw('/auth/password/forgot', post({ email })),
+  invitePreview: (code: string): Promise<{ username: string; displayName: string }> => raw(`/invites/preview/${encodeURIComponent(code)}`),
   async logout(): Promise<void> {
     const token = await refreshStore.get();
     if (token) await call('/auth/logout', { method: 'POST', headers: isWeb ? {} : { 'X-Refresh-Token': token } }, false).catch(() => undefined);
@@ -254,6 +278,11 @@ export const api = {
   unrepost: (id: string): Promise<{ reposted: boolean; reposts: number }> => raw(`/posts/${id}/repost`, { method: 'DELETE' }),
   markSeen: (ids: string[]): Promise<void> => raw('/feed/seen', post({ ids })),
   stories: (): Promise<TrayUser[]> => raw('/stories'),
+  storiesOf: (username: string): Promise<Story[]> => raw(`/stories/user/${encodeURIComponent(username)}`),
+  createStory: (mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all'): Promise<Story> => raw('/stories', post({ mediaId, caption, audience })),
+  viewStory: (id: string): Promise<void> => raw(`/stories/${id}/view`, post({})),
+  deleteStory: (id: string): Promise<void> => raw(`/stories/${id}`, { method: 'DELETE' }),
+  reels: (cursor?: string): Promise<Page<Post>> => raw(`/feed/reels${cursor ? `?cursor=${cursor}&limit=6` : '?limit=6'}`),
   createPost: (b: { body: string; locationLabel?: string; mediaIds: string[] }): Promise<Post> => raw('/posts', post(b)),
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),

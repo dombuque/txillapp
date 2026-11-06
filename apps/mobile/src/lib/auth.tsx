@@ -9,6 +9,7 @@ interface AuthState {
   /** Sem rede ao abrir: a app tenta outra vez em vez de pedir login. */
   offline: boolean;
   signIn: (identifier: string, password: string) => Promise<void>;
+  signUp: (b: Parameters<typeof api.register>[0]) => Promise<void>;
   signOut: () => Promise<void>;
   retry: () => void;
 }
@@ -64,12 +65,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(r.user);
   }, []);
 
+  const signUp = useCallback(async (b: Parameters<typeof api.register>[0]) => {
+    const r = await api.register(b);
+    setUser(r.user);
+  }, []);
+
   const signOut = useCallback(async () => {
     await api.logout();
     setUser(null);
     qc.clear(); // a próxima pessoa não vê dados da anterior
   }, [qc]);
 
-  const value = useMemo<AuthState>(() => ({ user, loading, offline, signIn, signOut, retry: () => setAttempt((n) => n + 1) }), [user, loading, offline, signIn, signOut]);
+  const value = useMemo<AuthState>(() => ({ user, loading, offline, signIn, signUp, signOut, retry: () => setAttempt((n) => n + 1) }), [user, loading, offline, signIn, signUp, signOut]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -1,4 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,12 +30,12 @@ function Blob({ size, color, style }: { size: number; color: string; style: obje
 }
 
 /** Campo arredondado e branco, com ícone, como no site (anel coral ao escrever). */
-function Field({ icon, secure, ...rest }: { icon: 'at' | 'lock'; secure?: boolean } & React.ComponentProps<typeof TextInput>) {
+export function Field({ icon, secure, status, ...rest }: { icon: 'at' | 'lock' | 'user' | 'mail' | 'calendar'; secure?: boolean; status?: 'ok' | 'bad' | 'checking' } & React.ComponentProps<typeof TextInput>) {
   const [focus, setFocus] = useState(false);
   const [shown, setShown] = useState(false);
   const tint = focus ? colors.brand : colors.zinc600;
   return (
-    <View style={[styles.field, { boxShadow: focus ? `0 0 0 2px ${colors.brand}` : '0 1px 10px rgba(0,0,0,0.06)' }]}>
+    <View style={[styles.field, { boxShadow: status === 'ok' ? '0 0 0 2px #22c55e' : status === 'bad' ? '0 0 0 2px #ef4444' : focus ? `0 0 0 2px ${colors.brand}` : '0 1px 10px rgba(0,0,0,0.06)' }]}>
       <Icon name={icon} size={22} color={tint} />
       <TextInput
         {...rest}
@@ -46,6 +47,9 @@ function Field({ icon, secure, ...rest }: { icon: 'at' | 'lock'; secure?: boolea
         spellCheck={false}
         style={styles.input}
       />
+      {status === 'checking' && <ActivityIndicator size="small" color={colors.zinc600} />}
+      {status === 'ok' && <Icon name="check" size={22} color="#22c55e" strokeWidth={2.4} />}
+      {status === 'bad' && <Icon name="x" size={22} color="#ef4444" strokeWidth={2.4} />}
       {secure && (
         <Pressable onPress={() => setShown((s) => !s)} hitSlop={8} accessibilityRole="button" accessibilityLabel={shown ? 'Esconder a senha' : 'Mostrar a senha'}>
           <Icon name={shown ? 'eye-off' : 'eye'} size={22} color={colors.zinc600} />
@@ -55,7 +59,7 @@ function Field({ icon, secure, ...rest }: { icon: 'at' | 'lock'; secure?: boolea
   );
 }
 
-function Screen({ children, footer }: { children: ReactNode; footer: ReactNode }) {
+export function Screen({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   const insets = useSafeAreaInsets();
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.canvas, overflow: 'hidden' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -66,7 +70,7 @@ function Screen({ children, footer }: { children: ReactNode; footer: ReactNode }
       <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 24, paddingHorizontal: 28 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {children}
       </ScrollView>
-      <View style={[styles.footer, { paddingBottom: 20 + insets.bottom }]}>{footer}</View>
+      {footer ? <View style={[styles.footer, { paddingBottom: 20 + insets.bottom }]}>{footer}</View> : null}
     </KeyboardAvoidingView>
   );
 }
@@ -74,6 +78,7 @@ function Screen({ children, footer }: { children: ReactNode; footer: ReactNode }
 /** Entrar: "Qual é a Vibe?", @ ou email e senha. */
 export default function Login() {
   const { signIn } = useAuth();
+  const router = useRouter();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -98,7 +103,7 @@ export default function Login() {
       footer={
         <Text style={styles.footerText}>
           É novo no txillapp?{' '}
-          <Text style={{ color: colors.brand, fontWeight: '600' }} onPress={() => open('/register')} accessibilityRole="link">
+          <Text style={{ color: colors.brand, fontWeight: '600' }} onPress={() => router.push('/register' as never)} accessibilityRole="link">
             Cria a tua conta
           </Text>
         </Text>
@@ -144,13 +149,14 @@ export default function Login() {
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>Entrar</Text>}
           </LinearGradient>
         </Pressable>
-        <Text style={styles.forgot} onPress={() => open('/forgot-password')} accessibilityRole="link">Esqueceste a senha?</Text>
+        <Text style={styles.forgot} onPress={() => router.push('/forgot-password' as never)} accessibilityRole="link">Esqueceste a senha?</Text>
       </View>
       <View style={{ height: 24 }} />
     </Screen>
   );
 }
 
+export const authStyles = () => styles;
 const styles = StyleSheet.create({
   title: { marginTop: 28, fontSize: 38, fontWeight: '800', lineHeight: 40, color: colors.zinc900 },
   sub: { marginTop: 8, fontSize: 18, fontWeight: '300', lineHeight: 28, color: colors.zinc600 },

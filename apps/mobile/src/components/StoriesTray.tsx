@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -50,29 +51,31 @@ function Ring({ count, seenCount = 0, green = false, children }: { count: number
 /** Tabuleiro de stories no topo do Início: o teu primeiro (com o "+"), depois quem segues. */
 export function StoriesTray() {
   const { user } = useAuth();
+  const router = useRouter();
   const { data } = useQuery({ queryKey: ['stories'], queryFn: api.stories, refetchInterval: 60_000 });
   const users = data ?? [];
   const others = users.filter((u) => !u.isMe);
   const mine = users.find((u) => u.isMe);
-  const open = () => Alert.alert('Stories', 'Ver e criar stories ainda está a ser passado para a app. Já vem aí.');
+  const create = () => router.push('/stories/new' as never);
+  const view = (u: string) => router.push(`/stories/${u}` as never);
 
   return (
     <View style={{ marginBottom: 16 }} accessibilityLabel="Stories">
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        <Pressable onPress={open} style={styles.bubble} accessibilityRole="button" accessibilityLabel={mine ? 'Ver o teu story' : 'Criar story'}>
+        <Pressable onPress={() => (mine ? view(user?.username ?? '') : create())} style={styles.bubble} accessibilityRole="button" accessibilityLabel={mine ? 'Ver o teu story' : 'Criar story'}>
           <View>
             <Ring count={mine?.count ?? 1} seenCount={mine ? 0 : 1} green={mine?.closeFriends}>
               <Avatar name={user?.displayName ?? '?'} username={user?.username} size={56} />
             </Ring>
-            <View style={styles.plus}>
+            <Pressable onPress={create} hitSlop={8} style={styles.plus} accessibilityRole="button" accessibilityLabel="Adicionar ao story">
               <Text style={styles.plusText}>+</Text>
-            </View>
+            </Pressable>
           </View>
           <Text style={[styles.label, { color: colors.zinc800, fontWeight: '500' }]} numberOfLines={1}>O teu story</Text>
         </Pressable>
 
         {others.map((u) => (
-          <Pressable key={u.username} onPress={open} style={styles.bubble} accessibilityRole="button" accessibilityLabel={`Ver story de ${u.displayName}${u.seen ? '' : ' (novo)'}`}>
+          <Pressable key={u.username} onPress={() => view(u.username)} style={styles.bubble} accessibilityRole="button" accessibilityLabel={`Ver story de ${u.displayName}${u.seen ? '' : ' (novo)'}`}>
             <View style={{ opacity: u.seen ? 0.6 : 1 }}>
               <Ring count={u.count} seenCount={u.seenCount} green={u.closeFriends}>
                 <Avatar name={u.displayName} username={u.username} size={56} />

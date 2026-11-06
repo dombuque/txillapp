@@ -25,7 +25,7 @@ function Gate() {
 
   useEffect(() => {
     if (loading || offline) return;
-    const onLogin = segments[0] === 'login';
+    const onLogin = segments[0] === 'login' || segments[0] === 'register' || segments[0] === 'forgot-password';
     if (!user && !onLogin) router.replace('/login');
     else if (user && onLogin) router.replace('/');
   }, [user, loading, offline, segments, router]);
@@ -45,12 +45,16 @@ function Gate() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.white } }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="login" options={{ animation: 'fade' }} />
+      <Stack.Screen name="register" />
+      <Stack.Screen name="forgot-password" />
       <Stack.Screen name="search" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="u/[username]" />
       <Stack.Screen name="p/[id]" />
       <Stack.Screen name="messages/[username]" />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="stories/[username]" options={{ animation: 'fade' }} />
+      <Stack.Screen name="stories/new" options={{ animation: 'slide_from_bottom' }} />
     </Stack>
     </View>
   );
