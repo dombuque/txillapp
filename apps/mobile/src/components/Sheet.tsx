@@ -1,0 +1,82 @@
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Animated, Dimensions, Keyboard, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors } from '@/lib/theme';
+import { Icon } from './Icon';
+
+/** Os conteúdos rolantes avisam a folha de onde estão (só se fecha a arrastar quando estão no topo). */
+const ScrollCtx = createContext<{ top: React.MutableRefObject<boolean> } | null>(null);
+export const useSheetScroll = () => useContext(ScrollCtx);
+
+/**
+ * Folha de baixo igual à do site: cantos de 28, pega de arrastar, título e ×. Puxar para baixo fecha-a
+ * (a página por trás não se mexe). `full` ocupa 78% do ecrã (comentários); sem ele ajusta-se ao conteúdo.
+ */
+export function Sheet({ title, onClose, children, full = false, plain = false }: { title?: string; onClose: () => void; children: ReactNode; full?: boolean; plain?: boolean }) {
+  const insets = useSafeAreaInsets();
+  const h = Dimensions.get('window').height;
+  const y = useRef(new Animated.Value(h)).current;
+  const atTop = useRef(true);
+  const [kb, setKb] = useState(0);
+
+  useEffect(() => {
+    Animated.timing(y, { toValue: 0, duration: 230, useNativeDriver: Platform.OS !== 'web' }).start();
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (e) => setKb(e.endCoordinates.height));
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKb(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [y]);
+
+  const close = () => Animated.timing(y, { toValue: h, duration: 180, useNativeDriver: Platform.OS !== 'web' }).start(() => onClose());
+
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_e, g) => g.dy > 8 && Math.abs(g.dy) > Math.abs(g.dx) * 1.4 && atTop.current,
+      onPanResponderMove: (_e, g) => y.setValue(Math.max(0, g.dy)),
+      onPanResponderRelease: (_e, g) => {
+        if (g.dy > 120 || g.vy > 0.9) close();
+        else Animated.spring(y, { toValue: 0, useNativeDriver: Platform.OS !== 'web', bounciness: 0 }).start();
+      },
+    }),
+  ).current;
+
+  const backdrop = y.interpolate({ inputRange: [0, h], outputRange: [0.4, 0], extrapolate: 'clamp' });
+
+  return (
+    <Modal transparent visible animationType="none" onRequestClose={close} statusBarTranslucent>
+      <View style={styles.root}>
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: backdrop }]} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Fechar" />
+        <Animated.View
+          {...pan.panHandlers}
+          style={[styles.sheet, full ? { height: Math.round(h * 0.78) } : { maxHeight: Math.round(h * 0.85) }, { paddingBottom: Math.max(insets.bottom, 16) + (kb ? kb - insets.bottom : 0), transform: [{ translateY: y }] }]}
+          accessibilityViewIsModal
+        >
+          <ScrollCtx.Provider value={{ top: atTop }}>
+            <View style={styles.handle} />
+            {title && !plain ? (
+              <View style={styles.head}>
+                <Text style={styles.title}>{title}</Text>
+                <Pressable onPress={close} hitSlop={8} style={styles.x} accessibilityRole="button" accessibilityLabel="Fechar">
+                  <Icon name="x" size={22} color={colors.zinc600} strokeWidth={2.2} />
+                </Pressable>
+              </View>
+            ) : null}
+            {children}
+          </ScrollCtx.Provider>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, justifyContent: 'flex-end', alignItems: 'center' },
+  sheet: { width: '100%', maxWidth: 576, backgroundColor: colors.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 12 },
+  handle: { alignSelf: 'center', width: 40, height: 6, borderRadius: 3, backgroundColor: colors.zinc300, marginBottom: 12 },
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, marginBottom: 16 },
+  title: { fontSize: 20, fontWeight: '700', color: colors.zinc900 },
+  x: { width: 44, height: 44, marginRight: -10, alignItems: 'center', justifyContent: 'center' },
+});

@@ -2,17 +2,17 @@ import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { memo, useState } from 'react';
-import Svg, { Path } from 'react-native-svg';
-import { Alert, FlatList, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { FlatList, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { api, type Page, type Post } from '@/lib/api';
 import { SITE_URL, sized } from '@/lib/config';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
+import { BookmarkIcon } from './BookmarkIcon';
+import { CommentsSheet } from './CommentsSheet';
 import { Icon } from './Icon';
+import { GiftSheet, PostMenuSheet, RepostSheet } from './PostSheets';
 import { VerifiedBadge } from './VerifiedBadge';
-
-const soon = (what: string) => Alert.alert(what, 'Isto ainda está a ser passado para a app. Já vem aí.');
 
 /** Atualiza uma publicação na lista do feed (também dentro de um repost). */
 function usePatch(id: string) {
@@ -47,6 +47,7 @@ function PostBody({ post, me }: { post: Post; me?: string }) {
   const margin = width >= 360 ? 8 : 6;
   const pad = width >= 360 ? 16 : 14;
   const inner = width - margin * 2 - pad * 2;
+  const [sheet, setSheet] = useState<null | 'menu' | 'comments' | 'repost' | { gift: { username: string; displayName: string; amount?: number; note?: string } }>(null);
 
   async function toggleSave() {
     const next = !post.saved;
@@ -81,27 +82,35 @@ function PostBody({ post, me }: { post: Post; me?: string }) {
           {post.editedAt ? ' · editado' : ''}
         </Text>
         <Pressable onPress={() => void toggleSave()} hitSlop={6} style={styles.save} accessibilityRole="button" accessibilityLabel={post.saved ? 'Tirar dos guardados' : 'Guardar'}>
-          <Bookmark on={!!post.saved} />
+          <BookmarkIcon on={!!post.saved} size={24} />
         </Pressable>
-        <Pressable onPress={() => soon('Mais opções')} hitSlop={6} style={styles.more} accessibilityRole="button" accessibilityLabel="Mais opções da publicação">
+        <Pressable onPress={() => setSheet('menu')} hitSlop={6} style={styles.more} accessibilityRole="button" accessibilityLabel="Mais opções da publicação">
           <Icon name="more" size={26} strokeWidth={3} />
         </Pressable>
       </View>
 
       {post.body ? <Text style={styles.body}>{post.body}</Text> : null}
       <Carousel media={post.media} width={inner} />
-      <Actions post={post} mine={mine} patch={patch} />
+      <Actions post={post} mine={mine} patch={patch} open={(k) => setSheet(k === 'gift' ? { gift: { username: post.author.username, displayName: post.author.displayName } } : k)} />
+      {sheet === 'menu' && <PostMenuSheet post={post} mine={mine} onClose={() => setSheet(null)} onSaved={(saved) => patch({ saved })} />}
+      {sheet === 'comments' && (
+        <CommentsSheet
+          post={post}
+          onClose={() => setSheet(null)}
+          onDelta={(d) => patch({ comments: Math.max(0, post.comments + d) })}
+          onGift={(to, amount, note) => setSheet({ gift: { ...to, amount, note } })}
+        />
+      )}
+      {sheet === 'repost' && <RepostSheet post={post} onChange={patch} onClose={() => setSheet(null)} />}
+      {typeof sheet === 'object' && sheet && (
+        <GiftSheet
+          recipient={sheet.gift}
+          postId={sheet.gift.username === post.author.username && !sheet.gift.amount ? post.id : undefined}
+          preset={sheet.gift.amount ? { amount: sheet.gift.amount, note: sheet.gift.note, visibility: 'private' } : undefined}
+          onClose={() => setSheet(null)}
+        />
+      )}
     </View>
-  );
-}
-
-/** Marcador de guardar (o mesmo desenho do site): cheio quando está guardada. */
-function Bookmark({ on }: { on: boolean }) {
-  const c = on ? colors.zinc900 : colors.zinc700;
-  return (
-    <Svg width={24} height={24} viewBox="0 0 24 24" fill={on ? c : 'none'} stroke={c} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M6.5 4.5h11a1 1 0 0 1 1 1V20l-6.5-4.2L5.5 20V5.5a1 1 0 0 1 1-1z" />
-    </Svg>
   );
 }
 
@@ -160,7 +169,7 @@ function Carousel({ media, width }: { media: Post['media']; width: number }) {
 }
 
 /** Contadores em cima e, por baixo da linha, as ações com ícone e nome (Brindar, Comentar, Repostar, Presentear, Partilhar). */
-function Actions({ post, mine, patch }: { post: Post; mine: boolean; patch: (p: Partial<Post>) => void }) {
+function Actions({ post, mine, patch, open }: { post: Post; mine: boolean; patch: (p: Partial<Post>) => void; open: (k: 'comments' | 'repost' | 'gift') => void }) {
   const cheer = useMutation({
     mutationFn: () => api.cheer(post.id),
     onMutate: () => {
@@ -203,13 +212,17 @@ function Actions({ post, mine, patch }: { post: Post; mine: boolean; patch: (p: 
             </View>
           ))}
         </View>
-        {post.comments > 0 && <Text style={styles.commentsCount}>{post.comments} {post.comments === 1 ? 'Comentário' : 'Comentários'}</Text>}
+        {post.comments > 0 && (
+          <Pressable onPress={() => open('comments')} hitSlop={6}>
+            <Text style={styles.commentsCount}>{post.comments} {post.comments === 1 ? 'Comentário' : 'Comentários'}</Text>
+          </Pressable>
+        )}
       </View>
       <View style={styles.bar}>
         <Btn label={post.cheered ? 'Brindou' : 'Brindar'} icon="cheers" size={24} color={post.cheered ? colors.amber600 : colors.zinc800} onPress={() => cheer.mutate()} />
-        <Btn label="Comentar" icon="comment" onPress={() => soon('Comentários')} />
-        <Btn label={post.reposted ? 'Repostado' : 'Repostar'} icon="repeat" color={post.reposted ? colors.green700 : colors.zinc800} onPress={() => soon('Repostar')} />
-        {!mine && post.canGift && <Btn label="Presentear" icon="present" onPress={() => soon('Presentear')} />}
+        <Btn label="Comentar" icon="comment" onPress={() => open('comments')} />
+        <Btn label={post.reposted ? 'Repostado' : 'Repostar'} icon="repeat" color={post.reposted ? colors.green700 : colors.zinc800} onPress={() => open('repost')} />
+        {!mine && post.canGift && <Btn label="Presentear" icon="present" onPress={() => open('gift')} />}
         <Btn label="Partilhar" icon="share" size={24} onPress={() => void share()} />
       </View>
     </>

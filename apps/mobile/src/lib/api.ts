@@ -24,12 +24,39 @@ export interface Post {
   gifts: number;
   saved?: boolean;
   canGift: boolean;
+  canComment?: boolean;
+  commentsOff?: boolean;
   editedAt?: string | null;
   lists?: { reposts: boolean; cheers: boolean; gifts: boolean };
   feed?: { source: 'following' | 'self' | 'discover'; seen: boolean };
   kind: 'post' | 'gift' | 'repost';
   repostOf?: Post | null;
   gift: { amount: number; recipient: { username: string; displayName: string } } | null;
+}
+export interface Comment {
+  id: string;
+  postId: string;
+  parentId: string | null;
+  body: string;
+  createdAt: string;
+  author: Author;
+  cheers: number;
+  cheered: boolean;
+  replyCount: number;
+  editedAt?: string | null;
+  authorFollowed?: boolean;
+}
+export type GiftVisibility = 'silent' | 'private' | 'public';
+export type ReportReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence' | 'scam' | 'impersonation' | 'minor' | 'other';
+export type ReportType = 'post' | 'comment' | 'story' | 'user' | 'message';
+export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified';
+export interface AppNotification {
+  id: string;
+  kind: NotificationKind;
+  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; replyKind?: 'reply' | 'reaction' | 'comment' };
+  createdAt: string;
+  read: boolean;
+  actor: { username: string; displayName: string };
 }
 export interface TrayUser { username: string; displayName: string; isMe: boolean; count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string }
 export interface Page<T> { items: T[]; nextCursor: string | null }
@@ -125,8 +152,29 @@ export const api = {
   },
   feed: (cursor?: string): Promise<Page<Post>> => raw(`/feed${cursor ? `?cursor=${encodeURIComponent(cursor)}&limit=10` : '?limit=10'}`),
   cheer: (id: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/posts/${id}/cheers`, post({})),
+  gift: (id: string, amount: number, key: string, note = '', visibility: GiftVisibility = 'silent'): Promise<{ transactionId: string; post: Post; announcement: Post | null }> =>
+    raw(`/posts/${id}/gifts`, { ...post({ amount, note, visibility }), headers: { 'Idempotency-Key': key } }),
+  giftUser: (b: { toUsername: string; amount: number; note?: string; visibility: GiftVisibility }, key: string): Promise<{ transactionId: string; replayed: boolean; post: Post | null }> =>
+    raw('/gifts', { ...post(b), headers: { 'Idempotency-Key': key } }),
+  publishGift: (transactionId: string, note?: string): Promise<{ post: Post }> => raw(`/gifts/${transactionId}/publish`, post({ note })),
+  repost: (id: string, body = ''): Promise<Post> => raw(`/posts/${id}/repost`, post({ body })),
+  unrepost: (id: string): Promise<{ reposted: boolean; reposts: number }> => raw(`/posts/${id}/repost`, { method: 'DELETE' }),
   markSeen: (ids: string[]): Promise<void> => raw('/feed/seen', post({ ids })),
   stories: (): Promise<TrayUser[]> => raw('/stories'),
+  notifications: (cursor?: string): Promise<Page<AppNotification>> => raw(`/notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
+  markNotificationsRead: (): Promise<void> => raw('/notifications/read', post({})),
+  acceptRequest: (username: string): Promise<void> => raw(`/follow-requests/${encodeURIComponent(username)}/accept`, post({})),
+  declineRequest: (username: string): Promise<void> => raw(`/follow-requests/${encodeURIComponent(username)}/decline`, post({})),
+  comments: (postId: string, cursor?: string): Promise<Page<Comment>> => raw(`/posts/${postId}/comments?limit=15${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+  replies: (id: string, cursor?: string): Promise<Page<Comment>> => raw(`/comments/${id}/replies?limit=10${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+  addComment: (postId: string, body: string, parentId?: string): Promise<Comment> => raw(`/posts/${postId}/comments`, post({ body, parentId })),
+  editComment: (id: string, body: string): Promise<Comment> => raw(`/comments/${id}`, { method: 'PATCH', body: JSON.stringify({ body }) }),
+  cheerComment: (id: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/comments/${id}/cheers`, post({})),
+  deleteComment: (id: string): Promise<void> => raw(`/comments/${id}`, { method: 'DELETE' }),
+  report: (type: ReportType, id: string, reason: ReportReason, note?: string): Promise<void> => raw('/reports', post({ type, id, reason, note })),
+  removePost: (id: string): Promise<void> => raw(`/posts/${id}`, { method: 'DELETE' }),
+  hideFromFeed: (postId: string): Promise<void> => raw('/feed/hide', post({ postId })),
+  updatePost: (id: string, b: { body?: string; clearLocation?: boolean; commentsOff?: boolean }): Promise<Post> => raw(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
   unreadCount: (): Promise<{ count: number }> => raw('/notifications/unread-count'),
   chatUnread: (): Promise<{ conversations: number }> => raw('/chat/unread'),
   savePost: (id: string): Promise<{ saved: boolean }> => raw(`/posts/${id}/save`, { method: 'PUT' }),
