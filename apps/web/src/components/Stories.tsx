@@ -394,12 +394,13 @@ function CommentsPanel({ story, onClose, canComment, onTyping }: { story: Story;
           </li>
         ))}
       </ul>
-      {delId && (
-        <Sheet title={tr('Apagar o comentário?')} onClose={() => setDelId(null)} layer="z-[100]">
+      {delId && createPortal(
+        <Sheet title={tr('Apagar o comentário?')} onClose={() => setDelId(null)} layer="z-[130]">
           <p className="mb-4 text-zinc-600">{tr('O comentário desaparece e não dá para o recuperar.')}</p>
           <button onClick={async () => { const id = delId; setDelId(null); await api.deleteStoryComment(id).catch(() => undefined); refresh(); }} className="h-12 w-full rounded-full bg-red-700 font-bold text-white active:scale-[0.98]">{tr('Apagar')}</button>
           <button onClick={() => setDelId(null)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar')}</button>
-        </Sheet>
+        </Sheet>,
+        document.body,
       )}
       {canComment ? (
         <form onSubmit={send} className="mt-2 flex items-center gap-2 border-t border-zinc-100 pt-3">

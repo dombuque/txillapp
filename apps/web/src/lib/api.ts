@@ -127,6 +127,9 @@ export interface Comment {
   cheers: number;
   cheered: boolean;
   replyCount: number;
+  editedAt?: string | null;
+  /** Eu sigo o autor? Só se presenteia quem se segue. */
+  authorFollowed?: boolean;
 }
 export interface Profile {
   id: string;
@@ -619,6 +622,7 @@ export const api = {
   replies: (commentId: string, cursor?: string): Promise<Page<Comment>> => raw(`/comments/${commentId}/replies${qs(cursor, 10)}`),
   addComment: (postId: string, body: string, parentId?: string): Promise<Comment> =>
     raw(`/posts/${postId}/comments`, post({ body, parentId })),
+  editComment: (id: string, body: string): Promise<Comment> => raw(`/comments/${id}`, { method: 'PATCH', body: JSON.stringify({ body }) }),
   cheerComment: (id: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/comments/${id}/cheers`, post({})),
   deleteComment: (id: string): Promise<void> => raw(`/comments/${id}`, { method: 'DELETE' }),
 

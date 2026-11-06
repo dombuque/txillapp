@@ -21,6 +21,22 @@ const I_PAY = /\b(eu pago|pago eu|deixa que eu pago|vou pagar|fica por minha con
 const THANKS_PAID = /\b(obrigad[oa] (pela|pelo|por)|valeu (pela|pelo)|ja pagaste|pagaste)\b/;
 const BIRTHDAY = /\b(parabens|feliz aniversario|feliz anivers|aniversario|faz anos|e o meu aniversario)\b/;
 
+/** Alguém pede para pagares ("paga-me uma cerveja", "tás a dever")? Usado nos comentários, com a mesma leitura do chat. */
+export function detectPaymentAsk(text: string, name: string): Intent | null {
+  const t = fold(text);
+  if (!ASK_PAY.test(t)) return null;
+  const drink = DRINK.test(t);
+  const food = FOOD.test(t);
+  const what = drink ? 'uma bebida' : food ? 'uma refeição' : '';
+  return {
+    key: t,
+    title: drink || food ? `${name} pediu ${what}` : `${name} pediu para pagares`,
+    hint: 'Presenteia com Txills e resolve já aqui.',
+    amount: food ? 50 : 10,
+    note: drink ? 'Uma bebida por minha conta' : food ? 'Esta refeição é por minha conta' : 'Por minha conta',
+  };
+}
+
 /** Procura nas últimas mensagens de texto (até 15 min) uma ocasião para presentear. `name` é o primeiro nome da outra pessoa. */
 export function detectIntent(messages: Pick<ChatMessage, 'id' | 'fromMe' | 'body' | 'kind' | 'at'>[], name: string): Intent | null {
   const now = Date.now();

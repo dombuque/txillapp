@@ -9,7 +9,7 @@ import { sized } from '../lib/media';
 import { postLink, postShare, shareNow } from '../lib/share';
 import Icon, { type IconName } from './Icon';
 import NewChat from './NewChat';
-import { Avatar } from './ui';
+import { Avatar, useScrollLock, useSwipeDown } from './ui';
 
 /** Uma conversa (pessoa ou grupo) na grelha de partilha. */
 interface Target {
@@ -31,6 +31,10 @@ interface Target {
  */
 export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Post; onClose: () => void; layer?: string }) {
   const [term, setTerm] = useState('');
+  // Arrastar para baixo fecha; a página por trás nunca se mexe.
+  useScrollLock();
+  const listRef = useRef<HTMLDivElement>(null);
+  const { dy: dragY, props: drag } = useSwipeDown(onClose, listRef);
   const [picked, setPicked] = useState<Target[]>([]);
   const [message, setMessage] = useState('');
   const [note, setNote] = useState('');
@@ -219,8 +223,8 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
 
   return (
     <>
-      <div className={`fixed inset-0 ${layer} flex items-end justify-center bg-black/40`} onClick={onClose} role="presentation">
-        <div role="dialog" aria-modal="true" aria-label={tr('Partilhar')} className="flex max-h-[88dvh] w-full max-w-xl animate-[rise_.25s_ease-out] flex-col rounded-t-[28px] bg-white" onClick={(e) => e.stopPropagation()}>
+      <div className={`fixed inset-0 ${layer} flex items-end justify-center bg-black/40`} onClick={onClose} role="presentation" style={{ touchAction: 'none', backgroundColor: dragY ? `rgba(0,0,0,${Math.max(0.1, 0.4 - dragY / 700)})` : undefined }} {...drag}>
+        <div role="dialog" aria-modal="true" data-swipe="own" aria-label={tr('Partilhar')} className="flex max-h-[88dvh] w-full max-w-xl animate-[rise_.25s_ease-out] flex-col rounded-t-[28px] bg-white" style={{ transform: dragY ? `translateY(${dragY}px)` : undefined, transition: dragY ? 'none' : 'transform .2s ease-out' }} onClick={(e) => e.stopPropagation()}>
           <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-zinc-300" aria-hidden />
 
           <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-3">
@@ -231,7 +235,7 @@ export default function ShareSheet({ post, onClose, layer = 'z-50' }: { post: Po
             <button type="button" onClick={() => setGrouping(true)} aria-label={tr('Criar grupo')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-900 active:scale-90"><Icon name="user-plus" size={22} /></button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-2">
+          <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-2" style={{ touchAction: 'pan-y' }}>
             {(direct.isLoading || groups.isLoading) && <p className="py-10 text-center text-zinc-500">{tr('A carregar…')}</p>}
             {!direct.isLoading && list.length === 0 && <p className="py-10 text-center text-zinc-500">{t ? tr('Ninguém com esse nome') : tr('Ainda não tens conversas. Procura alguém pelo nome.')}</p>}
             <ul className="grid grid-cols-3 gap-y-4 pt-2">

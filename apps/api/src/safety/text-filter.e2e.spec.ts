@@ -51,7 +51,17 @@ describe('filtro de texto ligado a publicações, comentários, mensagens, notas
     const ok = (await api().post('/api/v1/posts').set(auth(fta)).send({ body: 'Vou matar a fome com matapa 🍲' }).expect(201)).body;
 
     await api().post(`/api/v1/posts/${ok.id}/comments`).set(auth(ftb)).send({ body: BAD }).expect(422);
-    await api().post(`/api/v1/posts/${ok.id}/comments`).set(auth(ftb)).send({ body: 'Que fome! Guarda-me um prato' }).expect(201);
+    const mine = (await api().post(`/api/v1/posts/${ok.id}/comments`).set(auth(ftb)).send({ body: 'Que fome! Guarda-me um prato' }).expect(201)).body;
+    // Editar o comentário: só o autor, com o mesmo filtro, e fica marcado como editado.
+    expect(mine.editedAt).toBeNull();
+    await api().patch(`/api/v1/comments/${mine.id}`).set(auth(ftb)).send({ body: BAD }).expect(422);
+    await api().patch(`/api/v1/comments/${mine.id}`).set(auth(fta)).send({ body: 'não é meu' }).expect(403);
+    const edited = (await api().patch(`/api/v1/comments/${mine.id}`).set(auth(ftb)).send({ body: 'Que fome! Guarda-me dois pratos' }).expect(200)).body;
+    expect(edited).toMatchObject({ body: 'Que fome! Guarda-me dois pratos' });
+    expect(edited.editedAt).toEqual(expect.any(String));
+    expect(edited.authorFollowed).toBe(false);
+    const listed = (await api().get(`/api/v1/posts/${ok.id}/comments`).set(auth(fta)).expect(200)).body.items;
+    expect(listed.find((c: { id: string }) => c.id === mine.id)).toMatchObject({ body: 'Que fome! Guarda-me dois pratos', authorFollowed: true });
 
     await api().post(`/api/v1/chat/with/${fta.username}`).set(auth(ftb)).send({ kind: 'text', body: BAD }).expect(422);
     await api().post(`/api/v1/chat/with/${fta.username}`).set(auth(ftb)).send({ kind: 'text', body: 'Bora almoçar?' }).expect(201);

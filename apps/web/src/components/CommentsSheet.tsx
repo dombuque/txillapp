@@ -7,10 +7,16 @@ import VerifiedBadge from './VerifiedBadge';
 import ReportSheet from './ReportSheet';
 import RichText from './RichText';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState, type FormEvent, type TouchEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
+import GiftSheet from './GiftSheet';
+import { detectPaymentAsk } from '../lib/chatIntent';
 import { api, type Comment, type Post } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Avatar, Sheet, timeAgo, useScrollLock, useSwipeDown } from './ui';
+
+// Janelas abertas a partir de um comentário vão para o topo da página (a folha dos comentários tem transformações que as prenderiam) e por cima dela.
+const TOP = 'z-[130]';
 
 const QUICK = ['🥂', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
 
@@ -24,14 +30,41 @@ function Body({ text }: { text: string }) {
 
 interface RowProps {
   c: Comment;
+  mine: boolean;
   canDelete: boolean;
   isReply?: boolean;
   onReply: (c: Comment) => void;
   onRemoved: (c: Comment) => void;
 }
 
-function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
+function Row({ c, mine, canDelete, isReply, onReply, onRemoved }: RowProps) {
   const [cheer, setCheer] = useState({ cheered: c.cheered, cheers: c.cheers });
+  const [text, setText] = useState({ body: c.body, editedAt: c.editedAt ?? null });
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [editErr, setEditErr] = useState('');
+  const [gifting, setGifting] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  // Pedido de pagamento no comentário de outra pessoa: o mesmo aviso do chat, com o botão de presentear.
+  const ask = !mine && !dismissed && c.authorFollowed ? detectPaymentAsk(text.body, c.author.displayName.split(' ')[0]) : null;
+
+  async function saveEdit() {
+    const body = draft.trim();
+    if (!body || saving) return;
+    if (body === text.body) return setEditing(false);
+    setSaving(true);
+    setEditErr('');
+    try {
+      const r = await api.editComment(c.id, body);
+      setText({ body: r.body, editedAt: r.editedAt ?? new Date().toISOString() });
+      setEditing(false);
+    } catch (e) {
+      setEditErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
   const [gone, setGone] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -56,7 +89,7 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
     }
   }
   if (gone) return null;
-  const reportSheet = reporting && <ReportSheet type="comment" id={c.id} layer="z-[60]" onClose={() => setReporting(false)} />;
+  const reportSheet = reporting && createPortal(<ReportSheet type="comment" id={c.id} layer={TOP} onClose={() => setReporting(false)} />, document.body);
 
   return (
     <div className="flex gap-3 py-2.5">
@@ -66,13 +99,44 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
       <div className="min-w-0 flex-1">
         <p className="text-sm">
           <Link to={`/u/${c.author.username}`} className="font-semibold">{c.author.username}{c.author.verified && <> <VerifiedBadge size={13} tier={c.author.verifiedTier} /></>}</Link>{' '}
-          <span className="text-zinc-500">{timeAgo(c.createdAt)}</span>
+          <span className="text-zinc-500">{timeAgo(c.createdAt)}{text.editedAt ? ` · ${tr('editado')}` : ''}</span>
         </p>
-        <Body text={c.body} />
+        {editing ? (
+          <div className="mt-1">
+            <textarea
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              maxLength={1000}
+              rows={3}
+              aria-label={tr('Editar comentário')}
+              className="w-full resize-none rounded-2xl border border-zinc-300 bg-white px-3 py-2 text-[15px] outline-none focus:border-zinc-900"
+            />
+            {editErr && <p role="alert" className="text-sm text-red-600">{editErr}</p>}
+            <div className="mt-1.5 flex justify-end gap-2">
+              <button onClick={() => { setEditing(false); setEditErr(''); }} className="h-9 rounded-full px-4 text-sm font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar')}</button>
+              <button onClick={() => void saveEdit()} disabled={saving || !draft.trim()} className="h-9 rounded-full bg-brand px-4 text-sm font-bold text-white disabled:opacity-50">{saving ? tr('A guardar…') : tr('Guardar')}</button>
+            </div>
+          </div>
+        ) : (
+          <Body text={text.body} />
+        )}
+        {ask && !editing && (
+          <div className="mt-2 flex items-center gap-2.5 rounded-2xl bg-amber-50 p-2 pl-2.5" role="note">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700"><Icon name="gift" size={18} /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[14px] font-bold leading-tight">{ask.title}</span>
+              <span className="block text-xs leading-tight text-zinc-600">{ask.hint}</span>
+            </span>
+            <button type="button" onClick={() => setGifting(true)} className="h-8 shrink-0 rounded-full bg-brand px-3.5 text-[13px] font-bold text-white active:scale-95">{tr('Presentear')}</button>
+            <button type="button" onClick={() => setDismissed(true)} aria-label={tr('Dispensar sugestão')} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-500 active:bg-amber-100"><Icon name="x" size={16} /></button>
+          </div>
+        )}
         <div className="mt-1 flex gap-4 text-xs font-semibold text-zinc-500">
           {cheer.cheers > 0 && <span>{cheer.cheers} {cheer.cheers === 1 ? tr('brinde') : tr('brindes')}</span>}
           <button onClick={() => onReply(c)}>{tr('Responder')}</button>
-          {!canDelete && <button onClick={() => setReporting(true)}>{tr('Denunciar')}</button>}
+          {mine && !editing && <button onClick={() => { setDraft(text.body); setEditing(true); }}>{tr('Editar')}</button>}
+          {!mine && !canDelete && <button onClick={() => setReporting(true)}>{tr('Denunciar')}</button>}
           {canDelete && <button onClick={() => setConfirming(true)}>{tr('Apagar')}</button>}
         </div>
       </div>
@@ -85,12 +149,14 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
         <Icon name="cheers" size={20} />
       </button>
       {reportSheet}
-      {confirming && (
-        <Sheet title={tr('Apagar o comentário?')} onClose={() => setConfirming(false)} layer="z-[60]">
+      {gifting && createPortal(<GiftSheet recipient={{ username: c.author.username, displayName: c.author.displayName }} preset={ask ? { amount: ask.amount, note: ask.note, visibility: 'private' } : undefined} layer={TOP} onClose={() => setGifting(false)} />, document.body)}
+      {confirming && createPortal(
+        <Sheet title={tr('Apagar o comentário?')} onClose={() => setConfirming(false)} layer={TOP}>
           <p className="mb-4 text-zinc-600">{tr('O comentário desaparece e não dá para o recuperar.')}</p>
           <button onClick={remove} className="h-12 w-full rounded-full bg-red-700 font-bold text-white active:scale-[0.98]">{tr('Apagar')}</button>
           <button onClick={() => setConfirming(false)} className="mt-2 h-12 w-full rounded-full font-semibold text-zinc-700 active:bg-zinc-100">{tr('Cancelar')}</button>
-        </Sheet>
+        </Sheet>,
+        document.body,
       )}
     </div>
   );
@@ -98,6 +164,7 @@ function Row({ c, canDelete, isReply, onReply, onRemoved }: RowProps) {
 
 interface ThreadProps {
   c: Comment;
+  meId?: string;
   expanded: boolean;
   toggle: () => void;
   canDeleteFor: (c: Comment) => boolean;
@@ -105,7 +172,7 @@ interface ThreadProps {
   onRemoved: (c: Comment) => void;
 }
 
-function Replies({ c, expanded, toggle, canDeleteFor, onReply, onRemoved }: ThreadProps) {
+function Replies({ c, meId, expanded, toggle, canDeleteFor, onReply, onRemoved }: ThreadProps) {
   const q = useInfiniteQuery({
     queryKey: ['replies', c.id],
     queryFn: ({ pageParam }) => api.replies(c.id, pageParam),
@@ -124,7 +191,7 @@ function Replies({ c, expanded, toggle, canDeleteFor, onReply, onRemoved }: Thre
       {expanded && (
         <div>
           {items.map((r) => (
-            <Row key={r.id} c={r} isReply canDelete={canDeleteFor(r)} onReply={onReply} onRemoved={onRemoved} />
+            <Row key={r.id} c={r} mine={r.author.id === meId} isReply canDelete={canDeleteFor(r)} onReply={onReply} onRemoved={onRemoved} />
           ))}
           {q.isLoading && <LoadingBlock className="py-2" />}
           {q.hasNextPage && (
@@ -239,9 +306,10 @@ export default function CommentsSheet({ post, onClose, onDelta, layer = 'z-50' }
           <div>
             {items.map((c) => (
               <div key={c.id}>
-                <Row c={c} canDelete={canDeleteFor(c)} onReply={reply} onRemoved={removed} />
+                <Row c={c} mine={c.author.id === user?.id} canDelete={canDeleteFor(c)} onReply={reply} onRemoved={removed} />
                 <Replies
                   c={c}
+                  meId={user?.id}
                   expanded={expanded.has(c.id)}
                   toggle={() => setExpanded((s) => { const n = new Set(s); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return n; })}
                   canDeleteFor={canDeleteFor}

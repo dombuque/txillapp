@@ -9,7 +9,8 @@ import { allowedBy, canView } from '../social/visibility';
 const UUID = /^[0-9a-f-]{36}$/;
 
 const SELECT = `
-  SELECT c.id, c.post_id, c.parent_id, c.body, c.created_at,
+  SELECT c.id, c.post_id, c.parent_id, c.body, c.created_at, c.edited_at,
+         EXISTS (SELECT 1 FROM social.follows af WHERE af.follower_id = $1 AND af.followee_id = u.id) AS author_followed,
          u.id AS author_id, u.username, u.display_name, u.verified, u.verified_tier,
          (SELECT count(*) FROM content.comment_cheers x WHERE x.comment_id = c.id)::int AS cheers,
          EXISTS (SELECT 1 FROM content.comment_cheers x WHERE x.comment_id = c.id AND x.user_id = $1) AS cheered,
@@ -82,6 +83,17 @@ export class CommentsService {
     return { cheered: !del.rowCount, cheers: c.rows[0].n };
   }
 
+  /** Só o autor edita o seu comentário. O texto passa pelo mesmo filtro de quando se escreve. */
+  async update(userId: string, commentId: string, body: string) {
+    this.filter.assertClean(body);
+    const { rows } = await this.pool.query('SELECT post_id, author_id FROM content.comments WHERE id = $1', [commentId]);
+    if (!rows[0]) throw new NotFoundException('Comentário não encontrado');
+    await this.assertComment(userId, commentId);
+    if (rows[0].author_id !== userId) throw new ForbiddenException('Só quem escreveu pode editar');
+    await this.pool.query('UPDATE content.comments SET body = $2, edited_at = now() WHERE id = $1', [commentId, body]);
+    return this.getOne(userId, commentId);
+  }
+
   /** O autor do comentário ou o dono da publicação podem apagar. Devolve quantos comentários saíram (com respostas). */
   async remove(userId: string, commentId: string) {
     const { rows } = await this.pool.query(
@@ -149,5 +161,8 @@ export class CommentsService {
     cheers: r.cheers,
     cheered: r.cheered,
     replyCount: r.reply_count,
+    editedAt: (r.edited_at as string | null) ?? null,
+    /** Eu sigo o autor? Só se presenteia quem se segue. */
+    authorFollowed: r.author_followed as boolean,
   });
 }
