@@ -41,10 +41,14 @@ function Gate() {
     );
   }
   return (
+    <View style={styles.column}>
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.white } }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="login" options={{ animation: 'fade' }} />
+      <Stack.Screen name="search" />
+      <Stack.Screen name="notifications" />
     </Stack>
+    </View>
   );
 }
 
@@ -64,9 +68,11 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  /** Na web (ecrãs largos) a app fica numa coluna de 576 px ao centro, como o site (max-w-xl). */
+  column: { flex: 1, width: '100%', maxWidth: 576, alignSelf: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white, padding: 32, gap: 10 },
-  title: { fontSize: 22, fontWeight: '800', color: colors.ink },
-  sub: { fontSize: 15, color: colors.muted, textAlign: 'center' },
+  title: { fontSize: 22, fontWeight: '800', color: colors.zinc900 },
+  sub: { fontSize: 15, color: colors.zinc500, textAlign: 'center' },
   btn: { marginTop: 10, backgroundColor: colors.brand, paddingHorizontal: 22, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });

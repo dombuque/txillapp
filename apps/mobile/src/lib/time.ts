@@ -1,9 +1,8 @@
-/** "agora", "há 5 min", "há 3 h", "há 2 d" e depois a data. */
+/** "Agora", "Há 5min", "Há 3h", "Há 2d": o mesmo texto do site. */
 export function timeAgo(iso: string): string {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 45) return 'agora';
-  if (s < 3600) return `há ${Math.max(1, Math.round(s / 60))} min`;
-  if (s < 86400) return `há ${Math.round(s / 3600)} h`;
-  if (s < 86400 * 7) return `há ${Math.round(s / 86400)} d`;
-  return new Date(iso).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' });
+  if (s < 60) return 'Agora';
+  if (s < 3600) return `Há ${Math.floor(s / 60)}min`;
+  if (s < 86400) return `Há ${Math.floor(s / 3600)}h`;
+  return `Há ${Math.floor(s / 86400)}d`;
 }

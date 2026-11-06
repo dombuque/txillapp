@@ -23,8 +23,8 @@ export default function Profile() {
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, alignItems: 'center', backgroundColor: colors.white, paddingHorizontal: 28 },
-  name: { fontSize: 24, fontWeight: '800', color: colors.ink, marginTop: 16 },
-  handle: { fontSize: 16, color: colors.muted, marginTop: 2 },
-  btn: { marginTop: 36, height: 48, paddingHorizontal: 28, borderRadius: 24, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
-  btnText: { fontSize: 15, fontWeight: '700', color: colors.ink },
+  name: { fontSize: 24, fontWeight: '800', color: colors.zinc900, marginTop: 16 },
+  handle: { fontSize: 16, color: colors.zinc500, marginTop: 2 },
+  btn: { marginTop: 36, height: 48, paddingHorizontal: 28, borderRadius: 24, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
+  btnText: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
 });

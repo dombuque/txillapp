@@ -6,7 +6,7 @@ import { SITE_URL } from './config';
 export interface PublicUser { id: string; username: string; displayName: string }
 export interface AuthResult { accessToken: string; /** Só na app nativa; na web vai no cookie. */ refreshToken?: string; user: PublicUser }
 
-export interface PostMedia { url: string; kind?: 'image' | 'video'; posterUrl?: string; width?: number | null; height?: number | null; durationMs?: number | null }
+export interface PostMedia { url: string; kind?: 'image' | 'video'; posterUrl?: string; width?: number | null; height?: number | null; durationMs?: number | null; tags?: { username: string }[] }
 export interface Author { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null }
 export interface Post {
   id: string;
@@ -21,10 +21,17 @@ export interface Post {
   cheered: boolean;
   reposts: number;
   reposted: boolean;
+  gifts: number;
+  saved?: boolean;
+  canGift: boolean;
+  editedAt?: string | null;
+  lists?: { reposts: boolean; cheers: boolean; gifts: boolean };
+  feed?: { source: 'following' | 'self' | 'discover'; seen: boolean };
   kind: 'post' | 'gift' | 'repost';
   repostOf?: Post | null;
   gift: { amount: number; recipient: { username: string; displayName: string } } | null;
 }
+export interface TrayUser { username: string; displayName: string; isMe: boolean; count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
 export class ApiError extends Error {
@@ -119,4 +126,9 @@ export const api = {
   feed: (cursor?: string): Promise<Page<Post>> => raw(`/feed${cursor ? `?cursor=${encodeURIComponent(cursor)}&limit=10` : '?limit=10'}`),
   cheer: (id: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/posts/${id}/cheers`, post({})),
   markSeen: (ids: string[]): Promise<void> => raw('/feed/seen', post({ ids })),
+  stories: (): Promise<TrayUser[]> => raw('/stories'),
+  unreadCount: (): Promise<{ count: number }> => raw('/notifications/unread-count'),
+  chatUnread: (): Promise<{ conversations: number }> => raw('/chat/unread'),
+  savePost: (id: string): Promise<{ saved: boolean }> => raw(`/posts/${id}/save`, { method: 'PUT' }),
+  unsavePost: (id: string): Promise<{ saved: boolean }> => raw(`/posts/${id}/save`, { method: 'DELETE' }),
 };

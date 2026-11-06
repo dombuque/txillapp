@@ -1,12 +1,20 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
+import { Icon } from './Icon';
 
 /** Ecrã que ainda está a ser passado para a app nativa. */
-export function Soon({ title, text }: { title: string; text: string }) {
+export function Soon({ title, text, back = false }: { title: string; text: string; back?: boolean }) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   return (
     <View style={[styles.wrap, { paddingTop: insets.top }]}>
+      {back && (
+        <Pressable onPress={() => router.back()} style={[styles.back, { top: insets.top + 8 }]} accessibilityRole="button" accessibilityLabel="Voltar">
+          <Icon name="back" size={26} strokeWidth={2} />
+        </Pressable>
+      )}
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.text}>{text}</Text>
     </View>
@@ -15,6 +23,7 @@ export function Soon({ title, text }: { title: string; text: string }) {
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white, paddingHorizontal: 36, gap: 8 },
-  title: { fontSize: 22, fontWeight: '800', color: colors.ink },
-  text: { fontSize: 15, color: colors.muted, textAlign: 'center' },
+  back: { position: 'absolute', left: 8, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 24, fontWeight: '800', color: colors.zinc900 },
+  text: { fontSize: 18, fontWeight: '300', color: colors.zinc600, textAlign: 'center' },
 });
