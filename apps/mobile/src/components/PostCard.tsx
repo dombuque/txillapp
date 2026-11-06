@@ -17,11 +17,13 @@ import { VerifiedBadge } from './VerifiedBadge';
 /** Atualiza uma publicação na lista do feed (também dentro de um repost). */
 function usePatch(id: string) {
   const qc = useQueryClient();
-  return (p: Partial<Post>) =>
-    qc.setQueryData<InfiniteData<Page<Post>>>(['feed'], (d) => {
-      const merge = (i: Post): Post => (i.id === id ? { ...i, ...p } : i.repostOf?.id === id ? { ...i, repostOf: { ...i.repostOf, ...p } } : i);
-      return d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map(merge) })) };
-    });
+  return (p: Partial<Post>) => {
+    const merge = (i: Post): Post => (i.id === id ? { ...i, ...p } : i.repostOf?.id === id ? { ...i, repostOf: { ...i.repostOf, ...p } } : i);
+    for (const key of ['feed', 'profile-posts']) {
+      qc.setQueriesData<InfiniteData<Page<Post>>>({ queryKey: [key] }, (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map(merge) })) });
+    }
+    qc.setQueriesData<Post>({ queryKey: ['post'] }, (d) => (d ? merge(d) : d));
+  };
 }
 
 /** O cartão de uma publicação, igual ao do site: cantos de 26, sombra suave, autor, texto, fotos e a barra de ações. */

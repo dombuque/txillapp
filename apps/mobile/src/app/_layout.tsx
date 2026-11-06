@@ -47,6 +47,8 @@ function Gate() {
       <Stack.Screen name="login" options={{ animation: 'fade' }} />
       <Stack.Screen name="search" />
       <Stack.Screen name="notifications" />
+      <Stack.Screen name="u/[username]" />
+      <Stack.Screen name="p/[id]" />
     </Stack>
     </View>
   );

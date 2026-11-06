@@ -58,6 +58,32 @@ export interface AppNotification {
   read: boolean;
   actor: { username: string; displayName: string };
 }
+export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved';
+export interface FollowState { following: boolean; requested: boolean; followers: number }
+export interface Profile {
+  id: string;
+  verified?: boolean;
+  verifiedTier?: 'verified' | 'official' | null;
+  username: string;
+  displayName: string;
+  bio: string | null;
+  website?: string | null;
+  city?: string | null;
+  joinedAt: string;
+  hasAvatar: boolean;
+  isMe: boolean;
+  isPrivate: boolean;
+  following: boolean;
+  followsYou: boolean;
+  requested: boolean;
+  blockedByMe: boolean;
+  blockedMe: boolean;
+  canView: boolean;
+  canSeeConnections: boolean;
+  pendingRequests: number;
+  activeStories: number;
+  counts: { posts: number; followers: number; following: number };
+}
 export interface TrayUser { username: string; displayName: string; isMe: boolean; count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
@@ -161,6 +187,15 @@ export const api = {
   unrepost: (id: string): Promise<{ reposted: boolean; reposts: number }> => raw(`/posts/${id}/repost`, { method: 'DELETE' }),
   markSeen: (ids: string[]): Promise<void> => raw('/feed/seen', post({ ids })),
   stories: (): Promise<TrayUser[]> => raw('/stories'),
+  profile: (username: string): Promise<Profile> => raw(`/users/${encodeURIComponent(username)}`),
+  userPosts: (username: string, cursor?: string, tab: ProfileTab = 'all'): Promise<Page<Post>> => raw(`/users/${encodeURIComponent(username)}/posts?limit=18${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}&tab=${tab}`),
+  savedPosts: (cursor?: string): Promise<Page<Post>> => raw(`/feed/saved${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
+  follow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/follow`, post({})),
+  unfollow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/unfollow`, post({})),
+  block: (username: string): Promise<void> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'PUT' }),
+  unblock: (username: string): Promise<void> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'DELETE' }),
+  invites: (): Promise<{ link: string }> => raw('/invites/me'),
+  getPost: (idOrCode: string): Promise<Post> => raw(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrCode) ? `/posts/${idOrCode}` : `/posts/code/${encodeURIComponent(idOrCode)}`),
   notifications: (cursor?: string): Promise<Page<AppNotification>> => raw(`/notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
   markNotificationsRead: (): Promise<void> => raw('/notifications/read', post({})),
   acceptRequest: (username: string): Promise<void> => raw(`/follow-requests/${encodeURIComponent(username)}/accept`, post({})),
