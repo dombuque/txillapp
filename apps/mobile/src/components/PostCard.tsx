@@ -94,7 +94,7 @@ function usePatch(id: string) {
 }
 
 /** O cartão de uma publicação, igual ao do site: cantos de 26, sombra suave, autor, texto, fotos e a barra de ações. */
-function PostCardBase({ post, me }: { post: Post; me?: string }) {
+function PostCardBase({ post, me, detail }: { post: Post; me?: string; /** Já estamos na página desta publicação: tocar no cartão não a volta a abrir. */ detail?: boolean }) {
   const router = useRouter();
   if (post.kind === 'repost' && post.repostOf && !post.body) {
     return (
@@ -109,18 +109,20 @@ function PostCardBase({ post, me }: { post: Post; me?: string }) {
       </View>
     );
   }
-  return <PostBody post={post} me={me} />;
+  return <PostBody post={post} me={me} detail={detail} />;
 }
 
 type SheetState = null | 'menu' | 'comments' | 'repost' | 'share' | { gift: { username: string; displayName: string; amount?: number; note?: string } } | { people: PeopleKind };
 type GiftExtra = { recipient: { username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null } };
 
-function PostBody({ post, me }: { post: Post; me?: string }) {
+function PostBody({ post, me, detail }: { post: Post; me?: string; detail?: boolean }) {
   const { width } = useWindowDimensions();
   const router = useRouter();
   const patch = usePatch(post.id);
   const { burst, brindar } = useBrindar(post, patch);
   const tapText = useTap(() => void brindar());
+  // Tocar na publicação (fora de botões, ligações e fotos) abre a página dela; num repost com comentário abre o repost (com a original por baixo).
+  const goPost = () => { if (!detail) openPost(post); };
   const mine = post.author.id === me;
   const margin = width >= 360 ? 8 : 6;
   const pad = width >= 360 ? 16 : 14;
@@ -160,7 +162,7 @@ function PostBody({ post, me }: { post: Post; me?: string }) {
   const giftTo = { username: post.author.username, displayName: post.author.displayName };
 
   return (
-    <View style={[styles.card, cardShadow, { marginHorizontal: margin, paddingHorizontal: pad }]}>
+    <Pressable onPress={goPost} disabled={detail} accessible={false} style={[styles.card, cardShadow, { marginHorizontal: margin, paddingHorizontal: pad }]}>
       {g ? (
         <GiftBlock post={post} g={g} me={me} onDouble={() => void brindar()} menu={menuBtn} onOpenPost={openPost} />
       ) : (
@@ -200,7 +202,7 @@ function PostBody({ post, me }: { post: Post; me?: string }) {
             {menuBtn}
           </View>
           {post.body ? (
-            <Pressable onPress={() => tapText()} accessibilityLabel="Texto (toca duas vezes para brindar)">
+            <Pressable onPress={() => tapText(goPost)} accessibilityLabel="Abrir a publicação (duplo toque para brindar)">
               <RichText text={post.body} style={styles.body} />
             </Pressable>
           ) : null}
@@ -256,7 +258,7 @@ function PostBody({ post, me }: { post: Post; me?: string }) {
           onClose={() => setSheet(null)}
         />
       )}
-    </View>
+    </Pressable>
   );
 }
 
@@ -299,7 +301,7 @@ function QuoteBox({ original, me, onPhoto, onOpen, onDouble }: { original: Post;
   const tap = useTap(onDouble);
   const m = original.media[0];
   return (
-    <View style={styles.quote}>
+    <Pressable onPress={() => onOpen(original)} style={styles.quote} accessibilityRole="link" accessibilityLabel="Abrir a publicação original">
       <Pressable onPress={() => router.push(profileOf(original.author, me) as never)} style={styles.quoteHead} accessibilityRole="link">
         <Avatar name={original.author.displayName} username={original.author.username} size={30} />
         <Text style={[styles.quoteName, { flexShrink: 1 }]} numberOfLines={1}>{original.author.displayName}</Text>
@@ -328,7 +330,7 @@ function QuoteBox({ original, me, onPhoto, onOpen, onDouble }: { original: Post;
       ) : (
         <View style={{ height: 12 }} />
       )}
-    </View>
+    </Pressable>
   );
 }
 

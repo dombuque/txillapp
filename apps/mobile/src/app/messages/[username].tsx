@@ -40,8 +40,12 @@ export default function Thread() {
     getNextPageParam: (l: ChatThread) => l.nextCursor ?? undefined,
     // O tempo real faz o trabalho; isto é só uma rede de segurança.
     refetchInterval: 30_000,
-    retry: false,
+    // Falhas de rede ou do arranque não deixam o chat em branco: tenta outra vez com uma pequena pausa.
+    retry: 3,
+    retryDelay: (n) => Math.min(400 * 2 ** n, 3000),
+    staleTime: 15_000,
   });
+  const qs = { isError: q.isError as boolean, isFetching: q.isFetching as boolean, refetch: () => q.refetch() };
   const first = q.data?.pages[0];
   const person = first?.person;
   const firstName = person?.displayName.split(' ')[0] ?? '';
@@ -167,9 +171,16 @@ export default function Thread() {
         <Pressable onPress={() => setSearching(true)} style={st.search} accessibilityRole="button" accessibilityLabel="Procurar na conversa"><Icon name="search" size={22} color={colors.zinc700} /></Pressable>
       </View>
 
+      {qs.isError && items.length === 0 ? (
+        <View style={st.failBox}>
+          <Text style={st.failTitle}>Não consegui abrir esta conversa</Text>
+          <Text style={st.failText}>Verifica a internet e tenta outra vez.</Text>
+          <Pressable onPress={() => void qs.refetch()} style={st.failBtn} accessibilityRole="button"><Text style={st.failBtnText}>Tentar outra vez</Text></Pressable>
+        </View>
+      ) : null}
       <ChatList
         items={items}
-        loading={q.isLoading}
+        loading={q.isLoading || (qs.isError && items.length === 0 && qs.isFetching)}
         hasNext={!!q.hasNextPage}
         fetchNext={() => q.fetchNextPage()}
         fetchingNext={q.isFetchingNextPage}
@@ -229,6 +240,11 @@ export default function Thread() {
 }
 
 const st = StyleSheet.create({
+  failBox: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 24 },
+  failTitle: { fontSize: 18, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
+  failText: { marginTop: 4, fontSize: 15, color: colors.zinc600, textAlign: 'center' },
+  failBtn: { marginTop: 14, height: 44, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center' },
+  failBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   viewer: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: '#000', justifyContent: 'center', zIndex: 50 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 4, borderBottomWidth: 1, borderBottomColor: colors.zinc100, paddingHorizontal: 8, paddingVertical: 8 },
   search: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },

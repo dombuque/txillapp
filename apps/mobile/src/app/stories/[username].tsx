@@ -148,7 +148,8 @@ export default function StoryViewer() {
 
   const pan = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dy) > 14 && Math.abs(g.dy) > Math.abs(g.dx) * 1.5,
+      // Com um painel aberto (visualizações, comentários, menu) o gesto é do painel: não sai do story.
+      onMoveShouldSetPanResponder: (_e, g) => !panelOpen.current && Math.abs(g.dy) > 14 && Math.abs(g.dy) > Math.abs(g.dx) * 1.5,
       onPanResponderMove: (_e, g) => dy.setValue(Math.max(0, g.dy)),
       onPanResponderRelease: (_e, g) => {
         if (g.dy > 110) return closeRef.current();
@@ -157,6 +158,8 @@ export default function StoryViewer() {
       },
     }),
   ).current;
+  const panelOpen = useRef(false);
+  panelOpen.current = panel !== null;
   const closeRef = useRef(close);
   closeRef.current = close;
   const upRef = useRef(() => undefined as void);

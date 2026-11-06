@@ -18,6 +18,9 @@ interface TabBarProps {
 
 export function TabBar({ state, navigateToTab }: TabBarProps) {
   const insets = useSafeAreaInsets();
+  // Nos Reels a barra flutua por cima do vídeo: translúcida e arredondada nos cantos.
+  const onReels = state.routes[state.index]?.name === 'reels';
+  const ink = onReels ? '#fff' : colors.zinc900;
   const { user } = useAuth();
   const chats = useQuery({ queryKey: ['chat-unread'], queryFn: api.chatUnread, refetchInterval: 20_000, staleTime: 8_000 });
   const chatCount = chats.data?.conversations ?? 0;
@@ -27,7 +30,8 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
   };
 
   return (
-    <View style={[styles.nav, { paddingBottom: insets.bottom }]}>
+    <View style={onReels ? [styles.floatWrap, { bottom: Math.max(insets.bottom, 8) }] : undefined} pointerEvents="box-none">
+    <View style={onReels ? styles.glass : [styles.nav, { paddingBottom: insets.bottom }]}>
       <View style={styles.row}>
         {state.routes.map((r, idx) => {
           const focused = state.index === idx;
@@ -51,7 +55,7 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
           if (r.name === 'profile') {
             return (
               <Pressable key={r.key} onPress={go} style={styles.tab} accessibilityRole="button" accessibilityLabel="Perfil">
-                <View style={[styles.ava, { borderColor: focused ? colors.zinc900 : 'transparent' }]}>
+                <View style={[styles.ava, { borderColor: focused ? ink : 'transparent' }]}>
                   <Avatar name={user?.displayName ?? '?'} username={user?.username} size={26} />
                 </View>
               </Pressable>
@@ -62,7 +66,7 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
           return (
             <Pressable key={r.key} onPress={go} style={styles.tab} accessibilityRole="button" accessibilityLabel={label}>
               <View>
-                <Icon name={icon} size={27} solid={focused && icon !== 'film'} strokeWidth={focused && (icon === 'home' || icon === 'film') ? 2.3 : 1.9} />
+                <Icon name={icon} size={27} color={ink} solid={focused && icon !== 'film'} strokeWidth={focused && (icon === 'home' || icon === 'film') ? 2.3 : 1.9} />
                 {r.name === 'messages' && chatCount > 0 && (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>{badge(chatCount)}</Text>
@@ -74,10 +78,13 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
         })}
       </View>
     </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  floatWrap: { position: 'absolute', left: 12, right: 12 },
+  glass: { borderRadius: 32, paddingVertical: 4, backgroundColor: 'rgba(24,24,27,0.42)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', boxShadow: '0 8px 28px rgba(0,0,0,0.35)', ...({ backdropFilter: 'blur(18px) saturate(1.4)', WebkitBackdropFilter: 'blur(18px) saturate(1.4)' } as object) },
   nav: { backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.zinc100, paddingTop: 4, boxShadow: '0 -6px 24px rgba(0,0,0,0.05)' },
   row: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', paddingHorizontal: 12 },
   tab: { height: 48, flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },

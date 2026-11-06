@@ -1,7 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
@@ -67,7 +67,13 @@ export default function Messages() {
   const [text, setText] = useState('');
   const [ai, setAi] = useState(false);
   const [focus, setFocus] = useState(false);
+  const qc = useQueryClient();
   const direct = useQuery({ queryKey: ['chat-list'], queryFn: api.chatList, refetchInterval: 60_000 });
+  // Conversas a abrir já carregadas: pré-carrega as 6 mais recentes assim que a lista chega (e ao tocar numa linha).
+  const warm = (u: string) => void qc.prefetchInfiniteQuery({ queryKey: ['chat-thread', u], queryFn: ({ pageParam }) => api.chatThread(u, pageParam as string | undefined), initialPageParam: undefined as string | undefined, staleTime: 15_000 }).catch(() => undefined);
+  useEffect(() => {
+    (direct.data ?? []).slice(0, 6).forEach((c) => warm(c.username));
+  }, [direct.data]); // eslint-disable-line react-hooks/exhaustive-deps
   const groups = useQuery({ queryKey: ['chat-groups'], queryFn: api.chatGroups, refetchInterval: 60_000 });
   const term = text.trim().toLowerCase().replace(/^@/, '');
   const people = useQuery({ queryKey: ['mentionable', term], queryFn: () => api.mentionable(term), enabled: term.length >= 1, staleTime: 30_000 });
@@ -150,7 +156,7 @@ export default function Messages() {
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"
         renderItem={({ item: r }) => (
-          <Pressable onPress={() => router.push(r.to as never)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]}>
+          <Pressable onPressIn={() => { const m = /^\/messages\/([^/]+)$/.exec(String(r.to)); if (m && m[1] !== 'new') warm(decodeURIComponent(m[1])); }} onPress={() => router.push(r.to as never)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]}>
             <View>
               {r.group ? (
                 <View style={{ width: 62, height: 62 }}>

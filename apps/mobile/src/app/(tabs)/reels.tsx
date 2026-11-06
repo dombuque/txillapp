@@ -299,6 +299,35 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
     return () => clearTimeout(t);
   }, [active, post.id]);
 
+  // Toque simples (pausa/retoma) ou duplo (brinda): o simples espera um instante para ver se vem o segundo.
+  const lastTap = useRef(0);
+  const singleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [burst, setBurst] = useState(0);
+  const burstAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => () => { if (singleTimer.current) clearTimeout(singleTimer.current); }, []);
+  function onScreenTap() {
+    const now = Date.now();
+    if (now - lastTap.current < 280 && singleTimer.current) {
+      // Duplo toque: brinda (só põe, nunca tira) e mostra o copo grande.
+      clearTimeout(singleTimer.current);
+      singleTimer.current = null;
+      lastTap.current = 0;
+      setBurst((n) => n + 1);
+      burstAnim.setValue(0);
+      Animated.timing(burstAnim, { toValue: 1, duration: 800, useNativeDriver: false }).start();
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+      if (!post.cheered) {
+        onChange({ cheered: true, cheers: post.cheers + 1 });
+        api.cheer(post.id).then((r) => onChange(r)).catch(() => onChange({ cheered: post.cheered, cheers: post.cheers }));
+      }
+      return;
+    }
+    lastTap.current = now;
+    singleTimer.current = setTimeout(() => {
+      singleTimer.current = null;
+      tap();
+    }, 280);
+  }
   function tap() {
     const next = !userPaused;
     setUserPaused(next);
@@ -338,7 +367,8 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
   const lift = teach ? base + 57.6 : base;
   const muteBottom = teach ? Math.max(14.4, bottomInset) + 44 + 8 : 10;
   const railsBottom = muteBottom + 36 + 8; // por cima do botão do som, sem o tapar
-  const barBottom = 0;
+  // A barra de progresso fica logo acima da barra de baixo (que flutua por cima dos Reels).
+  const barBottom = bottomInset > 0 ? Math.max(0, bottomInset - 10) : 0;
 
   const circle = (on?: boolean, tone?: string) => [st.circle, on && { backgroundColor: tone ?? 'rgba(255,255,255,0.9)' }];
   const count = (n: number, kind: PeopleKind, enabled: boolean) => (
@@ -349,12 +379,17 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
 
   return (
     <View style={[{ height, width: '100%', backgroundColor: '#000', overflow: 'hidden' }, isWeb && ({ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as object)]} accessibilityLabel={`Reel de ${post.author.displayName}`}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={tap} accessibilityRole="button" accessibilityLabel="Tocar ou pausar">
+      <Pressable style={StyleSheet.absoluteFill} onPress={onScreenTap} accessibilityRole="button" accessibilityLabel="Tocar ou pausar (duplo toque para brindar)">
         <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} allowsPictureInPicture={false} playsInline pointerEvents="none" />
         {m.posterUrl && !started ? <Image source={{ uri: abs(m.posterUrl) }} style={StyleSheet.absoluteFill} contentFit="contain" pointerEvents="none" /> : null}
       </Pressable>
 
       <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.7)']} style={st.shade} pointerEvents="none" />
+      {burst > 0 && (
+        <Animated.View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', zIndex: 15, opacity: burstAnim.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1, 0] }), transform: [{ scale: burstAnim.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.5, 1.15, 1.4] }) }] }}>
+          <Icon name="cheers" size={110} strokeWidth={1.6} color="#fff" />
+        </Animated.View>
+      )}
       <ProgressBar player={player} bottom={barBottom} />
       {teach && <TeachBar postId={post.id} bottom={Math.max(14.4, bottomInset)} onNo={onMore} />}
 
@@ -540,7 +575,7 @@ export default function Reels() {
             maxToRenderPerBatch={2}
             onScrollToIndexFailed={(info) => list.current?.scrollToOffset({ offset: info.index * height, animated: true })}
             renderItem={({ item, index }) => (
-              <Reel post={item} active={focused && index === active} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} />
+              <Reel post={item} active={focused && index === active} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={76 + Math.max(insets.bottom, 8)} />
             )}
             onEndReached={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }}
             onEndReachedThreshold={1}
@@ -573,7 +608,7 @@ const st = StyleSheet.create({
   column: { flex: 1, width: '100%', maxWidth: 576, alignSelf: 'center', backgroundColor: '#000' },
   center: { alignItems: 'center', justifyContent: 'center' },
   shade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '50%' },
-  progress: { position: 'absolute', left: 0, right: 0, height: 3, backgroundColor: 'rgba(255,255,255,0.25)' },
+  progress: { position: 'absolute', left: 16, right: 16, height: 2, borderRadius: 1, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.22)' },
   flashWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   flash: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   failed: { paddingHorizontal: 24, textAlign: 'center', fontSize: 14, color: 'rgba(255,255,255,0.8)' },

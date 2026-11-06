@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, Keyboard, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ActivityIndicator, Alert, Animated, Keyboard, PanResponder, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api, type Story } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
@@ -41,13 +41,35 @@ export function useKeyboardHeight() {
 
 /** Painel inferior dentro do visualizador (menu, atividade, comentários). */
 export function Panel({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  // Arrastar o painel para baixo fecha só o painel (o story continua por baixo).
+  const dy = useRef(new Animated.Value(0)).current;
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_e, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderMove: (_e, g) => dy.setValue(Math.max(0, g.dy)),
+        onPanResponderRelease: (_e, g) => {
+          if (g.dy > 80 || g.vy > 0.8) closeRef.current();
+          else Animated.spring(dy, { toValue: 0, useNativeDriver: false }).start();
+        },
+      }),
+    [dy],
+  );
   return (
     <Pressable style={st.panelBack} onPress={onClose} accessibilityRole="none">
-      <Pressable style={st.panel} onPress={() => undefined} accessibilityRole="none">
-        <View style={st.grab} />
-        <Text style={st.panelTitle}>{title}</Text>
-        {children}
-      </Pressable>
+      <Animated.View style={[st.panel, { transform: [{ translateY: dy }] }]}>
+        <Pressable onPress={() => undefined} accessibilityRole="none">
+          <View {...pan.panHandlers} style={{ paddingBottom: 4 }}>
+            <View style={st.grab} />
+            <Text style={st.panelTitle}>{title}</Text>
+          </View>
+          {children}
+        </Pressable>
+      </Animated.View>
     </Pressable>
   );
 }

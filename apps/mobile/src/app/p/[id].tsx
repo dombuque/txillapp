@@ -25,7 +25,7 @@ export default function PostPage() {
             <Text style={styles.goneText}>Pode ter sido apagada, ou a conta passou a privada.</Text>
           </View>
         )}
-        {q.data && <PostCard post={q.data} me={user?.id} />}
+        {q.data && <PostCard post={q.data} me={user?.id} detail />}
       </ScrollView>
     </StackPage>
   );
