@@ -49,6 +49,8 @@ function Gate() {
       <Stack.Screen name="notifications" />
       <Stack.Screen name="u/[username]" />
       <Stack.Screen name="p/[id]" />
+      <Stack.Screen name="messages/[username]" />
+      <Stack.Screen name="settings" />
     </Stack>
     </View>
   );

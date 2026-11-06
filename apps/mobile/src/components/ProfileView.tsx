@@ -184,7 +184,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       {p.isMe ? (
         <View style={styles.topMe}>
           <Text style={styles.handleTop}>@{p.username}</Text>
-          <Pressable onPress={() => soon('Definições')} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Definições e privacidade"><Icon name="menu" size={26} strokeWidth={2} /></Pressable>
+          <Pressable onPress={() => router.push('/settings' as never)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Definições e privacidade"><Icon name="menu" size={26} strokeWidth={2} /></Pressable>
         </View>
       ) : (
         <View style={styles.topOther}>

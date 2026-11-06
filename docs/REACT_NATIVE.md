@@ -19,13 +19,14 @@
 | Notificações | `pages/Notifications.tsx` | feito |
 | Pesquisa e Explorar (temas, em alta, grelha, resultados) | `pages/Search.tsx` | feito (faltam SuperTxill, sugestões e visualizador em ecrã inteiro) |
 | Cartão de presente no feed | `components/PostCard.tsx` (GiftBlock) | por fazer (hoje aparece como publicação normal) |
-| Mensagens e conversa (tempo real) | `pages/Messages.tsx`, `Thread.tsx` | por fazer |
+| Mensagens: lista, pedidos, conversa direta (texto, fotos, presentes, brindar, apagar) | `pages/Messages.tsx`, `Thread.tsx` | feito (faltam grupos, voz, câmara, stickers, localização, tempo real por SSE; atualiza de 4 em 4 s) |
 | Perfil (meu e dos outros): cabeçalho, botões, separadores, grelha, seguir, bloquear, denunciar | `pages/Profile.tsx` | feito (faltam editar perfil, QR, geleira, seguidores, pedidos) |
 | Publicação aberta (`/p/:id`) | `pages/PostPage.tsx` | feito (faltam atividade e reels em ecrã inteiro) |
 | Nova publicação e câmara | `pages/Compose.tsx`, `components/CameraStudio.tsx` | por fazer |
 | Stories (ver e criar) | `components/Stories.tsx` | por fazer |
 | Reels e filtros do algoritmo | `pages/Reels.tsx`, `ReelPrefs.tsx` | por fazer |
-| Guardados, Locais, Geleira, Carteira, Convites, Definições | `pages/*` | por fazer |
+| Definições | `pages/Settings.tsx` | mínimo (conta e sair; o resto abre o site) |
+| Guardados, Locais, Geleira, Carteira, Convites | `pages/*` | por fazer |
 | Publicação / reel / hashtag / sítio / local | `PostPage.tsx`, `ReelPage.tsx`, `TagPage.tsx`, `PlacePage.tsx`, `VenuePage.tsx` | por fazer |
 
 O backoffice fica só no site (é para computador).

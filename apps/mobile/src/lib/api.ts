@@ -91,6 +91,53 @@ export interface SearchResults {
   tags: { tag: string; posts: number }[];
 }
 export interface TrendingTag { tag: string; posts: number; rising?: boolean }
+export type MsgKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift';
+export interface ChatMessage {
+  id: string;
+  fromMe: boolean;
+  body: string;
+  kind: MsgKind;
+  giftAmount?: number | null;
+  post?: Post | null;
+  storyUrl: string | null;
+  mediaUrl: string | null;
+  durationMs: number | null;
+  waveform?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  viewOnce?: boolean;
+  opened?: boolean;
+  replyTo?: { id: string; gone: true } | { id: string; gone: false; fromMe: boolean; name: string; kind: MsgKind; body: string } | null;
+  reactions?: { reaction: string; count: number; mine: boolean }[];
+  at: string;
+}
+export interface Presence { online: boolean; lastSeen: string | null }
+export interface Conversation {
+  username: string;
+  displayName: string;
+  hasAvatar: boolean;
+  lastMessage: { body: string; kind: MsgKind; fromMe: boolean; at: string };
+  presence?: Presence | null;
+  request?: boolean;
+  unread: number;
+}
+export interface GroupSummary {
+  kind: 'group';
+  id: string;
+  name: string;
+  members: number;
+  preview: { username: string; displayName: string; hasAvatar: boolean }[];
+  lastMessage: { body: string; kind: MsgKind; fromMe: boolean; senderName: string | null; at: string; empty: boolean };
+  unread: number;
+}
+export interface ChatThread {
+  relation?: { iFollow: boolean; theyFollow: boolean; request: boolean; left: number | null };
+  person: { username: string; displayName: string; hasAvatar: boolean; canGift?: boolean; presence?: Presence | null };
+  blocked: boolean;
+  otherRead: string | null;
+  items: ChatMessage[];
+  nextCursor: string | null;
+}
 export interface TrayUser { username: string; displayName: string; isMe: boolean; count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
@@ -194,6 +241,15 @@ export const api = {
   unrepost: (id: string): Promise<{ reposted: boolean; reposts: number }> => raw(`/posts/${id}/repost`, { method: 'DELETE' }),
   markSeen: (ids: string[]): Promise<void> => raw('/feed/seen', post({ ids })),
   stories: (): Promise<TrayUser[]> => raw('/stories'),
+  chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
+  chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),
+  chatThread: (username: string, cursor?: string): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${cursor ? `?cursor=${cursor}` : ''}`),
+  chatSend: (username: string, msg: { body?: string; kind?: MsgKind; replyTo?: string }): Promise<{ id: string }> => raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
+  chatDelete: (id: string): Promise<void> => raw(`/chat/messages/${id}`, { method: 'DELETE' }),
+  chatReact: (id: string, reaction: string): Promise<void> => raw(`/chat/messages/${id}/reaction`, { method: 'PUT', body: JSON.stringify({ reaction }) }),
+  chatAccept: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/accept`, post({})),
+  chatDecline: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/decline`, post({})),
+  mentionable: (q: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; following: boolean; verified?: boolean }[]> => raw(`/mentionable?q=${encodeURIComponent(q)}`),
   search: (q: string): Promise<SearchResults> => raw(`/search?q=${encodeURIComponent(q)}`),
   trending: (): Promise<{ tags: TrendingTag[] }> => raw('/search/trending'),
   hotPlaces: (): Promise<{ name: string; posts: number }[]> => raw('/places/hot'),
