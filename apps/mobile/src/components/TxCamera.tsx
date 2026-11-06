@@ -116,6 +116,50 @@ export function TxCamera({
   const cellCanvases = useRef<HTMLCanvasElement[]>([]);
   const [zoom, setZoom] = useState(1);
   const [recording, setRecording] = useState(false);
+  // Depois de tirar: a pré-visualização, com Repetir ou Usar.
+  const [review, setReview] = useState<Shot | null>(null);
+  const reviewSrc = useRef<HTMLCanvasElement | null>(null);
+  // Edição na pré-visualização: rodar/espelhar, cortar, filtro e ajustes. Aplica-se ao original a cada mudança.
+  type Edit = { rot: 0 | 90 | 180 | 270; flip: boolean; aspect: number | null; look: number; b: number; c: number; s: number };
+  const EDIT0: Edit = { rot: 0, flip: false, aspect: null, look: 0, b: 1, c: 1, s: 1 };
+  const [edit, setEdit] = useState<Edit>(EDIT0);
+  const [tool, setTool] = useState<null | 'look' | 'adjust' | 'crop'>(null);
+  const renderTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  function renderEdit(src: HTMLCanvasElement, e: Edit): HTMLCanvasElement {
+    const turned = e.rot === 90 || e.rot === 270;
+    const w = turned ? src.height : src.width, h = turned ? src.width : src.height;
+    // Corte ao centro na proporção pedida.
+    let cw = w, ch = h;
+    if (e.aspect) { if (w / h > e.aspect) cw = Math.round(h * e.aspect); else ch = Math.round(w / e.aspect); }
+    const out = document.createElement('canvas');
+    out.width = cw;
+    out.height = ch;
+    const g = out.getContext('2d')!;
+    g.translate(cw / 2, ch / 2);
+    g.rotate((e.rot * Math.PI) / 180);
+    if (e.flip) g.scale(-1, 1);
+    g.drawImage(src, -src.width / 2, -src.height / 2);
+    const base = LOOKS[e.look];
+    const l: Look = { ...base, id: base.id === 'normal' && e.b === 1 && e.c === 1 && e.s === 1 ? 'normal' : 'edit', b: base.b * e.b, c: base.c * e.c, s: base.s * e.s };
+    applyLook(out, l);
+    return out;
+  }
+  function openReview(c: HTMLCanvasElement) {
+    reviewSrc.current = c;
+    setEdit(EDIT0);
+    setTool(null);
+    c.toBlob((blob) => blob && setReview({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' }), 'image/jpeg', 0.9);
+  }
+  function changeEdit(patch: Partial<Edit>) {
+    const e = { ...edit, ...patch };
+    setEdit(e);
+    clearTimeout(renderTimer.current);
+    renderTimer.current = setTimeout(() => {
+      const src = reviewSrc.current;
+      if (!src) return;
+      renderEdit(src, e).toBlob((blob) => blob && setReview((r) => (r && !r.video ? { ...r, uri: URL.createObjectURL(blob) } : r)), 'image/jpeg', 0.9);
+    }, 60);
+  }
   const [seconds, setSeconds] = useState(0);
   const full = mode === 'photo' && count >= max;
   const topPad = Math.max(insets.top, 12);
@@ -213,7 +257,7 @@ export function TxCamera({
     setFlash(true);
     setTimeout(() => setFlash(false), 140);
     if (cell) return addCell(c);
-    c.toBlob((blob) => blob && onShot({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' }), 'image/jpeg', 0.9);
+    openReview(c);
   }
 
   // ----- Layout: a moldura (4:5, centrada entre os controlos), as células em píxeis do visor, juntar tudo numa foto.
@@ -263,10 +307,9 @@ export function TxCamera({
       cover(g, list[i], list[i].width, list[i].height, x, y, w, h);
       g.restore();
     });
-    const blob = await new Promise<Blob | null>((r) => out.toBlob(r, 'image/jpeg', 0.9));
     leaveLayout();
     buzz(20);
-    if (blob) onShot({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' });
+    openReview(out);
   }
   /** Da galeria com layout ativo: cada foto escolhida enche a célula seguinte (cortada ao tamanho dela). */
   async function fillFromFiles(files: File[]) {
@@ -306,7 +349,7 @@ export function TxCamera({
       setSeconds(0);
       const mime = (r.mimeType || type || 'video/mp4').split(';')[0];
       const blob = new Blob(chunks.current, { type: mime });
-      if (blob.size) onShot({ uri: URL.createObjectURL(blob), video: true, mime, durationMs: Date.now() - startedAt.current });
+      if (blob.size) setReview({ uri: URL.createObjectURL(blob), video: true, mime, durationMs: Date.now() - startedAt.current });
     };
     recorder.current = r;
     startedAt.current = Date.now();
@@ -519,6 +562,69 @@ export function TxCamera({
         </View>
         {full ? <Text style={st.full} accessibilityRole="alert">Máximo de {max} fotos</Text> : null}
       </View>
+
+      {/* Pré-visualização do que acabou de ser tirado: Repetir volta à câmara; Usar entrega a foto/vídeo. */}
+      {review && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', zIndex: 10 }]} accessibilityViewIsModal>
+          {review.video
+            ? dom('video', { src: review.uri, playsInline: true, autoPlay: true, loop: true, muted: false, controls: false, style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' } })
+            : dom('img', { src: review.uri, alt: 'Pré-visualização', style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' } })}
+          <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: 200, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)' })} />
+          <View style={[st.top, { paddingTop: topPad }]}>
+            <Pressable onPress={() => setReview(null)} style={st.round} accessibilityRole="button" accessibilityLabel="Repetir"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
+            {!review.video && (
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <Pressable onPress={() => changeEdit({ rot: ((edit.rot + 90) % 360) as Edit['rot'] })} style={st.round} accessibilityRole="button" accessibilityLabel="Rodar"><Icon name="repeat" size={22} color="#fff" /></Pressable>
+                <Pressable onPress={() => changeEdit({ flip: !edit.flip })} style={[st.round, edit.flip && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityLabel="Espelhar"><Icon name="flip-camera" size={22} color={edit.flip ? colors.zinc900 : '#fff'} /></Pressable>
+              </View>
+            )}
+          </View>
+          {!review.video && (
+            <View style={[st.editPanel, { bottom: botPad + 62 }]}>
+              {tool === 'look' && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 44 }}>
+                  {LOOKS.map((l, i) => (
+                    <Pressable key={l.id} onPress={() => changeEdit({ look: i })} style={[st.lookChip, edit.look === i && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: edit.look === i }}>
+                      <Text style={[st.lookText, edit.look === i && { color: colors.zinc900 }]}>{l.name}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+              {tool === 'adjust' && (
+                <View style={{ paddingHorizontal: 20, gap: 6 }}>
+                  {([['b', 'Brilho', 0.6, 1.4], ['c', 'Contraste', 0.6, 1.4], ['s', 'Saturação', 0, 2]] as const).map(([k, label, min, max]) => (
+                    <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Text style={{ width: 78, color: '#fff', fontSize: 13, fontWeight: '700' }}>{label}</Text>
+                      {dom('input', { type: 'range', min, max, step: 0.02, value: edit[k], 'aria-label': label, onInput: (ev: { target: HTMLInputElement }) => changeEdit({ [k]: Number(ev.target.value) } as Partial<Edit>), style: { flex: 1, accentColor: '#d6334f', height: 28 } })}
+                    </View>
+                  ))}
+                </View>
+              )}
+              {tool === 'crop' && (
+                <View style={[st.looks, { flexDirection: 'row', justifyContent: 'center' }]}>
+                  {([[null, 'Original'], [1, '1:1'], [0.8, '4:5'], [9 / 16, '9:16'], [16 / 9, '16:9']] as const).map(([a, label]) => (
+                    <Pressable key={label} onPress={() => changeEdit({ aspect: a })} style={[st.lookChip, edit.aspect === a && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: edit.aspect === a }}>
+                      <Text style={[st.lookText, edit.aspect === a && { color: colors.zinc900 }]}>{label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+              <View style={st.toolRow}>
+                {([['look', 'sparkles', 'Filtros'], ['adjust', 'sliders', 'Ajustar'], ['crop', 'expand', 'Cortar']] as const).map(([t, ic, label]) => (
+                  <Pressable key={t} onPress={() => setTool((cur) => (cur === t ? null : t))} style={st.toolBtn} accessibilityRole="tab" accessibilityState={{ selected: tool === t }}>
+                    <Icon name={ic} size={22} color={tool === t ? '#fff' : 'rgba(255,255,255,0.7)'} strokeWidth={2} />
+                    <Text style={[st.toolText, tool === t && { color: '#fff' }]}>{label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+          <View style={[st.reviewBar, { paddingBottom: botPad }]}>
+            <Pressable onPress={() => setReview(null)} style={st.retake} accessibilityRole="button"><Icon name="undo" size={20} color="#fff" strokeWidth={2.2} /><Text style={st.retakeText}>Repetir</Text></Pressable>
+            <Pressable onPress={() => { const r = review; setReview(null); setTool(null); onShot(r); }} style={st.use} accessibilityRole="button"><Text style={st.useText}>{review.video ? 'Usar vídeo' : 'Usar foto'}</Text><Icon name="check" size={20} color="#fff" strokeWidth={3} /></Pressable>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -580,4 +686,13 @@ const st = StyleSheet.create({
   doneBtn: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 23, backgroundColor: colors.brand, paddingHorizontal: 16 },
   doneCount: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.28)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   full: { marginTop: 10, color: '#fff', fontSize: 14, fontWeight: '600' },
+  editPanel: { position: 'absolute', left: 0, right: 0, gap: 10, paddingTop: 10, paddingBottom: 6, backgroundColor: 'rgba(0,0,0,0.55)' },
+  toolRow: { flexDirection: 'row', justifyContent: 'center', gap: 28 },
+  toolBtn: { alignItems: 'center', gap: 3 },
+  toolText: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '700' },
+  reviewBar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, gap: 12 },
+  retake: { height: 50, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.16)', paddingHorizontal: 20 },
+  retakeText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  use: { flex: 1, height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 25, backgroundColor: colors.brand, boxShadow: '0 6px 18px rgba(214,51,79,0.45)' } as object,
+  useText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });
