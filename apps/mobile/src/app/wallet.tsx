@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { Empty } from '@/components/Empty';
+import { GeleiraShelf } from '@/components/GeleiraShelf';
 import { Icon } from '@/components/Icon';
 import { GiftSheet } from '@/components/PostSheets';
 import { Sheet } from '@/components/Sheet';
@@ -79,6 +80,8 @@ export default function Wallet() {
               <Icon name="user-plus" size={19} color={colors.zinc800} />
               <Text style={{ fontWeight: '600', fontSize: 16, color: colors.zinc800 }}>Ver os meus convites</Text>
             </Pressable>
+
+            <GeleiraShelf username={user!.username} isMe flush />
 
             <View style={[st.card, cardShadow]}>
               <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 8, color: colors.zinc900 }}>Movimentos</Text>

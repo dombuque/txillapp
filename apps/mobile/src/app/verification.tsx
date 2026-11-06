@@ -6,17 +6,38 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { Icon } from '@/components/Icon';
 import { StackPage } from '@/components/StackPage';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
-import { api, uploadMedia } from '@/lib/api';
+import { api, uploadMedia, type DocType } from '@/lib/api';
 import { colors } from '@/lib/theme';
 
 type Pic = { uri: string; mime: string } | null;
 
-/** Uma foto a enviar (documento ou selfie): mostra a miniatura e deixa trocar. */
-function PhotoSlot({ label, hint, pic, onPick }: { label: string; hint: string; pic: Pic; onPick: (p: Pic) => void }) {
+const DOC_TYPES: { value: DocType; label: string }[] = [
+  { value: 'id_card', label: 'BI ou cartão de eleitor' },
+  { value: 'passport', label: 'Passaporte' },
+  { value: 'driver_licence', label: 'Carta de condução' },
+  { value: 'residence', label: 'DIRE (residente)' },
+  { value: 'other', label: 'Outro documento oficial com foto' },
+];
+
+/** Uma foto a enviar. Com `live`, só se aceita uma foto tirada na hora com a câmara da frente; senão também se escolhe da galeria. */
+function PhotoSlot({ label, hint, pic, onPick, live }: { label: string; hint: string; pic: Pic; onPick: (p: Pic) => void; live?: boolean }) {
+  const [err, setErr] = useState('');
   async function pick() {
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
-    const a = r.canceled ? null : r.assets[0];
-    if (a) onPick({ uri: a.uri, mime: a.mimeType ?? 'image/jpeg' });
+    setErr('');
+    try {
+      let r: ImagePicker.ImagePickerResult;
+      if (live) {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) return setErr('Dá acesso à câmara nas definições do telemóvel');
+        r = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.85, cameraType: ImagePicker.CameraType.front });
+      } else {
+        r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
+      }
+      const a = r.canceled ? null : r.assets[0];
+      if (a) onPick({ uri: a.uri, mime: a.mimeType ?? 'image/jpeg' });
+    } catch {
+      setErr('Não consegui abrir a câmara');
+    }
   }
   return (
     <View>
@@ -29,6 +50,8 @@ function PhotoSlot({ label, hint, pic, onPick }: { label: string; hint: string; 
           </View>
         )}
       </Pressable>
+      {pic && live ? <Pressable onPress={() => void pick()}><Text style={{ marginTop: 6, fontSize: 14, fontWeight: '600', color: colors.brand }}>Tirar outra vez</Text></Pressable> : null}
+      {err ? <Text style={{ marginTop: 4, fontSize: 13, color: colors.red600 }}>{err}</Text> : null}
     </View>
   );
 }
@@ -40,20 +63,25 @@ export default function Verification() {
   const [kind, setKind] = useState<'person' | 'business'>('person');
   const [fullName, setFullName] = useState('');
   const [proof, setProof] = useState('');
+  const [docType, setDocType] = useState<DocType>('id_card');
   const [doc, setDoc] = useState<Pic>(null);
+  const [docBack, setDocBack] = useState<Pic>(null);
+  const [face, setFace] = useState<Pic>(null);
   const [selfie, setSelfie] = useState<Pic>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const s = q.data;
 
   async function submit() {
-    if (!doc || !selfie) return setErr('Envia o documento e a selfie');
+    if (!doc || !face || !selfie || (twoSides && !docBack)) return setErr('Faltam fotos: documento, cara e selfie com o documento');
     setBusy(true);
     setErr('');
     try {
       const docMediaId = await uploadMedia(doc.uri, doc.mime, 'chat');
+      const docBackMediaId = twoSides && docBack ? await uploadMedia(docBack.uri, docBack.mime, 'chat') : undefined;
+      const faceMediaId = await uploadMedia(face.uri, face.mime, 'chat');
       const selfieMediaId = await uploadMedia(selfie.uri, selfie.mime, 'chat');
-      await api.verificationRequest({ kind, fullName: fullName.trim(), proof: proof.trim(), docMediaId, selfieMediaId });
+      await api.verificationRequest({ kind, fullName: fullName.trim(), proof: proof.trim(), docType, docMediaId, docBackMediaId, faceMediaId, selfieMediaId });
       await qc.invalidateQueries({ queryKey: ['verification'] });
     } catch (e) {
       setErr((e as Error).message);
@@ -70,7 +98,8 @@ export default function Verification() {
     }
     setBusy(false);
   }
-  const ready = !busy && !!fullName.trim() && proof.trim().length >= 10 && !!doc && !!selfie;
+  const twoSides = docType !== 'passport';
+  const ready = !busy && !!fullName.trim() && proof.trim().length >= 30 && !!doc && (!twoSides || !!docBack) && !!face && !!selfie;
 
   return (
     <StackPage title="Verificação">
@@ -85,7 +114,7 @@ export default function Verification() {
         )}
         {s && !s.verified && (
           <>
-            <Text style={{ fontSize: 15, lineHeight: 22, color: colors.zinc700 }}>O selo mostra que uma conta é de quem diz ser. Passa por duas fases: primeiro a conta tem de cumprir os requisitos, depois revemos o teu documento e uma selfie.</Text>
+            <Text style={{ fontSize: 15, lineHeight: 22, color: colors.zinc700 }}>O selo mostra que uma conta é de quem diz ser. Passa por duas fases: primeiro a conta tem de cumprir os requisitos, depois a moderação revê o teu documento, a tua cara e a justificação.</Text>
             <View style={st.list}>
               {s.items.map((i, n) => (
                 <View key={i.key} style={[st.item, n > 0 && { borderTopWidth: 1, borderTopColor: colors.zinc100 }]}>
@@ -127,16 +156,29 @@ export default function Verification() {
                   <TextInput value={fullName} onChangeText={setFullName} maxLength={80} style={st.input} accessibilityLabel="Nome" />
                 </View>
                 <View>
-                  <Text style={st.label}>Quem és e onde te podemos confirmar</Text>
-                  <TextInput value={proof} onChangeText={setProof} maxLength={600} multiline placeholder="Ex.: músico, página oficial em… ou notícia sobre mim em…" placeholderTextColor={colors.zinc500} style={[st.input, { minHeight: 84, textAlignVertical: 'top' }]} accessibilityLabel="Prova" />
+                  <Text style={st.label}>Justifica o pedido ({proof.trim().length}/600)</Text>
+                  <TextInput value={proof} onChangeText={setProof} maxLength={600} multiline placeholder="Quem és, o que fazes, porque precisas do selo e onde te podemos confirmar (página oficial, notícias, redes). Mínimo 30 caracteres." placeholderTextColor={colors.zinc500} style={[st.input, { minHeight: 110, textAlignVertical: 'top' }]} accessibilityLabel="Justificação" />
                 </View>
-                <PhotoSlot label="Documento de identificação" hint="BI, passaporte ou carta de condução (a frente)" pic={doc} onPick={setDoc} />
-                <PhotoSlot label="Selfie" hint="Uma foto tua, com a cara bem visível" pic={selfie} onPick={setSelfie} />
+                <View>
+                  <Text style={st.label}>Documento de identificação</Text>
+                  <Text style={{ marginBottom: 8, fontSize: 14, color: colors.zinc500 }}>Não tem de ser o BI: serve qualquer documento oficial com a tua foto.</Text>
+                  <View style={{ gap: 8 }}>
+                    {DOC_TYPES.map((d) => (
+                      <Pressable key={d.value} onPress={() => setDocType(d.value)} style={[st.kind, { flex: 0, height: 46, alignItems: 'flex-start', paddingHorizontal: 16 }, docType === d.value && { borderColor: colors.brand, backgroundColor: colors.rose50 }]} accessibilityRole="radio" accessibilityState={{ checked: docType === d.value }}>
+                        <Text style={{ fontSize: 15, fontWeight: '600', color: docType === d.value ? colors.brand : colors.zinc800 }}>{d.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+                <PhotoSlot label={twoSides ? 'Documento: frente' : 'Passaporte: página da foto'} hint="Toca para escolher ou tirar a foto. Os dados têm de estar legíveis." pic={doc} onPick={setDoc} />
+                {twoSides && <PhotoSlot label="Documento: verso" hint="Toca para escolher ou tirar a foto do verso." pic={docBack} onPick={setDocBack} />}
+                <PhotoSlot live label="Leitura da cara" hint="Abre a câmara: olha de frente, com boa luz, sem óculos escuros nem boné." pic={face} onPick={setFace} />
+                <PhotoSlot live label="Selfie ao lado do documento" hint="Abre a câmara: segura o documento ao lado da cara, com os dados e a foto visíveis." pic={selfie} onPick={setSelfie} />
                 {err ? <Text style={{ textAlign: 'center', fontSize: 14, color: colors.red600 }} accessibilityRole="alert">{err}</Text> : null}
                 <Pressable onPress={() => void submit()} disabled={!ready} style={[st.primary, !ready && { opacity: 0.5 }]} accessibilityRole="button">
                   {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.primaryText}>Enviar pedido</Text>}
                 </Pressable>
-                <Text style={{ textAlign: 'center', fontSize: 12, color: colors.zinc500 }}>Só a moderação vê os documentos, e são apagados quando decidirmos.</Text>
+                <Text style={{ textAlign: 'center', fontSize: 12, color: colors.zinc500 }}>Só a moderação vê as fotos, e são apagadas quando decidirmos.</Text>
               </View>
             )}
             {!s.eligible && <Text style={{ marginTop: 16, textAlign: 'center', fontSize: 14, color: colors.zinc500 }}>Quando cumprires todos os pontos, o pedido abre aqui.</Text>}

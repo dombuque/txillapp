@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BookmarkIcon } from '@/components/BookmarkIcon';
 import { CommentsSheet } from '@/components/CommentsSheet';
 import { Icon } from '@/components/Icon';
+import { ShareSheet } from '@/components/ShareSheet';
 import { GiftSheet, PostMenuSheet, RepostSheet, postLink } from '@/components/PostSheets';
 import { api, type Page, type Post } from '@/lib/api';
 import { abs } from '@/lib/config';
@@ -16,7 +17,7 @@ import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { Avatar } from '@/components/Avatar';
 
-type SheetName = null | 'comments' | 'repost' | 'gift' | 'menu';
+type SheetName = null | 'comments' | 'repost' | 'gift' | 'menu' | 'share';
 
 export function Reel({ post, active, height, muted, onMute, onChange, me }: { post: Post; active: boolean; height: number; muted: boolean; onMute: () => void; onChange: (p: Partial<Post>) => void; me?: string }) {
   const router = useRouter();
@@ -84,13 +85,14 @@ export function Reel({ post, active, height, muted, onMute, onChange, me }: { po
         <Rail on={post.cheered} tone="rgba(255,255,255,0.9)" onPress={() => void cheer()} label={post.cheers} icon={<Icon name="cheers" size={26} color={post.cheered ? colors.brand : '#fff'} />} />
         <Rail onPress={() => setSheet('comments')} label={post.comments} icon={<Icon name="comment" size={26} color="#fff" />} />
         <Rail on={post.reposted} tone="rgba(16,185,129,0.9)" onPress={() => setSheet('repost')} label={post.reposts} icon={<Icon name="repeat" size={26} color="#fff" />} />
-        <Rail onPress={() => void Share.share({ message: postLink(post), url: postLink(post) }).catch(() => undefined)} icon={<Icon name="share" size={26} color="#fff" />} />
+        <Rail onPress={() => setSheet('share')} icon={<Icon name="share" size={26} color="#fff" />} />
         {!mine && post.canGift && <Rail onPress={() => setSheet('gift')} icon={<Icon name="gift" size={26} color="#fff" />} />}
         <Rail on={!!post.saved} onPress={() => void save()} icon={<BookmarkIcon on={!!post.saved} size={26} color={post.saved ? colors.zinc900 : '#fff'} />} />
         <Rail onPress={() => setSheet('menu')} icon={<Icon name="more" size={26} color="#fff" strokeWidth={3} />} />
         <Rail onPress={onMute} icon={<Icon name={muted ? 'volume-off' : 'volume'} size={24} color="#fff" />} />
       </View>
 
+      {sheet === 'share' && <ShareSheet post={post} onClose={() => setSheet(null)} />}
       {sheet === 'comments' && <CommentsSheet post={post} onClose={() => setSheet(null)} onDelta={(d) => onChange({ comments: Math.max(0, post.comments + d) })} onGift={() => setSheet('gift')} />}
       {sheet === 'repost' && <RepostSheet post={post} onChange={onChange} onClose={() => setSheet(null)} />}
       {sheet === 'gift' && <GiftSheet postId={post.id} recipient={post.author} onClose={() => setSheet(null)} />}

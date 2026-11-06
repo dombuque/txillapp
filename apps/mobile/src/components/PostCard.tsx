@@ -12,6 +12,8 @@ import { BookmarkIcon } from './BookmarkIcon';
 import { CommentsSheet } from './CommentsSheet';
 import { Icon } from './Icon';
 import { GiftSheet, PostMenuSheet, RepostSheet } from './PostSheets';
+import { ShareSheet } from './ShareSheet';
+import { TrackCard } from './TrackCard';
 import { VerifiedBadge } from './VerifiedBadge';
 
 /** Atualiza uma publicação na lista do feed (também dentro de um repost). */
@@ -49,7 +51,7 @@ function PostBody({ post, me }: { post: Post; me?: string }) {
   const margin = width >= 360 ? 8 : 6;
   const pad = width >= 360 ? 16 : 14;
   const inner = width - margin * 2 - pad * 2;
-  const [sheet, setSheet] = useState<null | 'menu' | 'comments' | 'repost' | { gift: { username: string; displayName: string; amount?: number; note?: string } }>(null);
+  const [sheet, setSheet] = useState<null | 'menu' | 'comments' | 'repost' | 'share' | { gift: { username: string; displayName: string; amount?: number; note?: string } }>(null);
 
   async function toggleSave() {
     const next = !post.saved;
@@ -93,8 +95,10 @@ function PostBody({ post, me }: { post: Post; me?: string }) {
 
       {post.body ? <Text style={styles.body}>{post.body}</Text> : null}
       <Carousel media={post.media} width={inner} />
+      {post.music ? <TrackCard track={post.music} autoplay /> : null}
       <Actions post={post} mine={mine} patch={patch} open={(k) => setSheet(k === 'gift' ? { gift: { username: post.author.username, displayName: post.author.displayName } } : k)} />
-      {sheet === 'menu' && <PostMenuSheet post={post} mine={mine} onClose={() => setSheet(null)} onSaved={(saved) => patch({ saved })} />}
+      {sheet === 'menu' && <PostMenuSheet post={post} mine={mine} onClose={() => setSheet(null)} onSaved={(saved) => patch({ saved })} onShare={() => setSheet('share')} />}
+      {sheet === 'share' && <ShareSheet post={post} onClose={() => setSheet(null)} />}
       {sheet === 'comments' && (
         <CommentsSheet
           post={post}
@@ -171,7 +175,7 @@ function Carousel({ media, width }: { media: Post['media']; width: number }) {
 }
 
 /** Contadores em cima e, por baixo da linha, as ações com ícone e nome (Brindar, Comentar, Repostar, Presentear, Partilhar). */
-function Actions({ post, mine, patch, open }: { post: Post; mine: boolean; patch: (p: Partial<Post>) => void; open: (k: 'comments' | 'repost' | 'gift') => void }) {
+function Actions({ post, mine, patch, open }: { post: Post; mine: boolean; patch: (p: Partial<Post>) => void; open: (k: 'comments' | 'repost' | 'gift' | 'share') => void }) {
   const cheer = useMutation({
     mutationFn: () => api.cheer(post.id),
     onMutate: () => {
@@ -187,14 +191,7 @@ function Actions({ post, mine, patch, open }: { post: Post; mine: boolean; patch
     { n: post.gifts, icon: 'present' as const },
   ].filter((c) => c.n > 0);
 
-  async function share() {
-    const url = `${SITE_URL || 'https://txillapp.com'}/${post.media[0]?.kind === 'video' ? 'r' : 'p'}/${post.code}`;
-    try {
-      await Share.share({ message: url, url });
-    } catch {
-      /* cancelado */
-    }
-  }
+  const share = () => open('share');
 
   const Btn = ({ label, icon, onPress, color = colors.zinc800, size = 22, strokeWidth }: { label: string; icon: Parameters<typeof Icon>[0]['name']; onPress: () => void; color?: string; size?: number; strokeWidth?: number }) => (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.barBtn, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={label}>
@@ -225,7 +222,7 @@ function Actions({ post, mine, patch, open }: { post: Post; mine: boolean; patch
         <Btn label="Comentar" icon="comment" onPress={() => open('comments')} />
         <Btn label={post.reposted ? 'Repostado' : 'Repostar'} icon="repeat" color={post.reposted ? colors.green700 : colors.zinc800} onPress={() => open('repost')} />
         {!mine && post.canGift && <Btn label="Presentear" icon="present" onPress={() => open('gift')} />}
-        <Btn label="Partilhar" icon="share" size={24} onPress={() => void share()} />
+        <Btn label="Partilhar" icon="share" size={24} onPress={share} />
       </View>
     </>
   );

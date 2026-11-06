@@ -54,6 +54,33 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
   const [photoBusy, setPhotoBusy] = useState(false);
   const [hasPhoto, setHasPhoto] = useState(profile.hasAvatar);
   const [err, setErr] = useState('');
+  const [locating, setLocating] = useState(false);
+
+  /** Preenche "Cidade ou bairro" com o sítio onde estás agora (só o nome do bairro/cidade fica guardado, nunca as coordenadas). */
+  function useMyLocation() {
+    if (!navigator.geolocation) return setErr(tr('Este aparelho não deixa saber a localização'));
+    setLocating(true);
+    setErr('');
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const r = await api.nearbyPlaces(pos.coords.latitude, pos.coords.longitude);
+          const label = [r.area, r.city].filter((x, i, a) => x && a.indexOf(x) === i).join(', ');
+          if (label) setCity(label.slice(0, 40));
+          else setErr(tr('Não consegui saber o nome do sítio. Escreve-o tu'));
+        } catch {
+          setErr(tr('Não consegui saber o nome do sítio. Escreve-o tu'));
+        } finally {
+          setLocating(false);
+        }
+      },
+      () => {
+        setLocating(false);
+        setErr(tr('Sem acesso à localização. Dá permissão ou escreve o sítio'));
+      },
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
+    );
+  }
 
   async function pickPhoto(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -161,7 +188,8 @@ export default function EditProfileSheet({ profile, onClose }: { profile: Profil
           <span className="mb-1 block text-sm font-semibold text-zinc-700">{tr('Cidade ou bairro')}</span>
           <span className="relative block">
             <Icon name="map-pin" size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input value={city} onChange={(e) => setCity(e.target.value)} maxLength={40} placeholder={tr('Maputo, Polana…')} className={`${fieldInput} !pl-10`} autoComplete="address-level2" />
+            <input value={city} onChange={(e) => setCity(e.target.value)} maxLength={40} placeholder={tr('Maputo, Polana…')} className={`${fieldInput} !pl-10 !pr-12`} autoComplete="address-level2" />
+            <button type="button" onClick={useMyLocation} disabled={locating} aria-label={tr('Usar a minha localização')} className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-brand active:bg-rose-50 disabled:opacity-50"><Icon name="locate" size={20} /></button>
           </span>
         </label>
         <label className="block">

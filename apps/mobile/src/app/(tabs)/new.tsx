@@ -2,14 +2,18 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon, type IconName } from '@/components/Icon';
+import { MusicPicker } from '@/components/MusicPicker';
+import { TrackCard } from '@/components/TrackCard';
 import { Sheet } from '@/components/Sheet';
 import { api, uploadMedia } from '@/lib/api';
+import { musicApi, type Track } from '@/lib/api.music';
+import { clearDraft, loadDraft, newDraftKey, saveDraft } from '@/lib/drafts';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 
@@ -51,6 +55,23 @@ export default function Compose() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState('');
   const [err, setErr] = useState('');
+  const [music, setMusic] = useState<Track | null>(null);
+  const [pickMusic, setPickMusic] = useState(false);
+  const { draft } = useLocalSearchParams<{ draft?: string }>();
+  const draftKey = useRef(draft || newDraftKey(user?.username ?? 'eu'));
+
+  // Vindo dos rascunhos: preenche o que estava guardado.
+  useEffect(() => {
+    if (!draft) return;
+    void loadDraft(draft).then((d) => {
+      if (!d) return;
+      draftKey.current = draft;
+      setBody(d.body);
+      setPlace(d.place);
+      setAssets(d.photos.map((p) => ({ uri: p.uri, video: !!p.video, mime: p.mime ?? (p.video ? 'video/mp4' : 'image/jpeg'), durationMs: p.durationMs })));
+      setStep('write');
+    });
+  }, [draft]);
 
   const video = assets.find((a) => a.video);
   const photos = assets.filter((a) => !a.video);
@@ -84,7 +105,8 @@ export default function Compose() {
     if (step === 'write' && (body.trim() || assets.length)) {
       return Alert.alert('Sair sem publicar?', 'Perdes o que escreveste.', [
         { text: 'Continuar a editar', style: 'cancel' },
-        { text: 'Descartar', style: 'destructive', onPress: () => { setBody(''); setAssets([]); setPlace(''); setStep('choose'); router.replace('/'); } },
+        { text: 'Guardar rascunho', onPress: () => { void saveDraft(draftKey.current, { body, place, photos: assets.map((a) => ({ uri: a.uri, video: a.video, mime: a.mime, durationMs: a.durationMs })) }).then(() => { setBody(''); setAssets([]); setPlace(''); setMusic(null); setStep('choose'); router.replace('/drafts' as never); }); } },
+        { text: 'Descartar', style: 'destructive', onPress: () => { void clearDraft(draftKey.current); setBody(''); setAssets([]); setPlace(''); setMusic(null); setStep('choose'); router.replace('/'); } },
       ]);
     }
     if (step === 'write') return setStep('choose');
@@ -101,7 +123,9 @@ export default function Compose() {
         ids.push(await uploadMedia(assets[i].uri, assets[i].mime, 'public'));
       }
       setProgress('A publicar…');
-      await api.createPost({ body: body.trim(), mediaIds: ids, ...(place ? { locationLabel: place } : null) });
+      await musicApi.createPost({ body: body.trim(), mediaIds: ids, music, ...(place ? { locationLabel: place } : null) });
+      void clearDraft(draftKey.current);
+      setMusic(null);
       setBody('');
       setAssets([]);
       setPlace('');
@@ -138,6 +162,7 @@ export default function Compose() {
             <Tile icon="image" title="Galeria" sub="Até 10 fotos" tone={['#6366f1', '#a855f7']} onPress={() => void add('library', 'photo')} />
             <Tile icon="video" title="Vídeo" sub="Até 60 s" tone={['#0ea5e9', '#22d3ee']} onPress={() => void add('library', 'video')} />
             <Tile icon="pencil" title="Só texto" sub="Uma ideia, um desabafo" tone={['#18181b', '#52525b']} onPress={() => setStep('write')} />
+            <Tile icon="file-text" title="Rascunhos" sub="O que deixaste a meio" tone={['#0d9488', '#34d399']} onPress={() => router.push('/drafts' as never)} />
           </View>
           {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
         </ScrollView>
@@ -196,6 +221,12 @@ export default function Compose() {
           <Text style={[styles.rowText, place ? { color: colors.brand } : null]} numberOfLines={1}>{place || 'Adicionar local'}</Text>
           {place ? <Pressable onPress={() => setPlace('')} hitSlop={10} accessibilityLabel="Tirar o local"><Icon name="x" size={18} color={colors.zinc500} /></Pressable> : <Text style={styles.chev}>›</Text>}
         </Pressable>
+        <Pressable onPress={() => setPickMusic(true)} style={styles.row} accessibilityRole="button">
+          <View style={styles.rowIcon}><Icon name="music" size={20} color={music ? colors.brand : colors.zinc800} /></View>
+          <Text style={[styles.rowText, music ? { color: colors.brand } : null]} numberOfLines={1}>{music ? music.title : 'Adicionar música'}</Text>
+          {music ? <Pressable onPress={() => setMusic(null)} hitSlop={10} accessibilityLabel="Tirar a música"><Icon name="x" size={18} color={colors.zinc500} /></Pressable> : <Text style={styles.chev}>›</Text>}
+        </Pressable>
+        {music ? <TrackCard track={music} /> : null}
         {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
         {progress ? <Text style={styles.progress}>{progress}</Text> : null}
       </ScrollView>
@@ -207,6 +238,8 @@ export default function Compose() {
           </LinearGradient>
         </Pressable>
       </View>
+
+      {pickMusic && <MusicPicker onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
 
       {placeOpen && (
         <Sheet title="Onde estás?" onClose={() => setPlaceOpen(false)}>

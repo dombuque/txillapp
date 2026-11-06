@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { StackPage } from '@/components/StackPage';
-import { api } from '@/lib/api';
+import { api, type FeedSettings } from '@/lib/api';
 import { colors } from '@/lib/theme';
 
 type T = { id: string; label: string };
@@ -14,6 +14,10 @@ export default function ReelPrefs() {
   const topics = useQuery({ queryKey: ['explore-topics', 'all'], queryFn: () => api.exploreTopics(true), staleTime: 60_000, retry: false });
   const prefs = useQuery({ queryKey: ['explore-prefs'], queryFn: api.explorePrefs, retry: false });
   const activity = useQuery({ queryKey: ['explore-activity'], queryFn: api.exploreActivity, retry: false });
+  const settings = useQuery({ queryKey: ['feed-settings'], queryFn: api.feedSettings, retry: false });
+  const people = useQuery({ queryKey: ['feed-people'], queryFn: api.feedPeople, retry: false });
+  const [who, setWho] = useState('');
+  const [personErr, setPersonErr] = useState('');
   const [picking, setPicking] = useState<null | 'more' | 'less'>(null);
   const [busy, setBusy] = useState(false);
   const mine = prefs.data ?? {};
@@ -41,11 +45,63 @@ export default function ReelPrefs() {
       void qc.invalidateQueries({ queryKey: ['explore-prefs'] });
     }
   }
+  const refreshFeeds = () => { void qc.invalidateQueries({ queryKey: ['reels'] }); void qc.invalidateQueries({ queryKey: ['explore'] }); };
+  async function setOpt<K extends keyof FeedSettings>(k: K, v: FeedSettings[K]) {
+    const prev = settings.data;
+    if (prev) qc.setQueryData(['feed-settings'], { ...prev, [k]: v });
+    try {
+      qc.setQueryData(['feed-settings'], await api.setFeedSettings({ [k]: v }));
+      refreshFeeds();
+    } catch {
+      qc.setQueryData(['feed-settings'], prev);
+    }
+  }
+  async function addPerson(pref: -1 | 1) {
+    setPersonErr('');
+    try {
+      qc.setQueryData(['feed-people'], await api.setFeedPerson(who.trim().replace(/^@/, ''), pref));
+      setWho('');
+      refreshFeeds();
+    } catch (e) {
+      setPersonErr((e as Error).message);
+    }
+  }
+  async function removePerson(username: string) {
+    qc.setQueryData(['feed-people'], await api.setFeedPerson(username, 0));
+    refreshFeeds();
+  }
+  const cur = settings.data;
+  const opt = <K extends 'following' | 'freshness' | 'media' | 'variety'>(title: string, key: K, options: [FeedSettings[K], string][]) => (
+    <View style={{ marginBottom: 16 }}>
+      <Text style={st.optTitle}>{title}</Text>
+      <View style={st.seg} accessibilityRole="radiogroup">
+        {options.map(([v, label]) => {
+          const on = cur?.[key] === v;
+          return (
+            <Pressable key={String(v)} onPress={() => void setOpt(key, v)} style={[st.segBtn, on && st.segOn]} accessibilityRole="radio" accessibilityState={{ checked: on }}>
+              <Text style={[st.segText, on && { color: '#fff' }]} numberOfLines={1}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+  const sw = (title: string, text: string, key: 'hideSeen' | 'calm') => (
+    <View style={st.swRow}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>{title}</Text>
+        <Text style={{ fontSize: 14, color: colors.zinc600 }}>{text}</Text>
+      </View>
+      <Switch value={!!cur?.[key]} onValueChange={(v) => void setOpt(key, v)} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel={title} />
+    </View>
+  );
   async function reset() {
     setBusy(true);
     await api.resetExplore().catch(() => undefined);
     await qc.invalidateQueries({ queryKey: ['explore-prefs'] });
     await qc.invalidateQueries({ queryKey: ['explore-activity'] });
+    await qc.invalidateQueries({ queryKey: ['feed-settings'] });
+    await qc.invalidateQueries({ queryKey: ['feed-people'] });
     void qc.invalidateQueries({ queryKey: ['reels'] });
     void qc.invalidateQueries({ queryKey: ['explore'] });
     setBusy(false);
@@ -84,6 +140,35 @@ export default function ReelPrefs() {
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48 }}>
         <Text style={st.headline}>{headline}</Text>
 
+
+        <Text style={[st.h3, { marginTop: 36 }]}>Constrói o teu algoritmo</Text>
+        <Text style={st.sub}>Escolhe como o Explorar e os Reels te mostram as coisas</Text>
+        {opt('De onde vem o que vês', 'following', [['less', 'Descobrir mais'], ['balanced', 'Equilibrado'], ['more', 'Mais de quem sigo']])}
+        {opt('Ordem', 'freshness', [['recent', 'Mais recentes'], ['balanced', 'Equilibrado'], ['popular', 'Mais populares']])}
+        {opt('Tipo de conteúdo', 'media', [['all', 'Tudo'], ['photos', 'Fotos'], ['videos', 'Vídeos']])}
+        {opt('Variedade de contas', 'variety', [['low', 'Poucas contas'], ['normal', 'Normal'], ['high', 'Muitas contas']])}
+        <View style={st.switches}>
+          {sw('Esconder o que já vi', 'Não repete publicações que já te apareceram.', 'hideSeen')}
+          {sw('Modo tranquilo', 'Menos festa e bebidas, para dias mais calmos.', 'calm')}
+        </View>
+
+        <Text style={[st.h3, { marginTop: 36 }]}>Pessoas</Text>
+        <Text style={st.sub}>Quem queres ver mais ou menos no Explorar e nos Reels</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TextInput value={who} onChangeText={setWho} placeholder="@utilizador" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} style={[st.input, { flex: 1 }]} accessibilityLabel="Utilizador" />
+          <Pressable onPress={() => void addPerson(1)} disabled={!who.trim()} style={[st.mini, { backgroundColor: colors.brand }, !who.trim() && { opacity: 0.5 }]} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Mais</Text></Pressable>
+          <Pressable onPress={() => void addPerson(-1)} disabled={!who.trim()} style={[st.mini, { backgroundColor: colors.zinc100 }, !who.trim() && { opacity: 0.5 }]} accessibilityRole="button"><Text style={{ color: colors.zinc900, fontWeight: '700', fontSize: 14 }}>Menos</Text></Pressable>
+        </View>
+        {personErr ? <Text style={{ marginTop: 6, fontSize: 14, color: colors.red600 }}>{personErr}</Text> : null}
+        <View style={[st.wrap, { marginTop: 12 }]}>
+          {(people.data ?? []).map((p) => (
+            <View key={p.username} style={[st.chip, { backgroundColor: p.pref > 0 ? colors.rose50 : colors.zinc100 }]}>
+              <Text style={st.chipText}>{p.pref > 0 ? 'Mais' : 'Menos'} · @{p.username}</Text>
+              <Pressable onPress={() => void removePerson(p.username)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Tirar @${p.username}`} style={{ marginRight: -4 }}><Icon name="x" size={16} color={colors.zinc500} strokeWidth={2.4} /></Pressable>
+            </View>
+          ))}
+        </View>
+
         <Text style={[st.h3, { marginTop: 36 }]}>O que queres ver mais</Text>
         <Text style={st.sub}>Com base na tua atividade e nas tuas escolhas</Text>
         <View style={st.wrap}>
@@ -116,5 +201,14 @@ const st = StyleSheet.create({
   chipText: { fontSize: 15, fontWeight: '600', color: colors.zinc900 },
   all: { marginTop: 16, borderRadius: 24, backgroundColor: '#fafafa', padding: 14 },
   small: { height: 40, justifyContent: 'center', borderRadius: 999, backgroundColor: '#fff', paddingHorizontal: 14, borderWidth: 1, borderColor: colors.zinc200 },
+  optTitle: { marginBottom: 8, fontSize: 15, fontWeight: '600', color: colors.zinc800 },
+  seg: { flexDirection: 'row', borderRadius: 999, backgroundColor: colors.zinc100, padding: 4 },
+  segBtn: { flex: 1, minHeight: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  segOn: { backgroundColor: colors.brand },
+  segText: { fontSize: 13, fontWeight: '700', color: colors.zinc700 },
+  switches: { marginTop: 4, gap: 4 },
+  swRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  input: { borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' as never },
+  mini: { height: 48, borderRadius: 999, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
   reset: { marginTop: 48, height: 48, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
 });

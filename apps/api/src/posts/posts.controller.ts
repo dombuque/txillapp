@@ -70,6 +70,43 @@ export class FeedController {
     return this.posts.setPref(req.userId!, b.topic, b.pref);
   }
 
+  /** Construir o algoritmo: origem, recente/popular, tipo de média, variedade, esconder o já visto e modo tranquilo. */
+  @Get('settings')
+  feedSettings(@Req() req: AuthedReq) {
+    return this.posts.feedSettings(req.userId!);
+  }
+
+  @Put('settings')
+  setFeedSettings(
+    @Req() req: AuthedReq,
+    @Body(
+      new ZodPipe(
+        z.object({
+          following: z.enum(['less', 'balanced', 'more']).optional(),
+          freshness: z.enum(['recent', 'balanced', 'popular']).optional(),
+          media: z.enum(['all', 'photos', 'videos']).optional(),
+          variety: z.enum(['low', 'normal', 'high']).optional(),
+          hideSeen: z.boolean().optional(),
+          calm: z.boolean().optional(),
+        }),
+      ),
+    )
+    b: Record<string, unknown>,
+  ) {
+    return this.posts.setFeedSettings(req.userId!, b);
+  }
+
+  /** Contas de que quero ver mais ou menos. */
+  @Get('people')
+  explorePeople(@Req() req: AuthedReq) {
+    return this.posts.explorePeople(req.userId!);
+  }
+
+  @Put('people')
+  setPerson(@Req() req: AuthedReq, @Body(new ZodPipe(z.object({ username: z.string().trim().min(2).max(40), pref: z.union([z.literal(-1), z.literal(0), z.literal(1)]) }))) b: { username: string; pref: -1 | 0 | 1 }) {
+    return this.posts.setPerson(req.userId!, b.username, b.pref);
+  }
+
   @Delete('prefs')
   @HttpCode(204)
   resetPrefs(@Req() req: AuthedReq) {

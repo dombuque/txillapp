@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import Icon from '../components/Icon';
 import StackPage from '../components/StackPage';
-import { api } from '../lib/api';
+import { api, type FeedSettings } from '../lib/api';
 import { tr } from '../lib/i18n';
 
 type T = { id: string; label: string };
@@ -16,6 +16,10 @@ export default function ReelPrefs() {
   const topics = useQuery({ queryKey: ['explore-topics', 'all'], queryFn: () => api.exploreTopics(true), staleTime: 60_000, retry: false });
   const prefs = useQuery({ queryKey: ['explore-prefs'], queryFn: api.explorePrefs, retry: false });
   const activity = useQuery({ queryKey: ['explore-activity'], queryFn: api.exploreActivity, retry: false });
+  const settings = useQuery({ queryKey: ['feed-settings'], queryFn: api.feedSettings, retry: false });
+  const people = useQuery({ queryKey: ['feed-people'], queryFn: api.feedPeople, retry: false });
+  const [who, setWho] = useState('');
+  const [personErr, setPersonErr] = useState('');
   const [picking, setPicking] = useState<null | 'more' | 'less'>(null);
   const [busy, setBusy] = useState(false);
   const mine = prefs.data ?? {};
@@ -43,11 +47,57 @@ export default function ReelPrefs() {
       void qc.invalidateQueries({ queryKey: ['explore-prefs'] });
     }
   }
+  const refreshFeeds = () => { void qc.invalidateQueries({ queryKey: ['reels'] }); void qc.invalidateQueries({ queryKey: ['explore'] }); };
+  async function setOpt<K extends keyof FeedSettings>(k: K, v: FeedSettings[K]) {
+    const prev = settings.data;
+    if (prev) qc.setQueryData(['feed-settings'], { ...prev, [k]: v });
+    try {
+      qc.setQueryData(['feed-settings'], await api.setFeedSettings({ [k]: v }));
+      refreshFeeds();
+    } catch {
+      qc.setQueryData(['feed-settings'], prev);
+    }
+  }
+  async function addPerson(pref: -1 | 1) {
+    setPersonErr('');
+    try {
+      qc.setQueryData(['feed-people'], await api.setFeedPerson(who.trim().replace(/^@/, ''), pref));
+      setWho('');
+      refreshFeeds();
+    } catch (e) {
+      setPersonErr((e as Error).message);
+    }
+  }
+  async function removePerson(username: string) {
+    qc.setQueryData(['feed-people'], await api.setFeedPerson(username, 0));
+    refreshFeeds();
+  }
+  const cur = settings.data;
+  const opt = <K extends 'following' | 'freshness' | 'media' | 'variety'>(title: string, key: K, options: [FeedSettings[K], string][]) => (
+    <div className="mb-4">
+      <p className="mb-2 text-[15px] font-semibold text-zinc-800">{title}</p>
+      <div role="radiogroup" aria-label={title} className="flex rounded-full bg-zinc-100 p-1">
+        {options.map(([v, label]) => (
+          <button key={String(v)} type="button" role="radio" aria-checked={cur?.[key] === v} onClick={() => void setOpt(key, v)} className={`h-10 min-w-0 flex-1 truncate rounded-full px-1.5 text-[13px] font-bold transition active:scale-95 ${cur?.[key] === v ? 'bg-brand text-white' : 'text-zinc-700'}`}>{label}</button>
+        ))}
+      </div>
+    </div>
+  );
+  const sw = (title: string, text: string, key: 'hideSeen' | 'calm') => (
+    <div className="flex items-center gap-3 py-2">
+      <span className="min-w-0 flex-1"><span className="block font-semibold">{title}</span><span className="block text-sm text-zinc-600">{text}</span></span>
+      <button type="button" role="switch" aria-checked={!!cur?.[key]} aria-label={title} onClick={() => void setOpt(key, !cur?.[key])} className={`relative h-8 w-14 shrink-0 rounded-full transition-colors ${cur?.[key] ? 'bg-brand' : 'bg-zinc-300'}`}>
+        <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-all ${cur?.[key] ? 'left-7' : 'left-1'}`} />
+      </button>
+    </div>
+  );
   async function reset() {
     setBusy(true);
     await api.resetExplore().catch(() => undefined);
     await qc.invalidateQueries({ queryKey: ['explore-prefs'] });
     await qc.invalidateQueries({ queryKey: ['explore-activity'] });
+    await qc.invalidateQueries({ queryKey: ['feed-settings'] });
+    await qc.invalidateQueries({ queryKey: ['feed-people'] });
     void qc.invalidateQueries({ queryKey: ['reels'] });
     void qc.invalidateQueries({ queryKey: ['explore'] });
     setBusy(false);
@@ -64,6 +114,36 @@ export default function ReelPrefs() {
     <StackPage title={tr('O teu algoritmo')}>
       <div className="px-5 pb-12 pt-5">
         <h2 className="text-[26px] font-extrabold leading-tight tracking-tight">{headline}</h2>
+
+        <section className="mt-9" aria-label={tr('Constrói o teu algoritmo')}>
+          <h3 className="text-[16px] font-bold">{tr('Constrói o teu algoritmo')}</h3>
+          <p className="mb-4 text-sm text-zinc-500">{tr('Escolhe como o Explorar e os Reels te mostram as coisas')}</p>
+          {opt(tr('De onde vem o que vês'), 'following', [['less', tr('Descobrir mais')], ['balanced', tr('Equilibrado')], ['more', tr('Mais de quem sigo')]])}
+          {opt(tr('Ordem'), 'freshness', [['recent', tr('Mais recentes')], ['balanced', tr('Equilibrado')], ['popular', tr('Mais populares')]])}
+          {opt(tr('Tipo de conteúdo'), 'media', [['all', tr('Tudo')], ['photos', tr('Fotos')], ['videos', tr('Vídeos')]])}
+          {opt(tr('Variedade de contas'), 'variety', [['low', tr('Poucas contas')], ['normal', tr('Normal')], ['high', tr('Muitas contas')]])}
+          {sw(tr('Esconder o que já vi'), tr('Não repete publicações que já te apareceram.'), 'hideSeen')}
+          {sw(tr('Modo tranquilo'), tr('Menos festa e bebidas, para dias mais calmos.'), 'calm')}
+        </section>
+
+        <section className="mt-9" aria-label={tr('Pessoas')}>
+          <h3 className="text-[16px] font-bold">{tr('Pessoas')}</h3>
+          <p className="mb-3 text-sm text-zinc-500">{tr('Quem queres ver mais ou menos no Explorar e nos Reels')}</p>
+          <div className="flex gap-2">
+            <input value={who} onChange={(e) => setWho(e.target.value)} placeholder={tr('@utilizador')} aria-label={tr('Utilizador')} autoCapitalize="none" autoCorrect="off" className="h-12 min-w-0 flex-1 rounded-2xl bg-zinc-100 px-4 outline-none focus:bg-zinc-200/70" />
+            <button type="button" disabled={!who.trim()} onClick={() => void addPerson(1)} className="h-12 rounded-full bg-brand px-5 text-sm font-bold text-white disabled:opacity-50">{tr('Mais')}</button>
+            <button type="button" disabled={!who.trim()} onClick={() => void addPerson(-1)} className="h-12 rounded-full bg-zinc-100 px-5 text-sm font-bold text-zinc-900 disabled:opacity-50">{tr('Menos')}</button>
+          </div>
+          {personErr && <p role="alert" className="mt-1.5 text-sm text-red-600">{personErr}</p>}
+          <div className="mt-3 flex flex-wrap gap-2.5">
+            {(people.data ?? []).map((p) => (
+              <span key={p.username} className={`${chip} ${p.pref > 0 ? 'bg-rose-50' : 'bg-zinc-100'} text-zinc-900`}>
+                {p.pref > 0 ? tr('Mais') : tr('Menos')} · @{p.username}
+                <button type="button" onClick={() => void removePerson(p.username)} aria-label={tr('Tirar {v0}', { v0: `@${p.username}` })} className="-mr-1 flex h-6 w-6 items-center justify-center rounded-full text-zinc-500 active:bg-zinc-200"><Icon name="x" size={14} strokeWidth={2.4} /></button>
+              </span>
+            ))}
+          </div>
+        </section>
 
         <section className="mt-9" aria-label={tr('O que queres ver mais')}>
           <h3 className="text-[16px] font-bold">{tr('O que queres ver mais')}</h3>

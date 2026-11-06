@@ -177,7 +177,7 @@ export function RepostSheet({ post, onChange, onClose }: { post: Post; onChange:
 }
 
 /** ⋯ da publicação: partilhar, guardar, copiar ligação, editar, apagar (as minhas), não me interessa e denunciar (de outras pessoas). */
-export function PostMenuSheet({ post, mine, onClose, onSaved }: { post: Post; mine: boolean; onClose: () => void; onSaved: (saved: boolean) => void }) {
+export function PostMenuSheet({ post, mine, onClose, onSaved, onShare }: { post: Post; mine: boolean; onClose: () => void; onSaved: (saved: boolean) => void; onShare?: () => void }) {
   const qc = useQueryClient();
   const [view, setView] = useState<'menu' | 'edit' | 'report'>('menu');
   const [draft, setDraft] = useState(post.body);
@@ -196,6 +196,10 @@ export function PostMenuSheet({ post, mine, onClose, onSaved }: { post: Post; mi
     setTimeout(() => setNote(''), 1800);
   }
   async function share() {
+    if (onShare) {
+      onShare();
+      return;
+    }
     try {
       await Share.share({ message: postLink(post), url: postLink(post) });
     } catch { /* cancelado */ }

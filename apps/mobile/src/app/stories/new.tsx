@@ -8,8 +8,10 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
+import { MusicPicker } from '@/components/MusicPicker';
 import { CloseFriendsSheet } from '@/components/StoryParts';
 import { api, uploadMedia } from '@/lib/api';
+import { musicApi, type Track } from '@/lib/api.music';
 import { colors } from '@/lib/theme';
 
 /** Criar um story: foto ou vídeo (até 30 s), legenda e para quem vai (todos ou amigos próximos). */
@@ -23,6 +25,8 @@ export default function NewStory() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [listOpen, setListOpen] = useState(false);
+  const [music, setMusic] = useState<Track | null>(null);
+  const [pickMusic, setPickMusic] = useState(false);
   const friends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
 
   async function pick(source: 'camera' | 'library') {
@@ -51,7 +55,7 @@ export default function NewStory() {
     setErr('');
     try {
       const id = await uploadMedia(asset.uri, asset.mime, 'public');
-      await api.createStory(id, caption.trim(), audience);
+      await musicApi.createStory(id, caption.trim(), audience, music);
       await qc.invalidateQueries({ queryKey: ['stories'] });
       router.back();
     } catch (e) {
@@ -73,6 +77,18 @@ export default function NewStory() {
       <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <TextInput value={caption} onChangeText={setCaption} maxLength={200} placeholder="Escreve uma legenda…" placeholderTextColor="rgba(255,255,255,0.7)" style={styles.caption} accessibilityLabel="Legenda do story" />
         {err ? <Text style={styles.err}>{err}</Text> : null}
+        {music ? (
+          <View style={styles.musicRow}>
+            <Icon name="music" size={18} color="#fff" />
+            <Text style={{ flex: 1, color: '#fff', fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{music.title}{music.kind === 'clip' ? '' : ` · ${music.artist || 'Autor desconhecido'}`}</Text>
+            <Pressable onPress={() => setMusic(null)} style={styles.musicX} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={16} color="#fff" /></Pressable>
+          </View>
+        ) : (
+          <Pressable onPress={() => setPickMusic(true)} style={[styles.musicRow, { justifyContent: 'center' }]} accessibilityRole="button">
+            <Icon name="music" size={18} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Adicionar música</Text>
+          </Pressable>
+        )}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }} accessibilityRole="radiogroup">
           {([['all', 'globe', 'Os teus stories'], ['close_friends', 'heart', 'Amigos próximos']] as const).map(([v, ic, label]) => (
             <Pressable key={v} onPress={() => setAudience(v)} style={[styles.radio, audience === v && { backgroundColor: v === 'all' ? '#fff' : '#10b981' }]} accessibilityRole="radio" accessibilityState={{ checked: audience === v }}>
@@ -93,6 +109,7 @@ export default function NewStory() {
         </Pressable>
       </View>
       {listOpen && <CloseFriendsSheet onClose={() => setListOpen(false)} />}
+      {pickMusic && <MusicPicker onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
     </KeyboardAvoidingView>
   );
 }
@@ -108,6 +125,8 @@ const styles = StyleSheet.create({
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 12, backgroundColor: '#000' },
   caption: { height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 18, color: '#fff', fontSize: 16, outlineStyle: 'none' } as object,
   err: { marginTop: 8, color: '#fecaca', textAlign: 'center' },
+  musicRow: { marginTop: 12, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 16 },
+  musicX: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   radio: { flex: 1, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.15)' },
   aud: { height: 52, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 16 },
   audText: { color: '#fff', fontWeight: '700' },

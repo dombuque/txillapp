@@ -5,6 +5,8 @@ import { LoadingBlock } from '../../components/Loading';
 import { PageHeader } from './bo';
 import { api, type VerificationItem } from '../../lib/api';
 
+const DOC_LABELS = { id_card: 'BI ou cartão de eleitor', passport: 'Passaporte', driver_licence: 'Carta de condução', residence: 'DIRE (residente)', other: 'Outro documento oficial' } as const;
+
 function Row({ item, onDone }: { item: VerificationItem; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -30,9 +32,16 @@ function Row({ item, onDone }: { item: VerificationItem; onDone: () => void }) {
       <span className="text-sm font-semibold text-brand">@{item.user.username}</span>
       {item.user.bio && <p className="mt-1 text-sm text-zinc-600">{item.user.bio}</p>}
       <p className="mt-2 whitespace-pre-wrap break-words rounded-xl bg-zinc-50 p-3 text-sm">{item.proof}</p>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        {item.docUrl && <a href={item.docUrl} target="_blank" rel="noreferrer" className="block"><img src={item.docUrl} alt={tr('Documento')} className="h-36 w-full rounded-xl object-cover" /><span className="mt-1 block text-center text-xs text-zinc-500">{tr('Documento')}</span></a>}
-        {item.selfieUrl && <a href={item.selfieUrl} target="_blank" rel="noreferrer" className="block"><img src={item.selfieUrl} alt={tr('Selfie')} className="h-36 w-full rounded-xl object-cover" /><span className="mt-1 block text-center text-xs text-zinc-500">{tr('Selfie')}</span></a>}
+      <p className="mt-3 text-sm font-semibold">{tr('Documento')}: {item.docType ? tr(DOC_LABELS[item.docType]) : tr('(não indicado)')}</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {([[item.docUrl, 'Documento (frente)'], [item.docBackUrl, 'Documento (verso)'], [item.faceUrl, 'Leitura da cara'], [item.selfieUrl, 'Selfie com o documento']] as const).map(([url, label]) =>
+          url ? (
+            <a key={label} href={url} target="_blank" rel="noreferrer" className="block">
+              <img src={url} alt={tr(label)} className="h-36 w-full rounded-xl object-cover" />
+              <span className="mt-1 block text-center text-xs text-zinc-500">{tr(label)}</span>
+            </a>
+          ) : null,
+        )}
       </div>
       {rejecting && (
         <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} placeholder={tr('Motivo (a pessoa vai ver)')} aria-label={tr('Motivo da recusa')} className="mt-3 h-11 w-full rounded-xl border border-zinc-300 px-3 text-[16px]" />
@@ -62,7 +71,7 @@ export default function AdminVerifications() {
   const q = useQuery({ queryKey: ['admin-verifications'], queryFn: () => api.adminVerifications(), refetchOnWindowFocus: true });
   return (
     <>
-      <PageHeader title={tr('Pedidos de selo')} description="Vê o documento e a selfie e decide. Recusar exige um motivo, que a pessoa vai ver." />
+      <PageHeader title={tr('Pedidos de selo')} description="Compara o documento, a leitura da cara e a selfie com o documento, lê a justificação e decide. Recusar exige um motivo, que a pessoa vai ver." />
       <div>
         {q.isLoading && <LoadingBlock />}
         {q.isError && <p role="alert" className="text-center text-red-600">{tr('Não foi possível carregar.')}</p>}

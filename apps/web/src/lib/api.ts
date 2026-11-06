@@ -189,6 +189,15 @@ export interface FollowState {
   followers: number;
 }
 export type Availability<R extends string> = { available: true } | { available: false; reason: R };
+export interface FeedSettings {
+  following: 'less' | 'balanced' | 'more';
+  freshness: 'recent' | 'balanced' | 'popular';
+  media: 'all' | 'photos' | 'videos';
+  variety: 'low' | 'normal' | 'high';
+  hideSeen: boolean;
+  calm: boolean;
+}
+export interface FeedPerson { username: string; displayName: string; hasAvatar: boolean; pref: number }
 export interface Page<T> {
   items: T[];
   nextCursor: string | null;
@@ -424,6 +433,7 @@ export interface VerificationStatus {
   request: { id: string; kind: string; status: 'pending' | 'approved' | 'rejected' | 'withdrawn'; reason: string | null; createdAt: string } | null;
   retryAfter: string | null;
 }
+export type DocType = 'id_card' | 'passport' | 'driver_licence' | 'residence' | 'other';
 export interface VerificationItem {
   id: string;
   kind: 'person' | 'business';
@@ -431,7 +441,10 @@ export interface VerificationItem {
   proof: string;
   createdAt: string;
   user: { username: string; displayName: string; bio: string; hasAvatar: boolean; followers: number };
+  docType: DocType | null;
   docUrl: string | null;
+  docBackUrl: string | null;
+  faceUrl: string | null;
   selfieUrl: string | null;
 }
 export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified';
@@ -770,7 +783,7 @@ export const api = {
   paymentsCancel: (id: string): Promise<void> => raw(`/payments/orders/${id}/cancel`, post({})),
   paymentsSandboxPay: (id: string): Promise<PaymentOrder> => raw(`/payments/orders/${id}/sandbox-pay`, post({})),
   verificationStatus: (): Promise<VerificationStatus> => raw('/verification/me'),
-  verificationRequest: (b: { kind: 'person' | 'business'; fullName: string; proof: string; docMediaId: string; selfieMediaId: string }): Promise<void> => raw('/verification/request', post(b)),
+  verificationRequest: (b: { kind: 'person' | 'business'; fullName: string; proof: string; docType: DocType; docMediaId: string; docBackMediaId?: string; faceMediaId: string; selfieMediaId: string }): Promise<void> => raw('/verification/request', post(b)),
   verificationWithdraw: (): Promise<void> => raw('/verification/request', { method: 'DELETE' }),
   adminVerifications: (): Promise<VerificationItem[]> => raw('/admin/verifications'),
   verificationDecide: (id: string, action: 'approve' | 'reject', reason?: string, tier?: 'verified' | 'official'): Promise<void> => raw(`/admin/verifications/${id}/decide`, post({ action, reason, tier })),
@@ -827,6 +840,10 @@ export const api = {
   exploreActivity: (): Promise<{ id: string; label: string }[]> => raw('/feed/algorithm'),
   setExplorePref: (topic: string, pref: -1 | 0 | 1): Promise<Record<string, number>> => raw('/feed/prefs', { method: 'PUT', body: JSON.stringify({ topic, pref }) }),
   resetExplore: (): Promise<void> => raw('/feed/prefs', { method: 'DELETE' }),
+  feedSettings: (): Promise<FeedSettings> => raw('/feed/settings'),
+  setFeedSettings: (b: Partial<FeedSettings>): Promise<FeedSettings> => raw('/feed/settings', { method: 'PUT', body: JSON.stringify(b) }),
+  feedPeople: (): Promise<FeedPerson[]> => raw('/feed/people'),
+  setFeedPerson: (username: string, pref: -1 | 0 | 1): Promise<FeedPerson[]> => raw('/feed/people', { method: 'PUT', body: JSON.stringify({ username, pref }) }),
   exploreTopics: (all = false): Promise<{ id: string; label: string; count: number }[]> => raw(`/feed/explore/topics${all ? '?all=1' : ''}`),
   reels: (cursor?: string): Promise<Page<Post>> => raw(`/feed/reels${cursor ? `?cursor=${cursor}&limit=6` : '?limit=6'}`),
   /**

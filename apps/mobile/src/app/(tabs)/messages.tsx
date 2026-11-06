@@ -86,6 +86,7 @@ export default function Messages() {
     <View>
       <View style={styles.top}>
         <Text style={styles.handle} numberOfLines={1}>{user?.username ?? 'Mensagens'}</Text>
+        <Pressable onPress={() => router.push('/messages/new' as never)} hitSlop={8} style={styles.compose} accessibilityRole="button" accessibilityLabel="Nova conversa ou grupo"><Icon name="compose" size={24} /></Pressable>
       </View>
       <View style={styles.search}>
         <Icon name="search" size={18} color={colors.zinc500} />
@@ -181,6 +182,7 @@ export default function Messages() {
 
 const styles = StyleSheet.create({
   top: { height: 48, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  compose: { position: 'absolute', right: 16, top: 0, bottom: 0, width: 40, alignItems: 'center', justifyContent: 'center' },
   handle: { maxWidth: '70%', fontSize: 20, fontWeight: '800', color: colors.zinc900 },
   search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, marginBottom: 8 },
   input: { flex: 1, minWidth: 0, fontSize: 16, color: colors.zinc900, padding: 0, outlineStyle: 'none' } as object,

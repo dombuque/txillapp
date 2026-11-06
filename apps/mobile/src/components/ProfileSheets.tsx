@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api, uploadMedia, type Profile } from '@/lib/api';
@@ -20,6 +21,26 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
   const [busy, setBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [locating, setLocating] = useState(false);
+
+  /** Preenche "Cidade ou bairro" com o sítio onde estás agora (só o nome fica guardado, nunca as coordenadas). */
+  async function useMyLocation() {
+    setErr('');
+    setLocating(true);
+    try {
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (!perm.granted) return setErr('Sem acesso à localização. Dá permissão ou escreve o sítio');
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const r = await api.nearbyPlaces(pos.coords.latitude, pos.coords.longitude);
+      const label = [r.area, r.city].filter((x, i, a) => x && a.indexOf(x) === i).join(', ');
+      if (label) setCity(label.slice(0, 40));
+      else setErr('Não consegui saber o nome do sítio. Escreve-o tu');
+    } catch {
+      setErr('Não consegui saber a localização. Escreve o sítio');
+    } finally {
+      setLocating(false);
+    }
+  }
 
   async function pick() {
     setErr('');
@@ -102,7 +123,15 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
           {label('Bio', `${bio.length}/150`, bio.length > 140)}
           <TextInput value={bio} onChangeText={setBio} maxLength={150} multiline placeholder="Conta à malta quem és…" placeholderTextColor={colors.zinc500} style={[st.input, { minHeight: 84, textAlignVertical: 'top' }]} accessibilityLabel="Bio" />
         </View>
-        <View>{label('Cidade ou bairro')}<TextInput value={city} onChangeText={setCity} maxLength={40} placeholder="Maputo, Polana…" placeholderTextColor={colors.zinc500} style={st.input} accessibilityLabel="Cidade ou bairro" /></View>
+        <View>
+          {label('Cidade ou bairro')}
+          <View>
+            <TextInput value={city} onChangeText={setCity} maxLength={40} placeholder="Maputo, Polana…" placeholderTextColor={colors.zinc500} style={[st.input, { paddingRight: 52 }]} accessibilityLabel="Cidade ou bairro" />
+            <Pressable onPress={() => void useMyLocation()} disabled={locating} hitSlop={6} style={st.locate} accessibilityRole="button" accessibilityLabel="Usar a minha localização">
+              {locating ? <ActivityIndicator color={colors.brand} /> : <Icon name="locate" size={22} color={colors.brand} />}
+            </Pressable>
+          </View>
+        </View>
         <View>{label('Link')}<TextInput value={website} onChangeText={setWebsite} maxLength={100} placeholder="o-teu-site.com" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} keyboardType="url" style={st.input} accessibilityLabel="Link" /></View>
         <View>
           {label('Tipo de perfil')}
@@ -156,6 +185,7 @@ const st = StyleSheet.create({
   label: { fontSize: 14, fontWeight: '600', color: colors.zinc700 },
   input: { borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' as never },
   option: { flex: 1, borderRadius: 16, borderWidth: 2, borderColor: colors.zinc200, padding: 14 },
+  locate: { position: 'absolute', right: 6, top: 0, bottom: 0, width: 44, alignItems: 'center', justifyContent: 'center' },
   cam: { position: 'absolute', right: -4, bottom: -4, width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: '#fff', backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   busy: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 48, backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' },
   ghost: { borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 8 },

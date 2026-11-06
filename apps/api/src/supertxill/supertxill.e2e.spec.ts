@@ -481,4 +481,31 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     await api().post('/api/v1/venues').set(auth(fan)).send({ name: 'vou matar-te seu filho da puta', kind: 'bar' }).expect(422);
     await api().get('/api/v1/venues/mine').expect(401);
   });
+
+  it('construir o algoritmo: opções guardadas e validadas, pessoas a ver mais/menos, e o Explorar e os Reels continuam a responder com cada opção', async () => {
+    const a = await signup('al0');
+    const b = await signup('al1');
+    const d = (await api().get('/api/v1/feed/settings').set(auth(a)).expect(200)).body;
+    expect(d).toEqual({ following: 'balanced', freshness: 'balanced', media: 'all', variety: 'normal', hideSeen: false, calm: false });
+    await api().put('/api/v1/feed/settings').set(auth(a)).send({ freshness: 'inventado' }).expect(400);
+    const s = (await api().put('/api/v1/feed/settings').set(auth(a)).send({ following: 'more', freshness: 'recent', media: 'videos', variety: 'high', hideSeen: true, calm: true }).expect(200)).body;
+    expect(s).toEqual({ following: 'more', freshness: 'recent', media: 'videos', variety: 'high', hideSeen: true, calm: true });
+    // Só se mexe no que se manda.
+    expect((await api().put('/api/v1/feed/settings').set(auth(a)).send({ calm: false }).expect(200)).body).toMatchObject({ following: 'more', calm: false });
+    // O Explorar e os Reels respondem com estas opções (a consulta de classificação usa-as todas).
+    await api().get('/api/v1/feed/explore').set(auth(a)).expect(200);
+    await api().get('/api/v1/feed/reels').set(auth(a)).expect(200);
+    // Pessoas: ver mais / menos; não a mim; nome que não existe.
+    await api().put('/api/v1/feed/people').set(auth(a)).send({ username: a.username, pref: 1 }).expect(400);
+    await api().put('/api/v1/feed/people').set(auth(a)).send({ username: 'nao-existe-mesmo', pref: 1 }).expect(404);
+    expect((await api().put('/api/v1/feed/people').set(auth(a)).send({ username: `@${b.username}`, pref: -1 }).expect(200)).body).toMatchObject([{ username: b.username, pref: -1 }]);
+    await api().get('/api/v1/feed/explore').set(auth(a)).expect(200);
+    expect((await api().put('/api/v1/feed/people').set(auth(a)).send({ username: b.username, pref: 0 }).expect(200)).body).toEqual([]);
+    // Repor apaga tudo.
+    await api().put('/api/v1/feed/people').set(auth(a)).send({ username: b.username, pref: 1 }).expect(200);
+    await api().delete('/api/v1/feed/prefs').set(auth(a)).expect(204);
+    expect((await api().get('/api/v1/feed/settings').set(auth(a)).expect(200)).body.following).toBe('balanced');
+    expect((await api().get('/api/v1/feed/people').set(auth(a)).expect(200)).body).toEqual([]);
+    await api().get('/api/v1/feed/settings').expect(401);
+  });
 });

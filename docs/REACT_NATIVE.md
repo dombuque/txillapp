@@ -8,31 +8,24 @@
 
 ## Estado dos ecrãs
 
-| Ecrã (site) | Ficheiro do site | Estado na app |
+Legenda: **feito** = escrito, compila e (onde se diz) testado no browser; **por testar** = escrito e compila, mas nunca visto a correr.
+
+| Ecrã (site) | Ficheiro na app | Estado |
 |---|---|---|
-| Entrar | `pages/AuthForm.tsx` (Login) | feito |
-| Criar conta (6 passos) | `pages/AuthForm.tsx` (Register) | por fazer (abre o site) |
-| Esqueci a senha / repor / confirmar email | `pages/AuthForm.tsx`, `EmailPages.tsx` | por fazer (abre o site) |
-| Início (feed, stories, cartão) | `pages/Feed.tsx`, `components/PostCard.tsx`, `Stories.tsx` | feito (sem ver/criar stories) |
-| Comentários, menu da publicação, presentear, repostar | `components/CommentsSheet.tsx`, `PostCard.tsx`, `GiftSheet.tsx` | feito |
-| Partilhar (para conversas e status) | `components/ShareSheet.tsx` | por fazer (usa o menu do telemóvel) |
-| Notificações | `pages/Notifications.tsx` | feito |
-| Pesquisa e Explorar (temas, em alta, grelha, resultados) | `pages/Search.tsx` | feito (faltam SuperTxill, sugestões e visualizador em ecrã inteiro) |
-| Cartão de presente no feed | `components/PostCard.tsx` (GiftBlock) | por fazer (hoje aparece como publicação normal) |
-| Mensagens: lista, pedidos, conversa direta (texto, fotos, presentes, brindar, apagar) | `pages/Messages.tsx`, `Thread.tsx` | feito (barra de escrever com câmara, visualização única, voz, galeria, stickers, localização e presente; faltam grupos e tempo real por SSE, atualiza de 4 em 4 s) |
-| Perfil (meu e dos outros): cabeçalho, botões, separadores, grelha, seguir, bloquear, denunciar | `pages/Profile.tsx` | feito (faltam editar perfil, QR, geleira, seguidores, pedidos) |
-| Publicação aberta (`/p/:id`) | `pages/PostPage.tsx` | feito (faltam atividade e reels em ecrã inteiro) |
-| Nova publicação (2 passos: escolher e legenda, fotos, vídeo, local) | `pages/Compose.tsx` | feito (redesenhado; faltam música, identificar pessoas e rascunhos; a câmara usa a do telemóvel) |
-| Puxar para atualizar com indicador | `components/PullToRefresh.tsx` | feito (Início, Mensagens, Notificações) |
-| Stories (ver e criar) | `components/Stories.tsx` | por fazer |
-| Reels e filtros do algoritmo | `pages/Reels.tsx`, `ReelPrefs.tsx` | por fazer |
-| Definições | `pages/Settings.tsx` | mínimo (conta e sair; o resto abre o site) |
-| Guardados, Carteira, Convites, Seguidores/A seguir | `saved`, `wallet`, `invites`, `u/[username]/connections` | feito (testado no browser) |
-| Editar perfil, pedidos para seguir | `ProfileSheets.tsx` | feito (foto, nome, bio, cidade, link, privado; falta a geleira) |
-| Stories (ver: resposta, reações, brinde, comentários, atividade, menu; criar: legenda, amigos próximos) | `stories/*`, `StoryParts.tsx` | feito (falta música e testar com média pública) |
-| Definições completas, verificação, página do reel, O teu algoritmo | `settings`, `verification`, `r/[id]`, `reels/filtros` | feito |
-| Locais, Geleira | `pages/*` | por fazer |
-| Publicação, hashtag | `p/[id]`, `t/[tag]` | feito (hashtag e menções tocáveis) |
-| Reel / sítio / local | `ReelPage.tsx`, `PlacePage.tsx`, `VenuePage.tsx` | por fazer |
+| Entrar, criar conta (6 passos), esqueci a senha | `login`, `register`, `forgot-password` | feito (entrar testado; registo e esqueci por testar) |
+| Início (feed, stories, Zás) | `(tabs)/index`, `PostCard`, `StoriesTray`, `Instants` | feito (Zás por testar) |
+| Comentários, menu da publicação, presentear, repostar, partilhar (conversas e status) | `CommentsSheet`, `PostSheets`, `ShareSheet` | feito (partilhar por testar) |
+| Notificações, pesquisa e explorar | `notifications`, `search` | feito |
+| Mensagens: lista, pedidos, conversa direta, **grupos**, tempo real | `(tabs)/messages`, `messages/[username]`, `messages/g/[id]`, `messages/new`, `lib/realtime` | feito (grupos e tempo real por testar) |
+| Perfil (meu e dos outros), seguidores/a seguir, editar perfil (com localização), pedidos para seguir, QR, geleira | `ProfileView`, `ProfileSheets`, `ProfileQrSheet`, `GeleiraShelf`, `u/[username]/*` | feito (QR e geleira por testar) |
+| Nova publicação (2 passos, local, música, rascunhos) | `(tabs)/new`, `MusicPicker`, `lib/drafts` | feito (música e rascunhos por testar; rascunhos só ficam em memória no telemóvel até haver armazenamento local) |
+| Stories (ver e criar, com música) | `stories/*`, `StoryParts` | feito |
+| Reels, página do reel, **O teu algoritmo** (temas, pessoas, origem, ordem, tipo, variedade, esconder visto, modo tranquilo) | `(tabs)/reels`, `r/[id]`, `reels/filtros` | feito (algoritmo testado no browser) |
+| Definições completas | `settings` | feito |
+| Verificação (documento de qualquer tipo, frente e verso, cara, selfie com o documento, justificação) | `verification` | por testar (câmara) |
+| Guardados, carteira, convites, hashtag | `saved`, `wallet`, `invites`, `t/[tag]` | feito |
+| Locais, página de um local, página de um sítio | `locais`, `v/[slug]`, `place/[name]` | por testar (sem mapa) |
+| Geleira (editor) | `geleira` | por testar |
+| Estatísticas, ajuda, sobre, pedidos, idioma, termos, privacidade | `insights`, `help`, `about`, `orders`, `language`, `terms`, `privacy` | por testar |
 
 O backoffice fica só no site (é para computador).

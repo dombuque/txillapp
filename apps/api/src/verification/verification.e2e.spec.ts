@@ -34,7 +34,7 @@ describe('verificação de perfis: requisitos, documentos, revisão e anúncio (
     return r.body.assetId as string;
   }
   const me = async (x: U) => (await api().get('/api/v1/verification/me').set(auth(x)).expect(200)).body;
-  const body = (docMediaId: string, selfieMediaId: string) => ({ kind: 'person', fullName: 'Nome Completo', proof: 'Músico, página oficial em exemplo.com', docMediaId, selfieMediaId });
+  const body = (docMediaId: string, selfieMediaId: string, faceMediaId: string) => ({ kind: 'person', fullName: 'Nome Completo', proof: 'Músico conhecido em Maputo; página oficial e notícias em exemplo.com', docType: 'passport', docMediaId, selfieMediaId, faceMediaId });
 
   beforeAll(async () => {
     await migrate(DB);
@@ -59,7 +59,8 @@ describe('verificação de perfis: requisitos, documentos, revisão e anúncio (
     expect(s.items.find((i: { key: string }) => i.key === 'age').ok).toBe(false);
     const d0 = await upload(vb);
     const s0 = await upload(vb);
-    await api().post('/api/v1/verification/request').set(auth(vb)).send(body(d0, s0)).expect(403);
+    const face1 = await upload(vb);
+    await api().post('/api/v1/verification/request').set(auth(vb)).send(body(d0, s0, face1)).expect(403);
 
     // Passa a cumprir: antiguidade, foto, bio, publicações e seguidores.
     await pool.query(`UPDATE identity.users SET created_at = now() - interval '45 days', email_verified_at = now(), bio = 'Músico', avatar_media_id = $2 WHERE id = $1`, [vb.id, d0]);
@@ -75,12 +76,22 @@ describe('verificação de perfis: requisitos, documentos, revisão e anúncio (
 
     // Validações do pedido: fotos de outra pessoa ou repetidas não servem.
     const foreign = await upload(vc);
-    await api().post('/api/v1/verification/request').set(auth(vb)).send(body(foreign, s0)).expect(400);
-    await api().post('/api/v1/verification/request').set(auth(vb)).send(body(s0, s0)).expect(400);
+    const face2 = await upload(vb);
+    await api().post('/api/v1/verification/request').set(auth(vb)).send(body(foreign, s0, face2)).expect(400);
+    const face3 = await upload(vb);
+    await api().post('/api/v1/verification/request').set(auth(vb)).send(body(s0, s0, face3)).expect(400);
     const doc = await upload(vb);
     const selfie = await upload(vb);
-    await api().post('/api/v1/verification/request').set(auth(vb)).send(body(doc, selfie)).expect(204);
-    await api().post('/api/v1/verification/request').set(auth(vb)).send(body(doc, selfie)).expect(409); // já há um em análise
+    // BI/carta/DIRE precisam de frente e verso; o passaporte basta uma página.
+    const face4 = await upload(vb);
+    await api().post('/api/v1/verification/request').set(auth(vb)).send({ ...body(doc, selfie, face4), docType: 'id_card' }).expect(400);
+    // A justificação tem de ser séria (mínimo 30 caracteres).
+    const face5 = await upload(vb);
+    await api().post('/api/v1/verification/request').set(auth(vb)).send({ ...body(doc, selfie, face5), proof: 'Sou eu mesmo' }).expect(400);
+    const face6 = await upload(vb);
+    await api().post('/api/v1/verification/request').set(auth(vb)).send(body(doc, selfie, face6)).expect(204);
+    const face7 = await upload(vb);
+    await api().post('/api/v1/verification/request').set(auth(vb)).send(body(doc, selfie, face7)).expect(409); // já há um em análise
     expect((await me(vb)).request.status).toBe('pending');
 
     // Só a moderação vê a fila, com ligações privadas para os documentos.
@@ -97,13 +108,15 @@ describe('verificação de perfis: requisitos, documentos, revisão e anúncio (
     expect(s.request).toMatchObject({ status: 'rejected', reason: 'Foto ilegível' });
     expect(s.retryAfter).not.toBeNull();
     const [x1, x2] = [await upload(vb), await upload(vb)];
-    await api().post('/api/v1/verification/request').set(auth(vb)).send(body(x1, x2)).expect(409);
+    const face8 = await upload(vb);
+    await api().post('/api/v1/verification/request').set(auth(vb)).send(body(x1, x2, face8)).expect(409);
     expect((await pool.query(`SELECT status FROM content.media_assets WHERE id = ANY($1)`, [[doc, selfie]])).rows.map((r) => r.status)).toEqual(['deleted', 'deleted']);
 
     // Passados 30 dias, pede outra vez e é aprovada como oficial.
     await pool.query(`UPDATE identity.verification_requests SET reviewed_at = now() - interval '31 days' WHERE user_id = $1`, [vb.id]);
     const [y1, y2] = [await upload(vb), await upload(vb)];
-    await api().post('/api/v1/verification/request').set(auth(vb)).send(body(y1, y2)).expect(204);
+    const face9 = await upload(vb);
+    await api().post('/api/v1/verification/request').set(auth(vb)).send(body(y1, y2, face9)).expect(204);
     const again = ((await api().get('/api/v1/admin/verifications').set(sauth()).expect(200)).body as { id: string }[])[0];
     await api().post(`/api/v1/admin/verifications/${again.id}/decide`).set(auth(vc)).send({ action: 'approve' }).expect(401);
     await api().post(`/api/v1/admin/verifications/${again.id}/decide`).set(sauth()).send({ action: 'approve', tier: 'official' }).expect(204);

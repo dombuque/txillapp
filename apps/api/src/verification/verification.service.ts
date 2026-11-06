@@ -68,29 +68,32 @@ export class VerificationService {
     if (!r.rowCount) throw new BadRequestException('Documento inválido: envia uma foto (JPEG, PNG ou WebP)');
   }
 
-  async request(userId: string, b: { kind: 'person' | 'business'; fullName: string; proof: string; docMediaId: string; selfieMediaId: string }) {
+  async request(userId: string, b: { kind: 'person' | 'business'; fullName: string; proof: string; docType: string; docMediaId: string; docBackMediaId?: string; faceMediaId: string; selfieMediaId: string }) {
     const s = await this.status(userId);
     if (s.verified) throw new ConflictException('Esta conta já está verificada');
     if (s.request?.status === 'pending') throw new ConflictException('Já tens um pedido em análise');
     if (s.retryAfter) throw new ConflictException('Podes pedir outra vez passados 30 dias do último pedido recusado');
     if (!s.eligible) throw new ForbiddenException('A conta ainda não cumpre os requisitos');
-    if (b.docMediaId === b.selfieMediaId) throw new BadRequestException('O documento e a selfie têm de ser fotos diferentes');
-    await this.ownedDoc(userId, b.docMediaId);
-    await this.ownedDoc(userId, b.selfieMediaId);
+    // O passaporte tem uma página com a foto; os outros documentos têm frente e verso.
+    if (b.docType !== 'passport' && !b.docBackMediaId) throw new BadRequestException('Envia a frente e o verso do documento');
+    const photos = [b.docMediaId, b.docBackMediaId, b.faceMediaId, b.selfieMediaId].filter((x): x is string => !!x);
+    if (new Set(photos).size !== photos.length) throw new BadRequestException('Cada foto tem de ser diferente das outras');
+    for (const id of photos) await this.ownedDoc(userId, id);
     await this.pool.query(
-      `INSERT INTO identity.verification_requests (id, user_id, kind, full_name, proof, doc_media_id, selfie_media_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [uuidv7(), userId, b.kind, b.fullName.trim(), b.proof.trim(), b.docMediaId, b.selfieMediaId],
+      `INSERT INTO identity.verification_requests (id, user_id, kind, full_name, proof, doc_type, doc_media_id, doc_back_media_id, face_media_id, selfie_media_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [uuidv7(), userId, b.kind, b.fullName.trim(), b.proof.trim(), b.docType, b.docMediaId, b.docBackMediaId ?? null, b.faceMediaId, b.selfieMediaId],
     );
   }
 
   /** Retirar o pedido: os documentos apagam-se. */
   async withdraw(userId: string) {
     const r = await this.pool.query(
-      `UPDATE identity.verification_requests SET status = 'withdrawn', reviewed_at = now() WHERE user_id = $1 AND status = 'pending' RETURNING doc_media_id, selfie_media_id`,
+      `UPDATE identity.verification_requests SET status = 'withdrawn', reviewed_at = now() WHERE user_id = $1 AND status = 'pending' RETURNING doc_media_id, doc_back_media_id, face_media_id, selfie_media_id`,
       [userId],
     );
     if (!r.rowCount) throw new NotFoundException('Não tens nenhum pedido em análise');
-    await this.dropDocs([r.rows[0].doc_media_id, r.rows[0].selfie_media_id]);
+    await this.dropDocs([r.rows[0].doc_media_id, r.rows[0].doc_back_media_id, r.rows[0].face_media_id, r.rows[0].selfie_media_id]);
   }
 
   private async dropDocs(ids: (string | null)[]) {
@@ -101,7 +104,7 @@ export class VerificationService {
   /** Fila de revisão (só moderação). Os documentos vêm com ligações privadas que expiram. */
   async queue(status: 'pending' | 'approved' | 'rejected' = 'pending') {
     const { rows } = await this.pool.query(
-      `SELECT v.id, v.kind, v.full_name, v.proof, v.status, v.reason, v.created_at, v.doc_media_id, v.selfie_media_id,
+      `SELECT v.id, v.kind, v.full_name, v.proof, v.status, v.reason, v.created_at, v.doc_type, v.doc_media_id, v.doc_back_media_id, v.face_media_id, v.selfie_media_id,
               u.username, u.display_name, u.bio, (u.avatar_media_id IS NOT NULL) AS has_avatar,
               (SELECT count(*) FROM social.follows f WHERE f.followee_id = u.id)::int AS followers
          FROM identity.verification_requests v JOIN identity.users u ON u.id = v.user_id
@@ -117,7 +120,10 @@ export class VerificationService {
       reason: (r.reason as string | null) ?? null,
       createdAt: r.created_at as string,
       user: { username: r.username as string, displayName: r.display_name as string, bio: (r.bio as string | null) ?? '', hasAvatar: r.has_avatar as boolean, followers: r.followers as number },
+      docType: (r.doc_type as string | null) ?? null,
       docUrl: r.doc_media_id ? this.media.chatUrl(r.doc_media_id as string) : null,
+      docBackUrl: r.doc_back_media_id ? this.media.chatUrl(r.doc_back_media_id as string) : null,
+      faceUrl: r.face_media_id ? this.media.chatUrl(r.face_media_id as string) : null,
       selfieUrl: r.selfie_media_id ? this.media.chatUrl(r.selfie_media_id as string) : null,
     }));
   }
@@ -126,13 +132,13 @@ export class VerificationService {
   async decide(adminId: string, id: string, action: 'approve' | 'reject', reason?: string, tier: VerifiedTier = 'verified') {
     if (action === 'reject' && !reason?.trim()) throw new BadRequestException('Diz o motivo da recusa');
     const client = await this.pool.connect();
-    let req: { user_id: string; doc_media_id: string | null; selfie_media_id: string | null } | undefined;
+    let req: { user_id: string; doc_media_id: string | null; doc_back_media_id: string | null; face_media_id: string | null; selfie_media_id: string | null } | undefined;
     try {
       await client.query('BEGIN');
       req = (
         await client.query(
           `UPDATE identity.verification_requests SET status = $2, reason = $3, reviewed_by = $4, reviewed_at = now()
-            WHERE id = $1 AND status = 'pending' RETURNING user_id, doc_media_id, selfie_media_id`,
+            WHERE id = $1 AND status = 'pending' RETURNING user_id, doc_media_id, doc_back_media_id, face_media_id, selfie_media_id`,
           [id, action === 'approve' ? 'approved' : 'rejected', action === 'reject' ? reason!.trim().slice(0, 300) : null, adminId],
         )
       ).rows[0];
@@ -145,7 +151,7 @@ export class VerificationService {
     } finally {
       client.release();
     }
-    await this.dropDocs([req.doc_media_id, req.selfie_media_id]);
+    await this.dropDocs([req.doc_media_id, req.doc_back_media_id, req.face_media_id, req.selfie_media_id]);
     if (action === 'approve') await this.announce(req.user_id);
   }
 

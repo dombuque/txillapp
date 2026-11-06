@@ -12,8 +12,14 @@ type AuthedReq = Request & { userId?: string };
 const requestSchema = z.object({
   kind: z.enum(['person', 'business']),
   fullName: z.string().trim().min(2).max(80),
-  proof: z.string().trim().min(10).max(600),
+  // A justificação: quem és, onde te podemos confirmar e porque pedes o selo.
+  proof: z.string().trim().min(30).max(600),
+  // O documento pode ser o BI, o passaporte, a carta de condução, o DIRE ou outro documento oficial com foto.
+  docType: z.enum(['id_card', 'passport', 'driver_licence', 'residence', 'other']),
   docMediaId: z.string().uuid(),
+  docBackMediaId: z.string().uuid().optional(),
+  // A cara lida pela câmara (foto tirada na hora) e a selfie ao lado do documento.
+  faceMediaId: z.string().uuid(),
   selfieMediaId: z.string().uuid(),
 });
 const decideSchema = z.object({ action: z.enum(['approve', 'reject']), reason: z.string().trim().max(300).optional(), tier: z.enum(['verified', 'official']).optional() });

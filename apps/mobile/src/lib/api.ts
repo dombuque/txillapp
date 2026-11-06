@@ -9,6 +9,8 @@ export interface AuthResult { accessToken: string; /** Só na app nativa; na web
 export interface PostMedia { url: string; kind?: 'image' | 'video'; posterUrl?: string; width?: number | null; height?: number | null; durationMs?: number | null; tags?: { username: string }[] }
 export interface Author { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null }
 export interface Post {
+  /** Música da publicação (licença aberta ou clipe próprio). */
+  music?: import('./api.music').Track | null;
   id: string;
   code: string;
   body: string;
@@ -100,6 +102,7 @@ export interface PrivacySettings {
 }
 export interface StorySettings { replies: Who; hidden: { username: string; displayName: string }[] }
 export interface DeviceSession { id: string; device: string; firstSeen: string; lastUsed: string; current: boolean }
+export type DocType = 'id_card' | 'passport' | 'driver_licence' | 'residence' | 'other';
 export interface VerificationStatus {
   items: { key: string; label: string; ok: boolean; hint: string }[];
   eligible: boolean;
@@ -108,6 +111,15 @@ export interface VerificationStatus {
   request: { id: string; kind: string; status: 'pending' | 'approved' | 'rejected' | 'withdrawn'; reason: string | null; createdAt: string } | null;
   retryAfter: string | null;
 }
+export interface FeedSettings {
+  following: 'less' | 'balanced' | 'more';
+  freshness: 'recent' | 'balanced' | 'popular';
+  media: 'all' | 'photos' | 'videos';
+  variety: 'low' | 'normal' | 'high';
+  hideSeen: boolean;
+  calm: boolean;
+}
+export interface FeedPerson { username: string; displayName: string; hasAvatar: boolean; pref: number }
 export interface FollowState { following: boolean; requested: boolean; followers: number }
 export interface Profile {
   id: string;
@@ -278,7 +290,7 @@ export function refreshSession(): Promise<AuthResult> {
     }));
 }
 
-async function raw(path: string, init: RequestInit = {}, retry = true) {
+export async function raw(path: string, init: RequestInit = {}, retry = true) {
   const res = await call(path, init);
   if (res.status === 401 && retry && !path.startsWith('/auth/')) {
     await refreshSession();
@@ -287,7 +299,7 @@ async function raw(path: string, init: RequestInit = {}, retry = true) {
   return parse(res);
 }
 
-const post = (b: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(b) });
+export const post = (b: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(b) });
 
 /** Envia uma foto, vídeo ou áudio do chat (privado): pede o URL assinado, envia os bytes e confirma. Devolve o id do ficheiro. */
 export async function uploadMedia(uri: string, mime: string, purpose: 'public' | 'chat' = 'chat'): Promise<string> {
@@ -409,8 +421,13 @@ export const api = {
     return res.text();
   },
   verificationStatus: (): Promise<VerificationStatus> => raw('/verification/me'),
-  verificationRequest: (b: { kind: 'person' | 'business'; fullName: string; proof: string; docMediaId: string; selfieMediaId: string }): Promise<void> => raw('/verification/request', post(b)),
+  verificationRequest: (b: { kind: 'person' | 'business'; fullName: string; proof: string; docType: DocType; docMediaId: string; docBackMediaId?: string; faceMediaId: string; selfieMediaId: string }): Promise<void> => raw('/verification/request', post(b)),
   verificationWithdraw: (): Promise<void> => raw('/verification/request', { method: 'DELETE' }),
+  nearbyPlaces: (lat: number, lng: number): Promise<{ area: string | null; city: string | null }> => raw(`/places/nearby?lat=${lat}&lng=${lng}`),
+  feedSettings: (): Promise<FeedSettings> => raw('/feed/settings'),
+  setFeedSettings: (b: Partial<FeedSettings>): Promise<FeedSettings> => raw('/feed/settings', { method: 'PUT', body: JSON.stringify(b) }),
+  feedPeople: (): Promise<FeedPerson[]> => raw('/feed/people'),
+  setFeedPerson: (username: string, pref: -1 | 0 | 1): Promise<FeedPerson[]> => raw('/feed/people', { method: 'PUT', body: JSON.stringify({ username, pref }) }),
   followers: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/followers${qsp(cursor, q)}`),
   following: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/following${qsp(cursor, q)}`),
   wallet: (): Promise<WalletView> => raw('/wallet'),

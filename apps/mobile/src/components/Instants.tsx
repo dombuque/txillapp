@@ -1,0 +1,720 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import * as SecureStore from 'expo-secure-store';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { api, uploadMedia } from '@/lib/api';
+import { instantsApi, type InstantItem, type InstantViewer as Viewer } from '@/lib/api.geleira';
+import { useAuth } from '@/lib/auth';
+import { colors } from '@/lib/theme';
+import { timeAgo } from '@/lib/time';
+import { Avatar } from './Avatar';
+import { Icon } from './Icon';
+import { Sheet } from './Sheet';
+import { CloseFriendsSheet, REACTIONS, ReactionArt } from './StoryParts';
+
+type Audience = 'friends' | 'close';
+type Who = { username: string; displayName: string };
+
+/** Pequena memória do aparelho (preferências do Zás): SecureStore na app, localStorage na web. Falha em silêncio. */
+async function remember(key: string, value?: string): Promise<string | null> {
+  try {
+    if (Platform.OS === 'web') {
+      if (value !== undefined) localStorage.setItem(key, value);
+      return localStorage.getItem(key);
+    }
+    if (value !== undefined) await SecureStore.setItemAsync(key, value);
+    return await SecureStore.getItemAsync(key);
+  } catch {
+    return null;
+  }
+}
+const INTRO_KEY = 'tx_instants_intro';
+const AUDIENCE_KEY = 'tx_zas_audience';
+
+const hm = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+const hoursLeft = (iso: string) => `${Math.max(1, Math.round((new Date(iso).getTime() - Date.now()) / 3_600_000))} h`;
+const leftLabel = (iso: string) => {
+  const h = Math.max(0, Math.round((new Date(iso).getTime() - Date.now()) / 3_600_000));
+  return h <= 1 ? 'acaba daqui a pouco' : `acaba daqui a ${h} h`;
+};
+
+/** Qualquer ecrã (por ex. as Mensagens) pode pedir para abrir a câmara do Zás. */
+const cameraListeners = new Set<() => void>();
+export const openZasCamera = () => cameraListeners.forEach((l) => l());
+
+/**
+ * Zás (os Instants): uma foto tirada na hora, com uma legenda curta, que dura 24 h e cada pessoa vê uma só vez.
+ * Só chega aos amigos próximos e a quem se segue mutuamente. Quando há Zás por ver, aparece uma pílula flutuante (canto de baixo,
+ * à direita) com a faísca do Zás, as fotos de quem postou e quantos são. Pôr dentro de uma vista que ocupe o ecrã todo (flex: 1).
+ * `collapsed`: encolhe a pílula só para as fotos (por ex. enquanto a lista rola).
+ */
+export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
+  const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ['instants'], queryFn: instantsApi.tray, refetchInterval: 60_000, enabled: !!user });
+  const [mode, setMode] = useState<null | 'view' | 'cam'>(null);
+  const [queue, setQueue] = useState<Who[]>([]);
+  const [at, setAt] = useState(0);
+  const [gridOpen, setGridOpen] = useState(false);
+  useEffect(() => {
+    const open = () => setMode('cam');
+    cameraListeners.add(open);
+    return () => void cameraListeners.delete(open);
+  }, []);
+  // O Zás é só para o telemóvel: no computador (web larga) não aparece.
+  if (!user || (Platform.OS === 'web' && width >= 768)) return null;
+  const refresh = () => void qc.invalidateQueries({ queryKey: ['instants'] });
+  const others = data?.others ?? [];
+  const total = others.reduce((n, o) => n + o.count, 0);
+
+  return (
+    <>
+      {total > 0 && (
+        <Pressable
+          onPress={() => {
+            setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName })));
+            setAt(0);
+            setMode('view');
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`Zás: ${total} por ver`}
+          style={[st.pill, { bottom: insets.bottom + 104, paddingRight: collapsed ? 6 : 16 }]}
+        >
+          <View style={{ flexDirection: 'row' }}>
+            {others.slice(0, 3).map((o, i) => (
+              <View key={o.username} style={[st.pillAva, i > 0 && { marginLeft: -10 }]}>
+                <Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={38} />
+              </View>
+            ))}
+            <View style={st.bolt}>
+              <Icon name="bolt" size={12} solid strokeWidth={2} color="#fff" />
+            </View>
+          </View>
+          {!collapsed && (
+            <View style={{ marginLeft: 10 }}>
+              <Text style={{ fontSize: 16, lineHeight: 20, fontWeight: '900', letterSpacing: -0.3, color: colors.brand }}>Zás</Text>
+              <Text style={{ fontSize: 12, lineHeight: 16, fontWeight: '600', color: colors.zinc600 }}>{total > 99 ? '99+' : total} {total === 1 ? 'novo' : 'novos'}</Text>
+            </View>
+          )}
+        </Pressable>
+      )}
+      {gridOpen && <MyInstants username={user.username} onClose={() => { setGridOpen(false); refresh(); }} />}
+      {mode === 'cam' && <InstantsHub onClose={() => { setMode(null); refresh(); }} />}
+      {mode === 'view' && queue[at] && (
+        <InstantViewer
+          key={queue[at].username}
+          who={queue[at]}
+          own={false}
+          onClose={() => { setMode(null); refresh(); }}
+          onCamera={() => setMode('cam')}
+          onGrid={() => { setMode(null); setGridOpen(true); }}
+          onFinish={() => (at + 1 < queue.length ? setAt(at + 1) : setMode('cam'))}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * Mandar um Zás. No site a câmara é aberta no próprio ecrã; na app abre a câmara do telemóvel (sem galeria) e o Zás vai logo
+ * (com 6 s para desfazer). Em cima, o cartão 3:4 com a legenda; em baixo o obturador e para quem vai.
+ */
+function InstantsHub({ onClose }: { onClose: () => void }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const [caption, setCaption] = useState('');
+  const [audience, setAudience] = useState<Audience>('friends');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [sent, setSent] = useState<string | null>(null);
+  const [intro, setIntro] = useState(false);
+  const [grid, setGrid] = useState(false);
+  const [setupClose, setSetupClose] = useState(false);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const bar = useRef(new Animated.Value(1)).current;
+  const friends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
+  const tray = useQuery({ queryKey: ['instants'], queryFn: instantsApi.tray });
+  const refresh = () => void qc.invalidateQueries({ queryKey: ['instants'] });
+  const [queue, setQueue] = useState<Who[] | null>(null);
+  const [at, setAt] = useState(0);
+  const others = tray.data?.others ?? [];
+
+  useEffect(() => {
+    void remember(INTRO_KEY).then((v) => setIntro(v !== '1'));
+    void remember(AUDIENCE_KEY).then((v) => setAudience(v === 'close' ? 'close' : 'friends'));
+    return () => clearTimeout(undoTimer.current);
+  }, []);
+
+  function pickAudience(a: Audience) {
+    // Sem amigos próximos ainda: abre já a lista para os escolher.
+    if (a === 'close' && friends.isSuccess && friends.data.length === 0) setSetupClose(true);
+    setAudience(a);
+    void remember(AUDIENCE_KEY, a);
+  }
+
+  async function shoot() {
+    if (busy) return;
+    setErr('');
+    try {
+      const p = await ImagePicker.requestCameraPermissionsAsync();
+      if (!p.granted) return setErr('Preciso de acesso à câmara.');
+      const r = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.9, allowsEditing: false });
+      const a = r.canceled ? null : r.assets[0];
+      if (!a) return;
+      setBusy(true);
+      const mediaId = await uploadMedia(a.uri, a.mimeType ?? 'image/jpeg');
+      const res = await instantsApi.create(mediaId, caption.trim(), audience);
+      setCaption('');
+      setSent(res.id);
+      bar.setValue(1);
+      Animated.timing(bar, { toValue: 0, duration: 6000, useNativeDriver: false }).start();
+      clearTimeout(undoTimer.current);
+      undoTimer.current = setTimeout(() => setSent(null), 6000);
+      refresh();
+    } catch (e) {
+      setErr((e as Error).message || 'Não consegui tirar a foto');
+    }
+    setBusy(false);
+  }
+  async function undo() {
+    if (!sent) return;
+    const id = sent;
+    setSent(null);
+    await instantsApi.remove(id).catch(() => undefined);
+    refresh();
+  }
+
+  // Cartão 3:4 que cabe no espaço que sobra.
+  const cardH = Math.min(520, height - insets.top - insets.bottom - 330);
+  const cardW = Math.min(cardH * 0.75, width - 64);
+  return (
+    <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <View style={{ flex: 1, backgroundColor: '#08080b', paddingTop: Math.max(8, insets.top) }}>
+        <LinearGradient colors={['transparent', 'rgba(255,92,92,0.28)']} start={{ x: 0.5, y: 0.4 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
+        <View style={st.hubTop}>
+          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" style={st.small}><Icon name="x" size={26} color="#fff" /></Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Icon name="bolt" size={20} solid color={colors.brand} />
+            <Text style={{ fontSize: 22, fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.4, color: '#fff' }}>Zás</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {others.length > 0 && (
+              <Pressable
+                onPress={() => { setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName }))); setAt(0); }}
+                accessibilityRole="button"
+                accessibilityLabel="Ver os Zás que recebeste"
+                style={st.small}
+              >
+                <Icon name="eye" size={23} color="#fff" />
+              </Pressable>
+            )}
+            <Pressable onPress={() => setGrid(true)} accessibilityRole="button" accessibilityLabel="Os meus Zás" style={st.small}><Icon name="grid" size={23} color="#fff" /></Pressable>
+          </View>
+        </View>
+
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={[st.cam, { width: cardW, height: cardW / 0.75 }]}>
+            <Pressable onPress={() => void shoot()} disabled={busy} accessibilityRole="button" accessibilityLabel="Abrir a câmara" style={{ alignItems: 'center', gap: 10 }}>
+              <Icon name="camera" size={44} color="rgba(255,255,255,0.7)" />
+              <Text style={{ fontSize: 15, fontWeight: '600', color: 'rgba(255,255,255,0.7)' }}>Toca no raio para tirar o Zás</Text>
+            </Pressable>
+            <TextInput
+              value={caption}
+              onChangeText={setCaption}
+              maxLength={80}
+              placeholder="Adicionar legenda…"
+              placeholderTextColor="rgba(255,255,255,0.55)"
+              accessibilityLabel="Legenda"
+              returnKeyType="done"
+              style={st.caption}
+            />
+            {err ? <Text accessibilityRole="alert" style={st.err}>{err}</Text> : null}
+          </View>
+        </View>
+
+        <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: Math.max(16, insets.bottom) }}>
+          {sent && (
+            <View accessibilityLiveRegion="polite" style={st.sent}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingLeft: 20, paddingRight: 8 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>Zás enviado!</Text>
+                <Pressable onPress={() => void undo()} accessibilityRole="button" style={{ height: 36, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.zinc900 }}>Desfazer</Text>
+                </Pressable>
+              </View>
+              <Animated.View style={{ height: 4, borderRadius: 2, backgroundColor: colors.brand, width: bar.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }} />
+            </View>
+          )}
+          <View style={{ alignItems: 'center' }}>
+            <Pressable onPress={() => void shoot()} disabled={busy} accessibilityRole="button" accessibilityLabel="Tirar e enviar" style={[st.shutterRing, busy && { opacity: 0.5 }]}>
+              <LinearGradient colors={['#ff5c5c', '#ff9a5b', '#ffd166', '#ff5c5c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+              <View style={st.shutterGap} />
+              <View style={[st.shutter, { backgroundColor: busy ? colors.brand : '#fff' }]}>
+                {busy ? <ActivityIndicator color="#fff" /> : <Icon name="bolt" size={30} solid color={colors.brand} />}
+              </View>
+            </Pressable>
+          </View>
+          {/* Para quem vai: amigos (próximos e mútuos) ou só os amigos próximos. */}
+          <View style={st.seg} accessibilityRole="radiogroup" accessibilityLabel="Para quem vai">
+            {([['friends', 'Amigos'], ['close', 'Próximos']] as const).map(([id, label]) => {
+              const on = audience === id;
+              return (
+                <Pressable key={id} onPress={() => pickAudience(id)} accessibilityRole="radio" accessibilityState={{ checked: on }} style={[st.segBtn, on && { backgroundColor: id === 'close' ? '#10b981' : '#fff' }]}>
+                  {id === 'close' && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: on ? '#fff' : '#34d399' }} />}
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: on ? (id === 'close' ? '#fff' : colors.zinc900) : 'rgba(255,255,255,0.7)' }}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {intro && (
+          <View style={st.introWrap}>
+            <View style={st.intro} accessibilityViewIsModal>
+              <View style={{ alignSelf: 'center', width: 56, height: 56, borderRadius: 28, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="bolt" size={28} solid color="#fff" />
+              </View>
+              <Text style={{ marginTop: 12, textAlign: 'center', fontSize: 24, fontWeight: '800', letterSpacing: -0.4, color: colors.zinc900 }}>Zás!</Text>
+              <Text style={{ marginTop: 4, textAlign: 'center', fontSize: 15, fontWeight: '600', color: colors.zinc600 }}>Tirou, mandou, já foi.</Text>
+              <View style={{ marginTop: 16, gap: 12 }}>
+                {([
+                  ['camera', 'Uma foto tirada na hora. Sem galeria e sem filtros.'],
+                  ['send', 'O botão envia logo. Tens 6 segundos para desfazer.'],
+                  ['eye', 'Cada pessoa vê uma só vez e depois desaparece.'],
+                  ['clock', 'Dura 24 horas.'],
+                  ['users', 'Vai para os teus amigos (quem se segue contigo) ou só para os Próximos.'],
+                ] as const).map(([ic, text]) => (
+                  <View key={ic} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' }}><Icon name={ic} size={18} /></View>
+                    <Text style={{ flex: 1, fontSize: 15, lineHeight: 21, color: colors.zinc900 }}>{text}</Text>
+                  </View>
+                ))}
+              </View>
+              <Pressable onPress={() => { void remember(INTRO_KEY, '1'); setIntro(false); }} accessibilityRole="button" style={{ marginTop: 20, height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Percebi</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+      </View>
+      {setupClose && (
+        <CloseFriendsSheet
+          onClose={async () => {
+            setSetupClose(false);
+            const r = await friends.refetch();
+            // Se continua sem ninguém, "Próximos" não faria sentido: volta a "Amigos".
+            if (!r.data?.length) pickAudience('friends');
+          }}
+        />
+      )}
+      {grid && user && <MyInstants username={user.username} onClose={() => { setGrid(false); refresh(); }} />}
+      {queue && queue[at] && (
+        <InstantViewer
+          key={queue[at].username}
+          who={queue[at]}
+          own={false}
+          onClose={() => { setQueue(null); refresh(); }}
+          onFinish={() => (at + 1 < queue.length ? setAt(at + 1) : (setQueue(null), refresh()))}
+        />
+      )}
+    </Modal>
+  );
+}
+
+/** Os meus Zás ativos em grelha de 3 (duram 24 h). Tocar abre-o; manter premido apaga. */
+function MyInstants({ username, onClose }: { username: string; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const [items, setItems] = useState<InstantItem[] | null>(null);
+  const [err, setErr] = useState('');
+  const [open, setOpen] = useState<string | null>(null);
+  const [who, setWho] = useState<Viewer[] | null>(null);
+  const [del, setDel] = useState<InstantItem | null>(null);
+  const load = useCallback(() => instantsApi.of(username).then(setItems).catch((e) => setErr((e as Error).message)), [username]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  const showWho = (id: string) => instantsApi.viewers(id).then(setWho).catch((e) => setErr((e as Error).message));
+  async function confirmDelete() {
+    if (!del) return;
+    const id = del.id;
+    setDel(null);
+    try {
+      await instantsApi.remove(id);
+      setItems((l) => (l ?? []).filter((x) => x.id !== id));
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }
+  const cell = Math.floor((Math.min(width, 576) - 24 - 16) / 3);
+  return (
+    <Modal visible animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <View style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(12, insets.top) }}>
+        <View style={{ height: 44, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Voltar" style={[st.small, { position: 'absolute', left: 12, top: 0 }]}><Icon name="chevron-left" size={26} color="#fff" /></Pressable>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: '#fff' }}>Os meus Zás</Text>
+        </View>
+        {err ? <Text accessibilityRole="alert" style={{ paddingHorizontal: 16, paddingBottom: 8, textAlign: 'center', fontSize: 14, color: '#f87171' }}>{err}</Text> : null}
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 112, alignSelf: 'center', width: '100%', maxWidth: 576 }}>
+          {items === null ? (
+            <Text style={st.dim}>A carregar…</Text>
+          ) : items.length === 0 ? (
+            <Text style={[st.dim, { paddingHorizontal: 32, color: 'rgba(255,255,255,0.7)' }]}>Não tens Zás ativos. Os Zás duram 24 h.</Text>
+          ) : (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {items.map((it) => {
+                const top = it.reactions?.[0];
+                return (
+                  <Pressable key={it.id} onPress={() => setOpen(it.id)} onLongPress={() => setDel(it)} delayLongPress={450} accessibilityRole="button" accessibilityLabel={it.caption || 'Zás'} style={{ width: cell, height: Math.round(cell / 0.75), borderRadius: 22, overflow: 'hidden', backgroundColor: colors.zinc800 }}>
+                    <Image source={{ uri: it.url }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
+                    <Pressable onPress={() => void showWho(it.id)} accessibilityRole="button" accessibilityLabel="Quem viu" style={st.views}>
+                      {top ? (
+                        <>
+                          <ReactionArt body={top.reaction} size={20} />
+                          <Text style={st.viewsText}>{(it.reactions ?? []).reduce((n, r) => n + r.count, 0)}</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="eye" size={14} color="#fff" />
+                          <Text style={st.viewsText}>{it.views ?? 0}</Text>
+                        </>
+                      )}
+                    </Pressable>
+                    <View style={st.left}><Text style={{ fontSize: 11, fontWeight: '700', color: '#fff' }}>{hoursLeft(it.expiresAt)}</Text></View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+        </ScrollView>
+        {/* Botão flutuante: voltar à câmara para mandar outro. */}
+        <Pressable onPress={onClose} accessibilityRole="button" style={[st.floating, { bottom: Math.max(24, insets.bottom) }]}>
+          <Icon name="bolt" size={20} solid color={colors.zinc900} />
+          <Text style={{ fontSize: 17, fontWeight: '700', color: colors.zinc900 }}>Mandar outro</Text>
+        </Pressable>
+        {del && (
+          <Sheet title="Apagar o Zás?" onClose={() => setDel(null)}>
+            <View style={{ paddingHorizontal: 24 }}>
+              <Text style={{ marginBottom: 16, fontSize: 16, lineHeight: 24, color: colors.zinc600 }}>Desaparece para toda a gente e não dá para o recuperar.</Text>
+              <Pressable onPress={() => void confirmDelete()} accessibilityRole="button" style={[st.big, { backgroundColor: '#b91c1c' }]}><Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Apagar</Text></Pressable>
+              <Pressable onPress={() => setDel(null)} accessibilityRole="button" style={[st.big, { marginTop: 8 }]}><Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc700 }}>Cancelar</Text></Pressable>
+            </View>
+          </Sheet>
+        )}
+        {who && <WhoSheet viewers={who} onClose={() => setWho(null)} />}
+      </View>
+      {open && <InstantViewer who={{ username, displayName: '' }} own startId={open} onClose={() => { setOpen(null); void load(); }} />}
+    </Modal>
+  );
+}
+
+function WhoSheet({ viewers, onClose }: { viewers: Viewer[]; onClose: () => void }) {
+  return (
+    <Sheet title="Quem viu" onClose={onClose}>
+      <ScrollView style={{ paddingHorizontal: 24 }}>
+        {viewers.length === 0 ? (
+          <Text style={{ paddingVertical: 24, textAlign: 'center', fontSize: 16, color: colors.zinc600 }}>Ainda ninguém viu.</Text>
+        ) : (
+          viewers.map((v) => (
+            <View key={v.username} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 }}>
+              <Avatar name={v.displayName} username={v.hasAvatar ? v.username : undefined} size={40} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>{v.displayName}</Text>
+                <Text style={{ fontSize: 14, color: colors.zinc500 }}>@{v.username} · {hm(v.at)}</Text>
+              </View>
+              {v.reaction ? <ReactionArt body={v.reaction} size={30} /> : null}
+            </View>
+          ))
+        )}
+      </ScrollView>
+    </Sheet>
+  );
+}
+
+/**
+ * Ver os Zás de alguém: foto com cantos bem redondos, cada um abre-se uma só vez. Toca à direita para o seguinte e à esquerda para o anterior;
+ * dois toques reagem com um brinde; arrastar para baixo fecha. Nos meus (`own`) mostra quem viu, as reações e deixa apagar.
+ */
+function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId }: { who: Who; own: boolean; onClose: () => void; onFinish?: () => void; onCamera?: () => void; onGrid?: () => void; startId?: string }) {
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const [items, setItems] = useState<InstantItem[] | null>(null);
+  const [i, setI] = useState(0);
+  const [viewers, setViewers] = useState<Viewer[] | null>(null);
+  const [err, setErr] = useState('');
+  const [reply, setReply] = useState('');
+  const [note, setNote] = useState('');
+  const marked = useRef(new Set<string>());
+  const noteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const drag = useRef(new Animated.Value(0)).current;
+  const pop = useRef(new Animated.Value(0)).current;
+  const [popId, setPopId] = useState<string | null>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    instantsApi
+      .of(who.username)
+      .then((r) => {
+        if (!r.length) return (onFinish ?? onClose)();
+        setItems(r);
+        const at = startId ? r.findIndex((x) => x.id === startId) : -1;
+        if (at > 0) setI(at);
+      })
+      .catch((e) => setErr((e as Error).message));
+    return () => {
+      clearTimeout(noteTimer.current);
+      if (tapTimer.current) clearTimeout(tapTimer.current);
+    };
+  }, [who.username]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const cur = items?.[i];
+  // Ao aparecer, conta como visto (e some da faixa).
+  useEffect(() => {
+    if (own || !cur || marked.current.has(cur.id)) return;
+    marked.current.add(cur.id);
+    instantsApi.view(cur.id).catch(() => undefined);
+  }, [cur, own]);
+
+  const flash = (t: string, ms = 1500) => {
+    setNote(t);
+    clearTimeout(noteTimer.current);
+    noteTimer.current = setTimeout(() => setNote(''), ms);
+  };
+
+  function react(id: string) {
+    if (!cur) return;
+    setPopId(id);
+    pop.setValue(0);
+    Animated.timing(pop, { toValue: 1, duration: 900, useNativeDriver: Platform.OS !== 'web' }).start(() => setPopId(null));
+    // A reação fica só no Zás (o dono vê-a em «quem viu»); só as respostas escritas vão para o chat.
+    instantsApi.react(cur.id, id).then(() => flash('Reação enviada')).catch((e) => setErr((e as Error).message));
+  }
+  /** Toque numa metade: vai para o outro Zás; dois toques seguidos reagem com um brinde (e não mudam de Zás). */
+  function tapZone(go: () => void) {
+    if (own) return go();
+    if (tapTimer.current != null) {
+      clearTimeout(tapTimer.current);
+      tapTimer.current = null;
+      react(':brinde:');
+      return;
+    }
+    tapTimer.current = setTimeout(() => {
+      tapTimer.current = null;
+      go();
+    }, 250);
+  }
+  function next() {
+    if (!items) return;
+    if (i + 1 >= items.length) (onFinish ?? onClose)();
+    else setI(i + 1);
+  }
+  async function remove() {
+    if (!cur) return;
+    try {
+      await instantsApi.remove(cur.id);
+      const rest = items!.filter((x) => x.id !== cur.id);
+      if (!rest.length) return onClose();
+      setItems(rest);
+      setI(Math.min(i, rest.length - 1));
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }
+  async function showViewers() {
+    if (!cur) return;
+    try {
+      setViewers(await instantsApi.viewers(cur.id));
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }
+  async function sendReply() {
+    const body = reply.trim();
+    if (!body) return;
+    setReply('');
+    setErr('');
+    try {
+      await api.chatSend(who.username, { kind: 'text', body: `Sobre o teu Zás: ${body}` });
+      flash('Enviado para as mensagens', 2000);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }
+
+  // Arrastar para baixo fecha (o cartão acompanha o dedo).
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) => g.dy > 12 && g.dy > Math.abs(g.dx) * 1.5,
+      onPanResponderMove: (_e, g) => drag.setValue(Math.max(0, g.dy)),
+      onPanResponderRelease: (_e, g) => {
+        if (g.dy > 110) closeRef.current();
+        else Animated.spring(drag, { toValue: 0, useNativeDriver: Platform.OS !== 'web', bounciness: 0 }).start();
+      },
+    }),
+  ).current;
+
+  const room = height - insets.top - insets.bottom - (own ? 250 : 400);
+  const cardW = Math.min(Math.min(470, Math.max(200, room)) * 0.75, width - 72);
+  const cardH = cardW / 0.75;
+  const first = who.displayName.split(' ')[0] || who.username;
+
+  return (
+    <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <Animated.View {...pan.panHandlers} style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(12, insets.top), transform: [{ translateY: drag }] }} accessibilityViewIsModal>
+        <View style={st.vTop}>
+          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" style={st.vBtn}><Icon name="x" size={28} color="#fff" /></Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            {onGrid && <Pressable onPress={onGrid} accessibilityRole="button" accessibilityLabel="Os meus Zás" style={st.vBtn}><Icon name="grid" size={25} color="#fff" /></Pressable>}
+            {onCamera && <Pressable onPress={onCamera} accessibilityRole="button" accessibilityLabel="Mandar o meu Zás" style={st.vBtn}><Icon name="camera" size={26} color="#fff" /></Pressable>}
+          </View>
+        </View>
+
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 8 }}>
+          <View style={{ width: cardW, height: cardH, borderRadius: 52, overflow: 'hidden', backgroundColor: colors.zinc900 }}>
+            {cur ? (
+              <Image source={{ uri: cur.url }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={cur.caption || 'Zás'} />
+            ) : (
+              <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+                {err ? <Text style={{ color: 'rgba(255,255,255,0.7)' }}>{err}</Text> : <ActivityIndicator color="#fff" />}
+              </View>
+            )}
+            <LinearGradient colors={['rgba(0,0,0,0.35)', 'transparent']} style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 96 }} pointerEvents="none" />
+            <LinearGradient colors={['transparent', 'rgba(0,0,0,0.6)']} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 160 }} pointerEvents="none" />
+            {/* Metades do cartão: anterior / seguinte. */}
+            <Pressable accessibilityRole="button" accessibilityLabel="Anterior" onPress={() => tapZone(() => setI((k) => Math.max(0, k - 1)))} style={{ position: 'absolute', left: 0, top: 64, bottom: 64, width: '33%' }} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Seguinte" onPress={() => tapZone(next)} style={{ position: 'absolute', right: 0, top: 64, bottom: 64, width: '67%' }} />
+            {popId && (
+              <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', opacity: pop.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] }), transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.25] }) }] }]}>
+                <ReactionArt body={popId} size={120} />
+              </Animated.View>
+            )}
+            {cur?.caption ? (
+              <View pointerEvents="none" style={st.capWrap}>
+                <Text style={st.cap} numberOfLines={3}>{cur.caption}</Text>
+              </View>
+            ) : null}
+            {own && cur ? (
+              <View pointerEvents="none" style={st.swipeUp}>
+                <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.85)' }}>{cur.views ?? 0} viram</Text>
+              </View>
+            ) : null}
+            {(err || note) && cur ? (
+              <Text accessibilityRole={err ? 'alert' : 'text'} style={[st.toast, { backgroundColor: err ? 'rgba(220,38,38,0.9)' : 'rgba(5,150,105,0.9)' }]}>{err || note}</Text>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={st.info}>
+          <Avatar name={who.displayName || who.username} username={who.username} size={30} />
+          <Text numberOfLines={1} style={{ maxWidth: '40%', fontSize: 14, fontWeight: '600', color: '#fff' }}>{own ? 'Os teus Zás' : who.username}</Text>
+          {cur && (
+            <Text style={{ fontSize: 14, color: own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? '#fcd34d' : 'rgba(255,255,255,0.65)', fontWeight: own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? '700' : '400' }}>
+              {own ? `${hm(cur.at)} · ${leftLabel(cur.expiresAt)}` : timeAgo(cur.at).replace('Há ', '')}
+            </Text>
+          )}
+          {items && items.length > 1 && <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>· {i + 1}/{items.length}</Text>}
+        </View>
+
+        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(16, insets.bottom) }}>
+          {own ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+              {!!cur?.reactions?.length && (
+                <View accessibilityLabel="Reações" style={[st.glass, { height: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16 }]}>
+                  {cur.reactions.map((r) => (
+                    <View key={r.reaction} style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                      <ReactionArt body={r.reaction} size={24} />
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>{r.count}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              <Pressable onPress={() => void showViewers()} accessibilityRole="button" style={[st.glass, { height: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 24 }]}>
+                <Icon name="eye" size={18} color="#fff" />
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#fff' }}>{cur?.views ?? 0} viram</Text>
+              </Pressable>
+              <Pressable onPress={() => void remove()} accessibilityRole="button" accessibilityLabel="Apagar Zás" style={[st.glass, { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }]}>
+                <Icon name="trash" size={20} color="#fca5a5" />
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <View accessibilityRole="toolbar" accessibilityLabel="Reagir" style={{ alignSelf: 'center', maxWidth: 320, marginBottom: 12, gap: 8 }}>
+                {[REACTIONS.slice(0, 4), REACTIONS.slice(4)].map((row, k) => (
+                  <View key={k} style={{ flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
+                    {row.map((r) => (
+                      <Pressable key={r.id} onPress={() => react(r.id)} accessibilityRole="button" accessibilityLabel={r.label} style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+                        <ReactionArt body={r.id} size={34} />
+                      </Pressable>
+                    ))}
+                  </View>
+                ))}
+              </View>
+              <View style={st.replyBar}>
+                <TextInput
+                  value={reply}
+                  onChangeText={setReply}
+                  maxLength={500}
+                  placeholder={`Responder a ${first}…`}
+                  placeholderTextColor="rgba(255,255,255,0.6)"
+                  accessibilityLabel="Responder"
+                  returnKeyType="send"
+                  onSubmitEditing={() => void sendReply()}
+                  style={st.replyInput}
+                />
+                <Pressable onPress={() => void sendReply()} disabled={!reply.trim()} accessibilityRole="button" accessibilityLabel="Enviar" style={[st.send, !reply.trim() && { opacity: 0.4 }]}>
+                  <Icon name="send" size={18} color="#fff" />
+                </Pressable>
+              </View>
+            </>
+          )}
+        </View>
+        {viewers && <WhoSheet viewers={viewers} onClose={() => setViewers(null)} />}
+      </Animated.View>
+    </Modal>
+  );
+}
+
+const st = StyleSheet.create({
+  pill: { position: 'absolute', right: 12, zIndex: 20, height: 54, flexDirection: 'row', alignItems: 'center', borderRadius: 999, backgroundColor: '#fff', paddingVertical: 6, paddingLeft: 6, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 8px 26px rgba(0,0,0,0.2)' },
+  pillAva: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', padding: 2, boxShadow: '0 0 0 2px #d6334f' },
+  bolt: { position: 'absolute', right: -4, top: -4, zIndex: 10, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 2px #fff' },
+  hubTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 8 },
+  small: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
+  cam: { borderRadius: 52, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181b' },
+  caption: { position: 'absolute', left: 24, right: 24, top: 28, textAlign: 'center', fontSize: 18, fontWeight: '800', letterSpacing: 1.2, color: '#fff', paddingVertical: 4 },
+  err: { position: 'absolute', left: 32, right: 32, bottom: 24, overflow: 'hidden', borderRadius: 22, backgroundColor: 'rgba(220,38,38,0.9)', paddingHorizontal: 16, paddingVertical: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: '#fff' },
+  sent: { alignSelf: 'center', width: '100%', maxWidth: 384, marginBottom: 12, overflow: 'hidden', borderRadius: 28, backgroundColor: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' },
+  shutterRing: { width: 86, height: 86, borderRadius: 43, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  shutterGap: { position: 'absolute', left: 4, top: 4, right: 4, bottom: 4, borderRadius: 39, backgroundColor: '#08080b' },
+  shutter: { width: 66, height: 66, borderRadius: 33, alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 20px rgba(255,92,92,0.45)' },
+  seg: { alignSelf: 'center', marginTop: 20, flexDirection: 'row', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.1)', padding: 4 },
+  segBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 24, paddingVertical: 8 },
+  introWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.8)', paddingHorizontal: 24 },
+  intro: { width: '100%', maxWidth: 384, borderRadius: 36, backgroundColor: '#fff', padding: 24, boxShadow: '0 12px 40px rgba(0,0,0,0.5)' },
+  dim: { paddingVertical: 64, textAlign: 'center', fontSize: 16, color: 'rgba(255,255,255,0.6)' },
+  views: { position: 'absolute', right: '10%', top: '6%', minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: 999, paddingHorizontal: 6, backgroundColor: 'rgba(0,0,0,0.55)' },
+  viewsText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  left: { position: 'absolute', bottom: '9%', right: '13%', borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 8, paddingVertical: 2 },
+  floating: { position: 'absolute', alignSelf: 'center', height: 56, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: '#fff', paddingHorizontal: 28, boxShadow: '0 6px 24px rgba(0,0,0,0.5)' },
+  big: { height: 48, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  vTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
+  vBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  capWrap: { position: 'absolute', left: 28, right: 28, top: 36, alignItems: 'center' },
+  cap: { textAlign: 'center', fontSize: 18, fontWeight: '800', letterSpacing: 1.2, color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.6)' } as never,
+  swipeUp: { position: 'absolute', left: 0, right: 0, bottom: 16, alignItems: 'center' },
+  toast: { position: 'absolute', left: 32, right: 32, top: 24, overflow: 'hidden', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: '#fff' },
+  info: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12 },
+  glass: { borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.15)' },
+  replyBar: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.12)', padding: 6, paddingLeft: 20 },
+  replyInput: { flex: 1, minWidth: 0, fontSize: 16, color: '#fff', paddingVertical: 0, outlineStyle: 'none' } as never,
+  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+});

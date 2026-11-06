@@ -14,6 +14,8 @@ import { Avatar } from './Avatar';
 import { BookmarkIcon } from './BookmarkIcon';
 import { Icon, type IconName } from './Icon';
 import { FollowButton } from './FollowButton';
+import { GeleiraShelf } from './GeleiraShelf';
+import { ProfileQrSheet } from './ProfileQrSheet';
 import { GiftSheet } from './PostSheets';
 import { EditProfileSheet, RequestsSheet } from './ProfileSheets';
 import { ReportSheet } from './ReportSheet';
@@ -88,7 +90,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [tab, setTab] = useState<ProfileTab>('all');
-  const [sheet, setSheet] = useState<null | 'menu' | 'gift' | 'report' | 'edit' | 'requests'>(null);
+  const [sheet, setSheet] = useState<null | 'menu' | 'gift' | 'report' | 'edit' | 'requests' | 'qr'>(null);
 
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username), retry: false });
   const p = q.data;
@@ -217,7 +219,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
             {p.isMe ? (
               <>
                 <Pressable onPress={() => setSheet('edit')} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Editar perfil"><Icon name="pencil" size={20} /></Pressable>
-                <Pressable onPress={() => void shareProfile()} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Partilhar perfil"><QrGlyph /></Pressable>
+                <Pressable onPress={() => setSheet('qr')} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="O meu QR e partilhar perfil"><QrGlyph /></Pressable>
                 <Pressable onPress={() => void inviteCrew()} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Convidar a malta"><Icon name="user-plus" size={20} /></Pressable>
                 <Pressable onPress={() => router.push('/wallet' as never)} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Carteira de Txills"><Icon name="wallet" size={20} /></Pressable>
               </>
@@ -243,6 +245,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           </Pressable>
         )}
       </View>
+
+      {p.canView && !blocked ? <GeleiraShelf username={p.username} isMe={p.isMe} /> : null}
 
       {!p.canView && !blocked ? (
         <View style={[styles.private, cardShadow]}>
@@ -282,6 +286,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   return (
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <FlatList data={[] as never[]} renderItem={() => null} ListHeaderComponent={header} ListFooterComponent={<View style={{ height: 32 }} />} showsVerticalScrollIndicator={false} />
+      {sheet === 'qr' && <ProfileQrSheet username={p.username} displayName={p.displayName} onClose={() => setSheet(null)} />}
       {sheet === 'edit' && <EditProfileSheet profile={p} onClose={() => setSheet(null)} />}
       {sheet === 'requests' && <RequestsSheet username={p.username} onClose={() => setSheet(null)} />}
       {sheet === 'menu' && (

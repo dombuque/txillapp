@@ -20,6 +20,18 @@ export const MAX_PHOTOS = 10;
 export type GiftVisibility = 'silent' | 'private' | 'public';
 
 /** Descoberta por sítio: só autores com 18 anos ou mais (ou o próprio). Sem data de nascimento conta como menor. */
+export interface FeedSettings {
+  following: 'less' | 'balanced' | 'more';
+  freshness: 'recent' | 'balanced' | 'popular';
+  media: 'all' | 'photos' | 'videos';
+  variety: 'low' | 'normal' | 'high';
+  hideSeen: boolean;
+  calm: boolean;
+}
+export const DEFAULT_FEED_SETTINGS: FeedSettings = { following: 'balanced', freshness: 'balanced', media: 'all', variety: 'normal', hideSeen: false, calm: false };
+/** Os temas que o "modo tranquilo" deixa de mostrar. */
+const CALM_TOPICS = ['festa', 'bebidas'];
+
 const ADULT = "(u.birth_date <= (current_date - interval '18 years') OR p.author_id = $1)";
 
 const FEED_SQL = `
@@ -480,6 +492,8 @@ export class PostsService implements OnModuleInit {
   async explore(viewerId: string, topic: string | null, cursor: string | undefined, limit: number, videoOnly = false) {
     const offset = cursor && /^\d{1,5}$/.test(cursor) ? Number(cursor) : 0;
     const t = topic && /^[a-z]{2,20}$/.test(topic) ? topic : null;
+    const s = await this.feedSettings(viewerId);
+    const k = settingsToWeights(s);
     const { rows } = await this.pool.query(
       `WITH w AS (
          SELECT topic, sum(wt) AS wt FROM (
@@ -498,7 +512,9 @@ export class PostsService implements OnModuleInit {
                 (SELECT count(*) FROM content.posts r WHERE r.repost_of = p.id AND r.kind = 'repost' AND r.removed_at IS NULL)::float AS reposts,
                 (SELECT count(*) FROM content.feed_impressions i WHERE i.post_id = p.id)::float AS reach,
                 EXISTS (SELECT 1 FROM content.feed_impressions i WHERE i.post_id = p.id AND i.user_id = $1) AS seen,
-                EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = p.author_id) AS followed
+                EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = p.author_id) AS followed,
+                EXISTS (SELECT 1 FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id WHERE pm.post_id = p.id AND ma.mime LIKE 'video/%') AS isvid,
+                EXISTS (SELECT 1 FROM social.explore_people ep WHERE ep.user_id = $1 AND ep.person_id = p.author_id AND ep.pref = 1) AS boosted
            FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
           WHERE p.kind = 'post' AND p.created_at > now() - interval '45 days' AND p.author_id <> $1
             AND EXISTS (SELECT 1 FROM content.post_media pm WHERE pm.post_id = p.id)
@@ -507,19 +523,24 @@ export class PostsService implements OnModuleInit {
             AND (NOT $5::boolean OR EXISTS (SELECT 1 FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id WHERE pm.post_id = p.id AND ma.mime LIKE 'video/%'))
             AND NOT EXISTS (SELECT 1 FROM content.feed_impressions hi WHERE hi.user_id = $1 AND hi.post_id = p.id AND hi.hidden)
             AND NOT EXISTS (SELECT 1 FROM content.post_feedback fb WHERE fb.user_id = $1 AND fb.post_id = p.id AND fb.value < 0)
+            AND NOT EXISTS (SELECT 1 FROM social.explore_people ep WHERE ep.user_id = $1 AND ep.person_id = p.author_id AND ep.pref < 0)
+            AND (NOT $12::boolean OR NOT EXISTS (SELECT 1 FROM content.feed_impressions i2 WHERE i2.post_id = p.id AND i2.user_id = $1))
+            AND (NOT $13::boolean OR NOT (COALESCE(p.topics, '{}') && $14::text[]))
           ORDER BY p.id DESC LIMIT 800),
        scored AS (
          SELECT c.id, c.author_id,
                 (0.25 + 1.6 * CASE WHEN $2::text IS NULL THEN greatest(COALESCE((SELECT sum(w.wt) FROM w WHERE w.topic = ANY(c.topics)), 0), -0.2 * (SELECT s FROM tot)) / (SELECT s FROM tot) ELSE 0 END)
-                * (0.4 + least(2.5, (c.cheers + 2 * c.comments + 3 * c.reposts + 1) / (c.reach + 20) * 6))
-                * (0.3 + exp(-extract(epoch FROM (now() - c.created_at)) / 3600 / 96))
-                * (CASE WHEN c.followed THEN 1.25 ELSE 1 END)
+                * (0.4 + least(2.5, (c.cheers + 2 * c.comments + 3 * c.reposts + 1) / (c.reach + 20) * $8::float))
+                * (0.3 + exp(-extract(epoch FROM (now() - c.created_at)) / 3600 / $7::float))
+                * (CASE WHEN c.followed THEN $6::float ELSE 1 END)
+                * (CASE WHEN c.isvid THEN $9::float ELSE $10::float END)
+                * (CASE WHEN c.boosted THEN 1.8 ELSE 1 END)
                 * (CASE WHEN c.seen THEN 0.45 ELSE 1 END)
                 + (abs(hashtext($1::text || c.id::text || current_date::text)) % 1000) / 1000.0 * 0.06 AS score
            FROM cand c),
        ranked AS (SELECT id, score, row_number() OVER (PARTITION BY author_id ORDER BY score DESC) AS rn FROM scored)
-       SELECT id FROM ranked WHERE rn <= 2 ORDER BY score DESC OFFSET $3 LIMIT $4`,
-      [viewerId, t, offset, limit + 1, videoOnly],
+       SELECT id FROM ranked WHERE rn <= $11::int ORDER BY score DESC OFFSET $3 LIMIT $4`,
+      [viewerId, t, offset, limit + 1, videoOnly, k.followedMul, k.decayHours, k.engagement, k.videoMul, k.photoMul, k.perAuthor, s.hideSeen, s.calm, CALM_TOPICS],
     );
     const ids = rows.slice(0, limit).map((r) => r.id as string);
     if (!ids.length) return { items: [], nextCursor: null };
@@ -544,6 +565,43 @@ export class PostsService implements OnModuleInit {
     return rows.map((r) => ({ id: r.topic as string, label: topicLabel(r.topic as string) }));
   }
 
+  /** Como construí o meu algoritmo (valores por omissão se nunca mexi). */
+  async feedSettings(userId: string): Promise<FeedSettings> {
+    const { rows } = await this.pool.query('SELECT following, freshness, media, variety, hide_seen, calm FROM social.feed_settings WHERE user_id = $1', [userId]);
+    const r = rows[0];
+    return r ? { following: r.following, freshness: r.freshness, media: r.media, variety: r.variety, hideSeen: r.hide_seen, calm: r.calm } : { ...DEFAULT_FEED_SETTINGS };
+  }
+
+  async setFeedSettings(userId: string, patch: Partial<FeedSettings>) {
+    const n = { ...(await this.feedSettings(userId)), ...patch };
+    await this.pool.query(
+      `INSERT INTO social.feed_settings (user_id, following, freshness, media, variety, hide_seen, calm) VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (user_id) DO UPDATE SET following = EXCLUDED.following, freshness = EXCLUDED.freshness, media = EXCLUDED.media, variety = EXCLUDED.variety, hide_seen = EXCLUDED.hide_seen, calm = EXCLUDED.calm, updated_at = now()`,
+      [userId, n.following, n.freshness, n.media, n.variety, n.hideSeen, n.calm],
+    );
+    return n;
+  }
+
+  /** Contas que quero ver mais ou menos. */
+  async explorePeople(userId: string) {
+    const { rows } = await this.pool.query(
+      `SELECT u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, ep.pref
+         FROM social.explore_people ep JOIN identity.users u ON u.id = ep.person_id WHERE ep.user_id = $1 AND u.status = 'active' ORDER BY ep.updated_at DESC`,
+      [userId],
+    );
+    return rows.map((r) => ({ username: r.username as string, displayName: r.display_name as string, hasAvatar: r.has_avatar as boolean, pref: r.pref as number }));
+  }
+
+  async setPerson(userId: string, username: string, pref: -1 | 0 | 1) {
+    const u = await this.pool.query(`SELECT id FROM identity.users WHERE lower(username) = lower($1) AND status = 'active'`, [username.replace(/^@/, '')]);
+    if (!u.rows[0]) throw new NotFoundException('Essa pessoa não existe');
+    const id = u.rows[0].id as string;
+    if (id === userId) throw new BadRequestException('Não podes escolher-te a ti');
+    if (pref === 0) await this.pool.query('DELETE FROM social.explore_people WHERE user_id = $1 AND person_id = $2', [userId, id]);
+    else await this.pool.query('INSERT INTO social.explore_people (user_id, person_id, pref) VALUES ($1, $2, $3) ON CONFLICT (user_id, person_id) DO UPDATE SET pref = EXCLUDED.pref, updated_at = now()', [userId, id, pref]);
+    return this.explorePeople(userId);
+  }
+
   /** As minhas preferências por tema (1 = mais, -1 = menos). */
   async prefs(userId: string) {
     const { rows } = await this.pool.query('SELECT topic, pref FROM social.explore_prefs WHERE user_id = $1', [userId]);
@@ -560,6 +618,8 @@ export class PostsService implements OnModuleInit {
   /** Volta ao início: apaga as preferências e o "interessado / não interessado" (o histórico de brindes e comentários mantém-se). */
   async resetAlgorithm(userId: string) {
     await this.pool.query('DELETE FROM social.explore_prefs WHERE user_id = $1', [userId]);
+    await this.pool.query('DELETE FROM social.feed_settings WHERE user_id = $1', [userId]);
+    await this.pool.query('DELETE FROM social.explore_people WHERE user_id = $1', [userId]);
     await this.pool.query('DELETE FROM content.post_feedback WHERE user_id = $1', [userId]);
     await this.pool.query('UPDATE content.feed_impressions SET hidden = false WHERE user_id = $1 AND hidden', [userId]);
   }
@@ -789,4 +849,17 @@ export class PostsService implements OnModuleInit {
         ? { amount: Number(r.gift_amount), recipient: { username: r.gift_username, displayName: r.gift_display_name, hasAvatar: r.gift_has_avatar === true, verified: r.gift_verified === true, verifiedTier: (r.gift_tier as string | null) ?? null } }
         : null,
   });
+}
+
+
+/** Do que a pessoa escolheu para os números que entram na classificação do Explorar e dos Reels. */
+export function settingsToWeights(s: FeedSettings) {
+  return {
+    followedMul: { less: 0.8, balanced: 1.25, more: 2.2 }[s.following],
+    decayHours: { recent: 36, balanced: 96, popular: 240 }[s.freshness],
+    engagement: { recent: 4, balanced: 6, popular: 10 }[s.freshness],
+    videoMul: { all: 1, photos: 0.6, videos: 1.8 }[s.media],
+    photoMul: { all: 1, photos: 1.5, videos: 0.7 }[s.media],
+    perAuthor: { low: 1, normal: 2, high: 4 }[s.variety],
+  };
 }

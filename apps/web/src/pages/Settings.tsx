@@ -372,11 +372,6 @@ export default function Settings() {
       </Section>
 
       <Section title={tr('Apoio e informações')}>
-        <Link to="/invites" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="user-plus" /></span>
-          <span className="flex-1 font-semibold">{tr('Convida a tua malta')}</span>
-          <span className="text-xl text-zinc-400" aria-hidden>›</span>
-        </Link>
         <Link to="/help" className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-zinc-50">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-800" aria-hidden><Icon name="info" /></span>
           <span className="flex-1 font-semibold">{tr('Ajuda')}</span>

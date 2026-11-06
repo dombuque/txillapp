@@ -7,11 +7,19 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { useChatStream } from '@/lib/realtime';
 import { colors } from '@/lib/theme';
 
 void SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
+
+/** Mantém a ligação em tempo real das mensagens (só com sessão iniciada). */
+function ChatLive() {
+  const { user } = useAuth();
+  useChatStream(undefined, !!user);
+  return null;
+}
 
 /** Sem sessão → entrada; com sessão → a app. */
 function Gate() {
@@ -42,6 +50,7 @@ function Gate() {
   }
   return (
     <View style={styles.column}>
+      <ChatLive />
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.white } }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="login" options={{ animation: 'fade' }} />

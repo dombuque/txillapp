@@ -226,10 +226,10 @@ export default function Settings() {
         )}
 
         <Section title="O teu perfil">
-          {chevRow(ic('map-pin'), 'Tenho um local (bar, restaurante…)', () => site('/locais'))}
+          {chevRow(ic('map-pin'), 'Tenho um local (bar, restaurante…)', () => go('/locais'))}
           {chevRow(<BookmarkIcon on={false} size={22} />, 'Guardados', () => go('/saved'))}
-          {chevRow(ic('trending'), 'Estatísticas do perfil', () => site('/insights'))}
-          {chevRow(ic('snowflake'), 'A minha geleira', () => site('/geleira'))}
+          {chevRow(ic('trending'), 'Estatísticas do perfil', () => go('/insights'))}
+          {chevRow(ic('snowflake'), 'A minha geleira', () => go('/geleira'))}
         </Section>
 
         <Section title="Carteira">{chevRow(ic('wallet'), 'Txills e presentes', () => go('/wallet'))}</Section>
@@ -265,7 +265,7 @@ export default function Settings() {
         </Section>
 
         <Section title="Convidar">
-          <Row icon={ic('user-plus')} label="Convidar amigos" onPress={() => go('/invites')} />
+          <Row icon={ic('user-plus')} label="Convida a tua malta" onPress={() => go('/invites')} />
           {p ? <Toggle icon={ic('search')} label="Deixar que me encontrem pelos contactos" text="Quem tem o teu email nos contactos pode sugerir-te a seguir. Só vê que estás no Txillapp." on={p.findByContacts} onChange={(v) => void savePrivacy({ findByContacts: v })} /> : null}
         </Section>
 
@@ -282,11 +282,10 @@ export default function Settings() {
         </Section>
 
         <Section title="Apoio e informações">
-          <Row icon={ic('user-plus')} label="Convida a tua malta" onPress={() => go('/invites')} />
-          <Row icon={ic('info')} label="Ajuda" onPress={() => site('/help')} />
-          <Row icon={ic('wallet')} label="Pedidos e pagamentos" onPress={() => site('/orders')} />
-          <Row icon={ic('globe')} label="Idioma e traduções" onPress={() => site('/language')} />
-          <Row icon={ic('shield')} label="Sobre" value="Perfil, privacidade e termos" onPress={() => site('/about')} />
+          <Row icon={ic('info')} label="Ajuda" onPress={() => go('/help')} />
+          <Row icon={ic('wallet')} label="Pedidos e pagamentos" onPress={() => go('/orders')} />
+          <Row icon={ic('globe')} label="Idioma e traduções" onPress={() => go('/language')} />
+          <Row icon={ic('shield')} label="Sobre" value="Perfil, privacidade e termos" onPress={() => go('/about')} />
         </Section>
 
         <Section title="Conta">
