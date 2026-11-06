@@ -220,7 +220,7 @@ export default function StoryViewer() {
         <Pressable style={[st.zone, { right: 0, width: shared ? '30%' : '67%' }]} {...hold} onPress={tap(() => { setSeePost(false); next(); })} accessibilityLabel="Seguinte" />
 
         {shared && seePost && (
-          <Pressable onPress={() => { setAway(true); router.push(`/p/${cur.sharedFrom!.postId}` as never); }} style={st.seePost} accessibilityRole="button">
+          <Pressable onPress={() => { setAway(true); router.push(`/${cur.mediaKind === 'video' ? 'r' : 'p'}/${cur.sharedFrom!.postId}` as never); }} style={st.seePost} accessibilityRole="button">
             <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{cur.mediaKind === 'video' ? 'Ver reel' : 'Ver publicação'}</Text>
             <Icon name="chevron-right" size={16} color="#fff" strokeWidth={3} />
           </Pressable>

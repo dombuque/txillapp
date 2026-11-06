@@ -18,7 +18,7 @@ import { Avatar } from '@/components/Avatar';
 
 type SheetName = null | 'comments' | 'repost' | 'gift' | 'menu';
 
-function Reel({ post, active, height, muted, onMute, onChange, me }: { post: Post; active: boolean; height: number; muted: boolean; onMute: () => void; onChange: (p: Partial<Post>) => void; me?: string }) {
+export function Reel({ post, active, height, muted, onMute, onChange, me }: { post: Post; active: boolean; height: number; muted: boolean; onMute: () => void; onChange: (p: Partial<Post>) => void; me?: string }) {
   const router = useRouter();
   const [sheet, setSheet] = useState<SheetName>(null);
   const [paused, setPaused] = useState(false);

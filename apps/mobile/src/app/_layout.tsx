@@ -54,6 +54,9 @@ function Gate() {
       <Stack.Screen name="messages/[username]" />
       <Stack.Screen name="settings" />
       <Stack.Screen name="saved" />
+      <Stack.Screen name="verification" />
+      <Stack.Screen name="r/[id]" />
+      <Stack.Screen name="reels/filtros" />
       <Stack.Screen name="wallet" />
       <Stack.Screen name="invites" />
       <Stack.Screen name="t/[tag]" />

@@ -78,6 +78,36 @@ function qsp(cursor?: string, q?: string) {
   const p = [cursor ? `cursor=${encodeURIComponent(cursor)}` : '', q ? `q=${encodeURIComponent(q)}` : ''].filter(Boolean).join('&');
   return p ? `?${p}` : '';
 }
+export type Who = 'everyone' | 'following' | 'off';
+export type Viewers = 'everyone' | 'followers' | 'off';
+export type Gender = 'female' | 'male' | 'other' | 'unspecified';
+export interface PrivacySettings {
+  isPrivate: boolean;
+  shareAnalytics: boolean;
+  showPresence: boolean;
+  findByContacts: boolean;
+  gender: Gender | null;
+  showGender: boolean;
+  commentsAllowed: Who;
+  giftsAllowed: Who;
+  mentionsAllowed: Who;
+  dmsAllowed: Who;
+  repostsVisible: Viewers;
+  cheersVisible: Viewers;
+  giftsVisible: Viewers;
+  showConnections: 'everyone' | 'followers' | 'me';
+  suggestable: boolean;
+}
+export interface StorySettings { replies: Who; hidden: { username: string; displayName: string }[] }
+export interface DeviceSession { id: string; device: string; firstSeen: string; lastUsed: string; current: boolean }
+export interface VerificationStatus {
+  items: { key: string; label: string; ok: boolean; hint: string }[];
+  eligible: boolean;
+  verified: boolean;
+  tier: 'verified' | 'official' | null;
+  request: { id: string; kind: string; status: 'pending' | 'approved' | 'rejected' | 'withdrawn'; reason: string | null; createdAt: string } | null;
+  retryAfter: string | null;
+}
 export interface FollowState { following: boolean; requested: boolean; followers: number }
 export interface Profile {
   id: string;
@@ -344,12 +374,43 @@ export const api = {
   follow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/follow`, post({})),
   unfollow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/unfollow`, post({})),
   block: (username: string): Promise<void> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'PUT' }),
-  unblock: (username: string): Promise<void> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'DELETE' }),
+  unblock: (username: string): Promise<{ username: string; displayName: string }[]> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'DELETE' }),
   invites: (): Promise<InvitesInfo> => raw('/invites/me'),
   updateMe: (b: { displayName?: string; bio?: string; isPrivate?: boolean; website?: string; city?: string }): Promise<{ displayName: string }> => raw('/users/me', { method: 'PATCH', body: JSON.stringify(b) }),
   setAvatar: (mediaId: string): Promise<{ hasAvatar: boolean }> => raw('/users/me/avatar', { method: 'PUT', body: JSON.stringify({ mediaId }) }),
   clearAvatar: (): Promise<{ hasAvatar: boolean }> => raw('/users/me/avatar', { method: 'DELETE' }),
   followRequests: (): Promise<{ username: string; displayName: string; requestedAt: string }[]> => raw('/follow-requests'),
+  explorePrefs: (): Promise<Record<string, number>> => raw('/feed/prefs'),
+  exploreActivity: (): Promise<{ id: string; label: string }[]> => raw('/feed/algorithm'),
+  setExplorePref: (topic: string, pref: -1 | 0 | 1): Promise<Record<string, number>> => raw('/feed/prefs', { method: 'PUT', body: JSON.stringify({ topic, pref }) }),
+  resetExplore: (): Promise<void> => raw('/feed/prefs', { method: 'DELETE' }),
+  privacy: (): Promise<PrivacySettings> => raw('/settings/privacy'),
+  setPrivacy: (b: Partial<PrivacySettings>): Promise<PrivacySettings> => raw('/settings/privacy', { method: 'PATCH', body: JSON.stringify(b) }),
+  storySettings: (): Promise<StorySettings> => raw('/stories/settings'),
+  setStoryReplies: (replies: Who): Promise<StorySettings> => raw('/stories/settings', { method: 'PATCH', body: JSON.stringify({ replies }) }),
+  hideStoryFrom: (username: string): Promise<StorySettings> => raw(`/stories/hidden/${encodeURIComponent(username)}`, { method: 'PUT' }),
+  unhideStoryFrom: (username: string): Promise<StorySettings> => raw(`/stories/hidden/${encodeURIComponent(username)}`, { method: 'DELETE' }),
+  blocked: (): Promise<{ username: string; displayName: string }[]> => raw('/blocks'),
+  geo: (): Promise<{ country: string | null }> => raw('/health/geo'),
+  notifySettings: (): Promise<{ categories: string[]; off: string[] }> => raw('/notifications/settings'),
+  saveNotifySettings: (off: string[]): Promise<void> => raw('/notifications/settings', { method: 'PUT', body: JSON.stringify({ off }) }),
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const r = (await parse(await call('/auth/password', post({ currentPassword, newPassword })))) as AuthResult;
+    accessToken = r.accessToken;
+    if (r.refreshToken) await refreshStore.set(r.refreshToken);
+  },
+  sessions: (): Promise<DeviceSession[]> => raw('/auth/sessions'),
+  revokeSession: (id: string): Promise<void> => raw(`/auth/sessions/${id}`, { method: 'DELETE' }),
+  revokeOtherSessions: (): Promise<void> => raw('/auth/sessions/revoke-others', post({})),
+  deleteAccount: (confirmUsername: string, password?: string): Promise<void> => raw('/auth/delete-account', post({ confirmUsername, password })),
+  async exportData(): Promise<string> {
+    const res = await call('/me/export');
+    if (!res.ok) throw new ApiError(res.status, res.status === 429 ? 'Já descarregaste vários ficheiros. Tenta daqui a pouco.' : 'Não consegui preparar o ficheiro');
+    return res.text();
+  },
+  verificationStatus: (): Promise<VerificationStatus> => raw('/verification/me'),
+  verificationRequest: (b: { kind: 'person' | 'business'; fullName: string; proof: string; docMediaId: string; selfieMediaId: string }): Promise<void> => raw('/verification/request', post(b)),
+  verificationWithdraw: (): Promise<void> => raw('/verification/request', { method: 'DELETE' }),
   followers: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/followers${qsp(cursor, q)}`),
   following: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/following${qsp(cursor, q)}`),
   wallet: (): Promise<WalletView> => raw('/wallet'),
