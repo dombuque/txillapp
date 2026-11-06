@@ -3,14 +3,24 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { useChatStream } from '@/lib/realtime';
 import { colors } from '@/lib/theme';
 
 void SplashScreen.preventAutoHideAsync();
+
+/**
+ * No iPhone (Safari e PWA) o topo do ecrã tem uma zona desfocada do sistema: o conteúdo colado ao topo fica por baixo dela.
+ * Na web garantimos pelo menos 20 px de espaço no topo em todos os ecrãs (como já se fazia no site antigo, no perfil).
+ */
+function WebTopInset({ children }: { children: React.ReactNode }) {
+  const insets = useSafeAreaInsets();
+  if (Platform.OS !== 'web') return <>{children}</>;
+  return <SafeAreaInsetsContext.Provider value={{ ...insets, top: Math.max(insets.top, 20) }}>{children}</SafeAreaInsetsContext.Provider>;
+}
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 
@@ -84,12 +94,14 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
+        <WebTopInset>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <StatusBar style="dark" />
             <Gate />
           </AuthProvider>
         </QueryClientProvider>
+        </WebTopInset>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -1,4 +1,5 @@
-import { useId } from 'react';
+import { useEffect, useId, useRef } from 'react';
+import { Animated, Easing } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 const tr = <T extends string>(s: T, vars?: Record<string, string | number>): string => (vars ? s.replace(/\{(\w+)\}/g, (_m, k: string) => String(vars[k] ?? '')) : s);
@@ -53,8 +54,22 @@ function Magnet({ m }: { m: (typeof MAGNETS)[number] }) {
  * mais ímanes, mais cor e mais brilho: no topo (madala da paulada) ganha uma coroa e faíscas. Aberta, mostra o interior com
  * prateleiras e tantos "produtos" quantos gostos (até 8).
  */
+/** Como o `animate-pulse` do Tailwind: opacidade 1 → 0,5 → 1 em 2 s, sempre. */
+const AG = Animated.createAnimatedComponent(G);
+
 export function FridgeArt({ count, level, open = false, invite = false, size = 96 }: { count: number; level: number; open?: boolean; invite?: boolean; size?: number }) {
   const id = useId().replace(/:/g, '');
+  const pulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!invite) return;
+    const ease = Easing.bezier(0.4, 0, 0.6, 1);
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { toValue: 0.5, duration: 1000, easing: ease, useNativeDriver: false }),
+      Animated.timing(pulse, { toValue: 1, duration: 1000, easing: ease, useNativeDriver: false }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [invite, pulse]);
   const edge = ['#a9c9d9', '#8fd0ee', '#6fc4ea', '#f08aa0', '#e8a317'][level];
   const dots = Math.min(count, 8);
   const h = Math.round(size * 1.3);
@@ -107,13 +122,15 @@ export function FridgeArt({ count, level, open = false, invite = false, size = 9
           {invite && (
             <>
               {/* porta entreaberta: uma frincha de luz no lado da dobradiça */}
-              <Rect x="10.5" y="14" width="4.5" height="98" rx="2" fill="#fde68a" />
-              <Rect x="8" y="14" width="3" height="98" rx="1.5" fill="#fde68a" opacity="0.5" />
+              <AG opacity={pulse}>
+                <Rect x="10.5" y="14" width="4.5" height="98" rx="2" fill="#fde68a" />
+                <Rect x="8" y="14" width="3" height="98" rx="1.5" fill="#fde68a" opacity="0.5" />
+              </AG>
               {/* seta desenhada a mostrar que se puxa a porta */}
-              <G fill="none" stroke="#0ea5e9" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <AG opacity={pulse} fill="none" stroke="#0ea5e9" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <Path d="M90 54 C101 66 99 84 84 92" />
                 <Path d="M83.5 82 L84 92 L94 90" />
-              </G>
+              </AG>
             </>
           )}
           <Path d="M22 14 Q24 10 34 10" stroke="#fff" strokeWidth="3" strokeLinecap="round" fill="none" opacity="0.9" />

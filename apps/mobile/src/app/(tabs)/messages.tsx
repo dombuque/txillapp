@@ -5,7 +5,7 @@ import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, Text, Tex
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
-import { InstantsDock, openZasCamera } from '@/components/Instants';
+import { InstantsDock, openZasCamera, zasListScrolling } from '@/components/Instants';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { api, type ChatMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -118,7 +118,7 @@ export default function Messages() {
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <PullView pull={pull}>
       <FlatList
-        onScroll={pull.onScroll}
+        onScroll={(e) => { pull.onScroll(e); zasListScrolling(); }}
         scrollEventThrottle={16}
         refreshControl={pull.control}
         data={rows}

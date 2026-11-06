@@ -2,20 +2,22 @@ import { BackButton } from '@/components/BackButton';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Linking, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, FlatList, Linking, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ApiError, api, type FollowState, type Post, type ProfileTab } from '@/lib/api';
+import { ApiError, api, type Post, type ProfileTab } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { SITE_URL, sized } from '@/lib/config';
+import { sized } from '@/lib/config';
 import { cardShadow, colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
 import { BookmarkIcon } from './BookmarkIcon';
 import { Icon, type IconName } from './Icon';
 import { FollowButton } from './FollowButton';
-import { GeleiraShelf } from './GeleiraShelf';
+import { GeleiraShelf, GeleiraToggle } from './GeleiraShelf';
 import { ProfileQrSheet } from './ProfileQrSheet';
+import { ProfileStoryAvatar } from './ProfileStoryAvatar';
 import { GiftSheet } from './PostSheets';
 import { EditProfileSheet, RequestsSheet } from './ProfileSheets';
 import { ReportSheet } from './ReportSheet';
@@ -59,10 +61,14 @@ function Grid({ posts, onOpen, width }: { posts: Post[]; onOpen: (p: Post) => vo
         return (
           <Pressable key={post.id} onPress={() => onOpen(post)} style={{ width: size, height: size, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.rose50 }} accessibilityRole="button" accessibilityLabel={`Abrir publicação: ${post.body || shown.body || 'foto'}`}>
             {post.kind === 'gift' && post.gift ? (
-              <View style={styles.gift}>
+              <LinearGradient colors={[colors.brand, '#e8475f', '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gift}>
+                <View style={{ width: 46, height: 28 }}>
+                  <View style={[styles.giftAv, { right: 0, zIndex: 1 }]}><Avatar name={post.gift.recipient.displayName} username={(post.gift.recipient as { hasAvatar?: boolean }).hasAvatar ? post.gift.recipient.username : undefined} size={26} /></View>
+                  <View style={[styles.giftAv, { left: 0, zIndex: 2 }]}><Avatar name={post.author.displayName} username={post.author.username} size={26} /></View>
+                </View>
                 <Text style={styles.giftAmount}>{post.gift.amount.toLocaleString('pt-PT')}</Text>
                 <Text style={styles.giftLabel}>TXILLS</Text>
-              </View>
+              </LinearGradient>
             ) : m ? (
               <Image source={{ uri: m.kind === 'video' ? sized(m.posterUrl ?? m.url, 480) : sized(m.url, 480) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} accessibilityIgnoresInvertColors />
             ) : (
@@ -88,9 +94,20 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   const { user } = useAuth();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [tab, setTab] = useState<ProfileTab>('all');
-  const [sheet, setSheet] = useState<null | 'menu' | 'gift' | 'report' | 'edit' | 'requests' | 'qr'>(null);
+  const [sheet, setSheet] = useState<null | 'menu' | 'gift' | 'report' | 'edit' | 'requests' | 'qr' | 'block'>(null);
+  const [geleiraOpen, setGeleiraOpen] = useState(false);
+  const [rowW, setRowW] = useState(0);
+  const bob = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(bob, { toValue: -3, duration: 1600, useNativeDriver: true }),
+      Animated.timing(bob, { toValue: 0, duration: 1600, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [bob]);
 
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username), retry: false });
   const p = q.data;
@@ -131,22 +148,14 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       /* cancelado ou sem convites */
     }
   }
-  async function shareProfile() {
-    const url = `${SITE_URL || 'https://txillapp.com'}/u/${p!.username}`;
-    try {
-      await Share.share({ message: `Segue @${p!.username} no Txillapp, a rede da malta: ${url}`, url });
-    } catch { /* cancelado */ }
-  }
-  const soon = (what: string) => Alert.alert(what, 'Isto ainda está a ser passado para a app. Já vem aí.');
   async function unblock() {
     await api.unblock(p!.username);
     await qc.invalidateQueries({ queryKey: ['profile'] });
   }
-  function confirmBlock() {
-    Alert.alert(`Bloquear @${p!.username}?`, 'A pessoa deixa de ver o teu conteúdo e não te pode seguir.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Bloquear', style: 'destructive', onPress: async () => { await api.block(p!.username); for (const k of ['profile', 'feed', 'stories', 'suggestions']) void qc.invalidateQueries({ queryKey: [k] }); setSheet(null); } },
-    ]);
+  async function block() {
+    await api.block(p!.username);
+    for (const k of ['profile', 'feed', 'stories', 'suggestions', 'blocked']) void qc.invalidateQueries({ queryKey: [k] });
+    setSheet(null);
   }
   const openPost = (post: Post) => router.push(`/p/${post.code ?? post.id}` as never);
 
@@ -168,11 +177,12 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       <View style={[styles.card, cardShadow]}>
         <View style={[styles.avRow, p.bio ? { marginTop: 48 } : null]}>
           {p.bio ? (
-            <View style={styles.bubble}>
-              <RichText text={p.bio} style={styles.bubbleText} />
-            </View>
+            <Animated.View style={[styles.bubble, { transform: [{ translateY: bob }] }]}>
+              <View style={{ maxHeight: 57, overflow: 'hidden' }}><RichText text={p.bio} style={styles.bubbleText} /></View>
+              <View style={styles.bubbleTail} />
+            </Animated.View>
           ) : null}
-          <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={84} />
+          <ProfileStoryAvatar username={p.username} displayName={p.displayName} isMe={p.isMe} hasAvatar={p.hasAvatar} size={84} />
           <View style={{ flex: 1, flexDirection: 'row', minWidth: 0 }}>
             {stat(p.counts.posts, 'publicações')}
             {stat(p.counts.followers, 'seguidores', p.canSeeConnections ? () => router.push(`/u/${p.username}/connections?tab=followers` as never) : undefined)}
@@ -215,13 +225,14 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
         )}
 
         {!blocked && (
-          <View style={styles.btnRow}>
+          <View style={styles.btnRow} onLayout={(e) => setRowW(e.nativeEvent.layout.width)}>
             {p.isMe ? (
               <>
                 <Pressable onPress={() => setSheet('edit')} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Editar perfil"><Icon name="pencil" size={20} /></Pressable>
                 <Pressable onPress={() => setSheet('qr')} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="O meu QR e partilhar perfil"><QrGlyph /></Pressable>
                 <Pressable onPress={() => void inviteCrew()} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Convidar a malta"><Icon name="user-plus" size={20} /></Pressable>
                 <Pressable onPress={() => router.push('/wallet' as never)} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Carteira de Txills"><Icon name="wallet" size={20} /></Pressable>
+                <GeleiraToggle username={p.username} isMe open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon grow />
               </>
             ) : (
               <>
@@ -232,9 +243,18 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
                   </Pressable>
                 )}
                 <Pressable onPress={() => router.push(`/messages/${p.username}` as never)} style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel="Enviar mensagem"><Icon name="send" size={18} /></Pressable>
-                <Pressable onPress={() => void shareProfile()} style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel="Partilhar perfil"><Icon name="share" size={18} /></Pressable>
+                <Pressable onPress={() => setSheet('qr')} style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel="Partilhar perfil"><Icon name="share" size={18} /></Pressable>
+                {p.canView && <GeleiraToggle username={p.username} isMe={false} open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon />}
               </>
             )}
+          </View>
+        )}
+
+        {/* A geleira abre para baixo, dentro do mesmo cartão, com a ponta a apontar para o botão. */}
+        {!blocked && p.canView && geleiraOpen && (
+          <View>
+            <View pointerEvents="none" style={[styles.tip, { right: p.isMe && rowW ? (rowW - 24) / 5 / 2 - 11 : 11 }]} />
+            <GeleiraShelf username={p.username} isMe={p.isMe} flush pointed />
           </View>
         )}
 
@@ -245,8 +265,6 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           </Pressable>
         )}
       </View>
-
-      {p.canView && !blocked ? <GeleiraShelf username={p.username} isMe={p.isMe} /> : null}
 
       {!p.canView && !blocked ? (
         <View style={[styles.private, cardShadow]}>
@@ -263,6 +281,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
               </Pressable>
             ))}
           </View>
+          <View style={{ minHeight: height * 0.4 }}>
           {posts.isLoading && <Text style={styles.loading}>A carregar…</Text>}
           {posts.isSuccess && items.length === 0 && tab !== 'all' && <Text style={styles.emptyText}>{p.isMe ? EMPTY[tab].me : EMPTY[tab].other}</Text>}
           {posts.isSuccess && items.length === 0 && tab === 'all' && (
@@ -278,6 +297,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
               {posts.isFetchingNextPage ? <ActivityIndicator color={colors.brand} /> : <Text style={styles.ghostText}>Ver mais</Text>}
             </Pressable>
           )}
+          </View>
         </View>
       ) : null}
     </View>
@@ -291,10 +311,32 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       {sheet === 'requests' && <RequestsSheet username={p.username} onClose={() => setSheet(null)} />}
       {sheet === 'menu' && (
         <Sheet title={`@${p.username}`} onClose={() => setSheet(null)}>
-          <View style={{ paddingHorizontal: 24 }}>
-            <Pressable onPress={() => { setSheet(null); void shareProfile(); }} style={styles.menuRow}><Icon name="share" size={22} /><Text style={styles.menuText}>Partilhar perfil</Text></Pressable>
-            <Pressable onPress={() => setSheet('report')} style={styles.menuRow}><Icon name="flag" size={22} /><Text style={styles.menuText}>Denunciar</Text></Pressable>
-            {!p.blockedByMe && <Pressable onPress={confirmBlock} style={styles.menuRow}><Icon name="block" size={22} color={colors.red600} /><Text style={[styles.menuText, { color: colors.red600 }]}>Bloquear</Text></Pressable>}
+          <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
+            <Pressable onPress={() => setSheet('block')} style={styles.menuRow} accessibilityRole="button">
+              <View style={[styles.menuIcon, { backgroundColor: '#fef2f2' }]}><Icon name="block" size={24} color="#b91c1c" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.menuText, { color: '#b91c1c' }]}>{p.blockedByMe ? 'Já bloqueaste esta conta' : `Bloquear @${p.username}`}</Text>
+                <Text style={styles.menuSub}>Deixa de ver o teu conteúdo e de te poder seguir.</Text>
+              </View>
+            </Pressable>
+            <Pressable onPress={() => setSheet('report')} style={styles.menuRow} accessibilityRole="button">
+              <View style={[styles.menuIcon, { backgroundColor: colors.zinc100 }]}><Icon name="flag" size={24} color={colors.zinc800} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.menuText}>Denunciar @{p.username}</Text>
+                <Text style={styles.menuSub}>Avisa a moderação. A pessoa não sabe.</Text>
+              </View>
+            </Pressable>
+          </View>
+        </Sheet>
+      )}
+      {sheet === 'block' && (
+        <Sheet title={`Bloquear @${p.username}?`} onClose={() => setSheet(null)}>
+          <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
+            {[`${p.displayName} deixa de ver as tuas publicações e stories.`, 'Não te pode seguir nem interagir contigo.', 'Deixam de se seguir um ao outro.', 'Ela é avisada de que foi bloqueada.'].map((t) => (
+              <View key={t} style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}><Text style={styles.bullet}>{'\u2022'}</Text><Text style={[styles.bullet, { flex: 1 }]}>{t}</Text></View>
+            ))}
+            <Pressable onPress={() => void block()} style={styles.blockBtn} accessibilityRole="button"><Text style={styles.blockBtnText}>Bloquear</Text></Pressable>
+            <Pressable onPress={() => setSheet(null)} style={[styles.ghost, { marginTop: 12, alignSelf: 'stretch' }]}><Text style={styles.ghostText}>Cancelar</Text></Pressable>
           </View>
         </Sheet>
       )}
@@ -314,12 +356,13 @@ const styles = StyleSheet.create({
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   card: { marginHorizontal: 16, backgroundColor: colors.white, borderRadius: 28, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 20 },
   avRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  bubble: { position: 'absolute', top: -52, left: 24, zIndex: 10, maxWidth: '78%', borderRadius: 18, backgroundColor: colors.white, paddingHorizontal: 14, paddingVertical: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.12)' },
+  bubble: { position: 'absolute', top: -52, left: 24, zIndex: 10, maxWidth: '78%', borderRadius: 18, borderWidth: 1, borderColor: colors.zinc100, backgroundColor: colors.white, paddingHorizontal: 14, paddingVertical: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.16)' },
+  bubbleTail: { position: 'absolute', bottom: -7, left: 26, width: 12, height: 12, borderRadius: 2, backgroundColor: colors.white, borderRightWidth: 1, borderBottomWidth: 1, borderColor: colors.zinc100, transform: [{ rotate: '45deg' }] },
   bubbleText: { fontSize: 14, lineHeight: 19, color: colors.zinc800, textAlign: 'center' },
   stat: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   statN: { fontSize: 20, fontWeight: '800', color: colors.zinc900, lineHeight: 24 },
   statL: { fontSize: 13, color: colors.zinc600 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  nameRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   name: { fontSize: 20, fontWeight: '800', color: colors.zinc900, lineHeight: 25 },
   followsYou: { alignSelf: 'flex-start', marginTop: 4, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 8, paddingVertical: 2 },
   followsYouText: { fontSize: 12, fontWeight: '600', color: colors.zinc700 },
@@ -330,6 +373,7 @@ const styles = StyleSheet.create({
   notice: { marginTop: 16, borderRadius: 16, backgroundColor: colors.zinc100, padding: 16, alignItems: 'center' },
   noticeTitle: { fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
   noticeText: { marginTop: 4, fontSize: 14, color: colors.zinc600, textAlign: 'center' },
+  tip: { position: 'absolute', top: 6, zIndex: 10, width: 0, height: 0, borderLeftWidth: 11, borderRightWidth: 11, borderBottomWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: colors.zinc300 },
   btnRow: { marginTop: 16, flexDirection: 'row', gap: 6 },
   small: { height: 36, borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
   smallText: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },
@@ -346,7 +390,8 @@ const styles = StyleSheet.create({
   emptyText: { marginTop: 32, textAlign: 'center', color: colors.zinc600 },
   noPosts: { marginTop: 8, fontWeight: '600', color: colors.zinc600 },
   first: { marginTop: 12, fontWeight: '600', color: colors.brand, textDecorationLine: 'underline' },
-  gift: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: colors.brand },
+  gift: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, padding: 8 },
+  giftAv: { position: 'absolute', top: 0, borderRadius: 15, borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)' },
   giftAmount: { fontSize: 22, fontWeight: '900', color: '#fff', lineHeight: 22 },
   giftLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1.6, color: 'rgba(255,255,255,0.85)' },
   multi: { position: 'absolute', right: 6, top: 6, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 6, paddingVertical: 2 },
@@ -354,6 +399,11 @@ const styles = StyleSheet.create({
   corner: { position: 'absolute', left: 6, top: 6, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   ghost: { height: 44, paddingHorizontal: 24, borderRadius: 999, borderWidth: 1, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center', marginTop: 24 },
   ghostText: { fontSize: 15, fontWeight: '600', color: colors.zinc800 },
-  menuRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 16 },
+  menuRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 12 },
+  menuIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   menuText: { fontSize: 17, fontWeight: '600', color: colors.zinc900 },
+  menuSub: { fontSize: 14, color: colors.zinc600 },
+  bullet: { fontSize: 15, lineHeight: 22, color: colors.zinc700 },
+  blockBtn: { marginTop: 16, height: 50, borderRadius: 999, backgroundColor: '#b91c1c', alignItems: 'center', justifyContent: 'center' },
+  blockBtnText: { fontWeight: '700', color: '#fff', fontSize: 16 },
 });

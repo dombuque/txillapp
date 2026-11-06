@@ -36,7 +36,7 @@ const INTRO_KEY = 'tx_instants_intro';
 const AUDIENCE_KEY = 'tx_zas_audience';
 
 const hm = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
-const hoursLeft = (iso: string) => `${Math.max(1, Math.round((new Date(iso).getTime() - Date.now()) / 3_600_000))} h`;
+const hoursLeft = (iso: string) => `${Math.max(1, Math.ceil((new Date(iso).getTime() - Date.now()) / 3_600_000))}h`;
 const leftLabel = (iso: string) => {
   const h = Math.max(0, Math.round((new Date(iso).getTime() - Date.now()) / 3_600_000));
   return h <= 1 ? 'acaba daqui a pouco' : `acaba daqui a ${h} h`;
@@ -46,18 +46,54 @@ const leftLabel = (iso: string) => {
 const cameraListeners = new Set<() => void>();
 export const openZasCamera = () => cameraListeners.forEach((l) => l());
 
+/** Quem tem uma lista a rolar avisa aqui: a pílula do Zás encolhe (só as fotos) e volta ao parar, como no site. */
+const scrollListeners = new Set<() => void>();
+export const zasListScrolling = () => scrollListeners.forEach((l) => l());
+
+/**
+ * Distância (px) da base da pílula ao topo da barra de baixo. No site a pílula está a `6.5rem + safe-area` do fundo do ecrã e a barra
+ * ocupa `4 + 48 + 1 + max(piso, safe-area)` (piso: 1.35rem no iOS, 0.35rem no resto): ~50 px acima da barra num iPhone com entalhe.
+ * Na app a barra está no fluxo, por isso o `bottom` é relativo ao topo dela.
+ */
+function pillGap(inset: number) {
+  const ios = Platform.OS === 'ios' || (Platform.OS === 'web' && typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent));
+  const floor = ios ? 21.6 : 5.6;
+  return 104 + inset - (53 + Math.max(floor, inset));
+}
+
 /**
  * Zás (os Instants): uma foto tirada na hora, com uma legenda curta, que dura 24 h e cada pessoa vê uma só vez.
  * Só chega aos amigos próximos e a quem se segue mutuamente. Quando há Zás por ver, aparece uma pílula flutuante (canto de baixo,
  * à direita) com a faísca do Zás, as fotos de quem postou e quantos são. Pôr dentro de uma vista que ocupe o ecrã todo (flex: 1),
- * acima da barra de abas (por isso `bottom` é pequeno). Como no site, monta-se só nas Mensagens (e só uma vez, senão a câmara abria duas).
+ * acima da barra de abas (a distância vem de `pillGap`). Como no site, monta-se só nas Mensagens (e só uma vez, senão a câmara abria duas).
  * `collapsed`: encolhe a pílula só para as fotos (por ex. enquanto a lista rola).
  */
 export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
   const { user } = useAuth();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['instants'], queryFn: instantsApi.tray, refetchInterval: 60_000, enabled: !!user });
+  // Como o atalho do Instagram: espreita a meio e sai de vez quando a lista pára de mexer.
+  const [away, setAway] = useState(true);
+  const tail = useRef(new Animated.Value(6)).current;
+  useEffect(() => {
+    let t = setTimeout(() => setAway(false), 500);
+    const onScroll = () => {
+      setAway(true);
+      clearTimeout(t);
+      t = setTimeout(() => setAway(false), 900);
+    };
+    scrollListeners.add(onScroll);
+    return () => {
+      scrollListeners.delete(onScroll);
+      clearTimeout(t);
+    };
+  }, []);
+  const small = collapsed || away;
+  useEffect(() => {
+    Animated.timing(tail, { toValue: small ? 6 : 16, duration: 300, useNativeDriver: false }).start();
+  }, [small, tail]);
   const [mode, setMode] = useState<null | 'view' | 'cam'>(null);
   const [queue, setQueue] = useState<Who[]>([]);
   const [at, setAt] = useState(0);
@@ -84,7 +120,7 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
           }}
           accessibilityRole="button"
           accessibilityLabel={`Zás: ${total} por ver`}
-          style={[st.pill, { bottom: 52, paddingRight: collapsed ? 6 : 16 }]}
+          style={({ pressed }) => [st.pill, { bottom: pillGap(insets.bottom), transform: [{ scale: pressed ? 0.95 : 1 }] }]}
         >
           <View style={{ flexDirection: 'row' }}>
             {others.slice(0, 3).map((o, i) => (
@@ -96,12 +132,13 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
               <Icon name="bolt" size={12} solid strokeWidth={2} color="#fff" />
             </View>
           </View>
-          {!collapsed && (
+          {!small && (
             <View style={{ marginLeft: 10 }}>
               <Text style={{ fontSize: 16, lineHeight: 20, fontWeight: '900', letterSpacing: -0.3, color: colors.brand }}>Zás</Text>
               <Text style={{ fontSize: 12, lineHeight: 16, fontWeight: '600', color: colors.zinc600 }}>{total > 99 ? '99+' : total} {total === 1 ? 'novo' : 'novos'}</Text>
             </View>
           )}
+          <Animated.View style={{ width: tail }} />
         </Pressable>
       )}
       {gridOpen && <MyInstants username={user.username} onClose={() => { setGridOpen(false); refresh(); }} />}
@@ -396,8 +433,8 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
         </ScrollView>
         {/* Botão flutuante: voltar à câmara para mandar outro. */}
         <Pressable onPress={onClose} accessibilityRole="button" style={[st.floating, { bottom: Math.max(24, insets.bottom) }]}>
-          <Icon name="bolt" size={20} solid color={colors.zinc900} />
-          <Text style={{ fontSize: 17, fontWeight: '700', color: colors.zinc900 }}>Mandar outro</Text>
+          <Icon name="bolt" size={20} solid color={colors.brand} />
+          <Text style={{ fontSize: 17, fontWeight: '700', color: colors.zinc900 }}>Mandar um Zás</Text>
         </Pressable>
         {del && (
           <Sheet title="Apagar o Zás?" onClose={() => setDel(null)}>
@@ -684,7 +721,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
 }
 
 const st = StyleSheet.create({
-  pill: { position: 'absolute', right: 12, zIndex: 20, height: 54, flexDirection: 'row', alignItems: 'center', borderRadius: 999, backgroundColor: '#fff', paddingVertical: 6, paddingLeft: 6, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 8px 26px rgba(0,0,0,0.2)' },
+  pill: { position: 'absolute', right: 12, zIndex: 20, height: 54, flexDirection: 'row', alignItems: 'center', borderRadius: 999, backgroundColor: '#fff', paddingVertical: 6, paddingLeft: 6, paddingRight: 0, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 8px 26px rgba(0,0,0,0.2)' },
   pillAva: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', padding: 2, boxShadow: '0 0 0 2px #d6334f' },
   bolt: { position: 'absolute', right: -4, top: -4, zIndex: 10, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 2px #fff' },
   hubTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 8 },
@@ -701,8 +738,8 @@ const st = StyleSheet.create({
   introWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.8)', paddingHorizontal: 24 },
   intro: { width: '100%', maxWidth: 384, borderRadius: 36, backgroundColor: '#fff', padding: 24, boxShadow: '0 12px 40px rgba(0,0,0,0.5)' },
   dim: { paddingVertical: 64, textAlign: 'center', fontSize: 16, color: 'rgba(255,255,255,0.6)' },
-  views: { position: 'absolute', right: '10%', top: '6%', minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: 999, paddingHorizontal: 6, backgroundColor: 'rgba(0,0,0,0.55)' },
-  viewsText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  views: { position: 'absolute', right: '10%', top: '6%', minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: 999, paddingHorizontal: 6 },
+  viewsText: { fontSize: 13, fontWeight: '700', color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.9)' } as never,
   left: { position: 'absolute', bottom: '9%', right: '13%', borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 8, paddingVertical: 2 },
   floating: { position: 'absolute', alignSelf: 'center', height: 56, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: '#fff', paddingHorizontal: 28, boxShadow: '0 6px 24px rgba(0,0,0,0.5)' },
   big: { height: 48, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },

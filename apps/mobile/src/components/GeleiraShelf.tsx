@@ -90,7 +90,7 @@ export function GeleiraToggle({ username, isMe, open, onToggle, icon = false, gr
  * A geleira: vitrine de gostos (bebidas e comidas), só para ver. Editar fica em /geleira. Nos perfis dos outros só mostra o que a pessoa deixa ver.
  * `compact`: fechada por omissão (cabeçalho e o frigorífico); toca-se para abrir as prateleiras.
  */
-export function GeleiraShelf({ username, isMe, flush = false, compact = false, pointed = false }: { username: string; isMe: boolean; flush?: boolean; compact?: boolean; pointed?: boolean }) {
+export function GeleiraShelf({ username, isMe, flush = false, compact = false, pointed = false, arrowRight = 11 }: { username: string; isMe: boolean; flush?: boolean; compact?: boolean; pointed?: boolean; arrowRight?: number }) {
   const [open, setOpen] = useState(!compact);
   const q = useTastes(username, isMe);
   const items = (q.data ?? []).filter((i) => i.kind === 'bebida' || i.kind === 'comida');
@@ -172,6 +172,7 @@ export function GeleiraShelf({ username, isMe, flush = false, compact = false, p
 }
 
 const st = StyleSheet.create({
+  arrow: { position: 'absolute', top: 6, zIndex: 10, width: 0, height: 0, borderLeftWidth: 11, borderRightWidth: 11, borderBottomWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: colors.zinc300 },
   card: { marginTop: 16, overflow: 'hidden', borderRadius: 24, borderWidth: 1, paddingHorizontal: 16, paddingBottom: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.1)', backgroundColor: '#fff' },
   skel: { marginTop: 16, borderRadius: 24, backgroundColor: colors.zinc100 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },

@@ -1,8 +1,10 @@
 import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { memo, useState } from 'react';
-import { FlatList, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { memo, useEffect, useRef, useState } from 'react';
+import { Animated, FlatList, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { api, type Page, type Post } from '@/lib/api';
 import { SITE_URL, sized } from '@/lib/config';
 import { cardShadow, colors } from '@/lib/theme';
@@ -15,6 +17,61 @@ import { GiftSheet, PostMenuSheet, RepostSheet } from './PostSheets';
 import { ShareSheet } from './ShareSheet';
 import { TrackCard } from './TrackCard';
 import { VerifiedBadge } from './VerifiedBadge';
+
+/** Toque simples ou duplo: o duplo chama `double`; o simples só corre (com um pequeno atraso) se não vier segundo toque. */
+function useTap(double?: () => void) {
+  const t = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (t.current) clearTimeout(t.current); }, []);
+  return (single?: () => void) => {
+    if (!double) return single?.();
+    if (t.current != null) {
+      clearTimeout(t.current);
+      t.current = null;
+      double();
+      return;
+    }
+    t.current = setTimeout(() => {
+      t.current = null;
+      single?.();
+    }, 260);
+  };
+}
+
+/** Duplo toque: brinda (só põe, nunca tira) e dá o sinal para a animação do copo. */
+function useBrindar(post: Post, patch: (p: Partial<Post>) => void) {
+  const [burst, setBurst] = useState(0);
+  async function brindar() {
+    setBurst((n) => n + 1);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    if (post.cheered) return;
+    patch({ cheered: true, cheers: post.cheers + 1 });
+    try {
+      patch(await api.cheer(post.id));
+    } catch {
+      patch({ cheered: post.cheered, cheers: post.cheers });
+    }
+  }
+  return { burst, brindar };
+}
+
+/** O copo grande que aparece e desvanece no meio do cartão quando se brinda com duplo toque. */
+function BurstCup({ n }: { n: number }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (n === 0) return;
+    v.setValue(0);
+    Animated.timing(v, { toValue: 1, duration: 800, useNativeDriver: false }).start();
+  }, [n, v]);
+  if (n === 0) return null;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', zIndex: 10, opacity: v.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1, 0] }), transform: [{ scale: v.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.5, 1.15, 1.35] }) }] }}
+    >
+      <Icon name="cheers" size={96} strokeWidth={1.6} color={colors.brand} />
+    </Animated.View>
+  );
+}
 
 /** Atualiza uma publicação na lista do feed (também dentro de um repost). */
 function usePatch(id: string) {
@@ -47,6 +104,7 @@ function PostCardBase({ post, me }: { post: Post; me?: string }) {
 function PostBody({ post, me }: { post: Post; me?: string }) {
   const { width } = useWindowDimensions();
   const patch = usePatch(post.id);
+  const { burst, brindar } = useBrindar(post, patch);
   const mine = post.author.id === me;
   const margin = width >= 360 ? 8 : 6;
   const pad = width >= 360 ? 16 : 14;
@@ -93,8 +151,15 @@ function PostBody({ post, me }: { post: Post; me?: string }) {
         </Pressable>
       </View>
 
-      {post.body ? <Text style={styles.body}>{post.body}</Text> : null}
-      <Carousel media={post.media} width={inner} />
+      {post.kind === 'gift' && post.gift ? (
+        <GiftBlock post={post} g={post.gift} me={me} onDouble={() => void brindar()} />
+      ) : (
+        <>
+          {post.body ? <Text style={styles.body}>{post.body}</Text> : null}
+          <Carousel media={post.media} width={inner} reelId={post.id} onDouble={() => void brindar()} />
+        </>
+      )}
+      <BurstCup n={burst} />
       {post.music ? <TrackCard track={post.music} autoplay /> : null}
       <Actions post={post} mine={mine} patch={patch} open={(k) => setSheet(k === 'gift' ? { gift: { username: post.author.username, displayName: post.author.displayName } } : k)} />
       {sheet === 'menu' && <PostMenuSheet post={post} mine={mine} onClose={() => setSheet(null)} onSaved={(saved) => patch({ saved })} onShare={() => setSheet('share')} />}
@@ -120,8 +185,50 @@ function PostBody({ post, me }: { post: Post; me?: string }) {
   );
 }
 
+
+/** Cartão de presente (X presenteou Y): degradê coral, as duas fotos, o valor e a mensagem. Duplo toque também brinda. */
+function GiftBlock({ post, g, me, onDouble }: { post: Post; g: NonNullable<Post['gift']>; me?: string; onDouble?: () => void }) {
+  const router = useRouter();
+  const tap = useTap(onDouble);
+  const sender = post.author;
+  const go = (u: string) => router.push((u === (me ?? '') ? '/profile' : `/u/${u}`) as never);
+  return (
+    <>
+      <View style={styles.giftHead}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Icon name="gift" size={15} color={colors.brand} />
+          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.brand }}>Presente</Text>
+        </View>
+        <Text style={{ fontSize: 14, color: colors.zinc500 }}>{timeAgo(post.createdAt)}{post.editedAt ? ' · editado' : ''}</Text>
+      </View>
+      <Pressable onPress={() => tap()} style={styles.giftCard} accessibilityLabel="Presente (toca duas vezes para brindar)">
+        <LinearGradient colors={[colors.brand, '#e8475f', '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+        <View style={[styles.giftDot, { left: -24, top: -24, width: 96, height: 96, borderRadius: 48 }]} />
+        <View style={[styles.giftDot, { right: -16, bottom: -32, width: 112, height: 112, borderRadius: 56 }]} />
+        <View style={{ width: 132, height: 76, alignSelf: 'center' }}>
+          <Pressable onPress={() => go(g.recipient.username)} style={[styles.giftAva, { right: 0 }]} accessibilityLabel={`Perfil de ${g.recipient.displayName}`}>
+            <Avatar name={g.recipient.displayName} username={g.recipient.username} size={68} />
+          </Pressable>
+          <Pressable onPress={() => go(sender.username)} style={[styles.giftAva, { left: 0, zIndex: 2 }]} accessibilityLabel={`Perfil de ${sender.displayName}`}>
+            <Avatar name={sender.displayName} username={sender.username} size={68} />
+          </Pressable>
+          <View style={styles.giftBadge}><Icon name="gift" size={20} color={colors.brand} /></View>
+        </View>
+        <Text style={styles.giftLine}>
+          <Text style={{ fontWeight: '800' }} onPress={() => go(sender.username)}>{sender.displayName}</Text> presenteou <Text style={{ fontWeight: '800' }} onPress={() => go(g.recipient.username)}>{g.recipient.displayName}</Text>
+        </Text>
+        <Text style={styles.giftAmount}>{g.amount.toLocaleString('pt-PT')}</Text>
+        <Text style={styles.giftUnit}>TXILLS</Text>
+        {post.body ? <Text style={styles.giftNote}>{post.body}</Text> : null}
+      </Pressable>
+    </>
+  );
+}
+
 /** Fotos e vídeos: arredondados (12), no máximo 448 de altura, com contador e pontos, como no site. */
-function Carousel({ media, width }: { media: Post['media']; width: number }) {
+function Carousel({ media, width, reelId, onDouble }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void }) {
+  const router = useRouter();
+  const tap = useTap(onDouble);
   const [i, setI] = useState(0);
   if (media.length === 0) return null;
   const heightOf = (m: Post['media'][number]) => {
@@ -145,7 +252,7 @@ function Carousel({ media, width }: { media: Post['media']; width: number }) {
           onViewableItemsChanged={onView}
           viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
           renderItem={({ item: m }) => (
-            <View style={{ width, height: h }}>
+            <Pressable style={{ width, height: h }} onPress={() => tap(m.kind === 'video' && reelId ? () => router.push(`/r/${reelId}` as never) : undefined)} accessibilityRole="button" accessibilityLabel={m.kind === 'video' ? 'Abrir o reel' : 'Foto (toca duas vezes para brindar)'}>
               <Image source={{ uri: sized(m.kind === 'video' ? m.posterUrl ?? m.url : m.url, 720) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} accessibilityIgnoresInvertColors />
               {m.kind === 'video' && (
                 <View style={styles.playWrap} pointerEvents="none">
@@ -154,7 +261,7 @@ function Carousel({ media, width }: { media: Post['media']; width: number }) {
                   </View>
                 </View>
               )}
-            </View>
+            </Pressable>
           )}
         />
         {media.length > 1 && (
@@ -231,6 +338,15 @@ function Actions({ post, mine, patch, open }: { post: Post; mine: boolean; patch
 export const PostCard = memo(PostCardBase);
 
 const styles = StyleSheet.create({
+  giftHead: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  giftCard: { marginTop: 8, overflow: 'hidden', borderRadius: 24, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 20, alignItems: 'center', boxShadow: '0 6px 18px rgba(214,51,79,0.35)' },
+  giftDot: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.1)' },
+  giftAva: { position: 'absolute', top: 0, borderRadius: 38, borderWidth: 4, borderColor: 'rgba(255,255,255,0.9)' },
+  giftBadge: { position: 'absolute', bottom: -4, left: 48, zIndex: 3, width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' },
+  giftLine: { marginTop: 16, fontSize: 16, lineHeight: 20, color: '#fff', textAlign: 'center' },
+  giftAmount: { marginTop: 8, fontSize: 40, lineHeight: 40, fontWeight: '900', color: '#fff', letterSpacing: -1 },
+  giftUnit: { fontSize: 13, fontWeight: '700', letterSpacing: 2.6, color: 'rgba(255,255,255,0.85)' },
+  giftNote: { marginTop: 16, maxWidth: '92%', overflow: 'hidden', borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, lineHeight: 22, color: '#fff', textAlign: 'center' },
   card: { backgroundColor: colors.white, borderRadius: 26, paddingTop: 16, marginBottom: 20 },
   repostBar: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 24, marginBottom: 6 },
   repostText: { fontSize: 14, fontWeight: '500', color: colors.zinc600, lineHeight: 20 },

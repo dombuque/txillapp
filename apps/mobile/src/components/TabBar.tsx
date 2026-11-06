@@ -62,7 +62,7 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
           return (
             <Pressable key={r.key} onPress={go} style={styles.tab} accessibilityRole="button" accessibilityLabel={label}>
               <View>
-                <Icon name={icon} size={27} solid={focused} strokeWidth={focused && icon === 'home' ? 2.3 : 1.9} />
+                <Icon name={icon} size={27} solid={focused && icon !== 'film'} strokeWidth={focused && (icon === 'home' || icon === 'film') ? 2.3 : 1.9} />
                 {r.name === 'messages' && chatCount > 0 && (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>{badge(chatCount)}</Text>

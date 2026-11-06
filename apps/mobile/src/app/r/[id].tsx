@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackButton } from '@/components/BackButton';
 import { Icon } from '@/components/Icon';
@@ -16,8 +16,9 @@ export default function ReelPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
-  const [muted, setMuted] = useState(false);
+  const focused = useIsFocused();
+  // A altura é a do contentor medido (no Safari a da janela muda com a barra de endereços).
+  const [height, setHeight] = useState(0);
   const q = useQuery({ queryKey: ['post', id], queryFn: () => api.getPost(id), retry: false });
   const post = q.data ? (q.data.kind === 'repost' && q.data.repostOf ? q.data.repostOf : q.data) : null;
   const isVideo = post?.media[0]?.kind === 'video';
@@ -41,8 +42,8 @@ export default function ReelPage() {
         </View>
       )}
       {post && isVideo && (
-        <View style={{ flex: 1, width: '100%', maxWidth: 576, alignSelf: 'center' }}>
-          <Reel post={post} active height={height} muted={muted} onMute={() => setMuted((m) => !m)} onChange={patch} me={user?.id} />
+        <View style={{ flex: 1, width: '100%', maxWidth: 576, alignSelf: 'center' }} onLayout={(e: LayoutChangeEvent) => setHeight(Math.round(e.nativeEvent.layout.height))}>
+          {height > 0 && <Reel post={post} active={focused} height={height} onChange={patch} me={user?.id} bottomInset={insets.bottom} />}
         </View>
       )}
       <View style={[st.top, { paddingTop: Math.max(insets.top, 12) }]} pointerEvents="box-none">
