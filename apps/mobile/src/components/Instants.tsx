@@ -70,6 +70,9 @@ export const zasListScrolling = () => scrollListeners.forEach((l) => l());
 export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
   const { user } = useAuth();
   const { width } = useWindowDimensions();
+  const dockInsets = useSafeAreaInsets();
+  // A barra de baixo flutua (58 px + espaço de baixo + 8): a pilha fica logo acima dela.
+  const stackBottom = 58 + Math.max(dockInsets.bottom, 8) + 8 + 10;
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['instants'], queryFn: instantsApi.tray, refetchInterval: 60_000, enabled: !!user });
   // Como o atalho do Instagram: espreita a meio e sai de vez quando a lista pára de mexer.
@@ -142,6 +145,7 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
           others={others}
           total={total}
           snoozed={snoozed}
+          bottom={stackBottom}
           rise={rise}
           shrink={shrink}
           slide={slide}
@@ -193,7 +197,7 @@ function StackThumb({ o, w, h }: { o: TrayOther; w: number; h: number }) {
 }
 
 /** A mini pilha de fotos dos Zás por ver: canto de baixo à direita (16 px de margem), a de cima é a mais recente. */
-function ZasStack({ others, total, snoozed, rise, shrink, slide, pan, onOpen, onRestore }: { others: TrayOther[]; total: number; snoozed: boolean; rise: Animated.Value; shrink: Animated.Value; slide: Animated.Value; pan: object; onOpen: () => void; onRestore: () => void }) {
+function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, onOpen, onRestore }: { others: TrayOther[]; total: number; snoozed: boolean; bottom: number; rise: Animated.Value; shrink: Animated.Value; slide: Animated.Value; pan: object; onOpen: () => void; onRestore: () => void }) {
   const [press, setPress] = useState(false);
   useEffect(() => {
     Animated.spring(rise, { toValue: 1, useNativeDriver: false, bounciness: 10, speed: 12 }).start();
@@ -208,7 +212,7 @@ function ZasStack({ others, total, snoozed, rise, shrink, slide, pan, onOpen, on
   if (snoozed) {
     // Oculta: só uma aba junto à borda; tocar ou deslizar para a esquerda repõe.
     return (
-      <Animated.View {...(pan as object)} style={[st.stack, { right: 0, bottom: 28, transform: [{ translateX: slide }] }]}>
+      <Animated.View {...(pan as object)} style={[st.stack, { right: 0, bottom: bottom + 12, transform: [{ translateX: slide }] }]}>
         <Pressable onPress={onRestore} accessibilityRole="button" accessibilityLabel="Mostrar os Zás outra vez" style={st.edge}>
           <Icon name="bolt" size={14} solid color="#fff" />
         </Pressable>
@@ -218,7 +222,7 @@ function ZasStack({ others, total, snoozed, rise, shrink, slide, pan, onOpen, on
   return (
     <Animated.View
       {...(pan as object)}
-      style={[st.stack, { right: -22, bottom: 44, opacity: rise, transform: [{ translateX: slide }, { translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }, { scale: Animated.multiply(shrink, press ? 0.95 : 1) }] }]}
+      style={[st.stack, { right: -22, bottom, opacity: rise, transform: [{ translateX: slide }, { translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }, { scale: Animated.multiply(shrink, press ? 0.95 : 1) }] }]}
     >
       <Pressable
         onPress={onOpen}
