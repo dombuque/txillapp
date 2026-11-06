@@ -1,8 +1,8 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Avatar } from '@/components/Avatar';
 import { Empty } from '@/components/Empty';
@@ -20,18 +20,29 @@ const labels: Record<string, string> = { welcome_bonus: 'Boas-vindas, malta!', t
 
 /** Escolher a quem oferecer: as pessoas que segues. */
 function PickPerson({ me, onPick, onClose }: { me: string; onPick: (p: { username: string; displayName: string }) => void; onClose: () => void }) {
+  const [text, setText] = useState('');
+  const [term, setTerm] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setTerm(text.trim()), 300);
+    return () => clearTimeout(t);
+  }, [text]);
   const q = useInfiniteQuery({
-    queryKey: ['people', 'following', me, ''],
-    queryFn: ({ pageParam }) => api.following(me, pageParam),
+    queryKey: ['people', 'following', me, term],
+    queryFn: ({ pageParam }) => api.following(me, pageParam, term || undefined),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (l) => l.nextCursor ?? undefined,
   });
   const people = q.data?.pages.flatMap((x) => x.items) ?? [];
   return (
     <Sheet title="A quem queres oferecer?" onClose={onClose}>
-      <ScrollView style={{ maxHeight: 420 }}>
+      <View style={st.search}>
+        <Icon name="search" size={18} color={colors.zinc600} />
+        <TextInput value={text} onChangeText={setText} placeholder="Procurar em quem sigo" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} style={st.searchInput} accessibilityLabel="Procurar" />
+        {text ? <Pressable onPress={() => setText('')} hitSlop={10} accessibilityLabel="Limpar pesquisa"><Icon name="x" size={16} color={colors.zinc600} /></Pressable> : null}
+      </View>
+      <ScrollView style={{ maxHeight: 400 }} keyboardShouldPersistTaps="handled">
         {q.isLoading && <ActivityIndicator style={{ margin: 24 }} color={colors.brand} />}
-        {q.isSuccess && people.length === 0 && <Text style={{ textAlign: 'center', color: colors.zinc600, padding: 24 }}>Segue alguém primeiro: só se oferece a quem segues.</Text>}
+        {q.isSuccess && people.length === 0 && <Text style={{ textAlign: 'center', color: colors.zinc600, padding: 24 }}>{term ? 'Ninguém com esse nome' : 'Segue alguém primeiro: só se oferece a quem segues.'}</Text>}
         {people.map((x) => (
           <Pressable key={x.username} onPress={() => onPick(x)} style={st.pick} accessibilityRole="button">
             <Avatar name={x.displayName} username={x.username} size={44} />
@@ -114,5 +125,7 @@ const st = StyleSheet.create({
   ghost: { marginTop: 12, height: 48, borderRadius: 999, backgroundColor: colors.zinc100, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   card: { marginTop: 32, borderRadius: 28, backgroundColor: colors.white, padding: 20 },
   mov: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16 },
+  search: { marginHorizontal: 20, marginBottom: 8, height: 42, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 14 },
+  searchInput: { flex: 1, fontSize: 15, color: colors.zinc900, paddingVertical: 0, outlineStyle: 'none' as never },
   pick: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
 });

@@ -25,6 +25,8 @@ export default function NewStory() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [listOpen, setListOpen] = useState(false);
+  // Como a foto se encaixa no story: inteira (com margens) ou a preencher o ecrã.
+  const [fill, setFill] = useState(false);
   const [music, setMusic] = useState<Track | null>(null);
   const [pickMusic, setPickMusic] = useState(false);
   const friends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
@@ -36,7 +38,7 @@ export default function NewStory() {
         const p = await ImagePicker.requestCameraPermissionsAsync();
         if (!p.granted) return setErr('Preciso de acesso à câmara.');
       }
-      const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images', 'videos'], quality: 0.85, videoMaxDuration: 30 };
+      const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images', 'videos'], quality: 0.85, videoMaxDuration: 30, allowsEditing: Platform.OS !== 'web', aspect: [9, 16] };
       const r = await (source === 'camera' ? ImagePicker.launchCameraAsync(opts) : ImagePicker.launchImageLibraryAsync(opts));
       const a = r.canceled ? null : r.assets[0];
       if (a) setAsset({ uri: a.uri, video: a.type === 'video', mime: a.mimeType ?? (a.type === 'video' ? 'video/mp4' : 'image/jpeg') });
@@ -66,12 +68,13 @@ export default function NewStory() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#000' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {asset ? (asset.video ? <VideoPreview uri={asset.uri} /> : <Image source={{ uri: asset.uri }} style={StyleSheet.absoluteFill} contentFit="contain" accessibilityLabel="Pré-visualização do story" />) : <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}><ActivityIndicator color="#fff" /></View>}
+      {asset ? (asset.video ? <VideoPreview uri={asset.uri} /> : <Image source={{ uri: asset.uri }} style={StyleSheet.absoluteFill} contentFit={fill ? 'cover' : 'contain'} accessibilityLabel="Pré-visualização do story" />) : <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}><ActivityIndicator color="#fff" /></View>}
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} style={{ paddingHorizontal: 8 }} accessibilityRole="button" accessibilityLabel="Cancelar"><Text style={{ fontSize: 30, lineHeight: 36, color: '#fff' }}>×</Text></Pressable>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Pressable onPress={() => void pick('library')} style={styles.circle} accessibilityLabel="Galeria"><Icon name="image" size={22} color="#fff" /></Pressable>
           <Pressable onPress={() => void pick('camera')} style={styles.circle} accessibilityLabel="Câmara"><Icon name="camera" size={22} color="#fff" /></Pressable>
+          {asset && !asset.video ? <Pressable onPress={() => setFill((f) => !f)} style={styles.circle} accessibilityRole="button" accessibilityLabel={fill ? 'Mostrar a foto inteira' : 'Preencher o ecrã'}><Icon name="expand" size={22} color="#fff" /></Pressable> : null}
         </View>
       </View>
       <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 16) }]}>
