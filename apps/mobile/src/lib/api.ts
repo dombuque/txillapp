@@ -60,7 +60,8 @@ export interface AppNotification {
   data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; replyKind?: 'reply' | 'reaction' | 'comment' };
   createdAt: string;
   read: boolean;
-  actor: { username: string; displayName: string };
+  actor: { username: string; displayName: string; isPrivate?: boolean; following?: boolean; requested?: boolean };
+  thumb?: { url: string; video: boolean } | null;
 }
 export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved';
 export interface Person { username: string; displayName: string; following: boolean; followsYou: boolean; isPrivate?: boolean; requested?: boolean; verified?: boolean }

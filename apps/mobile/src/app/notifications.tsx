@@ -1,56 +1,82 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { ActivityIndicator } from '@/components/PontoLoader';
+import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { FollowButton } from '@/components/FollowButton';
-import { Icon, type IconName } from '@/components/Icon';
-import { ReactionArt } from '@/components/StoryParts';
+import { Icon } from '@/components/Icon';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
+import { ReactionArt } from '@/components/StoryParts';
 import { ApiError, api, type AppNotification } from '@/lib/api';
+import { sized } from '@/lib/config';
+import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
-const ICON: Record<AppNotification['kind'], { name: IconName; color: string }> = {
-  blocked: { name: 'block', color: '#dc2626' },
-  follow: { name: 'user-plus', color: '#0284c7' },
-  follow_request: { name: 'bell', color: '#d97706' },
-  request_accepted: { name: 'check-circle', color: '#059669' },
-  gift: { name: 'gift', color: colors.brand },
-  comment: { name: 'comment', color: '#0284c7' },
-  reply: { name: 'comment', color: '#0284c7' },
-  story_reply: { name: 'camera', color: '#7c3aed' },
-  repost: { name: 'repeat', color: '#059669' },
-  mention: { name: 'at', color: '#d97706' },
-  tag: { name: 'tag', color: '#7c3aed' },
-  verified: { name: 'check-circle', color: '#0284c7' },
-};
+type Filter = 'all' | 'following' | 'comments' | 'follows' | 'gifts';
+const FILTERS: [Filter, string][] = [['all', 'Todas'], ['following', 'Quem sigo'], ['comments', 'Comentários'], ['follows', 'Seguidores'], ['gifts', 'Presentes']];
+const inFilter = (n: AppNotification, f: Filter) =>
+  f === 'all' ? true
+  : f === 'following' ? !!n.actor.following
+  : f === 'comments' ? ['comment', 'reply', 'mention'].includes(n.kind)
+  : f === 'follows' ? ['follow', 'follow_request', 'request_accepted'].includes(n.kind)
+  : n.kind === 'gift';
 
-/** Texto de cada tipo de notificação (o mesmo do site). */
-function describe(n: AppNotification): { text: ReactNode; sub?: string } {
-  const quote = n.data.snippet ? `“${n.data.snippet}”` : undefined;
+/** Várias notificações iguais seguidas (a mesma publicação, ou o mesmo tipo) juntam-se numa linha: "a, b e 3 outros…". */
+interface Group { id: string; kind: AppNotification['kind']; items: AppNotification[]; actors: AppNotification['actor'][]; first: AppNotification; fresh: boolean }
+const groupKey = (n: AppNotification): string | null => {
+  switch (n.kind) {
+    case 'follow': case 'request_accepted': case 'verified': return n.kind;
+    case 'comment': case 'repost': case 'tag': case 'mention': return n.data.postId ? `${n.kind}:${n.data.postId}` : null;
+    case 'story_reply': return n.data.replyKind === 'reaction' && n.data.storyId ? `react:${n.data.storyId}` : null;
+    default: return null;
+  }
+};
+function groupAll(items: AppNotification[], fresh: Set<string> | null): Group[] {
+  const out: Group[] = [];
+  for (const n of items) {
+    const k = groupKey(n);
+    const last = out[out.length - 1];
+    const sameDay = last && new Date(last.first.createdAt).getTime() - new Date(n.createdAt).getTime() < 24 * 3600_000;
+    const isFresh = !!fresh?.has(n.id);
+    if (k && last && last.id.startsWith(`${k}|`) && sameDay && last.fresh === isFresh) {
+      last.items.push(n);
+      if (!last.actors.some((a) => a.username === n.actor.username)) last.actors.push(n.actor);
+    } else {
+      out.push({ id: `${k ?? n.kind}|${n.id}`, kind: n.kind, items: [n], actors: [n.actor], first: n, fresh: isFresh });
+    }
+  }
+  return out;
+}
+
+/** O verbo de cada tipo; `many` quando a linha junta várias pessoas. */
+function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: string } {
+  const quote = !many && n.data.snippet ? `“${n.data.snippet}”` : undefined;
+  const s = many ? 'ram' : 'u';
   switch (n.kind) {
     case 'blocked': return { text: 'bloqueou-te', sub: 'Já não podes seguir esta conta nem ver as publicações e stories dela.' };
-    case 'follow': return { text: 'começou a seguir-te' };
+    case 'follow': return { text: many ? 'começaram a seguir-te' : 'começou a seguir-te' };
     case 'follow_request': return { text: 'pediu para te seguir' };
-    case 'request_accepted': return { text: 'aceitou o teu pedido para seguir' };
-    case 'gift': return { text: <>presenteou-te com <Text style={{ fontWeight: '700' }}>{(n.data.amount ?? 0).toLocaleString('pt-PT')} Txills</Text></>, sub: n.data.note ? `${n.data.note}` : undefined };
-    case 'comment': return { text: 'comentou a tua publicação', sub: quote };
+    case 'request_accepted': return { text: `aceito${s} o teu pedido para seguir` };
+    case 'gift': return { text: <>presenteou-te com <Text style={{ fontWeight: '700' }}>{(n.data.amount ?? 0).toLocaleString('pt-PT')} Txills</Text></>, sub: n.data.note || undefined };
+    case 'comment': return { text: `comento${s} a tua publicação`, sub: quote };
     case 'reply': return { text: 'respondeu ao teu comentário', sub: quote };
     case 'story_reply':
       if (n.data.replyKind === 'comment') return { text: 'comentou o teu story', sub: quote };
-      return n.data.replyKind === 'reaction' ? { text: <>reagiu ao teu story <ReactionArt body={n.data.snippet ?? ''} size={26} /></> } : { text: 'respondeu ao teu story', sub: quote };
-    case 'repost': return { text: 'repostou a tua publicação', sub: quote };
-    case 'tag': return { text: 'identificou-te numa foto' };
-    case 'mention': return { text: 'mencionou-te', sub: quote };
-    case 'verified': return { text: 'agora tem o selo de conta verificada' };
+      if (n.data.replyKind === 'reaction') return { text: many ? 'reagiram ao teu story' : <>reagiu ao teu story <ReactionArt body={n.data.snippet ?? ''} size={24} /></> };
+      return { text: 'respondeu ao teu story', sub: quote };
+    case 'repost': return { text: `reposto${s} a tua publicação` };
+    case 'tag': return { text: `identifico${s}-te numa foto` };
+    case 'mention': return { text: `menciono${s}-te`, sub: quote };
+    case 'verified': return { text: many ? 'agora têm o selo de conta verificada' : 'agora tem o selo de conta verificada' };
   }
 }
 
 /** Para onde leva tocar numa notificação. */
-function targetOf(n: AppNotification): string | null {
+function targetOf(n: AppNotification, me?: string): string | null {
   const post = n.data.postId;
   const c = n.data.commentId ? `?comments=1&c=${n.data.commentId}` : '?comments=1';
   switch (n.kind) {
@@ -61,7 +87,7 @@ function targetOf(n: AppNotification): string | null {
     case 'repost':
     case 'gift': return post ? `/p/${post}` : n.kind === 'gift' ? '/wallet' : `/u/${n.actor.username}`;
     case 'story_reply': return n.data.replyKind === 'comment' ? '/profile' : `/messages/${n.actor.username}`;
-    case 'follow':
+    case 'follow': return me ? `/u/${me}/connections?tab=followers` : `/u/${n.actor.username}`; // `me` só vem quando a linha junta várias pessoas
     case 'follow_request':
     case 'verified':
     case 'request_accepted': return `/u/${n.actor.username}`;
@@ -69,18 +95,42 @@ function targetOf(n: AppNotification): string | null {
   }
 }
 
-function Row({ n, fresh }: { n: AppNotification; fresh: boolean }) {
+/** Duas fotos sobrepostas quando a linha junta várias pessoas. */
+function Faces({ actors }: { actors: AppNotification['actor'][] }) {
+  if (actors.length < 2) return <Avatar name={actors[0].displayName} username={actors[0].username} size={48} />;
+  return (
+    <View style={{ width: 52, height: 48 }}>
+      <View style={{ position: 'absolute', left: 0, top: 0 }}><Avatar name={actors[1].displayName} username={actors[1].username} size={34} /></View>
+      <View style={{ position: 'absolute', right: 0, bottom: 0, borderRadius: 19, borderWidth: 2, borderColor: colors.white }}><Avatar name={actors[0].displayName} username={actors[0].username} size={34} /></View>
+    </View>
+  );
+}
+
+function Names({ actors }: { actors: AppNotification['actor'][] }) {
+  const b = (a: AppNotification['actor']) => <Text key={a.username} style={{ fontWeight: '700' }}>{a.username}</Text>;
+  const rest = actors.length - 2;
+  if (actors.length === 1) return b(actors[0]);
+  if (actors.length === 2) return <>{b(actors[0])} e {b(actors[1])}</>;
+  return <>{b(actors[0])}, {b(actors[1])} e {rest === 1 ? 'outra pessoa' : `${rest} outros`}</>;
+}
+
+function Row({ g, me }: { g: Group; me?: string }) {
   const router = useRouter();
   const qc = useQueryClient();
-  const target = targetOf(n);
+  const n = g.first;
+  const many = g.actors.length > 1;
+  // Uma pessoa: abre o perfil/publicação; várias a seguir-te: a lista de seguidores.
+  const single = targetOf(n);
+  const target = many && g.kind === 'follow' ? targetOf(n, me) : single;
   const [answer, setAnswer] = useState<'accepted' | 'declined' | null>(null);
   const [busy, setBusy] = useState(false);
-  // Depois de aceitar: "Seguir de volta", se ainda não segues a pessoa.
   const [back, setBack] = useState<{ isPrivate: boolean } | null>(null);
-  const { text, sub } = describe(n);
-  // Os pedidos ainda pendentes vêm do servidor: um pedido já respondido (noutro aparelho, ou antes) não volta a mostrar os botões.
+  const { text, sub } = verb(n, many);
   const pending = useQuery({ queryKey: ['requests'], queryFn: api.followRequests, enabled: n.kind === 'follow_request', staleTime: 10_000 });
   const stillPending = n.kind === 'follow_request' && (!pending.isSuccess || pending.data.some((r: { username: string }) => r.username === n.actor.username));
+  const thumb = n.thumb ?? g.items.find((x) => x.thumb)?.thumb ?? null;
+  // "Seguir de volta": quem te seguiu (ou aceitou) e tu ainda não segues.
+  const followBack = !many && n.kind === 'follow' && n.actor.following === false && !n.actor.requested;
 
   async function respond(accept: boolean) {
     setBusy(true);
@@ -89,18 +139,10 @@ function Row({ n, fresh }: { n: AppNotification; fresh: boolean }) {
       setAnswer(accept ? 'accepted' : 'declined');
       void qc.invalidateQueries({ queryKey: ['profile'] });
       void qc.invalidateQueries({ queryKey: ['requests'] });
-      if (accept) {
-        try {
-          const p = await api.profile(n.actor.username);
-          if (!p.following && !p.requested) setBack({ isPrivate: p.isPrivate });
-        } catch {
-          /* sem perfil: fica só "Pedido aceite" */
-        }
-      }
+      if (accept && n.actor.following === false && !n.actor.requested) setBack({ isPrivate: !!n.actor.isPrivate });
     } catch (e) {
       const st = e instanceof ApiError ? e.status : 0;
       if (st === 404 || st === 409) {
-        // Já estava respondido (ou já segue): não há nada a aceitar.
         setAnswer(accept ? 'accepted' : 'declined');
         void qc.invalidateQueries({ queryKey: ['requests'] });
       } else {
@@ -112,19 +154,31 @@ function Row({ n, fresh }: { n: AppNotification; fresh: boolean }) {
     }
   }
 
+  const go = (t: string | null) => t && router.push(t as never);
+  const right = thumb ? (
+    <Pressable onPress={() => go(single ?? target)} accessibilityRole="imagebutton" accessibilityLabel="Abrir a publicação">
+      <Image source={{ uri: sized(thumb.url, 160) }} style={styles.thumb} contentFit="cover" />
+      {thumb.video && <View style={styles.playDot}><Icon name="play" size={10} color="#fff" solid /></View>}
+    </Pressable>
+  ) : followBack || back ? (
+    <View style={{ width: 128 }}><FollowButton username={n.actor.username} following={false} requested={false} isPrivate={!!(back?.isPrivate ?? n.actor.isPrivate)} /></View>
+  ) : n.kind === 'follow' && !many ? (
+    <Pressable onPress={() => router.push(`/messages/${n.actor.username}` as never)} style={styles.msg} accessibilityRole="button"><Text style={styles.msgText}>Mensagem</Text></Pressable>
+  ) : null;
+
   return (
-    <Pressable onPress={target ? () => router.push(target as never) : undefined} disabled={!target} style={({ pressed }) => [styles.row, fresh && { backgroundColor: 'rgba(255,241,242,0.7)' }, pressed && target && { backgroundColor: colors.zinc100 }]}>
-      <View>
-        <Avatar name={n.actor.displayName} username={n.actor.username} size={46} />
-        <View style={styles.badge}>
-          <Icon name={ICON[n.kind].name} size={14} color={ICON[n.kind].color} strokeWidth={2.4} />
-        </View>
-      </View>
+    <Pressable onPress={() => go(target)} disabled={!target} style={({ pressed }) => [styles.row, g.fresh && { backgroundColor: 'rgba(255,241,242,0.7)' }, pressed && target && { backgroundColor: colors.zinc100 }]}>
+      <Pressable onPress={() => router.push(`/u/${g.actors[0].username}` as never)} accessibilityRole="link" accessibilityLabel={g.actors[0].displayName}>
+        <Faces actors={g.actors} />
+      </Pressable>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.line}>
-          <Text style={{ fontWeight: '700' }}>{n.actor.username}</Text> {text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt)}</Text>
+          <Names actors={g.actors} /> {text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt)}</Text>
         </Text>
-        {sub ? <Text style={styles.sub} numberOfLines={3}>{sub}</Text> : null}
+        {sub ? <Text style={styles.sub} numberOfLines={2}>{sub}</Text> : null}
+        {(n.kind === 'comment' || n.kind === 'reply' || (n.kind === 'mention' && n.data.commentId)) && !many ? (
+          <Pressable onPress={() => go(single)} hitSlop={6} style={{ marginTop: 6, alignSelf: 'flex-start' }} accessibilityRole="button"><Text style={styles.reply}>Responder</Text></Pressable>
+        ) : null}
         {n.kind === 'follow_request' && !answer && stillPending && (
           <View style={styles.btns}>
             <Pressable disabled={busy} onPress={() => void respond(true)} style={styles.accept}><Text style={styles.acceptText}>Aceitar</Text></Pressable>
@@ -132,15 +186,17 @@ function Row({ n, fresh }: { n: AppNotification; fresh: boolean }) {
           </View>
         )}
         {answer ? <Text style={styles.answer}>{answer === 'accepted' ? 'Pedido aceite' : 'Pedido recusado'}</Text> : null}
-        {back ? <View style={{ marginTop: 8, width: 140, flexDirection: 'row' }}><FollowButton username={n.actor.username} following={false} requested={false} isPrivate={back.isPrivate} /></View> : null}
       </View>
+      {right}
     </Pressable>
   );
 }
 
-/** Notificações: bloqueios, seguidores, pedidos, presentes, comentários, respostas a stories e reposts. */
+/** Notificações, como no Instagram: filtros em cima, linhas agrupadas, miniatura da publicação à direita e ações na linha. */
 export default function Notifications() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const [filter, setFilter] = useState<Filter>('all');
   const q = useInfiniteQuery({
     queryKey: ['notifications'],
     queryFn: ({ pageParam }) => api.notifications(pageParam),
@@ -162,14 +218,15 @@ export default function Notifications() {
   }, [q.isSuccess, qc]);
 
   const pull = usePullToRefresh(() => q.refetch());
-  const fresh = items.filter((n) => freshIds.current?.has(n.id));
-  const older = items.filter((n) => !freshIds.current?.has(n.id));
-  type Entry = { kind: 'h'; id: string; label: string } | { kind: 'n'; n: AppNotification; fresh: boolean };
+  const groups = groupAll(items.filter((n) => inFilter(n, filter)), freshIds.current);
+  const fresh = groups.filter((g) => g.fresh);
+  const older = groups.filter((g) => !g.fresh);
+  type Entry = { kind: 'h'; id: string; label: string } | { kind: 'g'; g: Group };
   const data: Entry[] = [
     ...(fresh.length > 0 ? [{ kind: 'h' as const, id: 'h-new', label: 'Novas' }] : []),
-    ...fresh.map((n) => ({ kind: 'n' as const, n, fresh: true })),
+    ...fresh.map((g) => ({ kind: 'g' as const, g })),
     ...(older.length > 0 && fresh.length > 0 ? [{ kind: 'h' as const, id: 'h-old', label: 'Anteriores' }] : []),
-    ...older.map((n) => ({ kind: 'n' as const, n, fresh: false })),
+    ...older.map((g) => ({ kind: 'g' as const, g })),
   ];
 
   return (
@@ -180,8 +237,20 @@ export default function Notifications() {
         scrollEventThrottle={16}
         refreshControl={pull.control}
         data={data}
-        keyExtractor={(e) => (e.kind === 'h' ? e.id : e.n.id)}
-        renderItem={({ item }) => (item.kind === 'h' ? <Text style={[styles.h, item.id === 'h-old' && { paddingTop: 16 }]}>{item.label}</Text> : <Row n={item.n} fresh={item.fresh} />)}
+        keyExtractor={(e) => (e.kind === 'h' ? e.id : e.g.id)}
+        stickyHeaderIndices={[0]}
+        ListHeaderComponent={
+          <View style={styles.filters}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+              {FILTERS.map(([f, label]) => (
+                <Pressable key={f} onPress={() => setFilter(f)} style={[styles.chip, filter === f && styles.chipOn]} accessibilityRole="tab" accessibilityState={{ selected: filter === f }}>
+                  <Text style={[styles.chipText, filter === f && { color: colors.brand }]}>{label}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        }
+        renderItem={({ item }) => (item.kind === 'h' ? <Text style={[styles.h, item.id === 'h-old' && { paddingTop: 16 }]}>{item.label}</Text> : <Row g={item.g} me={user?.username} />)}
         ListEmptyComponent={
           q.isLoading ? (
             <ActivityIndicator color={colors.brand} style={{ marginTop: 40 }} />
@@ -193,8 +262,8 @@ export default function Notifications() {
           ) : (
             <View style={styles.empty}>
               <Icon name="bell-off" size={52} color={colors.zinc300} />
-              <Text style={[styles.emptyTitle, { marginTop: 16, fontSize: 24 }]}>Tudo calmo por aqui</Text>
-              <Text style={styles.emptySub}>Quando alguém te seguir, comentar ou presentear, aparece aqui.</Text>
+              <Text style={[styles.emptyTitle, { marginTop: 16, fontSize: 24 }]}>{filter === 'all' ? 'Tudo calmo por aqui' : 'Nada por aqui'}</Text>
+              <Text style={styles.emptySub}>{filter === 'all' ? 'Quando alguém te seguir, comentar ou presentear, aparece aqui.' : 'Não há notificações deste tipo.'}</Text>
             </View>
           )
         }
@@ -212,17 +281,25 @@ export default function Notifications() {
 }
 
 const styles = StyleSheet.create({
+  filters: { paddingVertical: 10, backgroundColor: colors.white },
+  chip: { height: 38, borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  chipOn: { backgroundColor: colors.rose50 },
+  chipText: { fontSize: 15, fontWeight: '600', color: colors.zinc900 },
   h: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4, fontSize: 14, fontWeight: '700', color: colors.zinc600 },
-  row: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
-  badge: { position: 'absolute', right: -4, bottom: -4, width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.white, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.12)' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
   line: { fontSize: 15, lineHeight: 20.6, color: colors.zinc900 },
-  sub: { marginTop: 4, fontSize: 14, color: colors.zinc600 },
-  btns: { marginTop: 10, flexDirection: 'row', gap: 8 },
-  accept: { borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 20, paddingVertical: 8 },
+  sub: { marginTop: 2, fontSize: 14, color: colors.zinc600 },
+  reply: { fontSize: 14, fontWeight: '600', color: colors.zinc500 },
+  thumb: { width: 46, height: 46, borderRadius: 8, backgroundColor: colors.zinc100 },
+  playDot: { position: 'absolute', right: 3, bottom: 3, width: 16, height: 16, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  msg: { height: 36, borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  msgText: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },
+  btns: { marginTop: 8, flexDirection: 'row', gap: 8 },
+  accept: { borderRadius: 12, backgroundColor: colors.brand, paddingHorizontal: 18, paddingVertical: 8 },
   acceptText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  decline: { borderRadius: 999, borderWidth: 1, borderColor: colors.zinc300, paddingHorizontal: 20, paddingVertical: 8 },
+  decline: { borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 18, paddingVertical: 8 },
   declineText: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },
-  answer: { marginTop: 8, fontSize: 14, fontWeight: '500', color: colors.zinc600 },
+  answer: { marginTop: 6, fontSize: 14, fontWeight: '500', color: colors.zinc600 },
   empty: { marginHorizontal: 24, marginTop: 64, alignItems: 'center' },
   emptyTitle: { fontSize: 18, fontWeight: '800', color: colors.zinc900, textAlign: 'center' },
   emptySub: { marginTop: 8, fontSize: 18, fontWeight: '300', color: colors.zinc600, textAlign: 'center' },

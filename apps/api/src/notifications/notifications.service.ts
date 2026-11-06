@@ -110,7 +110,13 @@ export class NotificationsService {
   async list(userId: string, cursor?: string, limit = 30) {
     if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
     const { rows } = await this.pool.query(
-      `SELECT n.id, n.kind, n.data, n.created_at, n.read_at, a.username, a.display_name, a.status
+      `SELECT n.id, n.kind, n.data, n.created_at, n.read_at, a.username, a.display_name, a.status, a.is_private,
+              EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = a.id) AS i_follow,
+              EXISTS (SELECT 1 FROM social.follow_requests r WHERE r.requester_id = $1 AND r.target_id = a.id) AS requested,
+              (SELECT json_build_object('id', pm.media_id, 'video', ma.mime LIKE 'video/%')
+                 FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id
+                WHERE n.data ? 'postId' AND (n.data->>'postId') ~ '^[0-9a-f-]{36}$' AND pm.post_id = (n.data->>'postId')::uuid AND ma.status = 'ready'
+                ORDER BY pm.position LIMIT 1) AS thumb
          FROM social.notifications n JOIN identity.users a ON a.id = n.actor_id
         WHERE n.user_id = $1 AND ($2::uuid IS NULL OR n.id < $2)
           AND (n.kind = 'blocked' OR NOT ${blockedBetween('a.id', '$1')})
@@ -125,7 +131,9 @@ export class NotificationsService {
         data: r.data,
         createdAt: r.created_at,
         read: r.read_at !== null,
-        actor: { username: r.username, displayName: r.status === 'active' ? r.display_name : 'Conta eliminada' },
+        actor: { username: r.username, displayName: r.status === 'active' ? r.display_name : 'Conta eliminada', isPrivate: !!r.is_private, following: !!r.i_follow, requested: !!r.requested },
+        // A miniatura da publicação (a primeira foto; nos vídeos, o cartaz), como na lista de notificações do Instagram.
+        thumb: r.thumb ? { url: `/api/v1/media/${(r.thumb as { id: string }).id}${(r.thumb as { video: boolean }).video ? '?poster=1' : ''}`, video: !!(r.thumb as { video: boolean }).video } : null,
       })),
       nextCursor: rows.length > limit ? page[page.length - 1].id : null,
     };

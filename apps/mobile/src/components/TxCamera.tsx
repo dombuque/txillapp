@@ -1,15 +1,15 @@
+import type React from 'react';
 import { createElement, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 import { acquireCamera, releaseCamera } from './zas/cameraSession';
-import { FUN_FX, createFunRenderer, type FunRenderer } from './zas/funFilters';
 
 /**
  * A câmara oficial do Txillapp no browser (publicações, status). Ecrã inteiro, com a identidade da marca:
- * obturador com anel coral em degradê, filtros divertidos ao deslizar (os mesmos dos Zás), flash/lanterna, temporizador,
- * virar câmara, foto ou vídeo (até 60 s), e a galeria lá dentro. Precisa de HTTPS ou localhost (regra dos browsers).
+ * obturador com anel coral em degradê, filtros de cor (carrossel e a deslizar no visor), grelha dos terços, zoom por pinça,
+ * flash/lanterna, temporizador, virar câmara, foto ou vídeo (até 60 s), e a galeria lá dentro. Precisa de HTTPS ou localhost (regra dos browsers).
  * Só deve ser montada quando `liveCameraSupported()`.
  */
 export const liveCameraSupported = () => Platform.OS === 'web' && typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
@@ -21,6 +21,44 @@ const MAX_VIDEO_S = 60;
 const recorderType = () => ['video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((t) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) ?? '';
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 const web = (o: Record<string, unknown>) => o as never;
+/** Filtros de cor ("looks"): no visor são CSS; na foto aplicam-se pixel a pixel com as mesmas fórmulas (W3C filter effects). */
+export interface Look { id: string; name: string; b: number; c: number; s: number; sep: number; g: number; tint?: [number, number, number, number] }
+export const LOOKS: Look[] = [
+  { id: 'normal', name: 'Normal', b: 1, c: 1, s: 1, sep: 0, g: 0 },
+  { id: 'vivo', name: 'Vivo', b: 1.04, c: 1.1, s: 1.35, sep: 0, g: 0 },
+  { id: 'quente', name: 'Quente', b: 1.03, c: 1.05, s: 1.1, sep: 0.25, g: 0 },
+  { id: 'fresco', name: 'Fresco', b: 1.02, c: 1.05, s: 0.95, sep: 0, g: 0, tint: [80, 140, 255, 0.12] },
+  { id: 'suave', name: 'Suave', b: 1.08, c: 0.9, s: 0.9, sep: 0.1, g: 0 },
+  { id: 'dourado', name: 'Dourado', b: 1.04, c: 1.08, s: 1.15, sep: 0.35, g: 0, tint: [255, 180, 60, 0.1] },
+  { id: 'fade', name: 'Fade', b: 1.1, c: 0.85, s: 0.8, sep: 0.15, g: 0 },
+  { id: 'txilla', name: 'Txilla', b: 1.04, c: 1.04, s: 1.08, sep: 0, g: 0, tint: [214, 51, 79, 0.1] },
+  { id: 'vintage', name: 'Vintage', b: 0.98, c: 0.95, s: 0.85, sep: 0.5, g: 0, tint: [120, 60, 30, 0.08] },
+  { id: 'pb', name: 'P&B', b: 1.02, c: 1.15, s: 1, sep: 0, g: 1 },
+];
+export const lookCss = (l: Look) => (l.id === 'normal' ? 'none' : `brightness(${l.b}) contrast(${l.c}) saturate(${l.s}) sepia(${l.sep}) grayscale(${l.g})`);
+/** Aplica o look aos pixels do canvas (brilho, contraste, saturação, sépia, cinzento e a tinta), como o CSS do visor. */
+export function applyLook(c: HTMLCanvasElement, l: Look) {
+  if (l.id === 'normal') return;
+  const g = c.getContext('2d')!;
+  const img = g.getImageData(0, 0, c.width, c.height);
+  const d = img.data;
+  const sv = l.s, sp = 1 - l.sep, gr = 1 - l.g;
+  const S = [0.213 + 0.787 * sv, 0.715 - 0.715 * sv, 0.072 - 0.072 * sv, 0.213 - 0.213 * sv, 0.715 + 0.285 * sv, 0.072 - 0.072 * sv, 0.213 - 0.213 * sv, 0.715 - 0.715 * sv, 0.072 + 0.928 * sv];
+  const P = [0.393 + 0.607 * sp, 0.769 - 0.769 * sp, 0.189 - 0.189 * sp, 0.349 - 0.349 * sp, 0.686 + 0.314 * sp, 0.168 - 0.168 * sp, 0.272 - 0.272 * sp, 0.534 - 0.534 * sp, 0.131 + 0.869 * sp];
+  const G = [0.2126 + 0.7874 * gr, 0.7152 - 0.7152 * gr, 0.0722 - 0.0722 * gr, 0.2126 - 0.2126 * gr, 0.7152 + 0.2848 * gr, 0.0722 - 0.0722 * gr, 0.2126 - 0.2126 * gr, 0.7152 - 0.7152 * gr, 0.0722 + 0.9278 * gr];
+  const mul = (A: number[], B: number[]) => [0, 1, 2].flatMap((i) => [0, 1, 2].map((j) => A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j]));
+  const M = mul(G, mul(P, S));
+  const bc = l.b * l.c, off = 128 * (1 - l.c);
+  const [tr, tg, tb, ta] = l.tint ?? [0, 0, 0, 0];
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i] * bc + off, gg = d[i + 1] * bc + off, b = d[i + 2] * bc + off;
+    let R = M[0] * r + M[1] * gg + M[2] * b, Gc = M[3] * r + M[4] * gg + M[5] * b, B = M[6] * r + M[7] * gg + M[8] * b;
+    if (ta) { R += (tr - R) * ta; Gc += (tg - Gc) * ta; B += (tb - B) * ta; }
+    d[i] = R < 0 ? 0 : R > 255 ? 255 : R; d[i + 1] = Gc < 0 ? 0 : Gc > 255 ? 255 : Gc; d[i + 2] = B < 0 ? 0 : B > 255 ? 255 : B;
+  }
+  g.putImageData(img, 0, 0);
+}
+
 const buzz = (ms: number) => { try { navigator.vibrate?.(ms); } catch { /* sem vibração */ } };
 
 export function TxCamera({
@@ -30,8 +68,8 @@ export function TxCamera({
 }) {
   const insets = useSafeAreaInsets();
   const video = useRef<HTMLVideoElement | null>(null);
-  const fxCanvas = useRef<HTMLCanvasElement | null>(null);
-  const fxRenderer = useRef<FunRenderer | null>(null);
+  const pinch = useRef<{ d: number; z: number } | null>(null);
+  const looksRow = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const stream = useRef<MediaStream | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -51,9 +89,10 @@ export function TxCamera({
   const [flash, setFlash] = useState(false);
   const [delay, setDelay] = useState<0 | 3 | 10>(0);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [fx, setFx] = useState(0);
-  const [fxOk, setFxOk] = useState(true);
-  const [fxName, setFxName] = useState<string | null>(null);
+  const [look, setLook] = useState(0);
+  const [lookName, setLookName] = useState<string | null>(null);
+  const [grid, setGrid] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const full = mode === 'photo' && count >= max;
@@ -85,7 +124,6 @@ export function TxCamera({
     clearInterval(timer.current);
     clearInterval(countTimer.current);
     if (recorder.current?.state === 'recording') recorder.current.stop();
-    fxRenderer.current?.dispose();
   }, []);
   // No iPhone, o seletor de fotos não devolve nada enquanto a câmara está ligada: desliga-se ao abrir a galeria e religa-se quando o seletor fecha.
   useEffect(() => {
@@ -100,31 +138,18 @@ export function TxCamera({
   }, [start]);
   const openGallery = () => { pausedForPicker.current = true; releaseCamera(0); setReady(false); };
 
-  // Filtros em direto: o canvas mostra o resultado e é dele que sai a foto.
-  useEffect(() => {
-    if (!ready || fx === 0 || !fxCanvas.current) return;
-    fxRenderer.current ??= createFunRenderer(fxCanvas.current);
-    const r = fxRenderer.current;
-    if (!r) { setFxOk(false); setFx(0); return; }
-    const t0 = performance.now();
-    let raf = 0;
-    const loop = () => { if (video.current) r.render(video.current, fx, (performance.now() - t0) / 1000); raf = requestAnimationFrame(loop); };
-    loop();
-    return () => cancelAnimationFrame(raf);
-  }, [ready, fx]);
-  const cycleFx = (dir: 1 | -1) => {
-    setFx((f) => {
-      const n = (f + dir + FUN_FX.length) % FUN_FX.length;
-      setFxName(FUN_FX[n].name);
-      return n;
-    });
+  const pickLook = (n: number) => {
+    setLook(n);
+    setLookName(LOOKS[n].name);
+    looksRow.current?.scrollTo({ x: Math.max(0, n * 78 - 120), animated: true });
     buzz(6);
   };
+  const cycleLook = (dir: 1 | -1) => pickLook((look + dir + LOOKS.length) % LOOKS.length);
   useEffect(() => {
-    if (fxName === null) return;
-    const t = setTimeout(() => setFxName(null), 900);
+    if (lookName === null) return;
+    const t = setTimeout(() => setLookName(null), 900);
     return () => clearTimeout(t);
-  }, [fxName]);
+  }, [lookName]);
 
   async function shoot() {
     const v = video.current;
@@ -139,14 +164,14 @@ export function TxCamera({
       await new Promise((r) => setTimeout(r, 420));
     }
     const c = document.createElement('canvas');
-    const fxc = fx > 0 && fxCanvas.current && fxCanvas.current.width > 0 ? fxCanvas.current : null;
-    if (fxc && fxRenderer.current) fxRenderer.current.render(v, fx, performance.now() / 1000);
-    const src: CanvasImageSource = fxc ?? v;
-    c.width = fxc ? fxc.width : v.videoWidth;
-    c.height = fxc ? fxc.height : v.videoHeight;
+    // Zoom: recorta o centro do sensor na proporção do zoom (o mesmo que se vê no visor).
+    const sw = Math.round(v.videoWidth / zoom), sh = Math.round(v.videoHeight / zoom);
+    c.width = sw;
+    c.height = sh;
     const g = c.getContext('2d')!;
     if (facing === 'user') { g.translate(c.width, 0); g.scale(-1, 1); } // selfie: sai como a viste (espelhada)
-    g.drawImage(src, 0, 0);
+    g.drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, sw, sh);
+    applyLook(c, LOOKS[look]);
     setLit(false);
     if (torchOn && vtrack) vtrack.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] }).catch(() => undefined);
     buzz(15);
@@ -207,19 +232,33 @@ export function TxCamera({
       {dom(
         'div',
         {
-          style: { position: 'absolute', inset: 0, backgroundColor: '#000', touchAction: 'pan-y' },
-          onTouchStart: (e: TouchEvent) => { swipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; },
+          style: { position: 'absolute', inset: 0, backgroundColor: '#000', touchAction: 'none', overflow: 'hidden' },
+          onTouchStart: (e: TouchEvent) => {
+            if (e.touches.length === 2) {
+              pinch.current = { d: Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY), z: zoom };
+              swipe.current = null;
+            } else swipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+          },
+          onTouchMove: (e: TouchEvent) => {
+            const p = pinch.current;
+            if (p && e.touches.length === 2) {
+              const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+              setZoom(Math.min(5, Math.max(1, p.z * (d / p.d))));
+            }
+          },
           onTouchEnd: (e: TouchEvent) => {
+            if (e.touches.length === 0) pinch.current = null;
             const s = swipe.current;
             swipe.current = null;
-            if (!s || !fxOk || !ready || recording) return;
+            if (!s || !ready || recording || pinch.current) return;
             const dx = e.changedTouches[0].clientX - s.x;
             const dy = e.changedTouches[0].clientY - s.y;
-            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) cycleFx(dx < 0 ? 1 : -1);
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) cycleLook(dx < 0 ? 1 : -1);
           },
         },
-        dom('video', { ref: video, playsInline: true, muted: true, autoPlay: true, style: { ...fill, transform: mirror, visibility: ready ? 'visible' : 'hidden' } }),
-        dom('canvas', { ref: fxCanvas, 'aria-hidden': true, style: { ...fill, transform: mirror, display: fx > 0 ? 'block' : 'none' } }),
+        dom('video', { ref: video, playsInline: true, muted: true, autoPlay: true, style: { ...fill, transform: `${mirror === 'none' ? '' : mirror + ' '}scale(${zoom})`, filter: lookCss(LOOKS[look]), visibility: ready ? 'visible' : 'hidden', transition: 'filter 180ms' } }),
+        LOOKS[look].tint && dom('div', { key: 'tint', style: { position: 'absolute', inset: 0, pointerEvents: 'none', backgroundColor: `rgba(${LOOKS[look].tint!.join(',')})` } }),
+        grid && dom('div', { key: 'grid', style: { position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.45) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.45) 1px, transparent 1px)', backgroundSize: '33.34% 33.34%', backgroundPosition: '-1px -1px' } }),
       )}
       {/* Sombras suaves em cima e em baixo, para os controlos se lerem sobre qualquer cena. */}
       <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, top: 0, height: 140, backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)' })} />
@@ -246,6 +285,9 @@ export function TxCamera({
                 {delay > 0 && <View style={st.delayBadge}><Text style={st.delayText}>{delay}</Text></View>}
               </Pressable>
             )}
+            <Pressable onPress={() => setGrid((v) => !v)} style={[st.round, grid && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityState={{ selected: grid }} accessibilityLabel="Grelha">
+              <Icon name="grid" size={22} color={grid ? colors.zinc900 : '#fff'} />
+            </Pressable>
             {canFlip && ready ? (
               <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} style={st.round} accessibilityRole="button" accessibilityLabel="Virar câmara"><Icon name="flip-camera" size={22} color="#fff" /></Pressable>
             ) : null}
@@ -254,7 +296,10 @@ export function TxCamera({
       </View>
 
       {/* Nome do filtro ao deslizar; contagem do temporizador. */}
-      {fxName ? <View pointerEvents="none" style={st.center}><Text style={st.fxName}>{fxName}</Text></View> : null}
+      {lookName ? <View pointerEvents="none" style={st.center}><Text style={st.fxName}>{lookName}</Text></View> : null}
+      {zoom > 1.02 ? (
+        <Pressable onPress={() => setZoom(1)} style={[st.zoomBadge, { top: topPad + 56 }]} accessibilityRole="button" accessibilityLabel="Repor zoom"><Text style={st.zoomText}>{zoom.toFixed(1)}×</Text></Pressable>
+      ) : null}
       {countdown !== null ? <View pointerEvents="none" style={st.center}><Text accessibilityLiveRegion="assertive" style={st.countText}>{countdown}</Text></View> : null}
 
       {!ready && (
@@ -273,10 +318,14 @@ export function TxCamera({
       )}
 
       <View style={[st.bottom, { paddingBottom: botPad }]}>
-        {ready && fxOk && !recording && (
-          <View pointerEvents="none" style={st.dots}>
-            {FUN_FX.map((f) => <View key={f.id} style={{ height: 5, width: fx === f.id ? 16 : 5, borderRadius: 3, backgroundColor: fx === f.id ? '#fff' : 'rgba(255,255,255,0.45)' }} />)}
-          </View>
+        {ready && !recording && mode !== 'text' && (
+          <ScrollView ref={looksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 44, marginBottom: 12 }} accessibilityRole="tablist" accessibilityLabel="Filtros">
+            {LOOKS.map((l, i) => (
+              <Pressable key={l.id} onPress={() => pickLook(i)} style={[st.lookChip, look === i && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: look === i }}>
+                <Text style={[st.lookText, look === i && { color: colors.zinc900 }]}>{l.name}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         )}
         {!recording && modes.length > 1 ? (
           <View style={st.modes} accessibilityRole="tablist">
@@ -362,7 +411,12 @@ const st = StyleSheet.create({
   pSub: { marginTop: 4, color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center' },
   open: { marginTop: 20, height: 48, borderRadius: 24, backgroundColor: colors.brand, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 3, alignItems: 'center' },
-  dots: { flexDirection: 'row', gap: 4, marginBottom: 12 },
+  looks: { paddingHorizontal: 16, gap: 6, alignItems: 'center' },
+  lookChip: { height: 34, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  lookOn: { backgroundColor: '#fff', borderColor: '#fff' },
+  lookText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  zoomBadge: { position: 'absolute', alignSelf: 'center', zIndex: 3, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 5 },
+  zoomText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   modes: { flexDirection: 'row', gap: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', padding: 3, marginBottom: 18 },
   mode: { borderRadius: 999, paddingHorizontal: 18, paddingVertical: 6 },
   modeText: { color: '#fff', fontSize: 14, fontWeight: '700' },
