@@ -5,31 +5,32 @@ import { useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { MusicPicker } from '@/components/MusicPicker';
+import { ActivityIndicator } from '@/components/PontoLoader';
 import { CloseFriendsSheet } from '@/components/StoryParts';
+import { TxCamera, liveCameraSupported, type Shot } from '@/components/TxCamera';
 import { api, uploadMedia } from '@/lib/api';
 import { musicApi, type Track } from '@/lib/api.music';
+import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 
-/** Criar um story: foto ou vídeo (até 30 s), legenda e para quem vai (todos ou amigos próximos). */
+const EMERALD = '#10b981';
+const web = (o: Record<string, unknown>) => o as never;
+type Asset = { uri: string; video: boolean; mime: string };
+
+/**
+ * Criar um status: no site abre a câmara oficial do Txillapp (foto ou vídeo até 30 s, galeria lá dentro);
+ * na app abre a galeria/câmara do telemóvel. Depois, o editor: a foto inteira, legenda, música e para quem vai.
+ */
 export default function NewStory() {
   const router = useRouter();
-  const qc = useQueryClient();
-  const insets = useSafeAreaInsets();
-  const [asset, setAsset] = useState<{ uri: string; video: boolean; mime: string } | null>(null);
-  const [caption, setCaption] = useState('');
-  const [audience, setAudience] = useState<'all' | 'close_friends'>('all');
-  const [busy, setBusy] = useState(false);
+  const [asset, setAsset] = useState<Asset | null>(null);
   const [err, setErr] = useState('');
-  const [listOpen, setListOpen] = useState(false);
-  // Como a foto se encaixa no story: inteira (com margens) ou a preencher o ecrã.
-  const [fill, setFill] = useState(false);
-  const [music, setMusic] = useState<Track | null>(null);
-  const [pickMusic, setPickMusic] = useState(false);
-  const friends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
+  const isWeb = Platform.OS === 'web';
+  const cam = isWeb && liveCameraSupported();
 
   async function pick(source: 'camera' | 'library') {
     setErr('');
@@ -38,7 +39,7 @@ export default function NewStory() {
         const p = await ImagePicker.requestCameraPermissionsAsync();
         if (!p.granted) return setErr('Preciso de acesso à câmara.');
       }
-      const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images', 'videos'], quality: 0.85, videoMaxDuration: 30, allowsEditing: Platform.OS !== 'web', aspect: [9, 16] };
+      const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images', 'videos'], quality: 0.85, videoMaxDuration: 30, allowsEditing: !isWeb, aspect: [9, 16] };
       const r = await (source === 'camera' ? ImagePicker.launchCameraAsync(opts) : ImagePicker.launchImageLibraryAsync(opts));
       const a = r.canceled ? null : r.assets[0];
       if (a) setAsset({ uri: a.uri, video: a.type === 'video', mime: a.mimeType ?? (a.type === 'video' ? 'video/mp4' : 'image/jpeg') });
@@ -48,11 +49,54 @@ export default function NewStory() {
     }
   }
   useEffect(() => {
-    void pick('library'); // abre logo a galeria; a câmara está num botão
+    if (!cam) void pick('library'); // sem câmara ao vivo: abre logo a galeria
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const fromFiles = (files: File[]) => {
+    const f = files[0];
+    if (!f) return;
+    const video = f.type.startsWith('video/');
+    setAsset({ uri: URL.createObjectURL(f), video, mime: f.type || (video ? 'video/mp4' : 'image/jpeg') });
+  };
+
+  if (!asset) {
+    if (cam) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          <TxCamera count={0} max={1} modes={['photo', 'video']} onShot={(s: Shot) => setAsset({ uri: s.uri, video: s.video, mime: s.mime })} onGallery={fromFiles} onClose={close} />
+        </View>
+      );
+    }
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        {err ? <Text style={{ color: '#f87171', textAlign: 'center' }}>{err}</Text> : <ActivityIndicator color="#fff" />}
+      </View>
+    );
+  }
+  return <StoryEditor asset={asset} onRetake={() => (cam ? setAsset(null) : void pick('library'))} onCamera={cam ? undefined : () => void pick('camera')} onClose={close} />;
+}
+
+/** O editor: a foto/vídeo em ecrã inteiro, as ferramentas à direita, a legenda por cima e, em baixo, para quem vai e o enviar. */
+function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onRetake: () => void; onCamera?: () => void; onClose: () => void }) {
+  const router = useRouter();
+  const qc = useQueryClient();
+  const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const [caption, setCaption] = useState('');
+  const [audience, setAudience] = useState<'all' | 'close_friends'>('all');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [listOpen, setListOpen] = useState(false);
+  const [fill, setFill] = useState(false); // a foto inteira (com fundo desfocado) ou a preencher o ecrã
+  const [music, setMusic] = useState<Track | null>(null);
+  const [pickMusic, setPickMusic] = useState(false);
+  const [typing, setTyping] = useState(false);
+  const friends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
+  const close = audience === 'close_friends';
+
   async function publish() {
-    if (!asset || busy) return;
+    if (busy) return;
     setBusy(true);
     setErr('');
     try {
@@ -61,53 +105,86 @@ export default function NewStory() {
       await qc.invalidateQueries({ queryKey: ['stories'] });
       router.back();
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui publicar o story');
+      setErr((e as Error).message || 'Não consegui publicar o status');
       setBusy(false);
     }
   }
 
+  const tool = (icon: Parameters<typeof Icon>[0]['name'], label: string, onPress: () => void, on = false) => (
+    <Pressable onPress={onPress} style={[st.tool, on && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: on }}>
+      <Icon name={icon} size={22} color={on ? colors.zinc900 : '#fff'} strokeWidth={2} />
+    </Pressable>
+  );
+
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#000' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {asset ? (asset.video ? <VideoPreview uri={asset.uri} /> : <Image source={{ uri: asset.uri }} style={StyleSheet.absoluteFill} contentFit={fill ? 'cover' : 'contain'} accessibilityLabel="Pré-visualização do story" />) : <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}><ActivityIndicator color="#fff" /></View>}
-      <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
-        <Pressable onPress={() => router.back()} style={{ paddingHorizontal: 8 }} accessibilityRole="button" accessibilityLabel="Cancelar"><Text style={{ fontSize: 30, lineHeight: 36, color: '#fff' }}>×</Text></Pressable>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <Pressable onPress={() => void pick('library')} style={styles.circle} accessibilityLabel="Galeria"><Icon name="image" size={22} color="#fff" /></Pressable>
-          <Pressable onPress={() => void pick('camera')} style={styles.circle} accessibilityLabel="Câmara"><Icon name="camera" size={22} color="#fff" /></Pressable>
-          {asset && !asset.video ? <Pressable onPress={() => setFill((f) => !f)} style={styles.circle} accessibilityRole="button" accessibilityLabel={fill ? 'Mostrar a foto inteira' : 'Preencher o ecrã'}><Icon name="expand" size={22} color="#fff" /></Pressable> : null}
+      {/* A cena: vídeo, ou a foto inteira sobre ela própria desfocada (sem barras pretas), ou a preencher. */}
+      <View style={StyleSheet.absoluteFill}>
+        {asset.video ? (
+          <VideoPreview uri={asset.uri} />
+        ) : (
+          <>
+            {!fill && <Image source={{ uri: asset.uri }} style={[StyleSheet.absoluteFill, { opacity: 0.6, transform: [{ scale: 1.3 }] }]} contentFit="cover" blurRadius={40} />}
+            <Image source={{ uri: asset.uri }} style={StyleSheet.absoluteFill} contentFit={fill ? 'cover' : 'contain'} accessibilityLabel="Pré-visualização do status" />
+          </>
+        )}
+      </View>
+      <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, top: 0, height: 150, backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)' })} />
+      <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: 240, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)' })} />
+
+      {/* Em cima: voltar à câmara; à direita, as ferramentas. */}
+      <View style={[st.top, { paddingTop: Math.max(insets.top, 12) }]}>
+        <Pressable onPress={onClose} style={st.tool} accessibilityRole="button" accessibilityLabel="Cancelar"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
+        <View style={{ gap: 10 }}>
+          {tool('camera', 'Tirar outra', onCamera ?? onRetake)}
+          {onCamera ? tool('images', 'Galeria', onRetake) : null}
+          {!asset.video ? tool('expand', fill ? 'Mostrar a foto inteira' : 'Preencher o ecrã', () => setFill((f) => !f), fill) : null}
+          {tool('music', music ? 'Mudar a música' : 'Adicionar música', () => setPickMusic(true), !!music)}
         </View>
       </View>
-      <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        <TextInput value={caption} onChangeText={setCaption} maxLength={200} placeholder="Escreve uma legenda…" placeholderTextColor="rgba(255,255,255,0.7)" style={styles.caption} accessibilityLabel="Legenda do story" />
+
+      {/* A legenda e a música pousam sobre a foto; em baixo, para quem vai e o enviar. */}
+      <View style={[st.bottom, { paddingBottom: Math.max(insets.bottom, 14) }]}>
         {music ? (
-          <View style={[styles.musicRow, { paddingVertical: 6, paddingRight: 6 }]}>
-            <Icon name="music" size={18} color="#fff" />
-            <Text style={{ flex: 1, color: '#fff', fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{music.title}{music.kind === 'clip' ? '' : ` · ${music.artist || 'Autor desconhecido'}`}</Text>
-            <Pressable onPress={() => setMusic(null)} style={styles.musicX} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={16} color="#fff" /></Pressable>
+          <View style={st.musicChip}>
+            <Icon name="music" size={16} color="#fff" />
+            <Text style={{ flexShrink: 1, color: '#fff', fontSize: 14, fontWeight: '700' }} numberOfLines={1}>{music.title}{music.kind === 'clip' ? '' : ` · ${music.artist || 'Autor desconhecido'}`}</Text>
+            <Pressable onPress={() => setMusic(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={16} color="#fff" strokeWidth={2.5} /></Pressable>
           </View>
-        ) : (
-          <Pressable onPress={() => setPickMusic(true)} style={[styles.musicRow, { justifyContent: 'center', gap: 8 }]} accessibilityRole="button">
-            <Icon name="music" size={18} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Adicionar música</Text>
-          </Pressable>
-        )}
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }} accessibilityRole="radiogroup">
-          {([['all', 'globe', 'Os teus stories'], ['close_friends', 'heart', 'Amigos próximos']] as const).map(([v, ic, label]) => (
-            <Pressable key={v} onPress={() => setAudience(v)} style={[styles.radio, audience === v && { backgroundColor: v === 'all' ? '#fff' : '#10b981' }]} accessibilityRole="radio" accessibilityState={{ checked: audience === v }}>
-              <Icon name={ic} size={18} color={audience === v && v === 'all' ? '#18181b' : '#fff'} />
-              <Text style={[styles.audText, audience === v && v === 'all' && { color: '#18181b' }]}>{label}</Text>
+        ) : null}
+        <TextInput
+          value={caption}
+          onChangeText={(v) => setCaption(v.slice(0, 200))}
+          onFocus={() => setTyping(true)}
+          onBlur={() => setTyping(false)}
+          placeholder="Escreve uma legenda…"
+          placeholderTextColor="rgba(255,255,255,0.75)"
+          style={[st.caption, typing && { backgroundColor: 'rgba(0,0,0,0.6)' }]}
+          accessibilityLabel="Legenda do status"
+        />
+        {err ? <Text accessibilityRole="alert" style={st.err}>{err}</Text> : null}
+        <View style={st.sendRow}>
+          <View style={{ flex: 1, flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel="Para quem vai">
+            <Pressable onPress={() => setAudience('all')} style={[st.aud, { flex: 1.25 }, !close && st.audOn]} accessibilityRole="radio" accessibilityState={{ checked: !close }}>
+              <Avatar name={user?.displayName ?? ''} username={user?.username} size={26} />
+              <Text style={[st.audText, !close && { color: colors.zinc900 }]} numberOfLines={1}>Teu status</Text>
+              {!close && <Icon name="check" size={16} color={colors.zinc900} strokeWidth={3} />}
             </Pressable>
-          ))}
+            <Pressable onPress={() => setAudience('close_friends')} style={[st.aud, close && { backgroundColor: EMERALD }]} accessibilityRole="radio" accessibilityState={{ checked: close }}>
+              <View style={st.heart}><Icon name="heart" size={15} solid color="#fff" /></View>
+              <Text style={st.audText} numberOfLines={1}>Próximos</Text>
+              {close && <Icon name="check" size={16} color="#fff" strokeWidth={3} />}
+            </Pressable>
+          </View>
+          <Pressable onPress={() => void publish()} disabled={busy} style={({ pressed }) => [st.send, close && { backgroundColor: EMERALD }, busy && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.94 }] }]} accessibilityRole="button" accessibilityLabel={close ? 'Partilhar com amigos próximos' : 'Partilhar no status'}>
+            {busy ? <ActivityIndicator color="#fff" /> : <Icon name="send" size={24} color="#fff" strokeWidth={2.2} />}
+          </Pressable>
         </View>
-        {audience === 'close_friends' && (
+        {close && (
           <Pressable onPress={() => setListOpen(true)} style={{ marginTop: 8 }} accessibilityRole="button">
-            <Text style={{ textAlign: 'center', fontSize: 14, fontWeight: '600', color: '#6ee7b7' }}>{friends.data?.length ? `${friends.data.length} na lista · gerir` : 'A tua lista está vazia · adicionar amigos'}</Text>
+            <Text style={{ textAlign: 'center', fontSize: 13, fontWeight: '600', color: '#6ee7b7' }}>{friends.data?.length ? `${friends.data.length} na lista · gerir` : 'A tua lista está vazia · adicionar amigos'}</Text>
           </Pressable>
         )}
-        <Text accessibilityRole="alert" style={styles.err}>{err}</Text>
-        <Pressable onPress={() => void publish()} disabled={!asset || busy} style={[styles.share, { backgroundColor: audience === 'close_friends' ? '#059669' : colors.brand }, (!asset || busy) && { opacity: 0.5 }]} accessibilityRole="button">
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.shareText}>{audience === 'close_friends' ? 'Partilhar com amigos próximos' : 'Partilhar no story'}</Text>}
-        </Pressable>
       </View>
       {listOpen && <CloseFriendsSheet onClose={() => setListOpen(false)} />}
       {pickMusic && <MusicPicker hint={caption} onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
@@ -120,17 +197,17 @@ function VideoPreview({ uri }: { uri: string }) {
   return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} />;
 }
 
-const styles = StyleSheet.create({
-  top: { position: 'absolute', left: 0, right: 0, top: 0, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'space-between' },
-  circle: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
-  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 12, backgroundColor: '#000' },
-  caption: { height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 16, color: '#fff', fontSize: 16, outlineStyle: 'none' } as object,
-  err: { marginTop: 12, minHeight: 20, color: '#f87171', textAlign: 'center', fontSize: 14, lineHeight: 20 },
-  musicRow: { marginTop: 12, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 16 },
-  musicX: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  radio: { flex: 1, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.15)' },
-  aud: { height: 52, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 16 },
-  audText: { color: '#fff', fontWeight: '700' },
-  share: { marginTop: 12, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  shareText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+const st = StyleSheet.create({
+  top: { position: 'absolute', left: 0, right: 0, top: 0, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  tool: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
+  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingTop: 12 },
+  musicChip: { alignSelf: 'center', maxWidth: '90%', flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 14, paddingVertical: 8, marginBottom: 10 },
+  caption: { minHeight: 46, borderRadius: 23, backgroundColor: 'rgba(0,0,0,0.35)', paddingHorizontal: 18, color: '#fff', fontSize: 16, outlineStyle: 'none' } as object,
+  err: { marginTop: 8, color: '#fca5a5', textAlign: 'center', fontSize: 14 },
+  sendRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  aud: { flex: 1, height: 44, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', paddingLeft: 8, paddingRight: 12 },
+  audOn: { backgroundColor: '#fff' },
+  audText: { flexShrink: 1, color: '#fff', fontSize: 14, fontWeight: '700' },
+  heart: { width: 26, height: 26, borderRadius: 13, backgroundColor: EMERALD, alignItems: 'center', justifyContent: 'center' },
+  send: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(214,51,79,0.45)' } as object,
 });
