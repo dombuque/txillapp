@@ -37,8 +37,8 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
   if (onNew) return null;
 
   return (
-    <View style={onReels ? [styles.floatWrap, { bottom: Math.max(insets.bottom, 8) }] : undefined} pointerEvents="box-none">
-    <View style={onReels ? styles.glass : [styles.nav, { paddingBottom: insets.bottom }]}>
+    <View style={onReels ? [styles.floatWrap, { bottom: Math.max(insets.bottom, 8) }] : [styles.dock, { paddingBottom: Math.max(insets.bottom, 8) }]} pointerEvents="box-none">
+    <View style={onReels ? styles.glass : styles.pill}>
       <View style={styles.row}>
         {state.routes.map((r, idx) => {
           const focused = state.index === idx;
@@ -91,6 +91,9 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
 
 const styles = StyleSheet.create({
   floatWrap: { position: 'absolute', left: 12, right: 12 },
+  // Fora da Tcheka a barra fica no fluxo (não tapa as listas) mas sempre curvada, como uma pílula branca com sombra.
+  dock: { paddingHorizontal: 12, paddingTop: 6, backgroundColor: 'transparent' },
+  pill: { borderRadius: 32, paddingVertical: 4, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 6px 24px rgba(0,0,0,0.10)' },
   glass: { borderRadius: 32, paddingVertical: 4, backgroundColor: 'rgba(24,24,27,0.42)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', boxShadow: '0 8px 28px rgba(0,0,0,0.35)', ...({ backdropFilter: 'blur(18px) saturate(1.4)', WebkitBackdropFilter: 'blur(18px) saturate(1.4)' } as object) },
   nav: { backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.zinc100, paddingTop: 4, boxShadow: '0 -6px 24px rgba(0,0,0,0.05)' },
   row: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', paddingHorizontal: 12 },

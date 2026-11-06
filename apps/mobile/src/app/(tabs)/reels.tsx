@@ -404,10 +404,16 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
       <ProgressBar player={player} bottom={barBottom} />
       {teach && <TeachBar postId={post.id} bottom={Math.max(14.4, bottomInset)} onNo={onMore} />}
 
-      {flash && (
-        <View style={st.flashWrap} pointerEvents="none">
-          <Animated.View style={[st.flash, { opacity: flashAnim, transform: [{ scale: flashAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }] }]}>
-            <Icon name={flash === 'pause' ? 'pause' : 'play'} size={38} color="#fff" solid />
+      {/* Em pausa (toque no meio): fica o símbolo de pausa e, por cima dele, o botão do som. Ao retomar, desaparecem. */}
+      {(userPaused || flash === 'play') && (
+        <View style={st.flashWrap} pointerEvents="box-none">
+          {userPaused && (
+            <Pressable onPress={() => setReelMuted(!chosen)} style={({ pressed }) => [st.muteCenter, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={chosen ? 'Ligar o som' : 'Desligar o som'}>
+              <Icon name={chosen ? 'volume-off' : 'volume'} size={22} color="#fff" />
+            </Pressable>
+          )}
+          <Animated.View pointerEvents="none" style={[st.flash, { opacity: userPaused ? 1 : flashAnim, transform: [{ scale: flashAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }] }]}>
+            <Icon name={userPaused ? 'pause' : 'play'} size={38} color="#fff" solid />
           </Animated.View>
         </View>
       )}
@@ -462,9 +468,6 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
         </Pressable>
       </View>
 
-      <Pressable onPress={() => setReelMuted(!chosen)} style={[st.mute, { bottom: muteBottom }]} accessibilityRole="button" accessibilityLabel={chosen ? 'Ligar o som' : 'Desligar o som'}>
-        <Icon name={chosen ? 'volume-off' : 'volume'} size={18} color="#fff" />
-      </Pressable>
 
       {ended && onMore && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]}>
@@ -627,6 +630,7 @@ const st = StyleSheet.create({
   shade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '50%' },
   progress: { position: 'absolute', left: 0, right: 0, height: 3, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.25)' },
   flashWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  muteCenter: { marginBottom: 14, width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   flash: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   failed: { paddingHorizontal: 24, textAlign: 'center', fontSize: 14, color: 'rgba(255,255,255,0.8)' },
   info: { position: 'absolute', left: 16, right: 80 },
