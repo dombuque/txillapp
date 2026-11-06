@@ -267,7 +267,6 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
   const [grid, setGrid] = useState(false);
   const [setupClose, setSetupClose] = useState(false);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const bar = useRef(new Animated.Value(1)).current;
   const friends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
   const tray = useQuery({ queryKey: ['instants'], queryFn: instantsApi.tray });
   const refresh = () => void qc.invalidateQueries({ queryKey: ['instants'] });
@@ -297,8 +296,6 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       const res = await instantsApi.create(mediaId, caption.trim(), audience);
       setCaption('');
       setSent(res.id);
-      bar.setValue(1);
-      Animated.timing(bar, { toValue: 0, duration: 6000, useNativeDriver: false }).start();
       clearTimeout(undoTimer.current);
       undoTimer.current = setTimeout(() => setSent(null), 6000);
       refresh();
@@ -354,7 +351,6 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
                   <Text style={{ fontSize: 14, fontWeight: '700', color: colors.zinc900 }}>Desfazer</Text>
                 </Pressable>
               </View>
-              <Animated.View style={{ height: 4, borderRadius: 2, backgroundColor: colors.brand, width: bar.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }} />
             </View>
           ) : null;
   const rootStyle = isWeb
