@@ -170,7 +170,16 @@ export interface Story {
   author: { username: string; displayName: string };
   seen: boolean;
   viewCount: number | null;
+  cheered?: boolean;
+  cheerCount?: number | null;
+  replyCount?: number | null;
+  commentCount: number;
+  commentsOff?: boolean;
+  /** O espectador pode responder? */
+  canReply: boolean;
+  music?: { id: string; title: string; artist: string; url: string; kind?: 'clip' } | null;
 }
+export interface StoryComment { id: string; body: string; createdAt: string; mine: boolean; canDelete: boolean; author: { username: string; displayName: string; hasAvatar: boolean } }
 export interface TrayUser { username: string; displayName: string; isMe: boolean; count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
@@ -301,6 +310,17 @@ export const api = {
   createStory: (mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all'): Promise<Story> => raw('/stories', post({ mediaId, caption, audience })),
   viewStory: (id: string): Promise<void> => raw(`/stories/${id}/view`, post({})),
   deleteStory: (id: string): Promise<void> => raw(`/stories/${id}`, { method: 'DELETE' }),
+  setStoryComments: (id: string, commentsOff: boolean): Promise<{ commentsOff: boolean }> => raw(`/stories/${id}`, { method: 'PATCH', body: JSON.stringify({ commentsOff }) }),
+  replyStory: (id: string, body: string): Promise<{ id: string; kind: 'reply' | 'reaction' }> => raw(`/stories/${id}/replies`, post({ body })),
+  storyReplies: (id: string): Promise<{ id: string; body: string; kind: 'reply' | 'reaction'; createdAt: string; author: { username: string; displayName: string } }[]> => raw(`/stories/${id}/replies`),
+  storyViewers: (id: string): Promise<{ username: string; displayName: string; viewedAt: string; cheered?: boolean }[]> => raw(`/stories/${id}/viewers`),
+  cheerStory: (id: string, on: boolean): Promise<{ cheered: boolean }> => raw(`/stories/${id}/cheer`, { method: on ? 'PUT' : 'DELETE' }),
+  storyComments: (id: string): Promise<StoryComment[]> => raw(`/stories/${id}/comments`),
+  commentStory: (id: string, body: string): Promise<{ id: string }> => raw(`/stories/${id}/comments`, post({ body })),
+  deleteStoryComment: (commentId: string): Promise<void> => raw(`/stories/comments/${commentId}`, { method: 'DELETE' }),
+  closeFriends: (): Promise<{ username: string; displayName: string; hasAvatar: boolean }[]> => raw('/stories/close-friends'),
+  addCloseFriend: (username: string): Promise<void> => raw(`/stories/close-friends/${encodeURIComponent(username)}`, { method: 'PUT' }),
+  removeCloseFriend: (username: string): Promise<void> => raw(`/stories/close-friends/${encodeURIComponent(username)}`, { method: 'DELETE' }),
   reels: (cursor?: string): Promise<Page<Post>> => raw(`/feed/reels${cursor ? `?cursor=${cursor}&limit=6` : '?limit=6'}`),
   createPost: (b: { body: string; locationLabel?: string; mediaIds: string[] }): Promise<Post> => raw('/posts', post(b)),
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),

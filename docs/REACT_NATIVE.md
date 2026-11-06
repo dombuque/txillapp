@@ -29,6 +29,7 @@
 | Definições | `pages/Settings.tsx` | mínimo (conta e sair; o resto abre o site) |
 | Guardados, Carteira, Convites, Seguidores/A seguir | `saved`, `wallet`, `invites`, `u/[username]/connections` | feito (testado no browser) |
 | Editar perfil, pedidos para seguir | `ProfileSheets.tsx` | feito (foto, nome, bio, cidade, link, privado; falta a geleira) |
+| Stories (ver: resposta, reações, brinde, comentários, atividade, menu; criar: legenda, amigos próximos) | `stories/*`, `StoryParts.tsx` | feito (falta música e testar com média pública) |
 | Locais, Geleira | `pages/*` | por fazer |
 | Publicação, hashtag | `p/[id]`, `t/[tag]` | feito (hashtag e menções tocáveis) |
 | Reel / sítio / local | `ReelPage.tsx`, `PlacePage.tsx`, `VenuePage.tsx` | por fazer |
