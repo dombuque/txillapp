@@ -24,7 +24,11 @@ installWebAlert();
 function WebTopInset({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
   if (Platform.OS !== 'web') return <>{children}</>;
-  return <SafeAreaInsetsContext.Provider value={{ ...insets, top: Math.max(insets.top, 20) }}>{children}</SafeAreaInsetsContext.Provider>;
+  // Em baixo, como o site antigo (.bottom-safe): sem viewport-fit=cover o iPhone não reserva a linha de baixo, por isso dá-se
+  // 21,6 px à mão no iOS (5,6 px nos outros), ou mais se o sistema o pedir. Vale para a barra de baixo, folhas e barras de escrever.
+  const ios = typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+  const bottom = Math.max(insets.bottom, ios ? 21.6 : 5.6);
+  return <SafeAreaInsetsContext.Provider value={{ ...insets, top: Math.max(insets.top, 20), bottom }}>{children}</SafeAreaInsetsContext.Provider>;
 }
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
