@@ -10,6 +10,7 @@ import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'reac
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { AlertHost } from '@/components/AlertHost';
 import { installWebAlert } from '@/lib/alertHost';
+import { accounts } from '@/lib/accounts';
 import { syncPush } from '@/lib/push';
 import { useChatStream } from '@/lib/realtime';
 import { colors } from '@/lib/theme';
@@ -98,7 +99,7 @@ function Gate() {
         /* sem armazenamento: vai para o início */
       }
       router.replace('/login');
-    } else if (user && onLogin) {
+    } else if (user && onLogin && !accounts.isAdding()) {
       let back = '/';
       try {
         if (Platform.OS === 'web') {

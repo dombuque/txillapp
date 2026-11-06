@@ -1,4 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
+import { accounts } from './accounts';
+import { kvGet, kvSet } from './kv';
 import { Platform } from 'react-native';
 import { SITE_URL } from './config';
 
@@ -238,14 +240,30 @@ let onExpired: (() => void) | null = null;
 export const setSessionExpiredHandler = (f: (() => void) | null) => { onExpired = f; };
 export const setAccessToken = (t: string | null) => { accessToken = t; };
 
-/** Token de renovação: no cofre do telemóvel (app nativa). Na web não se guarda nada: a sessão vive num cookie HttpOnly do servidor. */
+/**
+ * Token de renovação da conta ativa (há várias contas por aparelho: ver lib/accounts). Na web, quem vinha do site antigo
+ * ainda tem o cookie: a primeira renovação usa-o ('cookie') e a resposta já traz o token para guardar.
+ */
+const COOKIE_TRIED = 'tx_cookie_tried';
 export const refreshStore = {
-  get: (): Promise<string | null> => (isWeb ? Promise.resolve('cookie') : SecureStore.getItemAsync(REFRESH_KEY).catch(() => null)),
-  set: (t: string) => (isWeb ? Promise.resolve() : SecureStore.setItemAsync(REFRESH_KEY, t).catch(() => undefined)),
-  clear: () => (isWeb ? Promise.resolve() : SecureStore.deleteItemAsync(REFRESH_KEY).catch(() => undefined)),
+  get: async (): Promise<string | null> => {
+    const cur = await accounts.current();
+    if (cur) return cur.refreshToken;
+    if (isWeb && !(await kvGet(COOKIE_TRIED))) return 'cookie';
+    return null;
+  },
+  /** Guarda a sessão como conta ativa. */
+  save: async (r: AuthResult) => {
+    if (r.refreshToken) await accounts.upsert({ username: r.user.username, displayName: r.user.displayName, refreshToken: r.refreshToken });
+  },
+  clear: async () => {
+    const cur = await accounts.current();
+    if (cur) await accounts.remove(cur.username);
+    if (isWeb) await kvSet(COOKIE_TRIED, '1');
+  },
 };
 
-const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'X-Requested-With': 'txillapp', ...(isWeb ? {} : { 'X-Client': 'txillapp-mobile' }) };
+const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'X-Requested-With': 'txillapp', 'X-Client': 'txillapp-mobile' };
 
 async function call(path: string, init: RequestInit = {}, auth = true): Promise<Response> {
   return fetch(`${SITE_URL}/api/v1${path}`, {
@@ -271,10 +289,10 @@ export function refreshSession(): Promise<AuthResult> {
   return (refreshing ??= (async () => {
     const token = await refreshStore.get();
     if (!token) throw new ApiError(401, 'Sem sessão');
-    const res = await call('/auth/refresh', { method: 'POST', headers: isWeb ? {} : { 'X-Refresh-Token': token } }, false);
+    const res = await call('/auth/refresh', { method: 'POST', headers: token === 'cookie' ? {} : { 'X-Refresh-Token': token } }, false);
     const r = (await parse(res)) as AuthResult;
     accessToken = r.accessToken;
-    if (r.refreshToken) await refreshStore.set(r.refreshToken);
+    await refreshStore.save(r);
     return r;
   })()
     .catch(async (e) => {
@@ -344,13 +362,13 @@ export const api = {
   async login(identifier: string, password: string): Promise<AuthResult> {
     const r = (await parse(await call('/auth/login', post({ identifier, password }), false))) as AuthResult;
     accessToken = r.accessToken;
-    if (r.refreshToken) await refreshStore.set(r.refreshToken);
+    await refreshStore.save(r);
     return r;
   },
   async register(b: { email: string; username: string; displayName: string; password: string; birthDate: string; acceptTerms: true; gender?: string; inviteCode?: string }): Promise<AuthResult> {
     const r = (await parse(await call('/auth/register', post(b), false))) as AuthResult;
     accessToken = r.accessToken;
-    if (r.refreshToken) await refreshStore.set(r.refreshToken);
+    await refreshStore.save(r);
     return r;
   },
   authConfig: (): Promise<{ googleClientId: string | null }> => raw('/auth/config'),
@@ -359,13 +377,13 @@ export const api = {
     const r = (await parse(await call('/auth/google', post({ idToken }), false))) as AuthResult | GoogleNeedsUsername;
     if ('needsUsername' in r) return r;
     accessToken = r.accessToken;
-    if (r.refreshToken) await refreshStore.set(r.refreshToken);
+    await refreshStore.save(r);
     return r;
   },
   async googleComplete(signupToken: string, username: string, gender: string, birthDate: string): Promise<AuthResult> {
     const r = (await parse(await call('/auth/google/complete', post({ signupToken, username, gender, birthDate, acceptTerms: true }), false))) as AuthResult;
     accessToken = r.accessToken;
-    if (r.refreshToken) await refreshStore.set(r.refreshToken);
+    await refreshStore.save(r);
     return r;
   },
   usernameAvailable: (u: string): Promise<{ available: boolean; reason?: 'invalid' | 'reserved' | 'taken'; suggestions?: string[] }> => raw(`/auth/username-available?username=${encodeURIComponent(u)}`),
@@ -374,7 +392,7 @@ export const api = {
   invitePreview: (code: string): Promise<{ username: string; displayName: string }> => raw(`/invites/preview/${encodeURIComponent(code)}`),
   async logout(): Promise<void> {
     const token = await refreshStore.get();
-    if (token) await call('/auth/logout', { method: 'POST', headers: isWeb ? {} : { 'X-Refresh-Token': token } }, false).catch(() => undefined);
+    if (token) await call('/auth/logout', { method: 'POST', headers: token === 'cookie' ? {} : { 'X-Refresh-Token': token } }, false).catch(() => undefined);
     accessToken = null;
     await refreshStore.clear();
   },
@@ -450,7 +468,7 @@ export const api = {
   async changePassword(currentPassword: string, newPassword: string): Promise<void> {
     const r = (await parse(await call('/auth/password', post({ currentPassword, newPassword })))) as AuthResult;
     accessToken = r.accessToken;
-    if (r.refreshToken) await refreshStore.set(r.refreshToken);
+    await refreshStore.save(r);
   },
   sessions: (): Promise<DeviceSession[]> => raw('/auth/sessions'),
   revokeSession: (id: string): Promise<void> => raw(`/auth/sessions/${id}`, { method: 'DELETE' }),

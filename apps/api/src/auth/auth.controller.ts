@@ -42,11 +42,13 @@ function requireCsrfHeader(req: Request) {
  * (para guardar no cofre do telemóvel) e devolve-o no cabeçalho `X-Refresh-Token`. O browser continua só com o cookie HttpOnly.
  */
 const isMobile = (req: Request) => req.headers['x-client'] === 'txillapp-mobile';
+// A app (X-Client: txillapp-mobile) manda o token no cabeçalho e pode ter várias contas no mesmo aparelho: o cabeçalho
+// tem prioridade. Sem cabeçalho (primeira vez depois de migrar do site antigo) ainda vale o cookie.
 const refreshTokenOf = (req: Request): string | undefined => {
-  const fromCookie = req.cookies?.[COOKIE] as string | undefined;
-  if (fromCookie) return fromCookie;
   const h = req.headers['x-refresh-token'];
-  return isMobile(req) && typeof h === 'string' && h.length >= 20 && h.length <= 400 ? h : undefined;
+  if (isMobile(req) && typeof h === 'string' && h.length >= 20 && h.length <= 400) return h;
+  const fromCookie = req.cookies?.[COOKIE] as string | undefined;
+  return fromCookie || undefined;
 };
 
 const passwordChangeSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: passwordSchema });
@@ -276,14 +278,16 @@ export class AuthController {
   }
 
   private respond(res: Response, tokens: Tokens, user: AuthResponse['user']): AuthResponse {
-    res.cookie(COOKIE, tokens.refreshToken, {
+    const mobile = !!res.req && isMobile(res.req);
+    // A app guarda o token ela própria (e pode ter várias contas): não leva cookie, e um cookie antigo do site é apagado.
+    if (mobile) res.clearCookie(COOKIE, { path: COOKIE_PATH });
+    else res.cookie(COOKIE, tokens.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       path: COOKIE_PATH,
       maxAge: REFRESH_TTL_MS,
     });
-    const mobile = !!res.req && isMobile(res.req);
     return mobile ? ({ accessToken: tokens.accessToken, user, refreshToken: tokens.refreshToken } as AuthResponse) : { accessToken: tokens.accessToken, user };
   }
 }

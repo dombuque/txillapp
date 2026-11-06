@@ -12,12 +12,9 @@ import { aiApi } from '@/lib/api.ai';
 import { colors } from '@/lib/theme';
 
 /** O raio do SuperTxill, cheio (como o "bolt" do site com fill). */
+/** O símbolo do SuperTxill (brilho), diferente do raio do Zás. */
 export function Bolt({ size = 20, color = colors.brand }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M13.5 2.5 5 13.5h6l-1 8 8.5-11h-6z" />
-    </Svg>
-  );
+  return <Icon name="sparkles" size={size} color={color} strokeWidth={2.2} />;
 }
 
 function BotAvatar({ size }: { size: number }) {

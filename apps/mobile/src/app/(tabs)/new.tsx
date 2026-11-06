@@ -26,6 +26,33 @@ import { timeAgo } from '@/lib/time';
 const MAX_PHOTOS = 10;
 const MAX_BYTES = 8 * 1024 * 1024;
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+/** Volta a gravar a foto em JPEG (até 2048 px no lado maior): serve para HEIC/HEIF do iPhone e para fotos pesadas. Devolve null se não der. */
+async function toJpeg(f: File): Promise<File | null> {
+  if (typeof document === 'undefined') return null;
+  const url = URL.createObjectURL(f);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('img'));
+      i.src = url;
+    });
+    const max = 2048;
+    const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    c.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
+    const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.88));
+    if (!blob || blob.size > MAX_BYTES) return null;
+    return new File([blob], (f.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 interface Asset { uri: string; video: boolean; mime: string; durationMs?: number; tags: PhotoTag[] }
 
 /** Cartão grande do primeiro passo (só no aplicativo nativo; na web o primeiro passo é a câmara ao vivo, como no site). */
@@ -157,10 +184,15 @@ export default function Compose() {
       } else if (count >= MAX_PHOTOS) {
         problem = `Máximo de ${MAX_PHOTOS} fotos por publicação`;
         break;
-      } else if (!IMAGE_TYPES.includes(f.type)) problem = 'Uma das fotos não serve. Usa JPEG, PNG ou WebP';
-      else if (f.size > MAX_BYTES) problem = 'Uma das fotos é pesada demais! Máximo 8 MB';
-      else {
-        next.push({ uri: URL.createObjectURL(f), video: false, mime: f.type, tags: [] });
+      } else {
+        // Fotos noutros formatos (HEIC do iPhone, etc.) ou pesadas demais: converte-se a JPEG aqui mesmo, em vez de recusar.
+        let file: File = f;
+        if (!IMAGE_TYPES.includes(f.type) || f.size > MAX_BYTES) {
+          const conv = await toJpeg(f);
+          if (!conv) { problem = IMAGE_TYPES.includes(f.type) ? 'Uma das fotos é pesada demais! Máximo 8 MB' : 'Uma das fotos não serve. Usa JPEG, PNG ou WebP'; continue; }
+          file = conv;
+        }
+        next.push({ uri: URL.createObjectURL(file), video: false, mime: file.type, tags: [] });
         count += 1;
       }
     }

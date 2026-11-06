@@ -14,6 +14,7 @@ import { StackPage } from '@/components/StackPage';
 import { CloseFriendsSheet } from '@/components/StoryParts';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { ApiError, api, type Gender, type PrivacySettings, type Viewers, type Who } from '@/lib/api';
+import { accounts } from '@/lib/accounts';
 import { useAuth } from '@/lib/auth';
 import { pushApi } from '@/lib/api.settings';
 import { SITE_URL } from '@/lib/config';
@@ -23,7 +24,7 @@ import { timeAgo } from '@/lib/time';
 
 const site = (path: string) => void Linking.openURL(`${SITE_URL || 'https://txillapp.com'}${path}`);
 
-type SheetName = null | 'gender' | 'edit' | 'type' | 'comments' | 'gifts' | 'connections' | 'storyReplies' | 'hidden' | 'mentions' | 'dms' | 'closeFriends' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'blocked' | 'password' | 'devices' | 'delete' | 'logout' | 'contacts';
+type SheetName = null | 'switch' | 'gender' | 'edit' | 'type' | 'comments' | 'gifts' | 'connections' | 'storyReplies' | 'hidden' | 'mentions' | 'dms' | 'closeFriends' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'blocked' | 'password' | 'devices' | 'delete' | 'logout' | 'contacts';
 
 const VIEWERS: { value: Viewers; title: string; text: string }[] = [
   { value: 'everyone', title: 'Todos', text: 'Qualquer pessoa que veja a publicação.' },
@@ -246,7 +247,11 @@ function RegionInfo() {
 export default function Settings() {
   const qc = useQueryClient();
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, signOut, switchTo } = useAuth();
+  const [others, setOthers] = useState<{ username: string; displayName: string }[]>([]);
+  useEffect(() => {
+    void accounts.list().then((l) => setOthers(l.filter((a) => a.username !== user?.username)));
+  }, [user?.username]);
   const [sheet, setSheet] = useState<SheetName>(null);
   const [exporting, setExporting] = useState(false);
   const close = () => setSheet(null);
@@ -385,6 +390,8 @@ export default function Settings() {
 
         <Section title="Conta">
           <Row icon={ic('download')} label={exporting ? 'A preparar…' : 'Descarregar os meus dados'} onPress={() => void downloadData()} />
+          <Row icon={ic('user-plus')} label="Adicionar conta" onPress={() => { accounts.beginAdd(); go('/login?entrar=1'); }} />
+          {others.length > 0 ? <Row icon={ic('users')} label="Trocar de conta" value={`${others.length + 1} contas`} onPress={() => setSheet('switch')} /> : null}
           <Row icon={ic('logout')} label="Terminar sessão" onPress={() => setSheet('logout')} />
           <Row icon={<Icon name="trash" size={20} color={colors.red600} />} label="Eliminar conta" danger onPress={() => setSheet('delete')} />
         </Section>
@@ -402,6 +409,23 @@ export default function Settings() {
                 </Pressable>
               );
             })}
+          </View>
+        </Sheet>
+      )}
+      {sheet === 'switch' && (
+        <Sheet title="Trocar de conta" onClose={close}>
+          <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
+            {others.map((a) => (
+              <Pressable key={a.username} onPress={() => { close(); void switchTo(a.username); }} style={st.person} accessibilityRole="button">
+                <Avatar name={a.displayName} username={a.username} size={44} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} numberOfLines={1}>{a.displayName}</Text>
+                  <Text style={{ fontSize: 14, color: colors.zinc600 }} numberOfLines={1}>@{a.username}</Text>
+                </View>
+                <Text style={st.chev}>›</Text>
+              </Pressable>
+            ))}
+            <Text style={{ marginTop: 8, fontSize: 13, color: colors.zinc500, textAlign: 'center' }}>Dica: toca duas vezes no perfil, na barra de baixo, para trocar.</Text>
           </View>
         </Sheet>
       )}

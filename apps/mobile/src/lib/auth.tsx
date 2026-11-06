@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ApiError, api, refreshSession, refreshStore, setSessionExpiredHandler, type AuthResult, type PublicUser } from './api';
+import { accounts } from './accounts';
 
 interface AuthState {
   user: PublicUser | null;
@@ -13,6 +14,8 @@ interface AuthState {
   /** Entra com uma sessão já obtida (ex.: depois do login com Google). */
   signInWith: (r: AuthResult) => void;
   signOut: () => Promise<void>;
+  /** Muda para outra conta guardada neste aparelho. */
+  switchTo: (username: string) => Promise<void>;
   retry: () => void;
 }
 
@@ -64,22 +67,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (identifier: string, password: string) => {
     const r = await api.login(identifier, password);
+    accounts.endAdd();
+    qc.clear();
     setUser(r.user);
-  }, []);
+  }, [qc]);
 
   const signUp = useCallback(async (b: Parameters<typeof api.register>[0]) => {
     const r = await api.register(b);
+    accounts.endAdd();
+    qc.clear();
     setUser(r.user);
-  }, []);
+  }, [qc]);
 
-  const signInWith = useCallback((r: AuthResult) => setUser(r.user), []);
+  const signInWith = useCallback((r: AuthResult) => { accounts.endAdd(); qc.clear(); setUser(r.user); }, [qc]);
+
+  const switchTo = useCallback(async (username: string) => {
+    await accounts.setCurrent(username);
+    const r = await refreshSession();
+    qc.clear();
+    setUser(r.user);
+  }, [qc]);
 
   const signOut = useCallback(async () => {
     await api.logout();
-    setUser(null);
     qc.clear(); // a próxima pessoa não vê dados da anterior
+    // Com mais contas no aparelho, sair desta passa para a seguinte.
+    const rest = await accounts.list();
+    if (rest[0]) {
+      try {
+        await accounts.setCurrent(rest[0].username);
+        const r = await refreshSession();
+        setUser(r.user);
+        return;
+      } catch {
+        /* a outra conta já não vale: vai para a entrada */
+      }
+    }
+    setUser(null);
   }, [qc]);
 
-  const value = useMemo<AuthState>(() => ({ user, loading, offline, signIn, signUp, signInWith, signOut, retry: () => setAttempt((n) => n + 1) }), [user, loading, offline, signIn, signUp, signInWith, signOut]);
+  const value = useMemo<AuthState>(() => ({ user, loading, offline, signIn, signUp, signInWith, signOut, switchTo, retry: () => setAttempt((n) => n + 1) }), [user, loading, offline, signIn, signUp, signInWith, signOut, switchTo]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

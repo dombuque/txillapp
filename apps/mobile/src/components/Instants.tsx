@@ -206,7 +206,7 @@ function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, on
   const W = 66;
   const H = 94;
   const layers = others.slice(0, 3).map((o, i) => ({ o, i })).reverse();
-  const rot = ['-6deg', '9deg', '-14deg'];
+  const rot = ['-16deg', '-4deg', '-26deg'];
   const dx = [0, -14, -6];
   const dy = [0, -10, -18];
   if (snoozed) {
@@ -234,9 +234,9 @@ function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, on
       >
         {total === 0 ? (
           // Sem Zás por ver: um cartão escuro com o símbolo do Zás (o raio) e um "+" no canto, a entrada para mandar um Zás.
-          <View style={[st.layer, { zIndex: 3, transform: [{ rotate: '-6deg' }] }]}>
-            <View style={{ width: W, height: H, borderRadius: 14, backgroundColor: '#18181b', borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.25)' }}>
-              <Icon name="bolt" size={26} solid color={colors.brand} />
+          <View style={[st.layer, { zIndex: 3, transform: [{ rotate: '-16deg' }] }]}>
+            <View style={{ width: W, height: H, borderRadius: 22, backgroundColor: '#fff', borderWidth: 3, borderColor: colors.rose50, alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(214,51,79,0.28)' }}>
+              <Icon name="bolt" size={28} solid color={colors.brand} />
             </View>
           </View>
         ) : layers.map(({ o, i }) => (
@@ -306,7 +306,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
       setCaption('');
       setSent(res.id);
       clearTimeout(undoTimer.current);
-      undoTimer.current = setTimeout(() => setSent(null), 6000);
+      undoTimer.current = setTimeout(() => setSent(null), 2200);
       refresh();
     } catch (e) {
       setErr((e as Error).message || 'Não consegui tirar a foto');
@@ -356,9 +356,6 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
             <View accessibilityLiveRegion="polite" style={st.sent}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingLeft: 20, paddingRight: 8 }}>
                 <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>Zás enviado!</Text>
-                <Pressable onPress={() => void undo()} accessibilityRole="button" style={{ height: 36, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.zinc900 }}>Desfazer</Text>
-                </Pressable>
               </View>
             </View>
           ) : null;

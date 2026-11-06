@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
+import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { accounts } from '@/lib/accounts';
 import { emitTabPress } from '@/lib/tabPress';
 import { Avatar } from './Avatar';
 import { Icon, type IconName } from './Icon';
@@ -22,7 +24,8 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
   // Nos Reels a barra flutua por cima do vídeo: translúcida e arredondada nos cantos.
   const onReels = state.routes[state.index]?.name === 'reels';
   const ink = onReels ? '#fff' : colors.zinc900;
-  const { user } = useAuth();
+  const { user, switchTo } = useAuth();
+  const lastProfileTap = useRef(0);
   const chats = useQuery({ queryKey: ['chat-unread'], queryFn: api.chatUnread, refetchInterval: 20_000, staleTime: 8_000 });
   const chatCount = chats.data?.conversations ?? 0;
 
@@ -61,7 +64,23 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
           }
           if (r.name === 'profile') {
             return (
-              <Pressable key={r.key} onPress={go} style={styles.tab} accessibilityRole="button" accessibilityLabel="Perfil">
+              <Pressable
+                key={r.key}
+                onPress={() => {
+                  // Duplo toque no perfil: troca para a outra conta guardada neste aparelho (se houver).
+                  const now = Date.now();
+                  if (now - lastProfileTap.current < 350) {
+                    lastProfileTap.current = 0;
+                    void accounts.next().then((n) => { if (n) { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined); void switchTo(n.username); } });
+                    return;
+                  }
+                  lastProfileTap.current = now;
+                  go();
+                }}
+                style={styles.tab}
+                accessibilityRole="button"
+                accessibilityLabel="Perfil (toca duas vezes para trocar de conta)"
+              >
                 <View style={[styles.ava, { borderColor: focused ? ink : 'transparent' }]}>
                   <Avatar name={user?.displayName ?? '?'} username={user?.username} size={26} />
                 </View>
