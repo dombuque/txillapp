@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useOwnSeen } from '@/lib/ownSeen';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
 
@@ -56,6 +57,8 @@ export function StoriesTray() {
   const users = data ?? [];
   const others = users.filter((u) => !u.isMe);
   const mine = users.find((u) => u.isMe);
+  const ownSeenAt = useOwnSeen();
+  const mineSeen = !!mine && mine.latestAt === ownSeenAt;
   const create = () => router.push('/stories/new' as never);
   const view = (u: string) => router.push(`/stories/${u}` as never);
 
@@ -64,7 +67,7 @@ export function StoriesTray() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         <Pressable onPress={() => (mine ? view(user?.username ?? '') : create())} style={styles.bubble} accessibilityRole="button" accessibilityLabel={mine ? 'Ver o teu story' : 'Criar story'}>
           <View>
-            <Ring count={mine?.count ?? 1} seenCount={mine ? 0 : 1} green={mine?.closeFriends}>
+            <Ring count={mine?.count ?? 1} seenCount={mine ? (mineSeen ? mine.count : 0) : 1} green={mine?.closeFriends}>
               <Avatar name={user?.displayName ?? '?'} username={user?.username} size={56} />
             </Ring>
             <Pressable onPress={create} hitSlop={8} style={styles.plus} accessibilityRole="button" accessibilityLabel="Adicionar ao story">

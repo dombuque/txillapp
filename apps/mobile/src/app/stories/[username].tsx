@@ -13,6 +13,7 @@ import { RichText } from '@/components/RichText';
 import { ActivityPanel, CommentsPanel, Panel, ReplyBar, useKeyboardHeight } from '@/components/StoryParts';
 import { api, type Story } from '@/lib/api';
 import { abs, sized } from '@/lib/config';
+import { writeOwnSeen } from '@/lib/ownSeen';
 import { useAuth } from '@/lib/auth';
 import { timeAgo } from '@/lib/time';
 
@@ -123,6 +124,8 @@ export default function StoryViewer() {
     setVideoMs(null);
     setSeePost(false);
     if (cur && !mine) void api.viewStory(cur.id).catch(() => undefined);
+    // Os meus: ao chegar ao último, ficam como vistos (o servidor não conta o autor).
+    else if (cur && mine && i === stories.length - 1) void writeOwnSeen((tray.data ?? []).find((t) => t.isMe)?.latestAt ?? cur.createdAt);
   }, [cur?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!seePost) return;

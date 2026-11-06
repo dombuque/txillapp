@@ -60,7 +60,7 @@ export default function Invites() {
               <Text style={{ color: '#fff', fontSize: 15, lineHeight: 21, textAlign: 'center', marginTop: 8, maxWidth: 300 }}>
                 Quando quem convidas ficar ativo, os dois ganham {d.rules.reward} Txills.
               </Text>
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 16, alignSelf: 'stretch' }}>
                 <Pressable onPress={() => void share()} style={[st.btn, { backgroundColor: '#fff' }]} accessibilityRole="button">
                   <Icon name="share" size={19} color={colors.brand} />
                   <Text style={{ fontWeight: '700', fontSize: 16, color: colors.brand }}>Partilhar</Text>
