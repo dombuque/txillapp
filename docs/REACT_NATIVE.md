@@ -19,7 +19,7 @@
 | Notificações | `pages/Notifications.tsx` | feito |
 | Pesquisa e Explorar (temas, em alta, grelha, resultados) | `pages/Search.tsx` | feito (faltam SuperTxill, sugestões e visualizador em ecrã inteiro) |
 | Cartão de presente no feed | `components/PostCard.tsx` (GiftBlock) | por fazer (hoje aparece como publicação normal) |
-| Mensagens: lista, pedidos, conversa direta (texto, fotos, presentes, brindar, apagar) | `pages/Messages.tsx`, `Thread.tsx` | feito (faltam grupos, voz, câmara, stickers, localização, tempo real por SSE; atualiza de 4 em 4 s) |
+| Mensagens: lista, pedidos, conversa direta (texto, fotos, presentes, brindar, apagar) | `pages/Messages.tsx`, `Thread.tsx` | feito (barra de escrever com câmara, visualização única, voz, galeria, stickers, localização e presente; faltam grupos e tempo real por SSE, atualiza de 4 em 4 s) |
 | Perfil (meu e dos outros): cabeçalho, botões, separadores, grelha, seguir, bloquear, denunciar | `pages/Profile.tsx` | feito (faltam editar perfil, QR, geleira, seguidores, pedidos) |
 | Publicação aberta (`/p/:id`) | `pages/PostPage.tsx` | feito (faltam atividade e reels em ecrã inteiro) |
 | Nova publicação e câmara | `pages/Compose.tsx`, `components/CameraStudio.tsx` | por fazer |

@@ -217,6 +217,17 @@ async function raw(path: string, init: RequestInit = {}, retry = true) {
 
 const post = (b: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(b) });
 
+/** Envia uma foto, vídeo ou áudio do chat (privado): pede o URL assinado, envia os bytes e confirma. Devolve o id do ficheiro. */
+export async function uploadChatMedia(uri: string, mime: string): Promise<string> {
+  const blob = await (await fetch(uri)).blob();
+  const up = (await raw('/media/uploads', post({ mime, size: blob.size, purpose: 'chat' }))) as { assetId: string; uploadUrl: string };
+  const url = /^https?:\/\//.test(up.uploadUrl) ? up.uploadUrl : `${SITE_URL}${up.uploadUrl}`;
+  const put = await fetch(url, { method: 'PUT', headers: { 'Content-Type': mime }, body: blob });
+  if (!put.ok) throw new ApiError(put.status, 'Não consegui enviar o ficheiro');
+  await raw(`/media/${up.assetId}/complete`, { method: 'POST' });
+  return up.assetId;
+}
+
 export const api = {
   async login(identifier: string, password: string): Promise<AuthResult> {
     const r = (await parse(await call('/auth/login', post({ identifier, password }), false))) as AuthResult;
@@ -244,7 +255,8 @@ export const api = {
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),
   chatThread: (username: string, cursor?: string): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${cursor ? `?cursor=${cursor}` : ''}`),
-  chatSend: (username: string, msg: { body?: string; kind?: MsgKind; replyTo?: string }): Promise<{ id: string }> => raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
+  chatSend: (username: string, msg: { body?: string; kind?: MsgKind; mediaId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; once?: boolean; replyTo?: string }): Promise<{ id: string }> => raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
+  chatOpen: (id: string): Promise<{ kind: MsgKind; body: string; mediaUrl: string | null; durationMs: number | null; waveform: string | null }> => raw(`/chat/messages/${id}/open`, post({})),
   chatDelete: (id: string): Promise<void> => raw(`/chat/messages/${id}`, { method: 'DELETE' }),
   chatReact: (id: string, reaction: string): Promise<void> => raw(`/chat/messages/${id}/reaction`, { method: 'PUT', body: JSON.stringify({ reaction }) }),
   chatAccept: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/accept`, post({})),

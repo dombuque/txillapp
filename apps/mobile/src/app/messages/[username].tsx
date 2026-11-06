@@ -5,7 +5,9 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
+import { ChatComposer } from '@/components/ChatComposer';
 import { Icon } from '@/components/Icon';
+import { Sticker } from '@/components/StickerPanel';
 import { api, type ChatMessage, type ChatThread } from '@/lib/api';
 import { colors } from '@/lib/theme';
 
@@ -22,7 +24,7 @@ function seenLabel(lastSeen: string | null): string | null {
   return `Ativo há ${Math.floor(s / 86400)} d`;
 }
 
-function Bubble({ m, prevSame, nextSame, onMenu, onRetry }: { m: Msg; prevSame: boolean; nextSame: boolean; onMenu: (m: Msg) => void; onRetry: (m: Msg) => void }) {
+function Bubble({ m, prevSame, nextSame, onMenu, onRetry, onOpenOnce }: { m: Msg; prevSame: boolean; nextSame: boolean; onMenu: (m: Msg) => void; onRetry: (m: Msg) => void; onOpenOnce: (m: Msg) => void }) {
   const mine = m.fromMe;
   const radius = mine
     ? { borderRadius: 20, borderBottomRightRadius: 6, ...(prevSame ? { borderTopRightRadius: 6 } : null) }
@@ -32,7 +34,23 @@ function Bubble({ m, prevSame, nextSame, onMenu, onRetry }: { m: Msg; prevSame: 
   const real = !m.id.startsWith('tmp-');
 
   let content: React.ReactNode;
-  if (m.kind === 'gift') {
+  if (m.viewOnce && !m.opened && !mine) {
+    content = (
+      <Pressable onPress={() => onOpenOnce(m)} style={[styles.bubble, tone, radius, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+        <Icon name="once" size={20} color={ink} />
+        <Text style={[styles.text, { color: ink, fontWeight: '600' }]}>Toca para abrir</Text>
+      </Pressable>
+    );
+  } else if (m.viewOnce && mine) {
+    content = (
+      <View style={[styles.bubble, tone, radius, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+        <Icon name="once" size={20} color={ink} />
+        <Text style={[styles.text, { color: ink }]}>{m.opened ? 'Aberta' : 'Visualização única'}</Text>
+      </View>
+    );
+  } else if (m.viewOnce && m.opened) {
+    content = <View style={[styles.bubble, tone, radius]}><Text style={[styles.text, { color: ink, fontStyle: 'italic' }]}>Já abriste esta mensagem</Text></View>;
+  } else if (m.kind === 'gift') {
     content = (
       <View style={[styles.gift]}>
         <Icon name="gift" size={22} color="#fff" />
@@ -41,7 +59,7 @@ function Bubble({ m, prevSame, nextSame, onMenu, onRetry }: { m: Msg; prevSame: 
       </View>
     );
   } else if (m.kind === 'sticker') {
-    content = <Text style={{ fontSize: 48 }}>{m.body}</Text>;
+    content = <Sticker id={m.body} size={132} />;
   } else if ((m.kind === 'image' || m.kind === 'video') && m.mediaUrl) {
     content = (
       <View style={[styles.media, radius]}>
@@ -99,6 +117,8 @@ export default function Thread() {
   const [text, setText] = useState('');
   const [pending, setPending] = useState<Msg[]>([]);
   const [err, setErr] = useState('');
+  const [replying, setReplying] = useState<{ id: string; text: string } | null>(null);
+  const [viewing, setViewing] = useState<{ url: string | null; body: string } | null>(null);
   const list = useRef<FlatList<Msg>>(null);
 
   const q = useInfiniteQuery({
@@ -142,11 +162,21 @@ export default function Thread() {
   }
   function menu(m: Msg) {
     const buttons = [
+      { text: 'Responder', onPress: () => setReplying({ id: m.id, text: quoteText(m.kind, m.body) }) },
       { text: '🥂 Brindar', onPress: () => void api.chatReact(m.id, '🥂').then(() => q.refetch()) },
       ...(m.fromMe ? [{ text: 'Apagar', style: 'destructive' as const, onPress: () => void api.chatDelete(m.id).then(() => q.refetch()) }] : []),
       { text: 'Cancelar', style: 'cancel' as const },
     ];
     Alert.alert('Mensagem', undefined, buttons);
+  }
+  async function openOnce(m: Msg) {
+    try {
+      const r = await api.chatOpen(m.id);
+      setViewing({ url: r.mediaUrl, body: r.body });
+      void q.refetch();
+    } catch (e) {
+      Alert.alert('Não consegui abrir', (e as Error).message);
+    }
   }
   async function decide(accept: boolean) {
     await (accept ? api.chatAccept(username) : api.chatDecline(username)).catch(() => undefined);
@@ -187,7 +217,7 @@ export default function Thread() {
             // Lista invertida: o "anterior" no tempo é o índice seguinte.
             const older = items[index + 1];
             const newer = items[index - 1];
-            return <Bubble m={item} prevSame={!!older && older.fromMe === item.fromMe} nextSame={!!newer && newer.fromMe === item.fromMe} onMenu={menu} onRetry={(m) => void send(m.body, m.id)} />;
+            return <Bubble m={item} prevSame={!!older && older.fromMe === item.fromMe} nextSame={!!newer && newer.fromMe === item.fromMe} onMenu={menu} onRetry={(m) => void send(m.body, m.id)} onOpenOnce={(m) => void openOnce(m)} />;
           }}
           onEndReached={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }}
           ListEmptyComponent={<Text style={styles.empty}>Diz olá 👋</Text>}
@@ -206,21 +236,20 @@ export default function Thread() {
       ) : first?.blocked ? (
         <Text style={[styles.empty, { paddingBottom: Math.max(insets.bottom, 12) }]}>Não podes trocar mensagens com esta conta.</Text>
       ) : (
-        <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 12) }}>
-          {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
-          <View style={styles.composer}>
-            <TextInput value={text} onChangeText={setText} multiline maxLength={2000} placeholder="Mensagem…" placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel="Mensagem" />
-            {text.trim() ? (
-              <Pressable onPress={submit} style={styles.send} accessibilityRole="button"><Text style={styles.sendText}>Enviar</Text></Pressable>
-            ) : null}
-          </View>
-        </View>
+        <ChatComposer username={username} person={person} onSent={() => void q.refetch()} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} />
+      )}
+      {viewing && (
+        <Pressable onPress={() => setViewing(null)} style={styles.viewer} accessibilityLabel="Fechar">
+          {viewing.url ? <Image source={{ uri: viewing.url }} style={{ flex: 1 }} contentFit="contain" /> : <Text style={{ color: '#fff', fontSize: 20, textAlign: 'center', padding: 24 }}>{viewing.body}</Text>}
+          <Text style={{ color: '#fff', textAlign: 'center', paddingBottom: 32 }}>Toca para fechar. Esta mensagem não volta a abrir.</Text>
+        </Pressable>
       )}
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  viewer: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: '#000', justifyContent: 'center', zIndex: 50 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 4, borderBottomWidth: 1, borderBottomColor: colors.zinc100, paddingHorizontal: 8, paddingVertical: 8 },
   back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   hName: { fontWeight: '700', fontSize: 16, color: colors.zinc900 },
