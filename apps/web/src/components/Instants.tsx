@@ -6,6 +6,7 @@ import { api, type InstantItem } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { acquireCamera, releaseCamera } from '../lib/cameraSession';
 import { tr } from '../lib/i18n';
+import { useDesktop } from '../lib/useDesktop';
 import Icon from './Icon';
 import { REACTIONS, Reaction } from '../lib/stickers';
 import { markSeen } from '../lib/whatsNew';
@@ -54,6 +55,7 @@ const leftLabel = (iso: string) => {
  */
 export default function InstantsDock() {
   const { user } = useAuth();
+  const desktop = useDesktop();
   const { data } = useQuery({ queryKey: ['instants'], queryFn: api.instants, refetchInterval: 60_000 });
   const qc = useQueryClient();
   // O normal é ver os Zás dos outros; a câmara abre logo se não há nenhum por ver (ou ao tocar na câmara / no fim da fila).
@@ -81,7 +83,8 @@ export default function InstantsDock() {
     window.addEventListener('zas:camera', open);
     return () => window.removeEventListener('zas:camera', open);
   }, []);
-  if (!user) return null;
+  // O Zás é só para o telemóvel: no computador não aparece.
+  if (!user || desktop) return null;
   const refresh = () => void qc.invalidateQueries({ queryKey: ['instants'] });
   const others = data?.others ?? [];
   const total = others.reduce((n, o) => n + o.count, 0);
