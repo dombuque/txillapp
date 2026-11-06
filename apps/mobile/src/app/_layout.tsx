@@ -7,11 +7,14 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from '
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { AlertHost } from '@/components/AlertHost';
+import { installWebAlert } from '@/lib/alertHost';
 import { syncPush } from '@/lib/push';
 import { useChatStream } from '@/lib/realtime';
 import { colors } from '@/lib/theme';
 
 void SplashScreen.preventAutoHideAsync();
+installWebAlert();
 
 /**
  * No iPhone (Safari e PWA) o topo do ecrã tem uma zona desfocada do sistema: o conteúdo colado ao topo fica por baixo dela.
@@ -127,6 +130,7 @@ export default function RootLayout() {
           <AuthProvider>
             <StatusBar style="dark" />
             <Gate />
+            <AlertHost />
           </AuthProvider>
         </QueryClientProvider>
         </WebTopInset>

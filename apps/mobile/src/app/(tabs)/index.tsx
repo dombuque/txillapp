@@ -8,6 +8,7 @@ import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { PostCard } from '@/components/PostCard';
 import { ProfileNudge } from '@/components/ProfileNudge';
 import { StoriesTray } from '@/components/StoriesTray';
+import { useTabPress } from '@/lib/tabPress';
 import { Suggestions } from '@/components/Suggestions';
 import { WhatsNewCard } from '@/components/WhatsNew';
 import { Wordmark } from '@/components/Wordmark';
@@ -98,6 +99,7 @@ export default function Feed() {
   const have = new Set(posts.map((p) => p.id));
   const fresh = (peek.data?.items ?? []).filter((p) => !have.has(p.id) && !p.feed?.seen).length;
   const list = useRef<FlatList<Post>>(null);
+  const offset = useRef(0);
   async function showNew() {
     list.current?.scrollToOffset({ offset: 0, animated: true });
     await q.refetch();
@@ -114,6 +116,16 @@ export default function Feed() {
     await q.refetch();
     void peek.refetch();
   }, q.isRefetching && !q.isFetchingNextPage);
+  // Tocar no Início quando já estás no Início: se não estás no topo, volta ao topo e espreita se há novidades (o aviso
+  // “N novidades” aparece para trazer as novas); se já estás no topo, atualiza.
+  useTabPress('index', () => {
+    if (offset.current > 40) {
+      list.current?.scrollToOffset({ offset: 0, animated: true });
+      void peek.refetch();
+    } else {
+      void showNew();
+    }
+  });
   const onEnd = useCallback(() => {
     if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage();
   }, [q]);
@@ -134,7 +146,10 @@ export default function Feed() {
         ref={list}
         onViewableItemsChanged={onViewable}
         viewabilityConfig={viewability}
-        onScroll={pull.onScroll}
+        onScroll={(e) => {
+          offset.current = e.nativeEvent.contentOffset.y;
+          pull.onScroll(e);
+        }}
         scrollEventThrottle={16}
         data={q.isLoading || q.isError ? [] : posts}
         keyExtractor={(p) => p.id}

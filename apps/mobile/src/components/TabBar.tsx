@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { emitTabPress } from '@/lib/tabPress';
 import { Avatar } from './Avatar';
 import { Icon, type IconName } from './Icon';
 
@@ -27,6 +28,7 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
 
   const press = (focused: boolean, key: string) => {
     if (!focused) navigateToTab(key);
+    else emitTabPress(state.routes.find((r) => r.key === key)?.name ?? '');
   };
 
   return (
