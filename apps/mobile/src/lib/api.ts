@@ -299,6 +299,32 @@ export async function raw(path: string, init: RequestInit = {}, retry = true) {
   return parse(res);
 }
 
+export interface GoogleNeedsUsername { needsUsername: true; signupToken: string; displayName: string; suggestedUsername: string }
+
+/** Código de convite guardado até o registo acabar (localStorage na web, cofre na app nativa). */
+const INVITE_KEY = 'tx_invite';
+export const inviteStore = {
+  async get(): Promise<string> {
+    try {
+      return (isWeb ? localStorage.getItem(INVITE_KEY) : await SecureStore.getItemAsync(INVITE_KEY)) ?? '';
+    } catch {
+      return '';
+    }
+  },
+  async set(code: string): Promise<void> {
+    try {
+      if (isWeb) localStorage.setItem(INVITE_KEY, code);
+      else await SecureStore.setItemAsync(INVITE_KEY, code);
+    } catch { /* sem armazenamento: só vale a ligação aberta */ }
+  },
+  async clear(): Promise<void> {
+    try {
+      if (isWeb) localStorage.removeItem(INVITE_KEY);
+      else await SecureStore.deleteItemAsync(INVITE_KEY);
+    } catch { /* nada */ }
+  },
+};
+
 export const post = (b: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(b) });
 
 /** Envia uma foto, vídeo ou áudio do chat (privado): pede o URL assinado, envia os bytes e confirma. Devolve o id do ficheiro. */
@@ -323,6 +349,21 @@ export const api = {
   },
   async register(b: { email: string; username: string; displayName: string; password: string; birthDate: string; acceptTerms: true; gender?: string; inviteCode?: string }): Promise<AuthResult> {
     const r = (await parse(await call('/auth/register', post(b), false))) as AuthResult;
+    accessToken = r.accessToken;
+    if (r.refreshToken) await refreshStore.set(r.refreshToken);
+    return r;
+  },
+  authConfig: (): Promise<{ googleClientId: string | null }> => raw('/auth/config'),
+  /** Devolve a sessão, ou `needsUsername` para contas novas (a pessoa escolhe o @ a seguir). */
+  async googleLogin(idToken: string): Promise<AuthResult | GoogleNeedsUsername> {
+    const r = (await parse(await call('/auth/google', post({ idToken }), false))) as AuthResult | GoogleNeedsUsername;
+    if ('needsUsername' in r) return r;
+    accessToken = r.accessToken;
+    if (r.refreshToken) await refreshStore.set(r.refreshToken);
+    return r;
+  },
+  async googleComplete(signupToken: string, username: string, gender: string, birthDate: string): Promise<AuthResult> {
+    const r = (await parse(await call('/auth/google/complete', post({ signupToken, username, gender, birthDate, acceptTerms: true }), false))) as AuthResult;
     accessToken = r.accessToken;
     if (r.refreshToken) await refreshStore.set(r.refreshToken);
     return r;

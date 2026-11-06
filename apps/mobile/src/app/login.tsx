@@ -1,9 +1,10 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { useRef, useState, type ReactNode } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
+import { GoogleButton } from '@/components/GoogleButton';
 import { Icon } from '@/components/Icon';
 import { Wordmark } from '@/components/Wordmark';
 import { ApiError } from '@/lib/api';
@@ -84,6 +85,12 @@ export default function Login() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const pass = useRef<React.ComponentRef<typeof TextInput>>(null);
+  // Ligação de convite (/login?convite=CODIGO): quem chega assim é novo, vai direto para criar conta.
+  const { convite } = useLocalSearchParams<{ convite?: string }>();
+  useEffect(() => {
+    const code = String(convite ?? '').trim().toUpperCase().slice(0, 20);
+    if (code) router.replace({ pathname: '/register', params: { convite: code } } as never);
+  }, [convite, router]);
 
   async function submit() {
     if (busy) return;
@@ -151,6 +158,7 @@ export default function Login() {
         </Pressable>
         <Text style={styles.forgot} onPress={() => router.push('/forgot-password' as never)} accessibilityRole="link">Esqueceste a senha?</Text>
       </View>
+      <GoogleButton mode="login" onError={setError} />
       <View style={{ height: 24 }} />
     </Screen>
   );

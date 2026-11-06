@@ -1,6 +1,6 @@
 # App nativa (React Native / Expo)
 
-`apps/mobile` é a app do Txillapp para Android, iPhone e web (`txillapp.com/beta/`). Regra: **cada ecrã tem de ficar igual ao do site**
+`apps/mobile` é a app do Txillapp para Android, iPhone e web: a versão web é o **site principal** (`txillapp.com` e `app.txillapp.com`). O site antigo (`apps/web`) fica só para a moderação em `admin.txillapp.com`. Regra: **cada ecrã tem de ficar igual ao do site**
 (mesmas medidas, letras, cores, ícones e textos). O desenho copia-se do ficheiro correspondente em `apps/web/src`.
 
 Ícones: `npm run sync-icons` copia o conjunto "Tx" do site. Sessão: na app nativa o token de renovação vai no cofre do telemóvel
@@ -29,3 +29,11 @@ Legenda: **feito** = escrito, compila e (onde se diz) testado no browser; **por 
 | Estatísticas, ajuda, sobre, pedidos, idioma, termos, privacidade | `insights`, `help`, `about`, `orders`, `language`, `terms`, `privacy` | por testar |
 
 O backoffice fica só no site (é para computador).
+
+
+## Site principal e PWA
+
+- A versão web da app é exportada na raiz (`expo export --platform web` + `scripts/post-export-web.mjs dist ""`) e copiada para o nginx (`apps/web/Dockerfile`). O site antigo vai para `/usr/share/nginx/admin`, só servido em `admin.txillapp.com`.
+- PWA: `apps/mobile/public/` tem o manifesto, os ícones, `register-sw.js`, `push-sw.js` (notificações push) e `sw.js`. O `sw.js` substitui o do site antigo no mesmo endereço, apaga as caches antigas e recarrega uma vez as janelas abertas. Páginas: primeiro a rede; sem rede, a última aberta. A API nunca fica em cache.
+- Links dos emails: `/verify-email` e `/reset-password`. Links antigos: `/tag/:tag` leva a `/t/:tag`; endereços que não existem voltam ao início.
+- Login com Google: só na web (a app nativa não o tem ainda).

@@ -33,7 +33,10 @@ function Gate() {
 
   useEffect(() => {
     if (loading || offline) return;
-    const onLogin = segments[0] === 'login' || segments[0] === 'register' || segments[0] === 'forgot-password';
+    const onLogin = segments[0] === 'login' || segments[0] === 'register' || segments[0] === 'forgot-password' || segments[0] === 'google-username';
+    // Links dos emails: servem com ou sem sessão (confirmar conta e repor a senha).
+    const onEmailLink = segments[0] === 'verify-email' || segments[0] === 'reset-password';
+    if (onEmailLink) return;
     if (!user && !onLogin) router.replace('/login');
     else if (user && onLogin) router.replace('/');
   }, [user, loading, offline, segments, router]);

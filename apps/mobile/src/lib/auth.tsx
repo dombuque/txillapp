@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ApiError, api, refreshSession, refreshStore, setSessionExpiredHandler, type PublicUser } from './api';
+import { ApiError, api, refreshSession, refreshStore, setSessionExpiredHandler, type AuthResult, type PublicUser } from './api';
 
 interface AuthState {
   user: PublicUser | null;
@@ -10,6 +10,8 @@ interface AuthState {
   offline: boolean;
   signIn: (identifier: string, password: string) => Promise<void>;
   signUp: (b: Parameters<typeof api.register>[0]) => Promise<void>;
+  /** Entra com uma sessão já obtida (ex.: depois do login com Google). */
+  signInWith: (r: AuthResult) => void;
   signOut: () => Promise<void>;
   retry: () => void;
 }
@@ -70,12 +72,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(r.user);
   }, []);
 
+  const signInWith = useCallback((r: AuthResult) => setUser(r.user), []);
+
   const signOut = useCallback(async () => {
     await api.logout();
     setUser(null);
     qc.clear(); // a próxima pessoa não vê dados da anterior
   }, [qc]);
 
-  const value = useMemo<AuthState>(() => ({ user, loading, offline, signIn, signUp, signOut, retry: () => setAttempt((n) => n + 1) }), [user, loading, offline, signIn, signUp, signOut]);
+  const value = useMemo<AuthState>(() => ({ user, loading, offline, signIn, signUp, signInWith, signOut, retry: () => setAttempt((n) => n + 1) }), [user, loading, offline, signIn, signUp, signInWith, signOut]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

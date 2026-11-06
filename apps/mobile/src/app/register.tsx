@@ -1,9 +1,10 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { GoogleButton } from '@/components/GoogleButton';
 import { Icon } from '@/components/Icon';
-import { ApiError, api } from '@/lib/api';
+import { ApiError, api, inviteStore } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
 import { colors } from '@/lib/theme';
@@ -30,7 +31,7 @@ const ageOf = (v: string) => {
 };
 
 /** Devolve o problema do valor ou null. Corre a cada tecla, sem esperar pelo servidor. */
-function problemOf(key: Key, raw: string): string | null {
+export function problemOf(key: Key, raw: string): string | null {
   const v = key === 'username' ? raw.trim().replace(/^@/, '') : raw.trim();
   if (key === 'displayName') return v.length === 0 ? 'Diz-nos o teu nome' : v.length > 60 ? 'Nome demasiado comprido' : null;
   if (key === 'username') {
@@ -51,7 +52,7 @@ function problemOf(key: Key, raw: string): string | null {
 type Check = { state: 'idle' } | { state: 'checking' } | { state: 'ok' } | { state: 'bad'; message: string; suggestions?: string[]; taken?: boolean } | { state: 'error' };
 
 /** Disponibilidade do @ / email em tempo real: validação local imediata + pergunta ao servidor (com pausa de 350 ms). */
-function useAvailability(kind: 'username' | 'email', raw: string, enabled: boolean): Check {
+export function useAvailability(kind: 'username' | 'email', raw: string, enabled: boolean): Check {
   const [check, setCheck] = useState<Check>({ state: 'idle' });
   useEffect(() => {
     const value = kind === 'username' ? raw.trim().replace(/^@/, '') : raw.trim();
@@ -107,6 +108,24 @@ export default function Register() {
   const blocked = termsMissing || !value.trim() || !!local || (kind !== null && (check.state === 'checking' || check.state === 'bad'));
   const gen = useRef(0);
   void gen;
+  // Convite: vem na ligação (?convite=CÓDIGO) e fica guardado até o registo acabar.
+  const { convite } = useLocalSearchParams<{ convite?: string }>();
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      let code = String(convite ?? '').trim().toUpperCase().slice(0, 20);
+      if (code) await inviteStore.set(code);
+      else code = await inviteStore.get();
+      if (!code) return;
+      try {
+        const p = await api.invitePreview(code);
+        if (alive) setInvite({ code, displayName: p.displayName });
+      } catch {
+        await inviteStore.clear();
+      }
+    })();
+    return () => { alive = false; };
+  }, [convite]);
 
   async function next() {
     if (blocked) return setError(termsMissing ? 'Tens de aceitar os Termos e a Política de Privacidade' : local ?? (check.state === 'bad' ? check.message : value ? 'Só um segundinho… ⏳' : 'Preenche este campo'));
@@ -124,6 +143,7 @@ export default function Register() {
         acceptTerms: true,
         inviteCode: invite?.code,
       });
+      void inviteStore.clear();
       router.replace('/');
     } catch (x) {
       const msg = (x as Error).message;
@@ -235,6 +255,7 @@ export default function Register() {
             </Pressable>
           )}
         </View>
+        {i === 0 && <GoogleButton mode="register" onError={setError} />}
       </View>
 
       <View style={st.alert} accessibilityRole="alert"><Text style={st.alertText}>{error}</Text></View>

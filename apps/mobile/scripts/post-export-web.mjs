@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const dir = process.argv[2] ?? 'dist';
-const base = process.argv[3] ?? '/beta';
+const base = process.argv[3] ?? ''; // '' = na raiz do site (txillapp.com)
 const tags = [
   '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content"/>',
   '<meta name="theme-color" content="#ffffff"/>',
@@ -13,6 +13,15 @@ const tags = [
   '<meta name="apple-mobile-web-app-title" content="Txillapp"/>',
   `<link rel="manifest" href="${base}/manifest.webmanifest"/>`,
   `<link rel="apple-touch-icon" href="${base}/apple-touch-icon.png"/>`,
+  `<link rel="icon" href="${base}/favicon.ico" sizes="any"/>`,
+  `<link rel="icon" type="image/svg+xml" href="${base}/favicon.svg"/>`,
+  '<meta name="description" content="A rede da malta: partilha momentos, faz showoff e oferece Txills."/>',
+  '<meta property="og:type" content="website"/>',
+  '<meta property="og:site_name" content="Txillapp"/>',
+  '<meta property="og:title" content="Txillapp"/>',
+  '<meta property="og:description" content="A rede da malta: partilha momentos, faz showoff e oferece Txills."/>',
+  '<meta property="og:image" content="https://txillapp.com/og-image.png"/>',
+  `<script src="${base}/register-sw.js" defer></script>`,
   '<style>html,body{background:#fff;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}</style>',
 ].join('');
 
