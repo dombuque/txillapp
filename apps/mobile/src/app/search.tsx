@@ -1,3 +1,4 @@
+import { BackButton } from '@/components/BackButton';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -99,7 +100,7 @@ export default function Search() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <View style={styles.bar}>
-        <Pressable onPress={() => router.back()} style={styles.back} accessibilityRole="button" accessibilityLabel="Voltar"><Icon name="back" size={26} strokeWidth={2} /></Pressable>
+        <BackButton />
         <View style={styles.field}>
           <Icon name="search" size={20} color={colors.zinc600} />
           <TextInput value={text} onChangeText={setText} placeholder="Procura malta e publicações…" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.input} accessibilityLabel="Pesquisar" />

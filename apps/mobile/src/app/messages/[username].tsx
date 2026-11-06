@@ -1,3 +1,4 @@
+import { BackButton } from '@/components/BackButton';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -191,7 +192,7 @@ export default function Thread() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.header}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/messages' as never))} style={styles.back} accessibilityRole="button" accessibilityLabel="Voltar"><Icon name="back" size={26} strokeWidth={2} /></Pressable>
+        <BackButton fallback="/messages" />
         {person && (
           <Pressable onPress={() => router.push(`/u/${person.username}` as never)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
             <View>

@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
-import { Icon } from './Icon';
+import { BackButton } from './BackButton';
 
 /** Ecrã que ainda está a ser passado para a app nativa. */
 export function Soon({ title, text, back = false }: { title: string; text: string; back?: boolean }) {
@@ -11,9 +11,7 @@ export function Soon({ title, text, back = false }: { title: string; text: strin
   return (
     <View style={[styles.wrap, { paddingTop: insets.top }]}>
       {back && (
-        <Pressable onPress={() => router.back()} style={[styles.back, { top: insets.top + 8 }]} accessibilityRole="button" accessibilityLabel="Voltar">
-          <Icon name="back" size={26} strokeWidth={2} />
-        </Pressable>
+        <BackButton style={{ position: 'absolute', left: 4, top: insets.top + 4 }} />
       )}
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.text}>{text}</Text>

@@ -1,3 +1,4 @@
+import { BackButton } from '@/components/BackButton';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -188,7 +189,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
         </View>
       ) : (
         <View style={styles.topOther}>
-          <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Voltar"><Icon name="back" size={26} strokeWidth={2} /></Pressable>
+          <BackButton />
           <Text style={[styles.handleTop, { flex: 1 }]} numberOfLines={1}>@{p.username}</Text>
           <Pressable onPress={() => setSheet('menu')} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={24} strokeWidth={2.4} /></Pressable>
         </View>
