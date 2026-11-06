@@ -218,15 +218,17 @@ async function raw(path: string, init: RequestInit = {}, retry = true) {
 const post = (b: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(b) });
 
 /** Envia uma foto, vídeo ou áudio do chat (privado): pede o URL assinado, envia os bytes e confirma. Devolve o id do ficheiro. */
-export async function uploadChatMedia(uri: string, mime: string): Promise<string> {
+export async function uploadMedia(uri: string, mime: string, purpose: 'public' | 'chat' = 'chat'): Promise<string> {
   const blob = await (await fetch(uri)).blob();
-  const up = (await raw('/media/uploads', post({ mime, size: blob.size, purpose: 'chat' }))) as { assetId: string; uploadUrl: string };
+  const up = (await raw('/media/uploads', post({ mime, size: blob.size, purpose }))) as { assetId: string; uploadUrl: string };
   const url = /^https?:\/\//.test(up.uploadUrl) ? up.uploadUrl : `${SITE_URL}${up.uploadUrl}`;
   const put = await fetch(url, { method: 'PUT', headers: { 'Content-Type': mime }, body: blob });
   if (!put.ok) throw new ApiError(put.status, 'Não consegui enviar o ficheiro');
   await raw(`/media/${up.assetId}/complete`, { method: 'POST' });
   return up.assetId;
 }
+
+export const uploadChatMedia = (uri: string, mime: string) => uploadMedia(uri, mime, 'chat');
 
 export const api = {
   async login(identifier: string, password: string): Promise<AuthResult> {
@@ -252,6 +254,7 @@ export const api = {
   unrepost: (id: string): Promise<{ reposted: boolean; reposts: number }> => raw(`/posts/${id}/repost`, { method: 'DELETE' }),
   markSeen: (ids: string[]): Promise<void> => raw('/feed/seen', post({ ids })),
   stories: (): Promise<TrayUser[]> => raw('/stories'),
+  createPost: (b: { body: string; locationLabel?: string; mediaIds: string[] }): Promise<Post> => raw('/posts', post(b)),
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),
   chatThread: (username: string, cursor?: string): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${cursor ? `?cursor=${cursor}` : ''}`),

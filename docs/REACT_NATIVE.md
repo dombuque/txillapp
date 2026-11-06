@@ -22,7 +22,8 @@
 | Mensagens: lista, pedidos, conversa direta (texto, fotos, presentes, brindar, apagar) | `pages/Messages.tsx`, `Thread.tsx` | feito (barra de escrever com câmara, visualização única, voz, galeria, stickers, localização e presente; faltam grupos e tempo real por SSE, atualiza de 4 em 4 s) |
 | Perfil (meu e dos outros): cabeçalho, botões, separadores, grelha, seguir, bloquear, denunciar | `pages/Profile.tsx` | feito (faltam editar perfil, QR, geleira, seguidores, pedidos) |
 | Publicação aberta (`/p/:id`) | `pages/PostPage.tsx` | feito (faltam atividade e reels em ecrã inteiro) |
-| Nova publicação e câmara | `pages/Compose.tsx`, `components/CameraStudio.tsx` | por fazer |
+| Nova publicação (2 passos: escolher e legenda, fotos, vídeo, local) | `pages/Compose.tsx` | feito (redesenhado; faltam música, identificar pessoas e rascunhos; a câmara usa a do telemóvel) |
+| Puxar para atualizar com indicador | `components/PullToRefresh.tsx` | feito (Início, Mensagens, Notificações) |
 | Stories (ver e criar) | `components/Stories.tsx` | por fazer |
 | Reels e filtros do algoritmo | `pages/Reels.tsx`, `ReelPrefs.tsx` | por fazer |
 | Definições | `pages/Settings.tsx` | mínimo (conta e sair; o resto abre o site) |

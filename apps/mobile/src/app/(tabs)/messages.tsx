@@ -5,6 +5,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, Vi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
+import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { api, type ChatMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
@@ -80,6 +81,7 @@ export default function Messages() {
   const strangers = term ? (people.data ?? []).filter((p) => !known.has(p.username.toLowerCase())) : [];
   const loading = direct.isLoading || groups.isLoading;
 
+  const pull = usePullToRefresh(async () => { await Promise.all([direct.refetch(), groups.refetch()]); });
   const header = (
     <View>
       <View style={styles.top}>
@@ -105,7 +107,11 @@ export default function Messages() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
+      <PullView pull={pull}>
       <FlatList
+        onScroll={pull.onScroll}
+        scrollEventThrottle={16}
+        refreshControl={pull.control}
         data={rows}
         keyExtractor={(r) => r.key}
         ListHeaderComponent={header}
@@ -168,6 +174,7 @@ export default function Messages() {
           ) : <View style={{ height: 8 }} />
         }
       />
+      </PullView>
     </View>
   );
 }

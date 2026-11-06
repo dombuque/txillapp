@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { Icon, type IconName } from '@/components/Icon';
+import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
 import { api, type AppNotification } from '@/lib/api';
 import { colors } from '@/lib/theme';
@@ -132,6 +133,7 @@ export default function Notifications() {
     return () => clearTimeout(t);
   }, [q.isSuccess, qc]);
 
+  const pull = usePullToRefresh(() => q.refetch());
   const fresh = items.filter((n) => freshIds.current?.has(n.id));
   const older = items.filter((n) => !freshIds.current?.has(n.id));
   type Entry = { kind: 'h'; id: string; label: string } | { kind: 'n'; n: AppNotification; fresh: boolean };
@@ -144,7 +146,11 @@ export default function Notifications() {
 
   return (
     <StackPage title="Notificações">
+      <PullView pull={pull}>
       <FlatList
+        onScroll={pull.onScroll}
+        scrollEventThrottle={16}
+        refreshControl={pull.control}
         data={data}
         keyExtractor={(e) => (e.kind === 'h' ? e.id : e.n.id)}
         renderItem={({ item }) => (item.kind === 'h' ? <Text style={styles.h}>{item.label}</Text> : <Row n={item.n} fresh={item.fresh} />)}
@@ -172,6 +178,7 @@ export default function Notifications() {
           ) : <View style={{ height: 24 }} />
         }
       />
+      </PullView>
     </StackPage>
   );
 }

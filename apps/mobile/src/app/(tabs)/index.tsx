@@ -1,9 +1,10 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
+import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { PostCard } from '@/components/PostCard';
 import { StoriesTray } from '@/components/StoriesTray';
 import { Wordmark } from '@/components/Wordmark';
@@ -68,6 +69,7 @@ export default function Feed() {
   const posts: Post[] = (q.data?.pages.flatMap((p) => p.items) ?? []).filter((p) => !seen.has(p.id) && !!seen.add(p.id));
   const firstSeen = posts.findIndex((p) => p.feed?.seen);
 
+  const pull = usePullToRefresh(() => q.refetch(), q.isRefetching && !q.isFetchingNextPage);
   const onEnd = useCallback(() => {
     if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage();
   }, [q]);
@@ -75,7 +77,10 @@ export default function Feed() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <Header />
+      <PullView pull={pull}>
       <FlatList
+        onScroll={pull.onScroll}
+        scrollEventThrottle={16}
         data={q.isLoading || q.isError ? [] : posts}
         keyExtractor={(p) => p.id}
         renderItem={({ item, index }) => (
@@ -116,12 +121,13 @@ export default function Feed() {
         }
         onEndReached={onEnd}
         onEndReachedThreshold={1.5}
-        refreshControl={<RefreshControl refreshing={q.isRefetching && !q.isFetchingNextPage} onRefresh={() => void q.refetch()} tintColor={colors.brand} colors={[colors.brand]} />}
+        refreshControl={pull.control}
         showsVerticalScrollIndicator={false}
         windowSize={7}
         initialNumToRender={3}
         maxToRenderPerBatch={4}
       />
+      </PullView>
     </View>
   );
 }
