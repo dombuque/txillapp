@@ -125,35 +125,129 @@ export function TxCamera({
   const [review, setReview] = useState<Shot | null>(null);
   const reviewSrc = useRef<HTMLCanvasElement | null>(null);
   // Edição na pré-visualização: rodar/espelhar, cortar, filtro e ajustes. Aplica-se ao original a cada mudança.
-  type Edit = { rot: 0 | 90 | 180 | 270; flip: boolean; aspect: number | null; look: number; b: number; c: number; s: number };
-  const EDIT0: Edit = { rot: 0, flip: false, aspect: null, look: 0, b: 1, c: 1, s: 1 };
+  type Box = { x: number; y: number; w: number; h: number };
+  type Edit = { rot: 0 | 90 | 180 | 270; flip: boolean; aspect: number | null; box: Box | null; look: number; b: number; c: number; s: number };
+  const EDIT0: Edit = { rot: 0, flip: false, aspect: null, box: null, look: 0, b: 1, c: 1, s: 1 };
+  /** A assinatura do Txillapp no canto de baixo à direita da foto (o "a" a coral). */
+  function stamp(g: CanvasRenderingContext2D, W: number, H: number) {
+    const fs = Math.max(16, Math.round(W * 0.034));
+    const m = Math.round(W * 0.03);
+    g.save();
+    g.font = `900 ${fs}px Inter, system-ui, -apple-system, sans-serif`;
+    g.textBaseline = 'alphabetic';
+    g.shadowColor = 'rgba(0,0,0,0.55)';
+    g.shadowBlur = fs * 0.35;
+    const parts: [string, string][] = [['txill', '#fff'], ['a', '#d6334f'], ['pp', '#fff']];
+    const total = parts.reduce((n, [t]) => n + g.measureText(t).width, 0);
+    let x = W - m - total;
+    const y = H - m;
+    for (const [t, color] of parts) { g.fillStyle = color; g.fillText(t, x, y); x += g.measureText(t).width; }
+    g.restore();
+  }
   const [edit, setEdit] = useState<Edit>(EDIT0);
   const [tool, setTool] = useState<null | 'look' | 'adjust' | 'crop'>(null);
   const renderTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  function renderEdit(src: HTMLCanvasElement, e: Edit): HTMLCanvasElement {
+  function renderEdit(src: HTMLCanvasElement, e: Edit, sign = true): HTMLCanvasElement {
     const turned = e.rot === 90 || e.rot === 270;
     const w = turned ? src.height : src.width, h = turned ? src.width : src.height;
-    // Corte ao centro na proporção pedida.
-    let cw = w, ch = h;
-    if (e.aspect) { if (w / h > e.aspect) cw = Math.round(h * e.aspect); else ch = Math.round(w / e.aspect); }
+    // Corte: livre (caixa escolhida à mão) ou ao centro na proporção pedida.
+    let cx = 0, cy = 0, cw = w, ch = h;
+    if (e.box) {
+      cx = Math.round(e.box.x * w); cy = Math.round(e.box.y * h); cw = Math.max(16, Math.round(e.box.w * w)); ch = Math.max(16, Math.round(e.box.h * h));
+    } else if (e.aspect) {
+      if (w / h > e.aspect) cw = Math.round(h * e.aspect); else ch = Math.round(w / e.aspect);
+      cx = Math.round((w - cw) / 2); cy = Math.round((h - ch) / 2);
+    }
     const out = document.createElement('canvas');
     out.width = cw;
     out.height = ch;
     const g = out.getContext('2d')!;
-    g.translate(cw / 2, ch / 2);
+    g.translate(w / 2 - cx, h / 2 - cy);
     g.rotate((e.rot * Math.PI) / 180);
     if (e.flip) g.scale(-1, 1);
     g.drawImage(src, -src.width / 2, -src.height / 2);
     const base = LOOKS[e.look];
     const l: Look = { ...base, id: base.id === 'normal' && e.b === 1 && e.c === 1 && e.s === 1 ? 'normal' : 'edit', b: base.b * e.b, c: base.c * e.c, s: base.s * e.s };
     applyLook(out, l);
+    if (sign) stamp(out.getContext('2d')!, cw, ch);
     return out;
+  }
+  // Corte livre: a caixa (frações da imagem já rodada) arrasta-se pelos cantos ou pelo meio, por cima da foto inteira.
+  const [freeCrop, setFreeCrop] = useState(false);
+  const [box, setBox] = useState<Box>({ x: 0.08, y: 0.08, w: 0.84, h: 0.84 });
+  const boxRef = useRef(box);
+  boxRef.current = box;
+  const imgEl = useRef<HTMLImageElement | null>(null);
+  const [imgTick, setImgTick] = useState(0);
+  const drag = useRef<{ kind: 'nw' | 'ne' | 'sw' | 'se' | 'move'; x: number; y: number; box: Box } | null>(null);
+  /** Onde a foto está mesmo no ecrã (object-fit: contain). */
+  function imageRect(): { left: number; top: number; width: number; height: number } | null {
+    const el = imgEl.current;
+    if (!el || !el.naturalWidth) return null;
+    const r = el.getBoundingClientRect();
+    const k = Math.min(r.width / el.naturalWidth, r.height / el.naturalHeight);
+    const width = el.naturalWidth * k, height = el.naturalHeight * k;
+    return { left: (r.width - width) / 2, top: (r.height - height) / 2, width, height };
+  }
+  function cropTouchStart(e: TouchEvent) {
+    const rect = imageRect();
+    if (!rect || e.touches.length !== 1) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    const host = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const px = t.clientX - host.left - rect.left, py = t.clientY - host.top - rect.top;
+    const b = boxRef.current;
+    const corners: [typeof drag.current extends infer D ? (D extends { kind: infer K } ? K : never) : never, number, number][] = [
+      ['nw', b.x * rect.width, b.y * rect.height], ['ne', (b.x + b.w) * rect.width, b.y * rect.height],
+      ['sw', b.x * rect.width, (b.y + b.h) * rect.height], ['se', (b.x + b.w) * rect.width, (b.y + b.h) * rect.height],
+    ];
+    let kind: 'nw' | 'ne' | 'sw' | 'se' | 'move' = 'move';
+    for (const [k, x, y] of corners) if (Math.hypot(px - x, py - y) < 34) { kind = k as typeof kind; break; }
+    drag.current = { kind, x: t.clientX, y: t.clientY, box: b };
+  }
+  function cropTouchMove(e: TouchEvent) {
+    const d = drag.current; const rect = imageRect();
+    if (!d || !rect || e.touches.length !== 1) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    const dx = (t.clientX - d.x) / rect.width, dy = (t.clientY - d.y) / rect.height;
+    const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+    let { x, y, w, h } = d.box;
+    const MIN = 0.12;
+    if (d.kind === 'move') { x = clamp(x + dx, 0, 1 - w); y = clamp(y + dy, 0, 1 - h); }
+    else {
+      const x2 = x + w, y2 = y + h;
+      let nx = x, ny = y, nx2 = x2, ny2 = y2;
+      if (d.kind === 'nw' || d.kind === 'sw') nx = clamp(x + dx, 0, x2 - MIN);
+      if (d.kind === 'ne' || d.kind === 'se') nx2 = clamp(x2 + dx, x + MIN, 1);
+      if (d.kind === 'nw' || d.kind === 'ne') ny = clamp(y + dy, 0, y2 - MIN);
+      if (d.kind === 'sw' || d.kind === 'se') ny2 = clamp(y2 + dy, y + MIN, 1);
+      x = nx; y = ny; w = nx2 - nx; h = ny2 - ny;
+    }
+    setBox({ x, y, w, h });
+  }
+  function cropTouchEnd() { drag.current = null; }
+  /** Entra no corte livre: mostra a foto inteira (sem corte) com a caixa por cima. */
+  function startFreeCrop() {
+    setFreeCrop(true);
+    const e = { ...edit, aspect: null, box: null };
+    setEdit(e);
+    const src = reviewSrc.current;
+    if (src) renderEdit(src, e, false).toBlob((blob) => blob && setReview((r) => (r && !r.video ? { ...r, uri: URL.createObjectURL(blob) } : r)), 'image/jpeg', 0.9);
+  }
+  /** Sai do corte livre aplicando a caixa. */
+  function endFreeCrop() {
+    if (!freeCrop) return;
+    setFreeCrop(false);
+    changeEdit({ box: boxRef.current, aspect: null });
   }
   function openReview(c: HTMLCanvasElement) {
     reviewSrc.current = c;
     setEdit(EDIT0);
     setTool(null);
-    c.toBlob((blob) => blob && setReview({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' }), 'image/jpeg', 0.9);
+    setFreeCrop(false);
+    setBox({ x: 0.08, y: 0.08, w: 0.84, h: 0.84 });
+    renderEdit(c, EDIT0).toBlob((blob) => blob && setReview({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' }), 'image/jpeg', 0.9);
   }
   function changeEdit(patch: Partial<Edit>) {
     const e = { ...edit, ...patch };
@@ -607,7 +701,20 @@ export function TxCamera({
         <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', zIndex: 10 }]} accessibilityViewIsModal>
           {review.video
             ? dom('video', { src: review.uri, playsInline: true, autoPlay: true, loop: true, muted: false, controls: false, style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' } })
-            : dom('img', { src: review.uri, alt: 'Pré-visualização', style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' } })}
+            : dom('img', { ref: imgEl, src: review.uri, alt: 'Pré-visualização', onLoad: () => setImgTick((n) => n + 1), style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' } })}
+          {!review.video && freeCrop && tool === 'crop' && (() => {
+            const r = imageRect();
+            void imgTick;
+            if (!r) return null;
+            const L = r.left + box.x * r.width, T = r.top + box.y * r.height, W = box.w * r.width, H = box.h * r.height;
+            const handle = (x: number, y: number) => dom('div', { key: `${x}-${y}`, style: { position: 'absolute', left: x - 14, top: y - 14, width: 28, height: 28, borderRadius: 14, background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.5)' } });
+            return dom(
+              'div',
+              { style: { position: 'absolute', inset: 0, touchAction: 'none', zIndex: 4 }, onTouchStart: cropTouchStart, onTouchMove: cropTouchMove, onTouchEnd: cropTouchEnd, onTouchCancel: cropTouchEnd },
+              dom('div', { key: 'box', style: { position: 'absolute', left: L, top: T, width: W, height: H, boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)', border: '2px solid #fff', backgroundImage: 'linear-gradient(rgba(255,255,255,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.35) 1px, transparent 1px)', backgroundSize: `${W / 3}px ${H / 3}px` } }),
+              handle(L, T), handle(L + W, T), handle(L, T + H), handle(L + W, T + H),
+            );
+          })()}
           <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: 200, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)' })} />
           <View style={[st.top, { paddingTop: topPad }]}>
             <Pressable onPress={() => setReview(null)} style={st.round} accessibilityRole="button" accessibilityLabel="Repetir"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
@@ -641,16 +748,19 @@ export function TxCamera({
               )}
               {tool === 'crop' && (
                 <View style={[st.looks, { flexDirection: 'row', justifyContent: 'center' }]}>
+                  <Pressable onPress={startFreeCrop} style={[st.lookChip, freeCrop && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: freeCrop }}>
+                    <Text style={[st.lookText, freeCrop && { color: colors.zinc900 }]}>Livre</Text>
+                  </Pressable>
                   {([[null, 'Original'], [1, '1:1'], [0.8, '4:5'], [9 / 16, '9:16'], [16 / 9, '16:9']] as const).map(([a, label]) => (
-                    <Pressable key={label} onPress={() => changeEdit({ aspect: a })} style={[st.lookChip, edit.aspect === a && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: edit.aspect === a }}>
-                      <Text style={[st.lookText, edit.aspect === a && { color: colors.zinc900 }]}>{label}</Text>
+                    <Pressable key={label} onPress={() => { setFreeCrop(false); changeEdit({ aspect: a, box: null }); }} style={[st.lookChip, !freeCrop && edit.aspect === a && edit.box === null && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: !freeCrop && edit.aspect === a }}>
+                      <Text style={[st.lookText, !freeCrop && edit.aspect === a && edit.box === null && { color: colors.zinc900 }]}>{label}</Text>
                     </Pressable>
                   ))}
                 </View>
               )}
               <View style={st.toolRow}>
                 {([['look', 'sparkles', 'Filtros'], ['adjust', 'sliders', 'Ajustar'], ['crop', 'expand', 'Cortar']] as const).map(([t, ic, label]) => (
-                  <Pressable key={t} onPress={() => setTool((cur) => (cur === t ? null : t))} style={st.toolBtn} accessibilityRole="tab" accessibilityState={{ selected: tool === t }}>
+                  <Pressable key={t} onPress={() => { endFreeCrop(); setTool((cur) => (cur === t ? null : t)); }} style={st.toolBtn} accessibilityRole="tab" accessibilityState={{ selected: tool === t }}>
                     <Icon name={ic} size={22} color={tool === t ? '#fff' : 'rgba(255,255,255,0.7)'} strokeWidth={2} />
                     <Text style={[st.toolText, tool === t && { color: '#fff' }]}>{label}</Text>
                   </Pressable>
@@ -660,7 +770,20 @@ export function TxCamera({
           )}
           <View style={[st.reviewBar, { paddingBottom: botPad }]}>
             <Pressable onPress={() => setReview(null)} style={st.retake} accessibilityRole="button"><Icon name="undo" size={20} color="#fff" strokeWidth={2.2} /><Text style={st.retakeText}>Repetir</Text></Pressable>
-            <Pressable onPress={() => { const r = review; setReview(null); setTool(null); onShot(r); }} style={st.use} accessibilityRole="button"><Text style={st.useText}>{review.video ? 'Usar vídeo' : 'Usar foto'}</Text><Icon name="check" size={20} color="#fff" strokeWidth={3} /></Pressable>
+            <Pressable
+              onPress={() => {
+                const r = review;
+                const src = reviewSrc.current;
+                if (!r.video && src) {
+                  const final = { ...edit, box: freeCrop ? boxRef.current : edit.box, aspect: freeCrop ? null : edit.aspect };
+                  renderEdit(src, final).toBlob((blob) => { setReview(null); setTool(null); setFreeCrop(false); onShot(blob ? { uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' } : r); }, 'image/jpeg', 0.92);
+                  return;
+                }
+                setReview(null); setTool(null); onShot(r);
+              }}
+              style={st.use}
+              accessibilityRole="button"
+            ><Text style={st.useText}>{review.video ? 'Usar vídeo' : 'Usar foto'}</Text><Icon name="check" size={20} color="#fff" strokeWidth={3} /></Pressable>
           </View>
         </View>
       )}
