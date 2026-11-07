@@ -14,7 +14,7 @@ import { colors } from '@/lib/theme';
 
 type Kind = 'followers' | 'following';
 
-function ConnectionList({ username, kind, me, width }: { username: string; kind: Kind; me: string; width: number }) {
+function ConnectionList({ username, kind, me, width, height = 0 }: { username: string; kind: Kind; me: string; width: number; height?: number }) {
   const router = useRouter();
   const [text, setText] = useState('');
   const [term, setTerm] = useState('');
@@ -30,7 +30,7 @@ function ConnectionList({ username, kind, me, width }: { username: string; kind:
   });
   const people: Person[] = q.data?.pages.flatMap((x) => x.items) ?? [];
   return (
-    <View style={{ width, flex: 1 }}>
+    <View style={height ? { width, height } : { width, flex: 1 }}>
       <View style={st.searchWrap}>
         <View style={st.search}>
           <Icon name="search" size={18} color={colors.zinc600} />
@@ -78,6 +78,8 @@ export default function Connections() {
   const width = measured || win;
   const start: Kind = tab === 'following' ? 'following' : 'followers';
   const [cur, setCur] = useState<Kind>(start);
+  // Altura medida da zona da lista: o Safari (iPhone) não dá altura definida a `flex: 1` encadeado e a lista não rolava.
+  const [pageH, setPageH] = useState(0);
   const pager = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const profile = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username), retry: false });
   const p = profile.data;
@@ -114,8 +116,8 @@ export default function Connections() {
           </View>
           {Platform.OS === 'web' ? (
             // Na web (iPhone/Safari) a lista dentro de um pager horizontal não rola com o dedo: mostra-se só o separador ativo.
-            <View style={{ flex: 1 }} onLayout={(e) => setMeasured(e.nativeEvent.layout.width)}>
-              <ConnectionList key={cur} username={username} kind={cur} me={user!.username} width={width} />
+            <View style={{ flex: 1 }} onLayout={(e) => { setMeasured(e.nativeEvent.layout.width); setPageH(e.nativeEvent.layout.height); }}>
+              <ConnectionList key={cur} username={username} kind={cur} me={user!.username} width={width} height={pageH} />
             </View>
           ) : (
             <ScrollView ref={pager} onLayout={(e) => setMeasured(e.nativeEvent.layout.width)} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(e) => setCur(Math.round(e.nativeEvent.contentOffset.x / width) === 0 ? 'followers' : 'following')} style={{ flex: 1 }}>

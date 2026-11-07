@@ -310,13 +310,11 @@ function QuoteBox({ original, me, onPhoto, onOpen, onDouble }: { original: Post;
         <Text style={styles.quoteTime}>· {timeAgo(original.createdAt)}</Text>
       </Pressable>
       {original.gift ? (
-        <View style={styles.quoteGift}>
-          <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
-          <Icon name="gift" size={14} color="#fff" />
-          <Text style={styles.quoteGiftText}>{original.gift.amount.toLocaleString('pt-PT')} Txills</Text>
+        <View style={{ marginHorizontal: 12, marginTop: 8 }}>
+          <GiftCard post={original} g={original.gift} me={me} onDouble={onDouble} compact />
         </View>
       ) : null}
-      {original.body ? <Text style={styles.quoteBody} numberOfLines={4}>{original.body}</Text> : null}
+      {original.body && !original.gift ? <Text style={styles.quoteBody} numberOfLines={4}>{original.body}</Text> : null}
       {m?.kind === 'video' ? (
         <Pressable onPress={() => onOpen(original)} style={styles.quoteMedia} accessibilityRole="button" accessibilityLabel="Ver o vídeo">
           {m.posterUrl ? <Image source={{ uri: sized(m.posterUrl, 720) }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors /> : null}
@@ -335,13 +333,45 @@ function QuoteBox({ original, me, onPhoto, onOpen, onDouble }: { original: Post;
   );
 }
 
-/** Cartão de presente (X presenteou Y): degradê coral, as duas fotos, o valor e a mensagem. Duplo toque também brinda. */
-function GiftBlock({ post, g, me, onDouble, menu, onOpenPost }: { post: Post; g: NonNullable<Post['gift']>; me?: string; onDouble?: () => void; menu?: React.ReactNode; onOpenPost?: (p: Post) => void }) {
+/** O cartão do presente em si (degradê coral, as duas fotos, o valor e a mensagem). Também aparece dentro de um repost. */
+function GiftCard({ post, g, me, onDouble, compact = false }: { post: Post; g: NonNullable<Post['gift']>; me?: string; onDouble?: () => void; compact?: boolean }) {
   const router = useRouter();
   const tap = useTap(onDouble);
   const sender = post.author;
   const rec = (g as unknown as GiftExtra).recipient;
   const go = (u: string) => router.push((u === (me ?? '') ? '/profile' : `/u/${u}`) as never);
+  return (
+    <Pressable onPress={() => tap()} style={[styles.giftCard, compact && { marginTop: 0, paddingTop: 16, paddingBottom: 14, borderRadius: 18 }]} accessibilityLabel="Presente (toca duas vezes para brindar)">
+      <LinearGradient colors={[colors.brand, '#e8475f', '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      <View style={[styles.giftDot, { left: -24, top: -24, width: 96, height: 96, borderRadius: 48 }]} />
+      <View style={[styles.giftDot, { right: -16, bottom: -32, width: 112, height: 112, borderRadius: 56 }]} />
+      <View style={[styles.giftDot, { right: 32, top: 16, width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.5)' }]} />
+      <View style={[styles.giftDot, { left: 40, top: 64, width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)' }]} />
+      <View style={{ width: compact ? 104 : 132, height: compact ? 60 : 76, alignSelf: 'center' }}>
+        <Pressable onPress={() => go(rec.username)} style={[styles.giftAva, { right: 0 }, compact && { borderRadius: 30, borderWidth: 3 }]} accessibilityLabel={`Perfil de ${rec.displayName}`}>
+          <Avatar name={rec.displayName} username={rec.username} size={compact ? 52 : 68} />
+        </Pressable>
+        <Pressable onPress={() => go(sender.username)} style={[styles.giftAva, { left: 0, zIndex: 2 }, compact && { borderRadius: 30, borderWidth: 3 }]} accessibilityLabel={`Perfil de ${sender.displayName}`}>
+          <Avatar name={sender.displayName} username={sender.username} size={compact ? 52 : 68} />
+        </Pressable>
+        <View style={[styles.giftBadge, compact && { left: 36, width: 30, height: 30, borderRadius: 15 }]}><Icon name="gift" size={20} color={colors.brand} /></View>
+      </View>
+      <View style={styles.giftLineRow}>
+        <Text style={styles.giftLine} onPress={() => go(sender.username)}><Text style={{ fontWeight: '800' }}>{sender.displayName}</Text></Text>
+        {sender.verified ? <VerifiedBadge size={15} tier={sender.verifiedTier} /> : null}
+        <Text style={styles.giftLine}>presenteou</Text>
+        <Text style={styles.giftLine} onPress={() => go(rec.username)}><Text style={{ fontWeight: '800' }}>{rec.displayName}</Text></Text>
+        {rec.verified ? <VerifiedBadge size={15} tier={rec.verifiedTier} /> : null}
+      </View>
+      <Text style={[styles.giftAmount, compact && { fontSize: 30, lineHeight: 32 }]}>{g.amount.toLocaleString('pt-PT')}</Text>
+      <Text style={styles.giftUnit}>TXILLS</Text>
+      {post.body ? <Text style={styles.giftNote}>{post.body}</Text> : null}
+    </Pressable>
+  );
+}
+
+/** Cartão de presente (X presenteou Y): degradê coral, as duas fotos, o valor e a mensagem. Duplo toque também brinda. */
+function GiftBlock({ post, g, me, onDouble, menu, onOpenPost }: { post: Post; g: NonNullable<Post['gift']>; me?: string; onDouble?: () => void; menu?: React.ReactNode; onOpenPost?: (p: Post) => void }) {
   return (
     <>
       <View style={styles.giftHead}>
@@ -354,32 +384,7 @@ function GiftBlock({ post, g, me, onDouble, menu, onOpenPost }: { post: Post; g:
           {menu}
         </View>
       </View>
-      <Pressable onPress={() => tap()} style={styles.giftCard} accessibilityLabel="Presente (toca duas vezes para brindar)">
-        <LinearGradient colors={[colors.brand, '#e8475f', '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-        <View style={[styles.giftDot, { left: -24, top: -24, width: 96, height: 96, borderRadius: 48 }]} />
-        <View style={[styles.giftDot, { right: -16, bottom: -32, width: 112, height: 112, borderRadius: 56 }]} />
-        <View style={[styles.giftDot, { right: 32, top: 16, width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.5)' }]} />
-        <View style={[styles.giftDot, { left: 40, top: 64, width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)' }]} />
-        <View style={{ width: 132, height: 76, alignSelf: 'center' }}>
-          <Pressable onPress={() => go(rec.username)} style={[styles.giftAva, { right: 0 }]} accessibilityLabel={`Perfil de ${rec.displayName}`}>
-            <Avatar name={rec.displayName} username={rec.username} size={68} />
-          </Pressable>
-          <Pressable onPress={() => go(sender.username)} style={[styles.giftAva, { left: 0, zIndex: 2 }]} accessibilityLabel={`Perfil de ${sender.displayName}`}>
-            <Avatar name={sender.displayName} username={sender.username} size={68} />
-          </Pressable>
-          <View style={styles.giftBadge}><Icon name="gift" size={20} color={colors.brand} /></View>
-        </View>
-        <View style={styles.giftLineRow}>
-          <Text style={styles.giftLine} onPress={() => go(sender.username)}><Text style={{ fontWeight: '800' }}>{sender.displayName}</Text></Text>
-          {sender.verified ? <VerifiedBadge size={15} tier={sender.verifiedTier} /> : null}
-          <Text style={styles.giftLine}>presenteou</Text>
-          <Text style={styles.giftLine} onPress={() => go(rec.username)}><Text style={{ fontWeight: '800' }}>{rec.displayName}</Text></Text>
-          {rec.verified ? <VerifiedBadge size={15} tier={rec.verifiedTier} /> : null}
-        </View>
-        <Text style={styles.giftAmount}>{g.amount.toLocaleString('pt-PT')}</Text>
-        <Text style={styles.giftUnit}>TXILLS</Text>
-        {post.body ? <Text style={styles.giftNote}>{post.body}</Text> : null}
-      </Pressable>
+      <GiftCard post={post} g={g} me={me} onDouble={onDouble} />
       {post.repostOf ? <GiftedPost original={post.repostOf} onOpen={onOpenPost} /> : null}
     </>
   );
