@@ -2,7 +2,7 @@
   "expo": {
     "name": "Txillapp",
     "slug": "txillapp",
-    "version": "1.4.4",
+    "version": "1.4.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "txillapp",
@@ -46,6 +46,14 @@
       "themeColor": "#ffffff"
     },
     "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O Txillapp usa a câmara para tirares fotos, vídeos e Zás.",
+          "microphonePermission": "O Txillapp usa o microfone para gravares vídeos e notas de voz.",
+          "recordAudioAndroid": true
+        }
+      ],
       "expo-router",
       "expo-secure-store",
       [

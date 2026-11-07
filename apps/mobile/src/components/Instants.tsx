@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as SecureStore from 'expo-secure-store';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -302,6 +303,12 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   }
 
   /** Envia a foto (uri local ou blob:) como Zás, com 6 s para desfazer. */
+  // Nativo: a câmara vive dentro do cartão (como no site), em vez de abrir a câmara do sistema.
+  const [camPerm, askCam] = useCameraPermissions();
+  const camRef = useRef<CameraView | null>(null);
+  const [facing, setFacing] = useState<'back' | 'front'>('back');
+  const [torch, setTorch] = useState(false);
+  const [camReady, setCamReady] = useState(false);
   async function send(uri: string, mime: string) {
     setBusy(true);
     setErr('');
@@ -322,6 +329,21 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   async function shoot() {
     if (busy) return;
     setErr('');
+    // Com a câmara ao vivo no cartão: tira ali mesmo e manda.
+    if (Platform.OS !== 'web' && camPerm?.granted && camRef.current && camReady) {
+      try {
+        const pic = await camRef.current.takePictureAsync({ quality: 0.85, skipProcessing: false });
+        if (pic?.uri) await send(pic.uri, 'image/jpeg');
+      } catch (e) {
+        setErr((e as Error).message || 'Não consegui tirar a foto');
+      }
+      return;
+    }
+    if (Platform.OS !== 'web' && !camPerm?.granted) {
+      const r = await askCam();
+      if (!r.granted) setErr('Preciso de acesso à câmara para o Zás.');
+      return;
+    }
     try {
       const p = await ImagePicker.requestCameraPermissionsAsync();
       if (!p.granted) return setErr('Preciso de acesso à câmara.');
@@ -401,10 +423,14 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
           <>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <View style={[st.cam, squircle(cardW), { width: cardW, height: cardW / 0.75 }]}>
-            <Pressable onPress={() => void shoot()} disabled={busy} accessibilityRole="button" accessibilityLabel="Abrir a câmara" style={{ alignItems: 'center', gap: 10 }}>
-              <Icon name="camera" size={44} color="rgba(255,255,255,0.7)" />
-              <Text style={{ fontSize: 15, fontWeight: '600', color: 'rgba(255,255,255,0.7)' }}>Toca no raio para tirar o Zás</Text>
-            </Pressable>
+            {camPerm?.granted ? (
+              <CameraView ref={camRef} style={StyleSheet.absoluteFill} facing={facing} enableTorch={torch} mirror={facing === 'front'} onCameraReady={() => setCamReady(true)} />
+            ) : (
+              <Pressable onPress={() => void askCam()} accessibilityRole="button" accessibilityLabel="Permitir a câmara" style={{ alignItems: 'center', gap: 10, paddingHorizontal: 24 }}>
+                <Icon name="camera" size={44} color="rgba(255,255,255,0.7)" />
+                <Text style={{ fontSize: 15, fontWeight: '600', color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>{camPerm && !camPerm.canAskAgain ? 'A câmara está bloqueada. Ativa-a nas definições do telemóvel.' : 'Toca para ligar a câmara'}</Text>
+              </Pressable>
+            )}
             <CurvedCaption w={cardW} h={cardW / 0.75} text={caption || 'Adicionar legenda…'} hint={!caption} caret={capEdit} caretFirst={!caption} />
             <TextInput
               value={caption}
@@ -422,13 +448,19 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
 
         <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: Math.max(16, insets.bottom) }}>
           {sentBox}
-          <View style={{ alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
+            <Pressable onPress={() => setTorch((t) => !t)} disabled={!camPerm?.granted || facing === 'front'} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, torch && { backgroundColor: '#fcd34d' }, (!camPerm?.granted || facing === 'front') && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel="Lanterna" accessibilityState={{ selected: torch }}>
+              <Icon name="bolt" size={22} solid={torch} color={torch ? colors.zinc900 : '#fff'} />
+            </Pressable>
             <Pressable onPress={() => void shoot()} disabled={busy} accessibilityRole="button" accessibilityLabel="Tirar e enviar" style={[st.shutterRing, busy && { opacity: 0.5 }]}>
               <LinearGradient colors={['#ff5c5c', '#ff9a5b', '#ffd166', '#ff5c5c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
               <View style={st.shutterGap} />
               <View style={[st.shutter, { backgroundColor: busy ? colors.brand : '#fff' }]}>
                 {busy ? <ActivityIndicator color="#fff" /> : <Icon name="bolt" size={30} solid color={colors.brand} />}
               </View>
+            </Pressable>
+            <Pressable onPress={() => { setTorch(false); setCamReady(false); setFacing((f) => (f === 'back' ? 'front' : 'back')); }} disabled={!camPerm?.granted} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, !camPerm?.granted && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel="Virar câmara">
+              <Icon name="flip-camera" size={22} color="#fff" />
             </Pressable>
           </View>
           {/* Para quem vai: amigos (próximos e mútuos) ou só os amigos próximos. */}

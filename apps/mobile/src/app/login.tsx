@@ -117,7 +117,7 @@ export function Screen({ children, footer }: { children: ReactNode; footer?: Rea
         <Blob size={380} color="#d6334f" style={{ right: -150, top: -150 }} />
         <Blob size={340} color="#fcd34d" style={{ left: -170, top: 190 }} />
       </View>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 24, paddingHorizontal: 28 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 24, paddingHorizontal: 28, paddingBottom: footer ? 0 : insets.bottom }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {children}
       </ScrollView>
       {footer ? <View style={[styles.footer, { paddingBottom: 20 + insets.bottom }]}>{footer}</View> : null}
