@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useMemo, useState } from 'react';
 import { Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
@@ -244,6 +245,17 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
   );
 }
 
+/** O vídeo da publicação a tocar na pré-visualização (em ciclo, com som), como vai ficar no status. */
+function PreviewVideo({ url }: { url: string }) {
+  const player = useVideoPlayer(url, (p) => { p.loop = true; p.muted = false; p.play(); });
+  // O Safari pode recusar tocar com som sem um toque recente: nesse caso toca sem som.
+  useEffect(() => {
+    const t = setTimeout(() => { try { if (!player.playing) { player.muted = true; player.play(); } } catch { /* leitor libertado */ } }, 700);
+    return () => { clearTimeout(t); try { player.pause(); } catch { /* já libertado */ } };
+  }, [player]);
+  return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />;
+}
+
 /** Pré-visualização do status: o ecrã 9:16 com a publicação, a legenda e a escolha de quem vê. */
 function StoryPreview({ post, audience, setAudience, caption, setCaption, busy, onBack, onPublish }: {
   post: Post; audience: 'all' | 'close_friends'; setAudience: (a: 'all' | 'close_friends') => void; caption: string; setCaption: (c: string) => void; busy: boolean; onBack: () => void; onPublish: () => void;
@@ -264,7 +276,7 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, busy, 
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 }}>
         <View style={[st.phone, { width: pw, height: Math.round(pw * 16 / 9) }]}>
           {still ? <Image source={{ uri: still }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
-          {m?.kind === 'video' ? <View style={st.playBadge}><Icon name="play" size={28} color="#fff" solid /></View> : null}
+          {m?.kind === 'video' && abs(m.url) ? <PreviewVideo url={abs(m.url)!} /> : null}
           <View style={st.phoneTop}>
             <Avatar name={post.author.displayName} username={post.author.username} size={30} />
             <Text style={{ flexShrink: 1, fontSize: 13, fontWeight: '600', color: '#fff' }} numberOfLines={1}>@{post.author.username}</Text>

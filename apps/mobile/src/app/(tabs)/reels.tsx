@@ -285,7 +285,8 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
     try { player.currentTime = 0; } catch { /* leitor ainda a carregar */ }
   }, [active, player]);
 
-  const shouldPlay = active && visible && !userPaused && !ended;
+  // Com a partilha aberta (pré-visualização do status) o vídeo de fundo pára: é a pré-visualização que toca.
+  const shouldPlay = active && visible && !userPaused && !ended && sheet !== 'share';
   useEffect(() => {
     try { player.muted = silent; } catch { /* leitor libertado */ }
   }, [silent, player]);
