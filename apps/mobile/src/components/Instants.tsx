@@ -762,7 +762,8 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
     setReply('');
     setErr('');
     try {
-      await api.chatSend(who.username, { kind: 'text', body: `Sobre o teu Zás: ${body}` });
+      if (!cur) return;
+      await api.chatSend(who.username, { kind: 'zas_reply', body, instantId: cur.id });
       flash('Enviado para as mensagens', 2000);
     } catch (e) {
       setErr((e as Error).message);

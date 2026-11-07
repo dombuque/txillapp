@@ -9,7 +9,7 @@ import { MediaService } from '../media/media.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
 
-export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video';
+export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply';
 
 /** Stickers que existem (o desenho está na app; aqui só se confirma que o id é válido). */
 /** Os stickers são desenhados na app; o servidor só confirma que o id tem o feitio certo (a lista cresce sem mexer aqui). */
@@ -24,8 +24,10 @@ const pair = (x: string, y: string) => (x < y ? ([x, y] as const) : ([y, x] as c
 
 export interface Outgoing {
   body: string;
-  kind: 'text' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift';
+  kind: 'text' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply';
   mediaId?: string;
+  /** Resposta a um Zás (kind 'zas_reply'): qual. A foto do Zás fica na mensagem. */
+  instantId?: string;
   durationMs?: number;
   waveform?: string;
   lat?: number;
@@ -272,8 +274,9 @@ export class ChatService {
         kind: m.kind as MessageKind,
         viewOnce: !!m.view_once,
         opened: !!m.viewed_at,
-        storyUrl: m.story_media_id ? `/api/v1/media/${m.story_media_id}` : null,
-        mediaUrl: m.media_id && !m.view_once ? this.media.chatUrl(m.media_id) : null,
+        storyUrl: m.story_media_id && m.kind !== 'zas_reply' ? `/api/v1/media/${m.story_media_id}` : null,
+        // Resposta a um Zás: a foto do Zás vai como média da mensagem (URL assinado, como as fotos do chat).
+        mediaUrl: m.media_id && !m.view_once ? this.media.chatUrl(m.media_id) : m.kind === 'zas_reply' && m.story_media_id ? this.media.chatUrl(m.story_media_id) : null,
         durationMs: m.duration_ms as number | null,
         waveform: m.view_once ? null : ((m.waveform as string | null) ?? null),
         lat: (m.lat as number | null) ?? null,
@@ -330,7 +333,7 @@ export class ChatService {
 
   /** Mensagem normal: precisa de não haver bloqueio e de a pessoa aceitar mensagens (ou já existir conversa). */
   async send(me: string, username: string, msg: Outgoing) {
-    if (msg.kind === 'text' || msg.kind === 'image') this.filter.assertClean(msg.body);
+    if (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'zas_reply') this.filter.assertClean(msg.body);
     const other = await this.userByName(username);
     if (other.id === me) throw new BadRequestException('Não podes enviar mensagens a ti próprio');
     const ok = await this.pool.query(
@@ -368,6 +371,13 @@ export class ChatService {
     const rel = await this.relationOf(me, other.id, await this.conversation(me, other.id, false));
     if (rel.left === 0) {
       throw new ForbiddenException(`Esta pessoa não te segue e ainda não respondeu. Podes escrever outra vez quando ela responder, aceitar ou te seguir.`);
+    }
+    // Resposta a um Zás: tem de ser um Zás dessa pessoa ainda a valer; a foto dele vai na mensagem.
+    if (msg.kind === 'zas_reply') {
+      if (!msg.body.trim()) throw new BadRequestException('Escreve alguma coisa');
+      const z = await this.pool.query('SELECT media_id FROM social.instants WHERE id = $1 AND author_id = $2 AND expires_at > now()', [msg.instantId ?? null, other.id]);
+      if (!z.rows[0]) throw new BadRequestException('Esse Zás já não está disponível');
+      return this.insert(me, other.id, msg.body.slice(0, 2000), 'zas_reply', z.rows[0].media_id as string, null, null, null, null, {});
     }
     const place = await this.validateOutgoing(me, msg);
     const once = !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice' || msg.kind === 'video');

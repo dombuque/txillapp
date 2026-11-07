@@ -157,7 +157,7 @@ export interface SearchResults {
   tags: { tag: string; posts: number }[];
 }
 export interface TrendingTag { tag: string; posts: number; rising?: boolean }
-export type MsgKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift';
+export type MsgKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply';
 export interface ChatMessage {
   id: string;
   fromMe: boolean;
@@ -430,7 +430,7 @@ export const api = {
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),
   chatThread: (username: string, cursor?: string): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${cursor ? `?cursor=${cursor}` : ''}`),
-  chatSend: (username: string, msg: { body?: string; kind?: MsgKind; mediaId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; once?: boolean; replyTo?: string }): Promise<{ id: string }> => raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
+  chatSend: (username: string, msg: { body?: string; kind?: MsgKind; mediaId?: string; instantId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; once?: boolean; replyTo?: string }): Promise<{ id: string }> => raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
   chatOpen: (id: string): Promise<{ kind: MsgKind; body: string; mediaUrl: string | null; durationMs: number | null; waveform: string | null }> => raw(`/chat/messages/${id}/open`, post({})),
   chatDelete: (id: string): Promise<void> => raw(`/chat/messages/${id}`, { method: 'DELETE' }),
   chatReact: (id: string, reaction: string): Promise<void> => raw(`/chat/messages/${id}/reaction`, { method: 'PUT', body: JSON.stringify({ reaction }) }),

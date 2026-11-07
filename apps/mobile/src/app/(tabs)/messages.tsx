@@ -28,6 +28,7 @@ function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, g
   if (m.kind === 'location') return `${you}Localização`;
   if (m.kind === 'story_reaction') return `${m.fromMe ? 'Reagiste ao mimo' : 'Reagiu ao teu mimo'}: ${REACTIONS.find((x) => x.id === m.body)?.label ?? m.body}`;
   if (m.kind === 'story_reply') return `${m.fromMe ? 'Respondeste ao mimo' : 'Respondeu ao teu mimo'}: ${m.body}`;
+  if (m.kind === 'zas_reply') return `${m.fromMe ? 'Respondeste ao Zás' : 'Respondeu ao teu Zás'}: ${m.body}`;
   return `${group ? '' : you}${m.body}`;
 }
 

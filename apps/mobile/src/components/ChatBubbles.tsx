@@ -26,7 +26,7 @@ export function senderColor(username: string): string {
 
 const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voice: 'Mensagem de voz', sticker: 'Sticker', post: 'Publicação', location: 'Localização', gift: 'Presente' };
 /** Excerto de uma mensagem para citar (na bolha e na barra de resposta). */
-export const quoteText = (kind: ChatMessage['kind'], body: string) => (kind === 'text' || kind === 'story_reply' ? body : KIND_LABEL[kind] ?? 'Mensagem');
+export const quoteText = (kind: ChatMessage['kind'], body: string) => (kind === 'text' || kind === 'story_reply' || kind === 'zas_reply' ? body : KIND_LABEL[kind] ?? 'Mensagem');
 export const clock = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
 export const sameDay = (a: string, b: string) => new Date(a).toDateString() === new Date(b).toDateString();
@@ -333,7 +333,7 @@ export function Bubble({
       onCheer(m);
     } else lastTap.current = now;
   };
-  const storyLabel = m.kind === 'story_reaction' ? (mine ? 'Reagiste ao mimo' : 'Reagiu ao teu mimo') : mine ? 'Respondeste ao mimo' : 'Respondeu ao teu mimo';
+  const storyLabel = m.kind === 'zas_reply' ? (mine ? 'Respondeste ao Zás' : 'Respondeu ao teu Zás') : m.kind === 'story_reaction' ? (mine ? 'Reagiste ao mimo' : 'Reagiu ao teu mimo') : mine ? 'Respondeste ao mimo' : 'Respondeu ao teu mimo';
 
   return (
     <View style={[{ alignItems: mine ? 'flex-end' : 'flex-start', marginTop: prevSame ? 2 : 12, borderRadius: 24 }, flash && { backgroundColor: 'rgba(214,51,79,0.15)' }]}>
@@ -358,8 +358,14 @@ export function Bubble({
           <Image source={{ uri: sized(m.storyUrl, 160) }} style={{ height: 112, width: 72, borderRadius: 12, opacity: 0.9 }} contentFit="cover" />
         </Pressable>
       ) : null}
-      {(m.kind === 'story_reply' || m.kind === 'story_reaction') && <Text style={{ marginBottom: 2, fontSize: 12, color: colors.zinc500 }}>{storyLabel}</Text>}
-      <Pressable onPress={onPress} onLongPress={real ? () => onMenu(m) : undefined} delayLongPress={450} style={{ maxWidth: m.kind === 'text' || m.kind === 'story_reply' ? '82%' : m.kind === 'image' || m.kind === 'video' ? '75%' : '100%' }}>{content}</Pressable>
+      {m.kind === 'zas_reply' && m.mediaUrl ? (
+        <View style={{ marginBottom: 4, width: 72, height: 96, borderRadius: 14, overflow: 'hidden', backgroundColor: colors.zinc200 }} accessibilityLabel="O Zás">
+          <Image source={{ uri: abs(m.mediaUrl) ?? m.mediaUrl }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
+          <View style={{ position: 'absolute', left: 6, top: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}><Icon name="bolt" size={12} solid color="#fff" /></View>
+        </View>
+      ) : null}
+      {(m.kind === 'story_reply' || m.kind === 'story_reaction' || m.kind === 'zas_reply') && <Text style={{ marginBottom: 2, fontSize: 12, color: colors.zinc500 }}>{storyLabel}</Text>}
+      <Pressable onPress={onPress} onLongPress={real ? () => onMenu(m) : undefined} delayLongPress={450} style={{ maxWidth: m.kind === 'text' || m.kind === 'story_reply' || m.kind === 'zas_reply' ? '82%' : m.kind === 'image' || m.kind === 'video' ? '75%' : '100%' }}>{content}</Pressable>
       {!!m.reactions?.length && (
         <Pressable onPress={() => onMenu(m)} accessibilityRole="button" accessibilityLabel="Reações" style={[st.reactions, mine ? { marginRight: 12 } : { marginLeft: 12 }]}>
           {m.reactions.map((r) => (
