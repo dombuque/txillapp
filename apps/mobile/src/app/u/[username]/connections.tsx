@@ -58,19 +58,22 @@ function ConnectionList({ username, kind, me, width }: { username: string; kind:
       </View>
       {/* Só para medir onde a lista começa; a altura vai na própria lista. */}
       <View ref={zone} onLayout={measure} collapsable={false} style={listH ? { height: listH } : { flex: 1 }}>
-      <FlatList
-        data={people}
-        keyExtractor={(x) => x.username}
+      {/* Sem virtualização: o FlatList no Safari do iPhone só desenhava as 10 primeiras linhas (não chegava a medir a altura)
+          e a lista "prendia". Aqui desenham-se todas (as páginas são de 30) e carrega-se mais ao chegar perto do fim. */}
+      <ScrollView
         keyboardShouldPersistTaps="handled"
-        style={listH ? { height: listH, flexGrow: 0, flexShrink: 0 } : undefined}
-        contentContainerStyle={web ? { paddingBottom: insets.bottom } : undefined}
-        onEndReached={() => q.hasNextPage && !q.isFetchingNextPage && void q.fetchNextPage()}
-        onEndReachedThreshold={0.6}
-        ListHeaderComponent={q.isLoading ? <ActivityIndicator style={{ marginTop: 32 }} color={colors.brand} /> : q.isError ? <Text style={st.err}>Ups, não consegui carregar</Text> : <View />}
-        ListEmptyComponent={q.isSuccess ? <Empty icon={term ? 'search' : kind === 'followers' ? 'sprout' : 'eye'} title={term ? 'Ninguém com esse nome' : kind === 'followers' ? 'Ainda sem seguidores' : 'Ainda não segue ninguém'} /> : <View />}
-        ListFooterComponent={q.isFetchingNextPage ? <ActivityIndicator style={{ margin: 16 }} color={colors.brand} /> : <View style={{ height: 24 }} />}
-        renderItem={({ item: x }) => (
-          <View style={st.row}>
+        style={listH ? { height: listH, flexGrow: 0, flexShrink: 0 } : { flex: 1 }}
+        contentContainerStyle={{ paddingBottom: web ? insets.bottom + 24 : 24 }}
+        scrollEventThrottle={100}
+        onScroll={(e) => {
+          const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+          if (contentOffset.y + layoutMeasurement.height > contentSize.height - 400 && q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage();
+        }}
+      >
+        {q.isLoading ? <ActivityIndicator style={{ marginTop: 32 }} color={colors.brand} /> : q.isError ? <Text style={st.err}>Ups, não consegui carregar</Text> : null}
+        {q.isSuccess && people.length === 0 ? <Empty icon={term ? 'search' : kind === 'followers' ? 'sprout' : 'eye'} title={term ? 'Ninguém com esse nome' : kind === 'followers' ? 'Ainda sem seguidores' : 'Ainda não segue ninguém'} /> : null}
+        {people.map((x) => (
+          <View key={x.username} style={st.row}>
             <Pressable onPress={() => router.push(x.username === me ? '/profile' : (`/u/${x.username}` as never))} style={st.who} accessibilityRole="link">
               <Avatar name={x.displayName} username={x.username} size={48} />
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -84,8 +87,9 @@ function ConnectionList({ username, kind, me, width }: { username: string; kind:
               </View>
             )}
           </View>
-        )}
-      />
+        ))}
+        {q.isFetchingNextPage ? <ActivityIndicator style={{ margin: 16 }} color={colors.brand} /> : null}
+      </ScrollView>
       </View>
     </View>
   );
