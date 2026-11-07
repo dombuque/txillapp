@@ -18,6 +18,7 @@ import { TrackCard } from '@/components/TrackCard';
 import { enqueuePublish } from '@/lib/publishQueue';
 import { InstantsHub } from '@/components/Instants';
 import { TchekaStudio } from '@/components/TchekaStudio';
+import { PhotoViewer } from '@/components/PhotoViewer';
 import { composeApi, type PhotoTag } from '@/lib/api.compose';
 import { type Track } from '@/lib/api.music';
 import { clearDraft, listDrafts, loadDraft, newDraftKey, saveDraft, type DraftItem } from '@/lib/drafts';
@@ -116,14 +117,17 @@ export default function Compose() {
   // A ordem dos modos segue o que a pessoa mais usa (conta-se cada vez que avança num modo; fica no aparelho).
   const KINDS_BASE = [{ id: 'post', label: 'Publicação' }, { id: 'mimo', label: 'Mimo' }, { id: 'tcheka', label: 'Tcheka' }, { id: 'zas', label: 'Zás' }];
   const [kindUse, setKindUse] = useState<Record<string, number>>(() => { try { return JSON.parse(localStorage.getItem('tx_kind_use') ?? '{}') as Record<string, number>; } catch { return {}; } });
-  const kinds = [...KINDS_BASE].sort((a, b) => (kindUse[b.id] ?? 0) - (kindUse[a.id] ?? 0));
-  const [kindSel, setKindSel] = useState(() => kinds[0].id);
+  // O Zás fica sempre em último (nunca é a primeira coisa da câmara); os outros seguem o uso.
+  const kinds = [...KINDS_BASE.filter((k) => k.id !== 'zas').sort((a, b) => (kindUse[b.id] ?? 0) - (kindUse[a.id] ?? 0)), KINDS_BASE.find((k) => k.id === 'zas')!];
+  const [kindSel, setKindSel] = useState(() => kinds.find((k) => k.id !== 'zas')!.id);
+  const zasCounted = useRef(false);
   const bumpKind = (k: string) => setKindUse((u) => { const n = { ...u, [k]: (u[k] ?? 0) + 1 }; try { localStorage.setItem('tx_kind_use', JSON.stringify(n)); } catch { /* sem armazenamento */ } return n; });
   // Tcheka: as fotos e vídeos juntam-se e o estúdio monta um vídeo só (filtro e música).
   const [studio, setStudio] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [tagging, setTagging] = useState<number | null>(null);
+  const [viewing, setViewing] = useState<number | null>(null);
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
   const [draftsOpen, setDraftsOpen] = useState(false);
   const [restored, setRestored] = useState(false);
@@ -363,7 +367,7 @@ export default function Compose() {
           thumbs={assets.map((a) => a.uri)}
           kinds={kinds}
           kind={kindSel}
-          onKind={(k) => { setKindSel(k); if (k === 'zas') bumpKind('zas'); }}
+          onKind={(k) => { setKindSel(k); if (k === 'zas' && !zasCounted.current) { zasCounted.current = true; bumpKind('zas'); } }}
         />
 
         {err ? <Text style={[styles.err, { position: 'absolute', top: insets.top + 72, left: 0, right: 0, color: '#fff' }]} accessibilityRole="alert">{err}</Text> : null}
@@ -478,7 +482,9 @@ export default function Compose() {
                 const span = photos.length === 1 || (i === 0 && photos.length % 2 === 1);
                 return (
                   <View key={a.uri} style={[styles.thumb, span ? { width: '100%', aspectRatio: photos.length === 1 ? 4 / 3 : 16 / 10 } : { width: '49%', aspectRatio: 1 }]}>
-                    <Image source={{ uri: a.uri }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={`Foto ${i + 1}`} />
+                    <Pressable onPress={() => setViewing(i)} style={StyleSheet.absoluteFill} accessibilityRole="imagebutton" accessibilityLabel={`Ver a foto ${i + 1}`}>
+                      <Image source={{ uri: a.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                    </Pressable>
                     {i === 0 && photos.length > 1 ? <View style={styles.cover}><Text style={styles.coverText}>Capa</Text></View> : null}
                     <Pressable onPress={() => setTagging(assets.indexOf(a))} style={styles.tagBtn} accessibilityRole="button" accessibilityLabel={`Identificar pessoas na foto ${i + 1}`}>
                       <Icon name="users" size={16} color="#fff" />
@@ -534,6 +540,9 @@ export default function Compose() {
             <Pressable onPress={() => setLeaveOpen(false)} style={styles.ghost} accessibilityRole="button"><Text style={[styles.ghostText, { color: colors.zinc700 }]}>Continuar a editar</Text></Pressable>
           </View>
         </Sheet>
+      ) : null}
+      {viewing !== null && photos[viewing] ? (
+        <PhotoViewer photos={photos.map((a) => ({ url: a.uri, tags: a.tags }))} start={viewing} author={{ displayName: user?.displayName ?? '', username: user?.username ?? '' }} onClose={() => setViewing(null)} />
       ) : null}
       {draftsOpen ? (
         <Sheet title="Rascunhos" onClose={() => setDraftsOpen(false)}>

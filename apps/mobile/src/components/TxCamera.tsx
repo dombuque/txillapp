@@ -373,9 +373,9 @@ export function TxCamera({
     const cell = layout !== null ? cellRects()[cells.length] : null;
     if (cell) {
       // Layout: recorta do sensor exatamente o que a célula ativa mostra no visor (o visor é "cover" com o zoom).
-      const k = Math.max(area.w / v.videoWidth, area.h / v.videoHeight) * zoom;
-      const vx0 = (v.videoWidth - area.w / k) / 2, vy0 = (v.videoHeight - area.h / k) / 2;
-      const sx = vx0 + cell.x / k, sy = vy0 + cell.y / k, sw = cell.w / k, sh = cell.h / k;
+      const k = Math.max(card.w / v.videoWidth, card.h / v.videoHeight) * zoom;
+      const vx0 = (v.videoWidth - card.w / k) / 2, vy0 = (v.videoHeight - card.h / k) / 2;
+      const sx = vx0 + (cell.x - card.x) / k, sy = vy0 + (cell.y - card.y) / k, sw = cell.w / k, sh = cell.h / k;
       c.width = Math.round(sw);
       c.height = Math.round(sh);
       if (facing === 'user') { g.translate(c.width, 0); g.scale(-1, 1); g.drawImage(v, v.videoWidth - sx - sw, sy, sw, sh, 0, 0, c.width, c.height); }
@@ -401,7 +401,7 @@ export function TxCamera({
   // ----- Layout: a moldura (4:5, centrada entre os controlos), as células em píxeis do visor, juntar tudo numa foto.
   const frame = (() => {
     const fw = Math.min(area.w - 24, 560);
-    const fh = Math.min(fw * 1.25, Math.max(200, area.h - topPad - 70 - 220));
+    const fh = Math.min(fw * 1.25, Math.max(200, area.h - topPad - 70 - 260));
     const w = Math.min(fw, fh / 1.25);
     return { x: (area.w - w) / 2, y: topPad + 64 + Math.max(0, (area.h - topPad - 64 - 220 - w * 1.25) / 2), w, h: w * 1.25 };
   })();
@@ -501,6 +501,19 @@ export function TxCamera({
     }, 250);
   }
 
+  const [vkey, setVkey] = useState(0);
+  const lastDims = useRef('');
+  const onVideoResize = () => {
+    const v = video.current;
+    if (!v || !v.videoWidth) return;
+    const d = `${v.videoWidth}x${v.videoHeight}`;
+    if (lastDims.current && lastDims.current !== d) setVkey((n) => n + 1);
+    lastDims.current = d;
+  };
+  useEffect(() => {
+    const v = video.current;
+    if (vkey && v && stream.current && v.srcObject !== stream.current) { v.srcObject = stream.current; void v.play().catch(() => undefined); }
+  }, [vkey]);
   const shootRef = useRef(shoot);
   shootRef.current = shoot;
   /** Toque = foto; manter premido = vídeo (começa aos 350 ms e pára ao largar). Com temporizador, o toque faz a contagem; tocar outra vez cancela. */
@@ -532,10 +545,12 @@ export function TxCamera({
   }
 
   const mm = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  // Barra de baixo (fora do visor): galeria, modos e virar câmara, como no Instagram.
+  const barH = 64 + Math.max(insets.bottom, 12);
+  const card = { x: 0, y: topPad, w: area.w, h: Math.max(0, area.h - topPad - barH) };
   const mirror = facing === 'user' ? 'scaleX(-1)' : 'none';
   const fill = { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover' };
-  // Mais folga em baixo: a barra de modos ficava colada ao indicador do iPhone.
-  const botPad = Math.max(insets.bottom, 20) + (kinds ? 14 : 0);
+  const botPad = barH + 18; // os controlos que ficam por cima do visor começam acima da barra de baixo
 
   return (
     <View style={st.root} accessibilityViewIsModal onLayout={(e: LayoutChangeEvent) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
@@ -543,7 +558,7 @@ export function TxCamera({
       {dom(
         'div',
         {
-          style: { position: 'absolute', inset: 0, backgroundColor: '#000', touchAction: 'none', overflow: 'hidden' },
+          style: { position: 'absolute', left: card.x, top: card.y, width: card.w, height: card.h, backgroundColor: '#111', touchAction: 'none', overflow: 'hidden', borderRadius: 22 },
           onTouchStart: (e: TouchEvent) => {
             if (e.touches.length === 2) {
               pinch.current = { d: Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY), z: zoom };
@@ -567,11 +582,11 @@ export function TxCamera({
             if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) cycleLook(dx < 0 ? 1 : -1);
           },
         },
-        dom('video', { ref: video, playsInline: true, muted: true, autoPlay: true, style: { ...fill, transform: `${mirror === 'none' ? '' : mirror + ' '}scale(${zoom})`, filter: lookCss(LOOKS[look]), visibility: ready ? 'visible' : 'hidden', transition: 'filter 180ms' } }),
+        dom('video', { key: `v${vkey}`, ref: video, playsInline: true, muted: true, autoPlay: true, onResize: onVideoResize, style: { ...fill, transform: `${mirror === 'none' ? '' : mirror + ' '}scale(${zoom})`, filter: lookCss(LOOKS[look]), visibility: ready ? 'visible' : 'hidden', transition: 'filter 180ms' } }),
         LOOKS[look].tint && dom('div', { key: 'tint', style: { position: 'absolute', inset: 0, pointerEvents: 'none', backgroundColor: `rgba(${LOOKS[look].tint!.join(',')})` } }),
         layout !== null && area.w > 0 && dom(
           'div',
-          { key: 'frame', style: { position: 'absolute', left: frame.x, top: frame.y, width: frame.w, height: frame.h, pointerEvents: 'none', boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)', borderRadius: 6 } },
+          { key: 'frame', style: { position: 'absolute', left: frame.x - card.x, top: frame.y - card.y, width: frame.w, height: frame.h, pointerEvents: 'none', boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)', borderRadius: 6 } },
           ...cellRects().map((r, i) =>
             dom('div', {
               key: i,
@@ -587,15 +602,15 @@ export function TxCamera({
         ),
       )}
       {/* Sombras suaves em cima e em baixo, para os controlos se lerem sobre qualquer cena. */}
-      <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, top: 0, height: 140, backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)' })} />
-      <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: 260, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)' })} />
+      <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, top: card.y, height: 120, borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.45), transparent)' })} />
+      <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: barH, height: 230, borderBottomLeftRadius: 22, borderBottomRightRadius: 22, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.55), transparent)' })} />
       {/* A moldura do Txillapp: quatro cantos em coral à volta do visor e o wordmark, discreto, por cima. */}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 2 }]}>
-        <View style={[st.corner, { left: 14, top: topPad + 58, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 14 }]} />
-        <View style={[st.corner, { right: 14, top: topPad + 58, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 14 }]} />
-        <View style={[st.corner, { left: 14, bottom: botPad + (kinds ? 178 : 150) + (thumbs && thumbs.length ? 54 : 0), borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 14 }]} />
-        <View style={[st.corner, { right: 14, bottom: botPad + (kinds ? 178 : 150) + (thumbs && thumbs.length ? 54 : 0), borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 14 }]} />
-        <View style={{ position: 'absolute', left: 0, right: 0, top: topPad + 60, alignItems: 'center' }}>
+        <View style={[st.corner, { left: 62, top: card.y + 66, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 14 }]} />
+        <View style={[st.corner, { right: 14, top: card.y + 66, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 14 }]} />
+        <View style={[st.corner, { left: 62, bottom: barH + 128, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 14 }]} />
+        <View style={[st.corner, { right: 14, bottom: barH + 128, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 14 }]} />
+        <View style={{ position: 'absolute', left: 0, right: 0, top: card.y + 22, alignItems: 'center' }}>
           <Text style={st.wordmark} accessibilityLabel="Txillapp">txill<Text style={{ color: colors.brand }}>a</Text>pp</Text>
         </View>
       </View>
@@ -603,12 +618,18 @@ export function TxCamera({
       {flash ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#fff' }]} /> : null}
 
       {/* Em cima: fechar; flash, temporizador, virar. */}
-      <View style={[st.top, { paddingTop: topPad }]}>
+      <View style={[st.top, { paddingTop: topPad + 10 }]}>
         <Pressable onPress={onClose} style={st.round} accessibilityRole="button" accessibilityLabel="Fechar câmara"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
-        {recording ? (
-          <View style={st.rec}><View style={st.recDot} /><Text style={st.recText}>{mm}</Text></View>
-        ) : (
-          <View style={{ flexDirection: 'row', gap: 10 }}>
+        {recording ? <View style={st.rec}><View style={st.recDot} /><Text style={st.recText}>{mm}</Text></View> : null}
+        {!recording && count > 0 && onDone && layout === null ? (
+          <Pressable onPress={onDone} style={[st.doneBtn, { height: 44 }]} accessibilityRole="button" accessibilityLabel={`${doneLabel}, ${count}`}>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{doneLabel}</Text>
+            <View style={st.doneCount}><Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{count}</Text></View>
+          </Pressable>
+        ) : <View style={{ width: 44 }} />}
+      </View>
+      {!recording && (
+          <View style={[st.rail, { top: topPad + 66 }]}>
             <Pressable onPress={() => setLight((v) => !v)} style={[st.round, light && { backgroundColor: '#fcd34d' }]} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={canTorch ? 'Lanterna' : 'Flash de ecrã'}>
               <View>
                 <Icon name="bolt" size={22} solid={light} color={light ? colors.zinc900 : '#fff'} />
@@ -629,15 +650,8 @@ export function TxCamera({
                 <Icon name="grid" size={22} color={layout !== null ? colors.zinc900 : '#fff'} />
               </Pressable>
             )}
-            {count > 0 && onDone && layout === null ? (
-              <Pressable onPress={onDone} style={[st.doneBtn, { height: 44 }]} accessibilityRole="button" accessibilityLabel={`${doneLabel}, ${count}`}>
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{doneLabel}</Text>
-                <View style={st.doneCount}><Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{count}</Text></View>
-              </Pressable>
-            ) : null}
           </View>
-        )}
-      </View>
+      )}
 
       {/* Nome do filtro ao deslizar; contagem do temporizador. */}
       {lookName ? <View pointerEvents="none" style={st.center}><Text style={st.fxName}>{lookName}</Text></View> : null}
@@ -696,11 +710,7 @@ export function TxCamera({
           <Text style={st.hint} pointerEvents="none">Toca para foto · mantém para vídeo</Text>
         ) : <View style={{ height: 26 }} />}
         <View style={st.row}>
-          <View style={st.side}>
-            {!recording && (
-              <GalleryPick onFiles={(f) => void fillFromFiles(f)} onOpen={openGallery} style={st.gallery}><Icon name="images" size={24} color="#fff" strokeWidth={2} /></GalleryPick>
-            )}
-          </View>
+          <View style={st.side} />
           <Pressable
             onPressIn={pressIn}
             onPressOut={pressOut}
@@ -720,21 +730,34 @@ export function TxCamera({
                   <Icon name={cells.length ? 'undo' : 'x'} size={20} color="#fff" strokeWidth={2.2} />
                 </Pressable>
               </View>
-            ) : canFlip && ready && !recording ? (
-              <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} style={st.gallery} accessibilityRole="button" accessibilityLabel="Virar câmara"><Icon name="flip-camera" size={24} color="#fff" /></Pressable>
             ) : null}
           </View>
         </View>
         {full ? <Text style={st.full} accessibilityRole="alert">Máximo de {max} fotos</Text> : null}
+      </View>
+      {/* Por baixo do visor: a galeria (com a última foto escolhida), os modos e o virar câmara. */}
+      <View style={[st.bar, { height: barH, paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View style={{ width: 44, alignItems: 'flex-start' }}>
+          {!recording && (
+            <GalleryPick onFiles={(f) => void fillFromFiles(f)} onOpen={openGallery} style={st.galleryThumb}>
+              {thumbs && thumbs.length ? dom('img', { src: thumbs[thumbs.length - 1], alt: 'Galeria', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: 9 } }) : <Icon name="images" size={22} color="#fff" strokeWidth={2} />}
+            </GalleryPick>
+          )}
+        </View>
         {kinds && !recording ? (
-          <View style={st.kinds} accessibilityRole="tablist">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.kinds} style={{ flex: 1 }} accessibilityRole="tablist">
             {kinds.map((k) => (
               <Pressable key={k.id} onPress={() => onKind?.(k.id)} accessibilityRole="tab" accessibilityState={{ selected: kind === k.id }} hitSlop={8}>
                 <Text style={[st.kindText, kind === k.id && st.kindOn]}>{k.label.toUpperCase()}</Text>
               </Pressable>
             ))}
-          </View>
-        ) : null}
+          </ScrollView>
+        ) : <View style={{ flex: 1 }} />}
+        <View style={{ width: 44, alignItems: 'flex-end' }}>
+          {canFlip && ready && !recording ? (
+            <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} style={st.flipBtn} accessibilityRole="button" accessibilityLabel="Virar câmara"><Icon name="flip-camera" size={24} color="#fff" /></Pressable>
+          ) : null}
+        </View>
       </View>
 
       {/* Pré-visualização do que acabou de ser tirado: Repetir volta à câmara; Usar entrega a foto/vídeo. */}
@@ -895,11 +918,15 @@ const st = StyleSheet.create({
   shutterRec: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#ef4444' },
   hint: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600', marginBottom: 14 },
   thumb: { width: 44, height: 44, borderRadius: 8, overflow: 'hidden', borderWidth: 2, borderColor: colors.brand, backgroundColor: '#222' },
-  kinds: { flexDirection: 'row', justifyContent: 'center', gap: 22, marginTop: 16 },
+  kinds: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 14, paddingHorizontal: 4 },
+  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 3, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 6, backgroundColor: '#000' },
+  galleryThumb: { width: 40, height: 40, borderRadius: 11, borderWidth: 2, borderColor: '#fff', overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
+  flipBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  rail: { position: 'absolute', left: 12, zIndex: 3, gap: 12 },
   cropOk: { height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: colors.brand, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   corner: { position: 'absolute', width: 30, height: 30, borderColor: colors.brand, opacity: 0.9 },
   wordmark: { color: 'rgba(255,255,255,0.8)', fontSize: 15, fontWeight: '900', letterSpacing: -0.5 },
-  kindText: { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: '700', letterSpacing: 1.2 },
+  kindText: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
   kindOn: { color: '#fff' },
   stopSq: { width: 32, height: 32, borderRadius: 9, backgroundColor: '#ef4444' },
   doneBtn: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 23, backgroundColor: colors.brand, paddingHorizontal: 16 },
