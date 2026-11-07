@@ -297,11 +297,14 @@ export default function StoryViewer() {
             ))}
           </View>
           <View style={st.who} pointerEvents="box-none">
-            <Avatar name={cur.author.displayName} username={cur.author.username} size={40} />
-            <View style={{ flex: 1, minWidth: 0 }} pointerEvents="none">
-              <Text style={st.name} numberOfLines={1}>{cur.author.username}</Text>
-              <Text style={st.ago}>{timeAgo(cur.createdAt)}{mine ? ` · ${expiresIn(cur.expiresAt)}` : ''}</Text>
-            </View>
+            {/* Tocar na pessoa abre o perfil dela (o mimo fica em pausa enquanto estás lá). */}
+            <Pressable onPress={() => { setAway(true); router.push((mine ? '/profile' : `/u/${cur.author.username}`) as never); }} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 }} accessibilityRole="link" accessibilityLabel={`Perfil de ${cur.author.displayName}`}>
+              <Avatar name={cur.author.displayName} username={cur.author.username} size={40} />
+              <View style={{ flex: 1, minWidth: 0 }} pointerEvents="none">
+                <Text style={st.name} numberOfLines={1}>{cur.author.username}</Text>
+                <Text style={st.ago}>{timeAgo(cur.createdAt)}{mine ? ` · ${expiresIn(cur.expiresAt)}` : ''}</Text>
+              </View>
+            </Pressable>
             {mine && <Pressable onPress={() => setPanel('menu')} style={st.circle} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={24} color="#fff" strokeWidth={2.4} /></Pressable>}
             <Pressable onPress={close} style={st.circle} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={24} color="#fff" strokeWidth={2} /></Pressable>
           </View>
