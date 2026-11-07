@@ -18,7 +18,7 @@ import { accounts } from '@/lib/accounts';
 import { useAuth } from '@/lib/auth';
 import { pushApi } from '@/lib/api.settings';
 import { SITE_URL } from '@/lib/config';
-import { checkForUpdate, disablePush, enablePush, hardReload, installApp, installState, pushState } from '@/lib/push';
+import { buildId, checkForUpdate, disablePush, enablePush, hardReload, installApp, installState, pushState } from '@/lib/push';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
@@ -210,7 +210,7 @@ function VersionRow() {
   const busy = state === 'checking' || state === 'updating';
   return (
     <View style={{ marginTop: 8, paddingHorizontal: 16, alignItems: 'center' }}>
-      <Text style={{ fontSize: 12, color: colors.zinc500, textAlign: 'center' }}>Txillapp · versão {Constants.expoConfig?.version ?? '—'}</Text>
+      <Text style={{ fontSize: 12, color: colors.zinc500, textAlign: 'center' }}>Txillapp · versão {Constants.expoConfig?.version ?? '—'}{buildId() ? ` · ${buildId()}` : ''}</Text>
       {Platform.OS === 'web' ? (
         <>
           <Pressable onPress={() => void check()} disabled={busy} style={({ pressed }) => [{ marginTop: 6, height: 36, borderRadius: 18, paddingHorizontal: 16, justifyContent: 'center' }, pressed && { backgroundColor: colors.rose50 }, busy && { opacity: 0.6 }]} accessibilityRole="button">

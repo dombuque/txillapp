@@ -1,13 +1,13 @@
 // Service worker da app Txillapp (React Native, versão web).
-// Substitui, no mesmo endereço, o service worker do site antigo (Workbox): ao ativar-se apaga as caches antigas
-// e recarrega uma vez as janelas abertas para passarem à versão nova.
+// O nome da cache leva a versão da build (posta pelo post-export-web.mjs): cada versão nova é um service worker novo,
+// que ao ativar-se apaga as caches antigas e toma conta das janelas; o register-sw.js recarrega uma vez nessa altura.
 //  - páginas: primeiro a rede (a versão nova chega logo); sem rede, a última que se abriu;
 //  - ficheiros com hash (/_expo/static, /assets) e ícones: cache primeiro;
 //  - a API nunca vai para a cache (pode ser privada).
 // As notificações push vêm do push-sw.js (as subscrições que já existem continuam a funcionar).
 importScripts('/push-sw.js');
 
-const CACHE = 'txill-app-v1';
+const CACHE = 'txill-app-__TX_BUILD__';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -18,16 +18,8 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
-      const hadOld = keys.some((k) => k !== CACHE);
       await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
       await self.clients.claim();
-      if (hadOld) {
-        // Vinham do site antigo: recarrega uma vez para mostrar a app nova.
-        const wins = await self.clients.matchAll({ type: 'window' });
-        for (const c of wins) {
-          try { await c.navigate(c.url); } catch { /* a janela não deixou: fica para a próxima abertura */ }
-        }
-      }
     })(),
   );
 });

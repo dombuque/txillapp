@@ -6,6 +6,7 @@ import { StackPage } from '@/components/StackPage';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { buildId } from '@/lib/push';
 import { colors } from '@/lib/theme';
 
 const SUPPORT = 'suporte@txillapp.com';
@@ -42,7 +43,7 @@ export default function About() {
           <Line icon="file-text" label="Termos de utilização" to="/terms" />
         </Group>
         <Group title="Txillapp">
-          <Line icon="info" label="Versão" value={Constants.expoConfig?.version ?? '—'} />
+          <Line icon="info" label="Versão" value={`${Constants.expoConfig?.version ?? '—'}${buildId() ? ` · ${buildId()}` : ''}`} />
           <Line icon="mail" label="Contactar-nos" value={SUPPORT} href={`mailto:${SUPPORT}`} />
         </Group>
         <View style={{ marginHorizontal: 24, marginTop: 24, alignItems: 'center' }}>

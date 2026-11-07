@@ -117,12 +117,37 @@ export async function installApp(): Promise<void> {
   (window as unknown as { __txInstall?: null }).__txInstall = null;
 }
 
-/** Procura já uma versão nova do service worker: se houver, aplica-a (recarrega); senão diz que já tens a última. */
+/** A versão desta build (posta no HTML pelo post-export-web.mjs); null fora da web. */
+export const buildId = (): string | null => (typeof window === 'undefined' ? null : ((window as unknown as { __TX_BUILD?: string }).__TX_BUILD ?? null));
+
+/** Há uma build mais recente no servidor do que esta? (pergunta ao /version.json, sem cache) */
+export async function serverHasNewer(): Promise<boolean> {
+  const mine = buildId();
+  if (!mine) return false;
+  try {
+    const r = await fetch('/version.json', { cache: 'no-store' });
+    const j = (await r.json()) as { build?: string };
+    return !!j.build && j.build !== mine;
+  } catch {
+    return false;
+  }
+}
+
+/** Procura já uma versão nova: compara com o servidor e aplica o service worker novo (recarrega); senão diz que já tens a última. */
 export async function checkForUpdate(): Promise<'updating' | 'latest' | 'error'> {
   try {
     const reg = await navigator.serviceWorker?.getRegistration();
-    if (!reg) return 'latest';
+    if (!reg) {
+      if (await serverHasNewer()) { location.reload(); return 'updating'; }
+      return 'latest';
+    }
+    const newer = await serverHasNewer();
     await reg.update();
+    if (newer && !reg.installing && !reg.waiting) {
+      // O servidor tem versão nova mas o service worker não a apanhou: recarrega na mesma (o HTML vem sem cache).
+      await new Promise((r) => setTimeout(r, 1500));
+      if (!reg.installing && !reg.waiting) { location.reload(); return 'updating'; }
+    }
     for (let i = 0; i < 8 && !reg.installing && !reg.waiting; i++) await new Promise((r) => setTimeout(r, 500));
     const next = reg.installing ?? reg.waiting;
     if (!next) return 'latest';

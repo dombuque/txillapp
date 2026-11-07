@@ -104,7 +104,7 @@ cd /opt/txillapp && git pull && cd infra/prod && docker compose up -d --build &&
 # Só a API: docker compose up -d --build api
 ```
 
-As migrações correm sozinhas (`migrate`) antes de a API arrancar. As pessoas veem "Há uma versão nova 🎉" na app. Para reverter: `git checkout <commit-anterior>` e repetir (as migrações só avançam; escreve migrações compatíveis com a versão anterior).
+As migrações correm sozinhas (`migrate`) antes de a API arrancar. Cada build web tem uma versão (hash dos chunks, posta no `sw.js`, no HTML e em `/version.json` pelo `post-export-web.mjs`): a PWA procura versão nova sempre que volta a estar à vista e recarrega uma vez quando o service worker novo toma conta. A versão aparece em Definições e em Sobre ("versão 1.0.0 · a1b2c3d4e5f6"); compara com `curl -s https://txillapp.com/version.json`. Para reverter: `git checkout <commit-anterior>` e repetir (as migrações só avançam; escreve migrações compatíveis com a versão anterior).
 
 ## 7. Cópias de segurança
 
