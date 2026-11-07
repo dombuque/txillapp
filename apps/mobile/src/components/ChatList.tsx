@@ -1,6 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { FillView } from './FillView';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { colors } from '@/lib/theme';
@@ -47,7 +46,7 @@ export function ChatList({
   }
 
   return (
-    <FillView>
+    <View style={{ flex: 1 }}>
       {loading ? (
         <Pulse style={{ paddingHorizontal: 16, paddingTop: 16, gap: 12 }}>
           {[60, 40, 70, 48].map((w, i) => <View key={i} style={{ height: 40, width: `${w}%`, borderRadius: 20, backgroundColor: colors.zinc100, alignSelf: i % 2 ? 'flex-end' : 'flex-start' }} />)}
@@ -113,7 +112,7 @@ export function ChatList({
           <View style={{ transform: [{ rotate: '90deg' }] }}><Icon name="chevron-right" size={16} color={colors.zinc800} /></View>
         </Pressable>
       )}
-    </FillView>
+    </View>
   );
 }
 
