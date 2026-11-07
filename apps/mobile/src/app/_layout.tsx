@@ -28,7 +28,11 @@ function WebTopInset({ children }: { children: React.ReactNode }) {
   // Em baixo, como o site antigo (.bottom-safe): sem viewport-fit=cover o iPhone não reserva a linha de baixo, por isso dá-se
   // 21,6 px à mão no iOS (5,6 px nos outros), ou mais se o sistema o pedir. Vale para a barra de baixo, folhas e barras de escrever.
   const ios = typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
-  const bottom = Math.max(insets.bottom, ios ? 21.6 : 5.6);
+  // A linha de baixo (o traço para voltar ao ecrã inicial) só existe nos iPhones sem botão (ecrã com 812 pontos ou mais)
+  // e só tapa a app quando está instalada (ecrã inteiro). Nos iPhones com botão (8, SE…) e no Safari normal, nada de margem.
+  const standalone = typeof window !== 'undefined' && ((navigator as unknown as { standalone?: boolean }).standalone === true || window.matchMedia?.('(display-mode: standalone)').matches);
+  const homeBar = ios && standalone && typeof screen !== 'undefined' && Math.max(screen.height, screen.width) >= 812;
+  const bottom = Math.max(insets.bottom, homeBar ? 21.6 : ios ? 0 : 5.6);
   return <SafeAreaInsetsContext.Provider value={{ ...insets, top: Math.max(insets.top, 20), bottom }}>{children}</SafeAreaInsetsContext.Provider>;
 }
 
