@@ -26,8 +26,8 @@ Rascunho de trabalho, feito a partir das App Review Guidelines (verificar a vers
 - **URL de marketing:** https://txillapp.com
 - **URL da política de privacidade:** https://txillapp.com/privacy
 - **Direitos:** © Txillapp
-- **Descrição curta (rascunho):** Fotos, vídeos, stories, reels e chat com a tua malta. Brinda, presenteia, mostra a tua geleira de gostos e fala sem tempo a perder.
-- **Palavras-chave (100 caracteres):** rede social,malta,stories,reels,chat,Moçambique,amigos,fotos,vídeos,mensagens
+- **Descrição curta (rascunho):** Fotos, vídeos, mimos, tchekas e chat com a tua malta. Brinda, presenteia, mostra a tua geleira de gostos e fala sem tempo a perder.
+- **Palavras-chave (100 caracteres):** rede social,malta,mimos,tchekas,chat,Moçambique,amigos,fotos,vídeos,mensagens
 
 ## 3. Classificação etária (questionário da Apple)
 
@@ -36,7 +36,7 @@ Respostas propostas, com o resultado provável **17+**:
 | Pergunta | Resposta | Porquê |
 |---|---|---|
 | Referências a álcool, tabaco ou drogas | **Frequentes** | A geleira tem bebidas alcoólicas (cervejas, vinhos, destilados) e vibes de festa, só visíveis a maiores de 18. |
-| Conteúdo de utilizadores / redes sociais | **Sim** | Publicações, comentários, mensagens, stories. |
+| Conteúdo de utilizadores / redes sociais | **Sim** | Publicações, comentários, mensagens, mimos. |
 | Conteúdo sexual ou nudez | Nenhum | Fotos verificadas automaticamente; recusa e fila de moderação. |
 | Violência | Nenhuma / rara | Proibida nos termos. |
 | Jogos de azar | Nenhum | Txills são pontos virtuais, sem prémios. |
@@ -53,7 +53,7 @@ Todos os dados abaixo são **ligados à identidade** da pessoa, **não usados pa
 |---|---|---|---|
 | Nome | Sim | Funcionalidade da app | Nome e @utilizador. |
 | Endereço de email | Sim | Funcionalidade da app, autenticação | Confirmação de conta e recuperação de senha. |
-| Fotos ou vídeos | Sim | Funcionalidade da app | Publicações, stories, chat; documento e selfie da verificação (apagados após a decisão). |
+| Fotos ou vídeos | Sim | Funcionalidade da app | Publicações, mimos, chat; documento e selfie da verificação (apagados após a decisão). |
 | Outro conteúdo do utilizador | Sim | Funcionalidade da app | Textos, comentários, mensagens, notas, gostos da geleira. |
 | Mensagens | Sim | Funcionalidade da app | Chat 1 para 1 e em grupo. |
 | Localização precisa | Sim, só se a pessoa a partilhar | Funcionalidade da app | Localização em direto no chat; não se guarda histórico. |
@@ -68,7 +68,7 @@ Todos os dados abaixo são **ligados à identidade** da pessoa, **não usados pa
 
 | Chave | Português | Inglês |
 |---|---|---|
-| `NSCameraUsageDescription` | O Txillapp usa a câmara para tirares fotos e gravares vídeos para publicar, stories e mensagens. | Txillapp uses the camera so you can take photos and record videos for posts, stories and messages. |
+| `NSCameraUsageDescription` | O Txillapp usa a câmara para tirares fotos e gravares vídeos para publicar, mimos e mensagens. | Txillapp uses the camera so you can take photos and record videos for posts, mimos (stories) and messages. |
 | `NSMicrophoneUsageDescription` | O Txillapp usa o microfone para gravares vídeos e mensagens de voz. | Txillapp uses the microphone to record videos and voice messages. |
 | `NSPhotoLibraryUsageDescription` | O Txillapp acede às tuas fotos para escolheres o que publicar ou enviar. | Txillapp accesses your photos so you can choose what to post or send. |
 | `NSPhotoLibraryAddUsageDescription` | O Txillapp guarda fotos e vídeos na tua galeria quando pedes. | Txillapp saves photos and videos to your library when you ask. |
@@ -82,7 +82,7 @@ Não é preciso `NSUserTrackingUsageDescription` (não há rastreio).
 
 Texto proposto para preencher na submissão (ajustar a conta de teste):
 
-> Txillapp é uma rede social de fotos, vídeos, stories, reels e chat.
+> Txillapp é uma rede social de fotos, vídeos, mimos, tchekas e chat.
 > **Conta de teste:** `<email>` / `<senha>` (email já confirmado).
 > **Moderação de conteúdo:** cada publicação, comentário, mensagem e perfil tem "Denunciar" no menu (…); "Bloquear" está no perfil; a eliminação da conta está em Definições → Eliminar conta. As fotos são verificadas automaticamente antes de ficarem visíveis. Os termos têm tolerância zero a conteúdo abusivo e as denúncias são analisadas pela nossa equipa de moderação.
 > **Álcool:** a "geleira" (gostos do perfil) inclui bebidas alcoólicas, visíveis só a maiores de 18 anos.
@@ -96,7 +96,7 @@ Criar na produção **só com autorização do dono** (são dados reais no servi
 
 1. Registar uma conta normal (por exemplo `revisao`) e confirmar o email.
 2. Preencher perfil (foto, bio) e a geleira (alguns gostos).
-3. Publicar 3 fotos/vídeos e 1 reel; seguir 3 a 5 contas de exemplo que sigam de volta; deixar 1 story e 1 nota ativos.
+3. Publicar 3 fotos/vídeos e 1 tcheka; seguir 3 a 5 contas de exemplo que sigam de volta; deixar 1 mimo e 1 nota ativos.
 4. Garantir saldo de Txills (o bónus de boas-vindas basta).
 5. Anotar email e senha na ficha da submissão e **mudar a senha depois da revisão**.
 

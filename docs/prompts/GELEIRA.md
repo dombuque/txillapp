@@ -52,7 +52,7 @@ Substitui/estende `Suggestions` ("Bora conhecer malta nova? 🤝") com uma fonte
 - **Medir**: eventos `geleira_open`, `geleira_item_add`, `geleira_rate`, `geleira_match_shown`, `geleira_match_follow` (usa `lib/analytics.ts`); métrica de sucesso = % de sugestões seguidas e se a conexão se mantém 7 dias. Acrescenta ao painel `/admin/stats`.
 
 ### 3.4 Extras de baixo risco (só depois do essencial estar sólido)
-Geleira da malta (itens em alta por cidade/bairro, sem expor pessoas), partilhar a minha geleira como story/imagem, "o que beber hoje" aleatório entre os meus favoritos.
+Geleira da malta (itens em alta por cidade/bairro, sem expor pessoas), partilhar a minha geleira como mimo/imagem, "o que beber hoje" aleatório entre os meus favoritos.
 
 ## 4. API (REST, prefixo `/api/v1`, JWT)
 

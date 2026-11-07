@@ -22,7 +22,7 @@ export class ShareController {
     const origin = `https://${req.headers.host ?? 'txillapp.com'}`;
     const path = `/${kind === 'r' ? 'r' : 'p'}/${code.replace(/[^A-Za-z0-9-]/g, '')}`;
     let title = 'Txillapp, a rede da malta';
-    let description = 'Fotos, vídeos, stories, reels e chat em tempo real com a malta.';
+    let description = 'Fotos, vídeos, mimos, tchekas e chat em tempo real com a malta.';
     let image = `${origin}/icon-512.png`;
     let type = 'website';
 

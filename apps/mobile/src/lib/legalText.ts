@@ -115,7 +115,7 @@ export const TERMS: LegalBlock[][] = [
  [
   {
    "t": "h2",
-   "x": "7. Stories, notas e conteúdo temporário"
+   "x": "7. Mimos, notas e conteúdo temporário"
   },
   {
    "t": "ul",

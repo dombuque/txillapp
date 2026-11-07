@@ -13,13 +13,13 @@ Legenda: **feito** = escrito, compila e (onde se diz) testado no browser; **por 
 | Ecrã (site) | Ficheiro na app | Estado |
 |---|---|---|
 | Entrar, criar conta (6 passos), esqueci a senha | `login`, `register`, `forgot-password` | feito (entrar testado; registo e esqueci por testar) |
-| Início (feed, stories, Zás) | `(tabs)/index`, `PostCard`, `StoriesTray`, `Instants` | feito (Zás por testar) |
+| Início (feed, mimos, Zás) | `(tabs)/index`, `PostCard`, `StoriesTray`, `Instants` | feito (Zás por testar) |
 | Comentários, menu da publicação, presentear, repostar, partilhar (conversas e status) | `CommentsSheet`, `PostSheets`, `ShareSheet` | feito (partilhar por testar) |
 | Notificações, pesquisa e explorar | `notifications`, `search` | feito |
 | Mensagens: lista, pedidos, conversa direta, **grupos**, tempo real | `(tabs)/messages`, `messages/[username]`, `messages/g/[id]`, `messages/new`, `lib/realtime` | feito (grupos e tempo real por testar) |
 | Perfil (meu e dos outros), seguidores/a seguir, editar perfil (com localização), pedidos para seguir, QR, geleira | `ProfileView`, `ProfileSheets`, `ProfileQrSheet`, `GeleiraShelf`, `u/[username]/*` | feito (QR e geleira por testar) |
 | Nova publicação (2 passos, local, música, rascunhos) | `(tabs)/new`, `MusicPicker`, `lib/drafts` | feito (música e rascunhos por testar; rascunhos só ficam em memória no telemóvel até haver armazenamento local) |
-| Stories (ver e criar, com música) | `stories/*`, `StoryParts` | feito |
+| Mimos (stories: ver e criar, com música) | `stories/*`, `StoryParts` | feito |
 | Reels, página do reel, **O teu algoritmo** (temas, pessoas, origem, ordem, tipo, variedade, esconder visto, modo tranquilo) | `(tabs)/reels`, `r/[id]`, `reels/filtros` | feito (algoritmo testado no browser) |
 | Definições completas | `settings` | feito |
 | Verificação (documento de qualquer tipo, frente e verso, cara, selfie com o documento, justificação) | `verification` | por testar (câmara) |

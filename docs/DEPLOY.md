@@ -43,7 +43,7 @@ O país de cada pedido vem do Cloudflare (cabeçalho `CF-IPCountry`); o nginx pa
 - **Mantém ligado** *Network → IP Geolocation* no Cloudflare (vem ligado por omissão).
 - A API só pode ser alcançada através do nginx (já é assim: não publica portas). Ativa também as *Authenticated Origin Pulls* (secção 3), senão alguém que chegue ao IP do servidor poderia forjar o cabeçalho.
 - Verifica em `https://txillapp.com/api/v1/health/geo`: deve devolver o teu país (`{"country":"MZ"}`).
-- A descoberta (sugestões no feed, reels, pesquisa, hashtags e sugestões de pessoas) só mostra o mesmo país; quem segues vês sempre. Quem viaja passa para a rede do país onde está; o que publicou antes fica no país de origem.
+- A descoberta (sugestões no feed, tchekas, pesquisa, hashtags e sugestões de pessoas) só mostra o mesmo país; quem segues vês sempre. Quem viaja passa para a rede do país onde está; o que publicou antes fica no país de origem.
 
 ## 3.2 E-mail (confirmar contas, recuperar senha)
 

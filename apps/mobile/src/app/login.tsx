@@ -66,7 +66,7 @@ export function Field({ icon, secure, status, ...rest }: { icon: 'at' | 'lock' |
 function BrandPanel() {
   const router = useRouter();
   const points = [
-    { icon: 'image', text: 'Fotos, vídeos e stories de quem segues' },
+    { icon: 'image', text: 'Fotos, vídeos e mimos de quem segues' },
     { icon: 'film', text: 'Tchekas para criar e descobrir' },
     { icon: 'comment', text: 'Chat em tempo real com a tua malta' },
     { icon: 'shield', text: 'Tu decides quem te vê' },

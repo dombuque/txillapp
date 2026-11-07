@@ -24,20 +24,20 @@ export function StoriesTray() {
   return (
     <View style={{ marginBottom: 16 }} accessibilityLabel="Stories">
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        <Pressable onPress={() => (mine ? view(user?.username ?? '') : create())} style={styles.bubble} accessibilityRole="button" accessibilityLabel={mine ? 'Ver o teu story' : 'Criar story'}>
+        <Pressable onPress={() => (mine ? view(user?.username ?? '') : create())} style={styles.bubble} accessibilityRole="button" accessibilityLabel={mine ? 'Ver o teu mimo' : 'Criar mimo'}>
           <View>
             <Ring count={mine?.count ?? 1} seenCount={mine ? (mineSeen ? mine.count : 0) : 1} green={mine?.closeFriends}>
               <Avatar name={user?.displayName ?? '?'} username={user?.username} size={56} />
             </Ring>
-            <Pressable onPress={create} hitSlop={8} style={styles.plus} accessibilityRole="button" accessibilityLabel="Adicionar ao story">
+            <Pressable onPress={create} hitSlop={8} style={styles.plus} accessibilityRole="button" accessibilityLabel="Adicionar ao mimo">
               <Text style={styles.plusText}>+</Text>
             </Pressable>
           </View>
-          <Text style={[styles.label, { color: colors.zinc800, fontWeight: '500' }]} numberOfLines={1}>O teu story</Text>
+          <Text style={[styles.label, { color: colors.zinc800, fontWeight: '500' }]} numberOfLines={1}>O teu mimo</Text>
         </Pressable>
 
         {others.map((u) => (
-          <Pressable key={u.username} onPress={() => view(u.username)} style={styles.bubble} accessibilityRole="button" accessibilityLabel={`Ver story de ${u.displayName}${u.seen ? '' : ' (novo)'}`}>
+          <Pressable key={u.username} onPress={() => view(u.username)} style={styles.bubble} accessibilityRole="button" accessibilityLabel={`Ver mimo de ${u.displayName}${u.seen ? '' : ' (novo)'}`}>
             <View style={{ opacity: u.seen ? 0.6 : 1 }}>
               <Ring count={u.count} seenCount={u.seenCount} green={u.closeFriends}>
                 <Avatar name={u.displayName} username={u.username} size={56} />
@@ -46,7 +46,7 @@ export function StoriesTray() {
             <Text style={[styles.label, u.seen ? { color: colors.zinc500, fontWeight: '400' } : { color: colors.zinc900, fontWeight: '700' }]} numberOfLines={1}>{u.username}</Text>
           </Pressable>
         ))}
-        {others.length === 0 && <Text style={styles.empty}>Segue pessoas para ver os stories delas</Text>}
+        {others.length === 0 && <Text style={styles.empty}>Segue pessoas para ver os mimos delas</Text>}
       </ScrollView>
     </View>
   );

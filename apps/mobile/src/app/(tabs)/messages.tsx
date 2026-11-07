@@ -26,8 +26,8 @@ function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, g
   if (m.kind === 'gift') return `${m.fromMe ? 'Tu: ' : ''}Presente`;
   if (m.kind === 'sticker') return `${you}Sticker`;
   if (m.kind === 'location') return `${you}Localização`;
-  if (m.kind === 'story_reaction') return `${m.fromMe ? 'Reagiste ao story' : 'Reagiu ao teu story'}: ${REACTIONS.find((x) => x.id === m.body)?.label ?? m.body}`;
-  if (m.kind === 'story_reply') return `${m.fromMe ? 'Respondeste ao story' : 'Respondeu ao teu story'}: ${m.body}`;
+  if (m.kind === 'story_reaction') return `${m.fromMe ? 'Reagiste ao mimo' : 'Reagiu ao teu mimo'}: ${REACTIONS.find((x) => x.id === m.body)?.label ?? m.body}`;
+  if (m.kind === 'story_reply') return `${m.fromMe ? 'Respondeste ao mimo' : 'Respondeu ao teu mimo'}: ${m.body}`;
   return `${group ? '' : you}${m.body}`;
 }
 

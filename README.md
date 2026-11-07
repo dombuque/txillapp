@@ -4,6 +4,8 @@ Plataforma social mobile-first (PWA) com feed, showoff e **Txills** — uma moed
 
 > **Estado: MVP.** Os Txills são fictícios. Recargas e pagamentos reais só serão activados após validação regulamentar. Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+**Vocabulário do Txillapp** (os nomes no código são os genéricos): **Mimo** = story (24 h), **Tcheka** = reel (vídeo curto), **Zás** = instant (foto na hora, vista uma vez), **Geleira** = os gostos do perfil. Nos textos visíveis nunca se diz story nem reel.
+
 ## O que já funciona
 
 - Registo em passos com **validação em tempo real** do @ e do email (sugestões livres quando o @ já tem dono; nomes reservados bloqueados)
@@ -12,13 +14,13 @@ Plataforma social mobile-first (PWA) com feed, showoff e **Txills** — uma moed
 - Feed com publicações e **várias fotografias** (carrossel), paginação por cursor
 - **Brindar**, **Comentar** (com respostas, brindes nos comentários e menções, ao estilo Instagram) e **Presentear**
 - **Presentear alguém** com Txills, com post opcional "X presenteou Y" no feed
-- **Stories** de 24 h, com quem viu (só o autor), apagar e bandeja com "não vistos"
+- **Mimos** (stories) de 24 h, com quem viu (só o autor), apagar e bandeja com "não vistos"
 - **Onde estás?**: localização do dispositivo com sugestões de sítios próximos; só o nome escolhido é guardado, nunca o GPS
 - **Perfil** com foto (recorte quadrado), bio, público ou privado (pedidos para seguir), seguidores, bloqueios ao estilo do X com aviso à pessoa bloqueada
-- **Notificações** (bloqueio, seguidores, pedidos, presentes, comentários, respostas a stories, reposts) em página própria
+- **Notificações** (bloqueio, seguidores, pedidos, presentes, comentários, respostas a mimos, reposts) em página própria
 - **Pesquisa** de pessoas e publicações; **reposts** (simples e com comentário)
 - **Presentear** de qualquer sítio: discreto, mensagem privada ou no feed (ou publicar depois); só se presenteia quem se segue
-- **Definições e privacidade**: quem comenta, quem presenteia, quem vê as listas, sugestões, respostas e esconder stories, alterar senha, dispositivos, eliminar conta
+- **Definições e privacidade**: quem comenta, quem presenteia, quem vê as listas, sugestões, respostas e esconder mimos, alterar senha, dispositivos, eliminar conta
 - Carteira com ledger de partidas dobradas, idempotência e protecção contra gasto duplo (testado com pedidos concorrentes)
 - PWA instalável
 
@@ -63,7 +65,7 @@ docs           Arquitectura
 
 - Media guardada em disco local (interface preparada para S3/R2).
 - Feed global (sem seguidores/privacidade ainda); rate limit em memória (Redis na fase seguinte).
-- Sem MFA, mensagens, stories, descoberta e comerciantes — ver as fases em `docs/ARCHITECTURE.md`.
+- Sem MFA, mensagens, mimos, descoberta e comerciantes — ver as fases em `docs/ARCHITECTURE.md`.
 
 ## Licença
 

@@ -178,7 +178,7 @@ export default function StoryViewer() {
   async function remove() {
     if (!cur) return;
     setPanel(null);
-    Alert.alert('Apagar o story?', 'Desaparece para toda a gente.', [
+    Alert.alert('Apagar o mimo?', 'Desaparece para toda a gente.', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Apagar', style: 'destructive', onPress: async () => { await api.deleteStory(cur.id).catch(() => undefined); await q.refetch(); void qc.invalidateQueries({ queryKey: ['stories'] }); if (stories.length <= 1) close(); } },
     ]);
@@ -196,7 +196,7 @@ export default function StoryViewer() {
   if (q.isError || !cur) {
     return (
       <View style={st.center}>
-        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>Este story já não está disponível</Text>
+        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>Este mimo já não está disponível</Text>
         <Pressable onPress={close} style={st.btn}><Text style={{ color: '#fff', fontWeight: '700' }}>Fechar</Text></Pressable>
       </View>
     );
@@ -222,7 +222,7 @@ export default function StoryViewer() {
           ) : (
             <>
               <Image source={{ uri: sized(cur.mediaUrl, 160) }} style={[StyleSheet.absoluteFill, { opacity: 0.7, transform: [{ scale: 1.25 }] }]} contentFit="cover" blurRadius={40} />
-              <Image source={{ uri: sized(cur.mediaUrl, 1080) }} style={StyleSheet.absoluteFill} contentFit="contain" accessibilityLabel={cur.caption ?? `Story de ${cur.author.displayName}`} />
+              <Image source={{ uri: sized(cur.mediaUrl, 1080) }} style={StyleSheet.absoluteFill} contentFit="contain" accessibilityLabel={cur.caption ?? `Mimo de ${cur.author.displayName}`} />
             </>
           )}
         </View>
@@ -274,14 +274,14 @@ export default function StoryViewer() {
             </Pressable>
           )}
           {!mine && cur.canReply && <ReplyBar key={cur.id} story={cur} username={cur.author.username} onFocusChange={setTyping} inputRef={replyRef} />}
-          {!mine && !cur.canReply && <Text style={st.noReply}>Este story não aceita respostas</Text>}
+          {!mine && !cur.canReply && <Text style={st.noReply}>Este mimo não aceita respostas</Text>}
         </LinearGradient>
 
         {panel === 'menu' && (
-          <Panel title="O teu story" onClose={() => setPanel(null)}>
-            <Pressable onPress={() => { close(); router.push('/settings' as never); }} style={st.menuRow}><Text style={st.menuText}>Definições do story</Text></Pressable>
+          <Panel title="O teu mimo" onClose={() => setPanel(null)}>
+            <Pressable onPress={() => { close(); router.push('/settings' as never); }} style={st.menuRow}><Text style={st.menuText}>Definições do mimo</Text></Pressable>
             <Pressable onPress={() => void toggleComments()} style={st.menuRow}><Text style={st.menuText}>{cur.commentsOff ? 'Ativar comentários' : 'Desativar comentários'}</Text></Pressable>
-            <Pressable onPress={() => void remove()} style={st.menuRow}><Text style={[st.menuText, { color: '#dc2626', fontWeight: '600' }]}>Apagar story</Text></Pressable>
+            <Pressable onPress={() => void remove()} style={st.menuRow}><Text style={[st.menuText, { color: '#dc2626', fontWeight: '600' }]}>Apagar mimo</Text></Pressable>
             <Pressable onPress={() => setPanel(null)} style={st.menuRow}><Text style={st.menuText}>Cancelar</Text></Pressable>
           </Panel>
         )}

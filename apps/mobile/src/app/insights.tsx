@@ -115,8 +115,8 @@ export default function Insights() {
                 {([
                   ['Brindes', d.interactions.cheers], ['Comentários', d.interactions.comments],
                   ['Reposts', d.interactions.reposts], ['Presentes', d.interactions.gifts],
-                  ['Brindes em stories', d.interactions.storyCheers], ['Respostas a stories', d.interactions.storyReplies],
-                  ['Visualizações de stories', d.overview.storyViews],
+                  ['Brindes em mimos', d.interactions.storyCheers], ['Respostas a mimos', d.interactions.storyReplies],
+                  ['Visualizações de mimos', d.overview.storyViews],
                 ] as const).map(([label, v]) => (
                   <View key={label} style={{ width: '50%' }}>
                     <Text style={{ fontSize: 14, color: colors.zinc600 }}>{label}</Text>

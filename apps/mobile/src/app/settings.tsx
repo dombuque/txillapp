@@ -351,7 +351,7 @@ export default function Settings() {
         <Section title="Stories">
           <Row icon={ic('camera')} label="Quem pode responder" value={stories.data ? whoLabel(stories.data.replies) : '…'} onPress={() => setSheet('storyReplies')} />
           <Row icon={ic('heart')} label="Amigos próximos" value={closeFriends.data ? String(closeFriends.data.length) : '…'} onPress={() => setSheet('closeFriends')} />
-          <Row icon={ic('eye-off')} label="Esconder story de…" value={stories.data ? String(stories.data.hidden.length) : '…'} onPress={() => setSheet('hidden')} />
+          <Row icon={ic('eye-off')} label="Esconder mimo de…" value={stories.data ? String(stories.data.hidden.length) : '…'} onPress={() => setSheet('hidden')} />
         </Section>
 
         <Section title="Convidar">
@@ -441,7 +441,7 @@ export default function Settings() {
       {sheet === 'dms' && p && <ChoiceSheet title="Quem pode enviar-me mensagens" intro="Só trava conversas novas: as que já existem continuam. As respostas aos teus stories seguem a definição dos stories." options={WHO} value={p.dmsAllowed} onPick={(v) => void savePrivacy({ dmsAllowed: v })} onClose={close} />}
       {sheet === 'gifts' && p && <ChoiceSheet title="Quem pode presentear-me" options={WHO} value={p.giftsAllowed} onPick={(v) => void savePrivacy({ giftsAllowed: v })} onClose={close} />}
       {sheet === 'connections' && p && <ChoiceSheet title="Quem vê seguidores e a quem sigo" intro="Os números continuam visíveis; muda só quem pode ver as listas." options={CONNECTIONS} value={p.showConnections} onPick={(v) => void savePrivacy({ showConnections: v })} onClose={close} />}
-      {sheet === 'storyReplies' && stories.data && <ChoiceSheet title="Respostas aos stories" intro="Quem pode responder ou reagir aos teus stories." options={WHO} value={stories.data.replies} onPick={async (v) => qc.setQueryData(['story-settings'], await api.setStoryReplies(v))} onClose={close} />}
+      {sheet === 'storyReplies' && stories.data && <ChoiceSheet title="Respostas aos mimos" intro="Quem pode responder ou reagir aos teus stories." options={WHO} value={stories.data.replies} onPick={async (v) => qc.setQueryData(['story-settings'], await api.setStoryReplies(v))} onClose={close} />}
       {sheet === 'closeFriends' && <CloseFriendsSheet onClose={close} />}
       {sheet === 'hidden' && <HiddenSheet onClose={close} />}
       {sheet === 'blocked' && <BlockedSheet onClose={close} />}
@@ -493,9 +493,9 @@ function HiddenSheet({ onClose }: { onClose: () => void }) {
     }
   }
   return (
-    <Sheet title="Esconder story de…" onClose={onClose} full>
+    <Sheet title="Esconder mimo de…" onClose={onClose} full>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
-        <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>Estas pessoas deixam de ver os teus stories, sem serem avisadas.</Text>
+        <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>Estas pessoas deixam de ver os teus mimos, sem serem avisadas.</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TextInput value={name} onChangeText={setName} placeholder="@utilizador" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} onSubmitEditing={() => void add()} style={[st.input, { flex: 1 }]} accessibilityLabel="Utilizador" />
           <Pressable onPress={() => void add()} disabled={!name.trim()} style={[st.add, !name.trim() && { opacity: 0.6 }]} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Esconder</Text></Pressable>
@@ -616,7 +616,7 @@ function DeleteSheet({ username, onClose, onDeleted }: { username: string; onClo
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16, gap: 12 }}>
         <View style={{ borderRadius: 16, backgroundColor: '#fef2f2', padding: 16 }}>
           <Text style={{ fontWeight: '700', color: '#7f1d1d', fontSize: 14 }}>Isto não se desfaz.</Text>
-          {['O teu nome, @, bio, foto e email são apagados.', 'As tuas publicações deixam de aparecer.', 'Seguidores, stories e notificações são removidos.', 'Os movimentos de Txills ficam registados sem dados pessoais.'].map((t) => <Text key={t} style={{ marginTop: 4, fontSize: 14, lineHeight: 20, color: '#7f1d1d' }}>• {t}</Text>)}
+          {['O teu nome, @, bio, foto e email são apagados.', 'As tuas publicações deixam de aparecer.', 'Seguidores, mimos e notificações são removidos.', 'Os movimentos de Txills ficam registados sem dados pessoais.'].map((t) => <Text key={t} style={{ marginTop: 4, fontSize: 14, lineHeight: 20, color: '#7f1d1d' }}>• {t}</Text>)}
         </View>
         <TextInput value={confirm} onChangeText={setConfirm} placeholder={`Escreve @${username} para confirmar`} placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} style={st.input} accessibilityLabel="Confirmar o teu @" />
         <TextInput value={password} onChangeText={setPassword} placeholder="A tua senha (se a conta tiver)" placeholderTextColor={colors.zinc500} secureTextEntry autoComplete="current-password" style={st.input} accessibilityLabel="Senha" />

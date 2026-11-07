@@ -83,7 +83,7 @@ export class NotificationsService {
       repost: { body: 'repostou a tua publicação', url: postId ? `/p/${postId}` : '/notifications' },
       mention: { body: 'mencionou-te', url: commentId ? atComment : postId ? `/p/${postId}` : '/notifications' },
       tag: { body: 'identificou-te numa foto', url: postId ? `/p/${postId}` : '/notifications' },
-      story_reply: { body: 'respondeu ao teu story', url: n.data?.replyKind === 'comment' ? '/profile' : a?.username ? `/messages/${a.username as string}` : '/notifications' },
+      story_reply: { body: 'respondeu ao teu mimo', url: n.data?.replyKind === 'comment' ? '/profile' : a?.username ? `/messages/${a.username as string}` : '/notifications' },
       verified: { body: 'agora tem a conta verificada', url: profile },
     };
     const m = t[n.kind];

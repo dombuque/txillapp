@@ -123,7 +123,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
 
   // Escolher o status abre primeiro a pré-visualização: vês como fica, escreves uma legenda e só depois partilhas.
   function toStory(audience: 'all' | 'close_friends') {
-    if (!canStory) return setNote('Só se partilham no status publicações com foto ou vídeo');
+    if (!canStory) return setNote('Só se partilham no mimo publicações com foto ou vídeo');
     setPreview(audience);
   }
   async function publishStory() {
@@ -133,7 +133,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
       await extraApi.shareToStory(post.id, preview, caption.trim());
       const aud = preview;
       setPreview(null);
-      setNote(aud === 'all' ? 'Adicionado ao teu status' : 'Partilhado com amigos próximos');
+      setNote(aud === 'all' ? 'Adicionado ao teu mimo' : 'Partilhado com amigos próximos');
       setTimeout(onClose, 1000);
     } catch (e) {
       setNote((e as Error).message);
@@ -224,7 +224,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
       ) : (
         <View style={st.bottom}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 4 }} keyboardShouldPersistTaps="handled">
-            {action('square-plus', 'Adicionar ao status', () => toStory('all'), canStory ? colors.brand : colors.zinc100, canStory ? '#fff' : '#a1a1aa')}
+            {action('square-plus', 'Adicionar ao mimo', () => toStory('all'), canStory ? colors.brand : colors.zinc100, canStory ? '#fff' : '#a1a1aa')}
             {action('heart', 'Amigos próximos', () => toStory('close_friends'), canStory ? EMERALD : colors.zinc100, canStory ? '#fff' : '#a1a1aa')}
             {action('messages', 'WhatsApp', () => open(`https://wa.me/?text=${enc(url)}`), EMERALD_DARK, '#fff')}
             {letter('Telegram', 'T', '#0ea5e9', () => open(`https://t.me/share/url?url=${enc(url)}`))}
@@ -256,7 +256,7 @@ function PreviewVideo({ url }: { url: string }) {
   return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />;
 }
 
-/** Pré-visualização do status: o ecrã 9:16 com a publicação, a legenda e a escolha de quem vê. */
+/** Pré-visualização do mimo: o ecrã 9:16 com a publicação, a legenda e a escolha de quem vê. */
 function StoryPreview({ post, audience, setAudience, caption, setCaption, busy, onBack, onPublish }: {
   post: Post; audience: 'all' | 'close_friends'; setAudience: (a: 'all' | 'close_friends') => void; caption: string; setCaption: (c: string) => void; busy: boolean; onBack: () => void; onPublish: () => void;
 }) {
@@ -271,7 +271,7 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, busy, 
     <View style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(insets.top, 8), paddingBottom: Math.max(insets.bottom, 16) }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, paddingBottom: 8 }}>
         <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Voltar" style={st.back}><Icon name="back" size={24} color="#fff" /></Pressable>
-        <Text style={{ fontSize: 17, fontWeight: '700', color: '#fff' }}>Pré-visualização</Text>
+        <Text style={{ fontSize: 17, fontWeight: '700', color: '#fff' }}>Pré-visualização do mimo</Text>
       </View>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 }}>
         <View style={[st.phone, { width: pw, height: Math.round(pw * 16 / 9) }]}>
@@ -298,7 +298,7 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, busy, 
           })}
         </View>
         <Pressable onPress={onPublish} disabled={busy} accessibilityRole="button" style={({ pressed }) => [st.send, { marginTop: 0 }, busy && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.98 }] }]}>
-          <Text style={{ fontSize: 17, fontWeight: '700', color: '#fff' }}>{busy ? 'A partilhar…' : 'Partilhar no status'}</Text>
+          <Text style={{ fontSize: 17, fontWeight: '700', color: '#fff' }}>{busy ? 'A partilhar…' : 'Partilhar no mimo'}</Text>
         </Pressable>
       </View>
     </View>

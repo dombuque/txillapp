@@ -115,7 +115,7 @@ export function ReplyBar({ story, username, onFocusChange, inputRef }: { story: 
         </View>
       )}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <TextInput ref={inputRef} value={text} onChangeText={setText} onFocus={() => focus(true)} onBlur={() => focus(false)} maxLength={500} placeholder={`Enviar mensagem a ${username}…`} placeholderTextColor="rgba(255,255,255,0.7)" returnKeyType="send" onSubmitEditing={() => void send(text)} style={st.reply} accessibilityLabel={`Responder ao story de ${username}`} />
+        <TextInput ref={inputRef} value={text} onChangeText={setText} onFocus={() => focus(true)} onBlur={() => focus(false)} maxLength={500} placeholder={`Enviar mensagem a ${username}…`} placeholderTextColor="rgba(255,255,255,0.7)" returnKeyType="send" onSubmitEditing={() => void send(text)} style={st.reply} accessibilityLabel={`Responder ao mimo de ${username}`} />
         {text.trim() ? (
           <Pressable onPress={() => void send(text)} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Enviar</Text></Pressable>
         ) : (
@@ -179,7 +179,7 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
             <Pressable onPress={() => void send()} disabled={!text.trim() || busy} accessibilityRole="button"><Text style={{ paddingHorizontal: 8, fontWeight: '700', fontSize: 16, color: colors.brand, opacity: !text.trim() || busy ? 0.4 : 1 }}>Publicar</Text></Pressable>
           </View>
         ) : (
-          <Text style={st.closed}>Este story não aceita comentários.</Text>
+          <Text style={st.closed}>Este mimo não aceita comentários.</Text>
         )}
         {err ? <Text style={{ marginTop: 4, textAlign: 'center', fontSize: 14, color: colors.red600 }}>{err}</Text> : null}
       </View>
@@ -194,7 +194,7 @@ export function ActivityPanel({ story, onClose }: { story: Story; onClose: () =>
   const replies = useQuery({ queryKey: ['story-replies', story.id], queryFn: () => api.storyReplies(story.id) });
   const tabs = [['viewers', `Visualizações${story.viewCount ? ` (${story.viewCount})` : ''}`], ['replies', `Respostas${replies.data ? ` (${replies.data.length})` : ''}`]] as const;
   return (
-    <Panel title="Atividade do story" onClose={onClose}>
+    <Panel title="Atividade do mimo" onClose={onClose}>
       <View style={st.tabs}>
         {tabs.map(([k, label]) => (
           <Pressable key={k} onPress={() => setTab(k)} style={[st.tab, tab === k && st.tabOn]} accessibilityRole="tab" accessibilityState={{ selected: tab === k }}>

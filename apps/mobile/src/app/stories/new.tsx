@@ -105,7 +105,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
       await qc.invalidateQueries({ queryKey: ['stories'] });
       router.back();
     } catch (e) {
-      setErr((e as Error).message || 'Não consegui publicar o status');
+      setErr((e as Error).message || 'Não consegui publicar o mimo');
       setBusy(false);
     }
   }
@@ -125,7 +125,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
         ) : (
           <>
             {!fill && <Image source={{ uri: asset.uri }} style={[StyleSheet.absoluteFill, { opacity: 0.6, transform: [{ scale: 1.3 }] }]} contentFit="cover" blurRadius={40} />}
-            <Image source={{ uri: asset.uri }} style={StyleSheet.absoluteFill} contentFit={fill ? 'cover' : 'contain'} accessibilityLabel="Pré-visualização do status" />
+            <Image source={{ uri: asset.uri }} style={StyleSheet.absoluteFill} contentFit={fill ? 'cover' : 'contain'} accessibilityLabel="Pré-visualização do mimo" />
           </>
         )}
       </View>
@@ -160,14 +160,14 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
           placeholder="Escreve uma legenda…"
           placeholderTextColor="rgba(255,255,255,0.75)"
           style={[st.caption, typing && { backgroundColor: 'rgba(0,0,0,0.6)' }]}
-          accessibilityLabel="Legenda do status"
+          accessibilityLabel="Legenda do mimo"
         />
         {err ? <Text accessibilityRole="alert" style={st.err}>{err}</Text> : null}
         <View style={st.sendRow}>
           <View style={{ flex: 1, flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel="Para quem vai">
             <Pressable onPress={() => setAudience('all')} style={[st.aud, { flex: 1.25 }, !close && st.audOn]} accessibilityRole="radio" accessibilityState={{ checked: !close }}>
               <Avatar name={user?.displayName ?? ''} username={user?.username} size={26} />
-              <Text style={[st.audText, !close && { color: colors.zinc900 }]} numberOfLines={1}>Teu status</Text>
+              <Text style={[st.audText, !close && { color: colors.zinc900 }]} numberOfLines={1}>Teu mimo</Text>
               {!close && <Icon name="check" size={16} color={colors.zinc900} strokeWidth={3} />}
             </Pressable>
             <Pressable onPress={() => setAudience('close_friends')} style={[st.aud, close && { backgroundColor: EMERALD }]} accessibilityRole="radio" accessibilityState={{ checked: close }}>
@@ -176,7 +176,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
               {close && <Icon name="check" size={16} color="#fff" strokeWidth={3} />}
             </Pressable>
           </View>
-          <Pressable onPress={() => void publish()} disabled={busy} style={({ pressed }) => [st.send, close && { backgroundColor: EMERALD }, busy && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.94 }] }]} accessibilityRole="button" accessibilityLabel={close ? 'Partilhar com amigos próximos' : 'Partilhar no status'}>
+          <Pressable onPress={() => void publish()} disabled={busy} style={({ pressed }) => [st.send, close && { backgroundColor: EMERALD }, busy && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.94 }] }]} accessibilityRole="button" accessibilityLabel={close ? 'Partilhar com amigos próximos' : 'Partilhar no mimo'}>
             {busy ? <ActivityIndicator color="#fff" /> : <Icon name="send" size={24} color="#fff" strokeWidth={2.2} />}
           </Pressable>
         </View>

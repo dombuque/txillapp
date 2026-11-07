@@ -151,7 +151,7 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
         <View>
           {label('Tipo de perfil')}
           <View style={{ flexDirection: 'row', gap: 12 }} accessibilityRole="radiogroup">
-            {option(false, 'globe', 'Público', 'Qualquer pessoa vê as tuas publicações e stories e pode seguir-te.')}
+            {option(false, 'globe', 'Público', 'Qualquer pessoa vê as tuas publicações e mimos e pode seguir-te.')}
             {option(true, 'lock', 'Privado', 'Só vê quem aprovares. Seguir passa a ser um pedido.')}
           </View>
           {profile.isPrivate && !isPrivate && <Text style={{ marginTop: 8, fontSize: 12, color: colors.zinc600 }}>Ao passar a público, os pedidos pendentes são aceites.</Text>}

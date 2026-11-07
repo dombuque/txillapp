@@ -65,9 +65,9 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'comment': return { text: `comento${s} a tua publicação`, sub: quote };
     case 'reply': return { text: 'respondeu ao teu comentário', sub: quote };
     case 'story_reply':
-      if (n.data.replyKind === 'comment') return { text: 'comentou o teu story', sub: quote };
-      if (n.data.replyKind === 'reaction') return { text: many ? 'reagiram ao teu story' : <>reagiu ao teu story <ReactionArt body={n.data.snippet ?? ''} size={24} /></> };
-      return { text: 'respondeu ao teu story', sub: quote };
+      if (n.data.replyKind === 'comment') return { text: 'comentou o teu mimo', sub: quote };
+      if (n.data.replyKind === 'reaction') return { text: many ? 'reagiram ao teu mimo' : <>reagiu ao teu mimo <ReactionArt body={n.data.snippet ?? ''} size={24} /></> };
+      return { text: 'respondeu ao teu mimo', sub: quote };
     case 'repost': return { text: `reposto${s} a tua publicação` };
     case 'tag': return { text: `identifico${s}-te numa foto` };
     case 'mention': return { text: `menciono${s}-te`, sub: quote };

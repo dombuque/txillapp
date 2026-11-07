@@ -262,7 +262,7 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare }: { post:
   return (
     <Sheet title="Publicação" onClose={onClose}>
       <ScrollView style={{ paddingHorizontal: 24 }}>
-        <MenuRow icon={<Icon name="share" size={22} />} title="Partilhar" text="No teu status, por ligação ou por outra app." onPress={() => void share()} />
+        <MenuRow icon={<Icon name="share" size={22} />} title="Partilhar" text="No teu mimo, por ligação ou por outra app." onPress={() => void share()} />
         <MenuRow icon={<BookmarkIcon on={!!post.saved} size={22} color={colors.zinc800} />} title={post.saved ? 'Tirar dos guardados' : 'Guardar'} text="Só tu vês os teus guardados." onPress={() => void toggleSave()} />
         <MenuRow icon={<Icon name="link" size={22} />} title="Copiar ligação" text={note || 'Para partilhares onde quiseres.'} onPress={() => void copy()} />
         {mine && !(post.kind === 'repost' && !post.body) && <MenuRow icon={<Icon name="pencil" size={22} />} title="Editar" text="Muda o texto da publicação." onPress={() => { setDraft(post.body); setView('edit'); }} />}

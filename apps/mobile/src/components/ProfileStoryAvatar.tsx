@@ -60,7 +60,7 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
         onLongPress={longPress}
         delayLongPress={400}
         accessibilityRole="button"
-        accessibilityLabel={`Ver story de ${avatarName}`}
+        accessibilityLabel={`Ver mimo de ${avatarName}`}
         style={{ width: box, height: box }}
       >
         {/* O anel mede 72px; amplia-se para acompanhar a foto grande do perfil. */}

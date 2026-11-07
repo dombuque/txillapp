@@ -333,7 +333,7 @@ export function Bubble({
       onCheer(m);
     } else lastTap.current = now;
   };
-  const storyLabel = m.kind === 'story_reaction' ? (mine ? 'Reagiste ao story' : 'Reagiu ao teu story') : mine ? 'Respondeste ao story' : 'Respondeu ao teu story';
+  const storyLabel = m.kind === 'story_reaction' ? (mine ? 'Reagiste ao mimo' : 'Reagiu ao teu mimo') : mine ? 'Respondeste ao mimo' : 'Respondeu ao teu mimo';
 
   return (
     <View style={[{ alignItems: mine ? 'flex-end' : 'flex-start', marginTop: prevSame ? 2 : 12, borderRadius: 24 }, flash && { backgroundColor: 'rgba(214,51,79,0.15)' }]}>
@@ -354,7 +354,7 @@ export function Bubble({
         </Pressable>
       )}
       {m.storyUrl ? (
-        <Pressable onPress={() => { const o = mine ? peerHandle : meHandle; if (o) router.push(`/stories/${o}` as never); }} style={{ marginBottom: 4 }} accessibilityRole="button" accessibilityLabel="Ver o story">
+        <Pressable onPress={() => { const o = mine ? peerHandle : meHandle; if (o) router.push(`/stories/${o}` as never); }} style={{ marginBottom: 4 }} accessibilityRole="button" accessibilityLabel="Ver o mimo">
           <Image source={{ uri: sized(m.storyUrl, 160) }} style={{ height: 112, width: 72, borderRadius: 12, opacity: 0.9 }} contentFit="cover" />
         </Pressable>
       ) : null}
