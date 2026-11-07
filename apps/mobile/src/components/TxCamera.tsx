@@ -751,6 +751,11 @@ export function TxCamera({
                   <Pressable onPress={startFreeCrop} style={[st.lookChip, freeCrop && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: freeCrop }}>
                     <Text style={[st.lookText, freeCrop && { color: colors.zinc900 }]}>Livre</Text>
                   </Pressable>
+                  {freeCrop && (
+                    <Pressable onPress={endFreeCrop} style={st.cropOk} accessibilityRole="button" accessibilityLabel="Concluir o recorte">
+                      <Icon name="check" size={18} color="#fff" strokeWidth={3} />
+                    </Pressable>
+                  )}
                   {([[null, 'Original'], [1, '1:1'], [0.8, '4:5'], [9 / 16, '9:16'], [16 / 9, '16:9']] as const).map(([a, label]) => (
                     <Pressable key={label} onPress={() => { setFreeCrop(false); changeEdit({ aspect: a, box: null }); }} style={[st.lookChip, !freeCrop && edit.aspect === a && edit.box === null && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: !freeCrop && edit.aspect === a }}>
                       <Text style={[st.lookText, !freeCrop && edit.aspect === a && edit.box === null && { color: colors.zinc900 }]}>{label}</Text>
@@ -849,6 +854,7 @@ const st = StyleSheet.create({
   hint: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600', marginBottom: 14 },
   thumb: { width: 44, height: 44, borderRadius: 8, overflow: 'hidden', borderWidth: 2, borderColor: colors.brand, backgroundColor: '#222' },
   kinds: { flexDirection: 'row', justifyContent: 'center', gap: 22, marginTop: 16 },
+  cropOk: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   corner: { position: 'absolute', width: 30, height: 30, borderColor: colors.brand, opacity: 0.9 },
   wordmark: { color: 'rgba(255,255,255,0.8)', fontSize: 15, fontWeight: '900', letterSpacing: -0.5 },
   kindText: { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: '700', letterSpacing: 1.2 },
