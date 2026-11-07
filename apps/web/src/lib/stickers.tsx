@@ -9,6 +9,20 @@ import { tr } from './i18n';
 type Eyes = 'dots' | 'happy' | 'closed' | 'wide' | 'heart' | 'star' | 'dizzy' | 'wink' | 'side' | 'angry' | 'none';
 type Mouth = 'smile' | 'grin' | 'o' | 'flat' | 'sad' | 'tongue' | 'laugh' | 'smirk' | 'kiss' | 'none';
 type Shape = 'round' | 'squircle' | 'blob' | 'drop';
+/**
+ * As personagens do Txillapp. Cada sticker é uma delas a fazer a expressão: Txilla (a caneca com espuma: brindes, festa,
+ * comes e bebes), Gelinho (a geleira: dia a dia, calma), Zazá (bola com crista de raio: Zás, pressa, desporto), Mimo (o coração:
+ * amor e amizade), Txeka (o ecrã com perfurações de filme: música e dança) e Super (a estrela do SuperTxill: lenda, estudo).
+ */
+export type Char = 'txilla' | 'gelinho' | 'zaza' | 'mimo' | 'txeka' | 'super';
+export const CAST: { id: Char; name: string; blurb: string }[] = [
+  { id: 'txilla', name: 'Txilla', blurb: 'A caneca com espuma. Brinda a tudo.' },
+  { id: 'gelinho', name: 'Gelinho', blurb: 'A geleira. Frio por fora, quente por dentro.' },
+  { id: 'zaza', name: 'Zazá', blurb: 'O raio. Nunca pára quieta.' },
+  { id: 'mimo', name: 'Mimo', blurb: 'O coração. Mimos para toda a gente.' },
+  { id: 'txeka', name: 'Txeka', blurb: 'O ecrã. Vive dentro dos tchekas.' },
+  { id: 'super', name: 'Super', blurb: 'A estrela do SuperTxill. Sabe tudo (ou quase).' },
+];
 
 export type StickerCat = 'reacoes' | 'dia' | 'comida' | 'festa' | 'amor' | 'malta' | 'desporto' | 'musica' | 'estudo' | 'terra';
 export const STICKER_CATS: { id: StickerCat; label: string }[] = [
@@ -31,6 +45,8 @@ interface Def {
   /** Cor lisa do corpo. */
   color: string;
   shape?: Shape;
+  /** Qual das personagens faz este sticker (sem isto, escolhe-se pela categoria). */
+  who?: Char;
   eyes: Eyes;
   mouth: Mouth;
   cheeks?: boolean;
@@ -946,6 +962,104 @@ export const STICKERS: Def[] = [
 ];
 
 // ── corpo
+/** Personagem por categoria quando o sticker não diz qual: alterna para a família ter variedade. */
+const CAT_CAST: Record<StickerCat, Char[]> = {
+  reacoes: ['txilla', 'zaza', 'mimo', 'gelinho', 'super', 'txeka'],
+  dia: ['gelinho', 'txilla', 'zaza'],
+  comida: ['txilla', 'gelinho'],
+  festa: ['txilla', 'zaza', 'txeka'],
+  amor: ['mimo'],
+  malta: ['txilla', 'mimo', 'zaza', 'gelinho'],
+  desporto: ['zaza', 'txilla'],
+  musica: ['txeka', 'zaza'],
+  estudo: ['super', 'gelinho'],
+  terra: ['txilla', 'gelinho', 'super'],
+};
+/** Fixos: as reações do chat e dos mimos têm sempre a mesma personagem. */
+const FIXED: Record<string, Char> = { rir: 'txilla', uau: 'super', amor: 'mimo', snif: 'gelinho', fixe: 'txilla', bora: 'zaza', saude: 'txilla', cool: 'txeka', rei: 'super', estrela: 'super', grr: 'zaza', morri: 'txilla', hmm: 'gelinho' };
+export function whoOf(s: Def): Char {
+  if (s.who) return s.who;
+  if (FIXED[s.id]) return FIXED[s.id];
+  const list = CAT_CAST[s.cat];
+  const n = STICKERS.filter((x) => x.cat === s.cat).findIndex((x) => x.id === s.id);
+  return list[Math.max(0, n) % list.length];
+}
+
+const TX = { amber: '#ffb84d', foam: '#fff6e0', ice: '#9bd8ff', iceDark: '#5fb8f0', bolt: '#ffd23f', heart: '#ff7eb6', screen: '#9b72ff', screenDark: '#6f4ee0', star: '#ff6b6b' };
+const outline = { stroke: INK, strokeWidth: 3, strokeLinejoin: 'round' as const };
+
+/** O corpo da personagem (a cara desenha-se por cima, centrada em 60,56 como sempre). */
+function charBody(who: Char) {
+  switch (who) {
+    case 'txilla':
+      return (
+        <g>
+          <path d="M96 48h6a13 13 0 0 1 0 26h-6" fill={TX.amber} {...outline} />
+          <rect x="24" y="30" width="72" height="66" rx="16" fill={TX.amber} {...outline} />
+          <path d="M24 44h72" stroke={WHITE} strokeWidth="2.5" opacity=".5" />
+          <g fill={TX.foam} {...outline}>
+            <circle cx="34" cy="31" r="9" />
+            <circle cx="50" cy="26" r="11" />
+            <circle cx="68" cy="25" r="11" />
+            <circle cx="85" cy="30" r="9" />
+          </g>
+          <rect x="30" y="24" width="60" height="12" fill={TX.foam} />
+          <circle cx="34" cy="86" r="3" fill={WHITE} opacity=".6" />
+          <circle cx="42" cy="78" r="2" fill={WHITE} opacity=".6" />
+        </g>
+      );
+    case 'gelinho':
+      return (
+        <g>
+          <rect x="34" y="98" width="10" height="6" rx="2" fill={INK} />
+          <rect x="76" y="98" width="10" height="6" rx="2" fill={INK} />
+          <rect x="26" y="14" width="68" height="86" rx="14" fill={TX.ice} {...outline} />
+          <path d="M26 32h68" stroke={INK} strokeWidth="3" />
+          <rect x="82" y="20" width="5" height="8" rx="2.5" fill={INK} />
+          <rect x="82" y="56" width="5" height="16" rx="2.5" fill={INK} />
+          <path d="M33 22q6-3 12-2" fill="none" stroke={WHITE} strokeWidth="3" strokeLinecap="round" opacity=".7" />
+          <circle cx="36" cy="88" r="3.5" fill={TX.iceDark} />
+          <circle cx="46" cy="90" r="3.5" fill={TX.iceDark} />
+        </g>
+      );
+    case 'zaza':
+      return (
+        <g>
+          <path d="M72 2l-16 22h11l-8 18 20-26h-9z" fill={TX.bolt} {...outline} />
+          <circle cx="60" cy="58" r="38" fill={TX.bolt} {...outline} />
+          <path d="M98 70l10 4-6 7" fill="none" stroke={INK} strokeWidth="3" strokeLinecap="round" />
+          <path d="M36 38q4-8 14-10" fill="none" stroke={WHITE} strokeWidth="4.5" strokeLinecap="round" opacity=".55" />
+        </g>
+      );
+    case 'mimo':
+      return (
+        <g>
+          <path d="M60 102C32 82 16 68 16 48a22 22 0 0 1 44-6 22 22 0 0 1 44 6c0 20-16 34-44 54z" fill={TX.heart} {...outline} />
+          <path d="M30 42q3-10 14-13" fill="none" stroke={WHITE} strokeWidth="4.5" strokeLinecap="round" opacity=".55" />
+        </g>
+      );
+    case 'txeka':
+      return (
+        <g>
+          <rect x="18" y="18" width="84" height="76" rx="18" fill={TX.screen} {...outline} />
+          <g fill={WHITE} opacity=".85">
+            <rect x="28" y="23" width="8" height="6" rx="2" /><rect x="42" y="23" width="8" height="6" rx="2" /><rect x="56" y="23" width="8" height="6" rx="2" /><rect x="70" y="23" width="8" height="6" rx="2" /><rect x="84" y="23" width="8" height="6" rx="2" />
+            <rect x="28" y="83" width="8" height="6" rx="2" /><rect x="42" y="83" width="8" height="6" rx="2" /><rect x="56" y="83" width="8" height="6" rx="2" /><rect x="70" y="83" width="8" height="6" rx="2" /><rect x="84" y="83" width="8" height="6" rx="2" />
+          </g>
+          <path d="M18 34h84M18 78h84" stroke={TX.screenDark} strokeWidth="2" />
+        </g>
+      );
+    case 'super':
+      return (
+        <g>
+          <path d="M60 4c7 30 17 40 48 52-31 12-41 22-48 52-7-30-17-40-48-52 31-12 41-22 48-52z" fill={TX.star} {...outline} />
+          <path d="M40 40q6-8 16-8" fill="none" stroke={WHITE} strokeWidth="4" strokeLinecap="round" opacity=".55" />
+          <path d="M100 18l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill={C.yellow} />
+        </g>
+      );
+  }
+}
+
 function body(shape: Shape, color: string) {
   switch (shape) {
     case 'squircle':
@@ -1041,7 +1155,7 @@ function mouth(kind: Mouth) {
 }
 
 /** O sticker: recorte com fundo transparente (corpo liso, cara simples, adereço e texto) com contorno branco e sombra suave. */
-export function Sticker({ id, size = 132, bare = false }: { id: string; size?: number; bare?: boolean }) {
+export function Sticker({ id, size = 132, bare = true }: { id: string; size?: number; bare?: boolean }) {
   const s = STICKERS.find((x) => x.id === id);
   if (!s) return <span className="text-sm text-zinc-500">Sticker</span>;
   const h = Math.round(size * (bare ? 0.98 : 1.12));
@@ -1051,9 +1165,7 @@ export function Sticker({ id, size = 132, bare = false }: { id: string; size?: n
     <svg role="img" aria-label={`Sticker: ${s.text}`} width={size} height={h} viewBox={bare ? '0 4 120 118' : '0 0 120 134'} className="shrink-0 overflow-visible">
       <g>
         {s.back}
-        {body(s.shape ?? 'round', s.color)}
-        {/* um brilho pequeno, só para dar volume sem degradês */}
-        <path d="M36 36q4-8 14-10" fill="none" stroke={WHITE} strokeWidth="4.5" strokeLinecap="round" opacity=".45" />
+        {charBody(whoOf(s))}
         {s.cheeks && (
           <g fill={C.coral} opacity=".55">
             <ellipse cx="35" cy="64" rx="6.5" ry="4.2" />

@@ -13,11 +13,15 @@ import { Icon } from './Icon';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
+import { Sticker, StickerPanel } from './StickerPanel';
 import { VerifiedBadge } from './VerifiedBadge';
 
 // Reações rápidas desenhadas com a mascote do Txillapp; ao tocar, escrevem o emoji no comentário (conteúdo do utilizador).
 // As mesmas reações rápidas do site (vão para o texto do comentário).
 const QUICK = ['🥂', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
+/** Um comentário que é só um sticker (uma personagem do Txillapp) guarda-se como [sticker:id]. */
+const STICKER_RE = /^\[sticker:([a-z0-9-]+)\]$/;
+export const stickerOf = (body: string) => STICKER_RE.exec(body)?.[1] ?? null;
 
 interface RowProps {
   c: Comment;
@@ -95,7 +99,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
     setMenu(true);
   };
-  const startEdit = () => { setDraft(text.body); setSel({ start: text.body.length, end: text.body.length }); setEditing(true); };
+  const startEdit = () => { if (stickerOf(text.body)) return; setDraft(text.body); setSel({ start: text.body.length, end: text.body.length }); setEditing(true); };
 
   return (
     <Pressable onLongPress={openMenu} delayLongPress={380} style={[styles.row, highlighted && { backgroundColor: colors.rose50 }]} accessibilityHint="Segura para mais opções">
@@ -120,7 +124,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
             </View>
           </View>
         ) : (
-          <RichText text={text.body} style={styles.body} />
+          stickerOf(text.body) ? <View style={{ marginTop: 2 }}><Sticker id={stickerOf(text.body)!} size={96} /></View> : <RichText text={text.body} style={styles.body} />
         )}
         {ask && !editing && (
           <View style={styles.ask} accessibilityRole="summary">
@@ -243,15 +247,16 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
     setExpanded((s) => new Set(s).add(c.parentId ?? c.id));
     input.current?.focus();
   }
-  async function submit() {
-    const body = text.trim();
+  const [stickers, setStickers] = useState(false);
+  async function submit(explicit?: string) {
+    const body = (explicit ?? text).trim();
     if (!body || busy) return;
     setBusy(true);
     setErr('');
     try {
       const c = await api.addComment(post.id, body, replyTo?.id);
       onDelta(1);
-      setText('');
+      if (!explicit) setText('');
       setReplyTo(null);
       if (c.parentId) {
         setExpanded((s) => new Set(s).add(c.parentId!));
@@ -328,10 +333,14 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
               {typing.length === 1 ? `${typing[0]} está a escrever…` : typing.length === 2 ? `${typing[0]} e ${typing[1]} estão a escrever…` : `${typing[0]} e mais ${typing.length - 1} estão a escrever…`}
             </Text>
           )}
+          {stickers && <View style={{ maxHeight: 300 }}><StickerPanel onPick={(id) => { setStickers(false); void submit(`[sticker:${id}]`); }} /></View>}
           <View style={styles.quick}>
             {QUICK.map((e) => (
               <Pressable key={e} onPress={() => { setText((t) => t + e); input.current?.focus(); }} accessibilityLabel={`Adicionar ${e}`} style={({ pressed }) => [pressed && { transform: [{ scale: 1.25 }] }]}><Text style={{ fontSize: 24, lineHeight: 32 }}>{e}</Text></Pressable>
             ))}
+            <Pressable onPress={() => setStickers((v) => !v)} accessibilityRole="button" accessibilityLabel="Stickers" accessibilityState={{ expanded: stickers }} style={[{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }, stickers && { backgroundColor: colors.rose50 }]}>
+              <Icon name="sticker" size={24} color={stickers ? colors.brand : colors.zinc700} />
+            </Pressable>
           </View>
           <View style={styles.compose}>
             <Avatar name={user?.displayName ?? '?'} username={user?.username} size={36} />

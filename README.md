@@ -6,6 +6,8 @@ Plataforma social mobile-first (PWA) com feed, showoff e **Txills** — uma moed
 
 **Vocabulário do Txillapp** (os nomes no código são os genéricos): **Mimo** = story (24 h), **Tcheka** = reel (vídeo curto), **Zás** = instant (foto na hora, vista uma vez), **Geleira** = os gostos do perfil. Nos textos visíveis nunca se diz story nem reel.
 
+**As personagens** (os stickers do chat são sempre uma delas, em `apps/web/src/lib/stickers.tsx`): **Txilla** (a caneca com espuma), **Gelinho** (a geleira), **Zazá** (o raio), **Mimo** (o coração), **Txeka** (o ecrã dos tchekas) e **Super** (a estrela do SuperTxill). Regenerar o pacote: `npm run export-stickers` em apps/web.
+
 ## O que já funciona
 
 - Registo em passos com **validação em tempo real** do @ e do email (sugestões livres quando o @ já tem dono; nomes reservados bloqueados)

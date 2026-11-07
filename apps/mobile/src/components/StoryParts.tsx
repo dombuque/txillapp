@@ -25,8 +25,7 @@ export const REACTIONS: { id: string; label: string; art: string }[] = [
 ];
 export function ReactionArt({ body, size = 40 }: { body: string; size?: number }) {
   const r = REACTIONS.find((x) => x.id === body);
-  // Sem a legenda do sticker (só a mascote): corta a faixa de baixo.
-  return r ? <View style={{ width: size, height: Math.round(size * 0.9), overflow: 'hidden' }}><Sticker id={r.art} size={size} /></View> : <Text style={{ fontSize: size * 0.85 }}>{body}</Text>;
+  return r ? <Sticker id={r.art} size={size} /> : <Text style={{ fontSize: size * 0.85 }}>{body}</Text>;
 }
 const reactionLabel = (b: string) => REACTIONS.find((x) => x.id === b)?.label ?? b;
 

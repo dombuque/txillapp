@@ -13,7 +13,7 @@ await build({
       import { STICKERS, STICKER_CATS, Sticker } from './src/lib/stickers';
       export const data = {
         cats: STICKER_CATS,
-        items: STICKERS.map((s) => ({ id: s.id, cat: s.cat, text: s.text, svg: renderToStaticMarkup(React.createElement(Sticker, { id: s.id, size: 132 })).replace(/fontFamily="inherit"|font-family="inherit"/g, 'font-family="sans-serif"').replace(/ class="[^"]*"/g, '') })),
+        items: STICKERS.map((s) => ({ id: s.id, cat: s.cat, text: s.text, svg: renderToStaticMarkup(React.createElement(Sticker, { id: s.id, size: 132, bare: true })).replace(/fontFamily="inherit"|font-family="inherit"/g, 'font-family="sans-serif"').replace(/ class="[^"]*"/g, '') })),
       };`,
     resolveDir: process.cwd(),
     loader: 'tsx',

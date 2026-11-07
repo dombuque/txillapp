@@ -12,7 +12,7 @@ const CATS = data.cats as { id: string; label: string }[];
 export function Sticker({ id, size = 132 }: { id: string; size?: number }) {
   const s = ITEMS.find((x) => x.id === id);
   if (!s) return <Text style={{ fontSize: 14, color: colors.zinc500 }}>Sticker</Text>;
-  return <SvgXml xml={s.svg} width={size} height={Math.round(size * 1.12)} />;
+  return <SvgXml xml={s.svg} width={size} height={Math.round(size * 0.98)} />;
 }
 
 const RECENT_KEY = 'txill.stickers.recent';
