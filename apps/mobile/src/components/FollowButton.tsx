@@ -32,13 +32,14 @@ export function FollowButton({ username, following, requested, isPrivate }: { us
   }
   const on = s.following || s.requested;
   return (
-    <Pressable onPress={() => void toggle()} disabled={busy} style={[st.btn, { flex: 1 }, on ? null : { backgroundColor: colors.brand }, busy && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ selected: s.following }}>
+    <Pressable onPress={() => void toggle()} disabled={busy} style={[st.btn, on ? null : { backgroundColor: colors.brand }, busy && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ selected: s.following }}>
       <Text style={[st.text, !on && { color: '#fff' }]}>{s.following ? 'A seguir' : s.requested ? 'Pedido enviado' : 'Seguir'}</Text>
     </Pressable>
   );
 }
 
 const st = StyleSheet.create({
-  btn: { height: 36, borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  // Sem `flex: 1`: dentro de uma coluna anulava a altura (ficava um botão achatado). Estica à largura do pai e tem 36 de alto.
+  btn: { alignSelf: 'stretch', height: 36, minWidth: 88, borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
   text: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },
 });

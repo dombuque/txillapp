@@ -20,6 +20,8 @@ import { useAuth } from '@/lib/auth';
 import { timeAgo } from '@/lib/time';
 
 const IMAGE_MS = 5000;
+/** Para que lado se saiu da pessoa anterior (a seguinte entra desse lado). Vive fora do ecrã porque a rota é substituída. */
+let lastDir: 1 | -1 | 0 = 0;
 const expiresIn = (iso: string) => {
   const h = Math.ceil((new Date(iso).getTime() - Date.now()) / 3_600_000);
   return h <= 0 ? 'a expirar' : `expira em ${h} h`;
@@ -94,6 +96,7 @@ export default function StoryViewer() {
   const cur: Story | undefined = stories[i];
   const mine = username === me?.username;
   const dy = useRef(new Animated.Value(0)).current;
+  const dx = useRef(new Animated.Value(0)).current;
   const paused = held || typing || panel !== null || away;
 
   useFocusEffect(useCallback(() => { setAway(false); }, []));
@@ -109,7 +112,26 @@ export default function StoryViewer() {
   // Ordem como no site: os teus (se tiveres) e depois os outros. Avança para o próximo ainda por ver.
   const order = (tray.data ?? []).slice().sort((a, b) => Number(b.isMe) - Number(a.isMe));
   const at = order.findIndex((t) => t.username === username);
-  const goUser = (u?: string) => (u ? router.replace(`/stories/${u}` as never) : close());
+  const goUser = (u?: string, dir: 1 | -1 = 1) => { if (!u) return close(); lastDir = dir; router.replace(`/stories/${u}` as never); };
+  // Entrada: desliza do lado por onde se veio (como a passagem de pessoa a pessoa no Instagram).
+  const enter = useRef(new Animated.Value(lastDir === 0 ? 1 : 0)).current;
+  const enterDir = useRef(lastDir).current;
+  useEffect(() => {
+    lastDir = 0;
+    Animated.timing(enter, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+  }, [enter]);
+  // Pré-carrega a pessoa seguinte (lista e primeira foto) e a foto seguinte desta, para a passagem não esperar pela rede.
+  useEffect(() => {
+    const nu = order.find((t, n) => n > at && !t.seen) ?? order[at + 1];
+    if (nu) {
+      void qc.prefetchQuery({ queryKey: ['stories', nu.username], queryFn: () => api.storiesOf(nu.username), staleTime: 30_000 }).then(() => {
+        const first = qc.getQueryData<Story[]>(['stories', nu.username])?.find((x) => !x.seen) ?? qc.getQueryData<Story[]>(['stories', nu.username])?.[0];
+        if (first && first.mediaKind !== 'video') { const u = sized(first.mediaUrl, 1080); if (u) void Image.prefetch(u).catch(() => undefined); }
+      }).catch(() => undefined);
+    }
+    const nx = stories[i + 1];
+    if (nx && nx.mediaKind !== 'video') { const u = sized(nx.mediaUrl, 1080); if (u) void Image.prefetch(u).catch(() => undefined); }
+  }, [at, i, stories.length, order.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const next = () => {
     if (i + 1 < stories.length) return setI(i + 1);
     const nu = order.find((t, n) => n > at && !t.seen);
@@ -117,7 +139,7 @@ export default function StoryViewer() {
   };
   const prev = () => {
     if (i > 0) return setI(i - 1);
-    if (at > 0) return goUser(order[at - 1].username);
+    if (at > 0) return goUser(order[at - 1].username, -1);
     pval.current = 0;
     progress.setValue(0);
   };
@@ -125,7 +147,7 @@ export default function StoryViewer() {
   // Abre no primeiro story ainda não visto dessa pessoa (ou no primeiro, se já viu todos).
   const started = useRef<string | null>(null);
   useEffect(() => {
-    if (!q.isSuccess || q.isFetching || started.current === username) return;
+    if (!q.data || started.current === username) return;
     started.current = username;
     // Os meus: o servidor não conta o autor, por isso "visto" é o que este aparelho guardou (hora do último visto).
     const firstNew = mine ? stories.findIndex((x) => !ownSeen || x.createdAt > ownSeen) : stories.findIndex((x) => !x.seen);
@@ -166,9 +188,17 @@ export default function StoryViewer() {
   const pan = useRef(
     PanResponder.create({
       // Com um painel aberto (visualizações, comentários, menu) o gesto é do painel: não sai do story.
-      onMoveShouldSetPanResponder: (_e, g) => !panelOpen.current && Math.abs(g.dy) > 14 && Math.abs(g.dy) > Math.abs(g.dx) * 1.5,
-      onPanResponderMove: (_e, g) => dy.setValue(Math.max(0, g.dy)),
+      onMoveShouldSetPanResponder: (_e, g) => !panelOpen.current && ((Math.abs(g.dy) > 14 && Math.abs(g.dy) > Math.abs(g.dx) * 1.5) || (Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5)),
+      onPanResponderMove: (_e, g) => {
+        if (Math.abs(g.dx) > Math.abs(g.dy)) { dx.setValue(g.dx); dy.setValue(0); } else { dy.setValue(Math.max(0, g.dy)); dx.setValue(0); }
+      },
       onPanResponderRelease: (_e, g) => {
+        if (Math.abs(g.dx) > Math.abs(g.dy)) {
+          if (g.dx < -60) { Animated.timing(dx, { toValue: -80, duration: 120, useNativeDriver: false }).start(() => sideRef.current(1)); return; }
+          if (g.dx > 60) { Animated.timing(dx, { toValue: 80, duration: 120, useNativeDriver: false }).start(() => sideRef.current(-1)); return; }
+          Animated.spring(dx, { toValue: 0, useNativeDriver: false }).start();
+          return;
+        }
         if (g.dy > 110) return closeRef.current();
         Animated.spring(dy, { toValue: 0, useNativeDriver: false }).start();
         if (g.dy < -70) upRef.current();
@@ -176,6 +206,14 @@ export default function StoryViewer() {
     }),
   ).current;
   const panelOpen = useRef(false);
+  // Deslizar para o lado: a pessoa seguinte (mesmo já vista) ou a anterior; sem mais ninguém, fecha ou volta ao lugar.
+  const sideRef = useRef((d: 1 | -1) => { void d; });
+  sideRef.current = (d) => {
+    const u = d > 0 ? order[at + 1]?.username : at > 0 ? order[at - 1].username : undefined;
+    if (u) goUser(u, d);
+    else if (d > 0) close();
+    else Animated.spring(dx, { toValue: 0, useNativeDriver: false }).start();
+  };
   panelOpen.current = panel !== null;
   const closeRef = useRef(close);
   closeRef.current = close;
@@ -223,7 +261,7 @@ export default function StoryViewer() {
   return (
     <View style={[{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }, vvOn && vv ? { position: 'absolute', left: 0, right: 0, top: vv.top, height: vv.height } : null]}>
       <Animated.View
-        style={[st.root, wide && { maxWidth: 460, borderRadius: 24, overflow: 'hidden', maxHeight: 860 }, { transform: [{ translateY: dy }], opacity: dy.interpolate({ inputRange: [0, 300], outputRange: [1, 0.4], extrapolate: 'clamp' }) }]}
+        style={[st.root, wide && { maxWidth: 460, borderRadius: 24, overflow: 'hidden', maxHeight: 860 }, { transform: [{ translateY: dy }, { translateX: Animated.add(dx, enter.interpolate({ inputRange: [0, 1], outputRange: [enterDir * 90, 0] })) }, { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }], opacity: Animated.multiply(dy.interpolate({ inputRange: [0, 300], outputRange: [1, 0.4], extrapolate: 'clamp' }), enter.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] })) }]}
         {...pan.panHandlers}
       >
         {/* Fundo desfocado da própria foto: a imagem aparece inteira, sem barras pretas */}
