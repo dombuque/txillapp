@@ -274,14 +274,11 @@ export default function Search() {
             )}
 
             {q.isSuccess && tab === 'posts' && (
-              <FlatList
-                scrollEnabled={false}
-                data={posts}
-                keyExtractor={(p) => p.id}
-                contentContainerStyle={{ paddingHorizontal: 16 }}
-                ListEmptyComponent={<View style={styles.empty}><Icon name="inbox" size={36} color={colors.zinc300} /><Text style={styles.emptyTitle}>{none}</Text></View>}
-                renderItem={({ item: p }) => (
-                  <Pressable onPress={() => { remember(term); setOpened(p); }} style={({ pressed }) => [styles.person, { borderRadius: 16 }, pressed && { backgroundColor: colors.zinc100 }]}>
+              // Sem FlatList: a página é que rola (um FlatList com scrollEnabled={false} fica com touch-action: none na web e o toque não rolava nada).
+              <View style={{ paddingHorizontal: 16 }}>
+                {posts.length === 0 && <View style={styles.empty}><Icon name="inbox" size={36} color={colors.zinc300} /><Text style={styles.emptyTitle}>{none}</Text></View>}
+                {posts.map((p) => (
+                  <Pressable key={p.id} onPress={() => { remember(term); setOpened(p); }} style={({ pressed }) => [styles.person, { borderRadius: 16 }, pressed && { backgroundColor: colors.zinc100 }]}>
                     {p.media[0] ? (
                       <Image source={{ uri: sized(p.media[0].kind === 'video' ? p.media[0].posterUrl ?? p.media[0].url : p.media[0].url, 160) }} style={styles.thumb} contentFit="cover" />
                     ) : (
@@ -293,8 +290,8 @@ export default function Search() {
                       <Text style={{ fontSize: 12, color: colors.zinc500 }}>{timeAgo(p.createdAt)}{p.locationLabel ? ` · ${p.locationLabel}` : ''}</Text>
                     </View>
                   </Pressable>
-                )}
-              />
+                ))}
+              </View>
             )}
           </>
         )}

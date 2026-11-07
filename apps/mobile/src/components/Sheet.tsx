@@ -32,12 +32,22 @@ export function Sheet({ title, onClose, children, full = false, plain = false }:
 
   const pan = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponderCapture: (_e, g) => g.dy > 8 && Math.abs(g.dy) > Math.abs(g.dx) * 1.4 && atTop.current,
+      onMoveShouldSetPanResponderCapture: (e, g) => {
+        if (!(g.dy > 8 && Math.abs(g.dy) > Math.abs(g.dx) * 1.4 && atTop.current)) return false;
+        // Na web: se o dedo começou numa lista que já está rolada, o gesto é da lista (senão a folha seguia o dedo e fechava-se).
+        if (Platform.OS === 'web') {
+          let n = (e.nativeEvent as unknown as { target?: HTMLElement | null }).target ?? null;
+          for (let k = 0; n && k < 30; k++, n = n.parentElement) if (n.scrollTop > 0) return false;
+        }
+        return true;
+      },
       onPanResponderMove: (_e, g) => y.setValue(Math.max(0, g.dy)),
       onPanResponderRelease: (_e, g) => {
         if (g.dy > 120 || g.vy > 0.9) close();
         else Animated.spring(y, { toValue: 0, useNativeDriver: Platform.OS !== 'web', bounciness: 0 }).start();
       },
+      // A lista tirou-nos o gesto a meio: a folha volta ao lugar.
+      onPanResponderTerminate: () => Animated.spring(y, { toValue: 0, useNativeDriver: Platform.OS !== 'web', bounciness: 0 }).start(),
     }),
   ).current;
 

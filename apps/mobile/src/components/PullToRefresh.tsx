@@ -2,6 +2,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { Platform, RefreshControl, StyleSheet, View, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { colors } from '@/lib/theme';
+import { FillView } from './FillView';
 
 const TRIGGER = 76;
 
@@ -73,7 +74,7 @@ export function PullView({ pull, children }: { pull: ReturnType<typeof usePullTo
           )}
         </View>
       )}
-      <View style={{ flex: 1, transform: [{ translateY: pull.web ? shown : 0 }] }}>{children}</View>
+      <FillView style={{ transform: [{ translateY: pull.web ? shown : 0 }] }}>{children}</FillView>
     </View>
   );
 }

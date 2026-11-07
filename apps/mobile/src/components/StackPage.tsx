@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
 import { BackButton } from './BackButton';
+import { FillView } from './FillView';
 
 /** Página própria em ecrã inteiro: seta de voltar e título no topo (igual à do site), sem a barra de baixo. */
 export function StackPage({ title, children, right }: { title: string; children: ReactNode; right?: ReactNode }) {
@@ -17,7 +18,7 @@ export function StackPage({ title, children, right }: { title: string; children:
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
         {right}
       </View>
-      <View style={{ flex: 1 }}>{children}</View>
+      <FillView>{children}</FillView>
     </View>
   );
 }
