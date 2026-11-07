@@ -16,6 +16,8 @@ import { PlaceSheet, type PlaceGeo } from '@/components/PlaceSheet';
 import { Sheet } from '@/components/Sheet';
 import { TrackCard } from '@/components/TrackCard';
 import { enqueuePublish } from '@/lib/publishQueue';
+import { uploadMedia } from '@/lib/api';
+import { instantsApi } from '@/lib/api.geleira';
 import { composeApi, type PhotoTag } from '@/lib/api.compose';
 import { type Track } from '@/lib/api.music';
 import { clearDraft, listDrafts, loadDraft, newDraftKey, saveDraft, type DraftItem } from '@/lib/drafts';
@@ -206,7 +208,30 @@ export default function Compose() {
       setStep('write');
     }
   }
+  // Mimo: a foto ou vídeo vai direto ao editor do mimo (o URL do ficheiro vale dentro da app). Zás: manda já para a malta e fica-se na câmara.
+  const [toast, setToast] = useState('');
+  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2600); };
+  async function sendZas(s: Shot) {
+    if (s.video) return flash('O Zás é só foto');
+    try {
+      flash('A mandar o Zás…');
+      const id = await uploadMedia(s.uri, s.mime, 'chat');
+      await instantsApi.create(id, '', 'friends');
+      flash('Zás mandado para a malta!');
+    } catch (e) {
+      flash((e as Error).message || 'Não consegui mandar o Zás');
+    }
+  }
+  function routeByKind(s: Shot): boolean {
+    if (kindSel === 'mimo') {
+      router.replace({ pathname: '/stories/new', params: { uri: s.uri, video: s.video ? '1' : '0', mime: s.mime } } as never);
+      return true;
+    }
+    if (kindSel === 'zas') { void sendZas(s); return true; }
+    return false;
+  }
   function shot(s: Shot) {
+    if (routeByKind(s)) return;
     if (s.video) {
       setAssets((cur) => [...cur, { uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [] }].slice(0, MAX_PHOTOS));
       setCameraOpen(false);
@@ -317,7 +342,11 @@ export default function Compose() {
           count={photos.length}
           max={MAX_PHOTOS}
           onShot={shot}
-          onGallery={(f) => void addFiles(f)}
+          onGallery={(f) => {
+            const first = f[0];
+            if (first && (kindSel === 'mimo' || kindSel === 'zas')) { const video = first.type.startsWith('video/'); return routeByKind({ uri: URL.createObjectURL(first), video, mime: first.type || (video ? 'video/mp4' : 'image/jpeg') }); }
+            void addFiles(f);
+          }}
           onClose={() => router.replace('/')}
           onDone={() => setStep('write')}
           onText={() => setStep('write')}
@@ -325,13 +354,9 @@ export default function Compose() {
           thumbs={assets.map((a) => a.uri)}
           kinds={[{ id: 'post', label: 'Publicação' }, { id: 'tcheka', label: 'Tcheka' }, { id: 'zas', label: 'Zás' }, { id: 'mimo', label: 'Mimo' }]}
           kind={kindSel}
-          onKind={(k) => {
-            // Zás e mimo têm o seu próprio ecrã; publicação e tcheka ficam aqui (um tcheka é um vídeo publicado).
-            if (k === 'mimo') return router.replace('/stories/new' as never);
-            if (k === 'zas') return router.replace('/messages?zas=1' as never);
-            setKindSel(k);
-          }}
+          onKind={setKindSel}
         />
+        {toast ? <View style={{ position: 'absolute', left: 0, right: 0, top: insets.top + 72, alignItems: 'center' }} pointerEvents="none"><Text style={{ backgroundColor: 'rgba(0,0,0,0.65)', color: '#fff', fontWeight: '700', fontSize: 14, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999 }} accessibilityLiveRegion="polite">{toast}</Text></View> : null}
         {err ? <Text style={[styles.err, { position: 'absolute', top: insets.top + 72, left: 0, right: 0, color: '#fff' }]} accessibilityRole="alert">{err}</Text> : null}
       </View>
     );

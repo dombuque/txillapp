@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -28,7 +28,9 @@ type Asset = { uri: string; video: boolean; mime: string };
  */
 export default function NewStory() {
   const router = useRouter();
-  const [asset, setAsset] = useState<Asset | null>(null);
+  // Vindo da câmara do "+" com o Mimo escolhido: já traz a foto ou vídeo.
+  const given = useLocalSearchParams<{ uri?: string; video?: string; mime?: string }>();
+  const [asset, setAsset] = useState<Asset | null>(() => (given.uri ? { uri: String(given.uri), video: given.video === '1', mime: String(given.mime || (given.video === '1' ? 'video/mp4' : 'image/jpeg')) } : null));
   const [err, setErr] = useState('');
   const isWeb = Platform.OS === 'web';
   const cam = isWeb && liveCameraSupported();

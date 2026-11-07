@@ -399,7 +399,8 @@ export function TxCamera({
   const mm = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   const mirror = facing === 'user' ? 'scaleX(-1)' : 'none';
   const fill = { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover' };
-  const botPad = Math.max(insets.bottom, 20);
+  // Mais folga em baixo: a barra de modos ficava colada ao indicador do iPhone.
+  const botPad = Math.max(insets.bottom, 20) + (kinds ? 14 : 0);
 
   return (
     <View style={st.root} accessibilityViewIsModal onLayout={(e: LayoutChangeEvent) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
@@ -453,6 +454,16 @@ export function TxCamera({
       {/* Sombras suaves em cima e em baixo, para os controlos se lerem sobre qualquer cena. */}
       <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, top: 0, height: 140, backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)' })} />
       <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: 260, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)' })} />
+      {/* A moldura do Txillapp: quatro cantos em coral à volta do visor e o wordmark, discreto, por cima. */}
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 2 }]}>
+        <View style={[st.corner, { left: 14, top: topPad + 58, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 14 }]} />
+        <View style={[st.corner, { right: 14, top: topPad + 58, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 14 }]} />
+        <View style={[st.corner, { left: 14, bottom: botPad + (kinds ? 178 : 150) + (thumbs && thumbs.length ? 54 : 0), borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 14 }]} />
+        <View style={[st.corner, { right: 14, bottom: botPad + (kinds ? 178 : 150) + (thumbs && thumbs.length ? 54 : 0), borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 14 }]} />
+        <View style={{ position: 'absolute', left: 0, right: 0, top: topPad + 60, alignItems: 'center' }}>
+          <Text style={st.wordmark} accessibilityLabel="Txillapp">txill<Text style={{ color: colors.brand }}>a</Text>pp</Text>
+        </View>
+      </View>
       {lit ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#fff' }]} /> : null}
       {flash ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#fff' }]} /> : null}
 
@@ -483,8 +494,11 @@ export function TxCamera({
                 <Icon name="grid" size={22} color={layout !== null ? colors.zinc900 : '#fff'} />
               </Pressable>
             )}
-            {canFlip && ready ? (
-              <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} style={st.round} accessibilityRole="button" accessibilityLabel="Virar câmara"><Icon name="flip-camera" size={22} color="#fff" /></Pressable>
+            {count > 0 && onDone && layout === null ? (
+              <Pressable onPress={onDone} style={[st.doneBtn, { height: 44 }]} accessibilityRole="button" accessibilityLabel={`${doneLabel}, ${count}`}>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{doneLabel}</Text>
+                <View style={st.doneCount}><Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{count}</Text></View>
+              </Pressable>
             ) : null}
           </View>
         )}
@@ -571,11 +585,8 @@ export function TxCamera({
                   <Icon name={cells.length ? 'undo' : 'x'} size={20} color="#fff" strokeWidth={2.2} />
                 </Pressable>
               </View>
-            ) : count > 0 && onDone && !recording ? (
-              <Pressable onPress={onDone} style={st.doneBtn} accessibilityRole="button" accessibilityLabel={`${doneLabel}, ${count}`}>
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{doneLabel}</Text>
-                <View style={st.doneCount}><Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{count}</Text></View>
-              </Pressable>
+            ) : canFlip && ready && !recording ? (
+              <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} style={st.gallery} accessibilityRole="button" accessibilityLabel="Virar câmara"><Icon name="flip-camera" size={24} color="#fff" /></Pressable>
             ) : null}
           </View>
         </View>
@@ -714,7 +725,9 @@ const st = StyleSheet.create({
   shutterRec: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#ef4444' },
   hint: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600', marginBottom: 14 },
   thumb: { width: 44, height: 44, borderRadius: 8, overflow: 'hidden', borderWidth: 2, borderColor: colors.brand, backgroundColor: '#222' },
-  kinds: { flexDirection: 'row', justifyContent: 'center', gap: 22, marginTop: 14 },
+  kinds: { flexDirection: 'row', justifyContent: 'center', gap: 22, marginTop: 16 },
+  corner: { position: 'absolute', width: 30, height: 30, borderColor: colors.brand, opacity: 0.9 },
+  wordmark: { color: 'rgba(255,255,255,0.8)', fontSize: 15, fontWeight: '900', letterSpacing: -0.5 },
   kindText: { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: '700', letterSpacing: 1.2 },
   kindOn: { color: '#fff' },
   stopSq: { width: 32, height: 32, borderRadius: 9, backgroundColor: '#ef4444' },
