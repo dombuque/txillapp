@@ -17,7 +17,8 @@ services:
     image: txillapp-edge:latest
     restart: unless-stopped
     ports: ['80:80', '443:443']
-    volumes: ['letsencrypt:/etc/letsencrypt:ro']
+    # /opt/txillapp/downloads: APKs de teste e a página de instalação (txillapp.com/app/…), postos à mão, fora do git.
+    volumes: ['letsencrypt:/etc/letsencrypt:ro', '/opt/txillapp/downloads:/srv/app:ro']
     # Recarrega a cada 6 h para apanhar os certificados renovados pelo certbot (sem cortar ligações).
     command: ['/bin/sh', '-c', 'while :; do sleep 6h; nginx -s reload; done & exec nginx -g "daemon off;"']
     depends_on:
