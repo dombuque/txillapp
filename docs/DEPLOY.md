@@ -99,6 +99,10 @@ Monitorização e pesquisa (opcionais): `docker compose --profile monitoring up 
 ## 6. Atualizar
 
 ```bash
+# 1) Antes de publicar, no PC: sobe a versão (Semantic Versioning: patch = correções, minor = funcionalidades novas, major = muda compatibilidade)
+cd apps/mobile && node scripts/bump-version.mjs patch   # ou minor / major / 1.4.0
+git add apps/mobile/app.json apps/mobile/package.json && git commit -m "v$(node -p "require('./app.json').expo.version")" && git tag "v$(node -p "require('./app.json').expo.version")" && git push && git push --tags
+# 2) No servidor:
 cd /opt/txillapp && git pull && cd infra/prod && docker compose up -d --build && docker image prune -f
 # Só o site (a maior parte das alterações): docker compose up -d --build nginx
 # Só a API: docker compose up -d --build api

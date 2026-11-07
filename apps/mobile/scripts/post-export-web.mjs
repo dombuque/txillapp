@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const dir = process.argv[2] ?? 'dist';
 const base = process.argv[3] ?? ''; // '' = na raiz do site (txillapp.com)
@@ -12,7 +13,14 @@ const chunksDir = join(dir, '_expo', 'static', 'js', 'web');
 const build = (process.env.BUILD_ID || createHash('md5').update((existsSync(chunksDir) ? readdirSync(chunksDir) : []).sort().join('\n')).digest('hex')).slice(0, 12);
 const swPath = join(dir, 'sw.js');
 if (existsSync(swPath)) writeFileSync(swPath, readFileSync(swPath, 'utf8').replace('__TX_BUILD__', build));
-writeFileSync(join(dir, 'version.json'), JSON.stringify({ build }));
+// A versão (Semantic Versioning, em app.json) é o que as pessoas veem; o build é só o identificador desta exportação.
+const version = (() => {
+  for (const p of [join(dir, '..', 'app.json'), fileURLToPath(new URL('../app.json', import.meta.url))]) {
+    try { return String(JSON.parse(readFileSync(p, 'utf8')).expo.version); } catch { /* tenta o próximo */ }
+  }
+  return '0.0.0';
+})();
+writeFileSync(join(dir, 'version.json'), JSON.stringify({ version, build }));
 // Sem viewport-fit=cover (como o site antigo): a página começa por baixo da zona do sistema do iPhone e não aparece o desfoque no topo.
 const tags = [
   '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, interactive-widget=resizes-content"/>',
@@ -31,7 +39,7 @@ const tags = [
   '<meta property="og:title" content="Txillapp"/>',
   '<meta property="og:description" content="A rede da malta: partilha momentos, faz showoff e oferece Txills."/>',
   '<meta property="og:image" content="https://txillapp.com/og-image.png"/>',
-  `<script>window.__TX_BUILD="${build}"</script>`,
+  `<script>window.__TX_BUILD="${build}";window.__TX_VERSION="${version}"</script>`,
   `<script src="${base}/boot.js"></script>`,
   `<script src="${base}/register-sw.js" defer></script>`,
   '<style>html,body{background:#fff;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}</style>',
@@ -50,4 +58,4 @@ let n = 0;
     }
   }
 })(dir);
-console.log(`cabeçalho PWA posto em ${n} páginas · build ${build}`);
+console.log(`cabeçalho PWA posto em ${n} páginas · versão ${version} · build ${build}`);

@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Avatar } from '@/components/Avatar';
@@ -116,35 +116,54 @@ export default function Connections() {
   // Na web não há pager (a lista não rolava no Safari com ele por baixo): o deslizar para o lado troca o separador à mão.
   const curRef = useRef(cur);
   curRef.current = cur;
+  const widthRef = useRef(width);
+  widthRef.current = width;
+  // As duas listas lado a lado a deslizar (acompanham o dedo; ao largar, mola para o separador escolhido).
+  const slide = useRef(new Animated.Value(start === 'following' ? -win : 0)).current;
+  const settle = (k: Kind) => Animated.spring(slide, { toValue: k === 'followers' ? 0 : -widthRef.current, useNativeDriver: false, bounciness: 0, speed: 16 }).start();
+  useEffect(() => { settle(cur); }, [cur, width]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!web || typeof document === 'undefined') return;
-    let s: { x: number; y: number; t: number } | null = null;
+    let s: { x: number; y: number; t: number; horiz: boolean | null } | null = null;
     const down = (e: TouchEvent) => {
       const t = e.touches[0];
       const tag = (e.target as HTMLElement | null)?.tagName ?? '';
-      s = e.touches.length === 1 && t.clientX > 24 && t.clientX < window.innerWidth - 24 && !/INPUT|TEXTAREA/.test(tag) ? { x: t.clientX, y: t.clientY, t: Date.now() } : null;
+      s = e.touches.length === 1 && t.clientX > 24 && t.clientX < window.innerWidth - 24 && !/INPUT|TEXTAREA/.test(tag) ? { x: t.clientX, y: t.clientY, t: Date.now(), horiz: null } : null;
+    };
+    const move = (e: TouchEvent) => {
+      if (!s) return;
+      const t = e.touches[0];
+      const dx = t.clientX - s.x;
+      const dy = t.clientY - s.y;
+      if (s.horiz === null && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) s.horiz = Math.abs(dx) > Math.abs(dy) * 1.5;
+      if (!s.horiz) return;
+      const base = curRef.current === 'followers' ? 0 : -widthRef.current;
+      slide.setValue(Math.max(-widthRef.current, Math.min(0, base + dx)));
     };
     const up = (e: TouchEvent) => {
       if (!s) return;
       const t = e.changedTouches[0];
       const dx = t.clientX - s.x;
-      const dy = t.clientY - s.y;
       const quick = Date.now() - s.t < 700;
+      const horiz = s.horiz;
       s = null;
-      if (!quick || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
-      const next: Kind = dx < 0 ? 'following' : 'followers';
-      if (next !== curRef.current) setCur(next);
+      if (!horiz) return;
+      const far = Math.abs(dx) > widthRef.current * 0.35 || (quick && Math.abs(dx) > 50);
+      const next: Kind = far ? (dx < 0 ? 'following' : 'followers') : curRef.current;
+      if (next !== curRef.current) setCur(next); else settle(next);
     };
-    const cancel = () => { s = null; };
+    const cancel = () => { s = null; settle(curRef.current); };
     document.addEventListener('touchstart', down, { passive: true });
+    document.addEventListener('touchmove', move, { passive: true });
     document.addEventListener('touchend', up, { passive: true });
     document.addEventListener('touchcancel', cancel, { passive: true });
     return () => {
       document.removeEventListener('touchstart', down);
+      document.removeEventListener('touchmove', move);
       document.removeEventListener('touchend', up);
       document.removeEventListener('touchcancel', cancel);
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = (k: Kind) => {
     setCur(k);
@@ -174,8 +193,11 @@ export default function Connections() {
           </View>
           {web ? (
             // Na web (iPhone/Safari) a lista dentro de um pager horizontal não rola com o dedo: mostra-se só o separador ativo.
-            <View style={{ flex: 1 }} onLayout={(e) => setMeasured(e.nativeEvent.layout.width)}>
-              <ConnectionList key={cur} username={username} kind={cur} me={user!.username} width={width} />
+            <View style={{ flex: 1, overflow: 'hidden' }} onLayout={(e) => setMeasured(e.nativeEvent.layout.width)}>
+              <Animated.View style={{ flex: 1, flexDirection: 'row', width: width * 2, transform: [{ translateX: slide }] }}>
+                <ConnectionList username={username} kind="followers" me={user!.username} width={width} />
+                <ConnectionList username={username} kind="following" me={user!.username} width={width} />
+              </Animated.View>
             </View>
           ) : (
             <ScrollView ref={pager} onLayout={(e) => setMeasured(e.nativeEvent.layout.width)} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(e) => setCur(Math.round(e.nativeEvent.contentOffset.x / width) === 0 ? 'followers' : 'following')} style={{ flex: 1 }}>
