@@ -8,7 +8,7 @@ import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 import { MusicPicker } from './MusicPicker';
 import { Sticker } from './StickerPanel';
-import { LOOKS, lookCss, type Shot } from './TxCamera';
+import { LOOKS, lookCss, stampTxillapp, type Shot } from './TxCamera';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 const W = 1080;
@@ -177,6 +177,7 @@ export function TchekaStudio({ clips, initialMusic, onDone, onClose }: { clips: 
           g.restore();
         }
       }
+      stampTxillapp(g, W, H);
       if (castImg) {
         const size = Math.round(W * 0.24);
         const bounce = Math.abs(Math.sin(tGlobal * 2.2)) * 28;

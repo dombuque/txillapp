@@ -113,7 +113,12 @@ export default function Compose() {
   const [music, setMusic] = useState<Track | null>(null);
   const [pickMusic, setPickMusic] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
-  const [kindSel, setKindSel] = useState('post');
+  // A ordem dos modos segue o que a pessoa mais usa (conta-se cada vez que avança num modo; fica no aparelho).
+  const KINDS_BASE = [{ id: 'post', label: 'Publicação' }, { id: 'mimo', label: 'Mimo' }, { id: 'tcheka', label: 'Tcheka' }, { id: 'zas', label: 'Zás' }];
+  const [kindUse, setKindUse] = useState<Record<string, number>>(() => { try { return JSON.parse(localStorage.getItem('tx_kind_use') ?? '{}') as Record<string, number>; } catch { return {}; } });
+  const kinds = [...KINDS_BASE].sort((a, b) => (kindUse[b.id] ?? 0) - (kindUse[a.id] ?? 0));
+  const [kindSel, setKindSel] = useState(() => kinds[0].id);
+  const bumpKind = (k: string) => setKindUse((u) => { const n = { ...u, [k]: (u[k] ?? 0) + 1 }; try { localStorage.setItem('tx_kind_use', JSON.stringify(n)); } catch { /* sem armazenamento */ } return n; });
   // Tcheka: as fotos e vídeos juntam-se e o estúdio monta um vídeo só (filtro e música).
   const [studio, setStudio] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
@@ -213,6 +218,7 @@ export default function Compose() {
   // Mimo: a foto ou vídeo vai direto ao editor do mimo (o URL do ficheiro vale dentro da app). Zás: abre o ecrã do Zás no lugar da câmara.
   function routeByKind(s: Shot): boolean {
     if (kindSel === 'mimo') {
+      bumpKind('mimo');
       router.replace({ pathname: '/stories/new', params: { uri: s.uri, video: s.video ? '1' : '0', mime: s.mime } } as never);
       return true;
     }
@@ -222,10 +228,11 @@ export default function Compose() {
     if (routeByKind(s)) return;
     if (s.video) {
       setAssets((cur) => [...cur, { uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [] }].slice(0, MAX_PHOTOS));
-      if (kindSel !== 'tcheka') { setCameraOpen(false); setStep('write'); }
+      if (kindSel !== 'tcheka') { bumpKind(kindSel); setCameraOpen(false); setStep('write'); }
     } else {
-      // Numa publicação, uma foto substitui um vídeo (não se misturam); num tcheka juntam-se todos.
+      // Numa publicação, uma foto substitui um vídeo (não se misturam) e vai-se logo para a publicação; num tcheka juntam-se todos na câmara.
       setAssets((cur) => [...(kindSel === 'tcheka' ? cur : cur.filter((a) => !a.video)), { uri: s.uri, video: false, mime: s.mime, tags: [] }].slice(0, MAX_PHOTOS));
+      if (kindSel !== 'tcheka') { bumpKind(kindSel); setCameraOpen(false); setStep('write'); }
     }
   }
 
@@ -325,7 +332,7 @@ export default function Compose() {
   // Primeiro passo na web: a câmara ao vivo ocupa o ecrã, com a galeria lá dentro.
   if (step === 'choose' && web && liveCameraSupported()) {
     // Zás: o ecrã do Zás entra no lugar da câmara (fechar volta à câmara em Publicação).
-    if (kindSel === 'zas') return <View style={{ flex: 1, backgroundColor: '#000' }}><InstantsHub onClose={() => setKindSel('post')} /></View>;
+    if (kindSel === 'zas') return <View style={{ flex: 1, backgroundColor: '#000' }}><InstantsHub onClose={() => setKindSel(kinds.find((k) => k.id !== 'zas')!.id)} /></View>;
     if (studio) {
       return (
         <View style={{ flex: 1, backgroundColor: '#000' }}>
@@ -350,13 +357,13 @@ export default function Compose() {
             void addFiles(f);
           }}
           onClose={() => router.replace('/')}
-          onDone={() => (kindSel === 'tcheka' ? setStudio(true) : setStep('write'))}
+          onDone={() => { bumpKind(kindSel); if (kindSel === 'tcheka') setStudio(true); else setStep('write'); }}
           onText={() => setStep('write')}
           doneLabel={kindSel === 'tcheka' ? 'Montar' : 'Seguinte'}
           thumbs={assets.map((a) => a.uri)}
-          kinds={[{ id: 'post', label: 'Publicação' }, { id: 'tcheka', label: 'Tcheka' }, { id: 'zas', label: 'Zás' }, { id: 'mimo', label: 'Mimo' }]}
+          kinds={kinds}
           kind={kindSel}
-          onKind={setKindSel}
+          onKind={(k) => { setKindSel(k); if (k === 'zas') bumpKind('zas'); }}
         />
 
         {err ? <Text style={[styles.err, { position: 'absolute', top: insets.top + 72, left: 0, right: 0, color: '#fff' }]} accessibilityRole="alert">{err}</Text> : null}
@@ -591,7 +598,7 @@ const styles = StyleSheet.create({
   thumb: { borderRadius: 16, overflow: 'hidden', backgroundColor: colors.zinc200 },
   cover: { position: 'absolute', left: 8, bottom: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 2 },
   coverText: { color: '#fff', fontSize: 11, fontWeight: '600' },
-  tagBtn: { position: 'absolute', right: 8, bottom: 8, height: 32, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10 },
+  tagBtn: { position: 'absolute', left: 8, bottom: 8, height: 32, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10 },
   tagBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   remove: { position: 'absolute', right: 8, top: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
   chips: { marginTop: 12, borderTopWidth: 1, borderTopColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12 },

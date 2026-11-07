@@ -60,7 +60,8 @@ export async function acquireCamera(facing: 'environment' | 'user', audio: boole
       // Retrato 3:4 (Zás): é o formato inteiro do sensor, sem cortar o campo de visão (por isso não parece "ampliado").
       video: portrait
         ? { facingMode: { ideal: facing }, width: { ideal: 1080 }, height: { ideal: 1440 }, aspectRatio: { ideal: 3 / 4 } }
-        : { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1920 } },
+        // 16:9 (o modo de vídeo do telemóvel): enche o visor 9:16 sem cortar, por isso não parece "ampliado".
+        : { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 }, aspectRatio: { ideal: 16 / 9 } },
       audio: false,
     });
     pending = req;

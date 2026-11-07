@@ -62,6 +62,32 @@ export function applyLook(c: HTMLCanvasElement, l: Look) {
 
 /** Layout (como no Instagram): várias fotos numa imagem só. Cada célula é [x, y, largura, altura] em fração da moldura. */
 type Cell = [number, number, number, number];
+/** A assinatura do Txillapp no canto de baixo à direita (o "a" a coral), com fundo translúcido para se ler em qualquer imagem. */
+export function stampTxillapp(g: CanvasRenderingContext2D, W: number, H: number) {
+  const fs = Math.max(22, Math.round(Math.min(W, H) * 0.045));
+  const m = Math.round(Math.min(W, H) * 0.035);
+  g.save();
+  g.font = `bold ${fs}px "Inter", -apple-system, system-ui, "Helvetica Neue", Arial, sans-serif`;
+  g.textBaseline = 'middle';
+  g.textAlign = 'left';
+  const parts: [string, string][] = [['txill', '#fff'], ['a', '#ff5c6c'], ['pp', '#fff']];
+  const total = parts.reduce((n, [t]) => n + g.measureText(t).width, 0);
+  const padX = Math.round(fs * 0.55), padY = Math.round(fs * 0.38);
+  const bw = total + padX * 2, bh = fs + padY * 2;
+  const bx = W - m - bw, by = H - m - bh;
+  // Fundo escuro translúcido para se ler em qualquer foto, com os cantos redondos.
+  g.fillStyle = 'rgba(0,0,0,0.38)';
+  const r = Math.round(bh / 2);
+  g.beginPath();
+  g.moveTo(bx + r, by); g.lineTo(bx + bw - r, by); g.quadraticCurveTo(bx + bw, by, bx + bw, by + r); g.lineTo(bx + bw, by + bh - r); g.quadraticCurveTo(bx + bw, by + bh, bx + bw - r, by + bh); g.lineTo(bx + r, by + bh); g.quadraticCurveTo(bx, by + bh, bx, by + bh - r); g.lineTo(bx, by + r); g.quadraticCurveTo(bx, by, bx + r, by);
+  g.closePath();
+  g.fill();
+  let x = bx + padX;
+  const y = by + bh / 2;
+  for (const [t, color] of parts) { g.fillStyle = color; g.fillText(t, x, y); x += g.measureText(t).width; }
+  g.restore();
+}
+
 export const LAYOUTS: { id: string; name: string; cells: Cell[] }[] = [
   { id: '2v', name: '2 lado a lado', cells: [[0, 0, 0.5, 1], [0.5, 0, 0.5, 1]] },
   { id: '2h', name: '2 em cima e baixo', cells: [[0, 0, 1, 0.5], [0, 0.5, 1, 0.5]] },
@@ -128,22 +154,7 @@ export function TxCamera({
   type Box = { x: number; y: number; w: number; h: number };
   type Edit = { rot: 0 | 90 | 180 | 270; flip: boolean; aspect: number | null; box: Box | null; look: number; b: number; c: number; s: number };
   const EDIT0: Edit = { rot: 0, flip: false, aspect: null, box: null, look: 0, b: 1, c: 1, s: 1 };
-  /** A assinatura do Txillapp no canto de baixo à direita da foto (o "a" a coral). */
-  function stamp(g: CanvasRenderingContext2D, W: number, H: number) {
-    const fs = Math.max(16, Math.round(W * 0.034));
-    const m = Math.round(W * 0.03);
-    g.save();
-    g.font = `900 ${fs}px Inter, system-ui, -apple-system, sans-serif`;
-    g.textBaseline = 'alphabetic';
-    g.shadowColor = 'rgba(0,0,0,0.55)';
-    g.shadowBlur = fs * 0.35;
-    const parts: [string, string][] = [['txill', '#fff'], ['a', '#d6334f'], ['pp', '#fff']];
-    const total = parts.reduce((n, [t]) => n + g.measureText(t).width, 0);
-    let x = W - m - total;
-    const y = H - m;
-    for (const [t, color] of parts) { g.fillStyle = color; g.fillText(t, x, y); x += g.measureText(t).width; }
-    g.restore();
-  }
+  const stamp = stampTxillapp;
   const [edit, setEdit] = useState<Edit>(EDIT0);
   const [tool, setTool] = useState<null | 'look' | 'adjust' | 'crop'>(null);
   const renderTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -162,10 +173,12 @@ export function TxCamera({
     out.width = cw;
     out.height = ch;
     const g = out.getContext('2d')!;
+    g.save();
     g.translate(w / 2 - cx, h / 2 - cy);
     if (e.flip) g.scale(-1, 1);
     g.rotate((e.rot * Math.PI) / 180);
     g.drawImage(src, -src.width / 2, -src.height / 2);
+    g.restore(); // sem isto a assinatura era desenhada com a rotação e caía fora da imagem
     const base = LOOKS[e.look];
     const l: Look = { ...base, id: base.id === 'normal' && e.b === 1 && e.c === 1 && e.s === 1 ? 'normal' : 'edit', b: base.b * e.b, c: base.c * e.c, s: base.s * e.s };
     applyLook(out, l);
