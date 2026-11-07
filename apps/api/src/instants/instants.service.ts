@@ -31,7 +31,7 @@ export class InstantsService implements OnModuleInit {
   /** Miniatura do atalho: 96×128, nítida (a foto em tamanho real só chega a quem abre o Zás). */
   private async thumb(mediaId: string): Promise<string | null> {
     try {
-      const t = await sharp(await this.media.chatBytes(mediaId)).rotate().resize(96, 128, { fit: 'cover' }).jpeg({ quality: 62 }).toBuffer();
+      const t = await sharp(await this.media.chatBytes(mediaId)).rotate().resize(180, 240, { fit: 'cover' }).jpeg({ quality: 68 }).toBuffer();
       return `data:image/jpeg;base64,${t.toString('base64')}`;
     } catch {
       return null;
@@ -42,7 +42,7 @@ export class InstantsService implements OnModuleInit {
   async onModuleInit() {
     void (async () => {
       try {
-        const { rows } = await this.pool.query("SELECT id, media_id FROM social.instants WHERE expires_at > now() AND (preview IS NULL OR length(preview) < 2000) LIMIT 200");
+        const { rows } = await this.pool.query("SELECT id, media_id FROM social.instants WHERE expires_at > now() AND (preview IS NULL OR length(preview) < 6000) LIMIT 200");
         for (const r of rows) {
           const p = await this.thumb(r.media_id as string);
           if (p) await this.pool.query('UPDATE social.instants SET preview = $2 WHERE id = $1', [r.id, p]);

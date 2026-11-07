@@ -178,19 +178,20 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
 
 type TrayOther = { username: string; displayName: string; hasAvatar: boolean; count: number; preview: string | null };
 
-/** Miniatura squircle com moldura branca; desfocada (a pré-visualização já é minúscula), para não revelar a foto. */
-function StackThumb({ o, w, h }: { o: TrayOther; w: number; h: number }) {
-  const web = Platform.OS === 'web';
+/** Miniatura squircle com moldura branca: a foto do Zás mais recente, nítida, com a bolinha do perfil de quem mandou por cima. */
+function StackThumb({ o, w, h, avatar = true }: { o: TrayOther; w: number; h: number; avatar?: boolean }) {
+  const av = Math.round(w * 0.36);
   return (
     <View style={[{ width: w, height: h, backgroundColor: '#fff', padding: 2.5 }, squircle(w)]}>
-      <View style={[{ flex: 1, backgroundColor: colors.zinc200 }, squircle(w - 5)]}>
+      <View style={[{ flex: 1, backgroundColor: colors.zinc200, overflow: 'hidden' }, squircle(w - 5)]}>
         {o.preview ? (
-          <Image source={{ uri: o.preview }} style={[StyleSheet.absoluteFill, web ? ({ filter: 'blur(6px)', transform: [{ scale: 1.25 }] } as object) : null]} contentFit="cover" blurRadius={web ? 0 : 16} accessibilityIgnoresInvertColors />
+          <Image source={{ uri: o.preview }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
         ) : (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={w - 5} />
-          </View>
+          <LinearGradient colors={['#ff5c5c', '#ff9a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
         )}
+        {avatar && <View style={{ position: 'absolute', left: 4, top: 4, width: av + 4, height: av + 4, borderRadius: (av + 4) / 2, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
+          <Avatar name={o.displayName} username={o.hasAvatar ? o.username : undefined} size={av} />
+        </View>}
       </View>
     </View>
   );
@@ -205,7 +206,10 @@ function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, on
   // Como a pilha do Instagram: cartões altos, a espreitar da borda direita, logo acima da barra de baixo.
   const W = 66;
   const H = 94;
-  const layers = others.slice(0, 3).map((o, i) => ({ o, i })).reverse();
+  // Um cartão por Zás (até 3): quem mandou vários também faz pilha, com os de trás a espreitar.
+  const cards: TrayOther[] = [];
+  for (const o of others) for (let k = 0; k < o.count && cards.length < 3; k++) cards.push(o);
+  const layers = cards.map((o, i) => ({ o, i })).reverse();
   const rot = ['-16deg', '-4deg', '-26deg'];
   const dx = [0, -14, -6];
   const dy = [0, -10, -18];
@@ -240,8 +244,8 @@ function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, on
             </View>
           </View>
         ) : layers.map(({ o, i }) => (
-          <View key={o.username} style={[st.layer, { zIndex: 3 - i, transform: [{ translateX: dx[i] }, { translateY: dy[i] }, { rotate: rot[i] }] }]}>
-            <StackThumb o={o} w={W} h={H} />
+          <View key={`${o.username}-${i}`} style={[st.layer, { zIndex: 3 - i, transform: [{ translateX: dx[i] }, { translateY: dy[i] }, { rotate: rot[i] }] }]}>
+            <StackThumb o={o} w={W} h={H} avatar={i === 0} />
           </View>
         ))}
         {total === 0 && (
