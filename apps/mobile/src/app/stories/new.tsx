@@ -23,7 +23,7 @@ const web = (o: Record<string, unknown>) => o as never;
 type Asset = { uri: string; video: boolean; mime: string };
 
 /**
- * Criar um status: no site abre a câmara oficial do Txillapp (foto ou vídeo até 30 s, galeria lá dentro);
+ * Criar um status: no site abre a câmara oficial do Txillapp (foto ou vídeo até 60 s, galeria lá dentro);
  * na app abre a galeria/câmara do telemóvel. Depois, o editor: a foto inteira, legenda, música e para quem vai.
  */
 export default function NewStory() {

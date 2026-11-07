@@ -42,7 +42,7 @@ const tags = [
   `<script>window.__TX_BUILD="${build}";window.__TX_VERSION="${version}"</script>`,
   `<script src="${base}/boot.js"></script>`,
   `<script src="${base}/register-sw.js" defer></script>`,
-  '<style>html,body{background:#fff;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}</style>',
+  '<style>html,body{background:#fff;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}img,video{-webkit-touch-callout:none;-webkit-user-drag:none}img{-webkit-user-select:none;user-select:none}</style>',
 ].join('');
 
 let n = 0;

@@ -52,7 +52,7 @@ export default function Search() {
   const col = Math.min(width, 576);
   const [text, setText] = useState('');
   const [term, setTerm] = useState('');
-  const [tab, setTab] = useState<'people' | 'tags' | 'posts'>('people');
+  const [tab, setTab] = useState<'people' | 'tags' | 'posts' | 'mentions'>('people');
   const [topic, setTopic] = useState<string | null>(null);
   const [ai, setAi] = useState(false); // SuperTxill aberto
   const [recent, setRecent] = useState<string[]>([]);
@@ -92,6 +92,10 @@ export default function Search() {
     staleTime: 60_000,
   });
   const q = useQuery({ queryKey: ['search', term], queryFn: () => api.search(term), enabled: term.length >= 2, staleTime: 30_000 });
+  // Menções: publicações que falam de @alguém com esse nome (o texto da publicação leva o @).
+  const handle = term.replace(/^[@#]/, '');
+  const mq = useQuery({ queryKey: ['search-mentions', handle], queryFn: () => api.search(`@${handle}`), enabled: handle.length >= 2, staleTime: 30_000 });
+  const mentions = mq.data?.posts ?? [];
 
   const grid: Post[] = (() => {
     const seen = new Set<string>();
@@ -225,7 +229,7 @@ export default function Search() {
         {searching && (
           <>
             <View style={styles.tabs} accessibilityRole="tablist">
-              {([['people', `Pessoas${q.data ? ` (${people.length})` : ''}`], ['tags', `#Tags${q.data ? ` (${tags.length})` : ''}`], ['posts', `Publicações${q.data ? ` (${posts.length})` : ''}`]] as const).map(([k, label]) => (
+              {([['people', `Pessoas${q.data ? ` (${people.length})` : ''}`], ['tags', `#Tags${q.data ? ` (${tags.length})` : ''}`], ['posts', `Publicações${q.data ? ` (${posts.length})` : ''}`], ['mentions', `Menções${mq.data ? ` (${mentions.length})` : ''}`]] as const).map(([k, label]) => (
                 <Pressable key={k} onPress={() => setTab(k)} accessibilityRole="tab" accessibilityState={{ selected: tab === k }} style={[styles.tabBtn, { backgroundColor: tab === k ? colors.zinc900 : colors.zinc100 }]}>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: tab === k ? '#fff' : colors.zinc700 }}>{label}</Text>
                 </Pressable>
@@ -273,11 +277,11 @@ export default function Search() {
               </View>
             )}
 
-            {q.isSuccess && tab === 'posts' && (
+            {((q.isSuccess && tab === 'posts') || (mq.isSuccess && tab === 'mentions')) && (
               // Sem FlatList: a página é que rola (um FlatList com scrollEnabled={false} fica com touch-action: none na web e o toque não rolava nada).
               <View style={{ paddingHorizontal: 16 }}>
-                {posts.length === 0 && <View style={styles.empty}><Icon name="inbox" size={36} color={colors.zinc300} /><Text style={styles.emptyTitle}>{none}</Text></View>}
-                {posts.map((p) => (
+                {(tab === 'mentions' ? mentions : posts).length === 0 && <View style={styles.empty}><Icon name="inbox" size={36} color={colors.zinc300} /><Text style={styles.emptyTitle}>{none}</Text></View>}
+                {(tab === 'mentions' ? mentions : posts).map((p) => (
                   <Pressable key={p.id} onPress={() => { remember(term); setOpened(p); }} style={({ pressed }) => [styles.person, { borderRadius: 16 }, pressed && { backgroundColor: colors.zinc100 }]}>
                     {p.media[0] ? (
                       <Image source={{ uri: sized(p.media[0].kind === 'video' ? p.media[0].posterUrl ?? p.media[0].url : p.media[0].url, 160) }} style={styles.thumb} contentFit="cover" />
@@ -310,7 +314,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, minWidth: 0, fontSize: 16, padding: 0, color: colors.zinc900, outlineStyle: 'none' } as object,
   tag: { position: 'absolute', right: 6, top: 6 },
   recent: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 14, paddingVertical: 8 },
-  tabs: { marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', gap: 8 },
+  tabs: { marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tabBtn: { flex: 1, borderRadius: 999, paddingVertical: 10, alignItems: 'center' },
   person: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   pName: { fontSize: 16, fontWeight: '600', color: colors.zinc900, flexShrink: 1 },

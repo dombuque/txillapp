@@ -267,7 +267,7 @@ function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, on
  * Mandar um Zás. No site a câmara é aberta no próprio ecrã; na app abre a câmara do telemóvel (sem galeria) e o Zás vai logo
  * (com 6 s para desfazer). Em cima, o cartão 3:4 com a legenda; em baixo o obturador e para quem vai.
  */
-function InstantsHub({ onClose }: { onClose: () => void }) {
+export function InstantsHub({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();

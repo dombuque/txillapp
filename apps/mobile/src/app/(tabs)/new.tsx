@@ -16,8 +16,8 @@ import { PlaceSheet, type PlaceGeo } from '@/components/PlaceSheet';
 import { Sheet } from '@/components/Sheet';
 import { TrackCard } from '@/components/TrackCard';
 import { enqueuePublish } from '@/lib/publishQueue';
-import { uploadMedia } from '@/lib/api';
-import { instantsApi } from '@/lib/api.geleira';
+import { InstantsHub } from '@/components/Instants';
+import { TchekaStudio } from '@/components/TchekaStudio';
 import { composeApi, type PhotoTag } from '@/lib/api.compose';
 import { type Track } from '@/lib/api.music';
 import { clearDraft, listDrafts, loadDraft, newDraftKey, saveDraft, type DraftItem } from '@/lib/drafts';
@@ -114,6 +114,8 @@ export default function Compose() {
   const [pickMusic, setPickMusic] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [kindSel, setKindSel] = useState('post');
+  // Tcheka: as fotos e vídeos juntam-se e o estúdio monta um vídeo só (filtro e música).
+  const [studio, setStudio] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [tagging, setTagging] = useState<number | null>(null);
@@ -205,39 +207,25 @@ export default function Compose() {
     setErr(problem);
     if (next.length) {
       setAssets((cur) => [...cur, ...next].slice(0, MAX_PHOTOS));
-      setStep('write');
+      if (kindSel !== 'tcheka') setStep('write');
     }
   }
-  // Mimo: a foto ou vídeo vai direto ao editor do mimo (o URL do ficheiro vale dentro da app). Zás: manda já para a malta e fica-se na câmara.
-  const [toast, setToast] = useState('');
-  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2600); };
-  async function sendZas(s: Shot) {
-    if (s.video) return flash('O Zás é só foto');
-    try {
-      flash('A mandar o Zás…');
-      const id = await uploadMedia(s.uri, s.mime, 'chat');
-      await instantsApi.create(id, '', 'friends');
-      flash('Zás mandado para a malta!');
-    } catch (e) {
-      flash((e as Error).message || 'Não consegui mandar o Zás');
-    }
-  }
+  // Mimo: a foto ou vídeo vai direto ao editor do mimo (o URL do ficheiro vale dentro da app). Zás: abre o ecrã do Zás no lugar da câmara.
   function routeByKind(s: Shot): boolean {
     if (kindSel === 'mimo') {
       router.replace({ pathname: '/stories/new', params: { uri: s.uri, video: s.video ? '1' : '0', mime: s.mime } } as never);
       return true;
     }
-    if (kindSel === 'zas') { void sendZas(s); return true; }
     return false;
   }
   function shot(s: Shot) {
     if (routeByKind(s)) return;
     if (s.video) {
       setAssets((cur) => [...cur, { uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [] }].slice(0, MAX_PHOTOS));
-      setCameraOpen(false);
-      setStep('write');
+      if (kindSel !== 'tcheka') { setCameraOpen(false); setStep('write'); }
     } else {
-      setAssets((cur) => [...cur.filter((a) => !a.video), { uri: s.uri, video: false, mime: s.mime, tags: [] }].slice(0, MAX_PHOTOS));
+      // Numa publicação, uma foto substitui um vídeo (não se misturam); num tcheka juntam-se todos.
+      setAssets((cur) => [...(kindSel === 'tcheka' ? cur : cur.filter((a) => !a.video)), { uri: s.uri, video: false, mime: s.mime, tags: [] }].slice(0, MAX_PHOTOS));
     }
   }
 
@@ -336,6 +324,20 @@ export default function Compose() {
 
   // Primeiro passo na web: a câmara ao vivo ocupa o ecrã, com a galeria lá dentro.
   if (step === 'choose' && web && liveCameraSupported()) {
+    // Zás: o ecrã do Zás entra no lugar da câmara (fechar volta à câmara em Publicação).
+    if (kindSel === 'zas') return <View style={{ flex: 1, backgroundColor: '#000' }}><InstantsHub onClose={() => setKindSel('post')} /></View>;
+    if (studio) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          <TchekaStudio
+            clips={assets.map((a) => ({ uri: a.uri, video: a.video, mime: a.mime, durationMs: a.durationMs }))}
+            initialMusic={music}
+            onClose={() => setStudio(false)}
+            onDone={(s, m) => { setAssets([{ uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [] }]); setMusic(m); setStudio(false); setStep('write'); }}
+          />
+        </View>
+      );
+    }
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <LiveCamera
@@ -344,19 +346,19 @@ export default function Compose() {
           onShot={shot}
           onGallery={(f) => {
             const first = f[0];
-            if (first && (kindSel === 'mimo' || kindSel === 'zas')) { const video = first.type.startsWith('video/'); return routeByKind({ uri: URL.createObjectURL(first), video, mime: first.type || (video ? 'video/mp4' : 'image/jpeg') }); }
+            if (first && kindSel === 'mimo') { const video = first.type.startsWith('video/'); return routeByKind({ uri: URL.createObjectURL(first), video, mime: first.type || (video ? 'video/mp4' : 'image/jpeg') }); }
             void addFiles(f);
           }}
           onClose={() => router.replace('/')}
-          onDone={() => setStep('write')}
+          onDone={() => (kindSel === 'tcheka' ? setStudio(true) : setStep('write'))}
           onText={() => setStep('write')}
-          doneLabel="Seguinte"
+          doneLabel={kindSel === 'tcheka' ? 'Montar' : 'Seguinte'}
           thumbs={assets.map((a) => a.uri)}
           kinds={[{ id: 'post', label: 'Publicação' }, { id: 'tcheka', label: 'Tcheka' }, { id: 'zas', label: 'Zás' }, { id: 'mimo', label: 'Mimo' }]}
           kind={kindSel}
           onKind={setKindSel}
         />
-        {toast ? <View style={{ position: 'absolute', left: 0, right: 0, top: insets.top + 72, alignItems: 'center' }} pointerEvents="none"><Text style={{ backgroundColor: 'rgba(0,0,0,0.65)', color: '#fff', fontWeight: '700', fontSize: 14, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999 }} accessibilityLiveRegion="polite">{toast}</Text></View> : null}
+
         {err ? <Text style={[styles.err, { position: 'absolute', top: insets.top + 72, left: 0, right: 0, color: '#fff' }]} accessibilityRole="alert">{err}</Text> : null}
       </View>
     );

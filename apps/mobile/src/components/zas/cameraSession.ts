@@ -47,37 +47,47 @@ async function fixPortrait(s: MediaStream) {
 }
 
 /** Devolve a câmara pedida, reaproveitando a que já está ligada (sem novo pedido de permissão). */
+let pending: Promise<unknown> | null = null;
 export async function acquireCamera(facing: 'environment' | 'user', audio: boolean, portrait = false): Promise<MediaStream> {
+  // Um pedido de cada vez: dois toques rápidos em "virar" abriam duas câmaras e uma ficava ligada para sempre.
+  while (pending) { try { await pending; } catch { /* o outro pedido falhou: segue */ } }
   if (timer) clearTimeout(timer);
   timer = null;
   if (cur && (cur.facing !== facing || cur.portrait !== portrait)) stopCameraNow();
   if (cur && !alive(cur.stream)) cur = null;
   if (!cur) {
-    const stream = await navigator.mediaDevices.getUserMedia({
+    const req = navigator.mediaDevices.getUserMedia({
       // Retrato 3:4 (Zás): é o formato inteiro do sensor, sem cortar o campo de visão (por isso não parece "ampliado").
       video: portrait
         ? { facingMode: { ideal: facing }, width: { ideal: 1080 }, height: { ideal: 1440 }, aspectRatio: { ideal: 3 / 4 } }
         : { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1920 } },
       audio: false,
     });
-    cur = { stream, facing, portrait };
+    pending = req;
+    let stream: MediaStream;
+    try { stream = await req; } finally { pending = null; }
+    const already = cur as { stream: MediaStream } | null;
+    if (already && alive(already.stream)) { stream.getTracks().forEach((t) => t.stop()); }
+    else cur = { stream, facing, portrait };
   }
+  const cam = cur as { stream: MediaStream } | null;
+  if (!cam) throw new Error('Não consegui abrir a câmara');
   // Sem microfone nesta vez (foto, story, Zás): larga já o que ficou ligado do Reel, para o iPhone não mostrar "a gravar".
   if (!audio) {
-    cur.stream.getAudioTracks().forEach((t) => {
+    cam.stream.getAudioTracks().forEach((t) => {
       t.stop();
-      cur?.stream.removeTrack(t);
+      cam.stream.removeTrack(t);
     });
   }
   // Microfone: pedido à parte e uma só vez; se recusarem, grava-se sem som.
-  if (audio && cur.stream.getAudioTracks().length === 0) {
+  if (audio && cam.stream.getAudioTracks().length === 0) {
     try {
       const a = await navigator.mediaDevices.getUserMedia({ audio: true });
-      a.getAudioTracks().forEach((t) => cur?.stream.addTrack(t));
+      a.getAudioTracks().forEach((t) => cam.stream.addTrack(t));
     } catch {
       /* sem microfone */
     }
   }
-  if (portrait) await fixPortrait(cur.stream);
-  return cur.stream;
+  if (portrait) await fixPortrait(cam.stream);
+  return cam.stream;
 }

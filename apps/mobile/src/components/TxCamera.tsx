@@ -163,8 +163,8 @@ export function TxCamera({
     out.height = ch;
     const g = out.getContext('2d')!;
     g.translate(w / 2 - cx, h / 2 - cy);
-    g.rotate((e.rot * Math.PI) / 180);
     if (e.flip) g.scale(-1, 1);
+    g.rotate((e.rot * Math.PI) / 180);
     g.drawImage(src, -src.width / 2, -src.height / 2);
     const base = LOOKS[e.look];
     const l: Look = { ...base, id: base.id === 'normal' && e.b === 1 && e.c === 1 && e.s === 1 ? 'normal' : 'edit', b: base.b * e.b, c: base.c * e.c, s: base.s * e.s };
@@ -232,22 +232,41 @@ export function TxCamera({
     setFreeCrop(true);
     const e = { ...edit, aspect: null, box: null };
     setEdit(e);
+    clearTimeout(renderTimer.current);
     const src = reviewSrc.current;
-    if (src) renderEdit(src, e, false).toBlob((blob) => blob && setReview((r) => (r && !r.video ? { ...r, uri: URL.createObjectURL(blob) } : r)), 'image/jpeg', 0.9);
+    const seq = ++renderSeq.current;
+    if (src) renderEdit(src, e, false).toBlob((blob) => blob && seq === renderSeq.current && setReview((r) => (r && !r.video ? { ...r, uri: URL.createObjectURL(blob) } : r)), 'image/jpeg', 0.9);
   }
+  // Os URLs de blob da pré-visualização são revogados ao serem substituídos (cada ajuste criava um JPEG retido para sempre).
+  const lastUri = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = lastUri.current;
+    lastUri.current = review?.uri ?? null;
+    if (prev && prev !== lastUri.current) setTimeout(() => URL.revokeObjectURL(prev), 1500);
+  }, [review?.uri]);
+  // O corte livre acompanha rodar o telemóvel e a barra do Safari.
+  useEffect(() => {
+    const on = () => setImgTick((n) => n + 1);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
   /** Sai do corte livre aplicando a caixa. */
   function endFreeCrop() {
     if (!freeCrop) return;
     setFreeCrop(false);
     changeEdit({ box: boxRef.current, aspect: null });
   }
+  const renderSeq = useRef(0);
   function openReview(c: HTMLCanvasElement) {
+    clearTimeout(renderTimer.current);
+    renderSeq.current += 1;
     reviewSrc.current = c;
     setEdit(EDIT0);
     setTool(null);
     setFreeCrop(false);
     setBox({ x: 0.08, y: 0.08, w: 0.84, h: 0.84 });
-    renderEdit(c, EDIT0).toBlob((blob) => blob && setReview({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' }), 'image/jpeg', 0.9);
+    const seq = renderSeq.current;
+    renderEdit(c, EDIT0).toBlob((blob) => blob && seq === renderSeq.current && setReview({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' }), 'image/jpeg', 0.9);
   }
   function changeEdit(patch: Partial<Edit>) {
     const e = { ...edit, ...patch };
@@ -256,7 +275,8 @@ export function TxCamera({
     renderTimer.current = setTimeout(() => {
       const src = reviewSrc.current;
       if (!src) return;
-      renderEdit(src, e).toBlob((blob) => blob && setReview((r) => (r && !r.video ? { ...r, uri: URL.createObjectURL(blob) } : r)), 'image/jpeg', 0.9);
+      const seq = ++renderSeq.current;
+      renderEdit(src, e).toBlob((blob) => blob && seq === renderSeq.current && setReview((r) => (r && !r.video ? { ...r, uri: URL.createObjectURL(blob) } : r)), 'image/jpeg', 0.9);
     }, 60);
   }
   const [seconds, setSeconds] = useState(0);
@@ -289,12 +309,18 @@ export function TxCamera({
     releaseCamera(2_000);
     clearInterval(timer.current);
     clearInterval(countTimer.current);
-    if (recorder.current?.state === 'recording') recorder.current.stop();
-  }, []);
+    clearTimeout(renderTimer.current);
+    clearTimeout(holdT.current);
+    if (recorder.current?.state === 'recording') { recorder.current.onstop = null; recorder.current.stop(); }
+    reviewSrc.current = null;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // No iPhone, o seletor de fotos não devolve nada enquanto a câmara está ligada: desliga-se ao abrir a galeria e religa-se quando o seletor fecha.
   useEffect(() => {
     const back = () => {
-      if (!pausedForPicker.current) return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      // Bloquear o telemóvel, trocar de app ou atender uma chamada mata os tracks: ao voltar, religa-se.
+      const dead = !!stream.current && !stream.current.getVideoTracks().some((t) => t.readyState === 'live');
+      if (!pausedForPicker.current && !dead) return;
       pausedForPicker.current = false;
       void start();
     };
@@ -420,11 +446,11 @@ export function TxCamera({
       const url = URL.createObjectURL(f);
       try {
         const img = await new Promise<HTMLImageElement>((res, rej) => { const i = document.createElement('img'); i.onload = () => res(i); i.onerror = rej; i.src = url; });
-        const r = rects[list.length];
+        const cell = LAYOUTS[layout].cells[list.length];
         const c = document.createElement('canvas');
-        const k = Math.min(1, 1400 / Math.max(r.w, r.h));
-        c.width = Math.round(r.w * 2 * k);
-        c.height = Math.round(r.h * 2 * k);
+        // No tamanho final da célula (a composição é 1080×1350): senão a foto saía ampliada e desfocada.
+        c.width = Math.round(cell[2] * 1080);
+        c.height = Math.round(cell[3] * 1350);
         cover(c.getContext('2d')!, img, img.naturalWidth, img.naturalHeight, 0, 0, c.width, c.height);
         list = [...list, c];
       } catch { /* ficheiro que não é imagem legível */ } finally { URL.revokeObjectURL(url); }
@@ -458,10 +484,12 @@ export function TxCamera({
     timer.current = setInterval(() => {
       const t = Math.floor((Date.now() - startedAt.current) / 1000);
       setSeconds(t);
-      if (t >= MAX_VIDEO_S) r.stop();
+      if (t >= MAX_VIDEO_S && r.state === 'recording') r.stop();
     }, 250);
   }
 
+  const shootRef = useRef(shoot);
+  shootRef.current = shoot;
   /** Toque = foto; manter premido = vídeo (começa aos 350 ms e pára ao largar). Com temporizador, o toque faz a contagem; tocar outra vez cancela. */
   const holdT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const holding = useRef(false);
@@ -480,7 +508,7 @@ export function TxCamera({
   function press() {
     if (countdown !== null) { clearInterval(countTimer.current); return setCountdown(null); }
     if (recording) return record();
-    const fire = () => void shoot();
+    const fire = () => void shootRef.current();
     if (!delay || recording) return fire();
     let n: number = delay;
     setCountdown(n);
@@ -700,7 +728,7 @@ export function TxCamera({
       {review && (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', zIndex: 10 }]} accessibilityViewIsModal>
           {review.video
-            ? dom('video', { src: review.uri, playsInline: true, autoPlay: true, loop: true, muted: false, controls: false, style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' } })
+            ? dom('video', { src: review.uri, playsInline: true, autoPlay: true, loop: true, muted: true, controls: false, onClick: (ev: { currentTarget: HTMLVideoElement }) => { ev.currentTarget.muted = !ev.currentTarget.muted; void ev.currentTarget.play().catch(() => undefined); }, style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' } })
             : dom('img', { ref: imgEl, src: review.uri, alt: 'Pré-visualização', onLoad: () => setImgTick((n) => n + 1), style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' } })}
           {!review.video && freeCrop && tool === 'crop' && (() => {
             const r = imageRect();
@@ -710,7 +738,7 @@ export function TxCamera({
             const handle = (x: number, y: number) => dom('div', { key: `${x}-${y}`, style: { position: 'absolute', left: x - 14, top: y - 14, width: 28, height: 28, borderRadius: 14, background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.5)' } });
             return dom(
               'div',
-              { style: { position: 'absolute', inset: 0, touchAction: 'none', zIndex: 4 }, onTouchStart: cropTouchStart, onTouchMove: cropTouchMove, onTouchEnd: cropTouchEnd, onTouchCancel: cropTouchEnd },
+              { style: { position: 'absolute', inset: 0, touchAction: 'none', zIndex: 2 }, onTouchStart: cropTouchStart, onTouchMove: cropTouchMove, onTouchEnd: cropTouchEnd, onTouchCancel: cropTouchEnd },
               dom('div', { key: 'box', style: { position: 'absolute', left: L, top: T, width: W, height: H, boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)', border: '2px solid #fff', backgroundImage: 'linear-gradient(rgba(255,255,255,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.35) 1px, transparent 1px)', backgroundSize: `${W / 3}px ${H / 3}px` } }),
               handle(L, T), handle(L + W, T), handle(L, T + H), handle(L + W, T + H),
             );
@@ -753,7 +781,8 @@ export function TxCamera({
                   </Pressable>
                   {freeCrop && (
                     <Pressable onPress={endFreeCrop} style={st.cropOk} accessibilityRole="button" accessibilityLabel="Concluir o recorte">
-                      <Icon name="check" size={18} color="#fff" strokeWidth={3} />
+                      <Icon name="check" size={16} color="#fff" strokeWidth={3} />
+                      <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Concluir</Text>
                     </Pressable>
                   )}
                   {([[null, 'Original'], [1, '1:1'], [0.8, '4:5'], [9 / 16, '9:16'], [16 / 9, '16:9']] as const).map(([a, label]) => (
@@ -781,7 +810,7 @@ export function TxCamera({
                 const src = reviewSrc.current;
                 if (!r.video && src) {
                   const final = { ...edit, box: freeCrop ? boxRef.current : edit.box, aspect: freeCrop ? null : edit.aspect };
-                  renderEdit(src, final).toBlob((blob) => { setReview(null); setTool(null); setFreeCrop(false); onShot(blob ? { uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' } : r); }, 'image/jpeg', 0.92);
+                  renderEdit(src, final).toBlob((blob) => { reviewSrc.current = null; setReview(null); setTool(null); setFreeCrop(false); onShot(blob ? { uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' } : r); }, 'image/jpeg', 0.92);
                   return;
                 }
                 setReview(null); setTool(null); onShot(r);
@@ -820,7 +849,7 @@ export function GalleryPick({ onFiles, onOpen, style, children }: { onFiles: (f:
 
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
-  top: { position: 'absolute', left: 0, right: 0, top: 0, zIndex: 3, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 },
+  top: { position: 'absolute', left: 0, right: 0, top: 0, zIndex: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 },
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   delayBadge: { position: 'absolute', right: -4, bottom: -4, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   delayText: { color: '#fff', fontSize: 11, fontWeight: '800' },
@@ -854,7 +883,7 @@ const st = StyleSheet.create({
   hint: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600', marginBottom: 14 },
   thumb: { width: 44, height: 44, borderRadius: 8, overflow: 'hidden', borderWidth: 2, borderColor: colors.brand, backgroundColor: '#222' },
   kinds: { flexDirection: 'row', justifyContent: 'center', gap: 22, marginTop: 16 },
-  cropOk: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  cropOk: { height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: colors.brand, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   corner: { position: 'absolute', width: 30, height: 30, borderColor: colors.brand, opacity: 0.9 },
   wordmark: { color: 'rgba(255,255,255,0.8)', fontSize: 15, fontWeight: '900', letterSpacing: -0.5 },
   kindText: { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: '700', letterSpacing: 1.2 },
@@ -863,11 +892,11 @@ const st = StyleSheet.create({
   doneBtn: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 23, backgroundColor: colors.brand, paddingHorizontal: 16 },
   doneCount: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.28)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   full: { marginTop: 10, color: '#fff', fontSize: 14, fontWeight: '600' },
-  editPanel: { position: 'absolute', left: 0, right: 0, gap: 10, paddingTop: 10, paddingBottom: 6, backgroundColor: 'rgba(0,0,0,0.55)' },
+  editPanel: { position: 'absolute', left: 0, right: 0, zIndex: 6, gap: 10, paddingTop: 10, paddingBottom: 6, backgroundColor: 'rgba(0,0,0,0.75)' },
   toolRow: { flexDirection: 'row', justifyContent: 'center', gap: 28 },
   toolBtn: { alignItems: 'center', gap: 3 },
   toolText: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '700' },
-  reviewBar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, gap: 12 },
+  reviewBar: { zIndex: 6, position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, gap: 12 },
   retake: { height: 50, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.16)', paddingHorizontal: 20 },
   retakeText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   use: { flex: 1, height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 25, backgroundColor: colors.brand, boxShadow: '0 6px 18px rgba(214,51,79,0.45)' } as object,
