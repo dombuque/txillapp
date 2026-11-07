@@ -113,6 +113,39 @@ export default function Connections() {
     if (start === 'following' && p?.canSeeConnections) setTimeout(() => pager.current?.scrollTo({ x: width, animated: false }), 0);
   }, [start, p?.canSeeConnections, width]);
 
+  // Na web não há pager (a lista não rolava no Safari com ele por baixo): o deslizar para o lado troca o separador à mão.
+  const curRef = useRef(cur);
+  curRef.current = cur;
+  useEffect(() => {
+    if (!web || typeof document === 'undefined') return;
+    let s: { x: number; y: number; t: number } | null = null;
+    const down = (e: TouchEvent) => {
+      const t = e.touches[0];
+      const tag = (e.target as HTMLElement | null)?.tagName ?? '';
+      s = e.touches.length === 1 && t.clientX > 24 && t.clientX < window.innerWidth - 24 && !/INPUT|TEXTAREA/.test(tag) ? { x: t.clientX, y: t.clientY, t: Date.now() } : null;
+    };
+    const up = (e: TouchEvent) => {
+      if (!s) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - s.x;
+      const dy = t.clientY - s.y;
+      const quick = Date.now() - s.t < 700;
+      s = null;
+      if (!quick || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
+      const next: Kind = dx < 0 ? 'following' : 'followers';
+      if (next !== curRef.current) setCur(next);
+    };
+    const cancel = () => { s = null; };
+    document.addEventListener('touchstart', down, { passive: true });
+    document.addEventListener('touchend', up, { passive: true });
+    document.addEventListener('touchcancel', cancel, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', down);
+      document.removeEventListener('touchend', up);
+      document.removeEventListener('touchcancel', cancel);
+    };
+  }, []);
+
   const go = (k: Kind) => {
     setCur(k);
     pager.current?.scrollTo({ x: k === 'followers' ? 0 : width, animated: true });
