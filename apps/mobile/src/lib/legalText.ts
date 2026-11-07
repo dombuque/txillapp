@@ -10,7 +10,7 @@ export const TERMS: LegalBlock[][] = [
   },
   {
    "t": "p",
-   "x": "O Txillapp é uma rede social: publicas fotos e textos, segues pessoas, partilhas stories e trocas mensagens. Inclui uma carteira de **Txills**, pontos virtuais da app que se usam para oferecer presentes a quem segues. Os Txills não são dinheiro: não têm valor monetário, não se compram, não se vendem, não se trocam por dinheiro e não se levantam."
+   "x": "O Txillapp é uma rede social: publicas fotos e textos, segues pessoas, partilhas mimos e trocas mensagens. Inclui uma carteira de **Txills**, pontos virtuais da app que se usam para oferecer presentes a quem segues. Os Txills não são dinheiro: não têm valor monetário, não se compram, não se vendem, não se trocam por dinheiro e não se levantam."
   }
  ],
  [

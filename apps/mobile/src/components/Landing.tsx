@@ -9,7 +9,7 @@ import { colors } from '@/lib/theme';
 
 const FEATURES: { icon: IconName; title: string; text: string }[] = [
   { icon: 'image', title: 'Feed da malta', text: 'Fotos e vídeos de quem segues e do que está a bombar. Sem algoritmo a enganar-te: tu mandas no que vês.' },
-  { icon: 'camera', title: 'Stories', text: 'Mostra o teu dia em 24 horas. Partilha para os amigos chegados ou para toda a gente.' },
+  { icon: 'camera', title: 'Mimos', text: 'Mostra o teu dia em 24 horas. Partilha para os amigos chegados ou para toda a gente.' },
   { icon: 'film', title: 'Tchekas', text: 'Vídeos curtos a rolar, um a seguir ao outro. Bora criar a tua.' },
   { icon: 'comment', title: 'Chat em tempo real', text: 'Conversa com quem segues, manda fotos e vídeos. Só entra quem tu deixares.' },
   { icon: 'gift', title: 'Txills', text: 'Oferece presentes à malta que segues e mostra quem está com tudo.' },
@@ -50,7 +50,7 @@ export function Landing() {
       <View style={[st.hero, wide && { flexDirection: 'row', alignItems: 'center', paddingTop: 64 }]}>
         <View style={wide ? { flex: 1 } : undefined}>
           <Text style={[st.h1, width >= 640 && { fontSize: 60, lineHeight: 63 }]} accessibilityRole="header">Posta. Mostra. <Text style={{ color: colors.brand }}>Txilla.</Text></Text>
-          <Text style={st.lead}>A tua vibe, a tua malta e o teu espaço. Fotos, vídeos, stories, tchekas e chat numa só app, feita para quem não tem tempo a perder.</Text>
+          <Text style={st.lead}>A tua vibe, a tua malta e o teu espaço. Fotos, vídeos, mimos, tchekas e chat numa só app, feita para quem não tem tempo a perder.</Text>
           <View style={st.cta}>
             <Pressable onPress={() => go('/register')} style={({ pressed }) => [st.primary, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="link"><Text style={st.primaryText}>Criar conta grátis</Text></Pressable>
             <Pressable onPress={() => go('/login?entrar=1')} style={({ pressed }) => [st.secondary, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="link"><Text style={st.secondaryText}>Já tenho conta</Text></Pressable>

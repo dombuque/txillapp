@@ -214,7 +214,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
         {p.blockedMe && (
           <View style={styles.notice} accessibilityRole="summary">
             <Text style={styles.noticeTitle}>Foste bloqueado por @{p.username}</Text>
-            <Text style={styles.noticeText}>Não podes seguir esta conta nem ver as publicações e stories dela.</Text>
+            <Text style={styles.noticeText}>Não podes seguir esta conta nem ver as publicações e mimos dela.</Text>
           </View>
         )}
         {p.blockedByMe && !p.blockedMe && (

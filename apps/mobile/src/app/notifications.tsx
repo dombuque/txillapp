@@ -57,7 +57,7 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
   const quote = !many && n.data.snippet ? `“${n.data.snippet}”` : undefined;
   const s = many ? 'ram' : 'u';
   switch (n.kind) {
-    case 'blocked': return { text: 'bloqueou-te', sub: 'Já não podes seguir esta conta nem ver as publicações e stories dela.' };
+    case 'blocked': return { text: 'bloqueou-te', sub: 'Já não podes seguir esta conta nem ver as publicações e mimos dela.' };
     case 'follow': return { text: many ? 'começaram a seguir-te' : 'começou a seguir-te' };
     case 'follow_request': return { text: 'pediu para te seguir' };
     case 'request_accepted': return { text: `aceito${s} o teu pedido para seguir` };

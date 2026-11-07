@@ -22,7 +22,7 @@ export function StoriesTray() {
   const view = (u: string) => router.push(`/stories/${u}` as never);
 
   return (
-    <View style={{ marginBottom: 16 }} accessibilityLabel="Stories">
+    <View style={{ marginBottom: 16 }} accessibilityLabel="Mimos">
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         <Pressable onPress={() => (mine ? view(user?.username ?? '') : create())} style={styles.bubble} accessibilityRole="button" accessibilityLabel={mine ? 'Ver o teu mimo' : 'Criar mimo'}>
           <View>

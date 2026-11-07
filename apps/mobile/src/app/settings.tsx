@@ -49,7 +49,7 @@ const genderLabel = (g: Gender) => GENDERS.find((x) => x.value === g)?.label ?? 
 const NOTIFY_LABELS: Record<string, [string, string]> = {
   messages: ['Mensagens', 'Conversas e grupos'],
   follows: ['Seguidores', 'Quem começa a seguir-te e pedidos aceites'],
-  comments: ['Comentários e respostas', 'Na tua publicação, no teu comentário e nos teus stories'],
+  comments: ['Comentários e respostas', 'Na tua publicação, no teu comentário e nos teus mimos'],
   mentions: ['Menções e marcações', 'Quando alguém te menciona ou te identifica'],
   reposts: ['Reposts', 'Quando repostam uma publicação tua'],
   gifts: ['Brindes', 'Quando te oferecem Txills'],
@@ -348,7 +348,7 @@ export default function Settings() {
           <Row icon={ic('gift')} label="Quem pode presentear-me" value={p ? whoLabel(p.giftsAllowed) : '…'} onPress={() => setSheet('gifts')} />
         </Section>
 
-        <Section title="Stories">
+        <Section title="Mimos">
           <Row icon={ic('camera')} label="Quem pode responder" value={stories.data ? whoLabel(stories.data.replies) : '…'} onPress={() => setSheet('storyReplies')} />
           <Row icon={ic('heart')} label="Amigos próximos" value={closeFriends.data ? String(closeFriends.data.length) : '…'} onPress={() => setSheet('closeFriends')} />
           <Row icon={ic('eye-off')} label="Esconder mimo de…" value={stories.data ? String(stories.data.hidden.length) : '…'} onPress={() => setSheet('hidden')} />

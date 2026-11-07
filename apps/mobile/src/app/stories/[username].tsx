@@ -5,13 +5,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Easing, PanResponder, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Alert, Animated, Easing, PanResponder, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { RichText } from '@/components/RichText';
 import { ActivityPanel, CommentsPanel, Panel, ReplyBar, useKeyboardHeight } from '@/components/StoryParts';
+import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
 import { api, type Story } from '@/lib/api';
 import { abs, sized } from '@/lib/config';
 import { useOwnSeen, writeOwnSeen } from '@/lib/ownSeen';
@@ -64,6 +65,16 @@ export default function StoryViewer() {
   const { width } = useWindowDimensions();
   const wide = width > 520;
   const kb = useKeyboardHeight();
+  // Na web (iPhone) o teclado tapa a página sem a encolher: o visor passa a ocupar só a zona visível e a página não rola.
+  const vv = useVisibleViewport();
+  const vvOn = Platform.OS === 'web' && !!vv && typeof window !== 'undefined' && vv.height < window.innerHeight - 120;
+  useEffect(() => {
+    if (!vvOn || typeof window === 'undefined') return;
+    const fix = () => window.scrollTo(0, 0);
+    fix();
+    window.addEventListener('scroll', fix);
+    return () => window.removeEventListener('scroll', fix);
+  }, [vvOn, vv?.top, vv?.height]);
   const q = useQuery({ queryKey: ['stories', username], queryFn: () => api.storiesOf(username), retry: false, refetchOnMount: 'always' });
   const tray = useQuery({ queryKey: ['stories'], queryFn: api.stories });
   const stories = q.data ?? [];
@@ -210,7 +221,7 @@ export default function StoryViewer() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
+    <View style={[{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }, vvOn && vv ? { position: 'absolute', left: 0, right: 0, top: vv.top, height: vv.height } : null]}>
       <Animated.View
         style={[st.root, wide && { maxWidth: 460, borderRadius: 24, overflow: 'hidden', maxHeight: 860 }, { transform: [{ translateY: dy }], opacity: dy.interpolate({ inputRange: [0, 300], outputRange: [1, 0.4], extrapolate: 'clamp' }) }]}
         {...pan.panHandlers}
@@ -227,6 +238,7 @@ export default function StoryViewer() {
           )}
         </View>
 
+        {typing && <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} pointerEvents="none" />}
         <Pressable style={[st.zone, { left: 0, width: shared ? '30%' : '33%' }]} {...hold} onPress={tap(() => { setSeePost(false); prev(); })} accessibilityLabel="Anterior" />
         {shared && <Pressable style={[st.zone, { left: '30%', width: '40%' }]} {...hold} onPress={tap(() => setSeePost((v) => !v))} accessibilityLabel="Mostrar a ligação à publicação" />}
         <Pressable style={[st.zone, { right: 0, width: shared ? '30%' : '67%' }]} {...hold} onPress={tap(() => { setSeePost(false); next(); })} accessibilityLabel="Seguinte" />
