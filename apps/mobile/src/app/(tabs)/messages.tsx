@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,7 +10,7 @@ import { NotesStrip } from '@/components/Notes';
 import { REACTIONS } from '@/components/StoryParts';
 import { Pulse } from '@/components/ChatParts';
 import { Bolt, SuperTxillPanel } from '@/components/SuperTxillPanel';
-import { InstantsDock, zasListScrolling } from '@/components/Instants';
+import { InstantsDock, openZasCamera, zasListScrolling } from '@/components/Instants';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { api, type ChatMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -62,6 +62,9 @@ function Skeleton() {
 
 /** Lista de conversas e grupos, com pesquisa e pedidos de mensagem, como no site. */
 export default function Messages() {
+  // Vindo do "+" com o Zás escolhido: abre a câmara do Zás assim que o ecrã monta.
+  const { zas } = useLocalSearchParams<{ zas?: string }>();
+  useEffect(() => { if (zas === '1') setTimeout(openZasCamera, 300); }, [zas]);
   const router = useRouter();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();

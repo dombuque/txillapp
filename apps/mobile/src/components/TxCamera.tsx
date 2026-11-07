@@ -80,9 +80,13 @@ function cover(g: CanvasRenderingContext2D, src: CanvasImageSource, srcW: number
 const buzz = (ms: number) => { try { navigator.vibrate?.(ms); } catch { /* sem vibração */ } };
 
 export function TxCamera({
-  count, max, modes = ['photo', 'video', 'text'], onShot, onGallery, onClose, onDone, onText, doneLabel = 'Feito',
+  count, max, modes = ['photo', 'video', 'text'], onShot, onGallery, onClose, onDone, onText, doneLabel = 'Feito', thumbs, kinds, kind, onKind,
 }: {
   count: number; max: number; modes?: CamMode[]; onShot: (s: Shot) => void; onGallery: (files: File[]) => void; onClose: () => void; onDone?: () => void; onText?: () => void; doneLabel?: string;
+  /** Miniaturas do que já foi escolhido (a fila de "recentes", como no Instagram). */
+  thumbs?: string[];
+  /** A barra de baixo com o que se vai criar (Publicação · Tcheka · Zás · Mimo): tocar noutro chama onKind. */
+  kinds?: { id: string; label: string }[]; kind?: string; onKind?: (id: string) => void;
 }) {
   const insets = useSafeAreaInsets();
   const video = useRef<HTMLVideoElement | null>(null);
@@ -533,7 +537,13 @@ export function TxCamera({
             ))}
           </ScrollView>
         )}
-        {hint && ready && !recording && count === 0 && layout === null && modes.includes('video') ? (
+        {thumbs && thumbs.length > 0 && !recording ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 6, alignItems: 'center' }} style={{ maxHeight: 54, marginBottom: 10, alignSelf: 'stretch' }} accessibilityLabel="Escolhidas">
+            {thumbs.map((u, i) => (
+              <View key={`${u}-${i}`} style={st.thumb}>{dom('img', { src: u, alt: '', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } })}</View>
+            ))}
+          </ScrollView>
+        ) : hint && ready && !recording && count === 0 && layout === null && modes.includes('video') ? (
           <Text style={st.hint} pointerEvents="none">Toca para foto · mantém para vídeo</Text>
         ) : <View style={{ height: 26 }} />}
         <View style={st.row}>
@@ -570,6 +580,15 @@ export function TxCamera({
           </View>
         </View>
         {full ? <Text style={st.full} accessibilityRole="alert">Máximo de {max} fotos</Text> : null}
+        {kinds && !recording ? (
+          <View style={st.kinds} accessibilityRole="tablist">
+            {kinds.map((k) => (
+              <Pressable key={k.id} onPress={() => onKind?.(k.id)} accessibilityRole="tab" accessibilityState={{ selected: kind === k.id }} hitSlop={8}>
+                <Text style={[st.kindText, kind === k.id && st.kindOn]}>{k.label.toUpperCase()}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </View>
 
       {/* Pré-visualização do que acabou de ser tirado: Repetir volta à câmara; Usar entrega a foto/vídeo. */}
@@ -694,6 +713,10 @@ const st = StyleSheet.create({
   shutterIn: { width: 66, height: 66, borderRadius: 33, backgroundColor: '#fff' },
   shutterRec: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#ef4444' },
   hint: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600', marginBottom: 14 },
+  thumb: { width: 44, height: 44, borderRadius: 8, overflow: 'hidden', borderWidth: 2, borderColor: colors.brand, backgroundColor: '#222' },
+  kinds: { flexDirection: 'row', justifyContent: 'center', gap: 22, marginTop: 14 },
+  kindText: { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: '700', letterSpacing: 1.2 },
+  kindOn: { color: '#fff' },
   stopSq: { width: 32, height: 32, borderRadius: 9, backgroundColor: '#ef4444' },
   doneBtn: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 23, backgroundColor: colors.brand, paddingHorizontal: 16 },
   doneCount: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.28)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },

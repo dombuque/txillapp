@@ -111,6 +111,7 @@ export default function Compose() {
   const [music, setMusic] = useState<Track | null>(null);
   const [pickMusic, setPickMusic] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [kindSel, setKindSel] = useState('post');
   const [sourceOpen, setSourceOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [tagging, setTagging] = useState<number | null>(null);
@@ -312,7 +313,25 @@ export default function Compose() {
   if (step === 'choose' && web && liveCameraSupported()) {
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
-        <LiveCamera count={photos.length} max={MAX_PHOTOS} onShot={shot} onGallery={(f) => void addFiles(f)} onClose={() => router.replace('/')} onDone={() => setStep('write')} onText={() => setStep('write')} />
+        <LiveCamera
+          count={photos.length}
+          max={MAX_PHOTOS}
+          onShot={shot}
+          onGallery={(f) => void addFiles(f)}
+          onClose={() => router.replace('/')}
+          onDone={() => setStep('write')}
+          onText={() => setStep('write')}
+          doneLabel="Seguinte"
+          thumbs={assets.map((a) => a.uri)}
+          kinds={[{ id: 'post', label: 'Publicação' }, { id: 'tcheka', label: 'Tcheka' }, { id: 'zas', label: 'Zás' }, { id: 'mimo', label: 'Mimo' }]}
+          kind={kindSel}
+          onKind={(k) => {
+            // Zás e mimo têm o seu próprio ecrã; publicação e tcheka ficam aqui (um tcheka é um vídeo publicado).
+            if (k === 'mimo') return router.replace('/stories/new' as never);
+            if (k === 'zas') return router.replace('/messages?zas=1' as never);
+            setKindSel(k);
+          }}
+        />
         {err ? <Text style={[styles.err, { position: 'absolute', top: insets.top + 72, left: 0, right: 0, color: '#fff' }]} accessibilityRole="alert">{err}</Text> : null}
       </View>
     );
