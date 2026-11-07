@@ -39,7 +39,7 @@ export function sniffVideo(head: Buffer): VideoSniff {
 }
 
 /**
- * Converte os vídeos enviados: máximo 60 s, 720p, H.264/AAC em MP4 com "faststart" (começa a tocar sem esperar
+ * Converte os vídeos enviados: máximo 60 s, lado menor até 1080 px (CRF 23), H.264/AAC em MP4 com "faststart" (começa a tocar sem esperar
  * pelo ficheiro todo), gera a imagem de capa e analisa 3 imagens do vídeo com o mesmo detetor das fotos.
  * Uma conversão de cada vez (é pesada); as outras esperam na fila.
  */
@@ -89,9 +89,10 @@ export class VideoService {
         FFMPEG,
         [
           '-y', '-i', f.src, '-t', String(MAX_VIDEO_SECONDS),
-          '-vf', "scale='min(720,iw)':'-2':flags=lanczos,format=yuv420p",
-          '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26', '-profile:v', 'main',
-          '-c:a', 'aac', '-b:a', '96k', '-ac', '2', '-movflags', '+faststart', '-map_metadata', '-1', // sem metadados (GPS, etc.)
+          // Lado menor até 1080 (vertical 1080×1920, horizontal 1920×1080), nunca amplia; 30 fps no máximo.
+          '-vf', "scale='if(gt(iw,ih),-2,min(1080,iw))':'if(gt(iw,ih),min(1080,ih),-2)':flags=lanczos,fps=30,format=yuv420p",
+          '-c:v', 'libx264', '-preset', 'faster', '-crf', '23', '-maxrate', '6M', '-bufsize', '12M', '-profile:v', 'high', '-level', '4.1',
+          '-c:a', 'aac', '-b:a', '128k', '-ac', '2', '-movflags', '+faststart', '-map_metadata', '-1', // sem metadados (GPS, etc.)
           tmp,
         ],
         { timeout: 5 * 60_000, maxBuffer: 10 * 1024 * 1024 },

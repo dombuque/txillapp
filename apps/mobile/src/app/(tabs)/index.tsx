@@ -13,6 +13,7 @@ import { useTabPress } from '@/lib/tabPress';
 import { Suggestions } from '@/components/Suggestions';
 import { WhatsNewCard } from '@/components/WhatsNew';
 import { EmailBanner } from '@/components/EmailBanner';
+import { PublishBanner } from '@/components/PublishBanner';
 import { WelcomeTour } from '@/components/WelcomeTour';
 import { Wordmark } from '@/components/Wordmark';
 import { api, type Post } from '@/lib/api';
@@ -171,6 +172,7 @@ export default function Feed() {
         )}
         ListHeaderComponent={
           <View style={{ paddingTop: 4 }}>
+            <PublishBanner />
             <EmailBanner />
             <WhatsNewCard />
             <ProfileNudge />

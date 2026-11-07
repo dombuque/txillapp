@@ -30,7 +30,7 @@ function ConnectionList({ username, kind, me, width }: { username: string; kind:
   });
   const people: Person[] = q.data?.pages.flatMap((x) => x.items) ?? [];
   return (
-    <View style={{ width, flex: 1 }}>
+    <View style={{ width, height: '100%' }}>
       <View style={st.searchWrap}>
         <View style={st.search}>
           <Icon name="search" size={18} color={colors.zinc600} />
@@ -112,7 +112,7 @@ export default function Connections() {
             {tabBtn('followers', 'seguidores', p.counts.followers)}
             {tabBtn('following', 'a seguir', p.counts.following)}
           </View>
-          <ScrollView ref={pager} onLayout={(e) => setMeasured(e.nativeEvent.layout.width)} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(e) => setCur(Math.round(e.nativeEvent.contentOffset.x / width) === 0 ? 'followers' : 'following')} style={{ flex: 1 }}>
+          <ScrollView ref={pager} onLayout={(e) => setMeasured(e.nativeEvent.layout.width)} horizontal pagingEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={{ height: '100%' }} onMomentumScrollEnd={(e) => setCur(Math.round(e.nativeEvent.contentOffset.x / width) === 0 ? 'followers' : 'following')} style={{ flex: 1 }}>
             <ConnectionList username={username} kind="followers" me={user!.username} width={width} />
             <ConnectionList username={username} kind="following" me={user!.username} width={width} />
           </ScrollView>

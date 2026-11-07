@@ -197,7 +197,7 @@ export class MediaService implements OnModuleInit {
   private async publishVariants(id: string, bytes: Buffer) {
     for (const w of WIDTHS) {
       try {
-        const out = await sharp(bytes).rotate().resize({ width: w, withoutEnlargement: true }).webp({ quality: 78 }).toBuffer();
+        const out = await sharp(bytes).rotate().resize({ width: w, withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
         await this.s3!.put(`${id}.${w}.webp`, out, 'image/webp', 'public');
       } catch {
         return; // imagem que o sharp não consegue reduzir: fica só o original
@@ -314,7 +314,7 @@ export class MediaService implements OnModuleInit {
       if (!job) {
         job = (async () => {
           const tmp = `${out}.${process.pid}.tmp`;
-          await sharp(original.path).rotate().resize({ width: w, withoutEnlargement: true }).webp({ quality: 78 }).toFile(tmp);
+          await sharp(original.path).rotate().resize({ width: w, withoutEnlargement: true }).webp({ quality: 82 }).toFile(tmp);
           await rename(tmp, out);
         })().finally(() => this.making.delete(out));
         this.making.set(out, job);

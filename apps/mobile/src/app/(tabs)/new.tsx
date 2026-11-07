@@ -15,7 +15,7 @@ import { PhotoTagger } from '@/components/PhotoTagger';
 import { PlaceSheet, type PlaceGeo } from '@/components/PlaceSheet';
 import { Sheet } from '@/components/Sheet';
 import { TrackCard } from '@/components/TrackCard';
-import { uploadMedia } from '@/lib/api';
+import { enqueuePublish } from '@/lib/publishQueue';
 import { composeApi, type PhotoTag } from '@/lib/api.compose';
 import { type Track } from '@/lib/api.music';
 import { clearDraft, listDrafts, loadDraft, newDraftKey, saveDraft, type DraftItem } from '@/lib/drafts';
@@ -267,37 +267,27 @@ export default function Compose() {
     router.replace('/');
   }
 
+  // Publicar em segundo plano: o cartão fecha já e o envio segue na fila (faixa no Início com o progresso).
   async function submit() {
-    if (!canPost) return;
+    if (!canPost || busy) return;
     setBusy(true);
     setErr('');
-    try {
-      const ids: string[] = [];
-      for (let i = 0; i < assets.length; i++) {
-        const a = assets[i];
-        setProgress(a.video ? 'A enviar o vídeo…' : `A enviar foto ${photos.indexOf(a) + 1} de ${photos.length}…`);
-        ids.push(await uploadMedia(a.uri, a.mime, 'public'));
-      }
-      setProgress('A publicar…');
-      await composeApi.createPost({
+    enqueuePublish({
+      assets: assets.map((a) => ({ uri: a.uri, mime: a.mime, video: a.video })),
+      post: {
         body,
         music,
         locationLabel: place || undefined,
         ...(place && placeGeo ? { locationLat: placeGeo.lat, locationLng: placeGeo.lng, locationCoarse: placeGeo.coarse } : {}),
-        mediaIds: ids,
         tags: assets.flatMap((a, index) => a.tags.map((t) => ({ index, username: t.username, x: t.x, y: t.y }))),
-      });
-      settled.current = true;
-      await clearDraft(draftKey.current);
-      reset();
-      await Promise.all([qc.invalidateQueries({ queryKey: ['feed'] }), qc.invalidateQueries({ queryKey: ['profile-posts'] })]);
-      router.replace('/');
-    } catch (e) {
-      setErr((e as Error).message || 'Não consegui publicar');
-    } finally {
-      setBusy(false);
-      setProgress('');
-    }
+      },
+    }, qc);
+    settled.current = true;
+    await clearDraft(draftKey.current);
+    reset();
+    setBusy(false);
+    setProgress('');
+    router.replace('/');
   }
 
   async function openDraft(d: DraftItem) {
