@@ -8,7 +8,6 @@ import { PushService } from '../push/push.service';
 import { TextFilter } from '../safety/text-filter.service';
 import { blockedBetween } from '../social/visibility';
 
-const MAX_ACTIVE = 10;
 
 /** Quem vê um Zás (`i` = alias da tabela): quem o fez; os amigos próximos dele; e, se for para "amigos", quem se segue mutuamente. Nunca com bloqueios. */
 const visible = (i = 'i', v = '$1') =>
@@ -56,8 +55,7 @@ export class InstantsService implements OnModuleInit {
 
   async create(me: string, mediaId: string, caption: string, audience: 'friends' | 'close' = 'friends') {
     this.filter.assertClean(caption);
-    const active = (await this.pool.query('SELECT count(*)::int AS n FROM social.instants WHERE author_id = $1 AND expires_at > now()', [me])).rows[0].n as number;
-    if (active >= MAX_ACTIVE) throw new BadRequestException('Já tens muitos Instants ativos. Espera que alguns acabem.');
+    // Sem limite de Zás ativos (o ritmo é travado só pelo throttle da rota).
     const ok = await this.pool.query(
       `SELECT 1 FROM content.media_assets a
         WHERE a.id = $1 AND a.owner_id = $2 AND a.purpose = 'chat' AND a.status = 'ready' AND a.mime LIKE 'image/%'
@@ -72,7 +70,7 @@ export class InstantsService implements OnModuleInit {
     return { id, expiresAt: r.rows[0].expires_at as string };
   }
 
-  /** A faixa: quem tem Instants por ver (os que já vi desaparecem) e os meus, com quantas pessoas os viram. */
+  /** A faixa: quem tem Zás por ver (os que já vi desaparecem) e os meus, com quantas pessoas os viram. */
   async tray(me: string) {
     const others = (
       await this.pool.query(
@@ -96,7 +94,7 @@ export class InstantsService implements OnModuleInit {
     return { mine, others };
   }
 
-  /** Os Instants de uma pessoa: os dela todos, os dos outros só os que ainda não vi. */
+  /** Os Zás de uma pessoa: os dela todos, os dos outros só os que ainda não vi. */
   async of(me: string, username: string) {
     const a = (await this.pool.query("SELECT id FROM identity.users WHERE lower(username) = lower($1) AND status <> 'deleted'", [username])).rows[0];
     if (!a) throw new NotFoundException('Pessoa não encontrada');
@@ -128,7 +126,7 @@ export class InstantsService implements OnModuleInit {
   /** Reagir a um Zás (de quem me deixa vê-lo): uma reação por pessoa; a mesma outra vez tira-a. */
   async react(me: string, id: string, reaction: string | null) {
     const ok = await this.pool.query(`SELECT 1 FROM social.instants i WHERE i.id = $1 AND i.author_id <> $2 AND i.expires_at > now() AND ${visible('i', '$2')}`, [id, me]);
-    if (!ok.rowCount) throw new NotFoundException('Instant não encontrado');
+    if (!ok.rowCount) throw new NotFoundException('Zás não encontrado');
     if (reaction === null) await this.pool.query('DELETE FROM social.instant_reactions WHERE instant_id = $1 AND user_id = $2', [id, me]);
     else {
       const prev = (await this.pool.query('SELECT reaction FROM social.instant_reactions WHERE instant_id = $1 AND user_id = $2', [id, me])).rows[0]?.reaction as string | undefined;
@@ -144,10 +142,10 @@ export class InstantsService implements OnModuleInit {
     }
   }
 
-  /** Quem viu o meu Instant. */
+  /** Quem viu o meu Zás. */
   async viewers(me: string, id: string) {
     const own = await this.pool.query('SELECT 1 FROM social.instants WHERE id = $1 AND author_id = $2', [id, me]);
-    if (!own.rowCount) throw new NotFoundException('Instant não encontrado');
+    if (!own.rowCount) throw new NotFoundException('Zás não encontrado');
     const { rows } = await this.pool.query(
       `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", v.viewed_at AS "at", r.reaction
          FROM social.instant_views v JOIN identity.users u ON u.id = v.viewer_id
@@ -160,6 +158,6 @@ export class InstantsService implements OnModuleInit {
 
   async remove(me: string, id: string) {
     const r = await this.pool.query('DELETE FROM social.instants WHERE id = $1 AND author_id = $2', [id, me]);
-    if (!r.rowCount) throw new NotFoundException('Instant não encontrado');
+    if (!r.rowCount) throw new NotFoundException('Zás não encontrado');
   }
 }
