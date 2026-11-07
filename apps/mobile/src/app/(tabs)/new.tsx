@@ -364,6 +364,7 @@ export default function Compose() {
           onDone={() => { bumpKind(kindSel); if (kindSel === 'tcheka') setStudio(true); else setStep('write'); }}
           onText={() => setStep('write')}
           doneLabel={kindSel === 'tcheka' ? 'Montar' : 'Seguinte'}
+          aspect={kindSel === 'post' ? 4 / 5 : 9 / 16}
           thumbs={assets.map((a) => a.uri)}
           kinds={kinds}
           kind={kindSel}

@@ -106,13 +106,15 @@ function cover(g: CanvasRenderingContext2D, src: CanvasImageSource, srcW: number
 const buzz = (ms: number) => { try { navigator.vibrate?.(ms); } catch { /* sem vibração */ } };
 
 export function TxCamera({
-  count, max, modes = ['photo', 'video', 'text'], onShot, onGallery, onClose, onDone, onText, doneLabel = 'Feito', thumbs, kinds, kind, onKind,
+  count, max, modes = ['photo', 'video', 'text'], onShot, onGallery, onClose, onDone, onText, doneLabel = 'Feito', thumbs, kinds, kind, onKind, aspect = 9 / 16,
 }: {
   count: number; max: number; modes?: CamMode[]; onShot: (s: Shot) => void; onGallery: (files: File[]) => void; onClose: () => void; onDone?: () => void; onText?: () => void; doneLabel?: string;
   /** Miniaturas do que já foi escolhido (a fila de "recentes", como no Instagram). */
   thumbs?: string[];
   /** A barra de baixo com o que se vai criar (Publicação · Tcheka · Zás · Mimo): tocar noutro chama onKind. */
   kinds?: { id: string; label: string }[]; kind?: string; onKind?: (id: string) => void;
+  /** Proporção da foto (largura/altura): 4:5 numa publicação, 9:16 num mimo ou tcheka. A moldura mostra exatamente o que sai. */
+  aspect?: number;
 }) {
   const insets = useSafeAreaInsets();
   const video = useRef<HTMLVideoElement | null>(null);
@@ -370,7 +372,7 @@ export function TxCamera({
     }
     const c = document.createElement('canvas');
     const g = c.getContext('2d')!;
-    const cell = layout !== null ? cellRects()[cells.length] : null;
+    const cell = layout !== null ? cellRects()[cells.length] : cap.w > 0 ? cap : null;
     if (cell) {
       // Layout: recorta do sensor exatamente o que a célula ativa mostra no visor (o visor é "cover" com o zoom).
       const k = Math.max(card.w / v.videoWidth, card.h / v.videoHeight) * zoom;
@@ -394,7 +396,7 @@ export function TxCamera({
     buzz(15);
     setFlash(true);
     setTimeout(() => setFlash(false), 140);
-    if (cell) return addCell(c);
+    if (layout !== null) return addCell(c);
     openReview(c);
   }
 
@@ -548,6 +550,12 @@ export function TxCamera({
   // Barra de baixo (fora do visor): galeria, modos e virar câmara, como no Instagram.
   const barH = 64 + Math.max(insets.bottom, 12);
   const card = { x: 0, y: topPad, w: area.w, h: Math.max(0, area.h - topPad - barH) };
+  // O que a foto vai apanhar: um retângulo na proporção pedida, ao centro do visor (o resto fica escurecido).
+  const cap = (() => {
+    const aw = Math.max(0, card.w - 24), ah = Math.max(0, card.h - 24);
+    const fw = Math.min(aw, ah * aspect), fh = fw / aspect;
+    return { x: card.x + (card.w - fw) / 2, y: card.y + (card.h - fh) / 2, w: fw, h: fh };
+  })();
   const mirror = facing === 'user' ? 'scaleX(-1)' : 'none';
   const fill = { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover' };
   const botPad = barH + 18; // os controlos que ficam por cima do visor começam acima da barra de baixo
@@ -606,10 +614,16 @@ export function TxCamera({
       <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: barH, height: 230, borderBottomLeftRadius: 22, borderBottomRightRadius: 22, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.55), transparent)' })} />
       {/* A moldura do Txillapp: quatro cantos em coral à volta do visor e o wordmark, discreto, por cima. */}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 2 }]}>
-        <View style={[st.corner, { left: 62, top: card.y + 66, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 14 }]} />
-        <View style={[st.corner, { right: 14, top: card.y + 66, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 14 }]} />
-        <View style={[st.corner, { left: 62, bottom: barH + 128, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 14 }]} />
-        <View style={[st.corner, { right: 14, bottom: barH + 128, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 14 }]} />
+        {layout === null && cap.w > 0 ? (
+          <>
+            {/* fora da moldura fica escurecido: vê-se o que a foto vai apanhar */}
+            <View style={web({ position: 'absolute', left: cap.x, top: cap.y, width: cap.w, height: cap.h, borderRadius: 14, boxShadow: '0 0 0 9999px rgba(0,0,0,0.42)' })} />
+            <View style={[st.corner, { left: cap.x, top: cap.y, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 14 }]} />
+            <View style={[st.corner, { left: cap.x + cap.w - 30, top: cap.y, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 14 }]} />
+            <View style={[st.corner, { left: cap.x, top: cap.y + cap.h - 30, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 14 }]} />
+            <View style={[st.corner, { left: cap.x + cap.w - 30, top: cap.y + cap.h - 30, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 14 }]} />
+          </>
+        ) : null}
         <View style={{ position: 'absolute', left: 0, right: 0, top: card.y + 22, alignItems: 'center' }}>
           <Text style={st.wordmark} accessibilityLabel="Txillapp">txill<Text style={{ color: colors.brand }}>a</Text>pp</Text>
         </View>
