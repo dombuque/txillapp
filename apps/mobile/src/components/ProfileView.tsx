@@ -176,11 +176,13 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       )}
 
       <View style={[styles.card, cardShadow]}>
-        <View style={[styles.avRow, p.bio ? { marginTop: 48 } : null]}>
+        <View style={[styles.avRow, p.bio ? { marginTop: 56 } : null]}>
           {p.bio ? (
             <Animated.View style={[styles.bubble, { transform: [{ translateY: bob }] }]}>
               <View style={{ maxHeight: 57, overflow: 'hidden' }}><RichText text={p.bio} style={styles.bubbleText} /></View>
-              <View style={styles.bubbleTail} />
+              {/* Cauda de "pensamento" (como no WhatsApp): duas bolinhas a descer para a foto. */}
+              <View style={[styles.tailDot, { width: 12, height: 12, borderRadius: 6, bottom: -9, left: 22 }]} />
+              <View style={[styles.tailDot, { width: 7, height: 7, borderRadius: 3.5, bottom: -19, left: 34 }]} />
             </Animated.View>
           ) : null}
           <ProfileStoryAvatar username={p.username} displayName={p.displayName} isMe={p.isMe} hasAvatar={p.hasAvatar} size={84} />
@@ -357,9 +359,9 @@ const styles = StyleSheet.create({
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   card: { marginHorizontal: 16, backgroundColor: colors.white, borderRadius: 28, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 20 },
   avRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  bubble: { position: 'absolute', top: -52, left: 24, zIndex: 10, maxWidth: '78%', borderRadius: 18, borderWidth: 1, borderColor: colors.zinc100, backgroundColor: colors.white, paddingHorizontal: 14, paddingVertical: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.16)' },
-  bubbleTail: { position: 'absolute', bottom: -7, left: 26, width: 12, height: 12, borderRadius: 2, backgroundColor: colors.white, borderRightWidth: 1, borderBottomWidth: 1, borderColor: colors.zinc100, transform: [{ rotate: '45deg' }] },
-  bubbleText: { fontSize: 14, lineHeight: 19, color: colors.zinc800, textAlign: 'center' },
+  bubble: { position: 'absolute', top: -58, left: 8, zIndex: 10, maxWidth: '82%', borderRadius: 22, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.zinc100, paddingHorizontal: 18, paddingVertical: 10, boxShadow: '0 3px 14px rgba(0,0,0,0.14)' },
+  tailDot: { position: 'absolute', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.zinc200, boxShadow: '0 1px 4px rgba(0,0,0,0.16)' },
+  bubbleText: { fontSize: 15, lineHeight: 20, color: colors.zinc900, textAlign: 'center' },
   stat: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   statN: { fontSize: 20, fontWeight: '800', color: colors.zinc900, lineHeight: 24 },
   statL: { fontSize: 13, color: colors.zinc600 },

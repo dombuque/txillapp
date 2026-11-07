@@ -77,4 +77,7 @@ export function useUnseenFeatures(): Feature[] {
   return lastOut;
 }
 
-export const useIsNew = (id: string) => useUnseenFeatures().some((f) => f.id === id);
+export const useIsNew = (id: string) => {
+  const s = useSyncExternalStore(subscribe, snapshot, snapshot);
+  return s !== null && !s.includes(id);
+};

@@ -5,6 +5,7 @@ import { BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, Sty
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackButton } from '@/components/BackButton';
 import { Icon } from '@/components/Icon';
+import { FeatureIntro } from '@/components/FeatureIntro';
 import { Sheet } from '@/components/Sheet';
 import { TasteBubble } from '@/components/TasteBubble';
 import { geleiraApi, type CatalogItem, type TasteKind } from '@/lib/api.geleira';
@@ -176,6 +177,7 @@ export default function GeleiraEditor() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
+      <FeatureIntro id="geleira" />
       <View style={{ borderBottomWidth: 1, borderBottomColor: colors.zinc100, backgroundColor: colors.white }}>
         <View style={st.top}>
           <BackButton onPress={back} />

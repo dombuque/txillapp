@@ -10,6 +10,7 @@ import { FollowButton } from '@/components/FollowButton';
 import { Icon } from '@/components/Icon';
 import { aiApi } from '@/lib/api.ai';
 import { colors } from '@/lib/theme';
+import { FeatureIntro } from './FeatureIntro';
 
 /** O raio do SuperTxill, cheio (como o "bolt" do site com fill). */
 /** O símbolo do SuperTxill (brilho), diferente do raio do Zás. */
@@ -34,6 +35,7 @@ export function SuperTxillPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <FeatureIntro id="supertxill" />
       <View style={{ flex: 1, backgroundColor: colors.white, alignItems: 'center' }}>
         <View style={{ flex: 1, width: '100%', maxWidth: 576 }}>
           <View style={[s.header, { paddingTop: Math.max(12, insets.top) }]}>

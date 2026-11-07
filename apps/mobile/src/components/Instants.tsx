@@ -14,6 +14,7 @@ import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
+import { FeatureIntro } from './FeatureIntro';
 import { Sheet } from './Sheet';
 import { CloseFriendsSheet, REACTIONS, ReactionArt } from './StoryParts';
 import { CurvedCaption } from './zas/CurvedCaption';
@@ -368,6 +369,7 @@ function InstantsHub({ onClose }: { onClose: () => void }) {
     : { flex: 1, backgroundColor: '#08080b', paddingTop: Math.max(8, insets.top) };
   return (
     <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <FeatureIntro id="zas" />
       <View style={rootStyle}>
         {!isWeb && <LinearGradient colors={['transparent', 'rgba(255,92,92,0.28)']} start={{ x: 0.5, y: 0.4 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />}
         {!(isWeb && editing) && (

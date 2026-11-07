@@ -3,6 +3,7 @@ import { createElement, useCallback, useEffect, useRef, useState, type ReactNode
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
+import { FeatureIntro } from './FeatureIntro';
 import { Icon } from './Icon';
 import { acquireCamera, releaseCamera } from './zas/cameraSession';
 
@@ -169,7 +170,7 @@ export function TxCamera({
     setProblem(null);
     if (!navigator.mediaDevices?.getUserMedia) return setProblem('unsupported');
     try {
-      const s = await acquireCamera(facing, mode === 'video');
+      const s = await acquireCamera(facing, modes.includes('video'));
       stream.current = s;
       if (video.current) {
         video.current.srcObject = s;
@@ -183,7 +184,7 @@ export function TxCamera({
     } catch (e) {
       setProblem((e as DOMException).name === 'NotAllowedError' ? 'denied' : 'failed');
     }
-  }, [facing, mode]);
+  }, [facing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { void start(); }, [start]);
   useEffect(() => () => {
@@ -363,10 +364,25 @@ export function TxCamera({
     }, 250);
   }
 
-  /** Obturador: com temporizador faz a contagem e só depois dispara; tocar outra vez cancela. */
+  /** Toque = foto; manter premido = vídeo (começa aos 350 ms e pára ao largar). Com temporizador, o toque faz a contagem; tocar outra vez cancela. */
+  const holdT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const holding = useRef(false);
+  const [hint, setHint] = useState(() => { try { return Number(localStorage.getItem('tx_cam_hint') ?? '0') < 3; } catch { return true; } });
+  useEffect(() => { try { localStorage.setItem('tx_cam_hint', String(Number(localStorage.getItem('tx_cam_hint') ?? '0') + 1)); } catch { /* sem armazenamento */ } }, []);
+  function pressIn() {
+    holding.current = false;
+    if (!ready || countdown !== null || recording || layout !== null || !modes.includes('video')) return;
+    holdT.current = setTimeout(() => { holding.current = true; setHint(false); record(); }, 350);
+  }
+  function pressOut() {
+    clearTimeout(holdT.current);
+    if (holding.current) { holding.current = false; if (recorder.current?.state === 'recording') recorder.current.stop(); return; }
+    press();
+  }
   function press() {
     if (countdown !== null) { clearInterval(countTimer.current); return setCountdown(null); }
-    const fire = () => (mode === 'photo' ? void shoot() : record());
+    if (recording) return record();
+    const fire = () => void shoot();
     if (!delay || recording) return fire();
     let n: number = delay;
     setCountdown(n);
@@ -383,6 +399,7 @@ export function TxCamera({
 
   return (
     <View style={st.root} accessibilityViewIsModal onLayout={(e: LayoutChangeEvent) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+      <FeatureIntro id="camera" />
       {dom(
         'div',
         {
@@ -448,13 +465,16 @@ export function TxCamera({
                 {!light && <View pointerEvents="none" style={{ position: 'absolute', top: 10, left: -3, height: 2, borderRadius: 1, width: 28, backgroundColor: '#fff', transform: [{ rotate: '-45deg' }] }} />}
               </View>
             </Pressable>
-            {mode !== 'text' && (
+            {(
               <Pressable onPress={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} style={[st.round, delay > 0 && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityLabel={delay ? `Temporizador: ${delay} segundos` : 'Temporizador'}>
                 <Icon name="clock" size={22} color={delay ? colors.zinc900 : '#fff'} />
                 {delay > 0 && <View style={st.delayBadge}><Text style={st.delayText}>{delay}</Text></View>}
               </Pressable>
             )}
-            {mode === 'photo' && (
+            {modes.includes('text') && onText && (
+              <Pressable onPress={onText} style={st.round} accessibilityRole="button" accessibilityLabel="Só texto"><Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Aa</Text></Pressable>
+            )}
+            {(
               <Pressable onPress={() => setLayoutOpen((v) => !v)} style={[st.round, layout !== null && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityState={{ selected: layout !== null }} accessibilityLabel="Layout: várias fotos numa só">
                 <Icon name="grid" size={22} color={layout !== null ? colors.zinc900 : '#fff'} />
               </Pressable>
@@ -489,7 +509,7 @@ export function TxCamera({
       )}
 
       <View style={[st.bottom, { paddingBottom: botPad }]}>
-        {layoutOpen && !recording && mode === 'photo' ? (
+        {layoutOpen && !recording ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 52, marginBottom: 12 }} accessibilityRole="tablist" accessibilityLabel="Layout">
             <Pressable onPress={leaveLayout} style={[st.lookChip, layout === null && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: layout === null }}>
               <Text style={[st.lookText, layout === null && { color: colors.zinc900 }]}>Sem layout</Text>
@@ -504,7 +524,7 @@ export function TxCamera({
               </Pressable>
             ))}
           </ScrollView>
-        ) : ready && !recording && mode !== 'text' && (
+        ) : ready && !recording && (
           <ScrollView ref={looksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 44, marginBottom: 12 }} accessibilityRole="tablist" accessibilityLabel="Filtros">
             {LOOKS.map((l, i) => (
               <Pressable key={l.id} onPress={() => pickLook(i)} style={[st.lookChip, look === i && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: look === i }}>
@@ -513,15 +533,9 @@ export function TxCamera({
             ))}
           </ScrollView>
         )}
-        {!recording && modes.length > 1 ? (
-          <View style={st.modes} accessibilityRole="tablist">
-            {modes.map((m) => (
-              <Pressable key={m} onPress={() => (m === 'text' ? onText?.() : setMode(m))} style={[st.mode, mode === m && { backgroundColor: 'rgba(255,255,255,0.92)' }]} accessibilityRole="tab" accessibilityState={{ selected: mode === m }}>
-                <Text style={[st.modeText, mode === m && { color: colors.zinc900 }]}>{m === 'photo' ? 'Foto' : m === 'video' ? 'Vídeo' : 'Texto'}</Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : <View style={{ height: 34 }} />}
+        {hint && ready && !recording && count === 0 && layout === null && modes.includes('video') ? (
+          <Text style={st.hint} pointerEvents="none">Toca para foto · mantém para vídeo</Text>
+        ) : <View style={{ height: 26 }} />}
         <View style={st.row}>
           <View style={st.side}>
             {!recording && (
@@ -529,20 +543,15 @@ export function TxCamera({
             )}
           </View>
           <Pressable
-            onPress={press}
+            onPressIn={pressIn}
+            onPressOut={pressOut}
             disabled={!ready || full}
             accessibilityRole="button"
-            accessibilityLabel={countdown !== null ? 'Cancelar' : mode === 'photo' ? 'Tirar foto' : recording ? 'Parar de gravar' : 'Gravar vídeo'}
-            style={({ pressed }) => [st.shutter, (!ready || full) && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.92 }] }]}
+            accessibilityLabel={countdown !== null ? 'Cancelar' : recording ? 'Parar de gravar' : 'Tirar foto; mantém premido para gravar vídeo'}
+            style={[st.shutter, (!ready || full) && { opacity: 0.4 }, recording && { transform: [{ scale: 1.12 }] }]}
           >
-            <View style={web({ position: 'absolute', inset: 0, borderRadius: 44, padding: 4, backgroundImage: recording ? 'conic-gradient(#ef4444, #ff8a80, #ef4444)' : 'conic-gradient(from 200deg, #d6334f, #ff9a5b, #ffd166, #d6334f)' })}>
-              <View style={{ flex: 1, borderRadius: 40, backgroundColor: 'rgba(0,0,0,0.65)' }} />
-            </View>
-            {recording ? (
-              <View style={st.stopSq} />
-            ) : (
-              <View style={[st.shutterIn, mode === 'video' && { backgroundColor: colors.brand }]} />
-            )}
+            <View style={[st.shutterRing, recording && { borderColor: '#ef4444' }]} />
+            <View style={[st.shutterIn, recording && st.shutterRec]} />
           </Pressable>
           <View style={[st.side, { alignItems: 'flex-end' }]}>
             {layout !== null ? (
@@ -668,8 +677,8 @@ const st = StyleSheet.create({
   open: { marginTop: 20, height: 48, borderRadius: 24, backgroundColor: colors.brand, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 3, alignItems: 'center' },
   looks: { paddingHorizontal: 16, gap: 6, alignItems: 'center' },
-  lookChip: { height: 34, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
-  lookOn: { backgroundColor: '#fff', borderColor: '#fff' },
+  lookChip: { height: 30, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', paddingHorizontal: 13, alignItems: 'center', justifyContent: 'center' },
+  lookOn: { backgroundColor: '#fff' },
   layoutChip: { height: 40, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
   lookText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   zoomBadge: { position: 'absolute', alignSelf: 'center', zIndex: 3, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 5 },
@@ -680,8 +689,11 @@ const st = StyleSheet.create({
   row: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 28 },
   side: { width: 92, alignItems: 'flex-start' },
   gallery: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)', alignItems: 'center', justifyContent: 'center' },
-  shutter: { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center' },
-  shutterIn: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#fff' },
+  shutter: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center' },
+  shutterRing: { position: 'absolute', left: 0, top: 0, width: 84, height: 84, borderRadius: 42, borderWidth: 4, borderColor: '#fff' },
+  shutterIn: { width: 66, height: 66, borderRadius: 33, backgroundColor: '#fff' },
+  shutterRec: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#ef4444' },
+  hint: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600', marginBottom: 14 },
   stopSq: { width: 32, height: 32, borderRadius: 9, backgroundColor: '#ef4444' },
   doneBtn: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 23, backgroundColor: colors.brand, paddingHorizontal: 16 },
   doneCount: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.28)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },

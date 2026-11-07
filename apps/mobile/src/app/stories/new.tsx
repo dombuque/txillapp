@@ -16,6 +16,7 @@ import { api, uploadMedia } from '@/lib/api';
 import { musicApi, type Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { FeatureIntro } from '@/components/FeatureIntro';
 
 const EMERALD = '#10b981';
 const web = (o: Record<string, unknown>) => o as never;
@@ -118,6 +119,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#000' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <FeatureIntro id="mimo" />
       {/* A cena: vídeo, ou a foto inteira sobre ela própria desfocada (sem barras pretas), ou a preencher. */}
       <View style={StyleSheet.absoluteFill}>
         {asset.video ? (
