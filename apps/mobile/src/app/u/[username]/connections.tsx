@@ -1,7 +1,8 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Avatar } from '@/components/Avatar';
 import { Empty } from '@/components/Empty';
@@ -14,14 +15,31 @@ import { colors } from '@/lib/theme';
 
 type Kind = 'followers' | 'following';
 
-function ConnectionList({ username, kind, me, width, height = 0 }: { username: string; kind: Kind; me: string; width: number; height?: number }) {
+const web = Platform.OS === 'web';
+
+function ConnectionList({ username, kind, me, width }: { username: string; kind: Kind; me: string; width: number }) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const winH = useWindowDimensions().height;
   const [text, setText] = useState('');
   const [term, setTerm] = useState('');
   useEffect(() => {
     const t = setTimeout(() => setTerm(text.trim()), 300);
     return () => clearTimeout(t);
   }, [text]);
+  // Na web, a lista leva uma altura em píxeis (altura da janela menos o topo da lista), em vez de `flex: 1`.
+  // Ao contrário das notificações e das mensagens (onde a lista é filha única), aqui a lista tem a pesquisa como irmã
+  // e os separadores por cima: o Safari do iPhone resolve o `flex: 1 1 0%` desses irmãos à altura do conteúdo, a lista
+  // fica do tamanho dos nomes todos e não rola — e `onLayout` mede essa altura, por isso medir a zona não chegava.
+  // `measureInWindow` dá a posição real no ecrã (getBoundingClientRect), independente de como o flex foi resolvido.
+  const zone = useRef<React.ComponentRef<typeof View>>(null);
+  const [top, setTop] = useState(0);
+  const measure = useCallback(() => {
+    if (!web) return;
+    zone.current?.measureInWindow((_x, y) => setTop((cur) => (Math.abs(cur - y) > 1 ? Math.round(y) : cur)));
+  }, []);
+  useEffect(measure, [measure, winH, width]);
+  const listH = web && top > 0 ? Math.max(160, winH - top) : 0;
   const q = useInfiniteQuery({
     queryKey: ['people', kind, username, term],
     queryFn: ({ pageParam }) => (kind === 'followers' ? api.followers(username, pageParam, term) : api.following(username, pageParam, term)),
@@ -30,7 +48,7 @@ function ConnectionList({ username, kind, me, width, height = 0 }: { username: s
   });
   const people: Person[] = q.data?.pages.flatMap((x) => x.items) ?? [];
   return (
-    <View style={height ? { width, height } : { width, flex: 1 }}>
+    <View style={{ width, flex: 1 }}>
       <View style={st.searchWrap}>
         <View style={st.search}>
           <Icon name="search" size={18} color={colors.zinc600} />
@@ -38,10 +56,14 @@ function ConnectionList({ username, kind, me, width, height = 0 }: { username: s
           {text ? <Pressable onPress={() => setText('')} hitSlop={10} accessibilityLabel="Limpar pesquisa"><Text style={{ fontSize: 20, color: colors.zinc600 }}>×</Text></Pressable> : null}
         </View>
       </View>
+      {/* Só para medir onde a lista começa; a altura vai na própria lista. */}
+      <View ref={zone} onLayout={measure} collapsable={false} style={listH ? { height: listH } : { flex: 1 }}>
       <FlatList
         data={people}
         keyExtractor={(x) => x.username}
         keyboardShouldPersistTaps="handled"
+        style={listH ? { height: listH, flexGrow: 0, flexShrink: 0 } : undefined}
+        contentContainerStyle={web ? { paddingBottom: insets.bottom } : undefined}
         onEndReached={() => q.hasNextPage && !q.isFetchingNextPage && void q.fetchNextPage()}
         onEndReachedThreshold={0.6}
         ListHeaderComponent={q.isLoading ? <ActivityIndicator style={{ marginTop: 32 }} color={colors.brand} /> : q.isError ? <Text style={st.err}>Ups, não consegui carregar</Text> : <View />}
@@ -64,6 +86,7 @@ function ConnectionList({ username, kind, me, width, height = 0 }: { username: s
           </View>
         )}
       />
+      </View>
     </View>
   );
 }
@@ -78,8 +101,6 @@ export default function Connections() {
   const width = measured || win;
   const start: Kind = tab === 'following' ? 'following' : 'followers';
   const [cur, setCur] = useState<Kind>(start);
-  // Altura medida da zona da lista: o Safari (iPhone) não dá altura definida a `flex: 1` encadeado e a lista não rolava.
-  const [pageH, setPageH] = useState(0);
   const pager = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const profile = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username), retry: false });
   const p = profile.data;
@@ -114,10 +135,10 @@ export default function Connections() {
             {tabBtn('followers', 'seguidores', p.counts.followers)}
             {tabBtn('following', 'a seguir', p.counts.following)}
           </View>
-          {Platform.OS === 'web' ? (
+          {web ? (
             // Na web (iPhone/Safari) a lista dentro de um pager horizontal não rola com o dedo: mostra-se só o separador ativo.
-            <View style={{ flex: 1 }} onLayout={(e) => { setMeasured(e.nativeEvent.layout.width); setPageH(e.nativeEvent.layout.height); }}>
-              <ConnectionList key={cur} username={username} kind={cur} me={user!.username} width={width} height={pageH} />
+            <View style={{ flex: 1 }} onLayout={(e) => setMeasured(e.nativeEvent.layout.width)}>
+              <ConnectionList key={cur} username={username} kind={cur} me={user!.username} width={width} />
             </View>
           ) : (
             <ScrollView ref={pager} onLayout={(e) => setMeasured(e.nativeEvent.layout.width)} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(e) => setCur(Math.round(e.nativeEvent.contentOffset.x / width) === 0 ? 'followers' : 'following')} style={{ flex: 1 }}>
