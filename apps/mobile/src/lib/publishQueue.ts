@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
-import { ApiError, raw } from './api';
+import { ApiError, raw, waitMediaReady, type MediaState } from './api';
 import { composeApi } from './api.compose';
 import { SITE_URL } from './config';
 
@@ -19,10 +19,14 @@ export interface PublishTask {
   thumb: string | null;
   video: boolean;
   status: 'uploading' | 'done' | 'error';
+  /** Em que passo vai: enviar os ficheiros, o servidor a preparar o vídeo, ou a criar a publicação. */
+  stage: 'upload' | 'prepare' | 'post';
   /** 0–1 do envio dos ficheiros. */
   progress: number;
   error: string | null;
   job: PublishJob;
+  /** Ficheiros já enviados (por posição): ao tentar outra vez não se enviam de novo. */
+  sent: (string | undefined)[];
 }
 
 const listeners = new Set<() => void>();
@@ -36,8 +40,8 @@ export function usePublishTasks(): PublishTask[] {
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
-/** Envia um ficheiro com progresso (XHR: o fetch não diz quanto já foi). */
-async function uploadWithProgress(a: PublishAsset, onProgress: (p: number) => void): Promise<string> {
+/** Envia um ficheiro com progresso (XHR: o fetch não diz quanto já foi). Devolve o id e a resposta do /complete. */
+async function uploadWithProgress(a: PublishAsset, onProgress: (p: number) => void): Promise<{ assetId: string; state: MediaState }> {
   const blob = await (await fetch(a.uri)).blob();
   const up = (await raw('/media/uploads', { method: 'POST', body: JSON.stringify({ mime: a.mime, size: blob.size, purpose: 'public' }) })) as { assetId: string; uploadUrl: string };
   const url = /^https?:\/\//.test(up.uploadUrl) ? up.uploadUrl : `${SITE_URL}${up.uploadUrl}`;
@@ -46,31 +50,54 @@ async function uploadWithProgress(a: PublishAsset, onProgress: (p: number) => vo
     x.open('PUT', url);
     x.setRequestHeader('Content-Type', a.mime);
     x.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
-    x.onload = () => (x.status >= 200 && x.status < 300 ? resolve() : reject(new ApiError(x.status, 'Não consegui enviar o ficheiro')));
+    x.onload = () => {
+      if (x.status >= 200 && x.status < 300) return resolve();
+      let msg = 'Não consegui enviar o ficheiro';
+      try { msg = (JSON.parse(x.responseText) as { message?: string }).message ?? msg; } catch { /* resposta sem JSON */ }
+      reject(new ApiError(x.status, msg));
+    };
     x.onerror = () => reject(new ApiError(0, 'Sem ligação. Vê a rede e tenta outra vez.'));
     x.send(blob);
   });
-  await raw(`/media/${up.assetId}/complete`, { method: 'POST' });
-  return up.assetId;
+  const state = (await raw(`/media/${up.assetId}/complete`, { method: 'POST' })) as MediaState;
+  return { assetId: up.assetId, state };
 }
 
 async function run(id: string, qc: QueryClient) {
   const t = tasks.find((x) => x.id === id);
   if (!t) return;
-  patch(id, { status: 'uploading', progress: 0, error: null });
+  patch(id, { status: 'uploading', stage: 'upload', error: null });
+  const sent = [...t.sent];
   try {
-    const ids: string[] = [];
     const n = t.job.assets.length;
     for (let i = 0; i < n; i++) {
-      ids.push(await uploadWithProgress(t.job.assets[i], (p) => patch(id, { progress: (i + p) / n })));
+      const known = sent[i];
+      if (known) {
+        // Já foi enviado numa tentativa anterior: basta saber se ficou pronto (se o servidor o recusou, envia-se de novo).
+        try {
+          await waitMediaReady(known, (await raw(`/media/${known}/status`)) as MediaState, () => patch(id, { stage: 'prepare' }));
+          continue;
+        } catch (e) {
+          const s = (e as ApiError).status;
+          if (s !== 422 && s !== 404) throw e; // sem rede ou ainda a converter: fica para a próxima tentativa
+          sent[i] = undefined;
+        }
+      }
+      patch(id, { stage: 'upload' });
+      const { assetId, state } = await uploadWithProgress(t.job.assets[i], (p) => patch(id, { progress: (i + p) / n }));
+      sent[i] = assetId;
+      patch(id, { sent: [...sent] });
+      // Um vídeo é convertido no servidor (MP4, até 60 s): a publicação só pode ser criada quando ele estiver pronto.
+      await waitMediaReady(assetId, state, () => patch(id, { stage: 'prepare' }));
+      patch(id, { progress: (i + 1) / n });
     }
-    patch(id, { progress: 1 });
-    await composeApi.createPost({ ...t.job.post, mediaIds: ids });
+    patch(id, { progress: 1, stage: 'post' });
+    await composeApi.createPost({ ...t.job.post, mediaIds: sent as string[] });
     patch(id, { status: 'done' });
     void Promise.all([qc.invalidateQueries({ queryKey: ['feed'] }), qc.invalidateQueries({ queryKey: ['profile-posts'] })]);
     setTimeout(() => { tasks = tasks.filter((x) => x.id !== id); emit(); }, 3500);
   } catch (e) {
-    patch(id, { status: 'error', error: (e as Error).message || 'Não consegui publicar' });
+    patch(id, { status: 'error', sent: [...sent], error: (e as Error).message || 'Não consegui publicar' });
   }
 }
 
@@ -78,7 +105,7 @@ async function run(id: string, qc: QueryClient) {
 export function enqueuePublish(job: PublishJob, qc: QueryClient): string {
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const first = job.assets[0];
-  tasks = [...tasks, { id, thumb: first && !first.video ? first.uri : null, video: !!first?.video, status: 'uploading', progress: 0, error: null, job }];
+  tasks = [...tasks, { id, thumb: first && !first.video ? first.uri : null, video: !!first?.video, status: 'uploading', stage: 'upload', progress: 0, error: null, job, sent: [] }];
   emit();
   void run(id, qc);
   return id;

@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { dropPublish, retryPublish, usePublishTasks } from '@/lib/publishQueue';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
@@ -19,10 +20,12 @@ export function PublishBanner() {
           </View>
           <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
             <Text style={st.text} numberOfLines={1}>
-              {t.status === 'done' ? 'Publicado!' : t.status === 'error' ? (t.error ?? 'Não consegui publicar') : t.progress >= 1 ? 'A publicar…' : `A enviar… ${Math.round(t.progress * 100)}%`}
+              {t.status === 'done' ? 'Publicado!' : t.status === 'error' ? (t.error ?? 'Não consegui publicar') : t.stage === 'prepare' ? 'A preparar o vídeo…' : t.stage === 'post' ? 'A publicar…' : `A enviar… ${Math.round(t.progress * 100)}%`}
             </Text>
             {t.status === 'uploading' && (
-              <View style={st.track}><View style={[st.fill, { width: `${Math.max(4, Math.round(t.progress * 100))}%` }]} /></View>
+              t.stage === 'prepare'
+                ? <Working />
+                : <View style={st.track}><View style={[st.fill, { width: `${Math.max(4, Math.round(t.progress * 100))}%` }]} /></View>
             )}
             {t.status === 'error' && (
               <View style={{ flexDirection: 'row', gap: 14 }}>
@@ -34,6 +37,26 @@ export function PublishBanner() {
           {t.status === 'done' && <Icon name="check-circle" size={22} color="#16a34a" />}
         </View>
       ))}
+    </View>
+  );
+}
+
+/** Barra sem fim (o servidor está a converter o vídeo e não diz quanto falta): um traço que vai e volta. */
+function Working() {
+  const x = useRef(new Animated.Value(0)).current;
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(x, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: Platform.OS !== 'web' }),
+      Animated.timing(x, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: Platform.OS !== 'web' }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [x]);
+  const seg = Math.max(24, w * 0.3);
+  return (
+    <View style={st.track} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+      <Animated.View style={[st.fill, { width: seg, transform: [{ translateX: x.interpolate({ inputRange: [0, 1], outputRange: [0, Math.max(0, w - seg)] }) }] }]} />
     </View>
   );
 }

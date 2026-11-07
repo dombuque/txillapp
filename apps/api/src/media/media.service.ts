@@ -78,7 +78,7 @@ export class MediaService implements OnModuleInit {
     if (verdict === 'reject') {
       await this.pool.query(`UPDATE content.media_assets SET status = 'deleted' WHERE id = $1`, [id]);
       void this.sweepDeleted();
-      throw new UnprocessableEntityException('Esta foto parece ter nudez ou conteúdo sexual e não pode ser publicada 🚫');
+      throw new UnprocessableEntityException('Esta foto parece ter nudez ou conteúdo sexual e não pode ser publicada.');
     }
     if (verdict === 'review') {
       await this.pool.query(

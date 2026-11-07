@@ -79,6 +79,9 @@ function Tile({ icon, title, sub, tone, onPress }: { icon: IconName; title: stri
   );
 }
 
+/** O servidor aceita MP4, MOV e WebM e converte tudo para MP4; outros tipos (m4v, 3gp, sem tipo) vão como MP4, como no site. */
+const videoMime = (t?: string | null) => (t && ['video/mp4', 'video/quicktime', 'video/webm'].includes(t) ? t : 'video/mp4');
+
 /** Lê a duração de um vídeo escolhido no browser (para o limite de 60 s). 0 = o browser não consegue ler. */
 function probeDuration(uri: string): Promise<number> {
   return new Promise((done) => {
@@ -196,7 +199,7 @@ export default function Compose() {
         const uri = URL.createObjectURL(f);
         const ms = await probeDuration(uri);
         if (ms > 60_500) { URL.revokeObjectURL(uri); problem = 'O vídeo tem de ter até 60 segundos'; continue; }
-        next.push({ uri, video: true, mime: f.type, durationMs: ms || undefined, tags: [] });
+        next.push({ uri, video: true, mime: videoMime(f.type), durationMs: ms || undefined, tags: [] });
         count += 1;
       } else if (count >= MAX_PHOTOS) {
         problem = `Máximo de ${MAX_PHOTOS} fotos por publicação`;
@@ -213,9 +216,19 @@ export default function Compose() {
         count += 1;
       }
     }
+    if (kindSel !== 'tcheka' && next.some((a) => a.video) && (next.length > 1 || assets.length > 0)) {
+      const v = next.find((a) => a.video)!;
+      for (const a of next) if (a !== v) URL.revokeObjectURL(a.uri);
+      next.splice(0, next.length, v);
+      problem = 'Uma publicação com vídeo leva só esse vídeo. Para juntar vários, usa a Tcheka.';
+      setErr(problem);
+      setAssets([v]);
+      setStep('write');
+      return;
+    }
     setErr(problem);
     if (next.length) {
-      setAssets((cur) => [...cur, ...next].slice(0, MAX_PHOTOS));
+      setAssets((cur) => (kindSel !== 'tcheka' ? [...cur.filter((a) => !a.video), ...next] : [...cur, ...next]).slice(0, MAX_PHOTOS));
       if (kindSel !== 'tcheka') setStep('write');
     }
   }
@@ -231,7 +244,9 @@ export default function Compose() {
   function shot(s: Shot) {
     if (routeByKind(s)) return;
     if (s.video) {
-      setAssets((cur) => [...cur, { uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [] }].slice(0, MAX_PHOTOS));
+      // Numa publicação o vídeo vai sozinho; num tcheka junta-se aos outros.
+      const v: Asset = { uri: s.uri, video: true, mime: videoMime(s.mime), durationMs: s.durationMs, tags: [] };
+      setAssets((cur) => (kindSel === 'tcheka' ? [...cur, v].slice(0, MAX_PHOTOS) : [v]));
       if (kindSel !== 'tcheka') { bumpKind(kindSel); setCameraOpen(false); setStep('write'); }
     } else {
       // Numa publicação, uma foto substitui um vídeo (não se misturam) e vai-se logo para a publicação; num tcheka juntam-se todos na câmara.
@@ -257,7 +272,7 @@ export default function Compose() {
       };
       const r = await (source === 'camera' ? ImagePicker.launchCameraAsync(opts) : ImagePicker.launchImageLibraryAsync(opts));
       if (r.canceled) return;
-      const next = r.assets.map((a): Asset => ({ uri: a.uri, video: a.type === 'video', mime: a.mimeType ?? (a.type === 'video' ? 'video/mp4' : 'image/jpeg'), durationMs: a.duration ?? undefined, tags: [] }));
+      const next = r.assets.map((a): Asset => ({ uri: a.uri, video: a.type === 'video', mime: a.type === 'video' ? videoMime(a.mimeType) : a.mimeType ?? 'image/jpeg', durationMs: a.duration ?? undefined, tags: [] }));
       setAssets((cur) => (kind === 'video' ? next.slice(0, 1) : [...cur.filter((a) => !a.video), ...next].slice(0, MAX_PHOTOS)));
       setStep('write');
     } catch (e) {
@@ -357,7 +372,7 @@ export default function Compose() {
           onShot={shot}
           onGallery={(f) => {
             const first = f[0];
-            if (first && kindSel === 'mimo') { const video = first.type.startsWith('video/'); return routeByKind({ uri: URL.createObjectURL(first), video, mime: first.type || (video ? 'video/mp4' : 'image/jpeg') }); }
+            if (first && kindSel === 'mimo') { const video = first.type.startsWith('video/'); return routeByKind({ uri: URL.createObjectURL(first), video, mime: video ? videoMime(first.type) : first.type || 'image/jpeg' }); }
             void addFiles(f);
           }}
           onClose={() => router.replace('/')}
@@ -467,7 +482,7 @@ export default function Compose() {
 
           {video ? (
             <View style={styles.video}>
-              {web ? createElement('video', { src: video.uri, controls: true, playsInline: true, muted: true, preload: 'metadata', style: { width: '100%', maxHeight: 320, objectFit: 'contain', display: 'block' } }) : (
+              {web ? createElement('video', { src: video.uri, controls: true, playsInline: true, preload: 'metadata', style: { width: '100%', maxHeight: 320, objectFit: 'contain', display: 'block' } }) : (
                 <View style={{ height: 220, alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name="play" size={48} color="#fff" solid />
                   <Text style={{ color: '#fff', marginTop: 8, fontWeight: '600' }}>Vídeo{video.durationMs ? ` · ${Math.round(video.durationMs / 1000)} s` : ''}</Text>

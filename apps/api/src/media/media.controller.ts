@@ -39,6 +39,7 @@ export class MediaController {
   /** Estado do ficheiro (vídeos demoram a converter). */
   @Get(':id/status')
   @UseGuards(JwtAuthGuard)
+  @SkipThrottle()
   status(@Req() req: Request & { userId?: string }, @Param('id') id: string) {
     return this.media.status(req.userId!, parseIdParam(id));
   }

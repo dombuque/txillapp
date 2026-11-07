@@ -348,14 +348,33 @@ export const inviteStore = {
 
 export const post = (b: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(b) });
 
-/** Envia uma foto, vídeo ou áudio do chat (privado): pede o URL assinado, envia os bytes e confirma. Devolve o id do ficheiro. */
-export async function uploadMedia(uri: string, mime: string, purpose: 'public' | 'chat' = 'chat'): Promise<string> {
+export interface MediaState { status: string; error?: string }
+
+/**
+ * Espera que o ficheiro fique pronto. As fotos ficam logo; um vídeo é convertido no servidor (MP4 até 60 s) e só depois
+ * pode entrar numa publicação, num mimo ou numa conversa. `first` é a resposta do /complete; `onWait` avisa quando começa a espera.
+ */
+export async function waitMediaReady(id: string, first: MediaState, onWait?: () => void): Promise<void> {
+  let st = first;
+  const started = Date.now();
+  while ((st.status === 'processing' || st.status === 'uploaded') && Date.now() - started < 5 * 60_000) {
+    onWait?.();
+    await new Promise((r) => setTimeout(r, Date.now() - started < 10_000 ? 1000 : 2500));
+    st = (await raw(`/media/${id}/status`)) as MediaState;
+  }
+  if (st.status === 'ready') return;
+  if (st.status === 'processing') throw new ApiError(504, 'O vídeo ainda está a ser preparado. Tenta outra vez daqui a pouco.');
+  throw new ApiError(422, st.error ?? 'Não consegui preparar este ficheiro. Tenta outro.');
+}
+
+/** Envia uma foto, vídeo ou áudio do chat (privado): pede o URL assinado, envia os bytes, confirma e espera que fique pronto. Devolve o id do ficheiro. */
+export async function uploadMedia(uri: string, mime: string, purpose: 'public' | 'chat' = 'chat', onWait?: () => void): Promise<string> {
   const blob = await (await fetch(uri)).blob();
   const up = (await raw('/media/uploads', post({ mime, size: blob.size, purpose }))) as { assetId: string; uploadUrl: string };
   const url = /^https?:\/\//.test(up.uploadUrl) ? up.uploadUrl : `${SITE_URL}${up.uploadUrl}`;
   const put = await fetch(url, { method: 'PUT', headers: { 'Content-Type': mime }, body: blob });
   if (!put.ok) throw new ApiError(put.status, 'Não consegui enviar o ficheiro');
-  await raw(`/media/${up.assetId}/complete`, { method: 'POST' });
+  await waitMediaReady(up.assetId, (await raw(`/media/${up.assetId}/complete`, { method: 'POST' })) as MediaState, onWait);
   return up.assetId;
 }
 

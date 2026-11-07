@@ -274,7 +274,7 @@ export class StoriesService {
   async hide(userId: string, username: string) {
     const t = await this.pool.query(`SELECT id FROM identity.users WHERE username = $1 AND status = 'active'`, [username]);
     if (!t.rows[0]) throw new NotFoundException('Utilizador não encontrado');
-    if (t.rows[0].id === userId) throw new BadRequestException('Não podes esconder o story de ti próprio 😅');
+    if (t.rows[0].id === userId) throw new BadRequestException('Não podes esconder o teu mimo de ti próprio');
     await this.pool.query('INSERT INTO social.story_hidden (owner_id, hidden_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userId, t.rows[0].id]);
     return this.settings(userId);
   }

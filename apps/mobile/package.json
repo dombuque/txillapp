@@ -1,6 +1,6 @@
 {
   "name": "@txillapp/mobile",
-  "version": "1.4.7",
+  "version": "1.4.8",
   "main": "expo-router/entry",
   "dependencies": {
     "@tanstack/react-query": "^5.106.1",

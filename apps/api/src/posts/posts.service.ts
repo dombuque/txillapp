@@ -691,7 +691,7 @@ export class PostsService implements OnModuleInit {
     );
     if (!rows[0]) throw new NotFoundException('Publicação não encontrada');
     if (rows[0].author_id !== userId && !rows[0].following) throw new ForbiddenException('Só podes presentear quem segues 👀');
-    if (!rows[0].allowed) throw new ForbiddenException('Esta pessoa não aceita presentes 🚫');
+    if (!rows[0].allowed) throw new ForbiddenException('Esta pessoa não aceita presentes');
     const authorId: string = rows[0].author_id;
     if (authorId === userId) throw new UnprocessableEntityException('Não pode presentear a sua própria publicação');
     const r = await this.sendGift({ userId, toId: authorId, amount, key, note, visibility, postId });
@@ -713,9 +713,9 @@ export class PostsService implements OnModuleInit {
       [userId, toUsername],
     );
     if (!to.rows[0]) throw new NotFoundException('Utilizador não encontrado');
-    if (to.rows[0].blocked) throw new ForbiddenException('Não podes presentear esta conta 🚫');
+    if (to.rows[0].blocked) throw new ForbiddenException('Não podes presentear esta conta');
     if (to.rows[0].id !== userId && !to.rows[0].following) throw new ForbiddenException('Só podes presentear quem segues 👀');
-    if (!to.rows[0].allowed) throw new ForbiddenException('Esta pessoa não aceita presentes 🚫');
+    if (!to.rows[0].allowed) throw new ForbiddenException('Esta pessoa não aceita presentes');
     const r = await this.sendGift({ userId, toId: to.rows[0].id, amount, key, note, visibility });
     return { transactionId: r.transactionId, replayed: r.replayed, post: r.announcementId ? await this.getOne(userId, r.announcementId) : null };
   }

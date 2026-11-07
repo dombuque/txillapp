@@ -103,7 +103,7 @@ export class VideoService {
       // Capa e 3 imagens para a verificação (10%, 50% e 90%).
       await run(FFMPEG, ['-y', '-ss', String(Math.min(0.5, final.seconds / 2)), '-i', f.out, '-frames:v', '1', '-q:v', '4', f.poster], { timeout: 60_000 });
       const verdict = await this.screenFrames(f.out, final.seconds, id, owner);
-      if (verdict === 'reject') throw new VideoRejected('Este vídeo parece ter nudez ou conteúdo sexual e não pode ser publicado 🚫');
+      if (verdict === 'reject') throw new VideoRejected('Este vídeo parece ter nudez ou conteúdo sexual e não pode ser publicado.');
 
       const size = (await stat(f.out)).size;
       if (hooks) await hooks.publish(f.out, f.poster);

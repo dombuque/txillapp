@@ -120,7 +120,7 @@ export class SocialService {
       [viewerId, username],
     );
     if (!rows[0]) throw new NotFoundException('Utilizador não encontrado');
-    if (rows[0].blocked) throw new ForbiddenException('Não tens acesso a este perfil 🚫');
+    if (rows[0].blocked) throw new ForbiddenException('Não tens acesso a este perfil');
     if (!rows[0].ok) throw new ForbiddenException('Esta conta é privada 🔒');
   }
 
@@ -204,8 +204,8 @@ export class SocialService {
    */
   async follow(viewerId: string, username: string) {
     const t = await this.target(username, viewerId);
-    if (t.id === viewerId) throw new BadRequestException('Não podes seguir-te a ti próprio 😅');
-    if (t.blockedMe) throw new ForbiddenException(`Foste bloqueado por @${username}. Não podes seguir esta conta 🚫`);
+    if (t.id === viewerId) throw new BadRequestException('Não podes seguir-te a ti próprio');
+    if (t.blockedMe) throw new ForbiddenException(`Foste bloqueado por @${username}. Não podes seguir esta conta.`);
     if (t.blockedByMe) throw new ForbiddenException(`Bloqueaste @${username}. Desbloqueia para poderes seguir.`);
     const already = await this.pool.query('SELECT 1 FROM social.follows WHERE follower_id = $1 AND followee_id = $2', [viewerId, t.id]);
     if (!already.rowCount) {
@@ -276,7 +276,7 @@ export class SocialService {
   /** Bloquear: deixam de se ver, de se seguir e de interagir. Remove seguidores e pedidos nos dois sentidos. */
   async block(userId: string, username: string) {
     const t = await this.target(username);
-    if (t.id === userId) throw new BadRequestException('Não podes bloquear-te a ti próprio 😅');
+    if (t.id === userId) throw new BadRequestException('Não podes bloquear-te a ti próprio');
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
