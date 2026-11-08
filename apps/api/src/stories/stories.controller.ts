@@ -5,12 +5,13 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { musicSchema } from '../music/music.service';
+import { stickersSchema } from './stickers';
 import { StoriesService } from './stories.service';
 
 type AuthedReq = Request & { userId?: string };
-const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all'), music: musicSchema.nullable().optional() });
+const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all'), music: musicSchema.nullable().optional(), stickers: stickersSchema.default([]) });
 
-const shareSchema = z.object({ postId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all') });
+const shareSchema = z.object({ postId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all'), stickers: stickersSchema.default([]) });
 const replySchema = z.object({ body: z.string().trim().min(1).max(500) });
 const settingsSchema = z.object({ replies: z.enum(['everyone', 'following', 'off']) });
 
@@ -22,15 +23,15 @@ export class StoriesController {
   @NeedsVerifiedEmail()
   @Post()
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
-    return this.stories.create(req.userId!, b.mediaId, b.caption, b.audience, b.music ?? null);
+    return this.stories.create(req.userId!, b.mediaId, b.caption, b.audience, b.music ?? null, b.stickers);
   }
 
-  /** Partilhar uma publicação (foto ou reel) no meu status. */
+  /** Partilhar uma publicação (foto ou tcheka) no meu mimo, com stickers por cima se quiser. */
   @NeedsVerifiedEmail()
   @Post('share')
   @HttpCode(201)
   share(@Req() req: AuthedReq, @Body(new ZodPipe(shareSchema)) b: z.infer<typeof shareSchema>) {
-    return this.stories.share(req.userId!, b.postId, b.caption, b.audience);
+    return this.stories.share(req.userId!, b.postId, b.caption, b.audience, b.stickers);
   }
 
   @Get('close-friends')

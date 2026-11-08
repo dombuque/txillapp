@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { MediaService } from '../media/media.service';
 import { signImage, signVideo } from '../media/signature';
+import { stickersOf, stickersSvg, type PlacedSticker } from './stickers';
 import { PG_POOL } from '../db/db.module';
 import { ChatService } from '../chat/chat.service';
 import { MusicService, type MusicInput } from '../music/music.service';
@@ -37,7 +38,7 @@ export class StoriesService {
     private readonly media: MediaService,
   ) {}
 
-  async create(userId: string, mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all', musicIn: MusicInput | null = null) {
+  async create(userId: string, mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all', musicIn: MusicInput | null = null, stickers: PlacedSticker[] = []) {
     this.filter.assertClean(caption, musicIn?.title, musicIn && 'artist' in musicIn ? musicIn.artist : undefined);
     const music = await this.musicSvc.prepare(userId, musicIn);
     const ok = await this.pool.query(
@@ -52,8 +53,8 @@ export class StoriesService {
     const long = await this.pool.query("SELECT 1 FROM content.media_assets a WHERE a.id = $1 AND a.mime LIKE 'video/%' AND a.duration_ms > 31000", [mediaId]);
     if (long.rowCount) throw new BadRequestException('O vídeo do story pode ter até 30 segundos');
     const id = uuidv7();
-    await this.pool.query('INSERT INTO content.stories (id, author_id, media_id, caption, audience, music) VALUES ($1, $2, $3, $4, $5, $6)', [
-      id, userId, mediaId, caption || null, audience, music ? JSON.stringify(music) : null,
+    await this.pool.query('INSERT INTO content.stories (id, author_id, media_id, caption, audience, music, stickers) VALUES ($1, $2, $3, $4, $5, $6, $7)', [
+      id, userId, mediaId, caption || null, audience, music ? JSON.stringify(music) : null, stickers.length ? JSON.stringify(stickers) : null,
     ]);
     if (caption && audience === 'all') void this.notifications.notifyMentions(userId, caption, { snippet: caption.slice(0, 80) });
     return this.getOne(userId, id);
@@ -95,7 +96,7 @@ export class StoriesService {
 
   async byUser(viewerId: string, username: string) {
     const { rows } = await this.pool.query(
-      `SELECT s.id, s.media_id, s.caption, s.music, s.created_at, s.expires_at, s.audience, u.id AS author_id, u.username, u.display_name,
+      `SELECT s.id, s.media_id, s.caption, s.music, s.stickers, s.created_at, s.expires_at, s.audience, u.id AS author_id, u.username, u.display_name,
               (SELECT m.mime FROM content.media_assets m WHERE m.id = s.media_id) AS mime,
               (SELECT m.duration_ms FROM content.media_assets m WHERE m.id = s.media_id) AS duration_ms,
               s.shared_post_id,
@@ -294,20 +295,20 @@ export class StoriesService {
    * Partilhar uma publicação (foto ou reel) no meu status. Só publicações públicas e normais, que eu possa ver;
    * o story reutiliza o ficheiro e mostra de quem é. Se a publicação for apagada, o story deixa de aparecer.
    */
-  async share(userId: string, postId: string, caption: string, audience: 'all' | 'close_friends' = 'all') {
+  async share(userId: string, postId: string, caption: string, audience: 'all' | 'close_friends' = 'all', stickers: PlacedSticker[] = []) {
     this.filter.assertClean(caption);
     const { rows } = await this.pool.query(
       `SELECT (SELECT pm.media_id FROM content.post_media pm JOIN content.media_assets m ON m.id = pm.media_id
                 WHERE pm.post_id = p.id AND m.status = 'ready' ORDER BY pm.position LIMIT 1) AS media_id
          FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
-        WHERE p.id = $2 AND p.kind = 'post' AND NOT u.is_private AND ${canView('u')}`,
+        WHERE p.id = $2 AND p.kind = 'post' AND (p.author_id = $1 OR NOT u.is_private) AND ${canView('u')}`,
       [userId, postId],
     );
     if (!rows[0]) throw new NotFoundException('Publicação não encontrada');
     if (!rows[0].media_id) throw new BadRequestException('Só se partilham publicações com foto ou vídeo');
     const id = uuidv7();
-    await this.pool.query('INSERT INTO content.stories (id, author_id, media_id, caption, audience, shared_post_id) VALUES ($1, $2, $3, $4, $5, $6)', [
-      id, userId, rows[0].media_id, caption || null, audience, postId,
+    await this.pool.query('INSERT INTO content.stories (id, author_id, media_id, caption, audience, shared_post_id, stickers) VALUES ($1, $2, $3, $4, $5, $6, $7)', [
+      id, userId, rows[0].media_id, caption || null, audience, postId, stickers.length ? JSON.stringify(stickers) : null,
     ]);
     return this.getOne(userId, id);
   }
@@ -358,7 +359,7 @@ export class StoriesService {
   /** O meu mimo para guardar na galeria: a foto ou o vídeo com a assinatura do Txillapp (logótipo e o meu @). */
   async download(userId: string, id: string): Promise<{ mime: string; bytes: Buffer; filename: string }> {
     const { rows } = await this.pool.query(
-      `SELECT s.media_id, s.author_id, u.username, m.mime FROM content.stories s JOIN identity.users u ON u.id = s.author_id JOIN content.media_assets m ON m.id = s.media_id WHERE s.id = $1`,
+      `SELECT s.media_id, s.author_id, s.stickers, u.username, m.mime FROM content.stories s JOIN identity.users u ON u.id = s.author_id JOIN content.media_assets m ON m.id = s.media_id WHERE s.id = $1`,
       [id],
     );
     const r = rows[0];
@@ -366,13 +367,16 @@ export class StoriesService {
     if (r.author_id !== userId) throw new ForbiddenException('Só podes guardar os teus mimos');
     const raw = await this.media.rawBytes(r.media_id as string, 'public');
     const video = String(r.mime).startsWith('video/');
-    const bytes = video ? await signVideo(raw, r.username as string) : await signImage(raw, r.username as string);
+    // Os stickers vão gravados (parados) por baixo da assinatura.
+    const placed = stickersOf(r.stickers);
+    const overlay = (W: number, H: number) => stickersSvg(W, H, placed);
+    const bytes = video ? await signVideo(raw, r.username as string, overlay) : await signImage(raw, r.username as string, overlay);
     return { mime: video ? 'video/mp4' : 'image/jpeg', bytes, filename: `txillapp-mimo-${String(id).slice(0, 8)}.${video ? 'mp4' : 'jpg'}` };
   }
 
   private async getOne(userId: string, id: string) {
     const { rows } = await this.pool.query(
-      `SELECT s.id, s.media_id, s.caption, s.music, s.created_at, s.expires_at, s.audience, u.id AS author_id, u.username, u.display_name,
+      `SELECT s.id, s.media_id, s.caption, s.music, s.stickers, s.created_at, s.expires_at, s.audience, u.id AS author_id, u.username, u.display_name,
               (SELECT m.mime FROM content.media_assets m WHERE m.id = s.media_id) AS mime,
               (SELECT m.duration_ms FROM content.media_assets m WHERE m.id = s.media_id) AS duration_ms,
               s.shared_post_id,
@@ -393,6 +397,8 @@ export class StoriesService {
     /** Partilhado de uma publicação: de quem e qual (para abrir o original). */
     sharedFrom: r.shared_post_id ? { postId: r.shared_post_id as string, ...(r.shared_from as { username: string; displayName: string }) } : null,
     caption: r.caption,
+    /** Stickers por cima (posição, tamanho e rotação relativos ao ecrã). */
+    stickers: stickersOf(r.stickers),
     music: this.musicSvc.resolve((r.music as Record<string, unknown> | null) ?? null),
     audience: r.audience as 'all' | 'close_friends',
     createdAt: r.created_at,

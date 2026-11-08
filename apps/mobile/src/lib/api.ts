@@ -227,6 +227,8 @@ export interface Story {
   /** O espectador pode responder? */
   canReply: boolean;
   music?: { id: string; title: string; artist: string; url: string; kind?: 'clip' } | null;
+  /** Stickers por cima do mimo (centro e largura em fração do ecrã, rotação em graus). */
+  stickers?: { id: string; x: number; y: number; s: number; r: number }[];
 }
 export interface StoryComment { id: string; body: string; createdAt: string; mine: boolean; canDelete: boolean; author: { username: string; displayName: string; hasAvatar: boolean } }
 export interface TrayUser { username: string; displayName: string; isMe: boolean; count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string }

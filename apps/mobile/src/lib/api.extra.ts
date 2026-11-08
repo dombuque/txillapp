@@ -39,5 +39,5 @@ export const extraApi = {
   paymentsCancel: (id: string): Promise<void> => raw(`/payments/orders/${id}/cancel`, post({})),
   paymentsSandboxPay: (id: string): Promise<PaymentOrder> => raw(`/payments/orders/${id}/sandbox-pay`, post({})),
   chatGroupSend: (id: string, msg: ChatSendBody): Promise<{ id: string }> => raw(`/chat/groups/${id}/messages`, post(msg)),
-  shareToStory: (postId: string, audience: 'all' | 'close_friends' = 'all', caption = ''): Promise<{ id: string }> => raw('/stories/share', post({ postId, audience, caption })),
+  shareToStory: (postId: string, audience: 'all' | 'close_friends' = 'all', caption = '', stickers: { id: string; x: number; y: number; s: number; r: number }[] = []): Promise<{ id: string }> => raw('/stories/share', post({ postId, audience, caption, stickers })),
 };

@@ -1,18 +1,14 @@
 import { useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SvgXml } from 'react-native-svg';
-import data from '../assets/stickers.json';
+import { STICKERS, STICKER_CATS, stickerById } from '@/lib/stickers';
 import { colors } from '@/lib/theme';
+import { StickerArt } from './Stickers';
 
-interface Item { id: string; cat: string; text: string; svg: string }
-const ITEMS = data.items as Item[];
-const CATS = data.cats as { id: string; label: string }[];
-
-/** Sticker pelo id (o mesmo desenho do site). Sem o id, mostra o texto. */
-export function Sticker({ id, size = 132 }: { id: string; size?: number }) {
-  const s = ITEMS.find((x) => x.id === id);
+/** Sticker pelo id (o mesmo desenho em todo o lado; os animados mexem-se). Sem o id, mostra o texto. */
+export function Sticker({ id, size = 132, animate = true }: { id: string; size?: number; animate?: boolean }) {
+  const s = stickerById(id);
   if (!s) return <Text style={{ fontSize: 14, color: colors.zinc500 }}>Sticker</Text>;
-  return <SvgXml xml={s.svg} width={size} height={Math.round(size * 0.98)} />;
+  return <StickerArt def={s} size={size} animate={animate} />;
 }
 
 const RECENT_KEY = 'txill.stickers.recent';
@@ -20,17 +16,17 @@ let recentMem: string[] = [];
 function readRecent(): string[] {
   try {
     const raw = (globalThis as { localStorage?: Storage }).localStorage?.getItem(RECENT_KEY);
-    if (raw) recentMem = (JSON.parse(raw) as string[]).filter((id) => ITEMS.some((x) => x.id === id));
+    if (raw) recentMem = (JSON.parse(raw) as string[]).filter((id) => stickerById(id));
   } catch { /* sem armazenamento */ }
   return recentMem;
 }
 
-/** Painel de stickers por categoria, como no site (com os recentes primeiro); toca num para o enviar. */
+/** Painel de stickers por categoria (os animados primeiro, os recentes antes de tudo); toca num para o enviar. */
 export function StickerPanel({ onPick }: { onPick: (id: string) => void }) {
   const [recent, setRecent] = useState<string[]>(readRecent);
-  const [cat, setCat] = useState<string>(() => (readRecent().length ? 'recentes' : CATS[0].id));
-  const tabs = [...(recent.length ? [{ id: 'recentes', label: 'Recentes' }] : []), ...CATS];
-  const shown = useMemo(() => (cat === 'recentes' ? recent.map((id) => ITEMS.find((x) => x.id === id)!).filter(Boolean) : ITEMS.filter((s) => s.cat === cat)), [cat, recent]);
+  const [cat, setCat] = useState<string>(() => (readRecent().length ? 'recentes' : STICKER_CATS[0].id));
+  const tabs = [...(recent.length ? [{ id: 'recentes', label: 'Recentes' }] : []), ...STICKER_CATS];
+  const shown = useMemo(() => (cat === 'recentes' ? recent.map((id) => stickerById(id)!).filter(Boolean) : STICKERS.filter((s) => s.cat === cat)), [cat, recent]);
   function pick(id: string) {
     const next = [id, ...recent.filter((x) => x !== id)].slice(0, 8);
     recentMem = next;
@@ -55,7 +51,7 @@ export function StickerPanel({ onPick }: { onPick: (id: string) => void }) {
         contentContainerStyle={{ padding: 8 }}
         renderItem={({ item }) => (
           <Pressable onPress={() => pick(item.id)} style={({ pressed }) => [styles.cell, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel={`Enviar sticker ${item.text}`}>
-            <SvgXml xml={item.svg} width={72} height={Math.round(72 * 1.12)} />
+            <StickerArt def={item} size={72} />
           </Pressable>
         )}
       />
@@ -67,5 +63,5 @@ const styles = StyleSheet.create({
   wrap: { marginHorizontal: 12, marginTop: 8, overflow: 'hidden', borderRadius: 16, backgroundColor: '#fafafa' },
   cats: { gap: 4, paddingHorizontal: 8, paddingTop: 8 },
   cat: { height: 32, borderRadius: 16, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
-  cell: { flex: 1 / 4, margin: 2, alignItems: 'center', justifyContent: 'center', borderRadius: 16, padding: 4 },
+  cell: { flex: 1 / 4, margin: 2, height: 84, alignItems: 'center', justifyContent: 'center', borderRadius: 16, padding: 4 },
 });

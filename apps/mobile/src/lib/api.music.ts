@@ -1,4 +1,5 @@
 import { raw, post } from '@/lib/api';
+import type { PlacedSticker } from '@/lib/stickers';
 
 /** Faixa de música: de licença aberta (catálogo) ou um clipe próprio gravado (`kind: 'clip'`). Igual ao tipo do site. */
 export interface Track { kind?: 'clip'; mediaId?: string; id: string; title: string; artist: string; url: string; landing: string | null; license: string; licenseUrl: string | null; durationMs: number | null; cover: string | null }
@@ -10,6 +11,6 @@ export const musicApi = {
   search: (q: string): Promise<Track[]> => raw(`/music/search?q=${encodeURIComponent(q)}`),
   /** Como `api.createPost`, mas com música (o `createPost` da app ainda não leva o campo). */
   createPost: (b: { body: string; music?: Track | null; locationLabel?: string; mediaIds: string[] }) => raw('/posts', post({ ...b, music: musicPayload(b.music) })),
-  createStory: (mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all', music?: Track | null) => raw('/stories', post({ mediaId, caption, audience, music: musicPayload(music) })),
+  createStory: (mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all', music?: Track | null, stickers: PlacedSticker[] = []) => raw('/stories', post({ mediaId, caption, audience, music: musicPayload(music), stickers })),
   setNote: (body: string, music?: Track | null): Promise<void> => raw('/notes/me', { method: 'PUT', body: JSON.stringify({ body, music: musicPayload(music) }) }),
 };

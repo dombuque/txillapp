@@ -18,6 +18,8 @@ import { musicApi, type Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { FeatureIntro } from '@/components/FeatureIntro';
+import { StickerCanvas, StickerPicker, StickerToolbar } from '@/components/Stickers';
+import { MAX_STICKERS, newPlaced, type PlacedSticker } from '@/lib/stickers';
 
 const EMERALD = '#10b981';
 const web = (o: Record<string, unknown>) => o as never;
@@ -96,18 +98,32 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
   const [music, setMusic] = useState<Track | null>(null);
   const [pickMusic, setPickMusic] = useState(false);
   const [typing, setTyping] = useState(false);
+  // Stickers por cima: a lista, qual está escolhido, o selector aberto e o tamanho do ecrã (medido sem o teclado).
+  const [stickers, setStickers] = useState<PlacedSticker[]>([]);
+  const [sel, setSel] = useState<number | null>(null);
+  const [pickSticker, setPickSticker] = useState(false);
+  const [box, setBox] = useState({ w: 0, h: 0 });
   const friends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
   const close = audience === 'close_friends';
+
+  function addSticker(id: string) {
+    setPickSticker(false);
+    if (stickers.length >= MAX_STICKERS) return setErr(`Até ${MAX_STICKERS} stickers por mimo`);
+    setStickers((l) => [...l, newPlaced(id)]);
+    setSel(stickers.length);
+  }
+  const updateSel = (p: PlacedSticker) => setStickers((l) => l.map((x, i) => (i === sel ? p : x)));
+  const deleteSel = () => { setStickers((l) => l.filter((_, i) => i !== sel)); setSel(null); };
 
   // Publicar em segundo plano (como a publicação): o ecrã fecha logo e o envio segue na faixa do Início.
   function publish() {
     if (busy) return;
     setBusy(true);
-    const a = asset, text = caption.trim(), who = audience, track = music;
+    const a = asset, text = caption.trim(), who = audience, track = music, placed = stickers;
     enqueueTask('mimo', { uri: a.uri, mime: a.mime, video: a.video }, async (_p, stage) => {
       const id = await uploadMedia(a.uri, a.mime, 'public', () => stage('prepare'));
       stage('post');
-      await musicApi.createStory(id, text, who, track);
+      await musicApi.createStory(id, text, who, track, placed);
       await qc.invalidateQueries({ queryKey: ['stories'] });
     }, qc);
     if (router.canGoBack()) router.back();
@@ -121,7 +137,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
   );
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#000' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#000' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (!typing && (width !== box.w || height !== box.h)) setBox({ w: width, h: height }); }}>
       <FeatureIntro id="mimo" />
       {/* A cena: vídeo, ou a foto inteira sobre ela própria desfocada (sem barras pretas), ou a preencher. */}
       <View style={StyleSheet.absoluteFill}>
@@ -137,14 +153,19 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
       <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, top: 0, height: 150, backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)' })} />
       <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: 240, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)' })} />
 
-      {/* Em cima: voltar à câmara; à direita, as ferramentas. */}
+      {/* Os stickers pousados sobre a cena: arrastar, pinçar, rodar; largar no caixote apaga. */}
+      <StickerCanvas stickers={stickers} onChange={setStickers} width={box.w} height={box.h} selected={sel} onSelect={setSel} />
+
+      {/* Em cima: voltar à câmara; no meio, os botões do sticker escolhido; à direita, as ferramentas. */}
       <View style={[st.top, { paddingTop: Math.max(insets.top, 12) }]}>
         <Pressable onPress={onClose} style={st.tool} accessibilityRole="button" accessibilityLabel="Cancelar"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
+        {sel !== null && stickers[sel] ? <StickerToolbar item={stickers[sel]} onChange={updateSel} onDelete={deleteSel} onDone={() => setSel(null)} /> : <View />}
         <View style={{ gap: 10 }}>
           {tool('camera', 'Tirar outra', onCamera ?? onRetake)}
           {onCamera ? tool('images', 'Galeria', onRetake) : null}
           {!asset.video ? tool('expand', fill ? 'Mostrar a foto inteira' : 'Preencher o ecrã', () => setFill((f) => !f), fill) : null}
           {tool('music', music ? 'Mudar a música' : 'Adicionar música', () => setPickMusic(true), !!music)}
+          {tool('sticker', 'Stickers', () => setPickSticker(true), stickers.length > 0)}
         </View>
       </View>
 
@@ -193,6 +214,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
       </View>
       {listOpen && <CloseFriendsSheet onClose={() => setListOpen(false)} />}
       {pickMusic && <MusicPicker hint={caption} onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
+      {pickSticker && <StickerPicker onClose={() => setPickSticker(false)} onPick={addSticker} />}
     </KeyboardAvoidingView>
   );
 }

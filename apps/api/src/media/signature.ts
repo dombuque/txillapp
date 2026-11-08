@@ -37,8 +37,11 @@ function layout(W: number, H: number, withUser: boolean) {
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-/** SVG transparente do tamanho da imagem, só com a assinatura. */
-export function signatureSvg(W: number, H: number, username?: string | null): string {
+/** O que mais vai gravado na cópia (ex.: os stickers do mimo), já à escala da imagem W×H. */
+export type Overlay = (W: number, H: number) => string;
+
+/** SVG transparente do tamanho da imagem, com o que vai por cima (stickers) e a assinatura. */
+export function signatureSvg(W: number, H: number, username?: string | null, extra = ''): string {
   const L = layout(W, H, !!username);
   const d = PATHS.map((p) => `<path d="${p}"/>`).join('');
   const mark = (stroke: string, fill: string, extra = '') =>
@@ -48,6 +51,7 @@ export function signatureSvg(W: number, H: number, username?: string | null): st
   const user = username ? `${text('#000000', 'filter="url(#sh)" opacity="0.5" transform="translate(0 1)"')}${text('#ffffff', 'fill-opacity="0.92"')}` : '';
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
 <defs><filter id="sh" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="${(L.blur / 2).toFixed(2)}"/></filter></defs>
+${extra}
 <g filter="url(#sh)" transform="translate(0 ${(L.s * 2).toFixed(2)})" opacity="0.45">${mark('#000000', '#000000')}</g>
 ${mark('#ffffff', '#ff5c6c')}
 ${user}
@@ -55,18 +59,18 @@ ${user}
 }
 
 /** Foto com a assinatura (JPEG). Respeita a rotação guardada na foto. */
-export async function signImage(bytes: Buffer, username?: string | null): Promise<Buffer> {
+export async function signImage(bytes: Buffer, username?: string | null, overlay?: Overlay): Promise<Buffer> {
   const base = sharp(bytes).rotate();
   const meta = await base.metadata();
   const W = meta.width ?? 1080, H = meta.height ?? 1080;
   return base
-    .composite([{ input: Buffer.from(signatureSvg(W, H, username)), top: 0, left: 0 }])
+    .composite([{ input: Buffer.from(signatureSvg(W, H, username, overlay?.(W, H) ?? '')), top: 0, left: 0 }])
     .jpeg({ quality: 92 })
     .toBuffer();
 }
 
 /** Vídeo com a assinatura sobreposta (MP4, mesmo som). */
-export async function signVideo(bytes: Buffer, username?: string | null): Promise<Buffer> {
+export async function signVideo(bytes: Buffer, username?: string | null, overlay?: Overlay): Promise<Buffer> {
   const dir = await mkdtemp(join(tmpdir(), 'txsign-'));
   try {
     const src = join(dir, 'in.mp4'), png = join(dir, 'sign.png'), out = join(dir, 'out.mp4');
@@ -74,7 +78,7 @@ export async function signVideo(bytes: Buffer, username?: string | null): Promis
     const { stdout } = await run(ffprobe.path, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'json', src], { timeout: 30_000 });
     const st = (JSON.parse(stdout) as { streams?: { width?: number; height?: number }[] }).streams?.[0];
     const W = st?.width ?? 1080, H = st?.height ?? 1920;
-    await sharp(Buffer.from(signatureSvg(W, H, username))).png().toFile(png);
+    await sharp(Buffer.from(signatureSvg(W, H, username, overlay?.(W, H) ?? ''))).png().toFile(png);
     await run(FFMPEG, ['-y', '-i', src, '-i', png, '-filter_complex', '[0:v][1:v]overlay=0:0:format=auto', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-movflags', '+faststart', out], { timeout: 4 * 60_000, maxBuffer: 10 * 1024 * 1024 });
     return await readFile(out);
   } finally {

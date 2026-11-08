@@ -19,6 +19,7 @@ import { useOwnSeen, writeOwnSeen } from '@/lib/ownSeen';
 import { useAuth } from '@/lib/auth';
 import { timeAgo } from '@/lib/time';
 import { saveToGallery } from '@/lib/saveToGallery';
+import { StickerLayer } from '@/components/Stickers';
 
 /** Quanto tempo fica à vista um mimo de foto (os de vídeo duram o vídeo, até 30 s). */
 const IMAGE_MS = 30_000;
@@ -124,6 +125,8 @@ export default function StoryViewer() {
   const [panel, setPanel] = useState<null | 'menu' | 'viewers' | 'comments'>(null);
   const [away, setAway] = useState(false); // outro ecrã por cima (ex.: a publicação)
   const [seePost, setSeePost] = useState(false);
+  const [box, setBox] = useState({ w: 0, h: 0 }); // o tamanho do ecrã do mimo (para pousar os stickers)
+  const [saving, setSaving] = useState(false); // a guardar o mimo na galeria (antes do primeiro `return`, como todos os hooks)
   const [videoMs, setVideoMs] = useState<number | null>(null);
   const progress = useRef(new Animated.Value(0)).current;
   const pval = useRef(0);
@@ -297,7 +300,6 @@ export default function StoryViewer() {
     );
   }
   const shared = !!cur.sharedFrom;
-  const [saving, setSaving] = useState(false);
   /** Guarda o meu mimo na galeria, sempre com a assinatura do Txillapp (o servidor grava-a na foto ou no vídeo). */
   async function saveMimo() {
     if (!cur || saving) return;
@@ -305,7 +307,7 @@ export default function StoryViewer() {
     setSaving(true);
     setAway(true);
     try {
-      const r = await saveToGallery(`/api/v1/stories/${cur.id}/download`, `txillapp-mimo-${cur.id.slice(0, 8)}.${cur.mediaKind === 'video' ? 'mp4' : 'jpg'}`);
+      const r = await saveToGallery(`/stories/${cur.id}/download`, `txillapp-mimo-${cur.id.slice(0, 8)}.${cur.mediaKind === 'video' ? 'mp4' : 'jpg'}`);
       if (r === 'denied') Alert.alert('Sem acesso à galeria', 'Dá acesso às fotos nas definições do telemóvel para guardar o mimo.');
       else if (Platform.OS !== 'web') Alert.alert('Guardado', 'O mimo está na tua galeria, com a assinatura do Txillapp.');
     } catch (e) {
@@ -338,6 +340,7 @@ export default function StoryViewer() {
       <Animated.View
         style={[st.root, wide && { maxWidth: 460, borderRadius: 24, overflow: 'hidden', maxHeight: 860 }, { transform: [{ translateY: dy }, { translateX: Animated.add(dx, enter.interpolate({ inputRange: [0, 1], outputRange: [enterDir * 90, 0] })) }, { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }], opacity: Animated.multiply(dy.interpolate({ inputRange: [0, 300], outputRange: [1, 0.4], extrapolate: 'clamp' }), enter.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] })) }]}
         {...pan.panHandlers}
+        onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (width !== box.w || height !== box.h) setBox({ w: width, h: height }); }}
       >
         {/* Fundo desfocado da própria foto: a imagem aparece inteira, sem barras pretas */}
         <View style={StyleSheet.absoluteFill}>
@@ -352,6 +355,7 @@ export default function StoryViewer() {
             </>
           )}
         </View>
+        <StickerLayer stickers={cur.stickers} width={box.w} height={box.h} animate={!paused} />
 
         {typing && <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} pointerEvents="none" />}
         <Pressable style={[st.zone, { left: 0, width: shared ? '30%' : '33%' }]} {...hold} onPress={tap(() => { setSeePost(false); prev(); })} accessibilityLabel="Anterior" />

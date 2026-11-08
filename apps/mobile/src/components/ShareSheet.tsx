@@ -13,6 +13,8 @@ import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
 import { Icon, type IconName } from './Icon';
 import { Sheet, useSheetScroll } from './Sheet';
+import { StickerCanvas, StickerPicker, StickerToolbar } from './Stickers';
+import { MAX_STICKERS, newPlaced, type PlacedSticker } from '@/lib/stickers';
 
 /** Uma conversa (pessoa ou grupo) na grelha de partilha. */
 interface Target {
@@ -55,6 +57,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<'all' | 'close_friends' | null>(null);
   const [caption, setCaption] = useState('');
+  const [stickers, setStickers] = useState<PlacedSticker[]>([]);
   const url = linkOf(post);
   // Os presentes vão para o status como um cartão desenhado no site (canvas); na app ainda não há essa imagem.
   const canStory = post.kind === 'post' && post.media.length > 0;
@@ -130,7 +133,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
     if (!preview) return;
     setBusy(true);
     try {
-      await extraApi.shareToStory(post.id, preview, caption.trim());
+      await extraApi.shareToStory(post.id, preview, caption.trim(), stickers);
       const aud = preview;
       setPreview(null);
       setNote(aud === 'all' ? 'Adicionado ao teu mimo' : 'Partilhado com amigos próximos');
@@ -238,7 +241,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
 
       {preview ? (
         <Modal visible transparent={false} animationType="slide" onRequestClose={() => setPreview(null)} statusBarTranslucent>
-          <StoryPreview post={post} audience={preview} setAudience={setPreview} caption={caption} setCaption={setCaption} busy={busy} onBack={() => setPreview(null)} onPublish={() => void publishStory()} />
+          <StoryPreview post={post} audience={preview} setAudience={setPreview} caption={caption} setCaption={setCaption} stickers={stickers} setStickers={setStickers} busy={busy} onBack={() => setPreview(null)} onPublish={() => void publishStory()} />
         </Modal>
       ) : null}
     </View>
@@ -256,22 +259,34 @@ function PreviewVideo({ url }: { url: string }) {
   return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />;
 }
 
-/** Pré-visualização do mimo: o ecrã 9:16 com a publicação, a legenda e a escolha de quem vê. */
-function StoryPreview({ post, audience, setAudience, caption, setCaption, busy, onBack, onPublish }: {
-  post: Post; audience: 'all' | 'close_friends'; setAudience: (a: 'all' | 'close_friends') => void; caption: string; setCaption: (c: string) => void; busy: boolean; onBack: () => void; onPublish: () => void;
+/** Pré-visualização do mimo: o ecrã 9:16 com a publicação, os stickers por cima, a legenda e a escolha de quem vê. */
+function StoryPreview({ post, audience, setAudience, caption, setCaption, stickers, setStickers, busy, onBack, onPublish }: {
+  post: Post; audience: 'all' | 'close_friends'; setAudience: (a: 'all' | 'close_friends') => void; caption: string; setCaption: (c: string) => void;
+  stickers: PlacedSticker[]; setStickers: (s: PlacedSticker[]) => void; busy: boolean; onBack: () => void; onPublish: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const win = useWindowDimensions();
+  const [sel, setSel] = useState<number | null>(null);
+  const [pick, setPick] = useState(false);
   // Moldura 9:16 com tamanho real (só `aspectRatio` colapsa a zero no Safari): cabe na largura e deixa espaço aos controlos.
   const ph = Math.max(240, Math.min(win.height - insets.top - insets.bottom - 260, 640));
   const pw = Math.min(360, win.width - 32, Math.round(ph * 9 / 16));
   const m = post.media[0];
   const still = m?.kind === 'video' ? abs(m.posterUrl) : sized(m?.url, 1080);
+  function addSticker(id: string) {
+    setPick(false);
+    if (stickers.length >= MAX_STICKERS) return;
+    setStickers([...stickers, newPlaced(id)]);
+    setSel(stickers.length);
+  }
   return (
     <View style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(insets.top, 8), paddingBottom: Math.max(insets.bottom, 16) }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, paddingBottom: 8 }}>
         <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Voltar" style={st.back}><Icon name="back" size={24} color="#fff" /></Pressable>
-        <Text style={{ fontSize: 17, fontWeight: '700', color: '#fff' }}>Pré-visualização do mimo</Text>
+        <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: '#fff' }}>Pré-visualização do mimo</Text>
+        {sel !== null && stickers[sel]
+          ? <StickerToolbar item={stickers[sel]} onChange={(p) => setStickers(stickers.map((x, i) => (i === sel ? p : x)))} onDelete={() => { setStickers(stickers.filter((_, i) => i !== sel)); setSel(null); }} onDone={() => setSel(null)} />
+          : <Pressable onPress={() => setPick(true)} accessibilityRole="button" accessibilityLabel="Stickers" style={[st.back, stickers.length > 0 && { backgroundColor: '#fff' }]}><Icon name="sticker" size={22} color={stickers.length > 0 ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>}
       </View>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 }}>
         <View style={[st.phone, { width: pw, height: Math.round(pw * 16 / 9) }]}>
@@ -282,8 +297,10 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, busy, 
             <Text style={{ flexShrink: 1, fontSize: 13, fontWeight: '600', color: '#fff' }} numberOfLines={1}>@{post.author.username}</Text>
           </View>
           {caption.trim() ? <Text style={st.phoneCaption}>{caption}</Text> : null}
+          <StickerCanvas stickers={stickers} onChange={setStickers} width={pw} height={Math.round(pw * 16 / 9)} selected={sel} onSelect={setSel} />
         </View>
       </View>
+      {pick && <StickerPicker onClose={() => setPick(false)} onPick={addSticker} />}
       <View style={{ paddingHorizontal: 16, paddingTop: 12, gap: 12 }}>
         <TextInput value={caption} onChangeText={(v) => setCaption(v.slice(0, 200))} placeholder="Adicionar legenda…" placeholderTextColor="rgba(255,255,255,0.6)" accessibilityLabel="Legenda" style={st.cap} />
         <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup">
