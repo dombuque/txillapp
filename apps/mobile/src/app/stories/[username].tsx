@@ -4,8 +4,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, AppState, Easing, PanResponder, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { createElement, useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Animated, AppState, Easing, PanResponder, Platform, Pressable, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
@@ -14,7 +14,7 @@ import { RichText } from '@/components/RichText';
 import { ActivityPanel, CommentsPanel, Panel, ReplyBar, useKeyboardHeight } from '@/components/StoryParts';
 import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
 import { api, type Story } from '@/lib/api';
-import { abs, sized } from '@/lib/config';
+import { SITE_URL, abs, sized } from '@/lib/config';
 import { useOwnSeen, writeOwnSeen } from '@/lib/ownSeen';
 import { useAuth } from '@/lib/auth';
 import { timeAgo } from '@/lib/time';
@@ -27,6 +27,35 @@ const expiresIn = (iso: string) => {
   const h = Math.ceil((new Date(iso).getTime() - Date.now()) / 3_600_000);
   return h <= 0 ? 'a expirar' : `expira em ${h} h`;
 };
+
+/**
+ * Vídeo do mimo na web: um <video> com playsInline, sem controlos, a ocupar o mimo (no iPhone, sem playsInline, o Safari
+ * abria o leitor do sistema em ecrã inteiro). Tenta tocar com som; se o browser não deixar, toca sem som e mostra o botão.
+ */
+function WebVideoStory({ url, paused, onEnd, onDuration }: { url: string; paused: boolean; onEnd: () => void; onDuration: (ms: number) => void }) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  const [muted, setMuted] = useState(false);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    if (paused) { v.pause(); return; }
+    v.muted = muted;
+    void v.play().catch(() => { v.muted = true; setMuted(true); void v.play().catch(() => undefined); });
+  }, [paused, muted, url]);
+  return (
+    <>
+      {createElement('video', {
+        ref, src: url, playsInline: true, 'webkit-playsinline': 'true', autoPlay: true, preload: 'auto', controls: false, disablePictureInPicture: true,
+        onEnded: onEnd,
+        onLoadedMetadata: (e: { currentTarget: HTMLVideoElement }) => { if (Number.isFinite(e.currentTarget.duration)) onDuration(e.currentTarget.duration * 1000); },
+        style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000', pointerEvents: 'none' },
+      })}
+      <Pressable onPress={() => setMuted((m) => !m)} style={st.videoMute} accessibilityRole="button" accessibilityLabel={muted ? 'Ativar o som' : 'Silenciar'}>
+        <Icon name={muted ? 'volume-off' : 'volume'} size={18} color="#fff" />
+      </Pressable>
+    </>
+  );
+}
 
 function VideoStory({ url, paused, onEnd, onDuration }: { url: string; paused: boolean; onEnd: () => void; onDuration: (ms: number) => void }) {
   const player = useVideoPlayer(url, (p) => { p.loop = false; p.play(); });
@@ -198,11 +227,15 @@ export default function StoryViewer() {
   const pan = useRef(
     PanResponder.create({
       // Com um painel aberto (visualizações, comentários, menu) o gesto é do painel: não sai do story.
-      onMoveShouldSetPanResponder: (_e, g) => !panelOpen.current && ((Math.abs(g.dy) > 14 && Math.abs(g.dy) > Math.abs(g.dx) * 1.5) || (Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5)),
+      onMoveShouldSetPanResponder: (_e, g) => panelOpen.current
+        ? g.dy > 14 && g.dy > Math.abs(g.dx) * 1.5
+        : (Math.abs(g.dy) > 14 && Math.abs(g.dy) > Math.abs(g.dx) * 1.5) || (Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5),
       onPanResponderMove: (_e, g) => {
+        if (panelOpen.current) return; // com um painel aberto o mimo não se mexe
         if (Math.abs(g.dx) > Math.abs(g.dy)) { dx.setValue(g.dx); dy.setValue(0); } else { dy.setValue(Math.max(0, g.dy)); dx.setValue(0); }
       },
       onPanResponderRelease: (_e, g) => {
+        if (panelOpen.current) { if (g.dy > 50) closePanelRef.current(); return; }
         if (Math.abs(g.dx) > Math.abs(g.dy)) {
           if (g.dx < -60) { Animated.timing(dx, { toValue: -80, duration: 120, useNativeDriver: false }).start(() => sideRef.current(1)); return; }
           if (g.dx > 60) { Animated.timing(dx, { toValue: 80, duration: 120, useNativeDriver: false }).start(() => sideRef.current(-1)); return; }
@@ -216,6 +249,7 @@ export default function StoryViewer() {
     }),
   ).current;
   const panelOpen = useRef(false);
+  const closePanelRef = useRef(() => undefined as void);
   // Deslizar para o lado: a pessoa seguinte (mesmo já vista) ou a anterior; sem mais ninguém, fecha ou volta ao lugar.
   const sideRef = useRef((d: 1 | -1) => { void d; });
   sideRef.current = (d) => {
@@ -225,6 +259,7 @@ export default function StoryViewer() {
     else Animated.spring(dx, { toValue: 0, useNativeDriver: false }).start();
   };
   panelOpen.current = panel !== null;
+  closePanelRef.current = () => setPanel(null);
   const closeRef = useRef(close);
   closeRef.current = close;
   const upRef = useRef(() => undefined as void);
@@ -261,6 +296,15 @@ export default function StoryViewer() {
     );
   }
   const shared = !!cur.sharedFrom;
+  async function shareMimo() {
+    if (!cur) return;
+    setAway(true);
+    const url = `${SITE_URL || 'https://txillapp.com'}/stories/${cur.author.username}`;
+    try {
+      await Share.share({ message: `Vê o mimo de @${cur.author.username} no Txillapp: ${url}`, url, title: `Mimo de @${cur.author.username}` });
+    } catch { /* cancelado */ }
+    setAway(false);
+  }
   const chip = (icon: 'eye' | 'cheers' | 'comment', n: number, label: string, onPress: () => void) => (
     <Pressable onPress={onPress} style={st.chip} accessibilityRole="button" accessibilityLabel={`${n} ${label}`}>
       <Icon name={icon} size={18} color="#fff" strokeWidth={icon === 'eye' ? 2 : undefined} />
@@ -277,7 +321,9 @@ export default function StoryViewer() {
         {/* Fundo desfocado da própria foto: a imagem aparece inteira, sem barras pretas */}
         <View style={StyleSheet.absoluteFill}>
           {cur.mediaKind === 'video' ? (
-            <VideoStory key={cur.id} url={abs(cur.mediaUrl) ?? ''} paused={paused} onEnd={next} onDuration={setVideoMs} />
+            Platform.OS === 'web'
+              ? <WebVideoStory key={cur.id} url={abs(cur.mediaUrl) ?? ''} paused={paused} onEnd={next} onDuration={setVideoMs} />
+              : <VideoStory key={cur.id} url={abs(cur.mediaUrl) ?? ''} paused={paused} onEnd={next} onDuration={setVideoMs} />
           ) : (
             <>
               <Image source={{ uri: sized(cur.mediaUrl, 160) }} style={[StyleSheet.absoluteFill, { opacity: 0.7, transform: [{ scale: 1.25 }] }]} contentFit="cover" blurRadius={40} />
@@ -328,13 +374,17 @@ export default function StoryViewer() {
               {chip('eye', cur.viewCount ?? 0, 'visualizações', () => setPanel('viewers'))}
               {chip('cheers', cur.cheerCount ?? 0, 'brindes', () => setPanel('viewers'))}
               {chip('comment', cur.commentCount, 'comentários', () => setPanel('comments'))}
+              <Pressable onPress={() => void shareMimo()} style={st.chip} accessibilityRole="button" accessibilityLabel="Partilhar o mimo"><Icon name="share" size={18} color="#fff" /></Pressable>
             </View>
           )}
           {!mine && !typing && (
-            <Pressable onPress={() => setPanel('comments')} style={[st.chip, { minHeight: 40, backgroundColor: 'rgba(0,0,0,0.4)' }]} accessibilityRole="button">
-              <Icon name="comment" size={18} color="#fff" />
-              <Text style={st.chipText}>{cur.commentCount > 0 ? `${cur.commentCount} ${cur.commentCount === 1 ? 'comentário' : 'comentários'}` : 'Comentar'}</Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Pressable onPress={() => setPanel('comments')} style={[st.chip, { minHeight: 40, backgroundColor: 'rgba(0,0,0,0.4)' }]} accessibilityRole="button">
+                <Icon name="comment" size={18} color="#fff" />
+                <Text style={st.chipText}>{cur.commentCount > 0 ? `${cur.commentCount} ${cur.commentCount === 1 ? 'comentário' : 'comentários'}` : 'Comentar'}</Text>
+              </Pressable>
+              <Pressable onPress={() => void shareMimo()} style={[st.chip, { minHeight: 40, backgroundColor: 'rgba(0,0,0,0.4)' }]} accessibilityRole="button" accessibilityLabel="Partilhar o mimo"><Icon name="share" size={18} color="#fff" /></Pressable>
+            </View>
           )}
           {!mine && cur.canReply && <ReplyBar key={cur.id} story={cur} username={cur.author.username} onFocusChange={setTyping} inputRef={replyRef} />}
           {!mine && !cur.canReply && <Text style={st.noReply}>Este mimo não aceita respostas</Text>}
@@ -360,6 +410,7 @@ const st = StyleSheet.create({
   center: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   btn: { borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 24, paddingVertical: 12 },
   zone: { position: 'absolute', top: 112, bottom: 112 },
+  videoMute: { position: 'absolute', right: 14, top: 110, zIndex: 6, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   top: { position: 'absolute', left: 0, right: 0, top: 0, zIndex: 5, elevation: 5, paddingHorizontal: 12, paddingBottom: 40 },
   bars: { flexDirection: 'row', gap: 4 },
   track: { flex: 1, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.35)', overflow: 'hidden' },
