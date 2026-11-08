@@ -19,7 +19,8 @@ import { useOwnSeen, writeOwnSeen } from '@/lib/ownSeen';
 import { useAuth } from '@/lib/auth';
 import { timeAgo } from '@/lib/time';
 
-const IMAGE_MS = 5000;
+/** Quanto tempo fica à vista um mimo de foto (os de vídeo duram o vídeo, até 30 s). */
+const IMAGE_MS = 30_000;
 /** Para que lado se saiu da pessoa anterior (a seguinte entra desse lado). Vive fora do ecrã porque a rota é substituída. */
 let lastDir: 1 | -1 | 0 = 0;
 const expiresIn = (iso: string) => {

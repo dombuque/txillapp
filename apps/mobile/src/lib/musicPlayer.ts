@@ -68,6 +68,8 @@ export async function playTrack(id: symbol, url: string, opts: { loop: boolean; 
   if (!src) { owner = null; onStop = null; return false; }
   try {
     await ensureMode();
+    // Entretanto pararam-na (ex.: fechou a nota antes de a música começar): não toca.
+    if (owner !== id) return false;
     if (!player) player = createAudioPlayer(src);
     else player.replace(src);
     endSub?.remove();
@@ -77,6 +79,7 @@ export async function playTrack(id: symbol, url: string, opts: { loop: boolean; 
     player.loop = opts.loop;
     player.muted = muted;
     await player.seekTo(0).catch(() => undefined);
+    if (owner !== id) { try { player.pause(); } catch { /* */ } return false; }
     player.play();
     return true;
   } catch {

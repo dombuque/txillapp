@@ -37,10 +37,12 @@ export function TrackCard({ track, autoplay = false, visible = false, playNow = 
   }, [playNow, track.url]);
 
   // Toca sozinha um instante depois de o post ficar à vista; pára quando sai ou a app vai para segundo plano.
+  // Um cartão que toca ao abrir (nota de música) conta como à vista enquanto estiver aberto.
+  const shown = visible || playNow;
   useEffect(() => {
     if (!autoplay) return;
     let dwell: ReturnType<typeof setTimeout> | undefined;
-    if (visible) {
+    if (shown) {
       dwell = setTimeout(() => { if (autoAllowed() && !userPaused.current && !playing.current) void playRef.current(); }, 700);
     } else {
       userPaused.current = false;
@@ -48,10 +50,10 @@ export function TrackCard({ track, autoplay = false, visible = false, playNow = 
     }
     const sub = AppState.addEventListener('change', (st) => {
       if (st !== 'active') stopTrack(me.current);
-      else if (visible && autoAllowed() && !userPaused.current && !playing.current) void playRef.current();
+      else if (shown && autoAllowed() && !userPaused.current && !playing.current) void playRef.current();
     });
     return () => { clearTimeout(dwell); sub.remove(); };
-  }, [autoplay, visible, track.url]);
+  }, [autoplay, shown, track.url]);
 
   function toggle() {
     if (on) {

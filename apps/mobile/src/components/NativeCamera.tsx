@@ -1,15 +1,14 @@
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useRef, useState } from 'react';
 import { BackHandler, Linking, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import { captureRef } from 'react-native-view-shot';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
+import { PhotoEditor } from './PhotoEditor';
 import type { Shot } from './TxCamera';
 
 const MAX_VIDEO_S = 60;
@@ -18,10 +17,10 @@ const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 const tap = () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
 
 /**
- * Câmara do Txillapp no telemóvel (Android/iPhone), igual à do site: visor arredondado com a moldura coral e o wordmark,
- * tocar = foto, manter premido = vídeo (até 60 s, com anel de progresso; deslizar o dedo para cima aproxima), dois dedos
- * para o zoom, dois toques para virar, flash, temporizador, galeria e os modos (Publicação · Mimo · Tcheka · Zás).
- * A foto sai recortada na moldura (4:5 numa publicação, 9:16 nos outros) e com a assinatura do Txillapp.
+ * Câmara do Txillapp no telemóvel (Android/iPhone). O visor tem exatamente a proporção da imagem da câmara (3:4 numa
+ * publicação, 9:16 num mimo ou tcheka), com cantos arredondados e os controlos por cima: fechar, flash, temporizador e
+ * só texto. Tocar = foto (abre o editor: filtros, ajustes, recorte), manter premido = vídeo (até 60 s, anel de progresso;
+ * deslizar para cima aproxima). Dois dedos para o zoom, dois toques para virar. Em baixo: galeria, modos e virar câmara.
  */
 export function NativeCamera({
   onShot, onGallery, onClose, onDone, onText, doneLabel = 'Seguinte', count = 0, kinds, kind, onKind, aspect = 9 / 16,
@@ -36,6 +35,7 @@ export function NativeCamera({
   kinds?: { id: string; label: string }[];
   kind?: string;
   onKind?: (id: string) => void;
+  /** Proporção da foto final (4:5 numa publicação, 9:16 nos outros); o editor começa recortado nela. */
   aspect?: number;
 }) {
   const insets = useSafeAreaInsets();
@@ -53,11 +53,8 @@ export function NativeCamera({
   const [recMs, setRecMs] = useState(0);
   const [busy, setBusy] = useState(false);
   const [area, setArea] = useState({ w: 0, h: 0 });
+  const [editing, setEditing] = useState<string | null>(null);
   const [review, setReview] = useState<Shot | null>(null);
-  // Foto a assinar: desenha-se fora do ecrã (recortada e com a assinatura) e captura-se esse desenho.
-  const [stamp, setStamp] = useState<{ uri: string; w: number; h: number } | null>(null);
-  const stampView = useRef<React.ComponentRef<typeof View>>(null);
-  const stampDone = useRef<((uri: string | null) => void) | null>(null);
   const pendingRecord = useRef(false);
   const holdT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const holding = useRef(false);
@@ -67,21 +64,27 @@ export function NativeCamera({
   const startedAt = useRef(0);
   const z0 = useRef(0);
 
+  // Proporção da imagem da câmara: 16:9 (vertical 9:16) para mimos e tchekas, 4:3 (vertical 3:4) para publicações.
+  const tall = aspect < 0.7;
+  const ratio = tall ? '16:9' : '4:3';
+  const sensor = tall ? 9 / 16 : 3 / 4;
+
   useEffect(() => () => { clearTimeout(holdT.current); clearInterval(recTimer.current); clearInterval(countTimer.current); }, []);
   // O microfone pede-se ao abrir a câmara (não a meio de manter o obturador). Sem ele, os vídeos gravam sem som.
   useEffect(() => {
     if (perm?.granted && mic && !mic.granted && mic.canAskAgain) void askMic();
   }, [perm?.granted, mic?.granted]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Botão de voltar do Android: sai da pré-visualização, ou fecha a câmara.
+  // Botão de voltar do Android: sai da pré-visualização, pára a gravação, ou fecha a câmara.
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (editing) return false; // o editor trata
       if (review) { setReview(null); return true; }
       if (recording) { cam.current?.stopRecording(); return true; }
       onClose();
       return true;
     });
     return () => sub.remove();
-  }, [review, recording, onClose]);
+  }, [editing, review, recording, onClose]);
 
   // Gestos no visor: dois dedos = zoom; dois toques = virar a câmara.
   const pinch = usePinchGesture({
@@ -98,39 +101,13 @@ export function NativeCamera({
     setFacing((f) => (f === 'back' ? 'front' : 'back'));
   }
 
-  /** Desenha a foto recortada na moldura com a assinatura e devolve o ficheiro final. */
-  function signPhoto(uri: string, w: number, h: number): Promise<string | null> {
-    return new Promise((resolve) => {
-      stampDone.current = resolve;
-      setStamp({ uri, w, h });
-      setTimeout(() => { if (stampDone.current === resolve) { stampDone.current = null; setStamp(null); resolve(null); } }, 8000);
-    });
-  }
-  async function captureStamp() {
-    const done = stampDone.current;
-    if (!done || !stampView.current) return;
-    stampDone.current = null;
-    try {
-      const outW = 1080;
-      const outH = Math.round(outW / aspect);
-      const file = await captureRef(stampView, { format: 'jpg', quality: 0.92, width: outW, height: outH, result: 'tmpfile' });
-      done(file);
-    } catch {
-      done(null);
-    } finally {
-      setStamp(null);
-    }
-  }
-
   async function takePhoto() {
     if (!cam.current || busy || !ready) return;
     setBusy(true);
     tap();
     try {
-      const pic = await cam.current.takePictureAsync({ quality: 0.92, skipProcessing: false });
-      if (!pic?.uri) return;
-      const signed = await signPhoto(pic.uri, pic.width, pic.height);
-      setReview({ uri: signed ?? pic.uri, video: false, mime: 'image/jpeg' });
+      const pic = await cam.current.takePictureAsync({ quality: 0.95 });
+      if (pic?.uri) setEditing(pic.uri);
     } catch {
       /* a câmara falhou a meio: fica no visor */
     } finally {
@@ -211,15 +188,20 @@ export function NativeCamera({
     }, 1000);
   }
 
-  // Medidas: o visor fica entre o topo e a barra de baixo; a moldura de captura, ao centro, na proporção pedida.
-  const topPad = insets.top;
+  // Medidas: o visor (na proporção da câmara) logo abaixo do topo, com margens; o obturador por baixo, se couber.
   const barH = 64 + Math.max(insets.bottom, 12);
-  const card = { x: 0, y: topPad, w: area.w, h: Math.max(0, area.h - topPad - barH) };
-  const cap = (() => {
-    const aw = Math.max(0, card.w - 24), ah = Math.max(0, card.h - 24);
-    const fw = Math.min(aw, ah * aspect), fh = fw / aspect;
-    return { x: card.x + (card.w - fw) / 2, y: card.y + (card.h - fh) / 2, w: fw, h: fh };
-  })();
+  const top = insets.top + 6;
+  const freeH = Math.max(0, area.h - top - barH);
+  let vw = Math.max(0, area.w - 16);
+  let vh = vw / sensor;
+  if (vh > freeH) { vh = freeH; vw = vh * sensor; }
+  const view = { x: (area.w - vw) / 2, y: top, w: vw, h: vh };
+  const below = freeH - vh; // espaço livre entre o visor e a barra de baixo
+  const shutterInside = below < 120;
+  const shutterY = shutterInside ? view.y + view.h - 84 - 22 : view.y + view.h + (below - 84) / 2;
+  // A parte da foto que fica (para a publicação 4:5 dentro do 3:4): escurece-se o resto, sem molduras.
+  const capH = Math.min(view.h, view.w / aspect);
+  const band = Math.max(0, (view.h - capH) / 2);
   const mm = (ms: number) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
   if (!perm) return <View style={st.root} />;
@@ -240,103 +222,103 @@ export function NativeCamera({
 
   return (
     <View style={st.root} onLayout={(e: LayoutChangeEvent) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
-      {/* Visor */}
-      <GestureDetector gesture={gestures}>
-        <View style={[st.card, { left: card.x, top: card.y, width: card.w, height: card.h }]} collapsable={false}>
-          <CameraView
-            ref={cam}
-            style={StyleSheet.absoluteFill}
-            facing={facing}
-            mode={mode}
-            flash={flash}
-            enableTorch={recording && flash === 'on' && facing === 'back'}
-            zoom={zoom}
-            mirror={facing === 'front'}
-            mute={!mic?.granted}
-            videoQuality="1080p"
-            onCameraReady={onReady}
-          />
-        </View>
-      </GestureDetector>
-
-      {/* Moldura do Txillapp: fora da área da foto fica escurecido; cantos em coral; wordmark discreto em cima. */}
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        {cap.w > 0 && !recording ? (
-          <>
-            <View style={[st.dim, { left: card.x, top: card.y, width: card.w, height: cap.y - card.y }]} />
-            <View style={[st.dim, { left: card.x, top: cap.y + cap.h, width: card.w, height: card.y + card.h - cap.y - cap.h }]} />
-            <View style={[st.dim, { left: card.x, top: cap.y, width: cap.x - card.x, height: cap.h }]} />
-            <View style={[st.dim, { left: cap.x + cap.w, top: cap.y, width: card.x + card.w - cap.x - cap.w, height: cap.h }]} />
-            <View style={[st.corner, { left: cap.x, top: cap.y, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 14 }]} />
-            <View style={[st.corner, { left: cap.x + cap.w - 30, top: cap.y, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 14 }]} />
-            <View style={[st.corner, { left: cap.x, top: cap.y + cap.h - 30, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 14 }]} />
-            <View style={[st.corner, { left: cap.x + cap.w - 30, top: cap.y + cap.h - 30, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 14 }]} />
-          </>
-        ) : null}
-        <View style={{ position: 'absolute', left: 0, right: 0, top: card.y + 22, alignItems: 'center' }}>
-          <Text style={st.wordmark}>txill<Text style={{ color: colors.brand }}>a</Text>pp</Text>
-        </View>
-      </View>
-
-      {/* Em cima: fechar e, com fotos juntas, Seguinte. */}
-      <View style={[st.top, { paddingTop: topPad + 10 }]}>
-        <Pressable onPress={onClose} style={st.round} accessibilityRole="button" accessibilityLabel="Fechar câmara"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
-        {recording ? <View style={st.rec}><View style={st.recDot} /><Text style={st.recText}>{mm(recMs)}</Text></View> : null}
-        {!recording && count > 0 && onDone ? (
-          <Pressable onPress={onDone} style={st.doneBtn} accessibilityRole="button" accessibilityLabel={`${doneLabel}, ${count}`}>
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{doneLabel}</Text>
-            <View style={st.doneCount}><Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{count}</Text></View>
-          </Pressable>
-        ) : <View style={{ width: 44 }} />}
-      </View>
-
-      {/* À esquerda: flash, temporizador e só texto. */}
-      {!recording && (
-        <View style={[st.rail, { top: topPad + 66 }]}>
-          <Pressable onPress={() => setFlash((f) => (f === 'off' ? 'on' : f === 'on' ? 'auto' : 'off'))} style={[st.round, flash !== 'off' && { backgroundColor: '#fcd34d' }]} accessibilityRole="button" accessibilityLabel={`Flash: ${flash === 'off' ? 'desligado' : flash === 'on' ? 'ligado' : 'automático'}`}>
-            <View>
-              <Icon name="bolt" size={22} solid={flash !== 'off'} color={flash !== 'off' ? colors.zinc900 : '#fff'} />
-              {flash === 'off' && <View pointerEvents="none" style={st.slash} />}
-              {flash === 'auto' && <Text style={st.auto}>A</Text>}
+      {area.w > 0 ? (
+        <>
+          {/* Visor: só quando já se sabe o tamanho, e com a proporção exata da imagem da câmara (preenche sem barras). */}
+          <GestureDetector gesture={gestures}>
+            <View style={[st.view, { left: view.x, top: view.y, width: view.w, height: view.h }]} collapsable={false}>
+              <CameraView
+                ref={cam}
+                style={StyleSheet.absoluteFill}
+                facing={facing}
+                mode={mode}
+                ratio={ratio}
+                flash={flash}
+                enableTorch={recording && flash === 'on' && facing === 'back'}
+                zoom={zoom}
+                mirror={facing === 'front'}
+                mute={!mic?.granted}
+                videoQuality="1080p"
+                onCameraReady={onReady}
+              />
+              {band > 1 && !recording ? (
+                <>
+                  <View pointerEvents="none" style={[st.band, { top: 0, height: band }]} />
+                  <View pointerEvents="none" style={[st.band, { bottom: 0, height: band }]} />
+                </>
+              ) : null}
+              {/* Sombra suave em cima, para os controlos se lerem em qualquer cena. */}
+              <View pointerEvents="none" style={st.topShade} />
             </View>
-          </Pressable>
-          <Pressable onPress={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} style={[st.round, delay > 0 && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityLabel={delay ? `Temporizador: ${delay} segundos` : 'Temporizador'}>
-            <Icon name="clock" size={22} color={delay ? colors.zinc900 : '#fff'} />
-            {delay > 0 && <View style={st.delayBadge}><Text style={st.delayText}>{delay}</Text></View>}
-          </Pressable>
-          {onText ? <Pressable onPress={onText} style={st.round} accessibilityRole="button" accessibilityLabel="Só texto"><Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Aa</Text></Pressable> : null}
-        </View>
-      )}
+          </GestureDetector>
 
-      {zoom > 0.02 ? (
-        <Pressable onPress={() => setZoom(0)} style={[st.zoomBadge, { top: topPad + 56 }]} accessibilityRole="button" accessibilityLabel="Repor zoom"><Text style={st.zoomText}>{(1 + zoom * 7).toFixed(1)}×</Text></Pressable>
-      ) : null}
-      {countdown !== null ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, st.center]}><Text style={st.countText}>{countdown}</Text></View> : null}
+          {/* Controlos por cima do visor: fechar · wordmark · flash, temporizador, só texto. */}
+          <View style={[st.controls, { left: view.x, top: view.y, width: view.w }]} pointerEvents="box-none">
+            <Pressable onPress={onClose} style={st.round} accessibilityRole="button" accessibilityLabel="Fechar câmara"><Icon name="x" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
+            {recording ? (
+              <View style={st.rec}><View style={st.recDot} /><Text style={st.recText}>{mm(recMs)}</Text></View>
+            ) : (
+              <Text style={st.wordmark} accessibilityLabel="Txillapp">txill<Text style={{ color: colors.brand }}>a</Text>pp</Text>
+            )}
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {!recording && (
+                <>
+                  <Pressable onPress={() => setFlash((f) => (f === 'off' ? 'on' : f === 'on' ? 'auto' : 'off'))} style={[st.round, flash !== 'off' && st.roundOn]} accessibilityRole="button" accessibilityLabel={`Flash: ${flash === 'off' ? 'desligado' : flash === 'on' ? 'ligado' : 'automático'}`}>
+                    <View>
+                      <Icon name="bolt" size={20} solid={flash !== 'off'} color={flash !== 'off' ? colors.zinc900 : '#fff'} />
+                      {flash === 'off' && <View pointerEvents="none" style={st.slash} />}
+                      {flash === 'auto' && <Text style={st.auto}>A</Text>}
+                    </View>
+                  </Pressable>
+                  <Pressable onPress={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} style={[st.round, delay > 0 && st.roundOn]} accessibilityRole="button" accessibilityLabel={delay ? `Temporizador: ${delay} segundos` : 'Temporizador'}>
+                    <Icon name="clock" size={20} color={delay ? colors.zinc900 : '#fff'} />
+                    {delay > 0 && <View style={st.delayBadge}><Text style={st.delayText}>{delay}</Text></View>}
+                  </Pressable>
+                  {onText ? <Pressable onPress={onText} style={st.round} accessibilityRole="button" accessibilityLabel="Só texto"><Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Aa</Text></Pressable> : null}
+                </>
+              )}
+            </View>
+          </View>
 
-      {/* Obturador */}
-      <View style={[st.bottom, { bottom: barH + 18 }]} pointerEvents="box-none">
-        {!recording && count === 0 ? <Text style={st.hint}>Toca para foto · mantém para vídeo</Text> : <View style={{ height: 26 }} />}
-        <View
-          onTouchStart={shutterStart}
-          onTouchMove={shutterMove}
-          onTouchEnd={shutterEnd}
-          onTouchCancel={shutterEnd}
-          style={[st.shutter, (!ready || busy) && !recording && { opacity: 0.5 }, recording && { transform: [{ scale: 1.12 }] }]}
-          accessible
-          accessibilityRole="button"
-          accessibilityLabel={recording ? 'Parar de gravar' : countdown !== null ? 'Cancelar' : 'Tirar foto; mantém premido para gravar vídeo'}
-        >
-          <View style={[st.shutterRing, recording && { borderColor: 'rgba(255,255,255,0.35)' }]} />
-          {recording ? (
-            <Svg width={84} height={84} style={StyleSheet.absoluteFill} pointerEvents="none">
-              <Circle cx={42} cy={42} r={40} stroke={colors.brand} strokeWidth={4} fill="none" strokeLinecap="round"
-                strokeDasharray={`${2 * Math.PI * 40}`} strokeDashoffset={2 * Math.PI * 40 * (1 - Math.min(1, recMs / (MAX_VIDEO_S * 1000)))}
-                transform="rotate(-90 42 42)" />
-            </Svg>
+          {zoom > 0.02 ? (
+            <Pressable onPress={() => setZoom(0)} style={[st.zoomBadge, { top: view.y + 62 }]} accessibilityRole="button" accessibilityLabel="Repor zoom"><Text style={st.zoomText}>{(1 + zoom * 7).toFixed(1)}×</Text></Pressable>
           ) : null}
-          <View style={[st.shutterIn, recording && st.shutterRec]} />
-        </View>
-      </View>
+          {countdown !== null ? <View pointerEvents="none" style={[st.countWrap, { left: view.x, top: view.y, width: view.w, height: view.h }]}><Text style={st.countText}>{countdown}</Text></View> : null}
+
+          {/* Obturador (e a dica por cima, nas primeiras vezes). */}
+          <View style={[st.shutterWrap, { top: shutterY - 30 }]} pointerEvents="box-none">
+            {!recording && count === 0 ? <Text style={st.hint}>Toca para foto · mantém para vídeo</Text> : <View style={{ height: 18 }} />}
+            <View
+              onTouchStart={shutterStart}
+              onTouchMove={shutterMove}
+              onTouchEnd={shutterEnd}
+              onTouchCancel={shutterEnd}
+              style={[st.shutter, (!ready || busy) && !recording && { opacity: 0.5 }, recording && { transform: [{ scale: 1.12 }] }]}
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel={recording ? 'Parar de gravar' : countdown !== null ? 'Cancelar' : 'Tirar foto; mantém premido para gravar vídeo'}
+            >
+              <View style={[st.shutterRing, recording && { borderColor: 'rgba(255,255,255,0.35)' }]} />
+              {recording ? (
+                <Svg width={84} height={84} style={StyleSheet.absoluteFill} pointerEvents="none">
+                  <Circle cx={42} cy={42} r={40} stroke={colors.brand} strokeWidth={4} fill="none" strokeLinecap="round"
+                    strokeDasharray={`${2 * Math.PI * 40}`} strokeDashoffset={2 * Math.PI * 40 * (1 - Math.min(1, recMs / (MAX_VIDEO_S * 1000)))}
+                    transform="rotate(-90 42 42)" />
+                </Svg>
+              ) : null}
+              <View style={[st.shutterIn, recording && st.shutterRec]} />
+            </View>
+          </View>
+
+          {/* Com fotos juntas: Seguinte. */}
+          {!recording && count > 0 && onDone ? (
+            <Pressable onPress={onDone} style={[st.doneBtn, { top: shutterY + 20, right: 20 }]} accessibilityRole="button" accessibilityLabel={`${doneLabel}, ${count}`}>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{doneLabel}</Text>
+              <View style={st.doneCount}><Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{count}</Text></View>
+            </Pressable>
+          ) : null}
+        </>
+      ) : null}
 
       {/* Barra de baixo: galeria, modos e virar câmara (como no Instagram). */}
       <View style={[st.bar, { height: barH, paddingBottom: Math.max(insets.bottom, 12) }]}>
@@ -353,37 +335,32 @@ export function NativeCamera({
           </ScrollView>
         ) : <View style={{ flex: 1 }} />}
         <View style={{ width: 44, alignItems: 'flex-end' }}>
-          {!recording && <Pressable onPress={flip} style={st.round} accessibilityRole="button" accessibilityLabel="Virar câmara"><Icon name="flip-camera" size={24} color="#fff" /></Pressable>}
+          {!recording && <Pressable onPress={flip} style={st.round} accessibilityRole="button" accessibilityLabel="Virar câmara"><Icon name="flip-camera" size={22} color="#fff" /></Pressable>}
         </View>
       </View>
 
-      {/* Foto a assinar (fora do ecrã): recortada na moldura, com a assinatura do Txillapp. */}
-      {stamp ? (
-        // O contentor é invisível; a captura desenha só a vista de dentro (sem a transparência do contentor).
-        <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, opacity: 0 }}>
-          <View ref={stampView} collapsable={false} style={{ width: 360, height: 360 / aspect, backgroundColor: '#000' }}>
-            <Image source={{ uri: stamp.uri }} style={StyleSheet.absoluteFill} contentFit="cover" onLoad={() => setTimeout(() => void captureStamp(), 60)} />
-            <View style={st.sign}>
-              <Text style={st.signText}>txill<Text style={{ color: colors.brand }}>a</Text>pp</Text>
-            </View>
-          </View>
-        </View>
+      {editing ? (
+        <PhotoEditor
+          uri={editing}
+          aspect={aspect}
+          onCancel={() => setEditing(null)}
+          onDone={(file) => { setEditing(null); onShot({ uri: file, video: false, mime: 'image/jpeg' }); }}
+        />
       ) : null}
-
       {review ? <Review shot={review} onRetake={() => setReview(null)} onUse={() => { const s = review; setReview(null); onShot(s); }} /> : null}
     </View>
   );
 }
 
-/** Depois de tirar: ver a foto ou o vídeo, repetir ou usar. */
+/** Depois de gravar: ver o vídeo, repetir ou usar. */
 function Review({ shot, onRetake, onUse }: { shot: Shot; onRetake: () => void; onUse: () => void }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', zIndex: 20 }]}>
-      {shot.video ? <ReviewVideo uri={shot.uri} /> : <Image source={{ uri: shot.uri }} style={StyleSheet.absoluteFill} contentFit="contain" />}
+      <ReviewVideo uri={shot.uri} />
       <View style={[st.reviewBar, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
         <Pressable onPress={onRetake} style={st.ghostBtn} accessibilityRole="button"><Icon name="undo" size={20} color="#fff" /><Text style={st.ghostText}>Repetir</Text></Pressable>
-        <Pressable onPress={onUse} style={st.useBtn} accessibilityRole="button"><Text style={st.useText}>{shot.video ? 'Usar vídeo' : 'Usar foto'}</Text><Icon name="check" size={20} color="#fff" strokeWidth={2.6} /></Pressable>
+        <Pressable onPress={onUse} style={st.useBtn} accessibilityRole="button"><Text style={st.useText}>Usar vídeo</Text><Icon name="check" size={20} color="#fff" strokeWidth={2.6} /></Pressable>
       </View>
     </View>
   );
@@ -396,38 +373,37 @@ function ReviewVideo({ uri }: { uri: string }) {
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
   center: { alignItems: 'center', justifyContent: 'center' },
-  card: { position: 'absolute', overflow: 'hidden', borderRadius: 22, backgroundColor: '#111' },
-  dim: { position: 'absolute', backgroundColor: 'rgba(0,0,0,0.42)' },
-  corner: { position: 'absolute', width: 30, height: 30, borderColor: colors.brand, opacity: 0.9 },
-  wordmark: { color: 'rgba(255,255,255,0.8)', fontSize: 15, fontWeight: '900', letterSpacing: -0.5 },
-  top: { position: 'absolute', left: 0, right: 0, top: 0, zIndex: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 },
-  round: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
-  rail: { position: 'absolute', left: 12, zIndex: 3, gap: 12 },
-  slash: { position: 'absolute', top: 10, left: -3, height: 2, borderRadius: 1, width: 28, backgroundColor: '#fff', transform: [{ rotate: '-45deg' }] },
+  view: { position: 'absolute', overflow: 'hidden', borderRadius: 24, backgroundColor: '#111' },
+  band: { position: 'absolute', left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.5)' },
+  topShade: { position: 'absolute', left: 0, right: 0, top: 0, height: 90, backgroundColor: 'rgba(0,0,0,0.18)' },
+  controls: { position: 'absolute', zIndex: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 12 },
+  round: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
+  roundOn: { backgroundColor: '#fcd34d' },
+  wordmark: { color: '#fff', fontSize: 16, fontWeight: '900', letterSpacing: -0.5, textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 6 },
+  slash: { position: 'absolute', top: 9, left: -3, height: 2, borderRadius: 1, width: 26, backgroundColor: '#fff', transform: [{ rotate: '-45deg' }] },
   auto: { position: 'absolute', right: -8, bottom: -6, fontSize: 10, fontWeight: '900', color: colors.zinc900 },
   delayBadge: { position: 'absolute', right: -4, bottom: -4, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   delayText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  rec: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 14, paddingVertical: 8 },
+  rec: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 14, paddingVertical: 7 },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#ef4444' },
   recText: { color: '#fff', fontWeight: '700', fontSize: 15, fontVariant: ['tabular-nums'] },
-  doneBtn: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.brand, paddingLeft: 16, paddingRight: 8 },
+  doneBtn: { position: 'absolute', zIndex: 6, height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.brand, paddingLeft: 16, paddingRight: 8 },
   doneCount: { minWidth: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.25)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  zoomBadge: { position: 'absolute', alignSelf: 'center', zIndex: 3, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 6 },
+  zoomBadge: { position: 'absolute', alignSelf: 'center', zIndex: 5, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 6 },
   zoomText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  countWrap: { position: 'absolute', zIndex: 5, alignItems: 'center', justifyContent: 'center' },
   countText: { fontSize: 120, fontWeight: '900', color: '#fff', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 20 },
-  bottom: { position: 'absolute', left: 0, right: 0, zIndex: 4, alignItems: 'center' },
-  hint: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600', marginBottom: 14, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 6 },
+  shutterWrap: { position: 'absolute', left: 0, right: 0, zIndex: 6, alignItems: 'center' },
+  hint: { height: 18, color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600', marginBottom: 12, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 6 },
   shutter: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center' },
   shutterRing: { position: 'absolute', left: 0, top: 0, width: 84, height: 84, borderRadius: 42, borderWidth: 4, borderColor: '#fff' },
   shutterIn: { width: 66, height: 66, borderRadius: 33, backgroundColor: '#fff' },
   shutterRec: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#ef4444' },
-  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 3, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 6, backgroundColor: '#000' },
+  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 4, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 6, backgroundColor: '#000' },
   galleryThumb: { width: 40, height: 40, borderRadius: 11, borderWidth: 2, borderColor: '#fff', overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
   kinds: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 14, paddingHorizontal: 4 },
   kindText: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
   kindOn: { color: '#fff' },
-  sign: { position: 'absolute', right: 10, bottom: 10, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.38)', paddingHorizontal: 9, paddingVertical: 3 },
-  signText: { color: '#fff', fontSize: 15, fontWeight: '900', letterSpacing: -0.4 },
   pTitle: { marginTop: 18, color: '#fff', fontSize: 20, fontWeight: '800', textAlign: 'center' },
   pSub: { marginTop: 8, color: 'rgba(255,255,255,0.75)', fontSize: 15, lineHeight: 21, textAlign: 'center' },
   cta: { marginTop: 22, height: 48, borderRadius: 24, paddingHorizontal: 26, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
