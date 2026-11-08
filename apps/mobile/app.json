@@ -2,7 +2,7 @@
   "expo": {
     "name": "Txillapp",
     "slug": "txillapp",
-    "version": "1.10.2",
+    "version": "1.11.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "txillapp",
@@ -35,7 +35,8 @@
         "ACCESS_FINE_LOCATION",
         "POST_NOTIFICATIONS",
         "VIBRATE"
-      ]
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",
@@ -75,6 +76,13 @@
             "photo",
             "video"
           ]
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#d6334f",
+          "defaultChannel": "txillapp"
         }
       ]
     ],

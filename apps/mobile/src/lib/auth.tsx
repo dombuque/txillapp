@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ApiError, api, migrateWebAccounts, refreshSession, refreshStore, setSessionExpiredHandler, type AuthResult, type PublicUser } from './api';
 import { accounts } from './accounts';
+import { unregisterNativePush } from './nativePush';
 
 interface AuthState {
   user: PublicUser | null;
@@ -90,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [qc]);
 
   const signOut = useCallback(async () => {
+    await unregisterNativePush(); // este telemóvel deixa de receber as notificações desta conta
     await api.logout();
     qc.clear(); // a próxima pessoa não vê dados da anterior
     // Com mais contas no aparelho, sair desta passa para a seguinte.

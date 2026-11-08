@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "861283195582",
+    "project_id": "txillapp-19502",
+    "storage_bucket": "txillapp-19502.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:861283195582:android:6121c26f34580d87cb9cef",
+        "android_client_info": {
+          "package_name": "com.txillapp.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCtaXbZgRqT-AtCtAr-5ApJ9AaPRbG1QCk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

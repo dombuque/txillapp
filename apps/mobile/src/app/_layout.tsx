@@ -10,6 +10,7 @@ import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'reac
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { AlertHost } from '@/components/AlertHost';
 import { AppUpdate } from '@/components/AppUpdate';
+import { PermissionsOnboarding } from '@/components/PermissionsOnboarding';
 import { DesktopShell } from '@/components/DesktopShell';
 import { isStandaloneWeb } from '@/components/Landing';
 import { useDesktop } from '@/lib/desktop';
@@ -171,6 +172,7 @@ function Gate() {
     <View style={shell ? styles.desk : styles.column}>
       <ChatLive />
       <AppUpdate />
+      <PermissionsOnboarding />
       {shell ? <DesktopShell>{stack}</DesktopShell> : stack}
     </View>
   );
