@@ -9,6 +9,7 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { VideoPreview } from '@/components/CarouselVideo';
+import { NativeCamera } from '@/components/NativeCamera';
 import { Icon, type IconName } from '@/components/Icon';
 import { LiveCamera, liveCameraSupported, type Shot } from '@/components/LiveCamera';
 import { MusicPicker } from '@/components/MusicPicker';
@@ -238,15 +239,27 @@ export default function Compose() {
   }
   function shot(s: Shot) {
     if (routeByKind(s)) return;
+    // Na web, num tcheka juntam-se as fotos e vídeos na câmara (o estúdio monta-os); no telemóvel segue logo para a publicação.
+    const collect = kindSel === 'tcheka' && web;
     if (s.video) {
       const v: Asset = { uri: s.uri, video: true, mime: videoMime(s.mime), durationMs: s.durationMs, tags: [] };
       setAssets((cur) => [...cur, v].slice(0, MAX_PHOTOS));
-      if (kindSel !== 'tcheka') { bumpKind(kindSel); setCameraOpen(false); setStep('write'); }
+      if (!collect) { bumpKind(kindSel); setCameraOpen(false); setStep('write'); }
     } else {
-      // Numa publicação a foto junta-se às outras (fotos e vídeos) e vai-se logo para a publicação; num tcheka juntam-se todos na câmara.
+      // Numa publicação a foto junta-se às outras (fotos e vídeos) e vai-se logo para a publicação.
       setAssets((cur) => [...cur, { uri: s.uri, video: false, mime: s.mime, tags: [] }].slice(0, MAX_PHOTOS));
-      if (kindSel !== 'tcheka') { bumpKind(kindSel); setCameraOpen(false); setStep('write'); }
+      if (!collect) { bumpKind(kindSel); setCameraOpen(false); setStep('write'); }
     }
+  }
+
+  /** Galeria no telemóvel: num mimo escolhe-se uma foto ou vídeo e vai direto ao editor do mimo; nos outros, junta-se à publicação. */
+  async function galleryNative() {
+    if (kindSel !== 'mimo') return add('library', 'photo');
+    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.85, videoMaxDuration: 60 });
+    const a = r.canceled ? null : r.assets[0];
+    if (!a) return;
+    const isVideo = a.type === 'video';
+    routeByKind({ uri: a.uri, video: isVideo, mime: isVideo ? videoMime(a.mimeType) : a.mimeType ?? 'image/jpeg', durationMs: a.duration ?? undefined });
   }
 
   /** Câmara/galeria do aparelho (nativo). */
@@ -278,10 +291,10 @@ export default function Compose() {
     }
   }
 
-  // Foto/Vídeo dentro do cartão: na web abre a câmara ao vivo; no nativo pergunta câmara ou galeria.
-  const pickPhoto = () => (web && liveCameraSupported() ? setCameraOpen(true) : setSourceOpen(true));
+  // Foto/Vídeo dentro do cartão: abre a câmara do Txillapp (no browser sem câmara, pergunta câmara ou galeria).
+  const pickPhoto = () => (!web || liveCameraSupported() ? setCameraOpen(true) : setSourceOpen(true));
   function pickVideo() {
-    if (web && liveCameraSupported()) setCameraOpen(true);
+    if (!web || liveCameraSupported()) setCameraOpen(true);
     else void add('library', 'video');
   }
 
@@ -342,7 +355,11 @@ export default function Compose() {
   const removeAsset = (uri: string) => setAssets((cur) => cur.filter((x) => x.uri !== uri));
   const cameraLayer = cameraOpen && (
     <View style={StyleSheet.absoluteFill}>
-      <LiveCamera count={assets.length} max={MAX_PHOTOS} onShot={shot} onGallery={(f) => { void addFiles(f); setCameraOpen(false); }} onClose={() => setCameraOpen(false)} onDone={() => { setCameraOpen(false); setStep('write'); }} />
+      {web ? (
+        <LiveCamera count={assets.length} max={MAX_PHOTOS} onShot={shot} onGallery={(f) => { void addFiles(f); setCameraOpen(false); }} onClose={() => setCameraOpen(false)} onDone={() => { setCameraOpen(false); setStep('write'); }} />
+      ) : (
+        <NativeCamera onShot={shot} onGallery={() => { setCameraOpen(false); void add('library', 'photo'); }} onClose={() => setCameraOpen(false)} aspect={kindSel === 'post' ? 4 / 5 : 9 / 16} />
+      )}
     </View>
   );
 
@@ -384,6 +401,26 @@ export default function Compose() {
           onKind={(k) => { setKindSel(k); if (k === 'zas' && !zasCounted.current) { zasCounted.current = true; bumpKind('zas'); } }}
         />
 
+        {err ? <Text style={[styles.err, { position: 'absolute', top: insets.top + 72, left: 0, right: 0, color: '#fff' }]} accessibilityRole="alert">{err}</Text> : null}
+      </View>
+    );
+  }
+
+  // Primeiro passo no telemóvel: a câmara do Txillapp, com os modos em baixo (como no site).
+  if (step === 'choose' && !web) {
+    if (kindSel === 'zas') return <View style={{ flex: 1, backgroundColor: '#000' }}><InstantsHub onClose={() => setKindSel(kinds.find((k) => k.id !== 'zas')!.id)} /></View>;
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        <NativeCamera
+          onShot={shot}
+          onGallery={() => void galleryNative()}
+          onClose={() => router.replace('/')}
+          onText={() => setStep('write')}
+          aspect={kindSel === 'post' ? 4 / 5 : 9 / 16}
+          kinds={kinds}
+          kind={kindSel}
+          onKind={(k) => { setKindSel(k); if (k === 'zas' && !zasCounted.current) { zasCounted.current = true; bumpKind('zas'); } }}
+        />
         {err ? <Text style={[styles.err, { position: 'absolute', top: insets.top + 72, left: 0, right: 0, color: '#fff' }]} accessibilityRole="alert">{err}</Text> : null}
       </View>
     );
