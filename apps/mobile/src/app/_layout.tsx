@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { AlertHost } from '@/components/AlertHost';
+import { AppUpdate } from '@/components/AppUpdate';
 import { DesktopShell } from '@/components/DesktopShell';
 import { isStandaloneWeb } from '@/components/Landing';
 import { useDesktop } from '@/lib/desktop';
@@ -169,6 +170,7 @@ function Gate() {
   return (
     <View style={shell ? styles.desk : styles.column}>
       <ChatLive />
+      <AppUpdate />
       {shell ? <DesktopShell>{stack}</DesktopShell> : stack}
     </View>
   );
