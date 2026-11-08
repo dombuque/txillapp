@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackButton } from '@/components/BackButton';
 import { Icon } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
+import { useDesktop } from '@/lib/desktop';
 import { api, isTcheka, type Page, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { enterImmersive, leaveImmersive } from '@/lib/immersive';
@@ -25,6 +26,7 @@ export default function ReelPage() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
+  const desktop = useDesktop();
   const [height, setHeight] = useState(0);
   const [active, setActive] = useState(0);
   const activeRef = useRef(0);
@@ -116,7 +118,7 @@ export default function ReelPage() {
         </View>
       )}
       {items.length > 0 && (
-        <View style={st.column} onLayout={(e: LayoutChangeEvent) => { const h = Math.round(e.nativeEvent.layout.height); if (h > 0) setHeight((o) => (Math.abs(o - h) >= 1 ? h : o)); }}>
+        <View style={[st.column, desktop && height > 0 && { maxWidth: Math.min(576, Math.round((height * 9) / 16)) }]} onLayout={(e: LayoutChangeEvent) => { const h = Math.round(e.nativeEvent.layout.height); if (h > 0) setHeight((o) => (Math.abs(o - h) >= 1 ? h : o)); }}>
           {height > 0 && (
             <FlatList
               ref={list}

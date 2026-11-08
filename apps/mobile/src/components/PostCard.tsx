@@ -117,7 +117,8 @@ type SheetState = null | 'menu' | 'comments' | 'repost' | 'share' | { gift: { us
 type GiftExtra = { recipient: { username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null } };
 
 function PostBody({ post, me, detail, openComments, highlightComment }: { post: Post; me?: string; detail?: boolean; openComments?: boolean; highlightComment?: string }) {
-  const { width } = useWindowDimensions();
+  // No computador a app vive numa coluna de 576 ao centro: as medidas saem dela, não da janela.
+  const width = Math.min(useWindowDimensions().width, 576);
   const router = useRouter();
   const patch = usePatch(post.id);
   const { burst, brindar } = useBrindar(post, patch);
@@ -421,11 +422,21 @@ function GiftedPost({ original, onOpen }: { original: Post; onOpen?: (p: Post) =
 }
 
 /** Fotos e vídeos: arredondados (12), no máximo 448 de altura, com contador, pontos e pessoas identificadas. Tocar numa foto abre-a inteira. */
-function Carousel({ media, width, reelId, onDouble, onOpen }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void; onOpen?: (index: number) => void }) {
+function Carousel({ media, width: guess, reelId, onDouble, onOpen }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void; onOpen?: (index: number) => void }) {
   const router = useRouter();
   const tap = useTap(onDouble);
   const [i, setI] = useState(0);
   const [showTags, setShowTags] = useState(false);
+  // A largura real do carrossel (o cartão muda de margens no feed, na página da publicação e no computador):
+  // cada foto ocupa exatamente uma página, senão aparecem bocados da seguinte.
+  const [measured, setMeasured] = useState(0);
+  const width = measured || guess;
+  const list = useRef<FlatList<Post['media'][number]>>(null);
+  // A largura mudou (janela redimensionada, rodar o ecrã): a foto atual volta a ficar alinhada.
+  useEffect(() => {
+    if (measured && i > 0) list.current?.scrollToOffset({ offset: i * measured, animated: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [measured]);
   if (media.length === 0) return null;
   const heightOf = (m: Post['media'][number]) => {
     const natural = m.width && m.height ? (width * m.height) / m.width : width;
@@ -443,8 +454,9 @@ function Carousel({ media, width, reelId, onDouble, onOpen }: { media: Post['med
   };
   return (
     <View style={{ marginTop: 12 }}>
-      <View style={{ borderRadius: 12, overflow: 'hidden', height: h, backgroundColor: colors.zinc100 }}>
+      <View onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && Math.abs(w - measured) > 1) setMeasured(w); }} style={{ borderRadius: 12, overflow: 'hidden', height: h, backgroundColor: colors.zinc100 }}>
         <FlatList
+          ref={list}
           data={media}
           horizontal
           pagingEnabled
@@ -452,7 +464,7 @@ function Carousel({ media, width, reelId, onDouble, onOpen }: { media: Post['med
           keyExtractor={(m) => m.url}
           onScroll={onScroll}
           scrollEventThrottle={32}
-          extraData={`${i}|${h}`}
+          extraData={`${i}|${h}|${width}`}
           renderItem={({ item: m, index }) => m.kind === 'video' && media.length > 1 ? (
             // Carrossel com fotos e vídeos: o vídeo toca ali mesmo (uma tcheka, vídeo sozinho, abre no ecrã da Tcheka).
             <CarouselVideo url={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={width} height={h} active={index === i} onDouble={onDouble} />

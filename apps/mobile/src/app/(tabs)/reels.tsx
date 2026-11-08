@@ -19,6 +19,7 @@ import { RichText } from '@/components/RichText';
 import { ShareSheet } from '@/components/ShareSheet';
 import { Sheet } from '@/components/Sheet';
 import { Wordmark } from '@/components/Wordmark';
+import { useDesktop } from '@/lib/desktop';
 import { api, isTcheka, post as postInit, raw, type Page, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
@@ -488,6 +489,7 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
 
 /** Reels: vídeos curtos em ecrã inteiro, um de cada vez. Desliza para cima para o seguinte. */
 export default function Reels() {
+  const desktop = useDesktop();
   const router = useRouter();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -573,7 +575,7 @@ export default function Reels() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <View style={st.column} onLayout={(e: LayoutChangeEvent) => { const h = Math.round(e.nativeEvent.layout.height); if (h > 0) setHeight((o) => (Math.abs(o - h) >= 1 ? h : o)); }}>
+      <View style={[st.column, desktop && height > 0 && { maxWidth: Math.min(576, Math.round((height * 9) / 16)) }]} onLayout={(e: LayoutChangeEvent) => { const h = Math.round(e.nativeEvent.layout.height); if (h > 0) setHeight((o) => (Math.abs(o - h) >= 1 ? h : o)); }}>
         {height > 0 && (
           <FlatList
             ref={list}
@@ -596,7 +598,7 @@ export default function Reels() {
             maxToRenderPerBatch={2}
             onScrollToIndexFailed={(info) => list.current?.scrollToOffset({ offset: info.index * height, animated: true })}
             renderItem={({ item, index }) => (
-              <Reel post={item} active={focused && index === active} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={76 + Math.max(insets.bottom, 8)} />
+              <Reel post={item} active={focused && index === active} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={desktop ? Math.max(insets.bottom, 16) : 76 + Math.max(insets.bottom, 8)} />
             )}
             onEndReached={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }}
             onEndReachedThreshold={1}

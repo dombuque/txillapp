@@ -18,6 +18,7 @@ import { WelcomeTour } from '@/components/WelcomeTour';
 import { Wordmark } from '@/components/Wordmark';
 import { api, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDesktop } from '@/lib/desktop';
 import { trackSeen } from '@/lib/seen';
 import { isSnoozed, shouldShowSuggestions } from '@/lib/suggestPacing';
 import { cardShadow, colors } from '@/lib/theme';
@@ -68,6 +69,7 @@ export default function Feed() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const desktop = useDesktop();
   // As sugestões de pessoas aparecem só às vezes entre os posts (ritmo neste aparelho).
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [snoozed, setSnoozed] = useState(true);
@@ -136,7 +138,7 @@ export default function Feed() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
-      <Header />
+      {desktop ? <View style={{ height: 16 }} /> : <Header />}
       <WelcomeTour />
       <PullView pull={pull}>
       {fresh > 0 && (

@@ -49,7 +49,9 @@ export default function Search() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const col = Math.min(width, 576);
+  // A largura real da página (no computador o Explorar é largo, até 935).
+  const [colW, setColW] = useState(0);
+  const col = colW || Math.min(width, 576);
   const [text, setText] = useState('');
   const [term, setTerm] = useState('');
   const [tab, setTab] = useState<'people' | 'tags' | 'posts' | 'mentions'>('people');
@@ -150,7 +152,7 @@ export default function Search() {
   const chipBase = { height: 40, borderRadius: 999, paddingHorizontal: 16, alignItems: 'center' as const, justifyContent: 'center' as const, flexDirection: 'row' as const, gap: 6 };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
+    <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && Math.abs(w - colW) > 1) setColW(w); }}>
       <View style={styles.bar}>
         <BackButton />
         <View style={styles.field}>

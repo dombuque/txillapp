@@ -136,7 +136,9 @@ export default function Compose() {
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
   const [draftsOpen, setDraftsOpen] = useState(false);
   const [restored, setRestored] = useState(false);
-  const { draft } = useLocalSearchParams<{ draft?: string }>();
+  const { draft, kind: kindParam, t: kindNonce } = useLocalSearchParams<{ draft?: string; kind?: string; t?: string }>();
+  // Vindo do atalho "Zás" (barra lateral no computador): abre logo o ecrã do Zás.
+  useEffect(() => { if (kindParam === 'zas') setKindSel('zas'); }, [kindParam, kindNonce]);
   const draftKey = useRef(draft || newDraftKey(user?.username ?? 'eu'));
   const settled = useRef(false);
   const first = user?.displayName.split(' ')[0] ?? '';

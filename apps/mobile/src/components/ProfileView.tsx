@@ -10,6 +10,7 @@ import Svg, { Path, Rect } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError, api, type Post, type ProfileTab } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDesktop } from '@/lib/desktop';
 import { sized } from '@/lib/config';
 import { cardShadow, colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
@@ -100,6 +101,10 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   const [sheet, setSheet] = useState<null | 'menu' | 'gift' | 'report' | 'edit' | 'requests' | 'qr' | 'block'>(null);
   const [geleiraOpen, setGeleiraOpen] = useState(false);
   const [rowW, setRowW] = useState(0);
+  const [gridW, setGridW] = useState(0);
+  // No computador o perfil é largo (grelha de 935): o cabeçalho fica numa coluna mais estreita, ao centro.
+  const desktop = useDesktop();
+  const deskCol = desktop ? { width: '100%' as const, maxWidth: 680, alignSelf: 'center' as const } : null;
   const bob = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(Animated.sequence([
@@ -163,19 +168,19 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   const header = (
     <View>
       {p.isMe ? (
-        <View style={styles.topMe}>
+        <View style={[styles.topMe, deskCol]}>
           <Text style={styles.handleTop}>@{p.username}</Text>
           <Pressable onPress={() => router.push('/settings' as never)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Definições e privacidade"><Icon name="menu" size={26} strokeWidth={2} /></Pressable>
         </View>
       ) : (
-        <View style={styles.topOther}>
+        <View style={[styles.topOther, deskCol]}>
           <BackButton />
           <Text style={[styles.handleTop, { flex: 1 }]} numberOfLines={1}>@{p.username}</Text>
           <Pressable onPress={() => setSheet('menu')} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={24} strokeWidth={2.4} /></Pressable>
         </View>
       )}
 
-      <View style={[styles.card, cardShadow]}>
+      <View style={[styles.card, cardShadow, deskCol]}>
         <View style={[styles.avRow, p.bio ? { marginTop: 56 } : null]}>
           {p.bio ? (
             <Animated.View style={[styles.bubble, { transform: [{ translateY: bob }] }]}>
@@ -276,7 +281,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           <Text style={styles.privateText}>{p.requested ? 'Pedido enviado. Quando aceitar, vês as publicações e stories.' : 'Segue para ver as publicações e stories.'}</Text>
         </View>
       ) : p.canView ? (
-        <View style={{ marginTop: 24, paddingHorizontal: 16 }}>
+        <View style={{ marginTop: 24, paddingHorizontal: 16 }} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && Math.abs(w - gridW) > 1) setGridW(w); }}>
           <View style={styles.tabs} accessibilityRole="tablist">
             {tabs.map((t) => (
               <Pressable key={t.id} onPress={() => setTab(t.id)} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id }} accessibilityLabel={t.label} style={[styles.tab, tab === t.id && { borderBottomColor: colors.zinc900 }]}>
@@ -294,7 +299,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
               {p.isMe && <Text style={styles.first} onPress={() => router.push('/new' as never)}>Faz a primeira!</Text>}
             </View>
           )}
-          <Grid posts={items} onOpen={openPost} width={Math.min(width, 576)} />
+          <Grid posts={items} onOpen={openPost} width={gridW || Math.min(width, 576)} />
           {posts.hasNextPage && (
             <Pressable onPress={() => void posts.fetchNextPage()} disabled={posts.isFetchingNextPage} style={[styles.ghost, { alignSelf: 'center', marginTop: 16 }]}>
               {posts.isFetchingNextPage ? <ActivityIndicator color={colors.brand} /> : <Text style={styles.ghostText}>Ver mais</Text>}

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { Animated, Dimensions, Keyboard, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
+import { useDesktop } from '@/lib/desktop';
 
 /** Os conteúdos rolantes avisam a folha de onde estão (só se fecha a arrastar quando estão no topo). */
 const ScrollCtx = createContext<{ top: React.MutableRefObject<boolean> } | null>(null);
@@ -28,6 +29,8 @@ export function Sheet({ title, onClose, children, full = false, plain = false }:
     };
   }, [y]);
 
+  // No computador a folha abre ao centro, como uma janela (sem a pega de arrastar).
+  const desktop = useDesktop();
   const close = () => Animated.timing(y, { toValue: h, duration: 180, useNativeDriver: Platform.OS !== 'web' }).start(() => onClose());
 
   const pan = useRef(
@@ -55,16 +58,16 @@ export function Sheet({ title, onClose, children, full = false, plain = false }:
 
   return (
     <Modal transparent visible animationType="none" onRequestClose={close} statusBarTranslucent>
-      <View style={styles.root}>
+      <View style={[styles.root, desktop && { justifyContent: 'center', padding: 24 }]}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: backdrop }]} />
         <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Fechar" />
         <Animated.View
-          {...pan.panHandlers}
-          style={[styles.sheet, full ? { height: Math.round(h * 0.78) } : { maxHeight: Math.round(h * 0.85) }, { paddingBottom: Math.max(insets.bottom, 16) + (kb ? kb - insets.bottom : 0), transform: [{ translateY: y }] }]}
+          {...(desktop ? {} : pan.panHandlers)}
+          style={[styles.sheet, full ? { height: Math.round(h * 0.78) } : { maxHeight: Math.round(h * 0.85) }, { paddingBottom: Math.max(insets.bottom, 16) + (kb ? kb - insets.bottom : 0), transform: [{ translateY: y }] }, desktop && { maxWidth: 540, borderRadius: 24, paddingBottom: 20, transform: [{ translateY: Animated.multiply(y, 0.15) }] }]}
           accessibilityViewIsModal
         >
           <ScrollCtx.Provider value={{ top: atTop }}>
-            <View style={styles.handle} />
+            {desktop ? <View style={{ height: 8 }} /> : <View style={styles.handle} />}
             {title && !plain ? (
               <View style={styles.head}>
                 <Text style={styles.title}>{title}</Text>

@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { accounts } from '@/lib/accounts';
+import { useDesktop } from '@/lib/desktop';
 import { emitTabPress } from '@/lib/tabPress';
 import { Avatar } from './Avatar';
 import { Icon, type IconName } from './Icon';
@@ -31,13 +32,15 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
 
   // Na câmara / nova publicação a barra de baixo desaparece: fica só o menu da própria câmara.
   const onNew = state.routes[state.index]?.name === 'new';
+  // No computador a navegação está na barra lateral.
+  const desktop = useDesktop();
 
   const press = (focused: boolean, key: string) => {
     if (!focused) navigateToTab(key);
     else emitTabPress(state.routes.find((r) => r.key === key)?.name ?? '');
   };
 
-  if (onNew) return null;
+  if (onNew || desktop) return null;
 
   return (
     <View style={[styles.floatWrap, { bottom: Math.max(insets.bottom, 8) }]} pointerEvents="box-none">

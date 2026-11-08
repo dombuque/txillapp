@@ -9,6 +9,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { AlertHost } from '@/components/AlertHost';
+import { DesktopShell } from '@/components/DesktopShell';
+import { useDesktop } from '@/lib/desktop';
 import { installWebAlert } from '@/lib/alertHost';
 import { accounts } from '@/lib/accounts';
 import { syncPush } from '@/lib/push';
@@ -79,6 +81,7 @@ function Gate() {
   const { user, loading, offline, retry } = useAuth();
   const router = useRouter();
   const segments = useSegments();
+  const desktop = useDesktop();
 
   useEffect(() => {
     if (!loading) void SplashScreen.hideAsync();
@@ -127,9 +130,10 @@ function Gate() {
       </View>
     );
   }
-  return (
-    <View style={styles.column}>
-      <ChatLive />
+  // Modo computador (browser largo, com sessão, fora das páginas de entrada e das páginas públicas): barra lateral e conteúdo largo.
+  const outside = ['login', 'register', 'forgot-password', 'google-username', 'verify-email', 'reset-password', 'terms', 'privacy'].includes(segments[0] ?? '');
+  const shell = desktop && !!user && !outside;
+  const stack = (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.white } }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="login" options={{ animation: 'fade' }} />
@@ -152,6 +156,11 @@ function Gate() {
       <Stack.Screen name="stories/[username]" options={{ animation: 'fade' }} />
       <Stack.Screen name="stories/new" options={{ animation: 'slide_from_bottom' }} />
     </Stack>
+  );
+  return (
+    <View style={shell ? styles.desk : styles.column}>
+      <ChatLive />
+      {shell ? <DesktopShell>{stack}</DesktopShell> : stack}
     </View>
   );
 }
@@ -177,6 +186,8 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   /** Na web (ecrãs largos) a app fica numa coluna de 576 px ao centro, como o site (max-w-xl). */
   column: { flex: 1, width: '100%', maxWidth: 576, alignSelf: 'center' },
+  /** No computador (com sessão) a app ocupa a janela toda: barra lateral à esquerda e o conteúdo com a largura de cada ecrã. */
+  desk: { flex: 1, width: '100%' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white, padding: 32, gap: 10 },
   title: { fontSize: 22, fontWeight: '800', color: colors.zinc900 },
   sub: { fontSize: 15, color: colors.zinc500, textAlign: 'center' },
