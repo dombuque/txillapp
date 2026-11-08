@@ -93,19 +93,31 @@ describe('vídeos curtos (conversão, verificação e publicação)', () => {
     expect(post.media[0]).toMatchObject({ kind: 'video', url: `/api/v1/media/${id}`, posterUrl: `/api/v1/media/${id}?poster=1`, width: 320, height: 240 });
     expect(post.media[0].durationMs).toBeGreaterThan(2500);
 
-    // um vídeo por publicação, sozinho; não se reutiliza
+    // não se reutiliza
+    await api().post('/api/v1/posts').set(auth()).send({ body: 'x', mediaIds: [id] }).expect(400); // já usado
+
+    // fotos e vídeos juntos (carrossel): aceite; fica nas Publicações do perfil e não nas Tchekas
     const id2 = await upload(makeVideo(2, 'dois'));
     await convert(id2);
-    await api().post('/api/v1/posts').set(auth()).send({ body: 'x', mediaIds: [id, id2] }).expect(400);
-    await api().post('/api/v1/posts').set(auth()).send({ body: 'x', mediaIds: [id] }).expect(400); // já usado
+    const dir = mkdtempSync(join(tmpdir(), 'txill-png-'));
+    execFileSync(FF, ['-y', '-f', 'lavfi', '-i', 'color=c=red:s=64x64', '-frames:v', '1', join(dir, 'f.png')], { stdio: 'ignore' });
+    const photo = await upload(readFileSync(join(dir, 'f.png')), 'image/png');
+    const mixed = (await api().post('/api/v1/posts').set(auth()).send({ body: 'foto e vídeo', mediaIds: [photo, id2] }).expect(201)).body;
+    expect(mixed.media.map((m: { kind: string }) => m.kind)).toEqual(['image', 'video']);
+    const tab = async (t: string) => ((await api().get(`/api/v1/users/${u.username}/posts?tab=${t}`).set(auth()).expect(200)).body.items as { id: string }[]).map((x) => x.id);
+    expect(await tab('reels')).toContain(post.id);
+    expect(await tab('reels')).not.toContain(mixed.id);
+    expect(await tab('posts')).toContain(mixed.id);
+    expect(await tab('posts')).not.toContain(post.id);
 
     // aparece nos Reels de outra pessoa
     const other = `vio${run}`.slice(0, 28);
     const r = await api().post('/api/v1/auth/register').send({ email: `${other}@example.com`, username: other, displayName: 'Outro', password: PASSWORD, birthDate: '1990-06-15', acceptTerms: true }).expect(201);
     const reels = (await api().get('/api/v1/feed/reels?limit=15').set({ Authorization: `Bearer ${r.body.accessToken}` }).expect(200)).body.items as { id: string; media: { kind: string }[] }[];
     expect(reels.length).toBeGreaterThan(0);
-    expect(reels.every((x) => x.media[0]?.kind === 'video')).toBe(true); // só vídeos
+    expect(reels.every((x) => x.media.length === 1 && x.media[0]?.kind === 'video')).toBe(true); // só tchekas (um vídeo)
     expect(reels.map((x) => x.id)).toContain(post.id);
+    expect(reels.map((x) => x.id)).not.toContain(mixed.id);
   }, 120_000);
 
   it('recusa vídeos com mais de 60 s, ficheiros que não são vídeo e vídeos impróprios', async () => {

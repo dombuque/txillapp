@@ -70,26 +70,31 @@ async function run(id: string, qc: QueryClient) {
   const sent = [...t.sent];
   try {
     const n = t.job.assets.length;
+    // Primeiro envia-se tudo; os vídeos convertem no servidor enquanto os outros ficheiros sobem.
+    const pending: { i: number; state: MediaState }[] = [];
     for (let i = 0; i < n; i++) {
       const known = sent[i];
       if (known) {
-        // Já foi enviado numa tentativa anterior: basta saber se ficou pronto (se o servidor o recusou, envia-se de novo).
-        try {
-          await waitMediaReady(known, (await raw(`/media/${known}/status`)) as MediaState, () => patch(id, { stage: 'prepare' }));
-          continue;
-        } catch (e) {
-          const s = (e as ApiError).status;
-          if (s !== 422 && s !== 404) throw e; // sem rede ou ainda a converter: fica para a próxima tentativa
-          sent[i] = undefined;
-        }
+        // Já foi enviado numa tentativa anterior: se o servidor o recusou ou perdeu, envia-se de novo.
+        let state: MediaState | null = null;
+        try { state = (await raw(`/media/${known}/status`)) as MediaState; } catch (e) { if ((e as ApiError).status !== 404) throw e; }
+        if (state && state.status !== 'deleted') { pending.push({ i, state }); continue; }
+        sent[i] = undefined;
       }
       patch(id, { stage: 'upload' });
       const { assetId, state } = await uploadWithProgress(t.job.assets[i], (p) => patch(id, { progress: (i + p) / n }));
       sent[i] = assetId;
-      patch(id, { sent: [...sent] });
-      // Um vídeo é convertido no servidor (MP4, até 60 s): a publicação só pode ser criada quando ele estiver pronto.
-      await waitMediaReady(assetId, state, () => patch(id, { stage: 'prepare' }));
-      patch(id, { progress: (i + 1) / n });
+      patch(id, { sent: [...sent], progress: (i + 1) / n });
+      pending.push({ i, state });
+    }
+    // Um vídeo é convertido no servidor (MP4, até 60 s): a publicação só pode ser criada quando todos estiverem prontos.
+    for (const p of pending) {
+      try {
+        await waitMediaReady(sent[p.i]!, p.state, () => patch(id, { stage: 'prepare' }));
+      } catch (e) {
+        if ((e as ApiError).status === 422) sent[p.i] = undefined; // recusado: na próxima tentativa envia-se de novo
+        throw e;
+      }
     }
     patch(id, { progress: 1, stage: 'post' });
     await composeApi.createPost({ ...t.job.post, mediaIds: sent as string[] });

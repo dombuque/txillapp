@@ -19,7 +19,7 @@ import { RichText } from '@/components/RichText';
 import { ShareSheet } from '@/components/ShareSheet';
 import { Sheet } from '@/components/Sheet';
 import { Wordmark } from '@/components/Wordmark';
-import { api, post as postInit, raw, type Page, type Post } from '@/lib/api';
+import { api, isTcheka, post as postInit, raw, type Page, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
 import { colors } from '@/lib/theme';
@@ -515,9 +515,9 @@ export default function Reels() {
   // Vindo de uma ligação com ?start=<id>: esse reel passa à frente e os outros seguem-se.
   const startPost = useQuery({ queryKey: ['post', startId], queryFn: () => api.getPost(startId!), enabled: !!startId, retry: false });
   const listed = q.data?.pages.flatMap((p) => p.items) ?? [];
-  const lead = startPost.data && startPost.data.media[0]?.kind === 'video' ? [startPost.data] : [];
+  const lead = startPost.data && isTcheka(startPost.data) ? [startPost.data] : [];
   const seen = new Set<string>();
-  const items = (startId && startPost.isLoading ? [] : [...lead, ...listed]).filter((p) => p.media[0]?.kind === 'video' && !seen.has(p.id) && !!seen.add(p.id));
+  const items = (startId && startPost.isLoading ? [] : [...lead, ...listed]).filter((p) => isTcheka(p) && !seen.has(p.id) && !!seen.add(p.id));
 
   function patch(id: string, p: Partial<Post>) {
     qc.setQueryData<InfiniteData<Page<Post>>>(['reels'], (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map((i) => (i.id === id ? { ...i, ...p } : i)) })) });

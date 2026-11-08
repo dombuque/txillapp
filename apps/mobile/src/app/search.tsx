@@ -15,7 +15,7 @@ import { Icon } from '@/components/Icon';
 import { Suggestions } from '@/components/Suggestions';
 import { Bolt, SuperTxillPanel } from '@/components/SuperTxillPanel';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
-import { api, type Post } from '@/lib/api';
+import { api, isTcheka, type Post } from '@/lib/api';
 import { sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
@@ -139,7 +139,7 @@ export default function Search() {
           return (
             <Pressable key={p.id} onPress={() => setViewing(p.id)} style={{ position: 'absolute', left: c * (cell + 2), top: r * (cell + 2), width: size, height: size, backgroundColor: colors.rose50 }} accessibilityRole="button" accessibilityLabel={`Abrir publicação de ${p.author.displayName}`}>
               <Image source={{ uri: sized(m.kind === 'video' ? m.posterUrl ?? m.url : m.url, w > 1 ? 720 : 360) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} accessibilityIgnoresInvertColors />
-              {m.kind === 'video' ? <View style={styles.tag}><Icon name="film" size={18} color="#fff" /></View> : p.media.length > 1 ? <View style={styles.tag}><Icon name="images" size={18} color="#fff" /></View> : null}
+              {isTcheka(p) ? <View style={styles.tag}><Icon name="film" size={18} color="#fff" /></View> : p.media.length > 1 ? <View style={styles.tag}><Icon name="images" size={18} color="#fff" /></View> : null}
             </Pressable>
           );
         })}

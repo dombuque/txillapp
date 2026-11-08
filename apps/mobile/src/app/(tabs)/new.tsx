@@ -8,6 +8,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
+import { VideoPreview } from '@/components/CarouselVideo';
 import { Icon, type IconName } from '@/components/Icon';
 import { LiveCamera, liveCameraSupported, type Shot } from '@/components/LiveCamera';
 import { MusicPicker } from '@/components/MusicPicker';
@@ -131,6 +132,7 @@ export default function Compose() {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [tagging, setTagging] = useState<number | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
+  const [playing, setPlaying] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
   const [draftsOpen, setDraftsOpen] = useState(false);
   const [restored, setRestored] = useState(false);
@@ -216,19 +218,10 @@ export default function Compose() {
         count += 1;
       }
     }
-    if (kindSel !== 'tcheka' && next.some((a) => a.video) && (next.length > 1 || assets.length > 0)) {
-      const v = next.find((a) => a.video)!;
-      for (const a of next) if (a !== v) URL.revokeObjectURL(a.uri);
-      next.splice(0, next.length, v);
-      problem = 'Uma publicação com vídeo leva só esse vídeo. Para juntar vários, usa a Tcheka.';
-      setErr(problem);
-      setAssets([v]);
-      setStep('write');
-      return;
-    }
     setErr(problem);
     if (next.length) {
-      setAssets((cur) => (kindSel !== 'tcheka' ? [...cur.filter((a) => !a.video), ...next] : [...cur, ...next]).slice(0, MAX_PHOTOS));
+      // Fotos e vídeos podem ir juntos na mesma publicação (carrossel), até 10.
+      setAssets((cur) => [...cur, ...next].slice(0, MAX_PHOTOS));
       if (kindSel !== 'tcheka') setStep('write');
     }
   }
@@ -244,13 +237,12 @@ export default function Compose() {
   function shot(s: Shot) {
     if (routeByKind(s)) return;
     if (s.video) {
-      // Numa publicação o vídeo vai sozinho; num tcheka junta-se aos outros.
       const v: Asset = { uri: s.uri, video: true, mime: videoMime(s.mime), durationMs: s.durationMs, tags: [] };
-      setAssets((cur) => (kindSel === 'tcheka' ? [...cur, v].slice(0, MAX_PHOTOS) : [v]));
+      setAssets((cur) => [...cur, v].slice(0, MAX_PHOTOS));
       if (kindSel !== 'tcheka') { bumpKind(kindSel); setCameraOpen(false); setStep('write'); }
     } else {
-      // Numa publicação, uma foto substitui um vídeo (não se misturam) e vai-se logo para a publicação; num tcheka juntam-se todos na câmara.
-      setAssets((cur) => [...(kindSel === 'tcheka' ? cur : cur.filter((a) => !a.video)), { uri: s.uri, video: false, mime: s.mime, tags: [] }].slice(0, MAX_PHOTOS));
+      // Numa publicação a foto junta-se às outras (fotos e vídeos) e vai-se logo para a publicação; num tcheka juntam-se todos na câmara.
+      setAssets((cur) => [...cur, { uri: s.uri, video: false, mime: s.mime, tags: [] }].slice(0, MAX_PHOTOS));
       if (kindSel !== 'tcheka') { bumpKind(kindSel); setCameraOpen(false); setStep('write'); }
     }
   }
@@ -264,16 +256,20 @@ export default function Compose() {
         if (!p.granted) return setErr('Sem permissão para a câmara. Ativa-a nas definições.');
       }
       const opts: ImagePicker.ImagePickerOptions = {
-        mediaTypes: kind === 'video' ? ['videos'] : ['images'],
+        mediaTypes: kind === 'video' ? ['videos'] : source === 'library' ? ['images', 'videos'] : ['images'],
         quality: 0.85,
         videoMaxDuration: 60,
         allowsMultipleSelection: source === 'library' && kind === 'photo',
-        selectionLimit: Math.max(1, MAX_PHOTOS - photos.length),
+        selectionLimit: Math.max(1, MAX_PHOTOS - assets.length),
       };
       const r = await (source === 'camera' ? ImagePicker.launchCameraAsync(opts) : ImagePicker.launchImageLibraryAsync(opts));
       if (r.canceled) return;
       const next = r.assets.map((a): Asset => ({ uri: a.uri, video: a.type === 'video', mime: a.type === 'video' ? videoMime(a.mimeType) : a.mimeType ?? 'image/jpeg', durationMs: a.duration ?? undefined, tags: [] }));
-      setAssets((cur) => (kind === 'video' ? next.slice(0, 1) : [...cur.filter((a) => !a.video), ...next].slice(0, MAX_PHOTOS)));
+      // Vídeos com mais de 60 s ficam de fora (o servidor recusa-os).
+      const ok = next.filter((a) => !a.video || !a.durationMs || a.durationMs <= 60_500);
+      if (ok.length < next.length) setErr('Os vídeos têm de ter até 60 segundos. Deixei de fora os mais longos.');
+      if (!ok.length) return;
+      setAssets((cur) => [...cur, ...ok].slice(0, MAX_PHOTOS));
       setStep('write');
     } catch (e) {
       setErr((e as Error).message || 'Não consegui abrir a câmara');
@@ -344,7 +340,7 @@ export default function Compose() {
   const removeAsset = (uri: string) => setAssets((cur) => cur.filter((x) => x.uri !== uri));
   const cameraLayer = cameraOpen && (
     <View style={StyleSheet.absoluteFill}>
-      <LiveCamera count={photos.length} max={MAX_PHOTOS} onShot={shot} onGallery={(f) => { void addFiles(f); setCameraOpen(false); }} onClose={() => setCameraOpen(false)} onDone={() => { setCameraOpen(false); setStep('write'); }} />
+      <LiveCamera count={assets.length} max={MAX_PHOTOS} onShot={shot} onGallery={(f) => { void addFiles(f); setCameraOpen(false); }} onClose={() => setCameraOpen(false)} onDone={() => { setCameraOpen(false); setStep('write'); }} />
     </View>
   );
 
@@ -367,7 +363,7 @@ export default function Compose() {
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <LiveCamera
-          count={photos.length}
+          count={assets.length}
           max={MAX_PHOTOS}
           onShot={shot}
           onGallery={(f) => {
@@ -404,7 +400,7 @@ export default function Compose() {
           <Text style={styles.helloSub}>Escolhe um para começar. Podes sempre juntar mais depois.</Text>
           <View style={styles.grid}>
             <Tile icon="camera" title="Tirar foto" sub="Câmara" tone={[colors.brand, '#ff8a5b']} onPress={() => void add('camera', 'photo')} />
-            <Tile icon="image" title="Galeria" sub="Até 10 fotos" tone={['#6366f1', '#a855f7']} onPress={() => void add('library', 'photo')} />
+            <Tile icon="image" title="Galeria" sub="Fotos e vídeos, até 10" tone={['#6366f1', '#a855f7']} onPress={() => void add('library', 'photo')} />
             <Tile icon="video" title="Vídeo" sub="Até 60 s" tone={['#0ea5e9', '#22d3ee']} onPress={() => void add('library', 'video')} />
             <Tile icon="pencil" title="Só texto" sub="Uma ideia, um desabafo" tone={['#18181b', '#52525b']} onPress={() => setStep('write')} />
           </View>
@@ -425,7 +421,7 @@ export default function Compose() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.canvas, paddingTop: insets.top }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.top}>
         <Pressable onPress={leave} style={styles.x} accessibilityRole="button" accessibilityLabel="Cancelar"><Icon name="x" size={24} strokeWidth={2} /></Pressable>
-        <Text style={styles.title}>{video && photos.length === 0 ? 'Nova tcheka' : 'Nova publicação'}</Text>
+        <Text style={styles.title}>{assets.length === 1 && video ? 'Nova tcheka' : 'Nova publicação'}</Text>
         <Pressable onPress={() => void submit()} disabled={!canPost} style={[styles.publish, !canPost && { backgroundColor: 'rgba(214,51,79,0.4)' }]} accessibilityRole="button">
           {busy ? <ActivityIndicator color="#fff" size="small" style={{ height: 28 }} /> : <Text style={styles.publishText}>Publicar</Text>}
         </Pressable>
@@ -480,7 +476,7 @@ export default function Compose() {
             {left < 200 ? <Text style={[styles.left, left < 50 && { color: colors.brand, fontWeight: '600' }]} accessibilityLiveRegion="polite">{left}</Text> : null}
           </View>
 
-          {video ? (
+          {assets.length === 1 && video ? (
             <View style={styles.video}>
               {web ? createElement('video', { src: video.uri, controls: true, playsInline: true, preload: 'metadata', style: { width: '100%', maxHeight: 320, objectFit: 'contain', display: 'block' } }) : (
                 <View style={{ height: 220, alignItems: 'center', justifyContent: 'center' }}>
@@ -492,26 +488,39 @@ export default function Compose() {
             </View>
           ) : null}
 
-          {photos.length > 0 ? (
+          {assets.length > 0 && !(assets.length === 1 && video) ? (
             <View style={styles.grid2}>
-              {photos.map((a, i) => {
-                const span = photos.length === 1 || (i === 0 && photos.length % 2 === 1);
+              {assets.map((a, i) => {
+                const n = assets.length;
+                const span = n === 1 || (i === 0 && n % 2 === 1);
+                const photoIndex = photos.indexOf(a);
                 return (
-                  <View key={a.uri} style={[styles.thumb, span ? { width: '100%', aspectRatio: photos.length === 1 ? 4 / 3 : 16 / 10 } : { width: '49%', aspectRatio: 1 }]}>
-                    <Pressable onPress={() => setViewing(i)} style={StyleSheet.absoluteFill} accessibilityRole="imagebutton" accessibilityLabel={`Ver a foto ${i + 1}`}>
-                      <Image source={{ uri: a.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
-                    </Pressable>
-                    {i === 0 && photos.length > 1 ? <View style={styles.cover}><Text style={styles.coverText}>Capa</Text></View> : null}
-                    <Pressable onPress={() => setTagging(assets.indexOf(a))} style={styles.tagBtn} accessibilityRole="button" accessibilityLabel={`Identificar pessoas na foto ${i + 1}`}>
-                      <Icon name="users" size={16} color="#fff" />
-                      <Text style={styles.tagBtnText}>{a.tags.length ? a.tags.length : 'Identificar'}</Text>
-                    </Pressable>
-                    <Pressable onPress={() => removeAsset(a.uri)} style={styles.remove} accessibilityRole="button" accessibilityLabel={`Tirar a foto ${i + 1}`}><Icon name="x" size={16} color="#fff" /></Pressable>
+                  <View key={a.uri} style={[styles.thumb, span ? { width: '100%', aspectRatio: n === 1 ? 4 / 3 : 16 / 10 } : { width: '49%', aspectRatio: 1 }]}>
+                    {a.video ? (
+                      <Pressable onPress={() => setPlaying(a.uri)} style={[StyleSheet.absoluteFill, { backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }]} accessibilityRole="button" accessibilityLabel={`Ver o vídeo ${i + 1}`}>
+                        {web ? createElement('video', { src: `${a.uri}#t=0.1`, muted: true, playsInline: true, preload: 'metadata', style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' } }) : null}
+                        <View style={styles.playDot}><Icon name="play" size={22} color="#fff" solid /></View>
+                        {a.durationMs ? <View style={styles.dur}><Icon name="video" size={12} color="#fff" /><Text style={styles.coverText}>{Math.round(a.durationMs / 1000)} s</Text></View> : null}
+                      </Pressable>
+                    ) : (
+                      <>
+                        <Pressable onPress={() => setViewing(photoIndex)} style={StyleSheet.absoluteFill} accessibilityRole="imagebutton" accessibilityLabel={`Ver a foto ${i + 1}`}>
+                          <Image source={{ uri: a.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                        </Pressable>
+                        <Pressable onPress={() => setTagging(i)} style={styles.tagBtn} accessibilityRole="button" accessibilityLabel={`Identificar pessoas na foto ${i + 1}`}>
+                          <Icon name="users" size={16} color="#fff" />
+                          <Text style={styles.tagBtnText}>{a.tags.length ? a.tags.length : 'Identificar'}</Text>
+                        </Pressable>
+                      </>
+                    )}
+                    {i === 0 && n > 1 ? <View style={styles.cover}><Text style={styles.coverText}>Capa</Text></View> : null}
+                    <Pressable onPress={() => removeAsset(a.uri)} style={styles.remove} accessibilityRole="button" accessibilityLabel={a.video ? `Tirar o vídeo ${i + 1}` : `Tirar a foto ${i + 1}`}><Icon name="x" size={16} color="#fff" /></Pressable>
                   </View>
                 );
               })}
             </View>
           ) : null}
+          {playing ? <VideoPreview uri={playing} onClose={() => setPlaying(null)} /> : null}
 
           <View style={styles.chips}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -621,7 +630,9 @@ const styles = StyleSheet.create({
   video: { marginHorizontal: 20, marginTop: 4, marginBottom: 8, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000' },
   grid2: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8, paddingHorizontal: 20, paddingTop: 4, paddingBottom: 8 },
   thumb: { borderRadius: 16, overflow: 'hidden', backgroundColor: colors.zinc200 },
-  cover: { position: 'absolute', left: 8, bottom: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 2 },
+  playDot: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
+  dur: { position: 'absolute', left: 8, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 4 },
+  cover: { position: 'absolute', left: 8, top: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 2 },
   coverText: { color: '#fff', fontSize: 11, fontWeight: '600' },
   tagBtn: { position: 'absolute', left: 8, bottom: 8, height: 32, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10 },
   tagBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },

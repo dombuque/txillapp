@@ -148,7 +148,7 @@ export default function Insights() {
                 <Text style={st.bold}>Publicações em destaque</Text>
                 <View style={{ marginTop: 8 }}>
                   {d.top.map((p, i) => (
-                    <Pressable key={p.id} onPress={() => router.push((p.video ? `/r/${p.code}` : `/p/${p.code}`) as never)} accessibilityRole="button" style={({ pressed }) => [st.top, i > 0 && { borderTopWidth: 1, borderTopColor: colors.zinc100 }, pressed && { backgroundColor: '#fafafa' }]}>
+                    <Pressable key={p.id} onPress={() => router.push(((p.tcheka ?? p.video) ? `/r/${p.code}` : `/p/${p.code}`) as never)} accessibilityRole="button" style={({ pressed }) => [st.top, i > 0 && { borderTopWidth: 1, borderTopColor: colors.zinc100 }, pressed && { backgroundColor: '#fafafa' }]}>
                       {p.mediaUrl ? (
                         <Image source={{ uri: abs(p.mediaUrl) }} style={st.thumb} contentFit="cover" />
                       ) : (

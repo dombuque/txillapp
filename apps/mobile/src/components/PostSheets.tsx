@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { useRef, useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ApiError, api, type Post } from '@/lib/api';
+import { ApiError, api, isTcheka, type Post } from '@/lib/api';
 import { SITE_URL } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { BookmarkIcon } from './BookmarkIcon';
@@ -17,7 +17,7 @@ const OPTIONS: { value: 'silent' | 'private' | 'public'; icon: IconName; title: 
   { value: 'public', icon: 'megaphone', title: 'No feed', text: 'Post "presenteou" para a malta ver.' },
 ];
 
-export const postLink = (post: { code: string; media: { kind?: string }[] }) => `${SITE_URL || 'https://txillapp.com'}/${post.media[0]?.kind === 'video' ? 'r' : 'p'}/${post.code}`;
+export const postLink = (post: { code: string; media: { kind?: string }[] }) => `${SITE_URL || 'https://txillapp.com'}/${isTcheka(post) ? 'r' : 'p'}/${post.code}`;
 
 export function MenuRow({ icon, title, text, onPress, disabled }: { icon: ReactNode; title: string; text: string; onPress: () => void; disabled?: boolean }) {
   return (

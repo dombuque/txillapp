@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackButton } from '@/components/BackButton';
 import { Icon } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
-import { api, type Page, type Post } from '@/lib/api';
+import { api, isTcheka, type Page, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { enterImmersive, leaveImmersive } from '@/lib/immersive';
 import { Reel } from '../(tabs)/reels';
@@ -34,7 +34,7 @@ export default function ReelPage() {
 
   const q = useQuery({ queryKey: ['post', id], queryFn: () => api.getPost(id), retry: false });
   const opened = q.data ? (q.data.kind === 'repost' && q.data.repostOf ? q.data.repostOf : q.data) : null;
-  const isVideo = opened?.media[0]?.kind === 'video';
+  const isVideo = isTcheka(opened);
   // As sugestões que se seguem (o mesmo algoritmo da Tcheka), sem repetir a que abriste.
   const more = useInfiniteQuery({
     queryKey: ['reels'],
@@ -44,7 +44,7 @@ export default function ReelPage() {
     enabled: !!opened && !!isVideo,
   });
   const seen = new Set<string>();
-  const items: Post[] = (opened && isVideo ? [opened, ...(more.data?.pages.flatMap((p) => p.items) ?? [])] : []).filter((p) => p.media[0]?.kind === 'video' && !seen.has(p.id) && !!seen.add(p.id));
+  const items: Post[] = (opened && isVideo ? [opened, ...(more.data?.pages.flatMap((p) => p.items) ?? [])] : []).filter((p) => isTcheka(p) && !seen.has(p.id) && !!seen.add(p.id));
 
   const patch = (pid: string, c: Partial<Post>) => {
     if (opened && pid === opened.id) qc.setQueryData(['post', id], (d: Post | undefined) => (d ? { ...d, ...c } : d));
@@ -52,7 +52,7 @@ export default function ReelPage() {
   };
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
-  // Uma publicação que não é vídeo abre como publicação normal.
+  // Uma publicação que não é tcheka (fotos, texto, ou fotos e vídeos juntos) abre como publicação normal.
   useEffect(() => {
     if (opened && !isVideo) router.replace(`/p/${opened.id}` as never);
   }, [opened, isVideo, router]);

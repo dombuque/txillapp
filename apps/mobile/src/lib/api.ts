@@ -9,6 +9,8 @@ export interface PublicUser { id: string; username: string; displayName: string 
 export interface AuthResult { accessToken: string; /** Só na app nativa; na web vai no cookie. */ refreshToken?: string; user: PublicUser }
 
 export interface PostMedia { url: string; kind?: 'image' | 'video'; posterUrl?: string; width?: number | null; height?: number | null; durationMs?: number | null; tags?: { username: string }[] }
+/** Tcheka = uma publicação com um único vídeo. Fotos e vídeos juntos são um carrossel normal (abre como publicação). */
+export const isTcheka = (p: { media: { kind?: string }[] } | null | undefined) => !!p && p.media.length === 1 && p.media[0]?.kind === 'video';
 export interface Author { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null }
 export interface Post {
   /** Música da publicação (licença aberta ou clipe próprio). */

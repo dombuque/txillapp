@@ -5,13 +5,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { memo, useEffect, useRef, useState } from 'react';
 import { Animated, FlatList, Pressable, Share, StyleSheet, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
-import { api, type Page, type Post } from '@/lib/api';
+import { api, isTcheka, type Page, type Post } from '@/lib/api';
 import type { PeopleKind } from '@/lib/api.feed';
 import { sized } from '@/lib/config';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { BookmarkIcon } from './BookmarkIcon';
+import { CarouselVideo } from './CarouselVideo';
 import { CommentsSheet } from './CommentsSheet';
 import { Icon } from './Icon';
 import { PeopleSheet } from './PeopleSheet';
@@ -134,7 +135,7 @@ function PostBody({ post, me, detail, openComments, highlightComment }: { post: 
   const quote = post.kind === 'repost' && !!post.repostOf && !!post.body ? post.repostOf : null;
   const g = post.gift;
   const goAuthor = () => router.push(profileOf(post.author, me) as never);
-  const openPost = (o: Post) => router.push((o.media[0]?.kind === 'video' ? `/r/${o.code ?? o.id}` : `/p/${o.code ?? o.id}`) as never);
+  const openPost = (o: Post) => router.push((isTcheka(o) ? `/r/${o.code ?? o.id}` : `/p/${o.code ?? o.id}`) as never);
 
   async function toggleSave() {
     const next = !post.saved;
@@ -451,7 +452,11 @@ function Carousel({ media, width, reelId, onDouble, onOpen }: { media: Post['med
           keyExtractor={(m) => m.url}
           onScroll={onScroll}
           scrollEventThrottle={32}
-          renderItem={({ item: m, index }) => (
+          extraData={`${i}|${h}`}
+          renderItem={({ item: m, index }) => m.kind === 'video' && media.length > 1 ? (
+            // Carrossel com fotos e vídeos: o vídeo toca ali mesmo (uma tcheka, vídeo sozinho, abre no ecrã da Tcheka).
+            <CarouselVideo url={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={width} height={h} active={index === i} onDouble={onDouble} />
+          ) : (
             <Pressable
               style={{ width, height: h }}
               onPress={() => tap(m.kind === 'video' ? (reelId ? () => router.push(`/r/${reelId}` as never) : undefined) : () => onOpen?.(index))}

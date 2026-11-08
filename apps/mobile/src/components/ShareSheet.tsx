@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api, type Post } from '@/lib/api';
+import { api, isTcheka, type Post } from '@/lib/api';
 import { extraApi } from '@/lib/api.extra';
 import { SITE_URL, abs, sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
@@ -31,7 +31,7 @@ const EMERALD = '#10b981';
 const EMERALD_DARK = '#059669';
 
 /** O link limpo de uma publicação ou tcheka: txillapp.com/p/Ab3xK9q (tchekas: /r/…). Sempre no site público. */
-const linkOf = (post: Post) => `${SITE_URL || 'https://txillapp.com'}/${post.media[0]?.kind === 'video' ? 'r' : 'p'}/${post.code}`;
+const linkOf = (post: Post) => `${SITE_URL || 'https://txillapp.com'}/${isTcheka(post) ? 'r' : 'p'}/${post.code}`;
 
 /**
  * Partilhar uma publicação ou tcheka (igual ao ShareSheet do site): pesquisa no topo, grelha das conversas recentes

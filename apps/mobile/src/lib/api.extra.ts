@@ -13,7 +13,7 @@ export interface Insights {
   series: { day: string; reach: number; interactions: number; followers: number }[];
   hours: { hour: number; value: number }[];
   weekdays: { dow: number; value: number }[];
-  top: { id: string; code: string; body: string; mediaUrl: string | null; video: boolean; createdAt: string; cheers: number; comments: number; reposts: number; gifts: number; reach: number }[];
+  top: { id: string; code: string; body: string; mediaUrl: string | null; video: boolean; tcheka?: boolean; createdAt: string; cheers: number; comments: number; reposts: number; gifts: number; reach: number }[];
   audience: { enough: false; minimum: number; followers: number } | { enough: true; followers: number; gender: InsightsBucket[]; ages: InsightsBucket[]; countries: InsightsBucket[]; cities: InsightsBucket[]; interests: InsightsBucket[] };
 }
 

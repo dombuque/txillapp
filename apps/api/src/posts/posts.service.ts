@@ -11,7 +11,7 @@ import { extractHashtags, prefixQuery } from '../common/hashtags';
 import { TOPICS, classify, topicLabel } from '../common/topics';
 
 const TOPIC_IDS = new Set(TOPICS.map((t) => t.id));
-import { RANKED_SQL, decodeCursor, encodeCursor } from './feed';
+import { RANKED_SQL, decodeCursor, encodeCursor, tchekaPost } from './feed';
 import { WalletService } from '../wallet/wallet.service';
 
 export const MAX_PHOTOS = 10;
@@ -103,9 +103,7 @@ export class PostsService implements OnModuleInit {
           [mediaIds, userId],
         );
         if (ok.rows[0].n !== mediaIds.length) throw new BadRequestException('Ficheiro inválido ou ainda não processado');
-        const vids = await client.query(`SELECT count(*)::int AS n FROM content.media_assets WHERE id = ANY($1) AND mime LIKE 'video/%'`, [mediaIds]);
-        // Um vídeo por publicação, sozinho (sem fotos misturadas).
-        if (vids.rows[0].n > 0 && mediaIds.length !== 1) throw new BadRequestException('Uma publicação com vídeo tem só esse vídeo');
+        // Fotos e vídeos podem ir juntos (carrossel). Um vídeo sozinho é uma tcheka.
       }
       const id = uuidv7();
       // A posição do SÍTIO escolhido (arredondada; zonas e cidades ainda mais): nunca a posição exata de quem publica.
@@ -346,8 +344,8 @@ export class PostsService implements OnModuleInit {
   /** Publicações de uma pessoa (perfil), com o mesmo formato do feed. */
   async byAuthor(viewerId: string, username: string, cursor: string | undefined, limit: number, tab: ProfileTab | 'all' = 'all') {
     if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
-    const hasVideo = `EXISTS (SELECT 1 FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id WHERE pm.post_id = p.id AND ma.mime LIKE 'video/%')`;
-    // Cada separador do perfil: publicações (sem vídeo), reels (com vídeo), reposts, presentes (dados ou recebidos) e identificações.
+    const hasVideo = tchekaPost();
+    // Cada separador do perfil: publicações (fotos, texto e carrosséis com vídeos), tchekas (um vídeo só), reposts, presentes (dados ou recebidos) e identificações.
     const where: Record<ProfileTab | 'all', string> = {
       // "Tudo": só o que a pessoa publicou (publicações, reels e presentes). Os reposts têm o seu próprio separador.
       all: `u.username = $2 AND p.kind <> 'repost'`,
@@ -520,7 +518,7 @@ export class PostsService implements OnModuleInit {
             AND EXISTS (SELECT 1 FROM content.post_media pm WHERE pm.post_id = p.id)
             AND ${ADULT} AND ${canView()} AND ${inMyNetwork()}
             AND ($2::text IS NULL OR $2 = ANY(p.topics))
-            AND (NOT $5::boolean OR EXISTS (SELECT 1 FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id WHERE pm.post_id = p.id AND ma.mime LIKE 'video/%'))
+            AND (NOT $5::boolean OR ${tchekaPost()})
             AND NOT EXISTS (SELECT 1 FROM content.feed_impressions hi WHERE hi.user_id = $1 AND hi.post_id = p.id AND hi.hidden)
             AND NOT EXISTS (SELECT 1 FROM content.post_feedback fb WHERE fb.user_id = $1 AND fb.post_id = p.id AND fb.value < 0)
             AND NOT EXISTS (SELECT 1 FROM social.explore_people ep WHERE ep.user_id = $1 AND ep.person_id = p.author_id AND ep.pref < 0)

@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
+import { tchekaPost } from '../posts/feed';
 
 export const PERIODS = [7, 30, 90] as const;
 export type Period = (typeof PERIODS)[number];
@@ -114,6 +115,7 @@ export class InsightsService {
         `SELECT p.id, p.short_code, p.body, p.created_at,
                 (SELECT pm.media_id FROM content.post_media pm WHERE pm.post_id = p.id ORDER BY pm.position LIMIT 1) AS media_id,
                 (SELECT (ma.mime LIKE 'video/%') FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id WHERE pm.post_id = p.id ORDER BY pm.position LIMIT 1) AS video,
+                ${tchekaPost()} AS tcheka,
                 (SELECT count(*) FROM content.cheers c WHERE c.post_id = p.id AND c.user_id <> $1 AND c.created_at >= ${since})::int AS cheers,
                 (SELECT count(*) FROM content.comments c WHERE c.post_id = p.id AND c.author_id <> $1 AND c.created_at >= ${since})::int AS comments,
                 (SELECT count(*) FROM content.posts r WHERE r.repost_of = p.id AND r.kind = 'repost' AND r.author_id <> $1 AND r.removed_at IS NULL AND r.created_at >= ${since})::int AS reposts,
@@ -146,7 +148,7 @@ export class InsightsService {
       weekdays,
       top: top.map((r) => ({
         id: r.id as string, code: (r.short_code as string | null) ?? (r.id as string), body: ((r.body as string) ?? '').slice(0, 90),
-        mediaUrl: r.media_id ? `/api/v1/media/${r.media_id as string}${r.video ? '?poster=1' : '?w=240'}` : null, video: !!r.video, createdAt: r.created_at as string,
+        mediaUrl: r.media_id ? `/api/v1/media/${r.media_id as string}${r.video ? '?poster=1' : '?w=240'}` : null, video: !!r.video, tcheka: !!r.tcheka, createdAt: r.created_at as string,
         cheers: r.cheers as number, comments: r.comments as number, reposts: r.reposts as number, gifts: r.gifts as number, reach: r.reach as number,
       })),
       audience,

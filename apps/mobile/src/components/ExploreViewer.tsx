@@ -5,13 +5,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Reel } from '@/app/(tabs)/reels';
 import { Icon } from '@/components/Icon';
 import { PostCard } from '@/components/PostCard';
-import type { Page, Post } from '@/lib/api';
+import { isTcheka, type Page, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 
 /**
  * Abre uma publicação do Explorar em ecrã inteiro (não numa folha), como no site.
- * Vídeo: como os Reels, desliza-se para cima para o seguinte. Foto ou texto: só aquela publicação.
+ * Tcheka: desliza-se para cima para a seguinte. Foto, carrossel ou texto: só aquela publicação.
  */
 export function ExploreViewer({ items, startId, onClose, title = 'Explorar' }: { items: Post[]; startId: string; onClose: () => void; title?: string }) {
   const insets = useSafeAreaInsets();
@@ -19,9 +19,10 @@ export function ExploreViewer({ items, startId, onClose, title = 'Explorar' }: {
   const { user } = useAuth();
   const qc = useQueryClient();
   const start = items.find((p) => p.id === startId);
-  const reels = start?.media[0]?.kind === 'video';
-  const immersive = reels || start?.kind === 'post';
-  const list = reels ? items.filter((p) => p.media[0]?.kind === 'video') : items.filter((p) => p.id === startId);
+  // Tchekas (um vídeo só): ecrã inteiro, a deslizar para a seguinte. O resto (fotos, carrosséis com vídeos, texto) abre como publicação.
+  const reels = isTcheka(start);
+  const immersive = reels;
+  const list = reels ? items.filter((p) => isTcheka(p)) : items.filter((p) => p.id === startId);
   const first = Math.max(0, list.findIndex((p) => p.id === startId));
   const [active, setActive] = useState(first);
   const [h, setH] = useState(winH);

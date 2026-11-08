@@ -45,8 +45,13 @@ export function decodeCursor(token: string | undefined): FeedCursor | null {
  * Candidatos e pontuação. Parâmetros: $1 = pessoa, $2 = início da sessão, $3 = variedade (texto da sessão).
  * Parâmetros extra: $6 = limite, $7 = só vídeos (Reels), $8 = desconto de quem não sigo. Devolve (id, score, source, seen) já com a penalização por autor repetido.
  */
-/** A publicação tem um vídeo (para a lista de Reels). */
-const VIDEO_POST = `EXISTS (SELECT 1 FROM content.post_media vpm JOIN content.media_assets vma ON vma.id = vpm.media_id WHERE vpm.post_id = p.id AND vma.mime LIKE 'video/%')`;
+/**
+ * A publicação é uma tcheka: um único vídeo. Uma publicação com fotos e vídeos misturados é um carrossel normal
+ * (fica nas Publicações do perfil e no feed, não na lista das Tchekas).
+ */
+export const tchekaPost = (p = 'p') =>
+  `(SELECT count(*) = 1 AND bool_and(tma.mime LIKE 'video/%') FROM content.post_media tpm JOIN content.media_assets tma ON tma.id = tpm.media_id WHERE tpm.post_id = ${p}.id)`;
+const VIDEO_POST = tchekaPost();
 
 export const RANKED_SQL = `
   WITH net AS (
