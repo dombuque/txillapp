@@ -51,7 +51,13 @@ export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera
   const [picked, setPicked] = useState<MediaLibrary.Asset[]>([]);
   const [busy, setBusy] = useState(false);
   const [current, setCurrent] = useState<MediaLibrary.Asset | null>(null);
+  const [loadErr, setLoadErr] = useState('');
   const loadingRef = useRef(false);
+  const asked = useRef(false);
+  // Ao abrir, pede a licença (uma vez); sem ela o Android não deixa ler nada.
+  useEffect(() => {
+    if (perm && !perm.granted && perm.canAskAgain && !asked.current) { asked.current = true; void askPerm(); }
+  }, [perm, askPerm]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -66,6 +72,7 @@ export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera
     if (loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
+    setLoadErr('');
     try {
       const page = await MediaLibrary.getAssetsAsync({
         first: PAGE,
@@ -78,8 +85,9 @@ export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera
       if (reset) setCurrent((c) => c ?? page.assets.find((a) => a.mediaType !== MediaLibrary.MediaType.video || a.duration * 1000 <= MAX_VIDEO_MS) ?? null);
       setEnd(page.endCursor);
       setMore(page.hasNextPage);
-    } catch {
+    } catch (e) {
       setMore(false);
+      setLoadErr((e as Error).message || 'Não consegui ler a galeria');
     } finally {
       loadingRef.current = false;
       setLoading(false);
@@ -225,7 +233,12 @@ export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera
           );
         }}
         ListFooterComponent={loading ? <ActivityIndicator color="#fff" style={{ margin: 24 }} /> : undefined}
-        ListEmptyComponent={!loading ? <Text style={st.empty}>Ainda não há fotos nem vídeos aqui.</Text> : undefined}
+        ListEmptyComponent={loading || !perm ? <ActivityIndicator color="#fff" style={{ margin: 24 }} /> : loadErr ? (
+          <View style={{ alignItems: 'center', marginTop: 32, paddingHorizontal: 32 }}>
+            <Text style={st.empty}>{loadErr}</Text>
+            <Pressable onPress={() => void load(true)} style={[st.selectBtn, { marginTop: 14 }]} accessibilityRole="button"><Text style={st.selectText}>Tentar outra vez</Text></Pressable>
+          </View>
+        ) : <Text style={st.empty}>{perm.accessPrivileges === 'limited' ? 'Só vês as fotos que deixaste. Para veres todas, dá acesso a tudo nas definições do telemóvel.' : 'Ainda não há fotos nem vídeos aqui.'}</Text>}
       />
 
       {!preview && selecting && picked.length > 0 ? (

@@ -20,6 +20,7 @@ import { ShareSheet } from '@/components/ShareSheet';
 import { Sheet } from '@/components/Sheet';
 import { Wordmark } from '@/components/Wordmark';
 import { useDesktop } from '@/lib/desktop';
+import { GestureDetector, useExclusiveGestures, useTapGesture } from 'react-native-gesture-handler';
 import { api, isTcheka, post as postInit, raw, type Page, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
@@ -295,6 +296,7 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
     try {
       if (shouldPlay) {
         player.muted = silent;
+        if (!silent) player.volume = 1;
         player.play();
       } else {
         player.pause();
@@ -318,21 +320,30 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
   const [burst, setBurst] = useState(0);
   const burstAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => () => { if (singleTimer.current) clearTimeout(singleTimer.current); }, []);
+  // Duplo toque: brinda (só põe, nunca tira) e mostra o copo grande.
+  function brindar() {
+    setBurst((n) => n + 1);
+    burstAnim.setValue(0);
+    Animated.timing(burstAnim, { toValue: 1, duration: 800, useNativeDriver: false }).start();
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    if (!post.cheered) {
+      onChange({ cheered: true, cheers: post.cheers + 1 });
+      api.cheer(post.id).then((r) => onChange(r)).catch(() => onChange({ cheered: post.cheered, cheers: post.cheers }));
+    }
+  }
+  // No telemóvel os toques vêm da biblioteca de gestos (funciona por cima do vídeo nativo); no browser, do Pressable.
+  const tapRef = useRef(() => undefined as void);
+  const dblRef = useRef(() => undefined as void);
+  const dblTap = useTapGesture({ numberOfTaps: 2, maxDelay: 280, runOnJS: true, enabled: !isWeb, onActivate: () => dblRef.current() });
+  const oneTap = useTapGesture({ numberOfTaps: 1, runOnJS: true, enabled: !isWeb, onActivate: () => tapRef.current() });
+  const taps = useExclusiveGestures(dblTap, oneTap);
   function onScreenTap() {
     const now = Date.now();
     if (now - lastTap.current < 280 && singleTimer.current) {
-      // Duplo toque: brinda (só põe, nunca tira) e mostra o copo grande.
       clearTimeout(singleTimer.current);
       singleTimer.current = null;
       lastTap.current = 0;
-      setBurst((n) => n + 1);
-      burstAnim.setValue(0);
-      Animated.timing(burstAnim, { toValue: 1, duration: 800, useNativeDriver: false }).start();
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-      if (!post.cheered) {
-        onChange({ cheered: true, cheers: post.cheers + 1 });
-        api.cheer(post.id).then((r) => onChange(r)).catch(() => onChange({ cheered: post.cheered, cheers: post.cheers }));
-      }
+      brindar();
       return;
     }
     lastTap.current = now;
@@ -383,6 +394,14 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
   // A barra de progresso fica logo acima da barra de baixo (que flutua por cima dos Reels).
   const barBottom = bottomInset > 0 ? Math.max(0, bottomInset - 10) : 0;
 
+  tapRef.current = tap;
+  dblRef.current = brindar;
+  const media = (
+    <>
+      <VideoView player={player} style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]} contentFit="contain" nativeControls={false} allowsPictureInPicture={false} playsInline pointerEvents="none" />
+      {m.posterUrl && !started ? <Image source={{ uri: abs(m.posterUrl) }} style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]} contentFit="contain" pointerEvents="none" /> : null}
+    </>
+  );
   const circle = (on?: boolean, tone?: string) => [st.circle, on && { backgroundColor: tone ?? 'rgba(255,255,255,0.9)' }];
   const count = (n: number, kind: PeopleKind, enabled: boolean) => (
     <Pressable disabled={!enabled || n === 0} onPress={() => setPeople(kind)} style={st.countBtn} accessibilityRole="button" accessibilityLabel={kind === 'cheers' ? 'Ver quem brindou' : 'Ver quem repostou'}>
@@ -392,10 +411,13 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
 
   return (
     <View style={[{ height, width: '100%', backgroundColor: '#000', overflow: 'hidden' }, isWeb && ({ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as object)]} accessibilityLabel={`Tcheka de ${post.author.displayName}`}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onScreenTap} accessibilityRole="button" accessibilityLabel="Tocar ou pausar (duplo toque para brindar)">
-        <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} allowsPictureInPicture={false} playsInline pointerEvents="none" />
-        {m.posterUrl && !started ? <Image source={{ uri: abs(m.posterUrl) }} style={StyleSheet.absoluteFill} contentFit="contain" pointerEvents="none" /> : null}
-      </Pressable>
+      {isWeb ? (
+        <Pressable style={StyleSheet.absoluteFill} onPress={onScreenTap} accessibilityRole="button" accessibilityLabel="Tocar ou pausar (duplo toque para brindar)">{media}</Pressable>
+      ) : (
+        <GestureDetector gesture={taps}>
+          <View style={StyleSheet.absoluteFill} collapsable={false} accessible accessibilityRole="button" accessibilityLabel="Tocar ou pausar (duplo toque para brindar)">{media}</View>
+        </GestureDetector>
+      )}
 
       <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.7)']} style={st.shade} pointerEvents="none" />
       {burst > 0 && (

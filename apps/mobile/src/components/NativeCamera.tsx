@@ -182,6 +182,8 @@ export function NativeCamera({
     slide.current = { y: e.nativeEvent.pageY, z: zoom };
     holdT.current = setTimeout(() => {
       holding.current = true;
+      // Sem licença para o microfone, pede-a agora (o pedido do sistema interrompe o toque: grava-se ao voltar a manter).
+      if (!mic?.granted && mic?.canAskAgain) { void askMic(); holding.current = false; return; }
       pendingRecord.current = true;
       setMode('video');
     }, HOLD_MS);
@@ -278,7 +280,7 @@ export function NativeCamera({
           <View style={[st.controls, { left: view.x, top: view.y, width: view.w }]} pointerEvents="box-none">
             <Pressable onPress={onClose} style={st.round} accessibilityRole="button" accessibilityLabel="Fechar câmara"><Icon name="x" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
             {recording ? (
-              <View style={st.rec}><View style={st.recDot} /><Text style={st.recText}>{mm(recMs)}</Text></View>
+              <View style={st.rec}><View style={st.recDot} /><Text style={st.recText}>{mm(recMs)}{!mic?.granted ? ' · sem som' : ''}</Text></View>
             ) : (
               <Text style={st.wordmark} accessibilityLabel="Txillapp">txill<Text style={{ color: colors.brand }}>a</Text>pp</Text>
             )}

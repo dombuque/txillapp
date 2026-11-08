@@ -18,6 +18,9 @@ import { Avatar } from './Avatar';
 import { Icon } from './Icon';
 import { FeatureIntro } from './FeatureIntro';
 import { enqueueTask } from '@/lib/publishQueue';
+import { applyZasFx } from '@/lib/zasFx';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import { FUN_FX } from './zas/funFilters';
 import { markSeen } from '@/lib/whatsNew';
 import { Sheet } from './Sheet';
 import { CloseFriendsSheet, REACTIONS, ReactionArt } from './StoryParts';
@@ -287,6 +290,28 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   const [grid, setGrid] = useState(false);
   const [setupClose, setSetupClose] = useState(false);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Filtros divertidos na app: deslizar no cartão troca (como no site); o filtro entra na foto ao tirar.
+  const [fx, setFx] = useState(0);
+  const [fxName, setFxName] = useState<string | null>(null);
+  const fxTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const fxRef = useRef(0);
+  fxRef.current = fx;
+  const cycleFx = (dir: 1 | -1) => {
+    const n = (fxRef.current + dir + FUN_FX.length) % FUN_FX.length;
+    setFx(n);
+    setFxName(FUN_FX[n].name);
+    void Haptics.selectionAsync().catch(() => undefined);
+    clearTimeout(fxTimer.current);
+    fxTimer.current = setTimeout(() => setFxName(null), 900);
+  };
+  const fxSwipe = usePanGesture({
+    runOnJS: true,
+    enabled: Platform.OS !== 'web',
+    maxPointers: 1,
+    activeOffsetX: [-24, 24],
+    failOffsetY: [-30, 30],
+    onDeactivate: (e) => { if (Math.abs(e.translationX) > 50) cycleFx(e.translationX < 0 ? 1 : -1); },
+  });
   const friends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
   const tray = useQuery({ queryKey: ['instants'], queryFn: instantsApi.tray });
   const refresh = () => void qc.invalidateQueries({ queryKey: ['instants'] });
@@ -327,8 +352,10 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
     clearTimeout(undoTimer.current);
     undoTimer.current = setTimeout(() => setSent(null), 2200);
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    const chosenFx = fxRef.current;
     enqueueTask('zas', { uri, mime, video: false }, async () => {
-      const mediaId = await uploadMedia(uri, mime);
+      const src = await applyZasFx(uri, chosenFx);
+      const mediaId = await uploadMedia(src, mime);
       if (state.cancelled) return;
       const res = await instantsApi.create(mediaId, text, who);
       state.id = res.id;
@@ -434,7 +461,8 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
         ) : (
           <>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <View style={[st.cam, squircle(cardW), { width: cardW, height: cardW / 0.75 }]}>
+          <GestureDetector gesture={fxSwipe}>
+          <View style={[st.cam, squircle(cardW), { width: cardW, height: cardW / 0.75 }]} collapsable={false}>
             {camPerm?.granted ? (
               <CameraView ref={camRef} style={StyleSheet.absoluteFill} facing={facing} enableTorch={torch} mirror={facing === 'front'} onCameraReady={() => setCamReady(true)} />
             ) : (
@@ -455,7 +483,10 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
               style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '40%', zIndex: 5, opacity: 0, fontSize: 16 }}
             />
             {err ? <Text accessibilityRole="alert" style={st.err}>{err}</Text> : null}
+            {fxName ? <View pointerEvents="none" style={st.fxName}><Text style={st.fxNameText}>{fxName}</Text></View> : null}
+            {fx > 0 && !fxName ? <View pointerEvents="none" style={st.fxPill}><Icon name="sparkles" size={13} color="#fff" /><Text style={st.fxPillText}>{FUN_FX[fx].name}</Text></View> : null}
           </View>
+          </GestureDetector>
         </View>
 
         <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: Math.max(16, insets.bottom) }}>
@@ -972,6 +1003,10 @@ const st = StyleSheet.create({
   vTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
   vBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   swipeUp: { position: 'absolute', left: 0, right: 0, bottom: 16, alignItems: 'center' },
+  fxName: { position: 'absolute', left: 0, right: 0, top: '44%', alignItems: 'center', zIndex: 6 },
+  fxNameText: { color: '#fff', fontSize: 26, fontWeight: '900', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 10 },
+  fxPill: { position: 'absolute', left: 12, bottom: 12, zIndex: 6, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 10, paddingVertical: 5 },
+  fxPillText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   toast: { position: 'absolute', left: 32, right: 32, top: 24, overflow: 'hidden', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: '#fff' },
   info: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12 },
   glass: { borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.15)' },
