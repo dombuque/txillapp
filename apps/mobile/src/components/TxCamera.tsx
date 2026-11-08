@@ -7,6 +7,8 @@ import { colors } from '@/lib/theme';
 import { FeatureIntro } from './FeatureIntro';
 import { Icon } from './Icon';
 import { acquireCamera, releaseCamera } from './zas/cameraSession';
+import { useAuth } from '@/lib/auth';
+import { WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, signLayout } from '@/lib/wordmark';
 
 /**
  * A câmara oficial do Txillapp no browser (publicações, status). Ecrã inteiro, com a identidade da marca:
@@ -64,29 +66,39 @@ export function applyLook(c: HTMLCanvasElement, l: Look) {
 /** Layout (como no Instagram): várias fotos numa imagem só. Cada célula é [x, y, largura, altura] em fração da moldura. */
 type Cell = [number, number, number, number];
 /** A assinatura do Txillapp no canto de baixo à direita (o "a" a coral), com fundo translúcido para se ler em qualquer imagem. */
-export function stampTxillapp(g: CanvasRenderingContext2D, W: number, H: number) {
-  const fs = Math.max(22, Math.round(Math.min(W, H) * 0.045));
-  const m = Math.round(Math.min(W, H) * 0.035);
+/**
+ * A assinatura do Txillapp nas fotos e tchekas: o logótipo verdadeiro em branco (o ponto do i a coral), com sombra suave,
+ * em baixo à direita, e por baixo o @ de quem tirou.
+ */
+export function stampTxillapp(g: CanvasRenderingContext2D, W: number, H: number, username?: string | null) {
+  const L = signLayout(W, H, !!username);
   g.save();
-  g.font = `bold ${fs}px "Inter", -apple-system, system-ui, "Helvetica Neue", Arial, sans-serif`;
-  g.textBaseline = 'middle';
-  g.textAlign = 'left';
-  const parts: [string, string][] = [['txill', '#fff'], ['a', '#ff5c6c'], ['pp', '#fff']];
-  const total = parts.reduce((n, [t]) => n + g.measureText(t).width, 0);
-  const padX = Math.round(fs * 0.55), padY = Math.round(fs * 0.38);
-  const bw = total + padX * 2, bh = fs + padY * 2;
-  const bx = W - m - bw, by = H - m - bh;
-  // Fundo escuro translúcido para se ler em qualquer foto, com os cantos redondos.
-  g.fillStyle = 'rgba(0,0,0,0.38)';
-  const r = Math.round(bh / 2);
+  g.shadowColor = 'rgba(0,0,0,0.45)';
+  g.shadowBlur = L.blur;
+  g.shadowOffsetY = L.s * 2;
+  g.translate(L.x - WORDMARK_BOX.x * L.s, L.y - WORDMARK_BOX.y * L.s);
+  g.scale(L.s, L.s);
+  g.lineWidth = WORDMARK_STROKE;
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.strokeStyle = '#fff';
+  for (const d of WORDMARK_PATHS) g.stroke(new Path2D(d));
+  g.fillStyle = '#ff5c6c';
   g.beginPath();
-  g.moveTo(bx + r, by); g.lineTo(bx + bw - r, by); g.quadraticCurveTo(bx + bw, by, bx + bw, by + r); g.lineTo(bx + bw, by + bh - r); g.quadraticCurveTo(bx + bw, by + bh, bx + bw - r, by + bh); g.lineTo(bx + r, by + bh); g.quadraticCurveTo(bx, by + bh, bx, by + bh - r); g.lineTo(bx, by + r); g.quadraticCurveTo(bx, by, bx + r, by);
-  g.closePath();
+  g.arc(WORDMARK_DOT.cx, WORDMARK_DOT.cy, WORDMARK_DOT.r, 0, Math.PI * 2);
   g.fill();
-  let x = bx + padX;
-  const y = by + bh / 2;
-  for (const [t, color] of parts) { g.fillStyle = color; g.fillText(t, x, y); x += g.measureText(t).width; }
   g.restore();
+  if (username) {
+    g.save();
+    g.shadowColor = 'rgba(0,0,0,0.5)';
+    g.shadowBlur = L.blur;
+    g.font = `700 ${L.userSize}px "Inter", -apple-system, system-ui, "Helvetica Neue", Arial, sans-serif`;
+    g.textAlign = 'right';
+    g.textBaseline = 'alphabetic';
+    g.fillStyle = 'rgba(255,255,255,0.92)';
+    g.fillText(`@${username}`, L.right, L.userBaseline);
+    g.restore();
+  }
 }
 
 export const LAYOUTS: { id: string; name: string; cells: Cell[] }[] = [
@@ -163,7 +175,8 @@ export function TxCamera({
   type Box = { x: number; y: number; w: number; h: number };
   type Edit = { rot: 0 | 90 | 180 | 270; flip: boolean; aspect: number | null; box: Box | null; look: number; b: number; c: number; s: number };
   const EDIT0: Edit = { rot: 0, flip: false, aspect: null, box: null, look: 0, b: 1, c: 1, s: 1 };
-  const stamp = stampTxillapp;
+  const { user } = useAuth();
+  const stamp = (g: CanvasRenderingContext2D, w: number, h: number) => stampTxillapp(g, w, h, user?.username);
   const [edit, setEdit] = useState<Edit>(EDIT0);
   const [tool, setTool] = useState<null | 'look' | 'adjust' | 'crop'>(null);
   const renderTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);

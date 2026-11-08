@@ -3,10 +3,11 @@ import * as Haptics from 'expo-haptics';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useRef, useState } from 'react';
 import { BackHandler, Linking, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
-import { GestureDetector, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
+import { GestureDetector, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { colors } from '@/lib/theme';
+import { GalleryPicker } from './GalleryPicker';
 import { Icon } from './Icon';
 import { PhotoEditor } from './PhotoEditor';
 import type { Shot } from './TxCamera';
@@ -23,10 +24,14 @@ const tap = () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).ca
  * deslizar para cima aproxima). Dois dedos para o zoom, dois toques para virar. Em baixo: galeria, modos e virar câmara.
  */
 export function NativeCamera({
-  onShot, onGallery, onClose, onDone, onText, doneLabel = 'Seguinte', count = 0, kinds, kind, onKind, aspect = 9 / 16,
+  onShot, onPickMany, multi = false, galleryTitle = 'Galeria', onClose, onDone, onText, doneLabel = 'Seguinte', count = 0, kinds, kind, onKind, aspect = 9 / 16,
 }: {
   onShot: (s: Shot) => void;
-  onGallery: () => void;
+  /** Várias fotos e vídeos escolhidos de uma vez na galeria (só com `multi`). */
+  onPickMany?: (shots: Shot[]) => void;
+  multi?: boolean;
+  /** Título da galeria (ex.: "Nova publicação", "Adicionar ao mimo"). */
+  galleryTitle?: string;
   onClose: () => void;
   onDone?: () => void;
   onText?: () => void;
@@ -55,6 +60,7 @@ export function NativeCamera({
   const [area, setArea] = useState({ w: 0, h: 0 });
   const [editing, setEditing] = useState<string | null>(null);
   const [review, setReview] = useState<Shot | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const pendingRecord = useRef(false);
   const holdT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const holding = useRef(false);
@@ -77,14 +83,14 @@ export function NativeCamera({
   // Botão de voltar do Android: sai da pré-visualização, pára a gravação, ou fecha a câmara.
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (editing) return false; // o editor trata
+      if (editing || galleryOpen) return false; // o editor e a galeria tratam
       if (review) { setReview(null); return true; }
       if (recording) { cam.current?.stopRecording(); return true; }
       onClose();
       return true;
     });
     return () => sub.remove();
-  }, [editing, review, recording, onClose]);
+  }, [editing, galleryOpen, review, recording, onClose]);
 
   // Gestos no visor: dois dedos = zoom; dois toques = virar a câmara.
   const pinch = usePinchGesture({
@@ -93,7 +99,25 @@ export function NativeCamera({
     onUpdate: (e) => setZoom(clamp(z0.current + (e.scale - 1) * 0.35, 0, 1)),
   });
   const doubleTap = useTapGesture({ numberOfTaps: 2, runOnJS: true, onActivate: () => { if (!recording) flip(); } });
-  const gestures = useSimultaneousGestures(pinch, doubleTap);
+  // Deslizar para a direita no visor abre a galeria (como no Instagram).
+  const swipe = usePanGesture({
+    runOnJS: true,
+    maxPointers: 1,
+    activeOffsetX: 30,
+    failOffsetY: [-40, 40],
+    onDeactivate: (e) => { if (!recording && e.translationX > 80) setGalleryOpen(true); },
+  });
+  const gestures = useSimultaneousGestures(pinch, doubleTap, swipe);
+
+  /** Da galeria: uma foto vai ao editor; um vídeo segue; várias juntam-se à publicação. */
+  function picked(shots: Shot[]) {
+    setGalleryOpen(false);
+    if (shots.length > 1 && onPickMany) return onPickMany(shots);
+    const s = shots[0];
+    if (!s) return;
+    if (s.video) onShot(s);
+    else setEditing(s.uri);
+  }
 
   function flip() {
     tap();
@@ -215,7 +239,7 @@ export function NativeCamera({
         <Pressable onPress={() => void (perm.canAskAgain ? askPerm() : Linking.openSettings())} style={st.cta} accessibilityRole="button">
           <Text style={st.ctaText}>{perm.canAskAgain ? 'Permitir a câmara' : 'Abrir as definições'}</Text>
         </Pressable>
-        <Pressable onPress={onGallery} style={{ marginTop: 14, padding: 10 }} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Escolher da galeria</Text></Pressable>
+        <Pressable onPress={() => setGalleryOpen(true)} style={{ marginTop: 14, padding: 10 }} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Escolher da galeria</Text></Pressable>
       </View>
     );
   }
@@ -323,7 +347,7 @@ export function NativeCamera({
       {/* Barra de baixo: galeria, modos e virar câmara (como no Instagram). */}
       <View style={[st.bar, { height: barH, paddingBottom: Math.max(insets.bottom, 12) }]}>
         <View style={{ width: 44 }}>
-          {!recording && <Pressable onPress={onGallery} style={st.galleryThumb} accessibilityRole="button" accessibilityLabel="Galeria"><Icon name="images" size={22} color="#fff" strokeWidth={2} /></Pressable>}
+          {!recording && <Pressable onPress={() => setGalleryOpen(true)} style={st.galleryThumb} accessibilityRole="button" accessibilityLabel="Galeria"><Icon name="images" size={22} color="#fff" strokeWidth={2} /></Pressable>}
         </View>
         {kinds && !recording ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.kinds} style={{ flex: 1 }}>
@@ -347,6 +371,7 @@ export function NativeCamera({
           onDone={(file) => { setEditing(null); onShot({ uri: file, video: false, mime: 'image/jpeg' }); }}
         />
       ) : null}
+      {galleryOpen ? <GalleryPicker title={galleryTitle} multi={multi} onPick={picked} onCamera={() => setGalleryOpen(false)} onClose={() => setGalleryOpen(false)} /> : null}
       {review ? <Review shot={review} onRetake={() => setReview(null)} onUse={() => { const s = review; setReview(null); onShot(s); }} /> : null}
     </View>
   );

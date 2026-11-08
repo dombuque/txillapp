@@ -252,15 +252,15 @@ export default function Compose() {
     }
   }
 
-  /** Galeria no telemóvel: num mimo escolhe-se uma foto ou vídeo e vai direto ao editor do mimo; nos outros, junta-se à publicação. */
-  async function galleryNative() {
-    if (kindSel !== 'mimo') return add('library', 'photo');
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.85, videoMaxDuration: 60 });
-    const a = r.canceled ? null : r.assets[0];
-    if (!a) return;
-    const isVideo = a.type === 'video';
-    routeByKind({ uri: a.uri, video: isVideo, mime: isVideo ? videoMime(a.mimeType) : a.mimeType ?? 'image/jpeg', durationMs: a.duration ?? undefined });
+  /** Várias fotos e vídeos escolhidos de uma vez na galeria da app: juntam-se à publicação. */
+  function pickMany(list: Shot[]) {
+    const ok = list.filter((x) => !x.video || !x.durationMs || x.durationMs <= 60_500);
+    setAssets((cur) => [...cur, ...ok.map((x): Asset => ({ uri: x.uri, video: x.video, mime: x.video ? videoMime(x.mime) : x.mime, durationMs: x.durationMs, tags: [] }))].slice(0, MAX_PHOTOS));
+    bumpKind(kindSel);
+    setCameraOpen(false);
+    setStep('write');
   }
+
 
   /** Câmara/galeria do aparelho (nativo). */
   async function add(source: 'camera' | 'library', kind: 'photo' | 'video') {
@@ -358,7 +358,7 @@ export default function Compose() {
       {web ? (
         <LiveCamera count={assets.length} max={MAX_PHOTOS} onShot={shot} onGallery={(f) => { void addFiles(f); setCameraOpen(false); }} onClose={() => setCameraOpen(false)} onDone={() => { setCameraOpen(false); setStep('write'); }} />
       ) : (
-        <NativeCamera onShot={shot} onGallery={() => { setCameraOpen(false); void add('library', 'photo'); }} onClose={() => setCameraOpen(false)} aspect={kindSel === 'post' ? 4 / 5 : 9 / 16} />
+        <NativeCamera onShot={shot} multi onPickMany={pickMany} galleryTitle="Nova publicação" onClose={() => setCameraOpen(false)} aspect={kindSel === 'post' ? 4 / 5 : 9 / 16} />
       )}
     </View>
   );
@@ -413,7 +413,9 @@ export default function Compose() {
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <NativeCamera
           onShot={shot}
-          onGallery={() => void galleryNative()}
+          multi={kindSel === 'post'}
+          onPickMany={pickMany}
+          galleryTitle={kindSel === 'mimo' ? 'Adicionar ao mimo' : kindSel === 'tcheka' ? 'Nova tcheka' : 'Nova publicação'}
           onClose={() => router.replace('/')}
           onText={() => setStep('write')}
           aspect={kindSel === 'post' ? 4 / 5 : 9 / 16}

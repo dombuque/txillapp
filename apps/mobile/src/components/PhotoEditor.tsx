@@ -1,9 +1,11 @@
-import { Canvas, ImageFormat, Picture, Skia, matchFont, type SkCanvas, type SkFont, type SkImage } from '@shopify/react-native-skia';
+import { Canvas, ImageFormat, PaintStyle, Picture, Skia, StrokeCap, StrokeJoin, matchFont, type SkCanvas, type SkFont, type SkImage } from '@shopify/react-native-skia';
 import { File, Paths } from 'expo-file-system';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, signLayout } from '@/lib/wordmark';
 import { Icon } from './Icon';
 
 /**
@@ -77,7 +79,7 @@ function cropOf(img: SkImage, e: Edit) {
 }
 
 /** Desenha a foto editada num retângulo W×H (pré-visualização ou foto final), com a assinatura. */
-function drawEdit(canvas: SkCanvas, img: SkImage, e: Edit, W: number, H: number, font: SkFont | null) {
+function drawEdit(canvas: SkCanvas, img: SkImage, e: Edit, W: number, H: number, font: SkFont | null, username?: string | null) {
   const { cw, ch, cx, cy } = cropOf(img, e);
   const w0 = img.width(), h0 = img.height();
   const paint = Skia.Paint();
@@ -95,30 +97,42 @@ function drawEdit(canvas: SkCanvas, img: SkImage, e: Edit, W: number, H: number,
   else if (e.rot === 270) { canvas.translate(0, w0); canvas.rotate(270, 0, 0); }
   canvas.drawImage(img, 0, 0, paint);
   canvas.restore();
-  if (font) drawSign(canvas, W, H, font);
+  drawSign(canvas, W, H, font, username);
 }
 
-/** A assinatura: "txillapp" com o "a" em coral, numa pílula escura translúcida, no canto de baixo à direita. */
-function drawSign(canvas: SkCanvas, W: number, H: number, font: SkFont) {
-  const parts: [string, string][] = [['txill', '#ffffff'], ['a', colors.brand], ['pp', '#ffffff']];
-  const widths = parts.map(([t]) => font.getTextWidth(t));
-  const tw = widths.reduce((s, x) => s + x, 0);
-  const size = font.getSize();
-  const padX = size * 0.6, padY = size * 0.32;
-  const bw = tw + padX * 2, bh = size + padY * 2;
-  const m = Math.round(W * 0.03);
-  const x = W - bw - m, y = H - bh - m;
-  const bg = Skia.Paint();
-  bg.setColor(Skia.Color('rgba(0,0,0,0.38)'));
-  canvas.drawRRect(Skia.RRectXY(Skia.XYWHRect(x, y, bw, bh), bh / 2, bh / 2), bg);
-  let cxp = x + padX;
-  const base = y + padY + size * 0.82;
-  parts.forEach(([t, c], i) => {
+/** Logótipo em caminhos Skia (feito uma vez). */
+let markPaths: ReturnType<typeof Skia.Path.MakeFromSVGString>[] | null = null;
+const marks = () => (markPaths ??= WORDMARK_PATHS.map((d) => Skia.Path.MakeFromSVGString(d)));
+
+/** A assinatura (igual à do site): o logótipo em branco com o ponto do i a coral e sombra suave, e por baixo o @. */
+function drawSign(canvas: SkCanvas, W: number, H: number, font: SkFont | null, username?: string | null) {
+  const L = signLayout(W, H, !!username && !!font);
+  const shadow = Skia.ImageFilter.MakeDropShadow(0, L.s * 2, L.blur / 2, L.blur / 2, Skia.Color('rgba(0,0,0,0.45)'), null);
+  const stroke = Skia.Paint();
+  stroke.setStyle(PaintStyle.Stroke);
+  stroke.setStrokeWidth(WORDMARK_STROKE);
+  stroke.setStrokeCap(StrokeCap.Round);
+  stroke.setStrokeJoin(StrokeJoin.Round);
+  stroke.setColor(Skia.Color('#ffffff'));
+  stroke.setAntiAlias(true);
+  stroke.setImageFilter(shadow);
+  canvas.save();
+  canvas.translate(L.x - WORDMARK_BOX.x * L.s, L.y - WORDMARK_BOX.y * L.s);
+  canvas.scale(L.s, L.s);
+  for (const p of marks()) if (p) canvas.drawPath(p, stroke);
+  const dot = Skia.Paint();
+  dot.setColor(Skia.Color('#ff5c6c'));
+  dot.setAntiAlias(true);
+  canvas.drawCircle(WORDMARK_DOT.cx, WORDMARK_DOT.cy, WORDMARK_DOT.r, dot);
+  canvas.restore();
+  if (username && font) {
+    const t = `@${username}`;
     const p = Skia.Paint();
-    p.setColor(Skia.Color(c));
-    canvas.drawText(t, cxp, base, p, font);
-    cxp += widths[i];
-  });
+    p.setColor(Skia.Color('rgba(255,255,255,0.92)'));
+    p.setAntiAlias(true);
+    p.setImageFilter(Skia.ImageFilter.MakeDropShadow(0, 1, L.blur / 2, L.blur / 2, Skia.Color('rgba(0,0,0,0.5)'), null));
+    canvas.drawText(t, L.right - font.getTextWidth(t), L.userBaseline, p, font);
+  }
 }
 
 const signFont = (size: number) => {
@@ -176,6 +190,7 @@ function Slider({ label, value, onChange }: { label: string; value: number; onCh
 
 export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; aspect: number; onCancel: () => void; onDone: (fileUri: string) => void }) {
   const insets = useSafeAreaInsets();
+  const username = useAuth().user?.username ?? null;
   const [img, setImg] = useState<SkImage | null>(null);
   const [failed, setFailed] = useState(false);
   const [edit, setEdit] = useState<Edit>({ look: 0, adj: { b: 0, c: 0, s: 0, w: 0 }, aspect, rot: 0, flip: false, ox: 0, oy: 0 });
@@ -206,14 +221,14 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
   const crop = img ? cropOf(img, edit) : null;
   const pw = crop && area.w ? Math.min(area.w - 24, (area.h - 24) * crop.a) : 0;
   const ph = crop ? pw / crop.a : 0;
-  const previewFont = useMemo(() => (pw ? signFont(Math.max(10, pw * 0.04)) : null), [pw]);
+  const previewFont = useMemo(() => (pw ? signFont(Math.max(8, Math.round(Math.min(pw, ph) * 0.028))) : null), [pw, ph]);
   const picture = useMemo(() => {
     if (!img || !pw) return null;
     const rec = Skia.PictureRecorder();
     const c = rec.beginRecording(Skia.XYWHRect(0, 0, pw, ph));
-    drawEdit(c, img, edit, pw, ph, previewFont);
+    drawEdit(c, img, edit, pw, ph, previewFont, username);
     return rec.finishRecordingAsPicture();
-  }, [img, edit, pw, ph, previewFont]);
+  }, [img, edit, pw, ph, previewFont, username]);
 
   // Arrastar a foto para escolher o enquadramento (quando o recorte é mais pequeno do que a foto).
   const drag = useRef<{ ox: number; oy: number } | null>(null);
@@ -248,7 +263,7 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
       const outH = Math.round(outW / cr.a);
       const surface = Skia.Surface.MakeOffscreen(outW, outH) ?? Skia.Surface.Make(outW, outH);
       if (!surface) throw new Error('sem superfície');
-      drawEdit(surface.getCanvas(), img, edit, outW, outH, signFont(Math.round(outW * 0.04)));
+      drawEdit(surface.getCanvas(), img, edit, outW, outH, signFont(Math.round(Math.min(outW, outH) * 0.028)), username);
       surface.flush();
       const bytes = surface.makeImageSnapshot().encodeToBytes(ImageFormat.JPEG, 92);
       const file = new File(Paths.cache, `txillapp-${Date.now()}.jpg`);
