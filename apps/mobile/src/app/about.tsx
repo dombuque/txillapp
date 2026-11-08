@@ -43,7 +43,7 @@ export default function About() {
           <Line icon="file-text" label="Termos de utilização" to="/terms" />
         </Group>
         <Group title="Txillapp">
-          <Line icon="info" label="Versão" value={`${Constants.expoConfig?.version ?? '—'}${buildId() ? ` (build ${buildId()!.slice(0, 8)})` : ''}`} />
+          <Line icon="info" label="Versão" value={`${Constants.expoConfig?.version ?? '?'}${buildId() ? ` (build ${buildId()!.slice(0, 8)})` : ''}`} />
           <Line icon="mail" label="Contactar-nos" value={SUPPORT} href={`mailto:${SUPPORT}`} />
         </Group>
         <View style={{ marginHorizontal: 24, marginTop: 24, alignItems: 'center' }}>

@@ -3,7 +3,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -58,6 +58,9 @@ export default function Search() {
   const [topic, setTopic] = useState<string | null>(null);
   const [ai, setAi] = useState(false); // SuperTxill aberto
   const [recent, setRecent] = useState<string[]>([]);
+  /** Tocaste na pesquisa: mostra as pesquisas recentes (como no Instagram), em vez do Explorar. */
+  const [focusMode, setFocusMode] = useState(false);
+  const input = useRef<React.ComponentRef<typeof TextInput>>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const [opened, setOpened] = useState<Post | null>(null);
   const [none] = useState(() => NONE[Math.floor(Math.random() * NONE.length)]);
@@ -81,6 +84,16 @@ export default function Search() {
   function forget() {
     setRecent([]);
     void writeRecent([]);
+  }
+  function forgetOne(t: string) {
+    const next = recent.filter((r) => r !== t);
+    setRecent(next);
+    void writeRecent(next);
+  }
+  function cancelSearch() {
+    setText('');
+    setFocusMode(false);
+    input.current?.blur();
   }
 
   const trending = useQuery({ queryKey: ['trending'], queryFn: api.trending, staleTime: 60_000 });
@@ -157,15 +170,40 @@ export default function Search() {
         <BackButton />
         <View style={styles.field}>
           <Icon name="search" size={20} color={colors.zinc600} />
-          <TextInput value={text} onChangeText={setText} onSubmitEditing={() => term.length >= 2 && remember(term)} placeholder="Procura malta e publicações…" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.input} accessibilityLabel="Pesquisar" />
+          <TextInput ref={input} value={text} onChangeText={setText} onFocus={() => setFocusMode(true)} onSubmitEditing={() => { const t = text.trim(); if (t.length >= 2) { setTerm(t); remember(t); } }} placeholder="Procura malta e publicações…" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.input} accessibilityLabel="Pesquisar" />
           {text ? <Pressable onPress={() => setText('')} hitSlop={8} accessibilityLabel="Limpar pesquisa"><Text style={{ fontSize: 22, color: colors.zinc600, paddingHorizontal: 6 }}>×</Text></Pressable> : null}
           <Pressable onPress={() => setAi(true)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
         </View>
-        <Pressable onPress={() => router.push('/saved' as never)} style={styles.saved} accessibilityRole="button" accessibilityLabel="Guardados"><BookmarkIcon on={false} size={26} color={colors.zinc900} /></Pressable>
+        {focusMode ? (
+          <Pressable onPress={cancelSearch} hitSlop={6} style={{ height: 44, justifyContent: 'center', paddingHorizontal: 6 }} accessibilityRole="button"><Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc900 }}>Cancelar</Text></Pressable>
+        ) : (
+          <Pressable onPress={() => router.push('/saved' as never)} style={styles.saved} accessibilityRole="button" accessibilityLabel="Guardados"><BookmarkIcon on={false} size={26} color={colors.zinc900} /></Pressable>
+        )}
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 24 }}>
-        {!searching && (
+        {focusMode && !searching && (
+          <View style={{ paddingTop: 4 }} accessibilityLabel="Pesquisas recentes">
+            <View style={{ paddingHorizontal: 20, marginBottom: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>Recentes</Text>
+              {recent.length > 0 ? <Pressable onPress={forget} hitSlop={8} accessibilityRole="button"><Text style={{ fontSize: 14, fontWeight: '600', color: colors.brand }}>Limpar tudo</Text></Pressable> : null}
+            </View>
+            {recent.length === 0 ? (
+              <Text style={{ paddingHorizontal: 20, paddingVertical: 24, fontSize: 15, color: colors.zinc500 }}>Ainda não pesquisaste nada. Procura malta, hashtags ou sítios.</Text>
+            ) : recent.map((r) => (
+              <View key={r} style={styles.recentRow}>
+                <Pressable onPress={() => { setText(r); remember(r); }} style={({ pressed }) => [{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={`Pesquisar ${r}`}>
+                  <View style={styles.recentIcon}><Icon name={r.startsWith('#') ? 'tag' : r.startsWith('@') ? 'user' : 'clock'} size={18} color={colors.zinc700} /></View>
+                  <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: colors.zinc900 }} numberOfLines={1}>{r}</Text>
+                </Pressable>
+                <Pressable onPress={() => forgetOne(r)} hitSlop={8} style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={`Tirar ${r} das recentes`}>
+                  <Icon name="x" size={18} color={colors.zinc500} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        )}
+        {!focusMode && !searching && (
           <>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, gap: 8 }}>
               <Pressable onPress={() => router.push('/reels/filtros' as never)} style={[chipBase, { width: 40, paddingHorizontal: 0, backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Filtros"><Icon name="sliders" size={20} /></Pressable>
@@ -176,22 +214,6 @@ export default function Search() {
               ))}
             </ScrollView>
 
-            {recent.length > 0 && (
-              <View style={{ paddingHorizontal: 20, paddingBottom: 16 }} accessibilityLabel="Pesquisas recentes">
-                <View style={{ marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>Recentes</Text>
-                  <Pressable onPress={forget} hitSlop={8} accessibilityRole="button"><Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc600, textDecorationLine: 'underline' }}>Limpar</Text></Pressable>
-                </View>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {recent.map((r) => (
-                    <Pressable key={r} onPress={() => setText(r)} style={styles.recent} accessibilityRole="button">
-                      <Icon name="clock" size={14} color={colors.zinc800} />
-                      <Text style={{ fontSize: 14, fontWeight: '500', color: colors.zinc800 }}>{r}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-            )}
 
             {((trending.data?.tags.length ?? 0) > 0 || (hot.data?.length ?? 0) > 0) && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16, gap: 8 }}>
@@ -316,6 +338,8 @@ const styles = StyleSheet.create({
   input: { flex: 1, minWidth: 0, fontSize: 16, padding: 0, color: colors.zinc900, outlineStyle: 'none' } as object,
   tag: { position: 'absolute', right: 6, top: 6 },
   recent: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 14, paddingVertical: 8 },
+  recentRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20 },
+  recentIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   tabs: { marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tabBtn: { flex: 1, borderRadius: 999, paddingVertical: 10, alignItems: 'center' },
   person: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },

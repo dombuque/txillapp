@@ -7,7 +7,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { GoogleButton } from '@/components/GoogleButton';
 import { Icon } from '@/components/Icon';
-import { Landing, isStandaloneWeb } from '@/components/Landing';
 import { Wordmark } from '@/components/Wordmark';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -75,7 +74,7 @@ function BrandPanel() {
     <View style={{ width: '46%', maxWidth: 640, justifyContent: 'space-between', overflow: 'hidden', backgroundColor: colors.canvas, padding: 56 }}>
       <Blob size={480} color="#d6334f" style={{ right: -150, top: -150 }} />
       <Blob size={400} color="#fcd34d" style={{ left: -170, bottom: 0 }} />
-      <Pressable onPress={() => router.push('/login?entrar=1' as never)} accessibilityRole="link" accessibilityLabel="Txillapp, página inicial" style={{ alignSelf: 'flex-start' }}><Wordmark height={48} /></Pressable>
+      <Pressable onPress={() => router.push('/' as never)} accessibilityRole="link" accessibilityLabel="Txillapp, página inicial" style={{ alignSelf: 'flex-start' }}><Wordmark height={48} /></Pressable>
       <View>
         <Text style={{ fontSize: 48, fontWeight: '800', lineHeight: 50, letterSpacing: -1, color: colors.zinc900 }}>Posta. Mostra.{'\n'}<Text style={{ color: colors.brand }}>Txilla.</Text></Text>
         <View style={{ marginTop: 40, gap: 16 }}>
@@ -136,9 +135,7 @@ export default function Login() {
   const pass = useRef<React.ComponentRef<typeof TextInput>>(null);
   // Ligação de convite (/login?convite=CODIGO): quem chega assim é novo, vai direto para criar conta.
   const { convite, entrar } = useLocalSearchParams<{ convite?: string; entrar?: string }>();
-  // O site mostra a apresentação a quem chega pelo navegador sem sessão; a app instalada e o nativo vão direto ao login.
   const wide = useWindowDimensions().width >= 1024;
-  const showLanding = Platform.OS === 'web' && !entrar && !convite && !isStandaloneWeb();
   useEffect(() => {
     const code = String(convite ?? '').trim().toUpperCase().slice(0, 20);
     if (code) router.replace({ pathname: '/register', params: { convite: code } } as never);
@@ -156,8 +153,6 @@ export default function Login() {
       setBusy(false);
     }
   }
-
-  if (showLanding) return <Landing />;
 
   return (
     <Screen

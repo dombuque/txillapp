@@ -30,7 +30,7 @@ export const TERMS: LegalBlock[][] = [
  [
   {
    "t": "h2",
-   "x": "3. O que publicas é teu — e é da tua responsabilidade"
+   "x": "3. O que publicas é teu, e é da tua responsabilidade"
   },
   {
    "t": "p",

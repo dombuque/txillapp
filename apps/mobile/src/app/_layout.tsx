@@ -95,7 +95,7 @@ function Gate() {
     // Links dos emails: servem com ou sem sessão (confirmar conta e repor a senha).
     const onEmailLink = segments[0] === 'verify-email' || segments[0] === 'reset-password';
     // Páginas abertas a todos (termos e privacidade): também com sessão fechada.
-    const onPublic = segments[0] === 'terms' || segments[0] === 'privacy';
+    const onPublic = segments[0] === 'terms' || segments[0] === 'privacy' || segments[0] === 'help';
     if (onEmailLink || onPublic) return;
     // No browser, a página principal sem sessão é a apresentação do Txillapp (ver (tabs)/index): fica no endereço principal.
     const landingHome = Platform.OS === 'web' && pathname === '/' && !isStandaloneWeb();

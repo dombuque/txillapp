@@ -38,7 +38,7 @@ export function problemOf(key: Key, raw: string): string | null {
   if (key === 'username') {
     if (v.length < 3) return 'Mínimo 3 caracteres';
     if (v.length > 30) return 'Máximo 30 caracteres';
-    return /^[a-zA-Z0-9_.]+$/.test(v) ? null : 'Só letras, números, "_" e "." — sem espaços';
+    return /^[a-zA-Z0-9_.]+$/.test(v) ? null : 'Só letras, números, "_" e ".", sem espaços';
   }
   if (key === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? null : 'Esse email não parece certo';
   if (key === 'gender') return v ? null : 'Escolhe uma opção';

@@ -2,6 +2,7 @@ import type React from 'react';
 import { createElement, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle } from 'react-native-svg';
 import { colors } from '@/lib/theme';
 import { FeatureIntro } from './FeatureIntro';
 import { Icon } from './Icon';
@@ -149,6 +150,12 @@ export function TxCamera({
   const cellCanvases = useRef<HTMLCanvasElement[]>([]);
   const [zoom, setZoom] = useState(1);
   const [recording, setRecording] = useState(false);
+  /** Milissegundos de gravação (o anel do obturador enche até aos 60 s). */
+  const [recMs, setRecMs] = useState(0);
+  /** Onde se tocou para focar (círculo que aparece e some). */
+  const [focusAt, setFocusAt] = useState<{ x: number; y: number; k: number } | null>(null);
+  const lastTap = useRef(0);
+  const focusTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Depois de tirar: a pré-visualização, com Repetir ou Usar.
   const [review, setReview] = useState<Shot | null>(null);
   const reviewSrc = useRef<HTMLCanvasElement | null>(null);
@@ -475,6 +482,18 @@ export function TxCamera({
     if (list.length >= rects.length) void finishLayout(list);
   }
 
+  /** Foca no ponto tocado (0–1 no visor), se a câmara e o browser o permitirem. Sem suporte, fica só o círculo. */
+  function focusOn(nx: number, ny: number) {
+    const t = stream.current?.getVideoTracks()[0];
+    if (!t?.getCapabilities) return;
+    const caps = t.getCapabilities() as MediaTrackCapabilities & { focusMode?: string[]; pointsOfInterest?: unknown };
+    if (!caps.focusMode?.length) return;
+    const x = facing === 'user' ? 1 - nx : nx;
+    const mode = caps.focusMode.includes('single-shot') ? 'single-shot' : caps.focusMode.includes('continuous') ? 'continuous' : null;
+    if (!mode) return;
+    void t.applyConstraints({ advanced: [{ focusMode: mode, pointsOfInterest: [{ x, y: ny }] } as unknown as MediaTrackConstraintSet] }).catch(() => undefined);
+  }
+
   function record() {
     if (recording) return recorder.current?.stop();
     const s = stream.current;
@@ -487,6 +506,7 @@ export function TxCamera({
       clearInterval(timer.current);
       setRecording(false);
       setSeconds(0);
+      setRecMs(0);
       const mime = (r.mimeType || type || 'video/mp4').split(';')[0];
       const blob = new Blob(chunks.current, { type: mime });
       if (blob.size) setReview({ uri: URL.createObjectURL(blob), video: true, mime, durationMs: Date.now() - startedAt.current });
@@ -499,8 +519,9 @@ export function TxCamera({
     timer.current = setInterval(() => {
       const t = Math.floor((Date.now() - startedAt.current) / 1000);
       setSeconds(t);
+      setRecMs(Date.now() - startedAt.current);
       if (t >= MAX_VIDEO_S && r.state === 'recording') r.stop();
-    }, 250);
+    }, 100);
   }
 
   const [vkey, setVkey] = useState(0);
@@ -523,13 +544,32 @@ export function TxCamera({
   const holding = useRef(false);
   const [hint, setHint] = useState(() => { try { return Number(localStorage.getItem('tx_cam_hint') ?? '0') < 3; } catch { return true; } });
   useEffect(() => { try { localStorage.setItem('tx_cam_hint', String(Number(localStorage.getItem('tx_cam_hint') ?? '0') + 1)); } catch { /* sem armazenamento */ } }, []);
-  function pressIn() {
+  /** Ao gravar com o dedo no obturador: deslizar para cima aproxima, para baixo afasta. */
+  const slide = useRef<{ y: number; z: number } | null>(null);
+  const onSlide = useRef((ev: TouchEvent | PointerEvent) => {
+    const sl = slide.current;
+    if (!sl || !holding.current) return;
+    const y = 'touches' in ev ? ev.touches[0]?.clientY : (ev as PointerEvent).clientY;
+    if (typeof y !== 'number') return;
+    setZoom(Math.min(5, Math.max(1, sl.z + (sl.y - y) / 90)));
+  }).current;
+  const stopSlide = () => {
+    slide.current = null;
+    window.removeEventListener('touchmove', onSlide);
+    window.removeEventListener('pointermove', onSlide);
+  };
+  useEffect(() => () => { stopSlide(); clearTimeout(focusTimer.current); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  function pressIn(e?: { nativeEvent?: { pageY?: number } }) {
     holding.current = false;
     if (!ready || countdown !== null || recording || layout !== null || !modes.includes('video')) return;
+    slide.current = { y: e?.nativeEvent?.pageY ?? 0, z: zoom };
+    window.addEventListener('touchmove', onSlide, { passive: true });
+    window.addEventListener('pointermove', onSlide);
     holdT.current = setTimeout(() => { holding.current = true; setHint(false); record(); }, 350);
   }
   function pressOut() {
     clearTimeout(holdT.current);
+    stopSlide();
     if (holding.current) { holding.current = false; if (recorder.current?.state === 'recording') recorder.current.stop(); return; }
     press();
   }
@@ -580,17 +620,35 @@ export function TxCamera({
               setZoom(Math.min(5, Math.max(1, p.z * (d / p.d))));
             }
           },
-          onTouchEnd: (e: TouchEvent) => {
+          onTouchEnd: (e: TouchEvent & { currentTarget: HTMLElement }) => {
             if (e.touches.length === 0) pinch.current = null;
             const s = swipe.current;
             swipe.current = null;
-            if (!s || !ready || recording || pinch.current) return;
+            if (!s || !ready || pinch.current) return;
             const dx = e.changedTouches[0].clientX - s.x;
             const dy = e.changedTouches[0].clientY - s.y;
-            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) cycleLook(dx < 0 ? 1 : -1);
+            if (!recording && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) return cycleLook(dx < 0 ? 1 : -1);
+            if (Math.abs(dx) > 10 || Math.abs(dy) > 10 || layout !== null) return;
+            // Toque: dois seguidos viram a câmara (como no Instagram); um só foca naquele ponto.
+            const now = Date.now();
+            if (now - lastTap.current < 300 && canFlip && !recording) {
+              lastTap.current = 0;
+              setFocusAt(null);
+              buzz(8);
+              return setFacing((f) => (f === 'user' ? 'environment' : 'user'));
+            }
+            lastTap.current = now;
+            const box = e.currentTarget.getBoundingClientRect();
+            const x = e.changedTouches[0].clientX - box.left, y = e.changedTouches[0].clientY - box.top;
+            focusOn(x / box.width, y / box.height);
+            setFocusAt({ x, y, k: now });
+            clearTimeout(focusTimer.current);
+            focusTimer.current = setTimeout(() => setFocusAt(null), 900);
           },
         },
         dom('video', { key: `v${vkey}`, ref: video, playsInline: true, muted: true, autoPlay: true, onResize: onVideoResize, style: { ...fill, transform: `${mirror === 'none' ? '' : mirror + ' '}scale(${zoom})`, filter: lookCss(LOOKS[look]), visibility: ready ? 'visible' : 'hidden', transition: 'filter 180ms' } }),
+        focusAt && dom('div', { key: `f${focusAt.k}`, style: { position: 'absolute', left: focusAt.x - 36, top: focusAt.y - 36, width: 72, height: 72, borderRadius: 36, border: '2px solid #fff', boxShadow: '0 0 0 1px rgba(0,0,0,0.25)', pointerEvents: 'none', zIndex: 3, animation: 'txfocus 900ms ease-out forwards' } }),
+        focusAt && dom('style', { key: 'fk' }, '@keyframes txfocus{0%{transform:scale(1.5);opacity:0}15%{transform:scale(1);opacity:1}70%{opacity:1}100%{transform:scale(.92);opacity:0}}'),
         LOOKS[look].tint && dom('div', { key: 'tint', style: { position: 'absolute', inset: 0, pointerEvents: 'none', backgroundColor: `rgba(${LOOKS[look].tint!.join(',')})` } }),
         layout !== null && area.w > 0 && dom(
           'div',
@@ -733,7 +791,14 @@ export function TxCamera({
             accessibilityLabel={countdown !== null ? 'Cancelar' : recording ? 'Parar de gravar' : 'Tirar foto; mantém premido para gravar vídeo'}
             style={[st.shutter, (!ready || full) && { opacity: 0.4 }, recording && { transform: [{ scale: 1.12 }] }]}
           >
-            <View style={[st.shutterRing, recording && { borderColor: '#ef4444' }]} />
+            <View style={[st.shutterRing, recording && { borderColor: 'rgba(255,255,255,0.35)' }]} />
+            {recording ? (
+              <Svg width={84} height={84} style={StyleSheet.absoluteFill} pointerEvents="none">
+                <Circle cx={42} cy={42} r={40} stroke={colors.brand} strokeWidth={4} fill="none" strokeLinecap="round"
+                  strokeDasharray={`${2 * Math.PI * 40}`} strokeDashoffset={2 * Math.PI * 40 * (1 - Math.min(1, recMs / (MAX_VIDEO_S * 1000)))}
+                  transform="rotate(-90 42 42)" />
+              </Svg>
+            ) : null}
             <View style={[st.shutterIn, recording && st.shutterRec]} />
           </Pressable>
           <View style={[st.side, { alignItems: 'flex-end' }]}>

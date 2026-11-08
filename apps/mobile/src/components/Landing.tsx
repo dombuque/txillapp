@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -104,8 +104,15 @@ export function Landing() {
       </View>
 
       <View style={[st.footer, { paddingBottom: 32 + insets.bottom }]}>
-        <Text style={st.footText}>
-          <Text onPress={() => go('/terms')} accessibilityRole="link">Termos de Uso</Text> · <Text onPress={() => go('/privacy')} accessibilityRole="link">Política de Privacidade</Text> ·{' '}
+        <View style={st.footLinks}>
+          <Link href="/login" style={st.footLink}>Entrar</Link>
+          <Link href="/register" style={st.footLink}>Criar conta</Link>
+          <Link href="/forgot-password" style={st.footLink}>Recuperar a senha</Link>
+          <Link href="/help" style={st.footLink}>Ajuda</Link>
+          <Link href="/terms" style={st.footLink}>Termos de Utilização</Link>
+          <Link href="/privacy" style={st.footLink}>Política de Privacidade</Link>
+        </View>
+        <Text style={[st.footText, { marginTop: 10 }]}>
           <Text onPress={() => void Linking.openURL('mailto:suporte@txillapp.com')} accessibilityRole="link">suporte@txillapp.com</Text>
         </Text>
         <Text style={[st.footText, { marginTop: 8 }]}>© {year} Txillapp</Text>
@@ -115,6 +122,8 @@ export function Landing() {
 }
 
 const st = StyleSheet.create({
+  footLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 18, rowGap: 8, paddingHorizontal: 20 },
+  footLink: { fontSize: 14, color: colors.zinc600, fontWeight: '600' },
   header: { width: '100%', maxWidth: 1152, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },
   navBtn: { borderRadius: 999, paddingHorizontal: 20, paddingVertical: 10 },
   navText: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },

@@ -24,13 +24,15 @@ writeFileSync(join(dir, 'version.json'), JSON.stringify({ version, build }));
 // Indexação (Google e outros motores de busca): cada página pública tem título, descrição, ligação canónica e
 // cartão para as redes; as páginas da app (atrás da sessão) ficam fora dos resultados.
 const SITE = 'https://txillapp.com';
-const HOME_DESC = 'Partilha fotos e vídeos, cria Tchekas e Mimos, conversa em tempo real e descobre os melhores sítios para txillar. Grátis, no telemóvel e no computador.';
+const HOME_DESC = 'Partilha fotos e vídeos, cria Tchekas e Mimos, conversa em tempo real com a malta e descobre os melhores sítios para txillar.';
 const PAGES = {
   'index.html': { path: '/', title: 'Txillapp · A rede social da malta', desc: HOME_DESC, index: true },
   'register.html': { path: '/register', title: 'Criar conta · Txillapp', desc: 'Cria a tua conta no Txillapp em menos de um minuto e junta-te à malta: fotos, vídeos, Tchekas, Mimos e conversas.', index: true },
   'terms.html': { path: '/terms', title: 'Termos de Utilização · Txillapp', desc: 'As regras do Txillapp: a tua conta, o que publicas, os Txills e o que não é permitido na comunidade.', index: true },
   'privacy.html': { path: '/privacy', title: 'Política de Privacidade · Txillapp', desc: 'Que dados o Txillapp recolhe, para que servem, quanto tempo ficam guardados e como controlas a tua privacidade.', index: true },
-  'login.html': { path: '/login', title: 'Entrar · Txillapp', desc: 'Entra no Txillapp e volta à tua malta.', index: false },
+  'login.html': { path: '/login', title: 'Entrar · Txillapp', desc: 'Entra no Txillapp com o teu utilizador ou email e volta à tua malta.', index: true },
+  'forgot-password.html': { path: '/forgot-password', title: 'Recuperar a senha · Txillapp', desc: 'Esqueceste a senha? Recebe um email para criar uma nova e voltar ao Txillapp.', index: true },
+  'help.html': { path: '/help', title: 'Ajuda · Txillapp', desc: 'Respostas sobre a tua conta, privacidade, publicações, Txills e segurança no Txillapp.', index: true },
 };
 const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const JSONLD = JSON.stringify({
@@ -83,7 +85,7 @@ const tags = [
   '<style>html,body{background:#fff;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}img,video{-webkit-touch-callout:none;-webkit-user-drag:none}img{-webkit-user-select:none;user-select:none}</style>',
 ].join('');
 // Para quem não corre JavaScript (alguns robôs): o essencial da página de entrada, com as ligações principais.
-const NOSCRIPT_HOME = `<noscript><main style="font-family:system-ui,sans-serif;max-width:640px;margin:48px auto;padding:0 20px;color:#18181b"><h1>Txillapp, a rede social da malta</h1><p>${esc(HOME_DESC)}</p><p><a href="/register">Criar conta</a> · <a href="/login?entrar=1">Entrar</a> · <a href="/terms">Termos</a> · <a href="/privacy">Privacidade</a></p></main></noscript>`;
+const NOSCRIPT_HOME = `<noscript><main style="font-family:system-ui,sans-serif;max-width:640px;margin:48px auto;padding:0 20px;color:#18181b"><h1>Txillapp, a rede social da malta</h1><p>${esc(HOME_DESC)}</p><p><a href="/register">Criar conta</a> · <a href="/login">Entrar</a> · <a href="/forgot-password">Recuperar a senha</a> · <a href="/help">Ajuda</a> · <a href="/terms">Termos</a> · <a href="/privacy">Privacidade</a></p></main></noscript>`;
 
 let n = 0;
 (function walk(d) {

@@ -63,7 +63,7 @@ export default function GoogleUsername() {
 
       <View style={{ marginTop: 40 }}>
         <Text style={st.title}>Quase lá, {first}!</Text>
-        <Text style={st.sub}>Escolhe o teu @ — é único e é assim que a malta te encontra</Text>
+        <Text style={st.sub}>Escolhe o teu @. É único e é assim que a malta te encontra</Text>
 
         <View style={{ marginTop: 32 }}>
           <Field
