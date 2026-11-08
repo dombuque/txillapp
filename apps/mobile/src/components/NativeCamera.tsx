@@ -1,8 +1,9 @@
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import * as Haptics from 'expo-haptics';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useRef, useState } from 'react';
-import { BackHandler, Linking, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
+import { Alert, BackHandler, Linking, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
@@ -61,6 +62,22 @@ export function NativeCamera({
   const [editing, setEditing] = useState<string | null>(null);
   const [review, setReview] = useState<Shot | null>(null);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [savingVideo, setSavingVideo] = useState(false);
+  /** Guarda o vídeo gravado na galeria antes de publicar (tal como saiu da câmara). */
+  async function saveVideo(s: Shot) {
+    if (savingVideo) return;
+    setSavingVideo(true);
+    try {
+      const perm = await MediaLibrary.requestPermissionsAsync(true);
+      if (!perm.granted) { Alert.alert('Sem acesso à galeria', 'Dá acesso às fotos nas definições do telemóvel para guardar.'); return; }
+      await MediaLibrary.saveToLibraryAsync(s.uri);
+      Alert.alert('Guardado', 'O vídeo está na tua galeria.');
+    } catch (e) {
+      Alert.alert('Não consegui guardar', (e as Error).message || 'Tenta outra vez.');
+    } finally {
+      setSavingVideo(false);
+    }
+  }
   const pendingRecord = useRef(false);
   const holdT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const holding = useRef(false);
@@ -372,19 +389,20 @@ export function NativeCamera({
         />
       ) : null}
       {galleryOpen ? <GalleryPicker title={galleryTitle} multi={multi} onPick={picked} onCamera={() => setGalleryOpen(false)} onClose={() => setGalleryOpen(false)} /> : null}
-      {review ? <Review shot={review} onRetake={() => setReview(null)} onUse={() => { const s = review; setReview(null); onShot(s); }} /> : null}
+      {review ? <Review shot={review} onRetake={() => setReview(null)} onSave={() => void saveVideo(review)} onUse={() => { const s = review; setReview(null); onShot(s); }} /> : null}
     </View>
   );
 }
 
 /** Depois de gravar: ver o vídeo, repetir ou usar. */
-function Review({ shot, onRetake, onUse }: { shot: Shot; onRetake: () => void; onUse: () => void }) {
+function Review({ shot, onRetake, onSave, onUse }: { shot: Shot; onRetake: () => void; onSave: () => void; onUse: () => void }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', zIndex: 20 }]}>
       <ReviewVideo uri={shot.uri} />
       <View style={[st.reviewBar, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
         <Pressable onPress={onRetake} style={st.ghostBtn} accessibilityRole="button"><Icon name="undo" size={20} color="#fff" /><Text style={st.ghostText}>Repetir</Text></Pressable>
+        <Pressable onPress={onSave} style={[st.ghostBtn, { paddingHorizontal: 14 }]} accessibilityRole="button" accessibilityLabel="Guardar na galeria"><Icon name="download" size={20} color="#fff" /></Pressable>
         <Pressable onPress={onUse} style={st.useBtn} accessibilityRole="button"><Text style={st.useText}>Usar vídeo</Text><Icon name="check" size={20} color="#fff" strokeWidth={2.6} /></Pressable>
       </View>
     </View>

@@ -2,8 +2,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { createElement, useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { createElement, useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -121,6 +121,10 @@ export default function Compose() {
   const [music, setMusic] = useState<Track | null>(null);
   const [pickMusic, setPickMusic] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  // O separador Criar fica montado quando se vai para outro separador: sem isto a câmara continuava ligada (o indicador
+  // da câmara no iPhone e no Android ficava aceso). Fora de foco, a câmara é desmontada e desliga-se.
+  const [focused, setFocused] = useState(true);
+  useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
   // A ordem dos modos segue o que a pessoa mais usa (conta-se cada vez que avança num modo; fica no aparelho).
   const KINDS_BASE = [{ id: 'post', label: 'Publicação' }, { id: 'mimo', label: 'Mimo' }, { id: 'tcheka', label: 'Tcheka' }, { id: 'zas', label: 'Zás' }];
   const [kindUse, setKindUse] = useState<Record<string, number>>(() => { try { return JSON.parse(localStorage.getItem('tx_kind_use') ?? '{}') as Record<string, number>; } catch { return {}; } });
@@ -359,7 +363,7 @@ export default function Compose() {
   }
 
   const removeAsset = (uri: string) => setAssets((cur) => cur.filter((x) => x.uri !== uri));
-  const cameraLayer = cameraOpen && (
+  const cameraLayer = cameraOpen && focused && (
     <View style={StyleSheet.absoluteFill}>
       {web ? (
         <LiveCamera count={assets.length} max={MAX_PHOTOS} onShot={shot} onGallery={(f) => { void addFiles(f); setCameraOpen(false); }} onClose={() => setCameraOpen(false)} onDone={() => { setCameraOpen(false); setStep('write'); }} />
@@ -368,6 +372,9 @@ export default function Compose() {
       )}
     </View>
   );
+
+  // Noutro separador: nada de câmara ligada.
+  if (step === 'choose' && !focused) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
 
   // Primeiro passo na web: a câmara ao vivo ocupa o ecrã, com a galeria lá dentro.
   if (step === 'choose' && web && liveCameraSupported()) {

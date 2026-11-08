@@ -1,7 +1,8 @@
 import { Canvas, ImageFormat, PaintStyle, Picture, Skia, StrokeCap, StrokeJoin, matchFont, type SkCanvas, type SkFont, type SkImage } from '@shopify/react-native-skia';
 import { File, Paths } from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
@@ -197,6 +198,7 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
   const [tool, setTool] = useState<'look' | 'adjust' | 'crop'>('look');
   const [area, setArea] = useState({ w: 0, h: 0 });
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -254,25 +256,49 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
     }),
   ).current;
 
+  /** Desenha a foto final (recorte, filtro, ajustes e assinatura) num JPEG na cache e devolve o caminho. */
+  function renderFile(): string | null {
+    if (!img) return null;
+    const cr = cropOf(img, edit);
+    const outW = Math.round(Math.min(cr.cw, cr.a >= 1 ? 1920 : 1080));
+    const outH = Math.round(outW / cr.a);
+    const surface = Skia.Surface.MakeOffscreen(outW, outH) ?? Skia.Surface.Make(outW, outH);
+    if (!surface) return null;
+    drawEdit(surface.getCanvas(), img, edit, outW, outH, signFont(Math.round(Math.min(outW, outH) * 0.028)), username);
+    surface.flush();
+    const bytes = surface.makeImageSnapshot().encodeToBytes(ImageFormat.JPEG, 92);
+    const file = new File(Paths.cache, `txillapp-${Date.now()}.jpg`);
+    file.create({ overwrite: true });
+    file.write(bytes);
+    return file.uri;
+  }
   async function finish() {
     if (!img || busy) return;
     setBusy(true);
     try {
-      const cr = cropOf(img, edit);
-      const outW = Math.round(Math.min(cr.cw, cr.a >= 1 ? 1920 : 1080));
-      const outH = Math.round(outW / cr.a);
-      const surface = Skia.Surface.MakeOffscreen(outW, outH) ?? Skia.Surface.Make(outW, outH);
-      if (!surface) throw new Error('sem superfície');
-      drawEdit(surface.getCanvas(), img, edit, outW, outH, signFont(Math.round(Math.min(outW, outH) * 0.028)), username);
-      surface.flush();
-      const bytes = surface.makeImageSnapshot().encodeToBytes(ImageFormat.JPEG, 92);
-      const file = new File(Paths.cache, `txillapp-${Date.now()}.jpg`);
-      file.create({ overwrite: true });
-      file.write(bytes);
-      onDone(file.uri);
+      const uri = renderFile();
+      if (!uri) throw new Error('sem superfície');
+      onDone(uri);
     } catch {
       setBusy(false);
       setFailed(true);
+    }
+  }
+  /** Guarda a foto editada na galeria do telemóvel (sempre com a assinatura), e fica no editor para continuar. */
+  async function saveLocal() {
+    if (!img || saving) return;
+    setSaving(true);
+    try {
+      const perm = await MediaLibrary.requestPermissionsAsync(true);
+      if (!perm.granted) { Alert.alert('Sem acesso à galeria', 'Dá acesso às fotos nas definições do telemóvel para guardar.'); return; }
+      const uri = renderFile();
+      if (!uri) throw new Error('Não consegui desenhar a foto');
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert('Guardada', 'A foto está na tua galeria, com a assinatura do Txillapp.');
+    } catch (e) {
+      Alert.alert('Não consegui guardar', (e as Error).message || 'Tenta outra vez.');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -285,9 +311,14 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
       <View style={[st.top, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={onCancel} style={st.round} accessibilityRole="button" accessibilityLabel="Voltar à câmara"><Icon name="x" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
         <Text style={st.title}>Editar</Text>
-        <Pressable onPress={() => void finish()} disabled={!img || busy} style={[st.next, (!img || busy) && { opacity: 0.5 }]} accessibilityRole="button">
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.nextText}>Seguinte</Text>}
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Pressable onPress={() => void saveLocal()} disabled={!img || saving} style={[st.round, (!img || saving) && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel="Guardar na galeria">
+            {saving ? <ActivityIndicator color="#fff" /> : <Icon name="download" size={20} color="#fff" />}
+          </Pressable>
+          <Pressable onPress={() => void finish()} disabled={!img || busy} style={[st.next, (!img || busy) && { opacity: 0.5 }]} accessibilityRole="button">
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.nextText}>Seguinte</Text>}
+          </Pressable>
+        </View>
       </View>
 
       <View style={st.stage} onLayout={(e: LayoutChangeEvent) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>

@@ -599,6 +599,29 @@ export function TxCamera({
     }, 1000);
   }
 
+  /** Guardar no aparelho antes de publicar: a foto editada (com a assinatura) ou o vídeo gravado. */
+  async function saveReview() {
+    const r = review;
+    if (!r) return;
+    const src = reviewSrc.current;
+    const blob: Blob | null = !r.video && src
+      ? await new Promise<Blob | null>((res) => renderEdit(src, { ...edit, box: freeCrop ? boxRef.current : edit.box, aspect: freeCrop ? null : edit.aspect }).toBlob(res, 'image/jpeg', 0.92))
+      : await (await fetch(r.uri)).blob();
+    if (!blob) return;
+    const f = new File([blob], `txillapp-${Date.now()}.${r.video ? (r.mime.includes('webm') ? 'webm' : 'mp4') : 'jpg'}`, { type: blob.type || r.mime });
+    try {
+      if (navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f] }); return; }
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return;
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(f);
+    a.download = f.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+  }
   const mm = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   // Barra de baixo (fora do visor): galeria, modos e virar câmara, como no Instagram.
   const barH = 64 + Math.max(insets.bottom, 12);
@@ -932,6 +955,7 @@ export function TxCamera({
           )}
           <View style={[st.reviewBar, { paddingBottom: botPad }]}>
             <Pressable onPress={() => setReview(null)} style={st.retake} accessibilityRole="button"><Icon name="undo" size={20} color="#fff" strokeWidth={2.2} /><Text style={st.retakeText}>Repetir</Text></Pressable>
+            <Pressable onPress={() => void saveReview()} style={[st.retake, { paddingHorizontal: 16 }]} accessibilityRole="button" accessibilityLabel="Guardar no aparelho"><Icon name="download" size={20} color="#fff" strokeWidth={2.2} /></Pressable>
             <Pressable
               onPress={() => {
                 const r = review;
