@@ -299,9 +299,11 @@ export default function StoryViewer() {
   async function shareMimo() {
     if (!cur) return;
     setAway(true);
-    const url = `${SITE_URL || 'https://txillapp.com'}/stories/${cur.author.username}`;
+    // Ligação curta (txillapp.com/m/@). No iPhone a partilha junta a mensagem e o endereço: o endereço vai só uma vez.
+    const url = `${SITE_URL || 'https://txillapp.com'}/m/${cur.author.username}`;
+    const message = `Vê o mimo de @${cur.author.username} no Txillapp`;
     try {
-      await Share.share({ message: `Vê o mimo de @${cur.author.username} no Txillapp: ${url}`, url, title: `Mimo de @${cur.author.username}` });
+      await Share.share(Platform.OS === 'ios' ? { message, url } : { message: `${message}: ${url}` }, { dialogTitle: `Mimo de @${cur.author.username}` });
     } catch { /* cancelado */ }
     setAway(false);
   }

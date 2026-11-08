@@ -165,6 +165,7 @@ function Gate() {
       <Stack.Screen name="t/[tag]" />
       <Stack.Screen name="u/[username]/connections" />
       <Stack.Screen name="stories/[username]" options={{ animation: 'fade' }} />
+      <Stack.Screen name="m/[username]" options={{ animation: 'fade' }} />
       <Stack.Screen name="stories/new" options={{ animation: 'slide_from_bottom' }} />
     </Stack>
   );
