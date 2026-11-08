@@ -18,6 +18,7 @@ import { SITE_URL, abs, sized } from '@/lib/config';
 import { useOwnSeen, writeOwnSeen } from '@/lib/ownSeen';
 import { useAuth } from '@/lib/auth';
 import { timeAgo } from '@/lib/time';
+import { saveToGallery } from '@/lib/saveToGallery';
 
 /** Quanto tempo fica à vista um mimo de foto (os de vídeo duram o vídeo, até 30 s). */
 const IMAGE_MS = 30_000;
@@ -296,6 +297,24 @@ export default function StoryViewer() {
     );
   }
   const shared = !!cur.sharedFrom;
+  const [saving, setSaving] = useState(false);
+  /** Guarda o meu mimo na galeria, sempre com a assinatura do Txillapp (o servidor grava-a na foto ou no vídeo). */
+  async function saveMimo() {
+    if (!cur || saving) return;
+    setPanel(null);
+    setSaving(true);
+    setAway(true);
+    try {
+      const r = await saveToGallery(`/api/v1/stories/${cur.id}/download`, `txillapp-mimo-${cur.id.slice(0, 8)}.${cur.mediaKind === 'video' ? 'mp4' : 'jpg'}`);
+      if (r === 'denied') Alert.alert('Sem acesso à galeria', 'Dá acesso às fotos nas definições do telemóvel para guardar o mimo.');
+      else if (Platform.OS !== 'web') Alert.alert('Guardado', 'O mimo está na tua galeria, com a assinatura do Txillapp.');
+    } catch (e) {
+      Alert.alert('Não consegui guardar', (e as Error).message || 'Tenta outra vez.');
+    } finally {
+      setSaving(false);
+      setAway(false);
+    }
+  }
   async function shareMimo() {
     if (!cur) return;
     setAway(true);
@@ -395,6 +414,8 @@ export default function StoryViewer() {
         {panel === 'menu' && (
           <Panel title="O teu mimo" onClose={() => setPanel(null)}>
             <Pressable onPress={() => { close(); router.push('/settings' as never); }} style={st.menuRow}><Text style={st.menuText}>Definições do mimo</Text></Pressable>
+            <Pressable onPress={() => void saveMimo()} style={st.menuRow}><Text style={st.menuText}>{saving ? 'A guardar…' : 'Guardar na galeria'}</Text></Pressable>
+            <Pressable onPress={() => void shareMimo()} style={st.menuRow}><Text style={st.menuText}>Partilhar</Text></Pressable>
             <Pressable onPress={() => void toggleComments()} style={st.menuRow}><Text style={st.menuText}>{cur.commentsOff ? 'Ativar comentários' : 'Desativar comentários'}</Text></Pressable>
             <Pressable onPress={() => void remove()} style={st.menuRow}><Text style={[st.menuText, { color: '#dc2626', fontWeight: '600' }]}>Apagar mimo</Text></Pressable>
             <Pressable onPress={() => setPanel(null)} style={st.menuRow}><Text style={st.menuText}>Cancelar</Text></Pressable>

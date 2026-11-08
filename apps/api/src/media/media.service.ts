@@ -233,6 +233,11 @@ export class MediaService implements OnModuleInit {
     return { status: 'processing' };
   }
 
+  /** Os bytes de um ficheiro (para o assinar antes de o entregar). */
+  async rawBytes(id: string, scope: 'public' | 'private' = 'public'): Promise<Buffer> {
+    return this.s3 ? this.s3.read(id, scope) : readFile(join(this.dir, id));
+  }
+
   /** Estado de um ficheiro (para a app esperar pela conversão do vídeo). */
   async status(userId: string, id: string) {
     const { rows } = await this.pool.query('SELECT status, processing_error, duration_ms FROM content.media_assets WHERE id = $1 AND owner_id = $2', [id, userId]);

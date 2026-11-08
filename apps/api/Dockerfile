@@ -22,6 +22,8 @@ ENV NODE_ENV=production \
     MEDIA_DIR=/data/uploads \
     MODEL_CACHE_DIR=/data/models
 WORKDIR /app
+# Letras para a assinatura (@) gravada nas fotos e vídeos que as pessoas guardam.
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/node_modules node_modules
 # Versões que só uma workspace usa ficam em apps/api/node_modules (o Elasticsearch 8, por exemplo).
 COPY --from=build /app/apps/api/node_modules apps/api/node_modules

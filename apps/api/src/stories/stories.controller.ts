@@ -1,6 +1,6 @@
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Req, UseGuards } from '@nestjs/common';
-import { Request } from 'express';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Req, Res, UseGuards } from '@nestjs/common';
+import { Request, Response } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
@@ -104,6 +104,16 @@ export class StoriesController {
   @HttpCode(201)
   reply(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(replySchema)) b: z.infer<typeof replySchema>) {
     return this.stories.reply(req.userId!, id, b.body);
+  }
+
+  /** O meu mimo com a assinatura, para guardar na galeria. */
+  @Get(':id/download')
+  async download(@Req() req: Request & { userId?: string }, @Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
+    const f = await this.stories.download(req.userId!, id);
+    res.setHeader('Content-Type', f.mime);
+    res.setHeader('Content-Disposition', `attachment; filename="${f.filename}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(f.bytes);
   }
 
   @Get(':id/comments')

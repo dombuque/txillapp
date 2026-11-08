@@ -326,6 +326,18 @@ export async function migrateWebAccounts(): Promise<void> {
   }
 }
 
+/** Cabeçalhos de um pedido com sessão (para descarregar ficheiros fora do `raw`). */
+export const authHeaders = (): Record<string, string> => ({ ...baseHeaders, ...(isWeb && webAccountId ? { 'X-Account': webAccountId } : {}), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) });
+/** Um pedido com sessão que devolve a resposta tal e qual (ficheiros); com a sessão caducada renova uma vez. */
+export async function fetchAuthed(path: string): Promise<Response> {
+  let res = await call(path);
+  if (res.status === 401) {
+    await refreshSession();
+    res = await call(path);
+  }
+  return res;
+}
+
 let refreshing: Promise<AuthResult> | null = null;
 /** Renova a sessão com o token guardado. Só um 401 definitivo termina a sessão; falhas de rede não deslogam ninguém. */
 export function refreshSession(): Promise<AuthResult> {

@@ -2,6 +2,8 @@ import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundEx
 import { TextFilter } from '../safety/text-filter.service';
 import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
+import { MediaService } from '../media/media.service';
+import { signImage, signVideo } from '../media/signature';
 import { PG_POOL } from '../db/db.module';
 import { ChatService } from '../chat/chat.service';
 import { MusicService, type MusicInput } from '../music/music.service';
@@ -32,6 +34,7 @@ export class StoriesService {
     private readonly chat: ChatService,
     private readonly filter: TextFilter,
     private readonly musicSvc: MusicService,
+    private readonly media: MediaService,
   ) {}
 
   async create(userId: string, mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all', musicIn: MusicInput | null = null) {
@@ -350,6 +353,21 @@ export class StoriesService {
   async remove(userId: string, storyId: string) {
     const r = await this.pool.query('DELETE FROM content.stories WHERE id = $1 AND author_id = $2', [storyId, userId]);
     if (!r.rowCount) throw new NotFoundException('Story não encontrado');
+  }
+
+  /** O meu mimo para guardar na galeria: a foto ou o vídeo com a assinatura do Txillapp (logótipo e o meu @). */
+  async download(userId: string, id: string): Promise<{ mime: string; bytes: Buffer; filename: string }> {
+    const { rows } = await this.pool.query(
+      `SELECT s.media_id, s.author_id, u.username, m.mime FROM content.stories s JOIN identity.users u ON u.id = s.author_id JOIN content.media_assets m ON m.id = s.media_id WHERE s.id = $1`,
+      [id],
+    );
+    const r = rows[0];
+    if (!r) throw new NotFoundException('Mimo não encontrado');
+    if (r.author_id !== userId) throw new ForbiddenException('Só podes guardar os teus mimos');
+    const raw = await this.media.rawBytes(r.media_id as string, 'public');
+    const video = String(r.mime).startsWith('video/');
+    const bytes = video ? await signVideo(raw, r.username as string) : await signImage(raw, r.username as string);
+    return { mime: video ? 'video/mp4' : 'image/jpeg', bytes, filename: `txillapp-mimo-${String(id).slice(0, 8)}.${video ? 'mp4' : 'jpg'}` };
   }
 
   private async getOne(userId: string, id: string) {
