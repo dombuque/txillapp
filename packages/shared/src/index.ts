@@ -51,7 +51,7 @@ export const birthDateSchema = z
 export const registerSchema = z.object({
   birthDate: birthDateSchema,
   /** Aceitar os Termos e a Política de Privacidade. */
-  acceptTerms: z.literal(true, { errorMap: () => ({ message: 'Tens de aceitar os Termos e a Política de Privacidade' }) }),
+  acceptTerms: z.literal(true, { error: 'Tens de aceitar os Termos e a Política de Privacidade' }),
   /** Pedido no registo. O servidor aceita a falta (contas antigas, API), mas a app não deixa continuar sem escolher. */
   gender: genderSchema.optional(),
   email: z.string().email().max(254),

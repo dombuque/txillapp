@@ -1,10 +1,18 @@
 import { kvGet, kvSet } from './kv';
 
 /**
- * Várias contas no mesmo aparelho: guarda-se o token de renovação de cada uma (cofre do telemóvel; localStorage na web)
- * e qual está ativa. Trocar de conta é renovar a sessão com o token dessa conta.
+ * Várias contas no mesmo aparelho e qual está ativa. No telemóvel guarda-se o token de renovação de cada uma (no cofre).
+ * No browser o token nunca fica na página: está num cookie HttpOnly por conta, e aqui guarda-se só quem é (id, nome).
+ * Trocar de conta é renovar a sessão dessa conta.
  */
-export interface Account { username: string; displayName: string; refreshToken: string }
+export interface Account {
+  username: string;
+  displayName: string;
+  /** Só no telemóvel. No browser fica vazio (contas antigas ainda o têm até à primeira renovação, que o passa para o cookie). */
+  refreshToken?: string;
+  /** Id da conta: no browser diz ao servidor qual cookie usar. */
+  id?: string;
+}
 
 const KEY = 'tx_accounts';
 const CUR = 'tx_account';
@@ -44,6 +52,15 @@ export const accounts = {
     const i = list.findIndex((a) => a.username === username);
     if (i >= 0) {
       list[i] = { ...list[i], refreshToken };
+      await save([...list]);
+    }
+  },
+  /** Muda dados de uma conta sem a tornar a ativa. */
+  async patch(username: string, p: Partial<Account>) {
+    const list = await load();
+    const i = list.findIndex((a) => a.username === username);
+    if (i >= 0) {
+      list[i] = { ...list[i], ...p };
       await save([...list]);
     }
   },

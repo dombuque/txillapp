@@ -38,17 +38,42 @@ function requireCsrfHeader(req: Request) {
 }
 
 /**
- * App nativa (React Native): não usa o cookie. Envia `X-Client: txillapp-mobile`, recebe o token de renovação no corpo da resposta
- * (para guardar no cofre do telemóvel) e devolve-o no cabeçalho `X-Refresh-Token`. O browser continua só com o cookie HttpOnly.
+ * App nativa (React Native no telemóvel): não usa cookies. Envia `X-Client: txillapp-mobile`, recebe o token de renovação no
+ * corpo da resposta (para guardar no cofre do telemóvel) e devolve-o no cabeçalho `X-Refresh-Token`.
+ *
+ * App no browser (`X-Client: txillapp-web`): o token de renovação nunca chega ao JavaScript da página. Fica num cookie HttpOnly
+ * por conta (`txill_rt_<id>`, só para /api/v1/auth, SameSite=Strict), e a página diz qual conta quer renovar com `X-Account`.
+ * Assim um script malicioso na página não consegue roubar sessões, e as várias contas no mesmo browser continuam a funcionar.
  */
 const isMobile = (req: Request) => req.headers['x-client'] === 'txillapp-mobile';
-// A app (X-Client: txillapp-mobile) manda o token no cabeçalho e pode ter várias contas no mesmo aparelho: o cabeçalho
-// tem prioridade. Sem cabeçalho (primeira vez depois de migrar do site antigo) ainda vale o cookie.
-const refreshTokenOf = (req: Request): string | undefined => {
+const isWebApp = (req: Request) => req.headers['x-client'] === 'txillapp-web';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const accountCookie = (userId: string) => `${COOKIE}_${userId}`;
+const accountOf = (req: Request): string | null => {
+  const a = req.headers['x-account'];
+  return typeof a === 'string' && UUID.test(a) ? a : null;
+};
+const headerToken = (req: Request): string | undefined => {
   const h = req.headers['x-refresh-token'];
-  if (isMobile(req) && typeof h === 'string' && h.length >= 20 && h.length <= 400) return h;
-  const fromCookie = req.cookies?.[COOKIE] as string | undefined;
-  return fromCookie || undefined;
+  return typeof h === 'string' && h.length >= 20 && h.length <= 400 ? h : undefined;
+};
+const refreshTokenOf = (req: Request): string | undefined => {
+  if (isMobile(req)) return headerToken(req) ?? ((req.cookies?.[COOKIE] as string | undefined) || undefined);
+  if (isWebApp(req)) {
+    const acc = accountOf(req);
+    const own = acc ? (req.cookies?.[accountCookie(acc)] as string | undefined) : undefined;
+    if (own) return own;
+    // Migração (uma vez por conta): o token que a página ainda tinha guardado passa para o cookie e é apagado lá.
+    const legacy = headerToken(req);
+    if (legacy) return legacy;
+  }
+  return (req.cookies?.[COOKIE] as string | undefined) || undefined;
+};
+/** Apaga o cookie desta sessão (o da conta, no browser, e o antigo do site). */
+const clearSessionCookies = (req: Request, res: Response) => {
+  const acc = accountOf(req);
+  if (acc) res.clearCookie(accountCookie(acc), { path: COOKIE_PATH });
+  res.clearCookie(COOKIE, { path: COOKIE_PATH });
 };
 
 const passwordChangeSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: passwordSchema });
@@ -100,7 +125,7 @@ export class AuthController {
       return this.respond(res, tokens, user);
     } catch (e) {
       // Só se apaga o cookie quando o token é mesmo inválido; um erro temporário não pode deslogar ninguém.
-      if (e instanceof UnauthorizedException) res.clearCookie(COOKIE, { path: COOKIE_PATH });
+      if (e instanceof UnauthorizedException) clearSessionCookies(req, res);
       throw e;
     }
   }
@@ -182,7 +207,7 @@ export class AuthController {
     requireCsrfHeader(req);
     const token = refreshTokenOf(req);
     if (token) await this.auth.logout(token);
-    res.clearCookie(COOKIE, { path: COOKIE_PATH });
+    clearSessionCookies(req, res);
   }
 
   /* ───── segurança da conta ───── */
@@ -202,14 +227,14 @@ export class AuthController {
   @Get('sessions')
   @UseGuards(JwtAuthGuard)
   sessions(@Req() req: Request & { userId?: string }) {
-    return this.auth.sessions(req.userId!, req.cookies?.[COOKIE]);
+    return this.auth.sessions(req.userId!, refreshTokenOf(req));
   }
 
   @Post('sessions/revoke-others')
   @HttpCode(204)
   @UseGuards(JwtAuthGuard)
   revokeOthers(@Req() req: Request & { userId?: string }) {
-    return this.auth.revokeOtherSessions(req.userId!, req.cookies?.[COOKIE]);
+    return this.auth.revokeOtherSessions(req.userId!, refreshTokenOf(req));
   }
 
   @Delete('sessions/:family')
@@ -228,6 +253,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.auth.deleteAccount(req.userId!, b.confirmUsername, b.password);
+    res.clearCookie(accountCookie(req.userId!), { path: COOKIE_PATH });
     res.clearCookie(COOKIE, { path: COOKIE_PATH });
   }
 
@@ -278,16 +304,21 @@ export class AuthController {
   }
 
   private respond(res: Response, tokens: Tokens, user: AuthResponse['user']): AuthResponse {
-    const mobile = !!res.req && isMobile(res.req);
-    // A app guarda o token ela própria (e pode ter várias contas): não leva cookie, e um cookie antigo do site é apagado.
-    if (mobile) res.clearCookie(COOKIE, { path: COOKIE_PATH });
-    else res.cookie(COOKIE, tokens.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: COOKIE_PATH,
-      maxAge: REFRESH_TTL_MS,
-    });
-    return mobile ? ({ accessToken: tokens.accessToken, user, refreshToken: tokens.refreshToken } as AuthResponse) : { accessToken: tokens.accessToken, user };
+    const req = res.req;
+    // A app nativa guarda o token ela própria (e pode ter várias contas): não leva cookie, e um cookie antigo do site é apagado.
+    if (req && isMobile(req)) {
+      res.clearCookie(COOKIE, { path: COOKIE_PATH });
+      return { accessToken: tokens.accessToken, user, refreshToken: tokens.refreshToken } as AuthResponse;
+    }
+    const opts = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' as const, path: COOKIE_PATH, maxAge: REFRESH_TTL_MS };
+    if (req && isWebApp(req)) {
+      // Browser: um cookie por conta; o token nunca vai no corpo da resposta.
+      res.cookie(accountCookie(user.id), tokens.refreshToken, opts);
+      res.clearCookie(COOKIE, { path: COOKIE_PATH });
+    } else {
+      res.cookie(COOKIE, tokens.refreshToken, opts);
+    }
+    return { accessToken: tokens.accessToken, user };
   }
+
 }

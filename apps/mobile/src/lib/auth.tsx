@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ApiError, api, refreshSession, refreshStore, setSessionExpiredHandler, type AuthResult, type PublicUser } from './api';
+import { ApiError, api, migrateWebAccounts, refreshSession, refreshStore, setSessionExpiredHandler, type AuthResult, type PublicUser } from './api';
 import { accounts } from './accounts';
 
 interface AuthState {
@@ -53,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const r = await refreshSession();
         if (!cancelled) setUser(r.user);
+        void migrateWebAccounts();
       } catch (e) {
         // 401: sessão terminada (já tratado). Qualquer outro erro é rede: não desloga.
         if (!cancelled && !(e instanceof ApiError && e.status === 401)) setOffline(true);

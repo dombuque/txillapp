@@ -1,5 +1,11 @@
 // Ecrã de arranque: nunca deixa a página em branco enquanto a app descarrega (rede lenta) e oferece recarregar se demorar.
 (function () {
+  // A versão desta build vem nos <meta> do HTML (sem scripts embutidos, por causa da política de conteúdo).
+  try {
+    var meta = function (n) { var e = document.querySelector('meta[name="' + n + '"]'); return e ? e.getAttribute('content') : null; };
+    window.__TX_BUILD = meta('tx-build');
+    window.__TX_VERSION = meta('tx-version');
+  } catch (x) { /* sem DOM */ }
   function show() {
     if (document.getElementById('tx-boot')) return;
     var d = document.createElement('div');

@@ -12,6 +12,7 @@ import { emitTabPress } from '@/lib/tabPress';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
 import { FollowButton } from './FollowButton';
+import { NewBadge } from './WhatsNew';
 import { Icon, type IconName } from './Icon';
 import { VerifiedBadge } from './VerifiedBadge';
 import { Wordmark } from './Wordmark';
@@ -94,6 +95,7 @@ function Sidebar({ labels, path }: { labels: boolean; path: string }) {
               {it.count ? <View style={st.badge}><Text style={st.badgeText}>{badge(it.count)}</Text></View> : null}
             </View>
             {labels ? <Text style={[st.label, it.active && { fontWeight: '800' }]} numberOfLines={1}>{it.label}</Text> : null}
+            {it.key === 'zas' ? <View style={labels ? { marginLeft: -6 } : { position: 'absolute', right: -6, top: 2 }}><NewBadge id="zas" /></View> : null}
           </Pressable>
         ))}
       </View>

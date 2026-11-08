@@ -63,13 +63,19 @@ export class VideoService {
     return { src: join(this.dir, `${id}.src`), out: join(this.dir, id), poster: join(this.dir, `${id}.poster.jpg`) };
   }
 
+  /**
+   * Entrada segura para o ffmpeg/ffprobe: lê só ficheiros locais (um "vídeo" que seja uma lista HLS não consegue fazer o
+   * ffmpeg ir buscar outros ficheiros do servidor nem endereços da rede) e só nos formatos aceites (MP4/MOV e WebM/Matroska).
+   */
+  static readonly SAFE_INPUT = ['-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,matroska,webm'];
+
   enqueue(id: string, owner: string, hooks?: VideoStorageHooks) {
     this.chain = this.chain.then(() => this.process(id, owner, hooks)).catch(() => undefined);
     return this.chain;
   }
 
   private async probe(file: string) {
-    const { stdout } = await run(ffprobe.path, ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', file], { timeout: 30_000 });
+    const { stdout } = await run(ffprobe.path, ['-v', 'error', ...VideoService.SAFE_INPUT, '-print_format', 'json', '-show_format', '-show_streams', file], { timeout: 30_000 });
     const info = JSON.parse(stdout) as { format?: { duration?: string }; streams?: { codec_type: string; width?: number; height?: number; duration?: string }[] };
     const v = info.streams?.find((s) => s.codec_type === 'video');
     const seconds = Number(info.format?.duration ?? v?.duration ?? 0);
@@ -88,7 +94,7 @@ export class VideoService {
       await run(
         FFMPEG,
         [
-          '-y', '-i', f.src, '-t', String(MAX_VIDEO_SECONDS),
+          '-y', ...VideoService.SAFE_INPUT, '-i', f.src, '-t', String(MAX_VIDEO_SECONDS),
           // Lado menor até 1080 (vertical 1080×1920, horizontal 1920×1080), nunca amplia; 30 fps no máximo.
           '-vf', "scale='if(gt(iw,ih),-2,min(1080,iw))':'if(gt(iw,ih),min(1080,ih),-2)':flags=lanczos,fps=30,format=yuv420p",
           '-c:v', 'libx264', '-preset', 'faster', '-crf', '23', '-maxrate', '6M', '-bufsize', '12M', '-profile:v', 'high', '-level', '4.1',
@@ -101,7 +107,7 @@ export class VideoService {
       const final = await this.probe(f.out);
 
       // Capa e 3 imagens para a verificação (10%, 50% e 90%).
-      await run(FFMPEG, ['-y', '-ss', String(Math.min(0.5, final.seconds / 2)), '-i', f.out, '-frames:v', '1', '-q:v', '4', f.poster], { timeout: 60_000 });
+      await run(FFMPEG, ['-y', ...VideoService.SAFE_INPUT, '-ss', String(Math.min(0.5, final.seconds / 2)), '-i', f.out, '-frames:v', '1', '-q:v', '4', f.poster], { timeout: 60_000 });
       const verdict = await this.screenFrames(f.out, final.seconds, id, owner);
       if (verdict === 'reject') throw new VideoRejected('Este vídeo parece ter nudez ou conteúdo sexual e não pode ser publicado.');
 
@@ -130,7 +136,7 @@ export class VideoService {
     let top: number | null = null;
     for (const at of [0.1, 0.5, 0.9]) {
       const frame = join(this.dir, `${id}.frame.jpg`);
-      await run(FFMPEG, ['-y', '-ss', String(seconds * at), '-i', video, '-frames:v', '1', '-q:v', '4', frame], { timeout: 60_000 });
+      await run(FFMPEG, ['-y', ...VideoService.SAFE_INPUT, '-ss', String(seconds * at), '-i', video, '-frames:v', '1', '-q:v', '4', frame], { timeout: 60_000 });
       const { verdict, score } = await this.imageModeration.check(await readFile(frame), 'image/jpeg');
       await rm(frame, { force: true });
       if (score !== null && (top === null || score > top)) top = score;

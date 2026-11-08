@@ -172,4 +172,5 @@ describeDb('auth (integração, PostgreSQL real)', () => {
     await reg({ birthDate: '1990-06-15' }, 'semaceite').expect(400);
     await reg({ birthDate: `${year - 16}-01-01`, acceptTerms: true }, 'adulto').expect(201);
   });
+
 });

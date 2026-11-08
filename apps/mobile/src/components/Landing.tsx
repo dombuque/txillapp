@@ -31,7 +31,7 @@ export function Landing() {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     const prev = document.title;
-    document.title = 'Txillapp — a rede da malta';
+    document.title = 'Txillapp · A rede social da malta';
     return () => { document.title = prev; };
   }, []);
   const go = (path: string) => router.push(path as never);

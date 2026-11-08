@@ -16,6 +16,7 @@ import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
 import { FeatureIntro } from './FeatureIntro';
+import { markSeen } from '@/lib/whatsNew';
 import { Sheet } from './Sheet';
 import { CloseFriendsSheet, REACTIONS, ReactionArt } from './StoryParts';
 import { CurvedCaption } from './zas/CurvedCaption';
@@ -269,6 +270,8 @@ function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, on
  * (com 6 s para desfazer). Em cima, o cartão 3:4 com a legenda; em baixo o obturador e para quem vai.
  */
 export function InstantsHub({ onClose }: { onClose: () => void }) {
+  // Abrir o Zás conta como descoberto: some o "NOVA" do botão.
+  useEffect(() => { markSeen('zas'); }, []);
   const { user } = useAuth();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();

@@ -40,7 +40,7 @@ export function TabBar({ state, navigateToTab }: TabBarProps) {
     else emitTabPress(state.routes.find((r) => r.key === key)?.name ?? '');
   };
 
-  if (onNew || desktop) return null;
+  if (onNew || desktop || !user) return null;
 
   return (
     <View style={[styles.floatWrap, { bottom: Math.max(insets.bottom, 8) }]} pointerEvents="box-none">

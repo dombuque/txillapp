@@ -3,9 +3,9 @@ import type { IconName } from '@/components/Icon';
 import { kvGet, kvSet } from './kv';
 
 /**
- * Novidades que as pessoas ainda não descobriram (igual ao site). Cada função nova entra aqui; enquanto alguém não a usar
- * (ou a dispensar), aparece um "Novo" no botão dela e um cartão no Início. Guarda-se neste aparelho.
- * Para anunciar uma função: acrescenta uma linha a FEATURES e chama `markSeen(id)` onde ela é usada.
+ * Funções novas que as pessoas ainda não descobriram. Enquanto alguém não a usar, aparece só um "NOVA" no botão dela
+ * (`<NewBadge id=… />`); não há cartões de novidades. Guarda-se neste aparelho.
+ * Para anunciar uma função: acrescenta uma linha a FEATURES, põe o `<NewBadge>` no botão e chama `markSeen(id)` onde ela é usada.
  */
 export interface Feature {
   id: string;

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -10,6 +10,7 @@ import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'reac
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { AlertHost } from '@/components/AlertHost';
 import { DesktopShell } from '@/components/DesktopShell';
+import { isStandaloneWeb } from '@/components/Landing';
 import { useDesktop } from '@/lib/desktop';
 import { installWebAlert } from '@/lib/alertHost';
 import { accounts } from '@/lib/accounts';
@@ -81,6 +82,7 @@ function Gate() {
   const { user, loading, offline, retry } = useAuth();
   const router = useRouter();
   const segments = useSegments();
+  const pathname = usePathname();
   const desktop = useDesktop();
 
   useEffect(() => {
@@ -95,7 +97,9 @@ function Gate() {
     // Páginas abertas a todos (termos e privacidade): também com sessão fechada.
     const onPublic = segments[0] === 'terms' || segments[0] === 'privacy';
     if (onEmailLink || onPublic) return;
-    if (!user && !onLogin) {
+    // No browser, a página principal sem sessão é a apresentação do Txillapp (ver (tabs)/index): fica no endereço principal.
+    const landingHome = Platform.OS === 'web' && pathname === '/' && !isStandaloneWeb();
+    if (!user && !onLogin && !landingHome) {
       // Guarda o endereço pedido (por exemplo, uma publicação partilhada) para voltar a ele depois de entrar.
       try {
         if (Platform.OS === 'web') {
@@ -118,7 +122,12 @@ function Gate() {
       }
       router.replace(back as never);
     }
-  }, [user, loading, offline, segments, router]);
+  }, [user, loading, offline, segments, pathname, router]);
+
+  // Na web, dentro da app (com sessão) o separador do browser diz só "Txillapp" (as páginas públicas trazem o seu título).
+  useEffect(() => {
+    if (Platform.OS === 'web' && user && typeof document !== 'undefined') document.title = 'Txillapp';
+  }, [user, pathname]);
 
   if (loading) return <BrandLoader />;
   if (offline) {

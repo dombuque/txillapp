@@ -1,7 +1,8 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Landing, isStandaloneWeb } from '@/components/Landing';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
@@ -11,7 +12,6 @@ import { ProfileNudge } from '@/components/ProfileNudge';
 import { StoriesTray } from '@/components/StoriesTray';
 import { useTabPress } from '@/lib/tabPress';
 import { Suggestions } from '@/components/Suggestions';
-import { WhatsNewCard } from '@/components/WhatsNew';
 import { EmailBanner } from '@/components/EmailBanner';
 import { PublishBanner } from '@/components/PublishBanner';
 import { WelcomeTour } from '@/components/WelcomeTour';
@@ -64,8 +64,15 @@ function Skeleton() {
   );
 }
 
-/** Início: stories no topo e as publicações de quem segues e do que o Txillapp descobre para ti. */
-export default function Feed() {
+/** Início: com sessão, o feed; sem sessão (no browser), a apresentação do Txillapp, no endereço principal (para os motores de busca). */
+export default function Home() {
+  const { user } = useAuth();
+  if (user) return <Feed />;
+  return Platform.OS === 'web' && !isStandaloneWeb() ? <Landing /> : null;
+}
+
+/** Início: mimos no topo e as publicações de quem segues e do que o Txillapp descobre para ti. */
+function Feed() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
@@ -176,7 +183,6 @@ export default function Feed() {
           <View style={{ paddingTop: 4 }}>
             <PublishBanner />
             <EmailBanner />
-            <WhatsNewCard />
             <ProfileNudge />
             <StoriesTray />
           </View>

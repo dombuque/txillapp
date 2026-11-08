@@ -12,7 +12,7 @@ const eventsSchema = z.object({
   sessionId: z.string().min(8).max(64).regex(/^[A-Za-z0-9_-]+$/),
   platform: z.enum(['browser', 'pwa']).default('browser'),
   events: z
-    .array(z.object({ name: z.enum(EVENT_NAMES), props: z.record(z.unknown()).optional(), ago: z.number().int().min(0).max(3_600_000).optional() }))
+    .array(z.object({ name: z.enum(EVENT_NAMES), props: z.record(z.string(), z.unknown()).optional(), ago: z.number().int().min(0).max(3_600_000).optional() }))
     .min(1)
     .max(40),
 });

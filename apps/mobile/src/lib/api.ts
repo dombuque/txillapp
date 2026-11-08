@@ -246,35 +246,52 @@ export const setSessionExpiredHandler = (f: (() => void) | null) => { onExpired 
 export const setAccessToken = (t: string | null) => { accessToken = t; };
 
 /**
- * Token de renovação da conta ativa (há várias contas por aparelho: ver lib/accounts). Na web, quem vinha do site antigo
- * ainda tem o cookie: a primeira renovação usa-o ('cookie') e a resposta já traz o token para guardar.
+ * Como renovar a sessão da conta ativa (há várias contas por aparelho: ver lib/accounts). Devolve os cabeçalhos do pedido.
+ * Telemóvel: o token guardado no cofre. Browser: só o id da conta (o token está num cookie HttpOnly que a página não lê);
+ * uma conta antiga que ainda tenha o token na página manda-o uma vez e ele passa para o cookie. Sem contas, quem vinha do
+ * site antigo ainda tem o cookie geral: a primeira renovação usa-o.
  */
 const COOKIE_TRIED = 'tx_cookie_tried';
+/** No browser: a conta ativa (vai no cabeçalho X-Account para o servidor saber de que sessão se trata). */
+let webAccountId: string | null = null;
 export const refreshStore = {
-  get: async (): Promise<string | null> => {
+  get: async (): Promise<Record<string, string> | null> => {
     const cur = await accounts.current();
-    if (cur) return cur.refreshToken;
-    if (isWeb && !(await kvGet(COOKIE_TRIED))) return 'cookie';
+    if (!isWeb) return cur?.refreshToken ? { 'X-Refresh-Token': cur.refreshToken } : null;
+    if (cur) {
+      webAccountId = cur.id ?? null;
+      const h: Record<string, string> = {};
+      if (cur.id) h['X-Account'] = cur.id;
+      if (cur.refreshToken) h['X-Refresh-Token'] = cur.refreshToken;
+      return Object.keys(h).length ? h : null;
+    }
+    if (!(await kvGet(COOKIE_TRIED))) return {};
     return null;
   },
-  /** Guarda a sessão como conta ativa. */
+  /** Guarda a sessão como conta ativa. No browser nunca se guarda o token. */
   save: async (r: AuthResult) => {
-    if (r.refreshToken) await accounts.upsert({ username: r.user.username, displayName: r.user.displayName, refreshToken: r.refreshToken });
+    if (isWeb) {
+      webAccountId = r.user.id;
+      await accounts.upsert({ username: r.user.username, displayName: r.user.displayName, id: r.user.id, refreshToken: '' });
+      return;
+    }
+    if (r.refreshToken) await accounts.upsert({ username: r.user.username, displayName: r.user.displayName, id: r.user.id, refreshToken: r.refreshToken });
   },
   clear: async () => {
     const cur = await accounts.current();
     if (cur) await accounts.remove(cur.username);
+    webAccountId = null;
     if (isWeb) await kvSet(COOKIE_TRIED, '1');
   },
 };
 
-const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'X-Requested-With': 'txillapp', 'X-Client': 'txillapp-mobile' };
+const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'X-Requested-With': 'txillapp', 'X-Client': isWeb ? 'txillapp-web' : 'txillapp-mobile' };
 
 async function call(path: string, init: RequestInit = {}, auth = true): Promise<Response> {
   return fetch(`${SITE_URL}/api/v1${path}`, {
     ...(isWeb ? { credentials: 'include' as const } : {}),
     ...init,
-    headers: { ...baseHeaders, ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(init.headers as Record<string, string> | undefined) },
+    headers: { ...baseHeaders, ...(isWeb && webAccountId ? { 'X-Account': webAccountId } : {}), ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(init.headers as Record<string, string> | undefined) },
   });
 }
 
@@ -288,13 +305,34 @@ async function parse(res: Response) {
   return text ? JSON.parse(text) : undefined;
 }
 
+/**
+ * No browser: as outras contas guardadas que ainda tenham o token na página passam-no para o cookie HttpOnly delas
+ * (uma renovação cada) e o token é apagado daqui. Não mexe na conta ativa nem na sessão aberta.
+ */
+export async function migrateWebAccounts(): Promise<void> {
+  if (!isWeb) return;
+  const cur = await accounts.current();
+  for (const a of await accounts.list()) {
+    if (!a.refreshToken || a.username === cur?.username) continue;
+    try {
+      const res = await fetch(`${SITE_URL}/api/v1/auth/refresh`, { method: 'POST', credentials: 'include', headers: { ...baseHeaders, ...(a.id ? { 'X-Account': a.id } : {}), 'X-Refresh-Token': a.refreshToken } });
+      if (res.ok) {
+        const r = (await res.json()) as AuthResult;
+        await accounts.patch(a.username, { id: r.user.id, refreshToken: '' });
+      } else if (res.status === 401) {
+        await accounts.remove(a.username); // a sessão dessa conta já tinha terminado
+      }
+    } catch { /* sem rede: fica para a próxima */ }
+  }
+}
+
 let refreshing: Promise<AuthResult> | null = null;
 /** Renova a sessão com o token guardado. Só um 401 definitivo termina a sessão; falhas de rede não deslogam ninguém. */
 export function refreshSession(): Promise<AuthResult> {
   return (refreshing ??= (async () => {
-    const token = await refreshStore.get();
-    if (!token) throw new ApiError(401, 'Sem sessão');
-    const res = await call('/auth/refresh', { method: 'POST', headers: token === 'cookie' ? {} : { 'X-Refresh-Token': token } }, false);
+    const headers = await refreshStore.get();
+    if (!headers) throw new ApiError(401, 'Sem sessão');
+    const res = await call('/auth/refresh', { method: 'POST', headers }, false);
     const r = (await parse(res)) as AuthResult;
     accessToken = r.accessToken;
     await refreshStore.save(r);
@@ -415,8 +453,8 @@ export const api = {
   forgotPassword: (email: string): Promise<{ ok: boolean }> => raw('/auth/password/forgot', post({ email })),
   invitePreview: (code: string): Promise<{ username: string; displayName: string }> => raw(`/invites/preview/${encodeURIComponent(code)}`),
   async logout(): Promise<void> {
-    const token = await refreshStore.get();
-    if (token) await call('/auth/logout', { method: 'POST', headers: token === 'cookie' ? {} : { 'X-Refresh-Token': token } }, false).catch(() => undefined);
+    const headers = await refreshStore.get();
+    if (headers) await call('/auth/logout', { method: 'POST', headers }, false).catch(() => undefined);
     accessToken = null;
     await refreshStore.clear();
   },
