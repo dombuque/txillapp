@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import { AppState } from 'react-native';
 import { abs } from '@/lib/config';
 
 /**
@@ -50,7 +51,7 @@ export function useMusicMuted(): [boolean, () => void] {
 async function ensureMode() {
   if (modeSet) return;
   modeSet = true;
-  try { await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false, interruptionMode: 'mixWithOthers' }); } catch { /* sem modo de áudio: usa o padrão */ }
+  try { await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false, interruptionMode: 'mixWithOthers', shouldPlayInBackground: false }); } catch { /* sem modo de áudio: usa o padrão */ }
 }
 
 /** Toca uma faixa (pára a que estava a tocar). Devolve false se o aparelho recusou. */
@@ -87,6 +88,11 @@ export async function playTrack(id: symbol, url: string, opts: { loop: boolean; 
     return false;
   }
 }
+
+// A app saiu do ecrã (outra app, ecrã bloqueado, botão de início): a música pára, seja de que cartão for.
+AppState.addEventListener('change', (st) => {
+  if (st !== 'active' && owner) stopTrack(owner);
+});
 
 /** Pára (e liberta) a faixa, se for esta a tocar. */
 export function stopTrack(id: symbol) {

@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Easing, PanResponder, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Alert, Animated, AppState, Easing, PanResponder, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
@@ -39,15 +39,20 @@ function VideoStory({ url, paused, onEnd, onDuration }: { url: string; paused: b
   return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />;
 }
 
-/** A música do story: toca enquanto está à vista (pára se pausares) e tem botão para silenciar. */
+/** A música do mimo: toca enquanto está à vista (pára se pausares ou se a app sair do ecrã) e tem botão para silenciar. */
 function StoryMusic({ track, paused }: { track: NonNullable<Story['music']>; paused: boolean }) {
   const player = useAudioPlayer(abs(track.url) ?? '');
   const [muted, setMuted] = useState(false);
+  const [bg, setBg] = useState(false);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st2) => setBg(st2 !== 'active'));
+    return () => sub.remove();
+  }, []);
   useEffect(() => {
     try { player.loop = true; player.play(); } catch { /* sem áudio */ }
     return () => { try { player.pause(); } catch { /* já libertado */ } };
   }, [player]);
-  useEffect(() => { try { if (paused) player.pause(); else player.play(); } catch { /* */ } }, [paused, player]);
+  useEffect(() => { try { if (paused || bg) player.pause(); else player.play(); } catch { /* */ } }, [paused, bg, player]);
   useEffect(() => { try { player.volume = muted ? 0 : 1; } catch { /* */ } }, [muted, player]);
   return (
     <View style={st.music}>
@@ -106,9 +111,13 @@ export default function StoryViewer() {
     return () => progress.removeListener(id);
   }, [progress]);
 
+  // Fechar sai sempre: volta ao ecrã anterior ou, se o mimo foi aberto sem nada antes (notificação, link, depois de
+  // publicar), vai para o Início. Antes só voltava, e sem ecrã anterior ficava preso até o mimo acabar.
   const close = () => {
+    setAway(true);
     void qc.invalidateQueries({ queryKey: ['stories'] });
-    router.back();
+    if (router.canGoBack()) router.back();
+    else router.replace('/' as never);
   };
   // Ordem como no site: os teus (se tiveres) e depois os outros. Avança para o próximo ainda por ver.
   const order = (tray.data ?? []).slice().sort((a, b) => Number(b.isMe) - Number(a.isMe));
@@ -307,7 +316,7 @@ export default function StoryViewer() {
               </View>
             </Pressable>
             {mine && <Pressable onPress={() => setPanel('menu')} style={st.circle} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={24} color="#fff" strokeWidth={2.4} /></Pressable>}
-            <Pressable onPress={close} style={st.circle} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={24} color="#fff" strokeWidth={2} /></Pressable>
+            <Pressable onPress={close} hitSlop={10} style={st.circle} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={24} color="#fff" strokeWidth={2} /></Pressable>
           </View>
         </LinearGradient>
 
@@ -351,7 +360,7 @@ const st = StyleSheet.create({
   center: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   btn: { borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 24, paddingVertical: 12 },
   zone: { position: 'absolute', top: 112, bottom: 112 },
-  top: { position: 'absolute', left: 0, right: 0, top: 0, paddingHorizontal: 12, paddingBottom: 40 },
+  top: { position: 'absolute', left: 0, right: 0, top: 0, zIndex: 5, elevation: 5, paddingHorizontal: 12, paddingBottom: 40 },
   bars: { flexDirection: 'row', gap: 4 },
   track: { flex: 1, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.35)', overflow: 'hidden' },
   fill: { height: 3, borderRadius: 2, backgroundColor: '#fff' },
