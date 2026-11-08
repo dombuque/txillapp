@@ -5,6 +5,7 @@ import { FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-nat
 import { Landing, isStandaloneWeb } from '@/components/Landing';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import { Icon } from '@/components/Icon';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { PostCard } from '@/components/PostCard';
@@ -143,8 +144,19 @@ function Feed() {
     if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage();
   }, [q]);
 
+  // No telemóvel, deslizar para a direita no Início abre a câmara (como no Instagram). Na web faz-se em lib/swipeTabs.
+  const swipeCam = usePanGesture({
+    runOnJS: true,
+    maxPointers: 1,
+    activeOffsetX: 45,
+    failOffsetY: [-18, 18],
+    enabled: Platform.OS !== 'web',
+    onDeactivate: (e) => { if (e.translationX > 90) router.navigate('/new' as never); },
+  });
+
   return (
-    <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
+    <GestureDetector gesture={swipeCam}>
+    <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} collapsable={false}>
       {desktop ? <View style={{ height: 16 }} /> : <Header />}
       <WelcomeTour />
       <PullView pull={pull}>
@@ -227,6 +239,7 @@ function Feed() {
       />
       </PullView>
     </View>
+    </GestureDetector>
   );
 }
 

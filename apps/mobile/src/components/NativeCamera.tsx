@@ -71,9 +71,8 @@ export function NativeCamera({
   const z0 = useRef(0);
 
   // Proporção da imagem da câmara: 16:9 (vertical 9:16) para mimos e tchekas, 4:3 (vertical 3:4) para publicações.
-  const tall = aspect < 0.7;
-  const ratio = tall ? '16:9' : '4:3';
-  const sensor = tall ? 9 / 16 : 3 / 4;
+  // A câmara trabalha sempre em 16:9 (vertical 9:16); o visor enche o ecrã e a imagem é ampliada para o cobrir.
+  const ratio = '16:9';
 
   useEffect(() => () => { clearTimeout(holdT.current); clearInterval(recTimer.current); clearInterval(countTimer.current); }, []);
   // O microfone pede-se ao abrir a câmara (não a meio de manter o obturador). Sem ele, os vídeos gravam sem som.
@@ -216,13 +215,12 @@ export function NativeCamera({
   const barH = 64 + Math.max(insets.bottom, 12);
   const top = insets.top + 6;
   const freeH = Math.max(0, area.h - top - barH);
-  let vw = Math.max(0, area.w - 16);
-  let vh = vw / sensor;
-  if (vh > freeH) { vh = freeH; vw = vh * sensor; }
-  const view = { x: (area.w - vw) / 2, y: top, w: vw, h: vh };
-  const below = freeH - vh; // espaço livre entre o visor e a barra de baixo
-  const shutterInside = below < 120;
-  const shutterY = shutterInside ? view.y + view.h - 84 - 22 : view.y + view.h + (below - 84) / 2;
+  // Visor como no Instagram: toda a largura, do topo até à barra dos modos, com cantos arredondados.
+  const view = { x: 0, y: top, w: area.w, h: freeH };
+  // A imagem da câmara (9:16) cobre o visor: ampliada até encher, cortando o que sobra dos lados (ou de cima e baixo).
+  const k = Math.max(view.w / 9, view.h / 16);
+  const camW = 9 * k, camH = 16 * k;
+  const shutterY = view.y + view.h - 84 - 26;
   // A parte da foto que fica (para a publicação 4:5 dentro do 3:4): escurece-se o resto, sem molduras.
   const capH = Math.min(view.h, view.w / aspect);
   const band = Math.max(0, (view.h - capH) / 2);
@@ -253,7 +251,7 @@ export function NativeCamera({
             <View style={[st.view, { left: view.x, top: view.y, width: view.w, height: view.h }]} collapsable={false}>
               <CameraView
                 ref={cam}
-                style={StyleSheet.absoluteFill}
+                style={{ position: 'absolute', left: (view.w - camW) / 2, top: (view.h - camH) / 2, width: camW, height: camH }}
                 facing={facing}
                 mode={mode}
                 ratio={ratio}
@@ -398,7 +396,7 @@ function ReviewVideo({ uri }: { uri: string }) {
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
   center: { alignItems: 'center', justifyContent: 'center' },
-  view: { position: 'absolute', overflow: 'hidden', borderRadius: 24, backgroundColor: '#111' },
+  view: { position: 'absolute', overflow: 'hidden', borderRadius: 20, backgroundColor: '#111' },
   band: { position: 'absolute', left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.5)' },
   topShade: { position: 'absolute', left: 0, right: 0, top: 0, height: 90, backgroundColor: 'rgba(0,0,0,0.18)' },
   controls: { position: 'absolute', zIndex: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 12 },

@@ -9,7 +9,9 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { VideoPreview } from '@/components/CarouselVideo';
+import { GalleryPicker } from '@/components/GalleryPicker';
 import { NativeCamera } from '@/components/NativeCamera';
+import { PhotoEditor } from '@/components/PhotoEditor';
 import { Icon, type IconName } from '@/components/Icon';
 import { LiveCamera, liveCameraSupported, type Shot } from '@/components/LiveCamera';
 import { MusicPicker } from '@/components/MusicPicker';
@@ -124,7 +126,11 @@ export default function Compose() {
   const [kindUse, setKindUse] = useState<Record<string, number>>(() => { try { return JSON.parse(localStorage.getItem('tx_kind_use') ?? '{}') as Record<string, number>; } catch { return {}; } });
   // O Zás fica sempre em último (nunca é a primeira coisa da câmara); os outros seguem o uso.
   const kinds = [...KINDS_BASE.filter((k) => k.id !== 'zas').sort((a, b) => (kindUse[b.id] ?? 0) - (kindUse[a.id] ?? 0)), KINDS_BASE.find((k) => k.id === 'zas')!];
-  const [kindSel, setKindSel] = useState(() => kinds.find((k) => k.id !== 'zas')!.id);
+  // A câmara abre sempre em Mimo (como as stories no Instagram).
+  const [kindSel, setKindSel] = useState('mimo');
+  /** No telemóvel, Publicação abre a galeria; a câmara só a partir do primeiro quadrado. */
+  const [postCam, setPostCam] = useState(false);
+  const [editUri, setEditUri] = useState<string | null>(null);
   const zasCounted = useRef(false);
   const bumpKind = (k: string) => setKindUse((u) => { const n = { ...u, [k]: (u[k] ?? 0) + 1 }; try { localStorage.setItem('tx_kind_use', JSON.stringify(n)); } catch { /* sem armazenamento */ } return n; });
   // Tcheka: as fotos e vídeos juntam-se e o estúdio monta um vídeo só (filtro e música).
@@ -408,7 +414,31 @@ export default function Compose() {
 
   // Primeiro passo no telemóvel: a câmara do Txillapp, com os modos em baixo (como no site).
   if (step === 'choose' && !web) {
-    if (kindSel === 'zas') return <View style={{ flex: 1, backgroundColor: '#000' }}><InstantsHub onClose={() => setKindSel(kinds.find((k) => k.id !== 'zas')!.id)} /></View>;
+    const changeKind = (k: string) => { setKindSel(k); setPostCam(false); if (k === 'zas' && !zasCounted.current) { zasCounted.current = true; bumpKind('zas'); } };
+    if (kindSel === 'zas') return <View style={{ flex: 1, backgroundColor: '#000' }}><InstantsHub onClose={() => setKindSel('mimo')} /></View>;
+    // Publicação: a galeria com a primeira foto em grande (como "Nova publicação" no Instagram); uma foto vai ao editor.
+    if (kindSel === 'post' && !postCam) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          <GalleryPicker
+            title="Nova publicação"
+            preview
+            multi
+            kinds={kinds}
+            kind={kindSel}
+            onKind={changeKind}
+            onCamera={() => setPostCam(true)}
+            onClose={() => router.replace('/')}
+            onPick={(list) => {
+              const one = list.length === 1 ? list[0] : null;
+              if (one && !one.video) setEditUri(one.uri);
+              else pickMany(list);
+            }}
+          />
+          {editUri ? <PhotoEditor uri={editUri} aspect={4 / 5} onCancel={() => setEditUri(null)} onDone={(file) => { setEditUri(null); shot({ uri: file, video: false, mime: 'image/jpeg' }); }} /> : null}
+        </View>
+      );
+    }
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <NativeCamera
@@ -421,7 +451,7 @@ export default function Compose() {
           aspect={kindSel === 'post' ? 4 / 5 : 9 / 16}
           kinds={kinds}
           kind={kindSel}
-          onKind={(k) => { setKindSel(k); if (k === 'zas' && !zasCounted.current) { zasCounted.current = true; bumpKind('zas'); } }}
+          onKind={changeKind}
         />
         {err ? <Text style={[styles.err, { position: 'absolute', top: insets.top + 72, left: 0, right: 0, color: '#fff' }]} accessibilityRole="alert">{err}</Text> : null}
       </View>

@@ -22,8 +22,14 @@ type Item = MediaLibrary.Asset | 'camera';
  * Galeria dentro do Txillapp (como no Instagram): grelha de 3 com a câmara no primeiro quadrado, os vídeos com a duração,
  * "Recentes" para trocar de álbum e "Selecionar" para escolher várias. Devolve as fotos e vídeos escolhidos.
  */
-export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera, onClose }: {
+export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera, onClose, preview = false, kinds, kind, onKind }: {
   title: string;
+  /** Modo publicação (como "Nova publicação" no Instagram): a foto escolhida aparece em grande em cima; "Seguinte" avança. */
+  preview?: boolean;
+  /** Os modos em baixo (Publicação · Mimo · Tcheka · Zás). */
+  kinds?: { id: string; label: string }[];
+  kind?: string;
+  onKind?: (id: string) => void;
   multi?: boolean;
   max?: number;
   onPick: (shots: Shot[]) => void;
@@ -44,6 +50,7 @@ export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<MediaLibrary.Asset[]>([]);
   const [busy, setBusy] = useState(false);
+  const [current, setCurrent] = useState<MediaLibrary.Asset | null>(null);
   const loadingRef = useRef(false);
 
   useEffect(() => {
@@ -68,6 +75,7 @@ export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera
         sortBy: [[MediaLibrary.SortBy.creationTime, false]],
       });
       setAssets((cur) => (reset ? page.assets : [...cur, ...page.assets]));
+      if (reset) setCurrent((c) => c ?? page.assets.find((a) => a.mediaType !== MediaLibrary.MediaType.video || a.duration * 1000 <= MAX_VIDEO_MS) ?? null);
       setEnd(page.endCursor);
       setMore(page.hasNextPage);
     } catch {
@@ -115,20 +123,24 @@ export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera
   async function choose(a: MediaLibrary.Asset) {
     const video = a.mediaType === MediaLibrary.MediaType.video;
     if (video && a.duration * 1000 > MAX_VIDEO_MS) return;
+    if (preview) setCurrent(a);
     if (selecting) {
       setPicked((cur) => (cur.some((x) => x.id === a.id) ? cur.filter((x) => x.id !== a.id) : cur.length >= max ? cur : [...cur, a]));
       return;
     }
+    if (preview) return;
     setBusy(true);
     onPick(await resolve([a]));
   }
   async function done() {
-    if (!picked.length) return;
+    const list = selecting && picked.length ? picked : preview && current ? [current] : picked;
+    if (!list.length) return;
     setBusy(true);
-    onPick(await resolve(picked));
+    onPick(await resolve(list));
   }
 
   const cell = (width - 4) / 3;
+  const cellH = preview ? cell : cell * 1.6;
   const data: Item[] = ['camera', ...assets];
 
   if (perm && !perm.granted) {
@@ -150,8 +162,19 @@ export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera
       <View style={[st.head, { paddingTop: insets.top + 6 }]}>
         <Pressable onPress={onClose} style={st.iconBtn} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={26} color="#fff" strokeWidth={2.2} /></Pressable>
         <Text style={st.title} numberOfLines={1}>{title}</Text>
-        <View style={{ width: 44 }} />
+        {preview ? (
+          <Pressable onPress={() => void done()} disabled={busy || (!current && !picked.length)} style={st.headNext} accessibilityRole="button">
+            <Text style={[st.headNextText, (!current && !picked.length) && { opacity: 0.4 }]}>Seguinte</Text>
+          </Pressable>
+        ) : <View style={{ width: 44 }} />}
       </View>
+
+      {preview ? (
+        <View style={{ width, height: Math.round(width * 1.0), backgroundColor: '#111' }}>
+          {current ? <Image source={{ uri: current.uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} /> : null}
+          {current && current.mediaType === MediaLibrary.MediaType.video ? <View style={st.playBadge}><Icon name="play" size={22} color="#fff" solid /></View> : null}
+        </View>
+      ) : null}
 
       <View style={st.row}>
         <Pressable onPress={() => void openAlbums()} style={st.albumBtn} accessibilityRole="button" accessibilityLabel="Escolher o álbum">
@@ -179,7 +202,7 @@ export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera
         renderItem={({ item }) => {
           if (item === 'camera') {
             return (
-              <Pressable onPress={onCamera} style={[st.cam, { width: cell, height: cell * 1.6 }]} accessibilityRole="button" accessibilityLabel="Abrir a câmara">
+              <Pressable onPress={onCamera} style={[st.cam, { width: cell, height: cellH }]} accessibilityRole="button" accessibilityLabel="Abrir a câmara">
                 <Icon name="camera" size={34} color="#fff" />
               </Pressable>
             );
@@ -188,8 +211,9 @@ export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera
           const long = video && item.duration * 1000 > MAX_VIDEO_MS;
           const n = picked.findIndex((x) => x.id === item.id);
           return (
-            <Pressable onPress={() => void choose(item)} disabled={busy} style={{ width: cell, height: cell * 1.6, backgroundColor: '#1c1c1e' }} accessibilityRole="button" accessibilityLabel={video ? `Vídeo de ${mmss(item.duration)}` : 'Foto'}>
+            <Pressable onPress={() => void choose(item)} disabled={busy} style={{ width: cell, height: cellH, backgroundColor: '#1c1c1e' }} accessibilityRole="button" accessibilityLabel={video ? `Vídeo de ${mmss(item.duration)}` : 'Foto'}>
               <Image source={{ uri: item.uri }} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={item.id} transition={80} />
+              {preview && current?.id === item.id ? <View pointerEvents="none" style={st.current} /> : null}
               {long ? <View style={st.long}><Text style={st.longText}>Mais de 60 s</Text></View> : null}
               {video ? <Text style={st.dur}>{mmss(item.duration)}</Text> : null}
               {selecting ? (
@@ -204,12 +228,22 @@ export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera
         ListEmptyComponent={!loading ? <Text style={st.empty}>Ainda não há fotos nem vídeos aqui.</Text> : undefined}
       />
 
-      {selecting && picked.length > 0 ? (
+      {!preview && selecting && picked.length > 0 ? (
         <Pressable onPress={() => void done()} disabled={busy} style={[st.next, { bottom: Math.max(insets.bottom, 12) + 20 }]} accessibilityRole="button">
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.nextText}>Seguinte ({picked.length})</Text>}
         </Pressable>
       ) : null}
       {busy && !selecting ? <View style={[StyleSheet.absoluteFill, st.center, { backgroundColor: 'rgba(0,0,0,0.4)' }]}><ActivityIndicator color="#fff" size="large" /></View> : null}
+
+      {kinds ? (
+        <View style={[st.kindsPill, { bottom: Math.max(insets.bottom, 12) + 10 }]}>
+          {kinds.map((k) => (
+            <Pressable key={k.id} onPress={() => onKind?.(k.id)} hitSlop={8} accessibilityRole="tab" accessibilityState={{ selected: kind === k.id }}>
+              <Text style={[st.kindText, kind === k.id && { color: '#fff' }]}>{k.label.toUpperCase()}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
 
       {albumsOpen ? (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.96)', paddingTop: insets.top + 6 }]}>
@@ -235,6 +269,12 @@ export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera
 
 const st = StyleSheet.create({
   root: { backgroundColor: '#000', zIndex: 25 },
+  headNext: { height: 44, justifyContent: 'center', paddingHorizontal: 8 },
+  headNextText: { color: '#4da3ff', fontSize: 17, fontWeight: '700' },
+  playBadge: { position: 'absolute', right: 12, bottom: 12, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
+  current: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.35)' },
+  kindsPill: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', gap: 22, paddingHorizontal: 24, height: 46, alignItems: 'center', borderRadius: 23, backgroundColor: 'rgba(28,28,30,0.92)' },
+  kindText: { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: '800', letterSpacing: 1.2 },
   center: { alignItems: 'center', justifyContent: 'center' },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingBottom: 10 },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
