@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -16,6 +17,7 @@ import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
 import { FeatureIntro } from './FeatureIntro';
+import { enqueueTask } from '@/lib/publishQueue';
 import { markSeen } from '@/lib/whatsNew';
 import { Sheet } from './Sheet';
 import { CloseFriendsSheet, REACTIONS, ReactionArt } from './StoryParts';
@@ -312,21 +314,27 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   const [facing, setFacing] = useState<'back' | 'front'>('back');
   const [torch, setTorch] = useState(false);
   const [camReady, setCamReady] = useState(false);
+  // Zás instantâneo: aparece logo "enviado" (com Desfazer) e o envio segue em segundo plano (faixa no Início).
+  const pendingZas = useRef(new Map<string, { cancelled: boolean; id?: string }>());
   async function send(uri: string, mime: string) {
-    setBusy(true);
     setErr('');
-    try {
+    const key = `zas-${Date.now()}`;
+    const state: { cancelled: boolean; id?: string } = { cancelled: false };
+    pendingZas.current.set(key, state);
+    const text = caption.trim(), who = audience;
+    setCaption('');
+    setSent(key);
+    clearTimeout(undoTimer.current);
+    undoTimer.current = setTimeout(() => setSent(null), 2200);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    enqueueTask('zas', { uri, mime, video: false }, async () => {
       const mediaId = await uploadMedia(uri, mime);
-      const res = await instantsApi.create(mediaId, caption.trim(), audience);
-      setCaption('');
-      setSent(res.id);
-      clearTimeout(undoTimer.current);
-      undoTimer.current = setTimeout(() => setSent(null), 2200);
+      if (state.cancelled) return;
+      const res = await instantsApi.create(mediaId, text, who);
+      state.id = res.id;
+      if (state.cancelled) { await instantsApi.remove(res.id).catch(() => undefined); return; }
       refresh();
-    } catch (e) {
-      setErr((e as Error).message || 'Não consegui tirar a foto');
-    }
-    setBusy(false);
+    }, qc);
   }
   /** Nativo: a câmara do telemóvel (sem galeria). Na web a câmara é a ao vivo (WebZasStudio). */
   async function shoot() {
@@ -368,10 +376,11 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   }
   async function undo() {
     if (!sent) return;
-    const id = sent;
+    const state = pendingZas.current.get(sent);
     setSent(null);
-    await instantsApi.remove(id).catch(() => undefined);
-    refresh();
+    if (!state) return;
+    state.cancelled = true; // ainda a enviar: nem chega a ser criado
+    if (state.id) { await instantsApi.remove(state.id).catch(() => undefined); refresh(); }
   }
 
   // Cartão 3:4 que cabe no espaço que sobra.

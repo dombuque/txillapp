@@ -13,6 +13,7 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { CloseFriendsSheet } from '@/components/StoryParts';
 import { TxCamera, liveCameraSupported, type Shot } from '@/components/TxCamera';
 import { api, uploadMedia } from '@/lib/api';
+import { enqueueTask } from '@/lib/publishQueue';
 import { musicApi, type Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
@@ -98,19 +99,19 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
   const friends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
   const close = audience === 'close_friends';
 
-  async function publish() {
+  // Publicar em segundo plano (como a publicação): o ecrã fecha logo e o envio segue na faixa do Início.
+  function publish() {
     if (busy) return;
     setBusy(true);
-    setErr('');
-    try {
-      const id = await uploadMedia(asset.uri, asset.mime, 'public');
-      await musicApi.createStory(id, caption.trim(), audience, music);
+    const a = asset, text = caption.trim(), who = audience, track = music;
+    enqueueTask('mimo', { uri: a.uri, mime: a.mime, video: a.video }, async (_p, stage) => {
+      const id = await uploadMedia(a.uri, a.mime, 'public', () => stage('prepare'));
+      stage('post');
+      await musicApi.createStory(id, text, who, track);
       await qc.invalidateQueries({ queryKey: ['stories'] });
-      router.back();
-    } catch (e) {
-      setErr((e as Error).message || 'Não consegui publicar o mimo');
-      setBusy(false);
-    }
+    }, qc);
+    if (router.canGoBack()) router.back();
+    else router.replace('/' as never);
   }
 
   const tool = (icon: Parameters<typeof Icon>[0]['name'], label: string, onPress: () => void, on = false) => (

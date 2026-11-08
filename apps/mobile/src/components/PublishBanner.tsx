@@ -20,7 +20,7 @@ export function PublishBanner() {
           </View>
           <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
             <Text style={st.text} numberOfLines={1}>
-              {t.status === 'done' ? 'Publicado!' : t.status === 'error' ? (t.error ?? 'Não consegui publicar') : t.stage === 'prepare' ? 'A preparar o vídeo…' : t.stage === 'post' ? 'A publicar…' : `A enviar… ${Math.round(t.progress * 100)}%`}
+              {t.status === 'done' ? (t.kind === 'mimo' ? 'Mimo publicado!' : t.kind === 'zas' ? 'Zás enviado!' : 'Publicado!') : t.status === 'error' ? (t.error ?? 'Não consegui publicar') : t.stage === 'prepare' ? 'A preparar o vídeo…' : t.stage === 'post' ? (t.kind === 'mimo' ? 'A publicar o mimo…' : t.kind === 'zas' ? 'A enviar o Zás…' : 'A publicar…') : `${t.kind === 'mimo' ? 'A enviar o mimo' : t.kind === 'zas' ? 'A enviar o Zás' : 'A enviar'}… ${Math.round(t.progress * 100)}%`}
             </Text>
             {t.status === 'uploading' && (
               t.stage === 'prepare'

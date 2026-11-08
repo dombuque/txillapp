@@ -15,6 +15,10 @@ export interface PublishJob {
 }
 export interface PublishTask {
   id: string;
+  /** O que se está a enviar: publicação, mimo ou Zás (muda o texto da faixa). */
+  kind: 'post' | 'mimo' | 'zas';
+  /** Mimos e Zás: como enviar (a publicação usa `job`). */
+  runner?: (onProgress: (p: number) => void, onStage: (s: PublishTask['stage']) => void) => Promise<void>;
   /** Miniatura (a primeira foto, ou o poster do vídeo se houver). */
   thumb: string | null;
   video: boolean;
@@ -67,6 +71,16 @@ async function run(id: string, qc: QueryClient) {
   const t = tasks.find((x) => x.id === id);
   if (!t) return;
   patch(id, { status: 'uploading', stage: 'upload', error: null });
+  if (t.runner) {
+    try {
+      await t.runner((p) => patch(id, { progress: p }), (stage) => patch(id, { stage }));
+      patch(id, { status: 'done', progress: 1 });
+      setTimeout(() => { tasks = tasks.filter((x) => x.id !== id); emit(); }, 2500);
+    } catch (e) {
+      patch(id, { status: 'error', error: (e as Error).message || 'Não consegui enviar' });
+    }
+    return;
+  }
   const sent = [...t.sent];
   try {
     const n = t.job.assets.length;
@@ -110,7 +124,16 @@ async function run(id: string, qc: QueryClient) {
 export function enqueuePublish(job: PublishJob, qc: QueryClient): string {
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const first = job.assets[0];
-  tasks = [...tasks, { id, thumb: first && !first.video ? first.uri : null, video: !!first?.video, status: 'uploading', stage: 'upload', progress: 0, error: null, job, sent: [] }];
+  tasks = [...tasks, { id, kind: 'post', thumb: first && !first.video ? first.uri : null, video: !!first?.video, status: 'uploading', stage: 'upload', progress: 0, error: null, job, sent: [] }];
+  emit();
+  void run(id, qc);
+  return id;
+}
+
+/** Mimos e Zás em segundo plano: o ecrã fecha logo e o envio segue aqui (com a mesma faixa no Início). */
+export function enqueueTask(kind: 'mimo' | 'zas', asset: PublishAsset, runner: NonNullable<PublishTask['runner']>, qc: QueryClient): string {
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  tasks = [...tasks, { id, kind, runner, thumb: asset.video ? null : asset.uri, video: asset.video, status: 'uploading', stage: 'upload', progress: 0, error: null, job: { assets: [asset], post: { body: '' } as PublishJob['post'] }, sent: [] }];
   emit();
   void run(id, qc);
   return id;
