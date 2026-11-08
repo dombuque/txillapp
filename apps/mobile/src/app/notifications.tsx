@@ -11,6 +11,7 @@ import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
 import { ReactionArt } from '@/components/StoryParts';
 import { ApiError, api, type AppNotification } from '@/lib/api';
+import { locaisApi } from '@/lib/api.locais';
 import { sized } from '@/lib/config';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
@@ -72,6 +73,7 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'tag': return { text: `identifico${s}-te numa foto` };
     case 'mention': return { text: `menciono${s}-te`, sub: quote };
     case 'verified': return { text: many ? 'agora têm o selo de conta verificada' : 'agora tem o selo de conta verificada' };
+    case 'venue_invite': return { text: <>convidou-te para gerir <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'um local'}</Text> como {n.data.role === 'admin' ? 'administrador' : 'editor'}</> };
   }
 }
 
@@ -91,6 +93,7 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'follow_request':
     case 'verified':
     case 'request_accepted': return `/u/${n.actor.username}`;
+    case 'venue_invite': return n.data.venueSlug ? `/v/${n.data.venueSlug}` : null;
     default: return null;
   }
 }
@@ -135,6 +138,14 @@ function Row({ g, me }: { g: Group; me?: string }) {
   async function respond(accept: boolean) {
     setBusy(true);
     try {
+      if (n.kind === 'venue_invite') {
+        // Convite para gerir um local: aceitar passa-me a gestor da página.
+        await locaisApi.answerInvite(n.data.venueSlug ?? '', accept);
+        setAnswer(accept ? 'accepted' : 'declined');
+        void qc.invalidateQueries({ queryKey: ['venues-mine'] });
+        void qc.invalidateQueries({ queryKey: ['venue', n.data.venueSlug] });
+        return;
+      }
       await (accept ? api.acceptRequest(n.actor.username) : api.declineRequest(n.actor.username));
       setAnswer(accept ? 'accepted' : 'declined');
       void qc.invalidateQueries({ queryKey: ['profile'] });
@@ -179,13 +190,19 @@ function Row({ g, me }: { g: Group; me?: string }) {
         {(n.kind === 'comment' || n.kind === 'reply' || (n.kind === 'mention' && n.data.commentId)) && !many ? (
           <Pressable onPress={() => go(single)} hitSlop={6} style={{ marginTop: 6, alignSelf: 'flex-start' }} accessibilityRole="button"><Text style={styles.reply}>Responder</Text></Pressable>
         ) : null}
+        {n.kind === 'venue_invite' && !answer && (
+          <View style={styles.btns}>
+            <Pressable disabled={busy} onPress={() => void respond(true)} style={styles.accept}><Text style={styles.acceptText}>Aceitar</Text></Pressable>
+            <Pressable disabled={busy} onPress={() => void respond(false)} style={styles.decline}><Text style={styles.declineText}>Recusar</Text></Pressable>
+          </View>
+        )}
         {n.kind === 'follow_request' && !answer && stillPending && (
           <View style={styles.btns}>
             <Pressable disabled={busy} onPress={() => void respond(true)} style={styles.accept}><Text style={styles.acceptText}>Aceitar</Text></Pressable>
             <Pressable disabled={busy} onPress={() => void respond(false)} style={styles.decline}><Text style={styles.declineText}>Recusar</Text></Pressable>
           </View>
         )}
-        {answer ? <Text style={styles.answer}>{answer === 'accepted' ? 'Pedido aceite' : 'Pedido recusado'}</Text> : null}
+        {answer ? <Text style={styles.answer}>{answer === 'accepted' ? (n.kind === 'venue_invite' ? 'Agora geres esta página' : 'Pedido aceite') : (n.kind === 'venue_invite' ? 'Convite recusado' : 'Pedido recusado')}</Text> : null}
       </View>
       {right}
     </Pressable>

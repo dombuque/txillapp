@@ -8,6 +8,7 @@ import { Icon } from '@/components/Icon';
 import { PostCard } from '@/components/PostCard';
 import { StackPage } from '@/components/StackPage';
 import { locaisApi } from '@/lib/api.locais';
+import { onPostsViewable, postViewability } from '@/lib/visiblePosts';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 
@@ -76,6 +77,8 @@ export default function PlaceScreen() {
           )
         }
         ListFooterComponent={q.isFetchingNextPage ? <ActivityIndicator style={{ margin: 16 }} color={colors.brand} /> : <View style={{ height: 32 }} />}
+        onViewableItemsChanged={onPostsViewable}
+        viewabilityConfig={postViewability}
         renderItem={({ item }) => <PostCard post={item} me={user?.id} />}
       />
     </StackPage>

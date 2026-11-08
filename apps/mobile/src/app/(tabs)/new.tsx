@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,6 +8,8 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
+import { VenueLogo } from '@/components/VenueCard';
+import { locaisApi } from '@/lib/api.locais';
 import { VideoPreview } from '@/components/CarouselVideo';
 import { GalleryPicker } from '@/components/GalleryPicker';
 import { NativeCamera } from '@/components/NativeCamera';
@@ -147,7 +149,13 @@ export default function Compose() {
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
   const [draftsOpen, setDraftsOpen] = useState(false);
   const [restored, setRestored] = useState(false);
-  const { draft, kind: kindParam, t: kindNonce } = useLocalSearchParams<{ draft?: string; kind?: string; t?: string }>();
+  const { draft, kind: kindParam, t: kindNonce, as: asParam } = useLocalSearchParams<{ draft?: string; kind?: string; t?: string; as?: string }>();
+  // Publicar como um local que giro (página): a lista das minhas páginas e a escolhida (`?as=slug` vem da própria página).
+  const myPages = useQuery({ queryKey: ['venues-mine'], queryFn: locaisApi.myVenues, staleTime: 60_000, retry: false });
+  const [asVenue, setAsVenue] = useState<string | null>(null);
+  // Vindo da página do local ("Publicar"): é uma publicação da página, direto à escrita (foto ou vídeo juntam-se lá).
+  useEffect(() => { if (asParam) { setAsVenue(String(asParam)); setKindSel('post'); setStep('write'); } }, [asParam]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pageSel = myPages.data?.find((p) => p.slug === asVenue && p.canPost) ?? null;
   // Vindo do atalho "Zás" (barra lateral no computador): abre logo o ecrã do Zás.
   useEffect(() => { if (kindParam === 'zas') setKindSel('zas'); }, [kindParam, kindNonce]);
   const draftKey = useRef(draft || newDraftKey(user?.username ?? 'eu'));
@@ -340,6 +348,7 @@ export default function Compose() {
         music,
         locationLabel: place || undefined,
         ...(place && placeGeo ? { locationLat: placeGeo.lat, locationLng: placeGeo.lng, locationCoarse: placeGeo.coarse } : {}),
+        ...(pageSel ? { venueId: pageSel.id } : {}),
         tags: assets.flatMap((a, index) => a.tags.map((t) => ({ index, username: t.username, x: t.x, y: t.y }))),
       },
     }, qc);
@@ -520,11 +529,28 @@ export default function Compose() {
         ) : null}
 
         <View style={styles.card}>
+          {(myPages.data ?? []).some((p) => p.canPost) ? (
+            // Tenho páginas de locais: escolho se publico como eu ou como a página.
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 14, gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel="Publicar como">
+              <Pressable onPress={() => setAsVenue(null)} accessibilityRole="radio" accessibilityState={{ selected: !pageSel }} style={[styles.asChip, !pageSel && styles.asChipOn]}>
+                <Avatar name={user?.displayName ?? '?'} username={user?.username} size={22} />
+                <Text style={[styles.asText, !pageSel && { color: '#fff' }]}>Eu</Text>
+              </Pressable>
+              {(myPages.data ?? []).filter((p) => p.canPost).map((p) => (
+                <Pressable key={p.slug} onPress={() => setAsVenue(p.slug)} accessibilityRole="radio" accessibilityState={{ selected: pageSel?.slug === p.slug }} style={[styles.asChip, pageSel?.slug === p.slug && styles.asChipOn]}>
+                  <VenueLogo venue={p} size={22} />
+                  <Text style={[styles.asText, pageSel?.slug === p.slug && { color: '#fff' }]} numberOfLines={1}>{p.name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : null}
           <View style={styles.who}>
-            <Avatar name={user?.displayName ?? '?'} username={user?.username} size={48} />
+            {pageSel ? <VenueLogo venue={pageSel} size={48} /> : <Avatar name={user?.displayName ?? '?'} username={user?.username} size={48} />}
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.name} numberOfLines={1}>{user?.displayName}</Text>
-              {place ? (
+              <Text style={styles.name} numberOfLines={1}>{pageSel ? pageSel.name : user?.displayName}</Text>
+              {pageSel ? (
+                <Text style={styles.handle} numberOfLines={1}>Publicar como a página · o sítio fica o próprio local</Text>
+              ) : place ? (
                 <View style={styles.placePill}>
                   <Pressable onPress={() => setPlaceOpen(true)} style={{ flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }} accessibilityRole="button">
                     <Icon name="map-pin" size={16} color={colors.brand} />
@@ -695,6 +721,9 @@ const styles = StyleSheet.create({
   tileSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 2 },
   card: { marginHorizontal: 16, borderRadius: 28, backgroundColor: colors.white, boxShadow: '0 2px 16px rgba(0,0,0,0.09)', overflow: 'hidden' },
   who: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 20 },
+  asChip: { height: 36, maxWidth: 200, borderRadius: 999, paddingLeft: 7, paddingRight: 14, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.zinc100 },
+  asChipOn: { backgroundColor: colors.zinc900 },
+  asText: { flexShrink: 1, fontSize: 14, fontWeight: '700', color: colors.zinc800 },
   name: { fontSize: 18, fontWeight: '600', color: colors.zinc900 },
   handle: { fontSize: 14, color: colors.zinc500 },
   placePill: { marginTop: 2, alignSelf: 'flex-start', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: colors.rose50, paddingVertical: 2, paddingLeft: 10, paddingRight: 6 },

@@ -33,7 +33,7 @@ export function DesktopShell({ children }: { children: ReactNode }) {
   const msgsHome = path === '/messages';
   const home = path === '/';
   const full = msgs || path.startsWith('/reels') || path.startsWith('/r/') || path.startsWith('/stories/');
-  const wide = /^\/(profile|u\/|search|t\/|tag\/|place\/|saved|locais|geleira|insights)/.test(path);
+  const wide = /^\/(profile|u\/|search|t\/|tag\/|place\/|v\/|saved|locais|geleira|insights)/.test(path);
   const main = full ? st.mainFull : { ...st.main, maxWidth: wide ? 935 : 630 };
   return (
     <View style={st.shell}>

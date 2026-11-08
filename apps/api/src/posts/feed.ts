@@ -55,10 +55,11 @@ const VIDEO_POST = tchekaPost();
 
 export const RANKED_SQL = `
   WITH net AS (
-    -- Rede: as minhas publicações e as de quem sigo (últimos 10 dias).
+    -- Rede: as minhas publicações, as de quem sigo e as dos locais que sigo (últimos 10 dias).
     SELECT p.id FROM content.posts p
      WHERE p.removed_at IS NULL AND p.created_at > $2::timestamptz - interval '10 days' AND p.created_at <= $2::timestamptz
-       AND (p.author_id = $1 OR EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = p.author_id))
+       AND (p.author_id = $1 OR EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = p.author_id)
+            OR (p.venue_id IS NOT NULL AND EXISTS (SELECT 1 FROM content.venue_follows vf WHERE vf.user_id = $1 AND vf.venue_id = p.venue_id)))
        AND (NOT $7::boolean OR ${VIDEO_POST})
      ORDER BY p.created_at DESC LIMIT 400
   ), pool AS (
@@ -90,7 +91,9 @@ export const RANKED_SQL = `
     SELECT p.id, p.author_id,
            EXTRACT(EPOCH FROM ($2::timestamptz - p.created_at)) / 3600.0 AS age_h,
            (p.author_id = $1) AS is_self,
-           EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = p.author_id) AS followed,
+           -- "De quem sigo": a pessoa, ou a página de um local que sigo.
+           (EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = p.author_id)
+            OR (p.venue_id IS NOT NULL AND EXISTS (SELECT 1 FROM content.venue_follows vf WHERE vf.user_id = $1 AND vf.venue_id = p.venue_id))) AS followed,
            COALESCE(a.n, 0) AS affinity,
            ((SELECT count(*) FROM content.cheers c WHERE c.post_id = p.id)
             + 2 * (SELECT count(*) FROM content.comments c WHERE c.post_id = p.id)

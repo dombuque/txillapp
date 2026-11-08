@@ -9,7 +9,7 @@ import { colors } from '@/lib/theme';
 const SUPPORT = 'suporte@txillapp.com';
 
 const FAQ: { q: string; a: string }[] = [
-  { q: 'O que são os Txills?', a: 'São a moeda de brincadeira do Txillapp. Servem para presentear quem segues e agradecer um bom post. Por agora são uma demonstração: não valem dinheiro.' },
+  { q: 'O que são os Txills?', a: 'São a moeda do Txillapp. Hoje servem para acumular e presentear quem segues: agradecer um bom post, retribuir um mimo, mandar "duas" ao teu bro. Em breve vão pagar vibes. Não se trocam por dinheiro.' },
   { q: 'Como funcionam os brindes?', a: 'Tocas em "Brindar" num post ou Tcheka para mostrar que gostaste. É grátis e a pessoa é avisada.' },
   { q: 'Como presenteio alguém?', a: 'Só podes presentear quem segues. Abre o perfil ou o post e toca em "Presentear". Podes deixar o presente em silêncio, privado ou publicá-lo para toda a gente ver.' },
   { q: 'O que é a geleira?', a: 'A tua vitrine de gostos: vibes, bebidas, comidas e sítios. Edita-a em Editar perfil. Quanto mais paulada tiveres lá, mais sobe de nível.' },

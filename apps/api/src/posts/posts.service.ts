@@ -37,6 +37,7 @@ const ADULT = "(u.birth_date <= (current_date - interval '18 years') OR p.author
 const FEED_SQL = `
   SELECT p.id, p.short_code, p.body, p.music, p.location_label, p.created_at, p.edited_at, p.comments_off, p.location_lat, p.location_lng, p.kind, p.gift_amount, p.repost_of,
          u.id AS author_id, u.username, u.display_name, u.verified AS author_verified, u.verified_tier AS author_tier,
+         pv.slug AS venue_slug, pv.name AS venue_name, pv.kind AS venue_kind, pv.verified AS venue_verified, pv.avatar_media_id AS venue_avatar,
          gr.username AS gift_username, gr.display_name AS gift_display_name, (gr.avatar_media_id IS NOT NULL) AS gift_has_avatar, gr.verified AS gift_verified, gr.verified_tier AS gift_tier,
          (${allowedBy('u', 'comments_allowed')} AND NOT p.comments_off) AS can_comment,
          ${allowedBy('u', 'gifts_allowed')} AS can_gift,
@@ -56,7 +57,8 @@ const FEED_SQL = `
          EXISTS (SELECT 1 FROM content.cheers c WHERE c.post_id = p.id AND c.user_id = $1) AS cheered,
          EXISTS (SELECT 1 FROM content.saved_posts sv WHERE sv.post_id = p.id AND sv.user_id = $1) AS saved
     FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
-    LEFT JOIN identity.users gr ON gr.id = p.gift_recipient_id`;
+    LEFT JOIN identity.users gr ON gr.id = p.gift_recipient_id
+    LEFT JOIN content.venues pv ON pv.id = p.venue_id`;
 
 export interface PhotoTag {
   username: string;
@@ -84,9 +86,20 @@ export class PostsService implements OnModuleInit {
     void this.backfillTopics().catch(() => undefined);
   }
 
-  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null) {
+  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null, venueId: string | null = null) {
     this.filter.assertClean(body, locationLabel, musicIn?.title, 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
     const music = await this.musicSvc.prepare(userId, musicIn);
+    if (venueId) {
+      // Publicar como um local: só o dono e os gestores ativos da página. O sítio da publicação passa a ser o próprio local.
+      const v = await this.pool.query(
+        `SELECT v.name, v.lat, v.lng FROM content.venues v WHERE v.id = $1
+            AND (v.owner_id = $2 OR EXISTS (SELECT 1 FROM content.venue_managers m WHERE m.venue_id = v.id AND m.user_id = $2 AND m.status = 'active'))`,
+        [venueId, userId],
+      );
+      if (!v.rowCount) throw new ForbiddenException('Só os gestores podem publicar como este local');
+      locationLabel = v.rows[0].name as string;
+      if (v.rows[0].lat != null && v.rows[0].lng != null) geo = { lat: v.rows[0].lat as number, lng: v.rows[0].lng as number };
+    }
     if (mediaIds.length > MAX_PHOTOS) throw new BadRequestException(`No máximo ${MAX_PHOTOS} fotos por publicação`);
     if (new Set(mediaIds).size !== mediaIds.length) throw new BadRequestException('Fotos repetidas');
     if (!body.trim() && mediaIds.length === 0) throw new BadRequestException('Escreve algo ou mete uma foto');
@@ -112,8 +125,8 @@ export class PostsService implements OnModuleInit {
       if (!adult) geo = null;
       const dp = geo?.coarse ? 2 : 3;
       const q = (n: number) => Math.round(n * 10 ** dp) / 10 ** dp;
-      await client.query('INSERT INTO content.posts (id, author_id, body, location_label, music, location_lat, location_lng, topics) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [
-        id, userId, body.trim(), locationLabel || null, music ? JSON.stringify(music) : null, locationLabel && geo ? q(geo.lat) : null, locationLabel && geo ? q(geo.lng) : null, classify(`${body} ${locationLabel ?? ''}`, extractHashtags(body)),
+      await client.query('INSERT INTO content.posts (id, author_id, body, location_label, music, location_lat, location_lng, topics, venue_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)', [
+        id, userId, body.trim(), locationLabel || null, music ? JSON.stringify(music) : null, locationLabel && geo ? q(geo.lat) : null, locationLabel && geo ? q(geo.lng) : null, classify(`${body} ${locationLabel ?? ''}`, extractHashtags(body)), venueId,
       ]);
       for (const tag of extractHashtags(body)) {
         await client.query('INSERT INTO content.post_tags (post_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, tag]);
@@ -339,6 +352,17 @@ export class PostsService implements OnModuleInit {
     await this.pool.query(`DELETE FROM content.posts WHERE author_id = $1 AND repost_of = $2 AND kind = 'repost' AND body = ''`, [userId, postId]);
     const c = await this.pool.query(`SELECT count(*)::int AS n FROM content.posts WHERE repost_of = $1 AND kind = 'repost' AND removed_at IS NULL`, [postId]);
     return { reposted: false, reposts: c.rows[0].n as number };
+  }
+
+  /** As publicações feitas como um local (a página), as mais recentes primeiro. */
+  async byVenue(viewerId: string, venueId: string, cursor: string | undefined, limit: number) {
+    if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
+    const { rows } = await this.pool.query(
+      `${FEED_SQL} WHERE p.venue_id = $2 AND p.kind = 'post' AND ($3::uuid IS NULL OR p.id < $3) AND ${canView()} ORDER BY p.id DESC LIMIT $4`,
+      [viewerId, venueId, cursor ?? null, limit + 1],
+    );
+    const page = rows.slice(0, limit);
+    return { items: await this.hydrate(viewerId, page), nextCursor: rows.length > limit ? page[page.length - 1].id : null };
   }
 
   /** Publicações de uma pessoa (perfil), com o mesmo formato do feed. */
@@ -821,6 +845,8 @@ export class PostsService implements OnModuleInit {
     })),
     createdAt: r.created_at,
     author: { id: r.author_id, username: r.username, displayName: r.display_name, verified: r.author_verified as boolean, verifiedTier: (r.author_tier as string | null) ?? null },
+    /** Publicada como um local (página): aparece com o nome e o logótipo da página. */
+    venue: r.venue_slug ? { slug: r.venue_slug as string, name: r.venue_name as string, kind: r.venue_kind as string, verified: !!r.venue_verified, avatarUrl: r.venue_avatar ? `/api/v1/media/${r.venue_avatar as string}` : null } : null,
     cheers: r.cheers,
     comments: r.comments,
     gifts: r.gifts,

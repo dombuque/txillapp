@@ -4,27 +4,26 @@ import { Icon } from '@/components/Icon';
 import { licenseLabel } from '@/components/MusicPicker';
 import { Sheet } from '@/components/Sheet';
 import type { Track } from '@/lib/api.music';
-import { allowAuto, autoAllowed, playTrack, stopTrack, useMusicMuted } from '@/lib/musicPlayer';
+import { playTrack, stopTrack, useMusicMuted } from '@/lib/musicPlayer';
 import { colors } from '@/lib/theme';
 
 export { useMusicMuted };
 
 /**
- * Cartão da música de uma publicação: toca/pára; com `autoplay` toca em ciclo e tem o botão do som (vale para tudo).
- * Tocar no nome mostra os créditos e a licença. Para tocar sozinha com o post à vista, passa `visible` (true quando o
- * post está bem à vista no ecrã, p.ex. via onViewableItemsChanged da lista); só toca sozinha depois de a pessoa ter posto
- * uma faixa a tocar à mão, como no site.
+ * Cartão da música de uma publicação. Não tem play nem pausa: a música toca sozinha enquanto o post está à vista
+ * (`visible`, dito pela lista) e pára quando sai do ecrã, quando se muda de ecrã ou quando a app vai para segundo plano.
+ * O único controlo é o som (silenciar / ativar), que vale para toda a app. Tocar no nome mostra os créditos e a licença.
+ * `playNow` toca logo ao aparecer (nota de música aberta pela pessoa). Sem `autoplay`, é só informativo (ex.: ao compor).
  */
-export function TrackCard({ track, autoplay = false, visible = false, playNow = false }: { track: Track; autoplay?: boolean; visible?: boolean; /** Toca logo ao aparecer (ex.: ao abrir uma nota de música, que é um toque da pessoa). */ playNow?: boolean }) {
+export function TrackCard({ track, autoplay = false, visible = false, playNow = false }: { track: Track; autoplay?: boolean; visible?: boolean; playNow?: boolean }) {
   const me = useRef(Symbol('track'));
   const [on, setOn] = useState(false);
   const [muted, toggleMute] = useMusicMuted();
   const [info, setInfo] = useState(false);
-  const userPaused = useRef(false); // pausaste à mão: não volta a tocar sozinha enquanto o post estiver à vista
   const playing = useRef(false);
 
   async function play() {
-    const ok = await playTrack(me.current, track.url, { loop: autoplay, onStop: () => { playing.current = false; setOn(false); } });
+    const ok = await playTrack(me.current, track.url, { loop: true, onStop: () => { playing.current = false; setOn(false); } });
     playing.current = ok;
     setOn(ok);
   }
@@ -32,46 +31,28 @@ export function TrackCard({ track, autoplay = false, visible = false, playNow = 
   playRef.current = play;
 
   useEffect(() => () => stopTrack(me.current), []);
-  useEffect(() => {
-    if (playNow) void playRef.current();
-  }, [playNow, track.url]);
 
-  // Toca sozinha um instante depois de o post ficar à vista; pára quando sai ou a app vai para segundo plano.
-  // Um cartão que toca ao abrir (nota de música) conta como à vista enquanto estiver aberto.
-  const shown = visible || playNow;
+  // Toca um instante depois de ficar à vista; pára quando sai ou a app vai para segundo plano.
+  const shown = autoplay && (visible || playNow);
   useEffect(() => {
-    if (!autoplay) return;
     let dwell: ReturnType<typeof setTimeout> | undefined;
     if (shown) {
-      dwell = setTimeout(() => { if (autoAllowed() && !userPaused.current && !playing.current) void playRef.current(); }, 700);
+      dwell = setTimeout(() => { if (!playing.current) void playRef.current(); }, playNow ? 0 : 400);
     } else {
-      userPaused.current = false;
       stopTrack(me.current);
     }
     const sub = AppState.addEventListener('change', (st) => {
       if (st !== 'active') stopTrack(me.current);
-      else if (shown && autoAllowed() && !userPaused.current && !playing.current) void playRef.current();
+      else if (shown && !playing.current) void playRef.current();
     });
     return () => { clearTimeout(dwell); sub.remove(); };
-  }, [autoplay, shown, track.url]);
-
-  function toggle() {
-    if (on) {
-      userPaused.current = true;
-      allowAuto(false); // parou à mão: os próximos posts não tocam sozinhos
-      stopTrack(me.current);
-    } else {
-      userPaused.current = false;
-      allowAuto(true); // pôs a tocar: os próximos posts tocam sozinhos
-      void play();
-    }
-  }
+  }, [shown, playNow, track.url]);
 
   return (
     <View style={s.card}>
-      <Pressable onPress={toggle} style={({ pressed }) => [s.play, pressed && s.pressed]} accessibilityRole="button" accessibilityLabel={on ? 'Parar' : 'Ouvir'}>
-        <Icon name={on ? 'pause' : 'play'} size={18} solid color="#fff" />
-      </Pressable>
+      <View style={[s.disc, on && !muted && s.discOn]} accessibilityLabel={on ? 'A tocar' : 'Música'}>
+        <Icon name="music" size={20} color="#fff" />
+      </View>
       <Pressable onPress={() => track.kind !== 'clip' && setInfo(true)} style={s.text} accessibilityRole="button" accessibilityLabel="Créditos da música">
         <Text style={s.title} numberOfLines={1}>{track.title}</Text>
         <Text style={s.sub} numberOfLines={1}>{track.kind === 'clip' ? 'Áudio original' : track.artist || 'Autor desconhecido'}</Text>
@@ -110,7 +91,8 @@ export function TrackCredits({ track, onClose }: { track: Track; onClose: () => 
 
 const s = StyleSheet.create({
   card: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: '#fafafa', borderWidth: 1, borderColor: colors.zinc100, padding: 12 },
-  play: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  disc: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
+  discOn: { backgroundColor: colors.brand },
   text: { flex: 1, minWidth: 0 },
   title: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },
   sub: { fontSize: 12, color: colors.zinc500 },

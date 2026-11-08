@@ -21,6 +21,7 @@ import { api, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useDesktop } from '@/lib/desktop';
 import { trackSeen } from '@/lib/seen';
+import { onPostsViewable } from '@/lib/visiblePosts';
 import { isSnoozed, shouldShowSuggestions } from '@/lib/suggestPacing';
 import { cardShadow, colors } from '@/lib/theme';
 
@@ -123,6 +124,7 @@ function Feed() {
   // Regista como vista a publicação que esteve pelo menos 60% no ecrã durante 1 segundo.
   const onViewable = useRef(({ viewableItems }: { viewableItems: { item: Post; isViewable: boolean }[] }) => {
     for (const v of viewableItems) if (v.isViewable) trackSeen(v.item.id);
+    onPostsViewable({ viewableItems }); // a música dos posts à vista toca; a dos outros pára
   }).current;
   const viewability = useRef({ itemVisiblePercentThreshold: 60, minimumViewTime: 1000 }).current;
 

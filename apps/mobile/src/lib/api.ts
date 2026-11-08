@@ -22,6 +22,8 @@ export interface Post {
   media: PostMedia[];
   createdAt: string;
   author: Author;
+  /** Publicada como um local (página): mostra-se com o nome e o logótipo da página. */
+  venue?: { slug: string; name: string; kind: string; verified: boolean; avatarUrl: string | null } | null;
   cheers: number;
   comments: number;
   cheered: boolean;
@@ -55,11 +57,11 @@ export interface Comment {
 export type GiftVisibility = 'silent' | 'private' | 'public';
 export type ReportReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence' | 'scam' | 'impersonation' | 'minor' | 'other';
 export type ReportType = 'post' | 'comment' | 'story' | 'user' | 'message';
-export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified';
+export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite';
 export interface AppNotification {
   id: string;
   kind: NotificationKind;
-  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; replyKind?: 'reply' | 'reaction' | 'comment' };
+  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor' };
   createdAt: string;
   read: boolean;
   actor: { username: string; displayName: string; isPrivate?: boolean; following?: boolean; requested?: boolean };
@@ -157,6 +159,8 @@ export interface SearchResults {
   people: { username: string; displayName: string; verified?: boolean; isPrivate: boolean; following: boolean; requested: boolean; followsYou: boolean }[];
   posts: Post[];
   tags: { tag: string; posts: number }[];
+  /** Locais (páginas) com esse nome ou nessa cidade. */
+  venues?: import('./api.locais').Venue[];
 }
 export interface TrendingTag { tag: string; posts: number; rising?: boolean }
 export type MsgKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply';

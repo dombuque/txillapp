@@ -16,6 +16,8 @@ import { Suggestions } from '@/components/Suggestions';
 import { Bolt, SuperTxillPanel } from '@/components/SuperTxillPanel';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { api, isTcheka, type Post } from '@/lib/api';
+import { locaisApi } from '@/lib/api.locais';
+import { VenueRow, VenueTile } from '@/components/VenueCard';
 import { sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
@@ -54,7 +56,7 @@ export default function Search() {
   const col = colW || Math.min(width, 576);
   const [text, setText] = useState('');
   const [term, setTerm] = useState('');
-  const [tab, setTab] = useState<'people' | 'tags' | 'posts' | 'mentions'>('people');
+  const [tab, setTab] = useState<'people' | 'venues' | 'tags' | 'posts' | 'mentions'>('people');
   const [topic, setTopic] = useState<string | null>(null);
   const [ai, setAi] = useState(false); // SuperTxill aberto
   const [recent, setRecent] = useState<string[]>([]);
@@ -98,6 +100,8 @@ export default function Search() {
 
   const trending = useQuery({ queryKey: ['trending'], queryFn: api.trending, staleTime: 60_000 });
   const hot = useQuery({ queryKey: ['places-hot'], queryFn: api.hotPlaces, staleTime: 60_000 });
+  // Locais (páginas): os mais movimentados da semana, para a fila do Explorar.
+  const venues = useQuery({ queryKey: ['venues', 'discover'], queryFn: () => locaisApi.discover(null), staleTime: 5 * 60_000, retry: false });
   const topics = useQuery({ queryKey: ['explore-topics'], queryFn: () => api.exploreTopics(), staleTime: 5 * 60_000, retry: false });
   const explore = useInfiniteQuery({
     queryKey: ['explore', topic],
@@ -121,6 +125,7 @@ export default function Search() {
   const people = q.data?.people ?? [];
   const tags = q.data?.tags ?? [];
   const posts = q.data?.posts ?? [];
+  const foundVenues = q.data?.venues ?? [];
   const cell = (col - 4) / 3;
 
   /**
@@ -231,6 +236,18 @@ export default function Search() {
               </ScrollView>
             )}
 
+            {(venues.data?.popular.length ?? 0) > 0 && (
+              <View style={{ paddingBottom: 16 }}>
+                <View style={{ paddingHorizontal: 20, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>Locais para txillar</Text>
+                  <Pressable onPress={() => router.push('/locais' as never)} hitSlop={8} accessibilityRole="button"><Text style={{ fontSize: 14, fontWeight: '600', color: colors.brand }}>Os meus</Text></Pressable>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
+                  {venues.data!.popular.map((v) => <VenueTile key={v.slug} venue={v} />)}
+                </ScrollView>
+              </View>
+            )}
+
             {explore.isLoading && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 2, paddingHorizontal: 2 }}>{Array.from({ length: 9 }, (_, n) => <View key={n} style={{ width: cell, height: cell, backgroundColor: colors.zinc100 }} />)}</View>}
             {grid.length > 0 && block(grid.slice(0, 9), 0)}
             {grid.length > 0 && <Suggestions />}
@@ -253,7 +270,7 @@ export default function Search() {
         {searching && (
           <>
             <View style={styles.tabs} accessibilityRole="tablist">
-              {([['people', `Pessoas${q.data ? ` (${people.length})` : ''}`], ['tags', `#Tags${q.data ? ` (${tags.length})` : ''}`], ['posts', `Publicações${q.data ? ` (${posts.length})` : ''}`], ['mentions', `Menções${mq.data ? ` (${mentions.length})` : ''}`]] as const).map(([k, label]) => (
+              {([['people', `Pessoas${q.data ? ` (${people.length})` : ''}`], ['venues', `Locais${q.data ? ` (${foundVenues.length})` : ''}`], ['tags', `#Tags${q.data ? ` (${tags.length})` : ''}`], ['posts', `Publicações${q.data ? ` (${posts.length})` : ''}`], ['mentions', `Menções${mq.data ? ` (${mentions.length})` : ''}`]] as const).map(([k, label]) => (
                 <Pressable key={k} onPress={() => setTab(k)} accessibilityRole="tab" accessibilityState={{ selected: tab === k }} style={[styles.tabBtn, { backgroundColor: tab === k ? colors.zinc900 : colors.zinc100 }]}>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: tab === k ? '#fff' : colors.zinc700 }}>{label}</Text>
                 </Pressable>
@@ -283,6 +300,13 @@ export default function Search() {
                     </View>
                   </View>
                 ))}
+              </View>
+            )}
+
+            {q.isSuccess && tab === 'venues' && (
+              <View style={{ paddingHorizontal: 16 }}>
+                {foundVenues.length === 0 && <View style={styles.empty}><Icon name="map-pin" size={36} color={colors.zinc300} /><Text style={styles.emptyTitle}>Nenhum local com esse nome</Text><Text style={styles.emptySub}>Tens um bar ou restaurante? Cria a página em Definições.</Text></View>}
+                {foundVenues.map((v) => <VenueRow key={v.slug} venue={v} onPress={() => { remember(term); router.push({ pathname: '/v/[slug]', params: { slug: v.slug } }); }} />)}
               </View>
             )}
 

@@ -21,6 +21,8 @@ const createSchema = z.object({
   locationCoarse: z.boolean().optional(),
   mediaIds: z.array(z.string().uuid()).max(MAX_PHOTOS).default([]),
   tags: z.array(z.object({ index: z.number().int().min(0).max(MAX_PHOTOS - 1), username: z.string().min(3).max(30), x: z.number().min(0).max(1), y: z.number().min(0).max(1) })).max(30).default([]),
+  /** Publicar como um local (página) que a pessoa gere. */
+  venueId: z.string().uuid().nullable().optional(),
 });
 const updateSchema = z.object({ body: z.string().max(2000).optional(), commentsOff: z.boolean().optional(), clearLocation: z.boolean().optional() });
 const repostSchema = z.object({ body: z.string().trim().max(500).default('') });
@@ -161,7 +163,7 @@ export class PostsController {
   @NeedsVerifiedEmail()
   @Post()
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
-    return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds, b.tags, b.music ?? null, b.locationLat != null && b.locationLng != null ? { lat: b.locationLat, lng: b.locationLng, coarse: b.locationCoarse } : null);
+    return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds, b.tags, b.music ?? null, b.locationLat != null && b.locationLng != null ? { lat: b.locationLat, lng: b.locationLng, coarse: b.locationCoarse } : null, b.venueId ?? null);
   }
 
   @Get()

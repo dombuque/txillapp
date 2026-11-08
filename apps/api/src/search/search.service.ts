@@ -5,6 +5,7 @@ import { PostsService } from '../posts/posts.service';
 import { SearchIndexer } from './search-index';
 import { isValidTag, normalizeTag } from '../common/hashtags';
 import { blockedBetween, inMyNetwork } from '../social/visibility';
+import { VenuesService } from '../venues/venues.service';
 
 /** Escapa % _ \ para usar o texto da pesquisa em ILIKE sem que vire padrão. */
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&');
@@ -20,6 +21,7 @@ export class SearchService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly posts: PostsService,
     private readonly indexer: SearchIndexer,
+    private readonly venues: VenuesService,
   ) {}
 
   /**
@@ -28,9 +30,11 @@ export class SearchService {
    */
   async search(viewerId: string, raw: string) {
     const term = raw.trim().replace(/^@/, '').slice(0, 50);
-    if (term.length < 2) return { query: term, people: [], posts: [], tags: [] };
+    if (term.length < 2) return { query: term, people: [], posts: [], tags: [], venues: [] };
     // "#praia": só hashtags.
-    if (raw.trim().startsWith('#')) return { query: term, people: [], posts: [], tags: await this.tagsLike(viewerId, raw.trim().slice(1)) };
+    if (raw.trim().startsWith('#')) return { query: term, people: [], posts: [], tags: await this.tagsLike(viewerId, raw.trim().slice(1)), venues: [] };
+    // Locais (bares, restaurantes…) com esse nome ou nessa cidade.
+    const venues = await this.venues.search(viewerId, term, 6);
     const contains = `%${escapeLike(term)}%`;
     const prefix = `${escapeLike(term)}%`;
 
@@ -45,6 +49,7 @@ export class SearchService {
           people: peopleRows.slice(0, 15),
           tags: await this.tagsLike(viewerId, term),
           posts: await this.posts.byIds(viewerId, postIds, 12),
+          venues,
         };
       } catch {
         /* segue para o PostgreSQL */
@@ -80,6 +85,7 @@ export class SearchService {
       })),
       tags: await this.tagsLike(viewerId, term),
       posts: await this.posts.search(viewerId, term, 12),
+      venues,
     };
   }
 

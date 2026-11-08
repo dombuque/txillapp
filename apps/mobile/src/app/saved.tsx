@@ -6,6 +6,7 @@ import { PostCard } from '@/components/PostCard';
 import { StackPage } from '@/components/StackPage';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { onPostsViewable, postViewability } from '@/lib/visiblePosts';
 import { colors } from '@/lib/theme';
 
 /** As publicações que guardaste (só tu as vês). */
@@ -28,6 +29,8 @@ export default function Saved() {
         ListHeaderComponent={<Text style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontSize: 14, color: colors.zinc600 }}>Só tu vês os teus guardados.</Text>}
         ListEmptyComponent={q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : q.isError ? <Empty icon="search" title="Não consegui ver os guardados agora" /> : <Empty icon="bookmark" title="Ainda não guardaste nada" text="Toca no marcador de uma publicação para a guardares aqui." />}
         ListFooterComponent={<View style={{ height: 32 }} />}
+        onViewableItemsChanged={onPostsViewable}
+        viewabilityConfig={postViewability}
         renderItem={({ item }) => <PostCard post={item} me={user?.id} />}
       />
     </StackPage>

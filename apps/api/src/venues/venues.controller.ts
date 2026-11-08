@@ -1,28 +1,43 @@
-import { Body, Controller, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
+import { PostsService } from '../posts/posts.service';
 import { Needs, StaffGuard } from '../staff/staff.guard';
-import { VENUE_KINDS, VenuesService } from './venues.service';
+import { MANAGER_ROLES, VENUE_KINDS, VenuesService } from './venues.service';
 
 type AuthedReq = Request & { userId?: string };
 
-const createSchema = z.object({
-  name: z.string().trim().min(2).max(80),
-  kind: z.enum(VENUE_KINDS),
-  city: z.string().trim().max(60).optional(),
-  about: z.string().trim().max(300).optional(),
-  lat: z.number().min(-90).max(90).optional(),
-  lng: z.number().min(-180).max(180).optional(),
+const text = (max: number) => z.string().trim().max(max).nullable().optional();
+const profileFields = {
+  city: text(60),
+  about: text(1000),
+  address: text(160),
+  hours: text(300),
+  phone: text(30),
+  whatsapp: text(30),
+  website: text(200),
+  lat: z.number().min(-90).max(90).nullable().optional(),
+  lng: z.number().min(-180).max(180).nullable().optional(),
+};
+const createSchema = z.object({ name: z.string().trim().min(2).max(80), kind: z.enum(VENUE_KINDS), ...profileFields });
+const updateSchema = z.object({
+  name: z.string().trim().min(2).max(80).optional(),
+  kind: z.enum(VENUE_KINDS).optional(),
+  ...profileFields,
+  avatarMediaId: z.string().uuid().nullable().optional(),
+  coverMediaId: z.string().uuid().nullable().optional(),
 });
+const inviteSchema = z.object({ username: z.string().trim().min(3).max(31), role: z.enum(MANAGER_ROLES) });
+const roleSchema = z.object({ role: z.enum(MANAGER_ROLES) });
 
-/** Locais: bares, restaurantes, discotecas… com página, dono, selo e check-in por QR. */
+/** Locais: páginas com dono e gestores, perfil, seguidores, publicações como o local, selo e check-in por QR. */
 @Controller('venues')
 @UseGuards(JwtAuthGuard)
 export class VenuesController {
-  constructor(private readonly venues: VenuesService) {}
+  constructor(private readonly venues: VenuesService, private readonly posts: PostsService) {}
 
   @Post()
   @Throttle({ default: { limit: 5, ttl: 3_600_000 } })
@@ -38,9 +53,16 @@ export class VenuesController {
     return this.venues.adminList(filter === 'all' ? 'all' : 'pending');
   }
 
+  /** As minhas páginas (que criei ou giro). */
   @Get('mine')
   mine(@Req() req: AuthedReq) {
     return this.venues.mine(req.userId!);
+  }
+
+  /** Convites por aceitar para gerir páginas. */
+  @Get('invites')
+  invites(@Req() req: AuthedReq) {
+    return this.venues.invites(req.userId!);
   }
 
   @Get('find')
@@ -48,9 +70,86 @@ export class VenuesController {
     return this.venues.findByName(req.userId!, name);
   }
 
+  @Get('search')
+  search(@Req() req: AuthedReq, @Query('q') q = '') {
+    return this.venues.search(req.userId!, q);
+  }
+
+  /** Descobrir locais: perto de mim (com lat/lng) e os mais movimentados. */
+  @Get('discover')
+  discover(@Req() req: AuthedReq, @Query('lat') lat?: string, @Query('lng') lng?: string) {
+    const la = Number(lat), ln = Number(lng);
+    const at = lat && lng && Number.isFinite(la) && Number.isFinite(ln) && Math.abs(la) <= 90 && Math.abs(ln) <= 180 ? { lat: la, lng: ln } : null;
+    return this.venues.discover(req.userId!, at);
+  }
+
   @Get(':slug')
   get(@Req() req: AuthedReq, @Param('slug') slug: string) {
     return this.venues.get(req.userId!, slug);
+  }
+
+  /** Editar o perfil da página (dono e administradores). */
+  @Patch(':slug')
+  update(@Req() req: AuthedReq, @Param('slug') slug: string, @Body(new ZodPipe(updateSchema)) b: z.infer<typeof updateSchema>) {
+    return this.venues.update(req.userId!, slug, b);
+  }
+
+  /** As publicações feitas como este local. */
+  @Get(':slug/posts')
+  async posts_(@Req() req: AuthedReq, @Param('slug') slug: string, @Query('cursor') cursor?: string) {
+    const v = await this.venues.get(req.userId!, slug);
+    return this.posts.byVenue(req.userId!, v.id, cursor, 12);
+  }
+
+  @Put(':slug/follow')
+  follow(@Req() req: AuthedReq, @Param('slug') slug: string) {
+    return this.venues.follow(req.userId!, slug, true);
+  }
+
+  @Delete(':slug/follow')
+  unfollow(@Req() req: AuthedReq, @Param('slug') slug: string) {
+    return this.venues.follow(req.userId!, slug, false);
+  }
+
+  @Get(':slug/managers')
+  managers(@Req() req: AuthedReq, @Param('slug') slug: string) {
+    return this.venues.managers(req.userId!, slug);
+  }
+
+  /** Convidar @alguém para gerir a página (administrador ou editor). */
+  @Post(':slug/managers')
+  @Throttle({ default: { limit: 30, ttl: 3_600_000 } })
+  invite(@Req() req: AuthedReq, @Param('slug') slug: string, @Body(new ZodPipe(inviteSchema)) b: z.infer<typeof inviteSchema>) {
+    return this.venues.invite(req.userId!, slug, b.username, b.role);
+  }
+
+  /** Aceitar ou recusar o convite (quem foi convidado). */
+  @Post(':slug/managers/accept')
+  @HttpCode(200)
+  accept(@Req() req: AuthedReq, @Param('slug') slug: string) {
+    return this.venues.answerInvite(req.userId!, slug, true);
+  }
+
+  @Post(':slug/managers/decline')
+  @HttpCode(200)
+  decline(@Req() req: AuthedReq, @Param('slug') slug: string) {
+    return this.venues.answerInvite(req.userId!, slug, false);
+  }
+
+  @Patch(':slug/managers/:username')
+  setRole(@Req() req: AuthedReq, @Param('slug') slug: string, @Param('username') username: string, @Body(new ZodPipe(roleSchema)) b: z.infer<typeof roleSchema>) {
+    return this.venues.setRole(req.userId!, slug, username, b.role);
+  }
+
+  @Delete(':slug/managers/:username')
+  remove(@Req() req: AuthedReq, @Param('slug') slug: string, @Param('username') username: string) {
+    return this.venues.removeManager(req.userId!, slug, username);
+  }
+
+  /** Painel do gestor. */
+  @Get(':slug/insights')
+  insights(@Req() req: AuthedReq, @Param('slug') slug: string) {
+    return this.venues.insights(req.userId!, slug);
   }
 
   @Post(':slug/checkin')

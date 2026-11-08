@@ -464,7 +464,7 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     // Se o dono muda o QR, o código antigo deixa de servir.
     const rot = (await api().post(`/api/v1/venues/${v.slug}/qr/rotate`).set(auth(owner)).expect(201)).body as { qrToken: string };
     expect(rot.qrToken).not.toBe(v.qrToken);
-    await api().post(`/api/v1/venues/${v.slug}/qr/rotate`).set(auth(fan)).expect(404);
+    await api().post(`/api/v1/venues/${v.slug}/qr/rotate`).set(auth(fan)).expect(403); // só o dono e os administradores
     // Selo: só a equipa.
     await api().put(`/api/v1/venues/${v.slug}/verified`).set(auth(fan)).send({ verified: true }).expect(401);
     const st = { Authorization: `Bearer ${(await staffLogin(app, 'selo')).token}` };

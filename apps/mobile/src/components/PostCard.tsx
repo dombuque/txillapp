@@ -2,14 +2,15 @@ import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { memo, useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, FlatList, Pressable, Share, StyleSheet, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { api, isTcheka, type Page, type Post } from '@/lib/api';
 import type { PeopleKind } from '@/lib/api.feed';
 import { sized } from '@/lib/config';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
+import { useIsPostVisible } from '@/lib/visiblePosts';
 import { Avatar } from './Avatar';
 import { BookmarkIcon } from './BookmarkIcon';
 import { CarouselVideo } from './CarouselVideo';
@@ -23,6 +24,8 @@ import { GiftSheet, PostMenuSheet, RepostSheet } from './PostSheets';
 import { ShareSheet } from './ShareSheet';
 import { TrackCard } from './TrackCard';
 import { VerifiedBadge } from './VerifiedBadge';
+import { VenueLogo } from './VenueCard';
+import { KIND_LABEL } from '@/lib/api.locais';
 
 /** Toque simples ou duplo: o duplo chama `double`; o simples só corre (com um pequeno atraso) se não vier segundo toque. */
 function useTap(double?: () => void) {
@@ -97,6 +100,11 @@ function usePatch(id: string) {
 /** O cartão de uma publicação, igual ao do site: cantos de 26, sombra suave, autor, texto, fotos e a barra de ações. */
 function PostCardBase({ post, me, detail, openComments, highlightComment }: { post: Post; me?: string; /** Já estamos na página desta publicação: tocar no cartão não a volta a abrir. */ detail?: boolean; /** Abre logo os comentários (vindo de uma notificação), realçando `highlightComment`. */ openComments?: boolean; highlightComment?: string }) {
   const router = useRouter();
+  // A música do post toca enquanto ele está à vista neste ecrã (e o ecrã está à frente); pára ao sair.
+  const inList = useIsPostVisible(post.id);
+  const [focused, setFocused] = useState(true);
+  useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
+  const musicOn = focused && (!!detail || inList);
   if (post.kind === 'repost' && post.repostOf && !post.body) {
     return (
       <View>
@@ -110,13 +118,13 @@ function PostCardBase({ post, me, detail, openComments, highlightComment }: { po
       </View>
     );
   }
-  return <PostBody post={post} me={me} detail={detail} openComments={openComments} highlightComment={highlightComment} />;
+  return <PostBody post={post} me={me} detail={detail} openComments={openComments} highlightComment={highlightComment} musicOn={musicOn} />;
 }
 
 type SheetState = null | 'menu' | 'comments' | 'repost' | 'share' | { gift: { username: string; displayName: string; amount?: number; note?: string } } | { people: PeopleKind };
 type GiftExtra = { recipient: { username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null } };
 
-function PostBody({ post, me, detail, openComments, highlightComment }: { post: Post; me?: string; detail?: boolean; openComments?: boolean; highlightComment?: string }) {
+function PostBody({ post, me, detail, openComments, highlightComment, musicOn = false }: { post: Post; me?: string; detail?: boolean; openComments?: boolean; highlightComment?: string; /** O post está à vista: a música toca. */ musicOn?: boolean }) {
   // No computador a app vive numa coluna de 576 ao centro: as medidas saem dela, não da janela.
   const width = Math.min(useWindowDimensions().width, 576);
   const router = useRouter();
@@ -136,6 +144,7 @@ function PostBody({ post, me, detail, openComments, highlightComment }: { post: 
   const quote = post.kind === 'repost' && !!post.repostOf && !!post.body ? post.repostOf : null;
   const g = post.gift;
   const goAuthor = () => router.push(profileOf(post.author, me) as never);
+  const goVenue = () => post.venue && router.push({ pathname: '/v/[slug]', params: { slug: post.venue.slug } });
   const openPost = (o: Post) => router.push((isTcheka(o) ? `/r/${o.code ?? o.id}` : `/p/${o.code ?? o.id}`) as never);
 
   async function toggleSave() {
@@ -170,15 +179,24 @@ function PostBody({ post, me, detail, openComments, highlightComment }: { post: 
       ) : (
         <>
           <View style={styles.header}>
-            <Pressable onPress={goAuthor} accessibilityRole="link" accessibilityLabel={`Perfil de ${post.author.displayName}`}>
-              <Avatar name={post.author.displayName} username={post.author.username} size={52} />
-            </Pressable>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Pressable onPress={goAuthor} style={styles.nameRow} accessibilityRole="link">
-                <Text style={[styles.name, { flexShrink: 1 }]} numberOfLines={1}>{post.author.displayName}</Text>
-                {post.author.verified && <VerifiedBadge size={16} tier={post.author.verifiedTier} />}
+            {post.venue ? (
+              // Publicada como um local: a página é a voz (logótipo, nome e selo); quem publicou fica por trás.
+              <Pressable onPress={goVenue} accessibilityRole="link" accessibilityLabel={`Página de ${post.venue.name}`}>
+                <VenueLogo venue={post.venue} size={52} />
               </Pressable>
-              {quote ? (
+            ) : (
+              <Pressable onPress={goAuthor} accessibilityRole="link" accessibilityLabel={`Perfil de ${post.author.displayName}`}>
+                <Avatar name={post.author.displayName} username={post.author.username} size={52} />
+              </Pressable>
+            )}
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Pressable onPress={post.venue ? goVenue : goAuthor} style={styles.nameRow} accessibilityRole="link">
+                <Text style={[styles.name, { flexShrink: 1 }]} numberOfLines={1}>{post.venue ? post.venue.name : post.author.displayName}</Text>
+                {post.venue ? (post.venue.verified && <VerifiedBadge size={16} tier="verified" />) : (post.author.verified && <VerifiedBadge size={16} tier={post.author.verifiedTier} />)}
+              </Pressable>
+              {post.venue && !quote ? (
+                <Text style={styles.handle} numberOfLines={1}>{KIND_LABEL[post.venue.kind] ?? 'Local'} · página</Text>
+              ) : quote ? (
                 <View style={styles.locRow}>
                   <Icon name="repeat" size={14} color={colors.zinc500} />
                   <Text style={styles.handle} numberOfLines={1}>repostou</Text>
@@ -210,7 +228,7 @@ function PostBody({ post, me, detail, openComments, highlightComment }: { post: 
           ) : null}
         </>
       )}
-      {post.music ? <TrackCard track={post.music} autoplay /> : null}
+      {post.music ? <TrackCard track={post.music} autoplay visible={musicOn} /> : null}
       {quote ? (
         <QuoteBox original={quote} me={me} onPhoto={() => setViewer({ of: quote, start: 0 })} onOpen={openPost} onDouble={() => void brindar()} />
       ) : (

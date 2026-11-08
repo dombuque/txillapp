@@ -11,6 +11,6 @@ export const composeApi = {
   searchPlaces: (q: string, at?: { lat: number; lng: number }): Promise<{ name: string; sub: string; kind: string }[]> =>
     raw(`/places/search?q=${encodeURIComponent(q)}${at ? `&lat=${at.lat}&lng=${at.lng}` : ''}`),
   mentionable: (q: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; following: boolean; verified?: boolean }[]> => raw(`/mentionable?q=${encodeURIComponent(q)}`),
-  createPost: (b: { body: string; music?: Track | null; locationLabel?: string; locationLat?: number; locationLng?: number; locationCoarse?: boolean; mediaIds: string[]; tags?: { index: number; username: string; x: number; y: number }[] }) =>
+  createPost: (b: { body: string; music?: Track | null; locationLabel?: string; locationLat?: number; locationLng?: number; locationCoarse?: boolean; mediaIds: string[]; tags?: { index: number; username: string; x: number; y: number }[]; /** Publicar como um local que giro. */ venueId?: string | null }) =>
     raw('/posts', post({ ...b, music: musicPayload(b.music) })),
 };

@@ -200,16 +200,26 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [failWhy, setFailWhy] = useState('');
   useEffect(() => {
     let alive = true;
     void (async () => {
+      // 1) A Skia lê o caminho directamente; 2) se não conseguir (content:// do Android, nomes estranhos), lemos os bytes nós e damos-lhos.
+      let i: SkImage | null = null;
+      let why = '';
       try {
-        const data = await Skia.Data.fromURI(uri);
-        const i = Skia.Image.MakeImageFromEncoded(data);
-        if (alive) { if (i) setImg(i); else setFailed(true); }
-      } catch {
-        if (alive) setFailed(true);
+        i = Skia.Image.MakeImageFromEncoded(await Skia.Data.fromURI(uri));
+      } catch (e) { why = (e as Error).message; }
+      if (!i) {
+        try {
+          const bytes = await new File(uri).bytes();
+          i = Skia.Image.MakeImageFromEncoded(Skia.Data.fromBytes(bytes));
+          if (!i) why = 'formato de imagem não suportado';
+        } catch (e) { why = why || (e as Error).message; }
       }
+      if (!alive) return;
+      if (i) setImg(i);
+      else { setFailWhy(why); setFailed(true); }
     })();
     return () => { alive = false; };
   }, [uri]);
@@ -253,6 +263,28 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
         }));
       },
       onPanResponderRelease: () => { drag.current = null; },
+    }),
+  ).current;
+
+  // A fila de filtros acompanha o filtro escolhido (quando se troca a deslizar sobre a foto).
+  const looksRow = useRef<React.ComponentRef<typeof ScrollView> | null>(null);
+  const chipX = useRef<number[]>([]);
+  useEffect(() => {
+    if (tool !== 'look') return;
+    looksRow.current?.scrollTo({ x: Math.max(0, (chipX.current[edit.look] ?? 0) - 48), animated: true });
+  }, [edit.look, tool]);
+
+  // Nos filtros, deslizar sobre a foto troca de filtro (esquerda = seguinte, direita = anterior), como no Instagram.
+  const swipe = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderRelease: (_e, g) => {
+        if (Math.abs(g.dx) < 40) return;
+        const dir = g.dx < 0 ? 1 : -1;
+        setEdit((e) => ({ ...e, look: Math.max(0, Math.min(LOOKS.length - 1, e.look + dir)) }));
+      },
     }),
   ).current;
 
@@ -323,11 +355,11 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
 
       <View style={st.stage} onLayout={(e: LayoutChangeEvent) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
         {failed ? (
-          <Text style={st.fail}>Não consegui abrir a foto para editar.</Text>
+          <Text style={st.fail}>Não consegui abrir a foto para editar.{failWhy ? `\n${failWhy}` : ''}</Text>
         ) : !picture ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <View style={{ width: pw, height: ph, borderRadius: 14, overflow: 'hidden' }} {...(tool === 'crop' ? pan.panHandlers : {})}>
+          <View style={{ width: pw, height: ph, borderRadius: 14, overflow: 'hidden' }} {...(tool === 'crop' ? pan.panHandlers : tool === 'look' ? swipe.panHandlers : {})}>
             <Canvas style={{ width: pw, height: ph }}>
               <Picture picture={picture} />
             </Canvas>
@@ -343,9 +375,9 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
 
       <View style={[st.panel, { paddingBottom: Math.max(insets.bottom, 12) + 6 }]}>
         {tool === 'look' && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
+          <ScrollView ref={looksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
             {LOOKS.map((l, i) => (
-              <Pressable key={l.id} onPress={() => set({ look: i })} style={[st.chip, edit.look === i && st.chipOn]} accessibilityRole="button" accessibilityState={{ selected: edit.look === i }}>
+              <Pressable key={l.id} onPress={() => set({ look: i })} onLayout={(e) => { chipX.current[i] = e.nativeEvent.layout.x; }} style={[st.chip, edit.look === i && st.chipOn]} accessibilityRole="button" accessibilityState={{ selected: edit.look === i }}>
                 <Text style={[st.chipText, edit.look === i && st.chipTextOn]}>{l.name}</Text>
               </Pressable>
             ))}

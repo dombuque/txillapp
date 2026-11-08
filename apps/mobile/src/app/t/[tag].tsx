@@ -8,6 +8,7 @@ import { PostCard } from '@/components/PostCard';
 import { StackPage } from '@/components/StackPage';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { onPostsViewable, postViewability } from '@/lib/visiblePosts';
 import { colors } from '@/lib/theme';
 
 /** Página de uma #hashtag: quantas publicações e as publicações, recentes ou mais reagidas. */
@@ -48,6 +49,8 @@ export default function TagScreen() {
         }
         ListEmptyComponent={q.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : q.isError ? <Empty icon="search" title="Esta hashtag não existe" /> : <Empty icon="tag" title="Ainda ninguém usou esta hashtag" />}
         ListFooterComponent={q.isFetchingNextPage ? <ActivityIndicator style={{ margin: 16 }} color={colors.brand} /> : <View style={{ height: 32 }} />}
+        onViewableItemsChanged={onPostsViewable}
+        viewabilityConfig={postViewability}
         renderItem={({ item }) => <PostCard post={item} me={user?.id} />}
       />
     </StackPage>
