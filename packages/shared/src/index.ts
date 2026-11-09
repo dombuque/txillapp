@@ -18,7 +18,7 @@ export type Gender = z.infer<typeof genderSchema>;
 /** Idade mínima para ter conta. */
 export const MIN_AGE = 15;
 /** Versão em vigor dos Termos e da Política de Privacidade (muda quando o texto muda). */
-export const TERMS_VERSION = '2026-11-03';
+export const TERMS_VERSION = '2026-11-09';
 
 /** Idade completa em `on` (por omissão, hoje) de alguém nascido em `birthDate` (AAAA-MM-DD). */
 export function ageOf(birthDate: string, on: Date = new Date()): number {

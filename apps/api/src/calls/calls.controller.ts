@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
@@ -28,12 +28,24 @@ export class CallsController {
   /** Servidores ICE (STUN e, se houver, TURN com credenciais temporárias de 6 horas). */
   @Get('ice')
   ice(@Req() req: AuthedReq) {
-    return { iceServers: this.calls.iceServers(req.userId!) };
+    return this.calls.iceFor(req.userId!);
   }
 
   @Get()
   history(@Req() req: AuthedReq, @Query('cursor') cursor?: string) {
     return this.calls.history(req.userId!, cursor);
+  }
+
+  /** Apagar todo o meu histórico de chamadas (o do outro lado fica). */
+  @Delete()
+  hideAll(@Req() req: AuthedReq) {
+    return this.calls.hideAll(req.userId!);
+  }
+
+  /** Apagar uma chamada do meu histórico. */
+  @Delete(':id')
+  hide(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.calls.hide(req.userId!, id);
   }
 
   @Post(':id/accept')

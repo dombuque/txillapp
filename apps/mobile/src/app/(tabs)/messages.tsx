@@ -2,9 +2,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
+import { SwipeRow, type SwipeAction } from '@/components/SwipeRow';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { Icon } from '@/components/Icon';
 import { NotesStrip } from '@/components/Notes';
@@ -19,6 +20,8 @@ import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
 import { callLabel } from '@/components/ChatBubbles';
+import { GroupCover } from '@/components/groups/GroupParts';
+import { countdown, dateRange, groupKindOf, kindInfo, type GroupKind, type TxillGroupSummary } from '@/lib/api.groups';
 
 function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, group = false) {
   const you = m.fromMe ? 'Tu: ' : '';
@@ -30,6 +33,7 @@ function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, g
   if (m.kind === 'sticker') return `${you}Sticker`;
   if (m.kind === 'call') return callLabel(m.body, m.fromMe).text;
   if (m.kind === 'location') return `${you}Localização`;
+  if ((m.kind as string) === 'poll') return `${you}Sondagem${m.body ? `: ${m.body}` : ''}`;
   if (m.kind === 'story_reaction') return `${m.fromMe ? 'Reagiste ao mimo' : 'Reagiu ao teu mimo'}: ${REACTIONS.find((x) => x.id === m.body)?.label ?? m.body}`;
   if (m.kind === 'story_reply') return `${m.fromMe ? 'Respondeste ao mimo' : 'Respondeu ao teu mimo'}: ${m.body}`;
   if (m.kind === 'zas_reply') return `${m.fromMe ? 'Respondeste ao Zás' : 'Respondeu ao teu Zás'}: ${m.body}`;
@@ -38,6 +42,8 @@ function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, g
 
 interface Row {
   key: string;
+  /** Conversa direta: o @ do outro lado (para as ações de swipe). */
+  username?: string;
   to: string;
   name: string;
   sub: string;
@@ -46,6 +52,10 @@ interface Row {
   names: { name: string; username?: string }[];
   online: boolean;
   group: boolean;
+  /** TxillGroup: capa, tipo e a próxima data do Plano. */
+  cover?: string | null;
+  kind?: GroupKind;
+  when?: string | null;
 }
 
 function Skeleton() {
@@ -88,10 +98,45 @@ export default function Messages() {
   const term = text.trim().toLowerCase().replace(/^@/, '');
   const people = useQuery({ queryKey: ['mentionable', term], queryFn: () => api.mentionable(term), enabled: term.length >= 1, staleTime: 30_000 });
 
+  type DirectList = Awaited<ReturnType<typeof api.chatList>>;
+  const patchDirect = (username: string, f: (c: DirectList[number]) => DirectList[number] | null) =>
+    qc.setQueryData<DirectList>(['chat-list'], (d) => d?.flatMap((c) => (c.username === username ? (f(c) ?? []) : [c])));
+  const refreshUnread = () => void qc.invalidateQueries({ queryKey: ['chat-unread'] });
+  /** Deslizar para a direita: marcar como por ler (ou como lida, se já estiver por ler). */
+  function rowLeft(r: Row): SwipeAction[] {
+    const u = r.username;
+    if (!u) return [];
+    return r.unread > 0
+      ? [{ label: 'Lida', icon: 'check', color: colors.zinc600, onPress: () => {
+          patchDirect(u, (c) => ({ ...c, unread: 0 }));
+          void api.chatThread(u).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-list'] }));
+        } }]
+      : [{ label: 'Por ler', icon: 'mail', color: colors.brand, onPress: () => {
+          patchDirect(u, (c) => ({ ...c, unread: 1 }));
+          void api.chatMarkUnread(u).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-list'] }));
+        } }];
+  }
+  /** Deslizar para a esquerda: apagar a conversa (pergunta antes). */
+  function rowRight(r: Row): SwipeAction[] {
+    const u = r.username;
+    if (!u) return [];
+    return [{ label: 'Apagar', icon: 'trash', color: colors.red600, onPress: () => {
+      Alert.alert('Apagar a conversa?', `As mensagens com ${r.name} saem da tua lista. Do lado de lá ficam. Se te escreverem outra vez, a conversa volta.`, [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Apagar', style: 'destructive', onPress: () => {
+          patchDirect(u, () => null);
+          qc.removeQueries({ queryKey: ['chat-thread', u] });
+          void api.chatClear(u).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); Alert.alert('Não consegui apagar', 'Tenta outra vez.'); });
+        } },
+      ]);
+    } }];
+  }
+
   const requestCount = (direct.data ?? []).filter((c) => c.request).length;
   const rows: Row[] = [
     ...(direct.data ?? []).filter((c) => (view === 'requests' ? c.request : !c.request)).map((c): Row => ({
       key: `d:${c.username}`,
+      username: c.username,
       to: `/messages/${c.username}`,
       name: c.displayName,
       sub: what(c.lastMessage),
@@ -101,7 +146,7 @@ export default function Messages() {
       online: !!c.presence?.online,
       group: false,
     })),
-    ...(view === 'requests' ? [] : groups.data ?? []).map((g): Row => ({
+    ...((view === 'requests' ? [] : groups.data ?? []) as TxillGroupSummary[]).map((g): Row => ({
       key: `g:${g.id}`,
       to: `/messages/g/${g.id}`,
       name: g.name,
@@ -111,6 +156,9 @@ export default function Messages() {
       names: g.preview.slice(0, 2).map((p) => ({ name: p.displayName, username: p.hasAvatar ? p.username : undefined })),
       online: false,
       group: true,
+      cover: g.coverUrl,
+      kind: groupKindOf(g),
+      when: g.plan?.startsOn && countdown(g.plan.startsOn, g.plan.endsOn) !== 'Já passou' ? dateRange(g.plan.startsOn, g.plan.endsOn) : null,
     })),
   ]
     .filter((r) => !term || r.name.toLowerCase().includes(term) || r.sub.toLowerCase().includes(term))
@@ -126,11 +174,11 @@ export default function Messages() {
       <View style={styles.top}>
         <Text style={styles.handle} numberOfLines={1}>{user?.username ?? 'Mensagens'}</Text>
         <Pressable onPress={() => router.push('/calls' as never)} hitSlop={8} style={[styles.compose, { right: 48 }]} accessibilityRole="button" accessibilityLabel="Chamadas"><CallIcon name="handset" size={22} color={colors.zinc900} /></Pressable>
-        <Pressable onPress={() => router.push('/messages/new' as never)} hitSlop={8} style={styles.compose} accessibilityRole="button" accessibilityLabel="Nova conversa ou grupo"><Icon name="compose" size={24} /></Pressable>
+        <Pressable onPress={() => router.push('/messages/new' as never)} hitSlop={8} style={styles.compose} accessibilityRole="button" accessibilityLabel="Nova conversa ou TxillGroup"><Icon name="compose" size={24} /></Pressable>
       </View>
       <View style={[styles.search, focus && { backgroundColor: 'rgba(228,228,231,0.7)' }]}>
         <Icon name="search" size={18} color={colors.zinc500} />
-        <TextInput value={text} onChangeText={setText} placeholder="Procurar pessoas e grupos" placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel="Procurar conversas" onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} />
+        <TextInput value={text} onChangeText={setText} placeholder="Procurar pessoas e TxillGroups" placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel="Procurar conversas" onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} />
         {text ? <Pressable onPress={() => setText('')} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Limpar"><Icon name="x" size={16} /></Pressable> : null}
         <Pressable onPress={() => setAi(true)} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
       </View>
@@ -161,15 +209,20 @@ export default function Messages() {
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"
         renderItem={({ item: r }) => (
+          <SwipeRow left={rowLeft(r)} right={rowRight(r)}>
           <Pressable onPressIn={() => { const m = /^\/messages\/([^/]+)$/.exec(String(r.to)); if (m && m[1] !== 'new') warm(decodeURIComponent(m[1])); }} onPress={() => router.push(r.to as never)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]}>
             <View>
               {r.group ? (
-                <View style={{ width: 62, height: 62 }}>
-                  {r.names.slice(0, 2).map((a, i) => (
-                    <View key={i} style={[styles.pair, i === 0 ? { left: 3, top: 3 } : { right: 3, bottom: 3 }]}><Avatar name={a.name} username={a.username} size={32} /></View>
-                  ))}
-                  {r.names.length === 0 && <View style={styles.groupEmpty}><Icon name="users" size={24} color={colors.zinc600} /></View>}
-                </View>
+                r.cover || r.kind ? (
+                  <View style={[styles.ring, r.unread ? { borderWidth: 2, borderColor: colors.brand, borderRadius: 22 } : null]}><GroupCover url={r.cover} kind={r.kind} size={56} radius={18} /></View>
+                ) : (
+                  <View style={{ width: 62, height: 62 }}>
+                    {r.names.slice(0, 2).map((a, i) => (
+                      <View key={i} style={[styles.pair, i === 0 ? { left: 3, top: 3 } : { right: 3, bottom: 3 }]}><Avatar name={a.name} username={a.username} size={32} /></View>
+                    ))}
+                    {r.names.length === 0 && <View style={styles.groupEmpty}><Icon name="users" size={24} color={colors.zinc600} /></View>}
+                  </View>
+                )
               ) : (
                 r.unread ? (
                   <LinearGradient colors={[colors.brand, '#ff9a5b']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.ring}>
@@ -184,7 +237,8 @@ export default function Messages() {
             <View style={{ flex: 1, minWidth: 0 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={[styles.name, { fontWeight: r.unread ? '800' : '600' }]} numberOfLines={1}>{r.name}</Text>
-                {r.group && <Icon name="users" size={14} color="#a1a1aa" />}
+                {r.group && <Icon name={r.kind ? kindInfo(r.kind).icon : 'users'} size={14} color="#a1a1aa" />}
+                {r.when ? <View style={styles.when}><Icon name="calendar" size={11} color={colors.brand} /><Text style={styles.whenText} numberOfLines={1}>{r.when}</Text></View> : null}
               </View>
               <View style={{ flexDirection: 'row' }}>
                 <Text style={[styles.sub, r.unread ? { fontWeight: '600', color: colors.zinc900 } : null, { flexShrink: 1 }]} numberOfLines={1}>{r.sub}</Text>
@@ -193,13 +247,14 @@ export default function Messages() {
             </View>
             {r.unread > 0 && <View style={styles.dot} accessibilityLabel={`${r.unread} por ler`} />}
           </Pressable>
+          </SwipeRow>
         )}
         ListEmptyComponent={
           loading ? <Skeleton /> : strangers.length > 0 ? <View /> : (
             <View style={styles.empty}>
               <Icon name="messages" size={44} color={colors.zinc300} />
               <Text style={styles.emptyTitle}>{term ? 'Nada com esse nome' : view === 'requests' ? 'Sem pedidos' : 'Ainda sem cochichos'}</Text>
-              <Text style={styles.emptySub}>{term ? 'Tenta outro nome ou começa uma conversa nova.' : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.' : 'Toca no ícone no canto para falar com alguém ou criar um grupo.'}</Text>
+              <Text style={styles.emptySub}>{term ? 'Tenta outro nome ou começa uma conversa nova.' : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.' : 'Toca no ícone no canto para falar com alguém ou criar um TxillGroup.'}</Text>
               {!term && view === 'all' && <Pressable onPress={() => router.push('/messages/new' as never)} style={styles.newBtn} accessibilityRole="button"><Text style={styles.newBtnText}>Nova conversa</Text></Pressable>}
             </View>
           )
@@ -256,6 +311,9 @@ const styles = StyleSheet.create({
   name: { fontSize: 17, fontWeight: '600', color: colors.zinc900, flexShrink: 1 },
   sub: { fontSize: 15, color: colors.zinc500 },
   dot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.brand },
+  when: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, backgroundColor: colors.rose50, paddingHorizontal: 7, paddingVertical: 2, flexShrink: 0 },
+  whenText: { fontSize: 11, fontWeight: '800', color: colors.brand },
+
   empty: { marginTop: 40, alignItems: 'center', paddingHorizontal: 24 },
   emptyTitle: { marginTop: 12, fontSize: 20, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
   emptySub: { marginTop: 4, maxWidth: 320, fontSize: 16, color: colors.zinc600, textAlign: 'center' },

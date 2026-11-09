@@ -8,7 +8,8 @@ import { qrMatrix } from '@/lib/qr';
 import { SITE_URL } from '@/lib/config';
 import { cardShadow, colors } from '@/lib/theme';
 
-const origin = () => (Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : SITE_URL || 'https://txillapp.com');
+/** O endereço do site para pôr nos QR (na web o da própria página). */
+export const origin = () => (Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : SITE_URL || 'https://txillapp.com');
 
 function matrix(text: string): { bits: Uint8Array; n: number } | null {
   try {
@@ -23,7 +24,7 @@ function matrix(text: string): { bits: Uint8Array; n: number } | null {
 }
 
 /** Desenha o QR (módulos escuros em fundo branco, com margem de 1 módulo). */
-function QrSvg({ text, size }: { text: string; size: number }) {
+export function QrSvg({ text, size }: { text: string; size: number }) {
   const m = useMemo(() => matrix(text), [text]);
   if (!m) return <View style={{ width: size, height: size, backgroundColor: colors.zinc100, borderRadius: 16 }} />;
   const rects = [];
@@ -36,6 +37,20 @@ function QrSvg({ text, size }: { text: string; size: number }) {
   );
 }
 
+/** Na web: descarrega o QR como SVG (para imprimir). */
+export function downloadQrSvg(text: string, filename: string) {
+  const m = matrix(text);
+  if (!m) return;
+  let d = '';
+  for (let y = 0; y < m.n; y++) for (let x = 0; x < m.n; x++) if (m.bits[y * m.n + x]) d += `M${x + 1} ${y + 1}h1v1h-1z`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${m.n + 2} ${m.n + 2}" width="720" height="720"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#18181b"/></svg>`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
 /** Cartão do QR do local (para o dono imprimir): quem o lê, no local, faz check-in. */
 export function VenueQr({ venue }: { venue: Venue }) {
   const qc = useQueryClient();
@@ -44,16 +59,7 @@ export function VenueQr({ venue }: { venue: Venue }) {
 
   async function save() {
     if (Platform.OS === 'web') {
-      const m = matrix(url);
-      if (!m) return;
-      let d = '';
-      for (let y = 0; y < m.n; y++) for (let x = 0; x < m.n; x++) if (m.bits[y * m.n + x]) d += `M${x + 1} ${y + 1}h1v1h-1z`;
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${m.n + 2} ${m.n + 2}" width="720" height="720"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#18181b"/></svg>`;
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-      a.download = `txillapp-${venue.slug}.svg`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      downloadQrSvg(url, `txillapp-${venue.slug}.svg`);
       return;
     }
     try {

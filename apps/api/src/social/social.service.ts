@@ -63,7 +63,7 @@ export class SocialService {
       `SELECT u.id, u.username, u.display_name, u.bio, u.website, u.city, u.created_at, u.is_private, u.show_connections,
               u.gender, u.show_gender, u.verified, u.verified_tier,
               (u.avatar_media_id IS NOT NULL) AS has_avatar,
-              (SELECT count(*) FROM content.posts p WHERE p.author_id = u.id AND p.removed_at IS NULL AND p.kind <> 'repost')::int AS posts,
+              (SELECT count(*) FROM content.posts p WHERE p.author_id = u.id AND p.removed_at IS NULL AND p.kind <> 'repost' AND (p.venue_id IS NULL OR u.id = $1))::int AS posts,
               (SELECT count(*) FROM social.follows f WHERE f.followee_id = u.id)::int AS followers,
               (SELECT count(*) FROM social.follows f WHERE f.follower_id = u.id)::int AS following,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS i_follow,
@@ -322,6 +322,12 @@ export class SocialService {
     return this.privacy(userId);
   }
 
+  /** Aceitar a versão em vigor dos Termos e da Política de Privacidade (quando mudam, a app pede de novo). */
+  async acceptTerms(userId: string) {
+    await this.pool.query('UPDATE identity.users SET terms_accepted_at = now(), terms_version = $2 WHERE id = $1', [userId, TERMS_VERSION]);
+    return this.privacy(userId);
+  }
+
   /** Quais dos nomes são contas ativas (sem distinguir maiúsculas). */
   async existing(names: string[]) {
     const clean = [...new Set(names.map((n) => n.trim().toLowerCase()).filter((n) => /^[a-z0-9_.]{3,30}$/.test(n)))];
@@ -340,7 +346,7 @@ export class SocialService {
 
   async privacy(userId: string) {
     const { rows } = await this.pool.query(
-      'SELECT is_private, comments_allowed, gifts_allowed, mentions_allowed, dms_allowed, calls_allowed, reposts_visible, cheers_visible, gifts_visible, show_connections, suggestable, gender, show_gender, (birth_date IS NOT NULL) AS birth_set, (terms_version = $2) AS terms_ok, is_admin, share_analytics, show_presence, find_by_contacts, (welcomed_at IS NOT NULL) AS welcomed FROM identity.users WHERE id = $1',
+      'SELECT is_private, comments_allowed, gifts_allowed, mentions_allowed, dms_allowed, calls_allowed, calls_relay_only, reposts_visible, cheers_visible, gifts_visible, show_connections, suggestable, gender, show_gender, (birth_date IS NOT NULL) AS birth_set, (terms_version = $2) AS terms_ok, is_admin, share_analytics, show_presence, find_by_contacts, (welcomed_at IS NOT NULL) AS welcomed FROM identity.users WHERE id = $1',
       [userId, TERMS_VERSION],
     );
     const r = rows[0];
@@ -366,6 +372,8 @@ export class SocialService {
       dmsAllowed: r.dms_allowed as Who,
       /** Quem me pode ligar (voz e vídeo): todos, quem eu sigo, só quem se segue um ao outro, ninguém. */
       callsAllowed: r.calls_allowed as CallsWho,
+      /** Chamadas só pelo servidor do Txillapp (o outro lado não vê o meu IP). */
+      callsRelayOnly: !!r.calls_relay_only,
       repostsVisible: r.reposts_visible as Viewers,
       cheersVisible: r.cheers_visible as Viewers,
       giftsVisible: r.gifts_visible as Viewers,
@@ -376,7 +384,7 @@ export class SocialService {
 
   async setPrivacy(
     userId: string,
-    p: { isPrivate?: boolean; commentsAllowed?: Who; giftsAllowed?: Who; mentionsAllowed?: Who; dmsAllowed?: Who; callsAllowed?: CallsWho; shareAnalytics?: boolean; repostsVisible?: Viewers; cheersVisible?: Viewers; giftsVisible?: Viewers; showConnections?: Connections; suggestable?: boolean; gender?: Gender; showGender?: boolean; showPresence?: boolean; findByContacts?: boolean },
+    p: { isPrivate?: boolean; commentsAllowed?: Who; giftsAllowed?: Who; mentionsAllowed?: Who; dmsAllowed?: Who; callsAllowed?: CallsWho; callsRelayOnly?: boolean; shareAnalytics?: boolean; repostsVisible?: Viewers; cheersVisible?: Viewers; giftsVisible?: Viewers; showConnections?: Connections; suggestable?: boolean; gender?: Gender; showGender?: boolean; showPresence?: boolean; findByContacts?: boolean },
   ) {
     // O género escolhe-se ao criar a conta e não se altera. Só contas antigas, sem género, o definem (uma vez).
     if (p.gender !== undefined) {
@@ -400,9 +408,10 @@ export class SocialService {
           show_gender = COALESCE($7, show_gender),
           show_presence = COALESCE($14, show_presence),
           find_by_contacts = COALESCE($15, find_by_contacts),
-          calls_allowed = COALESCE($16, calls_allowed)
+          calls_allowed = COALESCE($16, calls_allowed),
+          calls_relay_only = COALESCE($17, calls_relay_only)
         WHERE id = $1`,
-      [userId, p.commentsAllowed ?? null, p.giftsAllowed ?? null, p.showConnections ?? null, p.suggestable ?? null, p.gender ?? null, p.showGender ?? null, p.mentionsAllowed ?? null, p.repostsVisible ?? null, p.cheersVisible ?? null, p.giftsVisible ?? null, p.dmsAllowed ?? null, p.shareAnalytics ?? null, p.showPresence ?? null, p.findByContacts ?? null, p.callsAllowed ?? null],
+      [userId, p.commentsAllowed ?? null, p.giftsAllowed ?? null, p.showConnections ?? null, p.suggestable ?? null, p.gender ?? null, p.showGender ?? null, p.mentionsAllowed ?? null, p.repostsVisible ?? null, p.cheersVisible ?? null, p.giftsVisible ?? null, p.dmsAllowed ?? null, p.shareAnalytics ?? null, p.showPresence ?? null, p.findByContacts ?? null, p.callsAllowed ?? null, p.callsRelayOnly ?? null],
     );
     return this.privacy(userId);
   }

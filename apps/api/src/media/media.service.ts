@@ -23,6 +23,21 @@ export type Served = { path: string; mime: string } | { url: string };
 
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+/**
+ * Tira os metadados de uma foto (GPS, aparelho, data) antes de ficar guardada: nada do EXIF chega a quem a vê.
+ * JPEG: aplica a rotação e regrava; PNG e WebP (também animados) regravam-se sem metadados. Se falhar, devolve null.
+ */
+export async function stripImageMeta(bytes: Buffer, mime: string): Promise<Buffer | null> {
+  try {
+    if (mime === 'image/jpeg') return await sharp(bytes).rotate().jpeg({ quality: 92, mozjpeg: true }).toBuffer();
+    if (mime === 'image/png') return await sharp(bytes).png({ compressionLevel: 9 }).toBuffer();
+    if (mime === 'image/webp') return await sharp(bytes, { animated: true }).webp({ quality: 92 }).toBuffer();
+  } catch {
+    /* fica o original */
+  }
+  return null;
+}
 /** Áudio só para o chat (mensagens de voz): webm/ogg (Chrome, Firefox) e mp4 (Safari). */
 const AUDIO = new Set(['audio/webm', 'audio/ogg', 'audio/mp4']);
 export const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
@@ -187,9 +202,18 @@ export class MediaService implements OnModuleInit {
     let bytes: Buffer | null = null;
     const read = async () => (bytes ??= await this.s3!.read(id, scope));
     await this.screen(id, userId, a.mime, read);
+    let size = head.size;
+    if (a.mime.startsWith('image/')) {
+      const clean = await stripImageMeta(await read(), a.mime);
+      if (clean) {
+        await this.s3.put(id, clean, a.mime, scope, clean.length);
+        bytes = clean;
+        size = clean.length;
+      }
+    }
     // Fotos públicas: gera já as versões leves (o telemóvel descarrega dezenas de KB, não vários MB).
     if (a.mime.startsWith('image/') && a.purpose === 'public') await this.publishVariants(id, await read());
-    await this.pool.query(`UPDATE content.media_assets SET status = 'ready', size_bytes = $2 WHERE id = $1`, [id, head.size]);
+    await this.pool.query(`UPDATE content.media_assets SET status = 'ready', size_bytes = $2 WHERE id = $1`, [id, size]);
     return { status: 'ready' };
   }
 
@@ -280,6 +304,13 @@ export class MediaService implements OnModuleInit {
       } else {
         if (sniff(head) !== asset.mime) throw new UnsupportedMediaTypeException('Conteúdo não corresponde ao tipo declarado');
         await this.screen(id, asset.owner_id, asset.mime, () => readFile(path));
+        if (asset.mime.startsWith('image/')) {
+          const clean = await stripImageMeta(await readFile(path), asset.mime);
+          if (clean) {
+            await writeFile(path, clean);
+            received = clean.length;
+          }
+        }
       }
     } catch (e) {
       await rm(path, { force: true });

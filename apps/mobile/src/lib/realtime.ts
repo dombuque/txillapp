@@ -100,6 +100,21 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
         void qc.invalidateQueries({ queryKey: ['calls'] });
         return;
       }
+      if (e.type === 'group') {
+        // TxillGroups: mudou o Plano, uma sondagem, a lista, as despesas ou a vaquinha. Só refresca o que mudou.
+        const g = e as ChatEvent & { groupId?: string; what?: string };
+        if (!g.groupId) return;
+        if (g.what === 'pot') {
+          void qc.invalidateQueries({ queryKey: ['group-pot', g.groupId] });
+          void qc.invalidateQueries({ queryKey: ['wallet'] });
+        }
+        void qc.invalidateQueries({ queryKey: ['group-plan', g.groupId] });
+        if (g.what === 'plan' || g.what === 'pot') {
+          void qc.invalidateQueries({ queryKey: ['chat-groups'] });
+          void qc.invalidateQueries({ queryKey: ['chat-group', g.groupId] });
+        }
+        return;
+      }
       typingSubs.forEach((f) => f(e));
       cb.current?.(e);
       if (e.type !== 'typing') refresh(e);

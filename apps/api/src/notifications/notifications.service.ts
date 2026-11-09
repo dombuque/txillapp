@@ -17,13 +17,14 @@ export const mentionableBy = (u = 'u', viewer = '$1') =>
   `(${u}.id <> ${viewer} AND ${u}.status = 'active' AND NOT ${blockedBetween(`${u}.id`, viewer)} AND ${allowedBy(u, 'mentions_allowed', viewer)} AND ` +
   `(NOT ${u}.is_private OR EXISTS (SELECT 1 FROM social.follows mf WHERE mf.follower_id = ${viewer} AND mf.followee_id = ${u}.id)))`;
 
-export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call';
+export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review';
 
 /** A categoria que a pessoa pode desligar (os avisos de bloqueio e de verificação ficam sempre). */
 export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   follow: 'follows', follow_request: 'follows', request_accepted: 'follows',
   comment: 'comments', reply: 'comments', story_reply: 'comments',
   mention: 'mentions', tag: 'mentions', repost: 'reposts', gift: 'gifts',
+  missed_call: 'calls', venue_invite: 'venues', venue_payment: 'venues', venue_review: 'venues',
 };
 
 /** Tipos que não se repetem enquanto houver uma igual por ler (evita spam de seguir/deixar de seguir). */
@@ -87,6 +88,13 @@ export class NotificationsService {
       verified: { body: 'agora tem a conta verificada', url: profile },
       venue_invite: { body: 'convidou-te para gerir um local', url: '/notifications' },
       missed_call: { body: n.data?.video ? 'Videochamada perdida' : 'Chamada perdida', url: '/calls' },
+      // Pagamento com Txills a um local que a pessoa gere (direto ou do cofre de um TxillGroup).
+      // Abre a secção Txills de Gerir, como a notificação dentro da app.
+      venue_review: {
+        body: n.data?.decision === 'approved' ? `aprovou ${String(n.data?.venueName ?? 'o teu local')}: já está à vista de todos` : `não aprovou ${String(n.data?.venueName ?? 'o teu local')}. Vê o motivo e corrige`,
+        url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}` : '/notifications',
+      },
+      venue_payment: { body: `pagou ${Number(n.data?.amount ?? 0)} Txills ${n.data?.venueName ? `em ${String(n.data.venueName)}` : 'no teu local'}`, url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}/gerir?s=txills` : '/notifications' },
     };
     const m = t[n.kind];
     // Chamada perdida: a mesma etiqueta da chamada que tocava (substitui-a) e, no Android, só dados, como o toque.
@@ -97,6 +105,7 @@ export class NotificationsService {
         body: m.body,
         url: m.url,
         tag: `call-${callId}`,
+        category: 'calls',
         dataOnly: true,
         data: { kind: 'missed_call', callId, from: (a?.username as string | undefined) ?? '', video: n.data?.video ? '1' : '0' },
       });

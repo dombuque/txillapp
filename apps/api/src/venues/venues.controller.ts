@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
@@ -29,9 +29,23 @@ const updateSchema = z.object({
   ...profileFields,
   avatarMediaId: z.string().uuid().nullable().optional(),
   coverMediaId: z.string().uuid().nullable().optional(),
+  acceptsTxills: z.boolean().optional(),
 });
+const paySchema = z.object({
+  amount: z.number().int().min(1).max(100_000),
+  note: z.string().trim().max(120).optional(),
+  idempotencyKey: z.string().min(8).max(100).optional(),
+});
+
+/** A chave de idempotência vem no corpo (`idempotencyKey`) ou no cabeçalho Idempotency-Key. */
+export function idemKey(body?: string, header?: string): string {
+  const k = body ?? header;
+  if (!k || k.length < 8 || k.length > 100) throw new BadRequestException('Falta a chave de idempotência (idempotencyKey, 8 a 100 caracteres)');
+  return k;
+}
 const inviteSchema = z.object({ username: z.string().trim().min(3).max(31), role: z.enum(MANAGER_ROLES) });
 const roleSchema = z.object({ role: z.enum(MANAGER_ROLES) });
+const reviewSchema = z.object({ decision: z.enum(['approved', 'rejected']), note: z.string().trim().max(300).optional() });
 
 /** Locais: páginas com dono e gestores, perfil, seguidores, publicações como o local, selo e check-in por QR. */
 @Controller('venues')
@@ -50,7 +64,7 @@ export class VenuesController {
   @UseGuards(StaffGuard)
   @Needs('catalog.manage')
   adminList(@Query('filter') filter?: string) {
-    return this.venues.adminList(filter === 'all' ? 'all' : 'pending');
+    return this.venues.adminList(filter === 'all' ? 'all' : filter === 'unverified' ? 'unverified' : 'pending');
   }
 
   /** As minhas páginas (que criei ou giro). */
@@ -92,6 +106,19 @@ export class VenuesController {
   @Patch(':slug')
   update(@Req() req: AuthedReq, @Param('slug') slug: string, @Body(new ZodPipe(updateSchema)) b: z.infer<typeof updateSchema>) {
     return this.venues.update(req.userId!, slug, b);
+  }
+
+  /** Pagar ao local com Txills da minha carteira (só se o local aceitar Txills). */
+  @Post(':slug/pay')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  pay(@Req() req: AuthedReq, @Param('slug') slug: string, @Body(new ZodPipe(paySchema)) b: z.infer<typeof paySchema>, @Headers('idempotency-key') key?: string) {
+    return this.venues.pay(req.userId!, slug, b.amount, b.note, idemKey(b.idempotencyKey, key));
+  }
+
+  /** Os pagamentos em Txills recebidos (só quem gere o local). */
+  @Get(':slug/payments')
+  payments(@Req() req: AuthedReq, @Param('slug') slug: string, @Query('cursor') cursor?: string) {
+    return this.venues.payments(req.userId!, slug, cursor);
   }
 
   /** As publicações feitas como este local. */
@@ -161,6 +188,14 @@ export class VenuesController {
   @Post(':slug/qr/rotate')
   rotate(@Req() req: AuthedReq, @Param('slug') slug: string) {
     return this.venues.rotateToken(req.userId!, slug);
+  }
+
+  /** A equipa aprova ou recusa o local (com motivo). */
+  @Put(':slug/review')
+  @UseGuards(StaffGuard)
+  @Needs('catalog.manage')
+  review(@Req() req: AuthedReq, @Param('slug') slug: string, @Body(new ZodPipe(reviewSchema)) b: z.infer<typeof reviewSchema>) {
+    return this.venues.review(req.userId!, slug, b.decision, b.note);
   }
 
   /** A equipa verifica o local (selo). */

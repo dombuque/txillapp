@@ -57,11 +57,11 @@ export interface Comment {
 export type GiftVisibility = 'silent' | 'private' | 'public';
 export type ReportReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence' | 'scam' | 'impersonation' | 'minor' | 'other';
 export type ReportType = 'post' | 'comment' | 'story' | 'user' | 'message';
-export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite';
+export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review';
 export interface AppNotification {
   id: string;
   kind: NotificationKind;
-  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor' };
+  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected' };
   createdAt: string;
   read: boolean;
   actor: { username: string; displayName: string; isPrivate?: boolean; following?: boolean; requested?: boolean };
@@ -105,6 +105,10 @@ export interface PrivacySettings {
   dmsAllowed: Who;
   /** Quem me pode ligar (calls_allowed no servidor). */
   callsAllowed?: CallsWho;
+  /** "Esconder o meu IP nas chamadas": só pelo servidor de chamadas do Txillapp. */
+  callsRelayOnly?: boolean;
+  /** Aceitou a versão em vigor dos Termos (falso depois de uma atualização: a app pede de novo). */
+  termsAccepted?: boolean;
   repostsVisible: Viewers;
   cheersVisible: Viewers;
   giftsVisible: Viewers;
@@ -243,9 +247,20 @@ export interface TrayUser { username: string; displayName: string; isMe: boolean
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public code?: string) {
     super(message);
   }
+}
+
+/** Avisos de "conta por ativar" (403 email_not_verified): a folha "Ativa a tua conta" ouve isto em qualquer ecrã. */
+const needVerifyListeners = new Set<() => void>();
+/** Abrir a folha "Ativa a tua conta" a partir de um botão (ex.: o aviso no topo do feed). */
+export function openActivate() {
+  for (const f of needVerifyListeners) f();
+}
+export function onNeedVerify(f: () => void) {
+  needVerifyListeners.add(f);
+  return () => { needVerifyListeners.delete(f); };
 }
 
 const REFRESH_KEY = 'txill.refresh';
@@ -307,8 +322,9 @@ async function call(path: string, init: RequestInit = {}, auth = true): Promise<
 
 async function parse(res: Response) {
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { message?: string | string[] };
-    throw new ApiError(res.status, Array.isArray(body.message) ? body.message[0] : body.message ?? 'Erro inesperado');
+    const body = (await res.json().catch(() => ({}))) as { message?: string | string[]; code?: string };
+    if (res.status === 403 && body.code === 'email_not_verified') for (const f of needVerifyListeners) f();
+    throw new ApiError(res.status, Array.isArray(body.message) ? body.message[0] : body.message ?? 'Erro inesperado', body.code);
   }
   if (res.status === 204) return undefined;
   const text = await res.text();
@@ -514,6 +530,10 @@ export const api = {
   chatSend: (username: string, msg: { body?: string; kind?: MsgKind; mediaId?: string; instantId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; once?: boolean; replyTo?: string }): Promise<{ id: string }> => raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
   chatOpen: (id: string): Promise<{ kind: MsgKind; body: string; mediaUrl: string | null; durationMs: number | null; waveform: string | null }> => raw(`/chat/messages/${id}/open`, post({})),
   chatDelete: (id: string): Promise<void> => raw(`/chat/messages/${id}`, { method: 'DELETE' }),
+  /** Marcar a conversa como por ler (só para mim). */
+  chatMarkUnread: (username: string): Promise<{ ok: true }> => raw(`/chat/with/${encodeURIComponent(username)}/unread`, post({})),
+  /** Apagar a conversa só do meu lado (a outra pessoa continua a ver tudo). */
+  chatClear: (username: string): Promise<{ ok: true }> => raw(`/chat/with/${encodeURIComponent(username)}`, { method: 'DELETE' }),
   chatReact: (id: string, reaction: string): Promise<void> => raw(`/chat/messages/${id}/reaction`, { method: 'PUT', body: JSON.stringify({ reaction }) }),
   chatAccept: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/accept`, post({})),
   chatDecline: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/decline`, post({})),
@@ -541,9 +561,12 @@ export const api = {
   resetExplore: (): Promise<void> => raw('/feed/prefs', { method: 'DELETE' }),
   privacy: (): Promise<PrivacySettings> => raw('/settings/privacy'),
   setPrivacy: (b: Partial<PrivacySettings>): Promise<PrivacySettings> => raw('/settings/privacy', { method: 'PATCH', body: JSON.stringify(b) }),
+  acceptTerms: (): Promise<PrivacySettings> => raw('/users/me/terms', { method: 'PUT', body: JSON.stringify({ acceptTerms: true }) }),
   setWelcomed: (): Promise<PrivacySettings> => raw('/users/me/welcomed', { method: 'PUT' }),
   /** Esta conta ainda tem de confirmar o e-mail? (sem isso não publica, comenta nem conversa) */
-  emailStatus: (): Promise<{ required: boolean; verified: boolean }> => raw('/auth/email/status'),
+  emailStatus: (): Promise<{ required: boolean; verified: boolean; email?: string }> => raw('/auth/email/status'),
+  /** Corrigir o e-mail (só enquanto a conta não está ativada); manda o link para o novo. */
+  changeEmail: (email: string): Promise<{ sent: boolean; email: string }> => raw('/auth/email/change', post({ email })),
   resendVerification: (): Promise<{ sent: boolean }> => raw('/auth/email/resend', { method: 'POST' }),
   /** "A escrever…" nos comentários de uma publicação. */
   typingPing: (postId: string): Promise<void> => raw('/presence/typing', post({ postId })),

@@ -72,7 +72,6 @@ export function NativeCamera({
   const [flash, setFlash] = useState<'off' | 'on' | 'auto'>('off');
   const [delay, setDelay] = useState<0 | 3 | 10>(0);
   const [grid, setGrid] = useState(gridPref);
-  const [optsOpen, setOptsOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   // Zoom em fator da câmara (1 = sem zoom; no Android pode descer abaixo de 1 se houver ultra grande angular).
   const [zoom, setZoom] = useState(1);
@@ -196,14 +195,13 @@ export function NativeCamera({
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (editing || galleryOpen) return false; // o editor e a galeria tratam
-      if (optsOpen) { setOptsOpen(false); return true; }
       if (review) { setReview(null); return true; }
       if (recording) { stopRec(); return true; }
       onClose();
       return true;
     });
     return () => sub.remove();
-  }, [editing, galleryOpen, optsOpen, review, recording, onClose]);
+  }, [editing, galleryOpen, review, recording, onClose]);
 
   /** Esconde o anel e a barra da exposição ao fim de 4 s sem mexer. */
   function armHide() {
@@ -217,7 +215,6 @@ export function NativeCamera({
    * A exposição volta a zero em cada toque novo (a luz mede-se de novo); a barra do sol ao lado do anel ajusta-a.
    */
   function focusAt(x: number, y: number) {
-    if (optsOpen) { setOptsOpen(false); return; }
     setFocus({ x, y });
     ringAnim.stopAnimation();
     ringAnim.setValue(0);
@@ -349,7 +346,6 @@ export function NativeCamera({
     recorder.current = rec;
     stopAsked.current = false;
     setRecording(true);
-    setOptsOpen(false);
     startedAt.current = Date.now();
     setRecMs(0);
     recTimer.current = setInterval(() => setRecMs(Date.now() - startedAt.current), 100);
@@ -394,7 +390,6 @@ export function NativeCamera({
   function shutterStart(e: GestureResponderEvent) {
     holding.current = false;
     if (!ready || busy || countdown !== null || recording) return;
-    setOptsOpen(false);
     press(0.9);
     slide.current = { y: e.nativeEvent.pageY, z: zoom };
     holdT.current = setTimeout(() => {
@@ -557,7 +552,7 @@ export function NativeCamera({
             </View>
           ) : null}
 
-          {/* Barra de cima: fechar à esquerda; flash e opções à direita (a gravar, só o tempo). */}
+          {/* Barra de cima: fechar à esquerda; flash, temporizador, grelha e texto à direita (a gravar, só o tempo). */}
           <View style={[st.controls, { left: view.x, top: view.y, width: view.w }]} pointerEvents="box-none">
             <Pressable onPress={onClose} style={st.round} accessibilityRole="button" accessibilityLabel="Fechar câmara" hitSlop={6}><Icon name="x" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
             {recording ? (
@@ -573,33 +568,20 @@ export function NativeCamera({
                       {flash === 'auto' && <Text style={st.auto}>A</Text>}
                     </View>
                   </Pressable>
-                  <Pressable onPress={() => { tap(); setOptsOpen((o) => !o); }} style={[st.round, optsOpen && st.roundLight]} accessibilityRole="button" accessibilityLabel="Opções da câmara" accessibilityState={{ expanded: optsOpen }} hitSlop={6}>
-                    <Icon name="sliders" size={20} color={optsOpen ? colors.zinc900 : '#fff'} />
+                  <TopTool on={delay > 0} label={delay ? `Temporizador: ${delay} s` : 'Temporizador'} onPress={() => { tap(); setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0)); }}>
+                    <Icon name="clock" size={20} color={delay ? colors.zinc900 : '#fff'} />
                     {delay > 0 && <View style={st.delayBadge}><Text style={st.delayText}>{delay}</Text></View>}
-                  </Pressable>
+                  </TopTool>
+                  <TopTool on={grid} label="Grelha" onPress={() => { tap(); setGrid((g) => { gridPref = !g; return !g; }); }}>
+                    <Icon name="grid" size={20} color={grid ? colors.zinc900 : '#fff'} />
+                  </TopTool>
+                  {onText ? (
+                    <TopTool label="Só texto" onPress={onText}><Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Aa</Text></TopTool>
+                  ) : null}
                 </>
               )}
             </View>
           </View>
-
-          {/* Opções: temporizador, grelha e só texto (fecha ao tocar fora). */}
-          {optsOpen && !recording ? (
-            <>
-              <Pressable style={[StyleSheet.absoluteFill, { zIndex: 7 }]} onPress={() => setOptsOpen(false)} accessibilityLabel="Fechar opções" />
-              <View style={[st.opts, { top: view.y + 62, right: 12 }]}>
-                <OptRow icon="clock" label="Temporizador" value={delay ? `${delay} s` : 'Tempo'} on={delay > 0}
-                  onPress={() => { tap(); setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0)); }} />
-                <OptRow icon="grid" label="Grelha" value="Grelha" on={grid}
-                  onPress={() => { tap(); setGrid((g) => { gridPref = !g; return !g; }); }} />
-                {onText ? (
-                  <Pressable onPress={() => { setOptsOpen(false); onText(); }} style={st.optRow} accessibilityRole="button" accessibilityLabel="Só texto">
-                    <View style={st.optIcon}><Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Aa</Text></View>
-                    <Text style={st.optValue}>Texto</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            </>
-          ) : null}
 
           {/* Em baixo no visor: zoom e exposição (toca para repor) e a dica nas primeiras vezes. */}
           <View pointerEvents="box-none" style={[st.viewFoot, { top: view.y + view.h - 78, left: view.x, width: view.w }]}>
@@ -690,12 +672,11 @@ export function NativeCamera({
   );
 }
 
-/** Uma linha das opções: ícone, nome e o valor atual (toca para mudar). */
-function OptRow({ icon, label, value, on, onPress }: { icon: 'clock' | 'grid'; label: string; value: string; on: boolean; onPress: () => void }) {
+/** Um botão da barra de cima (temporizador, grelha, texto): sempre à vista, branco quando ligado. */
+function TopTool({ on, label, onPress, children }: { on?: boolean; label: string; onPress: () => void; children: React.ReactNode }) {
   return (
-    <Pressable onPress={onPress} style={st.optRow} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`}>
-      <View style={[st.optIcon, on && { backgroundColor: '#fff' }]}><Icon name={icon} size={18} color={on ? colors.zinc900 : '#fff'} /></View>
-      <Text style={[st.optValue, on && { color: '#fff' }]} numberOfLines={1}>{value}</Text>
+    <Pressable onPress={onPress} style={[st.round, on && st.roundOn]} accessibilityRole="button" accessibilityState={{ selected: !!on }} accessibilityLabel={label} hitSlop={4}>
+      {children}
     </Pressable>
   );
 }
@@ -741,11 +722,6 @@ const st = StyleSheet.create({
   auto: { position: 'absolute', right: -8, bottom: -6, fontSize: 10, fontWeight: '900', color: colors.zinc900 },
   delayBadge: { position: 'absolute', right: -4, bottom: -4, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   delayText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  opts: { position: 'absolute', zIndex: 8, flexDirection: 'row', gap: 2, borderRadius: 22, paddingVertical: 8, paddingHorizontal: 6, backgroundColor: 'rgba(24,24,27,0.9)' },
-  optRow: { width: 62, alignItems: 'center', gap: 5 },
-  optIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
-  optLabel: { flex: 1, color: '#fff', fontSize: 15, fontWeight: '600' },
-  optValue: { color: 'rgba(255,255,255,0.72)', fontSize: 11, fontWeight: '700' },
   rec: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 14, paddingVertical: 7 },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#ef4444' },
   recText: { color: '#fff', fontWeight: '700', fontSize: 15, fontVariant: ['tabular-nums'] },

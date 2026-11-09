@@ -1,3 +1,4 @@
+import { TermsUpdate } from '@/components/TermsUpdate';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -161,6 +162,7 @@ function Feed() {
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} collapsable={false}>
       {desktop ? <View style={{ height: 16 }} /> : <Header />}
       <WelcomeTour />
+      <TermsUpdate />
       <PullView pull={pull}>
       {fresh > 0 && (
         <View style={styles.freshWrap} pointerEvents="box-none">

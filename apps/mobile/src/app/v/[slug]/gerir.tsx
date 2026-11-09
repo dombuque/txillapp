@@ -8,24 +8,32 @@ import { Avatar } from '@/components/Avatar';
 import { Empty } from '@/components/Empty';
 import { Icon } from '@/components/Icon';
 import { PontoLoader } from '@/components/PontoLoader';
+import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
 import { VenueLogo } from '@/components/VenueCard';
 import { VenueQr } from '@/components/VenueQr';
+import { VenueTxills, venuePaymentsKey } from '@/components/VenueTxills';
 import { uploadMedia } from '@/lib/api';
+import { eventWhen, nearbyApi } from '@/lib/api.nearby';
 import { KINDS, KIND_LABEL, ROLE_LABEL, locaisApi, type ManagerRole, type Venue, type VenueKind, type VenueProfileInput } from '@/lib/api.locais';
 import { useAuth } from '@/lib/auth';
 import { sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
 
-type Section = 'perfil' | 'gestores' | 'qr' | 'painel';
+type Section = 'perfil' | 'gestores' | 'eventos' | 'qr' | 'txills' | 'painel';
 
-/** Gerir a página de um local: perfil (logótipo, capa, contactos), gestores (convidar, papéis), QR do check-in e o painel. */
+/** Gerir a página de um local: perfil (logótipo, capa, contactos), gestores (convidar, papéis), eventos, QR do check-in, Txills e o painel. */
 export default function ManageVenue() {
   const { slug = '', s } = useLocalSearchParams<{ slug: string; s?: Section }>();
   const q = useQuery({ queryKey: ['venue', slug], queryFn: () => locaisApi.venue(slug), retry: false });
   const v = q.data;
+  const qc = useQueryClient();
   const [section, setSection] = useState<Section>(s ?? 'perfil');
-  const sections: [Section, string][] = [['perfil', 'Perfil'], ['gestores', 'Gestores'], ['qr', 'QR'], ['painel', 'Painel']];
+  // A notificação de pagamento abre ?s=txills: se a página já estava aberta, muda de secção.
+  useEffect(() => { if (s) setSection(s); }, [s]);
+  const sections: [Section, string][] = [['perfil', 'Perfil'], ['gestores', 'Gestores'], ['eventos', 'Eventos'], ['qr', 'QR'], ['txills', 'Txills'], ['painel', 'Painel']];
+  // Puxar para atualizar: o local (saldo, estado) e, na secção Txills, os pagamentos recebidos.
+  const pull = usePullToRefresh(() => Promise.all([q.refetch(), section === 'txills' ? qc.invalidateQueries({ queryKey: venuePaymentsKey(slug) }) : section === 'eventos' ? qc.invalidateQueries({ queryKey: ['venue-events', slug] }) : null]), q.isRefetching);
 
   return (
     <StackPage title={v ? `Gerir ${v.name}` : 'Gerir o local'}>
@@ -35,7 +43,8 @@ export default function ManageVenue() {
         <Empty icon="lock" title="Só os gestores entram aqui" />
       ) : (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-          <ScrollView contentContainerStyle={{ paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
+          <PullView pull={pull}>
+          <ScrollView contentContainerStyle={{ paddingBottom: 48 }} keyboardShouldPersistTaps="handled" onScroll={pull.onScroll} scrollEventThrottle={16} refreshControl={pull.control}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 8 }}>
               {sections.map(([id, label]) => (
                 <Pressable key={id} onPress={() => setSection(id)} accessibilityRole="tab" accessibilityState={{ selected: section === id }} style={[st.tab, section === id && st.tabOn]}>
@@ -45,9 +54,12 @@ export default function ManageVenue() {
             </ScrollView>
             {section === 'perfil' && <Profile v={v} />}
             {section === 'gestores' && <Managers v={v} />}
+            {section === 'eventos' && <Events v={v} />}
             {section === 'qr' && (v.qrToken ? <View style={{ paddingTop: 4 }}><VenueQr venue={v} /></View> : null)}
+            {section === 'txills' && <VenueTxills v={v} />}
             {section === 'painel' && <Insights v={v} />}
           </ScrollView>
+          </PullView>
         </KeyboardAvoidingView>
       )}
     </StackPage>
@@ -223,6 +235,41 @@ function Managers({ v }: { v: Venue }) {
 }
 
 /** O painel: números da semana e os check-ins dos últimos 14 dias. */
+/** Eventos do local: criar um novo (dono e todos os gestores ativos) e ver os próximos. Aparecem na página e no mapa À tua volta. */
+function Events({ v }: { v: Venue }) {
+  const router = useRouter();
+  const q = useQuery({ queryKey: ['venue-events', v.slug], queryFn: () => nearbyApi.venueEvents(v.slug), staleTime: 60_000, retry: false });
+  const list = q.data ?? [];
+  return (
+    <View style={{ paddingHorizontal: 16, gap: 12 }}>
+      <Text style={st.hint}>Anuncia o que vai acontecer: uma noite de kizomba, o jogo no ecrã grande, um concerto. Aparece na página do local e no mapa À tua volta.</Text>
+      <Pressable onPress={() => router.push(`/evento/novo?venue=${encodeURIComponent(v.slug)}` as never)} style={[st.cta, { flexDirection: 'row', gap: 8 }]} accessibilityRole="button">
+        <Icon name="plus" size={18} color="#fff" />
+        <Text style={st.ctaText}>Criar evento</Text>
+      </Pressable>
+      {q.isLoading ? (
+        <View style={{ alignItems: 'center', paddingVertical: 24 }}><PontoLoader size={20} /></View>
+      ) : list.length ? (
+        <View style={{ gap: 8 }}>
+          <Text style={st.label}>Próximos</Text>
+          {list.map((e) => (
+            <Pressable key={e.id} onPress={() => router.push(`/evento/${e.id}` as never)} style={st.mRow} accessibilityRole="link">
+              <View style={st.iconBtn}><Icon name="calendar" size={18} color={colors.zinc800} /></View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }} numberOfLines={1}>{e.title}</Text>
+                <Text style={{ fontSize: 13, color: colors.zinc500 }} numberOfLines={1}>{eventWhen(e.startsAt, e.endsAt)}{e.interested ? ` · ${e.interested} com interesse` : ''}</Text>
+              </View>
+              <Icon name="chevron-right" size={18} color={colors.zinc500} />
+            </Pressable>
+          ))}
+        </View>
+      ) : (
+        <Text style={[st.hint, { textAlign: 'center', paddingVertical: 16 }]}>Ainda não há eventos marcados.</Text>
+      )}
+    </View>
+  );
+}
+
 function Insights({ v }: { v: Venue }) {
   const q = useQuery({ queryKey: ['venue-insights', v.slug], queryFn: () => locaisApi.insights(v.slug), retry: false });
   const d = q.data;

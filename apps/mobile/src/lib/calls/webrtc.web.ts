@@ -9,9 +9,10 @@ import type { PeerLike, VideoViewProps } from './peer';
 
 export const rtcSupported = () => typeof window !== 'undefined' && typeof window.RTCPeerConnection === 'function' && !!navigator.mediaDevices?.getUserMedia;
 
-export function createPeer(iceServers: IceServer[]): PeerLike {
+/** `relayOnly`: só pelo TURN (o outro lado não vê o IP desta pessoa). */
+export function createPeer(iceServers: IceServer[], relayOnly = false): PeerLike {
   if (!rtcSupported()) throw new Error('Este browser não faz chamadas. Experimenta o Chrome, o Safari ou a app.');
-  return new RTCPeerConnection({ iceServers, bundlePolicy: 'max-bundle' }) as unknown as PeerLike;
+  return new RTCPeerConnection({ iceServers, bundlePolicy: 'max-bundle', iceTransportPolicy: relayOnly ? 'relay' : 'all' }) as unknown as PeerLike;
 }
 
 const videoConstraints = (front: boolean): MediaTrackConstraints => ({ facingMode: front ? 'user' : 'environment', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } });

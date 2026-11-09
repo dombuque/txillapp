@@ -7,16 +7,40 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { Avatar } from '@/components/Avatar';
 import { Empty } from '@/components/Empty';
 import { GeleiraShelf } from '@/components/GeleiraShelf';
-import { Icon } from '@/components/Icon';
+import { Icon, type IconName } from '@/components/Icon';
 import { GiftSheet } from '@/components/PostSheets';
 import { Sheet } from '@/components/Sheet';
 import { StackPage } from '@/components/StackPage';
-import { api } from '@/lib/api';
+import { api, type WalletView } from '@/lib/api';
+import { aoLocal, type WalletTxExtra } from '@/lib/api.locais';
 import { useAuth } from '@/lib/auth';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
 const labels: Record<string, string> = { welcome_bonus: 'Boas-vindas, malta!', transfer: 'Txills oferecidos', gift: 'Presente', invite: 'Convite', topup: 'Txills recarregados' };
+const icons: Record<string, IconName> = { welcome_bonus: 'party', transfer: 'gift', gift: 'gift', invite: 'user-plus', topup: 'wallet', venue_payment: 'store', group_contribution: 'users', group_refund: 'undo' };
+
+type Mov = WalletView['history'][number] & WalletTxExtra;
+
+/** O texto de um movimento e para onde leva tocar nele (o local, o grupo ou a pessoa). */
+function describe(h: Mov): { label: string; to: string | null } {
+  const who = h.counterparty;
+  const venueTo = h.venue?.slug ? `/v/${h.venue.slug}` : null;
+  switch (h.type) {
+    case 'venue_payment': {
+      // Positivo: eu recebi em nome de um local (lado do local); negativo: paguei a um local.
+      const payer = h.from ?? who;
+      if (h.amount > 0) return { label: payer ? `Recebido de @${payer.username}` : 'Pagamento recebido', to: venueTo ?? (payer ? `/u/${payer.username}` : null) };
+      return { label: h.venue ? `Pagaste ${aoLocal(h.venue.kind)} ${h.venue.name}` : 'Pagamento a um local', to: venueTo };
+    }
+    case 'group_contribution':
+      return { label: h.group ? `Contribuíste para o cofre de ${h.group.name}` : 'Contribuíste para um cofre', to: h.group ? `/messages/g/${h.group.id}` : null };
+    case 'group_refund':
+      return { label: h.group ? `Devolução do cofre de ${h.group.name}` : 'Devolução de um cofre', to: h.group ? `/messages/g/${h.group.id}` : null };
+    default:
+      return { label: labels[h.type] ? `${labels[h.type]}${who ? ` · ${who.displayName}` : ''}` : (h.label ?? 'Movimento'), to: null };
+  }
+}
 
 /** Escolher a quem oferecer: as pessoas que segues. */
 function PickPerson({ me, onPick, onClose }: { me: string; onPick: (p: { username: string; displayName: string }) => void; onClose: () => void }) {
@@ -98,16 +122,20 @@ export default function Wallet() {
             <View style={[st.card, cardShadow]}>
               <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 8, color: colors.zinc900 }}>Movimentos</Text>
               {data.history.length === 0 && <Text style={{ color: colors.zinc600, fontSize: 16 }}>Ainda sem movimentos. Que tal brindar alguém?</Text>}
-              {data.history.map((h, i) => (
-                <View key={h.id} style={[st.mov, i > 0 && { borderTopWidth: 1, borderTopColor: colors.zinc100 }]}>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '500', color: colors.zinc900 }} numberOfLines={1}>{labels[h.type] ?? h.type}{h.counterparty ? ` · ${h.counterparty.displayName}` : ''}</Text>
-                    <Text style={{ fontSize: 14, color: colors.zinc500 }} numberOfLines={1}>{timeAgo(h.createdAt)}</Text>
-                    {h.note ? <Text style={{ marginTop: 2, fontSize: 14, color: colors.zinc700 }} numberOfLines={2}>{h.note}</Text> : null}
-                  </View>
-                  <Text style={{ marginLeft: 12, fontSize: 18, fontWeight: '800', color: h.amount > 0 ? '#15803d' : colors.zinc700 }}>{h.amount > 0 ? '+' : ''}{h.amount}</Text>
-                </View>
-              ))}
+              {(data.history as Mov[]).map((h, i) => {
+                const { label, to } = describe(h);
+                return (
+                  <Pressable key={h.id} onPress={to ? () => router.push(to as never) : undefined} disabled={!to} accessibilityRole={to ? 'link' : undefined} style={({ pressed }) => [st.mov, i > 0 && { borderTopWidth: 1, borderTopColor: colors.zinc100 }, pressed && to && { opacity: 0.6 }]}>
+                    <View style={st.movIcon}><Icon name={icons[h.type] ?? 'wallet'} size={18} color={colors.zinc800} /></View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '500', color: colors.zinc900 }} numberOfLines={2}>{label}</Text>
+                      <Text style={{ fontSize: 14, color: colors.zinc500 }} numberOfLines={1}>{timeAgo(h.createdAt)}</Text>
+                      {h.note ? <Text style={{ marginTop: 2, fontSize: 14, color: colors.zinc700 }} numberOfLines={2}>{h.note}</Text> : null}
+                    </View>
+                    <Text style={{ marginLeft: 12, fontSize: 18, fontWeight: '800', color: h.amount > 0 ? '#15803d' : colors.zinc700 }}>{h.amount > 0 ? '+' : ''}{h.amount}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </>
         )}
@@ -124,7 +152,8 @@ const st = StyleSheet.create({
   ctaText: { color: '#fff', fontSize: 18, fontWeight: '600' },
   ghost: { marginTop: 12, height: 48, borderRadius: 999, backgroundColor: colors.zinc100, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   card: { marginTop: 32, borderRadius: 28, backgroundColor: colors.white, padding: 20 },
-  mov: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16 },
+  mov: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 16 },
+  movIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   search: { marginHorizontal: 20, marginBottom: 8, height: 42, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 14 },
   searchInput: { flex: 1, fontSize: 15, color: colors.zinc900, paddingVertical: 0, outlineStyle: 'none' as never },
   pick: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },

@@ -21,7 +21,17 @@ export interface CallEvent {
   signal?: { type: 'offer' | 'answer' | 'ice'; data: unknown };
 }
 
-export type StreamEvent = ChatEvent | CallEvent;
+/**
+ * TxillGroups: algo mudou no plano, numa sondagem, na lista, nas despesas ou no cofre de um grupo.
+ * Vai para todos os membros; os ecrãs abertos voltam a pedir os dados.
+ */
+export interface GroupEvent {
+  type: 'group';
+  groupId: string;
+  what: 'plan' | 'poll' | 'checklist' | 'expense' | 'pot' | 'info';
+}
+
+export type StreamEvent = ChatEvent | CallEvent | GroupEvent;
 
 /**
  * Canal em tempo real do chat (Server-Sent Events). Em memória: serve uma instância só.

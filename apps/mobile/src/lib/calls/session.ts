@@ -54,6 +54,8 @@ export function useStreamRev(): number {
 let pc: PeerLike | null = null;
 let dc: DataChannelLike | null = null;
 let iceServers: IceServer[] = [];
+/** "Esconder o meu IP nas chamadas": só candidatos pelo TURN do Txillapp. */
+let relayOnly = false;
 let polite = false;
 let makingOffer = false;
 let ignoreOffer = false;
@@ -204,7 +206,7 @@ async function makeOffer(p: PeerLike) {
 /** Liga o RTCPeerConnection (quem liga: quando atendem; quem atende: ao atender). */
 function setupPeer() {
   const g = gen;
-  const p = rtc.createPeer(iceServers);
+  const p = rtc.createPeer(iceServers, relayOnly);
   pc = p;
   // Canal de dados combinado dos dois lados (id 0): serve para dizer "microfone/câmara desligados".
   try {
@@ -266,11 +268,17 @@ function setupPeer() {
   for (const s of got) queue = queue.then(() => onSignal(s));
 }
 
-async function loadIce(list?: IceServer[]) {
-  if (list && list.length) return list;
+async function loadIce(list?: IceServer[], relay?: boolean) {
+  if (list && list.length) {
+    relayOnly = !!relay;
+    return list;
+  }
   try {
-    return (await callsApi.ice()).iceServers ?? [];
+    const r = await callsApi.ice();
+    relayOnly = !!r.relayOnly;
+    return r.iceServers ?? [];
   } catch {
+    relayOnly = false;
     return [{ urls: 'stun:stun.l.google.com:19302' }];
   }
 }
@@ -361,7 +369,7 @@ export async function startCall(peer: CallPeer | string, video: boolean): Promis
       void callsApi.end(r.id).catch(() => undefined);
       return;
     }
-    iceServers = await loadIce(r.iceServers);
+    iceServers = await loadIce(r.iceServers, r.relayOnly);
     if (g !== gen) return;
     set({ callId: r.id, peer: r.peer ?? hint, video: r.video ?? video });
     startRingback();
@@ -444,7 +452,7 @@ export async function acceptCall(withVideo = state.video): Promise<void> {
   try {
     const r = await callsApi.accept(id);
     if (g !== gen) return;
-    iceServers = await loadIce(r?.iceServers);
+    iceServers = await loadIce(r?.iceServers, r?.relayOnly);
     if (g !== gen) return;
     polite = true;
     setupPeer();

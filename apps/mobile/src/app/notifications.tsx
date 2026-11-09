@@ -74,6 +74,16 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'mention': return { text: `menciono${s}-te`, sub: quote };
     case 'verified': return { text: many ? 'agora têm o selo de conta verificada' : 'agora tem o selo de conta verificada' };
     case 'venue_invite': return { text: <>convidou-te para gerir <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'um local'}</Text> como {n.data.role === 'admin' ? 'administrador' : 'editor'}</> };
+    // Para os gestores: alguém pagou ao local com Txills.
+    // Pago com o cofre de um TxillGroup: diz de que grupo veio.
+    case 'venue_payment': return { text: <>pagou <Text style={{ fontWeight: '700' }}>{(n.data.amount ?? 0).toLocaleString('pt-PT')} Txills</Text> ao <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'teu local'}</Text>{n.data.groupName ? <> com o cofre de <Text style={{ fontWeight: '700' }}>{n.data.groupName}</Text></> : null}</>, sub: n.data.note || undefined };
+    case 'missed_call': return { text: n.data.video ? 'tentou fazer-te uma videochamada' : 'tentou ligar-te' };
+    // A equipa decidiu sobre um local que criaste.
+    case 'venue_review': return n.data.decision === 'approved'
+      ? { text: <>aprovou <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'o teu local'}</Text>: já está à vista de todos</> }
+      : { text: <>não aprovou <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'o teu local'}</Text></>, sub: n.data.note ? `Motivo: ${n.data.note}` : 'Vê o motivo na página e corrige' };
+    // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
+    default: return { text: 'tem novidades para ti' };
   }
 }
 
@@ -94,6 +104,9 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'verified':
     case 'request_accepted': return `/u/${n.actor.username}`;
     case 'venue_invite': return n.data.venueSlug ? `/v/${n.data.venueSlug}` : null;
+    case 'venue_payment': return n.data.venueSlug ? `/v/${n.data.venueSlug}/gerir?s=txills` : null;
+    case 'venue_review': return n.data.venueSlug ? `/v/${n.data.venueSlug}` : null;
+    case 'missed_call': return '/calls';
     default: return null;
   }
 }

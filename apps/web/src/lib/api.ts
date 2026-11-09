@@ -702,7 +702,10 @@ export const api = {
   savedPosts: (cursor?: string): Promise<{ items: Post[]; nextCursor: string | null }> => raw(`/feed/saved${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
   completeness: (): Promise<{ percent: number; steps: { id: 'photo' | 'bio' | 'post' | 'follow' | 'geleira'; done: boolean }[] }> => raw('/users/me/completeness'),
   insights: (days: 7 | 30 | 90, tz: number): Promise<Insights> => raw(`/insights?days=${days}&tz=${tz}`),
-  boVenues: (filter: 'pending' | 'all'): Promise<{ slug: string; name: string; kind: string; city: string | null; verified: boolean; owner: string; checkins: number; createdAt: string }[]> => raw(`/venues/admin/list?filter=${filter}`),
+  boVenues: (filter: 'pending' | 'unverified' | 'all'): Promise<BoVenue[]> => raw(`/venues/admin/list?filter=${filter}`),
+  /** Aprovar ou recusar um local (recusar leva o motivo, que o dono vê). */
+  boReviewVenue: (slug: string, decision: 'approved' | 'rejected', note?: string): Promise<{ slug: string; reviewStatus: string }> =>
+    raw(`/venues/${encodeURIComponent(slug)}/review`, { method: 'PUT', body: JSON.stringify({ decision, ...(note ? { note } : {}) }) }),
   boVerifyVenue: (slug: string, verified: boolean): Promise<{ slug: string; verified: boolean }> => raw(`/venues/${encodeURIComponent(slug)}/verified`, { method: 'PUT', body: JSON.stringify({ verified }) }),
   venue: (slug: string): Promise<Venue> => raw(`/venues/${encodeURIComponent(slug)}`),
   findVenue: (name: string): Promise<Venue | null> => raw(`/venues/find?name=${encodeURIComponent(name)}`),
@@ -929,4 +932,9 @@ export interface Venue {
   /** Só o dono o recebe. */
   qrToken?: string;
   checkedIn: boolean;
+}
+
+export interface BoVenue {
+  slug: string; name: string; kind: string; city: string | null; address: string | null; about: string | null; phone: string | null; website: string | null;
+  verified: boolean; reviewStatus: 'pending' | 'approved' | 'rejected'; reviewNote: string | null; owner: string; checkins: number; followers: number; createdAt: string;
 }

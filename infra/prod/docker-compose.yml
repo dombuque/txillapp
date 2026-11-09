@@ -56,6 +56,40 @@ services:
     deploy: { resources: { limits: { memory: 4g } } }
     logging: *logging
 
+  # Servidor TURN para as chamadas de voz e vídeo (opcional: docker compose --profile calls up -d coturn).
+  # Só entra quando as duas pessoas não se conseguem ligar diretamente (redes móveis com NAT apertado, firewalls de empresa)
+  # ou quando alguém escolhe "Esconder o meu IP nas chamadas". As credenciais são temporárias (6 h), assinadas com TURN_SECRET,
+  # o mesmo segredo que a API usa. Rede do anfitrião: o TURN precisa de muitas portas UDP e do IP público verdadeiro.
+  # DNS: turn.txillapp.com com o registo A em "DNS only" (nuvem cinzenta no Cloudflare), não passa pelo proxy.
+  # Firewall: abrir 3478/udp, 3478/tcp e 49160-49200/udp. Guia: docs/DEPLOY.md, secção Chamadas.
+  coturn:
+    image: coturn/coturn:4.6.2
+    profiles: [calls]
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - -n
+      - --listening-port=3478
+      - --fingerprint
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET:?falta TURN_SECRET no .env}
+      - --realm=txillapp.com
+      - --min-port=49160
+      - --max-port=49200
+      - --no-cli
+      - --no-tls
+      - --no-dtls
+      - --no-multicast-peers
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      - --denied-peer-ip=127.0.0.0-127.255.255.255
+      - --total-quota=60
+      - --user-quota=4
+      - --max-bps=1500000
+      - --log-file=stdout
+    logging: *logging
+
   # Aplica as migrações SQL antes de a API arrancar (seguro repetir: só corre o que falta).
   migrate:
     image: txillapp-api:latest

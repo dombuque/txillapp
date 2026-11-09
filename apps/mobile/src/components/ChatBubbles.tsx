@@ -10,6 +10,7 @@ import { Icon } from '@/components/Icon';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { Sticker } from '@/components/StickerPanel';
 import { ReactionArt } from '@/components/StoryParts';
+import { PollBubble } from '@/components/groups/PollCard';
 import { type ChatMessage } from '@/lib/api';
 import { abs, sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
@@ -25,7 +26,7 @@ export function senderColor(username: string): string {
   return PALETTE[h % PALETTE.length];
 }
 
-const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voice: 'Mensagem de voz', sticker: 'Sticker', post: 'Publicação', location: 'Localização', gift: 'Presente' };
+const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voice: 'Mensagem de voz', sticker: 'Sticker', post: 'Publicação', location: 'Localização', gift: 'Presente', poll: 'Sondagem' };
 /** Excerto de uma mensagem para citar (na bolha e na barra de resposta). */
 export const quoteText = (kind: ChatMessage['kind'], body: string) => (kind === 'text' || kind === 'story_reply' || kind === 'zas_reply' ? body : KIND_LABEL[kind] ?? 'Mensagem');
 export const clock = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
@@ -213,7 +214,7 @@ function SharedPost({ post, radius, tone, ink }: { post: ChatMessage['post']; ra
  * Visor de foto ou vídeo da conversa: um cartão centrado sobre o chat escurecido (com margens, não a tela toda).
  * Tocar fora fecha; o X também. O vídeo tem os controlos do próprio telemóvel/browser.
  */
-function MediaFull({ url, video, onClose }: { url: string; video: boolean; onClose: () => void }) {
+export function MediaFull({ url, video, onClose }: { url: string; video: boolean; onClose: () => void }) {
   const win = useWindowDimensions();
   const w = Math.min(win.width - 32, 720);
   const h = Math.min(win.height * 0.78, 900);
@@ -345,6 +346,8 @@ export function Bubble({
         </View>
       </Pressable>
     );
+  } else if ((m.kind as string) === 'poll') {
+    content = <PollBubble pollId={m.body} initial={(m as { poll?: import('@/lib/api.groups').Poll | null }).poll} />;
   } else if (m.kind === 'call') {
     content = <CallLine m={m} mine={mine} peerHandle={peerHandle} />;
   } else if (m.kind === 'voice') {

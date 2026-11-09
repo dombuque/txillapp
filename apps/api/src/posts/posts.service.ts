@@ -37,6 +37,7 @@ const ADULT = "(u.birth_date <= (current_date - interval '18 years') OR p.author
 const FEED_SQL = `
   SELECT p.id, p.short_code, p.body, p.music, p.location_label, p.created_at, p.edited_at, p.comments_off, p.location_lat, p.location_lng, p.kind, p.gift_amount, p.repost_of,
          u.id AS author_id, u.username, u.display_name, u.verified AS author_verified, u.verified_tier AS author_tier,
+         (p.author_id = $1) AS by_viewer,
          pv.slug AS venue_slug, pv.name AS venue_name, pv.kind AS venue_kind, pv.verified AS venue_verified, pv.avatar_media_id AS venue_avatar,
          gr.username AS gift_username, gr.display_name AS gift_display_name, (gr.avatar_media_id IS NOT NULL) AS gift_has_avatar, gr.verified AS gift_verified, gr.verified_tier AS gift_tier,
          (${allowedBy('u', 'comments_allowed')} AND NOT p.comments_off) AS can_comment,
@@ -92,11 +93,12 @@ export class PostsService implements OnModuleInit {
     if (venueId) {
       // Publicar como um local: só o dono e os gestores ativos da página. O sítio da publicação passa a ser o próprio local.
       const v = await this.pool.query(
-        `SELECT v.name, v.lat, v.lng FROM content.venues v WHERE v.id = $1
+        `SELECT v.name, v.lat, v.lng, v.review_status FROM content.venues v WHERE v.id = $1
             AND (v.owner_id = $2 OR EXISTS (SELECT 1 FROM content.venue_managers m WHERE m.venue_id = v.id AND m.user_id = $2 AND m.status = 'active'))`,
         [venueId, userId],
       );
       if (!v.rowCount) throw new ForbiddenException('Só os gestores podem publicar como este local');
+      if (v.rows[0].review_status !== 'approved') throw new ForbiddenException('O local ainda está em análise. Podes publicar como o local depois de a equipa o aprovar.');
       locationLabel = v.rows[0].name as string;
       if (v.rows[0].lat != null && v.rows[0].lng != null) geo = { lat: v.rows[0].lat as number, lng: v.rows[0].lng as number };
     }
@@ -380,7 +382,9 @@ export class PostsService implements OnModuleInit {
       tagged: `EXISTS (SELECT 1 FROM content.photo_tags pt JOIN identity.users tu ON tu.id = pt.tagged_id WHERE pt.post_id = p.id AND tu.username = $2)`,
     };
     const { rows } = await this.pool.query(
-      `${FEED_SQL} WHERE ${where[tab]} AND ($3::uuid IS NULL OR p.id < $3) AND ${canView()} ORDER BY p.id DESC LIMIT $4`,
+      // O que foi publicado como um local fica na página do local, não no perfil de quem o escreveu (senão denunciava o gestor).
+      // Só o próprio autor o vê no seu perfil. As identificações (tagged) continuam a aparecer.
+      `${FEED_SQL} WHERE ${where[tab]} AND (${tab === 'tagged' ? 'true' : 'p.venue_id IS NULL OR p.author_id = $1'}) AND ($3::uuid IS NULL OR p.id < $3) AND ${canView()} ORDER BY p.id DESC LIMIT $4`,
       [viewerId, username, cursor ?? null, limit + 1],
     );
     const page = rows.slice(0, limit);
@@ -828,7 +832,22 @@ export class PostsService implements OnModuleInit {
     if (!r.rowCount) throw new NotFoundException('Publicação não encontrada');
   }
 
-  private toDto = (r: Record<string, any>) => ({
+  /**
+   * Publicado como um local: quem vê só vê a página, nunca o gestor que publicou (só o próprio autor se vê).
+   * Sem autor à vista, também não há presente nem botão de seguir a pessoa.
+   */
+  private toDto = (r: Record<string, any>) => {
+    const d = this.toDtoRaw(r);
+    if (!d.venue || r.by_viewer === true) return d;
+    return {
+      ...d,
+      author: { id: '', username: '', displayName: d.venue.name, verified: d.venue.verified, verifiedTier: null },
+      canGift: false,
+      authorFollowed: true,
+    };
+  };
+
+  private toDtoRaw = (r: Record<string, any>) => ({
     id: r.id,
     /** Código curto para links limpos (txillapp.com/p/Ab3xK9q). */
     code: r.short_code as string,

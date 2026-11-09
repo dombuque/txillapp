@@ -38,6 +38,8 @@ import { BackofficeModule } from './backoffice/backoffice.module';
 import { InsightsModule } from './insights/insights.module';
 import { StaffModule } from './staff/staff.module';
 import { VenuesModule } from './venues/venues.module';
+import { NearbyModule } from './nearby/nearby.module';
+import { RemindersModule } from './reminders/reminders.module';
 import { SuperTxillModule } from './supertxill/supertxill.module';
 import { PaymentsModule } from './payments/payments.module';
 
@@ -61,6 +63,8 @@ export class AppModule {
         InvitesModule,
         StaffModule,
         VenuesModule,
+        NearbyModule,
+        RemindersModule,
         InsightsModule,
         SuperTxillModule,
         BackofficeModule,

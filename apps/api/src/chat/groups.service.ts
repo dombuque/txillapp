@@ -7,12 +7,36 @@ import { PushService } from '../push/push.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
 import { ChatService, Outgoing, type MessageKind } from './chat.service';
+import { GroupAccess } from '../groups/group-access';
+import { PlanService } from '../groups/plan.service';
+import { PotService } from '../groups/pot.service';
 
 const PAGE = 30;
 export const MAX_MEMBERS = 50;
 const UUID = /^[0-9a-f-]{36}$/;
+export const GROUP_KINDS = ['viagem', 'festa', 'fim_de_semana', 'outro'] as const;
+export type GroupKind = (typeof GROUP_KINDS)[number];
 
-/** Conversas de grupo: criar, mensagens, membros (admin adiciona/remove; qualquer um sai). */
+export interface GroupInfo {
+  name?: string;
+  kind?: GroupKind;
+  description?: string | null;
+  coverMediaId?: string | null;
+}
+
+/**
+ * Conversas de grupo: criar, mensagens, membros (admin adiciona/remove; qualquer um sai).
+ *
+ * TxillGroups (os grupos passam a ser TxillGroups). Acrescentos ao contrato:
+ * - POST /chat/groups { name: 2..40, kind?: 'viagem' | 'festa' | 'fim_de_semana' | 'outro' (por omissão 'outro'),
+ *   description?: <= 300, coverMediaId?: uuid (foto minha, já carregada, como o logótipo dos locais), members: [username] (2..49) } -> { id }
+ * - PATCH /chat/groups/:id { name?, kind?, description?: string | null, coverMediaId?: uuid | null } (admins) -> 204, como antes.
+ * - GET /chat/groups: cada grupo traz também { groupKind (o tipo; `kind` já é 'group' nesta lista), description, coverUrl, visibility: 'private', createdBy: username | null,
+ *   plan: { destination, startsOn, endsOn, going, maybe, notGoing, myRsvp }, pot: { balance, goal, venue: { slug, name, avatarUrl, acceptsTxills } | null } }.
+ *   Na última mensagem, uma sondagem (kind 'poll') traz a pergunta no body.
+ * - GET /chat/groups/:id: `group` traz os mesmos campos (com o tipo em `kind` e também em `groupKind`); as mensagens kind 'poll' trazem `poll` (formato em groups/plan.service.ts) ou null.
+ * - Quando a última pessoa sai e o grupo desaparece, o cofre é devolvido a quem contribuiu antes (ver groups/pot.service.ts).
+ */
 @Injectable()
 export class GroupsService {
   constructor(
@@ -21,7 +45,21 @@ export class GroupsService {
     private readonly events: ChatEvents,
     private readonly push: PushService,
     private readonly filter: TextFilter,
+    private readonly access: GroupAccess,
+    private readonly plan: PlanService,
+    private readonly pot: PotService,
   ) {}
+
+  /** Uma foto própria, já carregada e livre (o mesmo que o logótipo dos locais). */
+  private async assertCover(userId: string, mediaId: string) {
+    const ok = await this.pool.query(
+      `SELECT 1 FROM content.media_assets a WHERE a.id = $1 AND a.owner_id = $2 AND a.status = 'ready' AND a.mime LIKE 'image/%'
+          AND NOT EXISTS (SELECT 1 FROM content.post_media pm WHERE pm.media_id = a.id)
+          AND NOT EXISTS (SELECT 1 FROM content.stories s WHERE s.media_id = a.id)`,
+      [mediaId, userId],
+    );
+    if (!ok.rowCount) throw new BadRequestException('Foto inválida ou ainda não carregada');
+  }
 
   private assertId(id: string) {
     if (!UUID.test(id)) throw new BadRequestException('Grupo inválido');
@@ -62,8 +100,9 @@ export class GroupsService {
     return out;
   }
 
-  async create(me: string, name: string, usernames: string[]) {
-    this.filter.assertClean(name);
+  async create(me: string, name: string, usernames: string[], info: Omit<GroupInfo, 'name'> = {}) {
+    this.filter.assertClean(name, info.description ?? '');
+    if (info.coverMediaId) await this.assertCover(me, info.coverMediaId);
     const invitees = await this.resolveInvitees(me, usernames);
     if (invitees.length < 2) throw new BadRequestException('Um grupo precisa de pelo menos 2 pessoas além de ti');
     if (invitees.length + 1 > MAX_MEMBERS) throw new BadRequestException(`Um grupo tem no máximo ${MAX_MEMBERS} pessoas`);
@@ -71,7 +110,7 @@ export class GroupsService {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query('INSERT INTO social.groups (id, name, created_by) VALUES ($1, $2, $3)', [id, name.trim(), me]);
+      await client.query('INSERT INTO social.groups (id, name, created_by, kind, description, cover_media_id) VALUES ($1, $2, $3, $4, $5, $6)', [id, name.trim(), me, info.kind ?? 'outro', info.description?.trim() || null, info.coverMediaId ?? null]);
       await client.query(`INSERT INTO social.group_members (group_id, user_id, role, joined_at) VALUES ($1, $2, 'admin', clock_timestamp())`, [id, me]);
       for (const u of invitees) await client.query(`INSERT INTO social.group_members (group_id, user_id, joined_at) VALUES ($1, $2, clock_timestamp())`, [id, u]);
       await client.query('COMMIT');
@@ -92,7 +131,7 @@ export class GroupsService {
               (SELECT count(*) FROM social.group_members x WHERE x.group_id = g.id)::int AS members,
               (SELECT json_agg(t) FROM (SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar"
                   FROM social.group_members x JOIN identity.users u ON u.id = x.user_id WHERE x.group_id = g.id AND x.user_id <> $1 ORDER BY x.joined_at LIMIT 3) t) AS preview,
-              CASE WHEN lm.view_once THEN '' ELSE lm.body END AS last_body, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, su.display_name AS last_name,
+              CASE WHEN lm.view_once THEN '' WHEN lm.kind = 'poll' THEN (SELECT p.question FROM social.group_polls p WHERE p.id::text = lm.body) ELSE lm.body END AS last_body, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, su.display_name AS last_name,
               (SELECT count(*) FROM social.messages m WHERE m.group_id = g.id AND m.sender_id <> $1 AND m.deleted_at IS NULL
                   AND (gm.read_id IS NULL OR m.id > gm.read_id))::int AS unread
          FROM social.group_members gm
@@ -103,10 +142,13 @@ export class GroupsService {
         ORDER BY COALESCE(lm.created_at, g.created_at) DESC LIMIT 100`,
       [me],
     );
+    const sums = await this.plan.summaries(me, rows.map((r) => r.id as string));
     return rows.map((r) => ({
       kind: 'group' as const,
       id: r.id as string,
       name: r.name as string,
+      groupKind: sums.get(r.id as string)!.kind,
+      ...(({ kind: _k, ...rest }) => rest)(sums.get(r.id as string)!),
       members: r.members as number,
       preview: (r.preview ?? []) as { username: string; displayName: string; hasAvatar: boolean }[],
       lastMessage: {
@@ -144,12 +186,20 @@ export class GroupsService {
       await this.pool.query('UPDATE social.group_members SET read_id = $3 WHERE group_id = $1 AND user_id = $2 AND read_id IS DISTINCT FROM $3::uuid', [groupId, me, page[0].id]);
     }
     const bySender = new Map(members.map((m) => [m.id, m]));
+    // Sondagens que aparecem nesta página da conversa (mensagens kind 'poll', body = id da sondagem).
+    const pollIds = page.filter((m) => m.kind === 'poll' && UUID.test(String(m.body))).map((m) => String(m.body));
+    const polls = new Map((await this.plan.polls(me, groupId, pollIds)).map((p) => [p.id, p]));
     const items = (await this.chat.mapItems(me, page)).map((it, i) => {
       const s = bySender.get(page[i].sender_id as string);
-      return { ...it, sender: s ? { username: s.username, displayName: s.displayName, hasAvatar: s.hasAvatar } : { username: '', displayName: 'Ex-membro', hasAvatar: false } };
+      return {
+        ...it,
+        ...(page[i].kind === 'poll' ? { poll: polls.get(String(page[i].body)) ?? null } : {}),
+        sender: s ? { username: s.username, displayName: s.displayName, hasAvatar: s.hasAvatar } : { username: '', displayName: 'Ex-membro', hasAvatar: false },
+      };
     });
+    const sum = (await this.plan.summaries(me, [groupId])).get(groupId)!;
     return {
-      group: { id: g.id as string, name: g.name as string, myRole, members: members.map(({ id: _id, ...m }) => m) },
+      group: { id: g.id as string, name: g.name as string, ...sum, groupKind: sum.kind, myRole, members: members.map(({ id: _id, ...m }) => m) },
       items,
       nextCursor: rows.length > PAGE ? page[page.length - 1].id : null,
     };
@@ -164,21 +214,31 @@ export class GroupsService {
       'INSERT INTO social.messages (id, group_id, sender_id, body, kind, media_id, duration_ms, waveform, lat, lng, view_once, reply_to) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $12, (SELECT r.id FROM social.messages r WHERE r.id = $11::uuid AND r.group_id = $2 AND r.deleted_at IS NULL))',
       [id, groupId, me, msg.kind === 'location' ? msg.body.slice(0, 80) : msg.body, msg.kind, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place?.lat ?? null, place?.lng ?? null, msg.replyTo ?? null, !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice' || msg.kind === 'video')],
     );
-    await this.pool.query('UPDATE social.group_members SET read_id = $3 WHERE group_id = $1 AND user_id = $2', [groupId, me, id]);
-    await this.pool.query('UPDATE social.groups SET last_message_at = now() WHERE id = $1', [groupId]);
-    const others = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1 AND user_id <> $2', [groupId, me])).rows.map((r) => r.user_id as string);
-    const meta = (await this.pool.query('SELECT g.name, u.display_name FROM social.groups g, identity.users u WHERE g.id = $1 AND u.id = $2', [groupId, me])).rows[0];
-    for (const u of others) {
-      this.events.emit(u, { type: 'message', group: groupId });
-      if (!this.events.isActive(u, `g:${groupId}`)) void this.push.send(u, { title: meta.name as string, body: `${(meta.display_name as string).split(' ')[0]}: ${msg.kind === 'text' ? 'enviou uma mensagem' : msg.kind === 'image' ? 'enviou uma foto' : msg.kind === 'video' ? 'enviou um vídeo' : msg.kind === 'voice' ? 'enviou uma mensagem de voz' : msg.kind === 'sticker' ? 'enviou um sticker' : msg.kind === 'location' ? 'partilhou a localização' : 'partilhou uma publicação'}`, url: `/messages/g/${groupId}`, tag: `group:${groupId}`, category: 'messages' });
-    }
+    await this.access.fanOut(groupId, me, id, msg.kind === 'text' ? 'enviou uma mensagem' : msg.kind === 'image' ? 'enviou uma foto' : msg.kind === 'video' ? 'enviou um vídeo' : msg.kind === 'voice' ? 'enviou uma mensagem de voz' : msg.kind === 'sticker' ? 'enviou um sticker' : msg.kind === 'location' ? 'partilhou a localização' : 'partilhou uma publicação');
     return { id, kind: msg.kind };
   }
 
-  async rename(me: string, groupId: string, name: string) {
-    if ((await this.needMember(groupId, me)) !== 'admin') throw new ForbiddenException('Só quem administra muda o nome');
-    await this.pool.query('UPDATE social.groups SET name = $2 WHERE id = $1', [groupId, name.trim()]);
+  /** Mudar o nome, o tipo, a descrição ou a capa (só quem administra; campos presentes, `null` limpa). */
+  async update(me: string, groupId: string, b: GroupInfo) {
+    if ((await this.needMember(groupId, me)) !== 'admin') throw new ForbiddenException('Só quem administra muda o grupo');
+    this.filter.assertClean(b.name ?? '', b.description ?? '');
+    if (b.coverMediaId) await this.assertCover(me, b.coverMediaId);
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    const set = (col: string, val: unknown) => { vals.push(val); sets.push(`${col} = $${vals.length}`); };
+    if (b.name !== undefined) set('name', b.name.trim());
+    if (b.kind !== undefined) set('kind', b.kind);
+    if (b.description !== undefined) set('description', b.description?.trim() || null);
+    if (b.coverMediaId !== undefined) set('cover_media_id', b.coverMediaId);
+    if (!sets.length) return;
+    vals.push(groupId);
+    await this.pool.query(`UPDATE social.groups SET ${sets.join(', ')} WHERE id = $${vals.length}`, vals);
     await this.notifyMembers(groupId, me);
+    await this.access.changed(groupId, 'info');
+  }
+
+  async rename(me: string, groupId: string, name: string) {
+    return this.update(me, groupId, { name });
   }
 
   async addMembers(me: string, groupId: string, usernames: string[]) {
@@ -198,7 +258,11 @@ export class GroupsService {
     if (t.id !== me && role !== 'admin') throw new ForbiddenException('Só quem administra tira pessoas');
     await this.pool.query('DELETE FROM social.group_members WHERE group_id = $1 AND user_id = $2', [groupId, t.id]);
     const left = (await this.pool.query('SELECT user_id, role FROM social.group_members WHERE group_id = $1 ORDER BY joined_at', [groupId])).rows;
-    if (!left.length) await this.pool.query('DELETE FROM social.groups WHERE id = $1', [groupId]);
+    if (!left.length) {
+      // O grupo vai desaparecer: o cofre volta primeiro a quem contribuiu (nenhum Txill fica preso).
+      await this.pot.refundAll(me, groupId, `fecho:${groupId}`);
+      await this.pool.query('DELETE FROM social.groups WHERE id = $1', [groupId]);
+    }
     else if (!left.some((r) => r.role === 'admin')) await this.pool.query(`UPDATE social.group_members SET role = 'admin' WHERE group_id = $1 AND user_id = $2`, [groupId, left[0].user_id]);
     this.events.emit(t.id as string, { type: 'deleted', group: groupId });
     await this.notifyMembers(groupId, me);

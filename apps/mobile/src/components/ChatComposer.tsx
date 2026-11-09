@@ -1,3 +1,4 @@
+import { useGrowInput } from '@/lib/growInput';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
@@ -28,6 +29,7 @@ export function ChatComposer({
   /** Chamado ao escrever (a conversa avisa a outra pessoa, no máximo de 3 em 3 segundos). */
   onTyping?: () => void;
 }) {
+  const grow = useGrowInput();
   const [text, setText] = useState('');
   const [once, setOnce] = useState(false);
   const [onceHelp, setOnceHelp] = useState(false);
@@ -55,6 +57,7 @@ export function ChatComposer({
     const body = text.trim();
     if (!body) return;
     setText('');
+    grow.reset();
     await dispatch({ body });
   }
   async function pick(source: 'camera' | 'library') {
@@ -75,6 +78,7 @@ export function ChatComposer({
       const mediaId = await uploadChatMedia(a.uri, mime);
       await dispatch({ kind: video ? 'video' : 'image', mediaId, body: text.trim() || undefined, once });
       setText('');
+    grow.reset();
       setOnce(false);
     } catch (e) {
       setErr((e as Error).message || 'Não consegui enviar');
@@ -177,7 +181,7 @@ export function ChatComposer({
               <Icon name="camera" size={20} color="#fff" />
             </LinearGradient>
           </Pressable>
-          <TextInput value={text} onChangeText={(v) => { setText(v); if (v) onTyping?.(); }} onFocus={() => setPanel(null)} multiline numberOfLines={1} maxLength={2000} placeholder="Mensagem…" placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel="Mensagem" />
+          <TextInput value={text} onChangeText={(v) => { setText(v); if (v) onTyping?.(); }} onFocus={() => setPanel(null)} multiline numberOfLines={1} maxLength={2000} placeholder="Mensagem…" placeholderTextColor={colors.zinc500} onContentSizeChange={grow.onContentSizeChange} style={[styles.input, grow.style]} accessibilityLabel="Mensagem" />
           {text.trim() ? (
             <Pressable onPress={() => void sendText()} style={styles.send} accessibilityRole="button"><Text style={styles.sendText}>Enviar</Text></Pressable>
           ) : (

@@ -298,7 +298,7 @@ describe('chamadas de voz e vídeo 1:1 (integração)', () => {
   it('servidores ICE: só STUN sem TURN; com TURN_URLS e TURN_SECRET, credenciais temporárias do coturn', async () => {
     const { la } = u;
     const stunOnly = (await api().get('/api/v1/calls/ice').set(auth(la)).expect(200)).body;
-    expect(stunOnly).toEqual({ iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }] });
+    expect(stunOnly).toEqual({ iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }], relayOnly: false });
     await api().get('/api/v1/calls/ice').expect(401);
 
     // As duas variáveis entram pela configuração (e são opcionais).
@@ -320,6 +320,10 @@ describe('chamadas de voz e vídeo 1:1 (integração)', () => {
       expect(Number(exp) - before).toBeGreaterThanOrEqual(6 * 3600 - 2);
       expect(Number(exp) - before).toBeLessThanOrEqual(6 * 3600 + 2);
       expect(turn.credential).toBe(createHmac('sha1', 'segredo-do-coturn').update(turn.username!).digest('base64'));
+      // "Esconder o meu IP nas chamadas": só com TURN configurado.
+      expect((await api().get('/api/v1/calls/ice').set(auth(la)).expect(200)).body.relayOnly).toBe(false);
+      await api().patch('/api/v1/settings/privacy').set(auth(la)).send({ callsRelayOnly: true }).expect(200);
+      expect((await api().get('/api/v1/calls/ice').set(auth(la)).expect(200)).body.relayOnly).toBe(true);
       // Também vêm ao ligar.
       await mutual(la, u.lj);
       const c = (await call(la, u.lj).expect(201)).body;
@@ -329,5 +333,36 @@ describe('chamadas de voz e vídeo 1:1 (integração)', () => {
       cfg.TURN_URLS = undefined;
       cfg.TURN_SECRET = undefined;
     }
+    // Sem TURN, nunca pede só relay (a chamada não ligaria).
+    expect((await api().get('/api/v1/calls/ice').set(auth(la)).expect(200)).body.relayOnly).toBe(false);
+  });
+
+  it('apagar do histórico: uma ou todas, só do meu lado; quando os dois apagam, desaparece; mais de 12 meses sai sozinha', async () => {
+    const a = u.lg, b = u.lh;
+    await mutual(a, b);
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const c = (await call(a, b).expect(201)).body;
+      await api().post(`/api/v1/calls/${c.id}/end`).set(auth(a)).expect(200);
+      ids.push(c.id);
+    }
+    const hist = async (x: U) => ((await api().get('/api/v1/calls').set(auth(x)).expect(200)).body.items.map((c: { id: string }) => c.id) as string[]).filter((id) => ids.includes(id));
+
+    await api().delete(`/api/v1/calls/${ids[0]}`).set(auth(a)).expect(200);
+    expect(await hist(a)).not.toContain(ids[0]);
+    expect(await hist(b)).toContain(ids[0]);
+    await api().delete(`/api/v1/calls/${ids[0]}`).set(auth(u.la)).expect(404); // não é dela
+
+    await api().delete(`/api/v1/calls/${ids[0]}`).set(auth(b)).expect(200);
+    expect((await pool.query('SELECT 1 FROM social.calls WHERE id = $1', [ids[0]])).rowCount).toBe(0);
+
+    const all = (await api().delete('/api/v1/calls').set(auth(a)).expect(200)).body;
+    expect(all.removed).toBeGreaterThanOrEqual(2);
+    expect(await hist(a)).toEqual([]);
+    expect(await hist(b)).toEqual(expect.arrayContaining([ids[1], ids[2]]));
+
+    await pool.query(`UPDATE social.calls SET created_at = now() - interval '13 months' WHERE id = $1`, [ids[1]]);
+    await app.get(CallsService).purgeOld();
+    expect(await hist(b)).toEqual([ids[2]]);
   });
 });

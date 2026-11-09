@@ -41,6 +41,7 @@ const privacySchema = z.object({
   mentionsAllowed: who.optional(),
   dmsAllowed: who.optional(),
   callsAllowed: z.enum(['everyone', 'following', 'mutual', 'off']).optional(),
+  callsRelayOnly: z.boolean().optional(),
   shareAnalytics: z.boolean().optional(),
   showConnections: z.enum(['everyone', 'followers', 'me']).optional(),
   suggestable: z.boolean().optional(),
@@ -61,6 +62,12 @@ export class SocialController {
   @Patch('users/me')
   updateMe(@Req() req: AuthedReq, @Body(new ZodPipe(updateSchema)) b: z.infer<typeof updateSchema>) {
     return this.social.updateMe(req.userId!, b);
+  }
+
+  /** Aceitar os Termos e a Política de Privacidade em vigor (depois de uma atualização). */
+  @Put('users/me/terms')
+  acceptTerms(@Req() req: AuthedReq, @Body(new ZodPipe(z.object({ acceptTerms: z.literal(true) }))) _b: { acceptTerms: true }) {
+    return this.social.acceptTerms(req.userId!);
   }
 
   /** Contas antigas: completar a data de nascimento e aceitar os termos em vigor. */

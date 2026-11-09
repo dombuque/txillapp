@@ -73,7 +73,7 @@ function CallScreen({ c }: { c: CallState }) {
 function usePad() {
   const insets = useSafeAreaInsets();
   const desktop = useDesktop();
-  return desktop ? { top: 18, bottom: 22 } : { top: insets.top + 10, bottom: Math.max(insets.bottom, 12) + 18 };
+  return desktop ? { top: 18, bottom: 46 } : { top: insets.top + 10, bottom: Math.max(insets.bottom, 12) + 44 };
 }
 
 /** Fundo: a minha câmara (videochamada a tocar) ou a foto da pessoa desfocada. */

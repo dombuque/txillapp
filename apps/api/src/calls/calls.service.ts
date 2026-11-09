@@ -83,6 +83,7 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
   /** Um temporizador por chamada a tocar (dá-a por perdida ao fim do tempo). A varredura periódica apanha o resto (ex.: reinício do servidor). */
   private readonly timers = new Map<string, NodeJS.Timeout>();
   private sweeper?: NodeJS.Timeout;
+  private purger?: NodeJS.Timeout;
   /** Desde quando cada chamada em curso tem os dois lados sem ligação ao canal. */
   private readonly offlineSince = new Map<string, number>();
 
@@ -103,10 +104,15 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     if (this.config.NODE_ENV === 'test') return;
     this.sweeper = setInterval(() => void this.sweep().catch((e) => this.log.warn(`falha na varredura: ${(e as Error).message}`)), 15_000);
     this.sweeper.unref();
+    // Uma vez por dia (e logo no arranque): apaga as chamadas com mais de 12 meses.
+    void this.purgeOld().catch(() => undefined);
+    this.purger = setInterval(() => void this.purgeOld().catch((e) => this.log.warn(`falha a limpar chamadas antigas: ${(e as Error).message}`)), 24 * 3_600_000);
+    this.purger.unref();
   }
 
   onModuleDestroy() {
     if (this.sweeper) clearInterval(this.sweeper);
+    if (this.purger) clearInterval(this.purger);
     for (const t of this.timers.values()) clearTimeout(t);
     this.timers.clear();
   }
@@ -123,6 +129,17 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
       out.push({ urls, username, credential });
     }
     return out;
+  }
+
+  /**
+   * Servidores ICE e se esta pessoa quer as chamadas só pelo TURN ("Esconder o meu IP nas chamadas").
+   * Sem TURN configurado, `relayOnly` vem sempre falso (senão a chamada nunca ligaria).
+   */
+  async iceFor(userId: string): Promise<{ iceServers: IceServer[]; relayOnly: boolean }> {
+    const iceServers = this.iceServers(userId);
+    const hasTurn = iceServers.length > 1;
+    const relayOnly = hasTurn && !!(await this.pool.query('SELECT calls_relay_only FROM identity.users WHERE id = $1', [userId])).rows[0]?.calls_relay_only;
+    return { iceServers, relayOnly };
   }
 
   /* ───────────── ligar ───────────── */
@@ -189,7 +206,7 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     const t = setTimeout(() => void this.expire(id).catch((e) => this.log.warn(`falha a expirar: ${(e as Error).message}`)), this.ringSeconds * 1000);
     t.unref();
     this.timers.set(id, t);
-    return { id, video, peer: publicOf(callee), iceServers: this.iceServers(me) };
+    return { id, video, peer: publicOf(callee), ...(await this.iceFor(me)) };
   }
 
   /* ───────────── atender, recusar, desligar, sinais ───────────── */
@@ -233,7 +250,7 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     if (!upd.rowCount) throw new ConflictException('Esta chamada já não está a tocar');
     this.stopTimer(callId);
     this.emit(c.caller.id, 'accepted', c, c.callee);
-    return { iceServers: this.iceServers(me) };
+    return this.iceFor(me);
   }
 
   /** Recusar; com `message`, vai também uma mensagem normal no chat (respostas rápidas, como "Estou numa reunião, ligo depois"). */
@@ -393,7 +410,7 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
               o.username, o.display_name, o.status AS o_status, (o.avatar_media_id IS NOT NULL) AS has_avatar
          FROM social.calls c
          JOIN identity.users o ON o.id = CASE WHEN c.caller_id = $1 THEN c.callee_id ELSE c.caller_id END
-        WHERE (c.caller_id = $1 OR c.callee_id = $1) AND ($2::uuid IS NULL OR c.id < $2)
+        WHERE ((c.caller_id = $1 AND NOT c.hidden_by_caller) OR (c.callee_id = $1 AND NOT c.hidden_by_callee)) AND ($2::uuid IS NULL OR c.id < $2)
         ORDER BY c.id DESC LIMIT $3`,
       [me, cursor ?? null, PAGE + 1],
     );
@@ -410,5 +427,39 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
       })),
       nextCursor: rows.length > PAGE ? (page[page.length - 1].id as string) : null,
     };
+  }
+
+  /** Apaga uma chamada do MEU histórico (a do outro lado fica). Chamadas ainda a decorrer não se apagam. */
+  async hide(me: string, id: string) {
+    const r = await this.pool.query(
+      `UPDATE social.calls SET hidden_by_caller = hidden_by_caller OR caller_id = $1, hidden_by_callee = hidden_by_callee OR callee_id = $1
+        WHERE id = $2 AND (caller_id = $1 OR callee_id = $1) AND status NOT IN ('ringing', 'active')`,
+      [me, id],
+    );
+    if (!r.rowCount) throw new NotFoundException('Chamada não encontrada');
+    await this.purgeHidden();
+    return { ok: true };
+  }
+
+  /** Apaga todo o MEU histórico de chamadas. */
+  async hideAll(me: string) {
+    const r = await this.pool.query(
+      `UPDATE social.calls SET hidden_by_caller = hidden_by_caller OR caller_id = $1, hidden_by_callee = hidden_by_callee OR callee_id = $1
+        WHERE (caller_id = $1 OR callee_id = $1) AND status NOT IN ('ringing', 'active')`,
+      [me],
+    );
+    await this.purgeHidden();
+    return { removed: r.rowCount ?? 0 };
+  }
+
+  /** Quando os dois lados apagaram, a chamada deixa de existir de vez. */
+  private async purgeHidden() {
+    await this.pool.query('DELETE FROM social.calls WHERE hidden_by_caller AND hidden_by_callee');
+  }
+
+  /** Chamadas com mais de 12 meses saem do histórico de todos. */
+  async purgeOld() {
+    const r = await this.pool.query(`DELETE FROM social.calls WHERE created_at < now() - interval '12 months' AND status NOT IN ('ringing', 'active')`);
+    return r.rowCount ?? 0;
   }
 }

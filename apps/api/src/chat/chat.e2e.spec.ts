@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import http from 'http';
+import { getStorageToken } from '@nestjs/throttler';
 import request from 'supertest';
 import { Pool } from 'pg';
 import { loadConfig } from '../config';
@@ -66,6 +67,30 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     expect(t.items.map((m: { body: string }) => m.body)).toEqual(['segunda mensagem', 'olá, tudo bem?']); // mais recente primeiro
     expect((await list(ca)).find((c) => c.username === cb.username)!.unread).toBe(0);
     await send(ca, ca, 'a mim próprio').expect(400);
+  });
+
+  it('marcar como por ler (até abrir) e apagar a conversa só do meu lado (volta com mensagens novas)', async () => {
+    const { cg, ch } = u;
+    await send(ch, cg, 'primeira').expect(201);
+    await thread(cg, ch);
+    await api().post(`/api/v1/chat/with/${ch.username}/unread`).set(auth(cg)).expect(200);
+    expect((await list(cg)).find((c) => c.username === ch.username)!.unread).toBe(1);
+    await thread(cg, ch);
+    expect((await list(cg)).find((c) => c.username === ch.username)!.unread).toBe(0);
+
+    await api().delete(`/api/v1/chat/with/${ch.username}`).set(auth(cg)).expect(200);
+    expect((await list(cg)).find((c) => c.username === ch.username)).toBeUndefined();
+    expect((await thread(cg, ch)).items).toEqual([]);
+    // O outro lado continua a ver tudo.
+    expect((await thread(ch, cg)).items.map((m: { body: string }) => m.body)).toEqual(['primeira']);
+    await send(ch, cg, 'voltei').expect(201);
+    const back = (await list(cg)).find((c) => c.username === ch.username)!;
+    expect(back.unread).toBe(1);
+    expect((await thread(cg, ch)).items.map((m: { body: string }) => m.body)).toEqual(['voltei']);
+    // Os envios acima contam para o limite por minuto; os testes seguintes começam do zero.
+    const st = app.get(getStorageToken()) as { storage: Map<string, unknown>; hitExpirations?: Map<string, unknown> };
+    st.storage.clear();
+    st.hitExpirations?.clear();
   });
 
   it('respeita "quem pode enviar-me mensagens" e bloqueios; conversas que já existem continuam', async () => {
@@ -329,7 +354,7 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     expect(((await gp(ci, '').expect(200)).body.find((g: { id: string }) => g.id === id)).unread).toBe(0); // abrir marca como lido
 
     // Só quem administra muda o nome e adiciona; qualquer pessoa pode sair.
-    await gp(ch, `/${id}`, 'patch').send({ name: 'x' }).expect(403);
+    await gp(ch, `/${id}`, 'patch').send({ name: 'xy' }).expect(403);
     await gp(cg, `/${id}`, 'patch').send({ name: 'Malta toda' }).expect(204);
     await gp(ch, `/${id}/members`, 'post').send({ members: [ca.username] }).expect(403);
     await gp(cg, `/${id}/members`, 'post').send({ members: [ca.username] }).expect(204);

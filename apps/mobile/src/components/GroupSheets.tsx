@@ -3,7 +3,10 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api } from '@/lib/api';
-import { gruposApi, type GroupThread } from '@/lib/api.grupos';
+import { gruposApi } from '@/lib/api.grupos';
+import { groupKindOf, groupsApi, kindInfo, type TxillGroupInfo } from '@/lib/api.groups';
+import { GroupDetailsForm, GroupEditSheet, draftError, emptyDraft, type GroupDraft } from './groups/GroupDetails';
+import { GroupCover } from './groups/GroupParts';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
@@ -13,16 +16,20 @@ import { Sheet } from './Sheet';
 interface Person { username: string; displayName: string; hasAvatar: boolean }
 
 /**
- * Nova conversa (igual ao NewChat do site): procura uma pessoa e conversa, ou escolhe duas ou mais para criar um grupo
- * (com nome). Com `addTo`, serve para adicionar pessoas a um grupo que já existe.
+ * Nova conversa (igual ao NewChat do site): procura uma pessoa e conversa, ou cria um TxillGroup. O TxillGroup tem nome, tipo,
+ * descrição e capa: pelo "Novo TxillGroup" preenche-se isso primeiro e depois escolhe-se a malta; escolhendo duas ou mais pessoas
+ * na lista, o "Seguinte" leva aos dados. Com `addTo`, serve para adicionar pessoas a um TxillGroup que já existe.
  */
-export function NewChatSheet({ onClose, addTo }: { onClose: () => void; addTo?: { groupId: string; have: string[]; onAdded: () => void } }) {
+export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: () => void; addTo?: { groupId: string; have: string[]; onAdded: () => void }; startGroup?: boolean }) {
   const router = useRouter();
   const qc = useQueryClient();
   const [text, setText] = useState('');
   const [picked, setPicked] = useState<Person[]>([]);
-  const [naming, setNaming] = useState(false);
-  const [name, setName] = useState('');
+  // Criar TxillGroup: `detailsFirst` = veio do "Novo TxillGroup" (dados primeiro, malta depois).
+  const [groupFlow, setGroupFlow] = useState(startGroup);
+  const [detailsFirst, setDetailsFirst] = useState(startGroup);
+  const [step, setStep] = useState<'pick' | 'details'>(startGroup ? 'details' : 'pick');
+  const [draft, setDraft] = useState<GroupDraft>(emptyDraft);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const recent = useQuery({ queryKey: ['chat-list'], queryFn: api.chatList, staleTime: 30_000 });
@@ -33,6 +40,28 @@ export function NewChatSheet({ onClose, addTo }: { onClose: () => void; addTo?: 
   const rows: Person[] = (term ? search.data ?? [] : (recent.data ?? []).map((c) => ({ username: c.username, displayName: c.displayName, hasAvatar: c.hasAvatar }))).filter((p) => !have.has(p.username.toLowerCase()));
   const isPicked = (u: string) => picked.some((p) => p.username === u);
   const toggle = (p: Person) => setPicked((l) => (isPicked(p.username) ? l.filter((x) => x.username !== p.username) : [...l, p]));
+
+  async function create() {
+    const bad = draftError(draft);
+    if (bad) { setStep('details'); return setErr(bad); }
+    if (picked.length < 2) { setStep('pick'); return setErr('Um TxillGroup precisa de pelo menos mais duas pessoas.'); }
+    setBusy(true);
+    try {
+      const r = await groupsApi.create({
+        name: draft.name.trim(),
+        kind: draft.kind,
+        ...(draft.description.trim() ? { description: draft.description.trim() } : null),
+        ...(draft.coverMediaId ? { coverMediaId: draft.coverMediaId } : null),
+        members: picked.map((p) => p.username),
+      });
+      void qc.invalidateQueries({ queryKey: ['chat-groups'] });
+      onClose();
+      router.push(`/messages/g/${r.id}` as never);
+    } catch (e) {
+      setErr((e as Error).message);
+      setBusy(false);
+    }
+  }
 
   async function go() {
     setErr('');
@@ -48,42 +77,54 @@ export function NewChatSheet({ onClose, addTo }: { onClose: () => void; addTo?: 
       }
       return;
     }
+    if (step === 'details') {
+      const bad = draftError(draft);
+      if (bad) return setErr(bad);
+      if (detailsFirst) return setStep('pick');
+      return void create();
+    }
+    if (groupFlow) return void create();
     if (picked.length === 1) {
       onClose();
       return router.push(`/messages/${picked[0].username}` as never);
     }
-    if (!naming) return setNaming(true);
-    if (!name.trim()) return setErr('Dá um nome ao grupo');
-    setBusy(true);
-    try {
-      const r = await gruposApi.create(name.trim(), picked.map((p) => p.username));
-      void qc.invalidateQueries({ queryKey: ['chat-groups'] });
-      onClose();
-      router.push(`/messages/g/${r.id}` as never);
-    } catch (e) {
-      setErr((e as Error).message);
-      setBusy(false);
-    }
+    setGroupFlow(true);
+    setDetailsFirst(false);
+    setStep('details');
+  }
+  function back() {
+    setErr('');
+    if (step === 'details' && !detailsFirst) { setGroupFlow(false); return setStep('pick'); }
+    if (step === 'pick' && detailsFirst) return setStep('details');
+    setGroupFlow(false);
+    setDetailsFirst(false);
+    setStep('pick');
   }
 
-  const label = addTo ? `Adicionar ${picked.length || ''}`.trim() : picked.length === 1 ? 'Conversar' : picked.length > 1 ? (naming ? 'Criar grupo' : 'Seguinte') : 'Escolhe pessoas';
-  const title = addTo ? 'Adicionar ao grupo' : naming ? 'Nome do grupo' : 'Nova conversa';
+  const label = addTo
+    ? `Adicionar ${picked.length || ''}`.trim()
+    : step === 'details' ? (detailsFirst ? 'Escolher a malta' : 'Criar TxillGroup')
+    : groupFlow ? (picked.length >= 2 ? `Criar TxillGroup · ${picked.length + 1} pessoas` : 'Escolhe pelo menos duas pessoas')
+    : picked.length === 1 ? 'Conversar' : picked.length > 1 ? 'Seguinte' : 'Escolhe pessoas';
+  const title = addTo ? 'Adicionar ao TxillGroup' : step === 'details' ? 'Novo TxillGroup' : groupFlow ? 'Quem vem?' : 'Nova conversa';
+  const disabled = busy || (step === 'pick' && (groupFlow ? picked.length < 2 : picked.length === 0));
 
   return (
     <Sheet title={title} onClose={onClose} full plain>
       <Text style={{ textAlign: 'center', fontSize: 17, fontWeight: '700', color: colors.zinc900, paddingHorizontal: 16, paddingBottom: 8 }}>{title}</Text>
-      {naming ? (
-        <View style={{ flex: 1, paddingHorizontal: 20 }}>
-          <TextInput value={name} onChangeText={setName} maxLength={40} autoFocus placeholder="Ex.: Malta da Polana" placeholderTextColor={colors.zinc500} accessibilityLabel="Nome do grupo" style={styles.nameInput} />
-          <View style={styles.chosen}>
-            {picked.map((p) => (
-              <View key={p.username} style={{ width: 64, alignItems: 'center', gap: 4 }}>
-                <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={52} />
-                <Text style={styles.chipName} numberOfLines={1}>{p.displayName.split(' ')[0]}</Text>
-              </View>
-            ))}
-          </View>
-          <Text style={styles.count}>{picked.length + 1} pessoas, contigo.</Text>
+      {step === 'details' ? (
+        <View style={{ flex: 1 }}>
+          <GroupDetailsForm draft={draft} onChange={setDraft} />
+          {picked.length > 0 && (
+            <View style={styles.chosen}>
+              {picked.map((p) => (
+                <View key={p.username} style={{ width: 64, alignItems: 'center', gap: 4 }}>
+                  <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={44} />
+                  <Text style={styles.chipName} numberOfLines={1}>{p.displayName.split(' ')[0]}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       ) : (
         <View style={{ flex: 1 }}>
@@ -92,6 +133,16 @@ export function NewChatSheet({ onClose, addTo }: { onClose: () => void; addTo?: 
               <Icon name="search" size={18} color={colors.zinc500} />
               <TextInput value={text} onChangeText={setText} placeholder="Procurar" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar pessoas" style={styles.searchInput} autoCapitalize="none" />
             </View>
+            {!addTo && !groupFlow && !term && (
+              <Pressable onPress={() => { setErr(''); setGroupFlow(true); setDetailsFirst(true); setStep('details'); }} style={({ pressed }) => [styles.add, { marginTop: 8 }, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
+                <View style={styles.addIcon}><Icon name="users" size={22} color={colors.brand} /></View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.rowName}>Novo TxillGroup</Text>
+                  <Text style={styles.rowSub} numberOfLines={1}>Viagem, festa ou fim de semana, com Plano e Txills</Text>
+                </View>
+                <Icon name="chevron-right" size={18} color={colors.zinc500} />
+              </Pressable>
+            )}
             {picked.length > 0 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, flexGrow: 0 }} contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled">
                 {picked.map((p) => (
@@ -132,23 +183,23 @@ export function NewChatSheet({ onClose, addTo }: { onClose: () => void; addTo?: 
       <View style={styles.foot}>
         {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {naming && <Pressable onPress={() => setNaming(false)} style={styles.back}><Text style={styles.backText}>Voltar</Text></Pressable>}
-          <Pressable onPress={() => void go()} disabled={busy || picked.length === 0} style={[styles.go, (busy || picked.length === 0) && { opacity: 0.4 }]} accessibilityRole="button">
+          {!addTo && (groupFlow || step === 'details') && <Pressable onPress={back} style={styles.back}><Text style={styles.backText}>Voltar</Text></Pressable>}
+          <Pressable onPress={() => void go()} disabled={disabled} style={[styles.go, disabled && { opacity: 0.4 }]} accessibilityRole="button">
             <Text style={styles.goText}>{busy ? 'A criar…' : label}</Text>
           </Pressable>
         </View>
-        {!addTo && !naming && picked.length === 1 && <Text style={styles.hint}>Escolhe mais pessoas para criar um grupo.</Text>}
+        {!addTo && !groupFlow && picked.length === 1 && <Text style={styles.hint}>Escolhe mais pessoas para criar um TxillGroup.</Text>}
       </View>
     </Sheet>
   );
 }
 
-/** Membros de um grupo: quem administra muda o nome, adiciona e tira pessoas; qualquer pessoa pode sair. */
-export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: GroupThread['group']; onClose: () => void; onChanged: () => void; onLeft: () => void }) {
+/** Membros do TxillGroup: quem administra edita o nome, o tipo e a capa, adiciona e tira pessoas; qualquer pessoa pode sair. */
+export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: TxillGroupInfo; onClose: () => void; onChanged: () => void; onLeft: () => void }) {
   const { user } = useAuth();
   const router = useRouter();
   const admin = group.myRole === 'admin';
-  const [name, setName] = useState(group.name);
+  const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -172,27 +223,30 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: G
 
   if (confirm) {
     return (
-      <Sheet title="Sair do grupo?" onClose={() => setConfirm(false)}>
+      <Sheet title="Sair do TxillGroup?" onClose={() => setConfirm(false)}>
         <View style={{ paddingHorizontal: 24 }}>
           <Text style={styles.confirmText}>Deixas de receber as mensagens de “{group.name}”. Só voltas se alguém te adicionar.</Text>
           {err ? <Text style={styles.err}>{err}</Text> : null}
-          <Pressable disabled={busy} onPress={() => void run(() => gruposApi.remove(group.id, user!.username), onLeft)} style={[styles.leave, busy && { opacity: 0.5 }]}><Text style={styles.goText}>Sair do grupo</Text></Pressable>
+          <Pressable disabled={busy} onPress={() => void run(() => gruposApi.remove(group.id, user!.username), onLeft)} style={[styles.leave, busy && { opacity: 0.5 }]}><Text style={styles.goText}>Sair do TxillGroup</Text></Pressable>
           <Pressable onPress={() => setConfirm(false)} style={styles.stay}><Text style={styles.backText}>Ficar</Text></Pressable>
         </View>
       </Sheet>
     );
   }
 
-  const changed = name.trim() && name.trim() !== group.name;
+  if (editing) return <GroupEditSheet group={group} onClose={() => setEditing(false)} onSaved={onChanged} />;
+
   return (
     <Sheet title={group.name} onClose={onClose} full>
       <View style={{ flex: 1, paddingHorizontal: 20 }}>
-        {admin && (
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-            <TextInput value={name} onChangeText={setName} maxLength={40} accessibilityLabel="Nome do grupo" style={[styles.nameInput, { flex: 1 }]} />
-            <Pressable disabled={busy || !changed} onPress={() => void run(() => gruposApi.rename(group.id, name.trim()))} style={[styles.save, (busy || !changed) && { opacity: 0.4 }]}><Text style={styles.goText}>Guardar</Text></Pressable>
+        <View style={styles.info}>
+          <GroupCover url={group.coverUrl} kind={groupKindOf(group)} size={64} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.infoKind}>{kindInfo(groupKindOf(group)).label}</Text>
+            {group.description ? <Text style={styles.infoDesc} numberOfLines={4}>{group.description}</Text> : <Text style={[styles.infoDesc, { color: colors.zinc500 }]}>Sem descrição.</Text>}
           </View>
-        )}
+          {admin && <Pressable onPress={() => setEditing(true)} style={styles.save} accessibilityRole="button" accessibilityLabel="Editar o TxillGroup"><Text style={styles.goText}>Editar</Text></Pressable>}
+        </View>
         {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
         <FlatList
           data={group.members}
@@ -219,14 +273,14 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: G
               </Pressable>
               {m.role === 'admin' && <View style={styles.adminTag}><Text style={styles.adminText}>Admin</Text></View>}
               {admin && m.username !== user?.username && (
-                <Pressable disabled={busy} onPress={() => void run(() => gruposApi.remove(group.id, m.username))} accessibilityLabel={`Tirar ${m.displayName} do grupo`} style={styles.kick}><Icon name="x" size={18} color={colors.red600} /></Pressable>
+                <Pressable disabled={busy} onPress={() => void run(() => gruposApi.remove(group.id, m.username))} accessibilityLabel={`Tirar ${m.displayName} do TxillGroup`} style={styles.kick}><Icon name="x" size={18} color={colors.red600} /></Pressable>
               )}
             </View>
           )}
           ListFooterComponent={
             <Pressable onPress={() => setConfirm(true)} style={({ pressed }) => [styles.exit, pressed && { backgroundColor: '#fef2f2' }]}>
               <Icon name="logout" size={18} color="#b91c1c" />
-              <Text style={styles.exitText}>Sair do grupo</Text>
+              <Text style={styles.exitText}>Sair do TxillGroup</Text>
             </Pressable>
           }
         />
@@ -269,4 +323,7 @@ const styles = StyleSheet.create({
   kick: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   exit: { marginTop: 12, height: 48, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   exitText: { fontSize: 16, fontWeight: '600', color: '#b91c1c' },
+  info: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, borderRadius: 20, backgroundColor: colors.zinc100, padding: 12 },
+  infoKind: { fontSize: 13, fontWeight: '800', color: colors.brand },
+  infoDesc: { marginTop: 2, fontSize: 14, lineHeight: 19, color: colors.zinc700 },
 });

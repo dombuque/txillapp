@@ -7,7 +7,7 @@ import { PG_POOL } from '../db/db.module';
 import { FcmSender, type FcmPush } from './fcm';
 
 /** O que a pessoa pode ligar ou desligar nas notificações. */
-export const NOTIFY_CATEGORIES = ['messages', 'follows', 'comments', 'mentions', 'reposts', 'gifts', 'reactions', 'invites'] as const;
+export const NOTIFY_CATEGORIES = ['messages', 'follows', 'comments', 'mentions', 'reposts', 'gifts', 'reactions', 'invites', 'calls', 'venues'] as const;
 export type NotifyCategory = (typeof NOTIFY_CATEGORIES)[number];
 
 export interface PushPayload extends FcmPush {

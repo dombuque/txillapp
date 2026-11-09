@@ -110,6 +110,25 @@ cd /opt/txillapp && git pull && cd infra/prod && docker compose up -d --build &&
 
 As migrações correm sozinhas (`migrate`) antes de a API arrancar. Cada build web tem uma versão (hash dos chunks, posta no `sw.js`, no HTML e em `/version.json` pelo `post-export-web.mjs`): a PWA procura versão nova sempre que volta a estar à vista e recarrega uma vez quando o service worker novo toma conta. A versão aparece em Definições e em Sobre ("versão 1.0.0 · a1b2c3d4e5f6"); compara com `curl -s https://txillapp.com/version.json`. Para reverter: `git checkout <commit-anterior>` e repetir (as migrações só avançam; escreve migrações compatíveis com a versão anterior).
 
+## 6.1 Chamadas: servidor TURN (opcional, recomendado)
+
+Sem TURN as chamadas ligam diretamente entre os dois telemóveis (com STUN). Na maioria das redes chega; em algumas redes móveis e de empresa não liga, e a opção "Esconder o meu IP nas chamadas" precisa dele.
+
+1. DNS: no Cloudflare, registo `A turn` com o IP do servidor, **DNS only** (nuvem cinzenta).
+2. Segredo (no servidor, nunca no git): `openssl rand -hex 32` e pôr no `.env`:
+   ```
+   TURN_SECRET=<o valor gerado>
+   TURN_URLS=turn:turn.txillapp.com:3478?transport=udp,turn:turn.txillapp.com:3478?transport=tcp
+   ```
+3. Firewall do servidor e do fornecedor: abrir `3478/udp`, `3478/tcp` e `49160-49200/udp`. Com ufw:
+   ```
+   sudo ufw allow 3478/udp && sudo ufw allow 3478/tcp && sudo ufw allow 49160:49200/udp
+   ```
+4. Arrancar: `docker compose --profile calls up -d coturn && docker compose up -d api` (a API lê as variáveis novas).
+5. Verificar: `docker compose logs coturn --tail 20` sem erros; na app, uma chamada entre dados móveis e Wi-Fi liga.
+
+O intervalo 49160-49200 dá para cerca de 20 chamadas a passar pelo TURN ao mesmo tempo (`--total-quota=60`); alarga as duas coisas juntas se for preciso. Cada chamada a passar pelo TURN gasta a largura de banda do servidor (até 1,5 Mbit/s).
+
 ## 7. Cópias de segurança
 
 - **Base de dados**: todas as noites às 03:30 UTC, cifrada (age) e enviada para `BACKUP_BUCKET`. Guarda 35 dias + as de dia 1 de cada mês durante 13 meses.

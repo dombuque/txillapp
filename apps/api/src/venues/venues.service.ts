@@ -1,10 +1,11 @@
-import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { NotificationsService } from '../notifications/notifications.service';
+import { MAX_AMOUNT, WalletService } from '../wallet/wallet.service';
 import { TextFilter } from '../safety/text-filter.service';
 import { blockedBetween } from '../social/visibility';
 
@@ -37,19 +38,40 @@ export interface VenueProfileInput {
   lng?: number | null;
   avatarMediaId?: string | null;
   coverMediaId?: string | null;
+  /** O local aceita pagamentos em Txills (dono e administradores). */
+  acceptsTxills?: boolean;
 }
+
+const PAYMENTS_PAGE = 30;
 
 /**
  * Locais: bares, restaurantes, discotecas… Cada local é uma página (como no Facebook): tem dono e gestores, perfil
  * completo, seguidores, publicações feitas como o local, selo depois de verificado pela equipa e check-in por QR.
  * Só se mostram números de check-ins, nunca quem foi.
+ *
+ * Pagar com Txills (a moeda do Txillapp) nos locais. Acrescentos ao contrato:
+ * - PATCH /venues/:slug aceita { acceptsTxills: boolean } (dono e administradores). O local devolve sempre
+ *   `acceptsTxills: boolean` e, só para quem gere (dono, administradores e editores), `txillsBalance: number`.
+ * - POST /venues/:slug/pay { amount: int 1..100000, note?: string <= 120, idempotencyKey: string 8..100 }
+ *   (a chave também pode vir no cabeçalho Idempotency-Key) -> 201 { transactionId, balance, at (ISO, hora do servidor), replayed }.
+ *   `balance` é o meu saldo depois de pagar. Local que não aceita Txills: 422. Saldo insuficiente: 422.
+ *   Os gestores recebem a notificação 'venue_payment' (actor = quem pagou; data: { amount, venueName, venueSlug, note?, groupId?, groupName? }).
+ * - GET /venues/:slug/payments?cursor=<id> (dono, administradores e editores; os outros 403) ->
+ *   { items: [{ id, from: { username, displayName } | { group: { id, name } }, by: { username, displayName }, amount, note, at }],
+ *     balance, nextCursor }. `by` é quem carregou no botão (no pagamento de um cofre, o administrador do grupo).
+ * - Levantar os Txills de um local para dinheiro (cash-out) ainda não existe: fica para uma fase seguinte.
  */
+/** O local está à vista de `viewer`: aprovado pela equipa, ou é dono / gestor / convidado a gerir (para o preparar enquanto está em análise). */
+export const venueVisible = (v = 'v', viewer = '$1') =>
+  `(${v}.review_status = 'approved' OR ${v}.owner_id = ${viewer} OR EXISTS (SELECT 1 FROM content.venue_managers vm WHERE vm.venue_id = ${v}.id AND vm.user_id = ${viewer}))`;
+
 @Injectable()
 export class VenuesService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly filter: TextFilter,
     private readonly notifications: NotificationsService,
+    private readonly wallet: WalletService,
   ) {}
 
   private dto(r: Record<string, any>, viewerId: string) {
@@ -70,6 +92,12 @@ export class VenuesService {
       avatarUrl: r.avatar_media_id ? `/api/v1/media/${r.avatar_media_id as string}` : null,
       coverUrl: r.cover_media_id ? `/api/v1/media/${r.cover_media_id as string}` : null,
       verified: !!r.verified,
+      /** Aprovação pela equipa: 'pending' (em análise), 'approved' ou 'rejected'. Só quem gere vê o motivo da recusa. */
+      reviewStatus: ((r.review_status as string | null) ?? 'approved') as 'pending' | 'approved' | 'rejected',
+      reviewNote: role ? ((r.review_note as string | null) ?? null) : undefined,
+      acceptsTxills: !!r.accepts_txills,
+      /** Saldo de Txills do local: só quem o gere o vê. */
+      txillsBalance: role ? Number(r.txills_balance ?? 0) : undefined,
       lat: (r.lat as number | null) ?? null,
       lng: (r.lng as number | null) ?? null,
       checkins: Number(r.checkins ?? 0),
@@ -103,8 +131,9 @@ export class VenuesService {
            EXISTS (SELECT 1 FROM content.venue_follows f WHERE f.venue_id = v.id AND f.user_id = $1) AS following,
            (SELECT m.role FROM content.venue_managers m WHERE m.venue_id = v.id AND m.user_id = $1 AND m.status = 'active') AS role,
            (SELECT m.role FROM content.venue_managers m WHERE m.venue_id = v.id AND m.user_id = $1 AND m.status = 'pending') AS invite_role,
-           EXISTS (SELECT 1 FROM content.checkins c WHERE c.venue_id = v.id AND c.user_id = $1 AND c.created_at > now() - interval '${CHECKIN_GAP_HOURS} hours') AS checked_in
-      FROM content.venues v JOIN identity.users ou ON ou.id = v.owner_id`;
+           EXISTS (SELECT 1 FROM content.checkins c WHERE c.venue_id = v.id AND c.user_id = $1 AND c.created_at > now() - interval '${CHECKIN_GAP_HOURS} hours') AS checked_in,
+           (SELECT a.balance FROM ledger.accounts a WHERE a.venue_id = v.id) AS txills_balance
+      FROM content.venues v JOIN identity.users ou ON ou.id = v.owner_id AND ou.status <> 'deleted'`;
 
   /** O papel de uma pessoa numa página (dono, administrador, editor ou nada). */
   async roleOf(userId: string, venueId: string): Promise<VenueRole> {
@@ -117,7 +146,10 @@ export class VenuesService {
   }
 
   private async venueBySlug(slug: string): Promise<{ id: string; owner_id: string; name: string }> {
-    const v = (await this.pool.query('SELECT id, owner_id, name FROM content.venues WHERE slug = $1', [slug.toLowerCase()])).rows[0];
+    const v = (await this.pool.query(
+      `SELECT v.id, v.owner_id, v.name FROM content.venues v JOIN identity.users ou ON ou.id = v.owner_id AND ou.status <> 'deleted' WHERE v.slug = $1`,
+      [slug.toLowerCase()],
+    )).rows[0];
     if (!v) throw new NotFoundException('Local não encontrado');
     return v as { id: string; owner_id: string; name: string };
   }
@@ -184,7 +216,10 @@ export class VenuesService {
     if (b.lng !== undefined) set('lng', q(b.lng));
     if (b.avatarMediaId !== undefined) set('avatar_media_id', b.avatarMediaId);
     if (b.coverMediaId !== undefined) set('cover_media_id', b.coverMediaId);
+    if (b.acceptsTxills !== undefined) set('accepts_txills', b.acceptsTxills);
     if (sets.length) {
+      // Recusado e corrigido pelo dono: volta para a fila da equipa.
+      sets.push(`review_status = CASE WHEN review_status = 'rejected' THEN 'pending' ELSE review_status END`);
       vals.push(v.id);
       await this.pool.query(`UPDATE content.venues SET ${sets.join(', ')} WHERE id = $${vals.length}`, vals);
     }
@@ -192,14 +227,14 @@ export class VenuesService {
   }
 
   async get(viewerId: string, slug: string) {
-    const r = (await this.pool.query(`${this.SELECT} WHERE v.slug = $2`, [viewerId, slug.toLowerCase()])).rows[0];
+    const r = (await this.pool.query(`${this.SELECT} WHERE v.slug = $2 AND ${venueVisible()}`, [viewerId, slug.toLowerCase()])).rows[0];
     if (!r) throw new NotFoundException('Local não encontrado');
     return this.dto(r, viewerId);
   }
 
   /** O local com este nome (usado pelo nome do sítio de uma publicação): o verificado primeiro. */
   async findByName(viewerId: string, name: string) {
-    const r = (await this.pool.query(`${this.SELECT} WHERE lower(v.name) = lower($2) ORDER BY v.verified DESC, v.created_at LIMIT 1`, [viewerId, name.trim().slice(0, 80)])).rows[0];
+    const r = (await this.pool.query(`${this.SELECT} WHERE lower(v.name) = lower($2) AND v.review_status = 'approved' ORDER BY v.verified DESC, v.created_at LIMIT 1`, [viewerId, name.trim().slice(0, 80)])).rows[0];
     return r ? this.dto(r, viewerId) : null;
   }
 
@@ -225,7 +260,7 @@ export class VenuesService {
     if (t.length < 2) return [];
     const like = `%${t.replace(/[\\%_]/g, '\\$&')}%`;
     const rows = (await this.pool.query(
-      `${this.SELECT} WHERE (v.name ILIKE $2 ESCAPE '\\' OR v.city ILIKE $2 ESCAPE '\\')
+      `${this.SELECT} WHERE (v.name ILIKE $2 ESCAPE '\\' OR v.city ILIKE $2 ESCAPE '\\') AND v.review_status = 'approved'
         AND (v.country IS NULL OR v.country IS NOT DISTINCT FROM (SELECT country FROM identity.users WHERE id = $1))
         ORDER BY v.verified DESC, (SELECT count(*) FROM content.venue_follows f WHERE f.venue_id = v.id) DESC, v.name LIMIT $3`,
       [viewerId, like, limit],
@@ -237,7 +272,7 @@ export class VenuesService {
   async discover(viewerId: string, at: { lat: number; lng: number } | null) {
     const country = `(v.country IS NULL OR v.country IS NOT DISTINCT FROM (SELECT country FROM identity.users WHERE id = $1))`;
     const popular = (await this.pool.query(
-      `${this.SELECT} WHERE ${country}
+      `${this.SELECT} WHERE ${country} AND v.review_status = 'approved'
         ORDER BY ((SELECT count(*) FROM content.checkins c WHERE c.venue_id = v.id AND c.created_at > now() - interval '7 days') * 3
                 + (SELECT count(*) FROM content.venue_follows f WHERE f.venue_id = v.id)
                 + (SELECT count(*) FROM content.posts p WHERE p.venue_id = v.id AND p.created_at > now() - interval '7 days') * 2) DESC,
@@ -249,7 +284,7 @@ export class VenuesService {
     if (at) {
       // Distância aproximada (graus → km), chega para ordenar o que está a menos de ~25 km.
       nearby = (await this.pool.query(
-        `${this.SELECT} WHERE v.lat IS NOT NULL AND v.lng IS NOT NULL
+        `${this.SELECT} WHERE v.lat IS NOT NULL AND v.lng IS NOT NULL AND v.review_status = 'approved'
             AND abs(v.lat - $2) < 0.25 AND abs(v.lng - $3) < 0.25
           ORDER BY ((v.lat - $2) * (v.lat - $2) + (v.lng - $3) * (v.lng - $3) * cos(radians($2)) * cos(radians($2))) ASC LIMIT 12`,
         [viewerId, at.lat, at.lng],
@@ -370,7 +405,7 @@ export class VenuesService {
 
   /** Check-in: a ligação do QR leva o código do local. Um por pessoa, de 6 em 6 horas. */
   async checkin(userId: string, slug: string, token: string) {
-    const v = (await this.pool.query('SELECT id, check_token FROM content.venues WHERE slug = $1', [slug.toLowerCase()])).rows[0];
+    const v = (await this.pool.query("SELECT id, check_token FROM content.venues WHERE slug = $1 AND review_status = 'approved'", [slug.toLowerCase()])).rows[0];
     if (!v) throw new NotFoundException('Local não encontrado');
     const a = Buffer.from(String(v.check_token));
     const b = Buffer.from(token);
@@ -391,18 +426,35 @@ export class VenuesService {
     return { slug, verified };
   }
 
-  /** Para a equipa: os locais, os por verificar primeiro. */
-  async adminList(filter: 'pending' | 'all') {
+  /**
+   * A equipa aprova ou recusa um local (com motivo, que o dono vê). Aprovar torna-o público; recusar esconde-o
+   * (o dono pode corrigir e volta à fila). O dono recebe uma notificação. Fica no registo de auditoria.
+   */
+  async review(actorId: string, slug: string, decision: 'approved' | 'rejected', note?: string) {
+    const why = decision === 'rejected' ? note?.trim() || null : null;
+    const r = await this.pool.query(
+      `UPDATE content.venues SET review_status = $2, review_note = $3, reviewed_at = now(), reviewed_by = $4 WHERE slug = $1 RETURNING id, owner_id, name`,
+      [slug.toLowerCase(), decision, why, actorId],
+    );
+    if (!r.rowCount) throw new NotFoundException('Local não encontrado');
+    const v = r.rows[0];
+    await this.pool.query('INSERT INTO audit.audit_log (id, actor_id, action, target, metadata) VALUES ($1, $2, $3, $4, $5)', [uuidv7(), actorId, decision === 'approved' ? 'moderation.venue_approved' : 'moderation.venue_rejected', `venue:${v.id as string}`, { slug, note: why }]);
+    await this.notifications.notify({ userId: v.owner_id as string, actorId, kind: 'venue_review', data: { venueSlug: slug.toLowerCase(), venueName: v.name, decision, note: why } });
+    return { slug: slug.toLowerCase(), reviewStatus: decision };
+  }
+
+  /** Para a equipa: os locais. `pending`: à espera de aprovação (os mais antigos primeiro). `unverified`: aprovados sem selo. */
+  async adminList(filter: 'pending' | 'unverified' | 'all') {
     const { rows } = await this.pool.query(
-      `SELECT v.slug, v.name, v.kind, v.city, v.verified, v.created_at, u.username AS owner,
+      `SELECT v.slug, v.name, v.kind, v.city, v.address, v.about, v.phone, v.website, v.verified, v.created_at, v.review_status, v.review_note, u.username AS owner,
               (SELECT count(*) FROM content.checkins c WHERE c.venue_id = v.id)::int AS checkins,
               (SELECT count(*) FROM content.venue_follows f WHERE f.venue_id = v.id)::int AS followers
          FROM content.venues v JOIN identity.users u ON u.id = v.owner_id
-        WHERE ($1 = 'all' OR NOT v.verified)
-        ORDER BY v.verified ASC, v.created_at DESC LIMIT 200`,
+        WHERE ($1 = 'all' OR ($1 = 'pending' AND v.review_status = 'pending') OR ($1 = 'unverified' AND v.review_status = 'approved' AND NOT v.verified))
+        ORDER BY CASE WHEN $1 = 'pending' THEN v.created_at END ASC, v.created_at DESC LIMIT 200`,
       [filter],
     );
-    return rows.map((r) => ({ slug: r.slug as string, name: r.name as string, kind: r.kind as string, city: (r.city as string | null) ?? null, verified: !!r.verified, owner: r.owner as string, checkins: r.checkins as number, followers: r.followers as number, createdAt: r.created_at as string }));
+    return rows.map((r) => ({ slug: r.slug as string, name: r.name as string, kind: r.kind as string, city: (r.city as string | null) ?? null, verified: !!r.verified, reviewStatus: r.review_status as string, reviewNote: (r.review_note as string | null) ?? null, address: (r.address as string | null) ?? null, about: (r.about as string | null) ?? null, phone: (r.phone as string | null) ?? null, website: (r.website as string | null) ?? null, owner: r.owner as string, checkins: r.checkins as number, followers: r.followers as number, createdAt: r.created_at as string }));
   }
 
   /** O dono ou um administrador muda o QR (se ele andou a circular fora do local). */
@@ -410,5 +462,84 @@ export class VenuesService {
     const v = await this.need(userId, slug, 'edit');
     await this.pool.query('UPDATE content.venues SET check_token = $2 WHERE id = $1', [v.id, randomBytes(12).toString('hex')]);
     return this.get(userId, slug);
+  }
+
+  /* ───────────── pagar com Txills ───────────── */
+
+  /** O local para receber um pagamento (404 se não existe, 422 se não aceita Txills). */
+  async payableVenue(slug: string) {
+    const v = (await this.pool.query(
+      `SELECT v.id, v.slug, v.name, v.accepts_txills, v.review_status FROM content.venues v JOIN identity.users ou ON ou.id = v.owner_id AND ou.status <> 'deleted' WHERE v.slug = $1`,
+      [slug.toLowerCase()],
+    )).rows[0];
+    if (!v) throw new NotFoundException('Local não encontrado');
+    if (v.review_status !== 'approved') throw new UnprocessableEntityException('Este local ainda está em análise pela equipa do Txillapp');
+    if (!v.accepts_txills) throw new UnprocessableEntityException('Este local ainda não aceita Txills');
+    return { id: v.id as string, slug: v.slug as string, name: v.name as string };
+  }
+
+  /** Avisa quem gere o local (dono e gestores ativos) de que recebeu Txills. */
+  async notifyPayment(venueId: string, actorId: string, data: Record<string, unknown>) {
+    const { rows } = await this.pool.query(
+      `SELECT owner_id AS id FROM content.venues WHERE id = $1
+       UNION SELECT user_id FROM content.venue_managers WHERE venue_id = $1 AND status = 'active'`,
+      [venueId],
+    );
+    await Promise.all(rows.map((r) => this.notifications.notify({ userId: r.id as string, actorId, kind: 'venue_payment', data })));
+  }
+
+  /** Qualquer pessoa paga ao local com Txills da sua carteira. */
+  async pay(userId: string, slug: string, amount: number, note: string | undefined, key: string) {
+    if (!Number.isInteger(amount) || amount < 1 || amount > MAX_AMOUNT) throw new UnprocessableEntityException(`Montante deve ser inteiro entre 1 e ${MAX_AMOUNT}`);
+    const cleanNote = note?.trim() || null;
+    if (cleanNote) this.filter.assertClean(cleanNote);
+    const v = await this.payableVenue(slug);
+    const from = await this.wallet.ensureWallet(userId);
+    const to = await this.wallet.ensureVenueWallet(v.id);
+    // Ordem dos bloqueios: carteira da pessoa, depois a do local (ver MoveParams).
+    const r = await this.wallet.move({
+      type: 'venue_payment', actorId: userId, idempotencyKey: `venue_payment:${v.id}:${key}`,
+      lock: [from, to], legs: [[from, -amount], [to, amount]],
+      metadata: { venueId: v.id, venueName: v.name, payerId: userId, amount, note: cleanNote },
+    });
+    if (!r.replayed) await this.notifyPayment(v.id, userId, { venueSlug: v.slug, venueName: v.name, amount, note: cleanNote });
+    const x = (await this.pool.query('SELECT a.balance, t.created_at FROM ledger.accounts a, ledger.transactions t WHERE a.id = $1 AND t.id = $2', [from, r.transactionId])).rows[0];
+    return { transactionId: r.transactionId, balance: Number(x.balance), at: (x.created_at as Date).toISOString(), replayed: r.replayed };
+  }
+
+  /** Os pagamentos recebidos pelo local (só quem o gere), os mais recentes primeiro. */
+  async payments(userId: string, slug: string, cursor?: string) {
+    if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
+    const v = await this.venueBySlug(slug);
+    if (!(await this.roleOf(userId, v.id))) throw new ForbiddenException('Só quem gere o local vê os pagamentos');
+    const acc = (await this.pool.query('SELECT id, balance FROM ledger.accounts WHERE venue_id = $1', [v.id])).rows[0];
+    if (!acc) return { items: [], balance: 0, nextCursor: null };
+    const { rows } = await this.pool.query(
+      `SELECT t.id, t.created_at, t.metadata, e.amount,
+              pu.username AS payer_username, pu.display_name AS payer_name,
+              au.username AS actor_username, au.display_name AS actor_name,
+              g.name AS group_name
+         FROM ledger.entries e
+         JOIN ledger.transactions t ON t.id = e.transaction_id
+         JOIN identity.users au ON au.id = t.actor_id
+         LEFT JOIN identity.users pu ON pu.id::text = t.metadata->>'payerId'
+         LEFT JOIN social.groups g ON g.id::text = t.metadata->>'groupId'
+        WHERE e.account_id = $1 AND t.type = 'venue_payment' AND e.amount > 0 AND ($2::uuid IS NULL OR t.id < $2)
+        ORDER BY t.id DESC LIMIT $3`,
+      [acc.id, cursor ?? null, PAYMENTS_PAGE + 1],
+    );
+    const page = rows.slice(0, PAYMENTS_PAGE);
+    return {
+      items: page.map((r) => {
+        const m = (r.metadata ?? {}) as Record<string, unknown>;
+        const by = { username: r.actor_username as string, displayName: r.actor_name as string };
+        const from = m.groupId
+          ? { group: { id: String(m.groupId), name: (r.group_name as string | null) ?? String(m.groupName ?? 'Grupo') } }
+          : r.payer_username ? { username: r.payer_username as string, displayName: r.payer_name as string } : by;
+        return { id: r.id as string, from, by, amount: Number(r.amount), note: (m.note as string | null) ?? null, at: r.created_at as string };
+      }),
+      balance: Number(acc.balance),
+      nextCursor: rows.length > PAYMENTS_PAGE ? (page[page.length - 1].id as string) : null,
+    };
   }
 }

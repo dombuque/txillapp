@@ -8,6 +8,7 @@ import { BrandLoader } from '@/components/PontoLoader';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { ActivateSheet } from '@/components/ActivateSheet';
 import { AlertHost } from '@/components/AlertHost';
 import { AppUpdate } from '@/components/AppUpdate';
 import { CallOverlay } from '@/components/calls/CallOverlay';
@@ -196,6 +197,7 @@ export default function RootLayout() {
           <AuthProvider>
             <StatusBar style="dark" />
             <Gate />
+            <ActivateSheet />
             <AlertHost />
           </AuthProvider>
         </QueryClientProvider>

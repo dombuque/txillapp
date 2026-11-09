@@ -71,7 +71,11 @@ function Skeleton() {
 }
 
 /** "Onde estás?" como no site: já procura sítios perto ao abrir, sugere enquanto escreves, mostra "A bater agora" e aceita texto livre. */
-export function PlaceSheet({ value, onChange, onClose }: { value: string; onChange: (v: string, geo?: PlaceGeo) => void; onClose: () => void }) {
+export function PlaceSheet({ value, onChange, onClose, photoAt }: {
+  value: string; onChange: (v: string, geo?: PlaceGeo) => void; onClose: () => void;
+  /** Onde a foto foi tirada (GPS dos metadados): sugere primeiro os sítios de lá. */
+  photoAt?: { lat: number; lng: number } | null;
+}) {
   const [status, setStatus] = useState<Status>('locating');
   const [data, setData] = useState<NearbyPlaces | null>(null);
   const [at, setAt] = useState<{ lat: number; lng: number } | null>(null);
@@ -116,6 +120,21 @@ export function PlaceSheet({ value, onChange, onClose }: { value: string; onChan
     onChange(label, geo);
     onClose();
   };
+
+  const fromPhoto = useQuery({
+    queryKey: ['places-photo', photoAt?.lat, photoAt?.lng],
+    queryFn: () => composeApi.nearbyPlaces(photoAt!.lat, photoAt!.lng),
+    enabled: !!photoAt,
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
+  const photoOpts: Option[] = [];
+  if (fromPhoto.data && photoAt) {
+    const pd = fromPhoto.data;
+    for (const p of pd.places.slice(0, 3)) photoOpts.push({ label: p.name, sub: pd.area ?? undefined, icon: kindIcon[p.kind] ?? 'map-pin', geo: { lat: p.lat, lng: p.lng } });
+    if (pd.area) photoOpts.push({ label: pd.area, sub: pd.city ?? undefined, icon: 'camera', geo: { ...photoAt, coarse: true } });
+    else if (pd.city) photoOpts.push({ label: pd.city, icon: 'camera', geo: { ...photoAt, coarse: true } });
+  }
 
   const nearby: Option[] = [];
   if (data) {
@@ -179,6 +198,14 @@ export function PlaceSheet({ value, onChange, onClose }: { value: string; onChan
           </View>
         ) : (
           <>
+            {photoOpts.length > 0 ? (
+              <>
+                <Text style={[styles.label, { marginTop: 16, marginBottom: 4 }]}>Onde a foto foi tirada</Text>
+                {photoOpts.map((o, i) => (
+                  <Row key={`f-${o.label}-${i}`} o={o} onPick={() => pick(o.sub && o.icon !== 'camera' ? `${o.label}, ${o.sub}` : o.label, o.geo)} />
+                ))}
+              </>
+            ) : null}
             {status === 'locating' || status === 'searching' ? (
               <>
                 <Text style={[styles.label, { marginTop: 16 }]}>{status === 'locating' ? 'A apanhar o teu sinal…' : 'A ver o que há por perto…'}</Text>

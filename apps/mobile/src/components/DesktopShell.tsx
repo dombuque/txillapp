@@ -32,8 +32,9 @@ export function DesktopShell({ children }: { children: ReactNode }) {
   const msgs = path === '/messages' || path.startsWith('/messages/');
   const msgsHome = path === '/messages';
   const home = path === '/';
-  const full = msgs || path.startsWith('/reels') || path.startsWith('/r/') || path.startsWith('/stories/');
-  const wide = /^\/(profile|u\/|search|t\/|tag\/|place\/|v\/|saved|locais|geleira|insights)/.test(path);
+  // À tua volta: o mapa ocupa a área toda (com a lista numa coluna à direita).
+  const full = msgs || path.startsWith('/reels') || path.startsWith('/r/') || path.startsWith('/stories/') || path === '/perto';
+  const wide = /^\/(profile|u\/|search|t\/|tag\/|place\/|v\/|saved|locais|geleira|insights|evento)/.test(path);
   const main = full ? st.mainFull : { ...st.main, maxWidth: wide ? 935 : 630 };
   return (
     <View style={st.shell}>
@@ -59,6 +60,7 @@ function Sidebar({ labels, path }: { labels: boolean; path: string }) {
     { key: 'home', label: 'Início', icon: 'home', to: '/', active: path === '/' },
     { key: 'search', label: 'Pesquisar', icon: 'search', to: '/search', active: path === '/search' },
     { key: 'reels', label: 'Tchekas', icon: 'film', to: '/reels', active: path.startsWith('/reels') || path.startsWith('/r/') },
+    { key: 'perto', label: 'À tua volta', icon: 'map-pin', to: '/perto', active: path === '/perto' || path.startsWith('/evento') },
     { key: 'messages', label: 'Mensagens', icon: 'messages', to: '/messages', active: path.startsWith('/messages'), count: chats.data?.conversations ?? 0 },
     { key: 'bell', label: 'Notificações', icon: 'bell', to: '/notifications', active: path === '/notifications', count: unread.data?.count ?? 0 },
     { key: 'new', label: 'Criar', icon: 'square-plus', to: '/new', active: path === '/new' },
@@ -90,7 +92,7 @@ function Sidebar({ labels, path }: { labels: boolean; path: string }) {
                   <Avatar name={user?.displayName ?? '?'} username={user?.username} size={26} />
                 </View>
               ) : (
-                <Icon name={it.icon!} size={27} color={it.key === 'new' ? colors.green600 : colors.zinc900} solid={it.active && (it.icon === 'home' || it.icon === 'messages' || it.icon === 'bell')} strokeWidth={it.active ? 2.4 : 1.9} />
+                <Icon name={it.icon!} size={27} color={it.key === 'new' ? colors.green600 : colors.zinc900} solid={it.active && (it.icon === 'home' || it.icon === 'messages' || it.icon === 'bell' || it.icon === 'map-pin')} strokeWidth={it.active ? 2.4 : 1.9} />
               )}
               {it.count ? <View style={st.badge}><Text style={st.badgeText}>{badge(it.count)}</Text></View> : null}
             </View>

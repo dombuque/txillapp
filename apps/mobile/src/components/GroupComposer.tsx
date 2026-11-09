@@ -1,3 +1,4 @@
+import { useGrowInput } from '@/lib/growInput';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
@@ -17,14 +18,17 @@ import { markSeen } from '@/lib/whatsNew';
  * visualização única, voz, galeria, stickers e "mais" (localização e presente). Com texto, só aparece "Enviar".
  */
 export function GroupComposer({
-  send, onSent, bottom, replyTo, onClearReply,
+  send, onSent, bottom, replyTo, onClearReply, onPoll,
 }: {
   send: (msg: GroupSendBody) => Promise<unknown>;
   onSent: () => void;
   bottom: number;
   replyTo?: { id: string; text: string; who?: string } | null;
   onClearReply?: () => void;
+  /** TxillGroup: abre a folha de nova sondagem (no "mais"). */
+  onPoll?: () => void;
 }) {
+  const grow = useGrowInput();
   const [text, setText] = useState('');
   const [panel, setPanel] = useState<null | 'stickers' | 'attach'>(null);
   const [err, setErr] = useState('');
@@ -49,6 +53,7 @@ export function GroupComposer({
     const body = text.trim();
     if (!body) return;
     setText('');
+    grow.reset();
     await dispatch({ body });
   }
   async function pick(source: 'camera' | 'library') {
@@ -69,6 +74,7 @@ export function GroupComposer({
       const mediaId = await uploadChatMedia(a.uri, mime);
       await dispatch({ kind: video ? 'video' : 'image', mediaId, body: text.trim() || undefined });
       setText('');
+    grow.reset();
     } catch (e) {
       setErr((e as Error).message || 'Não consegui enviar');
     } finally {
@@ -142,6 +148,7 @@ export function GroupComposer({
     <View style={{ borderTopWidth: 1, borderTopColor: colors.zinc100 }}>
       {panel === 'attach' && (
         <View style={styles.attach}>
+          {onPoll && <Pressable onPress={() => { setPanel(null); onPoll(); }} style={styles.attachItem}><View style={styles.attachIcon}><Icon name="trending" size={22} /></View><Text style={styles.attachLabel}>Sondagem</Text></Pressable>}
           <Pressable onPress={() => void sendPlace()} style={styles.attachItem}><View style={styles.attachIcon}><Icon name="map-pin" size={22} /></View><Text style={styles.attachLabel}>Localização</Text></Pressable>
         </View>
       )}
@@ -163,7 +170,7 @@ export function GroupComposer({
               <Icon name="camera" size={20} color="#fff" />
             </LinearGradient>
           </Pressable>
-          <TextInput value={text} onChangeText={setText} onFocus={() => setPanel(null)} multiline numberOfLines={1} maxLength={2000} placeholder="Mensagem…" placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel="Mensagem" />
+          <TextInput value={text} onChangeText={setText} onFocus={() => setPanel(null)} multiline numberOfLines={1} maxLength={2000} placeholder="Mensagem…" placeholderTextColor={colors.zinc500} onContentSizeChange={grow.onContentSizeChange} style={[styles.input, grow.style]} accessibilityLabel="Mensagem" />
           {text.trim() ? (
             <Pressable onPress={() => void sendText()} style={styles.send} accessibilityRole="button"><Text style={styles.sendText}>Enviar</Text></Pressable>
           ) : (

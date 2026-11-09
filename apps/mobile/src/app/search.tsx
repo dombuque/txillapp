@@ -236,6 +236,16 @@ export default function Search() {
               </ScrollView>
             )}
 
+            {/* À tua volta: o mapa do que há perto (locais, eventos, malta). */}
+            <Pressable onPress={() => router.push('/perto' as never)} style={styles.perto} accessibilityRole="link" accessibilityLabel="À tua volta: o que há perto de ti">
+              <Icon name="map" size={22} color={colors.brand} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>À tua volta</Text>
+                <Text style={{ fontSize: 13, color: colors.zinc500 }}>Locais, eventos e malta perto de ti, no mapa</Text>
+              </View>
+              <Icon name="chevron-right" size={18} color={colors.zinc500} />
+            </Pressable>
+
             {(venues.data?.popular.length ?? 0) > 0 && (
               <View style={{ paddingBottom: 16 }}>
                 <View style={{ paddingHorizontal: 20, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -356,6 +366,7 @@ export default function Search() {
 }
 
 const styles = StyleSheet.create({
+  perto: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginBottom: 16, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, backgroundColor: colors.rose50 },
   bar: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingBottom: 8, paddingTop: 8 },
   saved: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   field: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12 },

@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { api } from '@/lib/api';
+import { api, openActivate } from '@/lib/api';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 
@@ -13,9 +13,9 @@ export function EmailBanner() {
     ? 'Enviámos um link novo para o teu e-mail. Vê também o spam.'
     : resend.isError
       ? 'Não consegui reenviar agora. Tenta daqui a pouco.'
-      : 'Confirma o teu e-mail para publicar, comentar e conversar. Enviámos-te um link.';
+      : 'Ativa a tua conta para publicar, comentar e conversar: confirma o e-mail que te mandámos.';
   return (
-    <View style={st.wrap} accessibilityRole="alert">
+    <Pressable onPress={openActivate} style={st.wrap} accessibilityRole="button" accessibilityLabel="Ativar a conta">
       <Icon name="mail" size={20} color="#b45309" />
       <Text style={st.text}>{msg}</Text>
       {!resend.isSuccess && (
@@ -23,7 +23,7 @@ export function EmailBanner() {
           <Text style={[st.btn, resend.isPending && { opacity: 0.5 }]}>{resend.isPending ? 'A enviar…' : 'Reenviar'}</Text>
         </Pressable>
       )}
-    </View>
+    </Pressable>
   );
 }
 

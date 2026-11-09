@@ -17,6 +17,7 @@ import { ApiError, api, type CallsWho, type Gender, type PrivacySettings, type V
 import { accounts } from '@/lib/accounts';
 import { useAuth } from '@/lib/auth';
 import { pushApi } from '@/lib/api.settings';
+import { nearbyApi, type NearbyVisibility } from '@/lib/api.nearby';
 import { SITE_URL } from '@/lib/config';
 import { buildId, checkForUpdate, disablePush, enablePush, hardReload, installApp, installState, pushState } from '@/lib/push';
 import { colors } from '@/lib/theme';
@@ -24,7 +25,7 @@ import { timeAgo } from '@/lib/time';
 
 const site = (path: string) => void Linking.openURL(`${SITE_URL || 'https://txillapp.com'}${path}`);
 
-type SheetName = null | 'switch' | 'gender' | 'edit' | 'type' | 'comments' | 'gifts' | 'connections' | 'storyReplies' | 'hidden' | 'mentions' | 'dms' | 'closeFriends' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'blocked' | 'password' | 'devices' | 'delete' | 'logout' | 'contacts' | 'calls';
+type SheetName = null | 'switch' | 'gender' | 'edit' | 'type' | 'comments' | 'gifts' | 'connections' | 'storyReplies' | 'hidden' | 'mentions' | 'dms' | 'closeFriends' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'blocked' | 'password' | 'devices' | 'delete' | 'logout' | 'contacts' | 'calls' | 'nearby';
 
 const VIEWERS: { value: Viewers; title: string; text: string }[] = [
   { value: 'everyone', title: 'Todos', text: 'Qualquer pessoa que veja a publicação.' },
@@ -41,10 +42,17 @@ const whoLabel = (w: Who) => WHO.find((o) => o.value === w)!.title;
 const CALLS: { value: CallsWho; title: string; text: string }[] = [
   { value: 'everyone', title: 'Todos', text: 'Qualquer pessoa te pode ligar.' },
   { value: 'following', title: 'Quem eu sigo', text: 'Só as pessoas que segues.' },
-  { value: 'mutual', title: 'Amigos mútuos', text: 'Só quem segues e te segue de volta.' },
+  { value: 'mutual', title: 'Amigos mútuos', text: 'Só quem segues e te segue de volta. É a opção de origem.' },
   { value: 'off', title: 'Ninguém', text: 'Ninguém te liga pelo Txillapp.' },
 ];
-const callsLabel = (w: CallsWho) => CALLS.find((o) => o.value === w)?.title ?? 'Todos';
+const callsLabel = (w: CallsWho) => CALLS.find((o) => o.value === w)?.title ?? 'Amigos mútuos';
+// Os mesmos três níveis do mapa "À tua volta" (perto.tsx).
+const NEARBY: { value: NearbyVisibility; title: string; text: string }[] = [
+  { value: 'off', title: 'Ninguém', text: 'Ficas invisível. Vês na mesma o que há à volta.' },
+  { value: 'mutual', title: 'Amigos mútuos', text: 'Só quem segues e te segue de volta.' },
+  { value: 'following', title: 'Quem eu sigo', text: 'As pessoas que tu segues.' },
+];
+const nearbyLabel = (v: NearbyVisibility) => NEARBY.find((o) => o.value === v)?.title ?? 'Ninguém';
 const CONNECTIONS = [
   { value: 'everyone', title: 'Todos', text: 'Qualquer pessoa que veja o teu perfil.' },
   { value: 'followers', title: 'Só seguidores', text: 'Quem te segue.' },
@@ -54,7 +62,7 @@ const GENDERS: { value: Gender; label: string }[] = [{ value: 'female', label: '
 const genderLabel = (g: Gender) => GENDERS.find((x) => x.value === g)?.label ?? (g === 'other' ? 'Outro' : g === 'unspecified' ? 'Prefiro não dizer' : '');
 
 const NOTIFY_LABELS: Record<string, [string, string]> = {
-  messages: ['Mensagens', 'Conversas e grupos'],
+  messages: ['Mensagens', 'Conversas e TxillGroups'],
   follows: ['Seguidores', 'Quem começa a seguir-te e pedidos aceites'],
   comments: ['Comentários e respostas', 'Na tua publicação, no teu comentário e nos teus mimos'],
   mentions: ['Menções e marcações', 'Quando alguém te menciona ou te identifica'],
@@ -62,6 +70,8 @@ const NOTIFY_LABELS: Record<string, [string, string]> = {
   gifts: ['Brindes', 'Quando te oferecem Txills'],
   reactions: ['Reações', 'Nas tuas notas e nos teus Zás'],
   invites: ['Convites', 'Quando alguém entra com o teu convite'],
+  calls: ['Chamadas perdidas', 'Quando te ligam e não atendes (o toque de quem liga não se desliga aqui)'],
+  venues: ['Locais que geres', 'Convites para gerir uma página e pagamentos em Txills recebidos'],
 };
 
 function IconDot({ children, danger }: { children: ReactNode; danger?: boolean }) {
@@ -191,7 +201,7 @@ function PushToggle() {
     state === 'none' ? 'Instala a app no ecrã principal e abre-a por lá (no iPhone: iOS 16.4 ou mais recente).'
     : state === 'off-server' ? 'Ainda não estão ativas neste servidor.'
     : state === 'denied' ? 'Bloqueadas no browser: ativa-as nas definições do site.'
-    : err || 'Avisa-te de mensagens, comentários e pedidos, sem mostrar o conteúdo.';
+    : err || 'Avisa-te de chamadas, mensagens, comentários e pedidos, sem mostrar o conteúdo.';
   const on = state === 'on';
   const available = state === 'on' || state === 'ask';
   return (
@@ -266,10 +276,25 @@ export default function Settings() {
 
   const profile = useQuery({ queryKey: ['profile', user!.username], queryFn: () => api.profile(user!.username) });
   const privacy = useQuery({ queryKey: ['privacy'], queryFn: api.privacy });
+  // "Esconder o meu IP" só aparece quando o servidor de chamadas (TURN) está ligado: sem ele a chamada não ligaria.
+  const ice = useQuery({ queryKey: ['calls-ice'], queryFn: () => import('@/lib/calls/api').then((m) => m.callsApi.ice()), staleTime: 30 * 60_000, retry: false });
+  const relayAvailable = (ice.data?.iceServers.length ?? 0) > 1;
   const stories = useQuery({ queryKey: ['story-settings'], queryFn: api.storySettings });
   const closeFriends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
   const blocked = useQuery({ queryKey: ['blocked'], queryFn: api.blocked });
   const ver = useQuery({ queryKey: ['verification'], queryFn: api.verificationStatus, staleTime: 60_000 });
+  // Aparecer em À tua volta: a mesma chave de cache do mapa, para os dois ecrãs ficarem iguais.
+  const nearby = useQuery({ queryKey: ['nearby-settings'], queryFn: nearbyApi.settings, staleTime: 5 * 60_000, retry: false });
+  async function saveNearby(v: NearbyVisibility) {
+    try {
+      const r = await nearbyApi.setSettings(v);
+      qc.setQueryData(['nearby-settings'], { ...(nearby.data ?? {}), visibility: r?.visibility ?? v });
+      if (v === 'off') void nearbyApi.clearPresence().catch(() => undefined);
+      void qc.invalidateQueries({ queryKey: ['nearby'] });
+    } catch (e) {
+      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
+    }
+  }
   const p = privacy.data;
 
   async function savePrivacy(patch: Partial<PrivacySettings>) {
@@ -343,6 +368,7 @@ export default function Settings() {
           <Row icon={ic('users')} label="Quem vê seguidores e a quem sigo" value={p ? CONNECTIONS.find((c) => c.value === p.showConnections)!.title : '…'} onPress={() => setSheet('connections')} />
           {p ? <Toggle icon={ic('sparkles')} label="Aparecer nas sugestões" text="Outras pessoas podem descobrir-te." on={p.suggestable} onChange={(v) => void savePrivacy({ suggestable: v })} /> : null}
           {p ? <Toggle icon={ic('eye')} label="Mostrar quando estou online" text="Aparece Online ou Visto há… no chat. Se desligares, também não vês o dos outros." on={p.showPresence} onChange={(v) => void savePrivacy({ showPresence: v })} /> : null}
+          {nearby.data && nearby.data.canEnable !== false ? <Row icon={ic('map-pin')} label="Aparecer em À tua volta" value={nearbyLabel(nearby.data.visibility)} onPress={() => setSheet('nearby')} /> : null}
         </Section>
 
         <Section title="Interações">
@@ -351,7 +377,8 @@ export default function Settings() {
           <Row icon={ic('cheers')} label="Quem vê quem brindou" value={p ? viewersLabel(p.cheersVisible) : '…'} onPress={() => setSheet('cheersVisible')} />
           <Row icon={ic('gift')} label="Quem vê quem presenteou" value={p ? viewersLabel(p.giftsVisible) : '…'} onPress={() => setSheet('giftsVisible')} />
           <Row icon={ic('mail')} label="Quem pode enviar-me mensagens" value={p ? whoLabel(p.dmsAllowed) : '…'} onPress={() => setSheet('dms')} />
-          <Row icon={ic('phone')} label="Quem me pode ligar" value={p ? callsLabel(p.callsAllowed ?? 'everyone') : '…'} onPress={() => setSheet('calls')} />
+          <Row icon={ic('phone')} label="Quem me pode ligar" value={p ? callsLabel(p.callsAllowed ?? 'mutual') : '…'} onPress={() => setSheet('calls')} />
+          {p && relayAvailable ? <Toggle icon={ic('shield')} label="Esconder o meu IP nas chamadas" text="A chamada passa sempre pelo servidor do Txillapp, e quem está do outro lado não vê o teu endereço. Pode ficar um pouco mais lenta." on={!!p.callsRelayOnly} onChange={(v) => void savePrivacy({ callsRelayOnly: v })} /> : null}
           <Row icon={ic('at')} label="Quem pode mencionar-me" value={p ? whoLabel(p.mentionsAllowed) : '…'} onPress={() => setSheet('mentions')} />
           <Row icon={ic('gift')} label="Quem pode presentear-me" value={p ? whoLabel(p.giftsAllowed) : '…'} onPress={() => setSheet('gifts')} />
         </Section>
@@ -379,7 +406,7 @@ export default function Settings() {
         <Section title="O que me pode notificar"><NotifyPrefs /></Section>
 
         <Section title="Privacidade dos dados">
-          {p ? <Toggle icon={ic('info')} label="Ajudar a melhorar o Txillapp" text="Estatísticas de uso anónimas, só nossas (aberturas, ecrãs, erros). Nunca o conteúdo." on={p.shareAnalytics} onChange={(v) => void savePrivacy({ shareAnalytics: v })} /> : null}
+          {p ? <Toggle icon={ic('info')} label="Ajudar a melhorar o Txillapp" text="Estatísticas de uso só nossas, sem terceiros (aberturas, ecrãs, erros). Nunca o conteúdo." on={p.shareAnalytics} onChange={(v) => void savePrivacy({ shareAnalytics: v })} /> : null}
         </Section>
 
         <Section title="Segurança">
@@ -439,18 +466,19 @@ export default function Settings() {
       )}
       {sheet === 'edit' && profile.data && <EditProfileSheet profile={profile.data} onClose={close} />}
       {sheet === 'type' && p && (
-        <ChoiceSheet title="Tipo de perfil" intro="Num perfil privado só vê o teu conteúdo quem aprovares; seguir passa a ser um pedido." options={[{ value: 'public', title: 'Público', text: 'Qualquer pessoa vê as tuas publicações e stories.' }, { value: 'private', title: 'Privado', text: 'Só os seguidores aprovados.' }]} value={p.isPrivate ? 'private' : 'public'} onPick={(v) => void savePrivacy({ isPrivate: v === 'private' })} onClose={close} />
+        <ChoiceSheet title="Tipo de perfil" intro="Num perfil privado só vê o teu conteúdo quem aprovares; seguir passa a ser um pedido." options={[{ value: 'public', title: 'Público', text: 'Qualquer pessoa vê as tuas publicações e mimos.' }, { value: 'private', title: 'Privado', text: 'Só os seguidores aprovados.' }]} value={p.isPrivate ? 'private' : 'public'} onPick={(v) => void savePrivacy({ isPrivate: v === 'private' })} onClose={close} />
       )}
       {sheet === 'comments' && p && <ChoiceSheet title="Quem pode comentar" intro="Aplica-se às tuas publicações. Os comentários que já existem mantêm-se." options={WHO} value={p.commentsAllowed} onPick={(v) => void savePrivacy({ commentsAllowed: v })} onClose={close} />}
       {sheet === 'mentions' && p && <ChoiceSheet title="Quem pode mencionar-me" intro="Quem escreve @o-teu-nome e te faz aparecer nas sugestões. Quem eu sigo mantém-se sempre disponível para mim; contas privadas só são mencionadas por quem as segue." options={WHO} value={p.mentionsAllowed} onPick={(v) => void savePrivacy({ mentionsAllowed: v })} onClose={close} />}
       {sheet === 'repostsVisible' && p && <ChoiceSheet title="Quem vê quem repostou" intro="Os números continuam visíveis; isto muda só quem pode ver os nomes." options={VIEWERS} value={p.repostsVisible} onPick={(v) => void savePrivacy({ repostsVisible: v })} onClose={close} />}
       {sheet === 'cheersVisible' && p && <ChoiceSheet title="Quem vê quem brindou" intro="Os números continuam visíveis; isto muda só quem pode ver os nomes." options={VIEWERS} value={p.cheersVisible} onPick={(v) => void savePrivacy({ cheersVisible: v })} onClose={close} />}
       {sheet === 'giftsVisible' && p && <ChoiceSheet title="Quem vê quem presenteou" intro="Os números continuam visíveis; isto muda só quem pode ver os nomes (nunca os valores)." options={VIEWERS} value={p.giftsVisible} onPick={(v) => void savePrivacy({ giftsVisible: v })} onClose={close} />}
-      {sheet === 'dms' && p && <ChoiceSheet title="Quem pode enviar-me mensagens" intro="Só trava conversas novas: as que já existem continuam. As respostas aos teus stories seguem a definição dos stories." options={WHO} value={p.dmsAllowed} onPick={(v) => void savePrivacy({ dmsAllowed: v })} onClose={close} />}
-      {sheet === 'calls' && p && <ChoiceSheet title="Quem me pode ligar" intro="Chamadas de voz e videochamadas. Quem bloqueaste nunca te liga." options={CALLS} value={p.callsAllowed ?? 'everyone'} onPick={(v) => void savePrivacy({ callsAllowed: v })} onClose={close} />}
+      {sheet === 'dms' && p && <ChoiceSheet title="Quem pode enviar-me mensagens" intro="Só trava conversas novas: as que já existem continuam. As respostas aos teus mimos seguem a definição dos mimos." options={WHO} value={p.dmsAllowed} onPick={(v) => void savePrivacy({ dmsAllowed: v })} onClose={close} />}
+      {sheet === 'calls' && p && <ChoiceSheet title="Quem me pode ligar" intro="Chamadas de voz e videochamadas. Quem bloqueaste nunca te liga. O Txillapp não grava chamadas: fica só o registo, que podes apagar em Chamadas." options={CALLS} value={p.callsAllowed ?? 'mutual'} onPick={(v) => void savePrivacy({ callsAllowed: v })} onClose={close} />}
+      {sheet === 'nearby' && nearby.data && <ChoiceSheet title="Aparecer em À tua volta" intro="Quem te pode ver no mapa. Só aparece a zona aproximada (cerca de 1,5 km), nunca o sítio exato, e só enquanto tens o mapa aberto. Some ao fim de 3 horas." options={NEARBY} value={nearby.data.visibility} onPick={(v) => void saveNearby(v)} onClose={close} />}
       {sheet === 'gifts' && p && <ChoiceSheet title="Quem pode presentear-me" options={WHO} value={p.giftsAllowed} onPick={(v) => void savePrivacy({ giftsAllowed: v })} onClose={close} />}
       {sheet === 'connections' && p && <ChoiceSheet title="Quem vê seguidores e a quem sigo" intro="Os números continuam visíveis; muda só quem pode ver as listas." options={CONNECTIONS} value={p.showConnections} onPick={(v) => void savePrivacy({ showConnections: v })} onClose={close} />}
-      {sheet === 'storyReplies' && stories.data && <ChoiceSheet title="Respostas aos mimos" intro="Quem pode responder ou reagir aos teus stories." options={WHO} value={stories.data.replies} onPick={async (v) => qc.setQueryData(['story-settings'], await api.setStoryReplies(v))} onClose={close} />}
+      {sheet === 'storyReplies' && stories.data && <ChoiceSheet title="Respostas aos mimos" intro="Quem pode responder ou reagir aos teus mimos." options={WHO} value={stories.data.replies} onPick={async (v) => qc.setQueryData(['story-settings'], await api.setStoryReplies(v))} onClose={close} />}
       {sheet === 'closeFriends' && <CloseFriendsSheet onClose={close} />}
       {sheet === 'hidden' && <HiddenSheet onClose={close} />}
       {sheet === 'blocked' && <BlockedSheet onClose={close} />}
@@ -484,7 +512,7 @@ function PersonRow({ username, displayName, action, onAction }: { username: stri
   );
 }
 
-/** Pessoas a quem escondo os meus stories. */
+/** Pessoas a quem escondo os meus mimos. */
 function HiddenSheet({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['story-settings'], queryFn: api.storySettings });
@@ -625,7 +653,7 @@ function DeleteSheet({ username, onClose, onDeleted }: { username: string; onClo
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16, gap: 12 }}>
         <View style={{ borderRadius: 16, backgroundColor: '#fef2f2', padding: 16 }}>
           <Text style={{ fontWeight: '700', color: '#7f1d1d', fontSize: 14 }}>Isto não se desfaz.</Text>
-          {['O teu nome, @, bio, foto e email são apagados.', 'As tuas publicações deixam de aparecer.', 'Seguidores, mimos e notificações são removidos.', 'Os movimentos de Txills ficam registados sem dados pessoais.'].map((t) => <Text key={t} style={{ marginTop: 4, fontSize: 14, lineHeight: 20, color: '#7f1d1d' }}>• {t}</Text>)}
+          {['O teu nome, @, bio, foto e email são apagados.', 'Publicações, fotos, mimos, conversas, chamadas, seguidores e notificações são apagados.', 'Também saem check-ins, músicas favoritas, aparelhos, locais que segues, as tuas respostas e votos nos TxillGroups e tudo o que é do mapa.', 'Sais dos teus TxillGroups. Os locais que criaste passam para o administrador mais antigo; sem ele, deixam de aparecer.', 'Comentários em posts de outras pessoas e mensagens em TxillGroups ficam como «Conta eliminada».', 'Os movimentos de Txills ficam registados sem dados pessoais.'].map((t) => <Text key={t} style={{ marginTop: 4, fontSize: 14, lineHeight: 20, color: '#7f1d1d' }}>• {t}</Text>)}
         </View>
         <TextInput value={confirm} onChangeText={setConfirm} placeholder={`Escreve @${username} para confirmar`} placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} style={st.input} accessibilityLabel="Confirmar o teu @" />
         <TextInput value={password} onChangeText={setPassword} placeholder="A tua senha (se a conta tiver)" placeholderTextColor={colors.zinc500} secureTextEntry autoComplete="current-password" style={st.input} accessibilityLabel="Senha" />

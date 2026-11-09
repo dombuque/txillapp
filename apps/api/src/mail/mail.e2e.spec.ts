@@ -6,6 +6,7 @@ import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
 import { MailService } from './mail.service';
+import { VerifyReminderService } from '../reminders/verify-reminder.service';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
@@ -57,7 +58,7 @@ describe('e-mail: confirmar conta e recuperar senha (integração)', () => {
     expect(m.text).toContain('https://txillapp.com/verify-email?token=');
     expect(m.html).toContain('icon-192.png');
 
-    expect((await api().get('/api/v1/auth/email/status').set(u.auth).expect(200)).body).toEqual({ required: true, verified: false });
+    expect((await api().get('/api/v1/auth/email/status').set(u.auth).expect(200)).body).toEqual({ required: true, verified: false, email: u.email });
     // Ver a app continua a funcionar; publicar e comentar não.
     await api().get('/api/v1/feed').set(u.auth).expect(200);
     const blocked = await api().post('/api/v1/posts').set(u.auth).send({ body: 'Olá' }).expect(403);
@@ -113,5 +114,48 @@ describe('e-mail: confirmar conta e recuperar senha (integração)', () => {
     // O access token antigo ainda vale até expirar (10 min), mas a sessão de renovação foi revogada.
     const { rows } = await pool.query('SELECT count(*)::int AS n FROM identity.sessions WHERE user_id = $1 AND revoked_at IS NULL', [u.id]);
     expect(rows[0].n).toBe(1); // só a do login novo
+  });
+
+  it('contas por ativar: lembrete por e-mail ao fim de 1, 3 e 7 dias, nunca mais de três vezes', async () => {
+    const u = await signup('lembra');
+    await mailTo(u.email, 1); // o e-mail do registo
+    const rem = app.get(VerifyReminderService);
+    // A base de testes acumula contas por ativar de outras corridas: ficam fora para o teste ver só esta.
+    await pool.query('UPDATE identity.users SET verify_reminders = 3 WHERE id <> $1 AND email_verified_at IS NULL', [u.id]);
+    const age = (days: number) => pool.query(`UPDATE identity.users SET created_at = now() - make_interval(days => $2), verify_reminded_at = NULL WHERE id = $1`, [u.id, days]);
+    const count = async () => (await pool.query('SELECT verify_reminders AS n FROM identity.users WHERE id = $1', [u.id])).rows[0].n as number;
+
+    await rem.run(); // conta com minutos: ainda não
+    expect(await count()).toBe(0);
+    await age(2);
+    await rem.run();
+    expect(await count()).toBe(1);
+    const m = await mailTo(u.email, 2);
+    expect(m.text).toContain('/verify-email?token=');
+    await rem.run(); // o 2.º só ao 3.º dia
+    expect(await count()).toBe(1);
+    await age(4); await rem.run();
+    await age(8); await rem.run();
+    await age(30); await rem.run();
+    expect(await count()).toBe(3);
+
+    // Conta ativada: não recebe lembretes.
+    const v = await signup('lembrou');
+    await pool.query(`UPDATE identity.users SET created_at = now() - interval '2 days', email_verified_at = now() WHERE id = $1`, [v.id]);
+    await rem.run();
+    expect((await pool.query('SELECT verify_reminders AS n FROM identity.users WHERE id = $1', [v.id])).rows[0].n).toBe(0);
+  });
+
+  it('corrigir o e-mail enquanto a conta não está ativada: link novo para o novo, o antigo deixa de valer', async () => {
+    const u = await signup('troca');
+    const old = tokenIn((await mailTo(u.email, 1)).text);
+    const novo = `certo${run}@example.com`;
+    expect((await api().post('/api/v1/auth/email/change').set(u.auth).send({ email: novo }).expect(200)).body).toEqual({ sent: true, email: novo });
+    await api().post('/api/v1/auth/email/verify').send({ token: old }).expect(400);
+    const fresh = tokenIn((await mailTo(novo, 1)).text);
+    await api().post('/api/v1/auth/email/verify').send({ token: fresh }).expect(200);
+    expect((await api().get('/api/v1/auth/email/status').set(u.auth).expect(200)).body).toEqual({ required: true, verified: true });
+    // Depois de ativada, já não se muda por aqui.
+    await api().post('/api/v1/auth/email/change').set(u.auth).send({ email: `outro${run}@example.com` }).expect(400);
   });
 });

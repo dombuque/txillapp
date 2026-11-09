@@ -1,15 +1,17 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { FlatList, Linking, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { FlatList, Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator, PontoLoader } from '@/components/PontoLoader';
 import { Empty } from '@/components/Empty';
 import { Icon, type IconName } from '@/components/Icon';
 import { PostCard } from '@/components/PostCard';
 import { StackPage } from '@/components/StackPage';
 import { FollowVenueButton, VenueLogo } from '@/components/VenueCard';
+import { VenuePaySheet } from '@/components/VenuePaySheet';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { eventWhen, nearbyApi } from '@/lib/api.nearby';
 import { KIND_LABEL, ROLE_LABEL, locaisApi, type Venue } from '@/lib/api.locais';
 import { useAuth } from '@/lib/auth';
 import { sized } from '@/lib/config';
@@ -24,7 +26,8 @@ type Tab = 'page' | 'people' | 'about';
  * Quem gere vê o botão Gerir (perfil, gestores, QR, painel).
  */
 export default function VenueScreen() {
-  const { slug = '', k } = useLocalSearchParams<{ slug: string; k?: string }>();
+  // `pagar=1` (e `valor`) abre logo a folha de pagar: o QR de receber do local leva para aqui.
+  const { slug = '', k, pagar, valor } = useLocalSearchParams<{ slug: string; k?: string; pagar?: string; valor?: string }>();
   const router = useRouter();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -32,6 +35,8 @@ export default function VenueScreen() {
   const q = useQuery({ queryKey: ['venue', slug], queryFn: () => locaisApi.venue(slug), retry: false });
   const v = q.data;
   const [tab, setTab] = useState<Tab>('page');
+  // Próximos eventos do local (os mesmos do mapa À tua volta).
+  const events = useQuery({ queryKey: ['venue-events', slug], queryFn: () => nearbyApi.venueEvents(slug), enabled: !!v, staleTime: 60_000, retry: false });
   const pagePosts = useInfiniteQuery({
     queryKey: ['venue-page-posts', slug],
     queryFn: ({ pageParam }) => locaisApi.venuePosts(slug, pageParam),
@@ -54,6 +59,19 @@ export default function VenueScreen() {
   const token = used ? undefined : k || undefined;
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [paying, setPaying] = useState<{ preset?: number } | null>(null);
+  const linkUsed = useRef(false);
+  const canPay = !!v && v.acceptsTxills && !v.mine;
+
+  // Abrir pela ligação /v/<slug>?pagar=1&valor=200 (só uma vez por visita).
+  useEffect(() => {
+    if (!v || linkUsed.current || pagar !== '1') return;
+    linkUsed.current = true;
+    if (v.mine) return;
+    if (!v.acceptsTxills) { setMsg('Este local ainda não aceita pagamentos em Txills.'); return; }
+    const n = Math.floor(Number(valor));
+    setPaying({ preset: Number.isFinite(n) && n >= 1 ? n : undefined });
+  }, [v, pagar, valor]);
 
   async function checkin() {
     if (!token || !v) return;
@@ -85,6 +103,19 @@ export default function VenueScreen() {
   const coverH = Math.min(220, Math.round(win.width * 0.42));
   const head = v && (
     <>
+      {v.mine && v.reviewStatus && v.reviewStatus !== 'approved' ? (
+        <View style={[st.reviewBox, v.reviewStatus === 'rejected' && { backgroundColor: '#fef2f2' }]} accessibilityRole="alert">
+          <Icon name={v.reviewStatus === 'rejected' ? 'alert' : 'clock'} size={20} color={v.reviewStatus === 'rejected' ? colors.red600 : '#b45309'} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={st.reviewTitle}>{v.reviewStatus === 'rejected' ? 'A equipa não aprovou esta página' : 'Página em análise'}</Text>
+            <Text style={st.reviewText}>
+              {v.reviewStatus === 'rejected'
+                ? `${v.reviewNote ? `Motivo: ${v.reviewNote}. ` : ''}Corrige em Gerir e a página volta a ser analisada.`
+                : 'A equipa do Txillapp vai ver a página em breve. Até lá só tu e os gestores a veem: aproveita para pôr o logótipo, a morada e o horário.'}
+            </Text>
+          </View>
+        </View>
+      ) : null}
       <View style={st.coverWrap}>
         {v.coverUrl ? <Image source={{ uri: sized(v.coverUrl, 1080) }} style={[st.cover, { height: coverH }]} contentFit="cover" /> : <View style={[st.cover, { height: coverH, backgroundColor: colors.zinc900 }]} />}
         <View style={st.logoWrap}><View style={st.logoRing}><VenueLogo venue={v} size={84} /></View></View>
@@ -96,6 +127,12 @@ export default function VenueScreen() {
           {v.verified && <VerifiedBadge size={20} tier="verified" />}
         </View>
         <Text style={st.sub}>{KIND_LABEL[v.kind] ?? 'Outro'}{v.city ? ` · ${v.city}` : ''}</Text>
+        {v.acceptsTxills ? (
+          <View style={st.txBadge} accessibilityLabel="Este local aceita pagamentos em Txills">
+            <Icon name="wallet" size={14} color={colors.green700} />
+            <Text style={st.txBadgeText}>Aceita Txills</Text>
+          </View>
+        ) : null}
         <View style={{ marginTop: 10, flexDirection: 'row', gap: 20 }}>
           <Text style={st.small}><Text style={st.num}>{v.followers}</Text> {v.followers === 1 ? 'seguidor' : 'seguidores'}</Text>
           <Text style={st.small}><Text style={st.num}>{v.checkins}</Text> check-ins</Text>
@@ -116,6 +153,13 @@ export default function VenueScreen() {
             </Pressable>
           ) : null}
         </View>
+
+        {canPay ? (
+          <Pressable onPress={() => setPaying({})} style={({ pressed }) => [st.cta, { backgroundColor: colors.brand }, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="button">
+            <Icon name="wallet" size={20} color="#fff" />
+            <Text style={st.ctaText}>Pagar com Txills</Text>
+          </Pressable>
+        ) : null}
 
         {v.invite ? (
           <View style={st.inviteBox}>
@@ -143,6 +187,24 @@ export default function VenueScreen() {
         {!token && !v.checkedIn && <Text style={{ marginTop: 12, fontSize: 12, color: colors.zinc500 }}>Para fazer check-in, lê o QR que está no local.</Text>}
         {msg ? <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: colors.zinc700 }}>{msg}</Text> : null}
       </View>
+
+      {events.data?.length ? (
+        <View style={{ marginTop: 16 }}>
+          <Text style={st.sectionTitle}>Próximos eventos</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
+            {events.data.map((e) => (
+              <Pressable key={e.id} onPress={() => router.push(`/evento/${e.id}` as never)} style={st.event} accessibilityRole="link">
+                <View style={st.eventCover}>
+                  <Icon name="calendar" size={22} color="rgba(255,255,255,0.7)" />
+                  {e.coverUrl ? <Image source={{ uri: sized(e.coverUrl, 480) }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
+                </View>
+                <Text style={st.eventWhen} numberOfLines={1}>{eventWhen(e.startsAt, e.endsAt)}</Text>
+                <Text style={st.eventTitle} numberOfLines={2}>{e.title}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
 
       <View style={st.tabs} accessibilityRole="tablist">
         {([['page', 'Publicações'], ['people', 'A malta aqui'], ['about', 'Sobre']] as const).map(([id, label]) => (
@@ -183,6 +245,7 @@ export default function VenueScreen() {
           renderItem={({ item }) => <PostCard post={item} me={user?.id} />}
         />
       )}
+      {paying && v ? <VenuePaySheet venue={v} preset={paying.preset} onClose={() => setPaying(null)} /> : null}
     </StackPage>
   );
 }
@@ -237,10 +300,20 @@ const st = StyleSheet.create({
   review: { marginTop: 12, borderRadius: 16, backgroundColor: '#fffbeb', paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, fontWeight: '500', color: '#78350f', overflow: 'hidden' },
   cta: { marginTop: 16, height: 48, borderRadius: 999, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   ctaText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  txBadge: { marginTop: 8, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, backgroundColor: '#f0fdf4', paddingHorizontal: 10, paddingVertical: 4 },
+  txBadgeText: { fontSize: 13, fontWeight: '700', color: colors.green700 },
+  sectionTitle: { marginHorizontal: 16, marginBottom: 8, fontSize: 16, fontWeight: '800', color: colors.zinc900 },
+  event: { width: 200, borderRadius: 20, backgroundColor: colors.white, padding: 8, ...cardShadow },
+  eventCover: { height: 100, borderRadius: 14, overflow: 'hidden', backgroundColor: colors.zinc900, alignItems: 'center', justifyContent: 'center' },
+  eventWhen: { marginTop: 8, marginHorizontal: 4, fontSize: 12, fontWeight: '700', color: colors.brand },
+  eventTitle: { marginTop: 2, marginHorizontal: 4, marginBottom: 4, fontSize: 15, fontWeight: '700', color: colors.zinc900 },
   tabs: { marginHorizontal: 16, marginTop: 16, marginBottom: 8, flexDirection: 'row', gap: 8 },
   tab: { flex: 1, height: 38, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   tabOn: { backgroundColor: colors.zinc900 },
   tabText: { fontSize: 14, fontWeight: '700', color: colors.zinc700 },
   aboutRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   aboutIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
+  reviewBox: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', marginHorizontal: 16, marginTop: 12, marginBottom: 4, borderRadius: 16, backgroundColor: '#fffbeb', paddingHorizontal: 16, paddingVertical: 12 },
+  reviewTitle: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
+  reviewText: { fontSize: 14, lineHeight: 19, color: colors.zinc700 },
 });

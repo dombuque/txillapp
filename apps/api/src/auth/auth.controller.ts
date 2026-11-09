@@ -275,6 +275,15 @@ export class AuthController {
     return { sent: await this.auth.sendVerification(req.userId!) };
   }
 
+  /** Corrigir o e-mail enquanto a conta não está ativada (e reenviar o link para o novo). */
+  @Post('email/change')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 3600_000 } })
+  changeEmail(@Req() req: Request & { userId?: string }, @Body(new ZodPipe(z.object({ email: z.string().trim().email().max(254) }))) b: { email: string }) {
+    return this.auth.changeUnverifiedEmail(req.userId!, b.email);
+  }
+
   /** O link do e-mail leva aqui. Público: quem abre o link pode estar noutro aparelho. */
   @Post('email/verify')
   @HttpCode(200)

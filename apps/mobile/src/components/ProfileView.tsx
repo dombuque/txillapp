@@ -278,7 +278,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
         <View style={[styles.private, cardShadow]}>
           <Icon name="lock" size={44} color={colors.zinc300} />
           <Text style={styles.privateTitle}>Esta conta é privada</Text>
-          <Text style={styles.privateText}>{p.requested ? 'Pedido enviado. Quando aceitar, vês as publicações e stories.' : 'Segue para ver as publicações e stories.'}</Text>
+          <Text style={styles.privateText}>{p.requested ? 'Pedido enviado. Quando aceitar, vês as publicações e mimos.' : 'Segue para ver as publicações e mimos.'}</Text>
         </View>
       ) : p.canView ? (
         <View style={{ marginTop: 24, paddingHorizontal: 16 }} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && Math.abs(w - gridW) > 1) setGridW(w); }}>
@@ -340,7 +340,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       {sheet === 'block' && (
         <Sheet title={`Bloquear @${p.username}?`} onClose={() => setSheet(null)}>
           <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
-            {[`${p.displayName} deixa de ver as tuas publicações e stories.`, 'Não te pode seguir nem interagir contigo.', 'Deixam de se seguir um ao outro.', 'Ela é avisada de que foi bloqueada.'].map((t) => (
+            {[`${p.displayName} deixa de ver as tuas publicações e mimos.`, 'Não te pode seguir nem interagir contigo.', 'Deixam de se seguir um ao outro.', 'Ela é avisada de que foi bloqueada.'].map((t) => (
               <View key={t} style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}><Text style={styles.bullet}>{'\u2022'}</Text><Text style={[styles.bullet, { flex: 1 }]}>{t}</Text></View>
             ))}
             <Pressable onPress={() => void block()} style={styles.blockBtn} accessibilityRole="button"><Text style={styles.blockBtnText}>Bloquear</Text></Pressable>

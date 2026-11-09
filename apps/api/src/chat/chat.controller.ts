@@ -8,12 +8,24 @@ import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { MediaService, parseIdParam } from '../media/media.service';
 import { ChatEvents } from './chat.events';
-import { GroupsService } from './groups.service';
+import { GROUP_KINDS, GroupsService } from './groups.service';
 import { ChatService } from './chat.service';
 
 type AuthedReq = Request & { userId?: string };
-const groupSchema = z.object({ name: z.string().trim().min(1).max(40), members: z.array(z.string().trim().min(1).max(40)).min(2).max(49) });
-const renameSchema = z.object({ name: z.string().trim().min(1).max(40) });
+// TxillGroups: nome 2-40, tipo (por omissão 'outro'), descrição e capa opcionais.
+const groupSchema = z.object({
+  name: z.string().trim().min(2).max(40),
+  kind: z.enum(GROUP_KINDS).default('outro'),
+  description: z.string().trim().max(300).optional(),
+  coverMediaId: z.string().uuid().optional(),
+  members: z.array(z.string().trim().min(1).max(40)).min(2).max(49),
+});
+const renameSchema = z.object({
+  name: z.string().trim().min(2).max(40).optional(),
+  kind: z.enum(GROUP_KINDS).optional(),
+  description: z.string().trim().max(300).nullable().optional(),
+  coverMediaId: z.string().uuid().nullable().optional(),
+});
 const membersSchema = z.object({ members: z.array(z.string().trim().min(1).max(40)).min(1).max(49) });
 
 const liveSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
@@ -98,7 +110,7 @@ export class ChatController {
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 3_600_000 } })
   createGroup(@Req() req: AuthedReq, @Body(new ZodPipe(groupSchema)) b: z.infer<typeof groupSchema>) {
-    return this.groups.create(req.userId!, b.name, b.members);
+    return this.groups.create(req.userId!, b.name, b.members, { kind: b.kind, description: b.description, coverMediaId: b.coverMediaId });
   }
 
   @Get('groups')
@@ -125,7 +137,7 @@ export class ChatController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(204)
   renameGroup(@Req() req: AuthedReq, @Param('id') id: string, @Body(new ZodPipe(renameSchema)) b: z.infer<typeof renameSchema>) {
-    return this.groups.rename(req.userId!, id, b.name);
+    return this.groups.update(req.userId!, id, b);
   }
 
   @Post('groups/:id/members')
@@ -169,6 +181,21 @@ export class ChatController {
   @HttpCode(204)
   decline(@Req() req: AuthedReq, @Param('username') username: string) {
     return this.chat.decline(req.userId!, username);
+  }
+
+  /** Marcar como por ler (swipe na lista). */
+  @Post('with/:username/unread')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  markUnread(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.chat.markUnread(req.userId!, username);
+  }
+
+  /** Apagar a conversa só do meu lado. */
+  @Delete('with/:username')
+  @UseGuards(JwtAuthGuard)
+  clear(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.chat.clearForMe(req.userId!, username);
   }
 
   @Post('with/:username/typing')

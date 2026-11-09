@@ -253,12 +253,11 @@ function toolIcon(t: Tool, color: string) {
   }
 }
 
-/** Uma linha do painel de opções da câmara: ícone, nome e o estado atual. */
-function OptRow({ icon, label, value, on, onPress }: { icon: ReactNode; label: string; value?: string; on?: boolean; onPress: () => void }) {
+/** Um botão da barra de cima da câmara (temporizador, grelha, layout, texto): sempre à vista, branco quando ligado. */
+function TopTool({ on, label, onPress, children }: { on?: boolean; label: string; onPress: () => void; children: ReactNode }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [st.optRow, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ selected: !!on }} accessibilityLabel={value ? `${label}: ${value}` : label}>
-      <View style={[st.optIcon, on && { backgroundColor: '#fff' }]}>{icon}</View>
-      <Text style={[st.optValue, on && { color: '#fff' }]} numberOfLines={1}>{value ?? label}</Text>
+    <Pressable onPress={onPress} style={({ pressed }) => [st.round, st.tool, on && { backgroundColor: '#fff' }, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ selected: !!on }} accessibilityLabel={label}>
+      {children}
     </Pressable>
   );
 }
@@ -302,7 +301,6 @@ export function TxCamera({
   const [lookName, setLookName] = useState<string | null>(null);
   const [area, setArea] = useState({ w: 0, h: 0 });
   // O painel de opções (temporizador, grelha, layout, só texto) e a grelha dos terços, que fica lembrada neste aparelho.
-  const [optsOpen, setOptsOpen] = useState(false);
   const [grid, setGrid] = useState(() => { try { return localStorage.getItem('tx_cam_grid') === '1'; } catch { return false; } });
   const toggleGrid = () => setGrid((v) => { try { localStorage.setItem('tx_cam_grid', v ? '0' : '1'); } catch { /* sem armazenamento */ } return !v; });
   // Layout: qual (ou nenhum), o seletor aberto, e as fotos já tiradas (uma por célula).
@@ -730,7 +728,6 @@ export function TxCamera({
     startedAt.current = Date.now();
     r.start(1000);
     setRecording(true);
-    setOptsOpen(false);
     buzz(10);
     timer.current = setInterval(() => {
       const t = Math.floor((Date.now() - startedAt.current) / 1000);
@@ -777,7 +774,6 @@ export function TxCamera({
   useEffect(() => () => { stopSlide(); clearTimeout(focusTimer.current); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   function pressIn(e?: { nativeEvent?: { pageY?: number } }) {
     holding.current = false;
-    setOptsOpen(false);
     if (!ready || countdown !== null || recording || layout !== null || !modes.includes('video')) return;
     slide.current = { y: e?.nativeEvent?.pageY ?? 0, z: zoom };
     window.addEventListener('touchmove', onSlide, { passive: true });
@@ -948,7 +944,7 @@ export function TxCamera({
       <View style={[st.top, { paddingTop: topPad + 6 }]}>
         <Pressable onPress={onClose} style={st.round} accessibilityRole="button" accessibilityLabel="Fechar câmara"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
         {recording ? <View style={st.rec}><View style={st.recDot} /><Text style={st.recText}>{mm}</Text></View> : null}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {!recording && count > 0 && onDone && layout === null ? (
             <Pressable onPress={onDone} style={[st.doneBtn, { height: 44 }]} accessibilityRole="button" accessibilityLabel={`${doneLabel}, ${count}`}>
               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{doneLabel}</Text>
@@ -964,30 +960,22 @@ export function TxCamera({
             </Pressable>
           ) : null}
           {!recording ? (
-            <Pressable onPress={() => setOptsOpen((v) => !v)} style={[st.round, optsOpen && { backgroundColor: 'rgba(255,255,255,0.28)' }]} accessibilityRole="button" accessibilityState={{ expanded: optsOpen }} accessibilityLabel="Opções da câmara">
-              <Icon name="more" size={22} color="#fff" />
-              {delay > 0 && !optsOpen ? <View style={st.delayBadge}><Text style={st.delayText}>{delay}</Text></View> : null}
-            </Pressable>
+            <>
+              <TopTool on={delay > 0} label={delay ? `Temporizador: ${delay} s` : 'Temporizador'} onPress={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))}>
+                <Icon name="clock" size={20} color={delay ? colors.zinc900 : '#fff'} />
+                {delay > 0 ? <View style={st.delayBadge}><Text style={st.delayText}>{delay}</Text></View> : null}
+              </TopTool>
+              <TopTool on={grid} label="Grelha" onPress={toggleGrid}><Glyph name="thirds" size={20} color={grid ? colors.zinc900 : '#fff'} /></TopTool>
+              <TopTool on={layout !== null} label={layout !== null ? `Layout: ${LAYOUTS[layout].name}` : 'Layout'} onPress={() => setLayoutOpen((v) => !v)}>
+                <Icon name="grid" size={20} color={layout !== null ? colors.zinc900 : '#fff'} />
+              </TopTool>
+              {modes.includes('text') && onText && !(count > 0 && onDone) ? (
+                <TopTool label="Só texto" onPress={onText}><Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Aa</Text></TopTool>
+              ) : null}
+            </>
           ) : null}
         </View>
       </View>
-
-      {/* Painel de opções: o que não precisa de estar sempre à vista. */}
-      {optsOpen && !recording ? (
-        <>
-          <Pressable onPress={() => setOptsOpen(false)} style={[StyleSheet.absoluteFill, { zIndex: 7 }]} accessibilityLabel="Fechar opções" />
-          <View style={[st.opts, { top: topPad + 58 }]}>
-            <OptRow icon={<Icon name="clock" size={20} color={delay ? colors.zinc900 : '#fff'} />} label="Temporizador" value={delay ? `${delay} s` : 'Tempo'} on={delay > 0}
-              onPress={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} />
-            <OptRow icon={<Glyph name="thirds" size={20} color={grid ? colors.zinc900 : '#fff'} />} label="Grelha" value="Grelha" on={grid} onPress={toggleGrid} />
-            <OptRow icon={<Icon name="grid" size={20} color={layout !== null ? colors.zinc900 : '#fff'} />} label="Layout" value={layout !== null ? LAYOUTS[layout].name : 'Layout'} on={layout !== null}
-              onPress={() => { setLayoutOpen((v) => !v); setOptsOpen(false); }} />
-            {modes.includes('text') && onText ? (
-              <OptRow icon={<Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Aa</Text>} label="Só texto" value="Texto" onPress={() => { setOptsOpen(false); onText(); }} />
-            ) : null}
-          </View>
-        </>
-      ) : null}
 
       {/* Nome do filtro ao deslizar; contagem do temporizador. */}
       {lookName ? <View pointerEvents="none" style={st.center}><Text style={st.fxName}>{lookName}</Text></View> : null}
@@ -1253,11 +1241,7 @@ const st = StyleSheet.create({
   pTitle: { marginTop: 12, color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' },
   pSub: { marginTop: 4, color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center' },
   open: { marginTop: 20, height: 48, borderRadius: 24, backgroundColor: colors.brand, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
-  opts: { position: 'absolute', right: 12, zIndex: 8, flexDirection: 'row', gap: 2, borderRadius: 22, paddingVertical: 8, paddingHorizontal: 6, backgroundColor: 'rgba(24,24,27,0.9)', boxShadow: '0 10px 30px rgba(0,0,0,0.45)' } as object,
-  optRow: { width: 62, alignItems: 'center', gap: 5 },
-  optIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
-  optLabel: { flex: 1, color: '#fff', fontSize: 14, fontWeight: '700' },
-  optValue: { color: 'rgba(255,255,255,0.72)', fontSize: 11, fontWeight: '700' },
+  tool: { width: 40, height: 40, borderRadius: 20 },
   gridLine: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.45)' },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 3, alignItems: 'center' },
   looks: { paddingHorizontal: 16, gap: 6, alignItems: 'center' },

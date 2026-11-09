@@ -30,10 +30,11 @@ function rtc(): RTC | null {
 /** Esta instalação da app tem o WebRTC (o módulo nativo entrou no build). */
 export const rtcSupported = () => !!rtc();
 
-export function createPeer(iceServers: IceServer[]): PeerLike {
+/** `relayOnly`: só pelo TURN (o outro lado não vê o IP desta pessoa). */
+export function createPeer(iceServers: IceServer[], relayOnly = false): PeerLike {
   const m = rtc();
   if (!m) throw new Error('As chamadas chegam na próxima versão da app. Atualiza o Txillapp.');
-  return new m.RTCPeerConnection({ iceServers, bundlePolicy: 'max-bundle' }) as unknown as PeerLike;
+  return new m.RTCPeerConnection({ iceServers, bundlePolicy: 'max-bundle', iceTransportPolicy: relayOnly ? 'relay' : 'all' }) as unknown as PeerLike;
 }
 
 const videoConstraints = (front: boolean) => ({ facingMode: front ? 'user' : 'environment', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } });

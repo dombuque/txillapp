@@ -1,6 +1,8 @@
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Reel } from '@/app/(tabs)/reels';
 import { Icon } from '@/components/Icon';
@@ -32,7 +34,27 @@ export function ExploreViewer({ items, startId, onClose, title = 'Explorar' }: {
     if (i != null) setActive(i);
   }).current;
   const viewConfig = useRef({ itemVisiblePercentThreshold: 70 }).current;
+  const { width: winW } = useWindowDimensions();
+  // Arrastar para a direita (a partir do lado esquerdo do ecrã, como no iPhone) volta ao Explorar.
+  const dx = useSharedValue(0);
+  const back = Gesture.Pan()
+    .activeOffsetX(18)
+    .failOffsetY([-14, 14])
+    .hitSlop({ left: 0, width: Math.max(80, winW * 0.3) })
+    .onUpdate((e) => { dx.value = Math.max(0, e.translationX); })
+    .onEnd((e) => {
+      if (e.translationX > winW * 0.28 || e.velocityX > 700) dx.value = withTiming(winW, { duration: 180 }, () => runOnJS(onClose)());
+      else dx.value = withTiming(0, { duration: 160 });
+    });
+  const slide = useAnimatedStyle(() => ({ transform: [{ translateX: dx.value }] }));
   if (!start) return null;
+  const swipeBack = (child: React.ReactNode, bg: string) => (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' }}>
+      <GestureDetector gesture={back}>
+        <Animated.View style={[{ flex: 1, backgroundColor: bg }, slide]}>{child}</Animated.View>
+      </GestureDetector>
+    </GestureHandlerRootView>
+  );
 
   const patch = (id: string, p: Partial<Post>) => {
     const merge = (i: Post): Post => (i.id === id ? { ...i, ...p } : i);
@@ -42,8 +64,8 @@ export function ExploreViewer({ items, startId, onClose, title = 'Explorar' }: {
 
   if (immersive) {
     return (
-      <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-        <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center' }}>
+      <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent transparent>
+        {swipeBack(<View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center' }}>
           <View style={{ flex: 1, width: '100%', maxWidth: 576 }} onLayout={(e) => setH(Math.round(e.nativeEvent.layout.height))}>
             <FlatList
               ref={ref}
@@ -69,14 +91,14 @@ export function ExploreViewer({ items, startId, onClose, title = 'Explorar' }: {
               <View style={{ width: 44, height: 44 }} />
             </View>
           </View>
-        </View>
+        </View>, '#000')}
       </Modal>
     );
   }
 
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top, alignItems: 'center' }}>
+    <Modal visible animationType="slide" onRequestClose={onClose} transparent>
+      {swipeBack(<View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top, alignItems: 'center' }}>
         <View style={{ flex: 1, width: '100%', maxWidth: 576, backgroundColor: colors.white }}>
           <View style={st.header}>
             <Pressable onPress={onClose} style={st.back} accessibilityRole="button" accessibilityLabel="Voltar ao Explorar"><Icon name="back" size={24} /></Pressable>
@@ -86,7 +108,7 @@ export function ExploreViewer({ items, startId, onClose, title = 'Explorar' }: {
             {list.map((p) => <PostCard key={p.id} post={p} me={user?.id} />)}
           </ScrollView>
         </View>
-      </View>
+      </View>, colors.white)}
     </Modal>
   );
 }

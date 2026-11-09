@@ -1,3 +1,4 @@
+import { gpsFromExif, gpsFromFile, type PhotoGps } from '@/lib/photoGps';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -115,6 +116,8 @@ export default function Compose() {
   const [body, setBody] = useState('');
   const [place, setPlace] = useState('');
   const [placeGeo, setPlaceGeo] = useState<PlaceGeo | null>(null);
+  /** Onde a primeira foto foi tirada (GPS dos metadados): só serve para sugerir o local. */
+  const [photoAt, setPhotoAt] = useState<PhotoGps | null>(null);
   const [placeOpen, setPlaceOpen] = useState(false);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [busy, setBusy] = useState(false);
@@ -204,6 +207,7 @@ export default function Compose() {
     setAssets([]);
     setPlace('');
     setPlaceGeo(null);
+    setPhotoAt(null);
     setMusic(null);
     setRestored(false);
     setStep('choose');
@@ -228,6 +232,8 @@ export default function Compose() {
         problem = `Máximo de ${MAX_PHOTOS} fotos por publicação`;
         break;
       } else {
+        // Onde foi tirada (lido antes de converter, que apaga os metadados).
+        if (!photoAt) { const g = await gpsFromFile(f); if (g) setPhotoAt(g); }
         // Fotos noutros formatos (HEIC do iPhone, etc.) ou pesadas demais: converte-se a JPEG aqui mesmo, em vez de recusar.
         let file: File = f;
         if (!IMAGE_TYPES.includes(f.type) || f.size > MAX_BYTES) {
@@ -294,9 +300,11 @@ export default function Compose() {
         videoMaxDuration: 60,
         allowsMultipleSelection: source === 'library' && kind === 'photo',
         selectionLimit: Math.max(1, MAX_PHOTOS - assets.length),
+        exif: true,
       };
       const r = await (source === 'camera' ? ImagePicker.launchCameraAsync(opts) : ImagePicker.launchImageLibraryAsync(opts));
       if (r.canceled) return;
+      if (!photoAt) { const g = r.assets.map((a) => gpsFromExif(a.exif as Record<string, unknown> | null)).find(Boolean); if (g) setPhotoAt(g); }
       const next = r.assets.map((a): Asset => ({ uri: a.uri, video: a.type === 'video', mime: a.type === 'video' ? videoMime(a.mimeType) : a.mimeType ?? 'image/jpeg', durationMs: a.duration ?? undefined, tags: [] }));
       // Vídeos com mais de 60 s ficam de fora (o servidor recusa-os).
       const ok = next.filter((a) => !a.video || !a.durationMs || a.durationMs <= 60_500);
@@ -648,7 +656,7 @@ export default function Compose() {
 
       {cameraLayer}
       {pickMusic ? <MusicPicker hint={`${body} ${place}`} onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} /> : null}
-      {placeOpen ? <PlaceSheet value={place} onChange={(v, g) => { setPlace(v); setPlaceGeo(g ?? null); }} onClose={() => setPlaceOpen(false)} /> : null}
+      {placeOpen ? <PlaceSheet value={place} photoAt={photoAt} onChange={(v, g) => { setPlace(v); setPlaceGeo(g ?? null); }} onClose={() => setPlaceOpen(false)} /> : null}
       {tagging !== null && assets[tagging] ? (
         <PhotoTagger src={assets[tagging].uri} tags={assets[tagging].tags} onDone={(tags) => { setAssets((cur) => cur.map((a, n) => (n === tagging ? { ...a, tags } : a))); setTagging(null); }} />
       ) : null}

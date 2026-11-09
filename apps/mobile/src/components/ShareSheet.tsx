@@ -181,7 +181,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
       <View style={st.searchRow}>
         <View style={st.search}>
           <Icon name="search" size={18} color={colors.zinc500} />
-          <TextInput value={term} onChangeText={setTerm} placeholder="Procurar" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar pessoas e grupos" autoCapitalize="none" autoCorrect={false} style={st.input} />
+          <TextInput value={term} onChangeText={setTerm} placeholder="Procurar" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar pessoas e TxillGroups" autoCapitalize="none" autoCorrect={false} style={st.input} />
         </View>
       </View>
 

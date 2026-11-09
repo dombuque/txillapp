@@ -9,7 +9,7 @@ import { MediaService } from '../media/media.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
 
-export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call';
+export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call' | 'poll';
 
 /** Stickers que existem (o desenho está na app; aqui só se confirma que o id é válido). */
 /** Os stickers são desenhados na app; o servidor só confirma que o id tem o feitio certo (a lista cresce sem mexer aqui). */
@@ -131,6 +131,35 @@ export class ChatService {
     );
   }
 
+  /** Marcar a conversa como por ler (só para mim). */
+  async markUnread(me: string, username: string) {
+    const other = await this.userByName(username);
+    const conv = await this.conversation(me, other.id, false);
+    if (!conv) throw new NotFoundException('Conversa não encontrada');
+    await this.pool.query('UPDATE social.conversations SET unread_mark_a = CASE WHEN user_a = $2 THEN true ELSE unread_mark_a END, unread_mark_b = CASE WHEN user_b = $2 THEN true ELSE unread_mark_b END WHERE id = $1', [conv, me]);
+    return { ok: true };
+  }
+
+  /**
+   * Apagar a conversa só do meu lado: as mensagens até agora deixam de aparecer para mim (a outra pessoa continua a vê-las).
+   * Se chegar uma mensagem nova, a conversa volta à lista só com o que vier dali para a frente.
+   */
+  async clearForMe(me: string, username: string) {
+    const other = await this.userByName(username);
+    const conv = await this.conversation(me, other.id, false);
+    if (!conv) throw new NotFoundException('Conversa não encontrada');
+    await this.pool.query(
+      `UPDATE social.conversations c SET
+              cleared_a = CASE WHEN c.user_a = $2 THEN m.last ELSE c.cleared_a END, cleared_b = CASE WHEN c.user_b = $2 THEN m.last ELSE c.cleared_b END,
+              read_a = CASE WHEN c.user_a = $2 THEN m.last ELSE c.read_a END, read_b = CASE WHEN c.user_b = $2 THEN m.last ELSE c.read_b END,
+              unread_mark_a = CASE WHEN c.user_a = $2 THEN false ELSE c.unread_mark_a END, unread_mark_b = CASE WHEN c.user_b = $2 THEN false ELSE c.unread_mark_b END
+         FROM (SELECT max(id::text)::uuid AS last FROM social.messages WHERE conversation_id = $1) m
+        WHERE c.id = $1 AND m.last IS NOT NULL`,
+      [conv, me],
+    );
+    return { ok: true };
+  }
+
   /** Hora a que a pessoa foi vista pela última vez (ao abrir e fechar a app). */
   async touchSeen(userId: string) {
     await this.pool.query('UPDATE identity.users SET last_seen_at = now() WHERE id = $1', [userId]).catch(() => undefined);
@@ -172,10 +201,12 @@ export class ChatService {
               (SELECT count(*) FROM social.messages m
                 WHERE m.conversation_id = c.id AND m.sender_id <> $1 AND m.deleted_at IS NULL
                   AND (CASE WHEN c.user_a = $1 THEN c.read_a ELSE c.read_b END IS NULL
-                       OR m.id > (CASE WHEN c.user_a = $1 THEN c.read_a ELSE c.read_b END)))::int AS unread
+                       OR m.id > (CASE WHEN c.user_a = $1 THEN c.read_a ELSE c.read_b END))
+                  AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR m.id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)))::int AS unread,
+              (CASE WHEN c.user_a = $1 THEN c.unread_mark_a ELSE c.unread_mark_b END) AS unread_mark
          FROM social.conversations c
          JOIN identity.users o ON o.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
-         JOIN LATERAL (SELECT body, kind, sender_id, created_at, view_once FROM social.messages WHERE conversation_id = c.id AND deleted_at IS NULL ORDER BY id DESC LIMIT 1) lm ON true
+         JOIN LATERAL (SELECT body, kind, sender_id, created_at, view_once FROM social.messages WHERE conversation_id = c.id AND deleted_at IS NULL AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)) ORDER BY id DESC LIMIT 1) lm ON true
         WHERE (c.user_a = $1 OR c.user_b = $1) AND NOT ${blockedBetween('o.id', '$1')}
           AND NOT (CASE WHEN c.user_a = $1 THEN c.hidden_a ELSE c.hidden_b END)
         ORDER BY lm.created_at DESC LIMIT 100`,
@@ -196,7 +227,8 @@ export class ChatService {
       },
       /** Pedido de mensagem: quem escreveu não é seguido por mim, eu ainda não respondi nem aceitei. */
       request: !r.i_follow && r.sent_by_me === 0 && !r.accepted && r.last_sender !== me,
-      unread: r.unread as number,
+      /** Marcada por mim como por ler: conta como 1 até a abrir. */
+      unread: Math.max(r.unread as number, r.unread_mark ? 1 : 0),
     }));
   }
 
@@ -226,10 +258,14 @@ export class ChatService {
     if (!conv) return { person, blocked, relation, otherRead: null, items: [], nextCursor: null };
     const { rows } = await this.pool.query(
       `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.view_once, m.viewed_at, m.live_until, m.gift_amount, m.reply_to, m.created_at FROM social.messages m
-        WHERE m.conversation_id = $1 AND m.deleted_at IS NULL AND ($2::uuid IS NULL OR m.id < $2) ORDER BY m.id DESC LIMIT $3`,
-      [conv, cursor ?? null, PAGE + 1],
+        WHERE m.conversation_id = $1 AND m.deleted_at IS NULL AND ($2::uuid IS NULL OR m.id < $2)
+          AND m.id > COALESCE((SELECT CASE WHEN c.user_a = $4 THEN c.cleared_a ELSE c.cleared_b END FROM social.conversations c WHERE c.id = $1), '00000000-0000-0000-0000-000000000000'::uuid)
+        ORDER BY m.id DESC LIMIT $3`,
+      [conv, cursor ?? null, PAGE + 1, me],
     );
     const page = rows.slice(0, PAGE);
+    // Abrir tira a marca de "por ler".
+    if (!cursor) await this.pool.query('UPDATE social.conversations SET unread_mark_a = CASE WHEN user_a = $2 THEN false ELSE unread_mark_a END, unread_mark_b = CASE WHEN user_b = $2 THEN false ELSE unread_mark_b END WHERE id = $1', [conv, me]);
     if (!cursor && page[0]) {
       const upd = await this.pool.query(
         `UPDATE social.conversations SET read_a = CASE WHEN user_a = $2 THEN $3::uuid ELSE read_a END, read_b = CASE WHEN user_b = $2 THEN $3::uuid ELSE read_b END
