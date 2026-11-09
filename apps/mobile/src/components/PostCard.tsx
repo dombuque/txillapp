@@ -25,6 +25,7 @@ import { ShareSheet } from './ShareSheet';
 import { TrackCard } from './TrackCard';
 import { VerifiedBadge } from './VerifiedBadge';
 import { VenueLogo } from './VenueCard';
+import { CheersPour } from './CheersPour';
 import { KIND_LABEL } from '@/lib/api.locais';
 
 /** Toque simples ou duplo: o duplo chama `double`; o simples só corre (com um pequeno atraso) se não vier segundo toque. */
@@ -60,26 +61,9 @@ function useBrindar(post: Post, patch: (p: Partial<Post>) => void) {
       patch({ cheered: post.cheered, cheers: post.cheers });
     }
   }
-  return { burst, brindar };
-}
-
-/** O copo grande que aparece e desvanece no meio do cartão quando se brinda com duplo toque. */
-function BurstCup({ n }: { n: number }) {
-  const v = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (n === 0) return;
-    v.setValue(0);
-    Animated.timing(v, { toValue: 1, duration: 800, useNativeDriver: false }).start();
-  }, [n, v]);
-  if (n === 0) return null;
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', zIndex: 10, opacity: v.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1, 0] }), transform: [{ scale: v.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.5, 1.15, 1.35] }) }] }}
-    >
-      <Icon name="cheers" size={96} strokeWidth={1.6} color={colors.brand} />
-    </Animated.View>
-  );
+  /** Só a animação (quando se brinda pelo botão). */
+  const celebrate = () => setBurst((n) => n + 1);
+  return { burst, brindar, celebrate };
 }
 
 /** O meu perfil vive em /profile; os outros em /u/:username. */
@@ -129,7 +113,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   const width = Math.min(useWindowDimensions().width, 576);
   const router = useRouter();
   const patch = usePatch(post.id);
-  const { burst, brindar } = useBrindar(post, patch);
+  const { burst, brindar, celebrate } = useBrindar(post, patch);
   const tapText = useTap(() => void brindar());
   // Tocar na publicação (fora de botões, ligações e fotos) abre a página dela; num repost com comentário abre o repost (com a original por baixo).
   const goPost = () => { if (!detail) openPost(post); };
@@ -229,13 +213,20 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
         </>
       )}
       {post.music ? <TrackCard track={post.music} autoplay visible={musicOn} /> : null}
-      {quote ? (
-        <QuoteBox original={quote} me={me} onPhoto={() => setViewer({ of: quote, start: 0 })} onOpen={openPost} onDouble={() => void brindar()} />
+      {quote || post.media.length ? (
+        // O brinde aparece no meio da foto ou do vídeo (ou da publicação citada).
+        <View>
+          {quote ? (
+            <QuoteBox original={quote} me={me} onPhoto={() => setViewer({ of: quote, start: 0 })} onOpen={openPost} onDouble={() => void brindar()} />
+          ) : (
+            <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} />
+          )}
+          <CheersPour n={burst} size={Math.min(220, inner * 0.6)} />
+        </View>
       ) : (
-        <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} />
+        <CheersPour n={burst} size={Math.min(200, inner * 0.55)} />
       )}
-      <BurstCup n={burst} />
-      <Actions post={post} mine={mine} patch={patch} open={(k) => setSheet(k === 'gift' ? { gift: giftTo } : k)} people={(k) => setSheet({ people: k })} />
+      <Actions post={post} mine={mine} patch={patch} onCheer={celebrate} open={(k) => setSheet(k === 'gift' ? { gift: giftTo } : k)} people={(k) => setSheet({ people: k })} />
       {/* Publicações que o algoritmo te mostra (de quem não segues): ensina o que queres ver. */}
       {post.feed?.source === 'discover' && !mine ? <TeachBar postId={post.id} onNo={() => setGone(true)} /> : null}
       {viewer && (
@@ -539,11 +530,12 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen }: { media: Po
 }
 
 /** Contadores em cima e, por baixo da linha, as ações com ícone e nome (Brindar, Comentar, Repostar, Presentear, Partilhar). */
-function Actions({ post, mine, patch, open, people }: { post: Post; mine: boolean; patch: (p: Partial<Post>) => void; open: (k: 'comments' | 'repost' | 'gift' | 'share') => void; people: (k: PeopleKind) => void }) {
+function Actions({ post, mine, patch, open, people, onCheer }: { post: Post; mine: boolean; patch: (p: Partial<Post>) => void; open: (k: 'comments' | 'repost' | 'gift' | 'share') => void; people: (k: PeopleKind) => void; /** Brindou pelo botão: mostra a animação. */ onCheer?: () => void }) {
   const cheer = useMutation({
     mutationFn: () => api.cheer(post.id),
     onMutate: () => {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      if (!post.cheered) onCheer?.();
       patch({ cheered: !post.cheered, cheers: post.cheers + (post.cheered ? -1 : 1) }); // responde já, confirma depois
     },
     onSuccess: (r) => patch(r),
