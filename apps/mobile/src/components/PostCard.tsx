@@ -219,7 +219,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
           {quote ? (
             <QuoteBox original={quote} me={me} onPhoto={() => setViewer({ of: quote, start: 0 })} onOpen={openPost} onDouble={() => void brindar()} />
           ) : (
-            <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} />
+            <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={!!post.music} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} />
           )}
           <CheersPour n={burst} size={Math.min(220, inner * 0.6)} />
         </View>
@@ -431,7 +431,7 @@ function GiftedPost({ original, onOpen }: { original: Post; onOpen?: (p: Post) =
 }
 
 /** Fotos e vídeos: arredondados (12), no máximo 448 de altura, com contador, pontos e pessoas identificadas. Tocar numa foto abre-a inteira. */
-function Carousel({ media, width: guess, reelId, onDouble, onOpen }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void; onOpen?: (index: number) => void }) {
+function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = false, mute = false }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void; onOpen?: (index: number) => void; /** O post está à vista: os vídeos arrancam sozinhos. */ inView?: boolean; /** O post tem música: os vídeos ficam sem som. */ mute?: boolean }) {
   const router = useRouter();
   const tap = useTap(onDouble);
   const [i, setI] = useState(0);
@@ -476,7 +476,7 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen }: { media: Po
           extraData={`${i}|${h}|${width}`}
           renderItem={({ item: m, index }) => m.kind === 'video' && media.length > 1 ? (
             // Carrossel com fotos e vídeos: o vídeo toca ali mesmo (uma tcheka, vídeo sozinho, abre no ecrã da Tcheka).
-            <CarouselVideo url={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={width} height={h} active={index === i} onDouble={onDouble} />
+            <CarouselVideo url={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={width} height={h} active={index === i} inView={inView} mute={mute} onDouble={onDouble} />
           ) : (
             <Pressable
               style={{ width, height: h }}
@@ -484,13 +484,11 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen }: { media: Po
               accessibilityRole="button"
               accessibilityLabel={m.kind === 'video' ? 'Abrir a tcheka' : `Ver a foto ${index + 1} de ${media.length} em ecrã inteiro (toca duas vezes para brindar)`}
             >
-              <Image source={{ uri: sized(m.kind === 'video' ? m.posterUrl ?? m.url : m.url, 720) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} accessibilityIgnoresInvertColors />
-              {m.kind === 'video' && (
-                <View style={styles.playWrap} pointerEvents="none">
-                  <View style={styles.play}>
-                    <Icon name="play" size={28} color="#fff" solid />
-                  </View>
-                </View>
+              {m.kind === 'video' ? (
+                // Tcheka no feed: corre sozinha sem som enquanto está à vista; um toque abre-a no ecrã da Tcheka (com som).
+                <CarouselVideo url={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={width} height={h} active inView={inView} mute passive />
+              ) : (
+                <Image source={{ uri: sized(m.url, 720) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} accessibilityIgnoresInvertColors />
               )}
             </Pressable>
           )}

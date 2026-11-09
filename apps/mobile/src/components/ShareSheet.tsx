@@ -42,7 +42,7 @@ const linkOf = (post: Post) => `${SITE_URL || 'https://txillapp.com'}/${isTcheka
  */
 export function ShareSheet({ post, onClose }: { post: Post; onClose: () => void }) {
   return (
-    <Sheet onClose={onClose} full plain>
+    <Sheet onClose={onClose} plain>
       <Body post={post} onClose={onClose} />
     </Sheet>
   );
@@ -177,7 +177,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
   const enc = encodeURIComponent;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View>
       <View style={st.searchRow}>
         <View style={st.search}>
           <Icon name="search" size={18} color={colors.zinc500} />
@@ -185,11 +185,12 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
         </View>
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 8 }} keyboardShouldPersistTaps="handled" scrollEventThrottle={16} onScroll={(e) => { if (sheetScroll) sheetScroll.top.current = e.nativeEvent.contentOffset.y <= 0; }}>
+      <ScrollView style={{ flexGrow: 0, maxHeight: t ? 420 : undefined }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 8 }} keyboardShouldPersistTaps="handled" scrollEventThrottle={16} onScroll={(e) => { if (sheetScroll) sheetScroll.top.current = e.nativeEvent.contentOffset.y <= 0; }}>
         {(direct.isLoading || groups.isLoading) && <ActivityIndicator style={{ marginVertical: 40 }} color={colors.brand} />}
         {!direct.isLoading && list.length === 0 && <Text style={st.none}>{t ? 'Ninguém com esse nome' : 'Ainda não tens conversas. Procura alguém pelo nome.'}</Text>}
         <View style={st.grid}>
-          {list.map((x) => {
+          {/* Sem pesquisa: só as duas primeiras filas (as conversas mais recentes); o resto encontra-se a procurar. */}
+          {(t ? list : list.slice(0, 6)).map((x) => {
             const on = isPicked(x.key);
             return (
               <Pressable key={x.key} onPress={() => toggle(x)} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={x.name} style={({ pressed }) => [st.cell, pressed && { transform: [{ scale: 0.95 }] }]}>
