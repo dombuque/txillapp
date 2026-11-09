@@ -13,6 +13,7 @@ import { SITE_URL } from '@/lib/config';
 import { useDesktop } from '@/lib/desktop';
 import { colors } from '@/lib/theme';
 import { CallIcon } from './CallIcons';
+import { TxFrame } from './TxFrame';
 
 const GREEN = '#22c55e';
 const RED = '#ef4444';
@@ -57,13 +58,13 @@ function CallScreen({ c }: { c: CallState }) {
     c.phase === 'outgoing' ? <Outgoing c={c} /> :
     c.phase === 'ended' ? <Ended c={c} /> :
     videoLayout ? <VideoCall c={c} /> : <VoiceCall c={c} />;
-  if (!desktop) return <View style={st.full}>{body}</View>;
+  if (!desktop) return <View style={st.full}>{body}<TxFrame /></View>;
   const panel = videoLayout
     ? { width: Math.min(960, width - 96), height: Math.min(640, height - 96) }
     : { width: 420, height: Math.min(720, height - 64) };
   return (
     <View style={st.backdrop}>
-      <View style={[st.panel, panel]}>{body}</View>
+      <View style={[st.panel, panel]}>{body}<TxFrame panel /></View>
     </View>
   );
 }

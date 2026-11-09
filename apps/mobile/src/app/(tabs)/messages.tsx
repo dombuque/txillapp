@@ -18,6 +18,8 @@ import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
+import { callLabel } from '@/components/ChatBubbles';
+
 function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, group = false) {
   const you = m.fromMe ? 'Tu: ' : '';
   if (m.kind === 'image') return `${you}${m.body || 'Foto'}`;
@@ -26,6 +28,7 @@ function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, g
   if (m.kind === 'post') return `${you}Partilhou uma publicação`;
   if (m.kind === 'gift') return `${m.fromMe ? 'Tu: ' : ''}Presente`;
   if (m.kind === 'sticker') return `${you}Sticker`;
+  if (m.kind === 'call') return callLabel(m.body, m.fromMe).text;
   if (m.kind === 'location') return `${you}Localização`;
   if (m.kind === 'story_reaction') return `${m.fromMe ? 'Reagiste ao mimo' : 'Reagiu ao teu mimo'}: ${REACTIONS.find((x) => x.id === m.body)?.label ?? m.body}`;
   if (m.kind === 'story_reply') return `${m.fromMe ? 'Respondeste ao mimo' : 'Respondeu ao teu mimo'}: ${m.body}`;

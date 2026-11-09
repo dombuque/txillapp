@@ -256,10 +256,9 @@ function toolIcon(t: Tool, color: string) {
 /** Uma linha do painel de opções da câmara: ícone, nome e o estado atual. */
 function OptRow({ icon, label, value, on, onPress }: { icon: ReactNode; label: string; value?: string; on?: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [st.optRow, pressed && { backgroundColor: 'rgba(255,255,255,0.08)' }]} accessibilityRole="button" accessibilityState={{ selected: !!on }} accessibilityLabel={value ? `${label}: ${value}` : label}>
+    <Pressable onPress={onPress} style={({ pressed }) => [st.optRow, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ selected: !!on }} accessibilityLabel={value ? `${label}: ${value}` : label}>
       <View style={[st.optIcon, on && { backgroundColor: '#fff' }]}>{icon}</View>
-      <Text style={st.optLabel}>{label}</Text>
-      {value ? <Text style={[st.optValue, on && { color: '#fff' }]}>{value}</Text> : null}
+      <Text style={[st.optValue, on && { color: '#fff' }]} numberOfLines={1}>{value ?? label}</Text>
     </Pressable>
   );
 }
@@ -926,15 +925,11 @@ export function TxCamera({
       {/* Sombras suaves em cima e em baixo, para os controlos se lerem sobre qualquer cena. */}
       <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, top: 0, height: topPad + 90, backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)', zIndex: 1 })} />
       <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: ctrlH + 90, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)', zIndex: 1 })} />
-      {/* O que a foto vai apanhar: fora da moldura fica escurecido; cantos discretos a coral; a grelha dos terços, se ligada. */}
+      {/* O que a foto vai apanhar: fora da moldura fica escurecido; a grelha dos terços, se ligada. */}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 2 }]}>
         {layout === null && cap.w > 0 && (cap.w < area.w - 1 || cap.h < area.h - 1) ? (
           <>
             <View style={web({ position: 'absolute', left: cap.x, top: cap.y, width: cap.w, height: cap.h, borderRadius: 12, boxShadow: '0 0 0 9999px rgba(0,0,0,0.42)' })} />
-            <View style={[st.corner, { left: cap.x, top: cap.y, borderTopWidth: 2.5, borderLeftWidth: 2.5, borderTopLeftRadius: 12 }]} />
-            <View style={[st.corner, { left: cap.x + cap.w - 24, top: cap.y, borderTopWidth: 2.5, borderRightWidth: 2.5, borderTopRightRadius: 12 }]} />
-            <View style={[st.corner, { left: cap.x, top: cap.y + cap.h - 24, borderBottomWidth: 2.5, borderLeftWidth: 2.5, borderBottomLeftRadius: 12 }]} />
-            <View style={[st.corner, { left: cap.x + cap.w - 24, top: cap.y + cap.h - 24, borderBottomWidth: 2.5, borderRightWidth: 2.5, borderBottomRightRadius: 12 }]} />
           </>
         ) : null}
         {grid && ready && guide.w > 0 ? (
@@ -969,8 +964,8 @@ export function TxCamera({
             </Pressable>
           ) : null}
           {!recording ? (
-            <Pressable onPress={() => setOptsOpen((v) => !v)} style={[st.round, optsOpen && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityState={{ expanded: optsOpen }} accessibilityLabel="Opções da câmara">
-              <Icon name="more" size={22} color={optsOpen ? colors.zinc900 : '#fff'} />
+            <Pressable onPress={() => setOptsOpen((v) => !v)} style={[st.round, optsOpen && { backgroundColor: 'rgba(255,255,255,0.28)' }]} accessibilityRole="button" accessibilityState={{ expanded: optsOpen }} accessibilityLabel="Opções da câmara">
+              <Icon name="more" size={22} color="#fff" />
               {delay > 0 && !optsOpen ? <View style={st.delayBadge}><Text style={st.delayText}>{delay}</Text></View> : null}
             </Pressable>
           ) : null}
@@ -982,13 +977,13 @@ export function TxCamera({
         <>
           <Pressable onPress={() => setOptsOpen(false)} style={[StyleSheet.absoluteFill, { zIndex: 7 }]} accessibilityLabel="Fechar opções" />
           <View style={[st.opts, { top: topPad + 58 }]}>
-            <OptRow icon={<Icon name="clock" size={20} color={delay ? colors.zinc900 : '#fff'} />} label="Temporizador" value={delay ? `${delay} s` : 'Desligado'} on={delay > 0}
+            <OptRow icon={<Icon name="clock" size={20} color={delay ? colors.zinc900 : '#fff'} />} label="Temporizador" value={delay ? `${delay} s` : 'Tempo'} on={delay > 0}
               onPress={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} />
-            <OptRow icon={<Glyph name="thirds" size={20} color={grid ? colors.zinc900 : '#fff'} />} label="Grelha" value={grid ? 'Ligada' : 'Desligada'} on={grid} onPress={toggleGrid} />
-            <OptRow icon={<Icon name="grid" size={20} color={layout !== null ? colors.zinc900 : '#fff'} />} label="Layout" value={layout !== null ? LAYOUTS[layout].name : 'Uma foto'} on={layout !== null}
+            <OptRow icon={<Glyph name="thirds" size={20} color={grid ? colors.zinc900 : '#fff'} />} label="Grelha" value="Grelha" on={grid} onPress={toggleGrid} />
+            <OptRow icon={<Icon name="grid" size={20} color={layout !== null ? colors.zinc900 : '#fff'} />} label="Layout" value={layout !== null ? LAYOUTS[layout].name : 'Layout'} on={layout !== null}
               onPress={() => { setLayoutOpen((v) => !v); setOptsOpen(false); }} />
             {modes.includes('text') && onText ? (
-              <OptRow icon={<Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Aa</Text>} label="Só texto" onPress={() => { setOptsOpen(false); onText(); }} />
+              <OptRow icon={<Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Aa</Text>} label="Só texto" value="Texto" onPress={() => { setOptsOpen(false); onText(); }} />
             ) : null}
           </View>
         </>
@@ -1061,8 +1056,9 @@ export function TxCamera({
             {!recording ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.kinds} accessibilityRole="tablist">
                 {kinds.map((k) => (
-                  <Pressable key={k.id} onPress={() => onKind?.(k.id)} style={[st.kindChip, kind === k.id && st.kindChipOn]} accessibilityRole="tab" accessibilityState={{ selected: kind === k.id }} hitSlop={6}>
+                  <Pressable key={k.id} onPress={() => onKind?.(k.id)} style={st.kindChip} accessibilityRole="tab" accessibilityState={{ selected: kind === k.id }} hitSlop={6}>
                     <Text style={[st.kindText, kind === k.id && st.kindOn]}>{k.label.toUpperCase()}</Text>
+                    <View style={[st.kindDot, kind !== k.id && { opacity: 0 }]} />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -1073,7 +1069,7 @@ export function TxCamera({
           <View style={st.side}>
             {!recording && (
               <GalleryPick onFiles={(f) => void fillFromFiles(f)} onOpen={openGallery} style={st.galleryThumb}>
-                {thumbs && thumbs.length ? dom('img', { src: thumbs[thumbs.length - 1], alt: 'Galeria', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: 10 } }) : <Icon name="images" size={22} color="#fff" strokeWidth={2} />}
+                {thumbs && thumbs.length ? dom('img', { src: thumbs[thumbs.length - 1], alt: 'Galeria', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } }) : <Icon name="images" size={22} color="#fff" strokeWidth={2} />}
               </GalleryPick>
             )}
           </View>
@@ -1257,11 +1253,11 @@ const st = StyleSheet.create({
   pTitle: { marginTop: 12, color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' },
   pSub: { marginTop: 4, color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center' },
   open: { marginTop: 20, height: 48, borderRadius: 24, backgroundColor: colors.brand, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
-  opts: { position: 'absolute', right: 12, zIndex: 8, width: 236, borderRadius: 18, padding: 6, backgroundColor: 'rgba(24,24,27,0.94)', boxShadow: '0 10px 30px rgba(0,0,0,0.45)' } as object,
-  optRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 8 },
+  opts: { position: 'absolute', right: 12, zIndex: 8, flexDirection: 'row', gap: 2, borderRadius: 22, paddingVertical: 8, paddingHorizontal: 6, backgroundColor: 'rgba(24,24,27,0.9)', boxShadow: '0 10px 30px rgba(0,0,0,0.45)' } as object,
+  optRow: { width: 62, alignItems: 'center', gap: 5 },
   optIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   optLabel: { flex: 1, color: '#fff', fontSize: 14, fontWeight: '700' },
-  optValue: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '600' },
+  optValue: { color: 'rgba(255,255,255,0.72)', fontSize: 11, fontWeight: '700' },
   gridLine: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.45)' },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 3, alignItems: 'center' },
   looks: { paddingHorizontal: 16, gap: 6, alignItems: 'center' },
@@ -1281,14 +1277,13 @@ const st = StyleSheet.create({
   hint: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600', marginBottom: 10 },
   thumb: { width: 44, height: 44, borderRadius: 8, overflow: 'hidden', borderWidth: 2, borderColor: colors.brand, backgroundColor: '#222' },
   kinds: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingHorizontal: 12 },
-  kindChip: { height: 30, borderRadius: 15, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
-  kindChipOn: { backgroundColor: 'rgba(0,0,0,0.45)' },
-  galleryThumb: { width: 46, height: 46, borderRadius: 12, borderWidth: 2, borderColor: '#fff', overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.3)' },
-  flipBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(0,0,0,0.32)', alignItems: 'center', justifyContent: 'center' },
+  kindChip: { height: 34, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  kindDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.brand },
+  galleryThumb: { width: 48, height: 48, borderRadius: 24, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.38)' },
+  flipBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.38)', alignItems: 'center', justifyContent: 'center' },
   cropOk: { height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: colors.brand, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   cropIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
-  corner: { position: 'absolute', width: 24, height: 24, borderColor: colors.brand, opacity: 0.85 },
-  kindText: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
+  kindText: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '700', letterSpacing: 0.8, textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 4 },
   kindOn: { color: '#fff' },
   doneBtn: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 23, backgroundColor: colors.brand, paddingHorizontal: 16 },
   doneCount: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.28)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },

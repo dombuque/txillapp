@@ -244,6 +244,7 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     if (!upd.rowCount) throw new ConflictException('Esta chamada já não está a tocar');
     this.stopTimer(callId);
     this.emit(c.caller.id, 'declined', c, c.callee);
+    this.logToChat(c.caller.id, c.callee.id, c.video, 'declined', null);
     let messageSent = false;
     const text = message?.trim();
     if (text) {
@@ -268,6 +269,8 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
       if (upd.rowCount) {
         this.stopTimer(callId);
         this.emit(other.id, 'ended', c, self, { reason: status });
+        // Quem ligou desistiu: na conversa fica como perdida (como no WhatsApp); quem recebe também recusou → recusada.
+        this.logToChat(c.caller.id, c.callee.id, c.video, status === 'cancelled' ? 'missed' : 'declined', null);
         // Quem ligou desistiu antes de atenderem: para quem recebia, é uma chamada perdida.
         if (status === 'cancelled') void this.notifications.notify({ userId: c.callee.id, actorId: c.caller.id, kind: 'missed_call', data: { callId, video: c.video } });
         return { status, durationS: null };
@@ -282,12 +285,19 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
       if (upd.rows[0]) {
         this.offlineSince.delete(callId);
         this.emit(other.id, 'ended', c, self, { reason: 'ended' });
-        return { status: 'ended', durationS: Math.max(0, Math.round(Number(upd.rows[0].d))) };
+        const durationS = Math.max(0, Math.round(Number(upd.rows[0].d)));
+        this.logToChat(c.caller.id, c.callee.id, c.video, 'ended', durationS);
+        return { status: 'ended', durationS };
       }
       return this.end(me, callId);
     }
     // Já tinha terminado: desligar outra vez não faz mal.
     return { status: c.status, durationS: await this.durationOf(callId) };
+  }
+
+  /** Deixa a chamada registada na conversa dos dois (nunca falha a ação principal). */
+  private logToChat(callerId: string, calleeId: string, video: boolean, status: string, durationS: number | null) {
+    void this.chat.logCall(callerId, calleeId, { video, status, durationS }).catch((e) => this.log.warn(`registo da chamada no chat falhou: ${(e as Error).message}`));
   }
 
   private async durationOf(callId: string): Promise<number | null> {
@@ -322,6 +332,7 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
       const c = { id, video: r.video as boolean };
       this.emit(callee.id, 'ended', c, caller, { reason: 'missed' });
       this.emit(caller.id, 'ended', c, callee, { reason: 'missed' });
+      this.logToChat(caller.id, callee.id, c.video, 'missed', null);
       await this.notifications.notify({ userId: callee.id, actorId: caller.id, kind: 'missed_call', data: { callId: id, video: c.video } });
     }
   }
@@ -357,12 +368,13 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     for (const id of lost) {
       this.offlineSince.delete(id);
       const r = (
-        await this.pool.query(`UPDATE social.calls SET status = 'ended', ended_at = now() WHERE id = $1 AND status = 'active' RETURNING video, caller_id, callee_id`, [id])
+        await this.pool.query(`UPDATE social.calls SET status = 'ended', ended_at = now() WHERE id = $1 AND status = 'active' RETURNING video, caller_id, callee_id, EXTRACT(EPOCH FROM (ended_at - started_at)) AS d`, [id])
       ).rows[0];
       if (!r) continue;
       const [caller, callee] = await Promise.all([this.person(r.caller_id), this.person(r.callee_id)]);
       this.emit(callee.id, 'ended', { id, video: r.video }, caller, { reason: 'lost' });
       this.emit(caller.id, 'ended', { id, video: r.video }, callee, { reason: 'lost' });
+      this.logToChat(caller.id, callee.id, !!r.video, 'ended', Math.max(0, Math.round(Number(r.d ?? 0))));
     }
     return { missed: rung.rowCount ?? 0, lost: lost.length };
   }

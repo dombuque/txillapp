@@ -587,15 +587,14 @@ export function NativeCamera({
             <>
               <Pressable style={[StyleSheet.absoluteFill, { zIndex: 7 }]} onPress={() => setOptsOpen(false)} accessibilityLabel="Fechar opções" />
               <View style={[st.opts, { top: view.y + 62, right: 12 }]}>
-                <OptRow icon="clock" label="Temporizador" value={delay ? `${delay} s` : 'Desligado'} on={delay > 0}
+                <OptRow icon="clock" label="Temporizador" value={delay ? `${delay} s` : 'Tempo'} on={delay > 0}
                   onPress={() => { tap(); setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0)); }} />
-                <OptRow icon="grid" label="Grelha" value={grid ? 'Ligada' : 'Desligada'} on={grid}
+                <OptRow icon="grid" label="Grelha" value="Grelha" on={grid}
                   onPress={() => { tap(); setGrid((g) => { gridPref = !g; return !g; }); }} />
                 {onText ? (
                   <Pressable onPress={() => { setOptsOpen(false); onText(); }} style={st.optRow} accessibilityRole="button" accessibilityLabel="Só texto">
                     <View style={st.optIcon}><Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Aa</Text></View>
-                    <Text style={st.optLabel}>Só texto</Text>
-                    <Icon name="chevron-right" size={18} color="rgba(255,255,255,0.6)" />
+                    <Text style={st.optValue}>Texto</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -632,8 +631,9 @@ export function NativeCamera({
             {kinds && !recording ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.kinds} style={{ flex: 1 }}>
                 {kinds.map((k) => (
-                  <Pressable key={k.id} onPress={() => { if (kind !== k.id) tap(); onKind?.(k.id); }} style={[st.kindPill, kind === k.id && st.kindPillOn]} accessibilityRole="tab" accessibilityState={{ selected: kind === k.id }} hitSlop={6}>
+                  <Pressable key={k.id} onPress={() => { if (kind !== k.id) tap(); onKind?.(k.id); }} style={st.kindPill} accessibilityRole="tab" accessibilityState={{ selected: kind === k.id }} hitSlop={6}>
                     <Text style={[st.kindText, kind === k.id && st.kindOn]}>{k.label.toUpperCase()}</Text>
+                    <View style={[st.kindDot, kind !== k.id && { opacity: 0 }]} />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -694,9 +694,8 @@ export function NativeCamera({
 function OptRow({ icon, label, value, on, onPress }: { icon: 'clock' | 'grid'; label: string; value: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={st.optRow} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`}>
-      <View style={[st.optIcon, on && { backgroundColor: '#fcd34d' }]}><Icon name={icon} size={18} color={on ? colors.zinc900 : '#fff'} /></View>
-      <Text style={st.optLabel}>{label}</Text>
-      <Text style={[st.optValue, on && { color: '#fcd34d' }]}>{value}</Text>
+      <View style={[st.optIcon, on && { backgroundColor: '#fff' }]}><Icon name={icon} size={18} color={on ? colors.zinc900 : '#fff'} /></View>
+      <Text style={[st.optValue, on && { color: '#fff' }]} numberOfLines={1}>{value}</Text>
     </Pressable>
   );
 }
@@ -742,11 +741,11 @@ const st = StyleSheet.create({
   auto: { position: 'absolute', right: -8, bottom: -6, fontSize: 10, fontWeight: '900', color: colors.zinc900 },
   delayBadge: { position: 'absolute', right: -4, bottom: -4, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   delayText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  opts: { position: 'absolute', zIndex: 8, width: 236, borderRadius: 18, paddingVertical: 6, backgroundColor: 'rgba(24,24,27,0.94)' },
-  optRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingVertical: 9 },
+  opts: { position: 'absolute', zIndex: 8, flexDirection: 'row', gap: 2, borderRadius: 22, paddingVertical: 8, paddingHorizontal: 6, backgroundColor: 'rgba(24,24,27,0.9)' },
+  optRow: { width: 62, alignItems: 'center', gap: 5 },
   optIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   optLabel: { flex: 1, color: '#fff', fontSize: 15, fontWeight: '600' },
-  optValue: { color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: '600' },
+  optValue: { color: 'rgba(255,255,255,0.72)', fontSize: 11, fontWeight: '700' },
   rec: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 14, paddingVertical: 7 },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#ef4444' },
   recText: { color: '#fff', fontWeight: '700', fontSize: 15, fontVariant: ['tabular-nums'] },
@@ -760,13 +759,13 @@ const st = StyleSheet.create({
   hint: { height: 18, color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 6 },
   modes: { position: 'absolute', left: 0, right: 0, zIndex: 4, justifyContent: 'center' },
   kinds: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4, paddingHorizontal: 12 },
-  kindPill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
-  kindPillOn: { backgroundColor: 'rgba(255,255,255,0.14)' },
+  kindPill: { paddingHorizontal: 12, paddingVertical: 4, alignItems: 'center', gap: 4 },
+  kindDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.brand },
   kindText: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
   kindOn: { color: '#fff' },
   row: { position: 'absolute', left: 0, right: 0, zIndex: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 28 },
   side: { width: 52 },
-  galleryThumb: { width: 46, height: 46, borderRadius: 23, borderWidth: 2, borderColor: '#fff', overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
+  galleryThumb: { width: 48, height: 48, borderRadius: 24, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)' },
   flipBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   shutter: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center' },
   shutterRing: { position: 'absolute', left: 0, top: 0, width: 84, height: 84, borderRadius: 42, borderWidth: 4, borderColor: '#fff' },

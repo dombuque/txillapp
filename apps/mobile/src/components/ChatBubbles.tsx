@@ -7,6 +7,7 @@ import { createElement, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Icon } from '@/components/Icon';
+import { CallIcon } from '@/components/calls/CallIcons';
 import { Sticker } from '@/components/StickerPanel';
 import { ReactionArt } from '@/components/StoryParts';
 import { type ChatMessage } from '@/lib/api';
@@ -246,6 +247,41 @@ function NativeChatVideo({ url, autoPlay, inModal }: { url: string; autoPlay: bo
   return <VideoView player={p} style={{ width: '100%', height: '100%', backgroundColor: '#000' }} nativeControls contentFit="contain" surfaceType={inModal || Platform.OS === 'android' ? 'textureView' : undefined} />;
 }
 
+/** O texto da chamada registada na conversa (o corpo é JSON {video, status, durationS}; quem enviou é quem ligou). */
+export function callLabel(body: string, mine: boolean): { text: string; missed: boolean; video: boolean } {
+  let info: { video?: boolean; status?: string; durationS?: number | null } = {};
+  try { info = JSON.parse(body) as typeof info; } catch { /* corpo estranho: mostra o genérico */ }
+  const video = !!info.video;
+  const kind = video ? 'Videochamada' : 'Chamada de voz';
+  const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  switch (info.status) {
+    case 'ended': return { text: `${kind} · ${mmss(Math.max(0, info.durationS ?? 0))}`, missed: false, video };
+    case 'declined': return { text: mine ? `${kind} · não atendeu` : `${kind} · recusada`, missed: false, video };
+    case 'missed': return { text: mine ? `${kind} · sem resposta` : (video ? 'Videochamada perdida' : 'Chamada perdida'), missed: !mine, video };
+    default: return { text: kind, missed: false, video };
+  }
+}
+
+/** A chamada na conversa: um cartão pequeno com o ícone, o resultado e a hora; tocar liga de volta (o mesmo tipo de chamada). */
+function CallLine({ m, mine, peerHandle }: { m: Msg; mine: boolean; peerHandle?: string }) {
+  const { text, missed, video } = callLabel(m.body, mine);
+  const back = () => {
+    if (!peerHandle) return;
+    void import('@/lib/calls').then((c) => c.startCall(peerHandle, video)).catch(() => undefined);
+  };
+  return (
+    <Pressable onPress={back} style={({ pressed }) => [st.callLine, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={`${text}. Toca para ligar de volta`}>
+      <View style={[st.callIcon, { backgroundColor: missed ? '#fee2e2' : colors.zinc100 }]}>
+        {video ? <Icon name="video" size={18} color={missed ? colors.red600 : colors.zinc800} /> : <CallIcon name={missed ? 'missed' : 'handset'} size={18} color={missed ? colors.red600 : colors.zinc800} />}
+      </View>
+      <View>
+        <Text style={[st.callText, missed && { color: colors.red600 }]}>{text}</Text>
+        <Text style={st.callSub}>Tocar para ligar de volta</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 export function Bubble({
   m, group = false, prevSame, nextSame, seen = false, flash = false, peerName, peerHandle, meHandle, onMenu, onRetry, onOpenOnce, onJump, onCheer, onStopLive, onReply,
 }: {
@@ -309,6 +345,8 @@ export function Bubble({
         </View>
       </Pressable>
     );
+  } else if (m.kind === 'call') {
+    content = <CallLine m={m} mine={mine} peerHandle={peerHandle} />;
   } else if (m.kind === 'voice') {
     content = <View style={{ maxWidth: '86%' }}><VoiceMessage m={m} dim={m.state === 'sending'} /></View>;
   } else if ((m.kind === 'image' || m.kind === 'video') && m.mediaUrl) {
@@ -452,6 +490,10 @@ const st = StyleSheet.create({
   viewerBack: { flex: 1, backgroundColor: 'rgba(0,0,0,0.82)', alignItems: 'center', justifyContent: 'center', padding: 16 },
   viewerCard: { borderRadius: 20, overflow: 'hidden', backgroundColor: '#000' },
   viewerX: { position: 'absolute', right: 10, top: 10, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  callLine: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 18, borderWidth: 1, borderColor: colors.zinc200, backgroundColor: colors.white, paddingVertical: 10, paddingLeft: 10, paddingRight: 16 },
+  callIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  callText: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
+  callSub: { fontSize: 12, color: colors.zinc500 },
   fullX: { position: 'absolute', right: 12, top: 40, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
   once: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
   gift: { width: 240, overflow: 'hidden', borderRadius: 20, boxShadow: '0 2px 10px rgba(214,51,79,0.35)' },

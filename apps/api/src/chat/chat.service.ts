@@ -9,7 +9,7 @@ import { MediaService } from '../media/media.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
 
-export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply';
+export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call';
 
 /** Stickers que existem (o desenho está na app; aqui só se confirma que o id é válido). */
 /** Os stickers são desenhados na app; o servidor só confirma que o id tem o feitio certo (a lista cresce sem mexer aqui). */
@@ -529,6 +529,25 @@ export class ChatService {
       [messageId, me],
     );
     if (rows[0]) this.events.emit(rows[0].other as string, { type: 'message', from: await this.usernameOf(me) });
+  }
+
+  /**
+   * Regista uma chamada na conversa (mensagem de quem ligou, tipo 'call'): o corpo é JSON {video, status, durationS}.
+   * Não manda notificação (a chamada já tem as suas); só avisa os dois em tempo real para a conversa se atualizar.
+   */
+  async logCall(callerId: string, calleeId: string, info: { video: boolean; status: string; durationS: number | null }) {
+    const conv = await this.conversation(callerId, calleeId, true);
+    if (!conv) return;
+    const id = uuidv7();
+    await this.pool.query('INSERT INTO social.messages (id, conversation_id, sender_id, body, kind) VALUES ($1, $2, $3, $4, $5)', [id, conv, callerId, JSON.stringify(info), 'call']);
+    await this.pool.query(
+      `UPDATE social.conversations SET last_message_at = now(),
+              read_a = CASE WHEN user_a = $2 THEN $3::uuid ELSE read_a END, read_b = CASE WHEN user_b = $2 THEN $3::uuid ELSE read_b END WHERE id = $1`,
+      [conv, callerId, id],
+    );
+    const [from, to] = await Promise.all([this.usernameOf(callerId), this.usernameOf(calleeId)]);
+    this.events.emit(calleeId, { type: 'message', from });
+    this.events.emit(callerId, { type: 'message', from: to });
   }
 
   /** "A escrever…": não é guardado, só chega a quem tem a conversa aberta. */

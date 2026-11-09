@@ -1,0 +1,3 @@
+-- As chamadas ficam registadas na conversa (como no WhatsApp): "Chamada de voz · 02:31", "Chamada perdida"…
+ALTER TABLE social.messages DROP CONSTRAINT messages_kind_check;
+ALTER TABLE social.messages ADD CONSTRAINT messages_kind_check CHECK (kind IN ('text', 'story_reply', 'story_reaction', 'image', 'voice', 'sticker', 'location', 'post', 'gift', 'video', 'zas_reply', 'call'));

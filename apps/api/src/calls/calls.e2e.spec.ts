@@ -186,6 +186,13 @@ describe('chamadas de voz e vídeo 1:1 (integração)', () => {
     // As anteriores (canceladas no primeiro teste) também lá estão, sem duração.
     expect(histA.items.some((i: { status: string; durationS: number | null }) => i.status === 'cancelled' && i.durationS === null)).toBe(true);
     await api().get('/api/v1/calls?cursor=lixo').set(auth(la)).expect(400);
+
+    // A chamada ficou registada na conversa dos dois (mensagem 'call' de quem ligou, com a duração).
+    await tick(150);
+    const conv = (await api().get(`/api/v1/chat/with/${lb.username}`).set(auth(la)).expect(200)).body;
+    const items = (conv.items ?? conv.messages ?? conv) as { kind: string; body: string; fromMe: boolean }[];
+    const logged = items.filter((m) => m.kind === 'call').map((m) => ({ ...JSON.parse(m.body), fromMe: m.fromMe }));
+    expect(logged).toContainEqual({ video: true, status: 'ended', durationS: 3, fromMe: true });
   });
 
   it('o evento chega pelo canal SSE do chat com o formato combinado', async () => {

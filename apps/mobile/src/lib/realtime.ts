@@ -14,7 +14,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import { SITE_URL } from '@/lib/config';
-import { refreshSession } from '@/lib/api';
+import { authHeaders, refreshSession } from '@/lib/api';
 
 export interface ChatEvent { type: string; from?: string; group?: string }
 
@@ -115,7 +115,10 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
       const headers: Record<string, string> = { Accept: 'text/event-stream', 'X-Requested-With': 'txillapp' };
       let res: { ok: boolean; status: number; body: ReadableStream<Uint8Array> | null };
       if (isWeb) {
-        res = await fetch(`${SITE_URL}/api/v1/chat/stream`, { headers, credentials: 'include', signal: ctrl.signal });
+        // No site o cookie da sessão só vai para /auth (HttpOnly, por conta): o stream precisa do token e da conta,
+        // como qualquer pedido da API. Sem isto dava 401 e o chat caía para o polling (e as chamadas não ligavam).
+        const s = await refreshSession();
+        res = await fetch(`${SITE_URL}/api/v1/chat/stream`, { headers: { ...authHeaders(), ...headers, Authorization: `Bearer ${s.accessToken}` }, credentials: 'include', signal: ctrl.signal });
       } else {
         const s = await refreshSession();
         headers.Authorization = `Bearer ${s.accessToken}`;
