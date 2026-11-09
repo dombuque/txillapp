@@ -66,6 +66,15 @@ function Overlay({ playing, muted, durationMs, showSound }: { playing: boolean; 
   );
 }
 
+/** O botão do som no canto do vídeo (tem a sua própria área de toque, para não abrir a Tcheka). */
+function SoundButton({ muted, onPress }: { muted: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={10} style={st.soundBtn} accessibilityRole="button" accessibilityLabel={muted ? 'Ligar o som' : 'Tirar o som'}>
+      <Icon name={muted ? 'volume-off' : 'volume'} size={18} color="#fff" />
+    </Pressable>
+  );
+}
+
 function WebVideo({ src, cover, durationMs, width, height, active, mute, passive, onDouble }: Props) {
   const ref = useRef<HTMLVideoElement | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -118,10 +127,20 @@ function WebVideo({ src, cover, durationMs, width, height, active, mute, passive
     style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' },
   });
   if (passive) {
+    // Tcheka no feed: o toque no vídeo abre a Tcheka (tratado por fora); o botão do canto liga/desliga o som.
+    const toggle = () => {
+      const v = ref.current;
+      if (!v || mute) return;
+      v.muted = !v.muted;
+      soundOn = !v.muted;
+      setMuted(v.muted);
+      if (v.paused) void v.play().catch(() => undefined);
+    };
     return (
-      <View style={{ width, height, backgroundColor: '#000' }} pointerEvents="none">
-        {video}
+      <View style={{ width, height, backgroundColor: '#000' }} pointerEvents="box-none">
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">{video}</View>
         <Overlay playing={playing} muted durationMs={durationMs} showSound={false} />
+        {!mute && playing ? <SoundButton muted={muted} onPress={toggle} /> : null}
       </View>
     );
   }
@@ -173,10 +192,19 @@ function NativeVideo({ src, cover, durationMs, width, height, active, inView, mu
     </>
   );
   if (passive) {
+    const toggle = () => {
+      try {
+        if (mute) return;
+        player.muted = !player.muted;
+        soundOn = !player.muted;
+        setMuted(player.muted);
+      } catch { /* leitor libertado */ }
+    };
     return (
-      <View style={{ width, height, backgroundColor: '#000' }} pointerEvents="none">
-        {body}
+      <View style={{ width, height, backgroundColor: '#000' }} pointerEvents="box-none">
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">{body}</View>
         <Overlay playing={playing} muted durationMs={durationMs} showSound={false} />
+        {!mute && playing ? <SoundButton muted={muted} onPress={toggle} /> : null}
       </View>
     );
   }
@@ -210,6 +238,7 @@ function NativePreview({ uri }: { uri: string }) {
 }
 
 const st = StyleSheet.create({
+  soundBtn: { position: 'absolute', right: 10, bottom: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
   sound: { position: 'absolute', right: 10, bottom: 10, width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   close: { position: 'absolute', right: 14, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   playWrap: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },

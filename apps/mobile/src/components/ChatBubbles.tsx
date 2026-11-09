@@ -3,8 +3,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { createElement, useEffect, useMemo, useRef, useState } from 'react';
+import { Linking, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Icon } from '@/components/Icon';
 import { Sticker } from '@/components/StickerPanel';
@@ -208,29 +208,42 @@ function SharedPost({ post, radius, tone, ink }: { post: ChatMessage['post']; ra
   );
 }
 
-/** Vídeo da conversa: miniatura com ▶ e um botão que o abre em ecrã inteiro. */
+/**
+ * Visor de foto ou vídeo da conversa: um cartão centrado sobre o chat escurecido (com margens, não a tela toda).
+ * Tocar fora fecha; o X também. O vídeo tem os controlos do próprio telemóvel/browser.
+ */
 function MediaFull({ url, video, onClose }: { url: string; video: boolean; onClose: () => void }) {
+  const win = useWindowDimensions();
+  const w = Math.min(win.width - 32, 720);
+  const h = Math.min(win.height * 0.78, 900);
   return (
-    <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      {video ? (
-        // Vídeo: o fundo não fecha ao toque (senão o toque no play era apanhado por ele); fecha-se no X ou no botão de voltar.
-        <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
-          <ChatVideoPlayer url={url} />
-          <Pressable onPress={onClose} style={st.fullX} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={22} color="#fff" /></Pressable>
-        </View>
-      ) : (
-        <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }} accessibilityLabel="Fechar">
-          <Image source={{ uri: url }} style={{ width: '100%', height: '100%' }} contentFit="contain" />
-          <Pressable onPress={onClose} style={st.fullX} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={22} color="#fff" /></Pressable>
+    <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <Pressable onPress={onClose} style={st.viewerBack} accessibilityLabel="Fechar">
+        {/* O cartão não fecha ao toque (para o play e os controlos funcionarem). */}
+        <Pressable onPress={() => undefined} style={[st.viewerCard, { width: w, height: h }]}>
+          {video ? <ChatVideoPlayer url={url} autoPlay inModal /> : <Image source={{ uri: url }} style={{ width: '100%', height: '100%' }} contentFit="contain" />}
+          <Pressable onPress={onClose} style={st.viewerX} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={20} color="#fff" /></Pressable>
         </Pressable>
-      )}
+      </Pressable>
     </Modal>
   );
 }
-function ChatVideoPlayer({ url }: { url: string }) {
-  const p = useVideoPlayer(url, (x) => { x.loop = false; x.muted = false; x.volume = 1; x.play(); });
-  // Dentro de um Modal, no Android, o vídeo só aparece numa TextureView (a SurfaceView fica preta por baixo do Modal).
-  return <VideoView player={p} style={{ width: '100%', height: '100%' }} nativeControls contentFit="contain" surfaceType="textureView" />;
+
+/** Leitor de vídeo da conversa: dentro da bolha (sem tocar sozinho) ou no visor. Controlos nativos: play, pausa, som e barra. */
+function ChatVideoPlayer({ url, autoPlay = false, inModal = false }: { url: string; autoPlay?: boolean; inModal?: boolean }) {
+  if (Platform.OS === 'web') {
+    return createElement('video', {
+      src: url, controls: true, playsInline: true, preload: 'metadata', autoPlay,
+      style: { width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#000', display: 'block' },
+    });
+  }
+  return <NativeChatVideo url={url} autoPlay={autoPlay} inModal={inModal} />;
+}
+function NativeChatVideo({ url, autoPlay, inModal }: { url: string; autoPlay: boolean; inModal: boolean }) {
+  const p = useVideoPlayer(url, (x) => { x.loop = false; x.muted = false; x.volume = 1; if (autoPlay) x.play(); });
+  useEffect(() => () => { try { p.pause(); } catch { /* já libertado */ } }, [p]);
+  // Dentro de um Modal ou de uma lista, no Android, o vídeo só aparece bem numa TextureView.
+  return <VideoView player={p} style={{ width: '100%', height: '100%', backgroundColor: '#000' }} nativeControls contentFit="contain" surfaceType={inModal || Platform.OS === 'android' ? 'textureView' : undefined} />;
 }
 
 export function Bubble({
@@ -302,13 +315,19 @@ export function Bubble({
     const url = abs(m.mediaUrl) ?? m.mediaUrl;
     content = (
       <View style={[st.media, tone, radius, dimStyle]}>
-        <Pressable onPress={() => setFull(true)} accessibilityRole="imagebutton" accessibilityLabel={m.kind === 'video' ? 'Vídeo' : 'Foto enviada'}>
-          <View style={{ height: m.kind === 'video' ? 288 : 288, width: '100%', backgroundColor: m.kind === 'video' ? '#000' : colors.zinc100 }}>
-            <Image source={{ uri: url }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
-            {m.kind === 'video' && <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}><View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' }}><Icon name="play" size={24} solid color="#fff" /></View></View>}
-            {m.kind === 'video' && <View style={st.expand}><Icon name="expand" size={18} color="#fff" /></View>}
+        {m.kind === 'video' ? (
+          // Vídeo: toca dentro da bolha, com os controlos (play, pausa, som, barra); o botão do canto abre o visor.
+          <View style={{ height: 288, width: '100%', backgroundColor: '#000' }}>
+            <ChatVideoPlayer url={url} />
+            <Pressable onPress={() => setFull(true)} style={st.expand} accessibilityRole="button" accessibilityLabel="Ver maior"><Icon name="expand" size={18} color="#fff" /></Pressable>
           </View>
-        </Pressable>
+        ) : (
+          <Pressable onPress={() => setFull(true)} accessibilityRole="imagebutton" accessibilityLabel="Foto enviada">
+            <View style={{ height: 288, width: '100%', backgroundColor: colors.zinc100 }}>
+              <Image source={{ uri: url }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
+            </View>
+          </Pressable>
+        )}
         {m.kind === 'image' && m.body ? <Text style={{ paddingHorizontal: 12, paddingVertical: 8, fontSize: 16, color: ink }}>{m.body}</Text> : null}
         {full && <MediaFull url={url} video={m.kind === 'video'} onClose={() => setFull(false)} />}
       </View>
@@ -430,6 +449,9 @@ const st = StyleSheet.create({
   react: { flexDirection: 'row', alignItems: 'center', borderRadius: 999 },
   media: { width: 240, overflow: 'hidden' },
   expand: { position: 'absolute', right: 8, top: 8, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  viewerBack: { flex: 1, backgroundColor: 'rgba(0,0,0,0.82)', alignItems: 'center', justifyContent: 'center', padding: 16 },
+  viewerCard: { borderRadius: 20, overflow: 'hidden', backgroundColor: '#000' },
+  viewerX: { position: 'absolute', right: 10, top: 10, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
   fullX: { position: 'absolute', right: 12, top: 40, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
   once: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
   gift: { width: 240, overflow: 'hidden', borderRadius: 20, boxShadow: '0 2px 10px rgba(214,51,79,0.35)' },

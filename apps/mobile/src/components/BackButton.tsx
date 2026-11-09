@@ -16,7 +16,8 @@ export function BackButton({ onPress, fallback = '/', color = colors.zinc900, st
     if (router.canGoBack()) router.back();
     else router.replace(fallback as never);
   };
-  const ios = Platform.OS === 'ios';
+  // O "‹" (chevron) que as apps usam no iPhone e no site; no Android a seta do próprio sistema.
+  const ios = Platform.OS !== 'android';
   return (
     <Pressable
       onPress={go}

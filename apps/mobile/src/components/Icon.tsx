@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import Svg, { G, Path } from 'react-native-svg';
 import { TX, type TxDef } from '@/icons/tx';
 import { colors } from '@/lib/theme';
@@ -7,7 +8,8 @@ export type IconName = keyof typeof TX | 'cheers';
 /** Os ícones "Tx" do Txillapp (os mesmos do site, na mesma grelha 24×24 e no mesmo traço). `solid` pinta a versão cheia. */
 export function Icon({ name, size = 22, strokeWidth = 1.8, solid = false, color = colors.zinc900 }: { name: IconName; size?: number; strokeWidth?: number; solid?: boolean; color?: string }) {
   if (name === 'cheers') return <Cheers size={size} strokeWidth={strokeWidth} color={color} />;
-  const d = TX[name] as TxDef;
+  // "Voltar": o chevron que as apps usam no iPhone e no site; no Android a seta do sistema (igual ao BackButton).
+  const d = TX[name === 'back' && Platform.OS !== 'android' ? 'chevron-left' : name] as TxDef;
   const filled = solid && !!d.s;
   const paths = filled ? d.s! : d.p;
   return (

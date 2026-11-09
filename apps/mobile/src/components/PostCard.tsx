@@ -486,7 +486,7 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = fals
             >
               {m.kind === 'video' ? (
                 // Tcheka no feed: corre sozinha sem som enquanto está à vista; um toque abre-a no ecrã da Tcheka (com som).
-                <CarouselVideo url={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={width} height={h} active inView={inView} mute passive />
+                <CarouselVideo url={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={width} height={h} active inView={inView} mute={mute} passive />
               ) : (
                 <Image source={{ uri: sized(m.url, 720) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} accessibilityIgnoresInvertColors />
               )}
