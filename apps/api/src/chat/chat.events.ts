@@ -9,13 +9,27 @@ export interface ChatEvent {
   group?: string;
 }
 
+/** Evento de chamada (voz ou vídeo) no mesmo canal em tempo real. O formato exato está no topo de calls/calls.service.ts. */
+export interface CallEvent {
+  type: 'call';
+  event: 'ring' | 'accepted' | 'declined' | 'ended' | 'signal';
+  callId: string;
+  video: boolean;
+  /** O outro lado da chamada, visto por quem recebe o evento. */
+  from: { username: string; displayName: string; hasAvatar: boolean };
+  reason?: 'missed' | 'cancelled' | 'declined' | 'ended' | 'lost';
+  signal?: { type: 'offer' | 'answer' | 'ice'; data: unknown };
+}
+
+export type StreamEvent = ChatEvent | CallEvent;
+
 /**
  * Canal em tempo real do chat (Server-Sent Events). Em memória: serve uma instância só.
  * TODO(fase 3): trocar por Redis pub/sub para várias instâncias.
  */
 @Injectable()
 export class ChatEvents {
-  private readonly bus = new Subject<{ to: string; event: ChatEvent }>();
+  private readonly bus = new Subject<{ to: string; event: StreamEvent }>();
   /** Quantas ligações em tempo real cada pessoa tem abertas (a app aberta = online). */
   private readonly open = new Map<string, number>();
 
@@ -46,11 +60,11 @@ export class ChatEvents {
     return !!a && a.key === key.toLowerCase() && now - a.at < 45_000;
   }
 
-  emit(to: string, event: ChatEvent) {
+  emit(to: string, event: StreamEvent) {
     this.bus.next({ to, event });
   }
 
-  forUser(userId: string): Observable<ChatEvent> {
+  forUser(userId: string): Observable<StreamEvent> {
     return this.bus.pipe(
       filter((e) => e.to === userId),
       map((e) => e.event),

@@ -24,6 +24,24 @@ const isWeb = Platform.OS === 'web';
 
 const typingSubs = new Set<(e: ChatEvent) => void>();
 
+/**
+ * Chamadas (src/lib/calls): os eventos {type:'call'} vêm no mesmo stream e vão só para quem se inscreve aqui
+ * (não mexem nas queries do chat). Durante uma chamada o stream fica ligado mesmo com o separador escondido.
+ */
+const callSubs = new Set<(e: unknown) => void>();
+export function onCallEvent(f: (e: unknown) => void): () => void {
+  callSubs.add(f);
+  return () => void callSubs.delete(f);
+}
+let held = false;
+const holdSubs = new Set<() => void>();
+/** Mantém o stream ligado em segundo plano (durante uma chamada a sinalização não pode parar). */
+export function holdStream(on: boolean) {
+  if (held === on) return;
+  held = on;
+  holdSubs.forEach((f) => f());
+}
+
 /** "A escrever…" da pessoa `from` (some 5 s depois do último aviso ou quando chega uma mensagem dela). */
 export function useTyping(from: string): boolean {
   const [on, setOn] = useState(false);
@@ -58,7 +76,8 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
   useEffect(() => {
     if (!enabled) return;
     let stop = false;
-    let active = AppState.currentState === 'active';
+    const isActive = (st = AppState.currentState) => st === 'active' || held;
+    let active = isActive();
     let ctrl: AbortController | null = null;
     let wake: (() => void) | null = null;
 
@@ -76,6 +95,11 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
       let e: ChatEvent;
       try { e = JSON.parse(data) as ChatEvent; } catch { return; }
       if (e.type === 'ping') return;
+      if (e.type === 'call') {
+        callSubs.forEach((f) => f(e));
+        void qc.invalidateQueries({ queryKey: ['calls'] });
+        return;
+      }
       typingSubs.forEach((f) => f(e));
       cb.current?.(e);
       if (e.type !== 'typing') refresh(e);
@@ -148,18 +172,22 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
       }
     }
 
-    const sub = AppState.addEventListener('change', (s) => {
+    const onState = (s = AppState.currentState) => {
       const was = active;
-      active = s === 'active';
+      active = isActive(s);
       if (!active) ctrl?.abort();
       else if (!was) { refresh(); wake?.(); }
-    });
+    };
+    const sub = AppState.addEventListener('change', (s) => onState(s));
+    const onHold = () => onState();
+    holdSubs.add(onHold);
     void loop();
     return () => {
       stop = true;
       ctrl?.abort();
       wake?.();
       sub.remove();
+      holdSubs.delete(onHold);
     };
   }, [qc, enabled]);
 }

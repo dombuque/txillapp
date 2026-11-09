@@ -1,18 +1,20 @@
-import { Canvas, ColorMatrix, Image as SkImageNode, ImageFormat, PaintStyle, Picture, Skia, StrokeCap, StrokeJoin, matchFont, type SkCanvas, type SkFont, type SkImage } from '@shopify/react-native-skia';
+import { Canvas, ColorMatrix, FilterMode, Image as SkImageNode, ImageFormat, MipmapMode, PaintStyle, Picture, Skia, StrokeCap, StrokeJoin, TileMode, matchFont, type SkCanvas, type SkFont, type SkImage, type SkRuntimeEffect } from '@shopify/react-native-skia';
 import { File, Paths } from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library/legacy';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, BackHandler, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, signLayout } from '@/lib/wordmark';
 import { Icon } from './Icon';
 
 /**
- * Editor de fotos do Txillapp no telemóvel (depois de tirar a foto): filtros, ajustes (brilho, contraste, saturação, calor),
- * recorte (proporções, arrastar para enquadrar), rodar e espelhar. A pré-visualização e a foto final saem do mesmo desenho
- * (Skia), por isso o que se vê é o que se publica, já com a assinatura do Txillapp.
+ * Editor de fotos do Txillapp no telemóvel (depois de tirar a foto): filtros com intensidade, ajustes (brilho, contraste,
+ * saturação, temperatura, realces, sombras, vinheta, nitidez), recorte (proporções, arrastar para enquadrar), rodar e espelhar.
+ * A pré-visualização e a foto final saem do mesmo desenho (Skia), por isso o que se vê é o que se publica, já com a assinatura
+ * do Txillapp.
  */
 
 type M = number[]; // matriz de cor 4×5 (20 valores), deslocamentos de 0 a 1
@@ -53,19 +55,72 @@ const LOOKS: Look[] = [
   { id: 'pb', name: 'P&B', sat: 0, con: 1.1 },
 ];
 
-interface Adjust { b: number; c: number; s: number; w: number } // cada um de -1 a 1
-interface Edit { look: number; adj: Adjust; aspect: number | null; rot: 0 | 90 | 180 | 270; flip: boolean; ox: number; oy: number }
+/** b, c, s, w, hi, sh vão de -1 a 1 (0 é o normal); v (vinheta) e n (nitidez) vão de 0 a 1. */
+interface Adjust { b: number; c: number; s: number; w: number; hi: number; sh: number; v: number; n: number }
+const NO_ADJ: Adjust = { b: 0, c: 0, s: 0, w: 0, hi: 0, sh: 0, v: 0, n: 0 };
+/** amt: intensidade do filtro, de 0 a 1. */
+interface Edit { look: number; amt: number; adj: Adjust; aspect: number | null; rot: 0 | 90 | 180 | 270; flip: boolean; ox: number; oy: number }
 
-function matrixOf(e: Edit): M {
-  const l = LOOKS[e.look];
+/** Só o filtro, com toda a força. */
+function lookMatrix(l: Look): M {
   let m = ID;
-  m = mul(warm((l.warm ?? 0) + e.adj.w * 0.8), m);
-  m = mul(bri((l.bri ?? 0) + e.adj.b * 0.22), m);
-  m = mul(con((l.con ?? 1) * (1 + e.adj.c * 0.45)), m);
-  m = mul(sat(Math.max(0, (l.sat ?? 1) * (1 + e.adj.s))), m);
+  m = mul(warm(l.warm ?? 0), m);
+  m = mul(bri(l.bri ?? 0), m);
+  m = mul(con(l.con ?? 1), m);
+  m = mul(sat(l.sat ?? 1), m);
   if (l.sepia) m = mix(m, mul(SEPIA, m), l.sepia);
   return m;
 }
+/** O filtro (com a intensidade escolhida) e depois os ajustes de cor. */
+function matrixOf(e: Edit): M {
+  let m = mix(ID, lookMatrix(LOOKS[e.look]), e.amt);
+  m = mul(warm(e.adj.w * 0.8), m);
+  m = mul(bri(e.adj.b * 0.22), m);
+  m = mul(con(1 + e.adj.c * 0.45), m);
+  m = mul(sat(Math.max(0, 1 + e.adj.s)), m);
+  return m;
+}
+
+/**
+ * O resto dos ajustes corre num shader (SkSL), píxel a píxel, por esta ordem:
+ * nitidez (máscara de desfocagem leve: o píxel menos a média dos 4 vizinhos, somado de volta), matriz de cor (filtro e ajustes),
+ * e realces/sombras (clarear ou escurecer só as zonas claras ou só as escuras, pesadas pela luminância).
+ * A vinheta é um gradiente radial por cima, no espaço da foto final.
+ */
+const SKSL = `
+uniform shader image;
+uniform float4 r0;
+uniform float4 r1;
+uniform float4 r2;
+uniform float4 r3;
+uniform float4 off;
+uniform float sharp;
+uniform float rad;
+uniform float hi;
+uniform float sh;
+
+half4 main(float2 p) {
+  float4 c = float4(image.eval(p));
+  if (sharp > 0.0) {
+    float4 b = float4(image.eval(p + float2(rad, 0.0)) + image.eval(p - float2(rad, 0.0)) + image.eval(p + float2(0.0, rad)) + image.eval(p - float2(0.0, rad))) * 0.25;
+    c.rgb = clamp(c.rgb + (c.rgb - b.rgb) * sharp, 0.0, c.a);
+  }
+  if (c.a > 0.0) c.rgb /= c.a;
+  float3 o = clamp(float3(dot(r0, c), dot(r1, c), dot(r2, c)) + off.rgb, 0.0, 1.0);
+  float a = clamp(dot(r3, c) + off.a, 0.0, 1.0);
+  float L = dot(o, float3(0.2126, 0.7152, 0.0722));
+  float wS = 1.0 - smoothstep(0.0, 0.55, L);
+  float wH = smoothstep(0.45, 1.0, L);
+  o = clamp(o + sh * 0.3 * wS + hi * 0.3 * wH, 0.0, 1.0);
+  return half4(half3(o * a), half(a));
+}`;
+let fxCache: SkRuntimeEffect | null | undefined;
+const fx = () => {
+  if (fxCache === undefined) {
+    try { fxCache = Skia.RuntimeEffect.Make(SKSL); } catch { fxCache = null; }
+  }
+  return fxCache;
+};
 
 /** A parte da foto (já rodada) que fica no recorte. */
 function cropOf(img: SkImage, e: Edit) {
@@ -79,14 +134,10 @@ function cropOf(img: SkImage, e: Edit) {
   return { iw, ih, a, cw, ch, cx, cy };
 }
 
-/**
- * Fotos do telemóvel têm 12 a 50 MP: guardá-las inteiras e redesenhá-las a cada filtro esgota a memória no Android
- * (a app fecha). A foto final sai com no máximo 1920 px, por isso basta trabalhar com o lado maior a 2560 px.
- */
-const MAX_SIDE = 2560;
-function shrink(img: SkImage): SkImage {
+/** Cópia da foto com o lado maior a `max` px (ou a própria, se já for mais pequena). Não larga a original. */
+function resized(img: SkImage, max: number): SkImage {
   const w = img.width(), h = img.height();
-  const k = MAX_SIDE / Math.max(w, h);
+  const k = max / Math.max(w, h);
   if (k >= 1) return img;
   const W = Math.round(w * k), H = Math.round(h * k);
   const surface = Skia.Surface.MakeOffscreen(W, H) ?? Skia.Surface.Make(W, H);
@@ -94,18 +145,42 @@ function shrink(img: SkImage): SkImage {
   const paint = Skia.Paint();
   surface.getCanvas().drawImageRect(img, Skia.XYWHRect(0, 0, w, h), Skia.XYWHRect(0, 0, W, H), paint);
   surface.flush();
-  // Cópia em memória normal (não presa à superfície da GPU), e a original larga-se.
-  const small = surface.makeImageSnapshot().makeNonTextureImage() ?? surface.makeImageSnapshot();
-  img.dispose?.();
+  // Cópia em memória normal (não presa à superfície da GPU).
+  return surface.makeImageSnapshot().makeNonTextureImage() ?? surface.makeImageSnapshot();
+}
+
+/**
+ * Fotos do telemóvel têm 12 a 50 MP: guardá-las inteiras e redesenhá-las a cada filtro esgota a memória no Android
+ * (a app fecha). A foto final sai com no máximo 1920 px, por isso basta trabalhar com o lado maior a 2560 px.
+ */
+const MAX_SIDE = 2560;
+function shrink(img: SkImage): SkImage {
+  const small = resized(img, MAX_SIDE);
+  if (small !== img) img.dispose?.(); // a original larga-se
   return small;
 }
+/** A pré-visualização desenha a partir de uma cópia do tamanho do ecrã (mais leve a cada mexida na barra). */
+const PREVIEW_SIDE = 1600;
 
 /** Desenha a foto editada num retângulo W×H (pré-visualização ou foto final), com a assinatura. */
 function drawEdit(canvas: SkCanvas, img: SkImage, e: Edit, W: number, H: number, font: SkFont | null, username?: string | null) {
   const { cw, ch, cx, cy } = cropOf(img, e);
   const w0 = img.width(), h0 = img.height();
+  const m = matrixOf(e);
+  const effect = fx();
   const paint = Skia.Paint();
-  paint.setColorFilter(Skia.ColorFilter.MakeMatrix(matrixOf(e)));
+  if (effect) {
+    // Raio da nitidez: uma fração fixa da foto final (≈1,6 px numa foto de 1440), passada para píxeis da imagem de origem,
+    // para a pré-visualização e o ficheiro ficarem iguais seja qual for o tamanho.
+    const rad = (Math.max(W, H) / 900) * (cw / W);
+    const image = img.makeShaderOptions(TileMode.Clamp, TileMode.Clamp, FilterMode.Linear, MipmapMode.None);
+    paint.setShader(effect.makeShaderWithChildren(
+      [m[0], m[1], m[2], m[3], m[5], m[6], m[7], m[8], m[10], m[11], m[12], m[13], m[15], m[16], m[17], m[18], m[4], m[9], m[14], m[19], e.adj.n * 1.6, rad, e.adj.hi, e.adj.sh],
+      [image],
+    ));
+  } else {
+    paint.setColorFilter(Skia.ColorFilter.MakeMatrix(m)); // sem shader: só filtro e ajustes de cor
+  }
   canvas.save();
   canvas.clipRect(Skia.XYWHRect(0, 0, W, H), 1, true);
   canvas.scale(W / cw, H / ch);
@@ -117,8 +192,16 @@ function drawEdit(canvas: SkCanvas, img: SkImage, e: Edit, W: number, H: number,
   if (e.rot === 90) { canvas.translate(h0, 0); canvas.rotate(90, 0, 0); }
   else if (e.rot === 180) { canvas.translate(w0, h0); canvas.rotate(180, 0, 0); }
   else if (e.rot === 270) { canvas.translate(0, w0); canvas.rotate(270, 0, 0); }
-  canvas.drawImage(img, 0, 0, paint);
+  if (effect) canvas.drawRect(Skia.XYWHRect(0, 0, w0, h0), paint);
+  else canvas.drawImage(img, 0, 0, paint);
   canvas.restore();
+  if (e.adj.v > 0) {
+    // Vinheta: elipse que acompanha a forma da foto, transparente no meio e a escurecer para os cantos.
+    const vg = Skia.Paint();
+    const lm = Skia.Matrix().translate(W / 2, H / 2).scale((W / 2) * Math.SQRT2, (H / 2) * Math.SQRT2);
+    vg.setShader(Skia.Shader.MakeRadialGradient({ x: 0, y: 0 }, 1, [Skia.Color('rgba(0,0,0,0)'), Skia.Color(`rgba(0,0,0,${(0.8 * e.adj.v).toFixed(3)})`)], [0.45, 1], TileMode.Clamp, lm));
+    canvas.drawRect(Skia.XYWHRect(0, 0, W, H), vg);
+  }
   drawSign(canvas, W, H, font, username);
 }
 
@@ -165,45 +248,90 @@ const signFont = (size: number) => {
   }
 };
 
-/** Barra para um ajuste de -1 a 1 (o meio é o normal). Dois toques repõem. */
-function Slider({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+/** As ferramentas da fila de baixo, pela ordem em que aparecem. */
+type AdjKey = keyof Adjust;
+type ToolId = 'look' | 'amt' | AdjKey | 'crop';
+interface ToolDef { id: ToolId; label: string; kind: 'look' | 'crop' | 'both' | 'up' | 'pct' }
+const TOOLS: ToolDef[] = [
+  { id: 'look', label: 'Filtros', kind: 'look' },
+  { id: 'amt', label: 'Intensidade', kind: 'pct' },
+  { id: 'b', label: 'Brilho', kind: 'both' },
+  { id: 'c', label: 'Contraste', kind: 'both' },
+  { id: 's', label: 'Saturação', kind: 'both' },
+  { id: 'w', label: 'Temperatura', kind: 'both' },
+  { id: 'hi', label: 'Realces', kind: 'both' },
+  { id: 'sh', label: 'Sombras', kind: 'both' },
+  { id: 'v', label: 'Vinheta', kind: 'up' },
+  { id: 'n', label: 'Nitidez', kind: 'up' },
+  { id: 'crop', label: 'Recortar', kind: 'crop' },
+];
+
+/** Ícone de cada ferramenta: os do Txillapp quando existem, os outros desenhados aqui no mesmo traço. */
+function ToolGlyph({ id, color }: { id: ToolId; color: string }) {
+  if (id === 'amt') return <Icon name="sliders" size={22} color={color} />;
+  if (id === 'b') return <Icon name="sun" size={22} color={color} />;
+  if (id === 'hi') return <Icon name="sparkles" size={22} color={color} />;
+  if (id === 'sh') return <Icon name="moon" size={22} color={color} />;
+  let body: ReactNode = null;
+  if (id === 'look') body = <><Circle cx={12} cy={8.6} r={4.6} /><Circle cx={8.6} cy={14.6} r={4.6} /><Circle cx={15.4} cy={14.6} r={4.6} /></>;
+  else if (id === 'c') body = <><Circle cx={12} cy={12} r={8.5} /><Path d="M12 3.5a8.5 8.5 0 0 1 0 17Z" fill={color} /></>;
+  else if (id === 's') body = <Path d="M12 3.2c3.2 3.9 5.8 7.2 5.8 10.4a5.8 5.8 0 0 1-11.6 0c0-3.2 2.6-6.5 5.8-10.4Z" />;
+  else if (id === 'w') body = <><Path d="M10 14.2V5.6a2 2 0 0 1 4 0v8.6a4 4 0 1 1-4 0Z" /><Path d="M12 9.5v6.5" /></>;
+  else if (id === 'v') body = <><Rect x={3} y={5} width={18} height={14} rx={3.5} /><Circle cx={12} cy={12} r={3.6} /></>;
+  else if (id === 'n') body = <><Path d="M12 3.8 20.6 19.6H3.4Z" /><Path d="M12 3.8v15.8H3.4Z" fill={color} /></>;
+  else if (id === 'crop') body = <><Path d="M6.5 2.5v15h15" /><Path d="M2.5 6.5h15v15" /></>;
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      {body}
+    </Svg>
+  );
+}
+
+/** Como se mostra o valor: de -5 a 5 com uma casa (ex.: "1.5"), de 0 a 5 na vinheta e nitidez, e em % na intensidade. */
+function fmt(kind: ToolDef['kind'], v: number) {
+  if (kind === 'pct') return `${Math.round(v * 100)}%`;
+  const x = Math.round(v * 50) / 10;
+  return x === 0 ? '0' : x.toFixed(1);
+}
+
+/**
+ * A barra única por cima da fila de ferramentas. Arrastar mexe no valor a partir de onde está (não salta para o dedo);
+ * nas ferramentas para os dois lados o meio é o 0 e prende lá perto. Tocar no número repõe.
+ */
+function ToolSlider({ kind, value, def, label, onChange }: { kind: 'both' | 'up' | 'pct'; value: number; def: number; label: string; onChange: (v: number) => void }) {
   const [w, setW] = useState(0);
   const start = useRef(0);
-  const last = useRef(0);
-  const ref = useRef({ w, value, onChange });
-  ref.current = { w, value, onChange };
+  const ref = useRef({ w, value, onChange, kind });
+  ref.current = { w, value, onChange, kind };
   const pan = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (e) => {
-        const now = Date.now();
-        if (now - last.current < 280) { ref.current.onChange(0); last.current = 0; return; }
-        last.current = now;
-        const { w: ww } = ref.current;
-        if (ww <= 0) return;
-        const v = Math.max(-1, Math.min(1, (e.nativeEvent.locationX / ww) * 2 - 1));
-        start.current = v;
-        ref.current.onChange(v);
-      },
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => { start.current = ref.current.value; },
       onPanResponderMove: (_e, g) => {
-        const { w: ww } = ref.current;
+        const { w: ww, kind: k } = ref.current;
         if (ww <= 0) return;
-        ref.current.onChange(Math.max(-1, Math.min(1, start.current + (g.dx / ww) * 2)));
+        const lo = k === 'both' ? -1 : 0;
+        let v = Math.max(lo, Math.min(1, start.current + (g.dx / ww) * (1 - lo)));
+        if (k === 'both' && Math.abs(v) < 0.025) v = 0;
+        ref.current.onChange(v);
       },
     }),
   ).current;
-  const pos = ((value + 1) / 2) * w;
+  const lo = kind === 'both' ? -1 : 0;
+  const pos = ((value - lo) / (1 - lo)) * w;
+  const zero = kind === 'both' ? w / 2 : 0;
+  const changed = Math.abs(value - def) > 0.001;
   return (
-    <View style={{ marginBottom: 14 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-        <Text style={st.adjLabel}>{label}</Text>
-        <Text style={st.adjValue}>{value > 0 ? '+' : ''}{Math.round(value * 100)}</Text>
-      </View>
+    <View style={{ paddingHorizontal: 28 }}>
+      <Pressable onPress={() => onChange(def)} hitSlop={10} style={st.valueBox} accessibilityRole="button" accessibilityLabel={`${label}: ${fmt(kind, value)}. Toca para repor`}>
+        <Text style={[st.value, changed && { color: '#fff' }]}>{fmt(kind, value)}</Text>
+      </Pressable>
       <View style={st.track} onLayout={(e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width)} {...pan.panHandlers} accessibilityRole="adjustable" accessibilityLabel={label}>
         <View style={st.trackLine} />
-        <View style={[st.trackMid]} />
-        <View style={[st.trackFill, { left: Math.min(pos, w / 2), width: Math.abs(pos - w / 2) }]} />
+        {kind === 'both' ? <View style={st.trackMid} /> : null}
+        <View style={[st.trackFill, { left: Math.min(pos, zero), width: Math.abs(pos - zero) }]} />
         <View style={[st.knob, { left: pos - 11 }]} />
       </View>
     </View>
@@ -215,8 +343,8 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
   const username = useAuth().user?.username ?? null;
   const [img, setImg] = useState<SkImage | null>(null);
   const [failed, setFailed] = useState(false);
-  const [edit, setEdit] = useState<Edit>({ look: 0, adj: { b: 0, c: 0, s: 0, w: 0 }, aspect, rot: 0, flip: false, ox: 0, oy: 0 });
-  const [tool, setTool] = useState<'look' | 'adjust' | 'crop'>('look');
+  const [edit, setEdit] = useState<Edit>({ look: 0, amt: 1, adj: NO_ADJ, aspect, rot: 0, flip: false, ox: 0, oy: 0 });
+  const [tool, setTool] = useState<ToolId>('look');
   const [area, setArea] = useState({ w: 0, h: 0 });
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -251,18 +379,21 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
     return () => sub.remove();
   }, [onCancel]);
 
+  // Cópia leve para a pré-visualização (a foto inteira só se usa ao gravar).
+  const pv = useMemo(() => (img ? resized(img, PREVIEW_SIDE) : null), [img]);
+
   // Tamanho da pré-visualização: a proporção do recorte, a caber na área livre.
-  const crop = img ? cropOf(img, edit) : null;
+  const crop = pv ? cropOf(pv, edit) : null;
   const pw = crop && area.w ? Math.min(area.w - 24, (area.h - 24) * crop.a) : 0;
   const ph = crop ? pw / crop.a : 0;
   const previewFont = useMemo(() => (pw ? signFont(Math.max(8, Math.round(Math.min(pw, ph) * 0.028))) : null), [pw, ph]);
   const picture = useMemo(() => {
-    if (!img || !pw) return null;
+    if (!pv || !pw) return null;
     const rec = Skia.PictureRecorder();
     const c = rec.beginRecording(Skia.XYWHRect(0, 0, pw, ph));
-    drawEdit(c, img, edit, pw, ph, previewFont, username);
+    drawEdit(c, pv, edit, pw, ph, previewFont, username);
     return rec.finishRecordingAsPicture();
-  }, [img, edit, pw, ph, previewFont, username]);
+  }, [pv, edit, pw, ph, previewFont, username]);
 
   // Arrastar a foto para escolher o enquadramento (quando o recorte é mais pequeno do que a foto).
   const drag = useRef<{ ox: number; oy: number } | null>(null);
@@ -290,14 +421,15 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
 
   // Miniatura quadrada da foto (uma vez), para o exemplo de cada filtro.
   const thumb = useMemo(() => {
-    if (!img) return null;
-    const side = Math.min(img.width(), img.height());
+    if (!pv) return null;
+    const side = Math.min(pv.width(), pv.height());
     const surface = Skia.Surface.MakeOffscreen(112, 112) ?? Skia.Surface.Make(112, 112);
     if (!surface) return null;
-    surface.getCanvas().drawImageRect(img, Skia.XYWHRect((img.width() - side) / 2, (img.height() - side) / 2, side, side), Skia.XYWHRect(0, 0, 112, 112), Skia.Paint());
+    surface.getCanvas().drawImageRect(pv, Skia.XYWHRect((pv.width() - side) / 2, (pv.height() - side) / 2, side, side), Skia.XYWHRect(0, 0, 112, 112), Skia.Paint());
     surface.flush();
     return surface.makeImageSnapshot().makeNonTextureImage() ?? surface.makeImageSnapshot();
-  }, [img]);
+  }, [pv]);
+  const lookMats = useMemo(() => LOOKS.map(lookMatrix), []);
 
   // A fila de filtros acompanha o filtro escolhido (quando se troca a deslizar sobre a foto).
   const looksRow = useRef<React.ComponentRef<typeof ScrollView> | null>(null);
@@ -370,18 +502,74 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
   const set = (p: Partial<Edit>) => setEdit((e) => ({ ...e, ...p }));
   const setAdj = (p: Partial<Adjust>) => setEdit((e) => ({ ...e, adj: { ...e.adj, ...p } }));
   const ASPECTS: { label: string; v: number | null }[] = [{ label: 'Original', v: null }, { label: '1:1', v: 1 }, { label: '4:5', v: 4 / 5 }, { label: '9:16', v: 9 / 16 }, { label: '16:9', v: 16 / 9 }];
+  const cur = TOOLS.find((t) => t.id === tool) ?? TOOLS[0];
+  /** A ferramenta já mexeu na foto (põe um pontinho coral por baixo do ícone). */
+  const touched = (t: ToolDef) => {
+    if (t.id === 'look') return edit.look !== 0;
+    if (t.id === 'amt') return edit.look !== 0 && edit.amt < 0.999;
+    if (t.id === 'crop') return edit.rot !== 0 || edit.flip || edit.aspect !== aspect || edit.ox !== 0 || edit.oy !== 0;
+    return edit.adj[t.id] !== 0;
+  };
+
+  let controls: ReactNode = null;
+  if (cur.kind === 'look') {
+    controls = (
+      <ScrollView ref={looksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
+        {LOOKS.map((l, i) => (
+          // Cada filtro mostra a própria foto com esse filtro (como no site), e o nome por baixo.
+          <Pressable key={l.id} onPress={() => set({ look: i })} onLayout={(e) => { chipX.current[i] = e.nativeEvent.layout.x; }} style={st.swatch} accessibilityRole="button" accessibilityState={{ selected: edit.look === i }} accessibilityLabel={`Filtro ${l.name}`}>
+            <View style={[st.swatchImg, edit.look === i && st.swatchOn]}>
+              {thumb ? (
+                <Canvas style={{ width: 56, height: 56 }}>
+                  <SkImageNode image={thumb} x={0} y={0} width={56} height={56} fit="cover">
+                    <ColorMatrix matrix={lookMats[i]} />
+                  </SkImageNode>
+                </Canvas>
+              ) : null}
+            </View>
+            <Text style={[st.swatchText, edit.look === i && { color: '#fff', fontWeight: '800' }]} numberOfLines={1}>{l.name}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    );
+  } else if (cur.kind === 'crop') {
+    controls = (
+      <View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
+          <Pressable onPress={() => set({ rot: ((edit.rot + 90) % 360) as Edit['rot'], ox: 0, oy: 0 })} style={st.toolBtn} accessibilityRole="button" accessibilityLabel="Rodar"><Icon name="repeat" size={18} color="#fff" /><Text style={st.chipText}>Rodar</Text></Pressable>
+          <Pressable onPress={() => set({ flip: !edit.flip })} style={[st.toolBtn, edit.flip && st.chipOn]} accessibilityRole="button" accessibilityLabel="Espelhar" accessibilityState={{ selected: edit.flip }}><Icon name="flip-camera" size={18} color={edit.flip ? colors.zinc900 : '#fff'} /><Text style={[st.chipText, edit.flip && st.chipTextOn]}>Espelhar</Text></Pressable>
+          <View style={st.sep} />
+          {ASPECTS.map((a) => {
+            const on = a.v === null ? edit.aspect === null : edit.aspect !== null && Math.abs(edit.aspect - a.v) < 0.01;
+            return (
+              <Pressable key={a.label} onPress={() => set({ aspect: a.v, ox: 0, oy: 0 })} style={[st.chip, on && st.chipOn]} accessibilityRole="button" accessibilityState={{ selected: on }}>
+                <Text style={[st.chipText, on && st.chipTextOn]}>{a.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+        <Text style={st.cropHint}>Arrasta a foto para escolher o enquadramento.</Text>
+      </View>
+    );
+  } else if (cur.kind === 'pct' && edit.look === 0) {
+    controls = <Text style={st.cropHint}>Escolhe primeiro um filtro, depois afinas a força aqui.</Text>;
+  } else if (cur.kind === 'pct') {
+    controls = <ToolSlider kind="pct" label={cur.label} value={edit.amt} def={1} onChange={(v) => set({ amt: v })} />;
+  } else {
+    const k = cur.id as AdjKey;
+    controls = <ToolSlider kind={cur.kind} label={cur.label} value={edit.adj[k]} def={0} onChange={(v) => setAdj({ [k]: v })} />;
+  }
 
   return (
     <View style={[StyleSheet.absoluteFill, st.root]}>
       <View style={[st.top, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={onCancel} style={st.round} accessibilityRole="button" accessibilityLabel="Voltar à câmara"><Icon name="x" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
-        <Text style={st.title}>Editar</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Pressable onPress={() => void saveLocal()} disabled={!img || saving} style={[st.round, (!img || saving) && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel="Guardar na galeria">
             {saving ? <ActivityIndicator color="#fff" /> : <Icon name="download" size={20} color="#fff" />}
           </Pressable>
-          <Pressable onPress={() => void finish()} disabled={!img || busy} style={[st.next, (!img || busy) && { opacity: 0.5 }]} accessibilityRole="button">
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={st.nextText}>Seguinte</Text>}
+          <Pressable onPress={() => void finish()} disabled={!img || busy} style={[st.round, st.done, (!img || busy) && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel="Feito">
+            {busy ? <ActivityIndicator color="#fff" /> : <Icon name="check" size={22} color="#fff" strokeWidth={2.4} />}
           </Pressable>
         </View>
       </View>
@@ -392,7 +580,7 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
         ) : !picture ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <View style={{ width: pw, height: ph, borderRadius: 14, overflow: 'hidden' }} {...(tool === 'crop' ? pan.panHandlers : tool === 'look' ? swipe.panHandlers : {})}>
+          <View style={{ width: pw, height: ph, borderRadius: 14, overflow: 'hidden' }} {...(tool === 'crop' ? pan.panHandlers : tool === 'look' || tool === 'amt' ? swipe.panHandlers : {})}>
             <Canvas style={{ width: pw, height: ph }}>
               <Picture picture={picture} />
             </Canvas>
@@ -406,60 +594,20 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
         )}
       </View>
 
-      <View style={[st.panel, { paddingBottom: Math.max(insets.bottom, 12) + 6 }]}>
-        {tool === 'look' && (
-          <ScrollView ref={looksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
-            {LOOKS.map((l, i) => (
-              // Cada filtro mostra a própria foto com esse filtro (como no site), e o nome por baixo.
-              <Pressable key={l.id} onPress={() => set({ look: i })} onLayout={(e) => { chipX.current[i] = e.nativeEvent.layout.x; }} style={st.swatch} accessibilityRole="button" accessibilityState={{ selected: edit.look === i }} accessibilityLabel={`Filtro ${l.name}`}>
-                <View style={[st.swatchImg, edit.look === i && st.swatchOn]}>
-                  {thumb ? (
-                    <Canvas style={{ width: 56, height: 56 }}>
-                      <SkImageNode image={thumb} x={0} y={0} width={56} height={56} fit="cover">
-                        <ColorMatrix matrix={matrixOf({ ...edit, look: i, adj: { b: 0, c: 0, s: 0, w: 0 } })} />
-                      </SkImageNode>
-                    </Canvas>
-                  ) : null}
-                </View>
-                <Text style={[st.swatchText, edit.look === i && { color: '#fff', fontWeight: '800' }]} numberOfLines={1}>{l.name}</Text>
+      <View style={[st.panel, { paddingBottom: Math.max(insets.bottom, 12) + 4 }]}>
+        <View style={st.controls}>{controls}</View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.tools}>
+          {TOOLS.map((t) => {
+            const on = tool === t.id;
+            return (
+              <Pressable key={t.id} onPress={() => setTool(t.id)} style={st.tool} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t.label}>
+                <View style={[st.toolIcon, on && st.toolIconOn]}><ToolGlyph id={t.id} color={on ? colors.zinc900 : '#fff'} /></View>
+                <Text style={[st.toolLabel, on && st.toolLabelOn]} numberOfLines={1}>{t.label}</Text>
+                <View style={[st.dot, !touched(t) && { opacity: 0 }]} />
               </Pressable>
-            ))}
-          </ScrollView>
-        )}
-        {tool === 'adjust' && (
-          <View style={{ paddingHorizontal: 20 }}>
-            <Slider label="Brilho" value={edit.adj.b} onChange={(v) => setAdj({ b: v })} />
-            <Slider label="Contraste" value={edit.adj.c} onChange={(v) => setAdj({ c: v })} />
-            <Slider label="Saturação" value={edit.adj.s} onChange={(v) => setAdj({ s: v })} />
-            <Slider label="Calor" value={edit.adj.w} onChange={(v) => setAdj({ w: v })} />
-          </View>
-        )}
-        {tool === 'crop' && (
-          <View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
-              {ASPECTS.map((a) => {
-                const on = a.v === null ? edit.aspect === null : edit.aspect !== null && Math.abs(edit.aspect - a.v) < 0.01;
-                return (
-                  <Pressable key={a.label} onPress={() => set({ aspect: a.v, ox: 0, oy: 0 })} style={[st.chip, on && st.chipOn]} accessibilityRole="button" accessibilityState={{ selected: on }}>
-                    <Text style={[st.chipText, on && st.chipTextOn]}>{a.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 14, marginTop: 14 }}>
-              <Pressable onPress={() => set({ rot: ((edit.rot + 90) % 360) as Edit['rot'], ox: 0, oy: 0 })} style={st.toolBtn} accessibilityRole="button"><Icon name="repeat" size={18} color="#fff" /><Text style={st.toolText}>Rodar</Text></Pressable>
-              <Pressable onPress={() => set({ flip: !edit.flip })} style={st.toolBtn} accessibilityRole="button"><Icon name="flip-camera" size={18} color="#fff" /><Text style={st.toolText}>Espelhar</Text></Pressable>
-            </View>
-            <Text style={st.cropHint}>Arrasta a foto para escolher o enquadramento.</Text>
-          </View>
-        )}
-        <View style={st.tabs}>
-          {([['look', 'Filtros'], ['adjust', 'Ajustar'], ['crop', 'Recortar']] as const).map(([id, label]) => (
-            <Pressable key={id} onPress={() => setTool(id)} style={st.tab} accessibilityRole="tab" accessibilityState={{ selected: tool === id }}>
-              <Text style={[st.tabText, tool === id && st.tabOn]}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
+            );
+          })}
+        </ScrollView>
       </View>
     </View>
   );
@@ -469,14 +617,14 @@ const st = StyleSheet.create({
   root: { backgroundColor: '#000', zIndex: 30 },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 8 },
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
-  title: { color: '#fff', fontSize: 17, fontWeight: '800' },
-  next: { height: 40, minWidth: 104, borderRadius: 20, paddingHorizontal: 18, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  nextText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  done: { backgroundColor: colors.brand },
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   fail: { color: 'rgba(255,255,255,0.8)', fontSize: 15, textAlign: 'center', paddingHorizontal: 32 },
   grid: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(255,255,255,0.35)' },
   gridH: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.35)' },
-  panel: { paddingTop: 14, backgroundColor: '#0b0b0c', borderTopLeftRadius: 22, borderTopRightRadius: 22 },
+  panel: { paddingTop: 12, backgroundColor: '#0b0b0c', borderTopLeftRadius: 22, borderTopRightRadius: 22 },
+  // Altura fixa: a foto não salta ao trocar de ferramenta.
+  controls: { height: 92, justifyContent: 'center' },
   swatch: { width: 64, alignItems: 'center', gap: 5 },
   swatchImg: { width: 56, height: 56, borderRadius: 28, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', backgroundColor: 'rgba(255,255,255,0.1)' },
   swatchOn: { borderWidth: 2.5, borderColor: '#fff' },
@@ -485,18 +633,21 @@ const st = StyleSheet.create({
   chipOn: { backgroundColor: '#fff' },
   chipText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   chipTextOn: { color: colors.zinc900 },
-  adjLabel: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  adjValue: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  track: { height: 28, justifyContent: 'center' },
+  toolBtn: { height: 40, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 20, paddingHorizontal: 16, backgroundColor: 'rgba(255,255,255,0.1)' },
+  sep: { width: StyleSheet.hairlineWidth, height: 24, alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.25)', marginHorizontal: 2 },
+  cropHint: { marginTop: 10, color: 'rgba(255,255,255,0.55)', fontSize: 12, textAlign: 'center', paddingHorizontal: 24 },
+  valueBox: { alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 2, marginBottom: 8 },
+  value: { color: 'rgba(255,255,255,0.7)', fontSize: 17, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  track: { height: 32, justifyContent: 'center' },
   trackLine: { height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.18)' },
-  trackMid: { position: 'absolute', left: '50%', width: 2, height: 12, marginLeft: -1, backgroundColor: 'rgba(255,255,255,0.45)' },
+  trackMid: { position: 'absolute', left: '50%', width: 2, height: 14, marginLeft: -1, backgroundColor: 'rgba(255,255,255,0.45)' },
   trackFill: { position: 'absolute', height: 3, borderRadius: 2, backgroundColor: colors.brand },
   knob: { position: 'absolute', width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff' },
-  toolBtn: { height: 40, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 20, paddingHorizontal: 16, backgroundColor: 'rgba(255,255,255,0.1)' },
-  toolText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  cropHint: { marginTop: 10, color: 'rgba(255,255,255,0.55)', fontSize: 12, textAlign: 'center' },
-  tabs: { flexDirection: 'row', justifyContent: 'center', gap: 26, marginTop: 16, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.12)' },
-  tab: { paddingVertical: 6, paddingHorizontal: 4 },
-  tabText: { color: 'rgba(255,255,255,0.5)', fontSize: 14, fontWeight: '800', letterSpacing: 0.3 },
-  tabOn: { color: '#fff' },
+  tools: { gap: 4, paddingHorizontal: 10, paddingTop: 10 },
+  tool: { width: 72, alignItems: 'center', gap: 5 },
+  toolIcon: { width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  toolIconOn: { backgroundColor: '#fff' },
+  toolLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 11.5, fontWeight: '700' },
+  toolLabelOn: { color: '#fff' },
+  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.brand },
 });

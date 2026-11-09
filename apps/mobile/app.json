@@ -2,7 +2,7 @@
   "expo": {
     "name": "Txillapp",
     "slug": "txillapp",
-    "version": "1.13.6",
+    "version": "1.13.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "txillapp",
@@ -11,12 +11,18 @@
       "bundleIdentifier": "com.txillapp.app",
       "supportsTablet": false,
       "infoPlist": {
-        "NSCameraUsageDescription": "O Txillapp usa a câmara para tirares fotos e gravares vídeos para publicar, stories e mensagens.",
-        "NSMicrophoneUsageDescription": "O Txillapp usa o microfone para gravares vídeos e mensagens de voz.",
+        "NSCameraUsageDescription": "O Txillapp usa a câmara para tirares fotos e gravares vídeos para publicar, mimos, mensagens e videochamadas.",
+        "NSMicrophoneUsageDescription": "O Txillapp usa o microfone para gravares vídeos, mensagens de voz e para falares nas chamadas.",
         "NSPhotoLibraryUsageDescription": "O Txillapp acede às tuas fotos para escolheres o que publicar ou enviar.",
         "NSPhotoLibraryAddUsageDescription": "O Txillapp guarda fotos e vídeos na tua galeria quando pedes.",
         "NSLocationWhenInUseUsageDescription": "O Txillapp usa a tua localização para sugerir sítios perto de ti e para partilhares a tua localização numa conversa.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      },
+      "entitlements": {
+        "com.apple.developer.usernotifications.time-sensitive": true
       }
     },
     "android": {
@@ -34,7 +40,12 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "POST_NOTIFICATIONS",
-        "VIBRATE"
+        "VIBRATE",
+        "MODIFY_AUDIO_SETTINGS",
+        "BLUETOOTH_CONNECT",
+        "ACCESS_NETWORK_STATE",
+        "CHANGE_NETWORK_STATE",
+        "WAKE_LOCK"
       ],
       "googleServicesFile": "./google-services.json"
     },
@@ -50,8 +61,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "O Txillapp usa a câmara para tirares fotos, vídeos e Zás.",
-          "microphonePermission": "O Txillapp usa o microfone para gravares vídeos e notas de voz.",
+          "cameraPermission": "O Txillapp usa a câmara para tirares fotos, vídeos, Zás e para videochamadas.",
+          "microphonePermission": "O Txillapp usa o microfone para gravares vídeos, notas de voz e para as chamadas.",
           "recordAudioAndroid": true
         }
       ],
@@ -82,7 +93,10 @@
         "expo-notifications",
         {
           "color": "#d6334f",
-          "defaultChannel": "txillapp"
+          "defaultChannel": "txillapp",
+          "sounds": [
+            "./assets/sounds/ring.wav"
+          ]
         }
       ]
     ],

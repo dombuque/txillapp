@@ -16,7 +16,7 @@ export class ExportService {
     );
     const settings = (
       await q(
-        `SELECT comments_allowed AS "commentsAllowed", gifts_allowed AS "giftsAllowed", mentions_allowed AS "mentionsAllowed", dms_allowed AS "dmsAllowed",
+        `SELECT comments_allowed AS "commentsAllowed", gifts_allowed AS "giftsAllowed", mentions_allowed AS "mentionsAllowed", dms_allowed AS "dmsAllowed", calls_allowed AS "callsAllowed",
                 reposts_visible AS "repostsVisible", cheers_visible AS "cheersVisible", gifts_visible AS "giftsVisible",
                 show_connections AS "showConnections", suggestable, story_replies AS "storyReplies"
            FROM identity.users WHERE id = $1`,

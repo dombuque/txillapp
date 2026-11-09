@@ -70,6 +70,15 @@ const schema = z.object({
   ADMIN_URL: z.string().url().optional(),
   /** Conta de serviço do Firebase (JSON numa linha) para as notificações da app Android. Sem isto, só há push web. */
   FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  /**
+   * Chamadas (WebRTC). Servidores TURN para quando a ligação direta não passa (redes móveis, firewalls), separados por vírgula,
+   * ex.: turn:turn.txillapp.com:3478?transport=udp,turns:turn.txillapp.com:5349. Com TURN_SECRET (o mesmo `static-auth-secret`
+   * do coturn) a app recebe credenciais temporárias. Sem os dois, só há STUN.
+   */
+  TURN_URLS: z.string().optional(),
+  TURN_SECRET: z.string().min(8).optional(),
+  /** Quantos segundos uma chamada toca antes de ficar perdida. */
+  CALL_RING_SECONDS: z.coerce.number().int().min(1).max(300).default(45),
   /** Só para testes: guarda os e-mails em memória em vez de os enviar. */
   MAIL_CAPTURE: z.enum(['true', 'false']).default('false'),
   /**

@@ -10,9 +10,11 @@ import { dayLabel, quoteText, seenLabel, type Msg } from '@/components/ChatBubbl
 import { ChatComposer } from '@/components/ChatComposer';
 import { ChatList } from '@/components/ChatList';
 import { MessageMenu, NotFollowingNote, RequestBar, sendTyping, stopLiveShare } from '@/components/ChatParts';
+import { CallIcon } from '@/components/calls/CallIcons';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 import { api, raw, type ChatThread } from '@/lib/api';
+import { startCall } from '@/lib/calls';
 import { useAuth } from '@/lib/auth';
 import { useTyping } from '@/lib/realtime';
 import { colors } from '@/lib/theme';
@@ -168,6 +170,12 @@ export default function Thread() {
             </View>
           </Pressable>
         )}
+        {person && !first?.blocked ? (
+          <>
+            <Pressable onPress={() => void startCall({ username: person.username, displayName: person.displayName, hasAvatar: person.hasAvatar }, false)} style={st.search} accessibilityRole="button" accessibilityLabel={`Ligar a ${person.displayName}`}><CallIcon name="handset" size={21} color={colors.zinc700} /></Pressable>
+            <Pressable onPress={() => void startCall({ username: person.username, displayName: person.displayName, hasAvatar: person.hasAvatar }, true)} style={st.search} accessibilityRole="button" accessibilityLabel={`Videochamada a ${person.displayName}`}><Icon name="video" size={23} color={colors.zinc700} /></Pressable>
+          </>
+        ) : null}
         <Pressable onPress={() => setSearching(true)} style={st.search} accessibilityRole="button" accessibilityLabel="Procurar na conversa"><Icon name="search" size={22} color={colors.zinc700} /></Pressable>
       </View>
 

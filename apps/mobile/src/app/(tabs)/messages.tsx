@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
+import { CallIcon } from '@/components/calls/CallIcons';
 import { Icon } from '@/components/Icon';
 import { NotesStrip } from '@/components/Notes';
 import { REACTIONS } from '@/components/StoryParts';
@@ -121,6 +122,7 @@ export default function Messages() {
     <View>
       <View style={styles.top}>
         <Text style={styles.handle} numberOfLines={1}>{user?.username ?? 'Mensagens'}</Text>
+        <Pressable onPress={() => router.push('/calls' as never)} hitSlop={8} style={[styles.compose, { right: 48 }]} accessibilityRole="button" accessibilityLabel="Chamadas"><CallIcon name="handset" size={22} color={colors.zinc900} /></Pressable>
         <Pressable onPress={() => router.push('/messages/new' as never)} hitSlop={8} style={styles.compose} accessibilityRole="button" accessibilityLabel="Nova conversa ou grupo"><Icon name="compose" size={24} /></Pressable>
       </View>
       <View style={[styles.search, focus && { backgroundColor: 'rgba(228,228,231,0.7)' }]}>
@@ -229,7 +231,7 @@ const styles = StyleSheet.create({
   zas: { position: 'absolute', left: 0, top: 2, height: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 10, paddingRight: 12, borderRadius: 999 },
   zasText: { fontSize: 15, fontWeight: '900', letterSpacing: -0.3, color: colors.brand },
   compose: { position: 'absolute', right: 0, top: 2, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  handle: { maxWidth: '70%', fontSize: 20, fontWeight: '800', color: colors.zinc900 },
+  handle: { maxWidth: '54%', fontSize: 20, fontWeight: '800', color: colors.zinc900 },
   search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, marginBottom: 8 },
   sBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   newBtn: { marginTop: 16, height: 44, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },

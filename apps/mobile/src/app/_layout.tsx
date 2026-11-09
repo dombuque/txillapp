@@ -10,6 +10,7 @@ import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'reac
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { AlertHost } from '@/components/AlertHost';
 import { AppUpdate } from '@/components/AppUpdate';
+import { CallOverlay } from '@/components/calls/CallOverlay';
 import { PermissionsOnboarding } from '@/components/PermissionsOnboarding';
 import { DesktopShell } from '@/components/DesktopShell';
 import { isStandaloneWeb } from '@/components/Landing';
@@ -17,6 +18,7 @@ import { useDesktop } from '@/lib/desktop';
 import { installWebAlert } from '@/lib/alertHost';
 import { accounts } from '@/lib/accounts';
 import { syncPush } from '@/lib/push';
+import { installCallRing } from '@/lib/callRing';
 import { useChatStream } from '@/lib/realtime';
 import { colors } from '@/lib/theme';
 
@@ -75,6 +77,8 @@ function ChatLive() {
   useEffect(() => {
     if (user) void syncPush().catch(() => undefined);
   }, [user]);
+  // Web: o botão Recusar da notificação de chamada pede a esta janela que recuse (só ela tem a sessão).
+  useEffect(() => (user ? installCallRing() : undefined), [user]);
   return null;
 }
 
@@ -167,6 +171,8 @@ function Gate() {
       <Stack.Screen name="stories/[username]" options={{ animation: 'fade' }} />
       <Stack.Screen name="m/[username]" options={{ animation: 'fade' }} />
       <Stack.Screen name="stories/new" options={{ animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="calls" />
+      <Stack.Screen name="call/[id]" options={{ animation: 'fade' }} />
     </Stack>
   );
   return (
@@ -175,6 +181,8 @@ function Gate() {
       <AppUpdate />
       <PermissionsOnboarding />
       {shell ? <DesktopShell>{stack}</DesktopShell> : stack}
+      {/* Chamadas de voz e vídeo: o ecrã da chamada aparece por cima de qualquer ecrã (só com sessão). */}
+      {user ? <CallOverlay /> : null}
     </View>
   );
 }

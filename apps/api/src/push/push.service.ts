@@ -4,13 +4,13 @@ import webpush from 'web-push';
 import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
-import { FcmSender } from './fcm';
+import { FcmSender, type FcmPush } from './fcm';
 
 /** O que a pessoa pode ligar ou desligar nas notificações. */
 export const NOTIFY_CATEGORIES = ['messages', 'follows', 'comments', 'mentions', 'reposts', 'gifts', 'reactions', 'invites'] as const;
 export type NotifyCategory = (typeof NOTIFY_CATEGORIES)[number];
 
-export interface PushPayload {
+export interface PushPayload extends FcmPush {
   /** A que categoria pertence (se a pessoa a desligou, não se envia). */
   category?: NotifyCategory;
   title: string;
@@ -19,6 +19,11 @@ export interface PushPayload {
   url: string;
   /** Mesmo `tag` substitui a notificação anterior (por exemplo, várias mensagens da mesma pessoa). */
   tag?: string;
+}
+
+/** O que vai para o browser (Web Push): os dados extra (ex.: kind, callId, from, video) ficam ao nível de cima, ao lado do título e do texto. */
+export function webPushBody(p: PushPayload): string {
+  return JSON.stringify({ ...(p.data ?? {}), title: p.title, body: p.body, url: p.url, tag: p.tag });
 }
 
 /**
@@ -90,11 +95,11 @@ export class PushService {
     try {
       if (payload.category && (await this.off(userId)).includes(payload.category)) return;
       if (this.fcm.enabled) {
-        const devices = (await this.pool.query('SELECT token FROM social.push_devices WHERE user_id = $1', [userId])).rows;
+        const devices = (await this.pool.query('SELECT token, platform FROM social.push_devices WHERE user_id = $1', [userId])).rows;
         await Promise.all(
           devices.map(async (d) => {
             try {
-              const r = await this.fcm.send(d.token as string, payload);
+              const r = await this.fcm.send(d.token as string, payload, d.platform === 'ios' ? 'ios' : 'android');
               if (r === 'dead') await this.pool.query('DELETE FROM social.push_devices WHERE token = $1', [d.token]);
               else if (r === 'error') this.log.warn('falha no push nativo');
             } catch (e) {
@@ -107,7 +112,7 @@ export class PushService {
       await Promise.all(
         rows.map(async (r) => {
           try {
-            await webpush.sendNotification({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }, JSON.stringify({ title: payload.title, body: payload.body, url: payload.url, tag: payload.tag }), { TTL: 86_400, urgency: 'high' });
+            await webpush.sendNotification({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }, webPushBody(payload), { TTL: payload.ttlSeconds ?? 86_400, urgency: 'high' });
           } catch (e) {
             const status = (e as { statusCode?: number }).statusCode;
             if (status === 404 || status === 410) await this.pool.query('DELETE FROM social.push_subscriptions WHERE endpoint = $1', [r.endpoint]);

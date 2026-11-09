@@ -40,6 +40,7 @@ const privacySchema = z.object({
   giftsAllowed: who.optional(),
   mentionsAllowed: who.optional(),
   dmsAllowed: who.optional(),
+  callsAllowed: z.enum(['everyone', 'following', 'mutual', 'off']).optional(),
   shareAnalytics: z.boolean().optional(),
   showConnections: z.enum(['everyone', 'followers', 'me']).optional(),
   suggestable: z.boolean().optional(),

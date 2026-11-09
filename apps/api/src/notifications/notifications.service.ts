@@ -17,7 +17,7 @@ export const mentionableBy = (u = 'u', viewer = '$1') =>
   `(${u}.id <> ${viewer} AND ${u}.status = 'active' AND NOT ${blockedBetween(`${u}.id`, viewer)} AND ${allowedBy(u, 'mentions_allowed', viewer)} AND ` +
   `(NOT ${u}.is_private OR EXISTS (SELECT 1 FROM social.follows mf WHERE mf.follower_id = ${viewer} AND mf.followee_id = ${u}.id)))`;
 
-export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite';
+export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call';
 
 /** A categoria que a pessoa pode desligar (os avisos de bloqueio e de verificação ficam sempre). */
 export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
@@ -86,8 +86,22 @@ export class NotificationsService {
       story_reply: { body: 'respondeu ao teu mimo', url: n.data?.replyKind === 'comment' ? '/profile' : a?.username ? `/messages/${a.username as string}` : '/notifications' },
       verified: { body: 'agora tem a conta verificada', url: profile },
       venue_invite: { body: 'convidou-te para gerir um local', url: '/notifications' },
+      missed_call: { body: n.data?.video ? 'Videochamada perdida' : 'Chamada perdida', url: '/calls' },
     };
     const m = t[n.kind];
+    // Chamada perdida: a mesma etiqueta da chamada que tocava (substitui-a) e, no Android, só dados, como o toque.
+    if (m && n.kind === 'missed_call') {
+      const callId = String(n.data?.callId ?? '');
+      await this.push.send(n.userId, {
+        title: who,
+        body: m.body,
+        url: m.url,
+        tag: `call-${callId}`,
+        dataOnly: true,
+        data: { kind: 'missed_call', callId, from: (a?.username as string | undefined) ?? '', video: n.data?.video ? '1' : '0' },
+      });
+      return;
+    }
     if (m) await this.push.send(n.userId, { title: who, body: m.body, url: m.url, tag: `${n.kind}:${n.actorId}`, category: CATEGORY_OF[n.kind] });
   }
 

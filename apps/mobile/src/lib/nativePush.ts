@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { post, raw } from './api';
+import { handleCallResponse, isForegroundCall, setupCallNotifications } from './callRing';
 import { kvGet, kvSet } from './kv';
 
 /**
@@ -11,13 +12,17 @@ import { kvGet, kvSet } from './kv';
 const TOKEN_KEY = 'tx_native_push_token';
 
 if (Platform.OS !== 'web') {
-  // Com a app aberta também aparece (como as conversas no WhatsApp).
+  // Com a app aberta também aparece (como as conversas no WhatsApp). As chamadas não: o ecrã de chamada da app já toca.
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }),
+    handleNotification: async (n) => isForegroundCall(n)
+      ? { shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false }
+      : { shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true },
   });
 }
 
 async function channel() {
+  // Canal e botões das chamadas (Android e iPhone).
+  await setupCallNotifications();
   if (Platform.OS !== 'android') return;
   await Notifications.setNotificationChannelAsync('txillapp', {
     name: 'Txillapp',
@@ -65,10 +70,14 @@ export async function unregisterNativePush(): Promise<void> {
   await kvSet(TOKEN_KEY, '');
 }
 
-/** Tocar numa notificação abre o que ela traz (conversa, publicação, perfil…). Devolve a função para desligar. */
+/**
+ * Tocar numa notificação abre o que ela traz (conversa, publicação, perfil…). As chamadas abrem o ecrã da chamada
+ * (ou recusam, no botão Recusar) e a chamada perdida abre /calls. Devolve a função para desligar.
+ */
 export function onNotificationOpen(go: (url: string) => void): () => void {
   if (Platform.OS === 'web') return () => undefined;
   const open = (r: Notifications.NotificationResponse | null) => {
+    if (r && handleCallResponse(r, go)) return;
     const url = r?.notification.request.content.data?.url;
     if (typeof url === 'string' && url.startsWith('/')) go(url);
   };

@@ -89,6 +89,8 @@ function qsp(cursor?: string, q?: string) {
 }
 export type Who = 'everyone' | 'following' | 'off';
 export type Viewers = 'everyone' | 'followers' | 'off';
+/** Quem me pode ligar (chamadas de voz e vídeo). */
+export type CallsWho = 'everyone' | 'following' | 'mutual' | 'off';
 export type Gender = 'female' | 'male' | 'other' | 'unspecified';
 export interface PrivacySettings {
   isPrivate: boolean;
@@ -101,6 +103,8 @@ export interface PrivacySettings {
   giftsAllowed: Who;
   mentionsAllowed: Who;
   dmsAllowed: Who;
+  /** Quem me pode ligar (calls_allowed no servidor). */
+  callsAllowed?: CallsWho;
   repostsVisible: Viewers;
   cheersVisible: Viewers;
   giftsVisible: Viewers;

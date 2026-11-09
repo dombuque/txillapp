@@ -1,0 +1,64 @@
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { Request } from 'express';
+import { z } from 'zod';
+import { JwtAuthGuard } from '../auth/auth.controller';
+import { ZodPipe } from '../common/zod.pipe';
+import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
+import { CallsService } from './calls.service';
+
+type AuthedReq = Request & { userId?: string };
+const createSchema = z.object({ username: z.string().trim().min(1).max(40), video: z.boolean() });
+const declineSchema = z.object({ message: z.string().trim().max(200).optional() }).optional();
+const signalSchema = z.object({ type: z.enum(['offer', 'answer', 'ice']), data: z.any() });
+
+/** Chamadas de voz e vídeo 1:1. Os eventos em tempo real e as regras estão descritos no topo de calls.service.ts. */
+@Controller('calls')
+@UseGuards(JwtAuthGuard)
+export class CallsController {
+  constructor(private readonly calls: CallsService) {}
+
+  @NeedsVerifiedEmail()
+  @Post()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
+    return this.calls.create(req.userId!, b.username, b.video);
+  }
+
+  /** Servidores ICE (STUN e, se houver, TURN com credenciais temporárias de 6 horas). */
+  @Get('ice')
+  ice(@Req() req: AuthedReq) {
+    return { iceServers: this.calls.iceServers(req.userId!) };
+  }
+
+  @Get()
+  history(@Req() req: AuthedReq, @Query('cursor') cursor?: string) {
+    return this.calls.history(req.userId!, cursor);
+  }
+
+  @Post(':id/accept')
+  @HttpCode(200)
+  accept(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.calls.accept(req.userId!, id);
+  }
+
+  @Post(':id/decline')
+  @HttpCode(200)
+  decline(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(declineSchema)) b: z.infer<typeof declineSchema>) {
+    return this.calls.decline(req.userId!, id, b?.message);
+  }
+
+  @Post(':id/end')
+  @HttpCode(200)
+  end(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.calls.end(req.userId!, id);
+  }
+
+  /** Oferta, resposta ou candidato ICE: passa tal e qual para o outro lado. Muitos candidatos de seguida, por isso o limite é largo. */
+  @Post(':id/signal')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 600, ttl: 60_000 } })
+  async signal(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(signalSchema)) b: z.infer<typeof signalSchema>) {
+    await this.calls.signal(req.userId!, id, b.type, b.data);
+  }
+}

@@ -2,7 +2,7 @@ import type React from 'react';
 import { createElement, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { colors } from '@/lib/theme';
 import { FeatureIntro } from './FeatureIntro';
 import { Icon } from './Icon';
@@ -131,6 +131,139 @@ function cover(g: CanvasRenderingContext2D, src: CanvasImageSource, srcW: number
 
 const buzz = (ms: number) => { try { navigator.vibrate?.(ms); } catch { /* sem vibração */ } };
 
+// ----- Edição depois de tirar: filtro (com intensidade), luz e cor, vinheta, corte e rotação.
+type Box = { x: number; y: number; w: number; h: number };
+/** b/c/s são multiplicadores (1 = sem mexer); t, hl e sh vão de -100 a 100; vig e k (intensidade do filtro) de 0 a 100. */
+type Edit = { rot: 0 | 90 | 180 | 270; flip: boolean; aspect: number | null; box: Box | null; look: number; b: number; c: number; s: number; t: number; hl: number; sh: number; vig: number; k: number };
+const EDIT0: Edit = { rot: 0, flip: false, aspect: null, box: null, look: 0, b: 1, c: 1, s: 1, t: 0, hl: 0, sh: 0, vig: 0, k: 100 };
+type AdjKey = 'b' | 'c' | 's' | 't' | 'hl' | 'sh' | 'vig' | 'k';
+type Tool = 'look' | 'crop' | AdjKey;
+/** Cada ajuste no slider único: o valor que se vê (inteiro) e como passa para a edição. */
+const ADJ: Record<AdjKey, { label: string; min: number; max: number; def: number; get: (e: Edit) => number; set: (v: number) => Partial<Edit> }> = {
+  b: { label: 'Brilho', min: -100, max: 100, def: 0, get: (e) => Math.round((e.b - 1) * 250), set: (v) => ({ b: 1 + v / 250 }) },
+  c: { label: 'Contraste', min: -100, max: 100, def: 0, get: (e) => Math.round((e.c - 1) * 250), set: (v) => ({ c: 1 + v / 250 }) },
+  s: { label: 'Saturação', min: -100, max: 100, def: 0, get: (e) => Math.round((e.s - 1) * 100), set: (v) => ({ s: 1 + v / 100 }) },
+  t: { label: 'Temperatura', min: -100, max: 100, def: 0, get: (e) => e.t, set: (v) => ({ t: v }) },
+  hl: { label: 'Realces', min: -100, max: 100, def: 0, get: (e) => e.hl, set: (v) => ({ hl: v }) },
+  sh: { label: 'Sombras', min: -100, max: 100, def: 0, get: (e) => e.sh, set: (v) => ({ sh: v }) },
+  vig: { label: 'Vinheta', min: 0, max: 100, def: 0, get: (e) => e.vig, set: (v) => ({ vig: v }) },
+  k: { label: 'Intensidade', min: 0, max: 100, def: 100, get: (e) => e.k, set: (v) => ({ k: v }) },
+};
+const TOOLS: { id: Tool; label: string; a11y?: string }[] = [
+  { id: 'look', label: 'Filtros' }, { id: 'b', label: 'Brilho' }, { id: 'c', label: 'Contraste' }, { id: 's', label: 'Saturação' },
+  { id: 't', label: 'Temperatura' }, { id: 'hl', label: 'Realces' }, { id: 'sh', label: 'Sombras' }, { id: 'vig', label: 'Vinheta' },
+  { id: 'k', label: 'Intensidade', a11y: 'Intensidade do filtro' }, { id: 'crop', label: 'Recortar' },
+];
+const fmtAdj = (k: AdjKey, v: number) => (k === 'vig' || k === 'k' || v <= 0 ? String(v) : `+${v}`);
+
+/** As contas de um look (as mesmas do applyLook): matriz de cor, brilho×contraste e a tinta. */
+function lookParts(l: Look) {
+  const sv = l.s, sp = 1 - l.sep, gr = 1 - l.g;
+  const S = [0.213 + 0.787 * sv, 0.715 - 0.715 * sv, 0.072 - 0.072 * sv, 0.213 - 0.213 * sv, 0.715 + 0.285 * sv, 0.072 - 0.072 * sv, 0.213 - 0.213 * sv, 0.715 - 0.715 * sv, 0.072 + 0.928 * sv];
+  const P = [0.393 + 0.607 * sp, 0.769 - 0.769 * sp, 0.189 - 0.189 * sp, 0.349 - 0.349 * sp, 0.686 + 0.314 * sp, 0.168 - 0.168 * sp, 0.272 - 0.272 * sp, 0.534 - 0.534 * sp, 0.131 + 0.869 * sp];
+  const G = [0.2126 + 0.7874 * gr, 0.7152 - 0.7152 * gr, 0.0722 - 0.0722 * gr, 0.2126 - 0.2126 * gr, 0.7152 + 0.2848 * gr, 0.0722 - 0.0722 * gr, 0.2126 - 0.2126 * gr, 0.7152 - 0.7152 * gr, 0.0722 + 0.9278 * gr];
+  const mul = (A: number[], B: number[]) => [0, 1, 2].flatMap((i) => [0, 1, 2].map((j) => A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j]));
+  return { M: mul(G, mul(P, S)), bc: l.b * l.c, off: 128 * (1 - l.c), tint: l.tint ?? ([0, 0, 0, 0] as [number, number, number, number]) };
+}
+
+/**
+ * Toda a edição de cor numa só passagem pelos pixels: o filtro (misturado com o original pela intensidade),
+ * depois brilho, contraste e saturação, temperatura, realces e sombras, e por fim a vinheta.
+ * A pré-visualização e o JPEG final saem os dois daqui, por isso ficam iguais.
+ */
+function applyEdit(cv: HTMLCanvasElement, look: Look, e: Edit) {
+  const lookOn = look.id !== 'normal' && e.k > 0;
+  const userOn = e.b !== 1 || e.c !== 1 || e.s !== 1;
+  if (!lookOn && !userOn && !e.t && !e.hl && !e.sh && !e.vig) return;
+  const W = cv.width, H = cv.height;
+  const g = cv.getContext('2d')!;
+  const img = g.getImageData(0, 0, W, H);
+  const d = img.data;
+  const L = lookParts(look);
+  const LM = L.M, lbc = L.bc, loff = L.off, [tr, tg, tb, ta] = L.tint;
+  const mix = e.k / 100;
+  const U = lookParts({ id: 'u', name: '', b: e.b, c: e.c, s: e.s, sep: 0, g: 0 });
+  const UM = U.M, ubc = U.bc, uoff = U.off;
+  const tk = e.t * 0.28; // até ±28 níveis: mais quente puxa ao vermelho, mais fresco ao azul
+  const hk = (e.hl / 100) * 70, sk = (e.sh / 100) * 70;
+  const vk = (e.vig / 100) * 0.8;
+  // A vinheta depende da distância ao centro: as colunas calculam-se uma vez só.
+  const dx2 = new Float32Array(W);
+  for (let x = 0; x < W; x++) { const u = ((x + 0.5) / W) * 2 - 1; dx2[x] = u * u; }
+  for (let y = 0; y < H; y++) {
+    const v = ((y + 0.5) / H) * 2 - 1, dy2 = v * v;
+    let i = y * W * 4;
+    for (let x = 0; x < W; x++, i += 4) {
+      let r = d[i], gg = d[i + 1], b = d[i + 2];
+      if (lookOn) {
+        const r0 = r * lbc + loff, g0 = gg * lbc + loff, b0 = b * lbc + loff;
+        let R = LM[0] * r0 + LM[1] * g0 + LM[2] * b0, Gc = LM[3] * r0 + LM[4] * g0 + LM[5] * b0, B = LM[6] * r0 + LM[7] * g0 + LM[8] * b0;
+        if (ta) { R += (tr - R) * ta; Gc += (tg - Gc) * ta; B += (tb - B) * ta; }
+        R = R < 0 ? 0 : R > 255 ? 255 : R; Gc = Gc < 0 ? 0 : Gc > 255 ? 255 : Gc; B = B < 0 ? 0 : B > 255 ? 255 : B;
+        r += (R - r) * mix; gg += (Gc - gg) * mix; b += (B - b) * mix;
+      }
+      if (userOn) {
+        const r0 = r * ubc + uoff, g0 = gg * ubc + uoff, b0 = b * ubc + uoff;
+        r = UM[0] * r0 + UM[1] * g0 + UM[2] * b0; gg = UM[3] * r0 + UM[4] * g0 + UM[5] * b0; b = UM[6] * r0 + UM[7] * g0 + UM[8] * b0;
+      }
+      if (tk) { r += tk; gg += tk * 0.15; b -= tk; }
+      if (hk || sk) {
+        let l = (0.2126 * r + 0.7152 * gg + 0.0722 * b) / 255;
+        l = l < 0 ? 0 : l > 1 ? 1 : l;
+        const wh = l > 0.45 ? ((l - 0.45) / 0.55) ** 2 : 0, ws = l < 0.55 ? ((0.55 - l) / 0.55) ** 2 : 0;
+        const add = hk * wh + sk * ws;
+        r += add; gg += add; b += add;
+      }
+      if (vk) {
+        const dn = Math.sqrt((dx2[x] + dy2) / 2);
+        if (dn > 0.35) { const t = Math.min(1, (dn - 0.35) / 0.65); const f = 1 - vk * t * t * (3 - 2 * t); r *= f; gg *= f; b *= f; }
+      }
+      d[i] = r < 0 ? 0 : r > 255 ? 255 : r; d[i + 1] = gg < 0 ? 0 : gg > 255 ? 255 : gg; d[i + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
+    }
+  }
+  g.putImageData(img, 0, 0);
+}
+
+/** Ícones que não existem na biblioteca Tx, desenhados no mesmo traço e grelha 24×24. */
+function Glyph({ name, color, size = 22 }: { name: 'contrast' | 'drop' | 'thermo' | 'highlights' | 'vignette' | 'crop' | 'thirds'; color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      {name === 'contrast' && <><Circle cx={12} cy={12} r={8.5} /><Path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill={color} /></>}
+      {name === 'drop' && <Path d="M12 3.5c3.2 4 5.6 7.1 5.6 10.1a5.6 5.6 0 0 1-11.2 0c0-3 2.4-6.1 5.6-10.1z" />}
+      {name === 'thermo' && <><Path d="M10 14.3V5.2a2 2 0 0 1 4 0v9.1a4 4 0 1 1-4 0z" /><Path d="M12 9v7.4" /></>}
+      {name === 'highlights' && <><Path d="M3.5 17h17" /><Path d="M7 17a5 5 0 0 1 10 0" /><Path d="M12 6.5v2M5.8 9.6l1.4 1.4M18.2 9.6 16.8 11M8 20.5h8" /></>}
+      {name === 'vignette' && <><Path d="M6.5 5h11a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-11a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z" /><Circle cx={12} cy={12} r={4} /></>}
+      {name === 'crop' && <><Path d="M6 2.5V18h15.5" /><Path d="M2.5 6H18v15.5" /></>}
+      {name === 'thirds' && <Path d="M9 3.5v17M15 3.5v17M3.5 9h17M3.5 15h17" />}
+    </Svg>
+  );
+}
+function toolIcon(t: Tool, color: string) {
+  switch (t) {
+    case 'look': return <Icon name="sparkles" size={22} color={color} strokeWidth={2} />;
+    case 'b': return <Icon name="sun" size={22} color={color} strokeWidth={2} />;
+    case 'c': return <Glyph name="contrast" color={color} />;
+    case 's': return <Glyph name="drop" color={color} />;
+    case 't': return <Glyph name="thermo" color={color} />;
+    case 'hl': return <Glyph name="highlights" color={color} />;
+    case 'sh': return <Icon name="moon" size={22} color={color} strokeWidth={2} />;
+    case 'vig': return <Glyph name="vignette" color={color} />;
+    case 'k': return <Icon name="sliders" size={22} color={color} strokeWidth={2} />;
+    default: return <Glyph name="crop" color={color} />;
+  }
+}
+
+/** Uma linha do painel de opções da câmara: ícone, nome e o estado atual. */
+function OptRow({ icon, label, value, on, onPress }: { icon: ReactNode; label: string; value?: string; on?: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [st.optRow, pressed && { backgroundColor: 'rgba(255,255,255,0.08)' }]} accessibilityRole="button" accessibilityState={{ selected: !!on }} accessibilityLabel={value ? `${label}: ${value}` : label}>
+      <View style={[st.optIcon, on && { backgroundColor: '#fff' }]}>{icon}</View>
+      <Text style={st.optLabel}>{label}</Text>
+      {value ? <Text style={[st.optValue, on && { color: '#fff' }]}>{value}</Text> : null}
+    </Pressable>
+  );
+}
+
 export function TxCamera({
   count, max, modes = ['photo', 'video', 'text'], onShot, onGallery, onClose, onDone, onText, doneLabel = 'Feito', thumbs, kinds, kind, onKind, aspect = 9 / 16,
 }: {
@@ -154,7 +287,7 @@ export function TxCamera({
   const startedAt = useRef(0);
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const pausedForPicker = useRef(false);
-  const [mode, setMode] = useState<CamMode>(modes.includes('photo') ? 'photo' : modes[0]);
+  const [mode] = useState<CamMode>(modes.includes('photo') ? 'photo' : modes[0]);
   const [facing, setFacing] = useState<'environment' | 'user'>('environment');
   const [ready, setReady] = useState(false);
   const [problem, setProblem] = useState<Problem>(null);
@@ -162,12 +295,17 @@ export function TxCamera({
   const [canTorch, setCanTorch] = useState(false);
   const [light, setLight] = useState(false);
   const [lit, setLit] = useState(false);
-  const [flash, setFlash] = useState(false);
+  /** Conta as fotos tiradas: cada uma relança a animação do clarão. */
+  const [shotK, setShotK] = useState(0);
   const [delay, setDelay] = useState<0 | 3 | 10>(0);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [look, setLook] = useState(0);
   const [lookName, setLookName] = useState<string | null>(null);
   const [area, setArea] = useState({ w: 0, h: 0 });
+  // O painel de opções (temporizador, grelha, layout, só texto) e a grelha dos terços, que fica lembrada neste aparelho.
+  const [optsOpen, setOptsOpen] = useState(false);
+  const [grid, setGrid] = useState(() => { try { return localStorage.getItem('tx_cam_grid') === '1'; } catch { return false; } });
+  const toggleGrid = () => setGrid((v) => { try { localStorage.setItem('tx_cam_grid', v ? '0' : '1'); } catch { /* sem armazenamento */ } return !v; });
   // Layout: qual (ou nenhum), o seletor aberto, e as fotos já tiradas (uma por célula).
   const [layout, setLayout] = useState<number | null>(null);
   const [layoutOpen, setLayoutOpen] = useState(false);
@@ -181,22 +319,21 @@ export function TxCamera({
   const [focusAt, setFocusAt] = useState<{ x: number; y: number; k: number } | null>(null);
   const lastTap = useRef(0);
   const focusTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  // Depois de tirar: a pré-visualização, com Repetir ou Usar.
+  // Depois de tirar: a pré-visualização, com Repetir, Guardar ou Usar.
   const [review, setReview] = useState<Shot | null>(null);
   const reviewSrc = useRef<HTMLCanvasElement | null>(null);
+  /** Cópia mais pequena do original só para a pré-visualização (os ajustes respondem depressa); o JPEG final usa o original. */
+  const previewSrc = useRef<HTMLCanvasElement | null>(null);
   const swipeX = useRef<number | null>(null);
   const editLooksRow = useRef<React.ComponentRef<typeof ScrollView> | null>(null);
   // A miniatura dos filtros é a foto tirada, sem filtro (senão cada exemplo levava o filtro escolhido por cima).
   const [swatchSrc, setSwatchSrc] = useState<string | null>(null);
-  // Edição na pré-visualização: rodar/espelhar, cortar, filtro e ajustes. Aplica-se ao original a cada mudança.
-  type Box = { x: number; y: number; w: number; h: number };
-  type Edit = { rot: 0 | 90 | 180 | 270; flip: boolean; aspect: number | null; box: Box | null; look: number; b: number; c: number; s: number };
-  const EDIT0: Edit = { rot: 0, flip: false, aspect: null, box: null, look: 0, b: 1, c: 1, s: 1 };
   const { user } = useAuth();
   const stamp = (g: CanvasRenderingContext2D, w: number, h: number) => stampTxillapp(g, w, h, user?.username);
   const [edit, setEdit] = useState<Edit>(EDIT0);
-  const [tool, setTool] = useState<null | 'look' | 'adjust' | 'crop'>(null);
-  const renderTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const editRef = useRef(edit);
+  editRef.current = edit;
+  const [tool, setTool] = useState<Tool | null>(null);
   function renderEdit(src: HTMLCanvasElement, e: Edit, sign = true): HTMLCanvasElement {
     const turned = e.rot === 90 || e.rot === 270;
     const w = turned ? src.height : src.width, h = turned ? src.width : src.height;
@@ -218,9 +355,7 @@ export function TxCamera({
     g.rotate((e.rot * Math.PI) / 180);
     g.drawImage(src, -src.width / 2, -src.height / 2);
     g.restore(); // sem isto a assinatura era desenhada com a rotação e caía fora da imagem
-    const base = LOOKS[e.look];
-    const l: Look = { ...base, id: base.id === 'normal' && e.b === 1 && e.c === 1 && e.s === 1 ? 'normal' : 'edit', b: base.b * e.b, c: base.c * e.c, s: base.s * e.s };
-    applyLook(out, l);
+    applyEdit(out, LOOKS[e.look], e);
     if (sign) stamp(out.getContext('2d')!, cw, ch);
     return out;
   }
@@ -249,12 +384,12 @@ export function TxCamera({
     const host = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const px = t.clientX - host.left - rect.left, py = t.clientY - host.top - rect.top;
     const b = boxRef.current;
-    const corners: [typeof drag.current extends infer D ? (D extends { kind: infer K } ? K : never) : never, number, number][] = [
+    const corners: ['nw' | 'ne' | 'sw' | 'se', number, number][] = [
       ['nw', b.x * rect.width, b.y * rect.height], ['ne', (b.x + b.w) * rect.width, b.y * rect.height],
       ['sw', b.x * rect.width, (b.y + b.h) * rect.height], ['se', (b.x + b.w) * rect.width, (b.y + b.h) * rect.height],
     ];
     let kind: 'nw' | 'ne' | 'sw' | 'se' | 'move' = 'move';
-    for (const [k, x, y] of corners) if (Math.hypot(px - x, py - y) < 34) { kind = k as typeof kind; break; }
+    for (const [k, x, y] of corners) if (Math.hypot(px - x, py - y) < 34) { kind = k; break; }
     drag.current = { kind, x: t.clientX, y: t.clientY, box: b };
   }
   function cropTouchMove(e: TouchEvent) {
@@ -279,15 +414,42 @@ export function TxCamera({
     setBox({ x, y, w, h });
   }
   function cropTouchEnd() { drag.current = null; }
+
+  // A pré-visualização redesenha-se sempre com a última edição pedida: uma de cada vez, sem fila (o slider fica fluido).
+  const renderSeq = useRef(0);
+  const pending = useRef<{ e: Edit; sign: boolean } | null>(null);
+  const busy = useRef(false);
+  function pump() {
+    if (busy.current || !pending.current) return;
+    const src = previewSrc.current ?? reviewSrc.current;
+    if (!src) { pending.current = null; return; }
+    const { e, sign } = pending.current;
+    pending.current = null;
+    busy.current = true;
+    const seq = ++renderSeq.current;
+    renderEdit(src, e, sign).toBlob((blob) => {
+      busy.current = false;
+      if (blob && seq === renderSeq.current) {
+        const uri = URL.createObjectURL(blob);
+        setReview((r) => (r && !r.video ? { ...r, uri } : r));
+      }
+      pump();
+    }, 'image/jpeg', 0.9);
+  }
+  function paint(e: Edit, sign = true) { pending.current = { e, sign }; pump(); }
+  function changeEdit(patch: Partial<Edit>) {
+    const e = { ...editRef.current, ...patch };
+    editRef.current = e;
+    setEdit(e);
+    paint(e);
+  }
   /** Entra no corte livre: mostra a foto inteira (sem corte) com a caixa por cima. */
   function startFreeCrop() {
     setFreeCrop(true);
-    const e = { ...edit, aspect: null, box: null };
+    const e = { ...editRef.current, aspect: null, box: null };
+    editRef.current = e;
     setEdit(e);
-    clearTimeout(renderTimer.current);
-    const src = reviewSrc.current;
-    const seq = ++renderSeq.current;
-    if (src) renderEdit(src, e, false).toBlob((blob) => blob && seq === renderSeq.current && setReview((r) => (r && !r.video ? { ...r, uri: URL.createObjectURL(blob) } : r)), 'image/jpeg', 0.9);
+    paint(e, false);
   }
   // Os URLs de blob da pré-visualização são revogados ao serem substituídos (cada ajuste criava um JPEG retido para sempre).
   const lastUri = useRef<string | null>(null);
@@ -308,11 +470,23 @@ export function TxCamera({
     setFreeCrop(false);
     changeEdit({ box: boxRef.current, aspect: null });
   }
-  const renderSeq = useRef(0);
   function openReview(c: HTMLCanvasElement) {
-    clearTimeout(renderTimer.current);
     renderSeq.current += 1;
+    pending.current = null;
     reviewSrc.current = c;
+    // Pré-visualização até 1600 px no lado maior: chega para o ecrã e mantém os ajustes rápidos.
+    const long = Math.max(c.width, c.height);
+    if (long > 1600) {
+      const k = 1600 / long;
+      const p = document.createElement('canvas');
+      p.width = Math.round(c.width * k);
+      p.height = Math.round(c.height * k);
+      const pg = p.getContext('2d')!;
+      pg.imageSmoothingQuality = 'high';
+      pg.drawImage(c, 0, 0, p.width, p.height);
+      previewSrc.current = p;
+    } else previewSrc.current = c;
+    editRef.current = EDIT0;
     setEdit(EDIT0);
     setTool('look'); // os filtros aparecem logo depois de tirar a foto
     setFreeCrop(false);
@@ -326,24 +500,13 @@ export function TxCamera({
       setSwatchSrc(m.toDataURL('image/jpeg', 0.75));
     } catch { setSwatchSrc(null); }
     const seq = renderSeq.current;
-    renderEdit(c, EDIT0).toBlob((blob) => blob && seq === renderSeq.current && setReview({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' }), 'image/jpeg', 0.9);
+    renderEdit(previewSrc.current, EDIT0).toBlob((blob) => blob && seq === renderSeq.current && setReview({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' }), 'image/jpeg', 0.9);
   }
   // A fila de filtros acompanha o escolhido (sobretudo quando se troca a deslizar sobre a foto).
   useEffect(() => {
     if (tool !== 'look') return;
     editLooksRow.current?.scrollTo({ x: Math.max(0, edit.look * 64 - 96), animated: true });
   }, [edit.look, tool]);
-  function changeEdit(patch: Partial<Edit>) {
-    const e = { ...edit, ...patch };
-    setEdit(e);
-    clearTimeout(renderTimer.current);
-    renderTimer.current = setTimeout(() => {
-      const src = reviewSrc.current;
-      if (!src) return;
-      const seq = ++renderSeq.current;
-      renderEdit(src, e).toBlob((blob) => blob && seq === renderSeq.current && setReview((r) => (r && !r.video ? { ...r, uri: URL.createObjectURL(blob) } : r)), 'image/jpeg', 0.9);
-    }, 60);
-  }
   const [seconds, setSeconds] = useState(0);
   const full = mode === 'photo' && count >= max;
   const topPad = Math.max(insets.top, 12);
@@ -374,10 +537,11 @@ export function TxCamera({
     releaseCamera(2_000);
     clearInterval(timer.current);
     clearInterval(countTimer.current);
-    clearTimeout(renderTimer.current);
     clearTimeout(holdT.current);
     if (recorder.current?.state === 'recording') { recorder.current.onstop = null; recorder.current.stop(); }
     reviewSrc.current = null;
+    previewSrc.current = null;
+    pending.current = null;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // No iPhone, o seletor de fotos não devolve nada enquanto a câmara está ligada: desliga-se ao abrir a galeria e religa-se quando o seletor fecha.
   useEffect(() => {
@@ -424,7 +588,7 @@ export function TxCamera({
     const g = c.getContext('2d')!;
     const cell = layout !== null ? cellRects()[cells.length] : cap.w > 0 ? cap : null;
     if (cell) {
-      // Layout: recorta do sensor exatamente o que a célula ativa mostra no visor (o visor é "cover" com o zoom).
+      // Recorta do sensor exatamente o que a moldura (ou a célula ativa do layout) mostra no visor (o visor é "cover" com o zoom).
       const k = Math.max(card.w / v.videoWidth, card.h / v.videoHeight) * zoom;
       const vx0 = (v.videoWidth - card.w / k) / 2, vy0 = (v.videoHeight - card.h / k) / 2;
       const sx = vx0 + (cell.x - card.x) / k, sy = vy0 + (cell.y - card.y) / k, sw = cell.w / k, sh = cell.h / k;
@@ -444,18 +608,27 @@ export function TxCamera({
     setLit(false);
     if (torchOn && vtrack) vtrack.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] }).catch(() => undefined);
     buzz(15);
-    setFlash(true);
-    setTimeout(() => setFlash(false), 140);
+    setShotK((n) => n + 1);
     if (layout !== null) return addCell(c);
     openReview(c);
   }
 
+  // ----- Geometria do ecrã: visor inteiro; a moldura fica entre a barra de cima e os controlos de baixo quando cabe.
+  const card = { x: 0, y: 0, w: area.w, h: area.h };
+  const ctrlH = 84 + 40 + (kinds ? 46 : 0) + Math.max(insets.bottom, 14) + 6;
+  const zoneTop = topPad + 56, zoneBot = Math.max(zoneTop + 120, area.h - ctrlH);
+  const cap = (() => {
+    if (!area.w || !area.h) return { x: 0, y: 0, w: 0, h: 0 };
+    let fw = area.w, fh = fw / aspect;
+    if (fh <= zoneBot - zoneTop) return { x: 0, y: zoneTop + (zoneBot - zoneTop - fh) / 2, w: fw, h: fh };
+    // Não cabe entre os controlos (ex.: 9:16 no telemóvel): ocupa o ecrã e os controlos ficam por cima, como num Mimo.
+    if (fh > area.h) { fh = area.h; fw = fh * aspect; }
+    return { x: (area.w - fw) / 2, y: (area.h - fh) / 2, w: fw, h: fh };
+  })();
   // ----- Layout: a moldura (4:5, centrada entre os controlos), as células em píxeis do visor, juntar tudo numa foto.
   const frame = (() => {
-    const fw = Math.min(area.w - 24, 560);
-    const fh = Math.min(fw * 1.25, Math.max(200, area.h - topPad - 70 - 260));
-    const w = Math.min(fw, fh / 1.25);
-    return { x: (area.w - w) / 2, y: topPad + 64 + Math.max(0, (area.h - topPad - 64 - 220 - w * 1.25) / 2), w, h: w * 1.25 };
+    const w = Math.max(120, Math.min(area.w - 24, 560, (zoneBot - zoneTop - 16) / 1.25));
+    return { x: (area.w - w) / 2, y: zoneTop + Math.max(0, (zoneBot - zoneTop - w * 1.25) / 2), w, h: w * 1.25 };
   })();
   function cellRects(): { x: number; y: number; w: number; h: number }[] {
     if (layout === null) return [];
@@ -532,9 +705,9 @@ export function TxCamera({
     const caps = t.getCapabilities() as MediaTrackCapabilities & { focusMode?: string[]; pointsOfInterest?: unknown };
     if (!caps.focusMode?.length) return;
     const x = facing === 'user' ? 1 - nx : nx;
-    const mode = caps.focusMode.includes('single-shot') ? 'single-shot' : caps.focusMode.includes('continuous') ? 'continuous' : null;
-    if (!mode) return;
-    void t.applyConstraints({ advanced: [{ focusMode: mode, pointsOfInterest: [{ x, y: ny }] } as unknown as MediaTrackConstraintSet] }).catch(() => undefined);
+    const fm = caps.focusMode.includes('single-shot') ? 'single-shot' : caps.focusMode.includes('continuous') ? 'continuous' : null;
+    if (!fm) return;
+    void t.applyConstraints({ advanced: [{ focusMode: fm, pointsOfInterest: [{ x, y: ny }] } as unknown as MediaTrackConstraintSet] }).catch(() => undefined);
   }
 
   function record() {
@@ -558,6 +731,7 @@ export function TxCamera({
     startedAt.current = Date.now();
     r.start(1000);
     setRecording(true);
+    setOptsOpen(false);
     buzz(10);
     timer.current = setInterval(() => {
       const t = Math.floor((Date.now() - startedAt.current) / 1000);
@@ -604,6 +778,7 @@ export function TxCamera({
   useEffect(() => () => { stopSlide(); clearTimeout(focusTimer.current); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   function pressIn(e?: { nativeEvent?: { pageY?: number } }) {
     holding.current = false;
+    setOptsOpen(false);
     if (!ready || countdown !== null || recording || layout !== null || !modes.includes('video')) return;
     slide.current = { y: e?.nativeEvent?.pageY ?? 0, z: zoom };
     window.addEventListener('touchmove', onSlide, { passive: true });
@@ -629,13 +804,15 @@ export function TxCamera({
     }, 1000);
   }
 
+  /** A edição final (com a caixa do corte livre, se ainda estiver aberta). */
+  const finalEdit = (): Edit => ({ ...editRef.current, box: freeCrop ? boxRef.current : editRef.current.box, aspect: freeCrop ? null : editRef.current.aspect });
   /** Guardar no aparelho antes de publicar: a foto editada (com a assinatura) ou o vídeo gravado. */
   async function saveReview() {
     const r = review;
     if (!r) return;
     const src = reviewSrc.current;
     const blob: Blob | null = !r.video && src
-      ? await new Promise<Blob | null>((res) => renderEdit(src, { ...edit, box: freeCrop ? boxRef.current : edit.box, aspect: freeCrop ? null : edit.aspect }).toBlob(res, 'image/jpeg', 0.92))
+      ? await new Promise<Blob | null>((res) => renderEdit(src, finalEdit()).toBlob(res, 'image/jpeg', 0.92))
       : await (await fetch(r.uri)).blob();
     if (!blob) return;
     const f = new File([blob], `txillapp-${Date.now()}.${r.video ? (r.mime.includes('webm') ? 'webm' : 'mp4') : 'jpg'}`, { type: blob.type || r.mime });
@@ -652,19 +829,32 @@ export function TxCamera({
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 8000);
   }
+  /** Usar: a foto sai do original em tamanho inteiro, com as mesmas contas da pré-visualização. */
+  function acceptReview() {
+    const r = review;
+    if (!r) return;
+    const src = reviewSrc.current;
+    if (!r.video && src) {
+      renderEdit(src, finalEdit()).toBlob((blob) => {
+        reviewSrc.current = null; previewSrc.current = null; pending.current = null;
+        setReview(null); setTool(null); setFreeCrop(false);
+        onShot(blob ? { uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' } : r);
+      }, 'image/jpeg', 0.92);
+      return;
+    }
+    setReview(null); setTool(null); onShot(r);
+  }
+  const retake = () => { pending.current = null; renderSeq.current += 1; setReview(null); setFreeCrop(false); };
+
   const mm = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-  // Barra de baixo (fora do visor): galeria, modos e virar câmara, como no Instagram.
-  const barH = 64 + Math.max(insets.bottom, 12);
-  const card = { x: 0, y: topPad, w: area.w, h: Math.max(0, area.h - topPad - barH) };
-  // O que a foto vai apanhar: um retângulo na proporção pedida, ao centro do visor (o resto fica escurecido).
-  const cap = (() => {
-    const aw = Math.max(0, card.w - 24), ah = Math.max(0, card.h - 24);
-    const fw = Math.min(aw, ah * aspect), fh = fw / aspect;
-    return { x: card.x + (card.w - fw) / 2, y: card.y + (card.h - fh) / 2, w: fw, h: fh };
-  })();
   const mirror = facing === 'user' ? 'scaleX(-1)' : 'none';
   const fill = { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover' };
-  const botPad = barH + 18; // os controlos que ficam por cima do visor começam acima da barra de baixo
+  const bottomPad = Math.max(insets.bottom, 14) + 6;
+  const showFlash = canTorch || facing === 'user'; // sem lanterna, a câmara da frente usa o ecrã como flash
+  const guide = layout !== null ? frame : cap; // onde fica a grelha dos terços
+  // Na edição: o painel de baixo (área do slider/filtros + fila de ferramentas) e o espaço da foto por cima.
+  const panelH = 10 + 88 + 78 + Math.max(insets.bottom, 10);
+  const adj = tool && tool !== 'look' && tool !== 'crop' ? tool : null;
 
   return (
     <View style={st.root} accessibilityViewIsModal onLayout={(e: LayoutChangeEvent) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
@@ -672,7 +862,7 @@ export function TxCamera({
       {dom(
         'div',
         {
-          style: { position: 'absolute', left: card.x, top: card.y, width: card.w, height: card.h, backgroundColor: '#111', touchAction: 'none', overflow: 'hidden', borderRadius: 22 },
+          style: { position: 'absolute', left: card.x, top: card.y, width: card.w, height: card.h, backgroundColor: '#111', touchAction: 'none', overflow: 'hidden' },
           onTouchStart: (e: TouchEvent) => {
             if (e.touches.length === 2) {
               pinch.current = { d: Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY), z: zoom };
@@ -704,9 +894,9 @@ export function TxCamera({
               return setFacing((f) => (f === 'user' ? 'environment' : 'user'));
             }
             lastTap.current = now;
-            const box = e.currentTarget.getBoundingClientRect();
-            const x = e.changedTouches[0].clientX - box.left, y = e.changedTouches[0].clientY - box.top;
-            focusOn(x / box.width, y / box.height);
+            const b = e.currentTarget.getBoundingClientRect();
+            const x = e.changedTouches[0].clientX - b.left, y = e.changedTouches[0].clientY - b.top;
+            focusOn(x / b.width, y / b.height);
             setFocusAt({ x, y, k: now });
             clearTimeout(focusTimer.current);
             focusTimer.current = setTimeout(() => setFocusAt(null), 900);
@@ -734,68 +924,78 @@ export function TxCamera({
         ),
       )}
       {/* Sombras suaves em cima e em baixo, para os controlos se lerem sobre qualquer cena. */}
-      <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, top: card.y, height: 120, borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.45), transparent)' })} />
-      <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: barH, height: 230, borderBottomLeftRadius: 22, borderBottomRightRadius: 22, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.55), transparent)' })} />
-      {/* A moldura do Txillapp: quatro cantos em coral à volta do visor e o wordmark, discreto, por cima. */}
+      <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, top: 0, height: topPad + 90, backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)', zIndex: 1 })} />
+      <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: ctrlH + 90, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)', zIndex: 1 })} />
+      {/* O que a foto vai apanhar: fora da moldura fica escurecido; cantos discretos a coral; a grelha dos terços, se ligada. */}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 2 }]}>
-        {layout === null && cap.w > 0 ? (
+        {layout === null && cap.w > 0 && (cap.w < area.w - 1 || cap.h < area.h - 1) ? (
           <>
-            {/* fora da moldura fica escurecido: vê-se o que a foto vai apanhar */}
-            <View style={web({ position: 'absolute', left: cap.x, top: cap.y, width: cap.w, height: cap.h, borderRadius: 14, boxShadow: '0 0 0 9999px rgba(0,0,0,0.42)' })} />
-            <View style={[st.corner, { left: cap.x, top: cap.y, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 14 }]} />
-            <View style={[st.corner, { left: cap.x + cap.w - 30, top: cap.y, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 14 }]} />
-            <View style={[st.corner, { left: cap.x, top: cap.y + cap.h - 30, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 14 }]} />
-            <View style={[st.corner, { left: cap.x + cap.w - 30, top: cap.y + cap.h - 30, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 14 }]} />
+            <View style={web({ position: 'absolute', left: cap.x, top: cap.y, width: cap.w, height: cap.h, borderRadius: 12, boxShadow: '0 0 0 9999px rgba(0,0,0,0.42)' })} />
+            <View style={[st.corner, { left: cap.x, top: cap.y, borderTopWidth: 2.5, borderLeftWidth: 2.5, borderTopLeftRadius: 12 }]} />
+            <View style={[st.corner, { left: cap.x + cap.w - 24, top: cap.y, borderTopWidth: 2.5, borderRightWidth: 2.5, borderTopRightRadius: 12 }]} />
+            <View style={[st.corner, { left: cap.x, top: cap.y + cap.h - 24, borderBottomWidth: 2.5, borderLeftWidth: 2.5, borderBottomLeftRadius: 12 }]} />
+            <View style={[st.corner, { left: cap.x + cap.w - 24, top: cap.y + cap.h - 24, borderBottomWidth: 2.5, borderRightWidth: 2.5, borderBottomRightRadius: 12 }]} />
           </>
         ) : null}
-        <View style={{ position: 'absolute', left: 0, right: 0, top: card.y + 22, alignItems: 'center' }}>
-          <Text style={st.wordmark} accessibilityLabel="Txillapp">txill<Text style={{ color: colors.brand }}>a</Text>pp</Text>
-        </View>
+        {grid && ready && guide.w > 0 ? (
+          <View style={{ position: 'absolute', left: guide.x, top: guide.y, width: guide.w, height: guide.h }}>
+            {[1, 2].map((n) => <View key={`v${n}`} style={[st.gridLine, { left: (guide.w * n) / 3, top: 0, bottom: 0, width: StyleSheet.hairlineWidth * 2 }]} />)}
+            {[1, 2].map((n) => <View key={`h${n}`} style={[st.gridLine, { top: (guide.h * n) / 3, left: 0, right: 0, height: StyleSheet.hairlineWidth * 2 }]} />)}
+          </View>
+        ) : null}
       </View>
-      {lit ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#fff' }]} /> : null}
-      {flash ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#fff' }]} /> : null}
+      {lit ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', zIndex: 11 }]} /> : null}
+      {/* O clarão de cada foto: acende e apaga-se depressa (relança-se com a chave). */}
+      {shotK > 0 ? dom('div', { key: `shot${shotK}`, style: { position: 'absolute', inset: 0, backgroundColor: '#fff', pointerEvents: 'none', zIndex: 12, opacity: 0, animation: 'txshot 340ms ease-out' } }) : null}
+      {shotK > 0 ? dom('style', { key: 'shotk' }, '@keyframes txshot{0%{opacity:.9}100%{opacity:0}}') : null}
 
-      {/* Em cima: fechar; flash, temporizador, virar. */}
-      <View style={[st.top, { paddingTop: topPad + 10 }]}>
+      {/* Em cima, só o essencial: fechar à esquerda; à direita o Feito, o flash e as opções. */}
+      <View style={[st.top, { paddingTop: topPad + 6 }]}>
         <Pressable onPress={onClose} style={st.round} accessibilityRole="button" accessibilityLabel="Fechar câmara"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
         {recording ? <View style={st.rec}><View style={st.recDot} /><Text style={st.recText}>{mm}</Text></View> : null}
-        {!recording && count > 0 && onDone && layout === null ? (
-          <Pressable onPress={onDone} style={[st.doneBtn, { height: 44 }]} accessibilityRole="button" accessibilityLabel={`${doneLabel}, ${count}`}>
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{doneLabel}</Text>
-            <View style={st.doneCount}><Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{count}</Text></View>
-          </Pressable>
-        ) : <View style={{ width: 44 }} />}
-      </View>
-      {!recording && (
-          <View style={[st.rail, { top: topPad + 66 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {!recording && count > 0 && onDone && layout === null ? (
+            <Pressable onPress={onDone} style={[st.doneBtn, { height: 44 }]} accessibilityRole="button" accessibilityLabel={`${doneLabel}, ${count}`}>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{doneLabel}</Text>
+              <View style={st.doneCount}><Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{count}</Text></View>
+            </Pressable>
+          ) : null}
+          {!recording && showFlash ? (
             <Pressable onPress={() => setLight((v) => !v)} style={[st.round, light && { backgroundColor: '#fcd34d' }]} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={canTorch ? 'Lanterna' : 'Flash de ecrã'}>
               <View>
                 <Icon name="bolt" size={22} solid={light} color={light ? colors.zinc900 : '#fff'} />
                 {!light && <View pointerEvents="none" style={{ position: 'absolute', top: 10, left: -3, height: 2, borderRadius: 1, width: 28, backgroundColor: '#fff', transform: [{ rotate: '-45deg' }] }} />}
               </View>
             </Pressable>
-            {(
-              <Pressable onPress={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} style={[st.round, delay > 0 && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityLabel={delay ? `Temporizador: ${delay} segundos` : 'Temporizador'}>
-                <Icon name="clock" size={22} color={delay ? colors.zinc900 : '#fff'} />
-                {delay > 0 && <View style={st.delayBadge}><Text style={st.delayText}>{delay}</Text></View>}
-              </Pressable>
-            )}
-            {modes.includes('text') && onText && (
-              <Pressable onPress={onText} style={st.round} accessibilityRole="button" accessibilityLabel="Só texto"><Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Aa</Text></Pressable>
-            )}
-            {(
-              <Pressable onPress={() => setLayoutOpen((v) => !v)} style={[st.round, layout !== null && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityState={{ selected: layout !== null }} accessibilityLabel="Layout: várias fotos numa só">
-                <Icon name="grid" size={22} color={layout !== null ? colors.zinc900 : '#fff'} />
-              </Pressable>
-            )}
+          ) : null}
+          {!recording ? (
+            <Pressable onPress={() => setOptsOpen((v) => !v)} style={[st.round, optsOpen && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityState={{ expanded: optsOpen }} accessibilityLabel="Opções da câmara">
+              <Icon name="more" size={22} color={optsOpen ? colors.zinc900 : '#fff'} />
+              {delay > 0 && !optsOpen ? <View style={st.delayBadge}><Text style={st.delayText}>{delay}</Text></View> : null}
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
+      {/* Painel de opções: o que não precisa de estar sempre à vista. */}
+      {optsOpen && !recording ? (
+        <>
+          <Pressable onPress={() => setOptsOpen(false)} style={[StyleSheet.absoluteFill, { zIndex: 7 }]} accessibilityLabel="Fechar opções" />
+          <View style={[st.opts, { top: topPad + 58 }]}>
+            <OptRow icon={<Icon name="clock" size={20} color={delay ? colors.zinc900 : '#fff'} />} label="Temporizador" value={delay ? `${delay} s` : 'Desligado'} on={delay > 0}
+              onPress={() => setDelay((d) => (d === 0 ? 3 : d === 3 ? 10 : 0))} />
+            <OptRow icon={<Glyph name="thirds" size={20} color={grid ? colors.zinc900 : '#fff'} />} label="Grelha" value={grid ? 'Ligada' : 'Desligada'} on={grid} onPress={toggleGrid} />
+            <OptRow icon={<Icon name="grid" size={20} color={layout !== null ? colors.zinc900 : '#fff'} />} label="Layout" value={layout !== null ? LAYOUTS[layout].name : 'Uma foto'} on={layout !== null}
+              onPress={() => { setLayoutOpen((v) => !v); setOptsOpen(false); }} />
+            {modes.includes('text') && onText ? (
+              <OptRow icon={<Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Aa</Text>} label="Só texto" onPress={() => { setOptsOpen(false); onText(); }} />
+            ) : null}
           </View>
-      )}
+        </>
+      ) : null}
 
       {/* Nome do filtro ao deslizar; contagem do temporizador. */}
       {lookName ? <View pointerEvents="none" style={st.center}><Text style={st.fxName}>{lookName}</Text></View> : null}
-      {zoom > 1.02 ? (
-        <Pressable onPress={() => setZoom(1)} style={[st.zoomBadge, { top: topPad + 56 }]} accessibilityRole="button" accessibilityLabel="Repor zoom"><Text style={st.zoomText}>{zoom.toFixed(1)}×</Text></Pressable>
-      ) : null}
       {countdown !== null ? <View pointerEvents="none" style={st.center}><Text accessibilityLiveRegion="assertive" style={st.countText}>{countdown}</Text></View> : null}
 
       {!ready && (
@@ -813,7 +1013,8 @@ export function TxCamera({
         </View>
       )}
 
-      <View style={[st.bottom, { paddingBottom: botPad }]}>
+      {/* Em baixo: layout (se aberto), escolhidas, zoom, os modos e a fila galeria · obturador · virar. */}
+      <View style={[st.bottom, { paddingBottom: bottomPad }]}>
         {layoutOpen && !recording ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 52, marginBottom: 12 }} accessibilityRole="tablist" accessibilityLabel="Layout">
             <Pressable onPress={leaveLayout} style={[st.lookChip, layout === null && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: layout === null }}>
@@ -838,16 +1039,51 @@ export function TxCamera({
           </ScrollView>
         ) : hint && ready && !recording && count === 0 && layout === null && modes.includes('video') ? (
           <Text style={st.hint} pointerEvents="none">Toca para foto · mantém para vídeo</Text>
-        ) : <View style={{ height: 26 }} />}
+        ) : null}
+        {full ? <Text style={st.full} accessibilityRole="alert">Máximo de {max} fotos</Text> : null}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, minHeight: 30 }}>
+          {layout !== null && !recording ? (
+            <View style={st.layoutPill}>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{cells.length}/{LAYOUTS[layout].cells.length}</Text>
+              <Pressable onPress={cells.length ? undoCell : leaveLayout} hitSlop={8} accessibilityRole="button" accessibilityLabel={cells.length ? 'Tirar a última foto do layout' : 'Sair do layout'}>
+                <Icon name={cells.length ? 'undo' : 'x'} size={18} color="#fff" strokeWidth={2.2} />
+              </Pressable>
+            </View>
+          ) : null}
+          {ready ? (
+            <Pressable onPress={() => setZoom((z) => (z > 1.02 ? 1 : 2))} style={st.zoomPill} accessibilityRole="button" accessibilityLabel={zoom > 1.02 ? 'Repor zoom' : 'Aproximar 2 vezes'}>
+              <Text style={st.zoomText}>{zoom > 1.02 ? `${zoom.toFixed(1)}×` : '1×'}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        {kinds ? (
+          <View style={{ height: 34, marginBottom: 12, alignSelf: 'stretch' }}>
+            {!recording ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.kinds} accessibilityRole="tablist">
+                {kinds.map((k) => (
+                  <Pressable key={k.id} onPress={() => onKind?.(k.id)} style={[st.kindChip, kind === k.id && st.kindChipOn]} accessibilityRole="tab" accessibilityState={{ selected: kind === k.id }} hitSlop={6}>
+                    <Text style={[st.kindText, kind === k.id && st.kindOn]}>{k.label.toUpperCase()}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
+          </View>
+        ) : null}
         <View style={st.row}>
-          <View style={st.side} />
+          <View style={st.side}>
+            {!recording && (
+              <GalleryPick onFiles={(f) => void fillFromFiles(f)} onOpen={openGallery} style={st.galleryThumb}>
+                {thumbs && thumbs.length ? dom('img', { src: thumbs[thumbs.length - 1], alt: 'Galeria', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: 10 } }) : <Icon name="images" size={22} color="#fff" strokeWidth={2} />}
+              </GalleryPick>
+            )}
+          </View>
           <Pressable
             onPressIn={pressIn}
             onPressOut={pressOut}
             disabled={!ready || full}
             accessibilityRole="button"
-            accessibilityLabel={countdown !== null ? 'Cancelar' : recording ? 'Parar de gravar' : 'Tirar foto; mantém premido para gravar vídeo'}
-            style={[st.shutter, (!ready || full) && { opacity: 0.4 }, recording && { transform: [{ scale: 1.12 }] }]}
+            accessibilityLabel={countdown !== null ? 'Cancelar' : recording ? 'Parar de gravar' : modes.includes('video') && layout === null ? 'Tirar foto; mantém premido para gravar vídeo' : 'Tirar foto'}
+            style={({ pressed }) => [st.shutter, (!ready || full) && { opacity: 0.4 }, recording ? { transform: [{ scale: 1.12 }] } : pressed ? { transform: [{ scale: 0.93 }] } : null]}
           >
             <View style={[st.shutterRing, recording && { borderColor: 'rgba(255,255,255,0.35)' }]} />
             {recording ? (
@@ -860,149 +1096,123 @@ export function TxCamera({
             <View style={[st.shutterIn, recording && st.shutterRec]} />
           </Pressable>
           <View style={[st.side, { alignItems: 'flex-end' }]}>
-            {layout !== null ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{cells.length}/{LAYOUTS[layout].cells.length}</Text>
-                <Pressable onPress={cells.length ? undoCell : leaveLayout} style={st.round} accessibilityRole="button" accessibilityLabel={cells.length ? 'Tirar a última foto do layout' : 'Sair do layout'}>
-                  <Icon name={cells.length ? 'undo' : 'x'} size={20} color="#fff" strokeWidth={2.2} />
-                </Pressable>
-              </View>
+            {canFlip && ready && !recording ? (
+              <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} style={st.flipBtn} accessibilityRole="button" accessibilityLabel="Virar câmara"><Icon name="flip-camera" size={24} color="#fff" /></Pressable>
             ) : null}
           </View>
         </View>
-        {full ? <Text style={st.full} accessibilityRole="alert">Máximo de {max} fotos</Text> : null}
-      </View>
-      {/* Por baixo do visor: a galeria (com a última foto escolhida), os modos e o virar câmara. */}
-      <View style={[st.bar, { height: barH, paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <View style={{ width: 44, alignItems: 'flex-start' }}>
-          {!recording && (
-            <GalleryPick onFiles={(f) => void fillFromFiles(f)} onOpen={openGallery} style={st.galleryThumb}>
-              {thumbs && thumbs.length ? dom('img', { src: thumbs[thumbs.length - 1], alt: 'Galeria', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: 9 } }) : <Icon name="images" size={22} color="#fff" strokeWidth={2} />}
-            </GalleryPick>
-          )}
-        </View>
-        {kinds && !recording ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.kinds} style={{ flex: 1 }} accessibilityRole="tablist">
-            {kinds.map((k) => (
-              <Pressable key={k.id} onPress={() => onKind?.(k.id)} accessibilityRole="tab" accessibilityState={{ selected: kind === k.id }} hitSlop={8}>
-                <Text style={[st.kindText, kind === k.id && st.kindOn]}>{k.label.toUpperCase()}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        ) : <View style={{ flex: 1 }} />}
-        <View style={{ width: 44, alignItems: 'flex-end' }}>
-          {canFlip && ready && !recording ? (
-            <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} style={st.flipBtn} accessibilityRole="button" accessibilityLabel="Virar câmara"><Icon name="flip-camera" size={24} color="#fff" /></Pressable>
-          ) : null}
-        </View>
       </View>
 
-      {/* Pré-visualização do que acabou de ser tirado: Repetir volta à câmara; Usar entrega a foto/vídeo. */}
+      {/* Depois de tirar: ✕ volta à câmara, guardar no aparelho, ✓ usa a foto ou o vídeo; ferramentas em baixo. */}
       {review && (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', zIndex: 10 }]} accessibilityViewIsModal>
-          {review.video
-            ? dom('video', { src: review.uri, playsInline: true, autoPlay: true, loop: true, muted: true, controls: false, onClick: (ev: { currentTarget: HTMLVideoElement }) => { ev.currentTarget.muted = !ev.currentTarget.muted; void ev.currentTarget.play().catch(() => undefined); }, style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' } })
-            : dom('img', {
-                ref: imgEl, src: review.uri, alt: 'Pré-visualização', onLoad: () => setImgTick((n) => n + 1),
-                // Deslizar sobre a foto troca o filtro: para a esquerda o seguinte, para a direita o anterior.
-                onTouchStart: (ev: TouchEvent) => { swipeX.current = ev.touches[0]?.clientX ?? null; },
-                onTouchEnd: (ev: TouchEvent) => {
-                  const x0 = swipeX.current; swipeX.current = null;
-                  const x1 = ev.changedTouches[0]?.clientX;
-                  if (x0 == null || x1 == null || freeCrop) return;
-                  const dx = x1 - x0;
-                  if (Math.abs(dx) < 45) return;
-                  const next = Math.max(0, Math.min(LOOKS.length - 1, edit.look + (dx < 0 ? 1 : -1)));
-                  if (next !== edit.look) { setTool('look'); changeEdit({ look: next }); }
-                },
-                style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', touchAction: 'pan-y' },
-              })}
-          {!review.video && freeCrop && tool === 'crop' && (() => {
-            const r = imageRect();
-            void imgTick;
-            if (!r) return null;
-            const L = r.left + box.x * r.width, T = r.top + box.y * r.height, W = box.w * r.width, H = box.h * r.height;
-            const handle = (x: number, y: number) => dom('div', { key: `${x}-${y}`, style: { position: 'absolute', left: x - 14, top: y - 14, width: 28, height: 28, borderRadius: 14, background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.5)' } });
-            return dom(
-              'div',
-              { style: { position: 'absolute', inset: 0, touchAction: 'none', zIndex: 2 }, onTouchStart: cropTouchStart, onTouchMove: cropTouchMove, onTouchEnd: cropTouchEnd, onTouchCancel: cropTouchEnd },
-              dom('div', { key: 'box', style: { position: 'absolute', left: L, top: T, width: W, height: H, boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)', border: '2px solid #fff', backgroundImage: 'linear-gradient(rgba(255,255,255,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.35) 1px, transparent 1px)', backgroundSize: `${W / 3}px ${H / 3}px` } }),
-              handle(L, T), handle(L + W, T), handle(L, T + H), handle(L + W, T + H),
-            );
-          })()}
-          <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: 200, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)' })} />
-          <View style={[st.top, { paddingTop: topPad }]}>
-            <Pressable onPress={() => setReview(null)} style={st.round} accessibilityRole="button" accessibilityLabel="Repetir"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
-            {!review.video && (
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <Pressable onPress={() => changeEdit({ rot: ((edit.rot + 90) % 360) as Edit['rot'] })} style={st.round} accessibilityRole="button" accessibilityLabel="Rodar"><Icon name="repeat" size={22} color="#fff" /></Pressable>
-                <Pressable onPress={() => changeEdit({ flip: !edit.flip })} style={[st.round, edit.flip && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityLabel="Espelhar"><Icon name="flip-camera" size={22} color={edit.flip ? colors.zinc900 : '#fff'} /></Pressable>
-              </View>
-            )}
+          <View style={[st.top, { paddingTop: topPad + 6 }]}>
+            <Pressable onPress={retake} style={st.round} accessibilityRole="button" accessibilityLabel="Repetir"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Pressable onPress={() => void saveReview()} style={st.round} accessibilityRole="button" accessibilityLabel="Guardar no aparelho"><Icon name="download" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
+              <Pressable onPress={acceptReview} style={st.okBtn} accessibilityRole="button" accessibilityLabel={review.video ? 'Usar vídeo' : 'Usar foto'}><Icon name="check" size={24} color="#fff" strokeWidth={3} /></Pressable>
+            </View>
+          </View>
+          <View style={{ position: 'absolute', left: 0, right: 0, top: topPad + 62, bottom: review.video ? Math.max(insets.bottom, 16) : panelH }}>
+            {review.video
+              ? dom('video', { src: review.uri, playsInline: true, autoPlay: true, loop: true, muted: true, controls: false, onClick: (ev: { currentTarget: HTMLVideoElement }) => { ev.currentTarget.muted = !ev.currentTarget.muted; void ev.currentTarget.play().catch(() => undefined); }, style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' } })
+              : dom('img', {
+                  ref: imgEl, src: review.uri, alt: 'Pré-visualização', onLoad: () => setImgTick((n) => n + 1),
+                  // Deslizar sobre a foto troca o filtro: para a esquerda o seguinte, para a direita o anterior.
+                  onTouchStart: (ev: TouchEvent) => { swipeX.current = ev.touches[0]?.clientX ?? null; },
+                  onTouchEnd: (ev: TouchEvent) => {
+                    const x0 = swipeX.current; swipeX.current = null;
+                    const x1 = ev.changedTouches[0]?.clientX;
+                    if (x0 == null || x1 == null || freeCrop) return;
+                    const dx = x1 - x0;
+                    if (Math.abs(dx) < 45) return;
+                    const cur = editRef.current.look;
+                    const next = Math.max(0, Math.min(LOOKS.length - 1, cur + (dx < 0 ? 1 : -1)));
+                    if (next !== cur) { endFreeCrop(); setTool('look'); changeEdit({ look: next }); }
+                  },
+                  style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', touchAction: 'pan-y' },
+                })}
+            {!review.video && freeCrop && tool === 'crop' && (() => {
+              const r = imageRect();
+              void imgTick;
+              if (!r) return null;
+              const L = r.left + box.x * r.width, T = r.top + box.y * r.height, W = box.w * r.width, H = box.h * r.height;
+              const handle = (x: number, y: number) => dom('div', { key: `${x}-${y}`, style: { position: 'absolute', left: x - 14, top: y - 14, width: 28, height: 28, borderRadius: 14, background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.5)' } });
+              return dom(
+                'div',
+                { style: { position: 'absolute', inset: 0, touchAction: 'none', zIndex: 2 }, onTouchStart: cropTouchStart, onTouchMove: cropTouchMove, onTouchEnd: cropTouchEnd, onTouchCancel: cropTouchEnd },
+                dom('div', { key: 'box', style: { position: 'absolute', left: L, top: T, width: W, height: H, boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)', border: '2px solid #fff', backgroundImage: 'linear-gradient(rgba(255,255,255,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.35) 1px, transparent 1px)', backgroundSize: `${W / 3}px ${H / 3}px` } }),
+                handle(L, T), handle(L + W, T), handle(L, T + H), handle(L + W, T + H),
+              );
+            })()}
           </View>
           {!review.video && (
-            <View style={[st.editPanel, { bottom: botPad + 62 }]}>
-              {tool === 'look' && (
-                <ScrollView ref={editLooksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 82 }}>
-                  {LOOKS.map((l, i) => <LookSwatch key={l.id} look={l} src={swatchSrc} on={edit.look === i} onPress={() => changeEdit({ look: i })} />)}
-                </ScrollView>
-              )}
-              {tool === 'adjust' && (
-                <View style={{ paddingHorizontal: 20, gap: 6 }}>
-                  {([['b', 'Brilho', 0.6, 1.4], ['c', 'Contraste', 0.6, 1.4], ['s', 'Saturação', 0, 2]] as const).map(([k, label, min, max]) => (
-                    <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                      <Text style={{ width: 78, color: '#fff', fontSize: 13, fontWeight: '700' }}>{label}</Text>
-                      {dom('input', { type: 'range', min, max, step: 0.02, value: edit[k], 'aria-label': label, onInput: (ev: { target: HTMLInputElement }) => changeEdit({ [k]: Number(ev.target.value) } as Partial<Edit>), style: { flex: 1, accentColor: '#d6334f', height: 28 } })}
+            <View style={[st.editPanel, { height: panelH, paddingBottom: Math.max(insets.bottom, 10) }]}>
+              <View style={{ height: 88, justifyContent: 'center' }}>
+                {tool === 'look' && (
+                  <ScrollView ref={editLooksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 82 }} accessibilityRole="tablist" accessibilityLabel="Filtros">
+                    {LOOKS.map((l, i) => <LookSwatch key={l.id} look={l} src={swatchSrc} on={edit.look === i} onPress={() => changeEdit({ look: i })} />)}
+                  </ScrollView>
+                )}
+                {adj && (adj === 'k' && edit.look === 0 ? (
+                  <Text style={st.adjNote}>Escolhe um filtro primeiro e depois afina a intensidade aqui.</Text>
+                ) : (() => {
+                  const spec = ADJ[adj];
+                  const v = spec.get(edit);
+                  const changed = v !== spec.def;
+                  return (
+                    <View style={{ alignItems: 'center', gap: 8, paddingHorizontal: 24 }}>
+                      <Pressable onPress={() => changed && changeEdit(spec.set(spec.def))} style={[st.valPill, changed && { backgroundColor: colors.brand }]} accessibilityRole="button" accessibilityLabel={changed ? `${spec.label}: ${fmtAdj(adj, v)}. Toca para repor` : `${spec.label}: ${fmtAdj(adj, v)}`}>
+                        <Text style={st.valText}>{fmtAdj(adj, v)}</Text>
+                      </Pressable>
+                      {dom('input', {
+                        type: 'range', min: spec.min, max: spec.max, step: 1, value: v, 'aria-label': spec.label,
+                        onChange: (ev: { target: HTMLInputElement }) => changeEdit(spec.set(Number(ev.target.value))),
+                        style: { width: '100%', maxWidth: 520, accentColor: '#d6334f', height: 28, margin: 0, cursor: 'pointer' },
+                      })}
                     </View>
-                  ))}
-                </View>
-              )}
-              {tool === 'crop' && (
-                <View style={[st.looks, { flexDirection: 'row', justifyContent: 'center' }]}>
-                  <Pressable onPress={startFreeCrop} style={[st.lookChip, freeCrop && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: freeCrop }}>
-                    <Text style={[st.lookText, freeCrop && { color: colors.zinc900 }]}>Livre</Text>
-                  </Pressable>
-                  {freeCrop && (
-                    <Pressable onPress={endFreeCrop} style={st.cropOk} accessibilityRole="button" accessibilityLabel="Concluir o recorte">
-                      <Icon name="check" size={16} color="#fff" strokeWidth={3} />
-                      <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Concluir</Text>
+                  );
+                })())}
+                {tool === 'crop' && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[st.looks, { flexGrow: 1, justifyContent: 'center' }]}>
+                    <Pressable onPress={() => changeEdit({ rot: ((editRef.current.rot + 90) % 360) as Edit['rot'] })} style={st.cropIcon} accessibilityRole="button" accessibilityLabel="Rodar"><Icon name="repeat" size={18} color="#fff" /></Pressable>
+                    <Pressable onPress={() => changeEdit({ flip: !editRef.current.flip })} style={[st.cropIcon, edit.flip && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityState={{ selected: edit.flip }} accessibilityLabel="Espelhar"><Icon name="flip-camera" size={18} color={edit.flip ? colors.zinc900 : '#fff'} /></Pressable>
+                    <Pressable onPress={startFreeCrop} style={[st.lookChip, freeCrop && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: freeCrop }}>
+                      <Text style={[st.lookText, freeCrop && { color: colors.zinc900 }]}>Livre</Text>
                     </Pressable>
-                  )}
-                  {([[null, 'Original'], [1, '1:1'], [0.8, '4:5'], [9 / 16, '9:16'], [16 / 9, '16:9']] as const).map(([a, label]) => (
-                    <Pressable key={label} onPress={() => { setFreeCrop(false); changeEdit({ aspect: a, box: null }); }} style={[st.lookChip, !freeCrop && edit.aspect === a && edit.box === null && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: !freeCrop && edit.aspect === a }}>
-                      <Text style={[st.lookText, !freeCrop && edit.aspect === a && edit.box === null && { color: colors.zinc900 }]}>{label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-              <View style={st.toolRow}>
-                {([['look', 'sparkles', 'Filtros'], ['adjust', 'sliders', 'Ajustar'], ['crop', 'expand', 'Cortar']] as const).map(([t, ic, label]) => (
-                  <Pressable key={t} onPress={() => { endFreeCrop(); setTool((cur) => (cur === t ? null : t)); }} style={st.toolBtn} accessibilityRole="tab" accessibilityState={{ selected: tool === t }}>
-                    <Icon name={ic} size={22} color={tool === t ? '#fff' : 'rgba(255,255,255,0.7)'} strokeWidth={2} />
-                    <Text style={[st.toolText, tool === t && { color: '#fff' }]}>{label}</Text>
-                  </Pressable>
-                ))}
+                    {freeCrop && (
+                      <Pressable onPress={endFreeCrop} style={st.cropOk} accessibilityRole="button" accessibilityLabel="Concluir o recorte">
+                        <Icon name="check" size={16} color="#fff" strokeWidth={3} />
+                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Concluir</Text>
+                      </Pressable>
+                    )}
+                    {([[null, 'Original'], [1, '1:1'], [0.8, '4:5'], [9 / 16, '9:16'], [16 / 9, '16:9']] as const).map(([a, label]) => (
+                      <Pressable key={label} onPress={() => { setFreeCrop(false); changeEdit({ aspect: a, box: null }); }} style={[st.lookChip, !freeCrop && edit.aspect === a && edit.box === null && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: !freeCrop && edit.aspect === a }}>
+                        <Text style={[st.lookText, !freeCrop && edit.aspect === a && edit.box === null && { color: colors.zinc900 }]}>{label}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                )}
               </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.toolRow} style={{ maxHeight: 78 }} accessibilityRole="tablist" accessibilityLabel="Ferramentas">
+                {TOOLS.map((t) => {
+                  const on = tool === t.id;
+                  const touched = t.id === 'look' ? edit.look !== 0
+                    : t.id === 'crop' ? edit.rot !== 0 || edit.flip || edit.aspect !== null || edit.box !== null
+                    : ADJ[t.id].get(edit) !== ADJ[t.id].def;
+                  return (
+                    <Pressable key={t.id} onPress={() => { if (t.id !== 'crop') endFreeCrop(); setTool(t.id); }} style={st.toolBtn} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t.a11y ?? t.label}>
+                      <View style={[st.toolCircle, on && { backgroundColor: '#fff', borderColor: '#fff' }]}>
+                        {toolIcon(t.id, on ? colors.zinc900 : '#fff')}
+                        {touched ? <View style={st.toolDot} /> : null}
+                      </View>
+                      <Text numberOfLines={1} style={[st.toolText, on && { color: '#fff' }]}>{t.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
             </View>
           )}
-          <View style={[st.reviewBar, { paddingBottom: botPad }]}>
-            <Pressable onPress={() => setReview(null)} style={st.retake} accessibilityRole="button"><Icon name="undo" size={20} color="#fff" strokeWidth={2.2} /><Text style={st.retakeText}>Repetir</Text></Pressable>
-            <Pressable onPress={() => void saveReview()} style={[st.retake, { paddingHorizontal: 16 }]} accessibilityRole="button" accessibilityLabel="Guardar no aparelho"><Icon name="download" size={20} color="#fff" strokeWidth={2.2} /></Pressable>
-            <Pressable
-              onPress={() => {
-                const r = review;
-                const src = reviewSrc.current;
-                if (!r.video && src) {
-                  const final = { ...edit, box: freeCrop ? boxRef.current : edit.box, aspect: freeCrop ? null : edit.aspect };
-                  renderEdit(src, final).toBlob((blob) => { reviewSrc.current = null; setReview(null); setTool(null); setFreeCrop(false); onShot(blob ? { uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' } : r); }, 'image/jpeg', 0.92);
-                  return;
-                }
-                setReview(null); setTool(null); onShot(r);
-              }}
-              style={st.use}
-              accessibilityRole="button"
-            ><Text style={st.useText}>{review.video ? 'Usar vídeo' : 'Usar foto'}</Text><Icon name="check" size={20} color="#fff" strokeWidth={3} /></Pressable>
-          </View>
         </View>
       )}
     </View>
@@ -1034,7 +1244,8 @@ export function GalleryPick({ onFiles, onOpen, style, children }: { onFiles: (f:
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
   top: { position: 'absolute', left: 0, right: 0, top: 0, zIndex: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 },
-  round: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  round: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.32)', alignItems: 'center', justifyContent: 'center' },
+  okBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px rgba(214,51,79,0.45)' } as object,
   delayBadge: { position: 'absolute', right: -4, bottom: -4, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   delayText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   rec: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 14, paddingVertical: 8 },
@@ -1046,47 +1257,49 @@ const st = StyleSheet.create({
   pTitle: { marginTop: 12, color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' },
   pSub: { marginTop: 4, color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center' },
   open: { marginTop: 20, height: 48, borderRadius: 24, backgroundColor: colors.brand, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
+  opts: { position: 'absolute', right: 12, zIndex: 8, width: 236, borderRadius: 18, padding: 6, backgroundColor: 'rgba(24,24,27,0.94)', boxShadow: '0 10px 30px rgba(0,0,0,0.45)' } as object,
+  optRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 8 },
+  optIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  optLabel: { flex: 1, color: '#fff', fontSize: 14, fontWeight: '700' },
+  optValue: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '600' },
+  gridLine: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.45)' },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 3, alignItems: 'center' },
   looks: { paddingHorizontal: 16, gap: 6, alignItems: 'center' },
   lookChip: { height: 30, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', paddingHorizontal: 13, alignItems: 'center', justifyContent: 'center' },
   lookOn: { backgroundColor: '#fff' },
   layoutChip: { height: 40, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
+  layoutPill: { height: 30, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 12 },
   lookText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  zoomBadge: { position: 'absolute', alignSelf: 'center', zIndex: 3, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 5 },
-  zoomText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  modes: { flexDirection: 'row', gap: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', padding: 3, marginBottom: 18 },
-  mode: { borderRadius: 999, paddingHorizontal: 18, paddingVertical: 6 },
-  modeText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  row: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 28 },
-  side: { width: 92, alignItems: 'flex-start' },
-  gallery: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)', alignItems: 'center', justifyContent: 'center' },
+  zoomPill: { minWidth: 40, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
+  zoomText: { color: '#fcd34d', fontSize: 13, fontWeight: '800' },
+  row: { width: '100%', maxWidth: 520, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 28 },
+  side: { width: 64, alignItems: 'flex-start' },
   shutter: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center' },
   shutterRing: { position: 'absolute', left: 0, top: 0, width: 84, height: 84, borderRadius: 42, borderWidth: 4, borderColor: '#fff' },
   shutterIn: { width: 66, height: 66, borderRadius: 33, backgroundColor: '#fff' },
   shutterRec: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#ef4444' },
-  hint: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600', marginBottom: 14 },
+  hint: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600', marginBottom: 10 },
   thumb: { width: 44, height: 44, borderRadius: 8, overflow: 'hidden', borderWidth: 2, borderColor: colors.brand, backgroundColor: '#222' },
-  kinds: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 14, paddingHorizontal: 4 },
-  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 3, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 6, backgroundColor: '#000' },
-  galleryThumb: { width: 40, height: 40, borderRadius: 11, borderWidth: 2, borderColor: '#fff', overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
-  flipBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
-  rail: { position: 'absolute', left: 12, zIndex: 3, gap: 12 },
+  kinds: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingHorizontal: 12 },
+  kindChip: { height: 30, borderRadius: 15, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  kindChipOn: { backgroundColor: 'rgba(0,0,0,0.45)' },
+  galleryThumb: { width: 46, height: 46, borderRadius: 12, borderWidth: 2, borderColor: '#fff', overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.3)' },
+  flipBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(0,0,0,0.32)', alignItems: 'center', justifyContent: 'center' },
   cropOk: { height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: colors.brand, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  corner: { position: 'absolute', width: 30, height: 30, borderColor: colors.brand, opacity: 0.9 },
-  wordmark: { color: 'rgba(255,255,255,0.8)', fontSize: 15, fontWeight: '900', letterSpacing: -0.5 },
-  kindText: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
+  cropIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  corner: { position: 'absolute', width: 24, height: 24, borderColor: colors.brand, opacity: 0.85 },
+  kindText: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
   kindOn: { color: '#fff' },
-  stopSq: { width: 32, height: 32, borderRadius: 9, backgroundColor: '#ef4444' },
   doneBtn: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 23, backgroundColor: colors.brand, paddingHorizontal: 16 },
   doneCount: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.28)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  full: { marginTop: 10, color: '#fff', fontSize: 14, fontWeight: '600' },
-  editPanel: { position: 'absolute', left: 0, right: 0, zIndex: 6, gap: 10, paddingTop: 10, paddingBottom: 6, backgroundColor: 'rgba(0,0,0,0.75)' },
-  toolRow: { flexDirection: 'row', justifyContent: 'center', gap: 28 },
-  toolBtn: { alignItems: 'center', gap: 3 },
+  full: { marginBottom: 10, color: '#fff', fontSize: 14, fontWeight: '600' },
+  editPanel: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 6, paddingTop: 10, backgroundColor: '#000' },
+  toolRow: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center', gap: 4, paddingHorizontal: 10 },
+  toolBtn: { width: 70, alignItems: 'center', gap: 5 },
+  toolCircle: { width: 48, height: 48, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)', backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
+  toolDot: { position: 'absolute', top: 3, right: 3, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand },
   toolText: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '700' },
-  reviewBar: { zIndex: 6, position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, gap: 12 },
-  retake: { height: 50, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.16)', paddingHorizontal: 20 },
-  retakeText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  use: { flex: 1, height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 25, backgroundColor: colors.brand, boxShadow: '0 6px 18px rgba(214,51,79,0.45)' } as object,
-  useText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  valPill: { minWidth: 52, height: 28, borderRadius: 14, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  valText: { color: '#fff', fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  adjNote: { color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: '600', textAlign: 'center', paddingHorizontal: 32 },
 });

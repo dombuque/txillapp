@@ -13,7 +13,7 @@ import { Sheet } from '@/components/Sheet';
 import { StackPage } from '@/components/StackPage';
 import { CloseFriendsSheet } from '@/components/StoryParts';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
-import { ApiError, api, type Gender, type PrivacySettings, type Viewers, type Who } from '@/lib/api';
+import { ApiError, api, type CallsWho, type Gender, type PrivacySettings, type Viewers, type Who } from '@/lib/api';
 import { accounts } from '@/lib/accounts';
 import { useAuth } from '@/lib/auth';
 import { pushApi } from '@/lib/api.settings';
@@ -24,7 +24,7 @@ import { timeAgo } from '@/lib/time';
 
 const site = (path: string) => void Linking.openURL(`${SITE_URL || 'https://txillapp.com'}${path}`);
 
-type SheetName = null | 'switch' | 'gender' | 'edit' | 'type' | 'comments' | 'gifts' | 'connections' | 'storyReplies' | 'hidden' | 'mentions' | 'dms' | 'closeFriends' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'blocked' | 'password' | 'devices' | 'delete' | 'logout' | 'contacts';
+type SheetName = null | 'switch' | 'gender' | 'edit' | 'type' | 'comments' | 'gifts' | 'connections' | 'storyReplies' | 'hidden' | 'mentions' | 'dms' | 'closeFriends' | 'repostsVisible' | 'cheersVisible' | 'giftsVisible' | 'blocked' | 'password' | 'devices' | 'delete' | 'logout' | 'contacts' | 'calls';
 
 const VIEWERS: { value: Viewers; title: string; text: string }[] = [
   { value: 'everyone', title: 'Todos', text: 'Qualquer pessoa que veja a publicação.' },
@@ -38,6 +38,13 @@ const WHO: { value: Who; title: string; text: string }[] = [
   { value: 'off', title: 'Ninguém', text: 'Desativado.' },
 ];
 const whoLabel = (w: Who) => WHO.find((o) => o.value === w)!.title;
+const CALLS: { value: CallsWho; title: string; text: string }[] = [
+  { value: 'everyone', title: 'Todos', text: 'Qualquer pessoa te pode ligar.' },
+  { value: 'following', title: 'Quem eu sigo', text: 'Só as pessoas que segues.' },
+  { value: 'mutual', title: 'Amigos mútuos', text: 'Só quem segues e te segue de volta.' },
+  { value: 'off', title: 'Ninguém', text: 'Ninguém te liga pelo Txillapp.' },
+];
+const callsLabel = (w: CallsWho) => CALLS.find((o) => o.value === w)?.title ?? 'Todos';
 const CONNECTIONS = [
   { value: 'everyone', title: 'Todos', text: 'Qualquer pessoa que veja o teu perfil.' },
   { value: 'followers', title: 'Só seguidores', text: 'Quem te segue.' },
@@ -344,6 +351,7 @@ export default function Settings() {
           <Row icon={ic('cheers')} label="Quem vê quem brindou" value={p ? viewersLabel(p.cheersVisible) : '…'} onPress={() => setSheet('cheersVisible')} />
           <Row icon={ic('gift')} label="Quem vê quem presenteou" value={p ? viewersLabel(p.giftsVisible) : '…'} onPress={() => setSheet('giftsVisible')} />
           <Row icon={ic('mail')} label="Quem pode enviar-me mensagens" value={p ? whoLabel(p.dmsAllowed) : '…'} onPress={() => setSheet('dms')} />
+          <Row icon={ic('phone')} label="Quem me pode ligar" value={p ? callsLabel(p.callsAllowed ?? 'everyone') : '…'} onPress={() => setSheet('calls')} />
           <Row icon={ic('at')} label="Quem pode mencionar-me" value={p ? whoLabel(p.mentionsAllowed) : '…'} onPress={() => setSheet('mentions')} />
           <Row icon={ic('gift')} label="Quem pode presentear-me" value={p ? whoLabel(p.giftsAllowed) : '…'} onPress={() => setSheet('gifts')} />
         </Section>
@@ -439,6 +447,7 @@ export default function Settings() {
       {sheet === 'cheersVisible' && p && <ChoiceSheet title="Quem vê quem brindou" intro="Os números continuam visíveis; isto muda só quem pode ver os nomes." options={VIEWERS} value={p.cheersVisible} onPick={(v) => void savePrivacy({ cheersVisible: v })} onClose={close} />}
       {sheet === 'giftsVisible' && p && <ChoiceSheet title="Quem vê quem presenteou" intro="Os números continuam visíveis; isto muda só quem pode ver os nomes (nunca os valores)." options={VIEWERS} value={p.giftsVisible} onPick={(v) => void savePrivacy({ giftsVisible: v })} onClose={close} />}
       {sheet === 'dms' && p && <ChoiceSheet title="Quem pode enviar-me mensagens" intro="Só trava conversas novas: as que já existem continuam. As respostas aos teus stories seguem a definição dos stories." options={WHO} value={p.dmsAllowed} onPick={(v) => void savePrivacy({ dmsAllowed: v })} onClose={close} />}
+      {sheet === 'calls' && p && <ChoiceSheet title="Quem me pode ligar" intro="Chamadas de voz e videochamadas. Quem bloqueaste nunca te liga." options={CALLS} value={p.callsAllowed ?? 'everyone'} onPick={(v) => void savePrivacy({ callsAllowed: v })} onClose={close} />}
       {sheet === 'gifts' && p && <ChoiceSheet title="Quem pode presentear-me" options={WHO} value={p.giftsAllowed} onPick={(v) => void savePrivacy({ giftsAllowed: v })} onClose={close} />}
       {sheet === 'connections' && p && <ChoiceSheet title="Quem vê seguidores e a quem sigo" intro="Os números continuam visíveis; muda só quem pode ver as listas." options={CONNECTIONS} value={p.showConnections} onPick={(v) => void savePrivacy({ showConnections: v })} onClose={close} />}
       {sheet === 'storyReplies' && stories.data && <ChoiceSheet title="Respostas aos mimos" intro="Quem pode responder ou reagir aos teus stories." options={WHO} value={stories.data.replies} onPick={async (v) => qc.setQueryData(['story-settings'], await api.setStoryReplies(v))} onClose={close} />}

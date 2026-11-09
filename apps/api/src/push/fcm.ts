@@ -3,6 +3,69 @@ import { importPKCS8, SignJWT } from 'jose';
 /** Envio para a app nativa pelo Firebase Cloud Messaging (API HTTP v1), com a conta de serviço do projeto Firebase. */
 interface ServiceAccount { project_id: string; client_email: string; private_key: string }
 
+/** O que se envia a um aparelho. Sem as opções novas, a mensagem fica exatamente como sempre foi. */
+export interface FcmPush {
+  title: string;
+  body: string;
+  url: string;
+  tag?: string;
+  /** Dados extra para a app (só texto). */
+  data?: Record<string, string>;
+  /** Android: só dados, sem o bloco `notification` (a app desenha a notificação; precisa disto para os botões Atender e Recusar). */
+  dataOnly?: boolean;
+  /** Canal no Android (por omissão 'txillapp'). */
+  channel?: string;
+  /** Categoria de ações (Android `categoryId`, iOS `aps.category`), ex.: 'call'. */
+  actionCategory?: string;
+  /** Validade do aviso, em segundos (por omissão a do FCM). */
+  ttlSeconds?: number;
+  /** iOS: som e nível de interrupção (ex.: 'ring.wav' e 'time-sensitive'). */
+  ios?: { sound?: string; interruptionLevel?: 'passive' | 'active' | 'time-sensitive' | 'critical' };
+}
+
+/** Monta a mensagem do FCM (API HTTP v1). Separado do envio para se poder testar sem rede. */
+export function buildFcmMessage(token: string, m: FcmPush, platform: 'android' | 'ios' = 'android'): Record<string, unknown> {
+  const ttl = m.ttlSeconds ? { ttl: `${m.ttlSeconds}s` } : {};
+  // Android só com dados: tudo vai em `data` (o Expo lê `title` e `message`, não `body`).
+  if (m.dataOnly && platform === 'android') {
+    return {
+      token,
+      data: {
+        ...(m.data ?? {}),
+        title: m.title,
+        message: m.body,
+        channelId: m.channel ?? 'txillapp',
+        ...(m.actionCategory ? { categoryId: m.actionCategory } : {}),
+        ...(m.tag ? { tag: m.tag } : {}),
+        url: m.url,
+      },
+      android: { priority: 'HIGH', ...ttl },
+    };
+  }
+  const apns =
+    m.ttlSeconds || m.ios || m.actionCategory
+      ? {
+          apns: {
+            headers: { 'apns-priority': '10', ...(m.ttlSeconds ? { 'apns-expiration': String(Math.floor(Date.now() / 1000) + m.ttlSeconds) } : {}) },
+            payload: {
+              aps: {
+                ...(m.actionCategory ? { category: m.actionCategory } : {}),
+                ...(m.ios?.sound ? { sound: m.ios.sound } : {}),
+                ...(m.ios?.interruptionLevel ? { 'interruption-level': m.ios.interruptionLevel } : {}),
+              },
+            },
+          },
+        }
+      : {};
+  return {
+    token,
+    notification: { title: m.title, body: m.body },
+    data: { ...(m.data ?? {}), url: m.url, ...(m.tag ? { tag: m.tag } : {}) },
+    android: { priority: 'HIGH', ...ttl, notification: { channel_id: m.channel ?? 'txillapp', ...(m.tag ? { tag: m.tag } : {}) } },
+    ...apns,
+  };
+}
+
 export class FcmSender {
   private readonly acct: ServiceAccount | null;
   private token: { value: string; exp: number } | null = null;
@@ -45,18 +108,11 @@ export class FcmSender {
   }
 
   /** Devolve 'dead' se o código do aparelho já não existe (para o apagar). */
-  async send(deviceToken: string, m: { title: string; body: string; url: string; tag?: string }): Promise<'ok' | 'dead' | 'error'> {
+  async send(deviceToken: string, m: FcmPush, platform: 'android' | 'ios' = 'android'): Promise<'ok' | 'dead' | 'error'> {
     const res = await fetch(`https://fcm.googleapis.com/v1/projects/${this.acct!.project_id}/messages:send`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${await this.accessToken()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: {
-          token: deviceToken,
-          notification: { title: m.title, body: m.body },
-          data: { url: m.url, ...(m.tag ? { tag: m.tag } : {}) },
-          android: { priority: 'HIGH', notification: { channel_id: 'txillapp', ...(m.tag ? { tag: m.tag } : {}) } },
-        },
-      }),
+      body: JSON.stringify({ message: buildFcmMessage(deviceToken, m, platform) }),
     });
     if (res.ok) return 'ok';
     if (res.status === 404 || res.status === 400) {

@@ -15,6 +15,6 @@ import { PresenceController, PresenceService } from './presence.controller';
   imports: [AuthModule, MediaModule, MusicModule, PostsModule],
   controllers: [ChatController, NotesController, PresenceController],
   providers: [ChatService, GroupsService, NotesService, ChatEvents, PresenceService],
-  exports: [ChatService],
+  exports: [ChatService, ChatEvents],
 })
 export class ChatModule {}
