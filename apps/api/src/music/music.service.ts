@@ -123,6 +123,52 @@ export class MusicService {
   }
 
 
+  /** As minhas faixas favoritas, as mais recentes primeiro. */
+  async favorites(userId: string): Promise<Track[]> {
+    const { rows } = await this.pool.query('SELECT track FROM content.music_favorites WHERE user_id = $1 ORDER BY created_at DESC LIMIT 200', [userId]);
+    return rows.map((r) => r.track as Track);
+  }
+
+  /** Marcar uma faixa como favorita (validada como qualquer outra; clipes próprios não entram). Até 200. */
+  async addFavorite(userId: string, track: Track): Promise<{ favorite: true }> {
+    const n = (await this.pool.query('SELECT count(*)::int AS n FROM content.music_favorites WHERE user_id = $1', [userId])).rows[0].n as number;
+    if (n >= 200) throw new BadRequestException('Já tens 200 favoritas. Tira algumas para juntar mais');
+    await this.pool.query('INSERT INTO content.music_favorites (user_id, track_id, track) VALUES ($1, $2, $3) ON CONFLICT (user_id, track_id) DO UPDATE SET track = EXCLUDED.track', [userId, track.id, JSON.stringify(track)]);
+    return { favorite: true };
+  }
+
+  async removeFavorite(userId: string, trackId: string): Promise<{ favorite: false }> {
+    await this.pool.query('DELETE FROM content.music_favorites WHERE user_id = $1 AND track_id = $2', [userId, trackId]);
+    return { favorite: false };
+  }
+
+  /**
+   * Sugestões: as faixas que a malta mais pôs em posts e mimos nos últimos 30 dias (no país de quem pede, com o resto do mundo
+   * a seguir), e as que a própria pessoa usou há pouco. Clipes próprios ficam de fora.
+   */
+  async suggested(userId: string): Promise<{ trending: Track[]; recent: Track[] }> {
+    const used = `
+      SELECT p.music AS track, p.author_id, p.created_at, (SELECT country FROM identity.users WHERE id = p.author_id) AS country
+        FROM content.posts p WHERE p.music IS NOT NULL AND p.music->>'kind' IS DISTINCT FROM 'clip' AND p.removed_at IS NULL AND p.created_at > now() - interval '30 days'
+      UNION ALL
+      SELECT s.music, s.author_id, s.created_at, (SELECT country FROM identity.users WHERE id = s.author_id)
+        FROM content.stories s WHERE s.music IS NOT NULL AND s.music->>'kind' IS DISTINCT FROM 'clip' AND s.created_at > now() - interval '30 days'`;
+    const trending = await this.pool.query(
+      `WITH used AS (${used}), me AS (SELECT country FROM identity.users WHERE id = $1)
+       SELECT (array_agg(track ORDER BY created_at DESC))[1] AS track, count(*)::int AS uses,
+              count(*) FILTER (WHERE country IS NOT DISTINCT FROM (SELECT country FROM me))::int AS here
+         FROM used GROUP BY track->>'id' ORDER BY here DESC, uses DESC, max(created_at) DESC LIMIT 12`,
+      [userId],
+    );
+    const recent = await this.pool.query(
+      `WITH used AS (${used})
+       SELECT (array_agg(track ORDER BY created_at DESC))[1] AS track FROM used WHERE author_id = $1 GROUP BY track->>'id' ORDER BY max(created_at) DESC LIMIT 8`,
+      [userId],
+    );
+    const clean = (rows: { track: unknown }[]) => rows.map((r) => r.track as Track).filter((t) => t && typeof t.url === 'string' && hostOk(t.url));
+    return { trending: clean(trending.rows), recent: clean(recent.rows) };
+  }
+
   async search(term: string): Promise<Track[]> {
     const q = term.trim().slice(0, 60);
     if (q.length < 2) throw new BadRequestException('Escreve pelo menos 2 letras');

@@ -9,6 +9,11 @@ export const musicPayload = (t: Track | null | undefined) => (!t ? undefined : t
 
 export const musicApi = {
   search: (q: string): Promise<Track[]> => raw(`/music/search?q=${encodeURIComponent(q)}`),
+  /** Sugestões: o que a malta mais está a usar e o que eu usei há pouco. */
+  suggested: (): Promise<{ trending: Track[]; recent: Track[] }> => raw('/music/suggested'),
+  favorites: (): Promise<Track[]> => raw('/music/favorites'),
+  addFavorite: (t: Track): Promise<{ favorite: true }> => raw('/music/favorites', { method: 'PUT', body: JSON.stringify(t) }),
+  removeFavorite: (id: string): Promise<{ favorite: false }> => raw(`/music/favorites/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   /** Como `api.createPost`, mas com música (o `createPost` da app ainda não leva o campo). */
   createPost: (b: { body: string; music?: Track | null; locationLabel?: string; mediaIds: string[] }) => raw('/posts', post({ ...b, music: musicPayload(b.music) })),
   createStory: (mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all', music?: Track | null, stickers: PlacedSticker[] = []) => raw('/stories', post({ mediaId, caption, audience, music: musicPayload(music), stickers })),

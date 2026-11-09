@@ -137,7 +137,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
   );
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#000' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (!typing && (width !== box.w || height !== box.h)) setBox({ w: width, h: height }); }}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#000' }} behavior="padding" onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (!typing && (width !== box.w || height !== box.h)) setBox({ w: width, h: height }); }}>
       <FeatureIntro id="mimo" />
       {/* A cena: vídeo, ou a foto inteira sobre ela própria desfocada (sem barras pretas), ou a preencher. */}
       <View style={StyleSheet.absoluteFill}>

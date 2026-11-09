@@ -42,7 +42,7 @@ export function PhotoTagger({ src, tags, onDone }: { src: string; tags: PhotoTag
 
   return (
     <Modal visible animationType="fade" onRequestClose={() => (pending ? setPending(null) : onDone(list))} statusBarTranslucent>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(insets.top, 16) }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(insets.top, 16) }}>
         <View style={styles.top}>
           <Text style={styles.title}>Identificar pessoas</Text>
           <Pressable onPress={() => onDone(list)} style={styles.done} accessibilityRole="button"><Text style={styles.doneText}>Feito</Text></Pressable>

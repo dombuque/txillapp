@@ -212,16 +212,25 @@ function SharedPost({ post, radius, tone, ink }: { post: ChatMessage['post']; ra
 function MediaFull({ url, video, onClose }: { url: string; video: boolean; onClose: () => void }) {
   return (
     <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }} accessibilityLabel="Fechar">
-        {video ? <ChatVideoPlayer url={url} /> : <Image source={{ uri: url }} style={{ width: '100%', height: '100%' }} contentFit="contain" />}
-        <Pressable onPress={onClose} style={st.fullX} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={22} color="#fff" /></Pressable>
-      </Pressable>
+      {video ? (
+        // Vídeo: o fundo não fecha ao toque (senão o toque no play era apanhado por ele); fecha-se no X ou no botão de voltar.
+        <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
+          <ChatVideoPlayer url={url} />
+          <Pressable onPress={onClose} style={st.fullX} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={22} color="#fff" /></Pressable>
+        </View>
+      ) : (
+        <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }} accessibilityLabel="Fechar">
+          <Image source={{ uri: url }} style={{ width: '100%', height: '100%' }} contentFit="contain" />
+          <Pressable onPress={onClose} style={st.fullX} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={22} color="#fff" /></Pressable>
+        </Pressable>
+      )}
     </Modal>
   );
 }
 function ChatVideoPlayer({ url }: { url: string }) {
-  const p = useVideoPlayer(url, (x) => { x.play(); });
-  return <VideoView player={p} style={{ width: '100%', height: '100%' }} nativeControls contentFit="contain" />;
+  const p = useVideoPlayer(url, (x) => { x.loop = false; x.muted = false; x.volume = 1; x.play(); });
+  // Dentro de um Modal, no Android, o vídeo só aparece numa TextureView (a SurfaceView fica preta por baixo do Modal).
+  return <VideoView player={p} style={{ width: '100%', height: '100%' }} nativeControls contentFit="contain" surfaceType="textureView" />;
 }
 
 export function Bubble({

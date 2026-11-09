@@ -176,7 +176,7 @@ export default function GeleiraEditor() {
   const exact = shown.some((i) => norm(i.name) === q);
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <FeatureIntro id="geleira" />
       <View style={{ borderBottomWidth: 1, borderBottomColor: colors.zinc100, backgroundColor: colors.white }}>
         <View style={st.top}>

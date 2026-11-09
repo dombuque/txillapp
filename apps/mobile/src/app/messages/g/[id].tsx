@@ -75,7 +75,7 @@ export default function GroupThreadScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} behavior="padding">
       <View style={st.header}>
         <BackButton fallback="/messages" style={{ width: 44, height: 44, borderRadius: 22 }} />
         {group && (

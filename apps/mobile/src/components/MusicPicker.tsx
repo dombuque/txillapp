@@ -1,3 +1,4 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
@@ -152,6 +153,20 @@ function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: strin
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [playing, setPlaying] = useState<string | null>(null);
+  // Para ti: favoritas, as que usaste há pouco e as que a malta mais está a pôr. Guardadas em memória enquanto a app está aberta.
+  const [tab, setTab] = useState<'forYou' | 'favorites' | 'search'>('forYou');
+  const favs = useQuery({ queryKey: ['music-favorites'], queryFn: musicApi.favorites, staleTime: 60_000, retry: false });
+  const sugg = useQuery({ queryKey: ['music-suggested'], queryFn: musicApi.suggested, staleTime: 5 * 60_000, retry: false });
+  const qc = useQueryClient();
+  const favIds = useMemo(() => new Set((favs.data ?? []).map((t) => t.id)), [favs.data]);
+  const toggleFav = useMutation({
+    mutationFn: (t: Track): Promise<{ favorite: boolean }> => (favIds.has(t.id) ? musicApi.removeFavorite(t.id) : musicApi.addFavorite(t)),
+    onMutate: (t) => {
+      // Muda logo no ecrã; o servidor confirma.
+      qc.setQueryData<Track[]>(['music-favorites'], (old = []) => (old.some((x) => x.id === t.id) ? old.filter((x) => x.id !== t.id) : [t, ...old]));
+    },
+    onError: () => void qc.invalidateQueries({ queryKey: ['music-favorites'] }),
+  });
 
   // Procura meio segundo depois de parares de escrever. Sem pesquisa, mostra já uma lista (o primeiro género).
   useEffect(() => {
@@ -199,6 +214,40 @@ function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: strin
   }
 
   const typed = term.trim();
+  // Escrever na pesquisa passa logo para o separador Pesquisar.
+  useEffect(() => { if (typed.length >= 2) setTab('search'); }, [typed]);
+
+  /** Uma faixa na lista: ouvir, favorita (coração) e Usar. */
+  const row = (t: Track) => {
+    const fav = favIds.has(t.id);
+    return (
+      <View key={t.id} style={s.row}>
+        <Pressable onPress={() => toggle(t)} style={({ pressed }) => [s.play, pressed && s.pressed]} accessibilityRole="button" accessibilityLabel={playing === t.id ? 'Parar' : 'Ouvir'}>
+          <Icon name={playing === t.id ? 'pause' : 'play'} size={18} solid color="#fff" />
+        </Pressable>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={s.rowTitle} numberOfLines={1}>{t.title}</Text>
+          <Text style={s.rowSub} numberOfLines={1}>{t.artist || 'Autor desconhecido'}{t.durationMs ? ` · ${mmss(t.durationMs)}` : ''}</Text>
+        </View>
+        {t.kind !== 'clip' && (
+          <Pressable onPress={() => toggleFav.mutate(t)} hitSlop={6} style={s.fav} accessibilityRole="button" accessibilityState={{ selected: fav }} accessibilityLabel={fav ? 'Tirar das favoritas' : 'Marcar como favorita'}>
+            <Icon name="heart" size={20} solid={fav} color={fav ? colors.brand : colors.zinc500} />
+          </Pressable>
+        )}
+        <Pressable onPress={() => pick(t)} style={({ pressed }) => [s.usar, pressed && s.pressed]} accessibilityRole="button"><Text style={s.usarTxt}>Usar</Text></Pressable>
+      </View>
+    );
+  };
+  const section = (title: string, list: Track[] | undefined, empty?: string) => (
+    <View style={{ marginTop: 14 }}>
+      <Text style={s.h}>{title}</Text>
+      {list?.length ? list.map(row) : empty ? <Text style={s.emptySmall}>{empty}</Text> : null}
+    </View>
+  );
+  const favorites = favs.data ?? [];
+  const recent = (sugg.data?.recent ?? []).filter((t) => !favIds.has(t.id)).slice(0, 5);
+  const trending = (sugg.data?.trending ?? []).slice(0, 10);
+
   return (
     <ScrollView
       style={s.scroll}
@@ -211,37 +260,55 @@ function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: strin
     >
       <View style={s.search}>
         <Icon name="search" size={18} color={colors.zinc500} />
-        <TextInput value={term} onChangeText={setTerm} placeholder="Procurar música ou sons" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar música ou sons" autoCorrect={false} style={s.input} />
+        <TextInput value={term} onChangeText={setTerm} onFocus={() => setTab('search')} placeholder="Procurar música ou sons" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar música ou sons" autoCorrect={false} style={s.input} />
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.chips} contentContainerStyle={{ gap: 6 }}>
-        {GENRES.map((g, i) => {
-          const on = typed === g || (!typed && g === base);
-          return (
-            <Pressable key={g} onPress={() => setTerm(g)} style={[s.chip, on && { backgroundColor: colors.brand }]} accessibilityRole="button">
-              <Text style={[s.chipTxt, on && { color: '#fff' }]}>{g}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-      {suggestion && !typed ? <Text style={s.sugg}>Sugerido para o teu post ({suggestion.why}): {suggestion.genre}</Text> : null}
-      <Text style={s.note}>Só músicas e sons de licença aberta (Creative Commons), com o crédito de quem os fez. Para a música do momento, ainda não há licença.</Text>
-      {!!err && <Text style={s.err}>{err}</Text>}
-      <View style={{ marginTop: 12 }}>
-        {busy && <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 24 }} />}
-        {!busy && items?.length === 0 && !err && <Text style={s.empty}>Nada com esse nome</Text>}
-        {!busy && items?.map((t) => (
-          <View key={t.id} style={s.row}>
-            <Pressable onPress={() => toggle(t)} style={({ pressed }) => [s.play, pressed && s.pressed]} accessibilityRole="button" accessibilityLabel={playing === t.id ? 'Parar' : 'Ouvir'}>
-              <Icon name={playing === t.id ? 'pause' : 'play'} size={18} solid color="#fff" />
-            </Pressable>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={s.rowTitle} numberOfLines={1}>{t.title}</Text>
-              <Text style={s.rowSub} numberOfLines={1}>{t.artist || 'Autor desconhecido'}{t.durationMs ? ` · ${mmss(t.durationMs)}` : ''}</Text>
-            </View>
-            <Pressable onPress={() => pick(t)} style={({ pressed }) => [s.usar, pressed && s.pressed]} accessibilityRole="button"><Text style={s.usarTxt}>Usar</Text></Pressable>
-          </View>
+      <View style={s.tabs} accessibilityRole="tablist">
+        {([['forYou', 'Para ti'], ['favorites', `Favoritas${favorites.length ? ` (${favorites.length})` : ''}`], ['search', 'Pesquisar']] as const).map(([id, label]) => (
+          <Pressable key={id} onPress={() => setTab(id)} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} style={[s.tab, tab === id && s.tabOn]}>
+            <Text style={[s.tabTxt, tab === id && { color: '#fff' }]}>{label}</Text>
+          </Pressable>
         ))}
       </View>
+
+      {tab === 'forYou' && (
+        <>
+          {suggestion ? <Text style={s.sugg}>Para o teu post ({suggestion.why}): experimenta {suggestion.genre}. <Text onPress={() => setTerm(suggestion.genre)} style={{ textDecorationLine: 'underline' }}>Ver</Text></Text> : null}
+          {favorites.length ? section('As tuas favoritas', favorites.slice(0, 5)) : null}
+          {recent.length ? section('Usaste há pouco', recent) : null}
+          {sugg.isLoading ? <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 24 }} /> : section('A tocar no Txillapp', trending, 'Ainda ninguém pôs música esta semana. Sê o primeiro: pesquisa uma faixa.')}
+          {!favorites.length && !recent.length && !trending.length && !sugg.isLoading ? (
+            <Pressable onPress={() => setTab('search')} style={s.goSearch} accessibilityRole="button"><Text style={s.usarTxt}>Pesquisar música</Text></Pressable>
+          ) : null}
+        </>
+      )}
+
+      {tab === 'favorites' && (
+        <View style={{ marginTop: 8 }}>
+          {favs.isLoading ? <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 24 }} /> : favorites.length ? favorites.map(row) : <Text style={s.empty}>Ainda não tens favoritas. Toca no coração de uma faixa para a guardares aqui.</Text>}
+        </View>
+      )}
+
+      {tab === 'search' && (
+        <>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.chips} contentContainerStyle={{ gap: 6 }}>
+            {GENRES.map((g) => {
+              const on = typed === g || (!typed && g === base);
+              return (
+                <Pressable key={g} onPress={() => setTerm(g)} style={[s.chip, on && { backgroundColor: colors.brand }]} accessibilityRole="button">
+                  <Text style={[s.chipTxt, on && { color: '#fff' }]}>{g}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          {!!err && <Text style={s.err}>{err}</Text>}
+          <View style={{ marginTop: 12 }}>
+            {busy && <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 24 }} />}
+            {!busy && items?.length === 0 && !err && <Text style={s.empty}>Nada com esse nome</Text>}
+            {!busy && items?.map(row)}
+          </View>
+        </>
+      )}
+      <Text style={s.note}>Só músicas e sons de licença aberta (Creative Commons), com o crédito de quem os fez. Para a música do momento, ainda não há licença.</Text>
     </ScrollView>
   );
 }
@@ -265,6 +332,14 @@ const s = StyleSheet.create({
   usar: { height: 36, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   usarTxt: { fontSize: 14, fontWeight: '700', color: colors.zinc900 },
   pressed: { transform: [{ scale: 0.96 }] },
+  tabs: { marginTop: 10, flexDirection: 'row', gap: 6 },
+  tab: { height: 34, borderRadius: 999, paddingHorizontal: 14, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
+  tabOn: { backgroundColor: colors.zinc900 },
+  tabTxt: { fontSize: 13, fontWeight: '700', color: colors.zinc700 },
+  h: { fontSize: 13, fontWeight: '700', color: colors.zinc500, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  fav: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  emptySmall: { paddingVertical: 10, fontSize: 14, color: colors.zinc500 },
+  goSearch: { marginTop: 12, height: 44, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   rec: { borderRadius: 16, backgroundColor: '#fafafa', borderWidth: 1, borderColor: colors.zinc100, padding: 12 },
   recTitle: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },
   bigBtn: { marginTop: 8, height: 44, borderRadius: 999, backgroundColor: colors.brand, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },

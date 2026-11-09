@@ -4,7 +4,7 @@ import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 
 export const ISSUANCE_ACCOUNT = '00000000-0000-7000-8000-000000000001';
-export const WELCOME_BONUS = 1000;
+export const WELCOME_BONUS = 500;
 export const MAX_AMOUNT = 100_000;
 
 export interface TransferParams {

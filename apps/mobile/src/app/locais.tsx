@@ -49,7 +49,7 @@ export default function Locais() {
   const pending = invites.data ?? [];
   return (
     <StackPage title="Os meus locais">
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
           <Text style={{ fontSize: 14, lineHeight: 20, color: colors.zinc600 }}>Tens um bar, restaurante, discoteca ou café? Cria a página do local, convida os teus gestores, publica como o local, imprime o QR e a malta faz check-in. A equipa verifica e dá o selo.</Text>
 

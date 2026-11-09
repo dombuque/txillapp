@@ -321,7 +321,7 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
           <Text style={styles.offText}>{post.author.displayName} desativou os comentários nesta publicação.</Text>
         </View>
       ) : (
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.bar}>
+        <KeyboardAvoidingView behavior="padding" style={styles.bar}>
           {replyTo && (
             <View style={styles.replying}>
               <Text style={styles.replyingText}>A responder a <Text style={{ fontWeight: '700' }}>{replyTo.author.displayName}</Text></Text>

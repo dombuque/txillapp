@@ -111,7 +111,7 @@ export function Screen({ children, footer }: { children: ReactNode; footer?: Rea
     );
   }
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.canvas, overflow: 'hidden' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.canvas, overflow: 'hidden' }} behavior="padding">
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <Blob size={380} color="#d6334f" style={{ right: -150, top: -150 }} />
         <Blob size={340} color="#fcd34d" style={{ left: -170, top: 190 }} />

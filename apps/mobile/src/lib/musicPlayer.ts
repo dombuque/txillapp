@@ -82,11 +82,40 @@ export async function playTrack(id: symbol, url: string, opts: { loop: boolean; 
     await player.seekTo(0).catch(() => undefined);
     if (owner !== id) { try { player.pause(); } catch { /* */ } return false; }
     player.play();
+    // No browser (sobretudo iPhone), o som sem um toque recente é bloqueado: o leitor fica parado sem dar erro.
+    // Nesse caso fica à espera do primeiro toque no ecrã e arranca nessa altura (se ainda for esta a faixa pedida).
+    if (Platform.OS === 'web') {
+      await new Promise((r) => setTimeout(r, 350));
+      if (owner === id && player && !player.playing) waitForGesture(id, url, opts);
+    }
     return true;
   } catch {
     if (owner === id) { owner = null; onStop = null; }
     return false;
   }
+}
+
+let gestureArmed = false;
+let pending: { id: symbol; url: string; opts: { loop: boolean; onStop: () => void } } | null = null;
+/** Guarda o pedido e toca-o no próximo toque (uma vez); o toque desbloqueia o áudio para o resto da visita. */
+function waitForGesture(id: symbol, url: string, opts: { loop: boolean; onStop: () => void }) {
+  pending = { id, url, opts };
+  if (gestureArmed || typeof document === 'undefined') return;
+  gestureArmed = true;
+  const go = () => {
+    document.removeEventListener('pointerdown', go, true);
+    document.removeEventListener('touchend', go, true);
+    document.removeEventListener('keydown', go, true);
+    gestureArmed = false;
+    const p = pending;
+    pending = null;
+    if (p && owner === p.id && player) {
+      try { player.play(); } catch { /* */ }
+    }
+  };
+  document.addEventListener('pointerdown', go, true);
+  document.addEventListener('touchend', go, true);
+  document.addEventListener('keydown', go, true);
 }
 
 // A app saiu do ecrã (outra app, ecrã bloqueado, botão de início): a música pára, seja de que cartão for.
@@ -96,6 +125,7 @@ AppState.addEventListener('change', (st) => {
 
 /** Pára (e liberta) a faixa, se for esta a tocar. */
 export function stopTrack(id: symbol) {
+  if (pending?.id === id) pending = null;
   if (owner !== id) return;
   const cb = onStop;
   owner = null;

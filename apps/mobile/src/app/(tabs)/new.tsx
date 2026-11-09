@@ -505,7 +505,7 @@ export default function Compose() {
 
   const chipOff = { opacity: 0.4 };
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.canvas, paddingTop: insets.top }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.canvas, paddingTop: insets.top }} behavior="padding">
       <View style={styles.top}>
         <Pressable onPress={leave} style={styles.x} accessibilityRole="button" accessibilityLabel="Cancelar"><Icon name="x" size={24} strokeWidth={2} /></Pressable>
         <Text style={styles.title}>{assets.length === 1 && video ? 'Nova tcheka' : 'Nova publicação'}</Text>

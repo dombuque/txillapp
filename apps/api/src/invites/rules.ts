@@ -3,7 +3,7 @@ import { createHash, randomInt } from 'node:crypto';
 /** As regras dos convites num só sítio. Valores propostos e aprovados: ver a conversa de 4 de novembro de 2026. */
 export const INVITE = {
   /** Txills para quem entra e para quem convida (cada um). */
-  REWARD: 100,
+  REWARD: 50,
   /** Convites premiados por pessoa e por dia. */
   PER_DAY: 5,
   /** Convites premiados por pessoa, no total (50 × 100 = 5000 Txills). Depois disto o convite funciona, mas sem prémio. */

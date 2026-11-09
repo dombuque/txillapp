@@ -79,6 +79,27 @@ function cropOf(img: SkImage, e: Edit) {
   return { iw, ih, a, cw, ch, cx, cy };
 }
 
+/**
+ * Fotos do telemóvel têm 12 a 50 MP: guardá-las inteiras e redesenhá-las a cada filtro esgota a memória no Android
+ * (a app fecha). A foto final sai com no máximo 1920 px, por isso basta trabalhar com o lado maior a 2560 px.
+ */
+const MAX_SIDE = 2560;
+function shrink(img: SkImage): SkImage {
+  const w = img.width(), h = img.height();
+  const k = MAX_SIDE / Math.max(w, h);
+  if (k >= 1) return img;
+  const W = Math.round(w * k), H = Math.round(h * k);
+  const surface = Skia.Surface.MakeOffscreen(W, H) ?? Skia.Surface.Make(W, H);
+  if (!surface) return img;
+  const paint = Skia.Paint();
+  surface.getCanvas().drawImageRect(img, Skia.XYWHRect(0, 0, w, h), Skia.XYWHRect(0, 0, W, H), paint);
+  surface.flush();
+  // Cópia em memória normal (não presa à superfície da GPU), e a original larga-se.
+  const small = surface.makeImageSnapshot().makeNonTextureImage() ?? surface.makeImageSnapshot();
+  img.dispose?.();
+  return small;
+}
+
 /** Desenha a foto editada num retângulo W×H (pré-visualização ou foto final), com a assinatura. */
 function drawEdit(canvas: SkCanvas, img: SkImage, e: Edit, W: number, H: number, font: SkFont | null, username?: string | null) {
   const { cw, ch, cx, cy } = cropOf(img, e);
@@ -218,6 +239,7 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
         } catch (e) { why = why || (e as Error).message; }
       }
       if (!alive) return;
+      if (i) i = shrink(i);
       if (i) setImg(i);
       else { setFailWhy(why); setFailed(true); }
     })();

@@ -144,7 +144,7 @@ export default function Thread() {
   const hits = n.length < 2 ? [] : items.filter((m) => !m.id.startsWith('tmp-') && !m.viewOnce && m.body && (m.kind === 'text' || m.kind === 'story_reply') && norm(m.body).includes(n)).slice(0, 40);
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} behavior="padding">
       <View style={st.header}>
         <BackButton fallback="/messages" style={{ width: 44, height: 44, borderRadius: 22 }} />
         {person && (

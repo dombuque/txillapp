@@ -47,7 +47,7 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
 
   it('carteira abre com bónus de demonstração e rotula Txills como fictícios', async () => {
     const w = await api().get('/api/v1/wallet').set(auth(ana)).expect(200);
-    expect(w.body).toMatchObject({ balance: 1000, currency: 'TXL', demo: true });
+    expect(w.body).toMatchObject({ balance: 500, currency: 'TXL', demo: true });
   });
 
   it('exige autenticação e Idempotency-Key', async () => {
@@ -63,10 +63,10 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
     const b = await send().expect(201);
     expect(b.body.transactionId).toBe(a.body.transactionId);
     expect(b.body.replayed).toBe(true);
-    expect((await api().get('/api/v1/wallet').set(auth(ana))).body.balance).toBe(900);
+    expect((await api().get('/api/v1/wallet').set(auth(ana))).body.balance).toBe(400);
   });
 
-  it('gasto duplo concorrente: 20 pedidos de 100 com saldo de 900 → exactamente 9 sucessos, saldo 0', async () => {
+  it('gasto duplo concorrente: 20 pedidos de 100 com saldo de 400 → exactamente 4 sucessos, saldo 0', async () => {
     const results = await Promise.all(
       Array.from({ length: 20 }, (_, i) =>
         api()
@@ -78,10 +78,10 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
     );
     const ok = results.filter((r) => r.status === 201).length;
     const rejected = results.filter((r) => r.status === 422).length;
-    expect(ok).toBe(9);
-    expect(rejected).toBe(11);
+    expect(ok).toBe(4);
+    expect(rejected).toBe(16);
     expect((await api().get('/api/v1/wallet').set(auth(ana))).body.balance).toBe(0);
-    expect((await api().get('/api/v1/wallet').set(auth(bruno))).body.balance).toBe(1000 + 100 + 900);
+    expect((await api().get('/api/v1/wallet').set(auth(bruno))).body.balance).toBe(500 + 100 + 400);
   });
 
   it('invariantes do ledger: cada transacção soma zero e saldo = soma dos lançamentos', async () => {

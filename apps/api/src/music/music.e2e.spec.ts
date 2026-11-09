@@ -126,4 +126,21 @@ describe('música nas notas: catálogo de licenças abertas e crédito (integra�
     await api().post('/api/v1/posts').set(auth(mua)).send({ body: 'x', music: { kind: 'clip', mediaId: clip, durationMs: 90000 } }).expect(400);
     await api().post('/api/v1/posts').set(auth(mua)).send({ body: 'x', music: { kind: 'clip', mediaId: '00000000-0000-4000-8000-000000000000', durationMs: 5000 } }).expect(400);
   });
+  it('favoritas e sugestões: marco, listo e tiro; as sugestões trazem o que a malta usou (sem clipes)', async () => {
+    const { mua, mub } = u;
+    await api().put('/api/v1/music/favorites').set(auth(mua)).send(good).expect(200);
+    await api().put('/api/v1/music/favorites').set(auth(mua)).send({ ...good, url: 'https://evil.example.com/t.mp3' }).expect(400);
+    let favs = (await api().get('/api/v1/music/favorites').set(auth(mua)).expect(200)).body as { id: string }[];
+    expect(favs.map((t) => t.id)).toEqual(['ov-1']);
+    expect((await api().get('/api/v1/music/favorites').set(auth(mub)).expect(200)).body).toEqual([]); // são só minhas
+    await api().post('/api/v1/posts').set(auth(mua)).send({ body: 'com música', music: good }).expect(201);
+    const sugg = (await api().get('/api/v1/music/suggested').set(auth(mub)).expect(200)).body as { trending: { id: string }[]; recent: { id: string }[] };
+    expect(sugg.trending.map((t) => t.id)).toContain('ov-1');
+    expect(sugg.recent).toEqual([]); // o mub ainda não usou nenhuma
+    const mine = (await api().get('/api/v1/music/suggested').set(auth(mua)).expect(200)).body as { recent: { id: string }[] };
+    expect(mine.recent.map((t) => t.id)).toContain('ov-1');
+    await api().delete('/api/v1/music/favorites/ov-1').set(auth(mua)).expect(200);
+    favs = (await api().get('/api/v1/music/favorites').set(auth(mua)).expect(200)).body;
+    expect(favs).toEqual([]);
+  });
 });

@@ -256,7 +256,7 @@ function PreviewVideo({ url }: { url: string }) {
     const t = setTimeout(() => { try { if (!player.playing) { player.muted = true; player.play(); } } catch { /* leitor libertado */ } }, 700);
     return () => { clearTimeout(t); try { player.pause(); } catch { /* já libertado */ } };
   }, [player]);
-  return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />;
+  return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} surfaceType="textureView" />;
 }
 
 /** Pré-visualização do mimo: o ecrã 9:16 com a publicação, os stickers por cima, a legenda e a escolha de quem vê. */

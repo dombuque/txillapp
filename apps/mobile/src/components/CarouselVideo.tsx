@@ -150,7 +150,7 @@ export function VideoPreview({ uri, onClose }: { uri: string; onClose: () => voi
 }
 function NativePreview({ uri }: { uri: string }) {
   const p = useVideoPlayer(uri, (x) => { x.loop = true; x.play(); });
-  return <VideoView player={p} style={{ width: '100%', height: '100%' }} nativeControls contentFit="contain" />;
+  return <VideoView player={p} style={{ width: '100%', height: '100%' }} nativeControls contentFit="contain" surfaceType="textureView" />;
 }
 
 const st = StyleSheet.create({
