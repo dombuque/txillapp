@@ -80,10 +80,10 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
   const map = L.map(el, { zoomControl: false, attributionControl: true, zoomSnap: 0.5, minZoom: 4, maxZoom: 19 });
   if (opts.zoomControl) L.control.zoom({ position: 'topright', zoomInTitle: 'Aproximar', zoomOutTitle: 'Afastar' }).addTo(map);
   map.attributionControl.setPrefix(false);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd',
+  // Mosaicos do OpenStreetMap servidos pelo próprio Txillapp (com cache), sem chave.
+  L.tileLayer('https://txillapp.com/tiles/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
   }).addTo(map);
 
   const ring = L.circle([0, 0], { radius: 1, color: BRAND, weight: 1.5, opacity: 0.7, fillColor: BRAND, fillOpacity: 0.05, interactive: false }).addTo(map);

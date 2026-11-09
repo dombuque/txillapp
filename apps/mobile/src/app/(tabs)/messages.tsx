@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
-import { SwipeRow, type SwipeAction } from '@/components/SwipeRow';
+import { closeOpenSwipe, SwipeRow, type SwipeAction } from '@/components/SwipeRow';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { Icon } from '@/components/Icon';
 import { NotesStrip } from '@/components/Notes';
@@ -200,6 +200,7 @@ export default function Messages() {
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <PullView pull={pull}>
       <FlatList
+        onScrollBeginDrag={closeOpenSwipe}
         onScroll={(e) => { pull.onScroll(e); zasListScrolling(); }}
         scrollEventThrottle={16}
         refreshControl={pull.control}

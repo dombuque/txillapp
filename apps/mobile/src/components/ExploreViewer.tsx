@@ -1,5 +1,5 @@
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -29,6 +29,16 @@ export function ExploreViewer({ items, startId, onClose, title = 'Explorar' }: {
   const [active, setActive] = useState(first);
   const [h, setH] = useState(winH);
   const ref = useRef<FlatList<Post>>(null);
+  // Abrir no Tcheka tocado: o initialScrollIndex não chega (no browser é ignorado e a altura muda depois do primeiro
+  // layout), por isso põe-se a lista no sítio certo sempre que a altura muda, até a pessoa começar a deslizar.
+  const moved = useRef(false);
+  useEffect(() => {
+    if (moved.current || first <= 0) return;
+    const go = () => ref.current?.scrollToOffset({ offset: first * h, animated: false });
+    go();
+    const t = setTimeout(go, 60);
+    return () => clearTimeout(t);
+  }, [h, first]);
   const viewable = useRef(({ viewableItems }: { viewableItems: { index?: number | null }[] }) => {
     const i = viewableItems[0]?.index;
     if (i != null) setActive(i);
@@ -78,6 +88,7 @@ export function ExploreViewer({ items, startId, onClose, title = 'Explorar' }: {
               bounces={false}
               showsVerticalScrollIndicator={false}
               initialScrollIndex={first}
+              onScrollBeginDrag={() => { moved.current = true; }}
               getItemLayout={(_, i) => ({ length: h, offset: h * i, index: i })}
               onViewableItemsChanged={viewable}
               viewabilityConfig={viewConfig}

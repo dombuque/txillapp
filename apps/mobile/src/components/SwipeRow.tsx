@@ -37,6 +37,14 @@ function ActionButtons({ actions, side, progress }: { actions: SwipeAction[]; si
  * - computador: as mesmas ações aparecem como botões pequenos ao passar o rato.
  * Tocar numa ação fecha a linha antes de a correr.
  */
+/** A linha que está aberta agora: só uma de cada vez (abrir outra fecha esta, como no WhatsApp). */
+let openRow: SwipeableMethods | null = null;
+/** Fechar a linha aberta (ex.: quando a lista começa a rolar). */
+export function closeOpenSwipe() {
+  openRow?.close();
+  openRow = null;
+}
+
 export function SwipeRow({ left = [], right = [], children }: { left?: SwipeAction[]; right?: SwipeAction[]; children: ReactNode }) {
   const desktop = useDesktop();
   const ref = useRef<SwipeableMethods>(null);
@@ -69,11 +77,21 @@ export function SwipeRow({ left = [], right = [], children }: { left?: SwipeActi
   return (
     <ReanimatedSwipeable
       ref={ref}
-      friction={1.6}
-      leftThreshold={W / 2}
-      rightThreshold={W / 2}
+      friction={2}
+      leftThreshold={W * 0.6}
+      rightThreshold={W * 0.6}
       overshootLeft={false}
       overshootRight={false}
+      // Só começa depois de um arrasto claramente horizontal: rolar a lista não abre linhas por engano.
+      dragOffsetFromLeft={28}
+      dragOffsetFromRight={28}
+      onSwipeableWillOpen={() => {
+        if (openRow && openRow !== ref.current) openRow.close();
+        openRow = ref.current;
+      }}
+      onSwipeableClose={() => { if (openRow === ref.current) openRow = null; }}
+      // No browser do telemóvel, o rolar na vertical fica com o browser (senão os dois gestos lutam).
+      containerStyle={Platform.OS === 'web' ? ({ touchAction: 'pan-y' } as object) : undefined}
       renderLeftActions={left.length ? (p) => <ActionButtons actions={left.map((a) => ({ ...a, onPress: run(a) }))} side="left" progress={p} /> : undefined}
       renderRightActions={right.length ? (p) => <ActionButtons actions={right.map((a) => ({ ...a, onPress: run(a) }))} side="right" progress={p} /> : undefined}
       childrenContainerStyle={{ backgroundColor: '#fff' }}

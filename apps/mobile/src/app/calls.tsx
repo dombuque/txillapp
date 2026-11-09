@@ -7,7 +7,7 @@ import { Empty } from '@/components/Empty';
 import { Icon } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { StackPage } from '@/components/StackPage';
-import { SwipeRow } from '@/components/SwipeRow';
+import { closeOpenSwipe, SwipeRow } from '@/components/SwipeRow';
 import { callsApi, fmtDuration, startCall, type CallLogItem } from '@/lib/calls';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
@@ -67,6 +67,7 @@ export default function Calls() {
       ) : undefined}
     >
       <FlatList
+        onScrollBeginDrag={closeOpenSwipe}
         data={items}
         keyExtractor={(c) => c.id}
         onEndReached={() => q.hasNextPage && !q.isFetchingNextPage && void q.fetchNextPage()}
