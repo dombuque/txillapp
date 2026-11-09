@@ -183,26 +183,11 @@ export function TxCamera({
   const focusTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Depois de tirar: a pré-visualização, com Repetir ou Usar.
   const [review, setReview] = useState<Shot | null>(null);
-  // Miniatura quadrada do que a câmara vê, refeita de 1,5 em 1,5 s: serve de exemplo em cada filtro.
-  const [lookThumb, setLookThumb] = useState<string | null>(null);
-  useEffect(() => {
-    if (!ready || review) return;
-    const grab = () => {
-      const v = video.current;
-      if (!v || !v.videoWidth) return;
-      const c = document.createElement('canvas');
-      c.width = c.height = 96;
-      const side = Math.min(v.videoWidth, v.videoHeight);
-      try {
-        c.getContext('2d')!.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side, 0, 0, 96, 96);
-        setLookThumb(c.toDataURL('image/jpeg', 0.7));
-      } catch { /* sem imagem ainda */ }
-    };
-    grab();
-    const id = setInterval(grab, 1500);
-    return () => clearInterval(id);
-  }, [ready, review]);
   const reviewSrc = useRef<HTMLCanvasElement | null>(null);
+  const swipeX = useRef<number | null>(null);
+  const editLooksRow = useRef<React.ComponentRef<typeof ScrollView> | null>(null);
+  // A miniatura dos filtros é a foto tirada, sem filtro (senão cada exemplo levava o filtro escolhido por cima).
+  const [swatchSrc, setSwatchSrc] = useState<string | null>(null);
   // Edição na pré-visualização: rodar/espelhar, cortar, filtro e ajustes. Aplica-se ao original a cada mudança.
   type Box = { x: number; y: number; w: number; h: number };
   type Edit = { rot: 0 | 90 | 180 | 270; flip: boolean; aspect: number | null; box: Box | null; look: number; b: number; c: number; s: number };
@@ -329,12 +314,25 @@ export function TxCamera({
     renderSeq.current += 1;
     reviewSrc.current = c;
     setEdit(EDIT0);
-    setTool(null);
+    setTool('look'); // os filtros aparecem logo depois de tirar a foto
     setFreeCrop(false);
     setBox({ x: 0.08, y: 0.08, w: 0.84, h: 0.84 });
+    // Miniatura quadrada da foto tirada (sem filtro), para o exemplo de cada filtro.
+    try {
+      const m = document.createElement('canvas');
+      m.width = m.height = 112;
+      const side = Math.min(c.width, c.height);
+      m.getContext('2d')!.drawImage(c, (c.width - side) / 2, (c.height - side) / 2, side, side, 0, 0, 112, 112);
+      setSwatchSrc(m.toDataURL('image/jpeg', 0.75));
+    } catch { setSwatchSrc(null); }
     const seq = renderSeq.current;
     renderEdit(c, EDIT0).toBlob((blob) => blob && seq === renderSeq.current && setReview({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' }), 'image/jpeg', 0.9);
   }
+  // A fila de filtros acompanha o escolhido (sobretudo quando se troca a deslizar sobre a foto).
+  useEffect(() => {
+    if (tool !== 'look') return;
+    editLooksRow.current?.scrollTo({ x: Math.max(0, edit.look * 64 - 96), animated: true });
+  }, [edit.look, tool]);
   function changeEdit(patch: Partial<Edit>) {
     const e = { ...edit, ...patch };
     setEdit(e);
@@ -831,11 +829,7 @@ export function TxCamera({
               </Pressable>
             ))}
           </ScrollView>
-        ) : ready && !recording && (
-          <ScrollView ref={looksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 82, marginBottom: 8 }} accessibilityRole="tablist" accessibilityLabel="Filtros">
-            {LOOKS.map((l, i) => <LookSwatch key={l.id} look={l} src={lookThumb} on={look === i} onPress={() => pickLook(i)} />)}
-          </ScrollView>
-        )}
+        ) : null}
         {thumbs && thumbs.length > 0 && !recording ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 6, alignItems: 'center' }} style={{ maxHeight: 54, marginBottom: 10, alignSelf: 'stretch' }} accessibilityLabel="Escolhidas">
             {thumbs.map((u, i) => (
@@ -908,7 +902,21 @@ export function TxCamera({
         <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', zIndex: 10 }]} accessibilityViewIsModal>
           {review.video
             ? dom('video', { src: review.uri, playsInline: true, autoPlay: true, loop: true, muted: true, controls: false, onClick: (ev: { currentTarget: HTMLVideoElement }) => { ev.currentTarget.muted = !ev.currentTarget.muted; void ev.currentTarget.play().catch(() => undefined); }, style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' } })
-            : dom('img', { ref: imgEl, src: review.uri, alt: 'Pré-visualização', onLoad: () => setImgTick((n) => n + 1), style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' } })}
+            : dom('img', {
+                ref: imgEl, src: review.uri, alt: 'Pré-visualização', onLoad: () => setImgTick((n) => n + 1),
+                // Deslizar sobre a foto troca o filtro: para a esquerda o seguinte, para a direita o anterior.
+                onTouchStart: (ev: TouchEvent) => { swipeX.current = ev.touches[0]?.clientX ?? null; },
+                onTouchEnd: (ev: TouchEvent) => {
+                  const x0 = swipeX.current; swipeX.current = null;
+                  const x1 = ev.changedTouches[0]?.clientX;
+                  if (x0 == null || x1 == null || freeCrop) return;
+                  const dx = x1 - x0;
+                  if (Math.abs(dx) < 45) return;
+                  const next = Math.max(0, Math.min(LOOKS.length - 1, edit.look + (dx < 0 ? 1 : -1)));
+                  if (next !== edit.look) { setTool('look'); changeEdit({ look: next }); }
+                },
+                style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', touchAction: 'pan-y' },
+              })}
           {!review.video && freeCrop && tool === 'crop' && (() => {
             const r = imageRect();
             void imgTick;
@@ -935,8 +943,8 @@ export function TxCamera({
           {!review.video && (
             <View style={[st.editPanel, { bottom: botPad + 62 }]}>
               {tool === 'look' && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 82 }}>
-                  {LOOKS.map((l, i) => <LookSwatch key={l.id} look={l} src={review.uri} on={edit.look === i} onPress={() => changeEdit({ look: i })} />)}
+                <ScrollView ref={editLooksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 82 }}>
+                  {LOOKS.map((l, i) => <LookSwatch key={l.id} look={l} src={swatchSrc} on={edit.look === i} onPress={() => changeEdit({ look: i })} />)}
                 </ScrollView>
               )}
               {tool === 'adjust' && (
