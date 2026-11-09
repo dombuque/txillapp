@@ -39,6 +39,19 @@ export const LOOKS: Look[] = [
   { id: 'vintage', name: 'Vintage', b: 0.98, c: 0.95, s: 0.85, sep: 0.5, g: 0, tint: [120, 60, 30, 0.08] },
   { id: 'pb', name: 'P&B', b: 1.02, c: 1.15, s: 1, sep: 0, g: 1 },
 ];
+/** Um filtro na fila: a imagem de exemplo (o que a câmara vê, ou a foto tirada) já com o filtro, e o nome por baixo. */
+function LookSwatch({ look, src, on, onPress }: { look: Look; src: string | null; on: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={{ width: 58, alignItems: 'center', gap: 4 }} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`Filtro ${look.name}`}>
+      <View style={{ width: 52, height: 52, borderRadius: 26, overflow: 'hidden', borderWidth: on ? 2.5 : 1, borderColor: on ? '#fff' : 'rgba(255,255,255,0.45)', backgroundColor: 'rgba(255,255,255,0.15)' }}>
+        {src ? dom('img', { src, alt: '', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block', filter: lookCss(look) } }) : null}
+        {src && look.tint ? <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: `rgba(${look.tint.join(',')})` }} /> : null}
+      </View>
+      <Text numberOfLines={1} style={{ color: '#fff', fontSize: 11, fontWeight: on ? '800' : '600', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 3 }}>{look.name}</Text>
+    </Pressable>
+  );
+}
+
 export const lookCss = (l: Look) => (l.id === 'normal' ? 'none' : `brightness(${l.b}) contrast(${l.c}) saturate(${l.s}) sepia(${l.sep}) grayscale(${l.g})`);
 /** Aplica o look aos pixels do canvas (brilho, contraste, saturação, sépia, cinzento e a tinta), como o CSS do visor. */
 export function applyLook(c: HTMLCanvasElement, l: Look) {
@@ -170,6 +183,25 @@ export function TxCamera({
   const focusTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Depois de tirar: a pré-visualização, com Repetir ou Usar.
   const [review, setReview] = useState<Shot | null>(null);
+  // Miniatura quadrada do que a câmara vê, refeita de 1,5 em 1,5 s: serve de exemplo em cada filtro.
+  const [lookThumb, setLookThumb] = useState<string | null>(null);
+  useEffect(() => {
+    if (!ready || review) return;
+    const grab = () => {
+      const v = video.current;
+      if (!v || !v.videoWidth) return;
+      const c = document.createElement('canvas');
+      c.width = c.height = 96;
+      const side = Math.min(v.videoWidth, v.videoHeight);
+      try {
+        c.getContext('2d')!.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side, 0, 0, 96, 96);
+        setLookThumb(c.toDataURL('image/jpeg', 0.7));
+      } catch { /* sem imagem ainda */ }
+    };
+    grab();
+    const id = setInterval(grab, 1500);
+    return () => clearInterval(id);
+  }, [ready, review]);
   const reviewSrc = useRef<HTMLCanvasElement | null>(null);
   // Edição na pré-visualização: rodar/espelhar, cortar, filtro e ajustes. Aplica-se ao original a cada mudança.
   type Box = { x: number; y: number; w: number; h: number };
@@ -800,12 +832,8 @@ export function TxCamera({
             ))}
           </ScrollView>
         ) : ready && !recording && (
-          <ScrollView ref={looksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 44, marginBottom: 12 }} accessibilityRole="tablist" accessibilityLabel="Filtros">
-            {LOOKS.map((l, i) => (
-              <Pressable key={l.id} onPress={() => pickLook(i)} style={[st.lookChip, look === i && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: look === i }}>
-                <Text style={[st.lookText, look === i && { color: colors.zinc900 }]}>{l.name}</Text>
-              </Pressable>
-            ))}
+          <ScrollView ref={looksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 82, marginBottom: 8 }} accessibilityRole="tablist" accessibilityLabel="Filtros">
+            {LOOKS.map((l, i) => <LookSwatch key={l.id} look={l} src={lookThumb} on={look === i} onPress={() => pickLook(i)} />)}
           </ScrollView>
         )}
         {thumbs && thumbs.length > 0 && !recording ? (
@@ -907,12 +935,8 @@ export function TxCamera({
           {!review.video && (
             <View style={[st.editPanel, { bottom: botPad + 62 }]}>
               {tool === 'look' && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 44 }}>
-                  {LOOKS.map((l, i) => (
-                    <Pressable key={l.id} onPress={() => changeEdit({ look: i })} style={[st.lookChip, edit.look === i && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: edit.look === i }}>
-                      <Text style={[st.lookText, edit.look === i && { color: colors.zinc900 }]}>{l.name}</Text>
-                    </Pressable>
-                  ))}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.looks} style={{ maxHeight: 82 }}>
+                  {LOOKS.map((l, i) => <LookSwatch key={l.id} look={l} src={review.uri} on={edit.look === i} onPress={() => changeEdit({ look: i })} />)}
                 </ScrollView>
               )}
               {tool === 'adjust' && (

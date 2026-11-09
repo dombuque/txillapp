@@ -1,4 +1,4 @@
-import { Canvas, ImageFormat, PaintStyle, Picture, Skia, StrokeCap, StrokeJoin, matchFont, type SkCanvas, type SkFont, type SkImage } from '@shopify/react-native-skia';
+import { Canvas, ColorMatrix, Image as SkImageNode, ImageFormat, PaintStyle, Picture, Skia, StrokeCap, StrokeJoin, matchFont, type SkCanvas, type SkFont, type SkImage } from '@shopify/react-native-skia';
 import { File, Paths } from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -288,6 +288,17 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
     }),
   ).current;
 
+  // Miniatura quadrada da foto (uma vez), para o exemplo de cada filtro.
+  const thumb = useMemo(() => {
+    if (!img) return null;
+    const side = Math.min(img.width(), img.height());
+    const surface = Skia.Surface.MakeOffscreen(112, 112) ?? Skia.Surface.Make(112, 112);
+    if (!surface) return null;
+    surface.getCanvas().drawImageRect(img, Skia.XYWHRect((img.width() - side) / 2, (img.height() - side) / 2, side, side), Skia.XYWHRect(0, 0, 112, 112), Skia.Paint());
+    surface.flush();
+    return surface.makeImageSnapshot().makeNonTextureImage() ?? surface.makeImageSnapshot();
+  }, [img]);
+
   // A fila de filtros acompanha o filtro escolhido (quando se troca a deslizar sobre a foto).
   const looksRow = useRef<React.ComponentRef<typeof ScrollView> | null>(null);
   const chipX = useRef<number[]>([]);
@@ -399,8 +410,18 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
         {tool === 'look' && (
           <ScrollView ref={looksRow} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
             {LOOKS.map((l, i) => (
-              <Pressable key={l.id} onPress={() => set({ look: i })} onLayout={(e) => { chipX.current[i] = e.nativeEvent.layout.x; }} style={[st.chip, edit.look === i && st.chipOn]} accessibilityRole="button" accessibilityState={{ selected: edit.look === i }}>
-                <Text style={[st.chipText, edit.look === i && st.chipTextOn]}>{l.name}</Text>
+              // Cada filtro mostra a própria foto com esse filtro (como no site), e o nome por baixo.
+              <Pressable key={l.id} onPress={() => set({ look: i })} onLayout={(e) => { chipX.current[i] = e.nativeEvent.layout.x; }} style={st.swatch} accessibilityRole="button" accessibilityState={{ selected: edit.look === i }} accessibilityLabel={`Filtro ${l.name}`}>
+                <View style={[st.swatchImg, edit.look === i && st.swatchOn]}>
+                  {thumb ? (
+                    <Canvas style={{ width: 56, height: 56 }}>
+                      <SkImageNode image={thumb} x={0} y={0} width={56} height={56} fit="cover">
+                        <ColorMatrix matrix={matrixOf({ ...edit, look: i, adj: { b: 0, c: 0, s: 0, w: 0 } })} />
+                      </SkImageNode>
+                    </Canvas>
+                  ) : null}
+                </View>
+                <Text style={[st.swatchText, edit.look === i && { color: '#fff', fontWeight: '800' }]} numberOfLines={1}>{l.name}</Text>
               </Pressable>
             ))}
           </ScrollView>
@@ -456,6 +477,10 @@ const st = StyleSheet.create({
   grid: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(255,255,255,0.35)' },
   gridH: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.35)' },
   panel: { paddingTop: 14, backgroundColor: '#0b0b0c', borderTopLeftRadius: 22, borderTopRightRadius: 22 },
+  swatch: { width: 64, alignItems: 'center', gap: 5 },
+  swatchImg: { width: 56, height: 56, borderRadius: 28, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', backgroundColor: 'rgba(255,255,255,0.1)' },
+  swatchOn: { borderWidth: 2.5, borderColor: '#fff' },
+  swatchText: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.75)' },
   chip: { height: 40, borderRadius: 20, paddingHorizontal: 16, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
   chipOn: { backgroundColor: '#fff' },
   chipText: { color: '#fff', fontSize: 14, fontWeight: '700' },
