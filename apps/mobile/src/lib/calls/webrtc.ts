@@ -7,7 +7,7 @@
  */
 import { setAudioModeAsync } from 'expo-audio';
 import { createElement } from 'react';
-import { View } from 'react-native';
+import { PermissionsAndroid, Platform, View, type Permission } from 'react-native';
 import type { IceServer } from './types';
 import type { PeerLike, VideoViewProps } from './peer';
 
@@ -39,11 +39,95 @@ export function createPeer(iceServers: IceServer[], relayOnly = false): PeerLike
 
 const videoConstraints = (front: boolean) => ({ facingMode: front ? 'user' : 'environment', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } });
 
-/** Microfone (e câmara, se `video`). */
+type Ask = 'granted' | 'denied' | 'blocked' | 'stuck';
+
+/**
+ * Pede uma permissão no Android sem depender só da resposta do pedido: o PermissionsAndroid guarda um único ouvinte por
+ * ecrã, e se outro pedido se cruzar (ou o ecrã da chamada abrir ao mesmo tempo) a resposta pode nunca chegar. Por isso,
+ * enquanto espera, vai também vendo se a permissão já foi dada. Ninguém responde em 60 s: 'stuck'.
+ */
+async function askAndroid(perm: Permission): Promise<Ask> {
+  try {
+    if (await PermissionsAndroid.check(perm)) return 'granted';
+  } catch { /* segue para o pedido */ }
+  let done = false;
+  const req = PermissionsAndroid.request(perm)
+    .then((r): Ask => (r === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : r === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN ? 'blocked' : 'denied'))
+    .catch((): Ask => 'denied');
+  const poll = new Promise<Ask>((resolve) => {
+    const t0 = Date.now();
+    const tick = () => {
+      if (done) return;
+      void PermissionsAndroid.check(perm).then((ok) => ok, () => false).then((ok) => {
+        if (done) return;
+        if (ok) resolve('granted');
+        else if (Date.now() - t0 > 60_000) resolve('stuck');
+        else setTimeout(tick, 700);
+      });
+    };
+    setTimeout(tick, 700);
+  });
+  const r = await Promise.race([req, poll]);
+  done = true;
+  return r;
+}
+
+const MIC_DENIED = 'Sem acesso ao microfone. Dá permissão ao Txillapp e tenta outra vez.';
+const MIC_BLOCKED = 'O microfone está bloqueado para o Txillapp. Ativa-o nas Definições do telemóvel > Apps > Txillapp > Permissões.';
+const MIC_STUCK = 'O pedido de acesso ao microfone não respondeu. Fecha a app, abre outra vez e tenta de novo.';
+const MIC_SLOW = 'O microfone não respondeu. Fecha outras apps que o estejam a usar e tenta outra vez.';
+
+/** Erros do react-native-webrtc em português (vêm em inglês, ex. "Permission denied."). */
+function explain(e: unknown): Error {
+  const n = (e as { name?: string })?.name ?? '';
+  const msg = (e as { message?: string })?.message ?? '';
+  if ([MIC_DENIED, MIC_BLOCKED, MIC_STUCK, MIC_SLOW].includes(msg)) return e as Error;
+  if (n === 'SecurityError' || n === 'NotAllowedError' || /permission/i.test(msg)) return new Error(MIC_DENIED);
+  if (n === 'NotReadableError' || /busy|in use/i.test(msg)) return new Error('O microfone ou a câmara estão ocupados noutra app.');
+  return new Error(`Não consegui abrir o microfone${msg ? ` (${msg})` : ''}.`);
+}
+
+/** Uma promessa que não pode ficar pendurada para sempre (quem liga vê um erro em vez de "A ligar…" sem fim). */
+function within<T>(p: Promise<T>, ms: number, message: string, onLate?: (v: T) => void): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let late = false;
+    const t = setTimeout(() => { late = true; reject(new Error(message)); }, ms);
+    p.then(
+      (v) => { if (late) onLate?.(v); else { clearTimeout(t); resolve(v); } },
+      (e) => { if (!late) { clearTimeout(t); reject(e); } },
+    );
+  });
+}
+
+/** Microfone (e câmara, se `video`). Sem câmara (ou recusada) numa videochamada entra só com voz, como no site. */
 export async function openMedia(video: boolean, front: boolean): Promise<unknown> {
   const m = rtc();
   if (!m) throw new Error('As chamadas chegam na próxima versão da app. Atualiza o Txillapp.');
-  return m.mediaDevices.getUserMedia({ audio: true, video: video ? videoConstraints(front) : false });
+  let cam = video;
+  if (Platform.OS === 'android') {
+    // Pedidas aqui, uma de cada vez, antes do getUserMedia: o pedido do próprio react-native-webrtc fica numa fila e,
+    // se um pedido ficar sem resposta, todas as chamadas seguintes ficavam presas em "A ligar…" sem erro nenhum.
+    const mic = await askAndroid(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+    if (mic === 'blocked') throw new Error(MIC_BLOCKED);
+    if (mic === 'stuck') throw new Error(MIC_STUCK);
+    if (mic !== 'granted') throw new Error(MIC_DENIED);
+    if (cam) cam = (await askAndroid(PermissionsAndroid.PERMISSIONS.CAMERA)) === 'granted';
+  }
+  const open = (withCam: boolean): Promise<unknown> => {
+    const p = m.mediaDevices.getUserMedia({ audio: true, video: withCam ? videoConstraints(front) : false });
+    // No Android as permissões já estão dadas: abrir o microfone é coisa de um instante. No iPhone pode estar aberto o
+    // pedido de permissão do sistema, por isso lá não há limite.
+    return Platform.OS === 'android' ? within<unknown>(p, 15_000, MIC_SLOW, (s) => stopMedia(s)) : p;
+  };
+  try {
+    return await open(cam);
+  } catch (e) {
+    console.warn('[calls] getUserMedia', e);
+    if (cam) {
+      try { return await open(false); } catch { /* cai no erro de baixo */ }
+    }
+    throw explain(e);
+  }
 }
 
 /** Só a câmara (para a pré-visualização do ecrã de chamada a entrar), e só se já houver autorização: não pede enquanto toca. */
