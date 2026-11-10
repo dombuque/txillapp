@@ -8,6 +8,7 @@ import { Animated, FlatList, Pressable, Share, StyleSheet, Text, View, useWindow
 import { api, isTcheka, type Page, type Post } from '@/lib/api';
 import type { PeopleKind } from '@/lib/api.feed';
 import { sized } from '@/lib/config';
+import { clampPostRatio } from '@/lib/postAspect';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { useIsPostVisible } from '@/lib/visiblePosts';
@@ -430,10 +431,11 @@ function GiftedPost({ original, onOpen }: { original: Post; onOpen?: (p: Post) =
   );
 }
 
-/** Fotos e vídeos: arredondados (12), no máximo 448 de altura, com contador, pontos e pessoas identificadas. Tocar numa foto abre-a inteira. */
+/** Fotos e vídeos: arredondados (12), na proporção da primeira (entre 4:5 e 1,91:1), com contador, pontos e pessoas identificadas. Tocar numa foto abre-a inteira. */
 function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = false, mute = false }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void; onOpen?: (index: number) => void; /** O post está à vista: os vídeos arrancam sozinhos. */ inView?: boolean; /** O post tem música: os vídeos ficam sem som. */ mute?: boolean }) {
   const router = useRouter();
   const tap = useTap(onDouble);
+  const winH = useWindowDimensions().height;
   const [i, setI] = useState(0);
   const [showTags, setShowTags] = useState(false);
   // A largura real do carrossel (o cartão muda de margens no feed, na página da publicação e no computador):
@@ -447,11 +449,11 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = fals
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [measured]);
   if (media.length === 0) return null;
-  const heightOf = (m: Post['media'][number]) => {
-    const natural = m.width && m.height ? (width * m.height) / m.width : width;
-    return Math.min(448, Math.max(120, natural));
-  };
-  const h = heightOf(media[i] ?? media[0]);
+  // Como no Instagram: a caixa tem a proporção da PRIMEIRA foto, limitada entre 4:5 e 1,91:1, e é a mesma para todas as
+  // páginas (a altura não salta ao deslizar); cada foto preenche-a (cover, centrada). A largura já vem limitada pela coluna
+  // de 576 do computador; o teto pela altura da janela só pesa em janelas baixas (telemóvel deitado), para a foto caber à vista.
+  const first = media[0];
+  const h = Math.round(Math.min(width / clampPostRatio(first.width, first.height), Math.max(320, winH * 0.8)));
   const tags = media[i]?.tags ?? [];
   // Na web os eventos de "item visível" não disparam com a paginação: a página atual lê-se da posição do scroll.
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
