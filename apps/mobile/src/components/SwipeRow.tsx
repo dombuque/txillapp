@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
-import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
-import Animated, { useAnimatedStyle, interpolate, Extrapolation, type SharedValue } from 'react-native-reanimated';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import Animated, { Easing, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming, interpolate, Extrapolation, type SharedValue } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { Icon, type IconName } from '@/components/Icon';
 import { useDesktop } from '@/lib/desktop';
 import { claimSwipe, navSwipeThreshold, releaseSwipe } from '@/lib/swipeClaim';
@@ -27,6 +27,13 @@ const NAV_RATIO = 1.8;
 const FLING_MS = 120;
 /** Web: tempo da animação de abrir/fechar a linha. */
 const SETTLE = '220ms cubic-bezier(0.2, 0.8, 0.2, 1)';
+/** App: quantos px para o lado até a linha apanhar o gesto (antes disso o toque continua a ser um toque). */
+const NATIVE_START_X = 14;
+/** App: se o dedo andar estes px na vertical antes, o gesto é da lista (rolar) e a linha desiste.
+ * 8 = o "touch slop" do ScrollView do Android: a lista começa a rolar ao mesmo tempo que a linha desiste. */
+const NATIVE_FAIL_Y = 8;
+/** App: a mesma animação de abrir/fechar que a web. */
+const NATIVE_SETTLE = { duration: 220, easing: Easing.bezier(0.2, 0.8, 0.2, 1) };
 
 function Buttons({ actions }: { actions: SwipeAction[] }) {
   return (
@@ -256,9 +263,7 @@ function WebSwipeRow({ left, right, children }: { left: SwipeAction[]; right: Sw
  */
 export function SwipeRow({ left = [], right = [], children }: { left?: SwipeAction[]; right?: SwipeAction[]; children: ReactNode }) {
   const desktop = useDesktop();
-  const ref = useRef<SwipeableMethods>(null);
   const [hover, setHover] = useState(false);
-  const run = (a: SwipeAction) => () => { ref.current?.close(); a.onPress(); };
 
   if (desktop && Platform.OS === 'web') {
     const all = [...left, ...right];
@@ -285,28 +290,90 @@ export function SwipeRow({ left = [], right = [], children }: { left?: SwipeActi
 
   if (Platform.OS === 'web') return <WebSwipeRow left={left} right={right}>{children}</WebSwipeRow>;
 
+  return <NativeSwipeRow left={left} right={right}>{children}</NativeSwipeRow>;
+}
+
+/** Até à largura das ações segue o dedo; depois disso custa mais (e para um lado sem ações não sai do sítio). */
+function resistNative(v: number, l: number, r: number) {
+  'worklet';
+  if (v > l) return l ? l + (v - l) * 0.3 : 0;
+  if (v < -r) return r ? -r - (-r - v) * 0.3 : 0;
+  return v;
+}
+
+/**
+ * Android/iOS: um pan do react-native-gesture-handler 3 feito por nós. Não o ReanimatedSwipeable: esse não deixa pôr
+ * failOffsetY, e na v3 um gesto de GestureDetector não é cancelado quando o ScrollView nativo começa a rolar
+ * (cancelAllLegacyHandlers só apanha os gestos antigos) — sem desistir na vertical, roubava o scroll a meio.
+ * - só é da linha depois de NATIVE_START_X px para o lado; se antes andar NATIVE_FAIL_Y px na vertical, é da lista;
+ * - um toque nunca ativa o pan, por isso chega intacto ao Pressable lá dentro (abre a conversa);
+ * - com a linha aberta, tocar nela fecha-a (não abre a conversa); pousar o dedo noutra linha fecha a aberta.
+ */
+function NativeSwipeRow({ left, right, children }: { left: SwipeAction[]; right: SwipeAction[]; children: ReactNode }) {
+  const lw = W * left.length;
+  const rw = W * right.length;
+  const x = useSharedValue(0);
+  const base = useSharedValue(0);
+  /** 0 fechada, 1 com `left` à vista, -1 com `right` à vista (para o toque que fecha). */
+  const [side, setSide] = useState(0);
+  const me = useRef<{ close(): void }>({ close: () => {} }).current;
+
+  const settled = useCallback((to: number) => {
+    setSide(Math.sign(to));
+    if (to) {
+      if (openRow && openRow !== me) openRow.close();
+      openRow = me;
+    } else if (openRow === me) openRow = null;
+  }, [me]);
+  me.close = () => {
+    x.value = withTiming(0, NATIVE_SETTLE);
+    settled(0);
+  };
+  /** O dedo apanhou esta linha: a que estiver aberta noutro sítio fecha. */
+  const claim = useCallback(() => { if (openRow && openRow !== me) closeOpenSwipe(); }, [me]);
+  useEffect(() => () => { if (openRow === me) openRow = null; }, [me]);
+
+  const pan = usePanGesture(useMemo(() => ({
+    maxPointers: 1,
+    activeOffsetX: [-NATIVE_START_X, NATIVE_START_X] as [number, number],
+    failOffsetY: [-NATIVE_FAIL_Y, NATIVE_FAIL_Y] as [number, number],
+    onActivate: () => {
+      'worklet';
+      base.value = x.value;
+      scheduleOnRN(claim);
+    },
+    onUpdate: (e: { translationX: number }) => {
+      'worklet';
+      x.value = resistNative(base.value + e.translationX, lw, rw);
+    },
+    onDeactivate: (e: { velocityX: number }) => {
+      'worklet';
+      const at = x.value;
+      const proj = at + (e.velocityX * FLING_MS) / 1000;
+      let want = lw && proj >= lw * 0.5 ? lw : rw && proj <= -rw * 0.5 ? -rw : 0;
+      // Estava aberta para um lado e o gesto foi para o outro: primeiro fecha (a não ser que já tenha passado para lá).
+      if (base.value && want && Math.sign(want) !== Math.sign(base.value) && Math.sign(at) !== Math.sign(want)) want = 0;
+      x.value = withTiming(want, NATIVE_SETTLE);
+      scheduleOnRN(settled, want);
+    },
+  }), [base, x, lw, rw, claim, settled]));
+
+  const front = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+  const showL = useDerivedValue(() => (lw ? Math.min(1, Math.max(0, x.value / lw)) : 0));
+  const showR = useDerivedValue(() => (rw ? Math.min(1, Math.max(0, -x.value / rw)) : 0));
+  const run = (a: SwipeAction): SwipeAction => ({ ...a, onPress: () => { me.close(); a.onPress(); } });
+
   return (
-    <ReanimatedSwipeable
-      ref={ref}
-      friction={2}
-      leftThreshold={W * 0.6}
-      rightThreshold={W * 0.6}
-      overshootLeft={false}
-      overshootRight={false}
-      // Só começa depois de um arrasto claramente horizontal: rolar a lista não abre linhas por engano.
-      dragOffsetFromLeft={28}
-      dragOffsetFromRight={28}
-      onSwipeableWillOpen={() => {
-        if (openRow && openRow !== ref.current) openRow.close();
-        openRow = ref.current;
-      }}
-      onSwipeableClose={() => { if (openRow === ref.current) openRow = null; }}
-      renderLeftActions={left.length ? (p) => <ActionButtons actions={left.map((a) => ({ ...a, onPress: run(a) }))} side="left" progress={p} /> : undefined}
-      renderRightActions={right.length ? (p) => <ActionButtons actions={right.map((a) => ({ ...a, onPress: run(a) }))} side="right" progress={p} /> : undefined}
-      childrenContainerStyle={{ backgroundColor: '#fff' }}
-    >
-      {children}
-    </ReanimatedSwipeable>
+    <GestureDetector gesture={pan}>
+      <View style={st.native} collapsable={false} onTouchStart={() => { if (openRow && openRow !== me) closeOpenSwipe(); }}>
+        {left.length ? <View style={[st.nativePane, { left: 0 }]}><ActionButtons actions={left.map(run)} side="left" progress={showL} /></View> : null}
+        {right.length ? <View style={[st.nativePane, { right: 0 }]}><ActionButtons actions={right.map(run)} side="right" progress={showR} /></View> : null}
+        <Animated.View style={[{ backgroundColor: '#fff' }, front]}>
+          {children}
+          {side ? <Pressable style={StyleSheet.absoluteFill} onPress={() => me.close()} accessibilityRole="button" accessibilityLabel="Fechar" /> : null}
+        </Animated.View>
+      </View>
+    </GestureDetector>
   );
 }
 
@@ -314,6 +381,8 @@ const st = StyleSheet.create({
   action: { width: W, alignItems: 'center', justifyContent: 'center', gap: 4 },
   actionText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   web: { position: 'relative', overflow: 'hidden' },
+  native: { overflow: 'hidden' },
+  nativePane: { position: 'absolute', top: 0, bottom: 0, flexDirection: 'row' },
   pane: { position: 'absolute', top: 0, bottom: 0, flexDirection: 'row', opacity: 0 },
   hoverBar: { position: 'absolute', right: 72, top: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
   hoverBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, paddingHorizontal: 12, borderRadius: 17, backgroundColor: colors.zinc100, boxShadow: '0 1px 4px rgba(0,0,0,0.12)' } as object,
