@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
-import { ApiError, raw, waitMediaReady, type MediaState } from './api';
+import { ApiError, putBlob, raw, readLocalBlob, releaseBlob, waitMediaReady, type MediaState } from './api';
+import { POST_MAX_SIDE, shrinkPhoto } from './cropToRatio';
 import { composeApi } from './api.compose';
 import { SITE_URL } from './config';
 
@@ -46,23 +47,18 @@ export function usePublishTasks(): PublishTask[] {
 
 /** Envia um ficheiro com progresso (XHR: o fetch não diz quanto já foi). Devolve o id e a resposta do /complete. */
 async function uploadWithProgress(a: PublishAsset, onProgress: (p: number) => void): Promise<{ assetId: string; state: MediaState }> {
-  const blob = await (await fetch(a.uri)).blob();
-  const up = (await raw('/media/uploads', { method: 'POST', body: JSON.stringify({ mime: a.mime, size: blob.size, purpose: 'public' }) })) as { assetId: string; uploadUrl: string };
-  const url = /^https?:\/\//.test(up.uploadUrl) ? up.uploadUrl : `${SITE_URL}${up.uploadUrl}`;
-  await new Promise<void>((resolve, reject) => {
-    const x = new XMLHttpRequest();
-    x.open('PUT', url);
-    x.setRequestHeader('Content-Type', a.mime);
-    x.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
-    x.onload = () => {
-      if (x.status >= 200 && x.status < 300) return resolve();
-      let msg = 'Não consegui enviar o ficheiro';
-      try { msg = (JSON.parse(x.responseText) as { message?: string }).message ?? msg; } catch { /* resposta sem JSON */ }
-      reject(new ApiError(x.status, msg));
-    };
-    x.onerror = () => reject(new ApiError(0, 'Sem ligação. Vê a rede e tenta outra vez.'));
-    x.send(blob);
-  });
+  // Última defesa: uma foto que chegue aqui à resolução original (12–50 MP) é reduzida antes de subir.
+  const src = a.video ? a.uri : await shrinkPhoto(a.uri, POST_MAX_SIDE, POST_MAX_SIDE);
+  const mime = src === a.uri ? a.mime : 'image/jpeg';
+  const blob = await readLocalBlob(src);
+  let up: { assetId: string; uploadUrl: string };
+  try {
+    up = (await raw('/media/uploads', { method: 'POST', body: JSON.stringify({ mime, size: blob.size, purpose: 'public' }) })) as { assetId: string; uploadUrl: string };
+    const url = /^https?:\/\//.test(up.uploadUrl) ? up.uploadUrl : `${SITE_URL}${up.uploadUrl}`;
+    await putBlob(url, blob, mime, onProgress);
+  } finally {
+    releaseBlob(blob); // cada foto sai da memória antes de a seguinte ser lida
+  }
   const state = (await raw(`/media/${up.assetId}/complete`, { method: 'POST' })) as MediaState;
   return { assetId: up.assetId, state };
 }

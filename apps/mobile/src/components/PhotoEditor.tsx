@@ -141,13 +141,21 @@ function resized(img: SkImage, max: number): SkImage {
   const k = max / Math.max(w, h);
   if (k >= 1) return img;
   const W = Math.round(w * k), H = Math.round(h * k);
-  const surface = Skia.Surface.MakeOffscreen(W, H) ?? Skia.Surface.Make(W, H);
+  // Superfície em CPU: a foto grande descodifica-se uma vez em memória normal, sem subir inteira para a GPU,
+  // e a cópia pequena fica em memória normal. A superfície larga-se logo (o GC do JS não vê a memória nativa).
+  const surface = Skia.Surface.Make(W, H) ?? Skia.Surface.MakeOffscreen(W, H);
   if (!surface) return img;
-  const paint = Skia.Paint();
-  surface.getCanvas().drawImageRect(img, Skia.XYWHRect(0, 0, w, h), Skia.XYWHRect(0, 0, W, H), paint);
-  surface.flush();
-  // Cópia em memória normal (não presa à superfície da GPU).
-  return surface.makeImageSnapshot().makeNonTextureImage() ?? surface.makeImageSnapshot();
+  try {
+    surface.getCanvas().drawImageRectOptions(img, Skia.XYWHRect(0, 0, w, h), Skia.XYWHRect(0, 0, W, H), FilterMode.Linear, w * h <= 16e6 ? MipmapMode.Linear : MipmapMode.None, Skia.Paint());
+    surface.flush();
+    // Cópia em memória normal (se a superfície for da GPU, por não haver em CPU), e a do ecrã larga-se.
+    const snap = surface.makeImageSnapshot();
+    const raster = snap.makeNonTextureImage();
+    if (raster) { snap.dispose?.(); return raster; }
+    return snap;
+  } finally {
+    surface.dispose?.();
+  }
 }
 
 /**
@@ -355,6 +363,8 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
   const [failWhy, setFailWhy] = useState('');
   useEffect(() => {
     let alive = true;
+    // Ao sair do editor (ou trocar de foto) a cópia de trabalho sai logo da memória nativa.
+    let loaded: SkImage | null = null;
     void (async () => {
       // 1) A Skia lê o caminho directamente; 2) se não conseguir (content:// do Android, nomes estranhos), lemos os bytes nós e damos-lhos.
       let i: SkImage | null = null;
@@ -369,12 +379,16 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
           if (!i) why = 'formato de imagem não suportado';
         } catch (e) { why = why || (e as Error).message; }
       }
-      if (!alive) return;
-      if (i) i = shrink(i);
-      if (i) setImg(i);
+      if (!alive) { i?.dispose?.(); return; }
+      if (i) {
+        // Reduzir pode falhar com fotos enormes (memória): mostra-se o erro do editor em vez de a app fechar.
+        try { i = shrink(i); } catch (e) { i.dispose?.(); i = null; why = (e as Error).message || 'foto grande demais'; }
+      }
+      if (i && !alive) { i.dispose?.(); return; }
+      if (i) { loaded = i; setImg(i); }
       else { setFailWhy(why); setFailed(true); }
     })();
-    return () => { alive = false; };
+    return () => { alive = false; const l = loaded; loaded = null; setTimeout(() => l?.dispose?.(), 0); };
   }, [uri]);
 
   useEffect(() => {
@@ -384,6 +398,8 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
 
   // Cópia leve para a pré-visualização (a foto inteira só se usa ao gravar).
   const pv = useMemo(() => (img ? resized(img, PREVIEW_SIDE) : null), [img]);
+  // A cópia da pré-visualização larga-se quando muda ou ao sair (a original larga-se no efeito de cima).
+  useEffect(() => () => { if (pv && pv !== img) setTimeout(() => pv.dispose?.(), 0); }, [pv, img]);
 
   // Tamanho da pré-visualização: a proporção do recorte, a caber na área livre.
   const crop = pv ? cropOf(pv, edit) : null;
@@ -464,13 +480,20 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
     const outH = Math.round(outW / cr.a);
     const surface = Skia.Surface.MakeOffscreen(outW, outH) ?? Skia.Surface.Make(outW, outH);
     if (!surface) return null;
-    drawEdit(surface.getCanvas(), img, edit, outW, outH, signFont(Math.round(Math.min(outW, outH) * 0.028)), username);
-    surface.flush();
-    const bytes = surface.makeImageSnapshot().encodeToBytes(ImageFormat.JPEG, 92);
-    const file = new File(Paths.cache, `txillapp-${Date.now()}.jpg`);
-    file.create({ overwrite: true });
-    file.write(bytes);
-    return file.uri;
+    try {
+      drawEdit(surface.getCanvas(), img, edit, outW, outH, signFont(Math.round(Math.min(outW, outH) * 0.028)), username);
+      surface.flush();
+      const snap = surface.makeImageSnapshot();
+      const bytes = snap.encodeToBytes(ImageFormat.JPEG, 92);
+      snap.dispose?.();
+      if (!bytes?.length) return null;
+      const file = new File(Paths.cache, `txillapp-${Date.now()}.jpg`);
+      file.create({ overwrite: true });
+      file.write(bytes);
+      return file.uri;
+    } finally {
+      surface.dispose?.(); // a superfície final (até 1920 px) sai logo da memória
+    }
   }
   async function finish() {
     if (!img || busy) return;

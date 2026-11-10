@@ -14,6 +14,7 @@ import { CloseFriendsSheet } from '@/components/StoryParts';
 import { TxCamera, liveCameraSupported, type Shot } from '@/components/TxCamera';
 import { api, uploadMedia } from '@/lib/api';
 import { enqueueTask } from '@/lib/publishQueue';
+import { shrinkPhoto } from '@/lib/cropToRatio';
 import { musicApi, type Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
@@ -120,12 +121,20 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
     if (busy) return;
     setBusy(true);
     const a = asset, text = caption.trim(), who = audience, track = music, placed = stickers;
-    enqueueTask('mimo', { uri: a.uri, mime: a.mime, video: a.video }, async (_p, stage) => {
-      const id = await uploadMedia(a.uri, a.mime, 'public', () => stage('prepare'));
-      stage('post');
-      await musicApi.createStory(id, text, who, track, placed);
-      await qc.invalidateQueries({ queryKey: ['stories'] });
-    }, qc);
+    try {
+      enqueueTask('mimo', { uri: a.uri, mime: a.mime, video: a.video }, async (_p, stage) => {
+        // Fotos do recorte do sistema vêm à resolução original: reduz-se antes de enviar (os stickers usam posições relativas).
+        const src = a.video ? a.uri : await shrinkPhoto(a.uri);
+        const mime = src === a.uri ? a.mime : 'image/jpeg';
+        const id = await uploadMedia(src, mime, 'public', () => stage('prepare'));
+        stage('post');
+        await musicApi.createStory(id, text, who, track, placed);
+        await qc.invalidateQueries({ queryKey: ['stories'] });
+      }, qc);
+    } catch (e) {
+      setBusy(false);
+      return setErr((e as Error).message || 'Não consegui enviar o mimo. Tenta outra vez.');
+    }
     if (router.canGoBack()) router.back();
     else router.replace('/' as never);
   }
