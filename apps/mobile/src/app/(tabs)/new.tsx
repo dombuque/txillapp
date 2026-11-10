@@ -322,9 +322,12 @@ export default function Compose() {
     return false;
   }
   function shot(s: Shot) {
-    if (routeByKind(s)) return;
+    // No cartão da publicação (passo de escrever, p. ex. vindo de Mimo ou Tcheka pelo botão Texto) a câmara é da publicação:
+    // a foto junta-se a ela, não vai para o editor do mimo nem fica a juntar para o estúdio da tcheka.
+    const inPost = step === 'write';
+    if (!inPost && routeByKind(s)) return;
     // Na web, num tcheka juntam-se as fotos e vídeos na câmara (o estúdio monta-os); no telemóvel segue logo para a publicação.
-    const collect = kindSel === 'tcheka' && web;
+    const collect = kindSel === 'tcheka' && web && !inPost;
     if (s.video) {
       const v: Asset = { uri: s.uri, video: true, mime: videoMime(s.mime), durationMs: s.durationMs, tags: [] };
       setAssets((cur) => [...cur, v].slice(0, MAX_PHOTOS));
@@ -440,12 +443,13 @@ export default function Compose() {
   }
 
   const removeAsset = (uri: string) => setAssets((cur) => cur.filter((x) => x.uri !== uri));
+  // Só aparece no cartão da publicação (passo de escrever): é sempre a câmara da publicação, em 4:5.
   const cameraLayer = cameraOpen && focused && (
     <View style={StyleSheet.absoluteFill}>
       {web ? (
-        <LiveCamera count={assets.length} max={MAX_PHOTOS} onShot={shot} onGallery={(f) => { void addFiles(f); setCameraOpen(false); }} onClose={() => setCameraOpen(false)} onDone={() => { setCameraOpen(false); setStep('write'); }} aspect={kindSel === 'post' ? 4 / 5 : 9 / 16} />
+        <LiveCamera count={assets.length} max={MAX_PHOTOS} onShot={shot} onGallery={(f) => { void addFiles(f); setCameraOpen(false); }} onClose={() => setCameraOpen(false)} onDone={() => { setCameraOpen(false); setStep('write'); }} aspect={4 / 5} />
       ) : (
-        <NativeCamera onShot={shot} multi onPickMany={pickMany} galleryTitle="Nova publicação" onClose={() => setCameraOpen(false)} aspect={kindSel === 'post' ? 4 / 5 : 9 / 16} />
+        <NativeCamera onShot={shot} multi onPickMany={pickMany} galleryTitle="Nova publicação" onClose={() => setCameraOpen(false)} aspect={4 / 5} />
       )}
     </View>
   );
