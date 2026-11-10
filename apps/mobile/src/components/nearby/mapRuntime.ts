@@ -1,5 +1,5 @@
 /**
- * O mapa do "À tua volta" (Leaflet + mosaicos CARTO Voyager, de graça, com a atribuição do OpenStreetMap).
+ * O mapa do "À tua volta" (Leaflet + mosaicos do OpenStreetMap servidos pelo Txillapp, com a atribuição).
  * Este ficheiro corre em dois sítios e por isso NÃO importa nada (só tipos):
  *  - no site (NearbyMap.web.tsx) é importado como módulo normal;
  *  - na app (NearbyMap.tsx) vai como texto dentro da página da WebView. Depois de mudar este ficheiro corre
@@ -37,6 +37,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
   const CELL = 54; // tamanho da grelha de agrupamento, em pixels
   const MONTHS = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
   const PIN = '<path d="M12 21.3s-6.9-6-6.9-11.3a6.9 6.9 0 0 1 13.8 0C18.9 15.3 12 21.3 12 21.3Z"/><path d="M9.5 9.8a2.5 2.5 0 1 0 5.0 0a2.5 2.5 0 1 0 -5.0 0"/>';
+  const CAMERA = '<path d="M3.5 9a2.5 2.5 0 0 1 2.5-2.5h1.6l1.4-2.2h5.9l1.4 2.2H18A2.5 2.5 0 0 1 20.5 9v8.5A2.5 2.5 0 0 1 18 20H6a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M8.3 13a3.7 3.7 0 1 0 7.4 0a3.7 3.7 0 1 0 -7.4 0"/>';
   const USERS = '<path d="M5.7 8.2a3.3 3.3 0 1 0 6.6 0a3.3 3.3 0 1 0 -6.6 0"/><path d="M2.8 19.6c.7-3.1 3.2-5 6.2-5s5.5 1.9 6.2 5"/><path d="M16.2 5.3a3.2 3.2 0 0 1 0 5.8"/><path d="M17.8 14.9c2.2.5 3.7 2.2 4.1 4.7"/>';
   const svg = (paths: string, size: number, color: string) =>
     `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
@@ -49,28 +50,40 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
       .join('')
       .toUpperCase();
 
-  // Estilos dos marcadores (uma vez por página).
+  // Estilos dos marcadores (uma vez por página). Todos com a mesma borda branca e a mesma sombra; o tipo vê-se
+  // pela forma e pela cor: locais = quadrado escuro, eventos = gota da marca com o dia, publicações = foto com bico,
+  // TxillGroups = círculo roxo, pessoas = círculo com anel da marca. Com foto, um selo pequeno no canto diz o tipo.
   if (!document.getElementById('tx-nearby-css')) {
+    const SH = '0 1px 2px rgba(0,0,0,.22),0 3px 10px rgba(0,0,0,.16)';
     const css = document.createElement('style');
     css.id = 'tx-nearby-css';
     css.textContent = [
       '.txm{background:none;border:0}',
-      '.txm .b{position:relative;transition:transform .15s ease;transform-origin:50% 100%;cursor:pointer}',
-      '.txm.sel .b{transform:scale(1.22)}',
+      '.txm .b{position:relative;box-sizing:border-box;transition:transform .15s ease;transform-origin:50% 100%;cursor:pointer;-webkit-font-smoothing:antialiased}',
+      '.txm.sel .b{transform:scale(1.18)}',
       '.txm img{display:block;width:100%;height:100%;object-fit:cover}',
       '.txm .ini{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:700 13px system-ui,sans-serif;color:' + BRAND + '}',
-      '.tx-venue{width:40px;height:40px;border-radius:12px;background:#18181b;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.28);overflow:hidden;display:flex;align-items:center;justify-content:center}',
+      '.txm .kb{position:absolute;right:-6px;bottom:-6px;width:18px;height:18px;border-radius:50%;border:2px solid #fff;box-sizing:border-box;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.25)}',
+      '.tx-venue{width:40px;height:40px;border-radius:12px;background:#18181b;border:3px solid #fff;box-shadow:' + SH + '}',
+      '.tx-venue .in,.tx-post .in,.tx-group .in{width:100%;height:100%;border-radius:9px;overflow:hidden;display:flex;align-items:center;justify-content:center}',
+      '.tx-venue .kb{background:#18181b}',
       '.tx-event{width:44px;height:52px}',
-      '.tx-event .h{width:44px;height:44px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);background:' + BRAND + ';border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3);box-sizing:border-box}',
+      '.tx-event .h{width:44px;height:44px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);background:' + BRAND + ';border:3px solid #fff;box-shadow:' + SH + ';box-sizing:border-box}',
       '.tx-event .t{position:absolute;left:0;top:0;width:44px;height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:system-ui,sans-serif;line-height:1}',
       '.tx-event .d{font-size:15px;font-weight:800}.tx-event .m{font-size:9px;font-weight:700;margin-top:1px;letter-spacing:.4px}',
-      '.tx-post{width:46px;height:46px;border-radius:12px;background:#e4e4e7;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3);overflow:visible}',
-      '.tx-post .in{width:100%;height:100%;border-radius:9px;overflow:hidden}',
-      '.tx-post:after{content:"";position:absolute;left:50%;bottom:-8px;margin-left:-6px;border:6px solid transparent;border-top-color:#fff;border-bottom:0}',
-      '.tx-group{width:40px;height:40px;border-radius:50%;background:#7c3aed;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;overflow:hidden}',
-      '.tx-person{width:38px;height:38px;border-radius:50%;background:#fff1f2;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.25);overflow:hidden}',
+      '.tx-post{width:44px;height:44px;border-radius:12px;background:#e4e4e7;border:3px solid #fff;box-shadow:' + SH + '}',
+      '.tx-post:after{content:"";position:absolute;left:50%;bottom:-9px;margin-left:-6px;border:6px solid transparent;border-top-color:#fff;border-bottom:0}',
+      '.tx-post .kb{background:' + BRAND + ';bottom:auto;top:-6px}',
+      '.tx-group{width:40px;height:40px;border-radius:50%;background:#7c3aed;border:3px solid #fff;box-shadow:' + SH + '}',
+      '.tx-group .in{border-radius:50%}',
+      '.tx-group .kb{background:#7c3aed}',
+      '.tx-person{width:38px;height:38px;border-radius:50%;background:#fff1f2;border:3px solid #fff;box-shadow:0 0 0 2px ' + BRAND + ',' + SH + ';overflow:hidden}',
       '.tx-person img{position:relative}',
-      '.tx-cluster{width:40px;height:40px;border-radius:50%;background:#18181b;color:#fff;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font:800 14px system-ui,sans-serif}',
+      '.tx-cluster{width:40px;height:40px;border-radius:50%;background:#18181b;color:#fff;border:3px solid #fff;box-shadow:' + SH + ';display:flex;align-items:center;justify-content:center;font:800 14px system-ui,sans-serif}',
+      // A minha posição: ponto azul por cima de tudo (pequeno, não tapa nada nem apanha toques).
+      '.txme{background:none;border:0;pointer-events:none}',
+      '.txme .pulse{position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;background:rgba(29,155,240,.2)}',
+      '.txme .dot{position:absolute;left:4px;top:4px;width:16px;height:16px;border-radius:50%;background:#1d9bf0;border:3px solid #fff;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.3)}',
       '.leaflet-container{font-family:system-ui,sans-serif;background:#f2efe9}',
       '.leaflet-control-attribution{font-size:10px}',
     ].join('\n');
@@ -86,10 +99,17 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
   }).addTo(map);
 
-  const ring = L.circle([0, 0], { radius: 1, color: BRAND, weight: 1.5, opacity: 0.7, fillColor: BRAND, fillOpacity: 0.05, interactive: false }).addTo(map);
+  // O raio: só um contorno fino e um véu muito leve, para não competir com os marcadores.
+  const ring = L.circle([0, 0], { radius: 1, color: BRAND, weight: 1, opacity: 0.35, fillColor: BRAND, fillOpacity: 0.025, interactive: false }).addTo(map);
   const halos = L.layerGroup().addTo(map);
   const layer = L.layerGroup().addTo(map);
-  const me = L.circleMarker([0, 0], { radius: 7, color: '#fff', weight: 3, fillColor: '#1d9bf0', fillOpacity: 1, interactive: false }).addTo(map);
+  // Um marcador (e não um círculo no SVG) para ficar por cima dos outros: o bico de uma publicação no mesmo sítio já não o tapa.
+  const me = L.marker([0, 0], {
+    icon: L.divIcon({ className: 'txme', html: '<div class="pulse"></div><div class="dot"></div>', iconSize: [24, 24], iconAnchor: [12, 12] }),
+    interactive: false,
+    keyboard: false,
+    zIndexOffset: 5000,
+  }).addTo(map);
 
   let st: MapState | null = null;
   let fitKey = '';
@@ -100,8 +120,10 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
     let html = '';
     let size: [number, number] = [40, 40];
     let anchor: [number, number] = [20, 20];
+    // Selo do tipo no canto, só quando a foto esconde a cor de fundo.
+    const badge = (paths: string, on: boolean) => (on ? `<span class="kb">${svg(paths, 10, '#fff')}</span>` : '');
     if (m.kind === 'venue') {
-      html = `<div class="b tx-venue">${img || svg(PIN, 20, '#fff')}</div>`;
+      html = `<div class="b tx-venue"><div class="in">${img || svg(PIN, 20, '#fff')}</div>${badge(PIN, !!img)}</div>`;
     } else if (m.kind === 'event') {
       const d = m.date ? new Date(m.date) : null;
       const ok = d && !isNaN(d.getTime());
@@ -109,11 +131,11 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
       size = [44, 52];
       anchor = [8, 50];
     } else if (m.kind === 'post') {
-      html = `<div class="b tx-post"><div class="in">${img}</div></div>`;
-      size = [46, 54];
-      anchor = [23, 54];
+      html = `<div class="b tx-post"><div class="in">${img || svg(CAMERA, 20, '#71717a')}</div>${badge(CAMERA, !!img)}</div>`;
+      size = [44, 53];
+      anchor = [22, 53];
     } else if (m.kind === 'group') {
-      html = `<div class="b tx-group">${img || svg(USERS, 20, '#fff')}</div>`;
+      html = `<div class="b tx-group"><div class="in">${img || svg(USERS, 20, '#fff')}</div>${badge(USERS, !!img)}</div>`;
     } else {
       html = `<div class="b tx-person"><span class="ini">${esc(initials(m.title))}</span>${img}</div>`;
       size = [38, 38];
@@ -139,7 +161,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
     const singles: MapMarker[] = [];
     for (const m of list) {
       // Pessoas: um círculo suave à volta (a posição é aproximada, nunca a exata).
-      if (m.kind === 'person') L.circle([m.lat, m.lng], { radius: 700, stroke: false, fillColor: BRAND, fillOpacity: 0.12, interactive: false }).addTo(halos);
+      if (m.kind === 'person') L.circle([m.lat, m.lng], { radius: 700, stroke: false, fillColor: BRAND, fillOpacity: 0.08, interactive: false }).addTo(halos);
       if (m.id === st.selectedId) {
         singles.push(m);
         continue;
