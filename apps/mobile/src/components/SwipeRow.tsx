@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { Easing, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming, interpolate, Extrapolation, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { Icon, type IconName } from '@/components/Icon';
 import { useDesktop } from '@/lib/desktop';
-import { claimSwipe, navSwipeThreshold, releaseSwipe } from '@/lib/swipeClaim';
+import { claimSwipe, decideSwipe, innerPager, navSwipeThreshold, releaseSwipe } from '@/lib/swipeClaim';
 import { colors } from '@/lib/theme';
 
 export interface SwipeAction {
@@ -307,13 +307,22 @@ function resistNative(v: number, l: number, r: number) {
  * (cancelAllLegacyHandlers só apanha os gestos antigos) — sem desistir na vertical, roubava o scroll a meio.
  * - só é da linha depois de NATIVE_START_X px para o lado; se antes andar NATIVE_FAIL_Y px na vertical, é da lista;
  * - um toque nunca ativa o pan, por isso chega intacto ao Pressable lá dentro (abre a conversa);
- * - com a linha aberta, tocar nela fecha-a (não abre a conversa); pousar o dedo noutra linha fecha a aberta.
+ * - com a linha aberta, tocar nela fecha-a (não abre a conversa); pousar o dedo noutra linha fecha a aberta;
+ * - num ecrã com separadores (lib/swipeClaim, innerPager: Mensagens), se o dedo passar navSwipeThreshold para um lado onde
+ *   há separador, a linha volta fechada (sem correr ação) e, ao largar, o ecrã muda de separador. A linha pergunta
+ *   diretamente ao innerPager() (sem prop): assim todas as listas com SwipeRow nesse ecrã ficam iguais sem mexer nelas.
  */
 function NativeSwipeRow({ left, right, children }: { left: SwipeAction[]; right: SwipeAction[]; children: ReactNode }) {
   const lw = W * left.length;
   const rw = W * right.length;
   const x = useSharedValue(0);
   const base = useSharedValue(0);
+  /** Para onde o ecrã (lib/swipeClaim, innerPager) pode mudar de separador neste gesto: bit 1 = seguinte, bit 2 = anterior. */
+  const pagerCan = useSharedValue(0);
+  /** 1 = o dedo passou o limite para um lado onde há separador: a linha fechou e, ao largar, muda de separador. */
+  const overswipe = useSharedValue(0);
+  const { width } = useWindowDimensions();
+  const navPx = navSwipeThreshold(width);
   /** 0 fechada, 1 com `left` à vista, -1 com `right` à vista (para o toque que fecha). */
   const [side, setSide] = useState(0);
   const me = useRef<{ close(): void }>({ close: () => {} }).current;
@@ -329,8 +338,18 @@ function NativeSwipeRow({ left, right, children }: { left: SwipeAction[]; right:
     x.value = withTiming(0, NATIVE_SETTLE);
     settled(0);
   };
-  /** O dedo apanhou esta linha: a que estiver aberta noutro sítio fecha. */
-  const claim = useCallback(() => { if (openRow && openRow !== me) closeOpenSwipe(); }, [me]);
+  /** O dedo apanhou esta linha: a que estiver aberta noutro sítio fecha. E fica-se a saber se o ecrã tem separadores para os lados. */
+  const claim = useCallback(() => {
+    if (openRow && openRow !== me) closeOpenSwipe();
+    const p = innerPager();
+    pagerCan.value = (p?.canGo(1) ? 1 : 0) | (p?.canGo(-1) ? 2 : 0);
+  }, [me, pagerCan]);
+  /** Ao largar depois de passar o limite: muda de separador (se ainda for um deslize grande). */
+  const pageOver = useCallback((dx: number, dy: number) => {
+    const p = innerPager();
+    const d = decideSwipe({ dx, dy, width }, p);
+    if (d.to === 'inner' && p) p.go(d.dir);
+  }, [width]);
   useEffect(() => () => { if (openRow === me) openRow = null; }, [me]);
 
   const pan = usePanGesture(useMemo(() => ({
@@ -340,14 +359,30 @@ function NativeSwipeRow({ left, right, children }: { left: SwipeAction[]; right:
     onActivate: () => {
       'worklet';
       base.value = x.value;
+      pagerCan.value = 0;
+      overswipe.value = 0;
       scheduleOnRN(claim);
     },
-    onUpdate: (e: { translationX: number }) => {
+    onUpdate: (e: { translationX: number; translationY: number }) => {
       'worklet';
-      x.value = resistNative(base.value + e.translationX, lw, rw);
+      if (overswipe.value) return;
+      const t = e.translationX;
+      // Passou o limite para um lado onde o ecrã tem separador: a linha volta ao sítio e o gesto passa a mudar de separador.
+      if ((t < 0 ? pagerCan.value & 1 : pagerCan.value & 2) && Math.abs(t) >= navPx && Math.abs(t) >= Math.abs(e.translationY) * NAV_RATIO) {
+        overswipe.value = 1;
+        x.value = withTiming(0, NATIVE_SETTLE);
+        scheduleOnRN(settled, 0);
+        return;
+      }
+      x.value = resistNative(base.value + t, lw, rw);
     },
-    onDeactivate: (e: { velocityX: number }) => {
+    onDeactivate: (e: { velocityX: number; translationX: number; translationY: number; canceled?: boolean }) => {
       'worklet';
+      if (overswipe.value) {
+        overswipe.value = 0;
+        if (!e.canceled) scheduleOnRN(pageOver, e.translationX, e.translationY);
+        return;
+      }
       const at = x.value;
       const proj = at + (e.velocityX * FLING_MS) / 1000;
       let want = lw && proj >= lw * 0.5 ? lw : rw && proj <= -rw * 0.5 ? -rw : 0;
@@ -356,7 +391,7 @@ function NativeSwipeRow({ left, right, children }: { left: SwipeAction[]; right:
       x.value = withTiming(want, NATIVE_SETTLE);
       scheduleOnRN(settled, want);
     },
-  }), [base, x, lw, rw, claim, settled]));
+  }), [base, x, lw, rw, claim, settled, pagerCan, overswipe, navPx, pageOver]));
 
   const front = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
   const showL = useDerivedValue(() => (lw ? Math.min(1, Math.max(0, x.value / lw)) : 0));

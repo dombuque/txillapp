@@ -73,3 +73,17 @@ export function badgeText(n: number): string {
 export function tabLabel(name: string, n: number, what = 'por ler'): string {
   return n > 0 ? `${name}, ${n} ${what}` : name;
 }
+
+/** Os separadores pela ordem do ecrã (é por esta ordem que um deslize grande passa de um para o outro). */
+export const INBOX_ORDER: InboxView[] = ['chats', 'groups', 'requests'];
+
+/**
+ * Para onde vai um deslize grande nos separadores: `dir = 1` o seguinte (dedo para a esquerda), `-1` o anterior.
+ * null = já está na ponta (o gesto passa para fora: na web, mudar de menu). A pesquisar (fora dos pedidos) o ecrã mostra só
+ * "Resultados" e "Pedidos": o seguinte é "Pedidos" e para trás é a ponta.
+ */
+export function nextInboxView(view: InboxView, dir: 1 | -1, searching = false): InboxView | null {
+  if (searching && view !== 'requests') return dir === 1 ? 'requests' : null;
+  const i = INBOX_ORDER.indexOf(view) + dir;
+  return i >= 0 && i < INBOX_ORDER.length ? INBOX_ORDER[i] : null;
+}
