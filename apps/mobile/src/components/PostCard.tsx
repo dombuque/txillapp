@@ -21,6 +21,7 @@ import { PeopleSheet } from './PeopleSheet';
 import { PhotoViewer } from './PhotoViewer';
 import { RichText } from './RichText';
 import { TeachBar } from './TeachBar';
+import { QuotedOriginal, THREAD_AVATAR, THREAD_GAP } from './QuoteThread';
 import { GiftSheet, PostMenuSheet, RepostSheet } from './PostSheets';
 import { ShareSheet } from './ShareSheet';
 import { TrackCard } from './TrackCard';
@@ -90,13 +91,20 @@ function PostCardBase({ post, me, detail, openComments, highlightComment }: { po
   const [focused, setFocused] = useState(true);
   useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
   const musicOn = focused && (!!detail || inList);
+  const width = Math.min(useWindowDimensions().width, 576);
   if (post.kind === 'repost' && post.repostOf && !post.body) {
+    // "↻ Ana repostou" discreto por cima do cartão: o ícone encostado à direita da coluna do avatar, o texto alinhado com o nome.
+    const edge = (width >= 360 ? 8 : 6) + (width >= 360 ? 16 : 14);
+    const inner = post.repostOf;
+    const col = inner.kind === 'repost' && inner.body ? THREAD_AVATAR : 52;
     return (
       <View>
-        <View style={styles.repostBar}>
-          <Icon name="repeat" size={16} color={colors.zinc600} />
-          <Pressable onPress={() => router.push(profileOf(post.author, me) as never)} accessibilityRole="link">
-            <Text style={[styles.repostText, { fontWeight: '600' }]}>{post.author.id === me ? 'Repostaste' : `${post.author.displayName} repostou`}</Text>
+        <View style={[styles.repostBar, { marginLeft: edge }]}>
+          <View style={{ width: col, alignItems: 'flex-end' }}>
+            <Icon name="repeat" size={15} color={colors.zinc500} strokeWidth={2} />
+          </View>
+          <Pressable onPress={() => router.push(profileOf(post.author, me) as never)} accessibilityRole="link" style={{ flexShrink: 1 }}>
+            <Text style={styles.repostText} numberOfLines={1}>{post.author.id === me ? 'Repostaste' : `${post.author.displayName} repostou`}</Text>
           </Pressable>
         </View>
         <PostCard post={post.repostOf} me={me} />
@@ -126,7 +134,8 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   const [gone, setGone] = useState(false);
   // Foto em ecrã inteiro: `of` é a publicação cujas fotos se veem (a original, num repost com comentário).
   const [viewer, setViewer] = useState<null | { of: Post; start: number }>(null);
-  const quote = post.kind === 'repost' && !!post.repostOf && !!post.body ? post.repostOf : null;
+  // Repost com comentário (citação): em "fio", a original em cima (ou o aviso de que já não está disponível) e quem citou por baixo.
+  const quote = post.kind === 'repost' && !!post.body && !post.gift;
   const g = post.gift;
   const goAuthor = () => router.push(profileOf(post.author, me) as never);
   const goVenue = () => post.venue && router.push({ pathname: '/v/[slug]', params: { slug: post.venue.slug } });
@@ -161,6 +170,35 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
     <Pressable onPress={goPost} disabled={detail} accessible={false} style={[styles.card, cardShadow, { marginHorizontal: margin, paddingHorizontal: pad }]}>
       {g ? (
         <GiftBlock post={post} g={g} me={me} onDouble={() => void brindar()} menu={menuBtn} onOpenPost={openPost} />
+      ) : quote ? (
+        <>
+          <QuotedOriginal original={post.repostOf ?? null} me={me} onOpen={openPost} onPhoto={(o) => setViewer({ of: o, start: 0 })} onDouble={() => void brindar()} />
+          <View style={styles.qHead}>
+            {post.venue ? (
+              <Pressable onPress={goVenue} accessibilityRole="link" accessibilityLabel={`Página de ${post.venue.name}`}>
+                <VenueLogo venue={post.venue} size={THREAD_AVATAR} />
+              </Pressable>
+            ) : (
+              <Pressable onPress={goAuthor} accessibilityRole="link" accessibilityLabel={`Perfil de ${post.author.displayName}`}>
+                <Avatar name={post.author.displayName} username={post.author.username} size={THREAD_AVATAR} />
+              </Pressable>
+            )}
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Pressable onPress={post.venue ? goVenue : goAuthor} style={styles.nameRow} accessibilityRole="link">
+                <Text style={[styles.qName, { flexShrink: 1 }]} numberOfLines={1}>{post.venue ? post.venue.name : post.author.displayName}</Text>
+                {post.venue ? (post.venue.verified && <VerifiedBadge size={15} tier="verified" />) : (post.author.verified && <VerifiedBadge size={15} tier={post.author.verifiedTier} />)}
+              </Pressable>
+              <Text style={styles.qMeta} numberOfLines={1}>
+                {post.venue ? 'página' : `@${post.author.username}`} · {timeAgo(post.createdAt)}
+                {post.editedAt ? ' · editado' : ''}
+              </Text>
+            </View>
+            {menuBtn}
+          </View>
+          <Pressable onPress={() => tapText(goPost)} accessibilityLabel="Abrir a publicação (duplo toque para brindar)">
+            <RichText text={post.body} style={styles.qBody} />
+          </Pressable>
+        </>
       ) : (
         <>
           <View style={styles.header}>
@@ -179,13 +217,8 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
                 <Text style={[styles.name, { flexShrink: 1 }]} numberOfLines={1}>{post.venue ? post.venue.name : post.author.displayName}</Text>
                 {post.venue ? (post.venue.verified && <VerifiedBadge size={16} tier="verified" />) : (post.author.verified && <VerifiedBadge size={16} tier={post.author.verifiedTier} />)}
               </Pressable>
-              {post.venue && !quote ? (
+              {post.venue ? (
                 <Text style={styles.handle} numberOfLines={1}>{KIND_LABEL[post.venue.kind] ?? 'Local'} · página</Text>
-              ) : quote ? (
-                <View style={styles.locRow}>
-                  <Icon name="repeat" size={14} color={colors.zinc500} />
-                  <Text style={styles.handle} numberOfLines={1}>repostou</Text>
-                </View>
               ) : post.locationLabel ? (
                 <Pressable onPress={() => router.push(`/place/${encodeURIComponent(post.locationLabel as string)}` as never)} style={styles.locRow} accessibilityRole="link">
                   <Icon name="map-pin" size={14} color={colors.zinc600} />
@@ -199,11 +232,9 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
               {timeAgo(post.createdAt)}
               {post.editedAt ? ' · editado' : ''}
             </Text>
-            {!quote && (
-              <Pressable onPress={() => void toggleSave()} hitSlop={6} style={styles.save} accessibilityRole="button" accessibilityLabel={post.saved ? 'Tirar dos guardados' : 'Guardar'}>
-                <BookmarkIcon on={!!post.saved} size={24} />
-              </Pressable>
-            )}
+            <Pressable onPress={() => void toggleSave()} hitSlop={6} style={styles.save} accessibilityRole="button" accessibilityLabel={post.saved ? 'Tirar dos guardados' : 'Guardar'}>
+              <BookmarkIcon on={!!post.saved} size={24} />
+            </Pressable>
             {menuBtn}
           </View>
           {post.body ? (
@@ -214,14 +245,10 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
         </>
       )}
       {post.music ? <TrackCard track={post.music} autoplay visible={musicOn} /> : null}
-      {quote || post.media.length ? (
-        // O brinde aparece no meio da foto ou do vídeo (ou da publicação citada).
+      {!quote && post.media.length ? (
+        // O brinde aparece no meio da foto ou do vídeo.
         <View>
-          {quote ? (
-            <QuoteBox original={quote} me={me} onPhoto={() => setViewer({ of: quote, start: 0 })} onOpen={openPost} onDouble={() => void brindar()} />
-          ) : (
-            <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={!!post.music} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} />
-          )}
+          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={!!post.music} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} />
           <CheersPour n={burst} size={Math.min(220, inner * 0.6)} />
         </View>
       ) : (
@@ -305,43 +332,6 @@ function ViewerBar({ post, full, mine, onOpen }: { post: Post; full: boolean; mi
         </>
       )}
     </View>
-  );
-}
-
-/** Repost com comentário: a publicação original numa caixa com borda. */
-function QuoteBox({ original, me, onPhoto, onOpen, onDouble }: { original: Post; me?: string; onPhoto: () => void; onOpen: (p: Post) => void; onDouble?: () => void }) {
-  const router = useRouter();
-  const tap = useTap(onDouble);
-  const m = original.media[0];
-  return (
-    <Pressable onPress={() => onOpen(original)} style={styles.quote} accessibilityRole="link" accessibilityLabel="Abrir a publicação original">
-      <Pressable onPress={() => router.push(profileOf(original.author, me) as never)} style={styles.quoteHead} accessibilityRole="link">
-        <Avatar name={original.author.displayName} username={original.author.username} size={30} />
-        <Text style={[styles.quoteName, { flexShrink: 1 }]} numberOfLines={1}>{original.author.displayName}</Text>
-        {original.author.verified && <VerifiedBadge size={14} tier={original.author.verifiedTier} />}
-        <Text style={styles.quoteTime}>· {timeAgo(original.createdAt)}</Text>
-      </Pressable>
-      {original.gift ? (
-        <View style={{ marginHorizontal: 12, marginTop: 8 }}>
-          <GiftCard post={original} g={original.gift} me={me} onDouble={onDouble} compact />
-        </View>
-      ) : null}
-      {original.body && !original.gift ? <Text style={styles.quoteBody} numberOfLines={4}>{original.body}</Text> : null}
-      {m?.kind === 'video' ? (
-        <Pressable onPress={() => onOpen(original)} style={styles.quoteMedia} accessibilityRole="button" accessibilityLabel="Ver o vídeo">
-          {m.posterUrl ? <Image source={{ uri: sized(m.posterUrl, 720) }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors /> : null}
-          <View style={styles.playWrap} pointerEvents="none">
-            <View style={styles.play}><Icon name="play" size={28} color="#fff" solid /></View>
-          </View>
-        </Pressable>
-      ) : m ? (
-        <Pressable onPress={() => tap(onPhoto)} style={[styles.quoteMedia, { height: 288 }]} accessibilityRole="button" accessibilityLabel="Ver a foto em ecrã inteiro">
-          <Image source={{ uri: sized(m.url, 720) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} accessibilityIgnoresInvertColors />
-        </Pressable>
-      ) : (
-        <View style={{ height: 12 }} />
-      )}
-    </Pressable>
   );
 }
 
@@ -605,12 +595,8 @@ const styles = StyleSheet.create({
   vBtn: { alignItems: 'center', gap: 4 },
   vCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
   vCount: { color: '#fff', fontSize: 13, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 },
-  quote: { marginTop: 12, overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: colors.zinc200 },
-  quoteHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingTop: 12 },
   quoteName: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },
   quoteTime: { fontSize: 14, color: colors.zinc500 },
-  quoteGift: { marginHorizontal: 12, marginTop: 8, overflow: 'hidden', borderRadius: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  quoteGiftText: { fontSize: 18, fontWeight: '800', color: '#fff' },
   quoteBody: { paddingHorizontal: 12, paddingTop: 8, fontSize: 16, lineHeight: 24, color: colors.zinc800 },
   quoteMedia: { marginTop: 8, height: 256, overflow: 'hidden', backgroundColor: colors.zinc900 },
   gifted: { marginTop: 12, overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: colors.zinc200 },
@@ -626,8 +612,13 @@ const styles = StyleSheet.create({
   giftUnit: { fontSize: 13, fontWeight: '700', letterSpacing: 2.6, color: 'rgba(255,255,255,0.85)' },
   giftNote: { marginTop: 16, maxWidth: '92%', overflow: 'hidden', borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, lineHeight: 22, color: '#fff', textAlign: 'center' },
   card: { backgroundColor: colors.white, borderRadius: 26, paddingTop: 16, marginBottom: 20 },
-  repostBar: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 24, marginBottom: 6 },
-  repostText: { fontSize: 14, fontWeight: '500', color: colors.zinc600, lineHeight: 20 },
+  repostBar: { flexDirection: 'row', alignItems: 'center', gap: THREAD_GAP, marginRight: 24, marginBottom: 6 },
+  repostText: { fontSize: 14, fontWeight: '600', color: colors.zinc500, lineHeight: 20 },
+  // Quem citou, por baixo da original no fio: avatar de 36, nome e @ · tempo, e o comentário em letra maior.
+  qHead: { flexDirection: 'row', alignItems: 'center', gap: THREAD_GAP },
+  qName: { fontSize: 16, fontWeight: '600', color: colors.zinc900, lineHeight: 21 },
+  qMeta: { fontSize: 14, color: colors.zinc500, lineHeight: 19 },
+  qBody: { marginTop: 10, fontSize: 17, lineHeight: 24, color: colors.zinc900 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   name: { fontSize: 19, fontWeight: '500', color: colors.zinc800, lineHeight: 24 },
   handle: { fontSize: 15, color: colors.zinc500, lineHeight: 22 },

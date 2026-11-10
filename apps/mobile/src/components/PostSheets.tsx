@@ -4,8 +4,11 @@ import { useRef, useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, api, isTcheka, type Post } from '@/lib/api';
 import { SITE_URL } from '@/lib/config';
+import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { Avatar } from './Avatar';
 import { BookmarkIcon } from './BookmarkIcon';
+import { QuotedOriginal, THREAD_AVATAR, THREAD_GAP } from './QuoteThread';
 import { Icon, type IconName } from './Icon';
 import { ReportSheet } from './ReportSheet';
 import { Sheet } from './Sheet';
@@ -132,6 +135,7 @@ export function GiftSheet({ recipient, postId, preset, onClose }: { recipient: {
 /** Repostar (tal como está ou com comentário) e desfazer o repost. */
 export function RepostSheet({ post, onChange, onClose }: { post: Post; onChange: (p: Partial<Post>) => void; onClose: () => void }) {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [quote, setQuote] = useState(false);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -155,7 +159,14 @@ export function RepostSheet({ post, onChange, onClose }: { post: Post; onChange:
       <View style={{ paddingHorizontal: 24 }}>
         {quote ? (
           <View style={{ gap: 12 }}>
-            <TextInput value={text} onChangeText={setText} maxLength={500} multiline autoFocus placeholder="O que achas?" placeholderTextColor={colors.zinc500} style={[styles.field, { minHeight: 84, textAlignVertical: 'top' }]} accessibilityLabel="Comentário" />
+            {/* O mesmo fio do feed: a original compacta em cima, a linha, e por baixo o que vais escrever. */}
+            <View>
+              <QuotedOriginal original={post} />
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: THREAD_GAP }}>
+                {user ? <Avatar name={user.displayName} username={user.username} size={THREAD_AVATAR} /> : <View style={{ width: THREAD_AVATAR }} />}
+                <TextInput value={text} onChangeText={setText} maxLength={500} multiline autoFocus placeholder="O que achas?" placeholderTextColor={colors.zinc500} style={[styles.field, { flex: 1, minHeight: 84, fontSize: 17, lineHeight: 24, textAlignVertical: 'top' }]} accessibilityLabel="Comentário" />
+              </View>
+            </View>
             <Text style={styles.err}>{err}</Text>
             <Pressable disabled={busy || !text.trim()} onPress={() => void run(async () => { await api.repost(post.id, text); onChange({ reposts: post.reposts + 1 }); })} style={[styles.primary, (busy || !text.trim()) && { opacity: 0.5 }]}><Text style={styles.primaryText}>{busy ? 'A publicar…' : 'Publicar'}</Text></Pressable>
             <Pressable onPress={() => setQuote(false)} style={styles.ghost}><Text style={styles.ghostText}>Voltar</Text></Pressable>
