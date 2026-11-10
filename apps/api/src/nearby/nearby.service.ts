@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, Logger, OnModuleDestroy, OnMod
 import { Pool } from 'pg';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
-import { memberBlocked } from '../groups/group-access';
+import { memberBlocked, venueOnMap } from '../groups/group-access';
 import { blockedBetween, canView } from '../social/visibility';
 import { eventEnd } from './events.service';
 import { agoLabel, distKm, inBox, km1, snapToCell } from './geo-sql';
@@ -31,7 +31,13 @@ const media = (id: unknown) => (id ? `/api/v1/media/${id as string}` : null);
 const ADULT_SQL = (u: string) => `(${u}.birth_date IS NOT NULL AND ${u}.birth_date <= (current_date - interval '18 years'))`;
 /** Locais do país onde o espectador está, ou sem país. */
 // Só locais aprovados pela equipa (os que estão em análise não aparecem no mapa) e do país de quem vê.
-const VENUE_COUNTRY = `(v.review_status = 'approved' AND (v.country IS NULL OR v.country IS NOT DISTINCT FROM (SELECT vc.country FROM identity.users vc WHERE vc.id = $1)))`;
+/**
+ * Onde um TxillGroup fica no mapa: o local do plano (só entra no LEFT JOIN se aprovado e com posição) tem prioridade;
+ * senão o ponto que um admin escolheu (já guardado arredondado, como a malta).
+ */
+const G_LAT = 'COALESCE(v.lat, g.map_lat)';
+const G_LNG = 'COALESCE(v.lng, g.map_lng)';
+const VENUE_COUNTRY =`(v.review_status = 'approved' AND (v.country IS NULL OR v.country IS NOT DISTINCT FROM (SELECT vc.country FROM identity.users vc WHERE vc.id = $1)))`;
 
 /**
  * "À tua volta": locais, eventos, publicações recentes, TxillGroups públicos e a malta (quem quiser aparecer),
@@ -174,18 +180,21 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * TxillGroups públicos (entra-se logo) e privados no mapa (pede-se para entrar), com o plano num local com posição
-   * (só o destino em texto não chega para o mapa). Quem tem bloqueio com algum membro (ou com quem o criou) não os vê.
+   * TxillGroups públicos (entra-se logo) e privados no mapa (pede-se para entrar), com sítio no mapa: o local do plano
+   * aprovado e com posição ou, sem ele, o ponto arredondado que um admin escolheu (só o destino em texto não chega).
+   * `placeLabel`: o nome do local, ou o nome dado ao ponto. Quem tem bloqueio com algum membro (ou com quem o criou) não os vê.
    */
   private async groups(p: unknown[]) {
     if (!(await this.probe.bits()).groups) return [];
     const { rows } = await this.pool.query(
       `SELECT * FROM (
-         SELECT g.id, g.name, g.kind, g.cover_media_id, g.avatar_media_id, g.visibility, g.destination, g.starts_on, v.name AS venue_name, v.lat, v.lng,
-                ${distKm('v.lat', 'v.lng')} AS d,
+         SELECT g.id, g.name, g.kind, g.cover_media_id, g.avatar_media_id, g.visibility, g.destination, g.starts_on, v.name AS venue_name,
+                CASE WHEN v.id IS NOT NULL THEN v.name ELSE g.map_label END AS place_label,
+                ${G_LAT} AS lat, ${G_LNG} AS lng,
+                ${distKm(G_LAT, G_LNG)} AS d,
                 (SELECT count(*) FROM social.group_members gm WHERE gm.group_id = g.id)::int AS members
-           FROM social.groups g JOIN content.venues v ON v.id = g.plan_venue_id
-          WHERE (g.visibility = 'public' OR g.show_on_map) AND v.review_status = 'approved' AND v.lat IS NOT NULL AND v.lng IS NOT NULL AND ${inBox('v.lat', 'v.lng', '$4')}
+           FROM social.groups g LEFT JOIN content.venues v ON v.id = g.plan_venue_id AND ${venueOnMap('v')}
+          WHERE (g.visibility = 'public' OR g.show_on_map) AND ${G_LAT} IS NOT NULL AND ${G_LNG} IS NOT NULL AND ${inBox(G_LAT, G_LNG, '$4')}
             AND COALESCE(g.ends_on, g.starts_on, current_date) >= current_date
             AND NOT ${memberBlocked('g.id', '$1')}
        ) x WHERE x.d <= $4::float8 ORDER BY x.d, x.starts_on NULLS LAST, x.id LIMIT ${LIMITS.groups}`,
@@ -200,7 +209,9 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
       visibility: r.visibility as 'private' | 'public',
       // Público: entra-se logo. Privado no mapa: pede-se e um admin aceita.
       joinMode: (r.visibility === 'public' ? 'open' : 'request') as 'open' | 'request',
-      destination: ((r.destination as string | null) ?? (r.venue_name as string)) || null,
+      destination: ((r.destination as string | null) ?? (r.venue_name as string | null) ?? (r.place_label as string | null)) || null,
+      // O nome do sítio no mapa: o do local do plano, ou o que o admin deu ao ponto (pode não haver).
+      placeLabel: (r.place_label as string | null) ?? null,
       startsOn: r.starts_on ? this.isoDate(r.starts_on) : null,
       lat: Number(r.lat),
       lng: Number(r.lng),

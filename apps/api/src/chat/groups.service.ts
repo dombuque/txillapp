@@ -7,7 +7,8 @@ import { PushService } from '../push/push.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
 import { ChatService, Outgoing, type MessageKind } from './chat.service';
-import { GroupAccess } from '../groups/group-access';
+import { GroupAccess, NO_MAP_PLACE, venueOnMap } from '../groups/group-access';
+import { roundPlace } from '../nearby/geo-sql';
 import { PlanService } from '../groups/plan.service';
 import { PotService } from '../groups/pot.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -29,6 +30,8 @@ export interface GroupInfo {
   /** Só no PATCH (admins). */
   visibility?: 'private' | 'public';
   showOnMap?: boolean;
+  /** O ponto no mapa (arredondado antes de guardar); `null` limpa. Só no PATCH (admins). */
+  mapPlace?: { lat: number; lng: number; label?: string | null } | null;
 }
 
 /**
@@ -57,6 +60,16 @@ export interface GroupInfo {
  *   ({ type: 'group', what: 'info' }) e a pessoa promovida com group_admin_granted (ator = quem promoveu). Tirar não notifica.
  *   GET /chat/groups/:id continua a trazer `role` em cada um de `group.members`.
  * - O limite de membros é atómico: entrar, aceitar, adicionar, sair e mudar de papel correm com o grupo bloqueado (ver locked()).
+ *
+ * O sítio no mapa (0104):
+ * - PATCH /chat/groups/:id (admins) aceita também `mapPlace: { lat, lng, label?: string <= 80 | null } | null`: um ponto escolhido
+ *   no mapa quando o plano não tem um local aprovado. Guarda-se SÓ o centro da quadrícula da malta (~1,5 km, ver nearby/geo-sql.ts);
+ *   o ponto exato nunca é guardado nem devolvido. `null` limpa.
+ * - Passar a público, ou a privado no mapa, exige sítio: o local do plano aprovado e com posição, ou o ponto (no mesmo pedido ou
+ *   já guardado). Também não se tira o ponto a um grupo visível que fica sem sítio. Senão 400 { message: NO_MAP_PLACE }.
+ *   Os grupos que já estavam visíveis sem sítio continuam como estão (só a mudança é validada).
+ * - GET /chat/groups e GET /chat/groups/:id trazem `mapPlace: { lat, lng, label } | null` (o arredondado) e `mapReady: boolean`
+ *   (tem sítio para o mapa: local do plano aprovado com posição, ou o ponto).
  */
 @Injectable()
 export class GroupsService {
@@ -244,7 +257,7 @@ export class GroupsService {
   /** Mudar o nome, o tipo, a descrição, a capa, a foto, a visibilidade ou o mapa (só quem administra; campos presentes, `null` limpa). */
   async update(me: string, groupId: string, b: GroupInfo) {
     if ((await this.needMember(groupId, me)) !== 'admin') throw new ForbiddenException('Só quem administra muda o grupo');
-    this.filter.assertClean(b.name ?? '', b.description ?? '');
+    this.filter.assertClean(b.name ?? '', b.description ?? '', b.mapPlace?.label ?? '');
     if (b.coverMediaId) await this.assertCover(me, b.coverMediaId);
     if (b.avatarMediaId) await this.assertCover(me, b.avatarMediaId);
     const sets: string[] = [];
@@ -257,13 +270,44 @@ export class GroupsService {
     if (b.avatarMediaId !== undefined) set('avatar_media_id', b.avatarMediaId);
     if (b.visibility !== undefined) set('visibility', b.visibility);
     if (b.showOnMap !== undefined) set('show_on_map', b.showOnMap);
+    if (b.mapPlace !== undefined) {
+      // Só se guarda o centro da quadrícula (a mesma regra da malta à tua volta); o ponto exato não sai daqui.
+      const p = b.mapPlace ? roundPlace(b.mapPlace.lat, b.mapPlace.lng) : null;
+      set('map_lat', p?.lat ?? null);
+      set('map_lng', p?.lng ?? null);
+      set('map_label', (b.mapPlace && b.mapPlace.label?.trim()) || null);
+    }
     if (!sets.length) return;
     vals.push(groupId);
-    const g = (await this.pool.query(`UPDATE social.groups SET ${sets.join(', ')} WHERE id = $${vals.length} RETURNING name, visibility, show_on_map`, vals)).rows[0];
+    const g = await this.locked(groupId, async (c) => {
+      await this.assertMapPlace(c, groupId, b);
+      return (await c.query(`UPDATE social.groups SET ${sets.join(', ')} WHERE id = $${vals.length} RETURNING name, visibility, show_on_map`, vals)).rows[0];
+    });
     // Privado oculto (privado e fora do mapa): já ninguém de fora o vê, por isso os pedidos à espera (e os avisos aos admins) vão-se.
     if (g && g.visibility === 'private' && !g.show_on_map) await this.dropJoinRequests(groupId);
     await this.notifyMembers(groupId, me);
     await this.access.changed(groupId, 'info');
+  }
+
+  /**
+   * Um grupo que passa a ser visto de fora (público, ou privado no mapa) precisa de sítio no mapa: o local do plano aprovado e
+   * com posição, ou o ponto (deste pedido ou já guardado). Tirar o ponto a um grupo visível que fica sem sítio também não dá.
+   * Corre com o grupo bloqueado, antes do UPDATE.
+   */
+  private async assertMapPlace(c: PoolClient, groupId: string, b: GroupInfo) {
+    if (b.visibility === undefined && b.showOnMap === undefined && b.mapPlace === undefined) return;
+    const g = (await c.query(
+      `SELECT g.visibility, g.show_on_map, g.map_lat IS NOT NULL AS has_point,
+              EXISTS (SELECT 1 FROM content.venues v WHERE v.id = g.plan_venue_id AND ${venueOnMap('v')}) AS venue_ok
+         FROM social.groups g WHERE g.id = $1`,
+      [groupId],
+    )).rows[0] as { visibility: 'private' | 'public'; show_on_map: boolean; has_point: boolean; venue_ok: boolean };
+    const visibleBefore = g.visibility === 'public' || g.show_on_map;
+    const visibleAfter = (b.visibility ?? g.visibility) === 'public' || (b.showOnMap ?? g.show_on_map);
+    const pointAfter = b.mapPlace === undefined ? g.has_point : b.mapPlace !== null;
+    const turningVisible = (b.visibility === 'public' && g.visibility !== 'public') || (b.showOnMap === true && !visibleBefore);
+    const droppingPoint = b.mapPlace === null && g.has_point;
+    if (visibleAfter && !g.venue_ok && !pointAfter && (turningVisible || droppingPoint)) throw new BadRequestException(NO_MAP_PLACE);
   }
 
   async rename(me: string, groupId: string, name: string) {

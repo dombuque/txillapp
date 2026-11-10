@@ -4,7 +4,7 @@ import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { MediaService } from '../media/media.service';
 import { TextFilter } from '../safety/text-filter.service';
-import { GroupAccess, pendingVisible } from './group-access';
+import { GroupAccess, pendingVisible, venueOnMap } from './group-access';
 import { PotService } from './pot.service';
 import { mzn, settle, splitCents, toCents } from './settle';
 
@@ -97,7 +97,9 @@ export class PlanService {
               (SELECT count(*) FROM social.group_rsvps r JOIN social.group_members m ON m.group_id = r.group_id AND m.user_id = r.user_id WHERE r.group_id = g.id AND r.status = 'not_going')::int AS not_going,
               (SELECT r.status FROM social.group_rsvps r WHERE r.group_id = g.id AND r.user_id = $1) AS my_rsvp,
               (SELECT a.balance FROM ledger.accounts a WHERE a.group_id = g.id) AS pot_balance,
-              pv.slug AS pv_slug, pv.name AS pv_name, pv.avatar_media_id AS pv_avatar, pv.accepts_txills AS pv_accepts
+              pv.slug AS pv_slug, pv.name AS pv_name, pv.avatar_media_id AS pv_avatar, pv.accepts_txills AS pv_accepts,
+              g.map_lat, g.map_lng, g.map_label,
+              EXISTS (SELECT 1 FROM content.venues mv WHERE mv.id = g.plan_venue_id AND ${venueOnMap('mv')}) AS venue_on_map
          FROM social.groups g
          LEFT JOIN identity.users cu ON cu.id = g.created_by
          LEFT JOIN content.venues pv ON pv.id = g.pot_venue_id
@@ -120,6 +122,9 @@ export class PlanService {
       // Pedidos para entrar à espera (só para os admins; 0 para os outros).
       pendingRequests: Number(r.pending_requests ?? 0),
       createdBy: (r.created_by as string | null) ?? null,
+      // O ponto escolhido no mapa (já guardado arredondado) e se o grupo tem sítio para "À tua volta" (local aprovado ou ponto).
+      mapPlace: r.map_lat == null ? null : { lat: Number(r.map_lat), lng: Number(r.map_lng), label: (r.map_label as string | null) ?? null },
+      mapReady: !!r.venue_on_map || r.map_lat != null,
       plan: {
         destination: (r.destination as string | null) ?? null,
         startsOn: (r.starts_on as string | null) ?? null,
