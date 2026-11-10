@@ -89,6 +89,7 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'group_join_request': return { text: <>pediu para entrar em <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
     case 'group_join_accepted': return { text: <>aceitou-te em <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
     case 'group_member_joined': return { text: <>{many ? 'entraram' : 'entrou'} em <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
+    case 'group_admin_granted': return { text: <>fez-te administrador de <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
     default: return { text: 'tem novidades para ti' };
   }
@@ -116,7 +117,8 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'missed_call': return '/calls';
     case 'group_join_request':
     case 'group_join_accepted':
-    case 'group_member_joined': return notifGroupTarget(n.kind, notifGroup(n).id);
+    case 'group_member_joined':
+    case 'group_admin_granted': return notifGroupTarget(n.kind, notifGroup(n).id);
     default: return null;
   }
 }

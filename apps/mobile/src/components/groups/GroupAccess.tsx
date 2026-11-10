@@ -5,26 +5,34 @@ import { Avatar } from '@/components/Avatar';
 import { Icon, type IconName } from '@/components/Icon';
 import { ApiError } from '@/lib/api';
 import { groupKeys, groupsApi, type JoinRequest, type TxillGroupInfo } from '@/lib/api.groups';
-import { ACCESS_OPTIONS, accessBody, accessLabel, accessOf, mapWarning, showRequests, type GroupAccess } from '@/lib/groupAccess';
+import { ACCESS_OPTIONS, accessBody, accessChange, accessLabel, accessOf, mapWarning, showRequests, type GroupAccess } from '@/lib/groupAccess';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
-import { ErrText } from './GroupParts';
+import { ConfirmSheet, ErrText, Pill } from './GroupParts';
 
 const ICON: Record<GroupAccess, IconName> = { private: 'lock', map: 'map-pin', public: 'globe' };
 
 /**
  * Quem vê e quem entra (nos detalhes do grupo). Administradores escolhem entre Privado, Privado visível no mapa e Público,
- * e respondem aos pedidos para entrar; os outros membros só veem o estado.
+ * e respondem aos pedidos para entrar; os outros membros só veem o estado. Tocar numa opção só a marca: grava-se em "Guardar",
+ * depois de uma confirmação com o que muda.
  */
 export function GroupAccessSection({ group, onChanged }: { group: TxillGroupInfo; onChanged: () => void }) {
+  const qc = useQueryClient();
   const admin = group.myRole === 'admin';
   const server = accessOf(group);
+  // `saved` = o que está gravado (o servidor, ou o que acabámos de gravar enquanto o grupo não se atualiza); `access` = o que está marcado.
+  const [saved, setSaved] = useState<GroupAccess>(server);
   const [access, setAccess] = useState<GroupAccess>(server);
+  const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  useEffect(() => setAccess(server), [server]);
+  useEffect(() => { setSaved(server); setAccess(server); }, [server]);
   // O mapa precisa de um local no Plano (o PlanPanel usa a mesma query, por isso costuma já estar em cache).
   const plan = useQuery({ queryKey: groupKeys.plan(group.id), queryFn: () => groupsApi.plan(group.id), enabled: admin, staleTime: 30_000 });
+  // Os pedidos à espera: a lista (só se já estiver em cache; quem a carrega é a secção dos pedidos) é mais certa do que o número do grupo.
+  const requests = useQuery({ queryKey: groupKeys.joinRequests(group.id), queryFn: () => groupsApi.joinRequests(group.id), enabled: false });
+  const pending = requests.data?.length ?? group.pendingRequests;
 
   if (!admin) {
     return (
@@ -35,23 +43,37 @@ export function GroupAccessSection({ group, onChanged }: { group: TxillGroupInfo
     );
   }
 
-  async function pick(a: GroupAccess) {
-    if (a === access || busy) return;
-    const before = access;
-    setAccess(a);
-    setBusy(true);
+  // Tocar numa opção só a marca; grava-se em "Guardar" → confirmação → "Confirmar".
+  function pick(a: GroupAccess) {
+    if (busy) return;
     setErr('');
+    setAccess(a);
+  }
+  function cancel() {
+    setErr('');
+    setAccess(saved);
+  }
+  async function save() {
+    const a = access;
+    setBusy(true);
     try {
       await groupsApi.setAccess(group.id, accessBody(a));
+      setSaved(a);
+      setErr('');
+      void qc.invalidateQueries({ queryKey: groupKeys.joinRequests(group.id) });
+      void qc.invalidateQueries({ queryKey: ['nearby'] });
       onChanged();
     } catch (e) {
-      setAccess(before);
+      // A escolha volta ao que está gravado (a confirmação fecha-se) e a mensagem do servidor fica por baixo das opções.
+      setAccess(saved);
       setErr((e as Error).message || 'Não consegui mudar. Tenta outra vez.');
+      throw e;
     } finally {
       setBusy(false);
     }
   }
 
+  const change = accessChange(saved, access, pending);
   const warn = mapWarning(access, plan.data ? !!plan.data.venue : null);
   return (
     <View style={{ gap: 8, marginBottom: 8 }}>
@@ -62,16 +84,16 @@ export function GroupAccessSection({ group, onChanged }: { group: TxillGroupInfo
           return (
             <Pressable
               key={o.id}
-              onPress={() => void pick(o.id)}
+              onPress={() => pick(o.id)}
               disabled={busy}
-              style={({ pressed }) => [s.opt, on && s.optOn, pressed && !on && { backgroundColor: colors.zinc100 }]}
+              style={({ pressed }) => [s.opt, on && s.optOn, busy && { opacity: 0.6 }, pressed && !on && { backgroundColor: colors.zinc100 }]}
               accessibilityRole="radio"
               accessibilityState={{ selected: on, disabled: busy }}
-              accessibilityLabel={`${o.title}. ${o.text}`}
+              accessibilityLabel={`${o.title}${o.id === saved ? ' (atual)' : ''}. ${o.text}`}
             >
               <Icon name={ICON[o.id]} size={20} color={on ? colors.brand : colors.zinc600} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={s.optTitle}>{o.title}</Text>
+                <Text style={s.optTitle}>{o.title}{o.id === saved && access !== saved ? <Text style={s.optNow}>  · atual</Text> : null}</Text>
                 <Text style={s.optText}>{o.text}</Text>
               </View>
               <View style={[s.radio, on && { borderColor: colors.brand }]}>{on && <View style={s.radioDot} />}</View>
@@ -85,8 +107,20 @@ export function GroupAccessSection({ group, onChanged }: { group: TxillGroupInfo
           <Text style={s.warnText}>{warn}</Text>
         </View>
       ) : null}
+      {change ? (
+        <View style={s.change} accessibilityLiveRegion="polite">
+          <Text style={s.changeText}>{change.summary}</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pill label="Cancelar" kind="soft" onPress={cancel} disabled={busy} style={{ flex: 1 }} />
+            <Pill label="Guardar" busy={busy} onPress={() => { setErr(''); setAsking(true); }} style={{ flex: 1 }} />
+          </View>
+        </View>
+      ) : null}
       <ErrText text={err} />
-      {showRequests(access, group.pendingRequests) ? <JoinRequests groupId={group.id} hint={group.pendingRequests} onChanged={onChanged} /> : null}
+      {showRequests(saved, group.pendingRequests) ? <JoinRequests groupId={group.id} hint={group.pendingRequests} onChanged={onChanged} /> : null}
+      {asking && change ? (
+        <ConfirmSheet title={change.title} lines={change.lines} hint={change.hint} onConfirm={save} onClose={() => setAsking(false)} />
+      ) : null}
     </View>
   );
 }
@@ -159,6 +193,9 @@ const s = StyleSheet.create({
   opt: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: colors.zinc200 },
   optOn: { borderColor: colors.brand, backgroundColor: colors.rose50 },
   optTitle: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
+  optNow: { fontSize: 13, fontWeight: '600', color: colors.zinc500 },
+  change: { gap: 10, padding: 12, borderRadius: 16, backgroundColor: colors.zinc100 },
+  changeText: { fontSize: 14, lineHeight: 20, color: colors.zinc800 },
   optText: { marginTop: 2, fontSize: 13, lineHeight: 18, color: colors.zinc600 },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.brand },

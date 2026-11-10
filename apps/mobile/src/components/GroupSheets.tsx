@@ -1,13 +1,15 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { api } from '@/lib/api';
-import { gruposApi } from '@/lib/api.grupos';
+import { AccessibilityInfo, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { api, ApiError } from '@/lib/api';
+import { gruposApi, type GroupMember, type GroupThread } from '@/lib/api.grupos';
 import { groupKindOf, groupsApi, kindInfo, type TxillGroupInfo } from '@/lib/api.groups';
 import { GroupDetailsForm, GroupEditSheet, draftError, emptyDraft, type GroupDraft } from './groups/GroupDetails';
 import { GroupAccessSection } from './groups/GroupAccess';
-import { GroupCover } from './groups/GroupParts';
+import { ConfirmSheet, GroupCover } from './groups/GroupParts';
+import { accessOf } from '@/lib/groupAccess';
+import { LAST_ADMIN_MESSAGE, adminCount, memberActions, roleBadge, roleDoneText, stepDownNote, withRole, type MemberAction } from '@/lib/groupRoles';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
@@ -196,16 +198,27 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
   );
 }
 
-/** Membros do TxillGroup: quem administra edita o nome, o tipo e a capa, adiciona e tira pessoas; qualquer pessoa pode sair. */
+/**
+ * Membros do TxillGroup: quem administra edita o nome, o tipo e a capa, adiciona e tira pessoas e escolhe quem mais administra
+ * (no menu "⋯" de cada pessoa); qualquer pessoa pode sair.
+ */
 export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: TxillGroupInfo; onClose: () => void; onChanged: () => void; onLeft: () => void }) {
   const { user } = useAuth();
   const router = useRouter();
+  const qc = useQueryClient();
   const admin = group.myRole === 'admin';
+  const me = user?.username ?? '';
+  const admins = adminCount(group.members);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [kick, setKick] = useState<GroupMember | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [notice, setNotice] = useState('');
+  // A pessoa do menu sempre com os dados mais recentes (o papel muda enquanto o menu está aberto).
+  const menuMember = menuFor ? group.members.find((x) => x.username === menuFor) ?? null : null;
 
   async function run(job: () => Promise<unknown>, after?: () => void) {
     setBusy(true);
@@ -218,6 +231,38 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
       setErr((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  function done(text: string) {
+    setNotice(text);
+    AccessibilityInfo.announceForAccessibility?.(text);
+  }
+
+  /** Muda o papel na conversa em cache (otimista); o refetch do `onChanged` confirma ou desfaz. */
+  function patchRole(username: string, role: GroupMember['role']) {
+    qc.setQueryData<InfiniteData<GroupThread>>(['chat-group', group.id], (d) => d && {
+      ...d,
+      pages: d.pages.map((p, i) => (i ? p : { ...p, group: { ...p.group, members: withRole(p.group.members, username, role), myRole: username.toLowerCase() === me.toLowerCase() ? role : p.group.myRole } })),
+    });
+  }
+
+  async function setRole(m: GroupMember, a: MemberAction) {
+    const role = a.role!;
+    const before = m.role;
+    // Deixar eu de ser administrador não é otimista: se for o último, o servidor recusa e o menu não pisca.
+    const optimistic = a.id !== 'step_down';
+    if (optimistic) patchRole(m.username, role);
+    try {
+      await groupsApi.setMemberRole(group.id, m.username, role);
+      done(roleDoneText(a.id, m.displayName));
+      setMenuFor(null);
+    } catch (e) {
+      if (optimistic) patchRole(m.username, before);
+      // 409: era o último administrador. O servidor diz porquê; sem mensagem, diz-se o mesmo.
+      throw new Error((e as Error).message || (e instanceof ApiError && e.status === 409 ? LAST_ADMIN_MESSAGE : 'Não consegui mudar. Tenta outra vez.'));
+    } finally {
+      onChanged();
     }
   }
 
@@ -250,6 +295,7 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
           {admin && <Pressable onPress={() => setEditing(true)} style={styles.save} accessibilityRole="button" accessibilityLabel="Editar o TxillGroup"><Text style={styles.goText}>Editar</Text></Pressable>}
         </View>
         {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
+        {notice ? <Text style={styles.notice} accessibilityLiveRegion="polite">{notice}</Text> : null}
         <FlatList
           data={group.members}
           keyExtractor={(m) => m.username}
@@ -257,7 +303,7 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
             <View>
               <GroupAccessSection group={group} onChanged={onChanged} />
               {admin && (
-                <Pressable onPress={() => setAdding(true)} style={({ pressed }) => [styles.add, pressed && { backgroundColor: colors.zinc100 }]}>
+                <Pressable onPress={() => setAdding(true)} style={({ pressed }) => [styles.add, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
                   <View style={styles.addIcon}><Icon name="user-plus" size={22} color={colors.brand} /></View>
                   <Text style={styles.rowName}>Adicionar pessoas</Text>
                 </Pressable>
@@ -265,28 +311,100 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
               <Text style={styles.members}>{group.members.length} PESSOAS</Text>
             </View>
           }
-          renderItem={({ item: m }) => (
-            <View style={styles.member}>
-              <Pressable onPress={() => { onClose(); router.push(`/u/${m.username}` as never); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-                <Avatar name={m.displayName} username={m.hasAvatar ? m.username : undefined} size={44} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.rowName} numberOfLines={1}>{m.displayName}{m.username === user?.username ? ' (tu)' : ''}</Text>
-                  <Text style={styles.rowSub} numberOfLines={1}>@{m.username}</Text>
-                </View>
-              </Pressable>
-              {m.role === 'admin' && <View style={styles.adminTag}><Text style={styles.adminText}>Admin</Text></View>}
-              {admin && m.username !== user?.username && (
-                <Pressable disabled={busy} onPress={() => void run(() => gruposApi.remove(group.id, m.username))} accessibilityLabel={`Tirar ${m.displayName} do TxillGroup`} style={styles.kick}><Icon name="x" size={18} color={colors.red600} /></Pressable>
-              )}
-            </View>
-          )}
+          renderItem={({ item: m }) => {
+            const badge = roleBadge(m.role);
+            const mine = m.username === me;
+            const actions = memberActions({ myRole: group.myRole, me, member: m });
+            return (
+              <View style={styles.member}>
+                <Pressable onPress={() => { onClose(); router.push(`/u/${m.username}` as never); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }} accessibilityRole="link" accessibilityLabel={`${m.displayName}${mine ? ' (tu)' : ''}, @${m.username}${badge ? `, ${badge}` : ''}`}>
+                  <Avatar name={m.displayName} username={m.hasAvatar ? m.username : undefined} size={44} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.rowName} numberOfLines={1}>{m.displayName}{mine ? ' (tu)' : ''}</Text>
+                    <Text style={styles.rowSub} numberOfLines={1}>@{m.username}</Text>
+                  </View>
+                </Pressable>
+                {badge && <View style={styles.adminTag} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden><Text style={styles.adminText}>{badge}</Text></View>}
+                {actions.length > 0 && (
+                  <Pressable disabled={busy} onPress={() => { setErr(''); setNotice(''); setMenuFor(m.username); }} hitSlop={4} accessibilityRole="button" accessibilityLabel={`Opções para ${m.displayName}`} style={({ pressed }) => [styles.kick, pressed && { backgroundColor: colors.zinc100 }]}>
+                    <Icon name="more" size={20} color={colors.zinc600} />
+                  </Pressable>
+                )}
+              </View>
+            );
+          }}
           ListFooterComponent={
-            <Pressable onPress={() => setConfirm(true)} style={({ pressed }) => [styles.exit, pressed && { backgroundColor: '#fef2f2' }]}>
+            <Pressable onPress={() => setConfirm(true)} style={({ pressed }) => [styles.exit, pressed && { backgroundColor: '#fef2f2' }]} accessibilityRole="button">
               <Icon name="logout" size={18} color="#b91c1c" />
               <Text style={styles.exitText}>Sair do TxillGroup</Text>
             </Pressable>
           }
         />
+      </View>
+      {menuMember && (
+        <MemberMenuSheet
+          member={menuMember}
+          actions={memberActions({ myRole: group.myRole, me, member: menuMember })}
+          note={menuMember.username === me ? stepDownNote(admins) : null}
+          onRole={(a) => setRole(menuMember, a)}
+          onRemove={() => { setKick(menuMember); setMenuFor(null); }}
+          onClose={() => setMenuFor(null)}
+        />
+      )}
+      {kick && (
+        <ConfirmSheet
+          title={`Tirar ${kick.displayName} do TxillGroup?`}
+          lines={[`${kick.displayName} deixa de receber as mensagens de “${group.name}”. ${accessOf(group) === 'public' ? 'Como o grupo é público, pode voltar a entrar.' : 'Só volta se alguém o adicionar.'}`]}
+          confirmLabel="Tirar do TxillGroup"
+          danger
+          onConfirm={async () => {
+            await gruposApi.remove(group.id, kick.username);
+            done(roleDoneText('remove', kick.displayName));
+            onChanged();
+          }}
+          onClose={() => setKick(null)}
+        />
+      )}
+    </Sheet>
+  );
+}
+
+/** O menu de uma pessoa (só para administradores): mudar o papel e tirar do grupo. Erros (ex.: o último administrador) ficam à vista. */
+function MemberMenuSheet({ member, actions, note, onRole, onRemove, onClose }: { member: GroupMember; actions: MemberAction[]; note: string | null; onRole: (a: MemberAction) => Promise<void>; onRemove: () => void; onClose: () => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState('');
+  async function press(a: MemberAction) {
+    if (a.id === 'remove') return onRemove();
+    setBusy(a.id);
+    setErr('');
+    try {
+      await onRole(a);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+  return (
+    <Sheet title={member.displayName} onClose={() => { if (!busy) onClose(); }}>
+      <View style={{ paddingHorizontal: 20, gap: 6 }}>
+        <Text style={styles.menuSub}>@{member.username}{member.role === 'admin' ? ' · Administrador' : ''}</Text>
+        {actions.map((a) => (
+          <Pressable
+            key={a.id}
+            disabled={!!busy}
+            onPress={() => void press(a)}
+            style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: a.destructive ? '#fef2f2' : colors.zinc100 }, !!busy && busy !== a.id && { opacity: 0.5 }]}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !!busy, busy: busy === a.id }}
+          >
+            <Icon name={a.id === 'remove' ? 'x' : a.id === 'promote' ? 'shield' : 'user'} size={20} color={a.destructive ? '#b91c1c' : colors.zinc700} />
+            <Text style={[styles.menuText, a.destructive && { color: '#b91c1c' }]}>{busy === a.id ? 'Um momento…' : a.label}</Text>
+          </Pressable>
+        ))}
+        {note ? <Text style={styles.menuNote}>{note}</Text> : null}
+        {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
+        <Pressable onPress={onClose} disabled={!!busy} style={styles.stay} accessibilityRole="button"><Text style={styles.backText}>Fechar</Text></Pressable>
       </View>
     </Sheet>
   );
@@ -323,6 +441,11 @@ const styles = StyleSheet.create({
   member: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
   adminTag: { borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 10, paddingVertical: 4 },
   adminText: { fontSize: 12, fontWeight: '700', color: colors.zinc700 },
+  notice: { marginBottom: 8, textAlign: 'center', fontSize: 14, color: colors.zinc700 },
+  menuSub: { marginBottom: 4, fontSize: 14, color: colors.zinc500 },
+  menuRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingHorizontal: 12 },
+  menuText: { flex: 1, fontSize: 16, fontWeight: '600', color: colors.zinc900 },
+  menuNote: { paddingHorizontal: 4, fontSize: 13, lineHeight: 18, color: colors.zinc500 },
   kick: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   exit: { marginTop: 12, height: 48, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   exitText: { fontSize: 16, fontWeight: '600', color: '#b91c1c' },

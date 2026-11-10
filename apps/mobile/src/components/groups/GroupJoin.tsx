@@ -59,8 +59,11 @@ export function JoinButton({ groupId, mode, me, onOpen }: { groupId: string; mod
     },
     onError: (e) => {
       // 409: já és membro ou o grupo está cheio. O servidor diz qual; a página volta a perguntar o estado.
-      setErr(e instanceof ApiError && e.message ? e.message : 'Não deu. Verifica a internet e tenta outra vez.');
-      if (e instanceof ApiError && (e.status === 409 || e.status === 404)) void qc.invalidateQueries({ queryKey: groupKeys.publicView(groupId) });
+      // 404/403 a meio (bloqueio, ou deixou de estar à vista): a mesma frase da página; o refetch dá 404 e a página passa ao estado "privado ou já não existe".
+      const gone = e instanceof ApiError && (e.status === 404 || e.status === 403);
+      setErr(gone ? 'Este grupo é privado ou já não existe.' : e instanceof ApiError && e.message ? e.message : 'Não deu. Verifica a internet e tenta outra vez.');
+      if (gone) void qc.invalidateQueries({ queryKey: ['nearby'] });
+      if (e instanceof ApiError && (e.status === 409 || e.status === 404 || e.status === 403)) void qc.invalidateQueries({ queryKey: groupKeys.publicView(groupId) });
     },
   });
 
