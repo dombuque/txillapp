@@ -1,14 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, AppState, FlatList, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
+import { BackButton } from '@/components/BackButton';
+import { FillView } from '@/components/FillView';
 import { Icon, type IconName } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Sheet } from '@/components/Sheet';
-import { StackPage } from '@/components/StackPage';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { NearbyMap } from '@/components/nearby/NearbyMap';
 import type { MapMarker, MapMarkerKind } from '@/components/nearby/types';
@@ -42,7 +45,8 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: 'venues', label: 'Locais' },
   { key: 'events', label: 'Eventos' },
   { key: 'people', label: 'A malta' },
-  { key: 'posts', label: 'Agora' },
+  // Publicações (fotos e vídeos) das últimas 48 h perto daqui. Chamava-se "Agora" e confundia-se com o "Agora" dos eventos.
+  { key: 'posts', label: 'Publicações' },
   { key: 'groups', label: 'TxillGroups' },
 ];
 const KINDS: Record<Filter, NearbyKind[]> = {
@@ -54,7 +58,7 @@ const KINDS: Record<Filter, NearbyKind[]> = {
   groups: ['groups'],
 };
 const WHENS: { key: NearbyWhen; label: string }[] = [
-  { key: 'now', label: 'Agora' },
+  { key: 'now', label: 'A decorrer' },
   { key: 'today', label: 'Hoje' },
   { key: 'week', label: 'Esta semana' },
 ];
@@ -269,37 +273,50 @@ export default function Perto() {
         accessibilityLabel={visible ? 'Estás visível. Tocar para ficar invisível' : 'Estás invisível. Escolher quem te vê'}
         hitSlop={6}
       >
-        <Icon name={visible ? 'eye' : 'eye-off'} size={20} color={visible ? colors.brand : colors.zinc700} />
-        <Text style={[st.eyeText, visible && { color: colors.brand }]}>{visible ? 'Ficar invisível' : 'Invisível'}</Text>
+        <Icon name={visible ? 'eye' : 'eye-off'} size={18} color={visible ? colors.brand : colors.zinc700} />
+        <Text style={[st.eyeText, visible && { color: colors.brand }]}>{visible ? 'Visível' : 'Invisível'}</Text>
       </Pressable>
     );
 
-  const placePill = place ? (
-    <Pressable onPress={() => setPlaceSheet(true)} style={st.placePill} accessibilityRole="button" accessibilityLabel={`Sítio: ${place.label}. Mudar`}>
-      <Icon name={place.gps ? 'locate' : 'map-pin'} size={16} color={colors.zinc800} />
-      <Text style={st.placeText} numberOfLines={1}>{place.label}</Text>
+  // ----- Filtros: uma só fila (zona e distância num chip que abre a folha "Onde procurar", depois o que mostrar) -----
+  const zoneLabel = place ? `${place.label} · ${radius} km` : '';
+  const zonePill = place ? (
+    <Pressable
+      onPress={() => setPlaceSheet(true)}
+      style={({ pressed }) => [st.zone, pressed && { backgroundColor: colors.zinc100 }]}
+      accessibilityRole="button"
+      accessibilityLabel={`Zona: ${place.label}, até ${radius} km. Mudar o sítio ou a distância`}
+    >
+      <Icon name={place.gps ? 'locate' : 'map-pin'} size={16} color={colors.brand} />
+      <Text style={st.zoneText} numberOfLines={1}>{zoneLabel}</Text>
+      <View style={st.zoneCaret}><Icon name="chevron-right" size={14} strokeWidth={2.4} color={colors.zinc500} /></View>
     </Pressable>
   ) : null;
 
   const chips = (
-    <View style={{ gap: 8, paddingTop: 10, paddingBottom: 10 }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.chipRow}>
-        {placePill}
-        {RADII.map((r) => (
-          <Chip key={r} label={`${r} km`} on={radius === r} onPress={() => setRadius(r)} />
-        ))}
-      </ScrollView>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.chipRow}>
-        {FILTERS.map((f) => (
-          <Chip key={f.key} label={f.label} on={filter === f.key} onPress={() => { setFilter(f.key); setSelected(null); }} dark />
-        ))}
-      </ScrollView>
-      {filter === 'all' || filter === 'events' ? (
+    <View style={st.filters}>
+      <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.chipRow}>
-          <View style={st.whenLabel}><Icon name="calendar" size={15} color={colors.zinc500} /><Text style={st.whenText}>Eventos</Text></View>
-          {WHENS.map((w) => (
-            <Chip key={w.key} label={w.label} on={when === w.key} onPress={() => setWhen(w.key)} small />
-          ))}
+          {zonePill}
+          <View style={st.chipSep} />
+          <View style={st.chipGroup} accessibilityRole="radiogroup" accessibilityLabel="Mostrar">
+            {FILTERS.map((f) => (
+              <Chip key={f.key} label={f.label} on={filter === f.key} onPress={() => { setFilter(f.key); setSelected(null); }} dark />
+            ))}
+          </View>
+        </ScrollView>
+        {/* Esbatido à direita: a fila continua para o lado sem um chip cortado a seco. */}
+        <LinearGradient pointerEvents="none" colors={['rgba(255,255,255,0)', colors.white]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={st.chipFade} />
+      </View>
+      {/* Quando (só dos eventos): só aparece com "Eventos" escolhido. Com "Tudo" vale o que estiver escolhido (de início, Hoje). */}
+      {filter === 'events' ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.chipRow}>
+          <Icon name="calendar" size={15} color={colors.zinc500} />
+          <View style={st.chipGroup} accessibilityRole="radiogroup" accessibilityLabel="Quando">
+            {WHENS.map((w) => (
+              <Chip key={w.key} label={w.label} on={when === w.key} onPress={() => setWhen(w.key)} small soft />
+            ))}
+          </View>
         </ScrollView>
       ) : null}
     </View>
@@ -328,7 +345,7 @@ export default function Perto() {
   // ----- Antes de haver sítio -----
   if (!place) {
     return (
-      <StackPage title="À tua volta">
+      <PertoPage line>
         {ask === 'checking' || ask === 'locating' ? (
           <View style={st.center}><ActivityIndicator /><Text style={st.emptySub}>{ask === 'locating' ? 'A ver onde estás…' : ''}</Text></View>
         ) : (
@@ -353,7 +370,7 @@ export default function Perto() {
             )}
           </ScrollView>
         )}
-      </StackPage>
+      </PertoPage>
     );
   }
 
@@ -372,10 +389,20 @@ export default function Perto() {
     <>
       {placeSheet ? (
         <Sheet title="Onde procurar" onClose={() => setPlaceSheet(false)}>
-          <View style={{ paddingHorizontal: 16, paddingBottom: 20, gap: 14 }}>
-            <Pressable onPress={() => void goMine()} style={st.mineRow} accessibilityRole="button">
+          <View style={{ paddingHorizontal: 16, paddingBottom: 20, gap: 12 }}>
+            <Text style={st.sheetLabel}>Distância</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel="Distância">
+              {RADII.map((r) => (
+                <View key={r} style={{ flex: 1 }}>
+                  <Chip label={`${r} km`} on={radius === r} onPress={() => setRadius(r)} dark />
+                </View>
+              ))}
+            </View>
+            <Text style={[st.sheetLabel, { marginTop: 6 }]}>Sítio</Text>
+            <Pressable onPress={() => void goMine()} style={st.mineRow} accessibilityRole="button" accessibilityState={{ selected: place.gps }}>
               <Icon name="locate" size={20} color={colors.brand} />
-              <Text style={st.mineText}>Usar a minha localização</Text>
+              <Text style={[st.mineText, { flex: 1 }]}>{place.gps ? 'Perto de mim (a tua localização)' : 'Usar a minha localização'}</Text>
+              {place.gps ? <Icon name="check" size={18} strokeWidth={2.4} color={colors.brand} /> : null}
             </Pressable>
             <CityGrid onPick={pickCity} current={place.gps ? undefined : place.label} />
           </View>
@@ -402,7 +429,7 @@ export default function Perto() {
           <View style={{ flex: 1 }} />
           {eyeButton}
         </View>
-        <View style={{ paddingHorizontal: 12 }}>{chips}</View>
+        <View style={{ paddingHorizontal: 12, paddingTop: 12 }}>{chips}</View>
         <View style={{ flex: 1, flexDirection: 'row', gap: 16, paddingHorizontal: 24, paddingBottom: 24 }}>
           <View style={{ flex: 1, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: colors.zinc200 }}>
             <NearbyMap center={center} radiusKm={radius} markers={markers} selectedId={selected} onMarkerPress={setSelected} zoomControl />
@@ -419,25 +446,49 @@ export default function Perto() {
 
   // ----- Telemóvel: mapa por trás e a lista numa folha que se puxa para cima -----
   return (
-    <StackPage title="À tua volta" right={eyeButton}>
-      {chips}
+    <PertoPage right={eyeButton}>
+      <View style={st.phoneTop}>{chips}</View>
       <PhoneBody items={items} selected={selected} header={card} empty={listEmpty} render={row} onMarker={setSelected}>
         <NearbyMap center={center} radiusKm={radius} markers={markers} selectedId={selected} onMarkerPress={setSelected} />
       </PhoneBody>
       {sheets}
-    </StackPage>
+    </PertoPage>
   );
 }
 
-function Chip({ label, on, onPress, dark = false, small = false }: { label: string; on: boolean; onPress: () => void; dark?: boolean; small?: boolean }) {
+/**
+ * Página do À tua volta no telemóvel: a mesma seta e o mesmo título da StackPage, mas com o cabeçalho mais baixo
+ * (sem os 8 pt de cima e de baixo) e sem traço por baixo quando os filtros vêm logo a seguir: o mapa começa mais acima.
+ */
+function PertoPage({ right, line = false, children }: { right?: React.ReactNode; line?: boolean; children: React.ReactNode }) {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
+      <View style={[st.head, line && st.headLine]}>
+        <BackButton onPress={back} />
+        <Text style={st.headTitle} numberOfLines={1} accessibilityRole="header">À tua volta</Text>
+        {right}
+      </View>
+      <FillView>{children}</FillView>
+    </View>
+  );
+}
+
+function Chip({ label, on, onPress, dark = false, small = false, soft = false }: { label: string; on: boolean; onPress: () => void; dark?: boolean; small?: boolean; soft?: boolean }) {
   return (
     <Pressable
       onPress={onPress}
-      style={[st.chip, small && { height: 32, paddingHorizontal: 12 }, on && { backgroundColor: dark ? colors.zinc900 : colors.brand }]}
+      style={[
+        st.chip,
+        small && { height: 32, paddingHorizontal: 13 },
+        on && (soft ? { backgroundColor: colors.rose50, borderColor: colors.brand } : { backgroundColor: dark ? colors.zinc900 : colors.brand, borderColor: dark ? colors.zinc900 : colors.brand }),
+      ]}
       accessibilityRole="radio"
       accessibilityState={{ selected: on }}
     >
-      <Text style={[st.chipText, small && { fontSize: 13 }, on && { color: colors.white }]}>{label}</Text>
+      <Text style={[st.chipText, small && { fontSize: 13 }, on && { color: soft ? colors.brand : colors.white }]} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }
@@ -678,13 +729,21 @@ const st = StyleSheet.create({
   primaryText: { color: colors.white, fontSize: 16, fontWeight: '700' },
   secondary: { alignSelf: 'stretch', height: 48, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { color: colors.zinc900, fontSize: 15, fontWeight: '700' },
-  chipRow: { paddingHorizontal: 12, gap: 8, alignItems: 'center' },
-  chip: { height: 36, borderRadius: 999, paddingHorizontal: 15, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 8, paddingRight: 12, paddingVertical: 2, backgroundColor: colors.white },
+  headLine: { borderBottomWidth: 1, borderBottomColor: colors.zinc100, paddingBottom: 6 },
+  headTitle: { flex: 1, fontSize: 20, fontWeight: '800', color: colors.zinc900 },
+  phoneTop: { borderBottomWidth: 1, borderBottomColor: colors.zinc100, backgroundColor: colors.white },
+  filters: { gap: 8, paddingTop: 2, paddingBottom: 10 },
+  chipRow: { paddingLeft: 12, paddingRight: 28, gap: 8, alignItems: 'center' },
+  chipGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  chipSep: { width: 1, height: 20, backgroundColor: colors.zinc200 },
+  chipFade: { position: 'absolute', top: 0, bottom: 0, right: 0, width: 28 },
+  chip: { height: 36, borderRadius: 999, paddingHorizontal: 15, borderWidth: 1, borderColor: colors.zinc100, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontSize: 14, fontWeight: '700', color: colors.zinc800 },
-  placePill: { height: 36, borderRadius: 999, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.zinc200, flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 160 },
-  placeText: { fontSize: 14, fontWeight: '700', color: colors.zinc900 },
-  whenLabel: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 2 },
-  whenText: { fontSize: 13, fontWeight: '600', color: colors.zinc500 },
+  zone: { height: 36, borderRadius: 999, paddingLeft: 11, paddingRight: 10, borderWidth: 1, borderColor: colors.zinc200, backgroundColor: colors.white, flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 230 },
+  zoneText: { fontSize: 14, fontWeight: '700', color: colors.zinc900, flexShrink: 1 },
+  zoneCaret: { transform: [{ rotate: '90deg' }], marginLeft: -1 },
+  sheetLabel: { fontSize: 13, fontWeight: '700', color: colors.zinc500 },
   eye: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.zinc100 },
   eyeText: { fontSize: 13, fontWeight: '700', color: colors.zinc700 },
   mineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.rose50 },
