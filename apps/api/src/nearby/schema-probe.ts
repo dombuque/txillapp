@@ -3,13 +3,13 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
 
 export interface SchemaBits {
-  /** Os TxillGroups já têm tipo, capa, visibilidade e plano (destino, local, datas). */
+  /** Os TxillGroups já têm tipo, capa, foto, visibilidade, mapa e plano (destino, local, datas). */
   groups: boolean;
   /** Os locais já dizem se aceitam Txills. */
   accepts: boolean;
 }
 
-const GROUP_COLUMNS = ['kind', 'cover_media_id', 'visibility', 'destination', 'plan_venue_id', 'starts_on', 'ends_on'];
+const GROUP_COLUMNS = ['kind', 'cover_media_id', 'visibility', 'destination', 'plan_venue_id', 'starts_on', 'ends_on', 'show_on_map', 'avatar_media_id'];
 
 /**
  * Colunas que outra equipa está a acrescentar: vê-se uma vez se existem e guarda-se a resposta.

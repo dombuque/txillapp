@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { TextFilter } from '../safety/text-filter.service';
 import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
@@ -22,6 +22,11 @@ export interface GroupInfo {
   kind?: GroupKind;
   description?: string | null;
   coverMediaId?: string | null;
+  /** Foto de perfil do grupo: o mesmo mecanismo da capa (foto minha, já carregada e livre). */
+  avatarMediaId?: string | null;
+  /** Só no PATCH (admins). */
+  visibility?: 'private' | 'public';
+  showOnMap?: boolean;
 }
 
 /**
@@ -35,6 +40,11 @@ export interface GroupInfo {
  *   plan: { destination, startsOn, endsOn, going, maybe, notGoing, myRsvp }, pot: { balance, goal, venue: { slug, name, avatarUrl, acceptsTxills } | null } }.
  *   Na última mensagem, uma sondagem (kind 'poll') traz a pergunta no body.
  * - GET /chat/groups/:id: `group` traz os mesmos campos (com o tipo em `kind` e também em `groupKind`); as mensagens kind 'poll' trazem `poll` (formato em groups/plan.service.ts) ou null.
+ *
+ * Grupos vistos de fora (0102): POST e PATCH aceitam também `avatarMediaId` (foto de perfil, como a capa); o PATCH (admins) aceita
+ * `visibility: 'private' | 'public'` e `showOnMap: boolean`. GET /chat/groups e GET /chat/groups/:id trazem `visibility` (o real),
+ * `showOnMap` (sempre true se público), `avatarUrl` e `pendingRequests` (só para os admins; 0 para os outros).
+ * Voltar a privado oculto (privado e fora do mapa) apaga os pedidos à espera. O resto em groups/public-groups.service.ts.
  * - Quando a última pessoa sai e o grupo desaparece, o cofre é devolvido a quem contribuiu antes (ver groups/pot.service.ts).
  */
 @Injectable()
@@ -103,6 +113,7 @@ export class GroupsService {
   async create(me: string, name: string, usernames: string[], info: Omit<GroupInfo, 'name'> = {}) {
     this.filter.assertClean(name, info.description ?? '');
     if (info.coverMediaId) await this.assertCover(me, info.coverMediaId);
+    if (info.avatarMediaId) await this.assertCover(me, info.avatarMediaId);
     const invitees = await this.resolveInvitees(me, usernames);
     if (invitees.length < 2) throw new BadRequestException('Um grupo precisa de pelo menos 2 pessoas além de ti');
     if (invitees.length + 1 > MAX_MEMBERS) throw new BadRequestException(`Um grupo tem no máximo ${MAX_MEMBERS} pessoas`);
@@ -110,7 +121,7 @@ export class GroupsService {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query('INSERT INTO social.groups (id, name, created_by, kind, description, cover_media_id) VALUES ($1, $2, $3, $4, $5, $6)', [id, name.trim(), me, info.kind ?? 'outro', info.description?.trim() || null, info.coverMediaId ?? null]);
+      await client.query('INSERT INTO social.groups (id, name, created_by, kind, description, cover_media_id, avatar_media_id) VALUES ($1, $2, $3, $4, $5, $6, $7)', [id, name.trim(), me, info.kind ?? 'outro', info.description?.trim() || null, info.coverMediaId ?? null, info.avatarMediaId ?? null]);
       await client.query(`INSERT INTO social.group_members (group_id, user_id, role, joined_at) VALUES ($1, $2, 'admin', clock_timestamp())`, [id, me]);
       for (const u of invitees) await client.query(`INSERT INTO social.group_members (group_id, user_id, joined_at) VALUES ($1, $2, clock_timestamp())`, [id, u]);
       await client.query('COMMIT');
@@ -218,11 +229,12 @@ export class GroupsService {
     return { id, kind: msg.kind };
   }
 
-  /** Mudar o nome, o tipo, a descrição ou a capa (só quem administra; campos presentes, `null` limpa). */
+  /** Mudar o nome, o tipo, a descrição, a capa, a foto, a visibilidade ou o mapa (só quem administra; campos presentes, `null` limpa). */
   async update(me: string, groupId: string, b: GroupInfo) {
     if ((await this.needMember(groupId, me)) !== 'admin') throw new ForbiddenException('Só quem administra muda o grupo');
     this.filter.assertClean(b.name ?? '', b.description ?? '');
     if (b.coverMediaId) await this.assertCover(me, b.coverMediaId);
+    if (b.avatarMediaId) await this.assertCover(me, b.avatarMediaId);
     const sets: string[] = [];
     const vals: unknown[] = [];
     const set = (col: string, val: unknown) => { vals.push(val); sets.push(`${col} = $${vals.length}`); };
@@ -230,9 +242,14 @@ export class GroupsService {
     if (b.kind !== undefined) set('kind', b.kind);
     if (b.description !== undefined) set('description', b.description?.trim() || null);
     if (b.coverMediaId !== undefined) set('cover_media_id', b.coverMediaId);
+    if (b.avatarMediaId !== undefined) set('avatar_media_id', b.avatarMediaId);
+    if (b.visibility !== undefined) set('visibility', b.visibility);
+    if (b.showOnMap !== undefined) set('show_on_map', b.showOnMap);
     if (!sets.length) return;
     vals.push(groupId);
-    await this.pool.query(`UPDATE social.groups SET ${sets.join(', ')} WHERE id = $${vals.length}`, vals);
+    const g = (await this.pool.query(`UPDATE social.groups SET ${sets.join(', ')} WHERE id = $${vals.length} RETURNING name, visibility, show_on_map`, vals)).rows[0];
+    // Privado oculto (privado e fora do mapa): já ninguém de fora o vê, por isso os pedidos à espera (e os avisos aos admins) vão-se.
+    if (g && g.visibility === 'private' && !g.show_on_map) await this.dropJoinRequests(groupId);
     await this.notifyMembers(groupId, me);
     await this.access.changed(groupId, 'info');
   }
@@ -246,8 +263,36 @@ export class GroupsService {
     const ids = await this.resolveInvitees(me, usernames);
     const count = (await this.pool.query('SELECT count(*)::int AS n FROM social.group_members WHERE group_id = $1', [groupId])).rows[0].n as number;
     if (count + ids.length > MAX_MEMBERS) throw new BadRequestException(`Um grupo tem no máximo ${MAX_MEMBERS} pessoas`);
-    for (const u of ids) await this.pool.query('INSERT INTO social.group_members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [groupId, u]);
+    for (const u of ids) await this.insertMember(groupId, u);
     await this.notifyMembers(groupId, me);
+  }
+
+  /**
+   * Entrar pela porta de fora (grupo público ou pedido aceite): a mesma via de adicionar membro, entra como `member`.
+   * `by` é quem deixou entrar (o admin que aceitou; a própria pessoa num grupo público). 409 se o grupo já está cheio.
+   */
+  async admit(groupId: string, userId: string, by: string) {
+    const count = (await this.pool.query('SELECT count(*)::int AS n FROM social.group_members WHERE group_id = $1', [groupId])).rows[0].n as number;
+    if (count + 1 > MAX_MEMBERS) throw new ConflictException(`Este grupo já está cheio (máximo ${MAX_MEMBERS} pessoas)`);
+    await this.insertMember(groupId, userId);
+    await this.notifyMembers(groupId, by);
+    // Quem entrou vê o grupo aparecer na lista de conversas.
+    this.events.emit(userId, { type: 'message', group: groupId });
+  }
+
+  private async insertMember(groupId: string, userId: string) {
+    await this.pool.query('INSERT INTO social.group_members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [groupId, userId]);
+    // Quem estava à espera (e foi aceite ou adicionado por um admin) deixa de ter o pedido pendente.
+    await this.dropJoinRequests(groupId, userId);
+  }
+
+  /** Apaga pedidos para entrar (de uma pessoa, ou todos os do grupo) e as notificações que os anunciavam aos admins. */
+  async dropJoinRequests(groupId: string, userId?: string) {
+    await this.pool.query('DELETE FROM social.group_join_requests WHERE group_id = $1 AND ($2::uuid IS NULL OR user_id = $2)', [groupId, userId ?? null]);
+    await this.pool.query(
+      `DELETE FROM social.notifications WHERE kind = 'group_join_request' AND data->>'groupId' = $1 AND ($2::uuid IS NULL OR actor_id = $2)`,
+      [groupId, userId ?? null],
+    );
   }
 
   /** O admin tira alguém; qualquer pessoa pode sair (passa a admin o membro mais antigo se não ficar nenhum). */

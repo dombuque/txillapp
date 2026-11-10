@@ -4,7 +4,7 @@ import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { MediaService } from '../media/media.service';
 import { TextFilter } from '../safety/text-filter.service';
-import { GroupAccess } from './group-access';
+import { GroupAccess, pendingVisibleTo } from './group-access';
 import { PotService } from './pot.service';
 import { mzn, settle, splitCents, toCents } from './settle';
 
@@ -88,7 +88,9 @@ export class PlanService {
     const out = new Map<string, ReturnType<PlanService['summaryDto']>>();
     if (!ids.length) return out;
     const { rows } = await this.pool.query(
-      `SELECT g.id, g.kind, g.description, g.cover_media_id, g.visibility, cu.username AS created_by,
+      `SELECT g.id, g.kind, g.description, g.cover_media_id, g.avatar_media_id, g.visibility, g.show_on_map, cu.username AS created_by,
+              CASE WHEN EXISTS (SELECT 1 FROM social.group_members am WHERE am.group_id = g.id AND am.user_id = $1 AND am.role = 'admin')
+                   THEN (SELECT count(*) FROM social.group_join_requests jr WHERE jr.group_id = g.id AND ${pendingVisibleTo('jr', '$1')})::int ELSE 0 END AS pending_requests,
               g.destination, g.starts_on::text AS starts_on, g.ends_on::text AS ends_on, g.pot_goal,
               (SELECT count(*) FROM social.group_rsvps r JOIN social.group_members m ON m.group_id = r.group_id AND m.user_id = r.user_id WHERE r.group_id = g.id AND r.status = 'going')::int AS going,
               (SELECT count(*) FROM social.group_rsvps r JOIN social.group_members m ON m.group_id = r.group_id AND m.user_id = r.user_id WHERE r.group_id = g.id AND r.status = 'maybe')::int AS maybe,
@@ -111,7 +113,12 @@ export class PlanService {
       kind: r.kind as 'viagem' | 'festa' | 'fim_de_semana' | 'outro',
       description: (r.description as string | null) ?? null,
       coverUrl: r.cover_media_id ? `/api/v1/media/${r.cover_media_id as string}` : null,
+      avatarUrl: r.avatar_media_id ? `/api/v1/media/${r.avatar_media_id as string}` : null,
       visibility: r.visibility as 'private' | 'public',
+      // Público está sempre no mapa, seja qual for o valor guardado.
+      showOnMap: r.visibility === 'public' || !!r.show_on_map,
+      // Pedidos para entrar à espera (só para os admins; 0 para os outros).
+      pendingRequests: Number(r.pending_requests ?? 0),
       createdBy: (r.created_by as string | null) ?? null,
       plan: {
         destination: (r.destination as string | null) ?? null,

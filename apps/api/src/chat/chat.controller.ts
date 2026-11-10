@@ -18,6 +18,8 @@ const groupSchema = z.object({
   kind: z.enum(GROUP_KINDS).default('outro'),
   description: z.string().trim().max(300).optional(),
   coverMediaId: z.string().uuid().optional(),
+  // Foto de perfil do grupo: como a capa (carregada antes em /media/uploads).
+  avatarMediaId: z.string().uuid().optional(),
   members: z.array(z.string().trim().min(1).max(40)).min(2).max(49),
 });
 const renameSchema = z.object({
@@ -25,6 +27,10 @@ const renameSchema = z.object({
   kind: z.enum(GROUP_KINDS).optional(),
   description: z.string().trim().max(300).nullable().optional(),
   coverMediaId: z.string().uuid().nullable().optional(),
+  avatarMediaId: z.string().uuid().nullable().optional(),
+  // Privado oculto / privado no mapa (pedem para entrar) / público (entram logo). Só admins.
+  visibility: z.enum(['private', 'public']).optional(),
+  showOnMap: z.boolean().optional(),
 });
 const membersSchema = z.object({ members: z.array(z.string().trim().min(1).max(40)).min(1).max(49) });
 
@@ -110,7 +116,7 @@ export class ChatController {
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 3_600_000 } })
   createGroup(@Req() req: AuthedReq, @Body(new ZodPipe(groupSchema)) b: z.infer<typeof groupSchema>) {
-    return this.groups.create(req.userId!, b.name, b.members, { kind: b.kind, description: b.description, coverMediaId: b.coverMediaId });
+    return this.groups.create(req.userId!, b.name, b.members, { kind: b.kind, description: b.description, coverMediaId: b.coverMediaId, avatarMediaId: b.avatarMediaId });
   }
 
   @Get('groups')

@@ -77,6 +77,10 @@ export class ExportService {
       groupRsvps: await q(
         `SELECT g.name AS "group", r.status, r.updated_at AS "updatedAt" FROM social.group_rsvps r JOIN social.groups g ON g.id = r.group_id WHERE r.user_id = $1 ORDER BY r.updated_at`,
       ).catch(() => []),
+      // Os meus pedidos para entrar em TxillGroups (ainda à espera de resposta).
+      groupJoinRequests: await q(
+        `SELECT g.name AS "group", jr.created_at AS "createdAt" FROM social.group_join_requests jr JOIN social.groups g ON g.id = jr.group_id WHERE jr.user_id = $1 ORDER BY jr.created_at`,
+      ).catch(() => []),
       groupPollVotes: await q(
         `SELECT g.name AS "group", p.question, o.text AS "option", v.created_at AS "createdAt"
            FROM social.group_poll_votes v JOIN social.group_poll_options o ON o.id = v.option_id
