@@ -203,6 +203,8 @@ export interface Conversation {
   presence?: Presence | null;
   request?: boolean;
   unread: number;
+  /** Por ler só porque a marquei à mão (sem mensagens novas para contar): a lista mostra um ponto e não um número. */
+  marked?: boolean;
 }
 export interface GroupSummary {
   kind: 'group';

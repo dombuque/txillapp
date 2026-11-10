@@ -8,7 +8,7 @@ import { Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, Text
 import { api, uploadChatMedia } from '@/lib/api';
 import { colors } from '@/lib/theme';
 import { markSeen, useIsNew } from '@/lib/whatsNew';
-import { ChatAttachSheet } from './ChatAttachSheet';
+import { ChatAttachMenu } from './ChatAttachSheet';
 import { Icon, type IconName } from './Icon';
 import { GiftSheet } from './PostSheets';
 import { StickerPanel } from './StickerPanel';
@@ -18,7 +18,8 @@ const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
 
 /**
  * A barra de escrever do chat: uma pílula só. Câmara (marca) à esquerda, "Mensagem…" ao meio e, com o campo vazio,
- * voz, galeria, stickers e "+" (localização, presente e ver uma vez, numa folha). Ao escrever, esses dão lugar a Enviar.
+ * voz, galeria, stickers e "+" (câmara, foto e vídeo, localização, presente e ver uma vez, num menu por cima do "+").
+ * Ao escrever, esses dão lugar a Enviar.
  */
 export function ChatComposer({
   username, person, onSent, bottom, replyTo, onClearReply, onTyping,
@@ -34,6 +35,8 @@ export function ChatComposer({
 }) {
   const grow = useGrowInput();
   const input = useRef<React.ComponentRef<typeof TextInput>>(null);
+  /** A pílula: o menu "+" mede-a para abrir logo por cima dela. */
+  const pill = useRef<React.ComponentRef<typeof View>>(null);
   const [text, setText] = useState('');
   const [once, setOnce] = useState(false);
   const [onceHelp, setOnceHelp] = useState(false);
@@ -189,7 +192,7 @@ export function ChatComposer({
             <Pressable onPress={onClearReply} hitSlop={6} style={st.replyX} accessibilityRole="button" accessibilityLabel="Cancelar resposta"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
           </View>
         )}
-        <View style={[st.pill, once && st.pillOnce]}>
+        <View ref={pill} collapsable={false} style={[st.pill, once && st.pillOnce]}>
           <Pressable onPress={() => void pick('camera')} disabled={busy} hitSlop={SLOP} style={busy && { opacity: 0.5 }} accessibilityRole="button" accessibilityLabel="Abrir a câmara" accessibilityState={{ disabled: busy }}>
             <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.camera}>
               <Icon name="camera" size={20} color="#fff" />
@@ -234,17 +237,21 @@ export function ChatComposer({
                   setPanel(panel === 'stickers' ? null : 'stickers');
                 }}
               />
-              <Tool icon="plus" label="Mais: localização, presente e ver uma vez" on={more} onPress={() => { Keyboard.dismiss(); setPanel(null); setMore(true); }} />
+              {/* O teclado fica como está: o menu abre por cima da barra e cabe no espaço que sobra. */}
+              <Tool icon={more ? 'x' : 'plus'} label={more ? 'Fechar o menu' : 'Mais: câmara, foto e vídeo, localização, presente e ver uma vez'} on={more} expanded={more} onPress={() => { setPanel(null); setMore(!more); }} />
             </Pop>
           )}
         </View>
       </View>
       {more && (
-        <ChatAttachSheet
+        <ChatAttachMenu
+          anchor={pill}
           firstName={firstName}
           canGift={!!person?.canGift}
           once={once}
           onClose={() => setMore(false)}
+          onCamera={() => void pick('camera')}
+          onLibrary={() => void pick('library')}
           onPlace={() => void sendPlace()}
           onGift={() => setGift(true)}
           onToggleOnce={toggleOnce}
@@ -256,7 +263,7 @@ export function ChatComposer({
 }
 
 /** Um ícone da pílula (44 de largura, 40 de altura; com o hitSlop a área de toque passa os 44). */
-function Tool({ icon, label, onPress, on, dot, disabled }: { icon: IconName; label: string; onPress: () => void; on?: boolean; dot?: boolean; disabled?: boolean }) {
+function Tool({ icon, label, onPress, on, dot, disabled, expanded }: { icon: IconName; label: string; onPress: () => void; on?: boolean; dot?: boolean; disabled?: boolean; expanded?: boolean }) {
   return (
     <Pressable
       onPress={onPress}
@@ -265,7 +272,7 @@ function Tool({ icon, label, onPress, on, dot, disabled }: { icon: IconName; lab
       style={({ pressed }) => [st.tool, (on || pressed) && { backgroundColor: on ? '#fff' : colors.zinc200 }, disabled && { opacity: 0.5 }]}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ selected: !!on, disabled: !!disabled }}
+      accessibilityState={{ selected: !!on, disabled: !!disabled, ...(expanded === undefined ? null : { expanded }) }}
     >
       <Icon name={icon} size={23} color={on ? colors.brand : colors.zinc700} />
       {dot ? <View style={st.dot} pointerEvents="none" /> : null}

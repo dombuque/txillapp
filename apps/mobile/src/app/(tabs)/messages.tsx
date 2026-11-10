@@ -17,7 +17,7 @@ import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { api, type ChatMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
-import { timeAgo } from '@/lib/time';
+import { listTime, rowLabel, unreadBadge } from '@/lib/inboxRow';
 
 import { callLabel } from '@/components/ChatBubbles';
 import { GroupCard, groupCardData } from '@/components/groups/GroupCard';
@@ -54,6 +54,8 @@ interface Row {
   sub: string;
   at: string;
   unread: number;
+  /** Por ler só porque foi marcada à mão (sem mensagens novas): mostra um ponto e não um número. */
+  marked?: boolean;
   names: { name: string; username?: string }[];
   online: boolean;
   group: boolean;
@@ -142,11 +144,11 @@ export default function Messages() {
     if (!u) return [];
     return r.unread > 0
       ? [{ label: 'Lida', icon: 'check', color: colors.zinc600, onPress: () => {
-          patchDirect(u, (c) => ({ ...c, unread: 0 }));
+          patchDirect(u, (c) => ({ ...c, unread: 0, marked: false }));
           void api.chatThread(u).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-list'] }));
         } }]
       : [{ label: 'Por ler', icon: 'mail', color: colors.brand, onPress: () => {
-          patchDirect(u, (c) => ({ ...c, unread: 1 }));
+          patchDirect(u, (c) => ({ ...c, unread: 1, marked: true }));
           void api.chatMarkUnread(u).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-list'] }));
         } }];
   }
@@ -175,6 +177,7 @@ export default function Messages() {
       sub: what(c.lastMessage),
       at: c.lastMessage.at,
       unread: c.unread,
+      marked: !!c.marked,
       names: [{ name: c.displayName, username: c.hasAvatar ? c.username : undefined }],
       online: !!c.presence?.online,
       group: false,
@@ -260,12 +263,16 @@ export default function Messages() {
         ListHeaderComponent={header}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"
-        renderItem={({ item: r }) => (
+        renderItem={({ item: r }) => {
+          const time = listTime(r.at);
+          const badge = unreadBadge(r.unread, r.marked);
+          const hot = r.unread > 0;
+          return (
           <SwipeRow left={rowLeft(r)} right={rowRight(r)}>
           {r.g ? (
             <GroupCard {...groupCardData(r.g)} lastMessage={r.sub} onPress={() => router.push(r.to as never)} />
           ) : (
-          <Pressable onPressIn={() => { const m = /^\/messages\/([^/]+)$/.exec(String(r.to)); if (m && m[1] !== 'new') warm(decodeURIComponent(m[1])); }} onPress={() => router.push(r.to as never)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]}>
+          <Pressable onPressIn={() => { const m = /^\/messages\/([^/]+)$/.exec(String(r.to)); if (m && m[1] !== 'new') warm(decodeURIComponent(m[1])); }} onPress={() => router.push(r.to as never)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={rowLabel(r.name, r.sub, time, r.unread, r.marked)}>
             <View>
               {r.unread ? (
                 <LinearGradient colors={[colors.brand, '#ff9a5b']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.ring}>
@@ -276,20 +283,22 @@ export default function Messages() {
               )}
               {r.online && <View style={styles.online} />}
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={[styles.name, { fontWeight: r.unread ? '800' : '600' }]} numberOfLines={1}>{r.name}</Text>
+            {/* Linha 1: nome e, à direita, a hora. Linha 2: a mensagem e, à direita, quantas por ler. */}
+            <View style={styles.text}>
+              <View style={styles.line}>
+                <Text style={[styles.name, styles.grow, { fontWeight: hot ? '800' : '700' }]} numberOfLines={1}>{r.name}</Text>
+                {time ? <Text style={[styles.time, hot && styles.timeHot]} numberOfLines={1}>{time}</Text> : null}
               </View>
-              <View style={{ flexDirection: 'row' }}>
-                <Text style={[styles.sub, r.unread ? { fontWeight: '600', color: colors.zinc900 } : null, { flexShrink: 1 }]} numberOfLines={1}>{r.sub}</Text>
-                <Text style={[styles.sub, r.unread ? { fontWeight: '600', color: colors.zinc900 } : null]}> · {timeAgo(r.at).replace('Há ', '')}</Text>
+              <View style={styles.line}>
+                <Text style={[styles.sub, styles.grow, hot && styles.subHot]} numberOfLines={1}>{r.sub}</Text>
+                {badge === 'dot' ? <View style={styles.dot} /> : badge ? <View style={styles.count}><Text style={styles.countText}>{badge}</Text></View> : null}
               </View>
             </View>
-            {r.unread > 0 && <View style={styles.dot} accessibilityLabel={`${r.unread} por ler`} />}
           </Pressable>
           )}
           </SwipeRow>
-        )}
+          );
+        }}
         ListEmptyComponent={
           loading ? <Skeleton /> : strangers.length > 0 ? <View /> : (
             <View style={styles.empty}>
@@ -360,7 +369,15 @@ const styles = StyleSheet.create({
   online: { position: 'absolute', right: 4, bottom: 4, width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: colors.white, backgroundColor: '#10b981' },
   name: { fontSize: 17, fontWeight: '600', color: colors.zinc900, flexShrink: 1 },
   sub: { fontSize: 15, color: colors.zinc500 },
-  dot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.brand },
+  text: { flex: 1, minWidth: 0, gap: 3 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 22 },
+  grow: { flex: 1, minWidth: 0 },
+  time: { fontSize: 12, fontWeight: '500', color: colors.zinc500, fontVariant: ['tabular-nums'] },
+  timeHot: { color: colors.brand, fontWeight: '700' },
+  subHot: { fontWeight: '600', color: colors.zinc900 },
+  count: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  countText: { fontSize: 12, lineHeight: 15, fontWeight: '800', color: '#fff', fontVariant: ['tabular-nums'] },
+  dot: { width: 12, height: 12, borderRadius: 6, marginRight: 5, backgroundColor: colors.brand },
 
   empty: { marginTop: 40, alignItems: 'center', paddingHorizontal: 24 },
   emptyTitle: { marginTop: 12, fontSize: 20, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
