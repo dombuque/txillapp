@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, uploadMedia } from '@/lib/api';
 import { instantsApi, type InstantItem, type InstantViewer as Viewer } from '@/lib/api.geleira';
 import { useAuth } from '@/lib/auth';
+import { claimSwipe, releaseSwipe } from '@/lib/swipeClaim';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
@@ -122,7 +123,12 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
   const pan = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.2,
-      onPanResponderMove: (_e, g) => slide.setValue(snoozedRef.current ? Math.min(0, g.dx) : Math.max(0, g.dx)),
+      onPanResponderMove: (_e, g) => {
+        // Na web, para o lado da soneca o gesto é da pilha (não muda de separador); para o outro lado fica para a navegação.
+        if (snoozedRef.current ? g.dx < 0 : g.dx > 0) claimSwipe();
+        else releaseSwipe();
+        slide.setValue(snoozedRef.current ? Math.min(0, g.dx) : Math.max(0, g.dx));
+      },
       onPanResponderRelease: (_e, g) => {
         if (!snoozedRef.current && g.dx > 40) setSnooze(true);
         else if (snoozedRef.current && g.dx < -30) setSnooze(false);
