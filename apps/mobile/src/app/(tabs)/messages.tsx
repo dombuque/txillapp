@@ -399,7 +399,7 @@ export default function Messages() {
       </PullView>
       </View>
       </GestureDetector>
-      {ai &&<SuperTxillPanel onClose={() => setAi(false)} />}
+      {ai && <SuperTxillPanel onClose={() => setAi(false)} />}
       <InstantsDock />
     </View>
   );
