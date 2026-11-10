@@ -14,3 +14,11 @@ export interface NearbyMapProps {
   zoomControl?: boolean;
   style?: StyleProp<ViewStyle>;
 }
+
+/** "Marcar no mapa": o mapa vai até `center` sempre que muda; `onMove` diz o centro (onde está o alfinete) quando o mapa para. */
+export interface PlacePickMapProps {
+  center: { lat: number; lng: number };
+  onMove: (c: { lat: number; lng: number }) => void;
+  zoomControl?: boolean;
+  style?: StyleProp<ViewStyle>;
+}

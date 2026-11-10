@@ -796,6 +796,12 @@ function GroupInfo({ group, onClose }: { group: NearbyGroup; onClose: () => void
             </Text>
           </View>
         </View>
+        {group.placeLabel || p?.placeLabel ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} accessibilityLabel={`Aparece em ${group.placeLabel || p?.placeLabel}`}>
+            <Icon name="map-pin" size={16} color={colors.brand} />
+            <Text style={[st.cardText, { flex: 1, fontWeight: '700', color: colors.zinc800 }]} numberOfLines={1}>{group.placeLabel || p?.placeLabel}</Text>
+          </View>
+        ) : null}
         {p?.description ? <Text style={st.cardText} numberOfLines={4}>{p.description}</Text> : null}
         {gone ? (
           <Text style={st.emptySub}>Este grupo é privado ou já não existe.</Text>

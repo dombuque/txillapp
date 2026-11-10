@@ -6,7 +6,7 @@ import { post, raw, type GroupSummary } from '@/lib/api';
 import { newKey } from '@/lib/api.extra';
 import type { GroupThread } from '@/lib/api.grupos';
 import type { IconName } from '@/components/Icon';
-import type { GroupVisibility, JoinMode, JoinState } from '@/lib/groupAccess';
+import type { GroupVisibility, JoinMode, JoinState, MapPlace } from '@/lib/groupAccess';
 
 export type GroupKind = 'viagem' | 'festa' | 'fim_de_semana' | 'outro';
 export type Rsvp = 'going' | 'maybe' | 'not_going';
@@ -42,6 +42,10 @@ export interface GroupExtras {
   showOnMap?: boolean;
   /** Só para administradores: pedidos para entrar por responder. */
   pendingRequests?: number;
+  /** O ponto marcado no mapa (já arredondado a ~500 m pelo servidor); null = sem ponto (aparece no local do Plano, se houver). */
+  mapPlace?: { lat: number; lng: number; label: string | null } | null;
+  /** O grupo já tem onde aparecer em "À tua volta" (ponto marcado ou local do Plano com posição). */
+  mapReady?: boolean;
 }
 export type TxillGroupSummary = GroupSummary & GroupExtras;
 export type TxillGroupInfo = GroupThread['group'] & GroupExtras & { kind?: GroupKind };
@@ -119,6 +123,8 @@ export interface PublicGroup {
   visibility?: GroupVisibility;
   joinMode?: JoinMode;
   me: JoinState;
+  /** Onde o grupo aparece no mapa ("Costa do Sol", ou o nome do local do Plano). */
+  placeLabel?: string | null;
 }
 export interface JoinRequest { username: string; displayName: string; avatarUrl: string | null; createdAt: string }
 
@@ -155,8 +161,11 @@ export const groupsApi = {
   pay: (id: string, b: { venueSlug: string; amount: number; note: string }, idempotencyKey = newKey()): Promise<void> => raw(`${g(id)}/pot/pay`, post({ ...b, idempotencyKey })),
   refund: (id: string, idempotencyKey = newKey()): Promise<void> => raw(`${g(id)}/pot/refund`, post({ idempotencyKey })),
 
-  /** Só administradores. O público fica sempre no mapa. */
-  setAccess: (id: string, b: { visibility?: GroupVisibility; showOnMap?: boolean }): Promise<void> => raw(g(id), patch(b)),
+  /**
+   * Só administradores. O público fica sempre no mapa. `mapPlace` = o ponto marcado no mapa (o servidor arredonda-o a ~500 m;
+   * null apaga-o). 400 "Escolhe onde é o grupo para aparecer em À tua volta" se ficar no mapa sem sítio.
+   */
+  setAccess: (id: string, b: { visibility?: GroupVisibility; showOnMap?: boolean; mapPlace?: MapPlace | null }): Promise<void> => raw(g(id), patch(b)),
   publicView: (id: string): Promise<PublicGroup> => raw(`${g(id)}/public`),
   /** Público: entra logo (`member`); privado no mapa: fica à espera de um administrador (`pending`). 409 se já for membro ou estiver cheio. */
   requestJoin: (id: string): Promise<{ status: 'pending' | 'member' }> => raw(`${g(id)}/join-requests`, post({})),
