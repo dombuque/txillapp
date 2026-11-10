@@ -186,6 +186,8 @@ export default function Compose() {
   const [tagging, setTagging] = useState<number | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
+  /** Largura útil da grelha de fotos (medida): no Android, `width: '%'` + `aspectRatio` num `flexWrap` dava altura 0 e as fotos não apareciam. */
+  const [gridW, setGridW] = useState(0);
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
   const [draftsOpen, setDraftsOpen] = useState(false);
   const [restored, setRestored] = useState(false);
@@ -665,13 +667,17 @@ export default function Compose() {
           ) : null}
 
           {assets.length > 0 && !(assets.length === 1 && video) ? (
-            <View style={styles.grid2}>
+            <View style={styles.grid2} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width - 40); if (w > 0 && w !== gridW) setGridW(w); }}>
               {assets.map((a, i) => {
                 const n = assets.length;
                 const span = n === 1 || (i === 0 && n % 2 === 1);
                 const photoIndex = photos.indexOf(a);
+                const ratio = span ? (n === 1 ? 4 / 3 : 16 / 10) : 1;
+                // Tamanho em píxeis (largura medida da grelha); antes de medir, um primeiro palpite que já não fica com altura 0.
+                const tw = gridW ? (span ? gridW : Math.floor(gridW * 0.49)) : 0;
+                const size = tw ? { width: tw, height: Math.round(tw / ratio) } : { width: span ? ('100%' as const) : ('49%' as const), aspectRatio: ratio };
                 return (
-                  <View key={a.uri} style={[styles.thumb, span ? { width: '100%', aspectRatio: n === 1 ? 4 / 3 : 16 / 10 } : { width: '49%', aspectRatio: 1 }]}>
+                  <View key={a.uri} style={[styles.thumb, size]}>
                     {a.video ? (
                       <Pressable onPress={() => setPlaying(a.uri)} style={[StyleSheet.absoluteFill, { backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }]} accessibilityRole="button" accessibilityLabel={`Ver o vídeo ${i + 1}`}>
                         {web ? createElement('video', { src: `${a.uri}#t=0.1`, muted: true, playsInline: true, preload: 'metadata', style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' } }) : null}
