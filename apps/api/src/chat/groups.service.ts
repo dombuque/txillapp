@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { TextFilter } from '../safety/text-filter.service';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { PushService } from '../push/push.service';
@@ -10,10 +10,12 @@ import { ChatService, Outgoing, type MessageKind } from './chat.service';
 import { GroupAccess } from '../groups/group-access';
 import { PlanService } from '../groups/plan.service';
 import { PotService } from '../groups/pot.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const PAGE = 30;
 export const MAX_MEMBERS = 50;
 const UUID = /^[0-9a-f-]{36}$/;
+type Db = Pool | PoolClient;
 export const GROUP_KINDS = ['viagem', 'festa', 'fim_de_semana', 'outro'] as const;
 export type GroupKind = (typeof GROUP_KINDS)[number];
 
@@ -46,6 +48,15 @@ export interface GroupInfo {
  * `showOnMap` (sempre true se público), `avatarUrl` e `pendingRequests` (só para os admins; 0 para os outros).
  * Voltar a privado oculto (privado e fora do mapa) apaga os pedidos à espera. O resto em groups/public-groups.service.ts.
  * - Quando a última pessoa sai e o grupo desaparece, o cofre é devolvido a quem contribuiu antes (ver groups/pot.service.ts).
+ *
+ * Quem administra (0103):
+ * - PATCH /chat/groups/:id/members/:username { role: 'admin' | 'member' } (admins) -> 200 { username, role }.
+ *   Torna admin um membro, tira o papel a outro admin, ou a si próprio se houver outro admin
+ *   (409 { message: 'O grupo precisa de pelo menos um administrador' }). Idempotente: 200 se já estava assim (sem avisos).
+ *   403 se quem pede é só membro; 404 se não é membro ou a pessoa não está no grupo. Avisa todos em tempo real
+ *   ({ type: 'group', what: 'info' }) e a pessoa promovida com group_admin_granted (ator = quem promoveu). Tirar não notifica.
+ *   GET /chat/groups/:id continua a trazer `role` em cada um de `group.members`.
+ * - O limite de membros é atómico: entrar, aceitar, adicionar, sair e mudar de papel correm com o grupo bloqueado (ver locked()).
  */
 @Injectable()
 export class GroupsService {
@@ -58,6 +69,7 @@ export class GroupsService {
     private readonly access: GroupAccess,
     private readonly plan: PlanService,
     private readonly pot: PotService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Uma foto própria, já carregada e livre (o mesmo que o logótipo dos locais). */
@@ -261,35 +273,67 @@ export class GroupsService {
   async addMembers(me: string, groupId: string, usernames: string[]) {
     if ((await this.needMember(groupId, me)) !== 'admin') throw new ForbiddenException('Só quem administra adiciona pessoas');
     const ids = await this.resolveInvitees(me, usernames);
-    const count = (await this.pool.query('SELECT count(*)::int AS n FROM social.group_members WHERE group_id = $1', [groupId])).rows[0].n as number;
-    if (count + ids.length > MAX_MEMBERS) throw new BadRequestException(`Um grupo tem no máximo ${MAX_MEMBERS} pessoas`);
-    for (const u of ids) await this.insertMember(groupId, u);
+    await this.locked(groupId, async (c) => {
+      const count = (await c.query('SELECT count(*)::int AS n FROM social.group_members WHERE group_id = $1', [groupId])).rows[0].n as number;
+      if (count + ids.length > MAX_MEMBERS) throw new BadRequestException(`Um grupo tem no máximo ${MAX_MEMBERS} pessoas`);
+      for (const u of ids) await this.insertMember(groupId, u, c);
+    });
     await this.notifyMembers(groupId, me);
+  }
+
+  /**
+   * Corre `fn` numa transação com a linha do grupo bloqueada (FOR NO KEY UPDATE: um de cada vez por grupo, sem travar
+   * quem só escreve mensagens): contar e inserir membros, ou mudar quem administra, não se atropela com pedidos em simultâneo.
+   * 404 se o grupo já não existe.
+   */
+  private async locked<T>(groupId: string, fn: (c: PoolClient) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const g = await client.query('SELECT 1 FROM social.groups WHERE id = $1 FOR NO KEY UPDATE', [groupId]);
+      if (!g.rowCount) throw new NotFoundException('Grupo não encontrado');
+      const out = await fn(client);
+      await client.query('COMMIT');
+      return out;
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 
   /**
    * Entrar pela porta de fora (grupo público ou pedido aceite): a mesma via de adicionar membro, entra como `member`.
    * `by` é quem deixou entrar (o admin que aceitou; a própria pessoa num grupo público). 409 se o grupo já está cheio.
+   * Conta e insere com o grupo bloqueado: com pedidos em simultâneo nunca passa de MAX_MEMBERS.
+   * Devolve false se a pessoa já era membro (nada muda).
    */
-  async admit(groupId: string, userId: string, by: string) {
-    const count = (await this.pool.query('SELECT count(*)::int AS n FROM social.group_members WHERE group_id = $1', [groupId])).rows[0].n as number;
-    if (count + 1 > MAX_MEMBERS) throw new ConflictException(`Este grupo já está cheio (máximo ${MAX_MEMBERS} pessoas)`);
-    await this.insertMember(groupId, userId);
+  async admit(groupId: string, userId: string, by: string): Promise<boolean> {
+    const added = await this.locked(groupId, async (c) => {
+      if ((await c.query('SELECT 1 FROM social.group_members WHERE group_id = $1 AND user_id = $2', [groupId, userId])).rowCount) return false;
+      const count = (await c.query('SELECT count(*)::int AS n FROM social.group_members WHERE group_id = $1', [groupId])).rows[0].n as number;
+      if (count + 1 > MAX_MEMBERS) throw new ConflictException(`Este grupo já está cheio (máximo ${MAX_MEMBERS} pessoas)`);
+      await this.insertMember(groupId, userId, c);
+      return true;
+    });
+    if (!added) return false;
     await this.notifyMembers(groupId, by);
     // Quem entrou vê o grupo aparecer na lista de conversas.
     this.events.emit(userId, { type: 'message', group: groupId });
+    return true;
   }
 
-  private async insertMember(groupId: string, userId: string) {
-    await this.pool.query('INSERT INTO social.group_members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [groupId, userId]);
+  private async insertMember(groupId: string, userId: string, db: Db = this.pool) {
+    await db.query('INSERT INTO social.group_members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [groupId, userId]);
     // Quem estava à espera (e foi aceite ou adicionado por um admin) deixa de ter o pedido pendente.
-    await this.dropJoinRequests(groupId, userId);
+    await this.dropJoinRequests(groupId, userId, db);
   }
 
   /** Apaga pedidos para entrar (de uma pessoa, ou todos os do grupo) e as notificações que os anunciavam aos admins. */
-  async dropJoinRequests(groupId: string, userId?: string) {
-    await this.pool.query('DELETE FROM social.group_join_requests WHERE group_id = $1 AND ($2::uuid IS NULL OR user_id = $2)', [groupId, userId ?? null]);
-    await this.pool.query(
+  async dropJoinRequests(groupId: string, userId?: string, db: Db = this.pool) {
+    await db.query('DELETE FROM social.group_join_requests WHERE group_id = $1 AND ($2::uuid IS NULL OR user_id = $2)', [groupId, userId ?? null]);
+    await db.query(
       `DELETE FROM social.notifications WHERE kind = 'group_join_request' AND data->>'groupId' = $1 AND ($2::uuid IS NULL OR actor_id = $2)`,
       [groupId, userId ?? null],
     );
@@ -297,20 +341,59 @@ export class GroupsService {
 
   /** O admin tira alguém; qualquer pessoa pode sair (passa a admin o membro mais antigo se não ficar nenhum). */
   async removeMember(me: string, groupId: string, username: string) {
-    const role = await this.needMember(groupId, me);
-    const t = (await this.pool.query('SELECT u.id FROM social.group_members x JOIN identity.users u ON u.id = x.user_id WHERE x.group_id = $1 AND lower(u.username) = lower($2)', [groupId, username])).rows[0];
-    if (!t) throw new NotFoundException('Essa pessoa não está no grupo');
-    if (t.id !== me && role !== 'admin') throw new ForbiddenException('Só quem administra tira pessoas');
-    await this.pool.query('DELETE FROM social.group_members WHERE group_id = $1 AND user_id = $2', [groupId, t.id]);
-    const left = (await this.pool.query('SELECT user_id, role FROM social.group_members WHERE group_id = $1 ORDER BY joined_at', [groupId])).rows;
-    if (!left.length) {
+    await this.needMember(groupId, me);
+    // Com o grupo bloqueado: quem sai e quem muda de papel ao mesmo tempo não deixam o grupo sem admin.
+    const { target, empty } = await this.locked(groupId, async (c) => {
+      const role = (await c.query('SELECT role FROM social.group_members WHERE group_id = $1 AND user_id = $2', [groupId, me])).rows[0]?.role as string | undefined;
+      if (!role) throw new NotFoundException('Grupo não encontrado');
+      const t = (await c.query('SELECT u.id FROM social.group_members x JOIN identity.users u ON u.id = x.user_id WHERE x.group_id = $1 AND lower(u.username) = lower($2)', [groupId, username])).rows[0];
+      if (!t) throw new NotFoundException('Essa pessoa não está no grupo');
+      if (t.id !== me && role !== 'admin') throw new ForbiddenException('Só quem administra tira pessoas');
+      await c.query('DELETE FROM social.group_members WHERE group_id = $1 AND user_id = $2', [groupId, t.id]);
+      const left = (await c.query('SELECT user_id, role FROM social.group_members WHERE group_id = $1 ORDER BY joined_at', [groupId])).rows;
+      if (left.length && !left.some((r) => r.role === 'admin')) await c.query(`UPDATE social.group_members SET role = 'admin' WHERE group_id = $1 AND user_id = $2`, [groupId, left[0].user_id]);
+      return { target: t.id as string, empty: !left.length };
+    });
+    if (empty) {
       // O grupo vai desaparecer: o cofre volta primeiro a quem contribuiu (nenhum Txill fica preso).
       await this.pot.refundAll(me, groupId, `fecho:${groupId}`);
       await this.pool.query('DELETE FROM social.groups WHERE id = $1', [groupId]);
     }
-    else if (!left.some((r) => r.role === 'admin')) await this.pool.query(`UPDATE social.group_members SET role = 'admin' WHERE group_id = $1 AND user_id = $2`, [groupId, left[0].user_id]);
-    this.events.emit(t.id as string, { type: 'deleted', group: groupId });
+    this.events.emit(target, { type: 'deleted', group: groupId });
     await this.notifyMembers(groupId, me);
+  }
+
+  /**
+   * Quem administra dá ou tira o papel de admin (também a si próprio, se ficar outro admin). Contrato no topo.
+   * Devolve { username (como está na conta), role }.
+   */
+  async setRole(me: string, groupId: string, username: string, role: 'admin' | 'member') {
+    if ((await this.needMember(groupId, me)) !== 'admin') throw new ForbiddenException('Só quem administra muda quem administra');
+    const name = username.trim().replace(/^@/, '').slice(0, 40);
+    const r = await this.locked(groupId, async (c) => {
+      // De novo com o grupo bloqueado: entretanto posso ter deixado de ser admin (ou de estar no grupo).
+      const mine = (await c.query('SELECT role FROM social.group_members WHERE group_id = $1 AND user_id = $2', [groupId, me])).rows[0]?.role as string | undefined;
+      if (!mine) throw new NotFoundException('Grupo não encontrado');
+      if (mine !== 'admin') throw new ForbiddenException('Só quem administra muda quem administra');
+      const t = (await c.query(
+        `SELECT u.id, u.username, x.role, g.name AS group_name,
+                (SELECT count(*) FROM social.group_members a WHERE a.group_id = x.group_id AND a.role = 'admin')::int AS admins
+           FROM social.group_members x JOIN identity.users u ON u.id = x.user_id JOIN social.groups g ON g.id = x.group_id
+          WHERE x.group_id = $1 AND lower(u.username) = lower($2)`,
+        [groupId, name],
+      )).rows[0];
+      if (!t) throw new NotFoundException('Essa pessoa não está no grupo');
+      const out = { id: t.id as string, username: t.username as string, groupName: t.group_name as string, changed: t.role !== role };
+      if (!out.changed) return out;
+      if (role === 'member' && (t.admins as number) <= 1) throw new ConflictException('O grupo precisa de pelo menos um administrador');
+      await c.query('UPDATE social.group_members SET role = $3 WHERE group_id = $1 AND user_id = $2', [groupId, t.id, role]);
+      return out;
+    });
+    if (r.changed) {
+      await this.access.changed(groupId, 'info');
+      if (role === 'admin') await this.notifications.notify({ userId: r.id, actorId: me, kind: 'group_admin_granted', data: { groupId, groupName: r.groupName } });
+    }
+    return { username: r.username, role };
   }
 
   private async notifyMembers(groupId: string, except: string) {

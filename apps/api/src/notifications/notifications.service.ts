@@ -20,7 +20,8 @@ export const mentionableBy = (u = 'u', viewer = '$1') =>
 export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review'
   // TxillGroups vistos de fora (data: { groupId, groupName }): pediram para entrar (aos admins), aceitaram o meu pedido (a quem pediu),
   // alguém entrou num grupo público (aos admins).
-  | 'group_join_request' | 'group_join_accepted' | 'group_member_joined';
+  // Fizeram-me administrador de um grupo (à pessoa promovida; ator = quem promoveu; o mesmo data).
+  | 'group_join_request' | 'group_join_accepted' | 'group_member_joined' | 'group_admin_granted';
 
 /** A categoria que a pessoa pode desligar (os avisos de bloqueio e de verificação ficam sempre). */
 export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
@@ -28,11 +29,17 @@ export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   comment: 'comments', reply: 'comments', story_reply: 'comments',
   mention: 'mentions', tag: 'mentions', repost: 'reposts', gift: 'gifts',
   missed_call: 'calls', venue_invite: 'venues', venue_payment: 'venues', venue_review: 'venues',
-  group_join_request: 'messages', group_join_accepted: 'messages', group_member_joined: 'messages',
+  group_join_request: 'messages', group_join_accepted: 'messages', group_member_joined: 'messages', group_admin_granted: 'messages',
 };
 
 /** Tipos que não se repetem enquanto houver uma igual por ler (evita spam de seguir/deixar de seguir). */
 const DEDUPE_UNREAD = new Set<NotificationKind>(['blocked', 'follow', 'follow_request']);
+
+/**
+ * Tipos de grupo que não se repetem para o mesmo (pessoa avisada, ator, grupo) dentro de 24 h, lida ou não:
+ * quem sai e volta a entrar num grupo público não enche os admins de avisos (nem de pushes).
+ */
+const DEDUPE_GROUP_DAY = new Set<NotificationKind>(['group_member_joined']);
 
 @Injectable()
 export class NotificationsService {
@@ -57,6 +64,14 @@ export class NotificationsService {
         const dup = await this.pool.query(
           'SELECT 1 FROM social.notifications WHERE user_id = $1 AND actor_id = $2 AND kind = $3 AND read_at IS NULL',
           [n.userId, n.actorId, n.kind],
+        );
+        if (dup.rowCount) return;
+      }
+      if (DEDUPE_GROUP_DAY.has(n.kind)) {
+        const dup = await this.pool.query(
+          `SELECT 1 FROM social.notifications
+            WHERE user_id = $1 AND actor_id = $2 AND kind = $3 AND data->>'groupId' = $4 AND created_at > now() - interval '24 hours' LIMIT 1`,
+          [n.userId, n.actorId, n.kind, String(n.data?.groupId ?? '')],
         );
         if (dup.rowCount) return;
       }
@@ -103,6 +118,8 @@ export class NotificationsService {
       group_join_request: { body: `quer entrar em ${String(n.data?.groupName ?? 'o teu TxillGroup')}`, url: groupUrl === '/notifications' ? groupUrl : `${groupUrl}?info=1` },
       group_join_accepted: { body: `aceitou-te em ${String(n.data?.groupName ?? 'um TxillGroup')}`, url: groupUrl },
       group_member_joined: { body: `entrou em ${String(n.data?.groupName ?? 'o teu TxillGroup')}`, url: groupUrl },
+      // Abre os detalhes do grupo, onde a pessoa passa a ter os botões de quem administra.
+      group_admin_granted: { body: `fez-te administrador de ${String(n.data?.groupName ?? 'um TxillGroup')}`, url: groupUrl === '/notifications' ? groupUrl : `${groupUrl}?info=1` },
       venue_payment: { body: `pagou ${Number(n.data?.amount ?? 0)} Txills ${n.data?.venueName ? `em ${String(n.data.venueName)}` : 'no teu local'}`, url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}/gerir?s=txills` : '/notifications' },
     };
     const m = t[n.kind];
