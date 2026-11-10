@@ -76,7 +76,7 @@ export function PlaceRow({ label, pending, onChange }: { label: string | null; p
 /**
  * "Marcar no mapa": um mapa pequeno com o alfinete fixo ao centro (arrasta-se o mapa), centrado na posição do aparelho se
  * houver permissão, senão na cidade da pessoa. Nome do sítio opcional (até 80). O ponto vai arredondado; o servidor arredonda-o
- * ainda a ~500 m.
+ * ainda a ~1,5 km.
  */
 export function MapPointSheet({ initial, onPick, onClose }: { initial?: (LatLng & { label?: string | null }) | null; onPick: (c: Extract<PlaceChoice, { kind: 'point' }>) => void; onClose: () => void }) {
   const qc = useQueryClient();

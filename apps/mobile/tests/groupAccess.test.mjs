@@ -113,7 +113,7 @@ test('cleanPlaceLabel / placeName / placeLine: até 80, o escolhido ganha ao gra
   assert.equal(ga.placeName(null, {}), null);
   assert.equal(ga.placeLine('Costa do Sol'), 'Aparece em À tua volta em Costa do Sol.');
   assert.equal(ga.placeLine(null), 'Aparece em À tua volta na zona que marcaste no mapa.');
-  assert.match(ga.PRIVACY_NOTE, /cerca de 500 m/);
+  assert.match(ga.PRIVACY_NOTE, /cerca de 1,5 km/);
 });
 
 test('accessChange com sítio: a confirmação diz onde aparece; mudar só o sítio também pede confirmação', () => {

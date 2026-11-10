@@ -246,7 +246,7 @@ export interface PickHandle {
 
 /**
  * O mapa pequeno de "Marcar no mapa" (o sítio de um TxillGroup): arrasta-se o mapa e o alfinete fica parado ao centro (o
- * alfinete é desenhado por cima, fora daqui). Um círculo de ~500 m mostra a zona que fica gravada. Avisa o centro em `onMove`
+ * alfinete é desenhado por cima, fora daqui). Um círculo de ~750 m (metade da quadrícula de 1,5 km) mostra a zona que fica gravada. Avisa o centro em `onMove`
  * quando o mapa para.
  */
 export function createPickMap(L: typeof Leaflet, el: HTMLElement, onMove: (c: { lat: number; lng: number }) => void, opts: { zoomControl: boolean }): PickHandle {
@@ -264,7 +264,7 @@ export function createPickMap(L: typeof Leaflet, el: HTMLElement, onMove: (c: { 
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
   }).addTo(map);
-  const zone = L.circle([0, 0], { radius: 500, color: BRAND, weight: 1.5, opacity: 0.55, fillColor: BRAND, fillOpacity: 0.08, interactive: false }).addTo(map);
+  const zone = L.circle([0, 0], { radius: 750, color: BRAND, weight: 1.5, opacity: 0.55, fillColor: BRAND, fillOpacity: 0.08, interactive: false }).addTo(map);
   let ready = false;
   const emit = () => {
     const c = map.getCenter();

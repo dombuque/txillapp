@@ -98,14 +98,14 @@ export function joinButton(mode: JoinMode, me: JoinState): { action: JoinAction;
 // ----- onde é o grupo (o sítio no mapa) -----
 /**
  * Um grupo em "À tua volta" (Privado visível no mapa ou Público) tem sempre um sítio: o local do Plano (um local do Txillapp)
- * ou um ponto marcado no mapa, que o servidor arredonda a ~500 m. O servidor diz se já há sítio em `mapReady`.
+ * ou um ponto marcado no mapa, que o servidor arredonda a ~1,5 km. O servidor diz se já há sítio em `mapReady`.
  */
 export interface MapPlace { lat: number; lng: number; label?: string | null }
 /** O sítio escolhido no ecrã e ainda por gravar. */
 export type PlaceChoice = { kind: 'venue'; slug: string; name: string } | { kind: 'point'; lat: number; lng: number; label: string | null };
 
 export const PLACE_LABEL_MAX = 80;
-export const PRIVACY_NOTE = 'Guardamos só a zona aproximada (cerca de 500 m), nunca o ponto exato.';
+export const PRIVACY_NOTE = 'Guardamos só a zona aproximada (cerca de 1,5 km), nunca o ponto exato.';
 
 /**
  * Se o grupo já tem sítio no mapa. O servidor diz em `mapReady`; o servidor antigo não o manda e então conta um ponto
@@ -145,7 +145,7 @@ export function cleanPlaceLabel(s: string): string {
 }
 
 /**
- * O `mapPlace` do PATCH para um ponto marcado: 3 casas decimais (~100 m; o servidor arredonda ainda mais, a ~500 m), para o
+ * O `mapPlace` do PATCH para um ponto marcado: 3 casas decimais (~100 m; o servidor arredonda ainda mais, a ~1,5 km), para o
  * ponto exato (que pode ser onde a pessoa está) nunca sair do aparelho. Sem nome, não vai `label`.
  */
 export function mapPlaceBody(c: { lat: number; lng: number; label?: string | null }): MapPlace {
