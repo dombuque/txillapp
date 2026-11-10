@@ -84,7 +84,24 @@ function after(k: keyof typeof timers, ms: number, f: () => void) {
 }
 const bump = () => { rev += 1; };
 
-const errText = (e: unknown, fallback: string) => (e instanceof ApiError || e instanceof Error) && e.message ? e.message : fallback;
+/** O texto de um erro para o ecrã da chamada (os erros de rede vêm em inglês: "Network request failed"). */
+function errText(e: unknown, fallback: string): string {
+  if (e instanceof ApiError) return e.message || fallback;
+  if (e instanceof TypeError && /network|fetch|internet/i.test(e.message)) return 'Sem ligação à internet. Verifica a rede e tenta outra vez.';
+  return e instanceof Error && e.message ? e.message : fallback;
+}
+
+/** Um pedido que não fica pendurado para sempre (sem rede, o fetch pode demorar minutos a desistir). */
+function within<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(message)), ms);
+    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
+}
+
+/** Começo das mensagens de erro de quem liga (ex.: "Não foi possível ligar: sem acesso ao microfone…"). */
+const failMsg = (e: unknown, fallback: string) => `Não foi possível ligar: ${lower(errText(e, fallback))}`;
+const lower = (t: string) => (t ? t[0].toLowerCase() + t.slice(1) : t);
 
 /** Larga tudo o que a chamada abriu (faixas, ligação, sons, temporizadores). */
 function teardown() {
@@ -126,7 +143,8 @@ function finish(reason: EndReason, extra: Partial<CallState> = {}) {
   gen += 1;
   const g = gen;
   set({ phase: 'ended', endReason: reason, endedAt: Date.now(), local: null, remote: null, minimised: false, ...extra });
-  const quick = reason === 'cancelled' ? 900 : reason === 'failed' || reason === 'busy' || reason === 'declined' || reason === 'blocked' ? 3200 : 2200;
+  // Com uma explicação (porque não deu para ligar), o ecrã fica mais tempo para se conseguir ler; tocar fecha-o já.
+  const quick = reason === 'cancelled' ? 900 : reason === 'failed' && extra.error ? 6000 : reason === 'failed' || reason === 'busy' || reason === 'declined' || reason === 'blocked' ? 3200 : 2200;
   after('close', quick, () => g === gen && reset());
 }
 
@@ -198,6 +216,8 @@ async function makeOffer(p: PeerLike) {
     send('offer', desc(o));
   } catch (e) {
     console.warn('[calls] offer', e);
+    // A primeira oferta de quem liga falhou: sem ela a chamada nunca liga. Diz porquê em vez de esperar 30 s.
+    if (p === pc && !polite && !p.remoteDescription && state.phase === 'connecting') finish('failed', { error: failMsg(e, 'erro a preparar a chamada.') });
   } finally {
     makingOffer = false;
   }
@@ -261,7 +281,7 @@ function setupPeer() {
   p.addEventListener('connectionstatechange', onConn);
   p.addEventListener('iceconnectionstatechange', onConn);
   rtc.addTracks(p, state.local);
-  after('connect', CONNECT_MS, () => g === gen && state.phase === 'connecting' && finish('failed', { error: 'Não consegui ligar. Tenta outra vez.' }));
+  after('connect', CONNECT_MS, () => g === gen && state.phase === 'connecting' && finish('failed', { error: 'Não foi possível ligar: a ligação com a outra pessoa não se estabeleceu (rede fraca ou bloqueada). Tenta outra vez.' }));
   // Sinais que chegaram antes de haver ligação.
   const got = early;
   early = [];
@@ -329,7 +349,7 @@ async function onAccepted() {
   try {
     setupPeer();
   } catch (e) {
-    if (g === gen) finish('failed', { error: errText(e, 'Não consegui ligar.') });
+    if (g === gen) finish('failed', { error: failMsg(e, 'erro a preparar a chamada.') });
   }
 }
 
@@ -346,6 +366,16 @@ export async function startCall(peer: CallPeer | string, video: boolean): Promis
   gen += 1;
   const g = gen;
   set({ ...IDLE, phase: 'outgoing', outgoing: true, peer: hint, video, camOn: video, speaker: video });
+  try {
+    await dial(g, hint, video);
+  } catch (e) {
+    // Nada do que corre antes do pedido ao servidor pode falhar em silêncio: o ecrã diz sempre porquê.
+    console.warn('[calls] startCall', e);
+    if (g === gen) finish('failed', { error: failMsg(e, 'erro inesperado. Tenta outra vez.') });
+  }
+}
+
+async function dial(g: number, hint: CallPeer, video: boolean): Promise<void> {
   holdStream(true);
   if (!rtc.rtcSupported()) {
     finish('failed', { error: 'As chamadas ainda não funcionam neste aparelho. Atualiza a app ou usa outro browser.' });
@@ -355,20 +385,21 @@ export async function startCall(peer: CallPeer | string, video: boolean): Promis
   try {
     local = await rtc.openMedia(video, true);
   } catch (e) {
-    if (g === gen) finish('failed', { error: errText(e, 'Sem acesso ao microfone.') });
+    console.warn('[calls] openMedia', e);
+    if (g === gen) finish('failed', { error: failMsg(e, 'sem acesso ao microfone.') });
     return;
   }
   if (g !== gen) return rtc.stopMedia(local);
   const camOn = video && rtc.hasVideoTrack(local);
   bump();
-  set({ local, camOn, canFlip: camOn ? await rtc.canFlip() : false });
+  set({ local, camOn, canFlip: camOn ? await rtc.canFlip().catch(() => false) : false });
   void rtc.callAudio(true, video);
   try {
-    const r = await callsApi.start(hint.username, video);
-    if (g !== gen) {
-      void callsApi.end(r.id).catch(() => undefined);
-      return;
-    }
+    const req = callsApi.start(hint.username, video);
+    // Resposta que chega depois de se desistir (tempo esgotado ou cancelado): a chamada não fica a tocar do outro lado.
+    req.then((r) => { if (g !== gen) void callsApi.end(r.id).catch(() => undefined); }, () => undefined);
+    const r = await within(req, 20_000, 'o servidor não respondeu. Verifica a internet e tenta outra vez.');
+    if (g !== gen) return;
     iceServers = await loadIce(r.iceServers, r.relayOnly);
     if (g !== gen) return;
     set({ callId: r.id, peer: r.peer ?? hint, video: r.video ?? video });
@@ -379,9 +410,11 @@ export async function startCall(peer: CallPeer | string, video: boolean): Promis
       finish('no-answer');
     });
   } catch (e) {
+    console.warn('[calls] POST /calls', e);
     if (g !== gen) return;
     const status = e instanceof ApiError ? e.status : 0;
-    finish(status === 409 ? 'busy' : status === 403 || status === 404 ? 'blocked' : 'failed', { error: errText(e, 'Não consegui ligar.') });
+    const reason: EndReason = status === 409 ? 'busy' : status === 403 || status === 404 ? 'blocked' : 'failed';
+    finish(reason, { error: reason === 'failed' ? failMsg(e, 'erro no servidor. Tenta outra vez.') : errText(e, 'Não podes ligar a esta pessoa.') });
   }
 }
 
@@ -441,7 +474,7 @@ export async function acceptCall(withVideo = state.video): Promise<void> {
   } catch (e) {
     if (g !== gen) return;
     void callsApi.end(id).catch(() => undefined);
-    finish('failed', { error: errText(e, 'Sem acesso ao microfone.') });
+    finish('failed', { error: `Não foi possível atender: ${lower(errText(e, 'sem acesso ao microfone.'))}` });
     return;
   }
   if (g !== gen) return rtc.stopMedia(local);
@@ -457,7 +490,7 @@ export async function acceptCall(withVideo = state.video): Promise<void> {
     polite = true;
     setupPeer();
   } catch (e) {
-    if (g === gen) finish('failed', { error: errText(e, 'Não consegui atender.') });
+    if (g === gen) finish('failed', { error: `Não foi possível atender: ${lower(errText(e, 'erro no servidor.'))}` });
   }
 }
 

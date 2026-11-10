@@ -99,7 +99,8 @@
             "./assets/sounds/ring.wav"
           ]
         }
-      ]
+      ],
+      "./plugins/withProguardRules"
     ],
     "experiments": {
       "typedRoutes": true,

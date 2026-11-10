@@ -432,7 +432,7 @@ function Ended({ c }: { c: CallState }) {
       <View style={[st.center, { justifyContent: 'center', flex: 1 }]}>
         <PulseAvatar peer={c.peer} size={104} />
         <Text style={st.name} numberOfLines={2}>{c.peer?.displayName ?? ''}</Text>
-        <Text style={st.timer}>{endText(c, ms)}</Text>
+        <Text style={[st.timer, { textAlign: 'center' }]} accessibilityLiveRegion="assertive">{endText(c, ms)}</Text>
         {c.message ? <Text style={st.endMsg} numberOfLines={3}>"{c.message}"</Text> : null}
       </View>
     </Pressable>
