@@ -20,6 +20,12 @@ export const memberBlocked = (group: string, user: string) =>
   ` OR EXISTS (SELECT 1 FROM social.blocks bk JOIN social.group_members bm ON bm.group_id = ${group} AND bm.user_id = bk.blocker_id WHERE bk.blocked_id = ${user})` +
   ` OR EXISTS (SELECT 1 FROM social.groups bg WHERE bg.id = ${group} AND bg.created_by IS NOT NULL AND ${blockedBetween('bg.created_by', user)}))`;
 
+/** O local do plano (alias `v`, de content.venues) serve de sítio no mapa: aprovado pela equipa e com posição. */
+export const venueOnMap = (v: string) => `(${v}.review_status = 'approved' AND ${v}.lat IS NOT NULL AND ${v}.lng IS NOT NULL)`;
+
+/** Mensagem quando um grupo passaria a aparecer em "À tua volta" sem sítio (nem local aprovado do plano, nem ponto). */
+export const NO_MAP_PLACE = 'Escolhe onde é o grupo para aparecer em À tua volta';
+
 /** Um pedido para entrar (alias `jr`) que os admins veem e podem aceitar: conta activa e sem bloqueio com nenhum membro (nem com quem criou). */
 export const pendingVisible = (jr: string) =>
   `(EXISTS (SELECT 1 FROM identity.users ru WHERE ru.id = ${jr}.user_id AND ru.status = 'active') AND NOT ${memberBlocked(`${jr}.group_id`, `${jr}.user_id`)})`;

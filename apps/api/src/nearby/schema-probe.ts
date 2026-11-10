@@ -9,7 +9,7 @@ export interface SchemaBits {
   accepts: boolean;
 }
 
-const GROUP_COLUMNS = ['kind', 'cover_media_id', 'visibility', 'destination', 'plan_venue_id', 'starts_on', 'ends_on', 'show_on_map', 'avatar_media_id'];
+const GROUP_COLUMNS = ['kind', 'cover_media_id', 'visibility', 'destination', 'plan_venue_id', 'starts_on', 'ends_on', 'show_on_map', 'avatar_media_id', 'map_lat', 'map_lng', 'map_label'];
 
 /**
  * Colunas que outra equipa está a acrescentar: vê-se uma vez se existem e guarda-se a resposta.
