@@ -30,6 +30,8 @@ import { composeApi, type PhotoTag } from '@/lib/api.compose';
 import { type Track } from '@/lib/api.music';
 import { clearDraft, listDrafts, loadDraft, newDraftKey, saveDraft, type DraftItem } from '@/lib/drafts';
 import { useAuth } from '@/lib/auth';
+import { cropToRatio, imageRatio } from '@/lib/cropToRatio';
+import { clampPostRatio } from '@/lib/postAspect';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
@@ -69,7 +71,39 @@ async function toJpeg(f: File): Promise<File | null> {
     URL.revokeObjectURL(url);
   }
 }
-interface Asset { uri: string; video: boolean; mime: string; durationMs?: number; tags: PhotoTag[] }
+/** `ratio`: proporção (largura/altura) já conhecida da foto, quando foi cortada aqui (poupa voltar a lê-la). */
+interface Asset { uri: string; video: boolean; mime: string; durationMs?: number; tags: PhotoTag[]; ratio?: number }
+
+/**
+ * Carrossel como no Instagram: todas as fotos com a proporção da primeira foto da publicação (limitada entre 4:5 e 1,91:1),
+ * cortadas ao centro. Se já houver fotos (`cur`), manda a primeira delas; senão, a primeira das novas (também é cortada se
+ * estiver fora do intervalo, p. ex. uma captura de ecrã 9:16). Vídeos ficam como estão (o feed corta-os à vista).
+ * Uma foto que não se consiga cortar segue tal como veio.
+ */
+async function fitCarousel(cur: Asset[], next: Asset[]): Promise<Asset[]> {
+  if (!next.some((a) => !a.video)) return next;
+  let target: number | null = null;
+  const firstOld = cur.find((a) => !a.video);
+  if (firstOld) {
+    const r = firstOld.ratio ?? (await imageRatio(firstOld.uri));
+    if (r) target = clampPostRatio(r, 1);
+  }
+  const out: Asset[] = [];
+  for (const a of next) {
+    if (a.video) { out.push(a); continue; }
+    if (target === null) {
+      const r = await imageRatio(a.uri);
+      if (r) target = clampPostRatio(r, 1);
+    }
+    if (target === null) { out.push(a); continue; }
+    const uri = await cropToRatio(a.uri, target);
+    if (uri === a.uri) { out.push(a); continue; }
+    // Na web a foto original era um URL de objeto só nosso: liberta-se a memória.
+    if (Platform.OS === 'web' && a.uri.startsWith('blob:')) URL.revokeObjectURL(a.uri);
+    out.push({ ...a, uri, mime: 'image/jpeg', ratio: target });
+  }
+  return out;
+}
 
 /** Cartão grande do primeiro passo (só no aplicativo nativo; na web o primeiro passo é a câmara ao vivo, como no site). */
 function Tile({ icon, title, sub, tone, onPress }: { icon: IconName; title: string; sub: string; tone: [string, string]; onPress: () => void }) {
@@ -121,6 +155,9 @@ export default function Compose() {
   const [placeOpen, setPlaceOpen] = useState(false);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [busy, setBusy] = useState(false);
+  /** Fotos a ser cortadas para a proporção do carrossel (lotes em curso). */
+  const [preparing, setPreparing] = useState(0);
+  const batchGen = useRef(0);
   const [progress, setProgress] = useState('');
   const [err, setErr] = useState('');
   const [music, setMusic] = useState<Track | null>(null);
@@ -169,7 +206,7 @@ export default function Compose() {
   const video = assets.find((a) => a.video);
   const photos = assets.filter((a) => !a.video);
   const hasContent = body.trim().length > 0 || assets.length > 0;
-  const canPost = !busy && hasContent;
+  const canPost = !busy && preparing === 0 && hasContent;
   const left = 2000 - body.length;
 
   const refreshDrafts = () => {
@@ -212,7 +249,30 @@ export default function Compose() {
     setRestored(false);
     setStep('choose');
     draftKey.current = newDraftKey(user?.username ?? 'eu');
+    batchGen.current += 1; // fotos ainda a preparar já não entram
+    setPreparing(0);
   }
+
+  /**
+   * Junta fotos e vídeos à publicação. Numa publicação (`crop`), as fotos são cortadas para a proporção do carrossel antes de
+   * entrar (enquanto isso aparece "A preparar as fotos…" e Publicar espera). Mimos, tchekas e Zás não passam por aqui com `crop`.
+   */
+  async function appendAssets(next: Asset[], crop: boolean) {
+    const room = next.slice(0, Math.max(0, MAX_PHOTOS - assets.length));
+    if (!crop || !room.some((a) => !a.video)) {
+      setAssets((cur) => [...cur, ...next].slice(0, MAX_PHOTOS));
+      return;
+    }
+    const gen = batchGen.current;
+    setPreparing((n) => n + 1);
+    let fitted = room;
+    try { fitted = await fitCarousel(assets, room); } catch { /* segue com as originais */ }
+    if (gen !== batchGen.current) return;
+    setAssets((cur) => [...cur, ...fitted].slice(0, MAX_PHOTOS));
+    setPreparing((n) => Math.max(0, n - 1));
+  }
+  /** As fotos juntadas agora vão para uma publicação (carrossel)? Não num mimo/tcheka/Zás a ser montado na câmara. */
+  const postFlow = () => step === 'write' || kindSel === 'post' || (web && !liveCameraSupported());
 
   /** Fotos e vídeo escolhidos no browser (câmara ou galeria): mesmas regras do site. */
   async function addFiles(files: File[]) {
@@ -247,8 +307,8 @@ export default function Compose() {
     }
     setErr(problem);
     if (next.length) {
-      // Fotos e vídeos podem ir juntos na mesma publicação (carrossel), até 10.
-      setAssets((cur) => [...cur, ...next].slice(0, MAX_PHOTOS));
+      // Fotos e vídeos podem ir juntos na mesma publicação (carrossel), até 10, com as fotos na proporção da primeira.
+      void appendAssets(next, postFlow());
       if (kindSel !== 'tcheka') setStep('write');
     }
   }
@@ -276,10 +336,10 @@ export default function Compose() {
     }
   }
 
-  /** Várias fotos e vídeos escolhidos de uma vez na galeria da app: juntam-se à publicação. */
+  /** Várias fotos e vídeos escolhidos de uma vez na galeria da app: juntam-se à publicação (fotos na proporção da primeira). */
   function pickMany(list: Shot[]) {
     const ok = list.filter((x) => !x.video || !x.durationMs || x.durationMs <= 60_500);
-    setAssets((cur) => [...cur, ...ok.map((x): Asset => ({ uri: x.uri, video: x.video, mime: x.video ? videoMime(x.mime) : x.mime, durationMs: x.durationMs, tags: [] }))].slice(0, MAX_PHOTOS));
+    void appendAssets(ok.map((x): Asset => ({ uri: x.uri, video: x.video, mime: x.video ? videoMime(x.mime) : x.mime, durationMs: x.durationMs, tags: [] })), postFlow());
     bumpKind(kindSel);
     setCameraOpen(false);
     setStep('write');
@@ -310,7 +370,7 @@ export default function Compose() {
       const ok = next.filter((a) => !a.video || !a.durationMs || a.durationMs <= 60_500);
       if (ok.length < next.length) setErr('Os vídeos têm de ter até 60 segundos. Deixei de fora os mais longos.');
       if (!ok.length) return;
-      setAssets((cur) => [...cur, ...ok].slice(0, MAX_PHOTOS));
+      void appendAssets(ok, postFlow());
       setStep('write');
     } catch (e) {
       setErr((e as Error).message || 'Não consegui abrir a câmara');
@@ -573,7 +633,7 @@ export default function Compose() {
           </View>
 
           <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
-            <TextInput value={body} onChangeText={setBody} placeholder={ask} placeholderTextColor={colors.zinc500} multiline maxLength={2000} autoFocus={assets.length === 0} style={styles.input} accessibilityLabel="Texto da publicação" />
+            <TextInput value={body} onChangeText={setBody} placeholder={ask} placeholderTextColor={colors.zinc500} multiline maxLength={2000} autoFocus={assets.length === 0 && preparing === 0}style={styles.input} accessibilityLabel="Texto da publicação" />
             {music ? (
               <View>
                 <TrackCard track={music} />
@@ -630,6 +690,12 @@ export default function Compose() {
                   </View>
                 );
               })}
+            </View>
+          ) : null}
+          {preparing > 0 ? (
+            <View style={styles.preparing} accessibilityLiveRegion="polite">
+              <ActivityIndicator color={colors.zinc500} size="small" />
+              <Text style={styles.preparingText}>A preparar as fotos…</Text>
             </View>
           ) : null}
           {playing ? <VideoPreview uri={playing} onClose={() => setPlaying(null)} /> : null}
@@ -745,6 +811,8 @@ const styles = StyleSheet.create({
   video: { marginHorizontal: 20, marginTop: 4, marginBottom: 8, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000' },
   grid2: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8, paddingHorizontal: 20, paddingTop: 4, paddingBottom: 8 },
   thumb: { borderRadius: 16, overflow: 'hidden', backgroundColor: colors.zinc200 },
+  preparing: { marginHorizontal: 20, marginTop: 4, marginBottom: 8, height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 16, backgroundColor: colors.zinc100 },
+  preparingText: { fontSize: 14, fontWeight: '600', color: colors.zinc600 },
   playDot: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   dur: { position: 'absolute', left: 8, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 4 },
   cover: { position: 'absolute', left: 8, top: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 2 },
