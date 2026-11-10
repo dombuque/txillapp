@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
@@ -22,6 +22,11 @@ import { timeAgo } from '@/lib/time';
 import { callLabel } from '@/components/ChatBubbles';
 import { GroupCard, groupCardData } from '@/components/groups/GroupCard';
 import type { TxillGroupSummary } from '@/lib/api.groups';
+import { kvGet, kvSet } from '@/lib/kv';
+import { badgeText, inboxCounts, inboxRows, INBOX_TAB_KEY, parseInboxTab, tabLabel, type InboxTab, type InboxView } from '@/lib/inboxTabs';
+
+/** Último separador usado, guardado também em memória para voltar ao ecrã sem piscar "Conversas" antes de ler o kv. */
+let lastTab: InboxTab | null = null;
 
 function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, group = false) {
   const you = m.fromMe ? 'Tu: ' : '';
@@ -52,6 +57,8 @@ interface Row {
   names: { name: string; username?: string }[];
   online: boolean;
   group: boolean;
+  /** Conversa direta que ainda é um pedido de mensagem (vai para "Pedidos"). */
+  request?: boolean;
   /** TxillGroup: aparece como cartão (capa, foto de perfil, Plano) e não como conversa. */
   g?: TxillGroupSummary;
 }
@@ -72,6 +79,20 @@ function Skeleton() {
   );
 }
 
+/** Um separador da lista (só por toque: os deslizes são das linhas e da troca de menu). */
+function InboxTabButton({ label, n, on, onPress, small, what }: { label: string; n: number; on: boolean; onPress: () => void; small: boolean; what?: string }) {
+  const badge = badgeText(n);
+  return (
+    <Pressable onPress={onPress} hitSlop={{ top: 4, bottom: 4, left: 6, right: 6 }} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={tabLabel(label, n, what)} style={styles.tabBtn}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+        <Text style={[styles.tab, small && { fontSize: 15 }, on ? styles.tabOn : styles.tabOff]} numberOfLines={1}>{label}</Text>
+        {badge ? <View style={styles.badge}><Text style={styles.badgeText}>{badge}</Text></View> : null}
+      </View>
+      {on && <View style={styles.tabBar} />}
+    </Pressable>
+  );
+}
+
 /** Lista de conversas e grupos, com pesquisa e pedidos de mensagem, como no site. */
 export default function Messages() {
   // Vindo do "+" com o Zás escolhido: abre a câmara do Zás assim que o ecrã monta.
@@ -81,7 +102,22 @@ export default function Messages() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const [view, setView] = useState<'all' | 'requests'>('all');
+  // Separador ativo: abre no último usado ("Conversas" da primeira vez). Os pedidos não se lembram: são uma visita de passagem.
+  const [view, setViewNow] = useState<InboxView>(lastTab ?? 'chats');
+  const tapped = useRef(false);
+  useEffect(() => {
+    if (lastTab) return;
+    void kvGet(INBOX_TAB_KEY).then((v) => {
+      lastTab = parseInboxTab(v);
+      if (!tapped.current) setViewNow(lastTab);
+    });
+  }, []);
+  const setView = (v: InboxView) => {
+    tapped.current = true;
+    closeOpenSwipe();
+    setViewNow(v);
+    if (v !== 'requests' && v !== lastTab) { lastTab = v; void kvSet(INBOX_TAB_KEY, v); }
+  };
   const [text, setText] = useState('');
   const [ai, setAi] = useState(false);
   const [focus, setFocus] = useState(false);
@@ -130,9 +166,8 @@ export default function Messages() {
     } }];
   }
 
-  const requestCount = (direct.data ?? []).filter((c) => c.request).length;
-  const rows: Row[] = [
-    ...(direct.data ?? []).filter((c) => (view === 'requests' ? c.request : !c.request)).map((c): Row => ({
+  const all: Row[] = [
+    ...(direct.data ?? []).map((c): Row => ({
       key: `d:${c.username}`,
       username: c.username,
       to: `/messages/${c.username}`,
@@ -143,8 +178,9 @@ export default function Messages() {
       names: [{ name: c.displayName, username: c.hasAvatar ? c.username : undefined }],
       online: !!c.presence?.online,
       group: false,
+      request: !!c.request,
     })),
-    ...((view === 'requests' ? [] : groups.data ?? []) as TxillGroupSummary[]).map((g): Row => ({
+    ...((groups.data ?? []) as TxillGroupSummary[]).map((g): Row => ({
       key: `g:${g.id}`,
       to: `/messages/g/${g.id}`,
       name: g.name,
@@ -156,9 +192,13 @@ export default function Messages() {
       group: true,
       g,
     })),
-  ]
-    .filter((r) => !term || r.name.toLowerCase().includes(term) || r.sub.toLowerCase().includes(term))
-    .sort((a, b) => +new Date(b.at) - +new Date(a.at));
+  ];
+  const counts = inboxCounts(all);
+  const rows = inboxRows(all, view, term);
+  // A pesquisar fora dos pedidos: resultados de conversas e TxillGroups juntos (a caixa procura em tudo).
+  const searching = !!term && view !== 'requests';
+  const small = width < 360;
+  const newGroup = () => router.push('/messages/new?group=1' as never);
 
   const known = new Set((direct.data ?? []).map((c) => c.username.toLowerCase()));
   const strangers = term ? (people.data ?? []).filter((p) => !known.has(p.username.toLowerCase())) : [];
@@ -178,17 +218,32 @@ export default function Messages() {
         {text ? <Pressable onPress={() => setText('')} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Limpar"><Icon name="x" size={16} /></Pressable> : null}
         <Pressable onPress={() => setAi(true)} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
       </View>
-      {!term && view === 'all' && <NotesStrip />}
+      {!term && view !== 'requests' && <NotesStrip />}
       <View style={styles.tabs} accessibilityRole="tablist">
-        <Pressable onPress={() => setView('all')} accessibilityRole="tab" accessibilityState={{ selected: view === 'all' }}>
-          <Text style={[styles.tab, view === 'all' ? styles.tabOn : styles.tabOff]}>Mensagens</Text>
-        </Pressable>
-        <Pressable onPress={() => setView('requests')} accessibilityRole="tab" accessibilityState={{ selected: view === 'requests' }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={[styles.tab, view === 'requests' ? styles.tabOn : styles.tabOff]}>Pedidos</Text>
-          {requestCount > 0 && <View style={styles.count}><Text style={styles.countText}>{requestCount}</Text></View>}
-        </Pressable>
+        {searching ? (
+          <View style={[styles.tabBtn, { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }]}>
+            <Text style={[styles.tab, small && { fontSize: 15 }, styles.tabOn]} accessibilityRole="header">Resultados</Text>
+            <Text style={styles.searchHint} numberOfLines={1}>conversas e TxillGroups</Text>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: small ? 14 : 20, flexShrink: 1 }}>
+            <InboxTabButton label="Conversas" n={counts.chats} on={view === 'chats'} onPress={() => setView('chats')} small={small} />
+            <InboxTabButton label="TxillGroups" n={counts.groups} on={view === 'groups'} onPress={() => setView('groups')} small={small} />
+          </View>
+        )}
+        <InboxTabButton label="Pedidos" n={counts.requests} what="à espera" on={view === 'requests'} onPress={() => setView('requests')} small={small} />
       </View>
       {view === 'requests' && <Text style={styles.note}>Mensagens de quem não segues. Só passam para a caixa normal se aceitares. Quem recusas não é avisado.</Text>}
+      {view === 'groups' && !searching && rows.length > 0 && (
+        <Pressable onPress={newGroup} style={({ pressed }) => [styles.row, styles.newGroup, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Novo TxillGroup">
+          <View style={styles.newGroupIcon}><Icon name="plus" size={22} color={colors.brand} /></View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.name} numberOfLines={1}>Novo TxillGroup</Text>
+            <Text style={[styles.sub, { fontSize: 14 }]} numberOfLines={1}>Viagem, festa ou fim de semana, com Plano e Txills</Text>
+          </View>
+          <Icon name="chevron-right" size={18} color={colors.zinc500} />
+        </Pressable>
+      )}
     </View>
   );
 
@@ -238,10 +293,16 @@ export default function Messages() {
         ListEmptyComponent={
           loading ? <Skeleton /> : strangers.length > 0 ? <View /> : (
             <View style={styles.empty}>
-              <Icon name="messages" size={44} color={colors.zinc300} />
-              <Text style={styles.emptyTitle}>{term ? 'Nada com esse nome' : view === 'requests' ? 'Sem pedidos' : 'Ainda sem cochichos'}</Text>
-              <Text style={styles.emptySub}>{term ? 'Tenta outro nome ou começa uma conversa nova.' : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.' : 'Toca no ícone no canto para falar com alguém ou criar um TxillGroup.'}</Text>
-              {!term && view === 'all' && <Pressable onPress={() => router.push('/messages/new' as never)} style={styles.newBtn} accessibilityRole="button"><Text style={styles.newBtnText}>Nova conversa</Text></Pressable>}
+              <Icon name={view === 'groups' && !term ? 'users' : 'messages'} size={44} color={colors.zinc300} />
+              <Text style={styles.emptyTitle}>{term ? 'Nada com esse nome' : view === 'requests' ? 'Sem pedidos' : view === 'groups' ? 'Ainda não tens TxillGroups' : 'Ainda sem cochichos'}</Text>
+              <Text style={styles.emptySub}>
+                {term ? 'Tenta outro nome ou começa uma conversa nova.'
+                  : view === 'requests' ? 'Quando alguém que não segues te escrever, aparece aqui.'
+                  : view === 'groups' ? 'Cria um para planear uma viagem, uma festa ou um fim de semana com a malta, com Plano e Txills.'
+                  : 'Começa uma conversa com alguém que segues. Os TxillGroups estão no separador ao lado.'}
+              </Text>
+              {!term && view === 'chats' && <Pressable onPress={() => router.push('/messages/new' as never)} style={styles.newBtn} accessibilityRole="button"><Text style={styles.newBtnText}>Nova conversa</Text></Pressable>}
+              {!term && view === 'groups' && <Pressable onPress={newGroup} style={styles.newBtn} accessibilityRole="button"><Text style={styles.newBtnText}>Novo TxillGroup</Text></Pressable>}
             </View>
           )
         }
@@ -281,12 +342,17 @@ const styles = StyleSheet.create({
   newBtn: { marginTop: 16, height: 44, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
   newBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
   input: { flex: 1, minWidth: 0, fontSize: 16, color: colors.zinc900, padding: 0, outlineStyle: 'none' } as object,
-  tabs: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingTop: 4, marginBottom: 4 },
-  tab: { height: 40, lineHeight: 40, fontSize: 17 },
+  tabs: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 4, paddingTop: 4, marginBottom: 4 },
+  tabBtn: { height: 40, justifyContent: 'center' },
+  tab: { fontSize: 17 },
   tabOn: { fontWeight: '800', color: colors.zinc900 },
   tabOff: { fontWeight: '600', color: colors.zinc500 },
-  count: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 6, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  countText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  tabBar: { position: 'absolute', left: 0, right: 0, bottom: 2, height: 3, borderRadius: 2, backgroundColor: colors.zinc900 },
+  badge: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+  searchHint: { flexShrink: 1, fontSize: 14, color: colors.zinc500 },
+  newGroup: { paddingVertical: 8, marginBottom: 4 },
+  newGroupIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.rose50, alignItems: 'center', justifyContent: 'center' },
   note: { paddingHorizontal: 4, paddingBottom: 8, fontSize: 13, lineHeight: 18, color: colors.zinc500 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingHorizontal: 4, paddingVertical: 12 },
   ring: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center' },
