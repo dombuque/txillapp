@@ -71,6 +71,12 @@ export default function PublicGroupPage() {
                 <Icon name="users" size={14} color={colors.zinc600} />
                 <Text style={st.metaText}>{g.members} {g.members === 1 ? 'membro' : 'membros'}</Text>
               </View>
+              {g.placeLabel ? (
+                <View style={st.meta} accessibilityLabel={`Aparece em ${g.placeLabel}`}>
+                  <Icon name="map-pin" size={14} color={colors.brand} />
+                  <Text style={st.metaText}>{g.placeLabel}</Text>
+                </View>
+              ) : null}
             </View>
           </View>
 

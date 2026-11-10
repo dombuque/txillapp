@@ -1,8 +1,9 @@
 /**
- * O mapa do "À tua volta" (Leaflet + mosaicos do OpenStreetMap servidos pelo Txillapp, com a atribuição).
+ * O mapa do "À tua volta" (Leaflet + mosaicos do OpenStreetMap servidos pelo Txillapp, com a atribuição) e o mapa pequeno
+ * de "Marcar no mapa" (createPickMap, o sítio de um TxillGroup).
  * Este ficheiro corre em dois sítios e por isso NÃO importa nada (só tipos):
- *  - no site (NearbyMap.web.tsx) é importado como módulo normal;
- *  - na app (NearbyMap.tsx) vai como texto dentro da página da WebView. Depois de mudar este ficheiro corre
+ *  - no site (NearbyMap.web.tsx, PlacePickMap.web.tsx) é importado como módulo normal;
+ *  - na app (NearbyMap.tsx, PlacePickMap.tsx) vai como texto dentro da página da WebView. Depois de mudar este ficheiro corre
  *    `node scripts/make-leaflet-inline.mjs` para atualizar src/components/nearby/leafletInline.ts.
  */
 import type * as Leaflet from 'leaflet';
@@ -231,6 +232,53 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
   map.on('zoomend', draw);
   return {
     update,
+    resize: () => map.invalidateSize(),
+    destroy: () => map.remove(),
+  };
+}
+
+export interface PickHandle {
+  /** Leva o mapa até `c` (sem animação) e avisa o novo centro. */
+  setCenter: (c: { lat: number; lng: number }, zoom?: number) => void;
+  resize: () => void;
+  destroy: () => void;
+}
+
+/**
+ * O mapa pequeno de "Marcar no mapa" (o sítio de um TxillGroup): arrasta-se o mapa e o alfinete fica parado ao centro (o
+ * alfinete é desenhado por cima, fora daqui). Um círculo de ~750 m (metade da quadrícula de 1,5 km) mostra a zona que fica gravada. Avisa o centro em `onMove`
+ * quando o mapa para.
+ */
+export function createPickMap(L: typeof Leaflet, el: HTMLElement, onMove: (c: { lat: number; lng: number }) => void, opts: { zoomControl: boolean }): PickHandle {
+  const BRAND = '#d6334f';
+  if (!document.getElementById('tx-pick-css')) {
+    const css = document.createElement('style');
+    css.id = 'tx-pick-css';
+    css.textContent = '.leaflet-container{font-family:system-ui,sans-serif;background:#f2efe9}.leaflet-control-attribution{font-size:10px}';
+    document.head.appendChild(css);
+  }
+  const map = L.map(el, { zoomControl: false, attributionControl: true, zoomSnap: 0.5, minZoom: 5, maxZoom: 18 });
+  if (opts.zoomControl) L.control.zoom({ position: 'topright', zoomInTitle: 'Aproximar', zoomOutTitle: 'Afastar' }).addTo(map);
+  map.attributionControl.setPrefix(false);
+  L.tileLayer('https://txillapp.com/tiles/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+  }).addTo(map);
+  const zone = L.circle([0, 0], { radius: 750, color: BRAND, weight: 1.5, opacity: 0.55, fillColor: BRAND, fillOpacity: 0.08, interactive: false }).addTo(map);
+  let ready = false;
+  const emit = () => {
+    const c = map.getCenter();
+    zone.setLatLng(c);
+    onMove({ lat: c.lat, lng: c.lng });
+  };
+  map.on('move', () => zone.setLatLng(map.getCenter()));
+  map.on('moveend', () => { if (ready) emit(); });
+  return {
+    setCenter: (c, zoom) => {
+      map.setView([c.lat, c.lng], zoom ?? (ready ? map.getZoom() : 15), { animate: false });
+      ready = true;
+      emit();
+    },
     resize: () => map.invalidateSize(),
     destroy: () => map.remove(),
   };
