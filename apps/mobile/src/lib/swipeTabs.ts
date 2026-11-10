@@ -1,6 +1,7 @@
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
+import { isSwipeClaimed, navSwipeThreshold, resetSwipeClaim } from '@/lib/swipeClaim';
 
 /** Separadores principais, pela ordem da barra de baixo (o "+" não conta: abrir a publicar a deslizar seria estranho). */
 const TABS = ['/', '/reels', '/messages', '/profile'];
@@ -14,9 +15,16 @@ function busy(start: EventTarget | null) {
   return false;
 }
 
+/** Tempo máximo do gesto de mudar de menu: chega para um deslize longo e decidido, não para um arrasto lento a meio de ler. */
+const NAV_MAX_MS = 900;
+/** O gesto tem de ser claramente para o lado: |dx| pelo menos 1,8 vezes |dy| (rolar com desvio não muda de menu). */
+const NAV_RATIO = 1.8;
+
 /**
  * Deslizar para os lados nos ecrãs principais muda de separador (sem dar a volta: nas pontas não passa);
- * no Início, deslizar para a direita abre a câmara (como tocar no "+"). Igual ao site antigo. Só na web por agora.
+ * no Início, deslizar para a direita abre a câmara (como tocar no "+"). Só na web por agora.
+ * Só um deslize grande (navSwipeThreshold, ~40% do ecrã) muda de menu; os pequenos ficam para quem os reclamar
+ * (lib/swipeClaim: ex. uma linha da lista de conversas a mostrar "Lida" ou "Apagar").
  */
 export function useSwipeTabs() {
   const pathname = usePathname();
@@ -27,6 +35,7 @@ export function useSwipeTabs() {
     if (here < 0) return;
     let s: { x: number; y: number; t: number } | null = null;
     const down = (e: TouchEvent) => {
+      resetSwipeClaim(); // em captura: corre antes de qualquer linha reclamar o gesto
       const t = e.touches[0];
       const edge = 24; // a margem é do gesto de voltar do iPhone
       const ok = e.touches.length === 1 && t.clientX > edge && t.clientX < window.innerWidth - edge && !busy(e.target) && window.innerWidth < 1024;
@@ -37,9 +46,9 @@ export function useSwipeTabs() {
       const t = e.changedTouches[0];
       const dx = t.clientX - s.x;
       const dy = t.clientY - s.y;
-      const quick = Date.now() - s.t < 700;
+      const quick = Date.now() - s.t < NAV_MAX_MS;
       s = null;
-      if (!quick || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
+      if (isSwipeClaimed() || !quick || Math.abs(dx) < navSwipeThreshold() || Math.abs(dx) < Math.abs(dy) * NAV_RATIO) return;
       const next = here + (dx < 0 ? 1 : -1);
       // Sem voltas. No Início, para a direita, abre a câmara.
       if (next < 0) {
@@ -50,11 +59,11 @@ export function useSwipeTabs() {
       router.navigate(TABS[next] as never);
     };
     const cancel = () => { s = null; };
-    document.addEventListener('touchstart', down, { passive: true });
+    document.addEventListener('touchstart', down, { passive: true, capture: true });
     document.addEventListener('touchend', up, { passive: true });
     document.addEventListener('touchcancel', cancel, { passive: true });
     return () => {
-      document.removeEventListener('touchstart', down);
+      document.removeEventListener('touchstart', down, { capture: true });
       document.removeEventListener('touchend', up);
       document.removeEventListener('touchcancel', cancel);
     };
