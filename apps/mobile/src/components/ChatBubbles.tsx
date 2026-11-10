@@ -11,6 +11,7 @@ import { CallIcon } from '@/components/calls/CallIcons';
 import { Sticker } from '@/components/StickerPanel';
 import { ReactionArt } from '@/components/StoryParts';
 import { PollBubble } from '@/components/groups/PollCard';
+import { squircle } from '@/components/zas/squircle';
 import { type ChatMessage } from '@/lib/api';
 import { abs, sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
@@ -283,6 +284,45 @@ function CallLine({ m, mine, peerHandle }: { m: Msg; mine: boolean; peerHandle?:
   );
 }
 
+/**
+ * A foto citada numa resposta a um Zás ou a um mimo (entre a legenda e a bolha do texto): uma linha fina de citação ao lado
+ * (à esquerda nas mensagens da outra pessoa, à direita nas minhas, como nas respostas às notas) e a foto em grande.
+ * O Zás vem em squircle 3:4 com o raio num canto e não abre nada ao tocar (é de ver uma vez); o mimo (9:16) abre os mimos de quem o pôs.
+ * Se a foto já não existir (o Zás e o mimo duram 24 h, a mensagem fica), mostra um marcador no lugar dela.
+ */
+function QuotedMedia({ kind, uri, mine, label, onPress }: { kind: 'zas' | 'mimo'; uri: string | null; mine: boolean; label: string; onPress?: () => void }) {
+  const [failed, setFailed] = useState(false);
+  const zas = kind === 'zas';
+  const ok = !!uri && !failed;
+  const w = ok ? (zas ? 156 : 117) : 128;
+  const h = ok ? 208 : 152;
+  const shape = zas ? squircle(w) : { overflow: 'hidden' as const, borderRadius: 18 };
+  const bolt = (s: number) => <View style={{ width: s, height: s, borderRadius: s / 2, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}><Icon name="bolt" size={Math.round(s * 0.55)} solid color="#fff" /></View>;
+  const gone = zas ? 'Zás já não disponível' : 'Mimo já não disponível';
+  const pic = ok ? (
+    <View style={[{ width: w, height: h, backgroundColor: colors.zinc200 }, shape]}>
+      <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" onError={() => setFailed(true)} accessibilityIgnoresInvertColors />
+      {/* Dentro da curva do squircle, para não ficar cortado (clip-path na web, cantos redondos no nativo). */}
+      {zas && <View style={{ position: 'absolute', left: Math.round(w * 0.12), top: Math.round(h * 0.1) }}>{bolt(22)}</View>}
+    </View>
+  ) : (
+    <View style={[{ width: w, height: h, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14 }, shape]}>
+      {zas ? bolt(30) : <Icon name="image" size={26} color={colors.zinc500} />}
+      <Text style={{ textAlign: 'center', fontSize: 12, lineHeight: 16, color: colors.zinc500 }}>{gone}</Text>
+    </View>
+  );
+  return (
+    <View style={{ marginBottom: 4, flexDirection: mine ? 'row-reverse' : 'row', alignItems: 'stretch', gap: 8 }}>
+      <View style={{ width: 3, borderRadius: 2, backgroundColor: colors.zinc200 }} />
+      {onPress && ok ? (
+        <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.85 }} accessibilityRole="button" accessibilityLabel={label}>{pic}</Pressable>
+      ) : (
+        <View accessible accessibilityRole="image" accessibilityLabel={ok ? label : gone}>{pic}</View>
+      )}
+    </View>
+  );
+}
+
 export function Bubble({
   m, group = false, prevSame, nextSame, seen = false, flash = false, peerName, peerHandle, meHandle, onMenu, onRetry, onOpenOnce, onJump, onCheer, onStopLive, onReply,
 }: {
@@ -422,18 +462,19 @@ export function Bubble({
           )}
         </Pressable>
       )}
-      {m.storyUrl ? (
-        <Pressable onPress={() => { const o = mine ? peerHandle : meHandle; if (o) router.push(`/stories/${o}` as never); }} style={{ marginBottom: 4 }} accessibilityRole="button" accessibilityLabel="Ver o mimo">
-          <Image source={{ uri: sized(m.storyUrl, 160) }} style={{ height: 112, width: 72, borderRadius: 12, opacity: 0.9 }} contentFit="cover" />
-        </Pressable>
+      {(m.kind === 'story_reply' || m.kind === 'story_reaction' || m.kind === 'zas_reply') && <Text style={{ marginBottom: 6, paddingHorizontal: 4, fontSize: 12, color: colors.zinc500 }}>{storyLabel}</Text>}
+      {m.kind === 'zas_reply' ? (
+        <QuotedMedia key={m.mediaUrl ?? 'gone'} kind="zas" uri={abs(m.mediaUrl) ?? null} mine={mine} label={mine ? 'Zás a que respondeste' : 'O teu Zás a que respondeu'} />
+      ) : m.storyUrl ? (
+        <QuotedMedia
+          key={m.storyUrl}
+          kind="mimo"
+          uri={sized(m.storyUrl, 320) ?? null}
+          mine={mine}
+          label="Ver o mimo"
+          onPress={() => { const o = mine ? peerHandle : meHandle; if (o) router.push(`/stories/${o}` as never); }}
+        />
       ) : null}
-      {m.kind === 'zas_reply' && m.mediaUrl ? (
-        <View style={{ marginBottom: 4, width: 72, height: 96, borderRadius: 14, overflow: 'hidden', backgroundColor: colors.zinc200 }} accessibilityLabel="O Zás">
-          <Image source={{ uri: abs(m.mediaUrl) ?? m.mediaUrl }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
-          <View style={{ position: 'absolute', left: 6, top: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}><Icon name="bolt" size={12} solid color="#fff" /></View>
-        </View>
-      ) : null}
-      {(m.kind === 'story_reply' || m.kind === 'story_reaction' || m.kind === 'zas_reply') && <Text style={{ marginBottom: 2, fontSize: 12, color: colors.zinc500 }}>{storyLabel}</Text>}
       <Pressable onPress={onPress} onLongPress={real ? () => onMenu(m) : undefined} delayLongPress={450} style={{ maxWidth: m.kind === 'text' || m.kind === 'story_reply' || m.kind === 'zas_reply' ? '82%' : m.kind === 'image' || m.kind === 'video' ? '75%' : '100%' }}>{content}</Pressable>
       {!!m.reactions?.length && (
         <Pressable onPress={() => onMenu(m)} accessibilityRole="button" accessibilityLabel="Reações" style={[st.reactions, mine ? { marginRight: 12 } : { marginLeft: 12 }]}>
