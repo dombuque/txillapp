@@ -383,7 +383,7 @@ export default function Compose() {
   const cameraLayer = cameraOpen && focused && (
     <View style={StyleSheet.absoluteFill}>
       {web ? (
-        <LiveCamera count={assets.length} max={MAX_PHOTOS} onShot={shot} onGallery={(f) => { void addFiles(f); setCameraOpen(false); }} onClose={() => setCameraOpen(false)} onDone={() => { setCameraOpen(false); setStep('write'); }} />
+        <LiveCamera count={assets.length} max={MAX_PHOTOS} onShot={shot} onGallery={(f) => { void addFiles(f); setCameraOpen(false); }} onClose={() => setCameraOpen(false)} onDone={() => { setCameraOpen(false); setStep('write'); }} aspect={kindSel === 'post' ? 4 / 5 : 9 / 16} />
       ) : (
         <NativeCamera onShot={shot} multi onPickMany={pickMany} galleryTitle="Nova publicação" onClose={() => setCameraOpen(false)} aspect={kindSel === 'post' ? 4 / 5 : 9 / 16} />
       )}

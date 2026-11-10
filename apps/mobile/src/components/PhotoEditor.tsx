@@ -6,6 +6,7 @@ import { ActivityIndicator, Alert, BackHandler, PanResponder, Platform, Pressabl
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { useAuth } from '@/lib/auth';
+import { POST_RATIO_DEFAULT, POST_RATIO_MAX } from '@/lib/postAspect';
 import { colors } from '@/lib/theme';
 import { WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, signLayout } from '@/lib/wordmark';
 import { Icon } from './Icon';
@@ -341,6 +342,8 @@ function ToolSlider({ kind, value, def, label, onChange }: { kind: 'both' | 'up'
 export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; aspect: number; onCancel: () => void; onDone: (fileUri: string) => void }) {
   const insets = useSafeAreaInsets();
   const username = useAuth().user?.username ?? null;
+  /** Publicação: quem abre o editor pede 4:5 (mimo e tcheka pedem 9:16). */
+  const isPost = Math.abs(aspect - POST_RATIO_DEFAULT) < 0.01;
   const [img, setImg] = useState<SkImage | null>(null);
   const [failed, setFailed] = useState(false);
   const [edit, setEdit] = useState<Edit>({ look: 0, amt: 1, adj: NO_ADJ, aspect, rot: 0, flip: false, ox: 0, oy: 0 });
@@ -501,7 +504,10 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
 
   const set = (p: Partial<Edit>) => setEdit((e) => ({ ...e, ...p }));
   const setAdj = (p: Partial<Adjust>) => setEdit((e) => ({ ...e, adj: { ...e.adj, ...p } }));
-  const ASPECTS: { label: string; v: number | null }[] = [{ label: 'Original', v: null }, { label: '1:1', v: 1 }, { label: '4:5', v: 4 / 5 }, { label: '9:16', v: 9 / 16 }, { label: '16:9', v: 16 / 9 }];
+  // Numa publicação (aspect 4:5) só as proporções do Instagram: 1:1, 4:5 e 1,91:1. Em mimo/tcheka, todas.
+  const ASPECTS: { label: string; v: number | null }[] = isPost
+    ? [{ label: '1:1', v: 1 }, { label: '4:5', v: 4 / 5 }, { label: '1,91:1', v: POST_RATIO_MAX }]
+    : [{ label: 'Original', v: null }, { label: '1:1', v: 1 }, { label: '4:5', v: 4 / 5 }, { label: '9:16', v: 9 / 16 }, { label: '16:9', v: 16 / 9 }];
   const cur = TOOLS.find((t) => t.id === tool) ?? TOOLS[0];
   /** A ferramenta já mexeu na foto (põe um pontinho coral por baixo do ícone). */
   const touched = (t: ToolDef) => {
