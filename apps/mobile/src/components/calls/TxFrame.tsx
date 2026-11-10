@@ -13,7 +13,8 @@ export function TxFrame({ panel = false }: { panel?: boolean }) {
   const insets = useSafeAreaInsets();
   const inset = panel ? 8 : 6;
   const top = panel ? inset : Math.max(inset, insets.top - 6);
-  const bottom = panel ? inset : Math.max(inset, insets.bottom - 4);
+  // Em baixo fica acima da barra de gestos: no PWA do iPhone a margem segura vem a 0, por isso há sempre um mínimo.
+  const bottom = panel ? inset : Math.max(insets.bottom, 18) + 12;
   const radius = panel ? 22 : 36;
   const markW = 74;
   const markH = (WORDMARK_BOX.h / WORDMARK_BOX.w) * markW;

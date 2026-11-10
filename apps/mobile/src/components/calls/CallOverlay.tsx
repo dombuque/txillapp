@@ -73,7 +73,8 @@ function CallScreen({ c }: { c: CallState }) {
 function usePad() {
   const insets = useSafeAreaInsets();
   const desktop = useDesktop();
-  return desktop ? { top: 18, bottom: 46 } : { top: insets.top + 10, bottom: Math.max(insets.bottom, 12) + 44 };
+  // Telemóvel: os botões ficam acima da moldura do TxFrame (que está a max(margem, 18) + 12 do fundo) e da etiqueta dela.
+  return desktop ? { top: 18, bottom: 46 } : { top: insets.top + 10, bottom: Math.max(insets.bottom, 18) + 12 + 44 };
 }
 
 /** Fundo: a minha câmara (videochamada a tocar) ou a foto da pessoa desfocada. */
