@@ -633,7 +633,7 @@ export default function Compose() {
           </View>
 
           <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
-            <TextInput value={body} onChangeText={setBody} placeholder={ask} placeholderTextColor={colors.zinc500} multiline maxLength={2000} autoFocus={assets.length === 0 && preparing === 0}style={styles.input} accessibilityLabel="Texto da publicação" />
+            <TextInput value={body} onChangeText={setBody} placeholder={ask} placeholderTextColor={colors.zinc500} multiline maxLength={2000} autoFocus={assets.length === 0 && preparing === 0} style={styles.input} accessibilityLabel="Texto da publicação" />
             {music ? (
               <View>
                 <TrackCard track={music} />
