@@ -1,5 +1,5 @@
 import { exportPKCS8, generateKeyPair } from 'jose';
-import { buildFcmMessage, FcmSender } from './fcm';
+import { buildFcmMessage, FcmSender, fcmData, fcmTokenIsDead } from './fcm';
 import { webPushBody } from './push.service';
 
 const callPush = {
@@ -31,10 +31,28 @@ describe('mensagens do FCM e do Web Push', () => {
     expect(m.notification).toBeUndefined();
     expect(m).toEqual({
       token: 'tok',
-      data: { kind: 'call', callId: 'abc', from: 'ana', video: '1', title: 'Ana Teste', message: 'Videochamada', channelId: 'calls', categoryId: 'call', tag: 'call-abc', url: '/call/abc?from=ana&video=1' },
+      data: { kind: 'call', callId: 'abc', caller: 'ana', video: '1', title: 'Ana Teste', message: 'Videochamada', channelId: 'calls', categoryId: 'call', tag: 'call-abc', url: '/call/abc?from=ana&video=1' },
       android: { priority: 'HIGH', ttl: '45s' },
     });
     expect(Object.values(m.data as Record<string, unknown>).every((v) => typeof v === 'string')).toBe(true);
+  });
+
+  it('nenhuma chave reservada do FCM sai em `data` (o FCM recusava a mensagem inteira com "Invalid data payload key: from")', () => {
+    const reserved = (k: string) => k === 'from' || k === 'message_type' || k === 'collapse_key' || /^(google|gcm)/i.test(k);
+    for (const platform of ['android', 'ios'] as const) {
+      for (const push of [callPush, { ...callPush, dataOnly: false }, { title: 'x', body: 'y', url: '/z', data: { from: 'rui', 'google.x': '1', gcm_y: '2', message_type: 't', kind: 'missed_call' } }]) {
+        const data = buildFcmMessage('tok', push, platform).data as Record<string, string>;
+        expect(Object.keys(data).filter(reserved)).toEqual([]);
+      }
+    }
+    expect(fcmData({ from: 'ana', kind: 'call', 'google.sent_time': '1' })).toEqual({ caller: 'ana', kind: 'call' });
+  });
+
+  it('só um código de aparelho morto apaga o aparelho; um erro no conteúdo não', () => {
+    expect(fcmTokenIsDead(404, '{"error":{"status":"NOT_FOUND","details":[{"errorCode":"UNREGISTERED"}]}}')).toBe(true);
+    expect(fcmTokenIsDead(400, '{"error":{"status":"INVALID_ARGUMENT","message":"The registration token is not a valid FCM registration token"}}')).toBe(true);
+    expect(fcmTokenIsDead(400, '{"error":{"code":400,"message":"Invalid data payload key: from","status":"INVALID_ARGUMENT"}}')).toBe(false);
+    expect(fcmTokenIsDead(403, '{"error":{"status":"PERMISSION_DENIED"}}')).toBe(false);
   });
 
   it('chamada no iPhone: notificação com categoria, som de toque e nível time-sensitive', () => {

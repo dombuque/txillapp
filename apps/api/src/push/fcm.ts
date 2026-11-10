@@ -23,8 +23,24 @@ export interface FcmPush {
   ios?: { sound?: string; interruptionLevel?: 'passive' | 'active' | 'time-sensitive' | 'critical' };
 }
 
+/**
+ * O FCM recusa a mensagem inteira (400 "Invalid data payload key") se `data` tiver chaves reservadas: `from`,
+ * `message_type`, `collapse_key`, ou começadas por `google` / `gcm`. `from` passa a `caller` (é o @ de quem liga);
+ * as outras saem. O Web Push não tem esta regra e continua a receber `from`.
+ */
+export function fcmData(data: Record<string, string> = {}): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (k === 'from') out.caller = v;
+    else if (k === 'message_type' || k === 'collapse_key' || k === 'notification' || /^(google|gcm)/i.test(k)) continue;
+    else out[k] = v;
+  }
+  return out;
+}
+
 /** Monta a mensagem do FCM (API HTTP v1). Separado do envio para se poder testar sem rede. */
 export function buildFcmMessage(token: string, m: FcmPush, platform: 'android' | 'ios' = 'android'): Record<string, unknown> {
+  m = { ...m, data: fcmData(m.data) };
   const ttl = m.ttlSeconds ? { ttl: `${m.ttlSeconds}s` } : {};
   // Android só com dados: tudo vai em `data` (o Expo lê `title` e `message`, não `body`).
   if (m.dataOnly && platform === 'android') {
@@ -64,6 +80,12 @@ export function buildFcmMessage(token: string, m: FcmPush, platform: 'android' |
     android: { priority: 'HIGH', ...ttl, notification: { channel_id: m.channel ?? 'txillapp', ...(m.tag ? { tag: m.tag } : {}) } },
     ...apns,
   };
+}
+
+/** O erro do FCM quer dizer que o código do aparelho já não serve? (Separado para se poder testar.) */
+export function fcmTokenIsDead(status: number, body: string): boolean {
+  if (status === 404 || /UNREGISTERED/.test(body)) return true;
+  return status === 400 && /INVALID_ARGUMENT/.test(body) && /registration token/i.test(body);
 }
 
 export class FcmSender {
@@ -107,7 +129,11 @@ export class FcmSender {
     return j.access_token;
   }
 
-  /** Devolve 'dead' se o código do aparelho já não existe (para o apagar). */
+  /**
+   * Devolve 'dead' só quando o FCM diz que o código do aparelho já não serve (para o apagar): `UNREGISTERED`, 404, ou
+   * INVALID_ARGUMENT a falar do próprio código ("registration token"). Um 400 por causa do conteúdo da mensagem NÃO apaga
+   * o aparelho (antes apagava, e o telemóvel deixava de receber tudo). Os erros ficam no log, sem o código do aparelho.
+   */
   async send(deviceToken: string, m: FcmPush, platform: 'android' | 'ios' = 'android'): Promise<'ok' | 'dead' | 'error'> {
     const res = await fetch(`https://fcm.googleapis.com/v1/projects/${this.acct!.project_id}/messages:send`, {
       method: 'POST',
@@ -115,10 +141,9 @@ export class FcmSender {
       body: JSON.stringify({ message: buildFcmMessage(deviceToken, m, platform) }),
     });
     if (res.ok) return 'ok';
-    if (res.status === 404 || res.status === 400) {
-      const t = await res.text();
-      if (/UNREGISTERED|NOT_FOUND|INVALID_ARGUMENT/.test(t)) return 'dead';
-    }
-    return 'error';
+    const t = await res.text().catch(() => '');
+    const dead = fcmTokenIsDead(res.status, t);
+    console.warn(`[push] FCM ${res.status}${dead ? ' (aparelho apagado)' : ''}: ${t.replace(/\s+/g, ' ').slice(0, 200)}`);
+    return dead ? 'dead' : 'error';
   }
 }
