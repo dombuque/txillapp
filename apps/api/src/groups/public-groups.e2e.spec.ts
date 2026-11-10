@@ -119,7 +119,7 @@ describe('TxillGroups vistos de fora: privado oculto, privado no mapa (pedir) e 
     const pub = (await api().get(g('/public')).set(auth(ze)).expect(200)).body;
     expect(pub).toEqual({
       id: groupId, name: 'Noite na Costa', groupKind: 'festa', description: 'Kizomba até de manhã', coverUrl: null, avatarUrl: null,
-      visibility: 'private', joinMode: 'request', destination: 'Costa do Sol', venueName: `Barraca PG ${run}`,
+      visibility: 'private', joinMode: 'request', destination: 'Costa do Sol', venueName: `Barraca PG ${run}`, placeLabel: `Barraca PG ${run}`,
       startsOn: '2099-12-20', endsOn: '2099-12-21', members: 3, me: 'none',
     });
     expect(await nearbyGroup(ze)).toMatchObject({ id: groupId, visibility: 'private', joinMode: 'request', avatarUrl: null, members: 3 });

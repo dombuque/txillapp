@@ -31,6 +31,11 @@ const renameSchema = z.object({
   // Privado oculto / privado no mapa (pedem para entrar) / público (entram logo). Só admins.
   visibility: z.enum(['private', 'public']).optional(),
   showOnMap: z.boolean().optional(),
+  // O sítio no mapa quando o plano não tem um local aprovado (0104). O servidor arredonda; null limpa. Só admins.
+  mapPlace: z
+    .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), label: z.string().trim().max(80).nullable().optional() })
+    .nullable()
+    .optional(),
 });
 const membersSchema = z.object({ members: z.array(z.string().trim().min(1).max(40)).min(1).max(49) });
 const roleSchema = z.object({ role: z.enum(['admin', 'member']) });

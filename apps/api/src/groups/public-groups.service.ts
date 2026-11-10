@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { GroupsService, MAX_MEMBERS } from '../chat/groups.service';
 import { PG_POOL } from '../db/db.module';
 import { NotificationsService } from '../notifications/notifications.service';
-import { GroupAccess, memberBlocked, pendingVisible } from './group-access';
+import { GroupAccess, memberBlocked, pendingVisible, venueOnMap } from './group-access';
 
 /*
  * TxillGroups vistos de fora. Três modos (colunas social.groups.visibility e show_on_map):
@@ -15,7 +15,7 @@ import { GroupAccess, memberBlocked, pendingVisible } from './group-access';
  * Mensagens, sondagens, lista, despesas, álbum, cofre e a lista de membros continuam só para membros.
  *
  * GET    /chat/groups/:id/public -> { id, name, groupKind, description, coverUrl, avatarUrl, visibility, joinMode: 'open' | 'request',
- *          destination, venueName, startsOn, endsOn, members, me: 'none' | 'pending' | 'member' }   (404 se oculto ou com bloqueio; membros veem sempre)
+ *          destination, venueName, placeLabel (0104: nome do local do mapa ou do ponto; nunca coordenadas), startsOn, endsOn, members, me: 'none' | 'pending' | 'member' }   (404 se oculto ou com bloqueio; membros veem sempre)
  * POST   /chat/groups/:id/join-requests -> público: 200 { status: 'member' } (entra logo; avisa os admins com group_member_joined,
  *                                          no máximo uma vez por 24 h por pessoa e grupo, para quem sai e volta a entrar)
  *                                          privado no mapa: 201 { status: 'pending' } (200 se já estava à espera; avisa os admins com group_join_request)
@@ -39,6 +39,7 @@ interface GroupRow {
   show_on_map: boolean;
   destination: string | null;
   venue_name: string | null;
+  place_label: string | null;
   starts_on: string | null;
   ends_on: string | null;
   members: number;
@@ -64,6 +65,7 @@ export class PublicGroupsService {
     const { rows } = await this.pool.query(
       `SELECT g.id, g.name, g.kind, g.description, g.cover_media_id, g.avatar_media_id, g.visibility, g.show_on_map,
               g.destination, CASE WHEN v.review_status = 'approved' THEN v.name END AS venue_name,
+              CASE WHEN ${venueOnMap('v')} THEN v.name WHEN g.map_lat IS NOT NULL THEN g.map_label END AS place_label,
               g.starts_on::text AS starts_on, g.ends_on::text AS ends_on,
               (SELECT count(*) FROM social.group_members gm WHERE gm.group_id = g.id)::int AS members,
               (SELECT gm.role FROM social.group_members gm WHERE gm.group_id = g.id AND gm.user_id = $2) AS my_role,
@@ -95,6 +97,8 @@ export class PublicGroupsService {
       joinMode: (g.visibility === 'public' ? 'open' : 'request') as JoinMode,
       destination: g.destination ?? null,
       venueName: g.venue_name ?? null,
+      // O nome do sítio no mapa (o do local do plano, ou o que o admin deu ao ponto). Nunca a posição.
+      placeLabel: g.place_label ?? null,
       startsOn: g.starts_on ?? null,
       endsOn: g.ends_on ?? null,
       members: g.members,

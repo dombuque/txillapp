@@ -37,9 +37,12 @@ describe('TxillGroups vistos de fora: grupo cheio, limites de pedidos, admins qu
   const requests = async (x: U, id: string) => (await api().get(g(id, '/join-requests')).set(auth(x)).expect(200)).body as { username: string }[];
   const count = async (id: string) => (await pool.query('SELECT count(*)::int AS n FROM social.group_members WHERE group_id = $1', [id])).rows[0].n as number;
 
-  /** Grupo da Ana (admin) com o Beto e a Cris; privado oculto por omissão. */
-  const newGroup = async (name: string) =>
-    (await api().post('/api/v1/chat/groups').set(auth(ana)).send({ name, members: [beto.username, cris.username] }).expect(201)).body.id as string;
+  /** Grupo da Ana (admin) com o Beto e a Cris; privado oculto por omissão, já com um ponto no mapa (0104: visível precisa de sítio). */
+  const newGroup = async (name: string) => {
+    const id = (await api().post('/api/v1/chat/groups').set(auth(ana)).send({ name, members: [beto.username, cris.username] }).expect(201)).body.id as string;
+    await api().patch(g(id)).set(auth(ana)).send({ mapPlace: { lat: -40.5, lng: -120.5 } }).expect(204);
+    return id;
+  };
 
   /** Enche o grupo com contas de enchimento (inseridas direto na base, sem passar pelo registo com limite) até `n` membros. */
   async function fillTo(id: string, n: number) {

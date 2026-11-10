@@ -18,6 +18,12 @@ export const coarse = (n: number) => Math.round(n * 100) / 100;
 export const CELL_DEG = 0.015;
 export const snapToCell = (n: number) => Math.round((Math.floor(n / CELL_DEG) * CELL_DEG + CELL_DEG / 2) * 10_000) / 10_000;
 
+/** Um ponto escolhido no mapa (o sítio de um TxillGroup): a mesma quadrícula da presença, sem sair dos limites. */
+export const roundPlace = (lat: number, lng: number) => ({
+  lat: Math.max(-90, Math.min(90, snapToCell(lat))),
+  lng: Math.max(-180, Math.min(180, snapToCell(lng))),
+});
+
 /** Distância com uma casa decimal. */
 export const km1 = (d: unknown) => Math.round(Number(d) * 10) / 10;
 
