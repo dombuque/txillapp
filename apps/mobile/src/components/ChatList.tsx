@@ -1,28 +1,28 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { colors } from '@/lib/theme';
-import { Bubble, TypingBubble, dayLabel, sameDay, type Msg } from './ChatBubbles';
-import { DayDivider, Pulse } from './ChatParts';
+import { joined, place, ticksFor } from '@/lib/chatLayout';
+import { Bubble, ChatStamp, TypingBubble, type Msg } from './ChatBubbles';
+import { Pulse } from './ChatParts';
 
-const JOIN_MS = 120_000; // mensagens da mesma pessoa com menos de 2 min juntam-se
-
-/** Duas mensagens seguidas da mesma pessoa, no mesmo dia e com menos de 2 minutos: juntam-se (cantos e hora). */
-export function joined(a: Msg, b: Msg, group: boolean) {
-  const same = group ? a.sender?.username === b.sender?.username : a.fromMe === b.fromMe;
-  return same && sameDay(a.at, b.at) && Math.abs(new Date(b.at).getTime() - new Date(a.at).getTime()) < JOIN_MS && a.kind !== 'story_reaction' && b.kind !== 'story_reaction';
-}
+/** Duas mensagens seguidas da mesma pessoa, no mesmo dia, com ≤ 3 min e sem separador de hora: juntam-se (ver lib/chatLayout). */
+export { joined };
 
 /**
- * A lista de mensagens da conversa (igual à do site): datas, cantos juntos, "a escrever…", "Visto", citações que saltam para a
- * mensagem original e o botão para ir ao fim. Recebe as mensagens da mais recente para a mais antiga (lista invertida).
+ * A lista de mensagens da conversa: separadores de hora (> 15 min ou dia novo), bolhas agrupadas com o avatar da outra pessoa
+ * na última de cada grupo, "a escrever…", "Visto"/"Entregue" só na minha última, citações que saltam para a mensagem original
+ * e o botão para ir ao fim. Recebe as mensagens da mais recente para a mais antiga (lista invertida).
  */
 export function ChatList({
-  items, group = false, loading, hasNext, fetchNext, fetchingNext, typing, seenId, emptyText, top, peerName, peerHandle, meHandle, onMenu, onCheer, onOpenOnce, onStopLive, onRetry,
+  items, group = false, loading, hasNext, fetchNext, fetchingNext, typing, seenId, emptyText, top, peerName, peerHandle, peerHasAvatar = true, meHandle, onMenu, onCheer, onOpenOnce, onStopLive, onRetry,
 }: {
   items: Msg[]; group?: boolean; loading: boolean; hasNext: boolean; fetchNext: () => Promise<unknown> | void; fetchingNext: boolean; typing?: boolean;
-  seenId: string | null; emptyText: string; top?: ReactNode; peerName?: string; peerHandle?: string; meHandle?: string;
+  seenId: string | null; emptyText: string; top?: ReactNode; peerName?: string; peerHandle?: string;
+  /** Nas conversas diretas: o outro lado tem foto de perfil (se não, o avatar ao lado das bolhas mostra as iniciais). */
+  peerHasAvatar?: boolean;
+  meHandle?: string;
   onMenu: (m: Msg) => void; onCheer: (m: Msg) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onRetry: (m: Msg) => void;
 }) {
   const list = useRef<FlatList<Msg>>(null);
@@ -30,6 +30,8 @@ export function ChatList({
   const [flashId, setFlashId] = useState<string | null>(null);
   const itemsRef = useRef(items);
   itemsRef.current = items;
+  const ticks = useMemo(() => ticksFor(items, seenId, group), [items, seenId, group]);
+  const peerWho = group ? null : { name: peerName ?? peerHandle ?? '', username: peerHasAvatar ? peerHandle : undefined };
 
   // Tocar na citação de uma resposta leva à mensagem original (carrega mais antigas se for preciso) e destaca-a um instante.
   async function jumpTo(id: string, tries = 0) {
@@ -66,19 +68,22 @@ export function ChatList({
             // Lista invertida: o "anterior" no tempo é o índice seguinte.
             const older = items[index + 1];
             const newer = items[index - 1];
-            const newDay = !older || !sameDay(older.at, item.at);
+            const p = place(older, item, newer, group);
             return (
               <View>
-                {newDay && <DayDivider label={dayLabel(item.at)} />}
+                {p.stamp && <ChatStamp iso={item.at} />}
                 <Bubble
                   m={item}
                   group={group}
                   flash={flashId === item.id}
-                  prevSame={!!older && !newDay && joined(older, item, group)}
-                  nextSame={!!newer && joined(item, newer, group)}
-                  seen={seenId === item.id}
+                  prevSame={!p.first}
+                  nextSame={!p.last}
+                  first={p.first}
+                  last={p.last}
+                  ticks={ticks.get(item.id) ?? null}
                   peerName={peerName}
                   peerHandle={peerHandle}
+                  peerHasAvatar={peerHasAvatar}
                   meHandle={meHandle}
                   onMenu={onMenu}
                   onCheer={onCheer}
@@ -90,7 +95,7 @@ export function ChatList({
               </View>
             );
           }}
-          ListHeaderComponent={typing ? <TypingBubble /> : undefined}
+          ListHeaderComponent={typing ? <TypingBubble avatar={peerWho} /> : undefined}
           ListFooterComponent={
             <View>
               {hasNext && (
