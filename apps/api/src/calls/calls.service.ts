@@ -41,7 +41,10 @@
  *     {title:<nome de quem liga>, message:"Está a ligar-te"|"Videochamada", channelId:'calls', categoryId:'call',
  *      tag:'call-<id>', kind:'call', callId, from:<@>, video:'1'|'0', url:'/call/<id>?from=<@>&video=0|1'}
  *   iOS (FCM para APNs): notificação com aps.category 'call', aps.sound 'ring.wav', aps['interruption-level'] 'time-sensitive'.
- *   Web Push: {kind, callId, from, video, title, body, url, tag} ao nível de cima.
+ *   Web Push: {kind, callId, from, video, declineToken, title, body, url, tag} ao nível de cima; reenviado (só Web Push,
+ *   com repeat '1') de 9 em 9 s enquanto toca, até 30 s. `declineToken` serve para o botão Recusar do service worker
+ *   (POST /calls/:id/decline-push, sem sessão). Atendida ou recusada: Web Push {kind:'call_end', callId, reason
+ *   'accepted'|'declined', tag 'call-<id>'} para quem recebe, que fecha a notificação nos browsers dele.
  * Chamada perdida: notificação 'missed_call' na lista e push só de dados com kind 'missed_call', a mesma tag
  * 'call-<id>' (substitui a que tocava), title, message/body "Chamada perdida"|"Videochamada perdida", url '/calls'.
  * ──────────────────────────────────────────────────────────────────────────────────────
@@ -57,6 +60,7 @@ import { PG_POOL } from '../db/db.module';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PushService } from '../push/push.service';
 import { blockedBetween } from '../social/visibility';
+import { checkDeclineToken, declineToken, endPush, ringPush, ringRepeatDelays, type RingInfo } from './call-push';
 
 export type CallStatus = 'ringing' | 'active' | 'declined' | 'cancelled' | 'missed' | 'ended';
 export type SignalType = 'offer' | 'answer' | 'ice';
@@ -82,6 +86,8 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger('Chamadas');
   /** Um temporizador por chamada a tocar (dá-a por perdida ao fim do tempo). A varredura periódica apanha o resto (ex.: reinício do servidor). */
   private readonly timers = new Map<string, NodeJS.Timeout>();
+  /** Reenvios do aviso Web Push enquanto a chamada toca (ver call-push.ts). */
+  private readonly repeats = new Map<string, NodeJS.Timeout[]>();
   private sweeper?: NodeJS.Timeout;
   private purger?: NodeJS.Timeout;
   /** Desde quando cada chamada em curso tem os dois lados sem ligação ao canal. */
@@ -115,6 +121,8 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     if (this.purger) clearInterval(this.purger);
     for (const t of this.timers.values()) clearTimeout(t);
     this.timers.clear();
+    for (const l of this.repeats.values()) for (const t of l) clearTimeout(t);
+    this.repeats.clear();
   }
 
   /* ───────────── ICE ───────────── */
@@ -191,22 +199,39 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     const caller = await this.person(me);
     const callee: Person = { id: u.id, username: u.username, displayName: u.display_name, hasAvatar: u.has_avatar };
     this.emit(callee.id, 'ring', { id, video }, caller);
-    void this.push.send(callee.id, {
-      title: caller.displayName,
-      body: video ? 'Videochamada' : 'Está a ligar-te',
-      url: `/call/${id}?from=${encodeURIComponent(caller.username)}&video=${video ? 1 : 0}`,
-      tag: `call-${id}`,
-      data: { kind: 'call', callId: id, from: caller.username, video: video ? '1' : '0' },
-      dataOnly: true,
-      channel: 'calls',
-      actionCategory: 'call',
-      ios: { sound: 'ring.wav', interruptionLevel: 'time-sensitive' },
-      ttlSeconds: this.ringSeconds,
-    });
+    const ring = { id, video, caller, declineToken: declineToken(this.config.JWT_ACCESS_SECRET, id, callee.id) };
+    void this.push.send(callee.id, ringPush({ ...ring, ttlSeconds: this.ringSeconds }));
     const t = setTimeout(() => void this.expire(id).catch((e) => this.log.warn(`falha a expirar: ${(e as Error).message}`)), this.ringSeconds * 1000);
     t.unref();
     this.timers.set(id, t);
+    // Web Push não toca sem parar: o aviso volta a vibrar e a soar de 9 em 9 s enquanto a chamada estiver a tocar.
+    const again = ringRepeatDelays(this.ringSeconds).map((ms) => {
+      const r = setTimeout(() => void this.ringAgain(callee.id, { ...ring, repeat: true, ttlSeconds: this.ringSeconds - ms / 1000 }).catch(() => undefined), ms);
+      r.unref();
+      return r;
+    });
+    if (again.length) this.repeats.set(id, again);
     return { id, video, peer: publicOf(callee), ...(await this.iceFor(me)) };
+  }
+
+  /** Reenvio do aviso (só Web Push), apenas se a chamada ainda está a tocar. */
+  private async ringAgain(calleeId: string, r: RingInfo) {
+    if (!this.repeats.has(r.id)) return;
+    const st = (await this.pool.query('SELECT status FROM social.calls WHERE id = $1', [r.id])).rows[0]?.status;
+    if (st !== 'ringing' || !this.repeats.has(r.id)) return;
+    await this.push.send(calleeId, ringPush(r));
+  }
+
+  /** Atendida ou recusada: fecha a notificação a tocar em todos os browsers de quem recebe (Web Push). */
+  private closeRing(calleeId: string, callId: string, reason: 'accepted' | 'declined') {
+    void this.push.send(calleeId, endPush(callId, reason));
+  }
+
+  /** Recusar pelo botão da notificação do browser (sem sessão): só com o código que veio no aviso desta chamada. */
+  async declineFromPush(callId: string, token: string) {
+    const r = (await this.pool.query('SELECT callee_id FROM social.calls WHERE id = $1', [callId])).rows[0];
+    if (!r || !checkDeclineToken(this.config.JWT_ACCESS_SECRET, callId, r.callee_id as string, token)) throw new NotFoundException('Chamada não encontrada');
+    return this.decline(r.callee_id as string, callId);
   }
 
   /* ───────────── atender, recusar, desligar, sinais ───────────── */
@@ -241,6 +266,8 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     const t = this.timers.get(id);
     if (t) clearTimeout(t);
     this.timers.delete(id);
+    for (const r of this.repeats.get(id) ?? []) clearTimeout(r);
+    this.repeats.delete(id);
   }
 
   async accept(me: string, callId: string) {
@@ -250,6 +277,7 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     if (!upd.rowCount) throw new ConflictException('Esta chamada já não está a tocar');
     this.stopTimer(callId);
     this.emit(c.caller.id, 'accepted', c, c.callee);
+    this.closeRing(c.callee.id, callId, 'accepted');
     return this.iceFor(me);
   }
 
@@ -261,6 +289,7 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     if (!upd.rowCount) throw new ConflictException('Esta chamada já não está a tocar');
     this.stopTimer(callId);
     this.emit(c.caller.id, 'declined', c, c.callee);
+    this.closeRing(c.callee.id, callId, 'declined');
     this.logToChat(c.caller.id, c.callee.id, c.video, 'declined', null);
     let messageSent = false;
     const text = message?.trim();
@@ -289,6 +318,8 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
         // Quem ligou desistiu: na conversa fica como perdida (como no WhatsApp); quem recebe também recusou → recusada.
         this.logToChat(c.caller.id, c.callee.id, c.video, status === 'cancelled' ? 'missed' : 'declined', null);
         // Quem ligou desistiu antes de atenderem: para quem recebia, é uma chamada perdida.
+        // Quem recebe desligou enquanto tocava: fecha-se a notificação nos outros browsers dele.
+        if (status === 'declined') this.closeRing(c.callee.id, callId, 'declined');
         if (status === 'cancelled') void this.notifications.notify({ userId: c.callee.id, actorId: c.caller.id, kind: 'missed_call', data: { callId, video: c.video } });
         return { status, durationS: null };
       }

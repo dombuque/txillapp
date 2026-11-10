@@ -74,3 +74,21 @@ export class CallsController {
     await this.calls.signal(req.userId!, id, b.type, b.data);
   }
 }
+
+const declinePushSchema = z.object({ token: z.string().min(16).max(200) });
+
+/**
+ * Recusar pelo botão da notificação do browser. O service worker não tem a sessão (cookie HttpOnly e token na memória da
+ * página), por isso não usa a conta: só o código que veio no aviso Web Push desta chamada (vale só para recusar esta).
+ */
+@Controller('calls')
+export class CallsPushController {
+  constructor(private readonly calls: CallsService) {}
+
+  @Post(':id/decline-push')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  declinePush(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(declinePushSchema)) b: z.infer<typeof declinePushSchema>) {
+    return this.calls.declineFromPush(id, b.token);
+  }
+}

@@ -135,7 +135,7 @@ describe('chamadas de voz e vídeo 1:1 (integração)', () => {
     expect(atB).toEqual([{ type: 'call', event: 'ring', callId: c.id, video: true, from: { username: la.username, displayName: 'la Teste', hasAvatar: false } }]);
     // Aviso no telemóvel de quem recebe: os campos da chamada ao nível de cima.
     expect(pushes.find((x) => x.payload.callId === c.id)?.payload).toEqual({
-      kind: 'call', callId: c.id, from: la.username, video: '1', title: 'la Teste', body: 'Videochamada', url: `/call/${c.id}?from=${la.username}&video=1`, tag: `call-${c.id}`,
+      kind: 'call', callId: c.id, from: la.username, video: '1', declineToken: expect.any(String), title: 'la Teste', body: 'Videochamada', url: `/call/${c.id}?from=${la.username}&video=1`, tag: `call-${c.id}`,
     });
 
     // Só quem recebe atende; quem está de fora nem vê a chamada.
@@ -148,6 +148,10 @@ describe('chamadas de voz e vídeo 1:1 (integração)', () => {
     await api().post(`/api/v1/calls/${c.id}/signal`).set(auth(la)).send({ type: 'offer', data: offer }).expect(204);
     const acc = (await api().post(`/api/v1/calls/${c.id}/accept`).set(auth(lb)).expect(200)).body;
     expect(acc.iceServers.length).toBeGreaterThanOrEqual(1);
+    // Atendida: vai um aviso que fecha a notificação a tocar nos browsers de quem recebe.
+    await tick();
+    expect(pushes.filter((x) => x.payload.callId === c.id).map((x) => x.payload.kind)).toEqual(['call', 'call_end']);
+    expect(pushes.filter((x) => x.payload.callId === c.id)[1].payload).toEqual({ kind: 'call_end', callId: c.id, reason: 'accepted', title: 'Txillapp', body: 'Chamada atendida', url: '/calls', tag: `call-${c.id}` });
     await api().post(`/api/v1/calls/${c.id}/accept`).set(auth(lb)).expect(409); // já não está a tocar
     await api().post(`/api/v1/calls/${c.id}/signal`).set(auth(lb)).send({ type: 'answer', data: { sdp: 'v=0', type: 'answer' } }).expect(204);
     const ice = { candidate: 'candidate:1 1 udp 2122260223 192.168.1.2 54321 typ host', sdpMid: '0', sdpMLineIndex: 0 };
@@ -245,6 +249,28 @@ describe('chamadas de voz e vídeo 1:1 (integração)', () => {
     expect((await api().post(`/api/v1/calls/${c3.id}/end`).set(auth(ld)).expect(200)).body).toEqual({ status: 'declined', durationS: null });
     await tick();
     expect(atC[atC.length - 1]).toMatchObject({ event: 'ended', callId: c3.id, reason: 'declined' });
+  });
+
+  it('recusar pelo botão da notificação do browser: só com o código que veio no aviso desta chamada', async () => {
+    const { lc, ld } = u;
+    await subscribe(ld);
+    const atC = listen(lc);
+    const c = (await call(lc, ld).expect(201)).body;
+    await tick();
+    const token = pushes.find((x) => x.payload.callId === c.id && x.payload.kind === 'call')!.payload.declineToken;
+    expect(token).toMatch(/^[A-Za-z0-9_-]{40,}$/);
+    // Um código inventado, o de outra pessoa ou nenhum código não servem.
+    await api().post(`/api/v1/calls/${c.id}/decline-push`).send({ token: 'x'.repeat(43) }).expect(404);
+    await api().post(`/api/v1/calls/${c.id}/decline-push`).send({ token: token.slice(1) + 'A' }).expect(404);
+    await api().post(`/api/v1/calls/${c.id}/decline-push`).send({}).expect(400);
+    // Sem sessão, só com o código: recusa, avisa quem ligou e fecha a notificação nos browsers de quem recebe.
+    expect((await api().post(`/api/v1/calls/${c.id}/decline-push`).send({ token }).expect(200)).body).toEqual({ status: 'declined', messageSent: false });
+    await api().post(`/api/v1/calls/${c.id}/decline-push`).send({ token }).expect(409);
+    await tick();
+    expect(atC).toContainEqual(expect.objectContaining({ event: 'declined', callId: c.id }));
+    const mine = pushes.filter((x) => x.payload.callId === c.id).map((x) => x.payload);
+    expect(mine.map((x) => x.kind)).toEqual(['call', 'call_end']);
+    expect(mine[1]).toMatchObject({ kind: 'call_end', reason: 'declined', tag: `call-${c.id}` });
   });
 
   it('ninguém atende: ao fim do tempo fica perdida, avisa os dois e deixa a notificação de chamada perdida', async () => {
