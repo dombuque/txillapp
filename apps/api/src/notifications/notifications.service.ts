@@ -17,7 +17,10 @@ export const mentionableBy = (u = 'u', viewer = '$1') =>
   `(${u}.id <> ${viewer} AND ${u}.status = 'active' AND NOT ${blockedBetween(`${u}.id`, viewer)} AND ${allowedBy(u, 'mentions_allowed', viewer)} AND ` +
   `(NOT ${u}.is_private OR EXISTS (SELECT 1 FROM social.follows mf WHERE mf.follower_id = ${viewer} AND mf.followee_id = ${u}.id)))`;
 
-export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review';
+export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review'
+  // TxillGroups vistos de fora (data: { groupId, groupName }): pediram para entrar (aos admins), aceitaram o meu pedido (a quem pediu),
+  // alguém entrou num grupo público (aos admins).
+  | 'group_join_request' | 'group_join_accepted' | 'group_member_joined';
 
 /** A categoria que a pessoa pode desligar (os avisos de bloqueio e de verificação ficam sempre). */
 export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
@@ -25,6 +28,7 @@ export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   comment: 'comments', reply: 'comments', story_reply: 'comments',
   mention: 'mentions', tag: 'mentions', repost: 'reposts', gift: 'gifts',
   missed_call: 'calls', venue_invite: 'venues', venue_payment: 'venues', venue_review: 'venues',
+  group_join_request: 'messages', group_join_accepted: 'messages', group_member_joined: 'messages',
 };
 
 /** Tipos que não se repetem enquanto houver uma igual por ler (evita spam de seguir/deixar de seguir). */
@@ -46,9 +50,9 @@ export class NotificationsService {
   async notify(n: { userId: string; actorId: string; kind: NotificationKind; data?: Record<string, unknown> }): Promise<void> {
     if (n.userId === n.actorId) return;
     try {
-      // Categoria desligada: nem na lista nem no telemóvel (os pedidos de seguir ficam sempre na lista, porque têm botões).
+      // Categoria desligada: nem na lista nem no telemóvel (os pedidos de seguir e de entrar num grupo ficam sempre na lista, porque têm botões).
       const cat = CATEGORY_OF[n.kind];
-      if (cat && n.kind !== 'follow_request' && (await this.push.off(n.userId)).includes(cat)) return;
+      if (cat && n.kind !== 'follow_request' && n.kind !== 'group_join_request' &&(await this.push.off(n.userId)).includes(cat)) return;
       if (DEDUPE_UNREAD.has(n.kind)) {
         const dup = await this.pool.query(
           'SELECT 1 FROM social.notifications WHERE user_id = $1 AND actor_id = $2 AND kind = $3 AND read_at IS NULL',
@@ -73,7 +77,8 @@ export class NotificationsService {
     const who = (a?.display_name as string | undefined) ?? 'Alguém';
     const postId = n.data?.postId as string | undefined;
     const commentId = n.data?.commentId as string | undefined;
-    const atComment = postId ? `/p/${postId}?comments=1${commentId ? `&c=${commentId}` : ''}` : '/notifications';
+    const groupUrl = typeof n.data?.groupId === 'string' ? `/messages/g/${n.data.groupId}` : '/notifications';
+    const atComment = postId ?`/p/${postId}?comments=1${commentId ? `&c=${commentId}` : ''}` : '/notifications';
     const t: Partial<Record<NotificationKind, { body: string; url: string }>> = {
       follow: { body: 'começou a seguir-te', url: profile },
       follow_request: { body: 'quer seguir-te', url: '/notifications' },
@@ -94,6 +99,10 @@ export class NotificationsService {
         body: n.data?.decision === 'approved' ? `aprovou ${String(n.data?.venueName ?? 'o teu local')}: já está à vista de todos` : `não aprovou ${String(n.data?.venueName ?? 'o teu local')}. Vê o motivo e corrige`,
         url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}` : '/notifications',
       },
+      // TxillGroups: abre a conversa do grupo (quem foi aceite já é membro; os admins veem lá os pedidos).
+      group_join_request: { body: `quer entrar em ${String(n.data?.groupName ?? 'o teu TxillGroup')}`, url: groupUrl },
+      group_join_accepted: { body: `aceitou-te em ${String(n.data?.groupName ?? 'um TxillGroup')}`, url: groupUrl },
+      group_member_joined: { body: `entrou em ${String(n.data?.groupName ?? 'o teu TxillGroup')}`, url: groupUrl },
       venue_payment: { body: `pagou ${Number(n.data?.amount ?? 0)} Txills ${n.data?.venueName ? `em ${String(n.data.venueName)}` : 'no teu local'}`, url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}/gerir?s=txills` : '/notifications' },
     };
     const m = t[n.kind];

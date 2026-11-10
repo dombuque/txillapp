@@ -506,6 +506,8 @@ export class AuthService {
       await client.query('DELETE FROM content.venue_managers WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM social.group_rsvps WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM social.group_poll_votes WHERE user_id = $1', [userId]);
+      // A conta fica anonimizada (a linha não se apaga), por isso o CASCADE não chega: os pedidos para entrar em grupos vão-se aqui.
+      await client.query('DELETE FROM social.group_join_requests WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM nearby.presence WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM nearby.settings WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM content.venue_event_interest WHERE user_id = $1', [userId]);
