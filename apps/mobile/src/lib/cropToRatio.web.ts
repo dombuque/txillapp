@@ -49,3 +49,8 @@ export async function cropToRatio(uri: string, ratio: number): Promise<string> {
     return uri;
   }
 }
+
+/** No browser a foto do mimo vem da câmara do site (já no tamanho do ecrã): vai como está. */
+export async function shrinkPhoto(uri: string): Promise<string> {
+  return uri;
+}

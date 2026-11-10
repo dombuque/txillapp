@@ -55,3 +55,36 @@ export async function cropToRatio(uri: string, ratio: number): Promise<string> {
     return uri;
   }
 }
+
+/**
+ * Foto de mimo pronta a enviar: o recorte do sistema (seletor do Android + Google Fotos) devolve a foto à resolução
+ * original (12 a 50 MP, vários MB). Reduz-se para caber em `maxShort`×`maxLong` (1440×2560 chega ao ecrã inteiro de qualquer
+ * telemóvel), em JPEG 90 na cache. Se já for pequena, ou se algo falhar, devolve-se a própria foto.
+ */
+export async function shrinkPhoto(uri: string, maxShort = 1440, maxLong = 2560): Promise<string> {
+  let img: SkImage | null = null;
+  try {
+    img = await decode(uri);
+    if (!img) return uri;
+    const w = img.width(), h = img.height();
+    if (!w || !h) return uri;
+    const k = Math.min(1, maxLong / Math.max(w, h), maxShort / Math.min(w, h));
+    if (k >= 1) return uri;
+    const outW = Math.max(1, Math.round(w * k));
+    const outH = Math.max(1, Math.round(h * k));
+    const surface = Skia.Surface.MakeOffscreen(outW, outH) ?? Skia.Surface.Make(outW, outH);
+    if (!surface) return uri;
+    surface.getCanvas().drawImageRectOptions(img, Skia.XYWHRect(0, 0, w, h), Skia.XYWHRect(0, 0, outW, outH), FilterMode.Linear, MipmapMode.Linear, Skia.Paint());
+    surface.flush();
+    const bytes = surface.makeImageSnapshot().encodeToBytes(ImageFormat.JPEG, 90);
+    if (!bytes?.length) return uri;
+    const file = new File(Paths.cache, `txillapp-mimo-${Date.now()}-${Math.round(Math.random() * 1e6)}.jpg`);
+    file.create({ overwrite: true });
+    file.write(bytes);
+    return file.uri;
+  } catch {
+    return uri;
+  } finally {
+    img?.dispose?.(); // a foto grande sai logo da memória nativa
+  }
+}

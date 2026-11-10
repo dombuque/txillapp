@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
-import { ApiError, raw, waitMediaReady, type MediaState } from './api';
+import { ApiError, putBlob, raw, waitMediaReady, type MediaState } from './api';
 import { composeApi } from './api.compose';
 import { SITE_URL } from './config';
 
@@ -49,20 +49,7 @@ async function uploadWithProgress(a: PublishAsset, onProgress: (p: number) => vo
   const blob = await (await fetch(a.uri)).blob();
   const up = (await raw('/media/uploads', { method: 'POST', body: JSON.stringify({ mime: a.mime, size: blob.size, purpose: 'public' }) })) as { assetId: string; uploadUrl: string };
   const url = /^https?:\/\//.test(up.uploadUrl) ? up.uploadUrl : `${SITE_URL}${up.uploadUrl}`;
-  await new Promise<void>((resolve, reject) => {
-    const x = new XMLHttpRequest();
-    x.open('PUT', url);
-    x.setRequestHeader('Content-Type', a.mime);
-    x.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
-    x.onload = () => {
-      if (x.status >= 200 && x.status < 300) return resolve();
-      let msg = 'Não consegui enviar o ficheiro';
-      try { msg = (JSON.parse(x.responseText) as { message?: string }).message ?? msg; } catch { /* resposta sem JSON */ }
-      reject(new ApiError(x.status, msg));
-    };
-    x.onerror = () => reject(new ApiError(0, 'Sem ligação. Vê a rede e tenta outra vez.'));
-    x.send(blob);
-  });
+  await putBlob(url, blob, a.mime, onProgress);
   const state = (await raw(`/media/${up.assetId}/complete`, { method: 'POST' })) as MediaState;
   return { assetId: up.assetId, state };
 }

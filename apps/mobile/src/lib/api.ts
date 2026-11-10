@@ -448,13 +448,36 @@ export async function waitMediaReady(id: string, first: MediaState, onWait?: () 
   throw new ApiError(422, st.error ?? 'Não consegui preparar este ficheiro. Tenta outro.');
 }
 
+/**
+ * Envia os bytes de um ficheiro para o URL assinado (PUT) com XMLHttpRequest. No telemóvel o Blob fica no armazém nativo
+ * e o XHR manda-o de lá diretamente. Não se usa o `fetch` aqui: no Expo 58 o `fetch` global é o expo/fetch, que lê o Blob
+ * de volta para JS através do FileReader (base64) e o copia várias vezes. Com uma foto grande (por exemplo, um recorte do
+ * Google Fotos no mimo) o Android ficava sem memória (OutOfMemoryError no FileReaderModule) e a app fechava.
+ */
+export function putBlob(url: string, blob: Blob, mime: string, onProgress?: (p: number) => void): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('PUT', url);
+    x.setRequestHeader('Content-Type', mime);
+    if (onProgress) x.upload.onprogress = (e) => { if (e.lengthComputable && e.total > 0) onProgress(e.loaded / e.total); };
+    x.onload = () => {
+      if (x.status >= 200 && x.status < 300) return resolve();
+      let msg = 'Não consegui enviar o ficheiro';
+      try { msg = (JSON.parse(x.responseText) as { message?: string }).message ?? msg; } catch { /* resposta sem JSON */ }
+      reject(new ApiError(x.status, msg));
+    };
+    x.onerror = () => reject(new ApiError(0, 'Sem ligação. Vê a rede e tenta outra vez.'));
+    x.ontimeout = () => reject(new ApiError(0, 'O envio demorou demasiado. Tenta outra vez.'));
+    x.send(blob);
+  });
+}
+
 /** Envia uma foto, vídeo ou áudio do chat (privado): pede o URL assinado, envia os bytes, confirma e espera que fique pronto. Devolve o id do ficheiro. */
 export async function uploadMedia(uri: string, mime: string, purpose: 'public' | 'chat' = 'chat', onWait?: () => void): Promise<string> {
   const blob = await (await fetch(uri)).blob();
   const up = (await raw('/media/uploads', post({ mime, size: blob.size, purpose }))) as { assetId: string; uploadUrl: string };
   const url = /^https?:\/\//.test(up.uploadUrl) ? up.uploadUrl : `${SITE_URL}${up.uploadUrl}`;
-  const put = await fetch(url, { method: 'PUT', headers: { 'Content-Type': mime }, body: blob });
-  if (!put.ok) throw new ApiError(put.status, 'Não consegui enviar o ficheiro');
+  await putBlob(url, blob, mime);
   await waitMediaReady(up.assetId, (await raw(`/media/${up.assetId}/complete`, { method: 'POST' })) as MediaState, onWait);
   return up.assetId;
 }
