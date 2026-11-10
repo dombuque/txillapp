@@ -78,7 +78,8 @@ export default function Thread() {
     };
   }, [username]);
 
-  const lastMine = items.find((m) => m.fromMe); // a lista vem do mais recente para o mais antigo
+  // A minha última já enviada (a lista vem do mais recente para o mais antigo); as que estão a enviar ou falharam não contam.
+  const lastMine = items.find((m) => m.fromMe && !m.state && !m.id.startsWith('tmp-'));
   const otherRead = first?.otherRead ?? null;
   const seenId = otherRead && lastMine && lastMine.id <= otherRead ? lastMine.id : null;
 

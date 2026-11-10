@@ -115,3 +115,24 @@ test('activeLabel: agora, minutos, horas, ontem, data', () => {
   assert.equal(t.activeLabel(at(3, 8, 0), NOW), 'Ativo a 3 nov');
   assert.equal(t.activeLabel(at(3, 8, 0, 10, 2025), NOW), 'Ativo a 3 nov 2025');
 });
+
+test('chatTimeline em grupo: sem autor conhecido não junta (não arrisca); chamadas ficam sozinhas', () => {
+  const l = [msg(at(10, 11, 0)), msg(at(10, 11, 1))];
+  assert.deepEqual(t.chatTimeline(l, { group: true, now: NOW }).map((r) => r.prevSame), [false, false]);
+  assert.deepEqual(t.chatTimeline(l, { now: NOW }).map((r) => r.prevSame), [false, true]);
+  const calls = [msg(at(10, 11, 0), { fromMe: true, kind: 'call' }), msg(at(10, 11, 1), { fromMe: true }), msg(at(10, 11, 2), { fromMe: true })];
+  assert.deepEqual(t.chatTimeline(calls, { now: NOW }).map((r) => r.prevSame), [false, false, true]);
+});
+
+test('joins: o mesmo limite de 3 min, e outro dia corta mesmo com 2 min', () => {
+  const a = msg(at(10, 11, 0), { fromMe: true });
+  assert.equal(t.joins(a, msg(new Date(new Date(a.at).getTime() + 180_000).toISOString(), { fromMe: true })), true);
+  assert.equal(t.joins(a, msg(new Date(new Date(a.at).getTime() + 186_000).toISOString(), { fromMe: true })), false);
+  assert.equal(t.joins(msg(at(9, 23, 59), { fromMe: true }), msg(at(10, 0, 1), { fromMe: true })), false);
+});
+
+test('um só limiar de separador: 15 min (o desenho das bolhas usava 1 h; já não há outro)', () => {
+  assert.equal(t.GAP_MS, 15 * 60_000);
+  const l = [msg(at(10, 11, 0)), msg(at(10, 11, 16)), msg(at(10, 11, 50))];
+  assert.deepEqual(t.chatTimeline(l, { now: NOW }).map((r) => r.divider), ['Hoje, 10 nov', 'Hoje, 11:16', 'Hoje, 11:50']);
+});

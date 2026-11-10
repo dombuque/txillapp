@@ -1,20 +1,22 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View, type NativeScrollEvent } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
-import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
+import { ticksFor } from '@/lib/chatLayout';
 import { chatTimeline, firstUnreadId } from '@/lib/chatTimeline';
 import { colors } from '@/lib/theme';
-
-/** Fundo da área das mensagens (cinzento muito claro; o cabeçalho e a barra de escrever ficam brancos). */
-export const CHAT_BG = '#f5f6f8';
 import { Bubble, TypingBubble, type Msg } from './ChatBubbles';
 import { Pulse } from './ChatParts';
 
+/** Fundo da área das mensagens (cinzento muito claro; o cabeçalho e a barra de escrever ficam brancos). */
+export const CHAT_BG = '#f5f6f8';
+
 /**
- * A lista de mensagens da conversa: separadores de hora ("Hoje 11:40"), "Mensagens novas", bolhas juntas, "a escrever…",
- * "Visto", citações que saltam para a mensagem original e o botão para ir ao fim. Recebe as mensagens da mais recente
- * para a mais antiga (lista invertida); a linha do tempo (src/lib/chatTimeline.ts) faz-se por ordem de tempo.
+ * A lista de mensagens da conversa: separadores em pílula (dia novo ou > 15 min no mesmo dia), "Mensagens novas", bolhas
+ * agrupadas com o avatar da outra pessoa na última de cada grupo, a hora e os vistos (✓ entregue, ✓✓ visto) por baixo da
+ * última bolha de cada grupo meu, "a escrever…", citações que saltam para a mensagem original e o botão para ir ao fim.
+ * Recebe as mensagens da mais recente para a mais antiga (lista invertida); a linha do tempo (src/lib/chatTimeline.ts,
+ * a única que decide separadores e agrupamento) faz-se por ordem de tempo.
  */
 export function ChatList({
   items, group = false, loading, hasNext, fetchNext, fetchingNext, typing, seenId, emptyText, emptyTitle, emptyArt, unread = 0, top, peerName, peerHandle, peerAvatar, meHandle,
@@ -25,7 +27,7 @@ export function ChatList({
   /** Por ler quando a conversa abriu (da lista de conversas): põe o "Mensagens novas" antes da primeira. */
   unread?: number;
   top?: ReactNode; peerName?: string; peerHandle?: string;
-  /** `username` da outra pessoa quando tem foto (para o avatar do "a escrever…"). */
+  /** `username` da outra pessoa quando tem foto (avatar ao lado das bolhas e do "a escrever…"; sem foto, as iniciais). */
   peerAvatar?: string;
   meHandle?: string;
   /** Há mensagens escondidas por baixo do cabeçalho (para a sombra dele). */
@@ -37,6 +39,11 @@ export function ChatList({
   const [flashId, setFlashId] = useState<string | null>(null);
   const itemsRef = useRef(items);
   itemsRef.current = items;
+  // Vistos das minhas (lib/chatLayout): ✓✓ na `seenId` (a minha última já enviada, quando a outra pessoa a leu) e nas
+  // anteriores, e nas que a outra pessoa respondeu depois; ✓ nas outras. Nos TxillGroups não há vistos.
+  const ticks = useMemo(() => ticksFor(items, seenId, group), [items, seenId, group]);
+  const peerHasAvatar = !!peerAvatar;
+  const peerWho = group ? null : { name: peerName ?? peerHandle ?? '', username: peerAvatar };
 
   // Ordem de tempo (a mais antiga primeiro) para a linha do tempo; a lista é invertida.
   const chrono = useMemo(() => [...items].reverse(), [items]);
@@ -121,9 +128,10 @@ export function ChatList({
                   flash={flashId === item.id}
                   prevSame={!!row?.prevSame}
                   nextSame={!!row?.nextSame}
-                  seen={seenId === item.id}
+                  ticks={ticks.get(item.id) ?? null}
                   peerName={peerName}
                   peerHandle={peerHandle}
+                  peerHasAvatar={peerHasAvatar}
                   meHandle={meHandle}
                   onMenu={onMenu}
                   onCheer={onCheer}
@@ -135,12 +143,7 @@ export function ChatList({
               </View>
             );
           }}
-          ListHeaderComponent={typing ? (
-            <View style={st.typing}>
-              {!group ? <Avatar name={peerName ?? peerHandle ?? ''} username={peerAvatar} size={28} /> : null}
-              <TypingBubble />
-            </View>
-          ) : undefined}
+          ListHeaderComponent={typing ? <TypingBubble avatar={peerWho} /> : undefined}
           ListFooterComponent={
             <View>
               {hasNext && (
@@ -207,7 +210,6 @@ const st = StyleSheet.create({
   newMark: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18, marginBottom: 2, paddingHorizontal: 8 },
   newLine: { flex: 1, height: 1, backgroundColor: 'rgba(214,51,79,0.28)' },
   newText: { fontSize: 12, fontWeight: '700', color: colors.brand },
-  typing: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 10 },
   // Lista invertida: o vazio também vem invertido; desfaz-se aqui.
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, paddingVertical: 48, gap: 6, transform: [{ scaleY: -1 }] },
   emptyTitle: { marginTop: 10, fontSize: 18, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },

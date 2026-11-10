@@ -3,6 +3,7 @@
  * quando muda ("Hoje, 10 nov", "Ontem", "Seg, 9 nov", "12 nov") e a hora quando passam > 15 min no mesmo dia
  * ("Hoje, 11:40") —, o "Mensagens novas" e que bolhas seguidas se juntam. A hora de cada grupo vai nas bolhas.
  * Tudo em hora local e com textos em pt-PT feitos à mão (o mesmo resultado no telemóvel, no site e nos testes).
+ * É a ÚNICA lógica de separadores e agrupamento do chat; os cantos, o avatar e os vistos estão em lib/chatLayout.
  *
  * As mensagens entram SEMPRE por ordem de tempo (da mais antiga para a mais recente). A lista do ecrã é invertida
  * (mais recente primeiro): quem a usa inverte o índice (`rows[items.length - 1 - index]`).
@@ -75,10 +76,19 @@ export function activeLabel(iso: string | null | undefined, now: Date = new Date
   return `Ativo a ${dayMonth(d, now)}`;
 }
 
-/** Duas mensagens seguidas (a antes de b) juntam-se: mesma pessoa, mesmo dia, ≤ 3 min. Reações a mimos ficam sempre sozinhas. */
+/** Estas não se juntam a nada (cartões de chamada e reações soltas a mimos). */
+const LONERS = new Set(['story_reaction', 'call']);
+
+/** A mesma pessoa? Nas conversas diretas, se fui eu ou não; nos grupos conta quem enviou (sem autor conhecido, não arrisca). */
+export function sameAuthor(a: TimelineMsg, b: TimelineMsg, group = false): boolean {
+  if (!!a.fromMe !== !!b.fromMe) return false;
+  if (!group || a.fromMe) return true;
+  return !!a.sender && !!b.sender && a.sender.username === b.sender.username;
+}
+
+/** Duas mensagens seguidas (a antes de b) juntam-se: mesma pessoa, mesmo dia, ≤ 3 min. Chamadas e reações a mimos ficam sozinhas. */
 export function joins(a: TimelineMsg, b: TimelineMsg, group = false): boolean {
-  const same = group ? a.fromMe === b.fromMe && (a.fromMe || a.sender?.username === b.sender?.username) : a.fromMe === b.fromMe;
-  if (!same || a.kind === 'story_reaction' || b.kind === 'story_reaction') return false;
+  if (!sameAuthor(a, b, group) || LONERS.has(a.kind ?? '') || LONERS.has(b.kind ?? '')) return false;
   const gap = t(b.at) - t(a.at);
   return gap >= 0 && gap <= JOIN_MS && sameDay(a.at, b.at);
 }
