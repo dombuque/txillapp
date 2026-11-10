@@ -8,6 +8,7 @@ import { FeatureIntro } from './FeatureIntro';
 import { Icon } from './Icon';
 import { acquireCamera, releaseCamera } from './zas/cameraSession';
 import { useAuth } from '@/lib/auth';
+import { POST_RATIO_DEFAULT, POST_RATIO_MAX, POST_RATIO_MIN } from '@/lib/postAspect';
 import { WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, signLayout } from '@/lib/wordmark';
 
 /**
@@ -136,6 +137,27 @@ type Box = { x: number; y: number; w: number; h: number };
 /** b/c/s são multiplicadores (1 = sem mexer); t, hl e sh vão de -100 a 100; vig e k (intensidade do filtro) de 0 a 100. */
 type Edit = { rot: 0 | 90 | 180 | 270; flip: boolean; aspect: number | null; box: Box | null; look: number; b: number; c: number; s: number; t: number; hl: number; sh: number; vig: number; k: number };
 const EDIT0: Edit = { rot: 0, flip: false, aspect: null, box: null, look: 0, b: 1, c: 1, s: 1, t: 0, hl: 0, sh: 0, vig: 0, k: 100 };
+/** Proporções do recorte: num mimo/tcheka todas; numa publicação só as do Instagram (1:1, 4:5 e 1,91:1). */
+const ALL_ASPECTS: readonly (readonly [number | null, string])[] = [[null, 'Original'], [1, '1:1'], [0.8, '4:5'], [9 / 16, '9:16'], [16 / 9, '16:9']];
+const POST_ASPECTS: readonly (readonly [number | null, string])[] = [[1, '1:1'], [POST_RATIO_DEFAULT, '4:5'], [POST_RATIO_MAX, '1,91:1']];
+/**
+ * Numa publicação, o corte livre fica entre 4:5 e 1,91:1 (como no Instagram). `ir` é a proporção da foto já rodada;
+ * a caixa só encolhe (nunca sai da foto), do lado do canto que se está a arrastar.
+ */
+function fitPostBox(b: Box, ir: number, kind: 'nw' | 'ne' | 'sw' | 'se' | 'move'): Box {
+  const r = (b.w / b.h) * ir;
+  if (r > POST_RATIO_MAX) {
+    const w = (POST_RATIO_MAX * b.h) / ir;
+    const x = kind === 'nw' || kind === 'sw' ? b.x + (b.w - w) : kind === 'move' ? b.x + (b.w - w) / 2 : b.x;
+    return { ...b, x, w };
+  }
+  if (r < POST_RATIO_MIN) {
+    const h = (b.w * ir) / POST_RATIO_MIN;
+    const y = kind === 'nw' || kind === 'ne' ? b.y + (b.h - h) : kind === 'move' ? b.y + (b.h - h) / 2 : b.y;
+    return { ...b, y, h };
+  }
+  return b;
+}
 type AdjKey = 'b' | 'c' | 's' | 't' | 'hl' | 'sh' | 'vig' | 'k';
 type Tool = 'look' | 'crop' | AdjKey;
 /** Cada ajuste no slider único: o valor que se vê (inteiro) e como passa para a edição. */
@@ -327,7 +349,10 @@ export function TxCamera({
   const [swatchSrc, setSwatchSrc] = useState<string | null>(null);
   const { user } = useAuth();
   const stamp = (g: CanvasRenderingContext2D, w: number, h: number) => stampTxillapp(g, w, h, user?.username);
-  const [edit, setEdit] = useState<Edit>(EDIT0);
+  /** Publicação: a câmara foi aberta em 4:5 (mimo e tcheka abrem em 9:16). Só 1:1, 4:5 e 1,91:1, a começar em 4:5. */
+  const isPost = Math.abs(aspect - POST_RATIO_DEFAULT) < 0.01;
+  const edit0: Edit = isPost ? { ...EDIT0, aspect: POST_RATIO_DEFAULT } : EDIT0;
+  const [edit, setEdit] = useState<Edit>(edit0);
   const editRef = useRef(edit);
   editRef.current = edit;
   const [tool, setTool] = useState<Tool | null>(null);
@@ -338,6 +363,9 @@ export function TxCamera({
     let cx = 0, cy = 0, cw = w, ch = h;
     if (e.box) {
       cx = Math.round(e.box.x * w); cy = Math.round(e.box.y * h); cw = Math.max(16, Math.round(e.box.w * w)); ch = Math.max(16, Math.round(e.box.h * h));
+      // Publicação: a caixa nunca sai do intervalo 4:5–1,91:1 (corta ao centro o que sobrar).
+      if (isPost && cw / ch > POST_RATIO_MAX) { const n = Math.floor(ch * POST_RATIO_MAX); cx += Math.round((cw - n) / 2); cw = n; }
+      else if (isPost && cw / ch < POST_RATIO_MIN) { const n = Math.floor(cw / POST_RATIO_MIN); cy += Math.round((ch - n) / 2); ch = n; }
     } else if (e.aspect) {
       if (w / h > e.aspect) cw = Math.round(h * e.aspect); else ch = Math.round(w / e.aspect);
       cx = Math.round((w - cw) / 2); cy = Math.round((h - ch) / 2);
@@ -408,7 +436,13 @@ export function TxCamera({
       if (d.kind === 'sw' || d.kind === 'se') ny2 = clamp(y2 + dy, y + MIN, 1);
       x = nx; y = ny; w = nx2 - nx; h = ny2 - ny;
     }
-    setBox({ x, y, w, h });
+    setBox(isPost ? fitPostBox({ x, y, w, h }, rect.width / rect.height, d.kind) : { x, y, w, h });
+  }
+  /** Proporção da foto já rodada (a que o corte livre mostra inteira). */
+  function turnedRatio(rot: Edit['rot']): number {
+    const src = previewSrc.current ?? reviewSrc.current;
+    if (!src || !src.width || !src.height) return 1;
+    return rot === 90 || rot === 270 ? src.height / src.width : src.width / src.height;
   }
   function cropTouchEnd() { drag.current = null; }
 
@@ -446,7 +480,14 @@ export function TxCamera({
     const e = { ...editRef.current, aspect: null, box: null };
     editRef.current = e;
     setEdit(e);
+    if (isPost) setBox((b) => fitPostBox(b, turnedRatio(e.rot), 'move'));
     paint(e, false);
+  }
+  /** Rodar: no corte livre de uma publicação, a caixa volta a caber no intervalo 4:5–1,91:1. */
+  function rotate() {
+    const rot = ((editRef.current.rot + 90) % 360) as Edit['rot'];
+    if (freeCrop && isPost) setBox((b) => fitPostBox(b, turnedRatio(rot), 'move'));
+    changeEdit({ rot });
   }
   // Os URLs de blob da pré-visualização são revogados ao serem substituídos (cada ajuste criava um JPEG retido para sempre).
   const lastUri = useRef<string | null>(null);
@@ -483,8 +524,9 @@ export function TxCamera({
       pg.drawImage(c, 0, 0, p.width, p.height);
       previewSrc.current = p;
     } else previewSrc.current = c;
-    editRef.current = EDIT0;
-    setEdit(EDIT0);
+    // Publicação: começa já cortada em 4:5 (a moldura da câmara é 4:5; isto garante-o mesmo sem moldura medida).
+    editRef.current = edit0;
+    setEdit(edit0);
     setTool('look'); // os filtros aparecem logo depois de tirar a foto
     setFreeCrop(false);
     setBox({ x: 0.08, y: 0.08, w: 0.84, h: 0.84 });
@@ -497,7 +539,7 @@ export function TxCamera({
       setSwatchSrc(m.toDataURL('image/jpeg', 0.75));
     } catch { setSwatchSrc(null); }
     const seq = renderSeq.current;
-    renderEdit(previewSrc.current, EDIT0).toBlob((blob) => blob && seq === renderSeq.current && setReview({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' }), 'image/jpeg', 0.9);
+    renderEdit(previewSrc.current, edit0).toBlob((blob) => blob && seq === renderSeq.current && setReview({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' }), 'image/jpeg', 0.9);
   }
   // A fila de filtros acompanha o escolhido (sobretudo quando se troca a deslizar sobre a foto).
   useEffect(() => {
@@ -1159,7 +1201,7 @@ export function TxCamera({
                 })())}
                 {tool === 'crop' && (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[st.looks, { flexGrow: 1, justifyContent: 'center' }]}>
-                    <Pressable onPress={() => changeEdit({ rot: ((editRef.current.rot + 90) % 360) as Edit['rot'] })} style={st.cropIcon} accessibilityRole="button" accessibilityLabel="Rodar"><Icon name="repeat" size={18} color="#fff" /></Pressable>
+                    <Pressable onPress={rotate} style={st.cropIcon} accessibilityRole="button" accessibilityLabel="Rodar"><Icon name="repeat" size={18} color="#fff" /></Pressable>
                     <Pressable onPress={() => changeEdit({ flip: !editRef.current.flip })} style={[st.cropIcon, edit.flip && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityState={{ selected: edit.flip }} accessibilityLabel="Espelhar"><Icon name="flip-camera" size={18} color={edit.flip ? colors.zinc900 : '#fff'} /></Pressable>
                     <Pressable onPress={startFreeCrop} style={[st.lookChip, freeCrop && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: freeCrop }}>
                       <Text style={[st.lookText, freeCrop && { color: colors.zinc900 }]}>Livre</Text>
@@ -1170,7 +1212,7 @@ export function TxCamera({
                         <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Concluir</Text>
                       </Pressable>
                     )}
-                    {([[null, 'Original'], [1, '1:1'], [0.8, '4:5'], [9 / 16, '9:16'], [16 / 9, '16:9']] as const).map(([a, label]) => (
+                    {(isPost ? POST_ASPECTS : ALL_ASPECTS).map(([a, label]) => (
                       <Pressable key={label} onPress={() => { setFreeCrop(false); changeEdit({ aspect: a, box: null }); }} style={[st.lookChip, !freeCrop && edit.aspect === a && edit.box === null && st.lookOn]} accessibilityRole="tab" accessibilityState={{ selected: !freeCrop && edit.aspect === a }}>
                         <Text style={[st.lookText, !freeCrop && edit.aspect === a && edit.box === null && { color: colors.zinc900 }]}>{label}</Text>
                       </Pressable>
@@ -1182,7 +1224,7 @@ export function TxCamera({
                 {TOOLS.map((t) => {
                   const on = tool === t.id;
                   const touched = t.id === 'look' ? edit.look !== 0
-                    : t.id === 'crop' ? edit.rot !== 0 || edit.flip || edit.aspect !== null || edit.box !== null
+                    : t.id === 'crop' ? edit.rot !== 0 || edit.flip || edit.aspect !== edit0.aspect || edit.box !== null
                     : ADJ[t.id].get(edit) !== ADJ[t.id].def;
                   return (
                     <Pressable key={t.id} onPress={() => { if (t.id !== 'crop') endFreeCrop(); setTool(t.id); }} style={st.toolBtn} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={t.a11y ?? t.label}>
