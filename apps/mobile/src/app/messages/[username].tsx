@@ -2,20 +2,21 @@ import { BackButton } from '@/components/BackButton';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Alert, AppState, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, AppState, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
-import { dayLabel, quoteText, seenLabel, type Msg } from '@/components/ChatBubbles';
+import { quoteText, type Msg } from '@/components/ChatBubbles';
 import { ChatComposer } from '@/components/ChatComposer';
+import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus, OnlineDot } from '@/components/ChatHeader';
 import { ChatList } from '@/components/ChatList';
 import { MessageMenu, NotFollowingNote, RequestBar, sendTyping, stopLiveShare } from '@/components/ChatParts';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { Icon } from '@/components/Icon';
-import { Sheet } from '@/components/Sheet';
-import { api, raw, type ChatThread } from '@/lib/api';
+import { api, raw, type ChatThread, type Conversation } from '@/lib/api';
 import { startCall } from '@/lib/calls';
 import { useAuth } from '@/lib/auth';
+import { activeLabel } from '@/lib/chatTimeline';
 import { useTyping } from '@/lib/realtime';
 import { colors } from '@/lib/theme';
 
@@ -31,9 +32,12 @@ export default function Thread() {
   const [viewing, setViewing] = useState<{ url: string | null; body: string } | null>(null);
   const [menuFor, setMenuFor] = useState<Msg | null>(null);
   const [searching, setSearching] = useState(false);
-  const [needle, setNeedle] = useState('');
+  const [more, setMore] = useState(false);
+  const [raised, setRaised] = useState(false);
   const typing = useTyping(username);
   const typingSent = useRef(0);
+  // Por ler ao abrir (da lista de conversas, antes de a conversa as marcar como lidas): para o "Mensagens novas".
+  const unread = useMemo(() => qc.getQueryData<Conversation[]>(['chat-list'])?.find((c) => c.username === username)?.unread ?? 0, [username]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const q = useInfiniteQuery({
     queryKey: ['chat-thread', username],
@@ -128,11 +132,11 @@ export default function Thread() {
   if (q.isError) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
-        <View style={st.header}><BackButton fallback="/messages" /></View>
+        <View style={st.header}><BackButton fallback="/messages" style={{ width: 44, height: 44, borderRadius: 22 }} /></View>
         <View style={{ marginHorizontal: 24, marginTop: 64, alignItems: 'center' }}>
           <Icon name="alert" size={44} color={colors.zinc300} />
           <Text style={{ marginTop: 12, fontSize: 20, fontWeight: '700', color: colors.zinc900, textAlign: 'center' }}>Não consegui abrir esta conversa</Text>
-          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/messages' as never))} style={{ marginTop: 16 }}><Text style={{ fontWeight: '600', color: colors.brand, fontSize: 16 }}>Voltar</Text></Pressable>
+          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/messages' as never))} style={{ marginTop: 16, minHeight: 44, justifyContent: 'center' }}><Text style={{ fontWeight: '600', color: colors.brand, fontSize: 16 }}>Voltar</Text></Pressable>
         </View>
       </View>
     );
@@ -141,43 +145,41 @@ export default function Thread() {
   const request = first?.relation?.request;
   const online = person?.presence?.online;
   const rel = first?.relation;
-  const norm = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const n = norm(needle.trim());
-  const hits = n.length < 2 ? [] : items.filter((m) => !m.id.startsWith('tmp-') && !m.viewOnce && m.body && (m.kind === 'text' || m.kind === 'story_reply') && norm(m.body).includes(n)).slice(0, 40);
+  const call = (video: boolean) => person && void startCall({ username: person.username, displayName: person.displayName, hasAvatar: person.hasAvatar }, video);
+  const openProfile = person ? () => router.push(`/u/${person.username}` as never) : undefined;
+  const avatarOf = person?.hasAvatar ? person.username : undefined;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} behavior="padding">
-      <View style={st.header}>
-        <BackButton fallback="/messages" style={{ width: 44, height: 44, borderRadius: 22 }} />
-        {person && (
-          <Pressable onPress={() => router.push(`/u/${person.username}` as never)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-            <View>
-              <Avatar name={person.displayName} username={person.hasAvatar ? person.username : undefined} size={38} />
-              {online ? <View style={st.online} accessibilityLabel="Online" /> : null}
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={st.hName} numberOfLines={1}>{person.displayName}</Text>
-              {typing ? (
-                <Text style={[st.hSub, { color: colors.brand, fontWeight: '600' }]}>a escrever…</Text>
-              ) : online ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#10b981' }} />
-                  <Text style={[st.hSub, { color: '#059669', fontWeight: '600' }]}>Online</Text>
-                </View>
-              ) : (
-                <Text style={st.hSub} numberOfLines={1}>{seenLabel(person.presence?.lastSeen ?? null) ?? `@${person.username}`}</Text>
-              )}
-            </View>
-          </Pressable>
-        )}
-        {person && !first?.blocked ? (
+      <ChatHeader
+        raised={raised}
+        onOpen={openProfile}
+        openLabel={person ? `Ver o perfil de ${person.displayName}` : 'Conversa'}
+        avatar={
+          <View>
+            <Avatar name={person?.displayName ?? username} username={avatarOf} size={36} />
+            {online ? <OnlineDot size={36} /> : null}
+          </View>
+        }
+        title={person?.displayName ?? ''}
+        subtitle={
+          typing ? <HeaderStatus text="a escrever…" tone="typing" />
+            : online ? <HeaderStatus text="Online" tone="online" />
+            : person ? <HeaderStatus text={activeLabel(person.presence?.lastSeen) ?? `@${person.username}`} />
+            : null
+        }
+        actions={
           <>
-            <Pressable onPress={() => void startCall({ username: person.username, displayName: person.displayName, hasAvatar: person.hasAvatar }, false)} style={st.search} accessibilityRole="button" accessibilityLabel={`Ligar a ${person.displayName}`}><CallIcon name="handset" size={21} color={colors.zinc700} /></Pressable>
-            <Pressable onPress={() => void startCall({ username: person.username, displayName: person.displayName, hasAvatar: person.hasAvatar }, true)} style={st.search} accessibilityRole="button" accessibilityLabel={`Videochamada a ${person.displayName}`}><Icon name="video" size={23} color={colors.zinc700} /></Pressable>
+            {person && !first?.blocked ? (
+              <>
+                <HeaderButton label={`Ligar a ${person.displayName}`} onPress={() => call(false)}><CallIcon name="handset" size={21} color={colors.zinc800} /></HeaderButton>
+                <HeaderButton label={`Videochamada a ${person.displayName}`} onPress={() => call(true)}><Icon name="video" size={23} color={colors.zinc800} /></HeaderButton>
+              </>
+            ) : null}
+            <HeaderButton label="Mais opções" onPress={() => setMore(true)}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></HeaderButton>
           </>
-        ) : null}
-        <Pressable onPress={() => setSearching(true)} style={st.search} accessibilityRole="button" accessibilityLabel="Procurar na conversa"><Icon name="search" size={22} color={colors.zinc700} /></Pressable>
-      </View>
+        }
+      />
 
       {qs.isError && items.length === 0 ? (
         <View style={st.failBox}>
@@ -187,6 +189,7 @@ export default function Thread() {
         </View>
       ) : null}
       <ChatList
+        key={username}
         items={items}
         loading={q.isLoading || (qs.isError && items.length === 0 && qs.isFetching)}
         hasNext={!!q.hasNextPage}
@@ -194,9 +197,14 @@ export default function Thread() {
         fetchingNext={q.isFetchingNextPage}
         typing={typing}
         seenId={seenId}
-        emptyText={`Diz olá a ${firstName || 'esta pessoa'}`}
+        unread={unread}
+        onRaised={setRaised}
+        emptyArt={person ? <Avatar name={person.displayName} username={avatarOf} size={80} /> : null}
+        emptyTitle={person?.displayName}
+        emptyText={`Ainda não há mensagens. Diz olá a ${firstName || 'esta pessoa'} 👋`}
         peerName={person?.displayName}
         peerHandle={username}
+        peerAvatar={avatarOf}
         meHandle={user?.username}
         top={!request && rel && !rel.theyFollow && person ? <NotFollowingNote name={firstName} left={rel.left} /> : null}
         onMenu={setMenuFor}
@@ -218,24 +226,17 @@ export default function Thread() {
       {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
 
       {menuFor && <MessageMenu m={menuFor} onClose={() => setMenuFor(null)} onReply={startReply} onDone={() => void q.refetch()} onError={setErr} />}
+      {more && (
+        <ChatMenuSheet
+          onClose={() => setMore(false)}
+          items={[
+            { icon: 'search', label: 'Procurar na conversa', onPress: () => setSearching(true) },
+            ...(openProfile ? [{ icon: 'user' as const, label: 'Ver perfil', onPress: openProfile }] : []),
+          ]}
+        />
+      )}
       {searching && (
-        <Sheet title="Procurar na conversa" onClose={() => { setSearching(false); setNeedle(''); }}>
-          <View style={{ paddingHorizontal: 20 }}>
-            <TextInput autoFocus value={needle} onChangeText={setNeedle} placeholder="Escreve uma palavra…" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar na conversa" style={st.needle} />
-            <View style={{ marginTop: 12, gap: 4 }}>
-              {hits.map((m) => (
-                <Pressable key={m.id} onPress={() => { setSearching(false); setNeedle(''); }} style={({ pressed }) => [{ borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 }, pressed && { backgroundColor: colors.zinc100 }]}>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.zinc500 }}>{m.fromMe ? 'Tu' : person?.displayName} · {dayLabel(m.at)}</Text>
-                  <Text style={{ fontSize: 15, color: colors.zinc800 }} numberOfLines={2}>{m.body}</Text>
-                </Pressable>
-              ))}
-            </View>
-            {n.length >= 2 && hits.length === 0 && <Text style={{ paddingVertical: 24, textAlign: 'center', color: colors.zinc600 }}>Nada encontrado nas mensagens carregadas.</Text>}
-            {q.hasNextPage && (
-              <Pressable onPress={() => void q.fetchNextPage()} style={{ marginTop: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingVertical: 10, alignItems: 'center' }}><Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc700 }}>Carregar mensagens mais antigas</Text></Pressable>
-            )}
-          </View>
-        </Sheet>
+        <ChatSearchSheet items={items} nameOf={(m) => (m.fromMe ? 'Tu' : person?.displayName ?? '')} hasNext={!!q.hasNextPage} fetchNext={() => void q.fetchNextPage()} onClose={() => setSearching(false)} />
       )}
       {viewing && (
         <Pressable onPress={() => setViewing(null)} style={st.viewer} accessibilityLabel="Fechar">
@@ -254,12 +255,7 @@ const st = StyleSheet.create({
   failBtn: { marginTop: 14, height: 44, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center' },
   failBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   viewer: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: '#000', justifyContent: 'center', zIndex: 50 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 4, borderBottomWidth: 1, borderBottomColor: colors.zinc100, paddingHorizontal: 8, paddingVertical: 8 },
-  search: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
-  hName: { fontWeight: '700', fontSize: 16, lineHeight: 20, color: colors.zinc900 },
-  hSub: { fontSize: 12, lineHeight: 16, color: colors.zinc500 },
-  online: { position: 'absolute', right: 0, bottom: 0, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.white, backgroundColor: '#10b981' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 6 },
   foot: { borderTopWidth: 1, borderTopColor: colors.zinc100, paddingHorizontal: 24, paddingTop: 16, textAlign: 'center', fontSize: 14, color: colors.zinc600 },
   err: { position: 'absolute', left: 0, right: 0, bottom: 88, textAlign: 'center', fontSize: 14, color: colors.red600 },
-  needle: { height: 48, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 20, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' } as object,
 });
