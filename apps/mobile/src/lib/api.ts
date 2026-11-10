@@ -472,12 +472,44 @@ export function putBlob(url: string, blob: Blob, mime: string, onProgress?: (p: 
   });
 }
 
+/**
+ * Abre um ficheiro local (file:// ou content://) como Blob para o enviar. No telemóvel lê-se com XMLHttpRequest
+ * (`responseType: 'blob'`): o React Native copia o ficheiro uma só vez, direto para o armazém nativo de Blobs, sem passar
+ * os bytes pelo JS. O `fetch(uri).blob()` do expo/fetch juntava a foto em Java, passava-a para JS e copiava-a de volta, e
+ * essas cópias só saíam da memória quando o JS limpasse (com 10 fotos grandes numa publicação, o Android ficava sem memória).
+ * No site, e se o XHR falhar, usa-se o fetch.
+ */
+export async function readLocalBlob(uri: string): Promise<Blob> {
+  if (!isWeb && !/^(https?|blob|data):/i.test(uri)) {
+    const viaXhr = await new Promise<Blob | null>((resolve) => {
+      const x = new XMLHttpRequest();
+      x.responseType = 'blob';
+      x.onload = () => { const b = x.response as Blob | null; resolve(b && b.size > 0 ? b : null); };
+      x.onerror = () => resolve(null);
+      x.open('GET', uri);
+      x.send();
+    });
+    if (viaXhr) return viaXhr;
+  }
+  return (await fetch(uri)).blob();
+}
+
+/** Larga já os bytes de um Blob nativo (no telemóvel ficam no armazém do React Native até o JS os limpar). */
+export function releaseBlob(blob: Blob | null | undefined) {
+  try { (blob as { close?: () => void } | null | undefined)?.close?.(); } catch { /* já largado */ }
+}
+
 /** Envia uma foto, vídeo ou áudio do chat (privado): pede o URL assinado, envia os bytes, confirma e espera que fique pronto. Devolve o id do ficheiro. */
 export async function uploadMedia(uri: string, mime: string, purpose: 'public' | 'chat' = 'chat', onWait?: () => void): Promise<string> {
-  const blob = await (await fetch(uri)).blob();
-  const up = (await raw('/media/uploads', post({ mime, size: blob.size, purpose }))) as { assetId: string; uploadUrl: string };
-  const url = /^https?:\/\//.test(up.uploadUrl) ? up.uploadUrl : `${SITE_URL}${up.uploadUrl}`;
-  await putBlob(url, blob, mime);
+  const blob = await readLocalBlob(uri);
+  let up: { assetId: string; uploadUrl: string };
+  try {
+    up = (await raw('/media/uploads', post({ mime, size: blob.size, purpose }))) as { assetId: string; uploadUrl: string };
+    const url = /^https?:\/\//.test(up.uploadUrl) ? up.uploadUrl : `${SITE_URL}${up.uploadUrl}`;
+    await putBlob(url, blob, mime);
+  } finally {
+    releaseBlob(blob);
+  }
   await waitMediaReady(up.assetId, (await raw(`/media/${up.assetId}/complete`, { method: 'POST' })) as MediaState, onWait);
   return up.assetId;
 }

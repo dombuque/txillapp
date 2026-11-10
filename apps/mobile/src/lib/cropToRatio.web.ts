@@ -7,6 +7,8 @@
 
 /** Lado maior do JPEG cortado (nunca se aumenta a foto; só se reduz se for maior do que isto). */
 const MAX_SIDE = 2048;
+/** Lado maior do JPEG de uma publicação (o mesmo do telemóvel). */
+export const POST_MAX_SIDE = MAX_SIDE;
 
 function load(uri: string): Promise<HTMLImageElement | null> {
   return new Promise((done) => {
@@ -51,6 +53,6 @@ export async function cropToRatio(uri: string, ratio: number): Promise<string> {
 }
 
 /** No browser a foto do mimo vem da câmara do site (já no tamanho do ecrã): vai como está. */
-export async function shrinkPhoto(uri: string): Promise<string> {
+export async function shrinkPhoto(uri: string, _maxShort?: number, _maxLong?: number): Promise<string> {
   return uri;
 }
