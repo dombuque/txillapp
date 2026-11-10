@@ -72,7 +72,7 @@ function Sidebar({ labels, path }: { labels: boolean; path: string }) {
     router.navigate((it.key === 'zas' ? `/new?kind=zas&t=${Date.now()}` : it.to) as never);
   }
   return (
-    <View style={[st.side, { width: labels ? 244 : 76 }]} accessibilityRole="navigation" accessibilityLabel="Navegação principal">
+    <View style={[st.side, { width: labels ? 244 : 76 }]} role="navigation" accessibilityLabel="Navegação principal">
       <Pressable onPress={() => router.navigate('/' as never)} style={[st.brand, !labels && { alignItems: 'center', paddingHorizontal: 0 }]} accessibilityRole="link" accessibilityLabel="Txillapp, ir para o Início">
         {labels ? <Wordmark height={30} /> : <Image source={{ uri: '/icon-192.png' }} style={{ width: 34, height: 34, borderRadius: 10 }} contentFit="cover" />}
       </Pressable>

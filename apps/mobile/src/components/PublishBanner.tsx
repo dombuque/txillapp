@@ -14,7 +14,7 @@ export function PublishBanner() {
   return (
     <View style={{ gap: 8, marginHorizontal: 16, marginBottom: 10 }}>
       {tasks.map((t) => (
-        <View key={t.id} style={st.row} accessibilityRole="status" accessibilityLiveRegion="polite">
+        <View key={t.id} style={st.row} role="status" accessibilityLiveRegion="polite">
           <View style={st.thumb}>
             {t.thumb ? <Image source={{ uri: t.thumb }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Icon name={t.video ? 'video' : 'file-text'} size={20} color={colors.zinc600} />}
           </View>
