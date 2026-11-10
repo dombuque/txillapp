@@ -19,11 +19,15 @@ export interface PushPayload extends FcmPush {
   url: string;
   /** Mesmo `tag` substitui a notificação anterior (por exemplo, várias mensagens da mesma pessoa). */
   tag?: string;
+  /** Só Web Push: não vai para a app nativa (ex.: reenvios do aviso de chamada, fechar a notificação da chamada). */
+  webOnly?: boolean;
+  /** Dados extra só para o browser (a mensagem para a app nativa fica igual). */
+  webData?: Record<string, string>;
 }
 
 /** O que vai para o browser (Web Push): os dados extra (ex.: kind, callId, from, video) ficam ao nível de cima, ao lado do título e do texto. */
 export function webPushBody(p: PushPayload): string {
-  return JSON.stringify({ ...(p.data ?? {}), title: p.title, body: p.body, url: p.url, tag: p.tag });
+  return JSON.stringify({ ...(p.data ?? {}), ...(p.webData ?? {}), title: p.title, body: p.body, url: p.url, tag: p.tag });
 }
 
 /**
@@ -94,7 +98,7 @@ export class PushService {
     if (!this.enabled) return;
     try {
       if (payload.category && (await this.off(userId)).includes(payload.category)) return;
-      if (this.fcm.enabled) {
+      if (this.fcm.enabled && !payload.webOnly) {
         const devices = (await this.pool.query('SELECT token, platform FROM social.push_devices WHERE user_id = $1', [userId])).rows;
         await Promise.all(
           devices.map(async (d) => {

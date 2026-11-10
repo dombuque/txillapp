@@ -562,6 +562,12 @@ export function expandCall() {
 export function dismissEnded() {
   if (state.phase === 'ended') reset();
 }
+/** Esta chamada a tocar foi atendida ou recusada noutro sítio (ex.: no botão da notificação do browser): deixa de tocar aqui. */
+export function dropIncoming(callId: string) {
+  if (state.phase === 'incoming' && state.callId === callId) finish('elsewhere');
+}
+/** Ouvir as mudanças do estado da chamada fora do React (ex.: fechar a notificação quando se atende). */
+export const onCallState = subscribe;
 
 export const speakerSelectable = rtc.speakerSelectable;
 export { VideoView } from './webrtc';
