@@ -1,4 +1,4 @@
-// Sobe a versão da app (Semantic Versioning: MAJOR.MINOR.PATCH) em app.json e package.json.
+// Sobe a versão da app (Semantic Versioning: MAJOR.MINOR.PATCH) em app.json e package.json, e o android.versionCode em +1.
 //   node scripts/bump-version.mjs patch   → correções (1.1.0 → 1.1.1)
 //   node scripts/bump-version.mjs minor   → funcionalidades novas (1.1.1 → 1.2.0)
 //   node scripts/bump-version.mjs major   → mudanças que partem compatibilidade (1.2.0 → 2.0.0)
@@ -22,6 +22,8 @@ else {
   next = arg === 'major' ? `${ma + 1}.0.0` : arg === 'minor' ? `${ma}.${mi + 1}.0` : `${ma}.${mi}.${pa + 1}`;
 }
 app.expo.version = next;
+// O Android só aceita uma atualização com versionCode maior do que o instalado: sobe sempre 1.
+app.expo.android.versionCode = (Number(app.expo.android.versionCode) || 0) + 1;
 pkg.version = next;
 writeFileSync(appPath, JSON.stringify(app, null, 2) + '\n');
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
