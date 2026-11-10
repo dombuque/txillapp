@@ -20,6 +20,7 @@ import { useDesktop } from '@/lib/desktop';
 import { kvGet, kvSet } from '@/lib/kv';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** Cidades para quem não quer dar a localização (coordenadas do centro, já arredondadas). */
 const CITIES: { name: string; lat: number; lng: number }[] = [
@@ -307,21 +308,27 @@ export default function Perto() {
 
   const card =
     visibility === 'off' && canEnable && !hideCard && (filter === 'all' || filter === 'people') ? (
-      <VisibilityCard onPick={(v) => setVis.mutate(v)} busy={setVis.isPending} gps={!!place?.gps} onLater={() => setHideCard(true)} />
+      <VisibilityStrip onOpen={() => setVisSheet(true)} onLater={() => setHideCard(true)} />
     ) : null;
 
+  const wider = RADII.find((r) => r > radius);
   const listEmpty = q.isLoading ? (
     <View style={st.center}><ActivityIndicator /></View>
   ) : q.isError ? (
     <View style={st.center}>
       <Text style={st.emptyTitle}>Não consegui ver o que há à volta</Text>
-      <Pressable onPress={() => void q.refetch()} style={st.retry}><Text style={st.retryText}>Tentar outra vez</Text></Pressable>
+      <Pressable onPress={() => void q.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>Tentar outra vez</Text></Pressable>
     </View>
   ) : (
     <View style={st.center}>
-      <Icon name="map" size={34} color={colors.zinc300} />
+      <View style={st.emptyIcon}><Icon name="compass" size={26} color={colors.brand} /></View>
       <Text style={st.emptyTitle}>Por aqui está calmo</Text>
-      <Text style={st.emptySub}>{radius < 30 ? 'Aumenta o raio ou troca o filtro.' : 'Troca o filtro ou volta mais logo.'}</Text>
+      <Text style={st.emptySub}>{wider ? 'Não há nada perto com estes filtros. Vê um pouco mais longe ou troca o filtro.' : 'Troca o filtro ou volta mais logo: há sempre coisas novas.'}</Text>
+      {wider ? (
+        <Pressable onPress={() => setRadius(wider)} style={st.retry} accessibilityRole="button">
+          <Text style={st.retryText}>Ver até {wider} km</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 
@@ -408,7 +415,7 @@ export default function Perto() {
             <NearbyMap center={center} radiusKm={radius} markers={markers} selectedId={selected} onMarkerPress={setSelected} zoomControl />
           </View>
           <View style={st.deskList}>
-            <Text style={st.listHead}>{items.length ? `${items.length} à tua volta · mais perto primeiro` : 'À tua volta'}</Text>
+            <ListHead items={items} loading={q.isLoading} />
             <DeskList items={items} selected={selected} header={card} empty={listEmpty} render={row} />
           </View>
         </View>
@@ -421,7 +428,7 @@ export default function Perto() {
   return (
     <StackPage title="À tua volta" right={eyeButton}>
       {chips}
-      <PhoneBody items={items} selected={selected} header={card} empty={listEmpty} render={row} onMarker={setSelected}>
+      <PhoneBody items={items} selected={selected} head={<ListHead items={items} loading={q.isLoading} />} header={card} empty={listEmpty} render={row} onMarker={setSelected}>
         <NearbyMap center={center} radiusKm={radius} markers={markers} selectedId={selected} onMarkerPress={setSelected} />
       </PhoneBody>
       {sheets}
@@ -511,18 +518,53 @@ function DeskList({ items, selected, header, empty, render }: ListProps) {
   );
 }
 
-const PEEK = 168;
+const KIND_COUNT: Record<MapMarkerKind, [string, string]> = {
+  venue: ['local', 'locais'],
+  event: ['evento', 'eventos'],
+  post: ['publicação', 'publicações'],
+  group: ['TxillGroup', 'TxillGroups'],
+  person: ['pessoa', 'pessoas'],
+};
 
-/** Telemóvel: o mapa ocupa tudo e a lista vive numa folha com três alturas (espreitar, meio e cheia). */
-function PhoneBody({ items, selected, header, empty, render, children }: ListProps & { onMarker: (id: string) => void; children: React.ReactNode }) {
+/** Cabeçalho da lista: quantos há (grande) e de que tipo (pequeno). */
+function ListHead({ items, loading }: { items: Item[]; loading: boolean }) {
+  const n = items.length;
+  const by = new Map<MapMarkerKind, number>();
+  for (const i of items) by.set(i.kind, (by.get(i.kind) ?? 0) + 1);
+  const parts = [...by.entries()].map(([k, c]) => `${c} ${KIND_COUNT[k][c === 1 ? 0 : 1]}`);
+  const sub = n ? (parts.length > 1 ? `${parts.join(' · ')} · mais perto primeiro` : 'Mais perto primeiro') : loading ? 'A procurar…' : 'Nada por perto com estes filtros';
+  return (
+    <View style={st.head} accessibilityRole="header" accessibilityLabel={n ? `${n} à tua volta. ${sub}` : `À tua volta. ${sub}`}>
+      <Text style={st.headTitle} numberOfLines={1}>{n ? `${n} à tua volta` : 'À tua volta'}</Text>
+      <Text style={st.headSub} numberOfLines={1}>{sub}</Text>
+    </View>
+  );
+}
+
+/** Quanto da lista se vê com a folha em baixo, além do cabeçalho: uma linha inteira e um pouco da seguinte. */
+const PEEK_ROWS = 90;
+/** Altura do cabeçalho até ser medido (pega + contagem). */
+const HEAD_GUESS = 72;
+
+/** Telemóvel: o mapa ocupa tudo e a lista vive numa folha com três alturas (espreitar, meio e cheia). Em repouso só espreita. */
+function PhoneBody({ items, selected, head, header, empty, render, children }: ListProps & { head: React.ReactElement; onMarker: (id: string) => void; children: React.ReactNode }) {
+  const insets = useSafeAreaInsets();
   const [h, setH] = useState(0);
   const ty = useRef(new Animated.Value(10_000)).current;
   const pos = useRef(0);
   const start = useRef(0);
   const hRef = useRef(0);
+  const headH = useRef(HEAD_GUESS);
+  const headMeasured = useRef(false);
+  const bottom = useRef(insets.bottom);
+  bottom.current = insets.bottom;
   const list = useRef<FlatList<Item>>(null);
   const nd = Platform.OS !== 'web';
-  const snaps = (H: number) => [24, Math.round(H * 0.48), Math.max(0, H - PEEK)];
+  // Em baixo: o cabeçalho (com a faixa de visibilidade, se houver) e cerca de uma linha; nunca acima do meio.
+  const snaps = (H: number) => {
+    const mid = Math.round(H * 0.48);
+    return [24, mid, Math.max(mid + 40, H - (headH.current + PEEK_ROWS + bottom.current))];
+  };
   const nearest = (v: number) => snaps(hRef.current).reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
 
   useEffect(() => {
@@ -540,9 +582,29 @@ function PhoneBody({ items, selected, header, empty, render, children }: ListPro
     hRef.current = H;
     setH(H);
     if (first) {
-      ty.setValue(snaps(H)[1]);
-      pos.current = snaps(H)[1];
+      ty.setValue(snaps(H)[2]);
+      pos.current = snaps(H)[2];
     }
+  };
+
+  // O cabeçalho mudou de altura (a faixa de visibilidade apareceu ou saiu): se a folha estava em baixo, acompanha.
+  const onHeadLayout = (e: LayoutChangeEvent) => {
+    const next = Math.round(e.nativeEvent.layout.height);
+    if (!hRef.current || Math.abs(next - headH.current) < 2) {
+      headH.current = next;
+      headMeasured.current = true;
+      return;
+    }
+    const wasLow = Math.abs(pos.current - snaps(hRef.current)[2]) < 12;
+    const firstTime = !headMeasured.current;
+    headMeasured.current = true;
+    headH.current = next;
+    if (!wasLow) return;
+    const low = snaps(hRef.current)[2];
+    if (firstTime) {
+      ty.setValue(low);
+      pos.current = low;
+    } else snapTo(low);
   };
 
   const pan = useRef(
@@ -586,19 +648,22 @@ function PhoneBody({ items, selected, header, empty, render, children }: ListPro
       <View style={StyleSheet.absoluteFill}>{children}</View>
       {h > 0 ? (
         <Animated.View style={[st.sheet, { height: h - 24, transform: [{ translateY: ty }] }]}>
-          <View {...pan.panHandlers} style={st.grab} accessibilityRole="adjustable" accessibilityLabel="Puxar a lista para cima ou para baixo">
-            <View style={st.grabBar} />
-            <Text style={st.listHead}>{items.length ? `${items.length} à tua volta · mais perto primeiro` : 'À tua volta'}</Text>
+          <View onLayout={onHeadLayout}>
+            <View {...pan.panHandlers} style={st.grab} accessibilityRole="adjustable" accessibilityLabel="Puxar a lista para cima ou para baixo">
+              <View style={st.grabBar} />
+              {head}
+            </View>
+            {/* A faixa de visibilidade fica fora da pega (um botão dentro de um "ajustável" confunde o leitor de ecrã). */}
+            {header}
           </View>
           <FlatList
             ref={list}
             data={items}
             keyExtractor={(i) => i.key}
             renderItem={({ item }) => render(item)}
-            ListHeaderComponent={header ?? undefined}
             ListEmptyComponent={empty}
             onScrollToIndexFailed={(e) => setTimeout(() => list.current?.scrollToOffset({ offset: e.averageItemLength * e.index, animated: true }), 50)}
-            contentContainerStyle={{ paddingBottom: 40 }}
+            contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
             nestedScrollEnabled
           />
         </Animated.View>
@@ -610,9 +675,12 @@ function PhoneBody({ items, selected, header, empty, render, children }: ListPro
 function VisibilityOptions({ value, onPick, busy, gps }: { value: NearbyVisibility; onPick: (v: NearbyVisibility) => void; busy: boolean; gps: boolean }) {
   return (
     <View style={{ gap: 10 }}>
-      <Text style={st.cardText}>
-        Quem escolheres vê que estás por perto, só com a zona aproximada (o bairro, nunca o sítio exato). Só atualiza com este ecrã aberto e some sozinho passadas 3 h.
-      </Text>
+      <View style={st.privacy}>
+        <Icon name="shield" size={20} color={colors.zinc700} />
+        <Text style={[st.cardText, { flex: 1 }]}>
+          Quem escolheres vê que estás por perto, só com a zona aproximada (o bairro, nunca o sítio exato). Só atualiza com este ecrã aberto e some sozinho passadas 3 h.
+        </Text>
+      </View>
       {!gps ? <Text style={[st.cardText, { color: colors.amber600 }]}>Para apareceres tens de usar a localização do telemóvel (com uma cidade escolhida não apareces).</Text> : null}
       {VIS.map((o) => {
         const on = value === o.key;
@@ -630,16 +698,20 @@ function VisibilityOptions({ value, onPick, busy, gps }: { value: NearbyVisibili
   );
 }
 
-function VisibilityCard({ onPick, busy, gps, onLater }: { onPick: (v: NearbyVisibility) => void; busy: boolean; gps: boolean; onLater: () => void }) {
+/** Faixa curta na folha: "Estás invisível · Mudar". As opções (e a explicação de privacidade) abrem numa folha própria. */
+function VisibilityStrip({ onOpen, onLater }: { onOpen: () => void; onLater: () => void }) {
   return (
-    <View style={st.card}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Icon name="users" size={20} color={colors.brand} />
-        <Text style={st.cardTitle}>Aparecer em À tua volta</Text>
-        <View style={{ flex: 1 }} />
-        <Pressable onPress={onLater} hitSlop={8} accessibilityRole="button" accessibilityLabel="Agora não"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
-      </View>
-      <VisibilityOptions value="off" onPick={onPick} busy={busy} gps={gps} />
+    <View style={st.strip}>
+      <Pressable onPress={onOpen} style={st.stripMain} accessibilityRole="button" accessibilityLabel="Estás invisível para a malta. Mudar quem te vê" hitSlop={4}>
+        <View style={st.stripIcon}><Icon name="eye-off" size={16} color={colors.zinc700} /></View>
+        <Text style={st.stripText} numberOfLines={1}>
+          Estás invisível <Text style={st.stripDim}>para a malta</Text>
+        </Text>
+        <Text style={st.stripLink}>Mudar</Text>
+      </Pressable>
+      <Pressable onPress={onLater} hitSlop={10} style={st.stripX} accessibilityRole="button" accessibilityLabel="Agora não">
+        <Icon name="x" size={16} color={colors.zinc500} />
+      </Pressable>
     </View>
   );
 }
@@ -690,9 +762,20 @@ const st = StyleSheet.create({
   mineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.rose50 },
   mineText: { fontSize: 15, fontWeight: '700', color: colors.brand },
   sheet: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, boxShadow: '0 -4px 20px rgba(0,0,0,0.12)' },
-  grab: { paddingTop: 8, paddingBottom: 6, alignItems: 'center', gap: 6 },
+  grab: { paddingTop: 8, paddingBottom: 4, alignItems: 'center', gap: 8 },
   grabBar: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.zinc300 },
-  listHead: { fontSize: 13, fontWeight: '700', color: colors.zinc500, paddingHorizontal: 16, paddingVertical: 4, alignSelf: 'stretch' },
+  head: { paddingHorizontal: 16, paddingBottom: 6, alignSelf: 'stretch' },
+  headTitle: { fontSize: 18, fontWeight: '800', color: colors.zinc900, letterSpacing: -0.2 },
+  headSub: { fontSize: 13, fontWeight: '500', color: colors.zinc500, marginTop: 1 },
+  strip: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 12, marginTop: 2, marginBottom: 6, paddingLeft: 8, paddingRight: 4, minHeight: 44, borderRadius: 14, backgroundColor: colors.zinc100 },
+  stripMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  stripIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  stripText: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.zinc900 },
+  stripDim: { fontWeight: '500', color: colors.zinc500 },
+  stripLink: { fontSize: 14, fontWeight: '800', color: colors.brand, paddingHorizontal: 6 },
+  stripX: { width: 32, height: 44, alignItems: 'center', justifyContent: 'center' },
+  privacy: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 14, backgroundColor: colors.zinc100 },
+  emptyIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.rose50, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
   rowSel: { backgroundColor: colors.rose50 },
   thumb: { width: 52, height: 52, borderRadius: 14, backgroundColor: colors.zinc900, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
@@ -701,8 +784,6 @@ const st = StyleSheet.create({
   rowSub: { fontSize: 13, color: colors.zinc500, marginTop: 2 },
   rowKm: { fontSize: 13, fontWeight: '700', color: colors.zinc700 },
   rowOpen: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  card: { margin: 12, padding: 14, borderRadius: 18, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.zinc200, gap: 10 },
-  cardTitle: { fontSize: 16, fontWeight: '800', color: colors.zinc900 },
   cardText: { fontSize: 14, lineHeight: 20, color: colors.zinc600 },
   opt: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.zinc200 },
   optOn: { borderColor: colors.brand, backgroundColor: colors.rose50 },
@@ -712,5 +793,5 @@ const st = StyleSheet.create({
   optSub: { fontSize: 13, color: colors.zinc500, marginTop: 1 },
   deskHead: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 24, paddingTop: 22 },
   deskTitle: { fontSize: 24, fontWeight: '800', color: colors.zinc900 },
-  deskList: { width: 380, borderRadius: 18, borderWidth: 1, borderColor: colors.zinc200, overflow: 'hidden', paddingTop: 10, backgroundColor: colors.white },
+  deskList: { width: 380, borderRadius: 18, borderWidth: 1, borderColor: colors.zinc200, overflow: 'hidden', paddingTop: 12, backgroundColor: colors.white },
 });
