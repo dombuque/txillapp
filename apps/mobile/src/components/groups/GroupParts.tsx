@@ -71,6 +71,41 @@ export function Field(props: React.ComponentProps<typeof TextInput>) {
 
 export const ErrText = ({ text }: { text: string }) => (text ? <Text style={ps.err} accessibilityRole="alert">{text}</Text> : null);
 
+/**
+ * Confirmação na folha da app (igual no telemóvel e no site): título, as consequências, uma sugestão discreta e dois botões.
+ * Só "Confirmar" faz o pedido; enquanto grava, os botões ficam presos; um erro mostra a mensagem do servidor e a folha fica aberta.
+ */
+export function ConfirmSheet({ title, lines, hint, confirmLabel = 'Confirmar', cancelLabel = 'Voltar', danger, onConfirm, onClose }: { title: string; lines: string[]; hint?: string; confirmLabel?: string; cancelLabel?: string; danger?: boolean; onConfirm: () => Promise<unknown>; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  async function go() {
+    setBusy(true);
+    setErr('');
+    try {
+      await onConfirm();
+      onClose();
+    } catch (e) {
+      setErr((e as Error).message || 'Não deu. Verifica a internet e tenta outra vez.');
+      setBusy(false);
+    }
+  }
+  return (
+    <Sheet title={title} onClose={() => { if (!busy) onClose(); }}>
+      <View style={{ paddingHorizontal: 24, gap: 10 }} accessibilityLiveRegion="polite">
+        {lines.map((l, i) => <Text key={i} style={ps.confirmText}>{l}</Text>)}
+        {hint ? <Text style={ps.confirmHint}>{hint}</Text> : null}
+        <ErrText text={err} />
+        <Pressable onPress={() => void go()} disabled={busy} style={[ps.confirmGo, danger && { backgroundColor: '#b91c1c' }, busy && { opacity: 0.6 }]} accessibilityRole="button" accessibilityState={{ disabled: busy, busy }} accessibilityLabel={busy ? 'A guardar' : confirmLabel}>
+          <Text style={ps.confirmGoText}>{busy ? 'A guardar…' : confirmLabel}</Text>
+        </Pressable>
+        <Pressable onPress={onClose} disabled={busy} style={ps.confirmBack} accessibilityRole="button">
+          <Text style={ps.confirmBackText}>{cancelLabel}</Text>
+        </Pressable>
+      </View>
+    </Sheet>
+  );
+}
+
 // ----- datas -----
 const WEEK = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
 /** Calendário do Plano: toca no primeiro dia e depois no último (ou só num, para um dia). Igual no telemóvel e no site. */
@@ -247,4 +282,10 @@ export const ps = StyleSheet.create({
   rowSub: { fontSize: 13, color: colors.zinc500 },
   venueIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   check: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
+  confirmText: { fontSize: 16, lineHeight: 22, color: colors.zinc700 },
+  confirmHint: { fontSize: 13, lineHeight: 18, color: colors.zinc500 },
+  confirmGo: { marginTop: 6, height: 48, borderRadius: 24, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  confirmGoText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  confirmBack: { height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  confirmBackText: { fontSize: 16, fontWeight: '600', color: colors.zinc700 },
 });

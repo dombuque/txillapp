@@ -5,7 +5,7 @@ import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 import { groupKeys, groupsApi, type GroupPlan, type Poll } from '@/lib/api.groups';
 import { colors } from '@/lib/theme';
-import { ErrText, Field, Pill } from './GroupParts';
+import { ConfirmSheet, ErrText, Field, Pill } from './GroupParts';
 
 /** O TxillGroup aberto: a bolha da sondagem no chat precisa de saber de que grupo é e se sou admin. */
 export interface GroupCtxValue { id: string; me: string; admin: boolean }
@@ -22,6 +22,8 @@ export function PollView({ poll, groupId, me, admin, compact = false }: { poll: 
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // Fechar não tem volta: pede-se confirmação.
+  const [asking, setAsking] = useState(false);
   const total = poll.options.reduce((n, o) => n + o.votes, 0);
   const voters = new Set(poll.options.flatMap((o) => o.voters)).size;
   const voted = poll.myVotes.length > 0;
@@ -58,13 +60,11 @@ export function PollView({ poll, groupId, me, admin, compact = false }: { poll: 
     }
   }
   async function close() {
-
     setBusy(true);
     try {
       await groupsApi.closePoll(groupId, poll.id);
       void qc.invalidateQueries({ queryKey: groupKeys.plan(groupId) });
-    } catch (e) {
-      setErr((e as Error).message);
+      void qc.invalidateQueries({ queryKey: ['chat-group', groupId] });
     } finally {
       setBusy(false);
     }
@@ -89,9 +89,18 @@ export function PollView({ poll, groupId, me, admin, compact = false }: { poll: 
       })}
       <ErrText text={err} />
       {!poll.closed && (admin || poll.createdBy === me) && (
-        <Pressable onPress={() => void close()} disabled={busy} style={{ alignSelf: 'flex-start', paddingVertical: 4 }} accessibilityRole="button">
+        <Pressable onPress={() => { setErr(''); setAsking(true); }} disabled={busy} style={{ alignSelf: 'flex-start', paddingVertical: 4 }} accessibilityRole="button">
           <Text style={{ fontSize: 13, fontWeight: '700', color: colors.zinc600 }}>Fechar a sondagem</Text>
         </Pressable>
+      )}
+      {asking && (
+        <ConfirmSheet
+          title="Fechar a sondagem?"
+          lines={['Ninguém mais pode votar e os resultados ficam como estão. Depois de fechada, não volta a abrir.']}
+          confirmLabel="Fechar a sondagem"
+          onConfirm={close}
+          onClose={() => setAsking(false)}
+        />
       )}
     </View>
   );

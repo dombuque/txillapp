@@ -26,8 +26,9 @@ export default function PublicGroupPage() {
   if (q.isLoading) {
     return <StackPage title="TxillGroup"><View style={st.center}><ActivityIndicator color={colors.brand} /></View></StackPage>;
   }
-  if (!g) {
-    const gone = q.error instanceof ApiError && (q.error.status === 404 || q.error.status === 403);
+  // Um 404/403 a meio (ex.: bloqueio ou o grupo ficou privado depois de abrir a página) ganha à página que estava em cache.
+  const gone = q.error instanceof ApiError && (q.error.status === 404 || q.error.status === 403);
+  if (!g || gone) {
     return (
       <StackPage title="TxillGroup">
         <View style={st.center} accessibilityRole="alert">

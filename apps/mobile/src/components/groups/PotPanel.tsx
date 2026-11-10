@@ -14,7 +14,7 @@ import { groupKeys, groupsApi, txills, type PotView, type VenueHit, type VenueRe
 import { abs, sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
-import { ErrText, Field, Pill, Section, VenuePickerSheet } from './GroupParts';
+import { ConfirmSheet, ErrText, Field, Pill, Section, VenuePickerSheet } from './GroupParts';
 
 const PRESETS = [50, 100, 250, 500, 1000];
 const intOf = (t: string) => {
@@ -31,7 +31,8 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
   const qc = useQueryClient();
   const q = useQuery({ queryKey: groupKeys.pot(groupId), queryFn: () => groupsApi.pot(groupId), staleTime: 15_000 });
   const [sheet, setSheet] = useState<null | 'contribute' | 'goal' | 'venue' | 'pay' | 'refund'>(null);
-  const [err, setErr] = useState('');
+  // Trocar o local da vaquinha muda para onde vão os Txills de toda a malta: escolhe-se na lista e confirma-se.
+  const [venuePick, setVenuePick] = useState<VenueHit | null>(null);
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: groupKeys.pot(groupId) });
     void qc.invalidateQueries({ queryKey: groupKeys.plan(groupId) });
@@ -54,16 +55,6 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
   const pct = pot.goal ? Math.min(100, Math.round((pot.balance / pot.goal) * 100)) : 0;
   const mine = pot.totalByMember.find((m) => m.username === me)?.amount ?? 0;
   const ranking = [...pot.totalByMember].filter((m) => m.amount > 0).sort((a, b) => b.amount - a.amount);
-
-  async function setVenue(v: VenueHit | null) {
-    setErr('');
-    try {
-      await groupsApi.setPot(groupId, { venueSlug: v?.slug ?? null });
-      refresh();
-    } catch (e) {
-      setErr((e as Error).message);
-    }
-  }
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#fafafa' }} contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
@@ -88,7 +79,6 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
         ) : (
           <Text style={st.muted}>{admin ? 'Escolhe o local (que aceite Txills) onde a malta vai gastar a vaquinha.' : 'Ainda sem local escolhido.'}</Text>
         )}
-        <ErrText text={err} />
       </Section>
 
       {admin && (
@@ -156,7 +146,15 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
 
       {sheet === 'contribute' && <ContributeSheet groupId={groupId} onClose={() => setSheet(null)} onDone={refresh} />}
       {sheet === 'goal' && <GoalSheet groupId={groupId} goal={pot.goal} onClose={() => setSheet(null)} onDone={refresh} />}
-      {sheet === 'venue' && <VenuePickerSheet title="Local da vaquinha" txillsOnly onPick={(v) => void setVenue(v)} onClose={() => setSheet(null)} />}
+      {sheet === 'venue' && <VenuePickerSheet title="Local da vaquinha" txillsOnly onPick={(v) => setVenuePick(v)} onClose={() => setSheet(null)} />}
+      {venuePick && (
+        <ConfirmSheet
+          title={`Usar ${venuePick.name} na vaquinha?`}
+          lines={[pot.venue ? `Os Txills do TxillGroup passam a ser para ${venuePick.name} em vez de ${pot.venue.name}. Toda a malta vê a mudança.` : `Os Txills do TxillGroup passam a ser para ${venuePick.name}. Toda a malta vê o local escolhido.`]}
+          onConfirm={async () => { await groupsApi.setPot(groupId, { venueSlug: venuePick.slug }); refresh(); }}
+          onClose={() => setVenuePick(null)}
+        />
+      )}
       {sheet === 'pay' && pot.venue && <PaySheet groupId={groupId} pot={pot} venue={pot.venue} onClose={() => setSheet(null)} onDone={refresh} />}
       {sheet === 'refund' && <RefundSheet groupId={groupId} balance={pot.balance} onClose={() => setSheet(null)} onDone={refresh} />}
     </ScrollView>

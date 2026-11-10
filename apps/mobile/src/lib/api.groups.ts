@@ -164,6 +164,9 @@ export const groupsApi = {
   joinRequests: (id: string): Promise<JoinRequest[]> => raw(`${g(id)}/join-requests`),
   acceptJoin: (id: string, username: string): Promise<{ status: 'member' }> => raw(`${g(id)}/join-requests/${encodeURIComponent(username)}/accept`, post({})),
   declineJoin: (id: string, username: string): Promise<void> => raw(`${g(id)}/join-requests/${encodeURIComponent(username)}/decline`, post({})),
+  /** Só administradores. 409 "O grupo precisa de pelo menos um administrador" se o último se tentar retirar. */
+  setMemberRole: (id: string, username: string, role: 'admin' | 'member'): Promise<{ username: string; role: 'admin' | 'member' }> =>
+    raw(`${g(id)}/members/${encodeURIComponent(username)}`, patch({ role })),
 
   searchVenues: (q: string): Promise<VenueHit[]> => raw(`/venues/search?q=${encodeURIComponent(q)}`),
 };

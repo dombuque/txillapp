@@ -10,7 +10,7 @@ import { Sheet } from '@/components/Sheet';
 import { abs, sized } from '@/lib/config';
 import { countdown, dateRange, groupKeys, groupsApi, mzn, parseMzn, type ChecklistItem, type Expense, type GroupPlan, type Rsvp, type VenueHit, type VenueRef } from '@/lib/api.groups';
 import { colors } from '@/lib/theme';
-import { AvatarStack, DateRangeSheet, ErrText, Field, MemberPickSheet, Pill, Section, VenuePickerSheet, type MiniPerson } from './GroupParts';
+import { AvatarStack, ConfirmSheet, DateRangeSheet, ErrText, Field, MemberPickSheet, Pill, Section, VenuePickerSheet, type MiniPerson } from './GroupParts';
 import { NewPollSheet, PollView, usePlan } from './PollCard';
 
 const RSVP: { id: Rsvp; label: string; icon: IconName }[] = [
@@ -301,12 +301,12 @@ function Expenses({ groupId, plan, me, admin, members, name, onChanged }: { grou
   const [err, setErr] = useState('');
   const { items, balances, settlements } = plan.expenses;
   const total = plan.expenses.total ?? items.reduce((n, e) => n + e.amountMzn, 0);
+  // Apagar uma despesa refaz os saldos de toda a malta: pede-se confirmação (o erro do servidor aparece na própria confirmação).
+  const [deleting, setDeleting] = useState<Expense | null>(null);
   async function remove(e: Expense) {
     setErr('');
     try {
       await groupsApi.deleteExpense(groupId, e.id);
-    } catch (x) {
-      setErr((x as Error).message);
     } finally {
       onChanged();
     }
@@ -326,7 +326,7 @@ function Expenses({ groupId, plan, me, admin, members, name, onChanged }: { grou
               </View>
               <Text style={st.expAmount}>{mzn(e.amountMzn)}</Text>
               {(e.canDelete ?? (admin || e.createdBy === me)) && (
-                <Pressable onPress={() => void remove(e)} hitSlop={6} style={st.del} accessibilityRole="button" accessibilityLabel={`Apagar ${e.description}`}><Icon name="trash" size={16} color={colors.zinc500} /></Pressable>
+                <Pressable onPress={() => setDeleting(e)} hitSlop={6} style={st.del} accessibilityRole="button" accessibilityLabel={`Apagar ${e.description}`}><Icon name="trash" size={16} color={colors.zinc500} /></Pressable>
               )}
             </View>
           ))}
@@ -359,6 +359,16 @@ function Expenses({ groupId, plan, me, admin, members, name, onChanged }: { grou
       {items.length > 0 && !settlements.length && !balances.some((b) => b.net !== 0) && <Text style={[st.muted, { marginTop: 10 }]}>Contas certas. Ninguém deve nada a ninguém.</Text>}
       <ErrText text={err} />
       {adding && <ExpenseSheet groupId={groupId} me={me} members={members} onClose={() => setAdding(false)} onSaved={onChanged} />}
+      {deleting && (
+        <ConfirmSheet
+          title="Apagar a despesa?"
+          lines={[`“${deleting.description}” (${mzn(deleting.amountMzn)}) sai das contas e os saldos de toda a malta são refeitos.`]}
+          confirmLabel="Apagar"
+          danger
+          onConfirm={() => remove(deleting)}
+          onClose={() => setDeleting(null)}
+        />
+      )}
     </Section>
   );
 }
