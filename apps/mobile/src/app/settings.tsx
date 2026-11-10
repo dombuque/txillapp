@@ -62,7 +62,7 @@ const GENDERS: { value: Gender; label: string }[] = [{ value: 'female', label: '
 const genderLabel = (g: Gender) => GENDERS.find((x) => x.value === g)?.label ?? (g === 'other' ? 'Outro' : g === 'unspecified' ? 'Prefiro não dizer' : '');
 
 const NOTIFY_LABELS: Record<string, [string, string]> = {
-  messages: ['Mensagens', 'Conversas e TxillGroups'],
+  messages: ['Mensagens', 'Conversas e TxillGroups (pedidos para entrar, quem entrou, quem te fez administrador). Desligado, os pedidos para entrar continuam na lista, sem aviso'],
   follows: ['Seguidores', 'Quem começa a seguir-te e pedidos aceites'],
   comments: ['Comentários e respostas', 'Na tua publicação, no teu comentário e nos teus mimos'],
   mentions: ['Menções e marcações', 'Quando alguém te menciona ou te identifica'],
@@ -473,7 +473,7 @@ export default function Settings() {
       {sheet === 'repostsVisible' && p && <ChoiceSheet title="Quem vê quem repostou" intro="Os números continuam visíveis; isto muda só quem pode ver os nomes." options={VIEWERS} value={p.repostsVisible} onPick={(v) => void savePrivacy({ repostsVisible: v })} onClose={close} />}
       {sheet === 'cheersVisible' && p && <ChoiceSheet title="Quem vê quem brindou" intro="Os números continuam visíveis; isto muda só quem pode ver os nomes." options={VIEWERS} value={p.cheersVisible} onPick={(v) => void savePrivacy({ cheersVisible: v })} onClose={close} />}
       {sheet === 'giftsVisible' && p && <ChoiceSheet title="Quem vê quem presenteou" intro="Os números continuam visíveis; isto muda só quem pode ver os nomes (nunca os valores)." options={VIEWERS} value={p.giftsVisible} onPick={(v) => void savePrivacy({ giftsVisible: v })} onClose={close} />}
-      {sheet === 'dms' && p && <ChoiceSheet title="Quem pode enviar-me mensagens" intro="Só trava conversas novas: as que já existem continuam. As respostas aos teus mimos seguem a definição dos mimos." options={WHO} value={p.dmsAllowed} onPick={(v) => void savePrivacy({ dmsAllowed: v })} onClose={close} />}
+      {sheet === 'dms' && p && <ChoiceSheet title="Quem pode enviar-me mensagens" intro="Só trava conversas novas: as que já existem continuam. Também decide quem te pode pôr num TxillGroup. As respostas aos teus mimos seguem a definição dos mimos." options={WHO} value={p.dmsAllowed} onPick={(v) => void savePrivacy({ dmsAllowed: v })} onClose={close} />}
       {sheet === 'calls' && p && <ChoiceSheet title="Quem me pode ligar" intro="Chamadas de voz e videochamadas. Quem bloqueaste nunca te liga. O Txillapp não grava chamadas: fica só o registo, que podes apagar em Chamadas." options={CALLS} value={p.callsAllowed ?? 'mutual'} onPick={(v) => void savePrivacy({ callsAllowed: v })} onClose={close} />}
       {sheet === 'nearby' && nearby.data && <ChoiceSheet title="Aparecer em À tua volta" intro="Quem te pode ver no mapa. Só aparece a zona aproximada (cerca de 1,5 km), nunca o sítio exato, e só enquanto tens o mapa aberto. Some ao fim de 3 horas." options={NEARBY} value={nearby.data.visibility} onPick={(v) => void saveNearby(v)} onClose={close} />}
       {sheet === 'gifts' && p && <ChoiceSheet title="Quem pode presentear-me" options={WHO} value={p.giftsAllowed} onPick={(v) => void savePrivacy({ giftsAllowed: v })} onClose={close} />}
@@ -551,7 +551,7 @@ function BlockedSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet title="Contas bloqueadas" onClose={onClose} full>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
-        <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>Quem bloqueias não vê o teu conteúdo, não te pode seguir nem interagir contigo. A pessoa é avisada de que foi bloqueada.</Text>
+        <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>Quem bloqueias não vê o teu conteúdo, não te pode seguir nem interagir contigo. Também deixam de ver, no mapa ou de fora, os TxillGroups onde o outro está, e não podem pedir nem entrar neles. A pessoa é avisada de que foi bloqueada.</Text>
         {q.data?.length === 0 && <Text style={st.none}>Não bloqueaste ninguém</Text>}
         {q.data?.map((b) => <PersonRow key={b.username} username={b.username} displayName={b.displayName} action="Desbloquear" onAction={async () => { qc.setQueryData(['blocked'], await api.unblock(b.username)); void qc.invalidateQueries({ queryKey: ['profile'] }); }} />)}
       </ScrollView>
@@ -653,7 +653,7 @@ function DeleteSheet({ username, onClose, onDeleted }: { username: string; onClo
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16, gap: 12 }}>
         <View style={{ borderRadius: 16, backgroundColor: '#fef2f2', padding: 16 }}>
           <Text style={{ fontWeight: '700', color: '#7f1d1d', fontSize: 14 }}>Isto não se desfaz.</Text>
-          {['O teu nome, @, bio, foto e email são apagados.', 'Publicações, fotos, mimos, conversas, chamadas, seguidores e notificações são apagados.', 'Também saem check-ins, músicas favoritas, aparelhos, locais que segues, as tuas respostas e votos nos TxillGroups e tudo o que é do mapa.', 'Sais dos teus TxillGroups. Os locais que criaste passam para o administrador mais antigo; sem ele, deixam de aparecer.', 'Comentários em posts de outras pessoas e mensagens em TxillGroups ficam como «Conta eliminada».', 'Os movimentos de Txills ficam registados sem dados pessoais.'].map((t) => <Text key={t} style={{ marginTop: 4, fontSize: 14, lineHeight: 20, color: '#7f1d1d' }}>• {t}</Text>)}
+          {['O teu nome, @, bio, foto e email são apagados.', 'Publicações, fotos, mimos, conversas, chamadas, seguidores e notificações são apagados.', 'Também saem check-ins, músicas favoritas, aparelhos, locais que segues, as tuas respostas e votos nos TxillGroups, os pedidos para entrar em grupos e tudo o que é do mapa.', 'Sais dos teus TxillGroups. Os locais que criaste passam para o administrador mais antigo; sem ele, deixam de aparecer.', 'Comentários em posts de outras pessoas e mensagens em TxillGroups ficam como «Conta eliminada».', 'Os movimentos de Txills ficam registados sem dados pessoais.'].map((t) => <Text key={t} style={{ marginTop: 4, fontSize: 14, lineHeight: 20, color: '#7f1d1d' }}>• {t}</Text>)}
         </View>
         <TextInput value={confirm} onChangeText={setConfirm} placeholder={`Escreve @${username} para confirmar`} placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} style={st.input} accessibilityLabel="Confirmar o teu @" />
         <TextInput value={password} onChangeText={setPassword} placeholder="A tua senha (se a conta tiver)" placeholderTextColor={colors.zinc500} secureTextEntry autoComplete="current-password" style={st.input} accessibilityLabel="Senha" />
