@@ -33,6 +33,7 @@ const renameSchema = z.object({
   showOnMap: z.boolean().optional(),
 });
 const membersSchema = z.object({ members: z.array(z.string().trim().min(1).max(40)).min(1).max(49) });
+const roleSchema = z.object({ role: z.enum(['admin', 'member']) });
 
 const liveSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
 
@@ -151,6 +152,14 @@ export class ChatController {
   @HttpCode(204)
   addGroupMembers(@Req() req: AuthedReq, @Param('id') id: string, @Body(new ZodPipe(membersSchema)) b: z.infer<typeof membersSchema>) {
     return this.groups.addMembers(req.userId!, id, b.members);
+  }
+
+  /** Dar ou tirar o papel de admin (só admins): 200 { username, role }. Regras em groups.service.ts. */
+  @Patch('groups/:id/members/:username')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  setGroupRole(@Req() req: AuthedReq, @Param('id') id: string, @Param('username') username: string, @Body(new ZodPipe(roleSchema)) b: z.infer<typeof roleSchema>) {
+    return this.groups.setRole(req.userId!, id, username, b.role);
   }
 
   @Delete('groups/:id/members/:username')

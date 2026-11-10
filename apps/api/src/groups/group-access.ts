@@ -9,13 +9,20 @@ import { blockedBetween } from '../social/visibility';
 const UUID = /^[0-9a-f-]{36}$/;
 export type GroupRole = 'admin' | 'member';
 
-/** Algum admin do grupo `group` bloqueou (ou foi bloqueado por) `user`? Quem está nesse caso não vê o grupo de fora nem pode pedir. */
-export const adminBlocked = (group: string, user: string) =>
-  `EXISTS (SELECT 1 FROM social.group_members ab WHERE ab.group_id = ${group} AND ab.role = 'admin' AND ${blockedBetween('ab.user_id', user)})`;
+/**
+ * Há bloqueio (em qualquer sentido) entre `user` e ALGUM membro atual do grupo `group`, ou quem o criou?
+ * Quem está nesse caso não vê o grupo de fora (nem no mapa), não pede, não entra, e um pedido que já tinha deixa de
+ * aparecer aos admins e não se pode aceitar. Parte dos bloqueios de `user` (poucos; chave e blocks_blocked_idx) e
+ * procura cada um nos membros pela chave (group_id, user_id): não percorre os membros do grupo.
+ */
+export const memberBlocked = (group: string, user: string) =>
+  `(EXISTS (SELECT 1 FROM social.blocks bk JOIN social.group_members bm ON bm.group_id = ${group} AND bm.user_id = bk.blocked_id WHERE bk.blocker_id = ${user})` +
+  ` OR EXISTS (SELECT 1 FROM social.blocks bk JOIN social.group_members bm ON bm.group_id = ${group} AND bm.user_id = bk.blocker_id WHERE bk.blocked_id = ${user})` +
+  ` OR EXISTS (SELECT 1 FROM social.groups bg WHERE bg.id = ${group} AND bg.created_by IS NOT NULL AND ${blockedBetween('bg.created_by', user)}))`;
 
-/** Um pedido para entrar (alias `jr`) que o admin `viewer` deve ver: conta activa e sem bloqueio entre os dois. */
-export const pendingVisibleTo = (jr: string, viewer: string) =>
-  `(EXISTS (SELECT 1 FROM identity.users ru WHERE ru.id = ${jr}.user_id AND ru.status = 'active') AND NOT ${blockedBetween(`${jr}.user_id`, viewer)})`;
+/** Um pedido para entrar (alias `jr`) que os admins veem e podem aceitar: conta activa e sem bloqueio com nenhum membro (nem com quem criou). */
+export const pendingVisible = (jr: string) =>
+  `(EXISTS (SELECT 1 FROM identity.users ru WHERE ru.id = ${jr}.user_id AND ru.status = 'active') AND NOT ${memberBlocked(`${jr}.group_id`, `${jr}.user_id`)})`;
 
 /** Peças comuns aos TxillGroups: quem é membro, quem administra, avisos em tempo real e mensagens do grupo. */
 @Injectable()

@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, Logger, OnModuleDestroy, OnMod
 import { Pool } from 'pg';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
-import { adminBlocked } from '../groups/group-access';
+import { memberBlocked } from '../groups/group-access';
 import { blockedBetween, canView } from '../social/visibility';
 import { eventEnd } from './events.service';
 import { agoLabel, distKm, inBox, km1, snapToCell } from './geo-sql';
@@ -175,7 +175,7 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * TxillGroups públicos (entra-se logo) e privados no mapa (pede-se para entrar), com o plano num local com posição
-   * (só o destino em texto não chega para o mapa). Quem tem bloqueio com o criador ou com um admin não os vê.
+   * (só o destino em texto não chega para o mapa). Quem tem bloqueio com algum membro (ou com quem o criou) não os vê.
    */
   private async groups(p: unknown[]) {
     if (!(await this.probe.bits()).groups) return [];
@@ -187,8 +187,7 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
            FROM social.groups g JOIN content.venues v ON v.id = g.plan_venue_id
           WHERE (g.visibility = 'public' OR g.show_on_map) AND v.review_status = 'approved' AND v.lat IS NOT NULL AND v.lng IS NOT NULL AND ${inBox('v.lat', 'v.lng', '$4')}
             AND COALESCE(g.ends_on, g.starts_on, current_date) >= current_date
-            AND (g.created_by IS NULL OR NOT ${blockedBetween('g.created_by', '$1')})
-            AND NOT ${adminBlocked('g.id', '$1')}
+            AND NOT ${memberBlocked('g.id', '$1')}
        ) x WHERE x.d <= $4::float8 ORDER BY x.d, x.starts_on NULLS LAST, x.id LIMIT ${LIMITS.groups}`,
       p,
     );

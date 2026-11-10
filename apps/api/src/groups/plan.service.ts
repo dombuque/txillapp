@@ -4,7 +4,7 @@ import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { MediaService } from '../media/media.service';
 import { TextFilter } from '../safety/text-filter.service';
-import { GroupAccess, pendingVisibleTo } from './group-access';
+import { GroupAccess, pendingVisible } from './group-access';
 import { PotService } from './pot.service';
 import { mzn, settle, splitCents, toCents } from './settle';
 
@@ -90,7 +90,7 @@ export class PlanService {
     const { rows } = await this.pool.query(
       `SELECT g.id, g.kind, g.description, g.cover_media_id, g.avatar_media_id, g.visibility, g.show_on_map, cu.username AS created_by,
               CASE WHEN EXISTS (SELECT 1 FROM social.group_members am WHERE am.group_id = g.id AND am.user_id = $1 AND am.role = 'admin')
-                   THEN (SELECT count(*) FROM social.group_join_requests jr WHERE jr.group_id = g.id AND ${pendingVisibleTo('jr', '$1')})::int ELSE 0 END AS pending_requests,
+                   THEN (SELECT count(*) FROM social.group_join_requests jr WHERE jr.group_id = g.id AND ${pendingVisible('jr')})::int ELSE 0 END AS pending_requests,
               g.destination, g.starts_on::text AS starts_on, g.ends_on::text AS ends_on, g.pot_goal,
               (SELECT count(*) FROM social.group_rsvps r JOIN social.group_members m ON m.group_id = r.group_id AND m.user_id = r.user_id WHERE r.group_id = g.id AND r.status = 'going')::int AS going,
               (SELECT count(*) FROM social.group_rsvps r JOIN social.group_members m ON m.group_id = r.group_id AND m.user_id = r.user_id WHERE r.group_id = g.id AND r.status = 'maybe')::int AS maybe,

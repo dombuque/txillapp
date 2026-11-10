@@ -3,19 +3,21 @@ import { Pool } from 'pg';
 import { GroupsService, MAX_MEMBERS } from '../chat/groups.service';
 import { PG_POOL } from '../db/db.module';
 import { NotificationsService } from '../notifications/notifications.service';
-import { GroupAccess, adminBlocked, pendingVisibleTo } from './group-access';
+import { GroupAccess, memberBlocked, pendingVisible } from './group-access';
 
 /*
  * TxillGroups vistos de fora. Três modos (colunas social.groups.visibility e show_on_map):
  *   privado oculto (por omissão): ninguém de fora o vê; só entra quem um admin adiciona;
  *   privado no mapa (show_on_map): aparece em "À tua volta" e aqui; quem não é membro PEDE e um admin aceita;
  *   público (visibility = 'public'): aparece sempre; quem não é membro ENTRA LOGO.
- * Quem bloqueou ou foi bloqueado por um admin do grupo não o vê de fora nem pode pedir (404).
+ * Quem bloqueou ou foi bloqueado por algum membro do grupo (ou por quem o criou) não o vê de fora, não pede nem entra (404);
+ * um pedido feito antes desse bloqueio deixa de aparecer aos admins e não se pode aceitar (404).
  * Mensagens, sondagens, lista, despesas, álbum, cofre e a lista de membros continuam só para membros.
  *
  * GET    /chat/groups/:id/public -> { id, name, groupKind, description, coverUrl, avatarUrl, visibility, joinMode: 'open' | 'request',
  *          destination, venueName, startsOn, endsOn, members, me: 'none' | 'pending' | 'member' }   (404 se oculto ou com bloqueio; membros veem sempre)
- * POST   /chat/groups/:id/join-requests -> público: 200 { status: 'member' } (entra logo; avisa os admins com group_member_joined)
+ * POST   /chat/groups/:id/join-requests -> público: 200 { status: 'member' } (entra logo; avisa os admins com group_member_joined,
+ *                                          no máximo uma vez por 24 h por pessoa e grupo, para quem sai e volta a entrar)
  *                                          privado no mapa: 201 { status: 'pending' } (200 se já estava à espera; avisa os admins com group_join_request)
  *          409 { message } se já é membro ou o grupo está cheio; 404 se oculto ou com bloqueio.
  * DELETE /chat/groups/:id/join-requests/me -> 204 (cancela o meu pedido; também se não houver)
@@ -66,7 +68,7 @@ export class PublicGroupsService {
               (SELECT count(*) FROM social.group_members gm WHERE gm.group_id = g.id)::int AS members,
               (SELECT gm.role FROM social.group_members gm WHERE gm.group_id = g.id AND gm.user_id = $2) AS my_role,
               EXISTS (SELECT 1 FROM social.group_join_requests jr WHERE jr.group_id = g.id AND jr.user_id = $2) AS pending,
-              ${adminBlocked('g.id', '$2')} AS blocked
+              ${memberBlocked('g.id', '$2')} AS blocked
          FROM social.groups g LEFT JOIN content.venues v ON v.id = g.plan_venue_id
         WHERE g.id = $1`,
       [groupId, me],
@@ -74,7 +76,7 @@ export class PublicGroupsService {
     return (rows[0] as GroupRow | undefined) ?? null;
   }
 
-  /** Visto de fora: público ou no mapa, e sem bloqueio com nenhum admin. */
+  /** Visto de fora: público ou no mapa, e sem bloqueio com nenhum membro. */
   private seenFromOutside(g: GroupRow) {
     return (g.visibility === 'public' || g.show_on_map) && !g.blocked;
   }
@@ -107,8 +109,10 @@ export class PublicGroupsService {
     if (!g || !this.seenFromOutside(g)) throw new NotFoundException('Grupo não encontrado');
     const data = { groupId: g.id, groupName: g.name };
     if (g.visibility === 'public') {
-      await this.groups.admit(g.id, me, me);
-      for (const a of await this.admins(g.id)) await this.notifications.notify({ userId: a, actorId: me, kind: 'group_member_joined', data });
+      // Dois toques seguidos: só o primeiro entra e avisa (e o aviso não se repete em 24 h, ver NotificationsService).
+      if (await this.groups.admit(g.id, me, me)) {
+        for (const a of await this.admins(g.id)) await this.notifications.notify({ userId: a, actorId: me, kind: 'group_member_joined', data });
+      }
       return { status: 'member', created: false };
     }
     if (g.pending) return { status: 'pending', created: false };
@@ -135,9 +139,9 @@ export class PublicGroupsService {
     const { rows } = await this.pool.query(
       `SELECT u.username, u.display_name, u.avatar_media_id IS NOT NULL AS has_avatar, jr.created_at
          FROM social.group_join_requests jr JOIN identity.users u ON u.id = jr.user_id
-        WHERE jr.group_id = $1 AND ${pendingVisibleTo('jr', '$2')}
+        WHERE jr.group_id = $1 AND ${pendingVisible('jr')}
         ORDER BY jr.created_at, u.username`,
-      [groupId, me],
+      [groupId],
     );
     return rows.map((r) => ({
       username: r.username as string,
@@ -152,8 +156,8 @@ export class PublicGroupsService {
     await this.access.needAdmin(groupId, me, 'Só quem administra o grupo responde aos pedidos');
     const r = (await this.pool.query(
       `SELECT jr.user_id FROM social.group_join_requests jr JOIN identity.users u ON u.id = jr.user_id
-        WHERE jr.group_id = $1 AND lower(u.username) = lower($3) AND ${pendingVisibleTo('jr', '$2')}`,
-      [groupId, me, username.trim().replace(/^@/, '').slice(0, 40)],
+        WHERE jr.group_id = $1 AND lower(u.username) = lower($2) AND ${pendingVisible('jr')}`,
+      [groupId, username.trim().replace(/^@/, '').slice(0, 40)],
     )).rows[0];
     if (!r) throw new NotFoundException('Pedido não encontrado');
     return r.user_id as string;
