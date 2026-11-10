@@ -6,6 +6,7 @@ import { post, raw, type GroupSummary } from '@/lib/api';
 import { newKey } from '@/lib/api.extra';
 import type { GroupThread } from '@/lib/api.grupos';
 import type { IconName } from '@/components/Icon';
+import type { GroupVisibility, JoinMode, JoinState } from '@/lib/groupAccess';
 
 export type GroupKind = 'viagem' | 'festa' | 'fim_de_semana' | 'outro';
 export type Rsvp = 'going' | 'maybe' | 'not_going';
@@ -33,6 +34,14 @@ export interface GroupExtras {
   coverUrl?: string | null;
   plan?: PlanSummary | null;
   pot?: PotSummary | null;
+  /** Foto de perfil do grupo (redonda; a capa é a foto larga). */
+  avatarUrl?: string | null;
+  /** 'public' = qualquer pessoa entra logo; 'private' = só por convite ou pedido aprovado. */
+  visibility?: GroupVisibility;
+  /** Aparece em "À tua volta" (o público aparece sempre). */
+  showOnMap?: boolean;
+  /** Só para administradores: pedidos para entrar por responder. */
+  pendingRequests?: number;
 }
 export type TxillGroupSummary = GroupSummary & GroupExtras;
 export type TxillGroupInfo = GroupThread['group'] & GroupExtras & { kind?: GroupKind };
@@ -91,7 +100,27 @@ export interface AlbumPage { items: AlbumItem[]; nextCursor: string | null }
 /** Um local na pesquisa (para o destino do Plano e o local da vaquinha). */
 export interface VenueHit { slug: string; name: string; city?: string | null; avatarUrl: string | null; kind?: string; acceptsTxills?: boolean }
 
-export interface GroupFields { name: string; kind: GroupKind; description?: string | null; coverMediaId?: string | null }
+/** `avatarMediaId` (foto de perfil) vai no mesmo pedido da capa. */
+export interface GroupFields { name: string; kind: GroupKind; description?: string | null; coverMediaId?: string | null; avatarMediaId?: string | null }
+
+/** O que quem não está no grupo vê (GET /chat/groups/:id/public; 404 se for privado oculto ou se houver bloqueio). */
+export interface PublicGroup {
+  id: string;
+  name: string;
+  groupKind: GroupKind | null;
+  description: string | null;
+  coverUrl: string | null;
+  avatarUrl?: string | null;
+  destination: string | null;
+  venueName: string | null;
+  startsOn: string | null;
+  endsOn: string | null;
+  members: number;
+  visibility?: GroupVisibility;
+  joinMode?: JoinMode;
+  me: JoinState;
+}
+export interface JoinRequest { username: string; displayName: string; avatarUrl: string | null; createdAt: string }
 
 const g = (id: string) => `/chat/groups/${encodeURIComponent(id)}`;
 const patch = (b: unknown): RequestInit => ({ method: 'PATCH', body: JSON.stringify(b) });
@@ -126,6 +155,16 @@ export const groupsApi = {
   pay: (id: string, b: { venueSlug: string; amount: number; note: string }, idempotencyKey = newKey()): Promise<void> => raw(`${g(id)}/pot/pay`, post({ ...b, idempotencyKey })),
   refund: (id: string, idempotencyKey = newKey()): Promise<void> => raw(`${g(id)}/pot/refund`, post({ idempotencyKey })),
 
+  /** Só administradores. O público fica sempre no mapa. */
+  setAccess: (id: string, b: { visibility?: GroupVisibility; showOnMap?: boolean }): Promise<void> => raw(g(id), patch(b)),
+  publicView: (id: string): Promise<PublicGroup> => raw(`${g(id)}/public`),
+  /** Público: entra logo (`member`); privado no mapa: fica à espera de um administrador (`pending`). 409 se já for membro ou estiver cheio. */
+  requestJoin: (id: string): Promise<{ status: 'pending' | 'member' }> => raw(`${g(id)}/join-requests`, post({})),
+  cancelJoin: (id: string): Promise<void> => raw(`${g(id)}/join-requests/me`, del),
+  joinRequests: (id: string): Promise<JoinRequest[]> => raw(`${g(id)}/join-requests`),
+  acceptJoin: (id: string, username: string): Promise<{ status: 'member' }> => raw(`${g(id)}/join-requests/${encodeURIComponent(username)}/accept`, post({})),
+  declineJoin: (id: string, username: string): Promise<void> => raw(`${g(id)}/join-requests/${encodeURIComponent(username)}/decline`, post({})),
+
   searchVenues: (q: string): Promise<VenueHit[]> => raw(`/venues/search?q=${encodeURIComponent(q)}`),
 };
 
@@ -134,6 +173,8 @@ export const groupKeys = {
   plan: (id: string) => ['group-plan', id] as const,
   album: (id: string) => ['group-album', id] as const,
   pot: (id: string) => ['group-pot', id] as const,
+  publicView: (id: string) => ['group-public', id] as const,
+  joinRequests: (id: string) => ['group-join-requests', id] as const,
 };
 
 // ----- formatos -----
