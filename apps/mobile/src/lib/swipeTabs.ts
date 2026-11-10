@@ -1,7 +1,7 @@
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
-import { isSwipeClaimed, navSwipeThreshold, resetSwipeClaim } from '@/lib/swipeClaim';
+import { decideSwipe, innerPager, isSwipeClaimed, navSwipeThreshold, resetSwipeClaim } from '@/lib/swipeClaim';
 
 /** Separadores principais, pela ordem da barra de baixo (o "+" não conta: abrir a publicar a deslizar seria estranho). */
 const TABS = ['/', '/reels', '/messages', '/profile'];
@@ -25,6 +25,7 @@ const NAV_RATIO = 1.8;
  * no Início, deslizar para a direita abre a câmara (como tocar no "+"). Só na web por agora.
  * Só um deslize grande (navSwipeThreshold, ~40% do ecrã) muda de menu; os pequenos ficam para quem os reclamar
  * (lib/swipeClaim: ex. uma linha da lista de conversas a mostrar "Lida" ou "Apagar").
+ * Num ecrã com "pager interno" (lib/swipeClaim: Mensagens) o deslize grande muda primeiro de separador dentro do ecrã.
  */
 export function useSwipeTabs() {
   const pathname = usePathname();
@@ -49,6 +50,13 @@ export function useSwipeTabs() {
       const quick = Date.now() - s.t < NAV_MAX_MS;
       s = null;
       if (isSwipeClaimed() || !quick || Math.abs(dx) < navSwipeThreshold() || Math.abs(dx) < Math.abs(dy) * NAV_RATIO) return;
+      // Ecrã com separadores próprios (Mensagens): primeiro muda de separador lá dentro; só na ponta muda de menu.
+      const p = innerPager();
+      const d = decideSwipe({ dx, dy, width: window.innerWidth, threshold: navSwipeThreshold() }, p);
+      if (d.to === 'inner' && p) {
+        p.go(d.dir);
+        return;
+      }
       const next = here + (dx < 0 ? 1 : -1);
       // Sem voltas. No Início, para a direita, abre a câmara.
       if (next < 0) {
