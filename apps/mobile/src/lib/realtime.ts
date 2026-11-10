@@ -109,9 +109,14 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
           void qc.invalidateQueries({ queryKey: ['wallet'] });
         }
         void qc.invalidateQueries({ queryKey: ['group-plan', g.groupId] });
-        if (g.what === 'plan' || g.what === 'pot') {
+        if (g.what === 'plan' || g.what === 'pot' || g.what === 'info') {
           void qc.invalidateQueries({ queryKey: ['chat-groups'] });
           void qc.invalidateQueries({ queryKey: ['chat-group', g.groupId] });
+        }
+        // 'info': mudou o nome, a foto ou quem vê e quem entra, ou chegou (ou saiu) um pedido para entrar (os admins recebem-no).
+        if (g.what === 'info') {
+          void qc.invalidateQueries({ queryKey: ['group-join-requests', g.groupId] });
+          void qc.invalidateQueries({ queryKey: ['group-public', g.groupId] });
         }
         return;
       }

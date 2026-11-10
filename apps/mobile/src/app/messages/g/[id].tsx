@@ -36,7 +36,8 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
  * No computador largo o Plano fica numa coluna à direita da conversa (e sai dos separadores).
  */
 export default function GroupThreadScreen() {
-  const { id = '', tab: tabParam } = useLocalSearchParams<{ id: string; tab?: string }>();
+  // `info=1` (vindo de "pediu para entrar"): abre logo os detalhes, onde estão os pedidos.
+  const { id = '', tab: tabParam, info } = useLocalSearchParams<{ id: string; tab?: string; info?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
@@ -50,7 +51,8 @@ export default function GroupThreadScreen() {
   const [menuFor, setMenuFor] = useState<Msg | null>(null);
   const [replying, setReplying] = useState<{ id: string; text: string; who: string } | null>(null);
   const [viewing, setViewing] = useState<{ url: string | null; body: string } | null>(null);
-  const [members, setMembers] = useState(false);
+  const [members, setMembers] = useState(info === '1');
+  useEffect(() => { if (info === '1') setMembers(true); }, [info, id]);
   const [polling, setPolling] = useState(false);
   useEffect(() => { if (side && tab === 'plan') setTab('chat'); }, [side, tab]);
 
@@ -114,7 +116,13 @@ export default function GroupThreadScreen() {
   const chat = (
     <View style={{ flex: 1, minWidth: 0 }}>
       {q.isError && !group ? (
-        <Text style={st.empty}>{(q.error as Error).message || 'Não consegui abrir este TxillGroup.'}</Text>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={st.empty}>{(q.error as Error).message || 'Não consegui abrir este TxillGroup.'}</Text>
+          {/* Quem não está no grupo vê a página pública (se o grupo estiver no mapa ou for público). */}
+          <Pressable onPress={() => router.replace(`/g/${id}` as never)} style={st.toPublic} accessibilityRole="link">
+            <Text style={st.toPublicText}>Ver a página do grupo</Text>
+          </Pressable>
+        </View>
       ) : (
         <ChatList
           items={items}
@@ -146,7 +154,7 @@ export default function GroupThreadScreen() {
           <BackButton fallback="/messages" style={{ width: 44, height: 44, borderRadius: 22 }} />
           {group && (
             <Pressable onPress={() => setMembers(true)} accessibilityLabel={`Ver membros de ${group.name}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-              <GroupCover url={group.coverUrl} kind={groupKindOf(group)} size={42} />
+              <GroupCover url={group.avatarUrl ?? group.coverUrl} kind={groupKindOf(group)} size={42} radius={group.avatarUrl ? 21 : undefined} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={st.hName} numberOfLines={1}>{group.name}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -209,5 +217,7 @@ const st = StyleSheet.create({
   sideCol: { width: 380, borderLeftWidth: 1, borderLeftColor: colors.zinc100, backgroundColor: '#fafafa' },
   sideTitle: { paddingHorizontal: 16, paddingTop: 14, fontSize: 18, fontWeight: '800', color: colors.zinc900, backgroundColor: '#fafafa' },
   empty: { textAlign: 'center', color: colors.zinc500, paddingVertical: 24 },
+  toPublic: { height: 40, paddingHorizontal: 18, borderRadius: 999, backgroundColor: colors.zinc100, justifyContent: 'center' },
+  toPublicText: { fontSize: 14, fontWeight: '700', color: colors.zinc900 },
   err: { position: 'absolute', left: 0, right: 0, bottom: 88, textAlign: 'center', fontSize: 14, color: colors.red600 },
 });

@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, Logger, OnModuleDestroy, OnMod
 import { Pool } from 'pg';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
+import { adminBlocked } from '../groups/group-access';
 import { blockedBetween, canView } from '../social/visibility';
 import { eventEnd } from './events.service';
 import { agoLabel, distKm, inBox, km1, snapToCell } from './geo-sql';
@@ -172,18 +173,22 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
     }));
   }
 
-  /** TxillGroups públicos com o plano num local com posição (só o destino em texto não chega para o mapa). */
+  /**
+   * TxillGroups públicos (entra-se logo) e privados no mapa (pede-se para entrar), com o plano num local com posição
+   * (só o destino em texto não chega para o mapa). Quem tem bloqueio com o criador ou com um admin não os vê.
+   */
   private async groups(p: unknown[]) {
     if (!(await this.probe.bits()).groups) return [];
     const { rows } = await this.pool.query(
       `SELECT * FROM (
-         SELECT g.id, g.name, g.kind, g.cover_media_id, g.destination, g.starts_on, v.name AS venue_name, v.lat, v.lng,
+         SELECT g.id, g.name, g.kind, g.cover_media_id, g.avatar_media_id, g.visibility, g.destination, g.starts_on, v.name AS venue_name, v.lat, v.lng,
                 ${distKm('v.lat', 'v.lng')} AS d,
                 (SELECT count(*) FROM social.group_members gm WHERE gm.group_id = g.id)::int AS members
            FROM social.groups g JOIN content.venues v ON v.id = g.plan_venue_id
-          WHERE g.visibility = 'public' AND v.review_status = 'approved' AND v.lat IS NOT NULL AND v.lng IS NOT NULL AND ${inBox('v.lat', 'v.lng', '$4')}
+          WHERE (g.visibility = 'public' OR g.show_on_map) AND v.review_status = 'approved' AND v.lat IS NOT NULL AND v.lng IS NOT NULL AND ${inBox('v.lat', 'v.lng', '$4')}
             AND COALESCE(g.ends_on, g.starts_on, current_date) >= current_date
             AND (g.created_by IS NULL OR NOT ${blockedBetween('g.created_by', '$1')})
+            AND NOT ${adminBlocked('g.id', '$1')}
        ) x WHERE x.d <= $4::float8 ORDER BY x.d, x.starts_on NULLS LAST, x.id LIMIT ${LIMITS.groups}`,
       p,
     );
@@ -192,6 +197,10 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
       name: r.name as string,
       kind: r.kind as string,
       coverUrl: media(r.cover_media_id),
+      avatarUrl: media(r.avatar_media_id),
+      visibility: r.visibility as 'private' | 'public',
+      // Público: entra-se logo. Privado no mapa: pede-se e um admin aceita.
+      joinMode: (r.visibility === 'public' ? 'open' : 'request') as 'open' | 'request',
       destination: ((r.destination as string | null) ?? (r.venue_name as string)) || null,
       startsOn: r.starts_on ? this.isoDate(r.starts_on) : null,
       lat: Number(r.lat),

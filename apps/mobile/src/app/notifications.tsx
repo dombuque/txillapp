@@ -11,7 +11,9 @@ import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
 import { ReactionArt } from '@/components/StoryParts';
 import { ApiError, api, type AppNotification } from '@/lib/api';
+import { groupsApi } from '@/lib/api.groups';
 import { locaisApi } from '@/lib/api.locais';
+import { notifGroup, notifGroupTarget } from '@/lib/groupAccess';
 import { sized } from '@/lib/config';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
@@ -33,6 +35,7 @@ const groupKey = (n: AppNotification): string | null => {
     case 'follow': case 'request_accepted': case 'verified': return n.kind;
     case 'comment': case 'repost': case 'tag': case 'mention': return n.data.postId ? `${n.kind}:${n.data.postId}` : null;
     case 'story_reply': return n.data.replyKind === 'reaction' && n.data.storyId ? `react:${n.data.storyId}` : null;
+    case 'group_member_joined': { const g = notifGroup(n).id; return g ? `joined:${g}` : null; }
     default: return null;
   }
 };
@@ -82,6 +85,10 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'venue_review': return n.data.decision === 'approved'
       ? { text: <>aprovou <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'o teu local'}</Text>: já está à vista de todos</> }
       : { text: <>não aprovou <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'o teu local'}</Text></>, sub: n.data.note ? `Motivo: ${n.data.note}` : 'Vê o motivo na página e corrige' };
+    // TxillGroups: pedidos para entrar (para os administradores), a resposta (para quem pediu) e quem entrou num grupo público.
+    case 'group_join_request': return { text: <>pediu para entrar em <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
+    case 'group_join_accepted': return { text: <>aceitou-te em <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
+    case 'group_member_joined': return { text: <>{many ? 'entraram' : 'entrou'} em <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
     default: return { text: 'tem novidades para ti' };
   }
@@ -107,6 +114,9 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'venue_payment': return n.data.venueSlug ? `/v/${n.data.venueSlug}/gerir?s=txills` : null;
     case 'venue_review': return n.data.venueSlug ? `/v/${n.data.venueSlug}` : null;
     case 'missed_call': return '/calls';
+    case 'group_join_request':
+    case 'group_join_accepted':
+    case 'group_member_joined': return notifGroupTarget(n.kind, notifGroup(n).id);
     default: return null;
   }
 }
@@ -159,6 +169,16 @@ function Row({ g, me }: { g: Group; me?: string }) {
         void qc.invalidateQueries({ queryKey: ['venue', n.data.venueSlug] });
         return;
       }
+      if (n.kind === 'group_join_request') {
+        // Pedido para entrar num TxillGroup: aceitar põe a pessoa no grupo.
+        const gid = notifGroup(n).id ?? '';
+        await (accept ? groupsApi.acceptJoin(gid, n.actor.username) : groupsApi.declineJoin(gid, n.actor.username));
+        setAnswer(accept ? 'accepted' : 'declined');
+        void qc.invalidateQueries({ queryKey: ['chat-groups'] });
+        void qc.invalidateQueries({ queryKey: ['chat-group', gid] });
+        void qc.invalidateQueries({ queryKey: ['group-join-requests', gid] });
+        return;
+      }
       await (accept ? api.acceptRequest(n.actor.username) : api.declineRequest(n.actor.username));
       setAnswer(accept ? 'accepted' : 'declined');
       void qc.invalidateQueries({ queryKey: ['profile'] });
@@ -209,13 +229,19 @@ function Row({ g, me }: { g: Group; me?: string }) {
             <Pressable disabled={busy} onPress={() => void respond(false)} style={styles.decline}><Text style={styles.declineText}>Recusar</Text></Pressable>
           </View>
         )}
+        {n.kind === 'group_join_request' && !answer && notifGroup(n).id && (
+          <View style={styles.btns}>
+            <Pressable disabled={busy} onPress={() => void respond(true)} style={styles.accept} accessibilityRole="button" accessibilityLabel={`Aceitar ${n.actor.username} em ${notifGroup(n).name}`}><Text style={styles.acceptText}>Aceitar</Text></Pressable>
+            <Pressable disabled={busy} onPress={() => void respond(false)} style={styles.decline} accessibilityRole="button" accessibilityLabel={`Recusar ${n.actor.username}`}><Text style={styles.declineText}>Recusar</Text></Pressable>
+          </View>
+        )}
         {n.kind === 'follow_request' && !answer && stillPending && (
           <View style={styles.btns}>
             <Pressable disabled={busy} onPress={() => void respond(true)} style={styles.accept}><Text style={styles.acceptText}>Aceitar</Text></Pressable>
             <Pressable disabled={busy} onPress={() => void respond(false)} style={styles.decline}><Text style={styles.declineText}>Recusar</Text></Pressable>
           </View>
         )}
-        {answer ? <Text style={styles.answer}>{answer === 'accepted' ? (n.kind === 'venue_invite' ? 'Agora geres esta página' : 'Pedido aceite') : (n.kind === 'venue_invite' ? 'Convite recusado' : 'Pedido recusado')}</Text> : null}
+        {answer ? <Text style={styles.answer}>{answer === 'accepted' ? (n.kind === 'venue_invite' ? 'Agora geres esta página' : n.kind === 'group_join_request' ? 'Já está no grupo' : 'Pedido aceite') : (n.kind === 'venue_invite' ? 'Convite recusado' : 'Pedido recusado')}</Text> : null}
       </View>
       {right}
     </Pressable>

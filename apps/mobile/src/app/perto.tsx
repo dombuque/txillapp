@@ -13,10 +13,14 @@ import { Icon, type IconName } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Sheet } from '@/components/Sheet';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { AccessBadge, JoinButton, usePublicGroup } from '@/components/groups/GroupJoin';
+import { GroupCover } from '@/components/groups/GroupParts';
 import { NearbyMap } from '@/components/nearby/NearbyMap';
 import type { MapMarker, MapMarkerKind } from '@/components/nearby/types';
 import { ApiError, api } from '@/lib/api';
+import type { GroupKind } from '@/lib/api.groups';
 import { KIND_LABEL } from '@/lib/api.locais';
+import { joinModeOf } from '@/lib/groupAccess';
 import { eventWhen, kmLabel, nearbyApi, round2, type NearbyGroup, type NearbyKind, type NearbyResult, type NearbyVisibility, type NearbyWhen } from '@/lib/api.nearby';
 import { SITE_URL, sized } from '@/lib/config';
 import { useDesktop } from '@/lib/desktop';
@@ -116,7 +120,7 @@ function toItems(d: NearbyResult | undefined): Item[] {
     });
   for (const g of d.groups ?? [])
     out.push({
-      key: `g:${g.id}`, kind: 'group', title: g.name, image: sized(g.coverUrl, 160) ?? null, distanceKm: g.distanceKm, lat: g.lat, lng: g.lng, group: g,
+      key: `g:${g.id}`, kind: 'group', title: g.name, image: sized(g.avatarUrl ?? g.coverUrl, 160) ?? null, distanceKm: g.distanceKm, lat: g.lat, lng: g.lng, group: g,
       sub: ['TxillGroup', `${g.members} ${g.members === 1 ? 'membro' : 'membros'}`, g.destination].filter(Boolean).join(' · '),
     });
   for (const u of d.people ?? [])
@@ -768,19 +772,43 @@ function VisibilityStrip({ onOpen, onLater }: { onOpen: () => void; onLater: () 
 
 const GROUP_KIND: Record<string, string> = { viagem: 'Viagem', festa: 'Festa', fim_de_semana: 'Fim de semana', outro: 'TxillGroup' };
 
-/** TxillGroup de que não sou membro: só a informação (entrar é por convite de quem lá está). */
+/** TxillGroup de que não sou membro: capa, foto, selo, informação e o botão para entrar (público) ou pedir (privado no mapa). */
 function GroupInfo({ group, onClose }: { group: NearbyGroup; onClose: () => void }) {
+  const router = useRouter();
+  const pub = usePublicGroup(group.id);
+  const p = pub.data;
+  const gone = pub.error instanceof ApiError && (pub.error.status === 404 || pub.error.status === 403);
+  const members = p?.members ?? group.members;
   const day = group.startsOn ? new Date(`${group.startsOn}T12:00:00`) : null;
+  const go = (to: string) => { onClose(); router.push(to as never); };
   return (
     <Sheet title={group.name} onClose={onClose}>
       <View style={{ paddingHorizontal: 16, paddingBottom: 24, gap: 12 }}>
-        {group.coverUrl ? <Image source={{ uri: sized(group.coverUrl, 800) }} style={{ width: '100%', aspectRatio: 2, borderRadius: 16, backgroundColor: colors.zinc100 }} contentFit="cover" /> : null}
-        <Text style={st.cardText}>
-          {[GROUP_KIND[group.kind] ?? 'TxillGroup', `${group.members} ${group.members === 1 ? 'membro' : 'membros'}`, group.destination, day && !isNaN(day.getTime()) ? day.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' }) : null, kmLabel(group.distanceKm)]
-            .filter(Boolean)
-            .join(' · ')}
-        </Text>
-        <Text style={st.emptySub}>Os TxillGroups são da malta que lá está. Para entrar, pede a alguém do grupo que te adicione.</Text>
+        {group.coverUrl ? <Image source={{ uri: sized(group.coverUrl, 800) }} style={{ width: '100%', aspectRatio: 2, borderRadius: 16, backgroundColor: colors.zinc100 }} contentFit="cover" accessibilityLabel={`Capa de ${group.name}`} /> : null}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <GroupCover url={group.avatarUrl ?? p?.avatarUrl ?? group.coverUrl} kind={(p?.groupKind ?? group.kind) as GroupKind} size={52} radius={26} />
+          <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+            <AccessBadge visibility={p?.visibility ?? group.visibility} />
+            <Text style={st.cardText}>
+              {[GROUP_KIND[group.kind] ?? 'TxillGroup', `${members} ${members === 1 ? 'membro' : 'membros'}`, group.destination, day && !isNaN(day.getTime()) ? day.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' }) : null, kmLabel(group.distanceKm)]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
+          </View>
+        </View>
+        {p?.description ? <Text style={st.cardText} numberOfLines={4}>{p.description}</Text> : null}
+        {gone ? (
+          <Text style={st.emptySub}>Este grupo é privado ou já não existe.</Text>
+        ) : pub.isError ? (
+          <Pressable onPress={() => void pub.refetch()} accessibilityRole="button"><Text style={st.emptySub}>Não consegui ver se podes entrar. Toca para tentar outra vez.</Text></Pressable>
+        ) : (
+          <JoinButton groupId={group.id} mode={joinModeOf(p ?? group)} me={p?.me} onOpen={() => go(`/messages/g/${group.id}`)} />
+        )}
+        {!gone && (
+          <Pressable onPress={() => go(`/g/${group.id}`)} style={st.secondary} accessibilityRole="link" accessibilityLabel={`Ver a página de ${group.name}`}>
+            <Text style={st.secondaryText}>Ver a página do grupo</Text>
+          </Pressable>
+        )}
       </View>
     </Sheet>
   );

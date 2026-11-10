@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { gruposApi } from '@/lib/api.grupos';
 import { groupKindOf, groupsApi, kindInfo, type TxillGroupInfo } from '@/lib/api.groups';
 import { GroupDetailsForm, GroupEditSheet, draftError, emptyDraft, type GroupDraft } from './groups/GroupDetails';
+import { GroupAccessSection } from './groups/GroupAccess';
 import { GroupCover } from './groups/GroupParts';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
@@ -52,6 +53,7 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
         kind: draft.kind,
         ...(draft.description.trim() ? { description: draft.description.trim() } : null),
         ...(draft.coverMediaId ? { coverMediaId: draft.coverMediaId } : null),
+        ...(draft.avatarMediaId ? { avatarMediaId: draft.avatarMediaId } : null),
         members: picked.map((p) => p.username),
       });
       void qc.invalidateQueries({ queryKey: ['chat-groups'] });
@@ -240,7 +242,7 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
     <Sheet title={group.name} onClose={onClose} full>
       <View style={{ flex: 1, paddingHorizontal: 20 }}>
         <View style={styles.info}>
-          <GroupCover url={group.coverUrl} kind={groupKindOf(group)} size={64} />
+          <GroupCover url={group.avatarUrl ?? group.coverUrl} kind={groupKindOf(group)} size={64} radius={group.avatarUrl ? 32 : undefined} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.infoKind}>{kindInfo(groupKindOf(group)).label}</Text>
             {group.description ? <Text style={styles.infoDesc} numberOfLines={4}>{group.description}</Text> : <Text style={[styles.infoDesc, { color: colors.zinc500 }]}>Sem descrição.</Text>}
@@ -253,6 +255,7 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
           keyExtractor={(m) => m.username}
           ListHeaderComponent={
             <View>
+              <GroupAccessSection group={group} onChanged={onChanged} />
               {admin && (
                 <Pressable onPress={() => setAdding(true)} style={({ pressed }) => [styles.add, pressed && { backgroundColor: colors.zinc100 }]}>
                   <View style={styles.addIcon}><Icon name="user-plus" size={22} color={colors.brand} /></View>

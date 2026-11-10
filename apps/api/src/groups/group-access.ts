@@ -4,9 +4,18 @@ import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { PushService } from '../push/push.service';
 import { ChatEvents, type GroupEvent } from '../chat/chat.events';
+import { blockedBetween } from '../social/visibility';
 
 const UUID = /^[0-9a-f-]{36}$/;
 export type GroupRole = 'admin' | 'member';
+
+/** Algum admin do grupo `group` bloqueou (ou foi bloqueado por) `user`? Quem está nesse caso não vê o grupo de fora nem pode pedir. */
+export const adminBlocked = (group: string, user: string) =>
+  `EXISTS (SELECT 1 FROM social.group_members ab WHERE ab.group_id = ${group} AND ab.role = 'admin' AND ${blockedBetween('ab.user_id', user)})`;
+
+/** Um pedido para entrar (alias `jr`) que o admin `viewer` deve ver: conta activa e sem bloqueio entre os dois. */
+export const pendingVisibleTo = (jr: string, viewer: string) =>
+  `(EXISTS (SELECT 1 FROM identity.users ru WHERE ru.id = ${jr}.user_id AND ru.status = 'active') AND NOT ${blockedBetween(`${jr}.user_id`, viewer)})`;
 
 /** Peças comuns aos TxillGroups: quem é membro, quem administra, avisos em tempo real e mensagens do grupo. */
 @Injectable()
@@ -58,6 +67,11 @@ export class GroupAccess {
   /** Avisa todos os membros (também quem fez a mudança, para os outros ecrãs dele) de que algo mudou no grupo. */
   async changed(groupId: string, what: GroupEvent['what']) {
     for (const u of await this.memberIds(groupId)) this.events.emit(u, { type: 'group', groupId, what });
+  }
+
+  /** Avisa uma pessoa (ex.: um admin, quando há pedidos novos para entrar) de que os dados do grupo mudaram. */
+  notifyInfo(userId: string, groupId: string) {
+    this.events.emit(userId, { type: 'group', groupId, what: 'info' });
   }
 
   /**
