@@ -10,7 +10,8 @@ import { post, raw } from './api';
  *  - com a app à frente a notificação do sistema não aparece (o ecrã de chamada da app trata disso);
  *  - tocar na notificação ou em Atender abre a chamada com openIncomingCall; Recusar avisa o servidor.
  *
- * O servidor manda: data { kind: 'call', callId, from, video: '1' | '0' }, título com o nome de quem liga,
+ * O servidor manda pelo FCM: data { kind: 'call', callId, caller, video: '1' | '0' } (quem liga vai em `caller`: "from"
+ * é chave reservada do FCM, que recusava a mensagem; `from` ainda se aceita, de mensagens antigas), título com o nome de quem liga,
  * texto "Está a ligar-te" ou "Videochamada", canal "calls". A chamada perdida é kind: 'missed_call' e abre /calls.
  */
 
@@ -24,12 +25,16 @@ const RING_MAX_MS = 60_000;
 export interface IncomingCall { callId: string; from: string; video: boolean }
 type Opener = (c: IncomingCall) => unknown;
 
-/** Lê os dados de uma notificação de chamada (vêm como texto no FCM: video = '1' ou '0'). */
+/**
+ * Lê os dados de uma notificação de chamada (vêm como texto no FCM: video = '1' ou '0'). Quem liga vem em `caller`
+ * (o FCM não aceita a chave "from" em data e recusava a mensagem inteira); `from` fica para o Web Push e mensagens antigas.
+ */
 export function callFromData(data: unknown): IncomingCall | null {
   const d = (data ?? {}) as Record<string, unknown>;
   if (d.kind !== 'call' || typeof d.callId !== 'string' || !d.callId) return null;
   const v = d.video;
-  return { callId: d.callId, from: typeof d.from === 'string' ? d.from : '', video: v === true || v === '1' || v === 1 || v === 'true' };
+  const who = typeof d.caller === 'string' ? d.caller : typeof d.from === 'string' ? d.from : '';
+  return { callId: d.callId, from: who, video: v === true || v === '1' || v === 1 || v === 'true' };
 }
 
 export const isMissedCall = (data: unknown) => ((data ?? {}) as Record<string, unknown>).kind === 'missed_call';

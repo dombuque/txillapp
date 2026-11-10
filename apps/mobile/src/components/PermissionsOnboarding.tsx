@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { useEffect, useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
 import { kvGet, kvSet } from '@/lib/kv';
@@ -40,6 +40,15 @@ export function PermissionsOnboarding() {
     if (Platform.OS === 'web' || !user) return;
     void registerNativePush();
     void kvGet(DONE_KEY).then((v) => { if (!v) setStep(0); });
+    // Ao voltar à app (no máximo de 10 em 10 min) regista outra vez: se o servidor apagou o código deste telemóvel,
+    // ou se a licença foi dada nas definições do sistema, as notificações voltam sem ser preciso fechar a app.
+    let last = Date.now();
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s !== 'active' || Date.now() - last < 10 * 60_000) return;
+      last = Date.now();
+      void registerNativePush();
+    });
+    return () => sub.remove();
   }, [user]);
   useEffect(() => onNotificationOpen((url) => {
     const path = /^https?:\/\//.test(url) ? url.replace(/^https?:\/\/[^/]+/, '') : url;
