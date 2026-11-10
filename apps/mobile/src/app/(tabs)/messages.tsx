@@ -20,8 +20,8 @@ import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
 import { callLabel } from '@/components/ChatBubbles';
-import { GroupCover } from '@/components/groups/GroupParts';
-import { countdown, dateRange, groupKindOf, kindInfo, type GroupKind, type TxillGroupSummary } from '@/lib/api.groups';
+import { GroupCard, groupCardData } from '@/components/groups/GroupCard';
+import type { TxillGroupSummary } from '@/lib/api.groups';
 
 function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, group = false) {
   const you = m.fromMe ? 'Tu: ' : '';
@@ -52,14 +52,8 @@ interface Row {
   names: { name: string; username?: string }[];
   online: boolean;
   group: boolean;
-  /** TxillGroup: foto de perfil (ou a capa), tipo e a próxima data do Plano. */
-  cover?: string | null;
-  /** A foto é a de perfil (redonda) e não a capa. */
-  round?: boolean;
-  kind?: GroupKind;
-  /** Só para administradores: pedidos para entrar por responder. */
-  requests?: number;
-  when?: string | null;
+  /** TxillGroup: aparece como cartão (capa, foto de perfil, Plano) e não como conversa. */
+  g?: TxillGroupSummary;
 }
 
 function Skeleton() {
@@ -160,11 +154,7 @@ export default function Messages() {
       names: g.preview.slice(0, 2).map((p) => ({ name: p.displayName, username: p.hasAvatar ? p.username : undefined })),
       online: false,
       group: true,
-      cover: g.avatarUrl ?? g.coverUrl,
-      round: !!g.avatarUrl,
-      kind: groupKindOf(g),
-      requests: g.pendingRequests ?? 0,
-      when: g.plan?.startsOn && countdown(g.plan.startsOn, g.plan.endsOn) !== 'Já passou' ? dateRange(g.plan.startsOn, g.plan.endsOn) : null,
+      g,
     })),
   ]
     .filter((r) => !term || r.name.toLowerCase().includes(term) || r.sub.toLowerCase().includes(term))
@@ -217,41 +207,23 @@ export default function Messages() {
         keyboardShouldPersistTaps="handled"
         renderItem={({ item: r }) => (
           <SwipeRow left={rowLeft(r)} right={rowRight(r)}>
+          {r.g ? (
+            <GroupCard {...groupCardData(r.g)} lastMessage={r.sub} onPress={() => router.push(r.to as never)} />
+          ) : (
           <Pressable onPressIn={() => { const m = /^\/messages\/([^/]+)$/.exec(String(r.to)); if (m && m[1] !== 'new') warm(decodeURIComponent(m[1])); }} onPress={() => router.push(r.to as never)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]}>
             <View>
-              {r.group ? (
-                r.cover || r.kind ? (
-                  <View style={[styles.ring, r.unread ? { borderWidth: 2, borderColor: colors.brand, borderRadius: r.round ? 31 : 22 } : null]}><GroupCover url={r.cover} kind={r.kind} size={56} radius={r.round ? 28 : 18} /></View>
-                ) : (
-                  <View style={{ width: 62, height: 62 }}>
-                    {r.names.slice(0, 2).map((a, i) => (
-                      <View key={i} style={[styles.pair, i === 0 ? { left: 3, top: 3 } : { right: 3, bottom: 3 }]}><Avatar name={a.name} username={a.username} size={32} /></View>
-                    ))}
-                    {r.names.length === 0 && <View style={styles.groupEmpty}><Icon name="users" size={24} color={colors.zinc600} /></View>}
-                  </View>
-                )
+              {r.unread ? (
+                <LinearGradient colors={[colors.brand, '#ff9a5b']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.ring}>
+                  <View style={[styles.ringIn, { backgroundColor: colors.white }]}><Avatar name={r.names[0].name} username={r.names[0].username} size={50} /></View>
+                </LinearGradient>
               ) : (
-                r.unread ? (
-                  <LinearGradient colors={[colors.brand, '#ff9a5b']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.ring}>
-                    <View style={[styles.ringIn, { backgroundColor: colors.white }]}><Avatar name={r.names[0].name} username={r.names[0].username} size={50} /></View>
-                  </LinearGradient>
-                ) : (
-                  <View style={styles.ring}><View style={styles.ringIn}><Avatar name={r.names[0].name} username={r.names[0].username} size={56} /></View></View>
-                )
+                <View style={styles.ring}><View style={styles.ringIn}><Avatar name={r.names[0].name} username={r.names[0].username} size={56} /></View></View>
               )}
               {r.online && <View style={styles.online} />}
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={[styles.name, { fontWeight: r.unread ? '800' : '600' }]} numberOfLines={1}>{r.name}</Text>
-                {r.group && <Icon name={r.kind ? kindInfo(r.kind).icon : 'users'} size={14} color="#a1a1aa" />}
-                {r.requests ? (
-                  <View style={styles.reqs} accessibilityLabel={`${r.requests} ${r.requests === 1 ? 'pedido' : 'pedidos'} para entrar`}>
-                    <Icon name="user-plus" size={11} color={colors.zinc700} />
-                    <Text style={styles.reqsText}>{r.requests}</Text>
-                  </View>
-                ) : null}
-                {r.when ? <View style={styles.when}><Icon name="calendar" size={11} color={colors.brand} /><Text style={styles.whenText} numberOfLines={1}>{r.when}</Text></View> : null}
               </View>
               <View style={{ flexDirection: 'row' }}>
                 <Text style={[styles.sub, r.unread ? { fontWeight: '600', color: colors.zinc900 } : null, { flexShrink: 1 }]} numberOfLines={1}>{r.sub}</Text>
@@ -260,6 +232,7 @@ export default function Messages() {
             </View>
             {r.unread > 0 && <View style={styles.dot} accessibilityLabel={`${r.unread} por ler`} />}
           </Pressable>
+          )}
           </SwipeRow>
         )}
         ListEmptyComponent={
@@ -318,16 +291,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingHorizontal: 4, paddingVertical: 12 },
   ring: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center' },
   ringIn: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  pair: { position: 'absolute', width: 36, height: 36, borderRadius: 18, padding: 2, backgroundColor: colors.white },
-  groupEmpty: { flex: 1, borderRadius: 31, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   online: { position: 'absolute', right: 4, bottom: 4, width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: colors.white, backgroundColor: '#10b981' },
   name: { fontSize: 17, fontWeight: '600', color: colors.zinc900, flexShrink: 1 },
   sub: { fontSize: 15, color: colors.zinc500 },
   dot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.brand },
-  when: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, backgroundColor: colors.rose50, paddingHorizontal: 7, paddingVertical: 2, flexShrink: 0 },
-  whenText: { fontSize: 11, fontWeight: '800', color: colors.brand },
-  reqs: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 7, paddingVertical: 2, flexShrink: 0 },
-  reqsText: { fontSize: 11, fontWeight: '800', color: colors.zinc700 },
 
   empty: { marginTop: 40, alignItems: 'center', paddingHorizontal: 24 },
   emptyTitle: { marginTop: 12, fontSize: 20, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
