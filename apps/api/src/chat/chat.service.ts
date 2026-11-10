@@ -229,6 +229,8 @@ export class ChatService {
       request: !r.i_follow && r.sent_by_me === 0 && !r.accepted && r.last_sender !== me,
       /** Marcada por mim como por ler: conta como 1 até a abrir. */
       unread: Math.max(r.unread as number, r.unread_mark ? 1 : 0),
+      /** Só está por ler porque a marquei à mão (sem mensagens novas): a lista mostra um ponto em vez de um número. */
+      marked: !!r.unread_mark && (r.unread as number) === 0,
     }));
   }
 

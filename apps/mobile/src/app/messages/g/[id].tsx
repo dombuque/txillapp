@@ -1,12 +1,12 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { Alert, KeyboardAvoidingView, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BackButton } from '@/components/BackButton';
 import { quoteText, type Msg } from '@/components/ChatBubbles';
+import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus } from '@/components/ChatHeader';
 import { ChatList } from '@/components/ChatList';
 import { MessageMenu, stopLiveShare } from '@/components/ChatParts';
 import { GroupComposer } from '@/components/GroupComposer';
@@ -17,7 +17,7 @@ import { GroupCover } from '@/components/groups/GroupParts';
 import { PlanPanel } from '@/components/groups/PlanPanel';
 import { GroupCtx, NewPollSheet } from '@/components/groups/PollCard';
 import { PotPanel } from '@/components/groups/PotPanel';
-import { api } from '@/lib/api';
+import { api, type GroupSummary } from '@/lib/api';
 import { gruposApi, type GroupThread } from '@/lib/api.grupos';
 import { dateRange, groupKindOf, kindInfo, type TxillGroupInfo } from '@/lib/api.groups';
 import { useDesktopSizes } from '@/lib/desktop';
@@ -54,6 +54,11 @@ export default function GroupThreadScreen() {
   const [members, setMembers] = useState(info === '1');
   useEffect(() => { if (info === '1') setMembers(true); }, [info, id]);
   const [polling, setPolling] = useState(false);
+  const [more, setMore] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [raised, setRaised] = useState(false);
+  // Por ler ao abrir (da lista de TxillGroups, antes de a conversa as marcar como lidas): para o "Mensagens novas".
+  const unread = useMemo(() => qc.getQueryData<GroupSummary[]>(['chat-groups'])?.find((g) => g.id === id)?.unread ?? 0, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (side && tab === 'plan') setTab('chat'); }, [side, tab]);
 
   const q = useInfiniteQuery({
@@ -110,7 +115,9 @@ export default function GroupThreadScreen() {
   }
 
   const when = dateRange(group?.plan?.startsOn, group?.plan?.endsOn);
-  const sub = group ? [kindInfo(groupKindOf(group)).label, when ?? `${group.members.length} pessoas`].join(' · ') : '';
+  // "8 pessoas · Tofo" (o Plano: destino ou datas; sem Plano, o tipo do grupo).
+  const count = group ? `${group.members.length} ${group.members.length === 1 ? 'pessoa' : 'pessoas'}` : '';
+  const sub = group ? [count, group.plan?.destination || when || kindInfo(groupKindOf(group)).label].filter(Boolean).join(' · ') : '';
   const tabs = TABS.filter((t) => !(side && t.id === 'plan'));
 
   const chat = (
@@ -125,14 +132,19 @@ export default function GroupThreadScreen() {
         </View>
       ) : (
         <ChatList
+          key={id}
           items={items}
           group
+          unread={unread}
+          onRaised={setRaised}
+          emptyArt={group ? <GroupCover url={group.avatarUrl ?? group.coverUrl} kind={groupKindOf(group)} size={80} radius={40} /> : null}
+          emptyTitle={group?.name}
           loading={q.isLoading}
           hasNext={!!q.hasNextPage}
           fetchNext={() => q.fetchNextPage()}
           fetchingNext={q.isFetchingNextPage}
           seenId={null}
-          emptyText="Diz olá à malta do TxillGroup"
+          emptyText="Ainda não há mensagens. Diz olá à malta do TxillGroup 👋"
           meHandle={user?.username}
           onMenu={setMenuFor}
           onCheer={(m) => void cheer(m)}
@@ -150,32 +162,28 @@ export default function GroupThreadScreen() {
   return (
     <GroupCtx.Provider value={group ? { id, me, admin } : null}>
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} behavior="padding">
-        <View style={st.header}>
-          <BackButton fallback="/messages" style={{ width: 44, height: 44, borderRadius: 22 }} />
-          {group && (
-            <Pressable onPress={() => setMembers(true)} accessibilityLabel={`Ver membros de ${group.name}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-              <GroupCover url={group.avatarUrl ?? group.coverUrl} kind={groupKindOf(group)} size={42} radius={group.avatarUrl ? 21 : undefined} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={st.hName} numberOfLines={1}>{group.name}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Icon name={kindInfo(groupKindOf(group)).icon} size={12} color={colors.zinc500} />
-                  <Text style={st.hSub} numberOfLines={1}>{sub}</Text>
-                </View>
-              </View>
-            </Pressable>
-          )}
-        </View>
-        <View style={st.tabs} accessibilityRole="tablist">
-          {tabs.map((t) => {
-            const on = tab === t.id;
-            return (
-              <Pressable key={t.id} onPress={() => setTab(t.id)} style={[st.tab, on && st.tabOn]} accessibilityRole="tab" accessibilityState={{ selected: on }}>
-                <Icon name={t.icon} size={16} color={on ? colors.zinc900 : colors.zinc500} strokeWidth={on ? 2.3 : 1.8} />
-                <Text style={[st.tabText, on && { color: colors.zinc900, fontWeight: '800' }]}>{t.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <ChatHeader
+          raised={raised || tab !== 'chat'}
+          onOpen={group ? () => setMembers(true) : undefined}
+          openLabel={group ? `Ver os detalhes de ${group.name}` : 'TxillGroup'}
+          avatar={<GroupCover url={group?.avatarUrl ?? group?.coverUrl} kind={groupKindOf(group)} size={36} radius={18} />}
+          title={group?.name ?? ''}
+          subtitle={group ? <HeaderStatus text={sub} /> : null}
+          actions={group ? <HeaderButton label="Mais opções" onPress={() => setMore(true)}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></HeaderButton> : null}
+          below={
+            <View style={st.tabs} accessibilityRole="tablist">
+              {tabs.map((t) => {
+                const on = tab === t.id;
+                return (
+                  <Pressable key={t.id} onPress={() => setTab(t.id)} style={[st.tab, on && st.tabOn]} accessibilityRole="tab" accessibilityState={{ selected: on }}>
+                    <Icon name={t.icon} size={16} color={on ? colors.zinc900 : colors.zinc500} strokeWidth={on ? 2.3 : 1.8} />
+                    <Text style={[st.tabText, on && { color: colors.zinc900, fontWeight: '800' }]}>{t.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          }
+        />
 
         <View style={{ flex: 1, flexDirection: 'row' }}>
           {tab === 'chat' ? chat : null}
@@ -199,6 +207,18 @@ export default function GroupThreadScreen() {
           </Pressable>
         )}
         {members && group && <GroupInfoSheet group={group} onClose={() => setMembers(false)} onChanged={() => { void q.refetch(); void qc.invalidateQueries({ queryKey: ['chat-groups'] }); }} onLeft={left} />}
+        {more && group && (
+          <ChatMenuSheet
+            onClose={() => setMore(false)}
+            items={[
+              { icon: 'users', label: 'Detalhes do grupo', onPress: () => setMembers(true) },
+              { icon: 'search', label: 'Procurar na conversa', onPress: () => { setTab('chat'); setSearching(true); } },
+            ]}
+          />
+        )}
+        {searching && (
+          <ChatSearchSheet items={items} nameOf={(m) => (m.fromMe ? 'Tu' : m.sender?.displayName ?? '')} hasNext={!!q.hasNextPage} fetchNext={() => void q.fetchNextPage()} onClose={() => setSearching(false)} />
+        )}
         {polling && <NewPollSheet groupId={id} onClose={() => { setPolling(false); void q.refetch(); }} />}
       </KeyboardAvoidingView>
     </GroupCtx.Provider>
@@ -207,11 +227,8 @@ export default function GroupThreadScreen() {
 
 const st = StyleSheet.create({
   viewer: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: '#000', justifyContent: 'center', zIndex: 50 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 8 },
-  hName: { fontWeight: '700', fontSize: 16, color: colors.zinc900 },
-  hSub: { fontSize: 12, color: colors.zinc500, flexShrink: 1 },
-  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.zinc100, paddingHorizontal: 8 },
-  tab: { flex: 1, height: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabs: { flexDirection: 'row', paddingHorizontal: 8 },
+  tab: { flex: 1, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabOn: { borderBottomColor: colors.zinc900 },
   tabText: { fontSize: 14, fontWeight: '600', color: colors.zinc500 },
   sideCol: { width: 380, borderLeftWidth: 1, borderLeftColor: colors.zinc100, backgroundColor: '#fafafa' },

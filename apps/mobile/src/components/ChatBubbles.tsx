@@ -4,19 +4,32 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { createElement, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Linking, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
+import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { Sticker } from '@/components/StickerPanel';
 import { ReactionArt } from '@/components/StoryParts';
 import { PollBubble } from '@/components/groups/PollCard';
-import { squircle } from '@/components/zas/squircle';
 import { type ChatMessage } from '@/lib/api';
+import { AVATAR, AVATAR_GAP, GAP_IN, GAP_OUT, corners, type Ticks } from '@/lib/chatLayout';
+import { timeLabel } from '@/lib/chatTimeline';
 import { abs, sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
 
-/** Bolhas do chat, iguais às do site (apps/web/src/pages/Thread.tsx), com o nome de quem envia nos grupos. */
+/** Fundo das bolhas da outra pessoa. */
+const OTHER_BG = '#ffffff';
+/** Bolhas da outra pessoa: brancas sobre o fundo cinzento claro da conversa, com uma borda fina e uma sombra muito suave. */
+const OTHER_SURFACE: ViewStyle = { backgroundColor: OTHER_BG, borderWidth: 1, borderColor: '#ececf0', boxShadow: '0 1px 2px rgba(16,24,40,0.05)' };
+/** Linha da citação nas minhas mensagens (a marca, suave). */
+const QUOTE_BAR_MINE = 'rgba(214,51,79,0.45)';
+
+/**
+ * Bolhas do chat: as minhas na cor da marca, as da outra pessoa brancas com borda fina; mensagens seguidas da mesma pessoa
+ * agrupam-se (cantos interiores mais pequenos) e o avatar dela vai na última do grupo. O agrupamento vem de lib/chatTimeline; os cantos e os vistos, de lib/chatLayout.
+ * Nos grupos, o nome de quem envia por cima da primeira bolha do grupo.
+ */
 export type Msg = ChatMessage & { state?: 'sending' | 'failed'; realId?: string; live?: boolean; liveUntil?: string | null; sender?: { username: string; displayName: string; hasAvatar: boolean } };
 
 /** Cada pessoa tem a sua cor nos grupos (a mesma do site, apps/web/src/lib/senderColor.ts). */
@@ -143,7 +156,7 @@ function VoiceMessage({ m, dim }: { m: Msg; dim: boolean }) {
   const played = mine ? '#fff' : colors.zinc900;
   const rest = mine ? 'rgba(255,255,255,0.35)' : colors.zinc300;
   return (
-    <View style={[st.voice, { backgroundColor: mine ? colors.brand : colors.zinc100 }, dim && { opacity: 0.7 }]}>
+    <View style={[st.voice, mine ? { backgroundColor: colors.brand } : OTHER_SURFACE, dim && { opacity: 0.7 }]}>
       <Pressable onPress={toggle} style={[st.voiceBtn, { backgroundColor: mine ? '#fff' : colors.zinc900 }]} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar' : 'Ouvir mensagem de voz'}>
         <Icon name={playing ? 'pause' : 'play'} size={19} solid color={mine ? colors.brand : '#fff'} />
       </Pressable>
@@ -285,35 +298,36 @@ function CallLine({ m, mine, peerHandle }: { m: Msg; mine: boolean; peerHandle?:
 }
 
 /**
- * A foto citada numa resposta a um Zás ou a um mimo (entre a legenda e a bolha do texto): uma linha fina de citação ao lado
- * (à esquerda nas mensagens da outra pessoa, à direita nas minhas, como nas respostas às notas) e a foto em grande.
- * O Zás vem em squircle 3:4 com o raio num canto e não abre nada ao tocar (é de ver uma vez); o mimo (9:16) abre os mimos de quem o pôs.
- * Se a foto já não existir (o Zás e o mimo duram 24 h, a mensagem fica), mostra um marcador no lugar dela.
+ * A foto citada numa resposta a um Zás ou a um mimo (entre a legenda e a bolha do texto), pequena: uma linha fina de citação
+ * ao lado (à esquerda nas mensagens da outra pessoa, à direita nas minhas) e a foto.
+ * O Zás vem em 4:5 (128×160) com cantos grandes e o raio num canto e não abre nada ao tocar (é de ver uma vez); o mimo (9:16, 90×160)
+ * abre os mimos de quem o pôs. Se a foto já não existir (o Zás e o mimo duram 24 h, a mensagem fica), mostra um marcador.
  */
 function QuotedMedia({ kind, uri, mine, label, onPress }: { kind: 'zas' | 'mimo'; uri: string | null; mine: boolean; label: string; onPress?: () => void }) {
   const [failed, setFailed] = useState(false);
   const zas = kind === 'zas';
   const ok = !!uri && !failed;
-  const w = ok ? (zas ? 156 : 117) : 128;
-  const h = ok ? 208 : 152;
-  const shape = zas ? squircle(w) : { overflow: 'hidden' as const, borderRadius: 18 };
+  const w = ok ? (zas ? 128 : 90) : 112;
+  const h = ok ? 160 : 140;
+  // Zás: retângulo 4:5 de cantos grandes e contínuos (o squircle esticado a 4:5 ficava em cápsula); mimo: raio 22.
+  const shape: ViewStyle = zas ? { overflow: 'hidden', borderRadius: 30, borderCurve: 'continuous' } : { overflow: 'hidden', borderRadius: 22 };
   const bolt = (s: number) => <View style={{ width: s, height: s, borderRadius: s / 2, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}><Icon name="bolt" size={Math.round(s * 0.55)} solid color="#fff" /></View>;
   const gone = zas ? 'Zás já não disponível' : 'Mimo já não disponível';
   const pic = ok ? (
     <View style={[{ width: w, height: h, backgroundColor: colors.zinc200 }, shape]}>
       <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" onError={() => setFailed(true)} accessibilityIgnoresInvertColors />
-      {/* Dentro da curva do squircle, para não ficar cortado (clip-path na web, cantos redondos no nativo). */}
-      {zas && <View style={{ position: 'absolute', left: Math.round(w * 0.12), top: Math.round(h * 0.1) }}>{bolt(22)}</View>}
+      {/* Dentro da curva do canto, para não ficar cortado. */}
+      {zas && <View style={{ position: 'absolute', left: 10, top: 10 }}>{bolt(20)}</View>}
     </View>
   ) : (
-    <View style={[{ width: w, height: h, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14 }, shape]}>
-      {zas ? bolt(30) : <Icon name="image" size={26} color={colors.zinc500} />}
+    <View style={[OTHER_SURFACE, { width: w, height: h, alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12 }, shape]}>
+      {zas ? bolt(26) : <Icon name="image" size={24} color={colors.zinc500} />}
       <Text style={{ textAlign: 'center', fontSize: 12, lineHeight: 16, color: colors.zinc500 }}>{gone}</Text>
     </View>
   );
   return (
-    <View style={{ marginBottom: 4, flexDirection: mine ? 'row-reverse' : 'row', alignItems: 'stretch', gap: 8 }}>
-      <View style={{ width: 3, borderRadius: 2, backgroundColor: colors.zinc200 }} />
+    <View style={{ marginBottom: 4, flexDirection: mine ? 'row-reverse' : 'row', alignItems: 'stretch', gap: 6 }}>
+      <View style={{ width: 3, borderRadius: 2, backgroundColor: mine ? QUOTE_BAR_MINE : colors.zinc300 }} />
       {onPress && ok ? (
         <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.85 }} accessibilityRole="button" accessibilityLabel={label}>{pic}</Pressable>
       ) : (
@@ -323,15 +337,44 @@ function QuotedMedia({ kind, uri, mine, label, onPress }: { kind: 'zas' | 'mimo'
   );
 }
 
+/** O autor de uma bolha da outra pessoa, para o avatar (foto ou iniciais). */
+type Who = { username?: string; name: string };
+
+/** Avatar pequeno da outra pessoa ao lado da última bolha do grupo dela; tocar abre o perfil. */
+function SideAvatar({ who }: { who: Who }) {
+  const router = useRouter();
+  const avatar = <Avatar name={who.name || '?'} username={who.username} size={AVATAR} />;
+  if (!who.username) return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{avatar}</View>;
+  return (
+    <Pressable onPress={() => router.push(`/u/${who.username}` as never)} hitSlop={8} accessibilityRole="link" accessibilityLabel={`Perfil de ${who.name}`}>
+      {avatar}
+    </Pressable>
+  );
+}
+
 export function Bubble({
-  m, group = false, prevSame, nextSame, seen = false, flash = false, peerName, peerHandle, meHandle, onMenu, onRetry, onOpenOnce, onJump, onCheer, onStopLive, onReply,
+  m, group = false, prevSame, nextSame, first, last, seen = false, ticks, flash = false, peerName, peerHandle, peerHasAvatar = true, meHandle, showAvatars = true,
+  onMenu, onRetry, onOpenOnce, onJump, onCheer, onStopLive, onReply,
 }: {
-  m: Msg; group?: boolean; prevSame: boolean; nextSame: boolean; seen?: boolean; flash?: boolean;
-  /** Nome do outro lado, para a citação "Respondeu…" (só nas conversas diretas). */
+  m: Msg; group?: boolean;
+  /** A mensagem antes/depois (no tempo) é da mesma pessoa e junta-se a esta. */
+  prevSame: boolean; nextSame: boolean;
+  /** Primeira/última bolha do seu grupo (por omissão: `!prevSame` / `!nextSame`, que vêm de lib/chatTimeline). */
+  first?: boolean; last?: boolean;
+  /** Compatibilidade: `seen` = esta minha mensagem já foi vista. Preferir `ticks`. */
+  seen?: boolean;
+  /** Vistos da minha mensagem, ao lado da hora da última bolha do grupo: 'sent' = ✓, 'seen' = ✓✓. Ver `ticksFor()` em lib/chatLayout. */
+  ticks?: Ticks | null;
+  flash?: boolean;
+  /** Nome do outro lado, para a citação e o avatar (só nas conversas diretas). */
   peerName?: string;
-  /** Quem é o dono do story citado: o outro lado (se fui eu a responder) ou eu. */
+  /** Quem é o dono do story citado: o outro lado (se fui eu a responder) ou eu. Também é o avatar nas conversas diretas. */
   peerHandle?: string;
+  /** O outro lado tem foto de perfil (se não, o avatar mostra as iniciais). */
+  peerHasAvatar?: boolean;
   meHandle?: string;
+  /** Avatar da outra pessoa à esquerda (na última bolha do grupo; nas outras, o espaço). */
+  showAvatars?: boolean;
   onMenu: (m: Msg) => void; onRetry: (m: Msg) => void; onOpenOnce: (m: Msg) => void;
   onJump?: (id: string) => void; onCheer?: (m: Msg) => void; onStopLive?: (m: Msg) => void; onReply?: (m: Msg) => void;
 }) {
@@ -339,23 +382,26 @@ export function Bubble({
   const mine = m.fromMe;
   const real = !m.id.startsWith('tmp-');
   const [full, setFull] = useState(false);
-  const lastTap = useRef(0);
-  const radius = mine
-    ? { borderRadius: 20, borderBottomRightRadius: 6, ...(prevSame ? { borderTopRightRadius: 6 } : null) }
-    : { borderRadius: 20, borderBottomLeftRadius: 6, ...(prevSame ? { borderTopLeftRadius: 6 } : null) };
-  const tone = mine ? { backgroundColor: colors.brand } : { backgroundColor: colors.zinc100 };
+  const [showTime, setShowTime] = useState(false);
+  const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (tapTimer.current) clearTimeout(tapTimer.current); }, []);
+  const isFirst = first ?? !prevSame;
+  const isLast = last ?? !nextSame;
+  const radius = corners(mine, isFirst, isLast);
+  const tone = mine ? { backgroundColor: colors.brand } : OTHER_SURFACE;
   const ink = mine ? '#fff' : colors.zinc900;
   const dimStyle = m.state === 'sending' ? { opacity: 0.7 } : null;
+  const tick: Ticks | null = !mine ? null : ticks !== undefined ? ticks : seen ? 'seen' : null;
   void onReply;
 
   let content: React.ReactNode;
   if (m.viewOnce) {
     const label = m.opened ? 'Aberta' : mine ? 'Visualização única · por abrir' : m.kind === 'image' ? 'Foto · toca para abrir' : m.kind === 'video' ? 'Vídeo · toca para abrir' : m.kind === 'voice' ? 'Voz · toca para abrir' : 'Mensagem · toca para abrir';
-    const bg = m.opened ? colors.zinc100 : mine ? colors.brand : colors.zinc900;
+    const surface = m.opened ? OTHER_SURFACE : { backgroundColor: mine ? colors.brand : colors.zinc900 };
     const fg = m.opened ? colors.zinc500 : '#fff';
     content = (
-      <Pressable disabled={mine || !!m.opened || m.state === 'sending'} onPress={() => onOpenOnce(m)} style={({ pressed }) => [st.once, radius, { backgroundColor: bg }, dimStyle, pressed && !mine && !m.opened && { transform: [{ scale: 0.95 }] }]}>
-        <Icon name="once" size={26} color={fg} />
+      <Pressable disabled={mine || !!m.opened || m.state === 'sending'} onPress={() => onOpenOnce(m)} style={({ pressed }) => [st.once, radius, surface, dimStyle, pressed && !mine && !m.opened && { transform: [{ scale: 0.95 }] }]}>
+        <Icon name="once" size={24} color={fg} />
         <Text style={{ fontSize: 15, fontWeight: '600', color: fg, flexShrink: 1 }}>{label}</Text>
       </Pressable>
     );
@@ -373,14 +419,14 @@ export function Bubble({
       </LinearGradient>
     );
   } else if (m.kind === 'sticker') {
-    content = <View style={dimStyle}><Sticker id={m.body} size={132} /></View>;
+    content = <View style={dimStyle}><Sticker id={m.body} size={120} /></View>;
   } else if (m.kind === 'post') {
     content = <SharedPost post={m.post ?? null} radius={radius} tone={tone} ink={ink} />;
   } else if (m.kind === 'location' && m.lat != null && m.lng != null) {
     content = (
       <Pressable onPress={() => void Linking.openURL(`https://www.google.com/maps?q=${m.lat},${m.lng}`)} style={[st.shared, tone, radius, dimStyle, { overflow: 'hidden' }]} accessibilityRole="link">
         <TileMap lat={m.lat} lng={m.lng} width={240} height={132} />
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 13, paddingVertical: 8 }}>
           <Icon name="map-pin" size={16} color={ink} />
           <Text style={{ flex: 1, fontSize: 15, fontWeight: '600', color: ink }} numberOfLines={1}>{m.body || 'Localização'}</Text>
         </View>
@@ -404,12 +450,12 @@ export function Bubble({
           </View>
         ) : (
           <Pressable onPress={() => setFull(true)} accessibilityRole="imagebutton" accessibilityLabel="Foto enviada">
-            <View style={{ height: 288, width: '100%', backgroundColor: colors.zinc100 }}>
+            <View style={{ height: 288, width: '100%', backgroundColor: colors.zinc200 }}>
               <Image source={{ uri: url }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
             </View>
           </Pressable>
         )}
-        {m.kind === 'image' && m.body ? <Text style={{ paddingHorizontal: 12, paddingVertical: 8, fontSize: 16, color: ink }}>{m.body}</Text> : null}
+        {m.kind === 'image' && m.body ? <Text style={[st.text, { paddingHorizontal: 13, paddingVertical: 8, color: ink }]}>{m.body}</Text> : null}
         {full && <MediaFull url={url} video={m.kind === 'video'} onClose={() => setFull(false)} />}
       </View>
     );
@@ -423,8 +469,8 @@ export function Bubble({
       <View style={{ maxWidth: '100%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
         {noteReply && (
           <View style={{ marginBottom: 4, maxWidth: '82%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
-            <Text style={{ marginBottom: 6, paddingHorizontal: 4, fontSize: 12, color: colors.zinc500 }}>{mine ? 'Respondeste à nota' : 'Respondeu à tua nota'}</Text>
-            <View style={[{ borderColor: colors.zinc200, alignItems: mine ? 'flex-end' : 'flex-start' }, mine ? { borderRightWidth: 2, paddingRight: 8 } : { borderLeftWidth: 2, paddingLeft: 8 }]}>
+            <Text style={st.caption}>{mine ? 'Respondeste à nota' : 'Respondeu à tua nota'}</Text>
+            <View style={[{ borderColor: colors.zinc200, alignItems: mine ? 'flex-end' : 'flex-start' }, mine ? { borderRightWidth: 3, paddingRight: 6 } : { borderLeftWidth: 3, paddingLeft: 6 }]}>
               <Text style={st.noteBubble}>{noteReply[1]}</Text>
             </View>
           </View>
@@ -434,35 +480,60 @@ export function Bubble({
     );
   }
 
+  // Um toque mostra/esconde a hora; dois toques seguidos brindam (só nas mensagens já enviadas e que não são de ver uma vez).
+  const canCheer = real && !m.viewOnce && !!onCheer;
   const onPress = () => {
-    if (!real || m.viewOnce || !onCheer) return;
-    const now = Date.now();
-    if (now - lastTap.current < 320) {
-      lastTap.current = 0;
-      onCheer(m);
-    } else lastTap.current = now;
+    if (tapTimer.current) {
+      clearTimeout(tapTimer.current);
+      tapTimer.current = null;
+      if (canCheer) onCheer!(m);
+      return;
+    }
+    if (!canCheer) {
+      setShowTime((v) => !v);
+      return;
+    }
+    tapTimer.current = setTimeout(() => {
+      tapTimer.current = null;
+      setShowTime((v) => !v);
+    }, 280);
   };
   const storyLabel = m.kind === 'zas_reply' ? (mine ? 'Respondeste ao Zás' : 'Respondeu ao teu Zás') : m.kind === 'story_reaction' ? (mine ? 'Reagiste ao mimo' : 'Reagiu ao teu mimo') : mine ? 'Respondeste ao mimo' : 'Respondeu ao teu mimo';
 
+  // O avatar: nos grupos quem enviou; nas conversas diretas o outro lado.
+  const who: Who | null = mine || !showAvatars ? null
+    : group ? (m.sender ? { name: m.sender.displayName, username: m.sender.hasAvatar ? m.sender.username : undefined } : null)
+      : { name: peerName ?? peerHandle ?? '', username: peerHasAvatar ? peerHandle : undefined };
+  const indent = !mine && showAvatars && (group ? !!m.sender : true);
+  const replyWho = m.replyTo && !m.replyTo.gone ? (m.replyTo.fromMe ? 'Tu' : (m.replyTo.name || peerName || '').split(' ')[0]) : '';
+  const wide = m.kind === 'text' || m.kind === 'story_reply' || m.kind === 'zas_reply';
+  // Hora por baixo da última bolha de cada grupo (e, nas minhas, os vistos); tocar numa bolha mostra a hora exata (com o dia).
+  const timeText = showTime ? timeLabel(m.at) : isLast ? clock(m.at) : null;
+
   return (
-    <View style={[{ alignItems: mine ? 'flex-end' : 'flex-start', marginTop: prevSame ? 2 : 12, borderRadius: 24 }, flash && { backgroundColor: 'rgba(214,51,79,0.15)' }]}>
-      {group && !mine && !prevSame && m.sender && <Text style={{ marginBottom: 2, paddingHorizontal: 4, fontSize: 12, fontWeight: '700', color: senderColor(m.sender.username) }}>{m.sender.displayName.split(' ')[0]}</Text>}
-      {m.replyTo && <Text style={{ marginBottom: 4, paddingHorizontal: 4, fontSize: 12, color: colors.zinc500 }}>{mine ? 'Respondeste' : !m.replyTo.gone && m.replyTo.fromMe ? 'Respondeu-te' : 'Respondeu'}</Text>}
+    <View style={[{ alignItems: mine ? 'flex-end' : 'flex-start', marginTop: isFirst ? GAP_OUT : GAP_IN, borderRadius: 24 }, indent && { paddingLeft: AVATAR + AVATAR_GAP }, flash && { backgroundColor: 'rgba(214,51,79,0.15)' }]}>
+      {group && !mine && isFirst && m.sender && <Text style={{ marginBottom: 2, paddingHorizontal: 14, fontSize: 12, fontWeight: '700', color: senderColor(m.sender.username) }}>{m.sender.displayName.split(' ')[0]}</Text>}
       {m.replyTo && (
         <Pressable
           disabled={m.replyTo.gone}
           onPress={() => !m.replyTo!.gone && onJump?.(m.replyTo!.id)}
-          style={({ pressed }) => [st.reply, mine ? { borderLeftColor: 'rgba(214,51,79,0.7)', backgroundColor: 'rgba(214,51,79,0.1)' } : { borderLeftColor: '#a1a1aa', backgroundColor: '#fafafa' }, pressed && { transform: [{ scale: 0.98 }] }]}
+          hitSlop={{ top: 12, bottom: 6, left: 8, right: 8 }}
+          style={({ pressed }) => [st.quote, pressed && { opacity: 0.6 }]}
+          accessibilityRole="button"
+          accessibilityLabel={m.replyTo.gone ? 'Resposta a uma mensagem apagada' : `Resposta a ${replyWho}: ${quoteText(m.replyTo.kind, m.replyTo.body)}. Toca para ir à mensagem`}
         >
-          {m.replyTo.gone ? <Text style={{ fontStyle: 'italic', color: colors.zinc600, fontSize: 13 }}>Mensagem apagada</Text> : (
-            <>
-              <Text style={{ fontWeight: '700', color: colors.zinc700, fontSize: 13, lineHeight: 18 }} numberOfLines={1}>{m.replyTo.fromMe ? 'Tu' : m.replyTo.name || peerName}</Text>
-              <Text style={{ color: colors.zinc600, fontSize: 13, lineHeight: 18 }} numberOfLines={2}>{quoteText(m.replyTo.kind, m.replyTo.body)}</Text>
-            </>
+          <View style={[st.quoteBar, { backgroundColor: mine ? QUOTE_BAR_MINE : colors.zinc300 }]} />
+          {m.replyTo.gone ? (
+            <Text style={[st.quoteText, { fontStyle: 'italic' }]} numberOfLines={1}>Mensagem apagada</Text>
+          ) : (
+            <Text style={st.quoteText} numberOfLines={1}>
+              <Text style={{ fontWeight: '600', color: colors.zinc700 }}>{replyWho}: </Text>
+              {quoteText(m.replyTo.kind, m.replyTo.body)}
+            </Text>
           )}
         </Pressable>
       )}
-      {(m.kind === 'story_reply' || m.kind === 'story_reaction' || m.kind === 'zas_reply') && <Text style={{ marginBottom: 6, paddingHorizontal: 4, fontSize: 12, color: colors.zinc500 }}>{storyLabel}</Text>}
+      {(m.kind === 'story_reply' || m.kind === 'story_reaction' || m.kind === 'zas_reply') && <Text style={st.caption}>{storyLabel}</Text>}
       {m.kind === 'zas_reply' ? (
         <QuotedMedia key={m.mediaUrl ?? 'gone'} kind="zas" uri={abs(m.mediaUrl) ?? null} mine={mine} label={mine ? 'Zás a que respondeste' : 'O teu Zás a que respondeu'} />
       ) : m.storyUrl ? (
@@ -475,12 +546,23 @@ export function Bubble({
           onPress={() => { const o = mine ? peerHandle : meHandle; if (o) router.push(`/stories/${o}` as never); }}
         />
       ) : null}
-      <Pressable onPress={onPress} onLongPress={real ? () => onMenu(m) : undefined} delayLongPress={450} style={{ maxWidth: m.kind === 'text' || m.kind === 'story_reply' || m.kind === 'zas_reply' ? '82%' : m.kind === 'image' || m.kind === 'video' ? '75%' : '100%' }}>{content}</Pressable>
+      <View style={[st.row, { justifyContent: mine ? 'flex-end' : 'flex-start' }]}>
+        {who && isLast && <View style={st.avatar}><SideAvatar who={who} /></View>}
+        <Pressable
+          onPress={onPress}
+          onLongPress={real ? () => onMenu(m) : undefined}
+          delayLongPress={450}
+          style={{ maxWidth: wide ? '78%' : '100%' }}
+          accessibilityHint={canCheer ? 'Toca para ver a hora, duas vezes para brindar, mantém para mais opções' : 'Toca para ver a hora'}
+        >
+          {content}
+        </Pressable>
+      </View>
       {!!m.reactions?.length && (
-        <Pressable onPress={() => onMenu(m)} accessibilityRole="button" accessibilityLabel="Reações" style={[st.reactions, mine ? { marginRight: 12 } : { marginLeft: 12 }]}>
+        <Pressable onPress={() => onMenu(m)} accessibilityRole="button" accessibilityLabel="Reações" style={[st.reactions, mine ? { marginRight: 10 } : { marginLeft: 10 }]}>
           {m.reactions.map((r) => (
             <View key={r.reaction} style={[st.react, r.mine && { backgroundColor: 'rgba(214,51,79,0.1)' }]}>
-              <ReactionArt body={r.reaction} size={22} />
+              <ReactionArt body={r.reaction} size={20} />
               {r.count > 1 && <Text style={{ paddingRight: 4, fontSize: 11, fontWeight: '700', color: colors.zinc700 }}>{r.count}</Text>}
             </View>
           ))}
@@ -497,54 +579,68 @@ export function Bubble({
         <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 }}>
           <Icon name="alert" size={14} color={colors.red600} />
           <Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600 }}>Não enviada</Text>
-          <Pressable onPress={() => onRetry(m)} hitSlop={6}><Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600, textDecorationLine: 'underline' }}>Tentar de novo</Text></Pressable>
+          <Pressable onPress={() => onRetry(m)} hitSlop={10}><Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600, textDecorationLine: 'underline' }}>Tentar de novo</Text></Pressable>
         </View>
       ) : m.state === 'sending' ? (
         <Text style={st.time}>A enviar…</Text>
-      ) : (
-        !nextSame && <Text style={st.time}>{clock(m.at)}{mine && seen ? ' · Visto' : ''}</Text>
-      )}
+      ) : timeText ? (
+        <View style={st.meta} accessibilityLiveRegion="polite">
+          <Text style={st.time}>{timeText}</Text>
+          {tick && (isLast || showTime) ? (
+            <Text style={[st.ticks, tick === 'seen' && { color: colors.brand }]} accessibilityLabel={tick === 'seen' ? 'Visto' : 'Entregue'}>{tick === 'seen' ? '✓✓' : '✓'}</Text>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
 
-/** Os três pontos de "a escrever…". */
-export function TypingBubble() {
+/** Os três pontos de "a escrever…" (com o avatar de quem escreve, se vier). */
+export function TypingBubble({ avatar }: { avatar?: { username?: string; name: string } | null } = {}) {
   const [n, setN] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setN((x) => (x + 1) % 3), 400);
     return () => clearInterval(t);
   }, []);
   return (
-    <View style={{ marginTop: 8, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, borderBottomLeftRadius: 6, backgroundColor: colors.zinc100, paddingHorizontal: 14, paddingVertical: 12 }} accessibilityLabel="A escrever">
-      {[0, 1, 2].map((d) => <View key={d} style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.zinc500, opacity: n === d ? 1 : 0.4, transform: [{ translateY: n === d ? -2 : 0 }] }} />)}
+    <View style={{ marginTop: GAP_OUT, flexDirection: 'row', alignItems: 'flex-end', gap: AVATAR_GAP }} accessibilityLabel="A escrever">
+      {avatar ? <Avatar name={avatar.name || '?'} username={avatar.username} size={AVATAR} /> : null}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, ...OTHER_SURFACE, paddingHorizontal: 14, paddingVertical: 12 }}>
+        {[0, 1, 2].map((d) => <View key={d} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.zinc500, opacity: n === d ? 1 : 0.4, transform: [{ translateY: n === d ? -2 : 0 }] }} />)}
+      </View>
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  bubble: { paddingHorizontal: 16, paddingVertical: 10 },
-  text: { fontSize: 16, lineHeight: 22 },
-  time: { marginTop: 2, paddingHorizontal: 4, fontSize: 11, color: colors.zinc500 },
-  reply: { marginBottom: 2, maxWidth: '78%', borderLeftWidth: 4, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
-  reactions: { marginTop: -8, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: colors.white, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 1px 6px rgba(0,0,0,0.18)' },
+  bubble: { paddingHorizontal: 13, paddingVertical: 8 },
+  text: { fontSize: 15, lineHeight: 21 },
+  row: { alignSelf: 'stretch', flexDirection: 'row' },
+  avatar: { position: 'absolute', left: -(AVATAR + AVATAR_GAP), bottom: 0 },
+  meta: { marginTop: 3, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6 },
+  time: { fontSize: 11, lineHeight: 14, color: colors.zinc500 },
+  ticks: { fontSize: 11, lineHeight: 14, fontWeight: '700', letterSpacing: -2.5, paddingRight: 2.5, color: colors.zinc500 },
+  caption: { marginBottom: 4, paddingHorizontal: 6, fontSize: 12, lineHeight: 16, color: colors.zinc500 },
+  quote: { maxWidth: '78%', marginBottom: 3, flexDirection: 'row', alignItems: 'stretch', gap: 6, paddingHorizontal: 4 },
+  quoteBar: { width: 3, borderRadius: 2 },
+  quoteText: { flexShrink: 1, fontSize: 13, lineHeight: 18, color: colors.zinc500 },
+  reactions: { marginTop: -8, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, backgroundColor: colors.white, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 1px 4px rgba(0,0,0,0.14)' },
   react: { flexDirection: 'row', alignItems: 'center', borderRadius: 999 },
   media: { width: 240, overflow: 'hidden' },
   expand: { position: 'absolute', right: 8, top: 8, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   viewerBack: { flex: 1, backgroundColor: 'rgba(0,0,0,0.82)', alignItems: 'center', justifyContent: 'center', padding: 16 },
   viewerCard: { borderRadius: 20, overflow: 'hidden', backgroundColor: '#000' },
   viewerX: { position: 'absolute', right: 10, top: 10, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-  callLine: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 18, borderWidth: 1, borderColor: colors.zinc200, backgroundColor: colors.white, paddingVertical: 10, paddingLeft: 10, paddingRight: 16 },
+  callLine: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 20, borderWidth: 1, borderColor: colors.zinc200, backgroundColor: colors.white, paddingVertical: 10, paddingLeft: 10, paddingRight: 16 },
   callIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   callText: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
   callSub: { fontSize: 12, color: colors.zinc500 },
-  fullX: { position: 'absolute', right: 12, top: 40, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-  once: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
+  once: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10 },
   gift: { width: 240, overflow: 'hidden', borderRadius: 20, boxShadow: '0 2px 10px rgba(214,51,79,0.35)' },
   giftIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
   shared: { width: 240 },
   voice: { width: 264, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 999, paddingVertical: 6, paddingLeft: 6, paddingRight: 14 },
   voiceBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   wave: { flex: 1, minWidth: 0, height: 40, flexDirection: 'row', alignItems: 'center', gap: 2 },
-  noteBubble: { maxWidth: '100%', borderRadius: 22, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12, textAlign: 'center', fontSize: 15, lineHeight: 20.6, fontWeight: '500', color: colors.zinc800, overflow: 'hidden' },
+  noteBubble: { maxWidth: '100%', borderRadius: 20, backgroundColor: OTHER_BG, borderWidth: 1, borderColor: '#ececf0', paddingHorizontal: 14, paddingVertical: 10, textAlign: 'center', fontSize: 15, lineHeight: 20.6, fontWeight: '500', color: colors.zinc800, overflow: 'hidden' },
 });

@@ -1,8 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { closeOpenSwipe, SwipeRow, type SwipeAction } from '@/components/SwipeRow';
@@ -17,13 +18,16 @@ import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { api, type ChatMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
-import { timeAgo } from '@/lib/time';
+import { listTime, rowLabel, unreadBadge } from '@/lib/inboxRow';
 
 import { callLabel } from '@/components/ChatBubbles';
 import { GroupCard, groupCardData } from '@/components/groups/GroupCard';
 import type { TxillGroupSummary } from '@/lib/api.groups';
 import { kvGet, kvSet } from '@/lib/kv';
-import { badgeText, inboxCounts, inboxRows, INBOX_TAB_KEY, parseInboxTab, tabLabel, type InboxTab, type InboxView } from '@/lib/inboxTabs';
+import { badgeText, inboxCounts, inboxRows, INBOX_TAB_KEY, nextInboxView, parseInboxTab, tabLabel, type InboxTab, type InboxView } from '@/lib/inboxTabs';
+import { gruposApi } from '@/lib/api.grupos';
+import { decideSwipe, innerPager, registerInnerPager, type InnerPager } from '@/lib/swipeClaim';
+import { FadeCell, fadeCellsIn, useTabSlider } from '@/components/TabSlider';
 
 /** Último separador usado, guardado também em memória para voltar ao ecrã sem piscar "Conversas" antes de ler o kv. */
 let lastTab: InboxTab | null = null;
@@ -54,6 +58,8 @@ interface Row {
   sub: string;
   at: string;
   unread: number;
+  /** Por ler só porque foi marcada à mão (sem mensagens novas): mostra um ponto e não um número. */
+  marked?: boolean;
   names: { name: string; username?: string }[];
   online: boolean;
   group: boolean;
@@ -79,16 +85,15 @@ function Skeleton() {
   );
 }
 
-/** Um separador da lista (só por toque: os deslizes são das linhas e da troca de menu). */
-function InboxTabButton({ label, n, on, onPress, small, what }: { label: string; n: number; on: boolean; onPress: () => void; small: boolean; what?: string }) {
+/** Um separador da lista (toque; um deslize grande na lista também passa de um para o outro). O traço desliza (TabSlider). */
+function InboxTabButton({ label, n, on, onPress, small, what, onLayout }: { label: string; n: number; on: boolean; onPress: () => void; small: boolean; what?: string; onLayout?: (e: LayoutChangeEvent) => void }) {
   const badge = badgeText(n);
   return (
-    <Pressable onPress={onPress} hitSlop={{ top: 4, bottom: 4, left: 6, right: 6 }} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={tabLabel(label, n, what)} style={styles.tabBtn}>
+    <Pressable onPress={onPress} onLayout={onLayout} hitSlop={{ top: 4, bottom: 4, left: 6, right: 6 }} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={tabLabel(label, n, what)} style={styles.tabBtn}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
         <Text style={[styles.tab, small && { fontSize: 15 }, on ? styles.tabOn : styles.tabOff]} numberOfLines={1}>{label}</Text>
         {badge ? <View style={styles.badge}><Text style={styles.badgeText}>{badge}</Text></View> : null}
       </View>
-      {on && <View style={styles.tabBar} />}
     </Pressable>
   );
 }
@@ -115,6 +120,7 @@ export default function Messages() {
   const setView = (v: InboxView) => {
     tapped.current = true;
     closeOpenSwipe();
+    if (v !== view) fadeCellsIn();
     setViewNow(v);
     if (v !== 'requests' && v !== lastTab) { lastTab = v; void kvSet(INBOX_TAB_KEY, v); }
   };
@@ -138,20 +144,22 @@ export default function Messages() {
   const refreshUnread = () => void qc.invalidateQueries({ queryKey: ['chat-unread'] });
   /** Deslizar para a direita: marcar como por ler (ou como lida, se já estiver por ler). */
   function rowLeft(r: Row): SwipeAction[] {
+    if (r.g) return groupLeft(r.g);
     const u = r.username;
     if (!u) return [];
     return r.unread > 0
       ? [{ label: 'Lida', icon: 'check', color: colors.zinc600, onPress: () => {
-          patchDirect(u, (c) => ({ ...c, unread: 0 }));
+          patchDirect(u, (c) => ({ ...c, unread: 0, marked: false }));
           void api.chatThread(u).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-list'] }));
         } }]
       : [{ label: 'Por ler', icon: 'mail', color: colors.brand, onPress: () => {
-          patchDirect(u, (c) => ({ ...c, unread: 1 }));
+          patchDirect(u, (c) => ({ ...c, unread: 1, marked: true }));
           void api.chatMarkUnread(u).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-list'] }));
         } }];
   }
   /** Deslizar para a esquerda: apagar a conversa (pergunta antes). */
   function rowRight(r: Row): SwipeAction[] {
+    if (r.g) return groupRight(r.g);
     const u = r.username;
     if (!u) return [];
     return [{ label: 'Apagar', icon: 'trash', color: colors.red600, onPress: () => {
@@ -161,6 +169,31 @@ export default function Messages() {
           patchDirect(u, () => null);
           qc.removeQueries({ queryKey: ['chat-thread', u] });
           void api.chatClear(u).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); Alert.alert('Não consegui apagar', 'Tenta outra vez.'); });
+        } },
+      ]);
+    } }];
+  }
+  const patchGroup = (id: string, f: (g: TxillGroupSummary) => TxillGroupSummary | null) =>
+    qc.setQueryData<TxillGroupSummary[]>(['chat-groups'], (d) => d?.flatMap((g) => (g.id === id ? (f(g) ?? []) : [g])));
+  /** TxillGroup, deslizar para a direita: marcar como lido (abrir a conversa é o que o marca na API). "Por ler" não existe para grupos. */
+  function groupLeft(g: TxillGroupSummary): SwipeAction[] {
+    if (!(g.unread > 0)) return [];
+    return [{ label: 'Lida', icon: 'check', color: colors.zinc600, onPress: () => {
+      patchGroup(g.id, (x) => ({ ...x, unread: 0 }));
+      void gruposApi.thread(g.id).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-groups'] }));
+    } }];
+  }
+  /** TxillGroup, deslizar para a esquerda: sair do grupo (pergunta antes; o mesmo que "Sair do TxillGroup" na info do grupo). Apagar não existe para grupos. */
+  function groupRight(g: TxillGroupSummary): SwipeAction[] {
+    const me = user?.username;
+    if (!me) return [];
+    return [{ label: 'Sair', icon: 'logout', color: colors.red600, onPress: () => {
+      Alert.alert('Sair do TxillGroup?', `Deixas de receber as mensagens de “${g.name}”. Só voltas se alguém te adicionar.`, [
+        { text: 'Ficar', style: 'cancel' },
+        { text: 'Sair', style: 'destructive', onPress: () => {
+          patchGroup(g.id, () => null);
+          qc.removeQueries({ queryKey: ['chat-group', g.id] });
+          void gruposApi.remove(g.id, me).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-groups'] }); Alert.alert('Não consegui sair do TxillGroup', 'Tenta outra vez.'); });
         } },
       ]);
     } }];
@@ -175,6 +208,7 @@ export default function Messages() {
       sub: what(c.lastMessage),
       at: c.lastMessage.at,
       unread: c.unread,
+      marked: !!c.marked,
       names: [{ name: c.displayName, username: c.hasAvatar ? c.username : undefined }],
       online: !!c.presence?.online,
       group: false,
@@ -197,6 +231,34 @@ export default function Messages() {
   const rows = inboxRows(all, view, term);
   // A pesquisar fora dos pedidos: resultados de conversas e TxillGroups juntos (a caixa procura em tudo).
   const searching = !!term && view !== 'requests';
+  // Deslize grande para os lados = mudar de separador (lib/swipeClaim, "pager interno"); nas pontas, na web, muda de menu.
+  const nav = useRef({ view, searching, setView });
+  nav.current = { view, searching, setView };
+  useFocusEffect(useCallback(() => {
+    const p: InnerPager = {
+      canGo: (d) => nextInboxView(nav.current.view, d, nav.current.searching) !== null,
+      go: (d) => { const v = nextInboxView(nav.current.view, d, nav.current.searching); if (v) nav.current.setView(v); },
+    };
+    registerInnerPager(p);
+    return () => { if (innerPager() === p) registerInnerPager(null); };
+  }, []));
+  // Telemóvel: o deslize grande fora das linhas (as linhas tratam o seu em SwipeRow). Pede bem mais para o lado (40 px)
+  // do que a linha (14 px) e desiste depressa na vertical, para não roubar o scroll. Na web é em lib/swipeTabs.
+  const notesTouch = useRef(false);
+  const pagerPan = usePanGesture(useMemo(() => ({
+    runOnJS: true,
+    maxPointers: 1,
+    activeOffsetX: [-40, 40] as [number, number],
+    failOffsetY: [-12, 12] as [number, number],
+    enabled: Platform.OS !== 'web',
+    onDeactivate: (e: { translationX: number; translationY: number; velocityX: number; canceled?: boolean }) => {
+      if (e.canceled || notesTouch.current) return; // as notas rolam para o lado: aí o deslize é delas
+      const p = innerPager();
+      const d = decideSwipe({ dx: e.translationX, dy: e.translationY, vx: e.velocityX, width }, p);
+      if (d.to === 'inner' && p) p.go(d.dir);
+    },
+  }), [width]));
+  const slider = useTabSlider<InboxView>(searching ? null : view);
   const small = width < 360;
   const newGroup = () => router.push('/messages/new?group=1' as never);
 
@@ -218,7 +280,7 @@ export default function Messages() {
         {text ? <Pressable onPress={() => setText('')} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Limpar"><Icon name="x" size={16} /></Pressable> : null}
         <Pressable onPress={() => setAi(true)} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
       </View>
-      {!term && view !== 'requests' && <NotesStrip />}
+      {!term && view !== 'requests' && <View onTouchStart={() => { notesTouch.current = true; }}><NotesStrip /></View>}
       <View style={styles.tabs} accessibilityRole="tablist">
         {searching ? (
           <View style={[styles.tabBtn, { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }]}>
@@ -226,12 +288,13 @@ export default function Messages() {
             <Text style={styles.searchHint} numberOfLines={1}>conversas e TxillGroups</Text>
           </View>
         ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: small ? 14 : 20, flexShrink: 1 }}>
-            <InboxTabButton label="Conversas" n={counts.chats} on={view === 'chats'} onPress={() => setView('chats')} small={small} />
-            <InboxTabButton label="TxillGroups" n={counts.groups} on={view === 'groups'} onPress={() => setView('groups')} small={small} />
+          <View onLayout={slider.box('main')} style={{ flexDirection: 'row', alignItems: 'center', gap: small ? 14 : 20, flexShrink: 1 }}>
+            <InboxTabButton label="Conversas" n={counts.chats} on={view === 'chats'} onPress={() => setView('chats')} small={small} onLayout={slider.layout('chats', 'main')} />
+            <InboxTabButton label="TxillGroups" n={counts.groups} on={view === 'groups'} onPress={() => setView('groups')} small={small} onLayout={slider.layout('groups', 'main')} />
           </View>
         )}
-        <InboxTabButton label="Pedidos" n={counts.requests} what="à espera" on={view === 'requests'} onPress={() => setView('requests')} small={small} />
+        <InboxTabButton label="Pedidos" n={counts.requests} what="à espera" on={view === 'requests'} onPress={() => setView('requests')} small={small} onLayout={slider.layout('requests')} />
+        {slider.bar}
       </View>
       {view === 'requests' && <Text style={styles.note}>Mensagens de quem não segues. Só passam para a caixa normal se aceitares. Quem recusas não é avisado.</Text>}
       {view === 'groups' && !searching && rows.length > 0 && (
@@ -249,8 +312,11 @@ export default function Messages() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
+      <GestureDetector gesture={pagerPan}>
+      <View style={{ flex: 1 }} collapsable={false} onTouchStartCapture={() => { notesTouch.current = false; }}>
       <PullView pull={pull}>
       <FlatList
+        CellRendererComponent={FadeCell}
         onScrollBeginDrag={closeOpenSwipe}
         onScroll={(e) => { pull.onScroll(e); zasListScrolling(); }}
         scrollEventThrottle={16}
@@ -260,12 +326,16 @@ export default function Messages() {
         ListHeaderComponent={header}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"
-        renderItem={({ item: r }) => (
+        renderItem={({ item: r }) => {
+          const time = listTime(r.at);
+          const badge = unreadBadge(r.unread, r.marked);
+          const hot = r.unread > 0;
+          return (
           <SwipeRow left={rowLeft(r)} right={rowRight(r)}>
           {r.g ? (
             <GroupCard {...groupCardData(r.g)} lastMessage={r.sub} onPress={() => router.push(r.to as never)} />
           ) : (
-          <Pressable onPressIn={() => { const m = /^\/messages\/([^/]+)$/.exec(String(r.to)); if (m && m[1] !== 'new') warm(decodeURIComponent(m[1])); }} onPress={() => router.push(r.to as never)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]}>
+          <Pressable onPressIn={() => { const m = /^\/messages\/([^/]+)$/.exec(String(r.to)); if (m && m[1] !== 'new') warm(decodeURIComponent(m[1])); }} onPress={() => router.push(r.to as never)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={rowLabel(r.name, r.sub, time, r.unread, r.marked)}>
             <View>
               {r.unread ? (
                 <LinearGradient colors={[colors.brand, '#ff9a5b']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.ring}>
@@ -276,20 +346,22 @@ export default function Messages() {
               )}
               {r.online && <View style={styles.online} />}
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={[styles.name, { fontWeight: r.unread ? '800' : '600' }]} numberOfLines={1}>{r.name}</Text>
+            {/* Linha 1: nome e, à direita, a hora. Linha 2: a mensagem e, à direita, quantas por ler. */}
+            <View style={styles.text}>
+              <View style={styles.line}>
+                <Text style={[styles.name, styles.grow, { fontWeight: hot ? '800' : '700' }]} numberOfLines={1}>{r.name}</Text>
+                {time ? <Text style={[styles.time, hot && styles.timeHot]} numberOfLines={1}>{time}</Text> : null}
               </View>
-              <View style={{ flexDirection: 'row' }}>
-                <Text style={[styles.sub, r.unread ? { fontWeight: '600', color: colors.zinc900 } : null, { flexShrink: 1 }]} numberOfLines={1}>{r.sub}</Text>
-                <Text style={[styles.sub, r.unread ? { fontWeight: '600', color: colors.zinc900 } : null]}> · {timeAgo(r.at).replace('Há ', '')}</Text>
+              <View style={styles.line}>
+                <Text style={[styles.sub, styles.grow, hot && styles.subHot]} numberOfLines={1}>{r.sub}</Text>
+                {badge === 'dot' ? <View style={styles.dot} /> : badge ? <View style={styles.count}><Text style={styles.countText}>{badge}</Text></View> : null}
               </View>
             </View>
-            {r.unread > 0 && <View style={styles.dot} accessibilityLabel={`${r.unread} por ler`} />}
           </Pressable>
           )}
           </SwipeRow>
-        )}
+          );
+        }}
         ListEmptyComponent={
           loading ? <Skeleton /> : strangers.length > 0 ? <View /> : (
             <View style={styles.empty}>
@@ -325,6 +397,8 @@ export default function Messages() {
         }
       />
       </PullView>
+      </View>
+      </GestureDetector>
       {ai && <SuperTxillPanel onClose={() => setAi(false)} />}
       <InstantsDock />
     </View>
@@ -347,7 +421,6 @@ const styles = StyleSheet.create({
   tab: { fontSize: 17 },
   tabOn: { fontWeight: '800', color: colors.zinc900 },
   tabOff: { fontWeight: '600', color: colors.zinc500 },
-  tabBar: { position: 'absolute', left: 0, right: 0, bottom: 2, height: 3, borderRadius: 2, backgroundColor: colors.zinc900 },
   badge: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontSize: 11, fontWeight: '700', color: '#fff' },
   searchHint: { flexShrink: 1, fontSize: 14, color: colors.zinc500 },
@@ -360,7 +433,15 @@ const styles = StyleSheet.create({
   online: { position: 'absolute', right: 4, bottom: 4, width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: colors.white, backgroundColor: '#10b981' },
   name: { fontSize: 17, fontWeight: '600', color: colors.zinc900, flexShrink: 1 },
   sub: { fontSize: 15, color: colors.zinc500 },
-  dot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.brand },
+  text: { flex: 1, minWidth: 0, gap: 3 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 22 },
+  grow: { flex: 1, minWidth: 0 },
+  time: { fontSize: 12, fontWeight: '500', color: colors.zinc500, fontVariant: ['tabular-nums'] },
+  timeHot: { color: colors.brand, fontWeight: '700' },
+  subHot: { fontWeight: '600', color: colors.zinc900 },
+  count: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  countText: { fontSize: 12, lineHeight: 15, fontWeight: '800', color: '#fff', fontVariant: ['tabular-nums'] },
+  dot: { width: 12, height: 12, borderRadius: 6, marginRight: 5, backgroundColor: colors.brand },
 
   empty: { marginTop: 40, alignItems: 'center', paddingHorizontal: 24 },
   emptyTitle: { marginTop: 12, fontSize: 20, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
