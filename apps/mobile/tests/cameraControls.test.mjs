@@ -279,3 +279,55 @@ test('recTime e createValueStore', () => {
   s.set(3);
   assert.equal(n, 1);
 });
+
+test('isMinorCameraError: "Camera is not active" (CameraX com a câmara parada) não é avaria; as avarias a sério são', () => {
+  // O que o CameraX responde ao zoom/exposição/lanterna com a câmara parada (editor por cima, a arrancar, a trocar de modo).
+  assert.ok(c.isMinorCameraError('Camera is not active.'));
+  assert.ok(c.isMinorCameraError('Camera is closed'));
+  assert.ok(c.isMinorCameraError('No flash unit'));
+  assert.ok(c.isMinorCameraError('Cancelled by another startFocusAndMetering()'));
+  // As mensagens das avarias do CameraX (StateError+reason.kt da VisionCamera) continuam a contar.
+  for (const m of [
+    'Failed to apply the stream configuration for the given outputs!',
+    'Camera device is already in use!',
+    'Camera is disabled, probably due to a device policy!',
+    'Camera has been removed!',
+    'Encountered a fatal Camera error!',
+    'The maximum number of open cameras has been reached, and more cameras cannot be opened until other instances are closed!',
+    'Camera cannot be opened while Do-Not-Disturb mode is enabled!',
+  ]) assert.ok(!c.isMinorCameraError(m), m);
+});
+
+test('zoomBounds: limites 0 ou estranhos (Android sem estado do zoom) passam a 1…1, nunca máximo abaixo do mínimo', () => {
+  assert.deepEqual(c.zoomBounds(0, 0), { min: 1, max: 1 });
+  assert.deepEqual(c.zoomBounds(undefined, undefined), { min: 1, max: 1 });
+  assert.deepEqual(c.zoomBounds(NaN, Infinity), { min: 1, max: 1 });
+  assert.deepEqual(c.zoomBounds(0.6, 10), { min: 0.6, max: 10 });
+  assert.deepEqual(c.zoomBounds(1, 0), { min: 1, max: 1 });
+  assert.deepEqual(c.zoomBounds(2, 1), { min: 2, max: 2 });
+  // Com os limites de 0, o zoom neutro e as pílulas continuam válidos (antes: zoom 0, recusado pela câmara).
+  const b = c.zoomBounds(0, 0);
+  const info = { platform: 'android', minZoom: b.min, maxZoom: b.max, switchFactors: [], hasUltraWide: false, back: true };
+  assert.deepEqual(c.zoomStops(info, 1), [1]);
+  assert.equal(c.pinchZoom(1, 3, b.min, b.max), 1);
+});
+
+test('quiet: nem exceções síncronas nem promessas rejeitadas escapam', async () => {
+  // O CameraRef da VisionCamera atira logo ("Camera is not yet ready!") antes de haver controlador.
+  assert.doesNotThrow(() => c.quiet(() => { throw new Error('Camera is not yet ready!'); }));
+  assert.doesNotThrow(() => c.quiet(() => undefined));
+  assert.doesNotThrow(() => c.quiet(() => null));
+  let unhandled = 0;
+  const onUnhandled = () => { unhandled += 1; };
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    c.quiet(() => Promise.reject(new Error('`zoom` is out of range!')));
+    let ran = false;
+    c.quiet(() => Promise.resolve().then(() => { ran = true; }));
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(unhandled, 0);
+    assert.ok(ran);
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+  }
+});
