@@ -10,6 +10,7 @@ import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
+import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
@@ -216,6 +217,8 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
     }
   }
   const typing = typers.data ?? [];
+  // @: sugere primeiro o autor e quem já comentou nesta publicação, depois as pessoas mais próximas.
+  const mention = useMentionSuggest({ text, setText, inputRef: input, context: 'post', id: post.id });
 
   const q = useInfiniteQuery({
     queryKey: ['comments', post.id],
@@ -342,10 +345,11 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
               <Icon name="sticker" size={24} color={stickers ? colors.brand : colors.zinc700} />
             </Pressable>
           </View>
+          <MentionSuggest mention={mention} style={{ marginTop: 8 }} />
           <View style={styles.compose}>
             <Avatar name={user?.displayName ?? '?'} username={user?.username} size={36} />
             <View style={styles.field}>
-              <TextInput ref={input} value={text} onChangeText={onType} maxLength={1000} placeholder={replyTo ? `Responder a ${replyTo.author.username}…` : 'Diz lá…'} placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel="Escrever comentário" returnKeyType="send" onSubmitEditing={() => void submit()} />
+              <TextInput ref={input} value={text} onChangeText={onType} {...mention.inputProps} maxLength={1000} placeholder={replyTo ? `Responder a ${replyTo.author.username}…` : 'Diz lá…'} placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel="Escrever comentário" returnKeyType="send" onSubmitEditing={() => void submit()} />
               <Pressable onPress={() => void submit()} disabled={!text.trim() || busy} hitSlop={6}><Text style={[styles.publish, (!text.trim() || busy) && { opacity: 0.6 }]}>Publicar</Text></Pressable>
             </View>
           </View>

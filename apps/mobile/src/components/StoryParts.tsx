@@ -10,6 +10,7 @@ import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
+import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
 import { Sticker } from './StickerPanel';
@@ -144,6 +145,9 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
   const key = ['story-comments', story.id];
   const list = useQuery({ queryKey: key, queryFn: () => api.storyComments(story.id) });
   const kb = useKeyboardHeight();
+  // @ nos comentários do mimo: o autor primeiro, depois as pessoas mais próximas.
+  const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const mention = useMentionSuggest({ text, setText, inputRef, context: 'story', id: story.id });
   const refresh = () => { void qc.invalidateQueries({ queryKey: key }); void qc.invalidateQueries({ queryKey: ['stories', story.author.username] }); };
 
   async function send() {
@@ -176,10 +180,11 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
             </View>
           ))}
         </ScrollView>
+        {canComment ? <MentionSuggest mention={mention} style={{ marginHorizontal: 0, marginTop: 8, marginBottom: 0 }} /> : null}
         {canComment ? (
           <View style={st.compose}>
             <Avatar name={user?.displayName ?? '?'} username={user?.username} size={32} />
-            <TextInput value={text} onChangeText={setText} onFocus={() => onTyping(true)} onBlur={() => onTyping(false)} maxLength={500} placeholder="Adiciona um comentário…" placeholderTextColor={colors.zinc500} returnKeyType="send" onSubmitEditing={() => void send()} style={st.commentInput} accessibilityLabel="Comentário" />
+            <TextInput ref={inputRef} value={text} onChangeText={setText} {...mention.inputProps} onFocus={() => { onTyping(true); mention.inputProps.onFocus(); }} onBlur={() => { onTyping(false); mention.inputProps.onBlur(); }} maxLength={500} placeholder="Adiciona um comentário…" placeholderTextColor={colors.zinc500} returnKeyType="send" onSubmitEditing={() => void send()} style={st.commentInput} accessibilityLabel="Comentário" />
             <Pressable onPress={() => void send()} disabled={!text.trim() || busy} accessibilityRole="button"><Text style={{ paddingHorizontal: 8, fontWeight: '700', fontSize: 16, color: colors.brand, opacity: !text.trim() || busy ? 0.4 : 1 }}>Publicar</Text></Pressable>
           </View>
         ) : (

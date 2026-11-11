@@ -3,11 +3,12 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
+import { MentionSuggest, useMentionSuggest } from '@/components/MentionSuggest';
 import { MusicPicker } from '@/components/MusicPicker';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { CloseFriendsSheet } from '@/components/StoryParts';
@@ -101,6 +102,9 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
   const [music, setMusic] = useState<Track | null>(null);
   const [pickMusic, setPickMusic] = useState(false);
   const [typing, setTyping] = useState(false);
+  // @ na legenda: as pessoas mais próximas, logo por cima do campo.
+  const captionRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const mention = useMentionSuggest({ text: caption, setText: (v) => setCaption(v.slice(0, 200)), inputRef: captionRef });
   // Stickers por cima: a lista, qual está escolhido, o selector aberto e o tamanho do ecrã (medido sem o teclado).
   const [stickers, setStickers] = useState<PlacedSticker[]>([]);
   const [sel, setSel] = useState<number | null>(null);
@@ -189,11 +193,14 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
             <Pressable onPress={() => setMusic(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={16} color="#fff" strokeWidth={2.5} /></Pressable>
           </View>
         ) : null}
+        <MentionSuggest mention={mention} style={{ marginHorizontal: 0, marginBottom: 8 }} />
         <TextInput
+          ref={captionRef}
           value={caption}
           onChangeText={(v) => setCaption(v.slice(0, 200))}
-          onFocus={() => setTyping(true)}
-          onBlur={() => setTyping(false)}
+          {...mention.inputProps}
+          onFocus={() => { setTyping(true); mention.inputProps.onFocus(); }}
+          onBlur={() => { setTyping(false); mention.inputProps.onBlur(); }}
           placeholder="Escreve uma legenda…"
           placeholderTextColor="rgba(255,255,255,0.75)"
           style={[st.caption, typing && { backgroundColor: 'rgba(0,0,0,0.6)' }]}

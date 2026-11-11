@@ -7,6 +7,7 @@ import { birthDateSchema, genderSchema } from '@txillapp/shared';
 import { ZodPipe } from '../common/zod.pipe';
 import { PROFILE_TABS, PostsService, type ProfileTab } from '../posts/posts.service';
 import { SocialService } from './social.service';
+import { MentionSuggestService } from './mention-suggest.service';
 
 type AuthedReq = Request & { userId?: string };
 
@@ -51,12 +52,20 @@ const privacySchema = z.object({
   findByContacts: z.boolean().optional(),
 });
 
+/** Sugestões de @menções: o que se escreveu depois do @ e onde se está a escrever (para subir quem lá está). */
+const mentionSuggestSchema = z.object({
+  q: z.string().max(60).default(''),
+  context: z.enum(['post', 'group', 'story', 'zas', 'chat']).optional(),
+  id: z.string().uuid().optional(),
+});
+
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class SocialController {
   constructor(
     private readonly social: SocialService,
     private readonly posts: PostsService,
+    private readonly mentions: MentionSuggestService,
   ) {}
 
   @Patch('users/me')
@@ -193,6 +202,16 @@ export class SocialController {
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   mentionsExist(@Query('names') names?: string) {
     return this.social.existing((names ?? '').split(',').slice(0, 20));
+  }
+
+  /**
+   * Quem sugerir ao escrever @: as pessoas mais próximas (conversas, amigos próximos, seguir, interações), filtradas
+   * pelo início do @ ou de uma palavra do nome; completa com a pesquisa geral. Chama-se a cada tecla (com debounce).
+   */
+  @Get('mentions/suggest')
+  @Throttle({ default: { limit: 180, ttl: 60_000 } })
+  mentionSuggest(@Req() req: AuthedReq, @Query(new ZodPipe(mentionSuggestSchema)) q: z.infer<typeof mentionSuggestSchema>) {
+    return this.mentions.suggest(req.userId!, q.q, q.context, q.id);
   }
 
   @Get('mentionable')
