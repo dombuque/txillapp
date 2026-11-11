@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 import { api } from '@/lib/api';
@@ -16,6 +17,8 @@ export function TermsUpdate() {
   const router = useRouter();
   const qc = useQueryClient();
   const [later, setLater] = useState(false);
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const q = useQuery({ queryKey: ['privacy'], queryFn: api.privacy, staleTime: 5 * 60_000 });
   const accept = useMutation({
     mutationFn: api.acceptTerms,
@@ -25,7 +28,8 @@ export function TermsUpdate() {
   const open = (to: '/terms' | '/privacy') => { setLater(true); router.push(to as never); };
   return (
     <Sheet title="Atualizámos os termos" onClose={() => setLater(true)}>
-      <View style={{ paddingHorizontal: 20, paddingBottom: 16, gap: 14 }}>
+      {/* A lista do que mudou faz scroll; o botão fica sempre à vista por baixo (num ecrã pequeno ficava escondido). */}
+      <ScrollView style={{ maxHeight: Math.max(200, height * 0.55) }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8, gap: 14 }} showsVerticalScrollIndicator>
         <Text style={st.lead}>O Txillapp cresceu. Isto é o que mudou nos Termos e na Política de Privacidade:</Text>
         {TERMS_CHANGES.map((c) => (
           <View key={c} style={st.item}>
@@ -37,6 +41,8 @@ export function TermsUpdate() {
           <Pressable onPress={() => open('/terms')} accessibilityRole="link"><Text style={st.link}>Ler os Termos</Text></Pressable>
           <Pressable onPress={() => open('/privacy')} accessibilityRole="link"><Text style={st.link}>Ler a Privacidade</Text></Pressable>
         </View>
+      </ScrollView>
+      <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 12), gap: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.zinc200 }}>
         {accept.isError ? <Text style={st.err}>Não consegui guardar. Tenta outra vez.</Text> : null}
         <Pressable onPress={() => accept.mutate()} disabled={accept.isPending} style={({ pressed }) => [st.btn, (pressed || accept.isPending) && { opacity: 0.8 }]} accessibilityRole="button">
           <Text style={st.btnText}>{accept.isPending ? 'A guardar…' : 'Aceitar e continuar'}</Text>
