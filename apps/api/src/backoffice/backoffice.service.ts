@@ -24,7 +24,8 @@ export class BackofficeService {
                 (SELECT count(*) FROM identity.users WHERE status = 'active')::int AS active_total,
                 (SELECT count(*) FROM identity.users WHERE status = 'suspended')::int AS suspended,
                 (SELECT count(*) FROM identity.users WHERE status = 'active' AND email_verified_at IS NULL AND created_at < now() - interval '1 day')::int AS unverified_old,
-                (SELECT count(*) FROM social.referrals WHERE status = 'blocked')::int AS invites_blocked`,
+                (SELECT count(*) FROM social.referrals WHERE status = 'blocked')::int AS invites_blocked,
+                (SELECT count(*) FROM social.referrals WHERE created_at > now() - interval '7 days')::int AS invites_7d`,
       )
     ).rows[0];
     return r as Record<string, number>;

@@ -283,8 +283,10 @@ export interface AdminStats {
   active: { dau: number; wau: number; mau: number };
   retention: { d1: number | null; d7: number | null; d1Base: number; d7Base: number };
   funnel: { signed: number; posted: number; followed: number; cheered: number };
+  /** De onde vêm as contas novas. `invite`: entraram com o código de alguém (servidor antigo não manda). */
+  sources?: { invite: { joined: number; active: number; paid: number; blocked: number; share: number | null } };
   feed: { seen: number; cheers: number; comments: number; hidden: number; engagementRate: number | null; hideRate: number | null };
-  series: Record<'signups' | 'posts' | 'comments' | 'cheers' | 'messages' | 'opens', { day: string; value: number }[]>;
+  series: Record<'signups' | 'posts' | 'comments' | 'cheers' | 'messages' | 'opens', { day: string; value: number }[]> & { inviteSignups?: { day: string; value: number }[] };
   perf: { metric: string; p75: number; n: number }[];
   screens: { path: string; n: number }[];
   errors: { message: string; n: number }[];

@@ -91,6 +91,8 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'group_member_joined': return { text: <>{many ? 'entraram' : 'entrou'} em <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
     case 'group_admin_granted': return { text: <>fez-te administrador de <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
     case 'geleira_cheer': return { text: many ? 'brindaram a tua geleira' : 'brindou a tua geleira' };
+    // Entrou com o meu convite (o prémio de quem convidou chega depois, com o seu próprio aviso no telemóvel).
+    case 'invite_joined': return { text: many ? 'entraram com o teu convite' : 'entrou com o teu convite' };
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
     default: return { text: 'tem novidades para ti' };
   }
@@ -117,6 +119,7 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'venue_review': return n.data.venueSlug ? `/v/${n.data.venueSlug}` : null;
     case 'missed_call': return '/calls';
     case 'geleira_cheer': return '/profile';
+    case 'invite_joined': return '/invites';
     case 'group_join_request':
     case 'group_join_accepted':
     case 'group_member_joined':

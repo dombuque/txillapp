@@ -40,10 +40,11 @@ export default function BackofficeHome() {
       </div>
 
       <h2 className="mb-3 mt-8 text-sm font-bold uppercase tracking-wide text-zinc-500">A app, em números</h2>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {kpi(d?.active_total, 'Contas ativas', 'users')}
         {kpi(d?.new_24h, 'Novas nas últimas 24 h', 'user-plus')}
         {kpi(d?.new_7d, 'Novas em 7 dias', 'trending')}
+        {kpi(d?.invites_7d, 'Entraram por convite (7 dias)', 'gift')}
       </div>
 
       {canAudit && (
