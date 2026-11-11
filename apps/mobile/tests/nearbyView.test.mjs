@@ -10,11 +10,35 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const v = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'nearbyView.ts')).href);
 const RADII = [5, 10, 20, 30];
 
-test('kindsToFetch: pede tudo de uma vez (trocar de filtro não volta a pedir); só eventos quando o "quando" não é hoje', () => {
-  for (const f of ['all', 'venues', 'events', 'people', 'posts', 'groups']) assert.deepEqual(v.kindsToFetch(f, 'today'), v.ALL_KINDS);
-  assert.deepEqual(v.kindsToFetch('events', 'week'), ['events']);
+test('kindsToFetch: pede tudo de uma vez (trocar de filtro não volta a pedir); só eventos com "Hoje" ou "A decorrer" nos Eventos', () => {
+  for (const f of ['all', 'venues', 'people', 'posts', 'groups']) for (const w of ['today', 'now', 'week']) assert.deepEqual(v.kindsToFetch(f, w), v.ALL_KINDS);
+  assert.deepEqual(v.kindsToFetch('events', 'week'), v.ALL_KINDS); // o mesmo pedido de "Tudo": trocar é instantâneo
+  assert.deepEqual(v.kindsToFetch('events', 'today'), ['events']);
   assert.deepEqual(v.kindsToFetch('events', 'now'), ['events']);
   assert.deepEqual(v.ALL_KINDS.slice().sort(), ['events', 'groups', 'people', 'posts', 'venues']);
+});
+
+test('whenToFetch: "Tudo" (e os outros filtros) pede os eventos da semana; "Eventos" mantém Hoje / A decorrer / Esta semana', () => {
+  for (const f of ['all', 'venues', 'people', 'posts', 'groups']) for (const w of ['today', 'now', 'week']) assert.equal(v.whenToFetch(f, w), 'week', `${f}/${w}`);
+  for (const w of ['today', 'now', 'week']) assert.equal(v.whenToFetch('events', w), w);
+});
+
+test('emptyHint de "Tudo": diz que também não há eventos esta semana (é o que "Tudo" traz)', () => {
+  assert.match(v.emptyHint({ filter: 'all', when: 'week', radius: 10, radii: RADII, canEnable: true }).sub, /esta semana/);
+  assert.match(v.emptyHint({ filter: 'all', when: 'week', radius: 30, radii: RADII, canEnable: true }).sub, /esta semana/);
+});
+
+test('clearOnSignOut: tira a presença ao sair, mas nunca falha nem prende o "Terminar sessão"', async () => {
+  let calls = 0;
+  await v.clearOnSignOut(async () => { calls++; });
+  assert.equal(calls, 1);
+  // Falha (sem rede, sessão já inválida…): não rebenta.
+  await v.clearOnSignOut(async () => { throw new Error('sem rede'); });
+  await v.clearOnSignOut(() => { throw new Error('síncrono'); });
+  // Pendurado: desiste ao fim do tempo.
+  const t0 = Date.now();
+  await v.clearOnSignOut(() => new Promise(() => {}), 50);
+  assert.ok(Date.now() - t0 < 1000);
 });
 
 test('shownKinds: cada filtro mostra só o seu tipo; "Tudo" mostra os cinco', () => {

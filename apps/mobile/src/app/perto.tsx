@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, AppState, FlatList, Linking, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Alert, Animated, AppState, FlatList, Linking, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, type AccessibilityActionInfo, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { BackButton } from '@/components/BackButton';
@@ -25,7 +25,7 @@ import { eventWhen, kmLabel, nearbyApi, round2, type NearbyGroup, type NearbyRes
 import { SITE_URL, sized } from '@/lib/config';
 import { useDesktop } from '@/lib/desktop';
 import { kvGet, kvSet } from '@/lib/kv';
-import { emptyHint, kindsToFetch, loadErrorText, locateProblemText, shownKinds, type LocateProblem, type NearbyFilter } from '@/lib/nearbyView';
+import { emptyHint, kindsToFetch, loadErrorText, locateProblemText, shownKinds, whenToFetch, type LocateProblem, type NearbyFilter } from '@/lib/nearbyView';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
@@ -211,6 +211,9 @@ export default function Perto() {
       }
       const perm = await Location.getForegroundPermissionsAsync().catch(() => null);
       if (!alive) return;
+      // Sem autorização ao abrir (tirada com a app fechada): a última presença no mapa sai logo, não espera as 3 h
+      // (como quando a autorização se perde com o mapa aberto).
+      if (!perm?.granted) void nearbyApi.clearPresence().catch(() => undefined);
       if (perm?.granted) {
         const p = await locate(false);
         if (!p || !alive) return;
@@ -254,10 +257,12 @@ export default function Perto() {
 
   // ----- O que há à volta -----
   // Pede-se tudo de uma vez e filtra-se aqui (trocar de filtro é instantâneo); ver nearbyView.kindsToFetch.
+  // "Tudo" (e os outros filtros) traz os eventos da semana; só "Eventos" escolhe Hoje / A decorrer / Esta semana.
   const fetchKinds = kindsToFetch(filter, when);
+  const fetchWhen = whenToFetch(filter, when);
   const q = useQuery({
-    queryKey: ['nearby', place?.lat, place?.lng, radius, fetchKinds.join(','), when],
-    queryFn: () => nearbyApi.around({ lat: place!.lat, lng: place!.lng, radiusKm: radius, kinds: fetchKinds, when }),
+    queryKey: ['nearby', place?.lat, place?.lng, radius, fetchKinds.join(','), fetchWhen],
+    queryFn: () => nearbyApi.around({ lat: place!.lat, lng: place!.lng, radiusKm: radius, kinds: fetchKinds, when: fetchWhen }),
     enabled: !!place,
     staleTime: 60_000,
     // Enquanto chega a resposta fica a anterior, mas só do mesmo sítio (a de outra cidade punha distâncias erradas na lista).
@@ -410,7 +415,7 @@ export default function Perto() {
     ) : null;
 
   // Vazio: a razão certa para cada filtro (a malta só com visibilidade, eventos de hoje vs. da semana…) e o botão que resolve.
-  const hint = emptyHint({ filter, when, radius, radii: RADII, canEnable });
+  const hint = emptyHint({ filter, when: fetchWhen, radius, radii: RADII, canEnable });
   const listEmpty = q.isLoading ? (
     <View style={st.center}><ActivityIndicator /></View>
   ) : q.isError ? (
@@ -626,6 +631,12 @@ function CityGrid({ onPick, current }: { onPick: (c: (typeof CITIES)[number]) =>
 
 const KIND_ICON: Record<MapMarkerKind, IconName> = { venue: 'map-pin', event: 'calendar', post: 'image', group: 'users', person: 'user' };
 
+/**
+ * Ação do leitor de ecrã em cada linha: "Abrir" abre logo, sem passar pelo mapa. O toque normal (activate) não se declara
+ * aqui, para continuar a ser o onPress de sempre (mostrar no mapa e, outra vez, abrir).
+ */
+const OPEN_ACTIONS: AccessibilityActionInfo[] = [{ name: 'open', label: 'Abrir' }];
+
 function Row({ item, selected, onPress, onOpen, onHover }: { item: Item; selected: boolean; onPress: () => void; onOpen: () => void; onHover?: () => void }) {
   const round = item.kind === 'person' || item.kind === 'group';
   return (
@@ -635,9 +646,13 @@ function Row({ item, selected, onPress, onOpen, onHover }: { item: Item; selecte
       style={(s) => [st.row, selected && st.rowSel, (s as { hovered?: boolean }).hovered && !selected && { backgroundColor: colors.zinc100 }]}
       accessibilityRole="button"
       accessibilityLabel={`${item.title}, ${kmLabel(item.distanceKm)}. ${item.sub}`}
-      // O primeiro toque mostra no mapa, o segundo abre (quem usa o leitor de ecrã não vê isto).
-      accessibilityHint={selected ? 'Toca para abrir' : 'Toca para mostrar no mapa e outra vez para abrir'}
+      // O primeiro toque mostra no mapa, o segundo abre. Com o leitor de ecrã há também a ação "Abrir", que abre logo.
+      accessibilityHint={selected ? 'Toca para abrir' : 'Toca para mostrar no mapa e outra vez para abrir. Ou usa a ação Abrir'}
       accessibilityState={{ selected }}
+      accessibilityActions={OPEN_ACTIONS}
+      onAccessibilityAction={(e) => {
+        if (e.nativeEvent.actionName === 'open') onOpen();
+      }}
     >
       {item.kind === 'person' ? (
         <View style={st.personHalo}><Avatar name={item.title} username={item.username} size={44} /></View>

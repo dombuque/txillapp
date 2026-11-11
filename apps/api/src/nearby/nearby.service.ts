@@ -5,7 +5,7 @@ import { PG_POOL } from '../db/db.module';
 import { memberBlocked, venueOnMap } from '../groups/group-access';
 import { blockedBetween, canView } from '../social/visibility';
 import { eventEnd } from './events.service';
-import { agoLabel, distKm, inBox, km1, snapToCell } from './geo-sql';
+import { agoLabel, distKm, inBox, km1, postGeo, snapToCell } from './geo-sql';
 import { SchemaProbe } from './schema-probe';
 
 export const NEARBY_KINDS = ['venues', 'events', 'posts', 'groups', 'people'] as const;
@@ -31,6 +31,8 @@ const media = (id: unknown) => (id ? `/api/v1/media/${id as string}` : null);
 const ADULT_SQL = (u: string) => `(${u}.birth_date IS NOT NULL AND ${u}.birth_date <= (current_date - interval '18 years'))`;
 /** Locais do país onde o espectador está, ou sem país. */
 // Só locais aprovados pela equipa (os que estão em análise não aparecem no mapa) e do país de quem vê.
+/** O dia de hoje em Maputo (o `current_date` da base é o do fuso da sessão, UTC no servidor). */
+const MAPUTO_TODAY = `(now() AT TIME ZONE 'Africa/Maputo')::date`;
 /**
  * Onde um TxillGroup fica no mapa: o local do plano (só entra no LEFT JOIN se aprovado e com posição) tem prioridade;
  * senão o ponto que um admin escolheu (já guardado arredondado, como a malta).
@@ -39,7 +41,9 @@ const G_LAT = 'COALESCE(v.lat, g.map_lat)';
 const G_LNG = 'COALESCE(v.lng, g.map_lng)';
 // Os locais que quem os gere tirou do mapa (show_on_map = false) não entram aqui: nem como pino, nem por distância,
 // nem os eventos deles (ficam na página do local e na pesquisa por nome).
-const VENUE_COUNTRY =`(v.review_status = 'approved' AND v.show_on_map AND (v.country IS NULL OR v.country IS NOT DISTINCT FROM (SELECT vc.country FROM identity.users vc WHERE vc.id = $1)))`;
+// Locais de contas apagadas não aparecem: nem eles, nem os eventos deles (no mapa e na pesquisa).
+const OWNER_ALIVE = `EXISTS (SELECT 1 FROM identity.users ou WHERE ou.id = v.owner_id AND ou.status <> 'deleted')`;
+const VENUE_COUNTRY = `(v.review_status = 'approved' AND v.show_on_map AND (v.country IS NULL OR v.country IS NOT DISTINCT FROM (SELECT vc.country FROM identity.users vc WHERE vc.id = $1)))`;
 
 /**
  * "À tua volta": locais, eventos, publicações recentes, TxillGroups públicos e a malta (quem quiser aparecer),
@@ -87,16 +91,20 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
   private async venues(p: unknown[], search = false) {
     const { accepts } = await this.probe.bits();
     const { rows } = await this.pool.query(
-      `SELECT * FROM (
-         SELECT v.slug, v.name, v.kind, v.avatar_media_id, v.verified, v.lat, v.lng, ${accepts ? 'v.accepts_txills' : 'NULL::boolean'} AS accepts_txills,
-                ${distKm('v.lat', 'v.lng')} AS d,
-                (SELECT count(*) FROM content.checkins ch WHERE ch.venue_id = v.id AND ch.created_at > now() - interval '24 hours')::int AS checkins_today,
-                (SELECT count(*) FROM content.venue_follows f WHERE f.venue_id = v.id)::int AS followers
-           FROM content.venues v
-          WHERE v.lat IS NOT NULL AND v.lng IS NOT NULL AND ${inBox('v.lat', 'v.lng', '$4')} AND ${VENUE_COUNTRY}
-            AND EXISTS (SELECT 1 FROM identity.users ou WHERE ou.id = v.owner_id AND ou.status <> 'deleted')
-            ${search ? `AND (v.name ILIKE $5 ESCAPE '\\' OR v.city ILIKE $5 ESCAPE '\\')` : ''}
-       ) x WHERE x.d <= $4::float8 ORDER BY x.d, x.verified DESC, x.slug LIMIT ${LIMITS.venues}`,
+      // Os check-ins e os seguidores contam-se só para os locais que ficam (depois do LIMIT), não para todos os da caixa.
+      `WITH perto AS (
+         SELECT * FROM (
+           SELECT v.id, v.slug, v.name, v.kind, v.avatar_media_id, v.verified, v.lat, v.lng, ${accepts ? 'v.accepts_txills' : 'NULL::boolean'} AS accepts_txills,
+                  ${distKm('v.lat', 'v.lng')} AS d
+             FROM content.venues v
+            WHERE v.lat IS NOT NULL AND v.lng IS NOT NULL AND ${inBox('v.lat', 'v.lng', '$4')} AND ${VENUE_COUNTRY} AND ${OWNER_ALIVE}
+              ${search ? `AND (v.name ILIKE $5 ESCAPE '\\' OR v.city ILIKE $5 ESCAPE '\\')` : ''}
+         ) x WHERE x.d <= $4::float8 ORDER BY x.d, x.verified DESC, x.slug LIMIT ${LIMITS.venues}
+       )
+       SELECT perto.*,
+              (SELECT count(*) FROM content.checkins ch WHERE ch.venue_id = perto.id AND ch.created_at > now() - interval '24 hours')::int AS checkins_today,
+              (SELECT count(*) FROM content.venue_follows f WHERE f.venue_id = perto.id)::int AS followers
+         FROM perto ORDER BY perto.d, perto.verified DESC, perto.slug`,
       p,
     );
     return rows.map((r) => ({
@@ -122,14 +130,25 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
         : when === 'today'
           ? `${end} > now() AND e.starts_at < ((date_trunc('day', now() AT TIME ZONE 'Africa/Maputo') + interval '1 day') AT TIME ZONE 'Africa/Maputo')`
           : `${end} > now() AND e.starts_at < now() + interval '7 days'`;
+    return this.eventRows(p, window, LIMITS.events);
+  }
+
+  /**
+   * Eventos não cancelados de locais no mapa, do país de quem vê e de contas que não foram apagadas, até ao raio ($4).
+   * O número de interessados conta-se só para os eventos que ficam (depois do LIMIT).
+   */
+  private async eventRows(p: unknown[], where: string, limit: number) {
     const { rows } = await this.pool.query(
-      `SELECT * FROM (
-         SELECT e.id, e.title, e.starts_at, e.ends_at, e.cover_media_id, v.slug, v.name, v.lat, v.lng, ${distKm('v.lat', 'v.lng')} AS d,
-                (SELECT count(*) FROM content.venue_event_interest i WHERE i.event_id = e.id)::int AS interested
-           FROM content.venue_events e JOIN content.venues v ON v.id = e.venue_id
-          WHERE e.cancelled_at IS NULL AND ${window}
-            AND v.lat IS NOT NULL AND v.lng IS NOT NULL AND ${inBox('v.lat', 'v.lng', '$4')} AND ${VENUE_COUNTRY}
-       ) x WHERE x.d <= $4::float8 ORDER BY x.d, x.starts_at, x.id LIMIT ${LIMITS.events}`,
+      `WITH perto AS (
+         SELECT * FROM (
+           SELECT e.id, e.title, e.starts_at, e.ends_at, e.cover_media_id, v.slug, v.name, v.lat, v.lng, ${distKm('v.lat', 'v.lng')} AS d
+             FROM content.venue_events e JOIN content.venues v ON v.id = e.venue_id
+            WHERE e.cancelled_at IS NULL AND ${where}
+              AND v.lat IS NOT NULL AND v.lng IS NOT NULL AND ${inBox('v.lat', 'v.lng', '$4')} AND ${VENUE_COUNTRY} AND ${OWNER_ALIVE}
+         ) x WHERE x.d <= $4::float8 ORDER BY x.d, x.starts_at, x.id LIMIT ${limit}
+       )
+       SELECT perto.*, (SELECT count(*) FROM content.venue_event_interest i WHERE i.event_id = perto.id)::int AS interested
+         FROM perto ORDER BY perto.d, perto.starts_at, perto.id`,
       p,
     );
     return rows.map((r) => ({
@@ -152,19 +171,21 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
     const { rows } = await this.pool.query(
       `SELECT * FROM (
          SELECT x.*, row_number() OVER (PARTITION BY x.author_id ORDER BY x.created_at DESC) AS nth FROM (
-           SELECT p.id, p.short_code, p.location_label, p.location_lat, p.location_lng, p.created_at, p.author_id, u.username, u.display_name,
-                  ${distKm('p.location_lat', 'p.location_lng')} AS d,
+           SELECT p.id, p.short_code, p.location_label, ${postGeo('lat')} AS location_lat, ${postGeo('lng')} AS location_lng, p.created_at, p.author_id, u.username, u.display_name,
+                  ${distKm(postGeo('lat'), postGeo('lng'))} AS d,
                   fm.media_id AS first_media, (fm.mime LIKE 'video/%') AS is_video
              FROM content.posts p
              JOIN identity.users u ON u.id = p.author_id
+             LEFT JOIN content.venues pv ON pv.id = p.venue_id
              JOIN LATERAL (SELECT pm.media_id, ma.mime FROM content.post_media pm JOIN content.media_assets ma ON ma.id = pm.media_id
                             WHERE pm.post_id = p.id ORDER BY pm.position LIMIT 1) fm ON true
-            WHERE p.removed_at IS NULL AND p.kind = 'post' AND p.created_at > now() - interval '48 hours'
+            -- Só publicações normais (sem reposts nem presentes) e nunca as minhas: aqui vê-se o que os outros publicam à volta.
+            WHERE p.removed_at IS NULL AND p.kind = 'post' AND p.created_at > now() - interval '48 hours' AND p.author_id <> $1
               AND p.location_lat IS NOT NULL AND p.location_lng IS NOT NULL AND ${inBox('p.location_lat', 'p.location_lng', '$4')}
-              AND (${ADULT_SQL('u')} OR p.author_id = $1)
+              AND ${ADULT_SQL('u')}
               AND ${canView('u')}
               -- Publicado como um local que saiu do mapa: a posição é a do local, não se mostra.
-              AND NOT EXISTS (SELECT 1 FROM content.venues hv WHERE hv.id = p.venue_id AND NOT hv.show_on_map)
+              AND NOT (pv.id IS NOT NULL AND NOT pv.show_on_map)
          ) x WHERE x.d <= $4::float8
        ) y WHERE y.nth <= 3 ORDER BY y.d, y.created_at DESC LIMIT ${LIMITS.posts}`,
       p,
@@ -199,7 +220,8 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
                 (SELECT count(*) FROM social.group_members gm WHERE gm.group_id = g.id)::int AS members
            FROM social.groups g LEFT JOIN content.venues v ON v.id = g.plan_venue_id AND ${venueOnMap('v')}
           WHERE (g.visibility = 'public' OR g.show_on_map) AND ${G_LAT} IS NOT NULL AND ${G_LNG} IS NOT NULL AND ${inBox(G_LAT, G_LNG, '$4')}
-            AND COALESCE(g.ends_on, g.starts_on, current_date) >= current_date
+            -- O dia de hoje é o de Maputo: entre a meia-noite e as 2h de Maputo, em UTC ainda é o dia anterior.
+            AND COALESCE(g.ends_on, g.starts_on, ${MAPUTO_TODAY}) >= ${MAPUTO_TODAY}
             AND NOT ${memberBlocked('g.id', '$1')}
        ) x WHERE x.d <= $4::float8 ORDER BY x.d, x.starts_on NULLS LAST, x.id LIMIT ${LIMITS.groups}`,
       p,
@@ -276,28 +298,12 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Eventos da pesquisa: até 30 dias à frente. */
-  private async eventsMonth(p: unknown[]) {
-    const { rows } = await this.pool.query(
-      `SELECT * FROM (
-         SELECT e.id, e.title, e.starts_at, e.ends_at, e.cover_media_id, v.slug, v.name, v.lat, v.lng, ${distKm('v.lat', 'v.lng')} AS d,
-                (SELECT count(*) FROM content.venue_event_interest i WHERE i.event_id = e.id)::int AS interested
-           FROM content.venue_events e JOIN content.venues v ON v.id = e.venue_id
-          WHERE e.cancelled_at IS NULL AND ${eventEnd()} > now() AND e.starts_at < now() + interval '30 days'
-            AND v.lat IS NOT NULL AND v.lng IS NOT NULL AND ${inBox('v.lat', 'v.lng', '$4')} AND ${VENUE_COUNTRY}
-            AND (e.title ILIKE $5 ESCAPE '\\' OR v.name ILIKE $5 ESCAPE '\\')
-       ) x WHERE x.d <= $4::float8 ORDER BY x.d, x.starts_at, x.id LIMIT 20`,
+  private eventsMonth(p: unknown[]) {
+    return this.eventRows(
       p,
+      `${eventEnd()} > now() AND e.starts_at < now() + interval '30 days' AND (e.title ILIKE $5 ESCAPE '\\' OR v.name ILIKE $5 ESCAPE '\\')`,
+      20,
     );
-    return rows.map((r) => ({
-      id: r.id as string,
-      title: r.title as string,
-      startsAt: new Date(r.starts_at as string).toISOString(),
-      endsAt: r.ends_at ? new Date(r.ends_at as string).toISOString() : null,
-      coverUrl: media(r.cover_media_id),
-      venue: { slug: r.slug as string, name: r.name as string, lat: Number(r.lat), lng: Number(r.lng) },
-      distanceKm: km1(r.d),
-      interested: Number(r.interested),
-    }));
   }
 
   // ---------- Aparecer no mapa ----------

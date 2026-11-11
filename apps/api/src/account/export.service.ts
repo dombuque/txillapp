@@ -65,7 +65,8 @@ export class ExportService {
       ).catch(() => []),
       musicFavorites: await q(`SELECT track_id AS "trackId", track, created_at AS "createdAt" FROM content.music_favorites WHERE user_id = $1 ORDER BY created_at`).catch(() => []),
       // Locais: os que criei, os que giro (e o papel), os que sigo e os meus check-ins.
-      venuesOwned: await q(`SELECT slug, name, kind, city, created_at AS "createdAt" FROM content.venues WHERE owner_id = $1 ORDER BY created_at`).catch(() => []),
+      // Com a morada e a posição no mapa (e se o local aparece no mapa), que são dados que a pessoa deu.
+      venuesOwned: await q(`SELECT slug, name, kind, address, city, lat, lng, show_on_map AS "showOnMap", created_at AS "createdAt" FROM content.venues WHERE owner_id = $1 ORDER BY created_at`).catch(() => []),
       venuesManaged: await q(
         `SELECT v.slug, v.name, m.role, m.status, m.created_at AS "since" FROM content.venue_managers m JOIN content.venues v ON v.id = m.venue_id WHERE m.user_id = $1 ORDER BY m.created_at`,
       ).catch(() => []),

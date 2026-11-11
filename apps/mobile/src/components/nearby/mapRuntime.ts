@@ -8,6 +8,9 @@
  */
 import type * as Leaflet from 'leaflet';
 
+/** Os mosaicos do OpenStreetMap, servidos (e guardados em cache) pelo servidor do Txillapp: o mesmo em todos os mapas. */
+export const TILE_URL = 'https://txillapp.com/tiles/{z}/{x}/{y}.png';
+
 export type MapMarkerKind = 'venue' | 'event' | 'post' | 'group' | 'person';
 export interface MapMarker {
   id: string;
@@ -103,7 +106,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
   if (opts.zoomControl) L.control.zoom({ position: 'topright', zoomInTitle: 'Aproximar', zoomOutTitle: 'Afastar' }).addTo(map);
   map.attributionControl.setPrefix(false);
   // Mosaicos do OpenStreetMap servidos pelo próprio Txillapp (com cache), sem chave.
-  L.tileLayer('https://txillapp.com/tiles/{z}/{x}/{y}.png', {
+  L.tileLayer(TILE_URL, {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
   }).addTo(map);
@@ -382,7 +385,7 @@ export function createPickMap(L: typeof Leaflet, el: HTMLElement, onMove: (c: { 
   });
   if (opts.zoomControl && !still) L.control.zoom({ position: 'topright', zoomInTitle: 'Aproximar', zoomOutTitle: 'Afastar' }).addTo(map);
   map.attributionControl.setPrefix(false);
-  L.tileLayer('https://txillapp.com/tiles/{z}/{x}/{y}.png', {
+  L.tileLayer(TILE_URL, {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
   }).addTo(map);

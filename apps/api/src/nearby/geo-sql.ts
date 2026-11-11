@@ -33,3 +33,24 @@ export function agoLabel(mins: number): string {
   if (mins < 60) return `há ${Math.floor(mins / 5) * 5} min`;
   return `há ${Math.floor(mins / 60)} h`;
 }
+
+/**
+ * A posição que SAI de uma publicação (alias `p`), com `v` = LEFT JOIN content.venues v ON v.id = p.venue_id.
+ * - Publicada como um local aprovado e no mapa: a posição do local (é um sítio público).
+ * - Publicada como um local que saiu do mapa: nenhuma (como em "À tua volta"), salvo para quem gere o local (`viewer`,
+ *   o placeholder de quem vê), que já vê a posição do local na página dele.
+ * - Todas as outras: no máximo 2 casas decimais (~1 km), também as antigas que guardaram 3.
+ * Usa-se em TODAS as respostas que mostram a posição de uma publicação (feed, detalhe, perfil, pesquisa, mapa).
+ */
+export const postGeo = (axis: 'lat' | 'lng', p = 'p', v = 'pv', viewer: string | null = null) =>
+  `(CASE WHEN ${p}.location_lat IS NULL OR ${p}.location_lng IS NULL THEN NULL
+         WHEN ${v}.id IS NOT NULL AND ${v}.review_status = 'approved' AND ${v}.show_on_map AND ${v}.lat IS NOT NULL AND ${v}.lng IS NOT NULL THEN ${v}.${axis}
+         WHEN ${v}.id IS NOT NULL AND NOT ${v}.show_on_map THEN ${
+           viewer
+             ? `(CASE WHEN ${v}.lat IS NOT NULL AND ${v}.lng IS NOT NULL AND (${v}.owner_id = ${viewer} OR EXISTS (SELECT 1 FROM content.venue_managers vm WHERE vm.venue_id = ${v}.id AND vm.user_id = ${viewer} AND vm.status = 'active')) THEN ${v}.${axis} END)`
+             : 'NULL'
+         }
+         ELSE round(${p}.location_${axis}::numeric, 2)::float8 END)`;
+
+/** Publicada como um local que saiu do mapa: a posição dela não conta para nada que dependa de sítio (alias `p`). */
+export const notHiddenVenuePost = (p = 'p') => `NOT EXISTS (SELECT 1 FROM content.venues hv WHERE hv.id = ${p}.venue_id AND NOT hv.show_on_map)`;

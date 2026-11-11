@@ -26,11 +26,37 @@ export function shownKinds(filter: NearbyFilter): Set<NearbyItemKind> {
 
 /**
  * O que se pede ao servidor. O servidor tem o mesmo limite por tipo com ou sem os outros tipos, por isso pede-se tudo de
- * uma vez e o filtro é feito aqui (trocar de filtro é instantâneo e não gasta pedidos). A única exceção é o "quando" dos
- * eventos: "A decorrer" e "Esta semana" só mudam os eventos, e aí pede-se só os eventos.
+ * uma vez (com os eventos da semana) e o filtro é feito aqui (trocar de filtro é instantâneo e não gasta pedidos).
+ * A única exceção é o "quando" dos eventos: "Hoje" e "A decorrer" só mudam os eventos, e aí pede-se só os eventos.
  */
 export function kindsToFetch(filter: NearbyFilter, when: NearbyWhen): NearbyKind[] {
-  return filter === 'events' && when !== 'today' ? ['events'] : ALL_KINDS;
+  return filter === 'events' && when !== 'week' ? ['events'] : ALL_KINDS;
+}
+
+/**
+ * O "quando" que se pede: só o filtro "Eventos" escolhe (Hoje, A decorrer, Esta semana). "Tudo" e os outros filtros
+ * pedem os eventos da semana, como o servidor faz por omissão.
+ */
+export function whenToFetch(filter: NearbyFilter, when: NearbyWhen): NearbyWhen {
+  return filter === 'events' ? when : 'week';
+}
+
+/**
+ * Ao terminar sessão: tira a minha presença do mapa (`clear` = DELETE /nearby/presence) sem prender a saída.
+ * Nunca falha e espera no máximo `ms` (sem rede, a presença expira sozinha ao fim de 3 horas).
+ */
+export async function clearOnSignOut(clear: () => Promise<unknown>, ms = 2500): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      Promise.resolve().then(clear).then(() => undefined, () => undefined),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /** "a 1,2 km" / "a 300 m" (de 50 em 50 m; 980 m arredonda para "a 1 km", nunca "a 1000 m"). */
@@ -92,9 +118,10 @@ export function emptyHint(o: { filter: NearbyFilter; when: NearbyWhen; radius: n
     case 'groups':
       return { title: 'Sem TxillGroups por perto', sub: `Aparecem os grupos abertos (e os que pedem para entrar) com sítio no mapa.${further}`, action: widen };
     default:
+      // "Tudo" já traz os eventos da semana inteira (não só os de hoje).
       return {
         title: 'Por aqui está calmo',
-        sub: wider ? 'Não há nada perto com estes filtros. Vê um pouco mais longe ou troca o filtro.' : 'Troca o filtro ou volta mais logo: há sempre coisas novas.',
+        sub: wider ? 'Não há nada perto (nem eventos esta semana). Vê um pouco mais longe ou troca o filtro.' : 'Não há nada perto, nem eventos esta semana. Volta mais logo: há sempre coisas novas.',
         action: widen,
       };
   }
