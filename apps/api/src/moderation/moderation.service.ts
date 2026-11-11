@@ -5,6 +5,7 @@ import { PG_POOL } from '../db/db.module';
 import { SearchIndexer } from '../search/search-index';
 import { audienceOk } from '../stories/stories.service';
 import { canView } from '../social/visibility';
+import { wipeMessage } from '../chat/chat.service';
 
 export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media'] as const;
 /** O que as pessoas podem denunciar ('media' só é criado pela verificação automática). */
@@ -12,6 +13,41 @@ export const USER_REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message']
 export const REPORT_REASONS = ['spam', 'harassment', 'hate', 'nudity', 'violence', 'scam', 'impersonation', 'minor', 'other'] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 export type ReportReason = (typeof REPORT_REASONS)[number];
+
+/** A cópia de uma mensagem guardada no momento da denúncia (social.reports.evidence, 0111). */
+export interface MessageEvidence { kind: string; body: string; placeName: string | null; placeAddress: string | null; editedAt: string | null }
+
+/**
+ * SQL das filas agrupadas por conteúdo (`r` = social.reports, `m` = LEFT JOIN social.messages): a cópia da 1.ª denúncia
+ * que a tem e o estado atual da mensagem. Lê-se com `messageProof`.
+ */
+export const EVIDENCE_COLUMNS = `(array_agg(r.evidence ORDER BY r.created_at) FILTER (WHERE r.evidence IS NOT NULL))[1] AS evidence,
+              bool_or(m.id IS NOT NULL) AS cur_exists, bool_or(m.deleted_at IS NOT NULL) AS cur_deleted, max(m.kind) AS cur_kind,
+              max(m.body) AS cur_body, max(m.place_name) AS cur_place_name, max(m.place_address) AS cur_place_address, max(m.edited_at) AS cur_edited_at,
+              (((array_agg(r.evidence ORDER BY r.created_at) FILTER (WHERE r.evidence IS NOT NULL))[1] ->> 'editedAt')::timestamptz IS NOT DISTINCT FROM max(m.edited_at)) AS cur_edited_same`;
+
+/**
+ * O que a moderação vê de uma mensagem denunciada: `reported` (a cópia de quando foi denunciada) e `current` (como está
+ * agora), este só quando é diferente da cópia (editada, apagada ou já não existe). Sem cópia (denúncias antigas, ou de
+ * outro tipo de conteúdo): os dois a null.
+ */
+export function messageProof(r: Record<string, any>) {
+  const e = (r.evidence as MessageEvidence | null) ?? null;
+  if (!e) return { reported: null, current: null };
+  const reported = { kind: e.kind, body: e.body ?? '', placeName: e.placeName ?? null, placeAddress: e.placeAddress ?? null, editedAt: e.editedAt ?? null };
+  const gone = !r.cur_exists || !!r.cur_deleted;
+  const now = {
+    kind: gone ? null : (r.cur_kind as string),
+    body: gone ? '' : ((r.cur_body as string | null) ?? ''),
+    placeName: gone ? null : ((r.cur_place_name as string | null) ?? null),
+    placeAddress: gone ? null : ((r.cur_place_address as string | null) ?? null),
+    editedAt: gone || !r.cur_edited_at ? null : new Date(r.cur_edited_at as string).toISOString(),
+    deleted: gone,
+  };
+  const same = !gone && now.kind === reported.kind && now.body === reported.body && now.placeName === reported.placeName
+    && now.placeAddress === reported.placeAddress && !!r.cur_edited_same;
+  return { reported, current: same ? null : now };
+}
 
 @Injectable()
 export class ModerationService {
@@ -46,8 +82,11 @@ export class ModerationService {
         sql = `SELECT u.id AS owner FROM identity.users u WHERE u.id = $2 AND u.status = 'active'`;
         break;
       case 'message':
-        sql = `SELECT m.sender_id AS owner FROM social.messages m JOIN social.conversations c ON c.id = m.conversation_id
-                WHERE m.id = $2 AND m.deleted_at IS NULL AND (c.user_a = $1 OR c.user_b = $1)`;
+        // De uma conversa a dois em que estou, ou de um TxillGroup de que sou membro (a app oferece "Denunciar" nos dois).
+        sql = `SELECT m.sender_id AS owner FROM social.messages m LEFT JOIN social.conversations c ON c.id = m.conversation_id
+                WHERE m.id = $2 AND m.deleted_at IS NULL
+                  AND (c.user_a = $1 OR c.user_b = $1
+                       OR EXISTS (SELECT 1 FROM social.group_members gm WHERE gm.group_id = m.group_id AND gm.user_id = $1))`;
         break;
     }
     const { rows } = await this.pool.query(sql, [reporter, id]);
@@ -58,8 +97,12 @@ export class ModerationService {
   async report(reporter: string, type: Exclude<ReportType, 'media'>, id: string, reason: ReportReason, note?: string) {
     const owner = await this.ownerIfVisible(reporter, type, id);
     if (owner === reporter) throw new BadRequestException('Não podes denunciar o teu próprio conteúdo');
+    // Numa mensagem guarda-se a prova (0111): uma cópia do que lá está agora. Denunciar outra vez não a substitui.
     await this.pool.query(
-      `INSERT INTO social.reports (id, reporter_id, target_type, target_id, target_user_id, reason, note) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO social.reports (id, reporter_id, target_type, target_id, target_user_id, reason, note, evidence)
+       VALUES ($1, $2, $3, $4, $5, $6, $7,
+               CASE WHEN $3::text = 'message' THEN (SELECT jsonb_build_object('kind', m.kind, 'body', m.body, 'placeName', m.place_name, 'placeAddress', m.place_address, 'editedAt', m.edited_at)
+                                                      FROM social.messages m WHERE m.id = $4) END)
        ON CONFLICT (reporter_id, target_type, target_id) DO NOTHING`,
       [uuidv7(), reporter, type, id, owner, reason, note || null],
     );
@@ -73,7 +116,8 @@ export class ModerationService {
               min(r.created_at) AS first_at, min(r.id::text) AS report_id,
               tu.username AS owner_username, tu.display_name AS owner_name, tu.status AS owner_status,
               (SELECT count(*) FROM social.reports x WHERE x.target_user_id = r.target_user_id AND x.status = 'actioned')::int AS owner_strikes,
-              COALESCE(p.body, c.body, s.caption, m.body, CASE WHEN r.target_type = 'media' THEN max(r.note) END, '') AS preview
+              COALESCE(p.body, c.body, s.caption, max(m.body), CASE WHEN r.target_type = 'media' THEN max(r.note) END, '') AS preview,
+              ${EVIDENCE_COLUMNS}
          FROM social.reports r
          LEFT JOIN identity.users tu ON tu.id = r.target_user_id
          LEFT JOIN content.posts p ON r.target_type = 'post' AND p.id = r.target_id
@@ -81,20 +125,26 @@ export class ModerationService {
          LEFT JOIN content.stories s ON r.target_type = 'story' AND s.id = r.target_id
          LEFT JOIN social.messages m ON r.target_type = 'message' AND m.id = r.target_id
         WHERE r.status = $1
-        GROUP BY r.target_type, r.target_id, r.target_user_id, tu.username, tu.display_name, tu.status, p.body, c.body, s.caption, m.body
+        GROUP BY r.target_type, r.target_id, r.target_user_id, tu.username, tu.display_name, tu.status, p.body, c.body, s.caption
         ORDER BY count(*) DESC, min(r.created_at) ASC LIMIT 100`,
       [status],
     );
-    return rows.map((r) => ({
-      type: r.target_type as ReportType,
-      id: r.target_id as string,
-      reports: r.reports as number,
-      reasons: r.reasons as ReportReason[],
-      firstAt: r.first_at as string,
-      owner: r.owner_username ? { username: r.owner_username as string, displayName: r.owner_name as string, status: r.owner_status as string, strikes: r.owner_strikes as number } : null,
-      preview: (r.preview as string).slice(0, 200),
-      imageUrl: r.target_type === 'media' ? `/api/v1/media/review/${r.target_id}` : null,
-    }));
+    return rows.map((r) => {
+      // Mensagens: o que foi denunciado (a cópia) e, se mudou depois (editada ou apagada), também como está agora.
+      const proof = messageProof(r);
+      return {
+        type: r.target_type as ReportType,
+        id: r.target_id as string,
+        reports: r.reports as number,
+        reasons: r.reasons as ReportReason[],
+        firstAt: r.first_at as string,
+        owner: r.owner_username ? { username: r.owner_username as string, displayName: r.owner_name as string, status: r.owner_status as string, strikes: r.owner_strikes as number } : null,
+        preview: (proof.reported ? proof.reported.body : (r.preview as string)).slice(0, 200),
+        imageUrl: r.target_type === 'media' ? `/api/v1/media/review/${r.target_id}` : null,
+        reported: proof.reported,
+        current: proof.current,
+      };
+    });
   }
 
   /**
@@ -113,12 +163,19 @@ export class ModerationService {
           post: `UPDATE content.posts SET removed_at = now(), removed_by = 'moderation' WHERE id = $1 AND removed_at IS NULL`,
           comment: `DELETE FROM content.comments WHERE id = $1`,
           story: `DELETE FROM content.stories WHERE id = $1`,
-          message: `UPDATE social.messages SET deleted_at = now(), body = '', media_id = NULL, story_media_id = NULL WHERE id = $1 AND deleted_at IS NULL`,
+          message: '', // em baixo: wipeMessage
           media: `UPDATE content.media_assets SET status = 'deleted' WHERE id = $1`,
           user: '',
         }[type];
-        if (!sql) throw new BadRequestException('Contas não se removem: suspende-se');
-        await client.query(sql, [id]);
+        if (type === 'message') {
+          // O mesmo que "Apagar para todos" (texto, ficheiro, sítio, partilha em direto, duração, presente, reações, vistas),
+          // mas sem deixar o aviso no lugar. A cópia guardada na denúncia fica, para a moderação.
+          const m = await client.query('SELECT 1 FROM social.messages WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [id]);
+          if (m.rowCount) await wipeMessage(client, id, false);
+        } else {
+          if (!sql) throw new BadRequestException('Contas não se removem: suspende-se');
+          await client.query(sql, [id]);
+        }
       }
       if (action === 'suspend') {
         if (!owner) throw new BadRequestException('Conta desconhecida');

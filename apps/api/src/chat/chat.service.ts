@@ -34,6 +34,40 @@ export const deletedNotice = (mine: boolean) => (mine ? 'Apagaste esta mensagem'
 
 const pair = (x: string, y: string) => (x < y ? ([x, y] as const) : ([y, x] as const));
 
+/**
+ * Tira tudo o que uma mensagem tinha (o "Apagar para todos" de quem a enviou e a remoção pela moderação fazem o mesmo).
+ * Corre dentro da transação de quem chama, com a mensagem já confirmada (e ainda não apagada).
+ *  - o ficheiro (foto, vídeo, voz) passa a 'deleted' e sai do armazenamento;
+ *  - numa sondagem de grupo (kind 'poll', body = id da sondagem) apaga a sondagem, as opções e os votos;
+ *  - apaga as reações e as vistas (visualização única nos grupos);
+ *  - na linha fica só quem enviou, onde, quando e quando foi apagada: o texto, o ficheiro, o sítio, a partilha em direto,
+ *    a duração, a onda, o valor do presente, a visualização única, a hora da edição e a citação vão-se, e o tipo passa a
+ *    'text' (a app desenha o aviso a partir de `deleted`, não do tipo). O presente em si (a transação na carteira) não se
+ *    desfaz: `gift_tx` fica, para o mesmo presente não voltar a entrar na conversa.
+ * `notice` = deixar o aviso "Esta mensagem foi apagada" no lugar (o "Apagar para todos"); a moderação remove sem aviso.
+ */
+export async function wipeMessage(db: Pick<Pool, 'query'>, messageId: string, notice: boolean) {
+  await db.query(
+    `DELETE FROM social.group_polls p USING social.messages m
+      WHERE m.id = $1 AND m.kind = 'poll' AND m.group_id = p.group_id AND p.id::text = m.body`,
+    [messageId],
+  );
+  await db.query(`UPDATE content.media_assets SET status = 'deleted' WHERE id = (SELECT media_id FROM social.messages WHERE id = $1)`, [messageId]);
+  await db.query('DELETE FROM social.message_reactions WHERE message_id = $1', [messageId]);
+  await db.query('DELETE FROM social.message_views WHERE message_id = $1', [messageId]);
+  await db.query(
+    `UPDATE social.messages SET deleted_at = now(), deleted_notice = $2, kind = 'text', body = '', media_id = NULL, story_media_id = NULL,
+            duration_ms = NULL, waveform = NULL, lat = NULL, lng = NULL, place_name = NULL, place_address = NULL, live_until = NULL,
+            gift_amount = NULL, view_once = false, viewed_at = NULL, edited_at = NULL, reply_to = NULL
+      WHERE id = $1`,
+    [messageId, notice],
+  );
+}
+
+/** Uma partilha em direto que já acabou (o tempo acabou ou alguém carregou em "Parar"). As localizações fixas não têm `live_until`. */
+export const liveEnded = (m: { kind?: unknown; live_until?: unknown }) =>
+  m.kind === 'location' && !!m.live_until && new Date(m.live_until as string).getTime() <= Date.now();
+
 export interface Outgoing {
   body: string;
   kind: 'text' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply';
@@ -323,44 +357,51 @@ export class ChatService {
     for (const r of rx.rows) reactions.set(r.message_id, [...(reactions.get(r.message_id) ?? []), { reaction: r.reaction, count: r.n, mine: r.mine }]);
     const quoted = new Map(rp.rows.map((r) => [r.id as string, r]));
     return Promise.all(
-      page.map(async (m) => m.deleted_at ? this.deletedItem(me, m) : ({
-        id: m.id as string,
-        fromMe: m.sender_id === me,
-        // Visualização única: o conteúdo nunca vai na lista (nem para quem enviou); só se lê ao abrir, uma vez.
-        body: m.view_once ? '' : (m.body as string),
-        kind: m.kind as MessageKind,
-        viewOnce: !!m.view_once,
-        opened: !!m.viewed_at,
-        storyUrl: m.story_media_id && m.kind !== 'zas_reply' ? `/api/v1/media/${m.story_media_id}` : null,
-        // Resposta a um Zás: a foto do Zás vai como média da mensagem (URL assinado, como as fotos do chat).
-        mediaUrl: m.media_id && !m.view_once ? this.media.chatUrl(m.media_id) : m.kind === 'zas_reply' && m.story_media_id ? this.media.chatUrl(m.story_media_id) : null,
-        durationMs: m.duration_ms as number | null,
-        waveform: m.view_once ? null : ((m.waveform as string | null) ?? null),
-        lat: (m.lat as number | null) ?? null,
-        lng: (m.lng as number | null) ?? null,
-        /** Localização de um sítio: o nome e a morada (null na localização atual, na em direto e nas mensagens antigas). */
-        placeName: (m.place_name as string | null) ?? null,
-        placeAddress: (m.place_address as string | null) ?? null,
-        /** Presente enviado na conversa: quanto (a nota vai no texto). */
-        giftAmount: (m.gift_amount as number | null) ?? null,
-        /** Localização em direto ainda a decorrer. */
-        live: !!m.live_until && new Date(m.live_until as string).getTime() > Date.now(),
-        liveUntil: (m.live_until as string | null) ?? null,
-        // Publicação partilhada: o cartão mostra-se com os dados de quem a vê agora (null se já não a pode ver).
-        post: m.kind === 'post' ? await this.posts.getOne(me, m.body as string).catch(() => null) : undefined,
-        /** Mensagem a que esta responde (um excerto; sem o conteúdo de mensagens de visualização única). */
-        replyTo: (() => {
-          const q = m.reply_to ? quoted.get(m.reply_to as string) : null;
-          if (!m.reply_to) return null;
-          if (!q || q.deleted_at) return { id: m.reply_to as string, gone: true };
-          return { id: q.id as string, gone: false, fromMe: q.sender_id === me, name: (q.name as string) || '', kind: q.kind as MessageKind, body: q.view_once || q.kind !== 'text' ? '' : String(q.body).slice(0, 120) };
-        })(),
-        reactions: reactions.get(m.id as string) ?? [],
-        /** Foi editada depois de enviada (a bolha mostra "editada" ao lado da hora). */
-        edited: !!m.edited_at,
-        at: m.created_at as string,
-      })),
+      page.map(async (m) => m.deleted_at ? this.deletedItem(me, m) : this.item(me, m, reactions, quoted)),
     );
+  }
+
+  private async item(me: string, m: Record<string, any>, reactions: Map<string, { reaction: string; count: number; mine: boolean }[]>, quoted: Map<string, Record<string, any>>) {
+    // Partilha em direto que já acabou: a última posição exata (e o sítio) deixa de ser servida a quem quer que seja, também
+    // a quem a enviou. A bolha fica só "Partilha em direto terminada", sem mapa. As localizações fixas mantêm o ponto.
+    const ended = liveEnded(m);
+    return {
+      id: m.id as string,
+      fromMe: m.sender_id === me,
+      // Visualização única: o conteúdo nunca vai na lista (nem para quem enviou); só se lê ao abrir, uma vez.
+      body: m.view_once ? '' : (m.body as string),
+      kind: m.kind as MessageKind,
+      viewOnce: !!m.view_once,
+      opened: !!m.viewed_at,
+      storyUrl: m.story_media_id && m.kind !== 'zas_reply' ? `/api/v1/media/${m.story_media_id}` : null,
+      // Resposta a um Zás: a foto do Zás vai como média da mensagem (URL assinado, como as fotos do chat).
+      mediaUrl: m.media_id && !m.view_once ? this.media.chatUrl(m.media_id) : m.kind === 'zas_reply' && m.story_media_id ? this.media.chatUrl(m.story_media_id) : null,
+      durationMs: m.duration_ms as number | null,
+      waveform: m.view_once ? null : ((m.waveform as string | null) ?? null),
+      lat: ended ? null : ((m.lat as number | null) ?? null),
+      lng: ended ? null : ((m.lng as number | null) ?? null),
+      /** Localização de um sítio: o nome e a morada (null na localização atual, na em direto e nas mensagens antigas). */
+      placeName: ended ? null : ((m.place_name as string | null) ?? null),
+      placeAddress: ended ? null : ((m.place_address as string | null) ?? null),
+      /** Presente enviado na conversa: quanto (a nota vai no texto). */
+      giftAmount: (m.gift_amount as number | null) ?? null,
+      /** Localização em direto ainda a decorrer. */
+      live: !!m.live_until && new Date(m.live_until as string).getTime() > Date.now(),
+      liveUntil: (m.live_until as string | null) ?? null,
+      // Publicação partilhada: o cartão mostra-se com os dados de quem a vê agora (null se já não a pode ver).
+      post: m.kind === 'post' ? await this.posts.getOne(me, m.body as string).catch(() => null) : undefined,
+      /** Mensagem a que esta responde (um excerto; sem o conteúdo de mensagens de visualização única). */
+      replyTo: (() => {
+        const q = m.reply_to ? quoted.get(m.reply_to as string) : null;
+        if (!m.reply_to) return null;
+        if (!q || q.deleted_at) return { id: m.reply_to as string, gone: true };
+        return { id: q.id as string, gone: false, fromMe: q.sender_id === me, name: (q.name as string) || '', kind: q.kind as MessageKind, body: q.view_once || q.kind !== 'text' ? '' : String(q.body).slice(0, 120) };
+      })(),
+      reactions: reactions.get(m.id as string) ?? [],
+      /** Foi editada depois de enviada (a bolha mostra "editada" ao lado da hora). */
+      edited: !!m.edited_at,
+      at: m.created_at as string,
+    };
   }
 
   /** Mensagem apagada para todos: só o aviso, no lugar dela (nada do que tinha: texto, ficheiro, sítio, reações, citação). */
@@ -380,6 +421,8 @@ export class ChatService {
       waveform: null,
       lat: null,
       lng: null,
+      placeName: null,
+      placeAddress: null,
       giftAmount: null,
       live: false,
       liveUntil: null,
@@ -493,30 +536,43 @@ export class ChatService {
   }
 
   /**
-   * Apagar para todos (só quem enviou; sem limite de tempo): o conteúdo desaparece (texto, ficheiro, sítio, partilha em
-   * direto) e no lugar fica o aviso "Apagaste esta mensagem" / "Esta mensagem foi apagada", que cada um pode tirar com
+   * Apagar para todos (só quem enviou; sem limite de tempo; nas conversas e nos TxillGroups): o conteúdo desaparece
+   * (texto, ficheiro, sítio, partilha em direto, duração, valor do presente, reações, vistas e, numa sondagem, a sondagem
+   * com as opções e os votos; ver wipeMessage) e no lugar fica o aviso "Apagaste esta mensagem" / "Esta mensagem foi apagada", que cada um pode tirar com
    * "Apagar para mim". De outra pessoa, já apagada ou que não existe: 404.
    */
   async remove(me: string, messageId: string) {
-    // O ficheiro (foto, vídeo, voz) desaparece do armazenamento com a mensagem.
-    await this.pool.query(
-      `UPDATE content.media_assets SET status = 'deleted' WHERE id = (SELECT media_id FROM social.messages WHERE id = $1 AND sender_id = $2 AND deleted_at IS NULL)`,
-      [messageId, me],
-    );
-    const { rows } = await this.pool.query(
-      `UPDATE social.messages m SET deleted_at = now(), deleted_notice = true, body = '', media_id = NULL, story_media_id = NULL,
-              lat = NULL, lng = NULL, place_name = NULL, place_address = NULL, live_until = NULL, waveform = NULL
-        WHERE m.id = $1 AND m.sender_id = $2 AND m.deleted_at IS NULL
-       RETURNING m.group_id, (SELECT CASE WHEN c.user_a = $2 THEN c.user_b ELSE c.user_a END FROM social.conversations c WHERE c.id = m.conversation_id) AS other`,
-      [messageId, me],
-    );
-    if (!rows[0]) throw new NotFoundException('Esta mensagem já foi apagada ou não é tua');
-    if (rows[0].group_id) {
-      const members = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1 AND user_id <> $2', [rows[0].group_id, me])).rows;
-      for (const r of members) this.events.emit(r.user_id as string, { type: 'deleted', group: rows[0].group_id as string });
+    // Tudo numa transação, com a mensagem bloqueada: o ficheiro, a sondagem, as reações e as vistas vão-se com ela (ver wipeMessage).
+    const client = await this.pool.connect();
+    let m: { group_id: string | null; kind: string; other: string | null } | undefined;
+    try {
+      await client.query('BEGIN');
+      m = (
+        await client.query(
+          `SELECT m.group_id, m.kind, (SELECT CASE WHEN c.user_a = $2 THEN c.user_b ELSE c.user_a END FROM social.conversations c WHERE c.id = m.conversation_id) AS other
+             FROM social.messages m WHERE m.id = $1 AND m.sender_id = $2 AND m.deleted_at IS NULL FOR UPDATE`,
+          [messageId, me],
+        )
+      ).rows[0];
+      if (!m) throw new NotFoundException('Esta mensagem já foi apagada ou não é tua');
+      await wipeMessage(client, messageId, true);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw e;
+    } finally {
+      client.release();
+    }
+    if (m.group_id) {
+      const members = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1', [m.group_id])).rows;
+      for (const r of members) {
+        if (r.user_id !== me) this.events.emit(r.user_id as string, { type: 'deleted', group: m.group_id });
+        // A sondagem saiu também do plano do grupo: os ecrãs abertos voltam a pedir as sondagens.
+        if (m.kind === 'poll') this.events.emit(r.user_id as string, { type: 'group', groupId: m.group_id, what: 'poll' });
+      }
       return;
     }
-    this.events.emit(rows[0].other, { type: 'deleted', from: await this.usernameOf(me) });
+    this.events.emit(m.other!, { type: 'deleted', from: await this.usernameOf(me) });
   }
 
   /**
@@ -688,9 +744,14 @@ export class ChatService {
     this.events.emit(rows[0].other as string, { type: 'message', from: await this.usernameOf(me) });
   }
 
+  /**
+   * "Parar" a partilha em direto: acaba agora e a última posição apaga-se (a mensagem fica só "Partilha em direto terminada").
+   * Só mexe numa partilha em direto minha ainda a decorrer: as localizações fixas (sem `live_until`) nunca passam por aqui.
+   */
   async stopLive(me: string, messageId: string) {
     const { rows } = await this.pool.query(
-      `UPDATE social.messages m SET live_until = now() WHERE m.id = $1 AND m.sender_id = $2 AND m.kind = 'location' AND m.live_until > now()
+      `UPDATE social.messages m SET live_until = now(), lat = NULL, lng = NULL, place_name = NULL, place_address = NULL
+        WHERE m.id = $1 AND m.sender_id = $2 AND m.kind = 'location' AND m.live_until IS NOT NULL AND m.live_until > now()
        RETURNING (SELECT CASE WHEN c.user_a = $2 THEN c.user_b ELSE c.user_a END FROM social.conversations c WHERE c.id = m.conversation_id) AS other`,
       [messageId, me],
     );
