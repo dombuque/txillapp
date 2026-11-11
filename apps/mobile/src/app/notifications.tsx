@@ -94,6 +94,8 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'geleira_cheer': return { text: many ? 'brindaram a tua geleira' : 'brindou a tua geleira' };
     // Brindes numa publicação (ou tcheka) ou num comentário: o servidor já os juntou numa linha.
     case 'cheer': return { text: cheerVerb(n.data, many) };
+    // Entrou com o meu convite (o prémio de quem convidou chega depois, com o seu próprio aviso no telemóvel).
+    case 'invite_joined': return { text: many ? 'entraram com o teu convite' : 'entrou com o teu convite' };
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
     default: return { text: 'tem novidades para ti' };
   }
@@ -121,6 +123,7 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'missed_call': return '/calls';
     case 'geleira_cheer': return '/profile';
     case 'cheer': return cheerTarget(n.data);
+    case 'invite_joined': return '/invites';
     case 'group_join_request':
     case 'group_join_accepted':
     case 'group_member_joined':

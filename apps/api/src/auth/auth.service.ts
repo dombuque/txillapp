@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { LoginInput, PublicUser, RegisterInput, usernameSchema, TERMS_VERSION } from '@txillapp/shared';
 import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
-import { INVITE, hashNet, isDisposable } from '../invites/rules';
+import { hashNet, isDisposable } from '../invites/rules';
 import { SearchIndexer } from '../search/search-index';
 import { PG_POOL } from '../db/db.module';
 import { MailService } from '../mail/mail.service';
@@ -122,26 +122,17 @@ export class AuthService {
     }
   }
 
-  /** Regista que esta pessoa entrou com o convite de alguém (nunca falha o registo). A rede é guardada só como impressão. */
+  /**
+   * Regista que esta pessoa entrou com o convite de alguém (nunca falha o registo). A rede é guardada só como impressão.
+   * As regras (antifraude, aviso a quem convidou, Txills de boas-vindas do convite) vivem no serviço dos convites, que
+   * depende deste módulo: vai-se buscá-lo só aqui, sem criar um ciclo.
+   */
   private async attachReferral(inviteeId: string, rawCode: string | undefined, email: string, ip: string | undefined) {
     if (!rawCode) return;
     try {
-      const inviter = (await this.pool.query('SELECT user_id FROM social.invite_codes WHERE code = $1 AND active', [rawCode.trim().toUpperCase()])).rows[0];
-      if (!inviter || inviter.user_id === inviteeId) return;
+      const { InvitesService } = await import('../invites/invites.service');
       const net = ip ? hashNet(ip, this.netSalt) : null;
-      let status = 'registered';
-      let reason: string | null = null;
-      if (isDisposable(email)) {
-        status = 'blocked';
-        reason = 'email temporário';
-      } else if (net) {
-        const n = (await this.pool.query("SELECT count(*)::int AS n FROM social.referrals WHERE inviter_id = $1 AND ip_hash = $2 AND created_at > now() - interval '24 hours'", [inviter.user_id, net])).rows[0].n as number;
-        if (n >= INVITE.SAME_NET_MAX) {
-          status = 'blocked';
-          reason = 'mesma rede';
-        }
-      }
-      await this.pool.query('INSERT INTO social.referrals (invitee_id, inviter_id, status, reason, ip_hash) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING', [inviteeId, inviter.user_id, status, reason, net]);
+      await this.moduleRef.get(InvitesService, { strict: false }).attach(inviteeId, rawCode, email, net);
     } catch {
       /* o convite não pode estragar o registo */
     }

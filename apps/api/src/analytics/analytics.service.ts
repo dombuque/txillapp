@@ -98,6 +98,15 @@ export class AnalyticsService {
               count(*) FILTER (WHERE EXISTS (SELECT 1 FROM content.cheers c WHERE c.user_id = u.id))::int AS cheered
          FROM identity.users u WHERE u.created_at > now() - make_interval(days => $1)`,
     );
+    // Entradas por convite (a fonte «invite»): quem se registou com o código de alguém, no período, e em que pé está.
+    // `blocked`: não conta para prémios (email temporário, mesma rede, teto); a pessoa entrou na mesma.
+    const [invites] = await q(
+      `SELECT count(*)::int AS joined,
+              count(*) FILTER (WHERE status IN ('qualified', 'paid'))::int AS active,
+              count(*) FILTER (WHERE status = 'paid')::int AS paid,
+              count(*) FILTER (WHERE status = 'blocked')::int AS blocked
+         FROM social.referrals WHERE created_at > now() - make_interval(days => $1)`,
+    );
     const [feed] = await q(
       `SELECT (SELECT count(*) FROM content.feed_impressions WHERE seen_at > now() - make_interval(days => $1))::int AS seen,
               (SELECT count(*) FROM content.cheers WHERE created_at > now() - make_interval(days => $1))::int AS cheers,
@@ -134,9 +143,11 @@ export class AnalyticsService {
       active,
       retention: { d1: pct(ret.d1_back, ret.d1_base), d7: pct(ret.d7_back, ret.d7_base), d1Base: ret.d1_base, d7Base: ret.d7_base },
       funnel,
+      sources: { invite: { ...invites, share: pct(invites.joined, funnel.signed) } },
       feed: { ...feed, engagementRate: pct(feed.cheers + feed.comments, feed.seen), hideRate: pct(feed.hidden, feed.seen) },
       series: {
         signups: series(await perDay('identity.users')),
+        inviteSignups: series(await perDay('social.referrals')),
         posts: series(await perDay('content.posts', 'created_at', 'removed_at IS NULL')),
         comments: series(await perDay('content.comments')),
         cheers: series(await perDay('content.cheers')),

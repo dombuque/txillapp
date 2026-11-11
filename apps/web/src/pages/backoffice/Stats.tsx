@@ -74,6 +74,14 @@ export default function AdminStats() {
               <BarChart title={tr('Brindes')} data={s.series.cheers} />
               <BarChart title={tr('Comentários')} data={s.series.comments} />
               <BarChart title={tr('Mensagens')} data={s.series.messages} />
+              {s.series.inviteSignups && <BarChart title={tr('Entraram por convite')} data={s.series.inviteSignups} />}
+              {s.sources && (
+                <Tile
+                  label={tr('Fonte: convite')}
+                  value={String(s.sources.invite.joined)}
+                  hint={`${pct(s.sources.invite.share)} das contas novas · ${s.sources.invite.active} ficaram ativas · ${s.sources.invite.paid} premiadas · ${s.sources.invite.blocked} sem prémio (antifraude)`}
+                />
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
 

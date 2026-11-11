@@ -60,7 +60,7 @@ export interface Comment {
 export type GiftVisibility = 'silent' | 'private' | 'public';
 export type ReportReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence' | 'scam' | 'impersonation' | 'minor' | 'other';
 export type ReportType = 'post' | 'comment' | 'story' | 'user' | 'message';
-export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review' | 'group_join_request' | 'group_join_accepted' | 'group_member_joined' | 'group_admin_granted' | 'geleira_cheer' | 'cheer';
+export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review' | 'group_join_request' | 'group_join_accepted' | 'group_member_joined' | 'group_admin_granted' | 'geleira_cheer' | 'cheer' | 'invite_joined';
 export interface AppNotification {
   id: string;
   kind: NotificationKind;
@@ -86,7 +86,14 @@ export interface InvitesInfo {
   rules: { reward: number; perDay: number; maxPaid: number; holdDays: number };
   eligible: boolean;
   note: string | null;
+  /**
+   * Para desenhar o cartão do convite no aparelho (servidor antigo não manda). `items`: só os da geleira à vista de todos
+   * (vazio se a geleira ou a conta não forem públicas); `adult`: false → nada de álcool no cartão.
+   */
+  card?: { displayName: string; username: string; hasAvatar: boolean; adult: boolean; geleiraPublic: boolean; items: { name: string; kind: string; category: string; alcoholic: boolean; favorite: boolean }[] };
 }
+/** O convite visto por quem ainda não tem conta (página /c/CÓDIGO e registo). */
+export interface InvitePreview { username: string; displayName: string; hasAvatar?: boolean; items?: string[]; reward?: number; phrase?: string }
 export interface WalletView {
   currency: string;
   balance: number;
@@ -577,7 +584,7 @@ export const api = {
   usernameAvailable: (u: string): Promise<{ available: boolean; reason?: 'invalid' | 'reserved' | 'taken'; suggestions?: string[] }> => raw(`/auth/username-available?username=${encodeURIComponent(u)}`),
   emailAvailable: (e: string): Promise<{ available: boolean; reason?: 'invalid' | 'taken' }> => raw(`/auth/email-available?email=${encodeURIComponent(e)}`),
   forgotPassword: (email: string): Promise<{ ok: boolean }> => raw('/auth/password/forgot', post({ email })),
-  invitePreview: (code: string): Promise<{ username: string; displayName: string }> => raw(`/invites/preview/${encodeURIComponent(code)}`),
+  invitePreview: (code: string): Promise<InvitePreview> => raw(`/invites/preview/${encodeURIComponent(code)}`),
   async logout(): Promise<void> {
     const headers = await refreshStore.get();
     if (headers) await call('/auth/logout', { method: 'POST', headers }, false).catch(() => undefined);

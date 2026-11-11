@@ -26,7 +26,9 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   | 'geleira_cheer'
   // Brindaram a minha publicação (ou tcheka) ou o meu comentário: UMA linha por coisa brindada a cada 24 h, que sobe ao topo com
   // o último a brindar (ator). data: { target: 'post' | 'comment', targetId, postId, commentId?, tcheka?, since }. Ver notifyCheer.
-  | 'cheer';
+  | 'cheer'
+  // Alguém entrou com o meu convite (ator = quem entrou; sem data). Chega logo no registo; o prémio tem o seu próprio aviso.
+  | 'invite_joined';
 
 /** A categoria que a pessoa pode desligar (os avisos de bloqueio e de verificação ficam sempre). */
 export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
@@ -36,6 +38,7 @@ export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   missed_call: 'calls', venue_invite: 'venues', venue_payment: 'venues', venue_review: 'venues',
   group_join_request: 'messages', group_join_accepted: 'messages', group_member_joined: 'messages', group_admin_granted: 'messages',
   geleira_cheer: 'reactions', cheer: 'reactions',
+  invite_joined: 'invites',
 };
 
 /** O que se brindou: uma publicação (ou tcheka) ou um comentário. */
@@ -144,6 +147,8 @@ export class NotificationsService {
       group_admin_granted: { body: `fez-te administrador de ${String(n.data?.groupName ?? 'um TxillGroup')}`, url: groupUrl === '/notifications' ? groupUrl : `${groupUrl}?info=1` },
       // Abre o meu perfil, onde está a geleira (e quem a brindou).
       geleira_cheer: { body: 'brindou a tua geleira', url: '/profile' },
+      // Abre os convites, onde está o progresso (quem entrou e quem já deu Txills).
+      invite_joined: { body: 'entrou com o teu convite', url: '/invites' },
       venue_payment: { body: `pagou ${Number(n.data?.amount ?? 0)} Txills ${n.data?.venueName ? `em ${String(n.data.venueName)}` : 'no teu local'}`, url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}/gerir?s=txills` : '/notifications' },
     };
     const m = t[n.kind];
