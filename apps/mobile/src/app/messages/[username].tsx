@@ -213,6 +213,7 @@ export default function Thread() {
         onOpenOnce={(m) => void openOnce(m)}
         onStopLive={(m) => void stopSharing(m)}
         onRetry={() => undefined}
+        onReply={startReply}
       />
 
       {request && person ? (

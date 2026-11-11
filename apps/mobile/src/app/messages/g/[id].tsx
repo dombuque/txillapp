@@ -151,6 +151,7 @@ export default function GroupThreadScreen() {
           onOpenOnce={(m) => void openOnce(m)}
           onStopLive={(m) => void stopLiveShare(m.id).then(() => q.refetch()).catch(() => undefined)}
           onRetry={() => undefined}
+          onReply={startReply}
         />
       )}
       {group && (
