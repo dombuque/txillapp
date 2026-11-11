@@ -13,6 +13,8 @@ import { SendLocationSheet } from './SendLocationSheet';
 import { StickerPanel } from './StickerPanel';
 import { useGifsConfig } from './GifPanel';
 import { gifMessage } from '@/lib/gifs';
+import { usePastedImage } from '@/lib/usePastedImage';
+import { PastedImageSheet } from './PastedImageSheet';
 import { NewBadge } from './WhatsNew';
 import { markSeen } from '@/lib/whatsNew';
 
@@ -49,6 +51,8 @@ export function GroupComposer({
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const timer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   useEffect(() => () => clearInterval(timer.current), []);
+  // Site: colar ou arrastar uma imagem para a caixa abre a pré-visualização (Enviar ou Cancelar).
+  const paste = usePastedImage<React.ComponentRef<typeof TextInput>>({ onProblem: setErr, onOpen: () => { setErr(''); setPanel(null); } });
 
   async function dispatch(msg: GroupSendBody) {
     setErr('');
@@ -79,17 +83,34 @@ export function GroupComposer({
         : ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.8 }));
       const a = r.canceled ? null : r.assets[0];
       if (!a) return;
-      setBusy(true);
       const video = a.type === 'video';
-      const mime = a.mimeType ?? (video ? 'video/mp4' : 'image/jpeg');
-      const mediaId = await uploadChatMedia(a.uri, mime);
+      await sendMedia(a.uri, a.mimeType ?? (video ? 'video/mp4' : 'image/jpeg'), video);
+    } catch (e) {
+      setErr((e as Error).message || 'Não consegui enviar');
+    }
+  }
+  /** Envia uma foto ou vídeo (da galeria, da câmara ou colado), com o texto escrito como legenda. */
+  async function sendMedia(uri: string, mime: string, video: boolean) {
+    setBusy(true);
+    try {
+      const mediaId = await uploadChatMedia(uri, mime);
       await dispatch({ kind: video ? 'video' : 'image', mediaId, body: text.trim() || undefined });
       setText('');
-    grow.reset();
+      grow.reset();
+    } finally {
+      setBusy(false);
+    }
+  }
+  /** "Enviar" na pré-visualização da imagem colada ou arrastada: o mesmo caminho da galeria. */
+  async function sendPasted() {
+    const p = paste.take();
+    if (!p) return;
+    try {
+      await sendMedia(p.uri, p.type, false);
     } catch (e) {
       setErr((e as Error).message || 'Não consegui enviar');
     } finally {
-      setBusy(false);
+      paste.release(p);
     }
   }
   /** "Localização": abre a folha "Enviar localização" (sem partilha em direto nos grupos). Só envia com um toque em Enviar. */
@@ -184,7 +205,7 @@ export function GroupComposer({
               <Icon name="camera" size={20} color="#fff" />
             </LinearGradient>
           </Pressable>
-          <TextInput value={text} onChangeText={setText} onFocus={() => setPanel(null)} multiline numberOfLines={1} maxLength={2000} placeholder="Mensagem…" placeholderTextColor={colors.zinc500} onContentSizeChange={grow.onContentSizeChange} style={[styles.input, grow.style]} accessibilityLabel="Mensagem" />
+          <TextInput ref={paste.ref} value={text} onChangeText={setText} onFocus={() => setPanel(null)} multiline numberOfLines={1} maxLength={2000} placeholder="Mensagem…" placeholderTextColor={colors.zinc500} onContentSizeChange={grow.onContentSizeChange} style={[styles.input, grow.style]} accessibilityLabel="Mensagem" />
           {text.trim() ? (
             <Pressable onPress={() => void sendText()} style={styles.send} accessibilityRole="button"><Text style={styles.sendText}>Enviar</Text></Pressable>
           ) : (
@@ -198,6 +219,7 @@ export function GroupComposer({
         </View>
       </View>
       {place && <SendLocationSheet allowLive={false} onSend={sendLocation} onClose={() => setPlace(false)} />}
+      {paste.pending && <PastedImageSheet uri={paste.pending.uri} caption={text.trim()} onCancel={paste.cancel} onSend={() => void sendPasted()} />}
     </View>
   );
 }
