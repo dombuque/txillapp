@@ -1,5 +1,4 @@
 import { useQueryClient } from '@tanstack/react-query';
-import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
@@ -7,27 +6,12 @@ import { PlacePickMap } from '@/components/nearby/PlacePickMap';
 import { Sheet, useSheetScroll } from '@/components/Sheet';
 import type { Profile } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { devicePosition, type LatLng } from '@/lib/devicePosition';
 import { startCity } from '@/lib/cities';
 import { PLACE_LABEL_MAX, PRIVACY_NOTE, cleanPlaceLabel, type PlaceChoice } from '@/lib/groupAccess';
 import { kvGet } from '@/lib/kv';
 import { colors } from '@/lib/theme';
 import { ErrText, Field, Pill } from './GroupParts';
-
-type LatLng = { lat: number; lng: number };
-
-/** A posição do aparelho, só se já houver permissão (`ask` = pedir se ainda não houver). null se não der. */
-async function devicePosition(ask: boolean): Promise<LatLng | null> {
-  try {
-    let perm = await Location.getForegroundPermissionsAsync();
-    if (!perm.granted && ask && perm.canAskAgain !== false) perm = await Location.requestForegroundPermissionsAsync();
-    if (!perm.granted) return null;
-    const last = Platform.OS === 'web' ? null : await Location.getLastKnownPositionAsync({ maxAge: 10 * 60_000 }).catch(() => null);
-    const pos = last ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
-    return { lat: pos.coords.latitude, lng: pos.coords.longitude };
-  } catch {
-    return null;
-  }
-}
 
 /**
  * O passo "Onde é o grupo?" (antes de "Guardar" num modo do mapa): usar o local do Plano ou marcar no mapa.

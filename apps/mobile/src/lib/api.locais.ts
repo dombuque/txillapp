@@ -26,6 +26,8 @@ export interface Venue {
   reviewNote?: string | null;
   lat: number | null;
   lng: number | null;
+  /** Aparece no mapa do À tua volta (por omissão sim; servidor antigo não manda o campo). */
+  showOnMap?: boolean;
   checkins: number;
   checkinsToday: number;
   followers: number;
@@ -58,6 +60,8 @@ export interface VenueProfileInput {
   name?: string; kind?: VenueKind; city?: string | null; about?: string | null; address?: string | null; hours?: string | null;
   phone?: string | null; whatsapp?: string | null; website?: string | null; lat?: number | null; lng?: number | null;
   avatarMediaId?: string | null; coverMediaId?: string | null;
+  /** Aparecer no mapa do À tua volta (por omissão sim). */
+  showOnMap?: boolean;
   /** Ligar ou desligar os pagamentos em Txills (dono e administradores). */
   acceptsTxills?: boolean;
 }

@@ -10,10 +10,13 @@ import type { PlacePickMapProps } from './types';
 const WV = WebView<{}>;
 const noClose = (s: string) => s.replace(/<\/(script|style)/gi, '<\\/$1');
 
-/** A página do mapa de "Marcar no mapa" (uma só vez): Leaflet e o mapRuntime dentro da app; fala com a app por postMessage. */
-let PAGE: string | null = null;
-const page = () =>
-  (PAGE ??= `<!doctype html><html><head><meta charset="utf-8">
+/** As páginas do mapa de "Marcar no mapa" (uma por combinação de opções): Leaflet e o mapRuntime dentro da app; fala com a app por postMessage. */
+const PAGES = new Map<string, string>();
+const page = (opts: { zoomControl: boolean; zone: boolean; still: boolean; zoom?: number }) => {
+  const key = JSON.stringify(opts);
+  let html = PAGES.get(key);
+  if (!html) {
+    html = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>${noClose(LEAFLET_CSS)}
 html,body,#m{margin:0;padding:0;height:100%;width:100%;background:#f2efe9;-webkit-tap-highlight-color:transparent}</style>
@@ -22,16 +25,20 @@ html,body,#m{margin:0;padding:0;height:100%;width:100%;background:#f2efe9;-webki
 <script>${noClose(RUNTIME_JS)}
 (function(){
   function post(o){ if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(o)); }
-  var h = createPickMap(L, document.getElementById('m'), function(c){ post({ type: 'move', lat: c.lat, lng: c.lng }); }, { zoomControl: true });
+  var h = createPickMap(L, document.getElementById('m'), function(c){ post({ type: 'move', lat: c.lat, lng: c.lng }); }, ${key});
   var first = true;
   window.txCenter = function(c){ try { h.setCenter(c); if (first) { first = false; setTimeout(function(){ h.resize(); }, 60); } } catch (e) { post({ type: 'error', message: String(e) }); } };
   window.addEventListener('resize', function(){ h.resize(); });
   post({ type: 'ready' });
 })();
-</script></body></html>`);
+</script></body></html>`;
+    PAGES.set(key, html);
+  }
+  return html;
+};
 
-/** "Marcar no mapa" na app: o mesmo mapa do site numa WebView, com o alfinete fixo ao centro por cima. */
-export function PlacePickMap({ center, onMove, style }: PlacePickMapProps) {
+/** "Marcar no mapa" na app: o mesmo mapa do site numa WebView, com o alfinete fixo ao centro por cima. `readOnly`: só mostra o sítio. */
+export function PlacePickMap({ center, onMove, zoomControl = true, zone = true, readOnly = false, zoom, style }: PlacePickMapProps) {
   const web = useRef<WebView<{}>>(null);
   const [ready, setReady] = useState(false);
   const move = useRef(onMove);
@@ -50,17 +57,19 @@ export function PlacePickMap({ center, onMove, style }: PlacePickMapProps) {
       return;
     }
     if (m.type === 'ready') setReady(true);
-    else if (m.type === 'move' && typeof m.lat === 'number' && typeof m.lng === 'number') move.current({ lat: m.lat, lng: m.lng });
+    else if (m.type === 'move' && typeof m.lat === 'number' && typeof m.lng === 'number') move.current?.({ lat: m.lat, lng: m.lng });
     else if (m.type === 'error' && __DEV__) console.warn('[mapa]', m.message);
   };
 
   return (
-    <View style={[{ backgroundColor: '#f2efe9', overflow: 'hidden' }, style]}>
+    // Só de ver: os toques passam para a página (rola por cima do mapa em vez de ficar presa na WebView).
+    <View style={[{ backgroundColor: '#f2efe9', overflow: 'hidden' }, style]} pointerEvents={readOnly ? 'none' : 'auto'}>
       <WV
         ref={web}
-        source={{ html: page() }}
+        source={{ html: page({ zoomControl: zoomControl && !readOnly, zone, still: readOnly, zoom }) }}
         originWhitelist={['*']}
         onMessage={onMessage}
+        onLoadStart={() => setReady(false)}
         onContentProcessDidTerminate={() => { setReady(false); web.current?.reload(); }}
         onRenderProcessGone={() => { setReady(false); web.current?.reload(); }}
         onShouldStartLoadWithRequest={(r) => {

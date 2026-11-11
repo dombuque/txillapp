@@ -5,11 +5,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Icon } from '@/components/Icon';
+import { PlaceMiniMap } from '@/components/nearby/PlaceMiniMap';
+import { PlaceField } from '@/components/PlaceField';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { StackPage } from '@/components/StackPage';
 import { ApiError, uploadMedia } from '@/lib/api';
 import { locaisApi } from '@/lib/api.locais';
 import { nearbyApi } from '@/lib/api.nearby';
+import { formatAddress, showsOnMap, venuePlace, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
 import { colors } from '@/lib/theme';
 
 const WD = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -38,6 +41,9 @@ export default function NovoEvento() {
   const [cover, setCover] = useState<{ uri: string; mime: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // O evento é sempre num local: se o local ainda não tem ponto no mapa (e eu posso editá-lo), marca-se aqui e grava-se no local.
+  const [place, setPlace] = useState<PlaceValue | null>(null);
+  const venueAt = venuePlace(venue.data);
 
   const days = useMemo(() => {
     const t = new Date();
@@ -73,6 +79,11 @@ export default function NovoEvento() {
     }
     setBusy(true);
     try {
+      if (place && !venueAt && venue.data?.canEdit) {
+        const nv = await locaisApi.updateVenue(slug, venuePlaceBody(place, showsOnMap(venue.data)));
+        qc.setQueryData(['venue', slug], nv);
+        void qc.invalidateQueries({ queryKey: ['venues-mine'] });
+      }
       const coverMediaId = cover ? await uploadMedia(cover.uri, cover.mime, 'public') : undefined;
       const r = await nearbyApi.createEvent({
         venueSlug: slug,
@@ -110,6 +121,21 @@ export default function NovoEvento() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 48, maxWidth: 640, width: '100%', alignSelf: 'center' }} keyboardShouldPersistTaps="handled">
           {venue.data ? <Text style={st.hint}>Em {venue.data.name}</Text> : null}
+
+          {venue.data && venueAt ? (
+            <View style={{ gap: 6 }}>
+              <Text style={st.label}>Onde</Text>
+              <PlaceMiniMap lat={venueAt.lat} lng={venueAt.lng} label={`Mapa com o pino em ${venue.data.name}`} />
+              <Text style={[st.hint, { textAlign: 'left' }]}>{venue.data.name}{formatAddress(venueAt) ? ` · ${formatAddress(venueAt)}` : ''}</Text>
+            </View>
+          ) : venue.data?.canEdit ? (
+            <View style={{ gap: 6 }}>
+              <PlaceField label="Onde é?" value={place} onChange={setPlace} initialQuery={venue.data.address ? formatAddress(venue.data) : ''} placeholder="Procurar o sítio do local…" mapHint="Arrasta o mapa até o alfinete ficar na porta do local." />
+              <Text style={[st.hint, { textAlign: 'left' }]}>{place ? 'Este sítio fica guardado no local ao criar o evento.' : `${venue.data.name} ainda não está no mapa. Marca onde fica para o evento aparecer no À tua volta.`}</Text>
+            </View>
+          ) : venue.data ? (
+            <Text style={[st.hint, { textAlign: 'left' }]}>{venue.data.name} ainda não está no mapa: o evento só aparece no À tua volta quando o dono marcar onde fica, em Gerir.</Text>
+          ) : null}
 
           <Pressable onPress={() => void pickCover()} style={st.cover} accessibilityRole="button" accessibilityLabel={cover ? 'Trocar a capa' : 'Pôr uma capa'}>
             {cover ? (

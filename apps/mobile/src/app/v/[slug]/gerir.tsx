@@ -2,11 +2,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { Empty } from '@/components/Empty';
 import { Icon } from '@/components/Icon';
+import { PlaceField, type PlaceFieldHandle } from '@/components/PlaceField';
 import { PontoLoader } from '@/components/PontoLoader';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { StackPage } from '@/components/StackPage';
@@ -18,6 +19,7 @@ import { eventWhen, nearbyApi } from '@/lib/api.nearby';
 import { KINDS, KIND_LABEL, ROLE_LABEL, locaisApi, type ManagerRole, type Venue, type VenueKind, type VenueProfileInput } from '@/lib/api.locais';
 import { useAuth } from '@/lib/auth';
 import { sized } from '@/lib/config';
+import { formatAddress, needsMapPin, showsOnMap, venuePlace, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
 import { colors } from '@/lib/theme';
 
 type Section = 'perfil' | 'gestores' | 'eventos' | 'qr' | 'txills' | 'painel';
@@ -29,6 +31,9 @@ export default function ManageVenue() {
   const v = q.data;
   const qc = useQueryClient();
   const [section, setSection] = useState<Section>(s ?? 'perfil');
+  // O atalho do aviso "ainda não está no mapa": vai ao Perfil e abre o mapa (ou a pesquisa) do campo "Onde fica?".
+  const [pinAsk, setPinAsk] = useState<{ what: 'map' | 'search'; n: number } | null>(null);
+  const askPin = (what: 'map' | 'search') => { setSection('perfil'); setPinAsk((o) => ({ what, n: (o?.n ?? 0) + 1 })); };
   // A notificação de pagamento abre ?s=txills: se a página já estava aberta, muda de secção.
   useEffect(() => { if (s) setSection(s); }, [s]);
   const sections: [Section, string][] = [['perfil', 'Perfil'], ['gestores', 'Gestores'], ['eventos', 'Eventos'], ['qr', 'QR'], ['txills', 'Txills'], ['painel', 'Painel']];
@@ -45,6 +50,18 @@ export default function ManageVenue() {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
           <PullView pull={pull}>
           <ScrollView contentContainerStyle={{ paddingBottom: 48 }} keyboardShouldPersistTaps="handled" onScroll={pull.onScroll} scrollEventThrottle={16} refreshControl={pull.control}>
+            {v.canEdit && needsMapPin(v) ? (
+              <View style={st.mapNotice} accessibilityRole="alert">
+                <Icon name="map-pin" size={20} color="#b45309" />
+                <View style={{ flex: 1, gap: 8 }}>
+                  <Text style={st.mapNoticeText}>Este local ainda não está no mapa. Marca onde fica.</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    <Pressable onPress={() => askPin('map')} style={st.noticeBtn} accessibilityRole="button"><Icon name="map" size={15} color="#fff" /><Text style={st.noticeBtnText}>Marcar no mapa</Text></Pressable>
+                    <Pressable onPress={() => askPin('search')} style={[st.noticeBtn, { backgroundColor: colors.white }]} accessibilityRole="button"><Icon name="search" size={15} color={colors.zinc900} /><Text style={[st.noticeBtnText, { color: colors.zinc900 }]}>Procurar o sítio</Text></Pressable>
+                  </View>
+                </View>
+              </View>
+            ) : null}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 8 }}>
               {sections.map(([id, label]) => (
                 <Pressable key={id} onPress={() => setSection(id)} accessibilityRole="tab" accessibilityState={{ selected: section === id }} style={[st.tab, section === id && st.tabOn]}>
@@ -52,7 +69,7 @@ export default function ManageVenue() {
                 </Pressable>
               ))}
             </ScrollView>
-            {section === 'perfil' && <Profile v={v} />}
+            {section === 'perfil' && <Profile v={v} pinAsk={pinAsk} />}
             {section === 'gestores' && <Managers v={v} />}
             {section === 'eventos' && <Events v={v} />}
             {section === 'qr' && (v.qrToken ? <View style={{ paddingTop: 4 }}><VenueQr venue={v} /></View> : null)}
@@ -67,13 +84,28 @@ export default function ManageVenue() {
 }
 
 /** O perfil da página: logótipo, capa e os campos; só o dono e os administradores editam. */
-function Profile({ v }: { v: Venue }) {
+function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n: number } | null }) {
   const qc = useQueryClient();
-  const [f, setF] = useState({ name: v.name, kind: v.kind as VenueKind, city: v.city ?? '', about: v.about ?? '', address: v.address ?? '', hours: v.hours ?? '', phone: v.phone ?? '', whatsapp: v.whatsapp ?? '', website: v.website ?? '' });
+  const [f, setF] = useState({ name: v.name, kind: v.kind as VenueKind, about: v.about ?? '', hours: v.hours ?? '', phone: v.phone ?? '', whatsapp: v.whatsapp ?? '', website: v.website ?? '' });
+  // O sítio (ponto, morada e cidade) e se aparece no mapa do À tua volta.
+  const [place, setPlace] = useState<PlaceValue | null>(() => venuePlace(v));
+  const [showOnMap, setShowOnMap] = useState(showsOnMap(v));
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState<'avatar' | 'cover' | null>(null);
   const [msg, setMsg] = useState('');
-  useEffect(() => { setF({ name: v.name, kind: v.kind, city: v.city ?? '', about: v.about ?? '', address: v.address ?? '', hours: v.hours ?? '', phone: v.phone ?? '', whatsapp: v.whatsapp ?? '', website: v.website ?? '' }); }, [v]);
+  const placeRef = useRef<PlaceFieldHandle>(null);
+  useEffect(() => {
+    setF({ name: v.name, kind: v.kind, about: v.about ?? '', hours: v.hours ?? '', phone: v.phone ?? '', whatsapp: v.whatsapp ?? '', website: v.website ?? '' });
+    setPlace(venuePlace(v));
+    setShowOnMap(showsOnMap(v));
+  }, [v]);
+  useEffect(() => {
+    if (!pinAsk) return;
+    const t = setTimeout(() => (pinAsk.what === 'map' ? placeRef.current?.openMap() : placeRef.current?.focus()), 60);
+    return () => clearTimeout(t);
+  }, [pinAsk]);
+  // Sem ponto ainda: a pesquisa já começa com a morada (ou o nome e a cidade) que o local tinha em texto.
+  const startQuery = v.address ? formatAddress(v) : v.city ? `${v.name}, ${v.city}` : '';
   const set = (k: keyof typeof f, val: string) => setF((o) => ({ ...o, [k]: val }));
 
   async function save(patch?: VenueProfileInput) {
@@ -81,7 +113,9 @@ function Profile({ v }: { v: Venue }) {
     setMsg('');
     try {
       const body: VenueProfileInput = patch ?? {
-        name: f.name.trim(), kind: f.kind, city: f.city.trim() || null, about: f.about.trim() || null, address: f.address.trim() || null,
+        name: f.name.trim(), kind: f.kind, about: f.about.trim() || null,
+        // Sem sítio escolhido a morada e a cidade em texto ficam como estavam.
+        ...venuePlaceBody(place, showOnMap),
         hours: f.hours.trim() || null, phone: f.phone.trim() || null, whatsapp: f.whatsapp.trim() || null, website: f.website.trim() || null,
       };
       const nv = await locaisApi.updateVenue(v.slug, body);
@@ -140,8 +174,15 @@ function Profile({ v }: { v: Venue }) {
         ))}
       </View>
       <Text style={st.label}>Onde e quando</Text>
-      {input('city', 'Cidade', { maxLength: 60 })}
-      {input('address', 'Morada (rua, bairro)', { maxLength: 160 })}
+      <PlaceField ref={placeRef} label="Onde fica?" value={place} onChange={setPlace} initialQuery={place ? '' : startQuery} placeholder="Procurar o sítio… (nome, rua ou bairro)" mapHint="Arrasta o mapa até o alfinete ficar na porta do local." />
+      {!place && (v.address || v.city) ? <Text style={st.hint}>Em texto: {formatAddress(v)}. Escolhe o sítio para o local aparecer no mapa.</Text> : null}
+      <View style={st.switchRow}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>Mostrar no mapa</Text>
+          <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc600 }}>O teu local aparece no mapa do À tua volta. Desliga se não tiver porta aberta ao público.</Text>
+        </View>
+        <Switch value={showOnMap} onValueChange={setShowOnMap} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Mostrar no mapa do À tua volta" />
+      </View>
       {input('hours', 'Horário (ex.: Ter a Dom, 18h às 2h)', { maxLength: 300 })}
       <Text style={st.label}>Contactos</Text>
       {input('phone', 'Telefone', { keyboardType: 'phone-pad', maxLength: 30 })}
@@ -310,6 +351,11 @@ function Insights({ v }: { v: Venue }) {
 }
 
 const st = StyleSheet.create({
+  mapNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginHorizontal: 16, marginTop: 12, borderRadius: 16, backgroundColor: '#fffbeb', padding: 14 },
+  mapNoticeText: { fontSize: 15, lineHeight: 21, fontWeight: '700', color: '#78350f' },
+  noticeBtn: { height: 36, borderRadius: 999, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.zinc900 },
+  noticeBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: '#fafafa', padding: 14 },
   tab: { height: 36, borderRadius: 999, paddingHorizontal: 16, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   tabOn: { backgroundColor: colors.zinc900 },
   tabText: { fontSize: 14, fontWeight: '700', color: colors.zinc700 },

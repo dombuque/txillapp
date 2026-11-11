@@ -1,11 +1,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Icon } from '@/components/Icon';
+import { PlaceField } from '@/components/PlaceField';
 import { StackPage } from '@/components/StackPage';
 import { VenueRow } from '@/components/VenueCard';
 import { KIND_LABEL, KINDS, ROLE_LABEL, locaisApi } from '@/lib/api.locais';
+import { createPlaceWarning, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
 import { colors } from '@/lib/theme';
 
 /** As minhas páginas de locais (as que criei e as que giro), os convites por aceitar e criar uma página nova. */
@@ -16,18 +18,22 @@ export default function Locais() {
   const invites = useQuery({ queryKey: ['venues-invites'], queryFn: locaisApi.myInvites, retry: false });
   const [name, setName] = useState('');
   const [kind, setKind] = useState<(typeof KINDS)[number]>('bar');
-  const [city, setCity] = useState('');
+  const [place, setPlace] = useState<PlaceValue | null>(null);
+  const [typed, setTyped] = useState('');
+  const [showOnMap, setShowOnMap] = useState(true);
   const [about, setAbout] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const off = busy || name.trim().length < 2;
+  const placeWarning = createPlaceWarning(place, typed, showOnMap);
 
   async function create() {
     if (off) return;
     setBusy(true);
     setErr('');
     try {
-      const v = await locaisApi.createVenue({ name: name.trim(), kind, city: city.trim() || undefined, about: about.trim() || undefined });
+      // Sem sítio escolhido cria na mesma (marca-se depois em Gerir): não manda morada nem coordenadas.
+      const v = await locaisApi.createVenue({ name: name.trim(), kind, about: about.trim() || undefined, ...venuePlaceBody(place, showOnMap) });
       await qc.invalidateQueries({ queryKey: ['venues-mine'] });
       setBusy(false);
       router.push({ pathname: '/v/[slug]/gerir', params: { slug: v.slug } });
@@ -96,13 +102,26 @@ export default function Locais() {
                 </Pressable>
               ))}
             </View>
-            <TextInput value={city} onChangeText={setCity} maxLength={60} placeholder="Cidade" placeholderTextColor={colors.zinc500} accessibilityLabel="Cidade" style={st.input} />
+            <PlaceField label="Onde fica?" value={place} onChange={setPlace} onTyped={setTyped} placeholder="Procurar o sítio… (nome, rua ou bairro)" mapHint="Arrasta o mapa até o alfinete ficar na porta do local." />
+            <View style={st.switchRow}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>Mostrar no mapa</Text>
+                <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc600 }}>O teu local aparece no mapa do À tua volta. Desliga se não tiver porta aberta ao público.</Text>
+              </View>
+              <Switch value={showOnMap} onValueChange={setShowOnMap} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Mostrar no mapa do À tua volta" />
+            </View>
+            {placeWarning ? (
+              <View style={st.warn}>
+                <Icon name="info" size={16} color="#b45309" />
+                <Text style={st.warnText}>{placeWarning}</Text>
+              </View>
+            ) : null}
             <TextInput value={about} onChangeText={setAbout} maxLength={1000} multiline numberOfLines={3} placeholder="Uma frase sobre o local (podes completar depois)" placeholderTextColor={colors.zinc500} accessibilityLabel="Sobre o local" style={[st.input, { height: 96, textAlignVertical: 'top' }]} />
             <Text accessibilityRole="alert" style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.red600 }}>{err}</Text>
             <Pressable onPress={() => void create()} disabled={off} style={[st.cta, off && { opacity: 0.5 }]} accessibilityRole="button">
               <Text style={st.ctaText}>{busy ? 'A criar…' : 'Criar a página'}</Text>
             </Pressable>
-            <Text style={{ fontSize: 12, lineHeight: 18, color: colors.zinc500 }}>Depois de criar, completa o perfil (logótipo, capa, morada, horário, contactos) e convida os gestores em Gerir.</Text>
+            <Text style={{ fontSize: 12, lineHeight: 18, color: colors.zinc500 }}>Depois de criar, completa o perfil (logótipo, capa, horário, contactos) e convida os gestores em Gerir.</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -117,6 +136,9 @@ const st = StyleSheet.create({
   small: { height: 34, borderRadius: 999, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.zinc100 },
   smallText: { fontSize: 13, fontWeight: '700', color: colors.zinc900 },
   input: { borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colors.zinc900 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: '#fafafa', padding: 14 },
+  warn: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 14, backgroundColor: '#fffbeb', paddingHorizontal: 12, paddingVertical: 10 },
+  warnText: { flex: 1, fontSize: 13, lineHeight: 18, color: '#78350f' },
   chip: { height: 40, borderRadius: 999, paddingHorizontal: 16, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   cta: { height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   ctaText: { fontSize: 16, fontWeight: '700', color: '#fff' },

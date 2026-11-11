@@ -5,13 +5,15 @@ import { createPickMap, type PickHandle } from './mapRuntime';
 import { PickPin } from './PickPin';
 import type { PlacePickMapProps } from './types';
 
-/** "Marcar no mapa" no site: o Leaflet do npm num div, com o alfinete fixo ao centro por cima. */
-export function PlacePickMap({ center, onMove, zoomControl = true, style }: PlacePickMapProps) {
+/** "Marcar no mapa" no site: o Leaflet do npm num div, com o alfinete fixo ao centro por cima. `readOnly`: só mostra o sítio. */
+export function PlacePickMap({ center, onMove, zoomControl = true, zone = true, readOnly = false, zoom, style }: PlacePickMapProps) {
   const host = useRef<React.ComponentRef<typeof View>>(null);
   const handle = useRef<PickHandle | null>(null);
   const move = useRef(onMove);
   move.current = onMove;
   const first = useRef(center);
+  const last = useRef(center);
+  last.current = center;
 
   useEffect(() => {
     const L = require('leaflet') as typeof import('leaflet');
@@ -22,9 +24,9 @@ export function PlacePickMap({ center, onMove, zoomControl = true, style }: Plac
       document.head.appendChild(s);
     }
     const el = host.current as unknown as HTMLElement;
-    const h = createPickMap(L, el, (c) => move.current(c), { zoomControl });
+    const h = createPickMap(L, el, (c) => move.current?.(c), { zoomControl, zone, still: readOnly, zoom });
     handle.current = h;
-    h.setCenter(first.current);
+    h.setCenter(last.current);
     const ro = new ResizeObserver(() => h.resize());
     ro.observe(el);
     return () => {
@@ -32,7 +34,7 @@ export function PlacePickMap({ center, onMove, zoomControl = true, style }: Plac
       h.destroy();
       handle.current = null;
     };
-  }, [zoomControl]);
+  }, [zoomControl, zone, readOnly, zoom]);
 
   useEffect(() => {
     if (center !== first.current) handle.current?.setCenter(center);
