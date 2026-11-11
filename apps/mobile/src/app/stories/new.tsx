@@ -56,7 +56,9 @@ export default function NewStory() {
     }
   }
   useEffect(() => {
-    if (!cam) void pick('library'); // sem câmara ao vivo: abre logo a galeria
+    // Sem câmara ao vivo e sem foto: abre logo a galeria. Vindo da câmara do "+" (com `uri`) já há foto — antes abria a
+    // galeria por cima da foto acabada de tirar e editar (no Android).
+    if (!cam && !given.uri) void pick('library');
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
