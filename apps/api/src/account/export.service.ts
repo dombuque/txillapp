@@ -155,6 +155,11 @@ export class ExportService {
           WHERE i.user_id = $1 ORDER BY i.created_at`,
       ).catch(() => []),
       reportsFiled: await q(`SELECT target_type AS "type", reason, status, created_at AS "createdAt" FROM social.reports WHERE reporter_id = $1 ORDER BY created_at`),
+      // O que a moderação removeu do que publiquei (0121): o tipo, o texto, o motivo e se foi reposto. Nunca quem da equipa o fez.
+      moderationRemovals: await q(
+        `SELECT target_type AS "type", body, reason, removed_at AS "removedAt", restored_at AS "restoredAt"
+           FROM content.moderation_removals WHERE author_id = $1 ORDER BY removed_at`,
+      ).catch(() => []),
       wallet: await q(
         `SELECT t.id, t.created_at AS "createdAt", t.type, e.amount
            FROM ledger.entries e JOIN ledger.accounts a ON a.id = e.account_id JOIN ledger.transactions t ON t.id = e.transaction_id

@@ -28,7 +28,17 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   // o último a brindar (ator). data: { target: 'post' | 'comment', targetId, postId, commentId?, tcheka?, since }. Ver notifyCheer.
   | 'cheer'
   // Alguém entrou com o meu convite (ator = quem entrou; sem data). Chega logo no registo; o prémio tem o seu próprio aviso.
-  | 'invite_joined';
+  | 'invite_joined'
+  // A moderação (ator = a conta de equipa, que a lista mostra como «Txillapp») removeu ou repôs um conteúdo meu, ou deixou-me
+  // um aviso. data: { type: 'post' | 'comment' | 'story' | 'message' | 'media' | 'user' | 'venue', reason, postId?, tcheka? } (0121).
+  | 'content_removed' | 'content_restored' | 'moderation_warning';
+
+/** Avisos da equipa do Txillapp: não se desligam e mostram-se em nome do Txillapp (não da pessoa da equipa). */
+export const STAFF_KINDS = new Set<NotificationKind>(['content_removed', 'content_restored', 'moderation_warning', 'venue_review']);
+/** O que se diz do conteúdo nos avisos da moderação. */
+export const contentNoun = (type: unknown, tcheka?: unknown) =>
+  type === 'comment' ? 'o teu comentário' : type === 'story' ? 'o teu mimo' : type === 'message' ? 'a tua mensagem' : type === 'media' ? 'a tua foto'
+  : type === 'venue' ? 'a página do teu local' : type === 'user' ? 'o teu perfil' : tcheka ? 'a tua tcheka' : 'a tua publicação';
 
 /** A categoria que a pessoa pode desligar (os avisos de bloqueio e de verificação ficam sempre). */
 export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
@@ -114,7 +124,7 @@ export class NotificationsService {
     if (!this.push.enabled) return;
     const a = (await this.pool.query('SELECT display_name, username FROM identity.users WHERE id = $1', [n.actorId])).rows[0];
     const profile = a?.username ? `/u/${a.username as string}` : '/notifications';
-    const who = (a?.display_name as string | undefined) ?? 'Alguém';
+    const who = STAFF_KINDS.has(n.kind) ? 'Txillapp' : ((a?.display_name as string | undefined) ?? 'Alguém');
     const postId = n.data?.postId as string | undefined;
     const commentId = n.data?.commentId as string | undefined;
     const groupUrl = typeof n.data?.groupId === 'string' ? `/messages/g/${n.data.groupId}` : '/notifications';
@@ -149,6 +159,10 @@ export class NotificationsService {
       geleira_cheer: { body: 'brindou a tua geleira', url: '/profile' },
       // Abre os convites, onde está o progresso (quem entrou e quem já deu Txills).
       invite_joined: { body: 'entrou com o teu convite', url: '/invites' },
+      // Moderação: o texto no telemóvel não leva o motivo (o ecrã de bloqueio é público); o motivo está na lista.
+      content_removed: { body: `Removemos ${contentNoun(n.data?.type, n.data?.tcheka)}. Toca para ver o motivo.`, url: '/notifications' },
+      content_restored: { body: `Repusemos ${contentNoun(n.data?.type, n.data?.tcheka)}.`, url: n.data?.type === 'post' && n.data?.postId ? `/p/${String(n.data.postId)}` : '/notifications' },
+      moderation_warning: { body: 'Tens um aviso da moderação. Toca para ver.', url: '/notifications' },
       venue_payment: { body: `pagou ${Number(n.data?.amount ?? 0)} Txills ${n.data?.venueName ? `em ${String(n.data.venueName)}` : 'no teu local'}`, url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}/gerir?s=txills` : '/notifications' },
     };
     const m = t[n.kind];
@@ -319,7 +333,10 @@ export class NotificationsService {
         data: r.data,
         createdAt: r.created_at,
         read: r.read_at !== null,
-        actor: { username: r.username, displayName: r.status === 'active' ? r.display_name : 'Conta eliminada', isPrivate: !!r.is_private, following: !!r.i_follow, requested: !!r.requested },
+        // Os avisos da equipa vêm em nome do Txillapp (nunca o nome nem o @ da pessoa da equipa).
+        actor: r.status === 'staff'
+          ? { username: 'txillapp', displayName: 'Txillapp', isPrivate: false, following: false, requested: false, staff: true }
+          : { username: r.username, displayName: r.status === 'active' ? r.display_name : 'Conta eliminada', isPrivate: !!r.is_private, following: !!r.i_follow, requested: !!r.requested },
         // A miniatura da publicação (a primeira foto; nos vídeos, o cartaz), como na lista de notificações do Instagram.
         thumb: r.thumb ? { url: `/api/v1/media/${(r.thumb as { id: string }).id}${(r.thumb as { video: boolean }).video ? '?poster=1' : ''}`, video: !!(r.thumb as { video: boolean }).video } : null,
         // Brindes: quantos ainda estão postos nesta janela e os dois últimos a brindar (para as fotos e "Ana, Rui e 3 outros").

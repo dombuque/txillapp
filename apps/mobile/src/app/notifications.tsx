@@ -15,6 +15,7 @@ import { groupsApi } from '@/lib/api.groups';
 import { locaisApi } from '@/lib/api.locais';
 import { cheerPeople, cheerTarget, cheerVerb } from '@/lib/cheerNotice';
 import { notifGroup, notifGroupTarget } from '@/lib/groupAccess';
+import { moderationTarget, moderationVerb } from '@/lib/moderationNotice';
 import { sized } from '@/lib/config';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
@@ -96,6 +97,10 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'cheer': return { text: cheerVerb(n.data, many) };
     // Entrou com o meu convite (o prémio de quem convidou chega depois, com o seu próprio aviso no telemóvel).
     case 'invite_joined': return { text: many ? 'entraram com o teu convite' : 'entrou com o teu convite' };
+    // A equipa do Txillapp removeu ou repôs um conteúdo meu, ou deixou-me um aviso (com o motivo por baixo).
+    case 'content_removed':
+    case 'content_restored':
+    case 'moderation_warning': return moderationVerb(n.kind, n.data);
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
     default: return { text: 'tem novidades para ti' };
   }
@@ -124,6 +129,9 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'geleira_cheer': return '/profile';
     case 'cheer': return cheerTarget(n.data);
     case 'invite_joined': return '/invites';
+    case 'content_removed':
+    case 'content_restored':
+    case 'moderation_warning': return moderationTarget(n.kind, n.data);
     case 'group_join_request':
     case 'group_join_accepted':
     case 'group_member_joined':
@@ -226,7 +234,7 @@ function Row({ g, me }: { g: Group; me?: string }) {
 
   return (
     <Pressable onPress={() => go(target)} disabled={!target} style={({ pressed }) => [styles.row, g.fresh && { backgroundColor: 'rgba(255,241,242,0.7)' }, pressed && target && { backgroundColor: colors.zinc100 }]}>
-      <Pressable onPress={() => router.push(`/u/${people.actors[0].username}` as never)} accessibilityRole="link" accessibilityLabel={people.actors[0].displayName}>
+      <Pressable onPress={() => !n.actor.staff && router.push(`/u/${people.actors[0].username}` as never)} disabled={!!n.actor.staff} accessibilityRole="link" accessibilityLabel={people.actors[0].displayName}>
         <Faces actors={people.actors} />
       </Pressable>
       <View style={{ flex: 1, minWidth: 0 }}>

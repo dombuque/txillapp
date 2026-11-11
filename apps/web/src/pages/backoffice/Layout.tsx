@@ -11,8 +11,10 @@ const GROUPS: { title: string; items: Item[] }[] = [
   { title: 'Operação', items: [
     { to: '/backoffice', label: 'Resumo', icon: 'home', end: true },
     { to: '/backoffice/reports', label: 'Queixas', icon: 'flag', perm: 'reports.read', badge: 'reports' },
+    { to: '/backoffice/content', label: 'Conteúdo', icon: 'images', perm: 'content.moderate' },
     { to: '/backoffice/verifications', label: 'Pedidos de selo', icon: 'shield', perm: 'verification.decide', badge: 'verifications' },
     { to: '/backoffice/venues', label: 'Locais', icon: 'map-pin', perm: 'catalog.manage' },
+    { to: '/backoffice/catalog', label: 'Catálogo da Geleira', icon: 'snowflake', perm: 'catalog.manage' },
   ] },
   { title: 'Pessoas', items: [
     { to: '/backoffice/users', label: 'Utilizadores', icon: 'user', perm: 'users.view' },

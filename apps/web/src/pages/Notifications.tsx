@@ -22,7 +22,16 @@ const ICON: Record<AppNotification['kind'], { name: IconName; color: string }> =
   mention: { name: 'at', color: 'text-amber-600' },
   tag: { name: 'tag', color: 'text-violet-600' },
   verified: { name: 'check-circle', color: 'text-sky-600' },
+  content_removed: { name: 'shield', color: 'text-red-600' },
+  content_restored: { name: 'check-circle', color: 'text-emerald-600' },
+  moderation_warning: { name: 'alert', color: 'text-amber-600' },
 };
+/** Um tipo que esta versão ainda não conhece não parte a lista. */
+const iconOf = (k: string) => ICON[k as AppNotification['kind']] ?? { name: 'bell' as IconName, color: 'text-zinc-500' };
+/** O que a moderação removeu, repôs ou sobre o que avisou. */
+const noun = (n: AppNotification) =>
+  n.data.type === 'comment' ? 'o teu comentário' : n.data.type === 'story' ? 'o teu mimo' : n.data.type === 'message' ? 'a tua mensagem' : n.data.type === 'media' ? 'a tua foto'
+  : n.data.type === 'user' ? 'o teu perfil' : n.data.type === 'venue' ? 'a página do teu local' : n.data.tcheka ? 'a tua tcheka' : 'a tua publicação';
 
 /** Texto de cada tipo de notificação. */
 function describe(n: AppNotification): { text: ReactNode; sub?: string } {
@@ -55,6 +64,14 @@ function describe(n: AppNotification): { text: ReactNode; sub?: string } {
       return { text: <>{tr('mencionou-te')}</>, sub: quote };
     case 'verified':
       return { text: <>{tr('agora tem o selo de conta verificada')}</> };
+    case 'content_removed':
+      return { text: <>removeu {noun(n)} por não cumprir as regras</>, sub: n.data.reason ? `Motivo: ${n.data.reason}` : undefined };
+    case 'content_restored':
+      return { text: <>repôs {noun(n)}</>, sub: n.data.reason ? `Motivo: ${n.data.reason}` : undefined };
+    case 'moderation_warning':
+      return { text: <>deixou-te um aviso sobre {noun(n)}</>, sub: n.data.reason ? `Motivo: ${n.data.reason}` : undefined };
+    default:
+      return { text: <>tem novidades para ti</> };
   }
 }
 
@@ -76,6 +93,8 @@ function targetOf(n: AppNotification): string | null {
     case 'verified':
     case 'request_accepted':
       return `/u/${n.actor.username}`;
+    case 'content_restored':
+      return n.data.type === 'post' && post ? `/p/${post}` : null;
     default:
       return null; // pedidos de seguir (têm botões) e avisos de bloqueio
   }
@@ -111,7 +130,7 @@ function Row({ n, fresh }: { n: AppNotification; fresh: boolean }) {
       <Link {...stop} to={`/u/${n.actor.username}`} aria-label={tr('Perfil de {v0}', { v0: n.actor.displayName })} className="relative shrink-0">
         <Avatar name={n.actor.displayName} username={n.actor.username} size={46} ring={false} presence />
         <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-white text-sm shadow-sm" aria-hidden>
-          <Icon name={ICON[n.kind].name} size={14} className={ICON[n.kind].color} strokeWidth={2.4} />
+          <Icon name={iconOf(n.kind).name} size={14} className={iconOf(n.kind).color} strokeWidth={2.4} />
         </span>
       </Link>
       <div className="min-w-0 flex-1">

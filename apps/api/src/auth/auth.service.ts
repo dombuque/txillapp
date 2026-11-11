@@ -511,6 +511,8 @@ export class AuthService {
       // Ficam só os movimentos de Txills (ledger e presentes), sem dados pessoais, porque a contabilidade tem de bater certo.
       for (const sql of [
         'DELETE FROM content.comments WHERE author_id = $1',
+        // O que a moderação removeu (com a cópia dos comentários removidos, guardada para os poder repor) sai também (0121).
+        'DELETE FROM content.moderation_removals WHERE author_id = $1',
         'DELETE FROM content.cheers WHERE user_id = $1',
         'DELETE FROM content.comment_cheers WHERE user_id = $1',
         // Quem já foi contado nos avisos de brindes (dados e recebidos) e o travão desses avisos no telemóvel.
