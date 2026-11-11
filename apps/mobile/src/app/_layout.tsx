@@ -23,9 +23,12 @@ import { syncPush } from '@/lib/push';
 import { installCallRing } from '@/lib/callRing';
 import { useChatStream } from '@/lib/realtime';
 import { colors } from '@/lib/theme';
+import { AnalyticsLive, reportRenderError, startAnalytics } from '@/lib/analyticsRuntime';
 
 void SplashScreen.preventAutoHideAsync();
 installWebAlert();
+// Estatísticas de uso (só nossas; respeitam Definições → "Ajudar a melhorar o Txillapp"): aberturas, ecrãs, desempenho e erros.
+startAnalytics();
 
 /**
  * No iPhone (Safari e PWA) o topo do ecrã tem uma zona desfocada do sistema: o conteúdo colado ao topo fica por baixo dela.
@@ -59,6 +62,7 @@ function useBootDone() {
 
 /** Se um ecrã falhar, mostra isto em vez de uma página em branco. */
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
+  useEffect(() => reportRenderError(error), [error]);
   return (
     <View style={styles.center}>
       <Text style={styles.title}>Ups, algo correu mal</Text>
@@ -180,6 +184,7 @@ function Gate() {
   return (
     <View style={shell ? styles.desk : styles.column}>
       <ChatLive />
+      <AnalyticsLive userId={user?.id ?? null} ready />
       <AppUpdate />
       <PermissionsOnboarding />
       {/* "As tuas notificações estão desligadas": de tempos a tempos, nos momentos certos. */}

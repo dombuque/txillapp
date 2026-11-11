@@ -93,6 +93,39 @@ describe('estatísticas de utilização e métricas (integração)', () => {
     expect(s.platform.find((p: { platform: string }) => p.platform === 'pwa').users).toBeGreaterThanOrEqual(2);
   });
 
+  it('a app (Android, iPhone e web) manda a plataforma e a versão; a mesma pessoa na app e no site conta uma vez', async () => {
+    const yc = await signup('yc');
+    const from = (platform: string, events: object[], extra: object = {}) =>
+      api().post('/api/v1/analytics/events').set(auth(yc)).send({ sessionId: `sess_${run}_${platform}`, platform, events, ...extra });
+    const before = (await api().get('/api/v1/admin/stats?days=7').set(sauth()).expect(200)).body;
+
+    await from('android', [{ name: 'app_open' }, { name: 'screen_view', props: { path: '/u/[username]' } }], { appVersion: '1.25.3' }).expect(204);
+    await from('ios', [{ name: 'app_open' }], { appVersion: '1.25.3' }).expect(204);
+    await from('web', [{ name: 'app_open', props: { standalone: true } }], { appVersion: '1.25.3' }).expect(204);
+    await from('pwa', [{ name: 'app_open' }]).expect(204); // o site antigo, sem versão
+    // Guardados no aparelho sem rede: até 3 dias atrás entram com a hora certa; mais do que isso é recusado.
+    await from('android', [{ name: 'cheer', props: { target: 'post' }, ago: 2 * 86_400_000 }], { appVersion: '1.25.3' }).expect(204);
+    await from('android', [{ name: 'cheer', ago: 4 * 86_400_000 }], { appVersion: '1.25.3' }).expect(400);
+    await from('windows', [{ name: 'app_open' }]).expect(400); // plataforma desconhecida
+    await from('android', [{ name: 'app_open' }], { appVersion: '1.0 <b>' }).expect(400); // versão com lixo
+    // Lotes até 40 eventos (a app manda no máximo 40 de cada vez).
+    await from('web', Array.from({ length: 40 }, () => ({ name: 'screen_view', props: { path: '/' } })), { appVersion: '1.25.3' }).expect(204);
+    await from('web', Array.from({ length: 41 }, () => ({ name: 'screen_view' })), { appVersion: '1.25.3' }).expect(400);
+
+    const ev = (await pool.query(`SELECT name, platform, app_version, extract(epoch FROM now() - at) AS age FROM analytics.events WHERE user_id = $1 ORDER BY id`, [yc.id])).rows;
+    expect(ev.filter((e) => e.name === 'app_open').map((e) => [e.platform, e.app_version])).toEqual([['android', '1.25.3'], ['ios', '1.25.3'], ['web', '1.25.3'], ['pwa', null]]);
+    const old = ev.find((e) => e.name === 'cheer');
+    expect(Number(old.age)).toBeGreaterThan(2 * 86_400 - 60);
+    expect(Number(old.age)).toBeLessThan(2 * 86_400 + 60);
+
+    const s = (await api().get('/api/v1/admin/stats?days=7').set(sauth()).expect(200)).body;
+    expect(s.active.dau).toBe(before.active.dau + 1); // quatro plataformas, uma pessoa
+    for (const p of ['android', 'ios', 'web']) expect(s.platform.find((x: { platform: string }) => x.platform === p).users).toBeGreaterThanOrEqual(1);
+    expect(s.versions).toContainEqual({ platform: 'android', version: '1.25.3', users: expect.any(Number) });
+    expect(s.versions.every((v: { version: string | null }) => v.version)).toBe(true);
+    expect(s.screens.map((x: { path: string }) => x.path)).toContain('/u/[username]');
+  });
+
   it('métricas Prometheus: só com o token certo; rotas em padrão, nunca ids reais', async () => {
     await api().get('/api/v1/metrics').expect(401);
     await api().get('/api/v1/metrics').set('Authorization', 'Bearer errado-errado-errado-1').expect(401);

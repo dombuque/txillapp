@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { post, raw } from './api';
 import { handleCallResponse, isForegroundCall, setupCallNotifications } from './callRing';
 import { kvGet, kvSet } from './kv';
+import { track } from './analytics';
 
 /**
  * Notificações na app nativa (Android/iPhone). O servidor envia pelo FCM para o código deste telemóvel, no canal "txillapp".
@@ -58,6 +59,8 @@ export async function registerNativePush(): Promise<void> {
     const token = typeof t.data === 'string' ? t.data : '';
     if (token.length < 20) return;
     await raw('/push/device', post({ token, platform: Platform.OS === 'ios' ? 'ios' : 'android' }));
+    // Estatísticas: só quando este telemóvel fica ligado de novo (código novo), não a cada abertura.
+    if ((await kvGet(TOKEN_KEY)) !== token) track('push_enabled', { via: Platform.OS === 'ios' ? 'apns' : 'fcm' });
     await kvSet(TOKEN_KEY, token);
   } catch {
     /* sem rede ou sem serviços da Google: tenta na próxima vez */

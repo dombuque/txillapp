@@ -1,6 +1,7 @@
 import { raw, post } from '@/lib/api';
 import { musicPayload, type Track } from '@/lib/api.music';
 import type { PlaceReverse, PlaceSuggestion } from '@/lib/placeField';
+import { trackOk } from '@/lib/analytics';
 
 export interface NearbyPlaces { area: string | null; city: string | null; places: { name: string; kind: string; distanceM: number; lat: number; lng: number }[] }
 export interface PhotoTag { username: string; displayName: string; x: number; y: number }
@@ -15,5 +16,6 @@ export const composeApi = {
   reversePlace: (lat: number, lng: number): Promise<PlaceReverse> => raw(`/places/reverse?lat=${lat}&lng=${lng}`),
   mentionable: (q: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; following: boolean; verified?: boolean }[]> => raw(`/mentionable?q=${encodeURIComponent(q)}`),
   createPost: (b: { body: string; music?: Track | null; locationLabel?: string; locationLat?: number; locationLng?: number; locationCoarse?: boolean; mediaIds: string[]; tags?: { index: number; username: string; x: number; y: number }[]; /** Publicar como um local que giro. */ venueId?: string | null }) =>
-    raw('/posts', post({ ...b, music: musicPayload(b.music) })),
+    // Estatísticas: só o feitio da publicação (quantas fotos, com música, como local), nunca o texto nem o sítio.
+    trackOk(raw('/posts', post({ ...b, music: musicPayload(b.music) })), 'post_create', { media: b.mediaIds.length, music: !!b.music, tags: !!b.tags?.length, venue: !!b.venueId }),
 };

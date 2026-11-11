@@ -3,6 +3,7 @@ import { accounts } from './accounts';
 import { kvGet, kvSet } from './kv';
 import { Platform } from 'react-native';
 import { SITE_URL } from './config';
+import { track, trackOk, trackThrottled } from './analytics';
 
 /** Resposta de entrada: a app nativa recebe também o token de renovação (guardado no cofre do telemóvel, nunca em texto simples). */
 export interface PublicUser { id: string; username: string; displayName: string }
@@ -584,37 +585,41 @@ export const api = {
     await refreshStore.clear();
   },
   feed: (cursor?: string): Promise<Page<Post>> => raw(`/feed${cursor ? `?cursor=${encodeURIComponent(cursor)}&limit=10` : '?limit=10'}`),
-  cheer: (id: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/posts/${id}/cheers`, post({})),
+  cheer: (id: string): Promise<{ cheered: boolean; cheers: number }> => trackOk(raw(`/posts/${id}/cheers`, post({})), 'cheer', (r) => r?.cheered && { target: 'post' }),
   gift: (id: string, amount: number, key: string, note = '', visibility: GiftVisibility = 'silent'): Promise<{ transactionId: string; post: Post; announcement: Post | null }> =>
     raw(`/posts/${id}/gifts`, { ...post({ amount, note, visibility }), headers: { 'Idempotency-Key': key } }),
   giftUser: (b: { toUsername: string; amount: number; note?: string; visibility: GiftVisibility }, key: string): Promise<{ transactionId: string; replayed: boolean; post: Post | null }> =>
     raw('/gifts', { ...post(b), headers: { 'Idempotency-Key': key } }),
   publishGift: (transactionId: string, note?: string): Promise<{ post: Post }> => raw(`/gifts/${transactionId}/publish`, post({ note })),
-  repost: (id: string, body = ''): Promise<Post> => raw(`/posts/${id}/repost`, post({ body })),
+  repost: (id: string, body = ''): Promise<Post> => trackOk(raw(`/posts/${id}/repost`, post({ body })), 'repost', { quote: !!body.trim() }),
   unrepost: (id: string): Promise<{ reposted: boolean; reposts: number }> => raw(`/posts/${id}/repost`, { method: 'DELETE' }),
   markSeen: (ids: string[]): Promise<void> => raw('/feed/seen', post({ ids })),
   stories: (): Promise<TrayUser[]> => raw('/stories'),
   storiesOf: (username: string): Promise<Story[]> => raw(`/stories/user/${encodeURIComponent(username)}`),
-  createStory: (mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all'): Promise<Story> => raw('/stories', post({ mediaId, caption, audience })),
-  viewStory: (id: string): Promise<void> => raw(`/stories/${id}/view`, post({})),
+  createStory: (mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all'): Promise<Story> => trackOk(raw('/stories', post({ mediaId, caption, audience })), 'story_create', { source: 'camera', closeFriends: audience === 'close_friends' }),
+  viewStory: (id: string): Promise<void> => trackOk(raw(`/stories/${id}/view`, post({})), 'story_view'),
   deleteStory: (id: string): Promise<void> => raw(`/stories/${id}`, { method: 'DELETE' }),
   setStoryComments: (id: string, commentsOff: boolean): Promise<{ commentsOff: boolean }> => raw(`/stories/${id}`, { method: 'PATCH', body: JSON.stringify({ commentsOff }) }),
-  replyStory: (id: string, body: string): Promise<{ id: string; kind: 'reply' | 'reaction' }> => raw(`/stories/${id}/replies`, post({ body })),
+  replyStory: (id: string, body: string): Promise<{ id: string; kind: 'reply' | 'reaction' }> => trackOk(raw(`/stories/${id}/replies`, post({ body })), 'message_send', (r) => ({ kind: r?.kind === 'reaction' ? 'story_reaction' : 'story_reply', group: false })),
   storyReplies: (id: string): Promise<{ id: string; body: string; kind: 'reply' | 'reaction'; createdAt: string; author: { username: string; displayName: string } }[]> => raw(`/stories/${id}/replies`),
   storyViewers: (id: string): Promise<{ username: string; displayName: string; viewedAt: string; cheered?: boolean }[]> => raw(`/stories/${id}/viewers`),
-  cheerStory: (id: string, on: boolean): Promise<{ cheered: boolean }> => raw(`/stories/${id}/cheer`, { method: on ? 'PUT' : 'DELETE' }),
+  cheerStory: (id: string, on: boolean): Promise<{ cheered: boolean }> => trackOk(raw(`/stories/${id}/cheer`, { method: on ? 'PUT' : 'DELETE' }), 'cheer', on && { target: 'story' }),
   storyComments: (id: string): Promise<StoryComment[]> => raw(`/stories/${id}/comments`),
-  commentStory: (id: string, body: string): Promise<{ id: string }> => raw(`/stories/${id}/comments`, post({ body })),
+  commentStory: (id: string, body: string): Promise<{ id: string }> => trackOk(raw(`/stories/${id}/comments`, post({ body })), 'comment', { target: 'story' }),
   deleteStoryComment: (commentId: string): Promise<void> => raw(`/stories/comments/${commentId}`, { method: 'DELETE' }),
   closeFriends: (): Promise<{ username: string; displayName: string; hasAvatar: boolean }[]> => raw('/stories/close-friends'),
   addCloseFriend: (username: string): Promise<void> => raw(`/stories/close-friends/${encodeURIComponent(username)}`, { method: 'PUT' }),
   removeCloseFriend: (username: string): Promise<void> => raw(`/stories/close-friends/${encodeURIComponent(username)}`, { method: 'DELETE' }),
   reels: (cursor?: string): Promise<Page<Post>> => raw(`/feed/reels${cursor ? `?cursor=${cursor}&limit=6` : '?limit=6'}`),
-  createPost: (b: { body: string; locationLabel?: string; mediaIds: string[] }): Promise<Post> => raw('/posts', post(b)),
+  createPost: (b: { body: string; locationLabel?: string; mediaIds: string[] }): Promise<Post> => trackOk(raw('/posts', post(b)), 'post_create', { media: b.mediaIds.length }),
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),
   chatThread: (username: string, cursor?: string): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${cursor ? `?cursor=${cursor}` : ''}`),
-  chatSend: (username: string, msg: { body?: string; kind?: MsgKind; mediaId?: string; instantId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; name?: string; address?: string; liveMinutes?: 15 | 60 | 480; once?: boolean; replyTo?: string; gif?: import('./gifs').ChatGif }): Promise<{ id: string }> => raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
+  chatSend: (username: string, msg: { body?: string; kind?: MsgKind; mediaId?: string; instantId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; name?: string; address?: string; liveMinutes?: 15 | 60 | 480; once?: boolean; replyTo?: string; gif?: import('./gifs').ChatGif }): Promise<{ id: string }> =>
+    trackOk(raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)), 'message_send', () => {
+      if (msg.kind === 'post') track('share', { target: 'chat' });
+      return { kind: msg.kind ?? 'text', group: false, ...(msg.once ? { once: true } : {}) };
+    }),
   chatOpen: (id: string): Promise<{ kind: MsgKind; body: string; mediaUrl: string | null; durationMs: number | null; waveform: string | null }> => raw(`/chat/messages/${id}/open`, post({})),
   /** Apagar para todos (só as minhas): fica o aviso "Esta mensagem foi apagada". */
   chatDelete: (id: string): Promise<void> => raw(`/chat/messages/${id}`, { method: 'DELETE' }),
@@ -633,7 +638,8 @@ export const api = {
   /** Sugestões ao escrever @: as pessoas mais próximas primeiro; `context` + `id` sobem quem está na publicação/no grupo/no mimo. */
   mentionSuggest: (q: string, context?: MentionSuggestContext, id?: string): Promise<{ items: MentionSuggestion[] }> =>
     raw(`/mentions/suggest?q=${encodeURIComponent(q)}${context && id ? `&context=${context}&id=${encodeURIComponent(id)}` : ''}`),
-  search: (q: string): Promise<SearchResults> => raw(`/search?q=${encodeURIComponent(q)}`),
+  // A pesquisa corre a cada tecla: conta no máximo uma a cada 10 s (e nunca o que se escreveu).
+  search: (q: string): Promise<SearchResults> => raw(`/search?q=${encodeURIComponent(q)}`).then((r) => (trackThrottled('search', 10_000, { mention: q.startsWith('@') }), r as SearchResults)),
   trending: (): Promise<{ tags: TrendingTag[] }> => raw('/search/trending'),
   hotPlaces: (): Promise<{ name: string; posts: number }[]> => raw('/places/hot'),
   explore: (topic: string | null, cursor?: string): Promise<Page<Post>> => raw(`/feed/explore?limit=18${topic ? `&topic=${encodeURIComponent(topic)}` : ''}${cursor ? `&cursor=${cursor}` : ''}`),
@@ -641,7 +647,7 @@ export const api = {
   profile: (username: string): Promise<Profile> => raw(`/users/${encodeURIComponent(username)}`),
   userPosts: (username: string, cursor?: string, tab: ProfileTab = 'all'): Promise<Page<Post>> => raw(`/users/${encodeURIComponent(username)}/posts?limit=18${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}&tab=${tab}`),
   savedPosts: (cursor?: string): Promise<Page<Post>> => raw(`/feed/saved${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
-  follow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/follow`, post({})),
+  follow: (username: string): Promise<FollowState> => trackOk(raw(`/users/${encodeURIComponent(username)}/follow`, post({})), 'follow', (r) => ({ requested: !!r?.requested })),
   unfollow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/unfollow`, post({})),
   block: (username: string): Promise<void> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'PUT' }),
   unblock: (username: string): Promise<{ username: string; displayName: string }[]> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'DELETE' }),
@@ -700,16 +706,16 @@ export const api = {
   following: (username: string, cursor?: string, q?: string): Promise<Page<Person>> => raw(`/users/${encodeURIComponent(username)}/following${qsp(cursor, q)}`),
   wallet: (): Promise<WalletView> => raw('/wallet'),
   tagPage: (tag: string, sort: 'recent' | 'top', cursor?: string): Promise<TagPage> => raw(`/tags/${encodeURIComponent(tag)}?sort=${sort}&limit=10${cursor ? `&cursor=${cursor}` : ''}`),
-  getPost: (idOrCode: string): Promise<Post> => raw(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrCode) ? `/posts/${idOrCode}` : `/posts/code/${encodeURIComponent(idOrCode)}`),
+  getPost: (idOrCode: string): Promise<Post> => trackOk(raw(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrCode) ? `/posts/${idOrCode}` : `/posts/code/${encodeURIComponent(idOrCode)}`), 'post_open'),
   notifications: (cursor?: string): Promise<Page<AppNotification>> => raw(`/notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
   markNotificationsRead: (): Promise<void> => raw('/notifications/read', post({})),
   acceptRequest: (username: string): Promise<void> => raw(`/follow-requests/${encodeURIComponent(username)}/accept`, post({})),
   declineRequest: (username: string): Promise<void> => raw(`/follow-requests/${encodeURIComponent(username)}/decline`, post({})),
   comments: (postId: string, cursor?: string): Promise<Page<Comment>> => raw(`/posts/${postId}/comments?limit=15${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   replies: (id: string, cursor?: string): Promise<Page<Comment>> => raw(`/comments/${id}/replies?limit=10${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
-  addComment: (postId: string, body: string, parentId?: string, gif?: import('./gifs').ChatGif): Promise<Comment> => raw(`/posts/${postId}/comments`, post({ body, parentId, ...(gif ? { gif } : null) })),
+  addComment: (postId: string, body: string, parentId?: string, gif?: import('./gifs').ChatGif): Promise<Comment> => trackOk(raw(`/posts/${postId}/comments`, post({ body, parentId, ...(gif ? { gif } : null) })), 'comment', { target: 'post', reply: !!parentId, gif: !!gif }),
   editComment: (id: string, body: string): Promise<Comment> => raw(`/comments/${id}`, { method: 'PATCH', body: JSON.stringify({ body }) }),
-  cheerComment: (id: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/comments/${id}/cheers`, post({})),
+  cheerComment: (id: string): Promise<{ cheered: boolean; cheers: number }> => trackOk(raw(`/comments/${id}/cheers`, post({})), 'cheer', (r) => r?.cheered && { target: 'comment' }),
   deleteComment: (id: string): Promise<void> => raw(`/comments/${id}`, { method: 'DELETE' }),
   report: (type: ReportType, id: string, reason: ReportReason, note?: string): Promise<void> => raw('/reports', post({ type, id, reason, note })),
   removePost: (id: string): Promise<void> => raw(`/posts/${id}`, { method: 'DELETE' }),
