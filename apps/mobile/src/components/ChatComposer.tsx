@@ -25,8 +25,12 @@ const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
  * Ao escrever, esses dão lugar a Enviar.
  */
 export function ChatComposer({
-  username, person, onSent, bottom, replyTo, onClearReply, onTyping,
+  username, person, onSent, bottom, replyTo, onClearReply, onTyping, closeTick, onOpenChange,
 }: {
+  /** Avisa se os stickers ou o menu "+" estão abertos (para a conversa só pedir para fechar quando há algo aberto). */
+  onOpenChange?: (open: boolean) => void;
+  /** Muda quando se toca fora (na lista de mensagens): fecha os stickers e o menu "+". */
+  closeTick?: number;
   username: string;
   person?: { username: string; displayName: string; canGift?: boolean };
   onSent: () => void;
@@ -45,6 +49,8 @@ export function ChatComposer({
   const [onceHelp, setOnceHelp] = useState(false);
   const [panel, setPanel] = useState<null | 'stickers'>(null);
   const [more, setMore] = useState(false);
+  useEffect(() => { if (closeTick) { setPanel(null); setMore(false); } }, [closeTick]);
+  useEffect(() => { onOpenChange?.(panel !== null || more); }, [panel, more, onOpenChange]);
   const [gift, setGift] = useState(false);
   const [place, setPlace] = useState(false);
   const [err, setErr] = useState('');

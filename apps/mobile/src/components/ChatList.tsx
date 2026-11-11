@@ -20,10 +20,12 @@ export const CHAT_BG = '#f5f6f8';
  */
 export function ChatList({
   items, group = false, loading, hasNext, fetchNext, fetchingNext, typing, seenId, emptyText, emptyTitle, emptyArt, unread = 0, top, peerName, peerHandle, peerAvatar, meHandle,
-  onRaised, onScrollY, onMenu, onCheer, onOpenOnce, onStopLive, onRetry, onReply, onDelete,
+  onRaised, onScrollY, onTouch, onMenu, onCheer, onOpenOnce, onStopLive, onRetry, onReply, onDelete,
 }: {
   items: Msg[]; group?: boolean; loading: boolean; hasNext: boolean; fetchNext: () => Promise<unknown> | void; fetchingNext: boolean; typing?: boolean;
   seenId: string | null; emptyText: string; emptyTitle?: string; emptyArt?: ReactNode;
+  /** Tocaram na lista: quem chama fecha o painel dos stickers e o menu "+" do compositor (tocar fora fecha). */
+  onTouch?: () => void;
   /** Por ler quando a conversa abriu (da lista de conversas): põe o "Mensagens novas" antes da primeira. */
   unread?: number;
   top?: ReactNode; peerName?: string; peerHandle?: string;
@@ -111,6 +113,7 @@ export function ChatList({
       ) : (
         <FlatList
           ref={list}
+          onTouchStart={onTouch}
           inverted
           data={items}
           extraData={`${flashId}|${seenId}|${newFrom}|${rows.length}`}

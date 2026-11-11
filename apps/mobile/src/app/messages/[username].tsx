@@ -36,6 +36,10 @@ export default function Thread() {
   const { user } = useAuth();
   const [err, setErr] = useState('');
   const [replying, setReplying] = useState<{ id: string; text: string; who: string } | null>(null);
+  /** Tocar na lista de mensagens fecha os stickers e os menus do compositor (tocar fora fecha). */
+  const [closeTick, setCloseTick] = useState(0);
+  const composerOpen = useRef(false);
+  const onComposerOpen = useCallback((o: boolean) => { composerOpen.current = o; }, []);
   const [viewing, setViewing] = useState<{ url: string | null; body: string } | null>(null);
   // O menu da mensagem (segurar) e, se veio da ação "Apagar" do leitor de ecrã, já na confirmação.
   const [menuFor, setMenuFor] = useState<{ m: Msg; start?: 'delete' } | null>(null);
@@ -242,6 +246,7 @@ export default function Thread() {
       ) : null}
       <ChatList
         key={username}
+        onTouch={() => { if (composerOpen.current) setCloseTick((t) => t + 1); }}
         items={items}
         loading={q.isLoading || (qs.isError && items.length === 0 && qs.isFetching)}
         hasNext={!!q.hasNextPage}
@@ -287,7 +292,7 @@ export default function Thread() {
           }}
         />
       ) : (
-        <ChatComposer username={username} person={person} onSent={() => void q.refetch()} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} onTyping={onTyping} />
+        <ChatComposer closeTick={closeTick} onOpenChange={onComposerOpen} username={username} person={person} onSent={() => void q.refetch()} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} onTyping={onTyping} />
       )}
       {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
 

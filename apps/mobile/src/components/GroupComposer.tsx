@@ -21,8 +21,12 @@ import { markSeen } from '@/lib/whatsNew';
  * visualização única, voz, galeria, stickers e "mais" (localização e presente). Com texto, só aparece "Enviar".
  */
 export function GroupComposer({
-  send, onSent, bottom, replyTo, onClearReply, onPoll,
+  send, onSent, bottom, replyTo, onClearReply, onPoll, closeTick, onOpenChange,
 }: {
+  /** Avisa se os stickers ou os anexos estão abertos. */
+  onOpenChange?: (open: boolean) => void;
+  /** Muda quando se toca fora (na lista de mensagens): fecha os stickers e o menu de anexos. */
+  closeTick?: number;
   send: (msg: GroupSendBody) => Promise<unknown>;
   onSent: () => void;
   bottom: number;
@@ -35,6 +39,8 @@ export function GroupComposer({
   const gifs = useGifsConfig();
   const [text, setText] = useState('');
   const [panel, setPanel] = useState<null | 'stickers' | 'attach'>(null);
+  useEffect(() => { if (closeTick) setPanel(null); }, [closeTick]);
+  useEffect(() => { onOpenChange?.(panel !== null); }, [panel, onOpenChange]);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [place, setPlace] = useState(false);

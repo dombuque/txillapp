@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { abs } from '@/lib/config';
 import { useAuth } from '@/lib/auth';
 import { Alert, KeyboardAvoidingView, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -55,6 +55,10 @@ export default function GroupThreadScreen() {
   // A minha mensagem que estou a editar (a barra de escrever passa a ser a de editar).
   const [editing, setEditing] = useState<Msg | null>(null);
   const [replying, setReplying] = useState<{ id: string; text: string; who: string } | null>(null);
+  /** Tocar na lista de mensagens fecha os stickers e os menus do compositor (tocar fora fecha). */
+  const [closeTick, setCloseTick] = useState(0);
+  const composerOpen = useRef(false);
+  const onComposerOpen = useCallback((o: boolean) => { composerOpen.current = o; }, []);
   const [viewing, setViewing] = useState<{ url: string | null; body: string } | null>(null);
   const [members, setMembers] = useState(info === '1');
   useEffect(() => { if (info === '1') setMembers(true); }, [info, id]);
@@ -138,6 +142,7 @@ export default function GroupThreadScreen() {
       ) : (
         <ChatList
           key={id}
+          onTouch={() => { if (composerOpen.current) setCloseTick((t) => t + 1); }}
           items={items}
           group
           unread={unread}
@@ -172,7 +177,7 @@ export default function GroupThreadScreen() {
           }}
         />
       ) : group && (
-        <GroupComposer send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} />
+        <GroupComposer closeTick={closeTick} onOpenChange={onComposerOpen} send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} />
       )}
     </View>
   );
