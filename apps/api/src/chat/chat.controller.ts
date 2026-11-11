@@ -50,6 +50,9 @@ const sendSchema = z.object({
   lng: z.number().min(-180).max(180).optional(),
   once: z.boolean().optional(),
   liveMinutes: z.union([z.literal(15), z.literal(60), z.literal(480)]).optional(),
+  // Localização de um sítio escolhido ("Sítios perto" ou a pesquisa): o nome e a morada vão com o ponto. Opcionais.
+  name: z.string().trim().max(80).optional(),
+  address: z.string().trim().max(160).optional(),
   mediaId: z.string().uuid().optional(),
   durationMs: z.number().int().min(0).max(300_000).optional(),
   waveform: z.string().regex(/^[0-9]{8,96}$/).optional(),

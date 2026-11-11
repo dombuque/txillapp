@@ -36,6 +36,9 @@ export interface Outgoing {
   once?: boolean;
   /** Localização em direto durante estes minutos (15, 60 ou 480). */
   liveMinutes?: number;
+  /** Localização de um sítio escolhido: o nome (até 80) e a morada (até 160). Só nas mensagens de localização. */
+  name?: string;
+  address?: string;
   /** Responde a esta mensagem (da mesma conversa ou grupo). */
   replyTo?: string;
 }
@@ -261,7 +264,7 @@ export class ChatService {
     const newPosts = blocked || cursor ? { count: 0, latestId: null } : await this.posts.newPostsBy(me, other.id);
     if (!conv) return { person, blocked, relation, newPosts, otherRead: null, items: [], nextCursor: null };
     const { rows } = await this.pool.query(
-      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.view_once, m.viewed_at, m.live_until, m.gift_amount, m.reply_to, m.created_at FROM social.messages m
+      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.place_name, m.place_address, m.view_once, m.viewed_at, m.live_until, m.gift_amount, m.reply_to, m.created_at FROM social.messages m
         WHERE m.conversation_id = $1 AND m.deleted_at IS NULL AND ($2::uuid IS NULL OR m.id < $2)
           AND m.id > COALESCE((SELECT CASE WHEN c.user_a = $4 THEN c.cleared_a ELSE c.cleared_b END FROM social.conversations c WHERE c.id = $1), '00000000-0000-0000-0000-000000000000'::uuid)
         ORDER BY m.id DESC LIMIT $3`,
@@ -323,6 +326,9 @@ export class ChatService {
         waveform: m.view_once ? null : ((m.waveform as string | null) ?? null),
         lat: (m.lat as number | null) ?? null,
         lng: (m.lng as number | null) ?? null,
+        /** Localização de um sítio: o nome e a morada (null na localização atual, na em direto e nas mensagens antigas). */
+        placeName: (m.place_name as string | null) ?? null,
+        placeAddress: (m.place_address as string | null) ?? null,
         /** Presente enviado na conversa: quanto (a nota vai no texto). */
         giftAmount: (m.gift_amount as number | null) ?? null,
         /** Localização em direto ainda a decorrer. */
@@ -355,6 +361,7 @@ export class ChatService {
       await this.posts.getOne(me, msg.body);
     } else if (msg.kind === 'location') {
       if (typeof msg.lat !== 'number' || typeof msg.lng !== 'number') throw new BadRequestException('Falta a localização');
+      this.filter.assertClean(msg.body, msg.name ?? '', msg.address ?? '');
     } else {
       if (!msg.mediaId) throw new BadRequestException('Falta o ficheiro');
       // Só ficheiros do chat, do próprio, já carregados, do tipo certo e ainda não usados.
@@ -371,6 +378,17 @@ export class ChatService {
     // A localização guarda-se com ~1 m de precisão e só o que a pessoa escolheu enviar, uma vez.
     const place = msg.kind === 'location' ? { lat: Math.round(msg.lat! * 1e5) / 1e5, lng: Math.round(msg.lng! * 1e5) / 1e5 } : null;
     return place;
+  }
+
+  /**
+   * O que fica gravado de uma mensagem de localização: o texto (até 80; sem texto, o nome do sítio, para a lista de conversas
+   * e para apps antigas) e o nome e a morada do sítio, se vierem. Nas outras mensagens, o texto como veio e nada de sítio.
+   */
+  placeFields(msg: Outgoing): { body: string; name: string | null; address: string | null } {
+    if (msg.kind !== 'location') return { body: msg.body, name: null, address: null };
+    const name = msg.name?.trim().slice(0, 80) || null;
+    const address = msg.address?.trim().slice(0, 160) || null;
+    return { body: (msg.body.trim() || name || '').slice(0, 80), name, address };
   }
 
   /** Mensagem normal: precisa de não haver bloqueio e de a pessoa aceitar mensagens (ou já existir conversa). */
@@ -424,7 +442,8 @@ export class ChatService {
     const place = await this.validateOutgoing(me, msg);
     const once = !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice' || msg.kind === 'video');
     const live = msg.kind === 'location' && msg.liveMinutes && [15, 60, 480].includes(msg.liveMinutes) ? msg.liveMinutes : null;
-    return this.insert(me, other.id, msg.kind === 'location' ? msg.body.slice(0, 80) : msg.body, msg.kind, null, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place, { once, liveMinutes: live, replyTo: msg.replyTo });
+    const spot = this.placeFields(msg);
+    return this.insert(me, other.id, spot.body, msg.kind, null, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place, { once, liveMinutes: live, replyTo: msg.replyTo, placeName: spot.name, placeAddress: spot.address });
   }
 
   /** Resposta/reacção a um story: já foi autorizada pela definição de respostas do autor. */
@@ -600,12 +619,12 @@ export class ChatService {
     this.events.emit(other.id, { type: 'typing', from: await this.usernameOf(me) });
   }
 
-  private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null, waveform: string | null, place: { lat: number; lng: number } | null, extra: { once?: boolean; liveMinutes?: number | null; giftTx?: string; giftAmount?: number; replyTo?: string } = {}) {
+  private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null, waveform: string | null, place: { lat: number; lng: number } | null, extra: { once?: boolean; liveMinutes?: number | null; giftTx?: string; giftAmount?: number; replyTo?: string; placeName?: string | null; placeAddress?: string | null } = {}) {
     const conv = await this.conversation(me, other, true);
     const id = uuidv7();
     await this.pool.query(
-      "INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms, waveform, lat, lng, view_once, live_until, gift_tx, gift_amount, reply_to) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CASE WHEN $13::int IS NULL THEN NULL ELSE now() + ($13::int * interval '1 minute') END, $14, $15, (SELECT r.id FROM social.messages r WHERE r.id = $16::uuid AND r.conversation_id = $2 AND r.deleted_at IS NULL))",
-      [id, conv, me, body, kind, storyMediaId, mediaId, durationMs, waveform, place?.lat ?? null, place?.lng ?? null, !!extra.once, extra.liveMinutes ?? null, extra.giftTx ?? null, extra.giftAmount ?? null, extra.replyTo ?? null],
+      "INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms, waveform, lat, lng, view_once, live_until, gift_tx, gift_amount, reply_to, place_name, place_address) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CASE WHEN $13::int IS NULL THEN NULL ELSE now() + ($13::int * interval '1 minute') END, $14, $15, (SELECT r.id FROM social.messages r WHERE r.id = $16::uuid AND r.conversation_id = $2 AND r.deleted_at IS NULL), $17, $18)",
+      [id, conv, me, body, kind, storyMediaId, mediaId, durationMs, waveform, place?.lat ?? null, place?.lng ?? null, !!extra.once, extra.liveMinutes ?? null, extra.giftTx ?? null, extra.giftAmount ?? null, extra.replyTo ?? null, extra.placeName ?? null, extra.placeAddress ?? null],
     );
     await this.pool.query(
       `UPDATE social.conversations SET last_message_at = now(),

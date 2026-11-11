@@ -30,5 +30,11 @@ export interface PlacePickMapProps {
   readOnly?: boolean;
   /** O zoom da primeira vista (15 por omissão). */
   zoom?: number;
+  /** O ponto azul "estou aqui" e o círculo da precisão (metros). */
+  me?: { lat: number; lng: number; accuracy?: number | null } | null;
+  /** O alfinete ao centro (por omissão sim). "Enviar localização" esconde-o até a pessoa arrastar o mapa. */
+  pin?: boolean;
+  /** A pessoa começou a arrastar o mapa (não conta quando é a app a mudar o centro). */
+  onDrag?: () => void;
   style?: StyleProp<ViewStyle>;
 }

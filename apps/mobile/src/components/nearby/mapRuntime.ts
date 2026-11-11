@@ -341,6 +341,8 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
 export interface PickHandle {
   /** Leva o mapa até `c` (sem animação) e avisa o novo centro. */
   setCenter: (c: { lat: number; lng: number }, zoom?: number) => void;
+  /** O ponto azul "estou aqui" com o círculo da precisão (em metros); null tira-o. */
+  setMe: (p: { lat: number; lng: number; accuracy?: number | null } | null) => void;
   resize: () => void;
   destroy: () => void;
 }
@@ -360,13 +362,15 @@ export interface PickOptions {
  * O mapa pequeno de "Marcar no mapa" (o sítio de um TxillGroup ou de um local): arrasta-se o mapa e o alfinete fica parado ao
  * centro (o alfinete é desenhado por cima, fora daqui). Nos grupos, um círculo de ~750 m (metade da quadrícula de 1,5 km) mostra
  * a zona que fica gravada. Avisa o centro em `onMove` quando o mapa para. Com `still`, só mostra o sítio.
+ * `onDrag` avisa quando a pessoa começa a arrastar o mapa com o dedo (ou o rato), e não quando é a app a mudá-lo.
  */
-export function createPickMap(L: typeof Leaflet, el: HTMLElement, onMove: (c: { lat: number; lng: number }) => void, opts: PickOptions): PickHandle {
+export function createPickMap(L: typeof Leaflet, el: HTMLElement, onMove: (c: { lat: number; lng: number }) => void, opts: PickOptions, onDrag?: () => void): PickHandle {
   const BRAND = '#d6334f';
   if (!document.getElementById('tx-pick-css')) {
     const css = document.createElement('style');
     css.id = 'tx-pick-css';
-    css.textContent = '.leaflet-container{font-family:system-ui,sans-serif;background:#f2efe9}.leaflet-control-attribution{font-size:10px}';
+    css.textContent = '.leaflet-container{font-family:system-ui,sans-serif;background:#f2efe9}.leaflet-control-attribution{font-size:10px}' +
+      '.txpme{background:none;border:0;pointer-events:none}.txpme .dot{position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#1d9bf0;border:3px solid #fff;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.3)}';
     document.head.appendChild(css);
   }
   const still = !!opts.still;
@@ -398,11 +402,39 @@ export function createPickMap(L: typeof Leaflet, el: HTMLElement, onMove: (c: { 
   };
   map.on('move', () => { if (zone) zone.setLatLng(map.getCenter()); });
   map.on('moveend', () => { if (ready) emit(); });
+  map.on('dragstart', () => onDrag?.());
+  const ME = '#1d9bf0';
+  let meDot: Leaflet.Marker | null = null;
+  let meRing: Leaflet.Circle | null = null;
   return {
     setCenter: (c, zoom) => {
       map.setView([c.lat, c.lng], zoom ?? (ready ? map.getZoom() : (opts.zoom ?? 15)), { animate: false });
       ready = true;
       emit();
+    },
+    setMe: (p) => {
+      if (!p) {
+        meDot?.remove();
+        meRing?.remove();
+        meDot = null;
+        meRing = null;
+        return;
+      }
+      const at: [number, number] = [p.lat, p.lng];
+      const r = Math.max(1, Math.min(5000, Number(p.accuracy) || 1));
+      if (!meDot || !meRing) {
+        meRing = L.circle(at, { radius: r, color: ME, weight: 1, opacity: 0.45, fillColor: ME, fillOpacity: 0.12, interactive: false }).addTo(map);
+        meDot = L.marker(at, {
+          icon: L.divIcon({ className: 'txpme', html: '<div class="dot"></div>', iconSize: [22, 22], iconAnchor: [11, 11] }),
+          interactive: false,
+          keyboard: false,
+          zIndexOffset: 5000,
+        }).addTo(map);
+      } else {
+        meRing.setLatLng(at);
+        meRing.setRadius(r);
+        meDot.setLatLng(at);
+      }
     },
     resize: () => map.invalidateSize(),
     destroy: () => map.remove(),

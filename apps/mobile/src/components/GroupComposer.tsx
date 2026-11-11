@@ -2,13 +2,14 @@ import { useGrowInput } from '@/lib/growInput';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { uploadChatMedia } from '@/lib/api';
 import { type GroupSendBody } from '@/lib/api.grupos';
+import type { LocationMessage } from '@/lib/sendLocation';
 import { colors } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
+import { SendLocationSheet } from './SendLocationSheet';
 import { StickerPanel } from './StickerPanel';
 import { NewBadge } from './WhatsNew';
 import { markSeen } from '@/lib/whatsNew';
@@ -33,6 +34,7 @@ export function GroupComposer({
   const [panel, setPanel] = useState<null | 'stickers' | 'attach'>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [place, setPlace] = useState(false);
   const [recording, setRecording] = useState(false);
   const [secs, setSecs] = useState(0);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -81,16 +83,19 @@ export function GroupComposer({
       setBusy(false);
     }
   }
-  async function sendPlace() {
+  /** "Localização": abre a folha "Enviar localização" (sem partilha em direto nos grupos). Só envia com um toque em Enviar. */
+  function openPlace() {
     setPanel(null);
-    try {
-      const p = await Location.requestForegroundPermissionsAsync();
-      if (!p.granted) return setErr('Preciso de acesso à localização.');
-      const pos = await Location.getCurrentPositionAsync({});
-      await dispatch({ kind: 'location', lat: pos.coords.latitude, lng: pos.coords.longitude });
-    } catch {
-      setErr('Não consegui obter a localização.');
-    }
+    setPlace(true);
+  }
+  /** Chamado pela folha: os erros sobem para ela (mostra-os e fica aberta). */
+  async function sendLocation(msg: LocationMessage) {
+    setErr('');
+    const { liveMinutes: _live, ...body } = msg;
+    const r = await send({ ...body, ...(replyTo ? { replyTo: replyTo.id } : null) });
+    onClearReply?.();
+    onSent();
+    return r;
   }
   async function startRecording() {
     try {
@@ -149,7 +154,7 @@ export function GroupComposer({
       {panel === 'attach' && (
         <View style={styles.attach}>
           {onPoll && <Pressable onPress={() => { setPanel(null); onPoll(); }} style={styles.attachItem}><View style={styles.attachIcon}><Icon name="trending" size={22} /></View><Text style={styles.attachLabel}>Sondagem</Text></Pressable>}
-          <Pressable onPress={() => void sendPlace()} style={styles.attachItem}><View style={styles.attachIcon}><Icon name="map-pin" size={22} /></View><Text style={styles.attachLabel}>Localização</Text></Pressable>
+          <Pressable onPress={openPlace} style={styles.attachItem} accessibilityRole="button" accessibilityLabel="Localização: escolher o que enviar"><View style={styles.attachIcon}><Icon name="map-pin" size={22} /></View><Text style={styles.attachLabel}>Localização</Text></Pressable>
         </View>
       )}
       {replyTo && (
@@ -183,6 +188,7 @@ export function GroupComposer({
           )}
         </View>
       </View>
+      {place && <SendLocationSheet allowLive={false} onSend={sendLocation} onClose={() => setPlace(false)} />}
     </View>
   );
 }

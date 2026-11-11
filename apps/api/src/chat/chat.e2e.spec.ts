@@ -488,4 +488,38 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     expect((await find(to, from)).live).toBe(false);
     await api().put(`/api/v1/chat/messages/${sent}/location`).set(auth(from)).send({ lat: 2, lng: 2 }).expect(404); // terminou
   });
+
+  it('localização de um sítio: o nome e a morada vão com o ponto (opcionais), na conversa e nos grupos', async () => {
+    const { ce: from, cf: to, cg, ch, ci } = u;
+    type Loc = { id: string; body: string; lat: number; lng: number; placeName: string | null; placeAddress: string | null; live: boolean };
+    const loc = async (x: U, y: U, id: string) => ((await thread(x, y)).items as Loc[]).find((m) => m.id === id)!;
+    // Os envios dos testes anteriores contam para o limite por minuto: este começa do zero.
+    const st = app.get(getStorageToken()) as { storage: Map<string, unknown>; hitExpirations?: Map<string, unknown> };
+    st.storage.clear();
+    st.hitExpirations?.clear();
+
+    // Um sítio da lista "Sítios perto": nome e morada; sem texto, o texto passa a ser o nome (lista de conversas e apps antigas).
+    const spot = (await api().post(`/api/v1/chat/with/${to.username}`).set(auth(from)).send({ kind: 'location', lat: -25.965432, lng: 32.581234, name: '  Café Acácia ', address: 'Av. Julius Nyerere 123, Maputo' }).expect(201)).body.id as string;
+    expect(await loc(to, from, spot)).toMatchObject({ body: 'Café Acácia', lat: -25.96543, lng: 32.58123, placeName: 'Café Acácia', placeAddress: 'Av. Julius Nyerere 123, Maputo', live: false });
+    expect((await list(to)).find((c) => c.username === from.username)!.lastMessage).toMatchObject({ kind: 'location', body: 'Café Acácia' });
+
+    // A localização atual (só o ponto): sem nome nem morada, como antes.
+    const here = (await api().post(`/api/v1/chat/with/${to.username}`).set(auth(from)).send({ kind: 'location', lat: -25.97, lng: 32.57 }).expect(201)).body.id as string;
+    expect(await loc(to, from, here)).toMatchObject({ body: '', placeName: null, placeAddress: null });
+
+    // Só o nome (sem morada) também serve; nome ou morada compridos de mais são recusados.
+    const onlyName = (await api().post(`/api/v1/chat/with/${to.username}`).set(auth(from)).send({ kind: 'location', lat: -25.9, lng: 32.6, name: 'Costa do Sol' }).expect(201)).body.id as string;
+    expect(await loc(from, to, onlyName)).toMatchObject({ placeName: 'Costa do Sol', placeAddress: null });
+    await api().post(`/api/v1/chat/with/${to.username}`).set(auth(from)).send({ kind: 'location', lat: 0, lng: 0, name: 'x'.repeat(81) }).expect(400);
+    await api().post(`/api/v1/chat/with/${to.username}`).set(auth(from)).send({ kind: 'location', lat: 0, lng: 0, address: 'x'.repeat(161) }).expect(400);
+    // O nome e a morada não fazem sentido noutras mensagens: num texto são ignorados.
+    const txt = (await api().post(`/api/v1/chat/with/${to.username}`).set(auth(from)).send({ body: 'olá', name: 'Nada' }).expect(201)).body.id as string;
+    expect((await pool.query('SELECT place_name, place_address FROM social.messages WHERE id = $1', [txt])).rows[0]).toEqual({ place_name: null, place_address: null });
+
+    // Nos grupos, o mesmo.
+    const gid = (await api().post('/api/v1/chat/groups').set(auth(cg)).send({ name: 'Sítios da malta', members: [ch.username, ci.username] }).expect(201)).body.id as string;
+    await api().post(`/api/v1/chat/groups/${gid}/messages`).set(auth(ch)).send({ kind: 'location', lat: -25.95, lng: 32.59, name: 'Mercado do Peixe', address: 'Av. Marginal, Maputo' }).expect(201);
+    const item = (await api().get(`/api/v1/chat/groups/${gid}`).set(auth(ci)).expect(200)).body.items[0];
+    expect(item).toMatchObject({ kind: 'location', body: 'Mercado do Peixe', placeName: 'Mercado do Peixe', placeAddress: 'Av. Marginal, Maputo', sender: { username: ch.username } });
+  });
 });
