@@ -18,6 +18,7 @@ import { PhotoEditor } from '@/components/PhotoEditor';
 import { Icon, type IconName } from '@/components/Icon';
 import { LiveCamera, liveCameraSupported, type Shot } from '@/components/LiveCamera';
 import { MusicPicker } from '@/components/MusicPicker';
+import { MentionSuggest, useMentionSuggest } from '@/components/MentionSuggest';
 import { PhotoTagger } from '@/components/PhotoTagger';
 import { PlaceSheet, type PlaceGeo } from '@/components/PlaceSheet';
 import { Sheet } from '@/components/Sheet';
@@ -158,6 +159,9 @@ export default function Compose() {
   /** Fotos a ser cortadas para a proporção do carrossel (lotes em curso). */
   const [preparing, setPreparing] = useState(0);
   const batchGen = useRef(0);
+  // @ na legenda: sugere as pessoas mais próximas (a lista aparece logo por cima do campo).
+  const bodyRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const mention = useMentionSuggest({ text: body, setText: setBody, inputRef: bodyRef });
   const [progress, setProgress] = useState('');
   const [err, setErr] = useState('');
   const [music, setMusic] = useState<Track | null>(null);
@@ -639,7 +643,8 @@ export default function Compose() {
           </View>
 
           <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
-            <TextInput value={body} onChangeText={setBody} placeholder={ask} placeholderTextColor={colors.zinc500} multiline maxLength={2000} autoFocus={assets.length === 0 && preparing === 0} style={styles.input} accessibilityLabel="Texto da publicação" />
+            <MentionSuggest mention={mention} style={{ marginHorizontal: 0, marginBottom: 8 }} />
+            <TextInput ref={bodyRef} value={body} onChangeText={setBody} {...mention.inputProps} placeholder={ask} placeholderTextColor={colors.zinc500} multiline maxLength={2000} autoFocus={assets.length === 0 && preparing === 0} style={styles.input} accessibilityLabel="Texto da publicação" />
             {music ? (
               <View>
                 <TrackCard track={music} />

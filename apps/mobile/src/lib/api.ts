@@ -71,6 +71,8 @@ export interface AppNotification {
   thumb?: { url: string; video: boolean } | null;
 }
 export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved';
+export type MentionSuggestContext = 'post' | 'group' | 'story' | 'zas' | 'chat';
+export interface MentionSuggestion { username: string; displayName: string; hasAvatar: boolean; verified?: boolean; reason?: 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proximo' | 'neste-post' | 'no-grupo' }
 export interface Person { username: string; displayName: string; following: boolean; followsYou: boolean; isPrivate?: boolean; requested?: boolean; verified?: boolean }
 export interface InvitesInfo {
   code: string;
@@ -617,6 +619,9 @@ export const api = {
   chatAccept: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/accept`, post({})),
   chatDecline: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/decline`, post({})),
   mentionable: (q: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; following: boolean; verified?: boolean }[]> => raw(`/mentionable?q=${encodeURIComponent(q)}`),
+  /** Sugestões ao escrever @: as pessoas mais próximas primeiro; `context` + `id` sobem quem está na publicação/no grupo/no mimo. */
+  mentionSuggest: (q: string, context?: MentionSuggestContext, id?: string): Promise<{ items: MentionSuggestion[] }> =>
+    raw(`/mentions/suggest?q=${encodeURIComponent(q)}${context && id ? `&context=${context}&id=${encodeURIComponent(id)}` : ''}`),
   search: (q: string): Promise<SearchResults> => raw(`/search?q=${encodeURIComponent(q)}`),
   trending: (): Promise<{ tags: TrendingTag[] }> => raw('/search/trending'),
   hotPlaces: (): Promise<{ name: string; posts: number }[]> => raw('/places/hot'),
