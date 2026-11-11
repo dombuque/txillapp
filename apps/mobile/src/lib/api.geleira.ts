@@ -7,8 +7,11 @@ export interface TasteItem { id: string; slug: string; name: string; kind: Taste
 export interface CatalogItem extends TasteItem { mine: boolean; rating: number | null; favorite: boolean; fans: number; region: 'local' | 'global' | 'foreign' }
 export interface MyTaste extends TasteItem { rating: number | null; favorite: boolean }
 export interface TheirTaste extends TasteItem { rating: number | null; favorite: boolean }
-/** `cheers`/`cheered`: os brindes à geleira (servidor antigo não manda → sem botão de brindar). */
-export interface GeleiraLevel { points: number; level: number; title: string; toNext: number | null; nextTitle: string | null; cheers?: number; cheered?: boolean }
+/**
+ * `cheers`/`cheered`: os brindes à geleira (servidor antigo não manda → sem botão de brindar). `cheersListable`: posso ver
+ * quem brindou (o dono sempre; os outros se o dono mostra a lista nas definições).
+ */
+export interface GeleiraLevel { points: number; level: number; title: string; toNext: number | null; nextTitle: string | null; cheers?: number; cheered?: boolean; cheersListable?: boolean }
 export interface GeleiraCheer { cheered: boolean; cheers: number }
 export interface GeleiraCheerer { username: string; displayName: string; hasAvatar: boolean; at: string }
 
@@ -30,7 +33,7 @@ export const geleiraApi = {
   /** Brinda a geleira de alguém (400 na própria, 404 se não a pode ver). */
   cheer: (username: string): Promise<GeleiraCheer> => raw(`/users/${encodeURIComponent(username)}/geleira/cheer`, { method: 'PUT', body: '{}' }),
   uncheer: (username: string): Promise<GeleiraCheer> => raw(`/users/${encodeURIComponent(username)}/geleira/cheer`, { method: 'DELETE' }),
-  /** Quem brindou a minha geleira (só o dono). */
+  /** Quem brindou a geleira: o dono sempre; os outros se o dono mostra a lista (403 se não, 404 se não vê a geleira). */
   cheers: (username: string): Promise<{ items: GeleiraCheerer[] }> => raw(`/users/${encodeURIComponent(username)}/geleira/cheers`),
   geo: (): Promise<{ country: string | null }> => raw('/health/geo'),
 };

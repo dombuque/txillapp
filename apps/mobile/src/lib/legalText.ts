@@ -97,7 +97,7 @@ export const TERMS: LegalBlock[][] = [
    "x": [
     "**Boas-vindas**: ao criar a conta recebes 500 Txills na tua carteira.",
     "Só podes presentear quem segues e quem aceita presentes (cada pessoa escolhe isso nas Definições). O presente pode ficar **em silêncio**, **privado** ou ser **publicado** num post para toda a gente ver.",
-    "A **geleira** é a tua vitrine de gostos (vibes, bebidas, comidas e sítios). Quem a vê escolhes tu: todos, só seguidores, só amigos próximos ou só tu.",
+    "A **geleira** é a tua vitrine de gostos (vibes, bebidas, comidas e sítios). Quem a vê escolhes tu: todos, só seguidores, só amigos próximos ou só tu. Quem a vê pode **brindá-la**; por omissão só tu vês quem brindou, mas podes torná-lo visível a quem vê a geleira nas definições dela (Editar perfil).",
     "As **bebidas com álcool** só aparecem a maiores de 18 anos; menores nunca as veem, juntam ou sugerem.",
     "A geleira tem um **nível**, calculado por pontos. As bebidas com álcool e as vibes de festa valem mais, as outras valem menos, um favorito dá mais um ponto, e os teus **Txills também contam** (1 ponto por cada 200, até 5). O nível tem nome em calão da malta (por exemplo, «Paulada garantida»).",
     "O título do nível mais alto **muda com a tua idade** (por exemplo, «Madala da paulada» só a partir dos 45 anos). A idade vem da data de nascimento que deste ao criar a conta; a data nunca é mostrada a ninguém.",
@@ -356,7 +356,7 @@ export const PRIVACY: LegalBlock[][] = [
   },
   {
    "t": "p",
-   "x": "Guardamos os gostos que juntas à tua geleira, as notas e os favoritos. Com eles, e com o teu saldo de Txills, calculamos o **nível** da geleira. A data de nascimento é usada para três coisas, nunca para mostrar: validar a idade mínima, esconder bebidas com álcool a menores de 18 anos e escolher o título do nível mais alto. Tu escolhes quem vê a geleira (todos, seguidores, amigos próximos ou só tu); quando ela não é visível para alguém, o nível também não é. Como o saldo de Txills conta para o nível, uma geleira visível pode revelar de forma aproximada quanto tens."
+   "x": "Guardamos os gostos que juntas à tua geleira, as notas e os favoritos. Com eles, e com o teu saldo de Txills, calculamos o **nível** da geleira. A data de nascimento é usada para três coisas, nunca para mostrar: validar a idade mínima, esconder bebidas com álcool a menores de 18 anos e escolher o título do nível mais alto. Tu escolhes quem vê a geleira (todos, seguidores, amigos próximos ou só tu); quando ela não é visível para alguém, o nível também não é. Guardamos também quem brindou a tua geleira: por omissão só tu vês quem foi; se ligares «Mostrar quem brindou a minha geleira», quem vê a geleira vê também essa lista. Como o saldo de Txills conta para o nível, uma geleira visível pode revelar de forma aproximada quanto tens."
   }
  ],
  [

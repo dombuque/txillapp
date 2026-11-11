@@ -36,7 +36,7 @@ describe('brindar a geleira: contagem no perfil, quem brindou e aviso só da pri
     pool = new Pool({ connectionString: DB });
     app = await createApp(loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'h'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test' }));
     await app.init();
-    for (const n of ['gca', 'gcb', 'gcc', 'gcd']) u[n] = await signup(n);
+    for (const n of ['gca', 'gcb', 'gcc', 'gcd', 'gce']) u[n] = await signup(n);
   }, 60_000);
 
   afterAll(async () => {
@@ -108,9 +108,9 @@ describe('brindar a geleira: contagem no perfil, quem brindou e aviso só da pri
     expect(all.items[0]).toMatchObject({ username: gcd.username, displayName: 'gcd Teste', hasAvatar: false });
     expect(typeof all.items[0].at).toBe('string');
 
-    // Outra pessoa (mesmo quem brindou) não vê a lista de ninguém.
+    // Por omissão, outra pessoa (mesmo quem brindou) não vê a lista; pessoa que não existe: 404, como o nível.
     await api().get(`/api/v1/users/${gca.username}/geleira/cheers`).set(auth(gcb)).expect(403);
-    await api().get('/api/v1/users/ninguem_assim_xyz/geleira/cheers').set(auth(gcb)).expect(403);
+    await api().get('/api/v1/users/ninguem_assim_xyz/geleira/cheers').set(auth(gcb)).expect(404);
 
     // Bloqueada: sai da lista e da contagem; desbloqueada, volta.
     await api().put(`/api/v1/blocks/${gcb.username}`).set(auth(gca)).expect(200);
@@ -146,5 +146,80 @@ describe('brindar a geleira: contagem no perfil, quem brindou e aviso só da pri
     expect((mine.geleiraCheersReceived as { from: string }[]).map((c) => c.from)).toContain(gcb.username);
     const theirs = (await api().get('/api/v1/me/export').set(auth(gcb)).expect(200)).body;
     expect(theirs.geleiraCheersGiven).toEqual([expect.objectContaining({ to: gca.username })]);
+  });
+
+  it('definição "mostrar quem brindou": desligada por omissão; GET/PUT com cheersPublic, que só aceita sim/não', async () => {
+    const { gca, gcb } = u;
+    expect((await api().get('/api/v1/geleira/me/settings').set(auth(gcb)).expect(200)).body).toEqual({ matching: true, visibility: 'everyone', cheersPublic: false });
+    await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ cheersPublic: 'sim' }).expect(400);
+    await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ cheersPublic: 1 }).expect(400);
+    expect((await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ cheersPublic: true }).expect(200)).body).toEqual({ matching: true, visibility: 'everyone', cheersPublic: true });
+    // Mudar outra coisa não mexe nesta.
+    expect((await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ visibility: 'followers' }).expect(200)).body).toEqual({ matching: true, visibility: 'followers', cheersPublic: true });
+    expect((await api().get('/api/v1/geleira/me/settings').set(auth(gca)).expect(200)).body).toEqual({ matching: true, visibility: 'followers', cheersPublic: true });
+    expect((await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ visibility: 'everyone', cheersPublic: false }).expect(200)).body).toEqual({ matching: true, visibility: 'everyone', cheersPublic: false });
+  });
+
+  it('com a lista pública, quem vê a geleira vê quem brindou (sem quem tem bloqueio com ele); quem não a vê continua 404', async () => {
+    const { gca, gcb, gcc, gcd, gce } = u;
+    const cheersOf = (viewer: U) => api().get(`/api/v1/users/${gca.username}/geleira/cheers`).set(auth(viewer));
+    const names = async (viewer: U) => ((await cheersOf(viewer).expect(200)).body as { items: { username: string }[] }).items.map((i) => i.username);
+
+    // Por omissão: o visitante não lista (403) e o nível diz cheersListable=false; o dono lista sempre.
+    expect((await level(gcb, gca).expect(200)).body).toMatchObject({ cheersListable: false });
+    expect((await level(gca, gca).expect(200)).body).toMatchObject({ cheersListable: true });
+    const denied = await cheersOf(gcb).expect(403);
+    expect(denied.body.message).toBe('Só o dono vê quem brindou a geleira');
+
+    // Lista pública: o visitante que vê a geleira vê o mesmo que o dono, no mesmo formato.
+    await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ cheersPublic: true }).expect(200);
+    expect((await level(gcb, gca).expect(200)).body).toMatchObject({ cheersListable: true, cheers: 3 });
+    expect((await level(gce, gca).expect(200)).body).toMatchObject({ cheersListable: true, cheered: false });
+    const owner = (await cheersOf(gca).expect(200)).body;
+    const visitor = (await cheersOf(gce).expect(200)).body;
+    expect(visitor).toEqual(owner);
+    expect(visitor.items.map((i: { username: string }) => i.username).sort()).toEqual([gcb.username, gcc.username, gcd.username].sort());
+    expect(visitor.items[0]).toEqual({ username: expect.any(String), displayName: expect.any(String), hasAvatar: false, at: expect.any(String) });
+
+    // Quem não pode ver a geleira continua com 404 (nunca 403), mesmo com a lista pública.
+    const notFound = async (viewer: U) => {
+      const r = await cheersOf(viewer).expect(404);
+      expect(r.body.message).toBe('Sem geleira para mostrar');
+      await level(viewer, gca).expect(404);
+    };
+    await visibility(gca, 'me');
+    await notFound(gcb);
+    await visibility(gca, 'followers');
+    await notFound(gce); // não segue
+    await visibility(gca, 'close_friends');
+    await notFound(gce);
+    await visibility(gca, 'everyone');
+    await api().put(`/api/v1/blocks/${gce.username}`).set(auth(gca)).expect(200);
+    await notFound(gce);
+    await api().delete(`/api/v1/blocks/${gce.username}`).set(auth(gca)).expect(200);
+    await api().get('/api/v1/users/ninguem_assim_xyz/geleira/cheers').set(auth(gce)).expect(404);
+
+    // Bloqueio entre o visitante e quem brindou (em qualquer sentido): essa pessoa sai da lista DESSE visitante.
+    await api().put(`/api/v1/blocks/${gcc.username}`).set(auth(gce)).expect(200);
+    expect(await names(gce)).not.toContain(gcc.username);
+    expect(await names(gce)).toHaveLength(2);
+    expect(await names(gcb)).toContain(gcc.username); // os outros continuam a ver
+    expect(await names(gca)).toContain(gcc.username); // e o dono também
+    await api().delete(`/api/v1/blocks/${gcc.username}`).set(auth(gce)).expect(200);
+    await api().put(`/api/v1/blocks/${gce.username}`).set(auth(gcd)).expect(200);
+    expect(await names(gce)).toEqual((await names(gca)).filter((n) => n !== gcd.username));
+    await api().delete(`/api/v1/blocks/${gce.username}`).set(auth(gcd)).expect(200);
+    expect(await names(gce)).toEqual(await names(gca));
+
+    // Quem brinda aparece na lista que vê, o mais recente primeiro.
+    await cheer(gce, gca).expect(200);
+    expect((await names(gce))[0]).toBe(gce.username);
+    await uncheer(gce, gca).expect(200);
+
+    // Desligar volta ao 403 para os outros; o dono continua a ver.
+    await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ cheersPublic: false }).expect(200);
+    await cheersOf(gce).expect(403);
+    expect((await level(gce, gca).expect(200)).body).toMatchObject({ cheersListable: false });
+    await cheersOf(gca).expect(200);
   });
 });

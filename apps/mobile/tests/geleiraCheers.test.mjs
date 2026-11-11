@@ -23,11 +23,51 @@ test('cheersCount: lixo do servidor vira 0 (nunca negativo nem com casas decimai
   assert.equal(c.cheersCount(2.9), '2 brindes');
 });
 
-test('cheerButtonText: sem brindes só "Brindar"; com brindes a contagem', () => {
+test('cheerButtonText: "Brindar" ou "Brindaste", com a contagem a seguir quando há brindes', () => {
   assert.equal(c.cheerButtonText(0), 'Brindar');
   assert.equal(c.cheerButtonText(undefined), 'Brindar');
-  assert.equal(c.cheerButtonText(1), '1 brinde');
-  assert.equal(c.cheerButtonText(12), '12 brindes');
+  assert.equal(c.cheerButtonText(1), 'Brindar · 1');
+  assert.equal(c.cheerButtonText(12), 'Brindar · 12');
+  assert.equal(c.cheerButtonText(12, true), 'Brindaste · 12');
+  assert.equal(c.cheerButtonText(-4, true), 'Brindaste');
+});
+
+test('cheerButtonText: com a lista à vista a contagem vai no botão ao lado (não se repete)', () => {
+  assert.equal(c.cheerButtonText(12, false, true), 'Brindar');
+  assert.equal(c.cheerButtonText(12, true, true), 'Brindaste');
+});
+
+test('canListCheers: o dono sempre; o visitante só com cheersListable=true; servidor antigo nunca', () => {
+  assert.equal(c.canListCheers({ cheers: 3 }, true), true);
+  assert.equal(c.canListCheers({ cheers: 3, cheersListable: false }, true), true);
+  assert.equal(c.canListCheers({ cheers: 3 }, false), false);
+  assert.equal(c.canListCheers({ cheers: 3, cheersListable: false }, false), false);
+  assert.equal(c.canListCheers({ cheers: 3, cheersListable: true }, false), true);
+  assert.equal(c.canListCheers({ cheersListable: true }, false), false);
+  assert.equal(c.canListCheers(undefined, true), false);
+});
+
+test('cheerersTitle: a minha geleira ou a de outra pessoa', () => {
+  assert.equal(c.cheerersTitle(true, 'Ana Sousa'), 'Quem brindou a tua geleira');
+  assert.equal(c.cheerersTitle(false, 'Ana Sousa'), 'Quem brindou a geleira de Ana Sousa');
+  assert.equal(c.cheerersTitle(false, ' '), 'Quem brindou a geleira');
+});
+
+test('cheersBadge: vazio sem brindes, o número até 99, "99+" acima', () => {
+  assert.equal(c.cheersBadge(0), '');
+  assert.equal(c.cheersBadge(undefined), '');
+  assert.equal(c.cheersBadge(-2), '');
+  assert.equal(c.cheersBadge(1), '1');
+  assert.equal(c.cheersBadge(99), '99');
+  assert.equal(c.cheersBadge(100), '99+');
+  assert.equal(c.cheersBadge(5000), '99+');
+});
+
+test('geleiraToggleLabel: abrir/fechar e os brindes, se houver', () => {
+  assert.equal(c.geleiraToggleLabel(false, 0), 'Abrir a geleira');
+  assert.equal(c.geleiraToggleLabel(false, undefined), 'Abrir a geleira');
+  assert.equal(c.geleiraToggleLabel(false, 12), 'Abrir a geleira, 12 brindes');
+  assert.equal(c.geleiraToggleLabel(true, 1), 'Fechar a geleira, 1 brinde');
 });
 
 test('cheerA11yLabel: brindar diz de quem é a geleira; tirar é "Tirar o brinde"', () => {

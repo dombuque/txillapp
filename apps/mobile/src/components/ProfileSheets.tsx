@@ -3,7 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { api, uploadMedia, type Profile } from '@/lib/api';
 import { type TasteVisibility } from '@/lib/api.geleira';
@@ -27,12 +27,15 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
   const [photoBusy, setPhotoBusy] = useState(false);
   const [err, setErr] = useState('');
   const [locating, setLocating] = useState(false);
-  // Quem vê a geleira (inteira). Só se guarda se mudar.
+  // Quem vê a geleira (inteira) e se vê também quem a brindou. Só se guarda o que mudar.
   const gSettings = useQuery({ queryKey: ['geleira', 'settings'], queryFn: settingsApi.geleiraSettings, staleTime: 30_000 });
   const [gVis, setGVis] = useState<TasteVisibility | null>(null);
+  const [gPub, setGPub] = useState<boolean | null>(null);
   useEffect(() => {
     if (gSettings.data && gVis === null) setGVis(gSettings.data.visibility);
-  }, [gSettings.data, gVis]);
+    // Servidor antigo não manda cheersPublic: sem interruptor.
+    if (gSettings.data && gPub === null && typeof gSettings.data.cheersPublic === 'boolean') setGPub(gSettings.data.cheersPublic);
+  }, [gSettings.data, gVis, gPub]);
 
   /** Preenche "Cidade ou bairro" com o sítio onde estás agora (só o nome fica guardado, nunca as coordenadas). */
   async function useMyLocation() {
@@ -92,9 +95,12 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
     setErr('');
     try {
       await api.updateMe({ displayName: displayName.trim(), bio: bio.trim(), isPrivate, city: city.trim(), website: website.trim() });
-      if (gVis && gSettings.data && gVis !== gSettings.data.visibility) {
-        await settingsApi.setGeleiraSettings({ visibility: gVis });
+      const vis = gVis && gSettings.data && gVis !== gSettings.data.visibility ? gVis : undefined;
+      const pub = gPub !== null && gSettings.data && gPub !== gSettings.data.cheersPublic ? gPub : undefined;
+      if (vis !== undefined || pub !== undefined) {
+        await settingsApi.setGeleiraSettings({ visibility: vis, cheersPublic: pub });
         void qc.invalidateQueries({ queryKey: ['geleira'] });
+        void qc.invalidateQueries({ queryKey: ['geleira-level'] });
       }
       for (const k of ['profile', 'feed', 'privacy']) void qc.invalidateQueries({ queryKey: [k] });
       onClose();
@@ -170,6 +176,16 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
             ))}
           </View>
           <Text style={{ marginTop: 6, fontSize: 12, color: colors.zinc600 }}>A geleira é toda pública, para seguidores, para os amigos próximos ou só tua. Não se escolhe item a item.</Text>
+          {gPub !== null && (
+            <View style={st.gswitch}>
+              <Icon name="cheers" size={20} color={colors.amber600} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc900 }}>Mostrar quem brindou a minha geleira</Text>
+                <Text style={{ marginTop: 2, fontSize: 12, lineHeight: 16, color: colors.zinc600 }}>Quem pode ver a tua geleira passa a ver quem a brindou.</Text>
+              </View>
+              <Switch value={gPub} onValueChange={setGPub} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Mostrar quem brindou a minha geleira" />
+            </View>
+          )}
           <Pressable onPress={() => { onClose(); router.push('/geleira' as never); }} style={({ pressed }) => [st.gshort, pressed && { backgroundColor: '#fafafa' }]} accessibilityRole="button">
             <View style={st.gicon}><Icon name="snowflake" size={22} color="#fff" /></View>
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -231,6 +247,7 @@ const st = StyleSheet.create({
   save: { height: 58, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 24px rgba(214,51,79,0.35)' },
   saveText: { color: '#fff', fontSize: 18, fontWeight: '600' },
   gopt: { width: '48.5%', height: 48, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 16, borderWidth: 2, borderColor: colors.zinc200, paddingHorizontal: 12 },
+  gswitch: { marginTop: 8, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 2, borderColor: colors.zinc200, paddingHorizontal: 12, paddingVertical: 10 },
   gshort: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 2, borderColor: colors.zinc200, padding: 12 },
   gicon: { width: 44, height: 44, borderRadius: 16, backgroundColor: '#0ea5e9', alignItems: 'center', justifyContent: 'center' },
   req: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
