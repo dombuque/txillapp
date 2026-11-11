@@ -217,6 +217,8 @@ export interface GroupSummary {
 }
 export interface ChatThread {
   relation?: { iFollow: boolean; theyFollow: boolean; request: boolean; left: number | null };
+  /** Publicações da pessoa que ainda não vi (últimos 7 dias): "1 publicação nova" no cabeçalho. Servidores antigos não mandam. */
+  newPosts?: { count: number; latestId: string | null };
   person: { username: string; displayName: string; hasAvatar: boolean; canGift?: boolean; presence?: Presence | null };
   blocked: boolean;
   otherRead: string | null;

@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { PostCard } from '@/components/PostCard';
 import { StackPage } from '@/components/StackPage';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { flushSeen, trackSeen } from '@/lib/seen';
 import { colors } from '@/lib/theme';
 
 /** Uma publicação aberta a partir de uma notificação, de um perfil ou de uma ligação. */
@@ -15,6 +17,14 @@ export default function PostPage() {
   const router = useRouter();
   const q = useQuery({ queryKey: ['post', id], queryFn: () => api.getPost(id), retry: false });
   void router;
+  // Abrir a publicação conta como vista (o mesmo "visto" do Início): deixa de contar nas "publicações novas" do chat
+  // e desce no feed. Envia logo, para a conversa já vir certa quando se volta atrás.
+  const seenId = user && q.data ? q.data.id : null;
+  useEffect(() => {
+    if (!seenId) return;
+    trackSeen(seenId);
+    flushSeen();
+  }, [seenId]);
   return (
     <StackPage title="Publicação">
       <ScrollView contentContainerStyle={{ paddingTop: 16, paddingBottom: 32 }}>

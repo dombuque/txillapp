@@ -263,6 +263,26 @@ export class PostsService implements OnModuleInit {
     );
   }
 
+  /**
+   * "N publicações novas" no cabeçalho da conversa: o que esta pessoa publicou de raiz nos últimos 7 dias (sem reposts nem
+   * presentes sobre a publicação de outra pessoa; o que publicou como um local fica na página do local, como no perfil),
+   * que eu posso ver (canView: conta ativa, sem bloqueio, pública ou sigo) e que ainda não me apareceu (sem linha minha em
+   * feed_impressions, o mesmo "visto" do Início). `latestId` = a mais recente. Usa posts_author_idx e a chave de feed_impressions.
+   */
+  async newPostsBy(viewerId: string, authorId: string): Promise<{ count: number; latestId: string | null }> {
+    if (viewerId === authorId) return { count: 0, latestId: null };
+    const { rows } = await this.pool.query(
+      `SELECT count(*)::int AS n, (array_agg(p.id ORDER BY p.id DESC))[1] AS latest
+         FROM content.posts p JOIN identity.users u ON u.id = p.author_id
+        WHERE p.author_id = $2 AND p.removed_at IS NULL AND p.repost_of IS NULL AND p.venue_id IS NULL
+          AND p.created_at > now() - interval '7 days'
+          AND ${canView()}
+          AND NOT EXISTS (SELECT 1 FROM content.feed_impressions i WHERE i.user_id = $1 AND i.post_id = p.id)`,
+      [viewerId, authorId],
+    );
+    return { count: (rows[0]?.n as number) ?? 0, latestId: (rows[0]?.latest as string | null) ?? null };
+  }
+
   /** "Não me interessa": esta publicação não volta a aparecer no feed. */
   async hideFromFeed(userId: string, postId: string) {
     const r = await this.pool.query(

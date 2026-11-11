@@ -12,27 +12,59 @@ import { dayLabel, type Msg } from './ChatBubbles';
  * cresce um pouco quando há mensagens a passar por baixo (`raised`). `below` fica dentro do mesmo bloco (os separadores do grupo), por cima da sombra.
  */
 export function ChatHeader({
-  raised, avatar, title, subtitle, onOpen, openLabel, actions, below,
+  raised, avatar, title, subtitle, subtitleAction, onOpen, openLabel, actions, below,
 }: {
-  raised: boolean; avatar: ReactNode; title: string; subtitle?: ReactNode; onOpen?: () => void; openLabel: string; actions?: ReactNode; below?: ReactNode;
+  raised: boolean; avatar: ReactNode; title: string; subtitle?: ReactNode;
+  /** O estado por baixo do nome é ele próprio um botão ("1 publicação nova"); o resto continua a abrir o perfil. */
+  subtitleAction?: { label: string; onPress: () => void };
+  onOpen?: () => void; openLabel: string; actions?: ReactNode; below?: ReactNode;
 }) {
   return (
     <View style={[st.wrap, raised && st.raised]}>
       <View style={st.row}>
         <BackButton fallback="/messages" style={st.btn} />
-        <Pressable
-          onPress={onOpen}
-          disabled={!onOpen}
-          style={({ pressed }) => [st.who, pressed && { backgroundColor: colors.zinc100 }]}
-          accessibilityRole="button"
-          accessibilityLabel={openLabel}
-        >
-          {avatar}
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={st.name} numberOfLines={1}>{title}</Text>
-            {subtitle}
+        {subtitleAction ? (
+          // Dois botões lado a lado em vez de um dentro do outro (no iOS o de dentro ficava invisível ao VoiceOver):
+          // o de abrir o perfil fica por trás, a toda a largura, e a foto e o nome deixam passar o toque até ele.
+          <View style={st.who}>
+            <Pressable
+              onPress={onOpen}
+              disabled={!onOpen}
+              style={({ pressed }) => [StyleSheet.absoluteFill, { borderRadius: 14 }, pressed && { backgroundColor: colors.zinc100 }]}
+              accessibilityRole="button"
+              accessibilityLabel={openLabel}
+            />
+            <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{avatar}</View>
+            <View style={{ flex: 1, minWidth: 0 }} pointerEvents="box-none">
+              <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                <Text style={st.name} numberOfLines={1}>{title}</Text>
+              </View>
+              <Pressable
+                onPress={subtitleAction.onPress}
+                style={({ pressed }) => [st.subBtn, pressed && { opacity: 0.6 }]}
+                hitSlop={{ top: 2, bottom: 8, left: 4, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={subtitleAction.label}
+              >
+                {subtitle}
+              </Pressable>
+            </View>
           </View>
-        </Pressable>
+        ) : (
+          <Pressable
+            onPress={onOpen}
+            disabled={!onOpen}
+            style={({ pressed }) => [st.who, pressed && { backgroundColor: colors.zinc100 }]}
+            accessibilityRole="button"
+            accessibilityLabel={openLabel}
+          >
+            {avatar}
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={st.name} numberOfLines={1}>{title}</Text>
+              {subtitle}
+            </View>
+          </Pressable>
+        )}
         {actions}
       </View>
       {below}
@@ -128,6 +160,7 @@ const st = StyleSheet.create({
   who: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 4 },
   name: { fontWeight: '700', fontSize: 16, lineHeight: 20, color: colors.zinc900 },
   sub: { fontSize: 12.5, lineHeight: 16, color: colors.zinc500, flexShrink: 1 },
+  subBtn: { alignSelf: 'flex-start', maxWidth: '100%' },
   dot: { position: 'absolute', right: -1, bottom: -1, borderWidth: 2, borderColor: colors.white, backgroundColor: '#10b981' },
   dotSmall: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#10b981' },
   menuRow: { flexDirection: 'row', alignItems: 'center', gap: 16, borderRadius: 16, paddingHorizontal: 4, paddingVertical: 10, minHeight: 56 },
