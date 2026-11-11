@@ -2,8 +2,9 @@ import { BackButton } from '@/components/BackButton';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Alert, AppState, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { quoteText, type Msg } from '@/components/ChatBubbles';
@@ -11,6 +12,8 @@ import { ChatComposer } from '@/components/ChatComposer';
 import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus, OnlineDot } from '@/components/ChatHeader';
 import { ChatEditBar } from '@/components/ChatEditBar';
 import { ChatList } from '@/components/ChatList';
+import { NoteDot, PeerNoteBubble } from '@/components/ChatPeerNote';
+import { NoteView } from '@/components/Notes';
 import { MessageMenu, NotFollowingNote, RequestBar, saveEdit, sendTyping, stopLiveShare } from '@/components/ChatParts';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { Icon } from '@/components/Icon';
@@ -18,6 +21,7 @@ import { api, raw, type ChatThread, type Conversation } from '@/lib/api';
 import { startCall } from '@/lib/calls';
 import { useAuth } from '@/lib/auth';
 import { headerLine, newPostsLabel, newPostsTarget, newPostsText } from '@/lib/chatNewPosts';
+import { activePeerNote, NOTE_FOLD_MS, NOTE_FOLD_START, noteFold, peerNoteKey } from '@/lib/chatPeerNote';
 import { activeLabel } from '@/lib/chatTimeline';
 import { useTyping } from '@/lib/realtime';
 import { colors } from '@/lib/theme';
@@ -62,6 +66,27 @@ export default function Thread() {
   const firstName = person?.displayName.split(' ')[0] ?? '';
   // O servidor manda do mais recente para o mais antigo: a lista mostra de baixo para cima (invertida).
   const items: Msg[] = q.data?.pages.flatMap((p) => p.items) ?? [];
+
+  // A nota da pessoa por baixo da foto do cabeçalho (lib/chatPeerNote): abre ao entrar e encolhe ao subir nas
+  // mensagens ou ao fim de 8 s; tocar na foto volta a mostrá-la, tocar no balão abre a nota.
+  const reduceMotion = useReducedMotion();
+  const peerNote = first?.blocked ? null : activePeerNote(first?.peerNote);
+  const noteKey = peerNoteKey(peerNote);
+  const [fold, foldDispatch] = useReducer(noteFold, NOTE_FOLD_START);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const scrollY = useRef(0);
+  const foldOpen = useRef(false);
+  foldOpen.current = fold.open;
+  useEffect(() => foldDispatch({ type: 'note', key: noteKey, y: scrollY.current }), [noteKey]);
+  useEffect(() => {
+    if (!fold.open) return;
+    const t = setTimeout(() => foldDispatch({ type: 'timeout' }), NOTE_FOLD_MS);
+    return () => clearTimeout(t);
+  }, [fold.open, fold.seq]);
+  const onScrollY = useCallback((y: number) => {
+    scrollY.current = y;
+    if (foldOpen.current) foldDispatch({ type: 'scroll', y });
+  }, []);
 
   useEffect(() => {
     void qc.invalidateQueries({ queryKey: ['chat-unread'] });
@@ -176,8 +201,13 @@ export default function Thread() {
           <View>
             <Avatar name={person?.displayName ?? username} username={avatarOf} size={36} />
             {online ? <OnlineDot size={36} /> : null}
+            {peerNote ? <NoteDot visible={!fold.open} reduceMotion={reduceMotion} /> : null}
           </View>
         }
+        avatarAction={person && peerNote && !fold.open ? { label: `Mostrar a nota de ${person.displayName}`, onPress: () => foldDispatch({ type: 'show', y: scrollY.current }) } : undefined}
+        overlay={person && peerNote ? (
+          <PeerNoteBubble note={peerNote} name={person.displayName} online={!!online} open={fold.open} reduceMotion={reduceMotion} onPress={() => setNoteOpen(true)} />
+        ) : null}
         title={person?.displayName ?? ''}
         subtitleAction={person && newPostsGo ? { label: newPostsLabel(newPosts?.count, person.displayName), onPress: () => router.push(newPostsGo as never) } : undefined}
         subtitle={
@@ -218,6 +248,7 @@ export default function Thread() {
         seenId={seenId}
         unread={unread}
         onRaised={setRaised}
+        onScrollY={onScrollY}
         emptyArt={person ? <Avatar name={person.displayName} username={avatarOf} size={80} /> : null}
         emptyTitle={person?.displayName}
         emptyText={`Ainda não há mensagens. Diz olá a ${firstName || 'esta pessoa'} 👋`}
@@ -280,6 +311,13 @@ export default function Thread() {
       )}
       {searching && (
         <ChatSearchSheet items={items} nameOf={(m) => (m.fromMe ? 'Tu' : person?.displayName ?? '')} hasNext={!!q.hasNextPage} fetchNext={() => void q.fetchNextPage()} onClose={() => setSearching(false)} />
+      )}
+      {noteOpen && person && peerNote && (
+        <NoteView
+          inChat
+          note={{ username: person.username, displayName: person.displayName, hasAvatar: person.hasAvatar, body: peerNote.body, music: peerNote.music, audience: 'mutual', createdAt: peerNote.createdAt, expiresAt: peerNote.expiresAt, cheered: peerNote.cheered }}
+          onClose={() => setNoteOpen(false)}
+        />
       )}
       {viewing && (
         <Pressable onPress={() => setViewing(null)} style={st.viewer} accessibilityLabel="Fechar">

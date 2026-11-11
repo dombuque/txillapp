@@ -182,8 +182,11 @@ function NoteEditor({ current, onClose }: { current: Note | null; onClose: () =>
   );
 }
 
-/** A nota de outra pessoa: ler, brindar e responder (a resposta vai como mensagem). */
-function NoteView({ note, onClose }: { note: Note; onClose: () => void }) {
+/**
+ * A nota de outra pessoa: ler, brindar e responder (a resposta vai como mensagem). `inChat` = aberta do cabeçalho da
+ * conversa com essa pessoa: responder fica na conversa (que se põe em dia) e não há o botão "Abrir a conversa".
+ */
+export function NoteView({ note, onClose, inChat = false }: { note: Note; onClose: () => void; inChat?: boolean }) {
   const router = useRouter();
   const qc = useQueryClient();
   const [text, setText] = useState('');
@@ -200,6 +203,7 @@ function NoteView({ note, onClose }: { note: Note; onClose: () => void }) {
       const r = await notesApi.cheer(note.username);
       setCheered(r.cheered);
       void qc.invalidateQueries({ queryKey: ['notes'] });
+      if (inChat) void qc.invalidateQueries({ queryKey: ['chat-thread', note.username] });
     } catch (e) {
       setCheered((c) => !c);
       setErr((e as Error).message);
@@ -213,7 +217,8 @@ function NoteView({ note, onClose }: { note: Note; onClose: () => void }) {
     try {
       await notesApi.reply(note.username, text.trim());
       onClose();
-      router.push(`/messages/${note.username}` as never);
+      if (inChat) void qc.invalidateQueries({ queryKey: ['chat-thread', note.username] });
+      else router.push(`/messages/${note.username}` as never);
     } catch (e) {
       setErr((e as Error).message);
       setBusy(false);
@@ -239,7 +244,7 @@ function NoteView({ note, onClose }: { note: Note; onClose: () => void }) {
           <Pressable disabled={cantSend} onPress={() => void reply()} style={[styles.send, cantSend && { opacity: 0.4 }]}><Text style={styles.primaryText}>Enviar</Text></Pressable>
         </View>
         {!!err && <Text accessibilityRole="alert" style={styles.err}>{err}</Text>}
-        <Pressable onPress={() => { onClose(); router.push(`/messages/${note.username}` as never); }} style={({ pressed }) => [styles.ghostBtn, { marginTop: 8, height: 44 }, pressed && { backgroundColor: colors.zinc100 }]}><Text style={styles.ghostText}>Abrir a conversa</Text></Pressable>
+        {!inChat && <Pressable onPress={() => { onClose(); router.push(`/messages/${note.username}` as never); }} style={({ pressed }) => [styles.ghostBtn, { marginTop: 8, height: 44 }, pressed && { backgroundColor: colors.zinc100 }]}><Text style={styles.ghostText}>Abrir a conversa</Text></Pressable>}
       </Field>
     </Sheet>
   );

@@ -20,7 +20,7 @@ export const CHAT_BG = '#f5f6f8';
  */
 export function ChatList({
   items, group = false, loading, hasNext, fetchNext, fetchingNext, typing, seenId, emptyText, emptyTitle, emptyArt, unread = 0, top, peerName, peerHandle, peerAvatar, meHandle,
-  onRaised, onMenu, onCheer, onOpenOnce, onStopLive, onRetry, onReply, onDelete,
+  onRaised, onScrollY, onMenu, onCheer, onOpenOnce, onStopLive, onRetry, onReply, onDelete,
 }: {
   items: Msg[]; group?: boolean; loading: boolean; hasNext: boolean; fetchNext: () => Promise<unknown> | void; fetchingNext: boolean; typing?: boolean;
   seenId: string | null; emptyText: string; emptyTitle?: string; emptyArt?: ReactNode;
@@ -32,6 +32,8 @@ export function ChatList({
   meHandle?: string;
   /** Há mensagens escondidas por baixo do cabeçalho (para a sombra dele). */
   onRaised?: (raised: boolean) => void;
+  /** Quanto se subiu nas mensagens (pt; 0 = no fim da conversa): a nota no cabeçalho encolhe quando se sobe. */
+  onScrollY?: (y: number) => void;
   onMenu: (m: Msg) => void; onCheer: (m: Msg) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onRetry: (m: Msg) => void;
   /** Deslizar uma bolha para a direita responde-lhe (o mesmo que "Responder" no menu). */
   onReply?: (m: Msg) => void;
@@ -83,6 +85,7 @@ export function ChatList({
       setAway(far);
     }
     updateRaised({ y: contentOffset.y, h: layoutMeasurement.height, c: contentSize.height });
+    onScrollY?.(contentOffset.y);
   }
 
   // Tocar na citação de uma resposta leva à mensagem original (carrega mais antigas se for preciso) e destaca-a um instante.

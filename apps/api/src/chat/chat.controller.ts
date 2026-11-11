@@ -10,6 +10,7 @@ import { MediaService, parseIdParam } from '../media/media.service';
 import { ChatEvents } from './chat.events';
 import { GROUP_KINDS, GroupsService } from './groups.service';
 import { ChatService } from './chat.service';
+import { NotesService } from './notes.service';
 
 type AuthedReq = Request & { userId?: string };
 // TxillGroups: nome 2-40, tipo (por omissão 'outro'), descrição e capa opcionais.
@@ -70,6 +71,7 @@ export class ChatController {
     private readonly groups: GroupsService,
     private readonly events: ChatEvents,
     private readonly media: MediaService,
+    private readonly notes: NotesService,
   ) {}
 
   /** Tempo real: o servidor avisa quando chega mensagem, alguém escreve, lê ou apaga. O cliente volta a pedir os dados. */
@@ -181,8 +183,12 @@ export class ChatController {
 
   @Get('with/:username')
   @UseGuards(JwtAuthGuard)
-  thread(@Req() req: AuthedReq, @Param('username') username: string, @Query('cursor') cursor?: string) {
-    return this.chat.thread(req.userId!, username, cursor);
+  async thread(@Req() req: AuthedReq, @Param('username') username: string, @Query('cursor') cursor?: string) {
+    const t = await this.chat.thread(req.userId!, username, cursor);
+    if (cursor) return t;
+    // A nota ativa da pessoa, por baixo da foto do cabeçalho (só na 1.ª página e só se eu a puder ver). Junta-se aqui e
+    // não no ChatService porque o NotesService já depende do ChatService (as respostas às notas vão como mensagem).
+    return { ...t, peerNote: await this.notes.peerNote(req.userId!, t.person.username) };
   }
 
   @NeedsVerifiedEmail()

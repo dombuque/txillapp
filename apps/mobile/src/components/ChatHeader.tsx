@@ -10,20 +10,26 @@ import { dayLabel, type Msg } from './ChatBubbles';
  * Cabeçalho das conversas (1:1 e TxillGroups): ‹, a foto e o nome com o estado por baixo (um só botão que abre o
  * perfil ou os detalhes do grupo) e as ações à direita. Branco, sem linha, com uma sombra muito subtil por baixo que
  * cresce um pouco quando há mensagens a passar por baixo (`raised`). `below` fica dentro do mesmo bloco (os separadores do grupo), por cima da sombra.
+ * `overlay` fica por cima da lista de mensagens, logo por baixo do cabeçalho (a nota da pessoa): não empurra nada nem
+ * muda a altura do cabeçalho, e só apanha toques onde tem conteúdo.
  */
 export function ChatHeader({
-  raised, avatar, title, subtitle, subtitleAction, onOpen, openLabel, actions, below,
+  raised, avatar, title, subtitle, subtitleAction, avatarAction, onOpen, openLabel, actions, below, overlay,
 }: {
   raised: boolean; avatar: ReactNode; title: string; subtitle?: ReactNode;
   /** O estado por baixo do nome é ele próprio um botão ("1 publicação nova"); o resto continua a abrir o perfil. */
   subtitleAction?: { label: string; onPress: () => void };
-  onOpen?: () => void; openLabel: string; actions?: ReactNode; below?: ReactNode;
+  /** A foto é ela própria um botão (mostrar a nota encolhida); o resto continua a abrir o perfil. */
+  avatarAction?: { label: string; onPress: () => void };
+  onOpen?: () => void; openLabel: string; actions?: ReactNode; below?: ReactNode; overlay?: ReactNode;
 }) {
+  const [bottom, setBottom] = useState<number | null>(null);
   return (
-    <View style={[st.wrap, raised && st.raised]}>
+    <>
+    <View style={[st.wrap, raised && st.raised]} onLayout={(e) => setBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
       <View style={st.row}>
         <BackButton fallback="/messages" style={st.btn} />
-        {subtitleAction ? (
+        {subtitleAction || avatarAction ? (
           // Dois botões lado a lado em vez de um dentro do outro (no iOS o de dentro ficava invisível ao VoiceOver):
           // o de abrir o perfil fica por trás, a toda a largura, e a foto e o nome deixam passar o toque até ele.
           <View style={st.who}>
@@ -34,20 +40,36 @@ export function ChatHeader({
               accessibilityRole="button"
               accessibilityLabel={openLabel}
             />
-            <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{avatar}</View>
+            {avatarAction ? (
+              <Pressable
+                onPress={avatarAction.onPress}
+                style={({ pressed }) => [{ borderRadius: 999 }, pressed && { opacity: 0.7 }]}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel={avatarAction.label}
+              >
+                {avatar}
+              </Pressable>
+            ) : (
+              <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{avatar}</View>
+            )}
             <View style={{ flex: 1, minWidth: 0 }} pointerEvents="box-none">
               <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
                 <Text style={st.name} numberOfLines={1}>{title}</Text>
               </View>
-              <Pressable
-                onPress={subtitleAction.onPress}
-                style={({ pressed }) => [st.subBtn, pressed && { opacity: 0.6 }]}
-                hitSlop={{ top: 2, bottom: 8, left: 4, right: 8 }}
-                accessibilityRole="button"
-                accessibilityLabel={subtitleAction.label}
-              >
-                {subtitle}
-              </Pressable>
+              {subtitleAction ? (
+                <Pressable
+                  onPress={subtitleAction.onPress}
+                  style={({ pressed }) => [st.subBtn, pressed && { opacity: 0.6 }]}
+                  hitSlop={{ top: 2, bottom: 8, left: 4, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={subtitleAction.label}
+                >
+                  {subtitle}
+                </Pressable>
+              ) : (
+                <View pointerEvents="none">{subtitle}</View>
+              )}
             </View>
           </View>
         ) : (
@@ -69,8 +91,21 @@ export function ChatHeader({
       </View>
       {below}
     </View>
+    {overlay && bottom !== null ? (
+      // Irmão do cabeçalho (e não filho): no Android, o que sai fora do pai não recebe toques.
+      <View pointerEvents="box-none" style={[st.overlay, { top: bottom }]}>{overlay}</View>
+    ) : null}
+    </>
   );
 }
+
+/**
+ * Onde fica a foto dentro do cabeçalho (para a nota sair dela): a margem da linha, o botão ‹ (44), o espaço entre
+ * eles e a margem do bloco da foto. `HEADER_AVATAR_BOTTOM` = quanto a foto (36) acaba acima do fundo do cabeçalho.
+ */
+export const HEADER_AVATAR_LEFT = 6 + 44 + 2 + 4;
+export const HEADER_AVATAR_SIZE = 36;
+export const HEADER_AVATAR_BOTTOM = 10;
 
 /** Estado por baixo do nome: "Online" (verde), "a escrever…" (marca) ou cinzento ("Ativo há 5 min", "8 pessoas · Tofo"). */
 export function HeaderStatus({ text, tone = 'muted', icon }: { text: string; tone?: 'online' | 'typing' | 'muted'; icon?: IconName }) {
@@ -155,6 +190,7 @@ const st = StyleSheet.create({
   // Branco sobre o fundo cinzento das mensagens: sombra muito subtil sempre; um pouco mais quando há mensagens por baixo.
   wrap: { backgroundColor: colors.white, zIndex: 5, boxShadow: '0 1px 0 rgba(24,24,27,0.04), 0 2px 8px -4px rgba(24,24,27,0.08)' },
   raised: { boxShadow: '0 1px 0 rgba(24,24,27,0.05), 0 6px 16px -8px rgba(24,24,27,0.18)' },
+  overlay: { position: 'absolute', left: 0, right: 0, zIndex: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 6, paddingVertical: 6, minHeight: 56 },
   btn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   who: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 4 },
