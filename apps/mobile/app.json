@@ -2,7 +2,7 @@
   "expo": {
     "name": "Txillapp",
     "slug": "txillapp",
-    "version": "1.26.0",
+    "version": "1.27.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "txillapp",
@@ -27,7 +27,7 @@
     },
     "android": {
       "package": "com.txillapp.app",
-      "versionCode": 56,
+      "versionCode": 57,
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
