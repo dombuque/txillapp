@@ -7,7 +7,7 @@ import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { ApiError } from '@/lib/api';
 import { geleiraApi, type GeleiraLevel, type MyTaste, type TasteItem, type TheirTaste } from '@/lib/api.geleira';
 import { ICE, KINDS, KIND_ICON, KIND_LABEL } from '@/lib/geleira';
-import { applyCheer, canCheer, cheerA11yLabel, cheerButtonText, cheersCount, ownerCheersA11yLabel, toggleCheer } from '@/lib/geleiraCheers';
+import { applyCheer, canCheer, canListCheers, cheerA11yLabel, cheerButtonText, cheerersTitle, cheersBadge, cheersCount, geleiraToggleLabel, ownerCheersA11yLabel, toggleCheer } from '@/lib/geleiraCheers';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
@@ -19,6 +19,9 @@ import { Sheet } from './Sheet';
 import { TasteBubble } from './TasteBubble';
 
 type Shown = TasteItem & { rating: number | null; favorite: boolean };
+
+/** Âmbar escuro para texto em fundo âmbar claro (contraste ≥ 4,5:1). */
+const AMBER_INK = '#92400e';
 
 /** A nota em flocos de neve, de 1 a 5 (os mesmos do editor): mais flocos, mais gelado, mais gostas. */
 const SKY = '#0ea5e9';
@@ -68,16 +71,19 @@ function HowSheet({ onClose, level, points, toNext, nextTitle }: { onClose: () =
   );
 }
 
-/** Quem brindou a minha geleira (só o dono vê). Tocar numa pessoa abre o perfil dela. */
-function CheerersSheet({ username, onClose }: { username: string; onClose: () => void }) {
+/**
+ * Quem brindou a geleira: o dono vê sempre; os outros só se o dono mostra a lista (`cheersListable`). Tocar numa pessoa
+ * abre o perfil dela.
+ */
+function CheerersSheet({ username, name, isMe, onClose }: { username: string; name: string; isMe: boolean; onClose: () => void }) {
   const router = useRouter();
   const q = useQuery({ queryKey: ['geleira-cheers', username], queryFn: () => geleiraApi.cheers(username), retry: false });
   const items = q.data?.items ?? [];
   return (
-    <Sheet title="Quem brindou a tua geleira" onClose={onClose}>
+    <Sheet title={cheerersTitle(isMe, name)} onClose={onClose}>
       {q.isLoading && <ActivityIndicator color={colors.brand} style={{ paddingVertical: 24 }} />}
       {q.isError && <Text style={st.msg} accessibilityRole="alert">Esta lista não está disponível agora.</Text>}
-      {q.isSuccess && items.length === 0 && <Text style={st.msg}>Ainda ninguém brindou. Enche a geleira e mostra-a: os brindes vêm a seguir!</Text>}
+      {q.isSuccess && items.length === 0 && <Text style={st.msg}>{isMe ? 'Ainda ninguém brindou. Enche a geleira e mostra-a: os brindes vêm a seguir!' : 'Ainda não há brindes para mostrar.'}</Text>}
       <ScrollView style={{ maxHeight: 420 }}>
         {items.map((p) => (
           <Pressable
@@ -105,29 +111,29 @@ function CheerersSheet({ username, onClose }: { username: string; onClose: () =>
 }
 
 /**
- * Os brindes à geleira, ao lado do nível. Visitante: brinda ou tira o brinde (responde já, confirma depois; ao brindar
- * saltam os copos e o telemóvel vibra). Dono: a contagem, que abre a lista de quem brindou. Sem `cheers` no nível
- * (servidor antigo) não aparece nada.
+ * Os brindes à geleira: um botão próprio, por baixo do cabeçalho do cartão, com a largura do cartão (46 pt de altura,
+ * ícone de 22 pt, texto de 15 pt). Visitante: brinda ou tira o brinde ("Brindar · 12" / "Brindaste · 12"; responde já,
+ * confirma depois; ao brindar saltam os copos e o telemóvel vibra). Se o dono mostra quem brindou (`cheersListable`), ao
+ * lado fica a contagem ("12 brindes"), que abre a lista. Dono: "N brindes", que abre a lista (sem brindes, nada).
+ * Sem `cheers` no nível (servidor antigo) não aparece nada.
  */
-function CheerButton({ username, name, isMe, level, onBurst, onOpenList }: { username: string; name: string; isMe: boolean; level: GeleiraLevel | undefined; onBurst: () => void; onOpenList: () => void }) {
+function CheerBar({ username, name, isMe, level, onBurst, onOpenList }: { username: string; name: string; isMe: boolean; level: GeleiraLevel | undefined; onBurst: () => void; onOpenList: () => void }) {
   const qc = useQueryClient();
   const busy = useRef(false);
   if (!level || !canCheer(level)) return null;
   const n = level.cheers ?? 0;
+  const listed = canListCheers(level, isMe);
 
-  if (isMe) {
-    if (n <= 0) return null;
-    return (
-      <Pressable onPress={onOpenList} style={st.cheerHit} accessibilityRole="button" accessibilityLabel={ownerCheersA11yLabel(n)}>
-        {({ pressed }) => (
-          <View style={[st.cheerPill, pressed && { opacity: 0.7 }]}>
-            <Icon name="cheers" size={13} color={colors.amber600} />
-            <Text style={[st.cheerText, { color: colors.zinc800 }]} numberOfLines={1}>{cheersCount(n)}</Text>
-          </View>
-        )}
-      </Pressable>
-    );
-  }
+  // A contagem que abre a lista de quem brindou (dono, ou visitante com a lista à vista).
+  const countButton = (wide: boolean) => (
+    <Pressable onPress={onOpenList} style={({ pressed }) => [st.cheerBtn, wide ? { flex: 1, justifyContent: 'flex-start' } : st.cheerCount, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={ownerCheersA11yLabel(n)}>
+      {wide && <Icon name="cheers" size={22} color={colors.amber600} />}
+      <Text style={[st.cheerText, { color: colors.zinc800 }, wide && { flex: 1 }]} numberOfLines={1}>{cheersCount(n)}</Text>
+      <Icon name="chevron-right" size={16} color={colors.zinc500} />
+    </Pressable>
+  );
+
+  if (isMe) return n > 0 ? <View style={st.cheerRow}>{countButton(true)}</View> : null;
 
   const key = ['geleira-level', username];
   async function toggle() {
@@ -150,26 +156,26 @@ function CheerButton({ username, name, isMe, level, onBurst, onOpenList }: { use
     } finally {
       busy.current = false;
       void qc.invalidateQueries({ queryKey: key });
+      void qc.invalidateQueries({ queryKey: ['geleira-cheers', username] });
     }
   }
   const on = !!level.cheered;
-  const tint = on ? colors.amber600 : colors.zinc800;
+  const tint = on ? AMBER_INK : colors.zinc800;
   return (
-    <Pressable
-      onPress={() => void toggle()}
-      style={st.cheerHit}
-      accessibilityRole="button"
-      accessibilityLabel={cheerA11yLabel(on, name)}
-      accessibilityValue={n > 0 ? { text: cheersCount(n) } : undefined}
-      accessibilityState={{ selected: on }}
-    >
-      {({ pressed }) => (
-        <View style={[st.cheerPill, on && st.cheerOn, pressed && { opacity: 0.7 }]}>
-          <Icon name="cheers" size={13} color={tint} />
-          <Text style={[st.cheerText, { color: tint }]} numberOfLines={1}>{cheerButtonText(n)}</Text>
-        </View>
-      )}
-    </Pressable>
+    <View style={st.cheerRow}>
+      <Pressable
+        onPress={() => void toggle()}
+        style={({ pressed }) => [st.cheerBtn, st.cheerToggle, on && st.cheerOn, pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] }]}
+        accessibilityRole="button"
+        accessibilityLabel={cheerA11yLabel(on, name)}
+        accessibilityValue={n > 0 ? { text: cheersCount(n) } : undefined}
+        accessibilityState={{ selected: on }}
+      >
+        <Icon name="cheers" size={22} color={on ? colors.amber600 : colors.zinc800} />
+        <Text style={[st.cheerText, { color: tint, flexShrink: 1 }]} numberOfLines={1}>{cheerButtonText(n, on, listed && n > 0)}</Text>
+      </Pressable>
+      {listed && n > 0 && countButton(false)}
+    </View>
   );
 }
 
@@ -213,23 +219,54 @@ function useTastes(username: string, isMe: boolean) {
   return useQuery({ queryKey: ['geleira', isMe ? 'me' : username], queryFn: (): Promise<(MyTaste | TheirTaste)[]> => (isMe ? geleiraApi.mine() : geleiraApi.of(username)), retry: false });
 }
 
-/** Botão da geleira na linha de ações do perfil: abre/fecha a prateleira para baixo. Nos perfis dos outros só aparece se houver o que mostrar. */
+/** O nível (com os brindes) de uma geleira: a mesma chave para a prateleira e o botão, para não pedir duas vezes. */
+function useLevel(username: string, enabled = true) {
+  return useQuery({ queryKey: ['geleira-level', username], queryFn: () => geleiraApi.level(username), retry: false, staleTime: 60_000, enabled });
+}
+
+/** Largura a partir da qual o botão largo (o meu) leva os brindes ao lado do frigorífico em vez do selo. */
+const INLINE_CHEERS_MIN = 92;
+
+/**
+ * Botão da geleira na linha de ações do perfil: abre/fecha a prateleira para baixo. Nos perfis dos outros só aparece se
+ * houver o que mostrar. Com brindes, mostra-os já fechada: um selo âmbar no canto ou, no botão largo com espaço, ao lado
+ * do frigorífico. O selo fica por cima do canto, sem mudar o tamanho do botão.
+ */
 export function GeleiraToggle({ username, isMe, open, onToggle, icon = false, grow = false }: { username: string; isMe: boolean; open: boolean; onToggle: () => void; icon?: boolean; grow?: boolean }) {
   const q = useTastes(username, isMe);
   const shown = (q.data ?? []).filter((i) => i.kind === 'bebida' || i.kind === 'comida');
-  if (!isMe && (q.isError || shown.length === 0)) return null;
+  const visible = isMe || (!q.isError && shown.length > 0);
+  const lv = useLevel(username, visible);
+  const [w, setW] = useState(0);
+  if (!visible) return null;
   const fg = open ? '#fff' : colors.zinc900;
+  const n = canCheer(lv.data) ? (lv.data?.cheers ?? 0) : 0;
+  const badge = cheersBadge(n);
+  const inline = !!badge && (!icon || (grow && w >= INLINE_CHEERS_MIN));
   return (
     <Pressable
       onPress={onToggle}
+      onLayout={(e) => setW(e.nativeEvent.layout.width)}
       accessibilityRole="button"
       accessibilityState={{ expanded: open }}
-      accessibilityLabel={open ? 'Fechar a geleira' : 'Abrir a geleira'}
+      accessibilityLabel={geleiraToggleLabel(open, n)}
       style={[st.toggle, { backgroundColor: open ? colors.zinc900 : colors.zinc100 }, icon ? (grow ? { flex: 1 } : { width: 44, paddingHorizontal: 0 }) : { flex: 1 }]}
     >
       <FridgeArt count={shown.length} level={geleiraLevel(geleiraPoints(shown.filter((i) => !i.pending)))} open={open} size={24} />
       {!icon && <Text style={{ fontSize: 14, fontWeight: '700', color: fg }}>Geleira</Text>}
+      {inline && (
+        <View style={st.inlineCheers}>
+          <Icon name="cheers" size={12} color={AMBER_INK} />
+          <Text style={st.badgeText} numberOfLines={1}>{badge}</Text>
+        </View>
+      )}
       {!icon && <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}><Icon name="chevron-right" size={14} color={fg} /></View>}
+      {!!badge && !inline && (
+        <View style={st.badge} pointerEvents="none">
+          <Icon name="cheers" size={10} color={AMBER_INK} />
+          <Text style={st.badgeText} numberOfLines={1}>{badge}</Text>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -245,7 +282,7 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
   const [burst, setBurst] = useState(0); // muda a cada brinde: dispara os copos
   const q = useTastes(username, isMe);
   const items = (q.data ?? []).filter((i) => i.kind === 'bebida' || i.kind === 'comida');
-  const lv = useQuery({ queryKey: ['geleira-level', username], queryFn: () => geleiraApi.level(username), retry: false, staleTime: 60_000 });
+  const lv = useLevel(username);
   const margin = flush ? 0 : 16;
   if (q.isLoading) return <View style={[st.skel, { marginHorizontal: margin, height: compact ? 60 : 192 }]} accessibilityLabel="A carregar a geleira" />;
   if (!isMe && (q.isError || items.length === 0)) return null;
@@ -262,15 +299,12 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
       : `${lv.data.toNext === 1 ? 'Falta 1 ponto' : `Faltam ${lv.data.toNext} pontos`} para ${(lv.data.nextTitle ?? '').toLowerCase()}. Bebidas com álcool e vibes de festa valem mais.`
     : nextLevelHint(points);
   const folded = compact && !open;
-  // Botão dos brindes: visitante sempre (se o servidor souber de brindes); dono só quando já há brindes.
-  const showCheer = canCheer(lv.data) && (!isMe || (lv.data?.cheers ?? 0) > 0);
   // Progresso dentro do nível atual (0–1), para a barrinha.
   const stepsAll = [0, 1, 12, 30, 60];
   const lo = stepsAll[level], hi = level >= 4 ? null : stepsAll[level + 1];
   const progress = hi === null ? 1 : Math.max(0, Math.min(1, (points - lo) / (hi - lo)));
 
-  const body = (
-    <>
+  const head = (
       <View style={st.head}>
         {compact ? (
           <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={open ? 'Fechar a geleira' : 'Abrir a geleira'}>
@@ -284,20 +318,15 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
           <Text style={{ fontSize: 12, lineHeight: 16, color: colors.zinc600 }}>
             {items.length === 0 ? 'Ainda vazia' : `${total} ${total === 1 ? 'gosto' : 'gostos'}${favorites.length ? ` · ${favorites.length} ${favorites.length === 1 ? 'favorito' : 'favoritos'}` : ''}`}
           </Text>
-          {(total > 0 || showCheer) && (
-            // O nível e os brindes lado a lado; em ecrãs estreitos os brindes passam para a linha de baixo.
+          {total > 0 && (
             <View style={st.tags}>
-              {total > 0 && (
-                <Pressable onPress={() => setHow(true)} style={st.level} accessibilityRole="button" accessibilityLabel={`Nível: ${title}`} accessibilityHint={hint}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.brand }}>{title}</Text>
-                  <Icon name="info" size={12} strokeWidth={2.4} color={colors.brand} />
-                </Pressable>
-              )}
-              {showCheer && <CheerButton username={username} name={name ?? `@${username}`} isMe={isMe} level={lv.data} onBurst={() => setBurst((k) => k + 1)} onOpenList={() => setCheerers(true)} />}
+              <Pressable onPress={() => setHow(true)} style={st.level} accessibilityRole="button" accessibilityLabel={`Nível: ${title}`} accessibilityHint={hint}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: colors.brand }}>{title}</Text>
+                <Icon name="info" size={12} strokeWidth={2.4} color={colors.brand} />
+              </Pressable>
             </View>
           )}
           {total > 0 && isMe && (
-            // Sem toques: a área de toque dos brindes (44 pt) passa um pouco por cima da barra.
             <View style={{ marginTop: 6, gap: 3 }} pointerEvents="none">
               <View style={st.barTrack}><View style={[st.barFill, { width: `${Math.round(progress * 100)}%` }]} /></View>
               <Text style={{ fontSize: 11, lineHeight: 14, color: colors.zinc500 }} numberOfLines={2}>{hint}</Text>
@@ -305,8 +334,16 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
           )}
         </View>
       </View>
-
-      {cheerers && <CheerersSheet username={username} onClose={() => setCheerers(false)} />}
+  );
+  // Os brindes: botão próprio, com a largura do cartão, por baixo do cabeçalho (também com a geleira fechada).
+  const cheer = (
+    <>
+      <CheerBar username={username} name={name ?? `@${username}`} isMe={isMe} level={lv.data} onBurst={() => setBurst((k) => k + 1)} onOpenList={() => setCheerers(true)} />
+      {cheerers && <CheerersSheet username={username} name={name ?? `@${username}`} isMe={isMe} onClose={() => setCheerers(false)} />}
+    </>
+  );
+  const rest = (
+    <>
       {how && <HowSheet onClose={() => setHow(false)} level={level} points={lv.data?.points ?? points} toNext={lv.data ? lv.data.toNext : level >= 4 ? null : stepsAll[level + 1] - points} nextTitle={lv.data ? lv.data.nextTitle : level >= 4 ? null : LEVEL_LABEL[level + 1]} />}
       {items.length === 0 && (!compact || open) ? (
         <View style={st.empty}>
@@ -330,17 +367,20 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
   const inner = (
     <LinearGradient colors={['#fafafa', '#fff', 'rgba(255,255,255,0.6)']} style={StyleSheet.absoluteFill} />
   );
-  // Fechada, qualquer parte do cartão abre a geleira.
-  return folded ? (
-    <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="Abrir a geleira" accessibilityState={{ expanded: false }} style={cardStyle}>
-      {inner}
-      {body}
-      <CheersPour n={burst} size={170} />
-    </Pressable>
-  ) : (
+  // Fechada, o cabeçalho todo abre a geleira; os brindes ficam fora desse toque (botões próprios para o leitor de ecrã).
+  // Os copos (CheersPour) ocupam o cartão inteiro e ficam centrados nele.
+  return (
     <View style={cardStyle} accessibilityLabel="Geleira">
       {inner}
-      {body}
+      {folded ? (
+        <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="Abrir a geleira" accessibilityState={{ expanded: false }}>
+          {head}
+        </Pressable>
+      ) : (
+        head
+      )}
+      {cheer}
+      {rest}
       <CheersPour n={burst} size={170} />
     </View>
   );
@@ -366,11 +406,19 @@ const st = StyleSheet.create({
   shelfHead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 2, marginBottom: 4 },
   shelfTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 1.44, textTransform: 'uppercase', color: 'rgba(39,39,42,0.7)' },
   board: { height: 4, borderRadius: 999, boxShadow: '0 3px 5px rgba(0,0,0,0.18)' },
-  // A área de toque tem 44 pt de altura, mas as margens negativas fazem-na ocupar só a altura da pílula (não empurra nada).
-  cheerHit: { minHeight: 44, marginVertical: -11, justifyContent: 'center' },
-  cheerPill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 22, borderRadius: 999, paddingHorizontal: 9, backgroundColor: colors.zinc100 },
-  cheerOn: { backgroundColor: '#fffbeb' },
-  cheerText: { fontSize: 11, fontWeight: '700' },
+  // Os brindes: uma fila com a largura do cartão, botões de 46 pt (ícone 22 pt, texto 15 pt). No perfil, num ecrã de 320 pt
+  // o cartão tem ~214 pt por dentro: "Brindar" e "12 brindes" não cabem lado a lado e a contagem passa para a linha de baixo
+  // (`flexWrap`), também com a largura toda; a partir de ~360 pt ficam lado a lado.
+  cheerRow: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  cheerBtn: { minWidth: 44, height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 999, borderWidth: 1, borderColor: colors.zinc200, paddingHorizontal: 16, backgroundColor: colors.zinc100 },
+  cheerToggle: { flexGrow: 1, flexBasis: 132 },
+  cheerOn: { backgroundColor: '#fffbeb', borderColor: colors.amber300 },
+  cheerCount: { flexGrow: 1, flexShrink: 0, gap: 4, paddingLeft: 14, paddingRight: 10, backgroundColor: '#fff' },
+  cheerText: { fontSize: 15, fontWeight: '600' },
+  // Os brindes no botão da geleira do perfil: selo âmbar no canto (por cima, não muda o tamanho do botão) ou ao lado do frigorífico.
+  badge: { position: 'absolute', top: -7, right: -6, height: 18, minWidth: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, borderRadius: 9, borderWidth: 1.5, borderColor: '#fff', paddingHorizontal: 4, backgroundColor: colors.amber300 },
+  inlineCheers: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 20, borderRadius: 10, paddingHorizontal: 6, backgroundColor: colors.amber300 },
+  badgeText: { fontSize: 11, lineHeight: 14, fontWeight: '800', color: AMBER_INK, includeFontPadding: false },
   msg: { paddingVertical: 24, paddingHorizontal: 24, textAlign: 'center', color: colors.zinc600, fontSize: 16, lineHeight: 22 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 24 },
   name: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },

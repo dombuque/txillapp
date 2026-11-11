@@ -20,7 +20,12 @@ const suggestSchema = z.object({
   category: z.string().trim().min(2).max(30).regex(/^[a-z0-9-]+$/),
   alcoholic: z.boolean().optional(),
 });
-const settingsSchema = z.object({ matching: z.boolean().optional(), visibility: z.enum(['everyone', 'followers', 'close_friends', 'me']).optional() });
+const settingsSchema = z.object({
+  matching: z.boolean().optional(),
+  visibility: z.enum(['everyone', 'followers', 'close_friends', 'me']).optional(),
+  // Mostrar quem brindou a minha geleira a quem a pode ver.
+  cheersPublic: z.boolean().optional(),
+});
 const decideSchema = z.object({ approve: z.boolean() });
 
 @Controller()
@@ -88,7 +93,7 @@ export class GeleiraController {
     return this.geleira.cheer(req.userId!, username, false);
   }
 
-  /** Quem brindou a minha geleira (só o dono). */
+  /** Quem brindou a geleira: o dono sempre; os outros se o dono mostra a lista e podem ver a geleira (senão 403/404). */
   @Get('users/:username/geleira/cheers')
   cheers(@Req() req: AuthedReq, @Param('username') username: string) {
     return this.geleira.cheers(req.userId!, username);

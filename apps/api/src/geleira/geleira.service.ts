@@ -50,17 +50,18 @@ export class GeleiraService {
   /**
    * O dono de uma geleira visto por quem pede: `can` (a conta é visível, sem bloqueio em nenhum sentido) e `shown`
    * (a visibilidade da geleira deixa: todos, seguidores, amigos próximos ou só o dono). Regra única de of/level/brindes.
+   * `cheers_public`: o dono deixa quem vê a geleira ver também quem a brindou.
    */
   private async owner(viewerId: string, username: string) {
     const { rows } = await this.pool.query(
-      `SELECT u.id, (${canView('u', '$2')}) AS can, u.birth_date,
+      `SELECT u.id, (${canView('u', '$2')}) AS can, u.birth_date, u.geleira_cheers_public AS cheers_public,
               (u.id = $2 OR u.geleira_visibility = 'everyone'
                OR (u.geleira_visibility = 'followers' AND EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $2 AND f.followee_id = u.id))
                OR (u.geleira_visibility = 'close_friends' AND EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $2))) AS shown
          FROM identity.users u WHERE lower(u.username) = lower($1)`,
       [username, viewerId],
     );
-    return rows[0] as { id: string; can: boolean; birth_date: string | null; shown: boolean } | undefined;
+    return rows[0] as { id: string; can: boolean; birth_date: string | null; shown: boolean; cheers_public: boolean } | undefined;
   }
 
   /** O dono de uma geleira que quem pede pode ver; senão 404 (não se distingue "escondida" de "não existe"). */
@@ -218,7 +219,8 @@ export class GeleiraService {
   /**
    * Nível da geleira de alguém: pontos (álcool e vibes de festa valem mais) e título em calão da malta. O título do topo
    * respeita a idade (madala só a partir dos 45), sem nunca devolver a data de nascimento. Só para quem pode ver a geleira.
-   * Traz também os brindes à geleira (`cheers`) e se eu brindei (`cheered`).
+   * Traz também os brindes à geleira (`cheers`), se eu brindei (`cheered`) e se posso ver quem brindou (`cheersListable`:
+   * o dono sempre; os outros se o dono mostra a lista).
    */
   async level(viewerId: string, username: string) {
     const o = await this.visibleOwner(viewerId, username);
@@ -253,6 +255,7 @@ export class GeleiraService {
       hint: held ? (level >= 2 ? `Para subir: mais variedade (${level === 2 ? 4 : 6} grupos diferentes) e gostos avaliados (${level === 2 ? 5 : 10})` : null) : null,
       nextTitle: level >= 4 ? null : level === 3 ? top : titles[level + 1],
       ...(await this.cheersOf(o.id, viewerId)),
+      cheersListable: o.id === viewerId || !!o.cheers_public,
     };
   }
 
@@ -273,28 +276,37 @@ export class GeleiraService {
     return this.cheersOf(o.id, viewerId);
   }
 
-  /** Quem brindou a minha geleira, os mais recentes primeiro. Só o dono vê; sem contas inativas nem bloqueios. */
+  /**
+   * Quem brindou uma geleira, os mais recentes primeiro. O dono vê sempre; os outros só se o dono mostra a lista e podem ver
+   * a geleira (senão 404, como o nível). Sem contas inativas nem bloqueios com o dono; ao visitante também não aparece quem
+   * tem bloqueio com ele.
+   */
   async cheers(viewerId: string, username: string) {
-    const me = await this.pool.query('SELECT 1 FROM identity.users WHERE id = $1 AND lower(username) = lower($2)', [viewerId, username]);
-    if (!me.rowCount) throw new ForbiddenException('Só o dono vê quem brindou a geleira');
+    const o = await this.owner(viewerId, username);
+    const isOwner = o?.id === viewerId;
+    if (!o || (!isOwner && (!o.can || !o.shown))) throw new NotFoundException('Sem geleira para mostrar');
+    if (!isOwner && !o.cheers_public) throw new ForbiddenException('Só o dono vê quem brindou a geleira');
     const { rows } = await this.pool.query(
       `SELECT u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, c.created_at
          FROM taste.geleira_cheers c JOIN identity.users u ON u.id = c.user_id
         WHERE c.owner_id = $1 AND u.status = 'active' AND NOT ${blockedBetween('u.id', 'c.owner_id')}
+          AND (c.owner_id = $2 OR NOT ${blockedBetween('u.id', '$2')})
         ORDER BY c.created_at DESC LIMIT 200`,
-      [viewerId],
+      [o.id, viewerId],
     );
     return { items: rows.map((r) => ({ username: r.username as string, displayName: r.display_name as string, hasAvatar: !!r.has_avatar, at: r.created_at as Date })) };
   }
 
   async settings(userId: string) {
-    const { rows } = await this.pool.query('SELECT geleira_matching, geleira_visibility FROM identity.users WHERE id = $1', [userId]);
-    return { matching: rows[0].geleira_matching as boolean, visibility: rows[0].geleira_visibility as Visibility };
+    const { rows } = await this.pool.query('SELECT geleira_matching, geleira_visibility, geleira_cheers_public FROM identity.users WHERE id = $1', [userId]);
+    return { matching: rows[0].geleira_matching as boolean, visibility: rows[0].geleira_visibility as Visibility, cheersPublic: rows[0].geleira_cheers_public as boolean };
   }
-  async setSettings(userId: string, b: { matching?: boolean; visibility?: Visibility }) {
+  /** `cheersPublic`: quem pode ver a minha geleira vê também quem a brindou (desligado por omissão). */
+  async setSettings(userId: string, b: { matching?: boolean; visibility?: Visibility; cheersPublic?: boolean }) {
     await this.pool.query(
-      'UPDATE identity.users SET geleira_matching = COALESCE($2, geleira_matching), geleira_visibility = COALESCE($3, geleira_visibility) WHERE id = $1',
-      [userId, b.matching ?? null, b.visibility ?? null],
+      `UPDATE identity.users SET geleira_matching = COALESCE($2, geleira_matching), geleira_visibility = COALESCE($3, geleira_visibility),
+              geleira_cheers_public = COALESCE($4, geleira_cheers_public) WHERE id = $1`,
+      [userId, b.matching ?? null, b.visibility ?? null, b.cheersPublic ?? null],
     );
     return this.settings(userId);
   }
