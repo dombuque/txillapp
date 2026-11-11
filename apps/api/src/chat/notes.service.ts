@@ -20,8 +20,45 @@ export class NotesService {
     private readonly push: PushService,
   ) {}
 
-  /** A minha nota (se ainda vale) e as de quem me deixa vê-las. */
+  /**
+   * A faixa das mensagens: a minha nota, as notas que posso ver e, a seguir, as pessoas com quem já conversei
+   * (sem nota visível), das conversas mais antigas para as mais recentes.
+   */
   async list(me: string) {
+    const notes = await this.visible(me);
+    return { ...notes, people: await this.people(me, notes.items.map((n) => n.username.toLowerCase())) };
+  }
+
+  /**
+   * Pessoas das minhas conversas 1:1 em que os dois já escreveram (os pedidos sem resposta não entram), sem bloqueio,
+   * com a conta ativa e sem a conversa escondida por mim. Fica de fora quem já aparece pela nota (`skip`, em minúsculas).
+   * Ordem: a última mensagem mais antiga primeiro (as conversas que estão mais em baixo na lista).
+   */
+  private async people(me: string, skip: string[]) {
+    const { rows } = await this.pool.query(
+      `SELECT o.username, o.display_name, (o.avatar_media_id IS NOT NULL) AS has_avatar, lm.created_at AS last_at
+         FROM social.conversations c
+         JOIN identity.users o ON o.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END AND o.status = 'active' AND o.id <> $1
+         JOIN LATERAL (SELECT created_at FROM social.messages WHERE conversation_id = c.id AND deleted_at IS NULL AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)) ORDER BY id DESC LIMIT 1) lm ON true
+        WHERE (c.user_a = $1 OR c.user_b = $1)
+          AND NOT (CASE WHEN c.user_a = $1 THEN c.hidden_a ELSE c.hidden_b END)
+          AND NOT ${blockedBetween('o.id', '$1')}
+          AND EXISTS (SELECT 1 FROM social.messages sm WHERE sm.conversation_id = c.id AND sm.sender_id = $1 AND sm.deleted_at IS NULL)
+          AND EXISTS (SELECT 1 FROM social.messages om WHERE om.conversation_id = c.id AND om.sender_id = o.id AND om.deleted_at IS NULL)
+          AND lower(o.username) <> ALL($2::text[])
+        ORDER BY lm.created_at ASC LIMIT 30`,
+      [me, skip],
+    );
+    return rows.map((r) => ({
+      username: r.username as string,
+      displayName: r.display_name as string,
+      hasAvatar: r.has_avatar as boolean,
+      lastAt: r.last_at as string,
+    }));
+  }
+
+  /** A minha nota (se ainda vale) e as de quem me deixa vê-las (os brindes e as respostas só valem para estas). */
+  private async visible(me: string) {
     const { rows } = await this.pool.query(
       `SELECT n.user_id, n.body, n.music, n.audience, n.created_at, n.expires_at, u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar,
               (SELECT count(*)::int FROM social.note_cheers c WHERE c.note_user_id = n.user_id) AS cheers,
@@ -73,7 +110,7 @@ export class NotesService {
 
   /** Brindar a nota de alguém (só quem a pode ver): põe ou tira o meu brinde. O dono é avisado só da primeira vez. */
   async cheer(me: string, username: string) {
-    const visible = (await this.list(me)).items.find((n) => n.username.toLowerCase() === username.toLowerCase());
+    const visible = (await this.visible(me)).items.find((n) => n.username.toLowerCase() === username.toLowerCase());
     if (!visible) throw new NotFoundException('Essa nota já não está disponível');
     const owner = (await this.pool.query('SELECT id FROM identity.users WHERE lower(username) = lower($1)', [visible.username])).rows[0].id as string;
     const del = await this.pool.query('DELETE FROM social.note_cheers WHERE note_user_id = $1 AND user_id = $2', [owner, me]);
@@ -90,7 +127,7 @@ export class NotesService {
   /** Responder a uma nota: vai como mensagem normal, a dizer a que nota responde (só quem pode ver a nota). */
   async reply(me: string, username: string, text: string) {
     this.filter.assertClean(text);
-    const visible = (await this.list(me)).items.find((n) => n.username.toLowerCase() === username.toLowerCase());
+    const visible = (await this.visible(me)).items.find((n) => n.username.toLowerCase() === username.toLowerCase());
     if (!visible) throw new NotFoundException('Essa nota já não está disponível');
     return this.chat.send(me, visible.username, { kind: 'text', body: `Em resposta à tua nota “${visible.body || (visible.music as { title?: string } | null)?.title || '♪'}”: ${text.trim()}` });
   }
