@@ -7,6 +7,7 @@ import { createElement, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Linking, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
+import { ReplySwipe, type ReplySpot } from '@/components/ReplySwipe';
 import { Icon } from '@/components/Icon';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { Sticker } from '@/components/StickerPanel';
@@ -16,6 +17,7 @@ import { type ChatMessage } from '@/lib/api';
 import { AVATAR, AVATAR_GAP, GAP_IN, GAP_OUT, corners, type Ticks } from '@/lib/chatLayout';
 import { timeLabel } from '@/lib/chatTimeline';
 import { abs, sized } from '@/lib/config';
+import { canSwipeReply } from '@/lib/replySwipe';
 import { colors } from '@/lib/theme';
 
 /** Fundo das bolhas da outra pessoa. */
@@ -392,7 +394,18 @@ export function Bubble({
   const ink = mine ? '#fff' : colors.zinc900;
   const dimStyle = m.state === 'sending' ? { opacity: 0.7 } : null;
   const tick: Ticks | null = !mine ? null : ticks !== undefined ? ticks : seen ? 'seen' : null;
-  void onReply;
+  // Deslizar para a direita responde (components/ReplySwipe); o ícone fica à esquerda da bolha, à altura do meio dela.
+  const swipe = !!onReply && canSwipeReply(m);
+  const reply = () => onReply?.(m);
+  const [spot, setSpot] = useState<ReplySpot | null>(null);
+  const rowAt = useRef({ y: 0, h: 0, x: 0 });
+  const place = (p: Partial<{ y: number; h: number; x: number }>) => {
+    Object.assign(rowAt.current, p);
+    const { x, y, h } = rowAt.current;
+    // Nas mensagens da outra pessoa o ícone fica no início da linha (à esquerda do avatar); nas minhas, à esquerda da bolha.
+    const at = { x: mine ? x : 0, y, h };
+    setSpot((o) => (o && o.x === at.x && o.y === at.y && o.h === at.h ? o : at));
+  };
 
   let content: React.ReactNode;
   if (m.viewOnce) {
@@ -511,7 +524,13 @@ export function Bubble({
   const timeText = showTime ? timeLabel(m.at) : isLast ? clock(m.at) : null;
 
   return (
-    <View style={[{ alignItems: mine ? 'flex-end' : 'flex-start', marginTop: isFirst ? GAP_OUT : GAP_IN, borderRadius: 24 }, indent && { paddingLeft: AVATAR + AVATAR_GAP }, flash && { backgroundColor: 'rgba(214,51,79,0.15)' }]}>
+    <ReplySwipe
+      enabled={swipe}
+      onReply={reply}
+      spot={spot}
+      style={{ marginTop: isFirst ? GAP_OUT : GAP_IN }}
+      innerStyle={[{ alignItems: mine ? 'flex-end' : 'flex-start', borderRadius: 24 }, indent && { paddingLeft: AVATAR + AVATAR_GAP }, flash && { backgroundColor: 'rgba(214,51,79,0.15)' }]}
+    >
       {group && !mine && isFirst && m.sender && <Text style={{ marginBottom: 2, paddingHorizontal: 14, fontSize: 12, fontWeight: '700', color: senderColor(m.sender.username) }}>{m.sender.displayName.split(' ')[0]}</Text>}
       {m.replyTo && (
         <Pressable
@@ -546,14 +565,18 @@ export function Bubble({
           onPress={() => { const o = mine ? peerHandle : meHandle; if (o) router.push(`/stories/${o}` as never); }}
         />
       ) : null}
-      <View style={[st.row, { justifyContent: mine ? 'flex-end' : 'flex-start' }]}>
+      <View style={[st.row, { justifyContent: mine ? 'flex-end' : 'flex-start' }]} onLayout={swipe ? (e) => place({ y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height }) : undefined}>
         {who && isLast && <View style={st.avatar}><SideAvatar who={who} /></View>}
         <Pressable
           onPress={onPress}
           onLongPress={real ? () => onMenu(m) : undefined}
           delayLongPress={450}
+          onLayout={swipe && mine ? (e) => place({ x: e.nativeEvent.layout.x }) : undefined}
           style={{ maxWidth: wide ? '78%' : '100%' }}
           accessibilityHint={canCheer ? 'Toca para ver a hora, duas vezes para brindar, mantém para mais opções' : 'Toca para ver a hora'}
+          // O mesmo que deslizar para a direita, para quem usa o leitor de ecrã.
+          accessibilityActions={swipe ? [{ name: 'reply', label: 'Responder' }] : undefined}
+          onAccessibilityAction={swipe ? (e) => { if (e.nativeEvent.actionName === 'reply') reply(); } : undefined}
         >
           {content}
         </Pressable>
@@ -591,7 +614,7 @@ export function Bubble({
           ) : null}
         </View>
       ) : null}
-    </View>
+    </ReplySwipe>
   );
 }
 
