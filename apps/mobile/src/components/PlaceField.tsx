@@ -297,7 +297,7 @@ export function PlaceField({ label, value, onChange, onTyped, initialQuery = '',
         <View style={st.explain}>
           <Icon name="locate" size={18} color={colors.zinc700} />
           <View style={{ flex: 1, gap: 8 }}>
-            <Text style={st.explainText}>Para pôr o pino onde estás agora, o Txillapp vai pedir a localização do aparelho. Só a usa para marcar este sítio.</Text>
+            <Text style={st.explainText}>Para pôr o pino onde estás agora, o Txillapp vai pedir a localização do aparelho. Só a usa para marcar este sítio: o ponto passa a ser o do local, que é público se o local estiver no mapa.</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <Pill label="Continuar" small onPress={() => void mine(true)} />
               <Pill label="Agora não" kind="ghost" small onPress={() => setLocating(null)} />
