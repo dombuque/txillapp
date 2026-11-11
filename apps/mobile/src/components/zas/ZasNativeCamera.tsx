@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type MutableRefObject, type React
 import { Animated, AppState, Easing, Linking, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { GestureDetector, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
 import { Camera, useCameraDevice, useCameraPermission, usePhotoOutput, type CameraRef } from 'react-native-vision-camera';
+import { isMinorCameraError, quiet, zoomBounds } from '@/lib/cameraControls';
 import { Icon } from '../Icon';
 import { ZAS_MAX_ZOOM, coverCrop, inCaptionZone, needsMirror, outSize, pinchZoom, roundCrop } from './zasFrame';
 
@@ -65,14 +66,30 @@ export function ZasNativeCamera({
   const photoOutput = usePhotoOutput({ targetResolution: { width: 1536, height: 2048 }, containerFormat: 'jpeg', quality: 0.92, qualityPrioritization: 'balanced' });
   const outputs = useMemo(() => [photoOutput], [photoOutput]);
 
+  // Uma avaria a sério da câmara (não um zoom recusado): ao voltar à app monta-se uma câmara nova, em vez de a forma
+  // ficar preta até se fechar o Zás.
+  const failed = useRef(false);
+  const [camKey, setCamKey] = useState(0);
   // Segundo plano: a câmara desliga; ao voltar liga outra vez (e a imagem volta a encher a forma).
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (s) => setAppActive(s === 'active'));
+    const sub = AppState.addEventListener('change', (s) => {
+      setAppActive(s === 'active');
+      if (s === 'active' && failed.current) { failed.current = false; setCamKey((k) => k + 1); }
+    });
     return () => sub.remove();
   }, []);
+  function onCamError(e: Error) {
+    // O zoom, o foco e a lanterna recusados (ou "Camera is not active" enquanto arranca) vêm para o mesmo `onError`,
+    // mas a câmara continua a funcionar: antes, isto deixava o obturador desligado até virar a câmara.
+    if (isMinorCameraError(e?.message)) return;
+    failed.current = true;
+    setReady(false);
+  }
   // Câmara nova (abrir ou virar): zoom normal, sem anel de foco, à espera de estar pronta.
-  const minZoom = device?.minZoom ?? 1;
-  const maxZoom = Math.max(minZoom, Math.min(device?.maxZoom ?? 1, ZAS_MAX_ZOOM));
+  // No Android `device.minZoom`/`maxZoom` podem vir a 0: o zoom pedido seria 0 e a câmara recusava-o.
+  const zb = zoomBounds(device?.minZoom, device?.maxZoom);
+  const minZoom = zb.min;
+  const maxZoom = Math.max(minZoom, Math.min(zb.max, ZAS_MAX_ZOOM));
   useEffect(() => {
     setReady(false);
     setFocus(null);
@@ -102,7 +119,7 @@ export function ZasNativeCamera({
     ]).start(({ finished }) => { if (finished) setFocus(null); });
     void Haptics.selectionAsync().catch(() => undefined);
     // A câmara enche o cartão todo, por isso o ponto do toque é já o ponto da pré-visualização.
-    cam.current?.focusTo({ x, y }, { responsiveness: 'snappy', adaptiveness: 'continuous', autoResetAfter: null }).catch(() => undefined);
+    quiet(() => cam.current?.focusTo({ x, y }, { responsiveness: 'snappy', adaptiveness: 'continuous', autoResetAfter: null }));
   }
 
   const pinch = usePinchGesture({
@@ -134,18 +151,24 @@ export function ZasNativeCamera({
         onScreenLight(false);
         shutter();
       }
+      // A foto tem de ser largada mesmo que a conversão falhe: no Android segura um dos (poucos) buffers da câmara e,
+      // sem os largar, as fotos seguintes ficavam à espera para sempre (obturador morto).
       const mirrored = photo.isMirrored;
-      let img = await photo.toImageAsync();
-      photo.dispose();
-      const swap = async (next: typeof img) => { const old = img; img = next; old.dispose(); };
-      // O mesmo corte "cover" 3:4 da pré-visualização (com uma câmara 4:3 não corta nada).
-      const c = roundCrop(coverCrop(img.width, img.height), img.width, img.height);
-      if (c.sw !== img.width || c.sh !== img.height) await swap(await img.cropAsync(c.sx, c.sy, c.sx + c.sw, c.sy + c.sh));
-      // A da frente sai espelhada, como se viu no ecrã.
-      if (needsMirror(front, mirrored)) await swap(await img.mirrorHorizontallyAsync());
-      const o = outSize(img.width, img.height);
-      if (o.w < img.width) await swap(await img.resizeAsync(o.w, o.h));
+      let img: Awaited<ReturnType<typeof photo.toImageAsync>>;
       try {
+        img = await photo.toImageAsync();
+      } finally {
+        photo.dispose();
+      }
+      try {
+        const swap = async (next: typeof img) => { const old = img; img = next; old.dispose(); };
+        // O mesmo corte "cover" 3:4 da pré-visualização (com uma câmara 4:3 não corta nada).
+        const c = roundCrop(coverCrop(img.width, img.height), img.width, img.height);
+        if (c.sw !== img.width || c.sh !== img.height) await swap(await img.cropAsync(c.sx, c.sy, c.sx + c.sw, c.sy + c.sh));
+        // A da frente sai espelhada, como se viu no ecrã.
+        if (needsMirror(front, mirrored)) await swap(await img.mirrorHorizontallyAsync());
+        const o = outSize(img.width, img.height);
+        if (o.w < img.width) await swap(await img.resizeAsync(o.w, o.h));
         return fileUri(await img.saveToTemporaryFileAsync('jpg', 90));
       } finally {
         img.dispose();
@@ -164,6 +187,7 @@ export function ZasNativeCamera({
       <View style={[style, { width: w, height: h }]} collapsable={false}>
         {perm.hasPermission && device ? (
           <Camera
+            key={camKey}
             ref={cam}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
@@ -179,11 +203,11 @@ export function ZasNativeCamera({
             onConfigured={() => setReady(true)}
             onStarted={() => setReady(true)}
             onStopped={() => setReady(false)}
-            onError={() => setReady(false)}
+            onError={onCamError}
           />
         ) : (
           <Pressable
-            onPress={() => void (perm.hasPermission ? undefined : perm.canRequestPermission ? perm.requestPermission() : Linking.openSettings())}
+            onPress={() => quiet(() => (perm.hasPermission ? undefined : perm.canRequestPermission ? perm.requestPermission() : Linking.openSettings()))}
             accessibilityRole="button"
             accessibilityLabel="Permitir a câmara"
             style={{ alignItems: 'center', gap: 10, paddingHorizontal: 24 }}

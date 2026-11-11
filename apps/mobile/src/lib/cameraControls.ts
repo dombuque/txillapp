@@ -46,6 +46,17 @@ export function displayMultiplier(info: Pick<LensInfo, 'platform' | 'switchFacto
   return finite(r) && r >= 0.2 && r <= 5 ? r : 1;
 }
 
+/**
+ * Limites do zoom que se podem usar. No Android a VisionCamera devolve `minZoom`/`maxZoom` = 0 quando o CameraX ainda
+ * não tem o estado do zoom dessa câmara; com 0 o zoom pedido seria 0 (fora do intervalo: a câmara recusa-o e o Zás
+ * ficava "não pronto"). Sem valores válidos fica 1…1 (sem zoom), e o máximo nunca fica abaixo do mínimo.
+ */
+export function zoomBounds(min: unknown, max: unknown): { min: number; max: number } {
+  const lo = finite(min) && min > 0 ? min : 1;
+  const hi = finite(max) && max > 0 ? max : lo;
+  return { min: lo, max: Math.max(lo, hi) };
+}
+
 /** Arredonda um ponto de lente para uma casa decimal (0,5 · 0,6 · 1 · 2 · 3 · 5). */
 const roundStop = (d: number) => Math.round(d * 10) / 10;
 
@@ -346,7 +357,24 @@ export function cameraProblem(
  * a exposição, a lanterna, o foco): não param a câmara e não merecem o aviso de "a câmara falhou".
  */
 export function isMinorCameraError(message: string | undefined): boolean {
-  return /zoom|exposure|torch|focus|metering|flash|white.?balance|not yet ready|canceled|cancelled/i.test(message ?? '');
+  // "Camera is not active." / "Camera is closed": o CameraX recusa o zoom, a exposição e a lanterna enquanto a câmara
+  // está parada (editor ou galeria por cima, a abrir num telemóvel lento, a trocar de modo). Não é uma avaria.
+  return /zoom|exposure|torch|focus|metering|flash|white.?balance|not yet ready|not active|is closed|canceled|cancelled/i.test(message ?? '');
+}
+
+/**
+ * Chama um método nativo da câmara "dispara e esquece" sem nunca rebentar: alguns métodos da VisionCamera atiram logo
+ * (ex.: `cancelZoomAnimation` do `CameraRef` atira "Camera is not yet ready!" antes de haver controlador, e o Nitro
+ * passa exceções do Kotlin/Swift como exceções síncronas) e outros devolvem uma promessa que rejeita. Uma exceção num
+ * gesto ou num toque fecha a app em release; uma promessa rejeitada sem `catch` dá um aviso. Aqui apanham-se as duas.
+ */
+export function quiet(f: () => unknown): void {
+  try {
+    const p = f() as { catch?: (fn: () => void) => unknown } | null | undefined;
+    if (p && typeof p.catch === 'function') p.catch(() => undefined);
+  } catch {
+    /* a câmara não estava pronta ou já foi largada: não há nada a fazer */
+  }
 }
 
 // ———————————————————————————————————————— Vários ————————————————————————————————————————

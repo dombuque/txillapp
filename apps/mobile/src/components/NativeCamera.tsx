@@ -1,3 +1,4 @@
+import { File } from 'expo-file-system';
 import { Image } from 'expo-image';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import * as Haptics from 'expo-haptics';
@@ -16,7 +17,7 @@ import {
   activeStop, cameraProblem, createValueStore, crossedStop, crossedZero, displayMultiplier, exposureBarOrigin, exposureFromDrag,
   exposureRange, exposureStep, flashA11y, focusBoxOrigin, formatStop, formatZoom, isLowLight, isMinorCameraError, maxDisplayZoom,
   meteringModes, needsScreenFlash, nextFlash, permissionView, photoFlashMode, photoPriority, pickStabilization, pickVideoFps,
-  pinchZoom, previewPoint, recTime, slideZoom, sunOffset, torchFor, zoomA11y, zoomAnimationArg, zoomStops,
+  pinchZoom, previewPoint, quiet, recTime, slideZoom, sunOffset, torchFor, zoomA11y, zoomAnimationArg, zoomBounds, zoomStops,
   type CamPlatform, type CamProblem, type ExposureRange, type FlashChoice, type LensInfo, type ValueStore,
 } from '@/lib/cameraControls';
 import { colors } from '@/lib/theme';
@@ -51,6 +52,10 @@ function safe<T>(f: () => T): T | undefined {
 }
 // A VisionCamera devolve caminhos do sistema de ficheiros; o editor (Skia, expo-file-system) e o vídeo querem file://.
 const fileUri = (p: string) => (p.startsWith('file://') ? p : `file://${p}`);
+/** Apaga um ficheiro temporário da câmara (foto ou vídeo que não se usou); se já não existir, não faz mal. */
+function dropTemp(uri: string) {
+  try { new File(uri).delete(); } catch { /* já não existe */ }
+}
 // A grelha fica como a pessoa a deixou enquanto a app estiver aberta (sem gravar em disco).
 let gridPref = false;
 
@@ -146,10 +151,12 @@ export function NativeCamera({
     const switchFactors = safe(() => [...device.zoomLensSwitchFactors]) ?? [];
     return { id: device.id, hasUltraWide, switchFactors, back: device.position === 'back', minZoom: device.minZoom, maxZoom: device.maxZoom };
   }, [device]);
+  // No Android, `device.minZoom`/`maxZoom` vêm a 0 se o CameraX ainda não tiver o estado do zoom: com zoomBounds fica 1…1.
+  const zb = zoomBounds((ctrlInfo?.id === lens?.id ? ctrlInfo?.min : undefined) ?? lens?.minZoom, (ctrlInfo?.id === lens?.id ? ctrlInfo?.max : undefined) ?? lens?.maxZoom);
   const info: LensInfo = {
     platform: PLATFORM,
-    minZoom: (ctrlInfo?.id === lens?.id ? ctrlInfo?.min : undefined) ?? lens?.minZoom ?? 1,
-    maxZoom: (ctrlInfo?.id === lens?.id ? ctrlInfo?.max : undefined) ?? lens?.maxZoom ?? 1,
+    minZoom: zb.min,
+    maxZoom: zb.max,
     switchFactors: lens?.switchFactors ?? [],
     hasUltraWide: !!lens?.hasUltraWide,
     back: !!lens?.back,
@@ -261,10 +268,17 @@ export function NativeCamera({
     return out;
   }, [mode, device, photoOutput, videoOutput]);
 
+  // Fotos e vídeos que esta câmara gravou na cache e ainda não foram usados: apagam-se ao desistir deles (e ao sair),
+  // para a cache não encher com fotos de 5–10 MB. Os da galeria nunca entram aqui.
+  const ownTemp = useRef(new Set<string>());
+  /** Larga um ficheiro da câmara: apaga-o se ainda for nosso (se foi usado, já saiu do conjunto). */
+  const discard = (uri: string | null | undefined) => { if (uri && ownTemp.current.delete(uri)) dropTemp(uri); };
   useEffect(() => () => {
     clearTimeout(holdT.current); clearInterval(recTimer.current); clearInterval(countTimer.current); clearTimeout(hideT.current); clearTimeout(errT.current);
     // A sair a meio de uma gravação, deita-se fora (a câmara larga-se sozinha quando a sessão é desmontada).
-    void recorder.current?.cancelRecording().catch(() => undefined);
+    quiet(() => recorder.current?.cancelRecording());
+    ownTemp.current.forEach(dropTemp);
+    ownTemp.current.clear();
   }, []);
   // Câmara nova (abrir ou virar): zoom no 1×, exposição a zero, sem foco nem bloqueio.
   useEffect(() => {
@@ -287,7 +301,7 @@ export function NativeCamera({
   }, [!!device]); // eslint-disable-line react-hooks/exhaustive-deps
   // O microfone pede-se ao abrir a câmara (não a meio de manter o obturador). Sem ele, os vídeos gravam sem som.
   useEffect(() => {
-    if (perm.hasPermission && !mic.hasPermission && mic.canRequestPermission) void mic.requestPermission();
+    if (perm.hasPermission && !mic.hasPermission && mic.canRequestPermission) quiet(() => mic.requestPermission());
   }, [perm.hasPermission, mic.hasPermission]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Depois de cada configuração (abrir, virar, foto ↔ vídeo): lê os limites do controlador novo, volta a pôr o foco
@@ -305,21 +319,21 @@ export function NativeCamera({
     if (lf) runFocus(lf.x, lf.y, lf.locked);
     if (IOS && mode === 'picture') {
       const modes: FlashChoice[] = device?.hasFlash ? ['off', 'auto', 'on'] : ['off'];
-      void photoOutput.prepareSettings(modes.map((flashMode) => ({ flashMode }))).catch(() => undefined);
+      quiet(() => photoOutput.prepareSettings(modes.map((flashMode) => ({ flashMode }))));
     }
   }, [cfgTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Pára a gravação (se ainda estiver a arrancar, pára logo que arranque). */
   function stopRec() {
     stopAsked.current = true;
-    void recorder.current?.stopRecording().catch(() => undefined);
+    quiet(() => recorder.current?.stopRecording());
   }
 
   // Botão de voltar do Android: fecha as opções, sai da pré-visualização, pára a gravação, ou fecha a câmara.
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (editing || galleryOpen) return false; // o editor e a galeria tratam
-      if (review) { setReview(null); return true; }
+      if (review) { discard(review.uri); setReview(null); return true; }
       if (recording) { stopRec(); return true; }
       onClose();
       return true;
@@ -337,7 +351,7 @@ export function NativeCamera({
     zoomStore.set(next * mult);
     if (crossedStop(prevD, next * mult, stops) !== null) tick();
     const c = cam.current?.controller;
-    if (c) void c.setZoom(next).catch(() => undefined);
+    if (c) quiet(() => c.setZoom(next));
   }
   /** Assenta o zoom na prop da câmara (no fim da pinça, do deslizar ou da animação). */
   function commitZoom(z = zoomLive.current) {
@@ -355,13 +369,17 @@ export function NativeCamera({
     zoomStore.set(target * mult);
     const c = cam.current?.controller;
     if (!c) { commitZoom(target); return; }
-    c.startZoomAnimation(target, zoomAnimationArg(PLATFORM, from, target)).then(
-      () => { if (zoomOp.current === op) commitZoom(target); },
-      () => {
-        // Sem animação (ou foi interrompida por outra): se ainda for a última ordem, vai direto.
-        if (zoomOp.current === op) { void c.setZoom(target).catch(() => undefined); commitZoom(target); }
-      },
-    );
+    // Sem animação (ou foi interrompida por outra): se ainda for a última ordem, vai direto.
+    const direct = () => { if (zoomOp.current === op) { quiet(() => c.setZoom(target)); commitZoom(target); } };
+    try {
+      // O Nitro passa exceções nativas como exceções síncronas (sem promessa): num toque, isso fechava a app.
+      c.startZoomAnimation(target, zoomAnimationArg(PLATFORM, from, target)).then(
+        () => { if (zoomOp.current === op) commitZoom(target); },
+        direct,
+      );
+    } catch {
+      direct();
+    }
   }
 
   // ——— Foco e exposição ———
@@ -377,7 +395,7 @@ export function NativeCamera({
     expoLive.current = v;
     expoStore.set(v);
     const c = cam.current?.controller;
-    if (c) void c.setExposureBias(v).catch(() => undefined);
+    if (c) quiet(() => c.setExposureBias(v));
   }
   function commitExpo() { setExposure(expoLive.current); }
   function resetExpo() {
@@ -397,7 +415,7 @@ export function NativeCamera({
     const modes = meteringModes({ af: device.supportsFocusMetering, ae: device.supportsExposureMetering, awb: device.supportsWhiteBalanceMetering });
     if (!modes.length) return;
     const p = previewPoint(x, y, view, { w: camW, h: camH });
-    c.focusTo(p, { responsiveness: recordingRef.current ? 'steady' : 'snappy', adaptiveness: locked ? 'locked' : 'continuous', autoResetAfter: null, modes }).catch(() => undefined);
+    quiet(() => c.focusTo(p, { responsiveness: recordingRef.current ? 'steady' : 'snappy', adaptiveness: locked ? 'locked' : 'continuous', autoResetAfter: null, modes }));
   }
 
   /** Tocar (ou manter, para bloquear) no visor: o quadrado amarelo no sítio e a medição nesse ponto. */
@@ -429,7 +447,7 @@ export function NativeCamera({
     setFocus(null);
     setAeLocked(false);
     lastFocus.current = null;
-    if (resetNative) void cam.current?.resetFocus().catch(() => undefined);
+    if (resetNative) quiet(() => cam.current?.resetFocus());
   }
 
   // Barra do sol: arrastar para cima clareia, para baixo escurece (dentro dos limites da câmara).
@@ -459,7 +477,9 @@ export function NativeCamera({
     runOnJS: true,
     onBegin: () => {
       zoomOp.current += 1;
-      void cam.current?.cancelZoomAnimation().catch(() => undefined);
+      // `cam.current.cancelZoomAnimation()` atira logo ("Camera is not yet ready!", sem promessa) antes de haver
+      // controlador: uma pinça logo ao abrir fechava a app em release. Vai-se ao controlador, sem deixar escapar nada.
+      quiet(() => cam.current?.controller?.cancelZoomAnimation());
       z0.current = zoomLive.current;
     },
     onUpdate: (e) => liveZoom(pinchZoom(z0.current, e.scale, minZoom, maxZoom)),
@@ -550,7 +570,9 @@ export function NativeCamera({
         try {
           const path = await img.saveToTemporaryFileAsync('jpg', 100);
           // Mesmo que a app tenha ido para segundo plano entretanto, a foto fica: o editor está à espera ao voltar.
-          setEditing(fileUri(path));
+          const uri = fileUri(path);
+          ownTemp.current.add(uri);
+          setEditing(uri);
         } finally {
           img.dispose();
         }
@@ -580,7 +602,7 @@ export function NativeCamera({
       return;
     }
     // Largou o dedo enquanto o gravador se preparava.
-    if (!holding.current) { void rec.cancelRecording().catch(() => undefined); setMode('picture'); return; }
+    if (!holding.current) { quiet(() => rec.cancelRecording()); setMode('picture'); return; }
     recorder.current = rec;
     stopAsked.current = false;
     setLowLightRec(lowLightNow());
@@ -593,11 +615,17 @@ export function NativeCamera({
       // Acaba quando se pára ou chega aos 60 s; se pediram para parar enquanto arrancava, pára logo que arranque.
       const path = await new Promise<string>((resolve, reject) => {
         rec.startRecording((p) => resolve(p), (err) => reject(err)).then(() => {
-          if (stopAsked.current) void rec.stopRecording().catch(() => undefined);
+          if (stopAsked.current) quiet(() => rec.stopRecording());
         }, reject);
       });
       const durationMs = Date.now() - startedAt.current;
-      if (path && durationMs > 400) setReview({ uri: fileUri(path), video: true, mime: 'video/mp4', durationMs });
+      if (path && durationMs > 400) {
+        const uri = fileUri(path);
+        ownTemp.current.add(uri);
+        setReview({ uri, video: true, mime: 'video/mp4', durationMs });
+      } else if (path) {
+        dropTemp(fileUri(path)); // toque curto demais: não chega a ser vídeo
+      }
     } catch {
       /* gravação interrompida */
     } finally {
@@ -659,7 +687,7 @@ export function NativeCamera({
     holdT.current = setTimeout(() => {
       holding.current = true;
       // Sem licença para o microfone, pede-a agora (o pedido do sistema interrompe o toque: grava-se ao voltar a manter).
-      if (!mic.hasPermission && mic.canRequestPermission) { void mic.requestPermission(); holding.current = false; return; }
+      if (!mic.hasPermission && mic.canRequestPermission) { quiet(() => mic.requestPermission()); holding.current = false; return; }
       pendingRecord.current = true;
       setMode('video');
     }, HOLD_MS);
@@ -726,8 +754,9 @@ export function NativeCamera({
         {pv.action !== 'none' ? (
           <Pressable
             onPress={async () => {
-              if (pv.action === 'settings') { void Linking.openSettings(); return; }
-              const ok = await perm.requestPermission();
+              if (pv.action === 'settings') { quiet(() => Linking.openSettings()); return; }
+              // Pode rejeitar (no Android, "No Activity!" se a app estiver a meio de ir para segundo plano).
+              const ok = await perm.requestPermission().catch(() => false);
               if (!ok) setRefused(true);
             }}
             style={st.cta}
@@ -737,7 +766,7 @@ export function NativeCamera({
           </Pressable>
         ) : null}
         {refused && perm.canRequestPermission ? (
-          <Pressable onPress={async () => { const ok = await perm.requestPermission(); if (ok) setRefused(false); }} style={{ marginTop: 10, padding: 12 }} accessibilityRole="button"><Text style={st.linkText}>Pedir outra vez</Text></Pressable>
+          <Pressable onPress={async () => { const ok = await perm.requestPermission().catch(() => false); if (ok) setRefused(false); }} style={{ marginTop: 10, padding: 12 }} accessibilityRole="button"><Text style={st.linkText}>Pedir outra vez</Text></Pressable>
         ) : null}
         <Pressable onPress={() => setGalleryOpen(true)} style={{ marginTop: 6, padding: 12 }} accessibilityRole="button"><Text style={st.linkText}>Escolher da galeria</Text></Pressable>
         {galleryOpen ? <GalleryPicker title={galleryTitle} multi={multi} onPick={picked} onCamera={() => setGalleryOpen(false)} onClose={() => setGalleryOpen(false)} /> : null}
@@ -777,11 +806,14 @@ export function NativeCamera({
                   onUIRotationChanged={(deg) => Animated.timing(rotAnim, { toValue: deg, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start()}
                   zoom={zoom}
                   exposure={expoOk ? exposure : undefined}
-                  torchMode={torchFor(flash, recording, !!device.hasTorch, lowLightRec)}
+                  // Sem lanterna (frontal, emulador) não se manda nada: o CameraX responderia "No flash unit" a cada configuração.
+                  torchMode={device.hasTorch ? torchFor(flash, recording, true, lowLightRec) : undefined}
                   // No iPhone, sem isto a câmara cala as vibrações do obturador enquanto está ligada.
                   allowHapticsAndSystemSoundsPlayback
                   onConfigured={onReady}
-                  onStarted={() => { running.current = true; clearTimeout(errT.current); setProblem(null); }}
+                  // A câmara a correr está pronta a tirar fotos. (Num telemóvel lento a abrir, um erro pequeno antes do
+                  // arranque podia ter posto `ready` a falso e o obturador ficava morto até virar a câmara.)
+                  onStarted={() => { running.current = true; clearTimeout(errT.current); setProblem(null); setReady(true); }}
                   onStopped={() => { running.current = false; }}
                   onError={onCamError}
                   onInterruptionStarted={onInterruption}
@@ -994,12 +1026,13 @@ export function NativeCamera({
         <PhotoEditor
           uri={editing}
           aspect={aspect}
-          onCancel={() => setEditing(null)}
-          onDone={(file) => { setEditing(null); onShot({ uri: file, video: false, mime: 'image/jpeg' }); }}
+          onCancel={() => { discard(editing); setEditing(null); }}
+          // O editor grava sempre um ficheiro novo: o original da câmara já não faz falta.
+          onDone={(file) => { discard(editing); setEditing(null); onShot({ uri: file, video: false, mime: 'image/jpeg' }); }}
         />
       ) : null}
       {galleryOpen ? <GalleryPicker title={galleryTitle} multi={multi} onPick={picked} onCamera={() => setGalleryOpen(false)} onClose={() => setGalleryOpen(false)} /> : null}
-      {review ? <Review shot={review} onRetake={() => setReview(null)} onSave={() => void saveVideo(review)} onUse={() => { const s = review; setReview(null); onShot(s); }} /> : null}
+      {review ? <Review shot={review} onRetake={() => { discard(review.uri); setReview(null); }} onSave={() => void saveVideo(review)} onUse={() => { const s = review; ownTemp.current.delete(s.uri); setReview(null); onShot(s); }} /> : null}
     </View>
   );
 }
