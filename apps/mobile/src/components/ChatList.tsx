@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View, type NativeScrollEvent } from 'react-native';
+import { FlatList, Platform, Pressable, StyleSheet, Text, View, type NativeScrollEvent } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { ticksFor } from '@/lib/chatLayout';
@@ -210,6 +210,12 @@ function NewMark() {
   );
 }
 
+/**
+ * Desfaz a inversão da lista no estado vazio. O React Native inverte a lista com `scale: -1` no Android (os dois eixos) e
+ * com `scaleY: -1` no iPhone e no site: desfazer só o Y deixava o texto ao espelho no Android ("enayaD araS").
+ */
+const UNFLIP = Platform.OS === 'android' ? [{ scale: -1 }] : [{ scaleY: -1 }];
+
 const st = StyleSheet.create({
   older: { alignSelf: 'center', marginVertical: 8, borderRadius: 999, backgroundColor: colors.white, paddingHorizontal: 16, minHeight: 36, justifyContent: 'center' },
   olderText: { fontSize: 14, fontWeight: '600', color: colors.zinc700 },
@@ -220,7 +226,7 @@ const st = StyleSheet.create({
   newLine: { flex: 1, height: 1, backgroundColor: 'rgba(214,51,79,0.28)' },
   newText: { fontSize: 12, fontWeight: '700', color: colors.brand },
   // Lista invertida: o vazio também vem invertido; desfaz-se aqui.
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, paddingVertical: 48, gap: 6, transform: [{ scaleY: -1 }] },
+  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, paddingVertical: 48, gap: 6, transform: UNFLIP },
   emptyTitle: { marginTop: 10, fontSize: 18, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
   emptyText: { fontSize: 15, lineHeight: 21, color: colors.zinc600, textAlign: 'center' },
   down: { position: 'absolute', bottom: 12, right: 14, width: 44, height: 44, borderRadius: 22, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 2px rgba(24,24,27,0.08), 0 4px 14px rgba(24,24,27,0.16)' },
