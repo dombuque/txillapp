@@ -11,6 +11,7 @@ import { api, uploadMedia } from '@/lib/api';
 import { instantsApi, type InstantItem, type InstantViewer as Viewer } from '@/lib/api.geleira';
 import { useAuth } from '@/lib/auth';
 import { claimSwipe, releaseSwipe } from '@/lib/swipeClaim';
+import { useOverlay } from '@/lib/overlays';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
@@ -141,6 +142,8 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
   const [queue, setQueue] = useState<Who[]>([]);
   const [at, setAt] = useState(0);
   const [gridOpen, setGridOpen] = useState(false);
+  // A câmara, o visor e a grelha do Zás tapam o ecrã: nada de lembretes por cima (lib/overlays).
+  useOverlay(mode !== null || gridOpen);
   useEffect(() => {
     const open = () => setMode('cam');
     cameraListeners.add(open);

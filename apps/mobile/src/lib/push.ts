@@ -44,6 +44,23 @@ export async function pushState(): Promise<'on' | 'ask' | 'denied' | 'off-server
   }
 }
 
+/**
+ * O que a pessoa escolheu neste browser: 'on' (ligou), 'off' (desligou no interruptor das Definições) ou nada.
+ * Com 'on' e a licença dada, se a subscrição desaparecer refaz-se em silêncio; com 'off' nunca, nem se lembra.
+ */
+const CHOICE_KEY = 'tx_push_web';
+export function webPushChoice(): 'on' | 'off' | null {
+  try {
+    const v = globalThis.localStorage?.getItem(CHOICE_KEY);
+    return v === 'on' || v === 'off' ? v : null;
+  } catch {
+    return null;
+  }
+}
+function setChoice(v: 'on' | 'off') {
+  try { globalThis.localStorage?.setItem(CHOICE_KEY, v); } catch { /* sem armazenamento: só vale agora */ }
+}
+
 const wait = <T,>(p: Promise<T>, ms: number, msg: string) => Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(msg)), ms))]);
 
 const askPermission = () =>
@@ -65,10 +82,12 @@ export async function enablePush(): Promise<'on' | 'denied' | 'off'> {
   const reg = await wait(navigator.serviceWorker.ready, 8_000, 'O serviço de notificações ainda não arrancou. Fecha e abre a app e tenta outra vez.');
   const sub = await wait(freshSubscription(reg, publicKey), 15_000, 'Não consegui registar este telemóvel. Tenta outra vez daqui a pouco.');
   await wait(registerSubscription(sub), 10_000, 'Sem ligação ao servidor. Tenta outra vez.');
+  setChoice('on');
   return 'on';
 }
 
 export async function disablePush(): Promise<void> {
+  setChoice('off');
   const reg = await navigator.serviceWorker.getRegistration();
   const sub = await reg?.pushManager.getSubscription();
   if (sub) {
@@ -77,19 +96,45 @@ export async function disablePush(): Promise<void> {
   }
 }
 
-/** Ao abrir com sessão: se já estavam ligadas neste aparelho, confirma que a subscrição é válida e desta conta. Nunca pede permissão. */
-export async function syncPush(): Promise<void> {
+/**
+ * Ao abrir com sessão: se já estavam ligadas neste aparelho, confirma que a subscrição é válida e desta conta. Nunca pede
+ * permissão. Se a licença está dada e a pessoa tinha ligado (`webPushChoice() === 'on'`) mas a subscrição desapareceu
+ * (o browser limpou-a), faz outra em silêncio. Devolve se ficou com a subscrição registada no servidor.
+ */
+export async function syncPush(): Promise<boolean> {
   try {
-    if (!supported() || Notification.permission !== 'granted') return;
-    const reg = await navigator.serviceWorker.ready;
-    if (!(await reg.pushManager.getSubscription())) return;
+    if (!supported() || Notification.permission !== 'granted') return false;
+    const reg = await wait(navigator.serviceWorker.ready, 8_000, 'sem service worker');
+    const had = !!(await reg.pushManager.getSubscription());
+    if (!had && webPushChoice() !== 'on') return false;
     const { publicKey } = await pushApi.pushKey().catch(() => ({ publicKey: null }));
-    if (!publicKey) return;
+    if (!publicKey) return false;
     await registerSubscription(await freshSubscription(reg, publicKey));
+    if (webPushChoice() === null) setChoice('on');
+    return true;
   } catch {
     /* sem rede ou sem suporte: tenta na próxima vez */
+    return false;
   }
 }
+
+/** O servidor tem a chave do push (sem ela não há notificações na web). */
+export async function pushServerReady(): Promise<boolean> {
+  try { return !!(await pushApi.pushKey()).publicKey; } catch { return false; }
+}
+
+/** Há uma subscrição neste browser (não pede nada). */
+export async function hasPushSubscription(): Promise<boolean> {
+  try {
+    if (!supported()) return false;
+    const reg = await navigator.serviceWorker.getRegistration();
+    return !!(await reg?.pushManager.getSubscription());
+  } catch {
+    return false;
+  }
+}
+
+export const pushSupported = supported;
 
 /* ───────────── instalar e atualizar a app (PWA) ───────────── */
 interface InstallEvent extends Event { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> }

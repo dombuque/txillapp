@@ -27,6 +27,7 @@ import { callLabel } from '@/components/ChatBubbles';
 import { GroupCard, groupCardData } from '@/components/groups/GroupCard';
 import type { TxillGroupSummary } from '@/lib/api.groups';
 import { kvGet, kvSet } from '@/lib/kv';
+import { remindPush } from '@/components/PushReminder';
 import { badgeText, inboxCounts, inboxRows, INBOX_TAB_KEY, nextInboxView, parseInboxTab, tabLabel, type InboxTab, type InboxView } from '@/lib/inboxTabs';
 import { gruposApi } from '@/lib/api.grupos';
 import { innerPager, registerInnerPager, type InnerPager } from '@/lib/swipeClaim';
@@ -280,6 +281,8 @@ export default function Messages() {
   // Deslize grande para os lados = mudar de separador (lib/swipeClaim, "pager interno"); nas pontas, na web, muda de menu.
   const nav = useRef({ view, searching, setView });
   nav.current = { view, searching, setView };
+  // Abriu a lista de Mensagens: bom momento para lembrar, se as notificações estiverem desligadas neste aparelho.
+  useFocusEffect(useCallback(() => { remindPush('inbox'); }, []));
   useFocusEffect(useCallback(() => {
     const p: InnerPager = {
       canGo: (d) => nextInboxView(nav.current.view, d, nav.current.searching) !== null,

@@ -9,6 +9,7 @@ import { BookmarkIcon } from '@/components/BookmarkIcon';
 import { Icon, type IconName } from '@/components/Icon';
 import { FindContacts } from '@/components/FindContacts';
 import { EditProfileSheet } from '@/components/ProfileSheets';
+import { PushOffBanner, showsOffBanner, useDeviceNotifications } from '@/components/PushReminder';
 import { Sheet } from '@/components/Sheet';
 import { StackPage } from '@/components/StackPage';
 import { CloseFriendsSheet } from '@/components/StoryParts';
@@ -172,7 +173,7 @@ function InstallRow() {
 }
 
 /** Ligar ou desligar as notificações no telemóvel (Web Push). Funciona na app instalada, em HTTPS. */
-function PushToggle() {
+function PushToggle({ onChange }: { onChange?: () => void }) {
   const [state, setState] = useState<'checking' | 'none' | 'off-server' | 'denied' | 'ask' | 'on'>('checking');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -187,6 +188,7 @@ function PushToggle() {
     try {
       const r = await enablePush();
       setState(r === 'on' ? 'on' : r === 'denied' ? 'denied' : 'ask');
+      onChange?.();
     } catch (x) {
       setErr((x as Error).message || 'Não consegui ligar as notificações');
     } finally {
@@ -195,7 +197,7 @@ function PushToggle() {
   }
   async function disable() {
     setBusy(true);
-    try { await disablePush(); setState('ask'); } finally { setBusy(false); }
+    try { await disablePush(); setState('ask'); } finally { setBusy(false); onChange?.(); }
   }
   const text =
     state === 'none' ? 'Instala a app no ecrã principal e abre-a por lá (no iPhone: iOS 16.4 ou mais recente).'
@@ -214,6 +216,25 @@ function PushToggle() {
       </View>
       <Switch value={on} disabled={!available || busy} onValueChange={(v) => void (v ? enable() : disable())} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Notificações no telemóvel" />
     </View>
+  );
+}
+
+/**
+ * Secção Notificações: se estiverem desligadas neste aparelho, a faixa com "Ligar notificações" (como o lembrete).
+ * Na web também a linha de instalar a app e o interruptor do Web Push; na app nativa só aparece com a faixa.
+ */
+function DeviceNotifications() {
+  const [rev, setRev] = useState(0);
+  // Ligou pela faixa (ou nas definições do sistema): o interruptor volta a ler o estado.
+  const { device, refresh } = useDeviceNotifications(() => setRev((r) => r + 1));
+  const banner = showsOffBanner(device) ? <PushOffBanner device={device} onRefresh={refresh} /> : null;
+  if (Platform.OS !== 'web') return banner ? <Section title="Notificações">{banner}</Section> : null;
+  return (
+    <Section title="Notificações">
+      {banner}
+      <InstallRow />
+      <PushToggle key={rev} onChange={refresh} />
+    </Section>
   );
 }
 
@@ -396,12 +417,7 @@ export default function Settings() {
         </Section>
 
         <Section title="Região"><RegionInfo /></Section>
-        {Platform.OS === 'web' ? (
-          <Section title="Notificações">
-            <InstallRow />
-            <PushToggle />
-          </Section>
-        ) : null}
+        <DeviceNotifications />
 
         <Section title="O que me pode notificar"><NotifyPrefs /></Section>
 

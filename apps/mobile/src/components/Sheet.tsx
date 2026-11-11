@@ -3,6 +3,7 @@ import { Animated, Dimensions, Keyboard, Modal, PanResponder, Platform, Pressabl
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
 import { useDesktop } from '@/lib/desktop';
+import { useOverlay } from '@/lib/overlays';
 
 /** Os conteúdos rolantes avisam a folha de onde estão (só se fecha a arrastar quando estão no topo). */
 const ScrollCtx = createContext<{ top: React.MutableRefObject<boolean> } | null>(null);
@@ -18,6 +19,8 @@ export function Sheet({ title, onClose, children, full = false, plain = false }:
   const y = useRef(new Animated.Value(h)).current;
   const atTop = useRef(true);
   const [kb, setKb] = useState(0);
+  // Enquanto está aberta, os avisos "de tempos a tempos" (lib/overlays) esperam.
+  useOverlay();
 
   useEffect(() => {
     Animated.timing(y, { toValue: 0, duration: 230, useNativeDriver: Platform.OS !== 'web' }).start();

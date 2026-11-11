@@ -20,6 +20,7 @@ import { Icon } from '@/components/Icon';
 import { abs } from '@/lib/config';
 import { api, raw, type ChatThread, type Conversation } from '@/lib/api';
 import { startCall } from '@/lib/calls';
+import { remindPush } from '@/components/PushReminder';
 import { useAuth } from '@/lib/auth';
 import { headerLine, newPostsLabel, newPostsTarget, newPostsText } from '@/lib/chatNewPosts';
 import { NOTE_FOLD_MS, NOTE_FOLD_START, noteFold, peerBubble, peerBubbleKey } from '@/lib/chatPeerNote';
@@ -292,7 +293,7 @@ export default function Thread() {
           }}
         />
       ) : (
-        <ChatComposer closeTick={closeTick} onOpenChange={onComposerOpen} username={username} person={person} onSent={() => void q.refetch()} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} onTyping={onTyping} />
+        <ChatComposer closeTick={closeTick} onOpenChange={onComposerOpen} username={username} person={person} onSent={() => { void q.refetch(); remindPush('sent', firstName || person?.displayName); }} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} onTyping={onTyping} />
       )}
       {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
 
