@@ -20,8 +20,11 @@ export const memberBlocked = (group: string, user: string) =>
   ` OR EXISTS (SELECT 1 FROM social.blocks bk JOIN social.group_members bm ON bm.group_id = ${group} AND bm.user_id = bk.blocker_id WHERE bk.blocked_id = ${user})` +
   ` OR EXISTS (SELECT 1 FROM social.groups bg WHERE bg.id = ${group} AND bg.created_by IS NOT NULL AND ${blockedBetween('bg.created_by', user)}))`;
 
-/** O local do plano (alias `v`, de content.venues) serve de sítio no mapa: aprovado pela equipa e com posição. */
-export const venueOnMap = (v: string) => `(${v}.review_status = 'approved' AND ${v}.lat IS NOT NULL AND ${v}.lng IS NOT NULL)`;
+/**
+ * O local do plano (alias `v`, de content.venues) serve de sítio no mapa: aprovado pela equipa, com posição e no mapa
+ * (quem gere o local não o tirou do mapa). Senão o grupo usa o ponto que um admin escolheu.
+ */
+export const venueOnMap = (v: string) => `(${v}.review_status = 'approved' AND ${v}.show_on_map AND ${v}.lat IS NOT NULL AND ${v}.lng IS NOT NULL)`;
 
 /** Mensagem quando um grupo passaria a aparecer em "À tua volta" sem sítio (nem local aprovado do plano, nem ponto). */
 export const NO_MAP_PLACE = 'Escolhe onde é o grupo para aparecer em À tua volta';

@@ -28,6 +28,16 @@ export class PlacesController {
     return this.places.nearby(q.lat, q.lng);
   }
 
+  /**
+   * O que está neste ponto: `{ name, address, city }` (cada um pode ser null). Para quando se arrasta o pino ou se usa
+   * a localização atual ao criar ou editar um local. Não guarda nem regista a posição.
+   */
+  @Get('reverse')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  reverse(@Query(new ZodPipe(querySchema)) q: z.infer<typeof querySchema>) {
+    return this.places.reverseAddress(q.lat, q.lng);
+  }
+
   /** Sítios que estão "a bater" no Txillapp (mais publicações recentes). */
   @Get('hot')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })

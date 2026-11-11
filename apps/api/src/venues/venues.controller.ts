@@ -21,6 +21,8 @@ const profileFields = {
   website: text(200),
   lat: z.number().min(-90).max(90).nullable().optional(),
   lng: z.number().min(-180).max(180).nullable().optional(),
+  /** Aparecer no mapa e em "perto de mim" (por omissão sim). Desligado, o local continua na pesquisa por nome e na página. */
+  showOnMap: z.boolean().optional(),
 };
 const createSchema = z.object({ name: z.string().trim().min(2).max(80), kind: z.enum(VENUE_KINDS), ...profileFields });
 const updateSchema = z.object({

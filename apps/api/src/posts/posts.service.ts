@@ -93,14 +93,16 @@ export class PostsService implements OnModuleInit {
     if (venueId) {
       // Publicar como um local: só o dono e os gestores ativos da página. O sítio da publicação passa a ser o próprio local.
       const v = await this.pool.query(
-        `SELECT v.name, v.lat, v.lng, v.review_status FROM content.venues v WHERE v.id = $1
+        `SELECT v.name, v.lat, v.lng, v.review_status, v.show_on_map FROM content.venues v WHERE v.id = $1
             AND (v.owner_id = $2 OR EXISTS (SELECT 1 FROM content.venue_managers m WHERE m.venue_id = v.id AND m.user_id = $2 AND m.status = 'active'))`,
         [venueId, userId],
       );
       if (!v.rowCount) throw new ForbiddenException('Só os gestores podem publicar como este local');
       if (v.rows[0].review_status !== 'approved') throw new ForbiddenException('O local ainda está em análise. Podes publicar como o local depois de a equipa o aprovar.');
       locationLabel = v.rows[0].name as string;
-      if (v.rows[0].lat != null && v.rows[0].lng != null) geo = { lat: v.rows[0].lat as number, lng: v.rows[0].lng as number };
+      // Local fora do mapa: a publicação não leva posição (nem a do local, nem a de quem publica).
+      if (v.rows[0].show_on_map === false) geo = null;
+      else if (v.rows[0].lat != null && v.rows[0].lng != null) geo = { lat: v.rows[0].lat as number, lng: v.rows[0].lng as number };
     }
     if (mediaIds.length > MAX_PHOTOS) throw new BadRequestException(`No máximo ${MAX_PHOTOS} fotos por publicação`);
     if (new Set(mediaIds).size !== mediaIds.length) throw new BadRequestException('Fotos repetidas');

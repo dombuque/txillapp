@@ -37,7 +37,9 @@ const ADULT_SQL = (u: string) => `(${u}.birth_date IS NOT NULL AND ${u}.birth_da
  */
 const G_LAT = 'COALESCE(v.lat, g.map_lat)';
 const G_LNG = 'COALESCE(v.lng, g.map_lng)';
-const VENUE_COUNTRY =`(v.review_status = 'approved' AND (v.country IS NULL OR v.country IS NOT DISTINCT FROM (SELECT vc.country FROM identity.users vc WHERE vc.id = $1)))`;
+// Os locais que quem os gere tirou do mapa (show_on_map = false) não entram aqui: nem como pino, nem por distância,
+// nem os eventos deles (ficam na página do local e na pesquisa por nome).
+const VENUE_COUNTRY =`(v.review_status = 'approved' AND v.show_on_map AND (v.country IS NULL OR v.country IS NOT DISTINCT FROM (SELECT vc.country FROM identity.users vc WHERE vc.id = $1)))`;
 
 /**
  * "À tua volta": locais, eventos, publicações recentes, TxillGroups públicos e a malta (quem quiser aparecer),
@@ -161,6 +163,8 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
               AND p.location_lat IS NOT NULL AND p.location_lng IS NOT NULL AND ${inBox('p.location_lat', 'p.location_lng', '$4')}
               AND (${ADULT_SQL('u')} OR p.author_id = $1)
               AND ${canView('u')}
+              -- Publicado como um local que saiu do mapa: a posição é a do local, não se mostra.
+              AND NOT EXISTS (SELECT 1 FROM content.venues hv WHERE hv.id = p.venue_id AND NOT hv.show_on_map)
          ) x WHERE x.d <= $4::float8
        ) y WHERE y.nth <= 3 ORDER BY y.d, y.created_at DESC LIMIT ${LIMITS.posts}`,
       p,
