@@ -29,6 +29,16 @@ const GROUPS: { title: string; items: Item[] }[] = [
     { to: '/backoffice/audit', label: 'Auditoria', icon: 'file-text', perm: 'audit.read' },
     { to: '/backoffice/stats', label: 'Estatísticas', icon: 'trending', perm: 'stats.view' },
   ] },
+  { title: 'Análises', items: [
+    { to: '/backoffice/analises/coortes', label: 'Coortes e retenção', icon: 'repeat', perm: 'insights.view' },
+    { to: '/backoffice/analises/envolvimento', label: 'Envolvimento', icon: 'flame', perm: 'insights.view' },
+    { to: '/backoffice/analises/conteudo', label: 'Conteúdo e tendências', icon: 'sparkles', perm: 'insights.view' },
+    { to: '/backoffice/analises/geografia', label: 'Geografia', icon: 'globe', perm: 'insights.view' },
+    { to: '/backoffice/analises/locais', label: 'Locais', icon: 'store', perm: 'insights.view' },
+    { to: '/backoffice/analises/geleira', label: 'Geleira', icon: 'snowflake', perm: 'insights.view' },
+    { to: '/backoffice/analises/pesquisa', label: 'Pesquisa', icon: 'search', perm: 'insights.view' },
+    { to: '/backoffice/analises/saude', label: 'Saúde da app', icon: 'bolt', perm: 'insights.view' },
+  ] },
 ];
 
 /** Procurar uma conta de qualquer sítio (Ctrl/Cmd + K). */

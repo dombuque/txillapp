@@ -10,6 +10,7 @@ export const PERMISSIONS = [
   'verification.decide',
   'catalog.manage',
   'wallet.view', 'invites.view', 'stats.view', 'audit.read',
+  'insights.view',
   'staff.manage',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
@@ -23,8 +24,8 @@ export const TEAMS: readonly TeamDef[] = [
   { id: 'suporte', name: 'Suporte', description: 'Ajudar utilizadores: ver contas, confirmar emails, deixar notas e terminar sessões.', permissions: ['users.view', 'users.notes', 'users.verify_email', 'users.sessions'] },
   { id: 'verificacao', name: 'Verificação', description: 'Decidir os pedidos de selo.', permissions: ['users.view', 'verification.decide'] },
   { id: 'financas', name: 'Finanças', description: 'Ver Txills, pedidos e números.', permissions: ['users.view', 'wallet.view', 'stats.view'] },
-  { id: 'crescimento', name: 'Crescimento e parceiros', description: 'Convites, números e parceiros.', permissions: ['users.view', 'invites.view', 'stats.view'] },
-  { id: 'auditoria', name: 'Auditoria', description: 'Só leitura: contas, números e o registo.', permissions: ['users.view', 'audit.read', 'stats.view'] },
+  { id: 'crescimento', name: 'Crescimento e parceiros', description: 'Convites, números e parceiros.', permissions: ['users.view', 'invites.view', 'stats.view', 'insights.view'] },
+  { id: 'auditoria', name: 'Auditoria', description: 'Só leitura: contas, números e o registo.', permissions: ['users.view', 'audit.read', 'stats.view', 'insights.view'] },
 ];
 const TEAM_IDS = new Set(TEAMS.map((t) => t.id));
 
