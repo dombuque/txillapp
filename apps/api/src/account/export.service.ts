@@ -36,12 +36,20 @@ export class ExportService {
       stories: await q(`SELECT s.id, s.caption, s.audience, s.music, s.stickers, s.created_at AS "createdAt", s.expires_at AS "expiresAt" FROM content.stories s WHERE s.author_id = $1 ORDER BY s.id`),
       storyComments: await q(`SELECT id, story_id AS "storyId", body, created_at AS "createdAt" FROM content.story_comments WHERE author_id = $1 ORDER BY id`),
       brindes: await q(`SELECT post_id AS "postId", created_at AS "createdAt" FROM content.cheers WHERE user_id = $1 ORDER BY created_at`),
+      // As mensagens que enviei, nas conversas a dois (`to` = o @ da outra pessoa) e nos TxillGroups (`group` = o nome do grupo),
+      // com a hora da edição, o ponto, o nome e a morada do sítio e até quando durava a partilha em direto (o que está guardado).
+      // As que recebi não entram: são dados de quem as escreveu.
       messagesSent: await q(
-        `SELECT m.id, o.username AS "to", m.kind, m.body, m.created_at AS "createdAt"
-           FROM social.messages m JOIN social.conversations c ON c.id = m.conversation_id
-           JOIN identity.users o ON o.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
+        `SELECT m.id, o.username AS "to", g.name AS "group", m.kind, m.body, m.created_at AS "createdAt", m.edited_at AS "editedAt",
+                m.lat, m.lng, m.place_name AS "placeName", m.place_address AS "placeAddress", m.live_until AS "liveUntil"
+           FROM social.messages m
+           LEFT JOIN social.conversations c ON c.id = m.conversation_id
+           LEFT JOIN identity.users o ON o.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
+           LEFT JOIN social.groups g ON g.id = m.group_id
           WHERE m.sender_id = $1 AND m.deleted_at IS NULL ORDER BY m.id`,
       ),
+      // "Apagar para mim": que mensagens escondi e quando (só o id: o conteúdo das dos outros não é meu).
+      messagesHiddenForMe: await q(`SELECT message_id AS id, created_at AS "hiddenAt" FROM social.message_hidden WHERE user_id = $1 ORDER BY created_at`),
       following: (await q(`SELECT u.username FROM social.follows f JOIN identity.users u ON u.id = f.followee_id WHERE f.follower_id = $1 ORDER BY u.username`)).map((r) => r.username),
       followers: (await q(`SELECT u.username FROM social.follows f JOIN identity.users u ON u.id = f.follower_id WHERE f.followee_id = $1 ORDER BY u.username`)).map((r) => r.username),
       blocked: (await q(`SELECT u.username FROM social.blocks b JOIN identity.users u ON u.id = b.blocked_id WHERE b.blocker_id = $1 ORDER BY u.username`)).map((r) => r.username),

@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { SearchIndexer } from '../search/search-index';
+import { EVIDENCE_COLUMNS, messageProof } from '../moderation/moderation.service';
 
 /** Backoffice: ver e agir sobre contas, queixas decididas e o registo de auditoria. Só para contas de moderação. */
 @Injectable()
@@ -72,7 +73,8 @@ export class BackofficeService {
     if (!u) throw new NotFoundException('Conta não encontrada');
     const reportsAgainst = (
       await this.pool.query(
-        `SELECT r.target_type, r.target_id, r.reason, r.status, r.resolution, r.resolution_note, r.created_at, ru.username AS reporter
+        `SELECT r.target_type, r.target_id, r.reason, r.status, r.resolution, r.resolution_note, r.created_at, ru.username AS reporter,
+                r.evidence -- numa mensagem: a cópia guardada no momento da denúncia (0111)
            FROM social.reports r LEFT JOIN identity.users ru ON ru.id = r.reporter_id
           WHERE r.target_user_id = $1 ORDER BY r.created_at DESC LIMIT 20`,
         [id],
@@ -160,7 +162,8 @@ export class BackofficeService {
       `SELECT r.target_type, r.target_id, count(*)::int AS reports, array_agg(DISTINCT r.reason) AS reasons,
               max(r.resolved_at) AS resolved_at, max(r.resolution) AS resolution, max(r.resolution_note) AS note,
               max(ad.username) AS decided_by, max(tu.username) AS owner_username,
-              COALESCE(max(p.body), max(c.body), max(s.caption), max(m.body), '') AS preview
+              COALESCE(max(p.body), max(c.body), max(s.caption), max(m.body), '') AS preview,
+              ${EVIDENCE_COLUMNS}
          FROM social.reports r
          LEFT JOIN identity.users ad ON ad.id = r.resolved_by
          LEFT JOIN identity.users tu ON tu.id = r.target_user_id
@@ -173,18 +176,24 @@ export class BackofficeService {
         ORDER BY max(r.resolved_at) DESC LIMIT $3`,
       [status, cursor ?? null, limit + 1],
     );
-    const page = rows.slice(0, limit).map((r) => ({
-      type: r.target_type as string,
-      id: r.target_id as string,
-      reports: r.reports as number,
-      reasons: r.reasons as string[],
-      resolvedAt: r.resolved_at as string,
-      resolution: r.resolution as string,
-      note: (r.note as string | null) ?? null,
-      decidedBy: (r.decided_by as string | null) ?? null,
-      owner: (r.owner_username as string | null) ?? null,
-      preview: String(r.preview).slice(0, 200),
-    }));
+    const page = rows.slice(0, limit).map((r) => {
+      // Mensagens: o que foi denunciado (a cópia guardada na denúncia) e, se mudou depois, como está agora.
+      const proof = messageProof(r);
+      return {
+        type: r.target_type as string,
+        id: r.target_id as string,
+        reports: r.reports as number,
+        reasons: r.reasons as string[],
+        resolvedAt: r.resolved_at as string,
+        resolution: r.resolution as string,
+        note: (r.note as string | null) ?? null,
+        decidedBy: (r.decided_by as string | null) ?? null,
+        owner: (r.owner_username as string | null) ?? null,
+        preview: String(proof.reported ? proof.reported.body : r.preview).slice(0, 200),
+        reported: proof.reported,
+        current: proof.current,
+      };
+    });
     return { items: page, nextCursor: rows.length > limit ? new Date(page[page.length - 1].resolvedAt).toISOString() : null };
   }
 

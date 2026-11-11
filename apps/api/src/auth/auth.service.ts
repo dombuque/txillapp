@@ -531,6 +531,9 @@ export class AuthService {
         'DELETE FROM social.messages WHERE sender_id = $1',
         'DELETE FROM social.message_reactions WHERE user_id = $1',
         'DELETE FROM social.message_views WHERE user_id = $1',
+        // "Apagar para mim" das mensagens dos outros (as minhas já saíram em cima, e com elas o que os outros esconderam).
+        // As edições, os sítios e as partilhas em direto (também as que estavam a decorrer) vivem na linha da mensagem: saem com ela.
+        'DELETE FROM social.message_hidden WHERE user_id = $1',
         'DELETE FROM social.notes WHERE user_id = $1',
         'DELETE FROM social.note_cheers WHERE user_id = $1',
         'DELETE FROM social.instants WHERE author_id = $1',
