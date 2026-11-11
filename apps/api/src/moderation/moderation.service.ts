@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import { AppConfig, CONFIG } from '../config';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
@@ -7,10 +7,11 @@ import { SearchIndexer } from '../search/search-index';
 import { audienceOk } from '../stories/stories.service';
 import { canView } from '../social/visibility';
 import { wipeMessage } from '../chat/chat.service';
+import { purgeRemovalCopies, removeContent } from './content-removal';
 
-export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media'] as const;
-/** O que as pessoas podem denunciar ('media' só é criado pela verificação automática). */
-export const USER_REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message'] as const;
+export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue'] as const;
+/** O que as pessoas podem denunciar ('media' só é criado pela verificação automática; 'venue' é a página de um local, 0121). */
+export const USER_REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'venue'] as const;
 export const REPORT_REASONS = ['spam', 'harassment', 'hate', 'nudity', 'violence', 'scam', 'impersonation', 'minor', 'other'] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 export type ReportReason = (typeof REPORT_REASONS)[number];
@@ -80,13 +81,17 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
     if (this.purger) clearInterval(this.purger);
   }
 
-  /** Tira a cópia (evidence) às denúncias decididas há mais de REPORT_EVIDENCE_DAYS dias. A denúncia fica. Devolve quantas mudaram. */
+  /**
+   * Tira a cópia (evidence) às denúncias decididas há mais de REPORT_EVIDENCE_DAYS dias. A denúncia fica. Devolve quantas mudaram.
+   * Também apaga as cópias dos comentários removidos pela moderação há mais do mesmo prazo (content-removal.ts).
+   */
   async purgeEvidence(days = REPORT_EVIDENCE_DAYS) {
     const r = await this.pool.query(
       `UPDATE social.reports SET evidence = NULL
         WHERE evidence IS NOT NULL AND status <> 'open' AND resolved_at IS NOT NULL AND resolved_at < now() - make_interval(days => $1)`,
       [days],
     );
+    await purgeRemovalCopies(this.pool, days);
     return r.rowCount ?? 0;
   }
 
@@ -113,7 +118,12 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
       case 'media':
         throw new NotFoundException('Conteúdo não encontrado');
       case 'user':
-        sql = `SELECT u.id AS owner FROM identity.users u WHERE u.id = $2 AND u.status = 'active'`;
+        // `$1::uuid IS NOT NULL`: o PostgreSQL recusa um parâmetro que não aparece na consulta (o tipo fica por saber).
+        sql = `SELECT u.id AS owner FROM identity.users u WHERE u.id = $2 AND u.status = 'active' AND $1::uuid IS NOT NULL`;
+        break;
+      case 'venue':
+        // Só a página de um local já aprovado (as outras ainda não estão à vista de ninguém).
+        sql = `SELECT v.owner_id AS owner FROM content.venues v WHERE v.id = $2 AND v.review_status = 'approved' AND $1::uuid IS NOT NULL`;
         break;
       case 'message':
         // De uma conversa a dois em que estou, ou de um TxillGroup de que sou membro (a app oferece "Denunciar" nos dois).
@@ -192,25 +202,7 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      if (action === 'remove') {
-        const sql = {
-          post: `UPDATE content.posts SET removed_at = now(), removed_by = 'moderation' WHERE id = $1 AND removed_at IS NULL`,
-          comment: `DELETE FROM content.comments WHERE id = $1`,
-          story: `DELETE FROM content.stories WHERE id = $1`,
-          message: '', // em baixo: wipeMessage
-          media: `UPDATE content.media_assets SET status = 'deleted' WHERE id = $1`,
-          user: '',
-        }[type];
-        if (type === 'message') {
-          // O mesmo que "Apagar para todos" (texto, ficheiro, sítio, partilha em direto, duração, presente, reações, vistas),
-          // mas sem deixar o aviso no lugar. A cópia guardada na denúncia fica, para a moderação.
-          const m = await client.query('SELECT 1 FROM social.messages WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [id]);
-          if (m.rowCount) await wipeMessage(client, id, false);
-        } else {
-          if (!sql) throw new BadRequestException('Contas não se removem: suspende-se');
-          await client.query(sql, [id]);
-        }
-      }
+      if (action === 'remove') await removeReported(client, type, id, admin, note);
       if (action === 'suspend') {
         if (!owner) throw new BadRequestException('Conta desconhecida');
         const isAdminTarget = await client.query('SELECT is_admin FROM identity.users WHERE id = $1', [owner]);
@@ -236,4 +228,34 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
       client.release();
     }
   }
+}
+
+/**
+ * Remove um conteúdo denunciado, numa transação já aberta. Publicações, comentários e mimos removem-se de forma a poderem
+ * ser repostos na página «Conteúdo» (content-removal.ts); se já estavam removidos (ou o autor já os apagou), só se fecham
+ * as denúncias. Mensagens: o mesmo que "Apagar para todos", sem deixar o aviso no lugar (a cópia da denúncia fica, para a
+ * moderação). Fotos assinaladas pela verificação automática: apagam-se. Contas e locais não se removem aqui.
+ */
+export async function removeReported(client: PoolClient, type: ReportType, id: string, actor: string, note?: string) {
+  if (type === 'message') {
+    const m = await client.query('SELECT 1 FROM social.messages WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [id]);
+    if (m.rowCount) await wipeMessage(client, id, false);
+    return;
+  }
+  if (type === 'media') {
+    await client.query(`UPDATE content.media_assets SET status = 'deleted' WHERE id = $1`, [id]);
+    return;
+  }
+  if (type === 'post' || type === 'comment' || type === 'story') {
+    const reason = note?.trim() && note.trim().length >= 3 ? note.trim().slice(0, 300) : 'Decisão na fila de queixas';
+    await client.query('SAVEPOINT remove_reported');
+    try {
+      await removeContent(client, type, id, actor, reason);
+    } catch (e) {
+      if (!(e instanceof NotFoundException)) throw e;
+      await client.query('ROLLBACK TO SAVEPOINT remove_reported');
+    }
+    return;
+  }
+  throw new BadRequestException(type === 'venue' ? 'Os locais decidem-se em Locais' : 'Contas não se removem: suspende-se');
 }

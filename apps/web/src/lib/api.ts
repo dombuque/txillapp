@@ -452,11 +452,13 @@ export interface VerificationItem {
   faceUrl: string | null;
   selfieUrl: string | null;
 }
-export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified';
+export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified'
+  // Avisos da equipa do Txillapp (0121): conteúdo removido ou reposto, e aviso da moderação.
+  | 'content_removed' | 'content_restored' | 'moderation_warning';
 export interface AppNotification {
   id: string;
   kind: NotificationKind;
-  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; replyKind?: 'reply' | 'reaction' | 'comment' };
+  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; replyKind?: 'reply' | 'reaction' | 'comment'; type?: string; reason?: string; tcheka?: boolean };
   createdAt: string;
   read: boolean;
   actor: { username: string; displayName: string };
@@ -565,6 +567,15 @@ async function raw(path: string, init: RequestInit = {}, retry = true): Promise<
 }
 
 const post = (b: unknown, extra: HeadersInit = {}): RequestInit => ({ method: 'POST', body: JSON.stringify(b), headers: extra });
+/** Para os clientes próprios das áreas do backoffice (pages/backoffice/ui/*-api.ts): o mesmo pedido, com a sessão de equipa nas rotas /admin. */
+export const boRaw = (path: string, init?: RequestInit): Promise<any> => raw(path, init);
+/** Um ficheiro de uma rota da equipa (por exemplo, o CSV da auditoria), com a sessão de equipa. */
+export async function boBlob(path: string): Promise<Blob> {
+  const res = await fetch(`/api/v1${path}`, { headers: { Authorization: `Bearer ${staffToken ?? ''}`, 'X-Requested-With': 'txillapp' } });
+  if (res.status === 401) staffSession.clear();
+  if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => ({}))).message ?? 'Não foi possível descarregar');
+  return res.blob();
+}
 /** crypto.randomUUID só existe em contextos seguros (HTTPS/localhost): em http://IP-da-rede (teste no telemóvel) usa getRandomValues. */
 const newKey = () => {
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
