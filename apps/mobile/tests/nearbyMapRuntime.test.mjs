@@ -214,3 +214,31 @@ test('sem tamanho ainda: vista provisória e o primeiro resize enquadra; depois 
   h.resize();
   assert.equal(map.fits.length, 1);
 });
+
+// ---------- "Enviar localização" do chat: o mapa de marcar com o ponto azul e o aviso de arrastar ----------
+test('mapa de marcar: ponto azul com o círculo da precisão (atualiza e sai); arrastar avisa, mudar o centro não', async () => {
+  const { createPickMap } = await import(pathToFileURL(path.join(ROOT, 'src', 'components', 'nearby', 'mapRuntime.ts')).href);
+  const { L, map } = fakeLeaflet();
+  const moves = [];
+  let drags = 0;
+  const h = createPickMap(L, {}, (c) => moves.push(c), { zoomControl: false, zone: false }, () => drags++);
+  h.setCenter({ lat: -25.97, lng: 32.57 });
+  assert.equal(drags, 0, 'a app a mudar o centro não conta como arrastar');
+  assert.ok(moves.length >= 1);
+
+  h.setMe({ lat: -25.97, lng: 32.57, accuracy: 12 });
+  const dot = [...map.layers].find((l) => l.kind === 'marker' && l.opts?.zIndexOffset === 5000);
+  const ring = [...map.layers].find((l) => l.kind === 'circle' && l.opts?.color === '#1d9bf0');
+  assert.ok(dot && ring);
+  let radius = null;
+  ring.setRadius = (r) => { radius = r; return ring; };
+  h.setMe({ lat: -25.971, lng: 32.571, accuracy: 30 });
+  assert.equal(radius, 30);
+  assert.deepEqual(dot.at, [-25.971, 32.571]);
+  assert.equal([...map.layers].filter((l) => l.kind === 'circle' && l.opts?.color === '#1d9bf0').length, 1, 'não duplica o ponto');
+  h.setMe(null);
+  assert.ok(!map.layers.has(dot) && !map.layers.has(ring));
+
+  map.fire('dragstart');
+  assert.equal(drags, 1);
+});

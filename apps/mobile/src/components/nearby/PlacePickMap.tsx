@@ -25,9 +25,10 @@ html,body,#m{margin:0;padding:0;height:100%;width:100%;background:#f2efe9;-webki
 <script>${noClose(RUNTIME_JS)}
 (function(){
   function post(o){ if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(o)); }
-  var h = createPickMap(L, document.getElementById('m'), function(c){ post({ type: 'move', lat: c.lat, lng: c.lng }); }, ${key});
+  var h = createPickMap(L, document.getElementById('m'), function(c){ post({ type: 'move', lat: c.lat, lng: c.lng }); }, ${key}, function(){ post({ type: 'drag' }); });
   var first = true;
   window.txCenter = function(c){ try { h.setCenter(c); if (first) { first = false; setTimeout(function(){ h.resize(); }, 60); } } catch (e) { post({ type: 'error', message: String(e) }); } };
+  window.txMe = function(p){ try { h.setMe(p); } catch (e) { post({ type: 'error', message: String(e) }); } };
   window.addEventListener('resize', function(){ h.resize(); });
   post({ type: 'ready' });
 })();
@@ -38,16 +39,25 @@ html,body,#m{margin:0;padding:0;height:100%;width:100%;background:#f2efe9;-webki
 };
 
 /** "Marcar no mapa" na app: o mesmo mapa do site numa WebView, com o alfinete fixo ao centro por cima. `readOnly`: só mostra o sítio. */
-export function PlacePickMap({ center, onMove, zoomControl = true, zone = true, readOnly = false, zoom, style }: PlacePickMapProps) {
+export function PlacePickMap({ center, onMove, zoomControl = true, zone = true, readOnly = false, zoom, me, pin = true, onDrag, style }: PlacePickMapProps) {
   const web = useRef<WebView<{}>>(null);
   const [ready, setReady] = useState(false);
   const move = useRef(onMove);
   move.current = onMove;
+  const drag = useRef(onDrag);
+  drag.current = onDrag;
 
   useEffect(() => {
     if (!ready) return;
     web.current?.injectJavaScript(`window.txCenter && window.txCenter(${JSON.stringify({ lat: center.lat, lng: center.lng })});true;`);
   }, [ready, center]);
+
+  const meKey = me ? `${me.lat},${me.lng},${me.accuracy ?? ''}` : '';
+  useEffect(() => {
+    if (!ready) return;
+    web.current?.injectJavaScript(`window.txMe && window.txMe(${JSON.stringify(me ? { lat: me.lat, lng: me.lng, accuracy: me.accuracy ?? null } : null)});true;`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, meKey]);
 
   const onMessage = (e: WebViewMessageEvent) => {
     let m: { type?: string; lat?: number; lng?: number; message?: string };
@@ -58,6 +68,7 @@ export function PlacePickMap({ center, onMove, zoomControl = true, zone = true, 
     }
     if (m.type === 'ready') setReady(true);
     else if (m.type === 'move' && typeof m.lat === 'number' && typeof m.lng === 'number') move.current?.({ lat: m.lat, lng: m.lng });
+    else if (m.type === 'drag') drag.current?.();
     else if (m.type === 'error' && __DEV__) console.warn('[mapa]', m.message);
   };
 
@@ -88,7 +99,7 @@ export function PlacePickMap({ center, onMove, zoomControl = true, zone = true, 
         nestedScrollEnabled
         style={{ flex: 1, backgroundColor: 'transparent' }}
       />
-      <PickPin />
+      {pin ? <PickPin /> : null}
     </View>
   );
 }

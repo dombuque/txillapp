@@ -4,11 +4,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { createElement, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Linking, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
+import { Animated, Easing, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
 import { ReplySwipe, type ReplySpot } from '@/components/ReplySwipe';
 import { Icon } from '@/components/Icon';
+import { LocationBubble } from '@/components/LocationBubble';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { Sticker } from '@/components/StickerPanel';
 import { ReactionArt } from '@/components/StoryParts';
@@ -439,15 +440,8 @@ export function Bubble({
   } else if (m.kind === 'post') {
     content = <SharedPost post={m.post ?? null} radius={radius} tone={tone} ink={ink} />;
   } else if (m.kind === 'location' && m.lat != null && m.lng != null) {
-    content = (
-      <Pressable onPress={() => void Linking.openURL(`https://www.google.com/maps?q=${m.lat},${m.lng}`)} style={[st.shared, tone, radius, dimStyle, { overflow: 'hidden' }]} accessibilityRole="link">
-        <TileMap lat={m.lat} lng={m.lng} width={240} height={132} />
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 13, paddingVertical: 8 }}>
-          <Icon name="map-pin" size={16} color={ink} />
-          <Text style={{ flex: 1, fontSize: 15, fontWeight: '600', color: ink }} numberOfLines={1}>{m.body || 'Localização'}</Text>
-        </View>
-      </Pressable>
-    );
+    // Nome e morada do sítio por cima do mapa (components/LocationBubble); o toque longo abre o menu da mensagem.
+    content = <LocationBubble m={{ ...m, lat: m.lat, lng: m.lng }} ink={ink} style={[st.shared, tone, radius, dimStyle]} map={<TileMap lat={m.lat} lng={m.lng} width={240} height={132} />} onLongPress={real ? () => onMenu(m) : undefined} />;
   } else if ((m.kind as string) === 'poll') {
     content = <PollBubble pollId={m.body} initial={(m as { poll?: import('@/lib/api.groups').Poll | null }).poll} />;
   } else if (m.kind === 'call') {

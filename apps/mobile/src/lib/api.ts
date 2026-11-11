@@ -188,6 +188,9 @@ export interface ChatMessage {
   waveform?: string | null;
   lat?: number | null;
   lng?: number | null;
+  /** Localização de um sítio escolhido: o nome e a morada (servidores antigos não mandam). */
+  placeName?: string | null;
+  placeAddress?: string | null;
   viewOnce?: boolean;
   opened?: boolean;
   replyTo?: { id: string; gone: true } | { id: string; gone: false; fromMe: boolean; name: string; kind: MsgKind; body: string } | null;
@@ -589,7 +592,7 @@ export const api = {
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),
   chatThread: (username: string, cursor?: string): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${cursor ? `?cursor=${cursor}` : ''}`),
-  chatSend: (username: string, msg: { body?: string; kind?: MsgKind; mediaId?: string; instantId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; once?: boolean; replyTo?: string }): Promise<{ id: string }> => raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
+  chatSend: (username: string, msg: { body?: string; kind?: MsgKind; mediaId?: string; instantId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; name?: string; address?: string; liveMinutes?: 15 | 60 | 480; once?: boolean; replyTo?: string }): Promise<{ id: string }> => raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
   chatOpen: (id: string): Promise<{ kind: MsgKind; body: string; mediaUrl: string | null; durationMs: number | null; waveform: string | null }> => raw(`/chat/messages/${id}/open`, post({})),
   chatDelete: (id: string): Promise<void> => raw(`/chat/messages/${id}`, { method: 'DELETE' }),
   /** Marcar a conversa como por ler (só para mim). */

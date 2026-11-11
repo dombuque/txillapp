@@ -90,7 +90,7 @@ export function ChatAttachMenu({
             <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={st.list}>
               {item('camera', 'Câmara', onCamera, 'Tirar foto ou vídeo com a câmara')}
               {item('image', 'Foto e vídeo', onLibrary, 'Enviar foto ou vídeo da galeria')}
-              {item('map-pin', 'Localização', onPlace, 'Enviar onde estás agora')}
+              {item('map-pin', 'Localização', onPlace, 'Localização: escolher o que enviar')}
               {canGift ? item('gift', 'Presente', onGift, `Oferecer Txills${firstName ? ` a ${firstName}` : ''}`) : null}
               {item('once', 'Ver uma vez', onToggleOnce, undefined, once)}
             </ScrollView>

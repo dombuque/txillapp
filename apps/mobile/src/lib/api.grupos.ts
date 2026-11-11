@@ -19,6 +19,9 @@ export interface GroupSendBody {
   waveform?: string;
   lat?: number;
   lng?: number;
+  /** Localização de um sítio: o nome e a morada (opcionais). */
+  name?: string;
+  address?: string;
   replyTo?: string;
 }
 

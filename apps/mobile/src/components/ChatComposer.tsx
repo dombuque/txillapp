@@ -2,15 +2,16 @@ import { useGrowInput } from '@/lib/growInput';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
 import { api, uploadChatMedia } from '@/lib/api';
 import { colors } from '@/lib/theme';
+import type { LocationMessage } from '@/lib/sendLocation';
 import { markSeen, useIsNew } from '@/lib/whatsNew';
 import { ChatAttachMenu } from './ChatAttachSheet';
 import { Icon, type IconName } from './Icon';
 import { GiftSheet } from './PostSheets';
+import { SendLocationSheet } from './SendLocationSheet';
 import { StickerPanel } from './StickerPanel';
 
 const nativeDriver = Platform.OS !== 'web';
@@ -43,6 +44,7 @@ export function ChatComposer({
   const [panel, setPanel] = useState<null | 'stickers'>(null);
   const [more, setMore] = useState(false);
   const [gift, setGift] = useState(false);
+  const [place, setPlace] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -99,16 +101,19 @@ export function ChatComposer({
       setBusy(false);
     }
   }
-  async function sendPlace() {
+  /** "Localização": abre a folha "Enviar localização" (como no WhatsApp). Nada se envia sem um toque em Enviar nela. */
+  function openPlace() {
     setPanel(null);
-    try {
-      const p = await Location.requestForegroundPermissionsAsync();
-      if (!p.granted) return setErr('Preciso de acesso à localização.');
-      const pos = await Location.getCurrentPositionAsync({});
-      await dispatch({ kind: 'location', lat: pos.coords.latitude, lng: pos.coords.longitude });
-    } catch {
-      setErr('Não consegui obter a localização.');
-    }
+    Keyboard.dismiss();
+    setPlace(true);
+  }
+  /** Chamado pela folha: os erros sobem para ela (mostra-os e fica aberta). Devolve o id (para a partilha em direto). */
+  async function sendLocation(msg: LocationMessage) {
+    setErr('');
+    const r = await api.chatSend(username, { ...msg, ...(replyTo ? { replyTo: replyTo.id } : null) });
+    onClearReply?.();
+    onSent();
+    return r;
   }
   function toggleOnce() {
     if (!once) setOnceHelp(true);
@@ -252,12 +257,13 @@ export function ChatComposer({
           onClose={() => setMore(false)}
           onCamera={() => void pick('camera')}
           onLibrary={() => void pick('library')}
-          onPlace={() => void sendPlace()}
+          onPlace={openPlace}
           onGift={() => setGift(true)}
           onToggleOnce={toggleOnce}
         />
       )}
       {gift && person && <GiftSheet recipient={person} onClose={() => { setGift(false); onSent(); }} />}
+      {place && <SendLocationSheet allowLive who={firstName} onSend={sendLocation} onClose={() => setPlace(false)} />}
     </View>
   );
 }
