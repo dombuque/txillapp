@@ -512,7 +512,8 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
             onStatus={setCam}
             onScreenLight={setScreenLight}
           >
-            <CurvedCaption w={cardW} h={cardH} text={caption || 'Adicionar legenda…'} hint={!caption} caret={capEdit} caretFirst={!caption} />
+            {/* "Adicionar legenda…" só aparece depois de tocar no topo da foto (ou quando já há legenda). */}
+            {caption || capEdit ? <CurvedCaption w={cardW} h={cardH} text={caption || 'Adicionar legenda…'} hint={!caption} caret={capEdit} caretFirst={!caption} /> : null}
             <TextInput
               value={caption}
               onChangeText={setCaption}

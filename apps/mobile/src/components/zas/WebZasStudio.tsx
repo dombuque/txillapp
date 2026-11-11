@@ -365,7 +365,7 @@ export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, e
               ),
               flash && <View key="flash" pointerEvents="none" style={web({ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, zIndex: 11, backgroundColor: '#fff', animationKeyframes: [{ '0%': { opacity: 0.95 }, '100%': { opacity: 0 } }], animationDuration: '160ms', animationFillMode: 'forwards' })} />,
               <View key="shade" pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: 112, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent)' })} />,
-              <CurvedCaption key="cap" w={cw} h={ch} text={caption || 'Adicionar legenda…'} hint={!caption} caret={editing} caretFirst={!caption} />,
+              (caption || editing) && <CurvedCaption key="cap" w={cw} h={ch} text={caption || 'Adicionar legenda…'} hint={!caption} caret={editing} caretFirst={!caption} />,
               <TextInput
                 key="inp"
                 value={caption}
