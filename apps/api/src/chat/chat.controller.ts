@@ -6,6 +6,7 @@ import { Observable, finalize, interval, map, merge } from 'rxjs';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
+import { gifSchema } from '../gifs/gif';
 import { MediaService, parseIdParam } from '../media/media.service';
 import { ChatEvents } from './chat.events';
 import { GROUP_KINDS, GroupsService } from './groups.service';
@@ -45,7 +46,9 @@ const liveSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().
 
 const sendSchema = z.object({
   body: z.string().trim().max(2000).default(''),
-  kind: z.enum(['text', 'image', 'voice', 'video', 'sticker', 'location', 'post', 'gift', 'zas_reply']).default('text'),
+  kind: z.enum(['text', 'image', 'voice', 'video', 'sticker', 'location', 'post', 'gift', 'zas_reply', 'gif']).default('text'),
+  // GIF do GIPHY (kind 'gif'): { id, w, h, url, still?, title? }; o url tem de ser https de media*.giphy.com (src/gifs/gif.ts).
+  gif: gifSchema.optional(),
   instantId: z.string().uuid().optional(),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),

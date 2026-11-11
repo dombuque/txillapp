@@ -23,6 +23,8 @@ export interface GroupSendBody {
   name?: string;
   address?: string;
   replyTo?: string;
+  /** GIF do GIPHY (kind 'gif'). */
+  gif?: import('./gifs').ChatGif;
 }
 
 export const gruposApi = {

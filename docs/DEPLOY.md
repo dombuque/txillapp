@@ -129,6 +129,20 @@ Sem TURN as chamadas ligam diretamente entre os dois telemóveis (com STUN). Na 
 
 O intervalo 49160-49200 dá para cerca de 20 chamadas a passar pelo TURN ao mesmo tempo (`--total-quota=60`); alarga as duas coisas juntas se for preciso. Cada chamada a passar pelo TURN gasta a largura de banda do servidor (até 1,5 Mbit/s).
 
+## 6.2 GIFs do GIPHY (opcional)
+
+Os GIFs (no chat, nos TxillGroups e nos comentários) vêm do GIPHY, sempre pelo nosso servidor: a app pesquisa em `/api/v1/gifs/*`, a chave fica só no servidor e o GIPHY não recebe nada de quem pesquisa (nem conta, nem IP, nem `random_id`). As imagens carregam-se no aparelho diretamente da CDN do GIPHY (`media*.giphy.com`). Sem a chave, os GIFs ficam escondidos na app.
+
+1. Em <https://developers.giphy.com/dashboard/> cria uma app do tipo **API** (não SDK) e copia a chave.
+2. No `.env` do servidor (nunca no git):
+   ```
+   GIPHY_API_KEY=<a chave>
+   # GIPHY_CHANNEL=txillapp   # opcional: o canal do Txillapp no GIPHY (separador "Txillapp" no painel dos GIFs)
+   ```
+3. `docker compose up -d api` (a API lê as variáveis novas). Verificar: `curl https://api.txillapp.com/api/v1/gifs/config` → `{"enabled":true,...}`.
+
+A chave beta do GIPHY dá ~100 pedidos por hora; a API guarda as respostas 5 minutos e não passa de 120 pedidos por minuto ao GIPHY, mas com muita gente é preciso pedir a chave de produção (no mesmo painel, "Upgrade to Production", com capturas do painel e do "Powered by GIPHY"). Se o GIPHY falhar ou a quota acabar, o painel mostra só "Sem GIFs agora" (a API nunca dá erro).
+
 ## 7. Cópias de segurança
 
 - **Base de dados**: todas as noites às 03:30 UTC, cifrada (age) e enviada para `BACKUP_BUCKET`. Guarda 35 dias + as de dia 1 de cada mês durante 13 meses.

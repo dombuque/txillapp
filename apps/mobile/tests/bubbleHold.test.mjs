@@ -1,5 +1,5 @@
 // Segurar uma bolha abre SEMPRE o menu da mensagem, seja qual for o tipo (texto, foto, vídeo, voz, sticker, localização
-// fixa e em direto, presente, publicação partilhada, chamada, resposta a mimo/Zás, visualização única, sondagem, apagada).
+// fixa e em direto, presente, GIF, publicação partilhada, chamada, resposta a mimo/Zás, visualização única, sondagem, apagada).
 // No React Native e no react-native-web quem fica com o toque é o Pressable mais fundo: um Pressable de dentro sem
 // onLongPress (o mapa da localização, a foto, a publicação...) "comia" o segurar e o menu não abria. Este teste lê o
 // código e garante que cada Pressable de dentro das bolhas leva o segurar da bolha (`{...hold}`, de components/bubbleHold).
@@ -62,7 +62,7 @@ test('a bolha: o Pressable de fora segura, dá o contexto ao conteúdo e cobre c
   // A web também abre o menu ao segurar em qualquer ponto da mensagem (e com o botão direito do rato).
   assert.match(b, /onMenu=\{real \? openMenu : undefined\}/);
   // Cada tipo tem o seu ramo (e nenhum fica de fora do Pressable da bolha, que envolve `content`).
-  for (const k of ["m.kind === 'gift'", "m.kind === 'sticker'", "m.kind === 'post'", "m.kind === 'location'", "=== 'poll'", "m.kind === 'call'", "m.kind === 'voice'", "m.kind === 'image' || m.kind === 'video'", "m.kind === 'story_reaction'", "m.kind === 'zas_reply'", 'm.viewOnce', 'if (gone)']) {
+  for (const k of ["m.kind === 'gift'", "m.kind === 'sticker'", "m.kind === 'gif'", "m.kind === 'post'", "m.kind === 'location'", "=== 'poll'", "m.kind === 'call'", "m.kind === 'voice'", "m.kind === 'image' || m.kind === 'video'", "m.kind === 'story_reaction'", "m.kind === 'zas_reply'", 'm.viewOnce', 'if (gone)']) {
     assert.ok(b.includes(k), `falta o ramo ${k}`);
   }
 });
@@ -89,4 +89,12 @@ test('web: a mensagem não tem a seleção nem o menu do Safari e tem o seu pró
   // Antes de o gesto ser de responder não há preventDefault (o browser e o toque longo ficam como estão).
   const move = rs.slice(rs.indexOf('const move = (e: TouchEvent) =>'), rs.indexOf('const end = () =>'));
   assert.ok(move.indexOf("g.mode = 'reply'") < move.indexOf('e.preventDefault()'));
+});
+
+test('a bolha do GIF não tem Pressable próprio: tocar e segurar são os da bolha (menu, hora, brindar)', () => {
+  const code = body(BUBBLES, 'GifBubble');
+  assert.doesNotMatch(code, /<Pressable\b/);
+  assert.match(code, /accessibilityLabel=\{gifLabel\(gif\.title\)\}/);
+  // "Reduzir movimento": parado.
+  assert.match(code, /autoplay=\{!reduce\}/);
 });

@@ -46,6 +46,8 @@ export interface Comment {
   postId: string;
   parentId: string | null;
   body: string;
+  /** GIF do GIPHY no comentário (com ou sem texto). Servidores antigos não mandam. */
+  gif?: import('./gifs').ChatGif | null;
   createdAt: string;
   author: Author;
   cheers: number;
@@ -176,13 +178,15 @@ export interface SearchResults {
   venues?: import('./api.locais').Venue[];
 }
 export interface TrendingTag { tag: string; posts: number; rising?: boolean }
-export type MsgKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply' | 'call';
+export type MsgKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply' | 'call' | 'gif';
 export interface ChatMessage {
   id: string;
   fromMe: boolean;
   body: string;
   kind: MsgKind;
   giftAmount?: number | null;
+  /** GIF do GIPHY (kind 'gif'): { id, w, h, url, still?, title? }. */
+  gif?: import('./gifs').ChatGif | null;
   post?: Post | null;
   storyUrl: string | null;
   mediaUrl: string | null;
@@ -603,7 +607,7 @@ export const api = {
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),
   chatThread: (username: string, cursor?: string): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${cursor ? `?cursor=${cursor}` : ''}`),
-  chatSend: (username: string, msg: { body?: string; kind?: MsgKind; mediaId?: string; instantId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; name?: string; address?: string; liveMinutes?: 15 | 60 | 480; once?: boolean; replyTo?: string }): Promise<{ id: string }> => raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
+  chatSend: (username: string, msg: { body?: string; kind?: MsgKind; mediaId?: string; instantId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; name?: string; address?: string; liveMinutes?: 15 | 60 | 480; once?: boolean; replyTo?: string; gif?: import('./gifs').ChatGif }): Promise<{ id: string }> => raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
   chatOpen: (id: string): Promise<{ kind: MsgKind; body: string; mediaUrl: string | null; durationMs: number | null; waveform: string | null }> => raw(`/chat/messages/${id}/open`, post({})),
   /** Apagar para todos (só as minhas): fica o aviso "Esta mensagem foi apagada". */
   chatDelete: (id: string): Promise<void> => raw(`/chat/messages/${id}`, { method: 'DELETE' }),
@@ -696,7 +700,7 @@ export const api = {
   declineRequest: (username: string): Promise<void> => raw(`/follow-requests/${encodeURIComponent(username)}/decline`, post({})),
   comments: (postId: string, cursor?: string): Promise<Page<Comment>> => raw(`/posts/${postId}/comments?limit=15${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   replies: (id: string, cursor?: string): Promise<Page<Comment>> => raw(`/comments/${id}/replies?limit=10${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
-  addComment: (postId: string, body: string, parentId?: string): Promise<Comment> => raw(`/posts/${postId}/comments`, post({ body, parentId })),
+  addComment: (postId: string, body: string, parentId?: string, gif?: import('./gifs').ChatGif): Promise<Comment> => raw(`/posts/${postId}/comments`, post({ body, parentId, ...(gif ? { gif } : null) })),
   editComment: (id: string, body: string): Promise<Comment> => raw(`/comments/${id}`, { method: 'PATCH', body: JSON.stringify({ body }) }),
   cheerComment: (id: string): Promise<{ cheered: boolean; cheers: number }> => raw(`/comments/${id}/cheers`, post({})),
   deleteComment: (id: string): Promise<void> => raw(`/comments/${id}`, { method: 'DELETE' }),
