@@ -1,8 +1,8 @@
 import { BackButton } from '@/components/BackButton';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
@@ -16,6 +16,7 @@ import { Icon } from '@/components/Icon';
 import { api, raw, type ChatThread, type Conversation } from '@/lib/api';
 import { startCall } from '@/lib/calls';
 import { useAuth } from '@/lib/auth';
+import { headerLine, newPostsLabel, newPostsTarget, newPostsText } from '@/lib/chatNewPosts';
 import { activeLabel } from '@/lib/chatTimeline';
 import { useTyping } from '@/lib/realtime';
 import { colors } from '@/lib/theme';
@@ -62,6 +63,13 @@ export default function Thread() {
     void qc.invalidateQueries({ queryKey: ['chat-unread'] });
     void qc.invalidateQueries({ queryKey: ['chat-list'] });
   }, [first?.items[0]?.id, qc]);
+
+  // Ao voltar à conversa (ex.: da publicação ou do perfil aberto pelas "publicações novas"), a contagem põe-se em dia.
+  const focusedOnce = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (focusedOnce.current) void qc.invalidateQueries({ queryKey: ['chat-thread', username] });
+    focusedOnce.current = true;
+  }, [qc, username]));
 
   // Diz ao servidor que esta conversa está aberta e à vista: assim não manda aviso para o telemóvel enquanto estás aqui.
   useEffect(() => {
@@ -149,6 +157,10 @@ export default function Thread() {
   const call = (video: boolean) => person && void startCall({ username: person.username, displayName: person.displayName, hasAvatar: person.hasAvatar }, video);
   const openProfile = person ? () => router.push(`/u/${person.username}` as never) : undefined;
   const avatarOf = person?.hasAvatar ? person.username : undefined;
+  // Por baixo do nome: "a escrever…" ganha; depois "1 publicação nova" (toca para abrir); depois Online / Ativo há….
+  const newPosts = first?.blocked ? undefined : first?.newPosts;
+  const line = headerLine({ typing, newPosts, online });
+  const newPostsGo = person && line === 'newPosts' ? newPostsTarget(newPosts, person.username) : null;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} behavior="padding">
@@ -163,8 +175,10 @@ export default function Thread() {
           </View>
         }
         title={person?.displayName ?? ''}
+        subtitleAction={person && newPostsGo ? { label: newPostsLabel(newPosts?.count, person.displayName), onPress: () => router.push(newPostsGo as never) } : undefined}
         subtitle={
-          typing ? <HeaderStatus text="a escrever…" tone="typing" />
+          line === 'typing' ? <HeaderStatus text="a escrever…" tone="typing" />
+            : person && newPostsGo ? <HeaderStatus text={newPostsText(newPosts?.count)} />
             : online ? <HeaderStatus text="Online" tone="online" />
             : person ? <HeaderStatus text={activeLabel(person.presence?.lastSeen) ?? `@${person.username}`} />
             : null

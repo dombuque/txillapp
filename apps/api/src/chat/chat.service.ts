@@ -257,7 +257,9 @@ export class ChatService {
     const conv = await this.conversation(me, other.id, false);
     const rel = await this.relationOf(me, other.id, conv);
     const relation = { iFollow: rel.iFollow, theyFollow: rel.theyFollow, request: rel.request, left: rel.left };
-    if (!conv) return { person, blocked, relation, otherRead: null, items: [], nextCursor: null };
+    // "1 publicação nova" por baixo do nome (como no Instagram): o que publicou e eu ainda não vi. Só na 1.ª página.
+    const newPosts = blocked || cursor ? { count: 0, latestId: null } : await this.posts.newPostsBy(me, other.id);
+    if (!conv) return { person, blocked, relation, newPosts, otherRead: null, items: [], nextCursor: null };
     const { rows } = await this.pool.query(
       `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.view_once, m.viewed_at, m.live_until, m.gift_amount, m.reply_to, m.created_at FROM social.messages m
         WHERE m.conversation_id = $1 AND m.deleted_at IS NULL AND ($2::uuid IS NULL OR m.id < $2)
@@ -282,6 +284,8 @@ export class ChatService {
       person,
       blocked,
       relation,
+      /** Publicações dela que ainda não vi (últimos 7 dias); `latestId` = a mais recente. */
+      newPosts,
       /** Último id que a outra pessoa já leu ("Visto" nas minhas mensagens até aqui). */
       otherRead,
       items: await this.mapItems(me, page),
