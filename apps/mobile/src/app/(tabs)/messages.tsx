@@ -1,13 +1,16 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
-import { closeOpenSwipe, SwipeRow, type SwipeAction } from '@/components/SwipeRow';
-import { CallIcon } from '@/components/calls/CallIcons';
+import { closeOpenSwipe, rowHold, SwipeRow, type SwipeAction } from '@/components/SwipeRow';
+import { InboxMenuSheet } from '@/components/InboxMenuSheet';
+import { GroupCover } from '@/components/groups/GroupParts';
+import { a11yToAction, actionIcon, inboxA11yActions, inboxMenu, inboxMenuItems, inboxSwipe, swipeLabel, type InboxAction, type InboxMenuRow } from '@/lib/inboxMenu';import { CallIcon } from '@/components/calls/CallIcons';
 import { Icon } from '@/components/Icon';
 import { NotesStrip } from '@/components/Notes';
 import { REACTIONS } from '@/components/StoryParts';
@@ -143,61 +146,98 @@ export default function Messages() {
   const patchDirect = (username: string, f: (c: DirectList[number]) => DirectList[number] | null) =>
     qc.setQueryData<DirectList>(['chat-list'], (d) => d?.flatMap((c) => (c.username === username ? (f(c) ?? []) : [c])));
   const refreshUnread = () => void qc.invalidateQueries({ queryKey: ['chat-unread'] });
-  /** Deslizar para a direita: marcar como por ler (ou como lida, se já estiver por ler). */
-  function rowLeft(r: Row): SwipeAction[] {
-    if (r.g) return groupLeft(r.g);
-    const u = r.username;
-    if (!u) return [];
-    return r.unread > 0
-      ? [{ label: 'Lida', icon: 'check', color: colors.zinc600, onPress: () => {
-          patchDirect(u, (c) => ({ ...c, unread: 0, marked: false }));
-          void api.chatThread(u).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-list'] }));
-        } }]
-      : [{ label: 'Por ler', icon: 'mail', color: colors.brand, onPress: () => {
-          patchDirect(u, (c) => ({ ...c, unread: 1, marked: true }));
-          void api.chatMarkUnread(u).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-list'] }));
-        } }];
-  }
-  /** Deslizar para a esquerda: apagar a conversa (pergunta antes). */
-  function rowRight(r: Row): SwipeAction[] {
-    if (r.g) return groupRight(r.g);
-    const u = r.username;
-    if (!u) return [];
-    return [{ label: 'Apagar', icon: 'trash', color: colors.red600, onPress: () => {
-      Alert.alert('Apagar a conversa?', `As mensagens com ${r.name} saem da tua lista. Do lado de lá ficam. Se te escreverem outra vez, a conversa volta.`, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Apagar', style: 'destructive', onPress: () => {
-          patchDirect(u, () => null);
-          qc.removeQueries({ queryKey: ['chat-thread', u] });
-          void api.chatClear(u).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); Alert.alert('Não consegui apagar', 'Tenta outra vez.'); });
-        } },
-      ]);
-    } }];
-  }
   const patchGroup = (id: string, f: (g: TxillGroupSummary) => TxillGroupSummary | null) =>
     qc.setQueryData<TxillGroupSummary[]>(['chat-groups'], (d) => d?.flatMap((g) => (g.id === id ? (f(g) ?? []) : [g])));
-  /** TxillGroup, deslizar para a direita: marcar como lido (abrir a conversa é o que o marca na API). "Por ler" não existe para grupos. */
-  function groupLeft(g: TxillGroupSummary): SwipeAction[] {
-    if (!(g.unread > 0)) return [];
-    return [{ label: 'Lida', icon: 'check', color: colors.zinc600, onPress: () => {
-      patchGroup(g.id, (x) => ({ ...x, unread: 0 }));
-      void gruposApi.thread(g.id).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-groups'] }));
-    } }];
+
+  // As ações de uma linha. As mesmas funções servem o deslizar (rowLeft/rowRight), a folha de segurar e o leitor de
+  // ecrã; quais aparecem em cada linha e em cada estado decide-o lib/inboxMenu.
+  /** Conversa a dois: marcar como lida (abrir a conversa é o que a marca na API). */
+  function markRead(u: string) {
+    patchDirect(u, (c) => ({ ...c, unread: 0, marked: false }));
+    void api.chatThread(u).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-list'] }));
   }
-  /** TxillGroup, deslizar para a esquerda: sair do grupo (pergunta antes; o mesmo que "Sair do TxillGroup" na info do grupo). Apagar não existe para grupos. */
-  function groupRight(g: TxillGroupSummary): SwipeAction[] {
+  /** Conversa a dois: marcar como por ler (um ponto em vez de um número). */
+  function markUnread(u: string) {
+    patchDirect(u, (c) => ({ ...c, unread: 1, marked: true }));
+    void api.chatMarkUnread(u).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-list'] }));
+  }
+  /** Conversa a dois: apagar a conversa (pergunta antes). */
+  function deleteChat(u: string, name: string) {
+    Alert.alert('Apagar a conversa?', `As mensagens com ${name} saem da tua lista. Do lado de lá ficam. Se te escreverem outra vez, a conversa volta.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Apagar', style: 'destructive', onPress: () => {
+        patchDirect(u, () => null);
+        qc.removeQueries({ queryKey: ['chat-thread', u] });
+        void api.chatClear(u).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); Alert.alert('Não consegui apagar', 'Tenta outra vez.'); });
+      } },
+    ]);
+  }
+  /** TxillGroup: marcar como lido (abrir a conversa é o que o marca na API). "Por ler" não existe para grupos. */
+  function groupRead(g: TxillGroupSummary) {
+    patchGroup(g.id, (x) => ({ ...x, unread: 0 }));
+    void gruposApi.thread(g.id).then(refreshUnread).catch(() => void qc.invalidateQueries({ queryKey: ['chat-groups'] }));
+  }
+  /** TxillGroup: sair do grupo (pergunta antes; o mesmo que "Sair do TxillGroup" na info do grupo). Apagar não existe para grupos. */
+  function leaveGroup(g: TxillGroupSummary, me: string) {
+    Alert.alert('Sair do TxillGroup?', `Deixas de receber as mensagens de “${g.name}”. Só voltas se alguém te adicionar.`, [
+      { text: 'Ficar', style: 'cancel' },
+      { text: 'Sair', style: 'destructive', onPress: () => {
+        patchGroup(g.id, () => null);
+        qc.removeQueries({ queryKey: ['chat-group', g.id] });
+        void gruposApi.remove(g.id, me).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-groups'] }); Alert.alert('Não consegui sair do TxillGroup', 'Tenta outra vez.'); });
+      } },
+    ]);
+  }
+  const menuRow = (r: Row): InboxMenuRow => ({ group: !!r.g, unread: r.unread, username: r.username, me: user?.username });
+  /** Correr uma ação numa linha (do deslizar, da folha ou do leitor de ecrã). */
+  function runAction(a: InboxAction, r: Row) {
     const me = user?.username;
-    if (!me) return [];
-    return [{ label: 'Sair', icon: 'logout', color: colors.red600, onPress: () => {
-      Alert.alert('Sair do TxillGroup?', `Deixas de receber as mensagens de “${g.name}”. Só voltas se alguém te adicionar.`, [
-        { text: 'Ficar', style: 'cancel' },
-        { text: 'Sair', style: 'destructive', onPress: () => {
-          patchGroup(g.id, () => null);
-          qc.removeQueries({ queryKey: ['chat-group', g.id] });
-          void gruposApi.remove(g.id, me).then(refreshUnread).catch(() => { void qc.invalidateQueries({ queryKey: ['chat-groups'] }); Alert.alert('Não consegui sair do TxillGroup', 'Tenta outra vez.'); });
-        } },
-      ]);
-    } }];
+    if (r.g) {
+      if (a === 'read') groupRead(r.g);
+      else if (a === 'info') router.push(`/messages/g/${r.g.id}?info=1` as never);
+      else if (a === 'leave' && me) leaveGroup(r.g, me);
+      return;
+    }
+    const u = r.username;
+    if (!u) return;
+    if (a === 'read') markRead(u);
+    else if (a === 'unread') markUnread(u);
+    else if (a === 'profile') router.push(`/u/${u}` as never);
+    else if (a === 'delete') deleteChat(u, r.name);
+  }
+  const SWIPE_COLOR: Record<InboxAction, string> = { read: colors.zinc600, unread: colors.brand, profile: colors.zinc600, delete: colors.red600, info: colors.zinc600, leave: colors.red600 };
+  const swipeButtons = (acts: InboxAction[], r: Row): SwipeAction[] =>
+    acts.map((a) => ({ label: swipeLabel(a), icon: actionIcon(a), color: SWIPE_COLOR[a], onPress: () => runAction(a, r) }));
+  /** Deslizar para a direita: marcar como por ler (ou como lida, se já estiver por ler); num TxillGroup, lido. */
+  const rowLeft = (r: Row) => swipeButtons(inboxSwipe(menuRow(r)).left, r);
+  /** Deslizar para a esquerda: apagar a conversa; num TxillGroup, sair (os dois perguntam antes). */
+  const rowRight = (r: Row) => swipeButtons(inboxSwipe(menuRow(r)).right, r);
+
+  // Segurar uma linha: a folha com a foto, o nome e as ações (lib/inboxMenu). Guarda-se a chave: se a linha sair da
+  // lista entretanto (apagada noutro sítio), a folha fecha-se sozinha.
+  const [menuKey, setMenuKey] = useState<string | null>(null);
+  function openMenu(r: Row, buzz = false) {
+    if (!inboxMenu(menuRow(r)).length) return;
+    closeOpenSwipe();
+    if (buzz && Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    setMenuKey(r.key);
+  }
+  const closeMenu = () => {
+    setMenuKey(null);
+    closeOpenSwipe(); // se o dedo ainda deslizou a linha por baixo da folha, ela não fica aberta
+  };
+  function pickMenu(a: InboxAction | 'cancel', r: Row) {
+    closeMenu();
+    if (a === 'cancel') return;
+    // No iPhone, um Alert pedido enquanto a folha (Modal) ainda se fecha não chega a aparecer: espera um pouco.
+    if (Platform.OS === 'ios') setTimeout(() => runAction(a, r), 350);
+    else runAction(a, r);
+  }
+  /** O leitor de ecrã: as mesmas ações e "Mais opções", que abre a folha. */
+  function a11yAction(name: string, r: Row) {
+    const a = a11yToAction(name, menuRow(r));
+    if (a === 'more') openMenu(r);
+    else if (a) runAction(a, r);
   }
 
   const all: Row[] = [
@@ -228,6 +268,10 @@ export default function Messages() {
       g,
     })),
   ];
+  /** A linha da folha de segurar (some se a linha sair da lista). */
+  const held = menuKey ? all.find((r) => r.key === menuKey) : undefined;
+  const gone = !!menuKey && !held;
+  useEffect(() => { if (gone) setMenuKey(null); }, [gone]);
   const counts = inboxCounts(all);
   const rows = inboxRows(all, view, term);
   // A pesquisar fora dos pedidos: resultados de conversas e TxillGroups juntos (a caixa procura em tudo).
@@ -320,12 +364,25 @@ export default function Messages() {
           const time = listTime(r.at);
           const badge = unreadBadge(r.unread, r.marked);
           const hot = r.unread > 0;
+          // Segurar (e o botão direito do rato, na web) abre a folha; o leitor de ecrã tem as mesmas ações.
+          const hold = inboxMenu(menuRow(r)).length ? () => openMenu(r, true) : undefined;
+          const a11y = inboxA11yActions(menuRow(r));
           return (
-          <SwipeRow left={rowLeft(r)} right={rowRight(r)}>
+          <SwipeRow left={rowLeft(r)} right={rowRight(r)} onHold={hold}>
           {r.g ? (
-            <GroupCard {...groupCardData(r.g)} lastMessage={r.sub} onPress={() => router.push(r.to as never)} />
+            <GroupCard {...groupCardData(r.g)} lastMessage={r.sub} onPress={() => router.push(r.to as never)} {...rowHold(hold)} accessibilityActions={a11y} onAccessibilityAction={(name) => a11yAction(name, r)} />
           ) : (
-          <Pressable onPressIn={() => { const m = /^\/messages\/([^/]+)$/.exec(String(r.to)); if (m && m[1] !== 'new') warm(decodeURIComponent(m[1])); }} onPress={() => router.push(r.to as never)} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel={rowLabel(r.name, r.sub, time, r.unread, r.marked)}>
+          <Pressable
+            onPressIn={() => { const m = /^\/messages\/([^/]+)$/.exec(String(r.to)); if (m && m[1] !== 'new') warm(decodeURIComponent(m[1])); }}
+            onPress={() => router.push(r.to as never)}
+            {...rowHold(hold)}
+            style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]}
+            accessibilityRole="button"
+            accessibilityLabel={rowLabel(r.name, r.sub, time, r.unread, r.marked)}
+            accessibilityHint={a11y.length ? 'Toca para abrir. Mantém premido para mais opções.' : undefined}
+            accessibilityActions={a11y.length ? a11y : undefined}
+            onAccessibilityAction={a11y.length ? (e) => a11yAction(e.nativeEvent.actionName, r) : undefined}
+          >
             <View>
               {r.unread ? (
                 <LinearGradient colors={[colors.brand, '#ff9a5b']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.ring}>
@@ -389,6 +446,18 @@ export default function Messages() {
       </PullView>
       </View>
       </GestureDetector>
+      {held ? (
+        <InboxMenuSheet
+          name={held.name}
+          sub={held.g ? `${held.g.members} ${held.g.members === 1 ? 'pessoa' : 'pessoas'}` : held.username ? `@${held.username}` : undefined}
+          photo={held.g
+            ? <GroupCover url={held.g.avatarUrl} kind={groupCardData(held.g).kind} size={48} radius={24} />
+            : <Avatar name={held.names[0].name} username={held.names[0].username} size={48} />}
+          items={inboxMenuItems(menuRow(held))}
+          onPick={(a) => pickMenu(a, held)}
+          onClose={closeMenu}
+        />
+      ) : null}
       {ai && <SuperTxillPanel onClose={() => setAi(false)} />}
       <InstantsDock />
     </View>
