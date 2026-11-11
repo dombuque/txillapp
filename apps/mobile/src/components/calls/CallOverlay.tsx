@@ -10,6 +10,7 @@ import {
   toggleCamera, toggleMic, toggleSpeaker, useCall, useStreamRev, VideoView, type CallPeer, type CallState,
 } from '@/lib/calls';
 import { SITE_URL } from '@/lib/config';
+import { useAuth } from '@/lib/auth';
 import { useDesktop } from '@/lib/desktop';
 import { colors } from '@/lib/theme';
 import { CallIcon } from './CallIcons';
@@ -91,8 +92,22 @@ function Backdrop({ peer, stream, mirror }: { peer: CallPeer | null; stream?: un
   return (
     <View style={StyleSheet.absoluteFill}>
       <LinearGradient colors={['#3b111b', '#18181b']} style={StyleSheet.absoluteFill} />
-      {peer?.hasAvatar ? <Image source={{ uri: avatarUrl(peer) }} style={[StyleSheet.absoluteFill, { transform: [{ scale: 1.3 }] }]} contentFit="cover" blurRadius={Platform.OS === 'android' ? 25 : 60} /> : null}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} />
+      {/* Desfocada mas reconhecível (antes, 60 px no iPhone e no site deixavam só uma mancha cinzenta). */}
+      {peer?.hasAvatar ? <Image source={{ uri: avatarUrl(peer) }} style={[StyleSheet.absoluteFill, { transform: [{ scale: 1.15 }] }]} contentFit="cover" blurRadius={Platform.OS === 'android' ? 14 : 22} /> : null}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.38)' }]} />
+    </View>
+  );
+}
+
+/** Chamada atendida: as duas fotos juntas (a minha e a da outra pessoa), a sobreporem-se um pouco. */
+function PairAvatars({ peer }: { peer: CallPeer | null }) {
+  const me = useAuth().user;
+  const size = 112;
+  const ring = { borderRadius: size / 2, borderWidth: 3, borderColor: 'rgba(255,255,255,0.9)', backgroundColor: 'rgba(255,255,255,0.15)' };
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', height: size }} accessibilityLabel={`Em chamada com ${peer?.displayName ?? ''}`}>
+      <View style={[ring, { zIndex: 1 }]}><Avatar name={me?.displayName ?? '?'} username={me?.username} size={size - 6} /></View>
+      <View style={[ring, { marginLeft: -size * 0.22 }]}><Avatar name={peer?.displayName ?? '?'} username={peer?.hasAvatar ? peer.username : undefined} size={size - 6} /></View>
     </View>
   );
 }
@@ -307,7 +322,7 @@ function VoiceCall({ c }: { c: CallState }) {
         </Pressable>
       </View>
       <View style={[st.center, { paddingTop: 24 }]}>
-        <PulseAvatar peer={c.peer} size={136} pulse={c.phase === 'connecting'} />
+        {c.phase === 'active' ? <PairAvatars peer={c.peer} /> : <PulseAvatar peer={c.peer} size={136} pulse={c.phase === 'connecting'} />}
         <Text style={st.name} numberOfLines={2}>{c.peer?.displayName ?? ''}</Text>
         <Text style={st.timer}>{c.phase === 'active' ? fmtDuration(t) : 'A ligar…'}</Text>
         <PeerMuted c={c} />
