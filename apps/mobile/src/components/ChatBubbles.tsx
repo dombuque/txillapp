@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { createElement, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
+import { Animated, Easing, Linking, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
@@ -597,16 +597,27 @@ export function Bubble({
 
 /** Os três pontos de "a escrever…" (com o avatar de quem escreve, se vier). */
 export function TypingBubble({ avatar }: { avatar?: { username?: string; name: string } | null } = {}) {
-  const [n, setN] = useState(0);
+  // Uma onda contínua (1,2 s por volta) que corre no lado nativo: antes eram saltos a cada 400 ms com re-render do
+  // React, que no Android pareciam em câmara lenta e a encravar.
+  const wave = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const t = setInterval(() => setN((x) => (x + 1) % 3), 400);
-    return () => clearInterval(t);
-  }, []);
+    const loop = Animated.loop(Animated.timing(wave, { toValue: 1, duration: 1200, easing: Easing.linear, useNativeDriver: Platform.OS !== 'web' }));
+    loop.start();
+    return () => loop.stop();
+  }, [wave]);
+  const dot = (d: number) => {
+    const o = d * 0.18; // cada ponto sobe um pouco depois do anterior
+    const inputRange = [0, o, o + 0.18, o + 0.36, 1];
+    return {
+      opacity: wave.interpolate({ inputRange, outputRange: [0.35, 0.35, 1, 0.35, 0.35] }),
+      transform: [{ translateY: wave.interpolate({ inputRange, outputRange: [0, 0, -3, 0, 0] }) }],
+    };
+  };
   return (
     <View style={{ marginTop: GAP_OUT, flexDirection: 'row', alignItems: 'flex-end', gap: AVATAR_GAP }} accessibilityLabel="A escrever">
       {avatar ? <Avatar name={avatar.name || '?'} username={avatar.username} size={AVATAR} /> : null}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, ...OTHER_SURFACE, paddingHorizontal: 14, paddingVertical: 12 }}>
-        {[0, 1, 2].map((d) => <View key={d} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.zinc500, opacity: n === d ? 1 : 0.4, transform: [{ translateY: n === d ? -2 : 0 }] }} />)}
+        {[0, 1, 2].map((d) => <Animated.View key={d} style={[{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.zinc500 }, dot(d)]} />)}
       </View>
     </View>
   );
