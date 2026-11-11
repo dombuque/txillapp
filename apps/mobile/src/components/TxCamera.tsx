@@ -7,6 +7,11 @@ import { colors } from '@/lib/theme';
 import { FeatureIntro } from './FeatureIntro';
 import { Icon } from './Icon';
 import { acquireCamera, releaseCamera } from './zas/cameraSession';
+import {
+  activePill, bestMatch, browserKind, classifyCameraError, clock, coverCrop, exposureLabel, exposureValue, fallbackConstraints, ncc,
+  permissionSteps, photoUpgrade, pickRecorderType, readCaps, recorderFile, retryWithFallback, sensorRatioFor, tapToPoint, videoBitrate,
+  videoCropToPhoto, zoomLabel, zoomLimits, zoomPills, zoomPlan, type CamCaps, type CamProblem, type Rect,
+} from '@/lib/webCamera';
 import { useAuth } from '@/lib/auth';
 import { POST_RATIO_DEFAULT, POST_RATIO_MAX, POST_RATIO_MIN } from '@/lib/postAspect';
 import { WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, signLayout } from '@/lib/wordmark';
@@ -21,9 +26,8 @@ export const liveCameraSupported = () => Platform.OS === 'web' && typeof navigat
 
 export interface Shot { uri: string; video: boolean; mime: string; durationMs?: number }
 export type CamMode = 'photo' | 'video' | 'text';
-type Problem = null | 'denied' | 'unsupported' | 'failed';
+type Problem = null | CamProblem | 'unsupported';
 const MAX_VIDEO_S = 60;
-const recorderType = () => ['video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((t) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) ?? '';
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 const web = (o: Record<string, unknown>) => o as never;
 /** Filtros de cor ("looks"): no visor são CSS; na foto aplicam-se pixel a pixel com as mesmas fórmulas (W3C filter effects). */
@@ -131,6 +135,156 @@ function cover(g: CanvasRenderingContext2D, src: CanvasImageSource, srcW: number
 }
 
 const buzz = (ms: number) => { try { navigator.vibrate?.(ms); } catch { /* sem vibração */ } };
+
+// ----- Câmara a sério no browser: as partes que mexem no DOM (as contas estão em lib/webCamera).
+const IOS = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+const NO_CAPS: CamCaps = { zoom: null, torch: false, focus: false, focusMode: null, exposure: null, flash: false };
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise((res, rej) => {
+    const t = setTimeout(() => rej(new Error('timeout')), ms);
+    p.then((v) => { clearTimeout(t); res(v); }, (e) => { clearTimeout(t); rej(e); });
+  });
+}
+/** Espera pelo loadedmetadata: antes disso o videoWidth é 0 e as contas do recorte saíam mal (sobretudo no iPhone). */
+function whenMeasured(v: HTMLVideoElement, ms = 4000): Promise<void> {
+  if (v.readyState >= 1 && v.videoWidth) return Promise.resolve();
+  return new Promise((res) => {
+    const done = () => { clearTimeout(t); v.removeEventListener('loadedmetadata', done); v.removeEventListener('resize', done); res(); };
+    const t = setTimeout(done, ms);
+    v.addEventListener('loadedmetadata', done);
+    v.addEventListener('resize', done);
+  });
+}
+type PhotoCaps = { fillLightMode?: string[]; imageWidth?: { max?: number }; imageHeight?: { max?: number } };
+type ImageCap = { takePhoto(s?: Record<string, unknown>): Promise<Blob>; getPhotoCapabilities?(): Promise<PhotoCaps> };
+/** O ImageCapture (Chrome no Android): a foto com a resolução inteira do sensor. O Safari do iPhone não o tem. */
+/**
+ * Em alguns aparelhos (vimo-lo na câmara falsa do Chrome) criar o ImageCapture desliga a câmara. Por isso só se cria
+ * ao tirar a primeira foto, e se a câmara cair logo a seguir deixa de se usar nesta sessão (fica a foto do vídeo).
+ */
+let icBroken = false;
+let icUsedAt = 0;
+function imageCaptureFor(t: MediaStreamTrack): ImageCap | null {
+  if (icBroken) return null;
+  const Ctor = (globalThis as { ImageCapture?: new (t: MediaStreamTrack) => ImageCap }).ImageCapture;
+  try { return Ctor ? new Ctor(t) : null; } catch { return null; }
+}
+/** Um retângulo do vídeo, à resolução real dele (nunca ao tamanho do ecrã), espelhado como no visor se for a câmara da frente. */
+function grabFrame(v: HTMLVideoElement, r: Rect, mirror: boolean): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = r.w;
+  c.height = r.h;
+  const g = c.getContext('2d')!;
+  g.imageSmoothingQuality = 'high';
+  if (mirror) { g.translate(r.w, 0); g.scale(-1, 1); }
+  g.drawImage(v, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  return c;
+}
+/** Miniatura cinzenta de um retângulo (para comparar a foto do ImageCapture com o que o visor mostrou). */
+function grayThumb(src: CanvasImageSource, r: Rect, w: number, h: number): Float32Array {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true })!;
+  g.drawImage(src, r.x, r.y, r.w, r.h, 0, 0, w, h);
+  const d = g.getImageData(0, 0, w, h).data;
+  const out = new Float32Array(w * h);
+  for (let i = 0, j = 0; j < out.length; i += 4, j++) out[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  return out;
+}
+/** Prepara o contexto para desenhar a imagem (bw×bh) rodada `rot` graus (sentido do relógio) e, antes, espelhada. */
+function orient(g: CanvasRenderingContext2D, bw: number, bh: number, rot: number, flip: boolean) {
+  if (rot === 90) { g.translate(bh, 0); g.rotate(Math.PI / 2); }
+  else if (rot === 180) { g.translate(bw, bh); g.rotate(Math.PI); }
+  else if (rot === 270) { g.translate(0, bw); g.rotate(-Math.PI / 2); }
+  if (flip) { g.translate(bw, 0); g.scale(-1, 1); }
+}
+/** Aplica valores à câmara um de cada vez, ficando sempre o último pedido (a pinça manda dezenas por segundo). */
+function makePump(apply: (v: number) => Promise<unknown>) {
+  let want: number | null = null, applied: number | null = null, busy = false;
+  return {
+    get applied() { return applied; },
+    reset(v: number | null) { applied = v; want = null; },
+    set(v: number) {
+      want = v;
+      if (busy) return;
+      busy = true;
+      void (async () => {
+        while (want !== null && want !== applied) { const z: number = want; await apply(z).catch(() => undefined); applied = z; }
+        busy = false;
+      })();
+    },
+  };
+}
+/** O que dizer quando a câmara não abre (e o que fazer). */
+const PROBLEM_TEXT: Record<CamProblem | 'unsupported', { title: string; sub: string }> = {
+  denied: { title: 'A câmara está bloqueada', sub: 'Para tirares fotos aqui, deixa o Txillapp usar a câmara:' },
+  busy: { title: 'A câmara está a ser usada', sub: 'Outra app (uma chamada, o FaceTime, outro separador) está com a câmara. Fecha-a e toca em Tentar outra vez.' },
+  nocamera: { title: 'Não encontrei nenhuma câmara', sub: 'Podes escolher fotos e vídeos da galeria.' },
+  insecure: { title: 'A câmara precisa de ligação segura', sub: 'Abre o Txillapp em https:// para usar a câmara. A galeria funciona na mesma.' },
+  unsupported: { title: 'Este browser não dá acesso à câmara', sub: 'Experimenta o Safari ou o Chrome, ou escolhe da galeria.' },
+  constraint: { title: 'Não consegui abrir a câmara', sub: 'Tenta outra vez, ou escolhe da galeria.' },
+  failed: { title: 'Não consegui abrir a câmara', sub: 'Tenta outra vez, ou escolhe da galeria.' },
+};
+/** Que browser é este (para mostrar onde está o cadeado). */
+const browserNow = () => browserKind(
+  navigator.userAgent,
+  (typeof matchMedia !== 'undefined' && matchMedia('(display-mode: standalone)').matches) || (navigator as { standalone?: boolean }).standalone === true,
+  navigator.maxTouchPoints > 1,
+);
+const ORIENTS: [number, boolean][] = [[0, false], [90, false], [180, false], [270, false], [0, true], [90, true], [180, true], [270, true]];
+/**
+ * Foto com a resolução inteira do sensor (ImageCapture.takePhoto), recortada exatamente como o visor (`crop`, em
+ * píxeis do vídeo). A orientação da foto nem sempre vem certa, por isso compara-se com a imagem do vídeo tirada no
+ * mesmo instante (`ref`) e fica a orientação que bate. Se nenhuma bater, ou não for melhor do que o vídeo: null.
+ */
+async function capturePhoto(ic: ImageCap, settings: Record<string, unknown>, crop: Rect, vw: number, vh: number, ref: Float32Array, tw: number, th: number, mirror: boolean): Promise<HTMLCanvasElement | null> {
+  let blob: Blob;
+  try { blob = await withTimeout(ic.takePhoto(settings), 5000); } catch {
+    try { blob = await withTimeout(ic.takePhoto(), 5000); } catch { return null; }
+  }
+  const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' }).catch(() => null);
+  if (!bmp) return null;
+  try {
+    const bw = bmp.width, bh = bmp.height;
+    const s = 256 / Math.max(bw, bh);
+    const scores = ORIENTS.map(([rot, flip]) => {
+      const turned = rot % 180 !== 0;
+      const small = document.createElement('canvas');
+      small.width = Math.max(1, Math.round((turned ? bh : bw) * s));
+      small.height = Math.max(1, Math.round((turned ? bw : bh) * s));
+      const g = small.getContext('2d')!;
+      g.scale(s, s);
+      orient(g, bw, bh, rot, flip);
+      g.drawImage(bmp, 0, 0);
+      return ncc(ref, grayThumb(small, videoCropToPhoto(crop, vw, vh, small.width, small.height), tw, th));
+    });
+    const best = bestMatch(scores);
+    if (best < 0) return null;
+    const [rot, flip] = ORIENTS[best];
+    const turned = rot % 180 !== 0;
+    const pw = turned ? bh : bw, ph = turned ? bw : bh;
+    const r = videoCropToPhoto(crop, vw, vh, pw, ph);
+    if (r.w * r.h < crop.w * crop.h * 1.2) return null; // não ganha nada ao vídeo
+    // Até 16 MP (o limite seguro de um canvas nos telemóveis).
+    const k = Math.min(1, Math.sqrt(16_000_000 / (r.w * r.h)));
+    const out = document.createElement('canvas');
+    out.width = Math.round(r.w * k);
+    out.height = Math.round(r.h * k);
+    const g = out.getContext('2d')!;
+    g.imageSmoothingQuality = 'high';
+    if (mirror) { g.translate(out.width, 0); g.scale(-1, 1); }
+    g.scale(k, k);
+    g.translate(-r.x, -r.y);
+    orient(g, bw, bh, rot, flip);
+    g.drawImage(bmp, 0, 0);
+    return out;
+  } finally {
+    bmp.close();
+  }
+}
+
 
 // ----- Edição depois de tirar: filtro (com intensidade), luz e cor, vinheta, corte e rotação.
 type Box = { x: number; y: number; w: number; h: number };
@@ -312,7 +466,24 @@ export function TxCamera({
   const [ready, setReady] = useState(false);
   const [problem, setProblem] = useState<Problem>(null);
   const [canFlip, setCanFlip] = useState(false);
-  const [canTorch, setCanTorch] = useState(false);
+  /** O que esta câmara deixa fazer (zoom do aparelho, lanterna, foco no ponto, exposição, flash): lido das getCapabilities(). */
+  const [caps, setCaps] = useState<CamCaps>(NO_CAPS);
+  const canTorch = caps.torch;
+  /** Uma câmara aberta pelo plano B (fora da sessão partilhada): é desta câmara que a desligamos. */
+  const ownStream = useRef<MediaStream | null>(null);
+  const startSeq = useRef(0);
+  const imageCap = useRef<ImageCap | null>(null);
+  const photoCaps = useRef<PhotoCaps | null>(null);
+  const torchOn = useRef(false);
+  /** A gravação vai sem som (o microfone não está disponível): aviso por cima do tempo. */
+  const [mute, setMute] = useState(false);
+  /** Compensação de exposição (-1 a 1 no deslize) e se o deslize está à vista (aparece depois de tocar para focar). */
+  const [expo, setExpo] = useState(0);
+  const [expoOn, setExpoOn] = useState(false);
+  const expoTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** A foto em alta (ImageCapture) que ainda está a chegar para a revisão aberta. */
+  const hqJob = useRef<{ id: number; p: Promise<HTMLCanvasElement | null> } | null>(null);
+  const shotId = useRef(0);
   const [light, setLight] = useState(false);
   const [lit, setLit] = useState(false);
   /** Conta as fotos tiradas: cada uma relança a animação do clarão. */
@@ -386,6 +557,8 @@ export function TxCamera({
   }
   // Corte livre: a caixa (frações da imagem já rodada) arrasta-se pelos cantos ou pelo meio, por cima da foto inteira.
   const [freeCrop, setFreeCrop] = useState(false);
+  const freeCropRef = useRef(false);
+  freeCropRef.current = freeCrop;
   const [box, setBox] = useState<Box>({ x: 0.08, y: 0.08, w: 0.84, h: 0.84 });
   const boxRef = useRef(box);
   boxRef.current = box;
@@ -508,9 +681,8 @@ export function TxCamera({
     setFreeCrop(false);
     changeEdit({ box: boxRef.current, aspect: null });
   }
-  function openReview(c: HTMLCanvasElement) {
-    renderSeq.current += 1;
-    pending.current = null;
+  /** O original da revisão, a cópia pequena para a pré-visualização e a miniatura dos filtros. */
+  function setSource(c: HTMLCanvasElement) {
     reviewSrc.current = c;
     // Pré-visualização até 1600 px no lado maior: chega para o ecrã e mantém os ajustes rápidos.
     const long = Math.max(c.width, c.height);
@@ -524,12 +696,6 @@ export function TxCamera({
       pg.drawImage(c, 0, 0, p.width, p.height);
       previewSrc.current = p;
     } else previewSrc.current = c;
-    // Publicação: começa já cortada em 4:5 (a moldura da câmara é 4:5; isto garante-o mesmo sem moldura medida).
-    editRef.current = edit0;
-    setEdit(edit0);
-    setTool('look'); // os filtros aparecem logo depois de tirar a foto
-    setFreeCrop(false);
-    setBox({ x: 0.08, y: 0.08, w: 0.84, h: 0.84 });
     // Miniatura quadrada da foto tirada (sem filtro), para o exemplo de cada filtro.
     try {
       const m = document.createElement('canvas');
@@ -538,8 +704,36 @@ export function TxCamera({
       m.getContext('2d')!.drawImage(c, (c.width - side) / 2, (c.height - side) / 2, side, side, 0, 0, 112, 112);
       setSwatchSrc(m.toDataURL('image/jpeg', 0.75));
     } catch { setSwatchSrc(null); }
+  }
+  /** Chegou a foto em alta (ImageCapture) da revisão aberta: passa a ser o original, e a pré-visualização refaz-se. */
+  function upgradeSource(id: number, c: HTMLCanvasElement) {
+    if (id !== shotId.current || !reviewSrc.current) return;
+    setSource(c);
+    const free = freeCropRef.current;
+    paint(free ? { ...editRef.current, aspect: null, box: null } : editRef.current, !free);
+  }
+  /** Espera (pouco) pela foto em alta antes de exportar; se não chegar a tempo, sai a do vídeo. */
+  async function settleHq() {
+    const job = hqJob.current;
+    if (!job) return;
+    hqJob.current = null;
+    const c = await withTimeout(job.p, 6000).catch(() => null);
+    if (c && job.id === shotId.current && reviewSrc.current && reviewSrc.current !== c) setSource(c);
+  }
+  function openReview(c: HTMLCanvasElement) {
+    renderSeq.current += 1;
+    pending.current = null;
+    shotId.current += 1;
+    hqJob.current = null;
+    setSource(c);
+    // Publicação: começa já cortada em 4:5 (a moldura da câmara é 4:5; isto garante-o mesmo sem moldura medida).
+    editRef.current = edit0;
+    setEdit(edit0);
+    setTool('look'); // os filtros aparecem logo depois de tirar a foto
+    setFreeCrop(false);
+    setBox({ x: 0.08, y: 0.08, w: 0.84, h: 0.84 });
     const seq = renderSeq.current;
-    renderEdit(previewSrc.current, edit0).toBlob((blob) => blob && seq === renderSeq.current && setReview({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' }), 'image/jpeg', 0.9);
+    renderEdit(previewSrc.current ?? c, edit0).toBlob((blob) => blob && seq === renderSeq.current && setReview({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' }), 'image/jpeg', 0.9);
   }
   // A fila de filtros acompanha o escolhido (sobretudo quando se troca a deslizar sobre a foto).
   useEffect(() => {
@@ -550,53 +744,188 @@ export function TxCamera({
   const full = mode === 'photo' && count >= max;
   const topPad = Math.max(insets.top, 12);
 
+  /** Formato pedido ao sensor: 3:4 inteiro numa publicação (4:5), 16:9 num mimo ou tcheka (9:16). */
+  const ratio = sensorRatioFor(aspect);
+  const wantsAudio = modes.includes('video');
+  const stopOwn = () => { ownStream.current?.getTracks().forEach((t) => t.stop()); ownStream.current = null; };
+  const track = () => stream.current?.getVideoTracks()[0];
+  /** Liga ou desliga a lanterna (só quando a câmara a tem). */
+  async function setTorch(on: boolean) {
+    const t = track();
+    if (!t || !caps.torch || torchOn.current === on) return;
+    torchOn.current = on;
+    await t.applyConstraints({ advanced: [{ torch: on } as MediaTrackConstraintSet] }).catch(() => { torchOn.current = false; });
+  }
+  // Zoom e exposição: aplicados à câmara um de cada vez, sempre com o último valor pedido (a pinça manda dezenas por segundo).
+  const zoomPump = useRef(makePump((z) => track()?.applyConstraints({ advanced: [{ zoom: z } as MediaTrackConstraintSet] }) ?? Promise.resolve())).current;
+  const expoPump = useRef(makePump((v) => track()?.applyConstraints({ advanced: [{ exposureCompensation: v } as MediaTrackConstraintSet] }) ?? Promise.resolve())).current;
+
+  /** Plano B: a sessão partilhada não abriu a câmara; tenta-se com restrições cada vez mais simples. */
+  async function openFallback(): Promise<MediaStream> {
+    let last: unknown = null;
+    for (const c of fallbackConstraints(facing, ratio)) {
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ video: c, audio: false });
+        if (wantsAudio) {
+          try { (await navigator.mediaDevices.getUserMedia({ audio: true })).getAudioTracks().forEach((t) => s.addTrack(t)); } catch { /* grava sem som */ }
+        }
+        return s;
+      } catch (e) {
+        last = e;
+        const p = classifyCameraError(e as DOMException);
+        if (p === 'denied' || p === 'nocamera') break;
+      }
+    }
+    throw last;
+  }
+
+  const starting = useRef(false);
+  /** Tentativas que faltam para religar a câmara depois de ela cair sozinha. */
+  const afterEnded = useRef(0);
+  const startRef = useRef<() => Promise<void>>(async () => undefined);
   const start = useCallback(async () => {
+    const seq = ++startSeq.current;
+    starting.current = true;
     setReady(false);
     setProblem(null);
-    if (!navigator.mediaDevices?.getUserMedia) return setProblem('unsupported');
+    stopOwn();
+    const fail = (p: Problem) => {
+      if (seq !== startSeq.current) return;
+      setProblem(p);
+      starting.current = false;
+      // Depois de a câmara cair sozinha, o aparelho pode demorar a libertá-la: tenta-se mais umas vezes.
+      if (afterEnded.current > 0 && p !== 'denied') { afterEnded.current -= 1; setTimeout(() => { if (seq === startSeq.current) void startRef.current(); }, 1500); }
+    };
+    if (typeof window !== 'undefined' && window.isSecureContext === false) return fail('insecure');
+    if (!navigator.mediaDevices?.getUserMedia) return fail('unsupported');
+    let s: MediaStream;
     try {
-      const s = await acquireCamera(facing, modes.includes('video'));
-      stream.current = s;
-      if (video.current) {
-        video.current.srcObject = s;
-        await video.current.play().catch(() => undefined);
-      }
-      const caps = (s.getVideoTracks()[0]?.getCapabilities?.() ?? {}) as { torch?: boolean };
-      setCanTorch(!!caps.torch);
-      setReady(true);
-      const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
-      setCanFlip(devices.filter((d) => d.kind === 'videoinput').length > 1);
+      s = await acquireCamera(facing, wantsAudio, ratio === '3:4');
     } catch (e) {
-      setProblem((e as DOMException).name === 'NotAllowedError' ? 'denied' : 'failed');
+      const p = classifyCameraError(e as DOMException);
+      if (!retryWithFallback(p)) return fail(p);
+      try {
+        s = await openFallback();
+        ownStream.current = s;
+      } catch (e2) {
+        return fail(classifyCameraError((e2 ?? e) as DOMException));
+      }
     }
-  }, [facing]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (seq !== startSeq.current) { if (ownStream.current === s) stopOwn(); return; }
+    stream.current = s;
+    const t = s.getVideoTracks()[0];
+    // Foto numa publicação: mais resolução, se o sensor der (lido das getCapabilities()).
+    try {
+      const up = t ? photoUpgrade(t.getCapabilities?.() as never, t.getSettings?.(), ratio) : null;
+      if (up && t) await t.applyConstraints(up);
+    } catch { /* o aparelho não aceita: fica como está */ }
+    const v = video.current;
+    if (v) {
+      if (v.srcObject !== s) v.srcObject = s;
+      const playing = v.play().catch(() => undefined);
+      await whenMeasured(v); // só depois do loadedmetadata se mede (videoWidth/videoHeight)
+      await playing;
+    }
+    if (seq !== startSeq.current) return;
+    const settings = (t?.getSettings?.() ?? {}) as MediaTrackSettings & { zoom?: number; exposureCompensation?: number };
+    zoomPump.reset(settings.zoom ?? null);
+    expoPump.reset(settings.exposureCompensation ?? null);
+    torchOn.current = false;
+    setZoom(1);
+    setExpo(0);
+    setExpoOn(false);
+    const supported = (navigator.mediaDevices.getSupportedConstraints?.() ?? {}) as Record<string, unknown>;
+    const trackCaps = (t?.getCapabilities?.() ?? {}) as Record<string, unknown>;
+    setCaps(readCaps(trackCaps, supported, null));
+    if (t) {
+      // A câmara caiu (iPhone: chamada, Siri, outra app): fecha a gravação sem fim preto e volta a ligar quando der.
+      t.onended = () => {
+        if (seq !== startSeq.current) return;
+        if (Date.now() - icUsedAt < 4000) icBroken = true;
+        imageCap.current = null;
+        if (recorder.current?.state === 'recording') recorder.current.stop();
+        setReady(false);
+        afterEnded.current = 2;
+        if (document.visibilityState === 'visible') setTimeout(() => { if (seq === startSeq.current) void startRef.current(); }, 400);
+      };
+      t.onmute = () => {
+        setTimeout(() => { if (seq === startSeq.current && t.muted && recorder.current?.state === 'recording') recorder.current.stop(); }, 700);
+      };
+    }
+    setReady(true);
+    starting.current = false;
+    afterEnded.current = 0;
+    // O ImageCapture (foto inteira do sensor e flash a sério) só se cria ao tirar a primeira foto (ver icBroken).
+    imageCap.current = null;
+    photoCaps.current = null;
+    const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+    if (seq === startSeq.current) setCanFlip(devices.filter((d) => d.kind === 'videoinput').length > 1);
+  }, [facing, ratio]); // eslint-disable-line react-hooks/exhaustive-deps
+  startRef.current = start;
 
   useEffect(() => { void start(); }, [start]);
   useEffect(() => () => {
+    startSeq.current += 1;
+    const t = track();
+    if (t) {
+      t.onended = null;
+      t.onmute = null;
+      // A câmara fica uns instantes ligada para o ecrã seguinte: sem a lanterna acesa nem o zoom que se deu aqui.
+      if (torchOn.current) t.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] }).catch(() => undefined);
+      if (zoomPump.applied !== null && zoomPump.applied !== 1) t.applyConstraints({ advanced: [{ zoom: 1 } as MediaTrackConstraintSet] }).catch(() => undefined);
+      if (expoPump.applied) t.applyConstraints({ advanced: [{ exposureCompensation: 0 } as MediaTrackConstraintSet] }).catch(() => undefined);
+    }
+    stopOwn();
     releaseCamera(2_000);
     clearInterval(timer.current);
     clearInterval(countTimer.current);
     clearTimeout(holdT.current);
+    clearTimeout(expoTimer.current);
     if (recorder.current?.state === 'recording') { recorder.current.onstop = null; recorder.current.stop(); }
     reviewSrc.current = null;
     previewSrc.current = null;
     pending.current = null;
+    hqJob.current = null;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  // No iPhone, o seletor de fotos não devolve nada enquanto a câmara está ligada: desliga-se ao abrir a galeria e religa-se quando o seletor fecha.
+  const problemRef = useRef<Problem>(null);
+  problemRef.current = problem;
   useEffect(() => {
-    const back = () => {
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-      // Bloquear o telemóvel, trocar de app ou atender uma chamada mata os tracks: ao voltar, religa-se.
-      const dead = !!stream.current && !stream.current.getVideoTracks().some((t) => t.readyState === 'live');
-      if (!pausedForPicker.current && !dead) return;
-      pausedForPicker.current = false;
+    // Em segundo plano (trocar de app, bloquear): a gravação fecha-se já, com o que se gravou (sem o fim preto),
+    // e a câmara desliga-se (a sessão partilhada desliga a dela; a do plano B é desligada aqui).
+    const away = () => {
+      if (document.visibilityState === 'visible') return;
+      if (recorder.current?.state === 'recording') { try { recorder.current.stop(); } catch { /* já parou */ } }
+      clearInterval(countTimer.current);
+      setCountdown(null);
+      stopOwn();
+      torchOn.current = false;
+      setReady(false);
+    };
+    // Ao voltar: religa-se. No iPhone, o seletor de fotos não devolve nada enquanto a câmara está ligada: desliga-se
+    // ao abrir a galeria e religa-se quando o seletor fecha.
+    const back = (ev: Event) => {
+      if (document.visibilityState !== 'visible' || starting.current) return;
+      if (pausedForPicker.current) { pausedForPicker.current = false; return void start(); }
+      const s = stream.current;
+      const dead = !s || !s.getVideoTracks().some((x) => x.readyState === 'live');
+      if (!dead) { if (!problemRef.current && video.current?.videoWidth) setReady(true); return; }
+      // Depois de um erro (ex.: permissão negada), só se tenta outra vez ao voltar à app (as definições podem ter mudado).
+      if (problemRef.current && ev.type !== 'visibilitychange') return;
       void start();
     };
+    const pageHide = () => away();
     window.addEventListener('focus', back);
     document.addEventListener('visibilitychange', back);
-    return () => { window.removeEventListener('focus', back); document.removeEventListener('visibilitychange', back); };
-  }, [start]);
-  const openGallery = () => { pausedForPicker.current = true; releaseCamera(0); setReady(false); };
+    document.addEventListener('visibilitychange', away);
+    window.addEventListener('pagehide', pageHide);
+    return () => {
+      window.removeEventListener('focus', back);
+      document.removeEventListener('visibilitychange', back);
+      document.removeEventListener('visibilitychange', away);
+      window.removeEventListener('pagehide', pageHide);
+    };
+  }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
+  const openGallery = () => { pausedForPicker.current = true; releaseCamera(0); stopOwn(); setReady(false); };
 
   const pickLook = (n: number) => {
     setLook(n);
@@ -611,50 +940,80 @@ export function TxCamera({
     return () => clearTimeout(t);
   }, [lookName]);
 
+  // ----- Zoom: o do aparelho quando o browser o dá (Android, alguns iPhone); senão digital (escala do vídeo + recorte).
+  const zl = zoomLimits(caps.zoom);
+  const plan = zoomPlan(zoom, caps.zoom);
+  const digital = plan.digital;
+  const pills = zoomPills(caps.zoom);
+  const setZoomC = (z: number) => setZoom(Math.min(zl.max, Math.max(zl.min, z)));
+  const zoomRef = useRef({ caps, zl });
+  zoomRef.current = { caps, zl };
+  useEffect(() => { if (plan.hw !== null) zoomPump.set(plan.hw); }, [plan.hw]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function shoot() {
     const v = video.current;
     if (!v || !ready || full || !v.videoWidth) return;
-    const vtrack = stream.current?.getVideoTracks()[0];
-    let torchOn = false;
-    if (light) {
-      if (canTorch && vtrack) {
-        try { await vtrack.applyConstraints({ advanced: [{ torch: true } as MediaTrackConstraintSet] }); torchOn = true; } catch { /* sem lanterna: ecrã aceso */ }
-      }
-      if (!torchOn) setLit(true);
-      await new Promise((r) => setTimeout(r, 420));
+    const t = track();
+    const front = facing === 'user';
+    // Foto inteira do sensor (ImageCapture, Chrome no Android). No layout não vale a pena: a composição é 1080×1350.
+    let ic: ImageCap | null = null;
+    if (layout === null && t && !icBroken) {
+      if (!imageCap.current) { imageCap.current = imageCaptureFor(t); icUsedAt = Date.now(); }
+      ic = imageCap.current;
     }
-    const c = document.createElement('canvas');
-    const g = c.getContext('2d')!;
-    const cell = layout !== null ? cellRects()[cells.length] : cap.w > 0 ? cap : null;
-    if (cell) {
-      // Recorta do sensor exatamente o que a moldura (ou a célula ativa do layout) mostra no visor (o visor é "cover" com o zoom).
-      const k = Math.max(card.w / v.videoWidth, card.h / v.videoHeight) * zoom;
-      const vx0 = (v.videoWidth - card.w / k) / 2, vy0 = (v.videoHeight - card.h / k) / 2;
-      const sx = vx0 + (cell.x - card.x) / k, sy = vy0 + (cell.y - card.y) / k, sw = cell.w / k, sh = cell.h / k;
-      c.width = Math.round(sw);
-      c.height = Math.round(sh);
-      if (facing === 'user') { g.translate(c.width, 0); g.scale(-1, 1); g.drawImage(v, v.videoWidth - sx - sw, sy, sw, sh, 0, 0, c.width, c.height); }
-      else g.drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
-    } else {
-      // Zoom: recorta o centro do sensor na proporção do zoom (o mesmo que se vê no visor).
-      const sw = Math.round(v.videoWidth / zoom), sh = Math.round(v.videoHeight / zoom);
-      c.width = sw;
-      c.height = sh;
-      if (facing === 'user') { g.translate(c.width, 0); g.scale(-1, 1); } // selfie: sai como a viste (espelhada)
-      g.drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, sw, sh);
+    const realFlash = light && !!ic && caps.flash && !front;
+    let torch = false, screen = false;
+    if (light && !realFlash) {
+      if (caps.torch && t) { await setTorch(true); torch = torchOn.current; }
+      if (!torch && front) { setLit(true); screen = true; } // sem lanterna, a câmara da frente usa o ecrã como flash
+      if (torch || screen) await sleep(420);
     }
-    applyLook(c, LOOKS[look]);
+    // O que o visor mostra (a moldura, ou a célula ativa do layout), em píxeis reais do vídeo: cover + zoom + espelho.
+    const vw = v.videoWidth, vh = v.videoHeight;
+    const view = card.w > 0 ? card : { x: 0, y: 0, w: vw, h: vh };
+    const cell = layout !== null ? cellRects()[cells.length] : null;
+    const crop = coverCrop(vw, vh, view, cell ?? view, digital, front);
+    const c = grabFrame(v, crop, front);
+    // Para conferir a foto em alta: o mesmo retângulo do vídeo, pequeno e cinzento (sem espelho nem filtro).
+    const tw = 32, th = Math.max(8, Math.min(96, Math.round((32 * crop.h) / crop.w)));
+    const ref = ic && !screen ? grayThumb(v, crop, tw, th) : null;
     setLit(false);
-    if (torchOn && vtrack) vtrack.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] }).catch(() => undefined);
     buzz(15);
     setShotK((n) => n + 1);
+    const lk = LOOKS[look];
+    let job: Promise<HTMLCanvasElement | null> | null = null;
+    if (ic && ref) {
+      const cam = ic;
+      job = (async () => {
+        // As capacidades da foto (resolução máxima, flash): lidas uma vez, na primeira foto.
+        if (!photoCaps.current && cam.getPhotoCapabilities) {
+          photoCaps.current = await withTimeout(cam.getPhotoCapabilities(), 2000).catch(() => null);
+          const fl = !!photoCaps.current?.fillLightMode?.includes('flash');
+          setCaps((c) => (c.flash === fl ? c : { ...c, flash: fl }));
+        }
+        icUsedAt = Date.now();
+        const pc = photoCaps.current;
+        const set: Record<string, unknown> = {};
+        if (pc?.imageWidth?.max && pc?.imageHeight?.max) { set.imageWidth = pc.imageWidth.max; set.imageHeight = pc.imageHeight.max; }
+        if (pc?.fillLightMode?.length) set.fillLightMode = realFlash ? 'flash' : pc.fillLightMode.includes('off') ? 'off' : pc.fillLightMode[0];
+        return capturePhoto(cam, set, crop, vw, vh, ref, tw, th, front);
+      })()
+        .then((hq) => { if (hq) applyLook(hq, lk); return hq; })
+        .catch(() => null)
+        .finally(() => { if (torch) void setTorch(false); });
+    } else if (torch) void setTorch(false);
+    applyLook(c, lk);
     if (layout !== null) return addCell(c);
     openReview(c);
+    if (job) {
+      const id = shotId.current;
+      hqJob.current = { id, p: job };
+      void job.then((hq) => { if (hq) upgradeSource(id, hq); });
+    }
   }
 
-  // ----- Geometria do ecrã: visor inteiro; a moldura fica entre a barra de cima e os controlos de baixo quando cabe.
-  const card = { x: 0, y: 0, w: area.w, h: area.h };
-  const ctrlH = 84 + 40 + (kinds ? 46 : 0) + Math.max(insets.bottom, 14) + 6;
+  // ----- Geometria do ecrã: a moldura fica entre a barra de cima e os controlos de baixo quando cabe.
+  const ctrlH = 84 + 44 + (kinds ? 46 : 0) + Math.max(insets.bottom, 14) + 6;
   const zoneTop = topPad + 56, zoneBot = Math.max(zoneTop + 120, area.h - ctrlH);
   const cap = (() => {
     if (!area.w || !area.h) return { x: 0, y: 0, w: 0, h: 0 };
@@ -669,6 +1028,10 @@ export function TxCamera({
     const w = Math.max(120, Math.min(area.w - 24, 560, (zoneBot - zoneTop - 16) / 1.25));
     return { x: (area.w - w) / 2, y: zoneTop + Math.max(0, (zoneBot - zoneTop - w * 1.25) / 2), w, h: w * 1.25 };
   })();
+  // O visor é a própria moldura: o vídeo cobre-a (object-fit: cover), por isso a foto sai com a resolução inteira do
+  // vídeo (antes o vídeo cobria o ecrã todo e a moldura só apanhava o meio dele).
+  const card = layout !== null && area.w > 0 ? frame : cap.w > 0 ? cap : { x: 0, y: 0, w: area.w, h: area.h };
+  const inset = card.w < area.w - 1 || card.h < area.h - 1;
   function cellRects(): { x: number; y: number; w: number; h: number }[] {
     if (layout === null) return [];
     return LAYOUTS[layout].cells.map(([cx, cy, cw, ch]) => ({ x: frame.x + cx * frame.w + GAP / 2, y: frame.y + cy * frame.h + GAP / 2, w: cw * frame.w - GAP, h: ch * frame.h - GAP }));
@@ -737,45 +1100,92 @@ export function TxCamera({
     if (list.length >= rects.length) void finishLayout(list);
   }
 
-  /** Foca no ponto tocado (0–1 no visor), se a câmara e o browser o permitirem. Sem suporte, fica só o círculo. */
-  function focusOn(nx: number, ny: number) {
-    const t = stream.current?.getVideoTracks()[0];
-    if (!t?.getCapabilities) return;
-    const caps = t.getCapabilities() as MediaTrackCapabilities & { focusMode?: string[]; pointsOfInterest?: unknown };
-    if (!caps.focusMode?.length) return;
-    const x = facing === 'user' ? 1 - nx : nx;
-    const fm = caps.focusMode.includes('single-shot') ? 'single-shot' : caps.focusMode.includes('continuous') ? 'continuous' : null;
-    if (!fm) return;
-    void t.applyConstraints({ advanced: [{ focusMode: fm, pointsOfInterest: [{ x, y: ny }] } as unknown as MediaTrackConstraintSet] }).catch(() => undefined);
+  /**
+   * Foca (e mede a luz) no ponto tocado, se a câmara e o browser o permitirem. O ponto passa do visor para o sensor
+   * com as mesmas contas do recorte (cover + zoom + espelho). Sem suporte fica só o quadrado.
+   */
+  function focusAtPoint(x: number, y: number, w: number, h: number) {
+    const t = track();
+    const v = video.current;
+    if (!t || !v?.videoWidth || !caps.focus) return;
+    const p = tapToPoint(x, y, w, h, v.videoWidth, v.videoHeight, digital, facing === 'user');
+    const set: Record<string, unknown> = { pointsOfInterest: [p] };
+    if (caps.focusMode) set.focusMode = caps.focusMode;
+    void t.applyConstraints({ advanced: [set as MediaTrackConstraintSet] }).catch(() => undefined);
+  }
+  /** O deslize da exposição fica à vista uns segundos depois de cada toque. */
+  function showExpo() {
+    if (!caps.exposure) return;
+    setExpoOn(true);
+    clearTimeout(expoTimer.current);
+    expoTimer.current = setTimeout(() => setExpoOn(false), 3500);
+  }
+  function changeExpo(tv: number) {
+    setExpo(tv);
+    showExpo();
+    if (caps.exposure) expoPump.set(exposureValue(tv, caps.exposure));
   }
 
-  function record() {
-    if (recording) return recorder.current?.stop();
+  /** O dedo ainda quer gravar (largar o obturador enquanto o microfone acorda cancela a gravação). */
+  const recWanted = useRef(false);
+  function stopRec() {
+    recWanted.current = false;
+    const r = recorder.current;
+    if (r && r.state !== 'inactive') { try { r.stop(); } catch { /* já parou */ } }
+  }
+  async function record() {
+    if (recording || recorder.current?.state === 'recording') return stopRec();
     const s = stream.current;
     if (!s || !ready || typeof MediaRecorder === 'undefined') return;
-    const type = recorderType();
-    const r = new MediaRecorder(s, type ? { mimeType: type } : undefined);
+    recWanted.current = true;
+    // O som: se o microfone caiu (chamada, outra app, voltar de segundo plano), pede-se outra vez; sem ele grava-se sem som, com aviso.
+    if (!s.getAudioTracks().some((x) => x.readyState === 'live')) {
+      s.getAudioTracks().forEach((x) => s.removeTrack(x));
+      try { (await withTimeout(navigator.mediaDevices.getUserMedia({ audio: true }), 2500)).getAudioTracks().forEach((x) => s.addTrack(x)); } catch { /* sem microfone */ }
+      if (!recWanted.current || stream.current !== s) return;
+    }
+    const hasAudio = s.getAudioTracks().some((x) => x.readyState === 'live');
+    // O zoom digital não entra no vídeo (é só a escala do visor): volta a 1× para o que se vê ser o que se grava.
+    if (!caps.zoom && zoom > 1) setZoom(1);
+    if (light && caps.torch) void setTorch(true);
+    const type = pickRecorderType((t) => MediaRecorder.isTypeSupported(t), IOS);
+    const vs = s.getVideoTracks()[0]?.getSettings?.() ?? {};
+    const opts: MediaRecorderOptions = { videoBitsPerSecond: videoBitrate(vs.width, vs.height, vs.frameRate) };
+    if (hasAudio) opts.audioBitsPerSecond = 128_000;
+    if (type) opts.mimeType = type;
+    // Se o browser recusar alguma opção, tenta com menos (no fim, as escolhas dele): gravar nunca pode falhar por isto.
+    let made: MediaRecorder | null = null;
+    for (const o of [opts, type ? { mimeType: type } : null, { videoBitsPerSecond: opts.videoBitsPerSecond }, undefined]) {
+      if (o === null) continue;
+      try { made = new MediaRecorder(s, o); break; } catch { /* a seguinte */ }
+    }
+    if (!made) return;
+    const r = made;
     chunks.current = [];
-    r.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
+    r.ondataavailable = (e) => { if (e.data.size) chunks.current.push(e.data); };
     r.onstop = () => {
       clearInterval(timer.current);
       setRecording(false);
       setSeconds(0);
       setRecMs(0);
-      const mime = (r.mimeType || type || 'video/mp4').split(';')[0];
+      setMute(false);
+      if (torchOn.current) void setTorch(false);
+      const mime = recorderFile(r.mimeType || type).type;
       const blob = new Blob(chunks.current, { type: mime });
+      chunks.current = [];
       if (blob.size) setReview({ uri: URL.createObjectURL(blob), video: true, mime, durationMs: Date.now() - startedAt.current });
     };
     recorder.current = r;
+    try { r.start(1000); } catch { recorder.current = null; return; }
     startedAt.current = Date.now();
-    r.start(1000);
+    setMute(!hasAudio);
     setRecording(true);
     buzz(10);
     timer.current = setInterval(() => {
-      const t = Math.floor((Date.now() - startedAt.current) / 1000);
-      setSeconds(t);
-      setRecMs(Date.now() - startedAt.current);
-      if (t >= MAX_VIDEO_S && r.state === 'recording') r.stop();
+      const ms = Date.now() - startedAt.current;
+      setSeconds(Math.floor(ms / 1000));
+      setRecMs(ms);
+      if (ms >= MAX_VIDEO_S * 1000 && r.state === 'recording') r.stop();
     }, 100);
   }
 
@@ -806,7 +1216,10 @@ export function TxCamera({
     if (!sl || !holding.current) return;
     const y = 'touches' in ev ? ev.touches[0]?.clientY : (ev as PointerEvent).clientY;
     if (typeof y !== 'number') return;
-    setZoom(Math.min(5, Math.max(1, sl.z + (sl.y - y) / 90)));
+    // Só com o zoom do aparelho (o digital não entra no vídeo).
+    const { caps: c, zl: l } = zoomRef.current;
+    if (!c.zoom) return;
+    setZoom(Math.min(l.max, Math.max(l.min, sl.z + (sl.y - y) / 90)));
   }).current;
   const stopSlide = () => {
     slide.current = null;
@@ -820,17 +1233,17 @@ export function TxCamera({
     slide.current = { y: e?.nativeEvent?.pageY ?? 0, z: zoom };
     window.addEventListener('touchmove', onSlide, { passive: true });
     window.addEventListener('pointermove', onSlide);
-    holdT.current = setTimeout(() => { holding.current = true; setHint(false); record(); }, 350);
+    holdT.current = setTimeout(() => { holding.current = true; setHint(false); void record(); }, 350);
   }
   function pressOut() {
     clearTimeout(holdT.current);
     stopSlide();
-    if (holding.current) { holding.current = false; if (recorder.current?.state === 'recording') recorder.current.stop(); return; }
+    if (holding.current) { holding.current = false; stopRec(); return; }
     press();
   }
   function press() {
     if (countdown !== null) { clearInterval(countTimer.current); return setCountdown(null); }
-    if (recording) return record();
+    if (recording) return stopRec();
     const fire = () => void shootRef.current();
     if (!delay || recording) return fire();
     let n: number = delay;
@@ -847,12 +1260,13 @@ export function TxCamera({
   async function saveReview() {
     const r = review;
     if (!r) return;
+    if (!r.video) await settleHq();
     const src = reviewSrc.current;
     const blob: Blob | null = !r.video && src
       ? await new Promise<Blob | null>((res) => renderEdit(src, finalEdit()).toBlob(res, 'image/jpeg', 0.92))
       : await (await fetch(r.uri)).blob();
     if (!blob) return;
-    const f = new File([blob], `txillapp-${Date.now()}.${r.video ? (r.mime.includes('webm') ? 'webm' : 'mp4') : 'jpg'}`, { type: blob.type || r.mime });
+    const f = new File([blob], `txillapp-${Date.now()}.${r.video ? recorderFile(r.mime).ext : 'jpg'}`, { type: blob.type || r.mime });
     try {
       if (navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f] }); return; }
     } catch (e) {
@@ -867,9 +1281,11 @@ export function TxCamera({
     setTimeout(() => URL.revokeObjectURL(a.href), 8000);
   }
   /** Usar: a foto sai do original em tamanho inteiro, com as mesmas contas da pré-visualização. */
-  function acceptReview() {
+  const [saving, setSaving] = useState(false);
+  async function acceptReview() {
     const r = review;
-    if (!r) return;
+    if (!r || saving) return;
+    if (!r.video && hqJob.current) { setSaving(true); await settleHq(); setSaving(false); }
     const src = reviewSrc.current;
     if (!r.video && src) {
       renderEdit(src, finalEdit()).toBlob((blob) => {
@@ -881,17 +1297,30 @@ export function TxCamera({
     }
     setReview(null); setTool(null); onShot(r);
   }
-  const retake = () => { pending.current = null; renderSeq.current += 1; setReview(null); setFreeCrop(false); };
+  const retake = () => { pending.current = null; renderSeq.current += 1; shotId.current += 1; hqJob.current = null; setReview(null); setFreeCrop(false); };
 
-  const mm = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  const left = MAX_VIDEO_S - seconds;
   const mirror = facing === 'user' ? 'scaleX(-1)' : 'none';
   const fill = { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover' };
   const bottomPad = Math.max(insets.bottom, 14) + 6;
-  const showFlash = canTorch || facing === 'user'; // sem lanterna, a câmara da frente usa o ecrã como flash
+  // Flash a sério (ImageCapture), lanterna, ou, na câmara da frente, o ecrã como flash. Sem nada disto, não aparece.
+  const showFlash = canTorch || facing === 'user' || caps.flash;
+  const flashLabel = caps.flash && facing !== 'user' ? 'Flash' : canTorch ? 'Lanterna' : 'Flash de ecrã';
   const guide = layout !== null ? frame : cap; // onde fica a grelha dos terços
   // Na edição: o painel de baixo (área do slider/filtros + fila de ferramentas) e o espaço da foto por cima.
   const panelH = 10 + 88 + 78 + Math.max(insets.bottom, 10);
   const adj = tool && tool !== 'look' && tool !== 'crop' ? tool : null;
+
+  /** O <video> do visor: muted e playsinline também como atributos (o React só põe a propriedade, e o iPhone olha para o atributo). */
+  const videoRef = useCallback((el: HTMLVideoElement | null) => {
+    video.current = el;
+    if (!el) return;
+    el.muted = true;
+    el.defaultMuted = true;
+    el.setAttribute('muted', '');
+    el.setAttribute('playsinline', '');
+    el.setAttribute('webkit-playsinline', '');
+  }, []);
 
   return (
     <View style={st.root} accessibilityViewIsModal onLayout={(e: LayoutChangeEvent) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
@@ -899,7 +1328,7 @@ export function TxCamera({
       {dom(
         'div',
         {
-          style: { position: 'absolute', left: card.x, top: card.y, width: card.w, height: card.h, backgroundColor: '#111', touchAction: 'none', overflow: 'hidden' },
+          style: { position: 'absolute', left: card.x, top: card.y, width: card.w, height: card.h, backgroundColor: '#111', touchAction: 'none', overflow: 'hidden', borderRadius: inset && layout === null ? 12 : 0 },
           onTouchStart: (e: TouchEvent) => {
             if (e.touches.length === 2) {
               pinch.current = { d: Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY), z: zoom };
@@ -908,9 +1337,10 @@ export function TxCamera({
           },
           onTouchMove: (e: TouchEvent) => {
             const p = pinch.current;
-            if (p && e.touches.length === 2) {
+            // A gravar, só o zoom do aparelho (o digital não fica no vídeo).
+            if (p && e.touches.length === 2 && !(recording && !caps.zoom)) {
               const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-              setZoom(Math.min(5, Math.max(1, p.z * (d / p.d))));
+              setZoomC(p.z * (d / p.d));
             }
           },
           onTouchEnd: (e: TouchEvent & { currentTarget: HTMLElement }) => {
@@ -933,19 +1363,25 @@ export function TxCamera({
             lastTap.current = now;
             const b = e.currentTarget.getBoundingClientRect();
             const x = e.changedTouches[0].clientX - b.left, y = e.changedTouches[0].clientY - b.top;
-            focusOn(x / b.width, y / b.height);
+            focusAtPoint(x, y, b.width, b.height);
             setFocusAt({ x, y, k: now });
+            showExpo();
             clearTimeout(focusTimer.current);
-            focusTimer.current = setTimeout(() => setFocusAt(null), 900);
+            focusTimer.current = setTimeout(() => setFocusAt(null), 1200);
           },
         },
-        dom('video', { key: `v${vkey}`, ref: video, playsInline: true, muted: true, autoPlay: true, onResize: onVideoResize, style: { ...fill, transform: `${mirror === 'none' ? '' : mirror + ' '}scale(${zoom})`, filter: lookCss(LOOKS[look]), visibility: ready ? 'visible' : 'hidden', transition: 'filter 180ms' } }),
-        focusAt && dom('div', { key: `f${focusAt.k}`, style: { position: 'absolute', left: focusAt.x - 36, top: focusAt.y - 36, width: 72, height: 72, borderRadius: 36, border: '2px solid #fff', boxShadow: '0 0 0 1px rgba(0,0,0,0.25)', pointerEvents: 'none', zIndex: 3, animation: 'txfocus 900ms ease-out forwards' } }),
-        focusAt && dom('style', { key: 'fk' }, '@keyframes txfocus{0%{transform:scale(1.5);opacity:0}15%{transform:scale(1);opacity:1}70%{opacity:1}100%{transform:scale(.92);opacity:0}}'),
+        // playsinline + muted (iPhone: sem isto o vídeo abre em ecrã inteiro ou não arranca); cover a encher o visor.
+        dom('video', {
+          key: `v${vkey}`, ref: videoRef, playsInline: true, muted: true, autoPlay: true, disablePictureInPicture: true, onResize: onVideoResize, 'aria-hidden': true,
+          style: { ...fill, transform: `${mirror === 'none' ? '' : mirror + ' '}scale(${digital})`, filter: lookCss(LOOKS[look]), visibility: ready ? 'visible' : 'hidden', transition: 'filter 180ms' },
+        }),
+        // O quadrado do foco (amarelo, como na câmara do iPhone): encolhe até ao ponto e apaga-se.
+        focusAt && dom('div', { key: `f${focusAt.k}`, style: { position: 'absolute', left: focusAt.x - 38, top: focusAt.y - 38, width: 76, height: 76, borderRadius: 4, border: '1.5px solid #ffd60a', boxShadow: '0 0 0 1px rgba(0,0,0,0.2)', pointerEvents: 'none', zIndex: 3, animation: 'txfocus 1200ms ease-out forwards' } }),
+        focusAt && dom('style', { key: 'fk' }, '@keyframes txfocus{0%{transform:scale(1.45);opacity:0}14%{transform:scale(1);opacity:1}24%{transform:scale(1.04)}34%{transform:scale(1)}75%{opacity:1}100%{opacity:0}}'),
         LOOKS[look].tint && dom('div', { key: 'tint', style: { position: 'absolute', inset: 0, pointerEvents: 'none', backgroundColor: `rgba(${LOOKS[look].tint!.join(',')})` } }),
         layout !== null && area.w > 0 && dom(
           'div',
-          { key: 'frame', style: { position: 'absolute', left: frame.x - card.x, top: frame.y - card.y, width: frame.w, height: frame.h, pointerEvents: 'none', boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)', borderRadius: 6 } },
+          { key: 'frame', style: { position: 'absolute', left: frame.x - card.x, top: frame.y - card.y, width: frame.w, height: frame.h, pointerEvents: 'none', borderRadius: 6 } },
           ...cellRects().map((r, i) =>
             dom('div', {
               key: i,
@@ -963,13 +1399,8 @@ export function TxCamera({
       {/* Sombras suaves em cima e em baixo, para os controlos se lerem sobre qualquer cena. */}
       <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, top: 0, height: topPad + 90, backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)', zIndex: 1 })} />
       <View pointerEvents="none" style={web({ position: 'absolute', left: 0, right: 0, bottom: 0, height: ctrlH + 90, backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)', zIndex: 1 })} />
-      {/* O que a foto vai apanhar: fora da moldura fica escurecido; a grelha dos terços, se ligada. */}
+      {/* A grelha dos terços, se ligada (o visor já é a moldura: o que se vê é o que sai). */}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 2 }]}>
-        {layout === null && cap.w > 0 && (cap.w < area.w - 1 || cap.h < area.h - 1) ? (
-          <>
-            <View style={web({ position: 'absolute', left: cap.x, top: cap.y, width: cap.w, height: cap.h, borderRadius: 12, boxShadow: '0 0 0 9999px rgba(0,0,0,0.42)' })} />
-          </>
-        ) : null}
         {grid && ready && guide.w > 0 ? (
           <View style={{ position: 'absolute', left: guide.x, top: guide.y, width: guide.w, height: guide.h }}>
             {[1, 2].map((n) => <View key={`v${n}`} style={[st.gridLine, { left: (guide.w * n) / 3, top: 0, bottom: 0, width: StyleSheet.hairlineWidth * 2 }]} />)}
@@ -979,13 +1410,21 @@ export function TxCamera({
       </View>
       {lit ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', zIndex: 11 }]} /> : null}
       {/* O clarão de cada foto: acende e apaga-se depressa (relança-se com a chave). */}
-      {shotK > 0 ? dom('div', { key: `shot${shotK}`, style: { position: 'absolute', inset: 0, backgroundColor: '#fff', pointerEvents: 'none', zIndex: 12, opacity: 0, animation: 'txshot 340ms ease-out' } }) : null}
-      {shotK > 0 ? dom('style', { key: 'shotk' }, '@keyframes txshot{0%{opacity:.9}100%{opacity:0}}') : null}
+      {shotK > 0 ? dom('div', { key: `shot${shotK}`, style: { position: 'absolute', inset: 0, backgroundColor: '#fff', pointerEvents: 'none', zIndex: 12, opacity: 0, animation: 'txshot 220ms ease-out' } }) : null}
+      {shotK > 0 ? dom('style', { key: 'shotk' }, '@keyframes txshot{0%{opacity:.85}100%{opacity:0}}') : null}
 
       {/* Em cima, só o essencial: fechar à esquerda; à direita o Feito, o flash e as opções. */}
       <View style={[st.top, { paddingTop: topPad + 6 }]}>
         <Pressable onPress={onClose} style={st.round} accessibilityRole="button" accessibilityLabel="Fechar câmara"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
-        {recording ? <View style={st.rec}><View style={st.recDot} /><Text style={st.recText}>{mm}</Text></View> : null}
+        {recording ? (
+          <View style={{ alignItems: 'center', gap: 6 }}>
+            <View style={[st.rec, left <= 5 && { backgroundColor: 'rgba(239,68,68,0.85)' }]} accessibilityRole="timer" accessibilityLabel={`A gravar: ${seconds} de ${MAX_VIDEO_S} segundos`}>
+              <View style={[st.recDot, left <= 5 && { backgroundColor: '#fff' }]} />
+              <Text style={st.recText}>{clock(seconds)}<Text style={{ color: 'rgba(255,255,255,0.6)' }}> / {clock(MAX_VIDEO_S)}</Text></Text>
+            </View>
+            {mute ? <Text style={st.recNote}>Sem som: o microfone não está disponível</Text> : null}
+          </View>
+        ) : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {!recording && count > 0 && onDone && layout === null ? (
             <Pressable onPress={onDone} style={[st.doneBtn, { height: 44 }]} accessibilityRole="button" accessibilityLabel={`${doneLabel}, ${count}`}>
@@ -993,8 +1432,8 @@ export function TxCamera({
               <View style={st.doneCount}><Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{count}</Text></View>
             </Pressable>
           ) : null}
-          {!recording && showFlash ? (
-            <Pressable onPress={() => setLight((v) => !v)} style={[st.round, light && { backgroundColor: '#fcd34d' }]} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={canTorch ? 'Lanterna' : 'Flash de ecrã'}>
+          {(recording ? canTorch : showFlash) ? (
+            <Pressable onPress={() => { const on = !light; setLight(on); if (recording) void setTorch(on); }} style={[st.round, light && { backgroundColor: '#fcd34d' }]} accessibilityRole="button" accessibilityState={{ selected: light }} accessibilityLabel={recording ? 'Lanterna' : flashLabel}>
               <View>
                 <Icon name="bolt" size={22} solid={light} color={light ? colors.zinc900 : '#fff'} />
                 {!light && <View pointerEvents="none" style={{ position: 'absolute', top: 10, left: -3, height: 2, borderRadius: 1, width: 28, backgroundColor: '#fff', transform: [{ rotate: '-45deg' }] }} />}
@@ -1026,17 +1465,52 @@ export function TxCamera({
       {!ready && (
         <View style={st.center}>
           {problem === null ? (
-            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 16 }}>A acordar a câmara…</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 16 }} accessibilityLiveRegion="polite">A acordar a câmara…</Text>
           ) : (
-            <View style={{ alignItems: 'center', paddingHorizontal: 32 }}>
-              <Icon name="alert" size={48} color="rgba(255,255,255,0.7)" />
-              <Text style={st.pTitle}>{problem === 'denied' ? 'Sem permissão para a câmara' : problem === 'unsupported' ? 'A câmara precisa de ligação segura' : 'Não consegui abrir a câmara'}</Text>
-              <Text style={st.pSub}>{problem === 'denied' ? 'Ativa a câmara nas definições do browser, ou escolhe da galeria.' : 'Podes sempre escolher da galeria.'}</Text>
-              <GalleryPick onFiles={(f) => void fillFromFiles(f)} onOpen={openGallery} style={st.open}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Abrir galeria</Text></GalleryPick>
+            <View style={{ alignItems: 'center', paddingHorizontal: 28, maxWidth: 440 }}>
+              <Icon name={problem === 'denied' ? 'lock' : 'alert'} size={44} color="rgba(255,255,255,0.75)" />
+              <Text style={st.pTitle} accessibilityRole="header">{PROBLEM_TEXT[problem].title}</Text>
+              <Text style={st.pSub}>{PROBLEM_TEXT[problem].sub}</Text>
+              {problem === 'denied' ? (
+                <View style={st.steps}>
+                  {permissionSteps(browserNow()).map((t, i) => (
+                    <View key={i} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+                      <View style={st.stepN}><Text style={{ color: '#fff', fontSize: 12, fontWeight: '800' }}>{i + 1}</Text></View>
+                      <Text style={st.stepText}>{t}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginTop: 20 }}>
+                {problem !== 'nocamera' && problem !== 'unsupported' && problem !== 'insecure' ? (
+                  <Pressable onPress={() => void start()} style={st.retry} accessibilityRole="button" accessibilityLabel="Tentar outra vez">
+                    <Icon name="repeat" size={18} color="#fff" />
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Tentar outra vez</Text>
+                  </Pressable>
+                ) : null}
+                <GalleryPick onFiles={(f) => void fillFromFiles(f)} onOpen={openGallery} style={st.open}><Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Abrir galeria</Text></GalleryPick>
+              </View>
             </View>
           )}
         </View>
       )}
+
+      {/* A exposição (só quando a câmara a deixa mexer): aparece depois de tocar para focar. */}
+      {expoOn && caps.exposure && ready && !review ? (
+        <View style={[st.expo, { bottom: ctrlH + 4 }]}>
+          <Icon name="sun" size={18} color="#ffd60a" strokeWidth={2} />
+          {dom('input', {
+            type: 'range', min: -100, max: 100, step: 1, value: Math.round(expo * 100), 'aria-label': 'Exposição',
+            'aria-valuetext': exposureLabel(exposureValue(expo, caps.exposure)),
+            onChange: (ev: { target: HTMLInputElement }) => changeExpo(Number(ev.target.value) / 100),
+            onDoubleClick: () => changeExpo(0),
+            style: { flex: 1, minWidth: 0, accentColor: '#ffd60a', height: 44, margin: 0, cursor: 'pointer', touchAction: 'pan-x' },
+          })}
+          <Pressable onPress={() => changeExpo(0)} style={st.expoVal} accessibilityRole="button" accessibilityLabel={`Exposição ${exposureLabel(exposureValue(expo, caps.exposure))}. Toca para repor`}>
+            <Text style={{ color: '#ffd60a', fontWeight: '800', fontSize: 13, fontVariant: ['tabular-nums'] }}>{exposureLabel(exposureValue(expo, caps.exposure))}</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {/* Em baixo: layout (se aberto), escolhidas, zoom, os modos e a fila galeria · obturador · virar. */}
       <View style={[st.bottom, { paddingBottom: bottomPad }]}>
@@ -1066,27 +1540,37 @@ export function TxCamera({
           <Text style={st.hint} pointerEvents="none">Toca para foto · mantém para vídeo</Text>
         ) : null}
         {full ? <Text style={st.full} accessibilityRole="alert">Máximo de {max} fotos</Text> : null}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, minHeight: 30 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 }}>
           {layout !== null && !recording ? (
             <View style={st.layoutPill}>
               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{cells.length}/{LAYOUTS[layout].cells.length}</Text>
-              <Pressable onPress={cells.length ? undoCell : leaveLayout} hitSlop={8} accessibilityRole="button" accessibilityLabel={cells.length ? 'Tirar a última foto do layout' : 'Sair do layout'}>
+              <Pressable onPress={cells.length ? undoCell : leaveLayout} style={st.pillBtn} accessibilityRole="button" accessibilityLabel={cells.length ? 'Tirar a última foto do layout' : 'Sair do layout'}>
                 <Icon name={cells.length ? 'undo' : 'x'} size={18} color="#fff" strokeWidth={2.2} />
               </Pressable>
             </View>
           ) : null}
-          {ready ? (
-            <Pressable onPress={() => setZoom((z) => (z > 1.02 ? 1 : 2))} style={st.zoomPill} accessibilityRole="button" accessibilityLabel={zoom > 1.02 ? 'Repor zoom' : 'Aproximar 2 vezes'}>
-              <Text style={st.zoomText}>{zoom > 1.02 ? `${zoom.toFixed(1)}×` : '1×'}</Text>
-            </Pressable>
+          {/* Pílulas do zoom (1×, 2×; 0,5× com grande-angular): a acesa mostra o zoom exato, como no iPhone. A gravar sem zoom do aparelho, escondem-se. */}
+          {ready && !(recording && !caps.zoom) ? (
+            <View style={st.zoomRow} accessibilityRole="radiogroup" accessibilityLabel="Zoom">
+              {pills.map((p) => {
+                const on = activePill(zoom, pills) === p;
+                return (
+                  <Pressable key={p} onPress={() => { setZoomC(p); buzz(6); }} style={st.zoomBtn} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`Zoom ${zoomLabel(on ? zoom : p)}`}>
+                    <View style={[st.zoomPill, on && st.zoomPillOn]}>
+                      <Text style={[st.zoomText, !on && { color: '#fff' }]}>{on ? zoomLabel(zoom) : zoomLabel(p).replace('×', '')}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
           ) : null}
         </View>
         {kinds ? (
-          <View style={{ height: 34, marginBottom: 12, alignSelf: 'stretch' }}>
+          <View style={{ height: 44, marginBottom: 2, alignSelf: 'stretch' }}>
             {!recording ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.kinds} accessibilityRole="tablist">
                 {kinds.map((k) => (
-                  <Pressable key={k.id} onPress={() => onKind?.(k.id)} style={st.kindChip} accessibilityRole="tab" accessibilityState={{ selected: kind === k.id }} hitSlop={6}>
+                  <Pressable key={k.id} onPress={() => onKind?.(k.id)} style={st.kindChip} accessibilityRole="tab" accessibilityState={{ selected: kind === k.id }} accessibilityLabel={k.label}>
                     <Text style={[st.kindText, kind === k.id && st.kindOn]}>{k.label.toUpperCase()}</Text>
                     <View style={[st.kindDot, kind !== k.id && { opacity: 0 }]} />
                   </Pressable>
@@ -1136,7 +1620,7 @@ export function TxCamera({
             <Pressable onPress={retake} style={st.round} accessibilityRole="button" accessibilityLabel="Repetir"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <Pressable onPress={() => void saveReview()} style={st.round} accessibilityRole="button" accessibilityLabel="Guardar no aparelho"><Icon name="download" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
-              <Pressable onPress={acceptReview} style={st.okBtn} accessibilityRole="button" accessibilityLabel={review.video ? 'Usar vídeo' : 'Usar foto'}><Icon name="check" size={24} color="#fff" strokeWidth={3} /></Pressable>
+              <Pressable onPress={() => void acceptReview()} disabled={saving} style={[st.okBtn, saving && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ busy: saving }} accessibilityLabel={review.video ? 'Usar vídeo' : saving ? 'A preparar a foto' : 'Usar foto'}><Icon name={saving ? 'loader' : 'check'} size={24} color="#fff" strokeWidth={3} /></Pressable>
             </View>
           </View>
           <View style={{ position: 'absolute', left: 0, right: 0, top: topPad + 62, bottom: review.video ? Math.max(insets.bottom, 16) : panelH }}>
@@ -1275,25 +1759,36 @@ const st = StyleSheet.create({
   delayBadge: { position: 'absolute', right: -4, bottom: -4, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   delayText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   rec: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 14, paddingVertical: 8 },
+  recNote: { color: '#fff', fontSize: 12, fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden' },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#ef4444' },
   recText: { color: '#fff', fontWeight: '700', fontSize: 15, fontVariant: ['tabular-nums'] },
   center: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   fxName: { color: '#fff', fontSize: 22, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.35)', paddingHorizontal: 18, paddingVertical: 8, overflow: 'hidden' },
   countText: { fontSize: 120, fontWeight: '900', color: '#fff', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 20 },
   pTitle: { marginTop: 12, color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' },
-  pSub: { marginTop: 4, color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center' },
-  open: { marginTop: 20, height: 48, borderRadius: 24, backgroundColor: colors.brand, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
-  tool: { width: 40, height: 40, borderRadius: 20 },
+  pSub: { marginTop: 6, color: 'rgba(255,255,255,0.75)', fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  steps: { marginTop: 16, gap: 10, alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 14, padding: 14 },
+  stepN: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  stepText: { flex: 1, color: '#fff', fontSize: 14, lineHeight: 20 },
+  retry: { height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.16)', paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  expo: { position: 'absolute', left: 24, right: 24, zIndex: 4, height: 48, flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'center', maxWidth: 420, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.5)', paddingLeft: 14 },
+  expoVal: { width: 56, height: 44, alignItems: 'center', justifyContent: 'center' },
+  open: { height: 48, borderRadius: 24, backgroundColor: colors.brand, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
+  tool: { width: 44, height: 44, borderRadius: 22 },
   gridLine: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.45)' },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 3, alignItems: 'center' },
   looks: { paddingHorizontal: 16, gap: 6, alignItems: 'center' },
-  lookChip: { height: 30, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', paddingHorizontal: 13, alignItems: 'center', justifyContent: 'center' },
+  lookChip: { height: 44, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', paddingHorizontal: 13, alignItems: 'center', justifyContent: 'center' },
   lookOn: { backgroundColor: '#fff' },
-  layoutChip: { height: 40, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
-  layoutPill: { height: 30, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 12 },
+  layoutChip: { height: 44, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
+  layoutPill: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.45)', paddingLeft: 14 },
+  pillBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   lookText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  zoomPill: { minWidth: 40, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
-  zoomText: { color: '#fcd34d', fontSize: 13, fontWeight: '800' },
+  zoomRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.3)', paddingHorizontal: 2 },
+  zoomBtn: { minWidth: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  zoomPill: { minWidth: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.35)', paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
+  zoomPillOn: { minWidth: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.6)' },
+  zoomText: { color: '#fcd34d', fontSize: 12, fontWeight: '800' },
   row: { width: '100%', maxWidth: 520, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 28 },
   side: { width: 64, alignItems: 'flex-start' },
   shutter: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center' },
@@ -1303,12 +1798,12 @@ const st = StyleSheet.create({
   hint: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600', marginBottom: 10 },
   thumb: { width: 44, height: 44, borderRadius: 8, overflow: 'hidden', borderWidth: 2, borderColor: colors.brand, backgroundColor: '#222' },
   kinds: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingHorizontal: 12 },
-  kindChip: { height: 34, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  kindChip: { height: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', gap: 4 },
   kindDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.brand },
   galleryThumb: { width: 48, height: 48, borderRadius: 24, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.38)' },
   flipBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.38)', alignItems: 'center', justifyContent: 'center' },
-  cropOk: { height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: colors.brand, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  cropIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  cropOk: { height: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.brand, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  cropIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   kindText: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '700', letterSpacing: 0.8, textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 4 },
   kindOn: { color: '#fff' },
   doneBtn: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 23, backgroundColor: colors.brand, paddingHorizontal: 16 },
@@ -1320,7 +1815,7 @@ const st = StyleSheet.create({
   toolCircle: { width: 48, height: 48, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)', backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
   toolDot: { position: 'absolute', top: 3, right: 3, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand },
   toolText: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '700' },
-  valPill: { minWidth: 52, height: 28, borderRadius: 14, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  valPill: { minWidth: 56, height: 44, borderRadius: 22, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   valText: { color: '#fff', fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums'] },
   adjNote: { color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: '600', textAlign: 'center', paddingHorizontal: 32 },
 });
