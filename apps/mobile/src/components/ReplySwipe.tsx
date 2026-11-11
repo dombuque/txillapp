@@ -9,6 +9,7 @@ import {
   REPLY_FAIL_X, REPLY_FAIL_Y, REPLY_ICON, REPLY_START_X, REPLY_LOCK_PX,
   fromLeftEdge, replyArmed, replyLock, replyProgress, replyPull,
 } from '@/lib/replySwipe';
+import { HOLD_MS, holdStill } from '@/lib/messageMenu';
 import { claimSwipe } from '@/lib/swipeClaim';
 import { colors } from '@/lib/theme';
 
@@ -24,6 +25,11 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   /** O que segue o dedo (o alinhamento, o recuo do avatar, o destaque). */
   innerStyle?: StyleProp<ViewStyle>;
+  /**
+   * Web: abrir o menu da mensagem ao segurar o dedo em qualquer ponto dela (temporizador próprio, além do onLongPress dos
+   * Pressable) e com o botão direito do rato. No telemóvel quem abre é o onLongPress dos Pressable da bolha.
+   */
+  onMenu?: () => void;
   children: ReactNode;
 };
 
@@ -162,23 +168,47 @@ const dom = (r: { current: HTMLElement | null }) => r.current;
  *   rola, o toque do Pressable é cancelado e lib/swipeClaim fica a saber); para cima/baixo ou para a esquerda fica tudo
  *   com o browser (rolar, selecionar texto), sem preventDefault;
  * - um gesto que nasce na borda esquerda (REPLY_EDGE) é do Safari (voltar) e não mexe.
+ * Segurar (o menu da mensagem), sobretudo para o Safari do iPhone e a PWA no ecrã principal:
+ * - em ecrãs de toque a mensagem não tem seleção de texto nem o menu do sistema (`user-select` e `-webkit-touch-callout`
+ *   a none): segurar no texto ou na foto abria a lupa, a seleção ou o "Copiar/Guardar imagem" do Safari, e a seleção
+ *   (selectionchange) cancelava o toque do react-native-web antes de o menu abrir;
+ * - um temporizador próprio (HOLD_MS, cancela se o dedo andar mais de HOLD_SLOP, se deslizar para responder, ao largar
+ *   ou ao rolar) abre o menu esteja o dedo onde estiver na mensagem; o onLongPress dos Pressable continua, e a bolha só
+ *   abre o menu uma vez por toque (lib/messageMenu, recentlyHeld). Não há preventDefault antes de o gesto ser da bolha;
+ * - `contextmenu`: o botão direito do rato abre o menu; o do toque longo (Android) só se impede (o menu já abriu).
  */
-function WebReplySwipe({ enabled, onReply, spot, style, innerStyle, children }: Props) {
+function WebReplySwipe({ enabled, onReply, spot, style, innerStyle, onMenu, children }: Props) {
   const box = useRef<HTMLElement>(null);
   const front = useRef<HTMLElement>(null);
   const icon = useRef<HTMLElement>(null);
   const pop = useRef<HTMLElement>(null);
-  const on = useRef({ enabled, onReply });
-  on.current = { enabled, onReply };
+  const on = useRef({ enabled, onReply, onMenu });
+  on.current = { enabled, onReply, onMenu };
 
   useEffect(() => {
     const el = dom(box);
     if (!el) return;
     el.style.touchAction = 'pan-y pinch-zoom';
+    // Ecrã de toque: sem seleção de texto nem menu do sistema na mensagem (o "Copiar" está no menu da mensagem).
+    const touchScreen = typeof window !== 'undefined' && !window.matchMedia?.('(pointer: fine)').matches;
+    if (touchScreen) {
+      const css = el.style as CSSStyleDeclaration & { webkitUserSelect?: string; webkitTouchCallout?: string };
+      css.userSelect = 'none';
+      css.webkitUserSelect = 'none';
+      css.webkitTouchCallout = 'none';
+    }
     let x = 0;
     let armed = false;
     let g: { x0: number; y0: number; mode: 'wait' | 'reply' | 'off' } | null = null;
     let quietUntil = 0;
+    /** Segurar: o temporizador e onde o dedo pousou. */
+    let hold: { t: ReturnType<typeof setTimeout>; x0: number; y0: number } | null = null;
+    let held = false;
+    let lastTouch = 0;
+    const dropHold = () => {
+      if (hold) clearTimeout(hold.t);
+      hold = null;
+    };
 
     const paint = (to: number, animate: boolean) => {
       x = to;
@@ -209,6 +239,21 @@ function WebReplySwipe({ enabled, onReply, spot, style, innerStyle, children }: 
 
     const start = (e: TouchEvent) => {
       g = null;
+      dropHold();
+      held = false;
+      lastTouch = Date.now();
+      if (e.touches.length === 1 && on.current.onMenu) {
+        const t0 = e.touches[0];
+        hold = {
+          x0: t0.clientX,
+          y0: t0.clientY,
+          t: setTimeout(() => {
+            hold = null;
+            held = true;
+            on.current.onMenu?.();
+          }, HOLD_MS),
+        };
+      }
       if (!on.current.enabled || e.touches.length !== 1) {
         if (x) paint(0, true);
         return;
@@ -218,6 +263,10 @@ function WebReplySwipe({ enabled, onReply, spot, style, innerStyle, children }: 
       g = { x0: t.clientX, y0: t.clientY, mode: 'wait' };
     };
     const move = (e: TouchEvent) => {
+      if (hold) {
+        const h = e.touches[0];
+        if (!h || e.touches.length !== 1 || !holdStill(h.clientX - hold.x0, h.clientY - hold.y0)) dropHold();
+      }
       if (!g || g.mode === 'off') return;
       const t = e.touches[0];
       const dx = t.clientX - g.x0;
@@ -230,6 +279,7 @@ function WebReplySwipe({ enabled, onReply, spot, style, innerStyle, children }: 
           return;
         }
         g.mode = 'reply';
+        dropHold();
         cancelPress();
         claimSwipe();
       }
@@ -238,6 +288,9 @@ function WebReplySwipe({ enabled, onReply, spot, style, innerStyle, children }: 
       paint(replyPull(dx - REPLY_LOCK_PX), false);
     };
     const end = () => {
+      dropHold();
+      // Abriu o menu ao segurar: o clique que o browser manda a seguir não é um toque (hora, abrir a foto, o mapa).
+      if (held) quietUntil = Date.now() + 450;
       const gg = g;
       g = null;
       if (gg?.mode !== 'reply') return;
@@ -247,8 +300,21 @@ function WebReplySwipe({ enabled, onReply, spot, style, innerStyle, children }: 
       if (go) on.current.onReply();
     };
     const cancel = () => {
+      dropHold();
       if (g?.mode === 'reply') paint(0, true);
       g = null;
+    };
+    /** A lista rolou: já não é segurar. */
+    const scrolled = () => dropHold();
+    /** Botão direito do rato: o menu da mensagem. Toque longo (Android): o menu já abriu por segurar; só se impede o do browser. */
+    const context = (e: MouseEvent) => {
+      if (!on.current.onMenu) return;
+      e.preventDefault();
+      if (Date.now() - lastTouch < 1500) {
+        if (!held && !hold) on.current.onMenu();
+        return;
+      }
+      on.current.onMenu();
     };
     /** Depois de deslizar, o clique que o browser ainda manda não conta como toque. */
     const swallow = (e: MouseEvent) => {
@@ -263,7 +329,12 @@ function WebReplySwipe({ enabled, onReply, spot, style, innerStyle, children }: 
     el.addEventListener('touchend', end);
     el.addEventListener('touchcancel', cancel);
     el.addEventListener('click', swallow, true);
+    el.addEventListener('contextmenu', context);
+    window.addEventListener('scroll', scrolled, true);
     return () => {
+      dropHold();
+      el.removeEventListener('contextmenu', context);
+      window.removeEventListener('scroll', scrolled, true);
       el.removeEventListener('touchstart', start);
       el.removeEventListener('touchmove', move);
       el.removeEventListener('touchend', end);

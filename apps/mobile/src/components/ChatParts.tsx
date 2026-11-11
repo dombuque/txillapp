@@ -1,10 +1,13 @@
+import { useQueryClient } from '@tanstack/react-query';
+import * as Clipboard from 'expo-clipboard';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Icon } from '@/components/Icon';
+import { Icon, type IconName } from '@/components/Icon';
 import { ReportSheet } from '@/components/ReportSheet';
 import { Sheet } from '@/components/Sheet';
 import { REACTIONS, ReactionArt } from '@/components/StoryParts';
 import { api, raw } from '@/lib/api';
+import { applyDeletionToPages, applyEditToPages, copyText, deleteChoices, messageOptions, type DeleteMode } from '@/lib/messageMenu';
 import { colors } from '@/lib/theme';
 import type { Msg } from './ChatBubbles';
 
@@ -25,9 +28,49 @@ export const unreact = (id: string): Promise<void> => raw(`/chat/messages/${id}/
 export const sendTyping = (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/typing`, { method: 'POST', body: '{}' }) as Promise<void>;
 export const stopLiveShare = (id: string): Promise<void> => raw(`/chat/messages/${id}/live`, { method: 'DELETE' }) as Promise<void>;
 
-/** Menu de uma mensagem (carregar e segurar): reações, responder, apagar para todos (as minhas) ou denunciar (as dos outros). */
-export function MessageMenu({ m, onClose, onReply, onDone, onError }: { m: Msg; onClose: () => void; onReply: (m: Msg) => void; onDone: () => void; onError: (e: string) => void }) {
-  const [report, setReport] = useState(false);
+/** A chave da conversa no react-query: ['chat-thread', username] ou ['chat-group', id]. */
+export type ChatCacheKey = readonly unknown[];
+
+/**
+ * Gravar a edição de uma mensagem: mostra logo o texto novo (otimista), grava no servidor e põe a conversa em dia.
+ * Se falhar, volta ao que estava e lança o erro do servidor (ex.: "Já passaram 15 minutos…").
+ */
+export async function saveEdit(qc: ReturnType<typeof useQueryClient>, cacheKey: ChatCacheKey, id: string, body: string) {
+  const before = qc.getQueryData(cacheKey);
+  qc.setQueryData(cacheKey, (d: unknown) => applyEditToPages(d, id, body));
+  try {
+    await api.chatEdit(id, body.trim());
+  } catch (e) {
+    if (before !== undefined) qc.setQueryData(cacheKey, before);
+    throw e;
+  } finally {
+    void qc.invalidateQueries({ queryKey: cacheKey });
+    void qc.invalidateQueries({ queryKey: ['chat-list'] });
+    void qc.invalidateQueries({ queryKey: ['chat-groups'] });
+  }
+}
+
+/**
+ * Menu de uma mensagem (carregar e segurar), como no WhatsApp: reações, responder, copiar, editar (as minhas de texto, nos
+ * primeiros 15 minutos), apagar e denunciar (as dos outros). As opções vêm de lib/messageMenu (minha/outra, tempo e tipo).
+ * Apagar pede sempre confirmação ("Apagar mensagem?": para todos, só nas minhas; para mim, em qualquer uma; cancelar).
+ * `start="delete"` abre logo a confirmação (a ação "Apagar" do leitor de ecrã).
+ */
+export function MessageMenu({ m, cacheKey, start, onClose, onReply, onEdit, onDone, onError }: {
+  m: Msg;
+  /** A conversa no react-query, para apagar sem esperar pelo servidor. */
+  cacheKey: ChatCacheKey;
+  start?: 'delete';
+  onClose: () => void;
+  onReply: (m: Msg) => void;
+  /** "Editar": a conversa abre a barra de edição com o texto. */
+  onEdit?: (m: Msg) => void;
+  onDone: () => void;
+  onError: (e: string) => void;
+}) {
+  const qc = useQueryClient();
+  const [step, setStep] = useState<'menu' | 'delete' | 'report'>(start === 'delete' ? 'delete' : 'menu');
+  const opts = messageOptions(m);
   async function react(id: string, already: boolean) {
     onClose();
     try {
@@ -38,13 +81,54 @@ export function MessageMenu({ m, onClose, onReply, onDone, onError }: { m: Msg; 
       onError((e as Error).message);
     }
   }
-  async function remove() {
+  async function remove(mode: DeleteMode) {
     onClose();
-    await api.chatDelete(m.id).catch((e) => onError((e as Error).message));
+    // Sai (ou fica o aviso) logo; se o servidor recusar, volta como estava e diz porquê.
+    const before = qc.getQueryData(cacheKey);
+    void qc.cancelQueries({ queryKey: cacheKey });
+    qc.setQueryData(cacheKey, (d: unknown) => applyDeletionToPages(d, m.id, mode));
+    try {
+      if (mode === 'all') await api.chatDelete(m.id);
+      else await api.chatHide(m.id);
+      onError('');
+    } catch (e) {
+      if (before !== undefined) qc.setQueryData(cacheKey, before);
+      onError(`Não consegui apagar a mensagem: ${(e as Error).message}`);
+    }
     onDone();
+    void qc.invalidateQueries({ queryKey: ['chat-list'] });
+    void qc.invalidateQueries({ queryKey: ['chat-groups'] });
   }
-  if (report) return <ReportSheet type="message" id={m.id} onClose={() => { setReport(false); onClose(); }} />;
-  const row = (icon: 'reply' | 'trash' | 'flag', title: string, sub: string | null, run: () => void, danger = false) => (
+  async function copy() {
+    onClose();
+    await Clipboard.setStringAsync(copyText(m)).catch(() => onError('Não consegui copiar o texto.'));
+  }
+
+  if (step === 'report') return <ReportSheet type="message" id={m.id} onClose={() => { setStep('menu'); onClose(); }} />;
+
+  if (step === 'delete') {
+    const choices = deleteChoices(opts);
+    const btn = (label: string, run: () => void, tone: 'danger' | 'plain') => (
+      <Pressable key={label} onPress={run} style={({ pressed }) => [st.askBtn, { backgroundColor: tone === 'danger' ? (pressed ? '#fee2e2' : '#fef2f2') : pressed ? colors.zinc200 : colors.zinc100 }]} accessibilityRole="button">
+        <Text style={[st.askBtnText, { color: tone === 'danger' ? '#b91c1c' : colors.zinc800 }]}>{label}</Text>
+      </Pressable>
+    );
+    return (
+      <Sheet title="Apagar mensagem?" onClose={onClose}>
+        <View style={{ paddingHorizontal: 20 }}>
+          <Text style={st.askText}>
+            {opts.deleteForAll
+              ? '"Apagar para todos" tira-a da conversa para toda a gente (fica o aviso "Esta mensagem foi apagada"). "Apagar para mim" tira-a só da tua conversa.'
+              : 'Sai só da tua conversa: os outros continuam a vê-la.'}
+          </Text>
+          {choices.map((c) => (c === 'all' ? btn('Apagar para todos', () => void remove('all'), 'danger') : btn('Apagar para mim', () => void remove('me'), 'danger')))}
+          {btn('Cancelar', onClose, 'plain')}
+        </View>
+      </Sheet>
+    );
+  }
+
+  const row = (icon: IconName, title: string, sub: string | null, run: () => void, danger = false) => (
     <Pressable key={title} onPress={run} style={({ pressed }) => [st.row, pressed && { backgroundColor: danger ? '#fef2f2' : colors.zinc100 }]} accessibilityRole="button">
       <View style={[st.rowIcon, danger && { backgroundColor: '#fef2f2' }]}><Icon name={icon} size={22} color={danger ? '#b91c1c' : colors.zinc800} /></View>
       <View style={{ flex: 1 }}>
@@ -56,20 +140,23 @@ export function MessageMenu({ m, onClose, onReply, onDone, onError }: { m: Msg; 
   return (
     <Sheet title="Mensagem" onClose={onClose}>
       <View style={{ paddingHorizontal: 20 }}>
-        <View style={st.reacts} accessibilityRole="toolbar" accessibilityLabel="Reagir">
-          {REACTIONS.map((r) => {
-            const mine = !!m.reactions?.some((x) => x.mine && x.reaction === r.id);
-            return (
-              <Pressable key={r.id} onPress={() => void react(r.id, mine)} accessibilityRole="button" accessibilityLabel={r.label} accessibilityState={{ selected: mine }} style={({ pressed }) => [st.react, mine && { backgroundColor: 'rgba(214,51,79,0.15)', borderWidth: 2, borderColor: 'rgba(214,51,79,0.4)' }, pressed && { transform: [{ scale: 0.9 }] }]}>
-                <ReactionArt body={r.id} size={34} />
-              </Pressable>
-            );
-          })}
-        </View>
-        {row('reply', 'Responder', null, () => { onClose(); onReply(m); })}
-        {m.fromMe
-          ? row('trash', 'Apagar para todos', 'Desaparece da conversa, sem deixar rasto.', () => void remove(), true)
-          : row('flag', 'Denunciar mensagem', 'Avisa a moderação. A pessoa não sabe.', () => setReport(true))}
+        {opts.react && (
+          <View style={st.reacts} accessibilityRole="toolbar" accessibilityLabel="Reagir">
+            {REACTIONS.map((r) => {
+              const mine = !!m.reactions?.some((x) => x.mine && x.reaction === r.id);
+              return (
+                <Pressable key={r.id} onPress={() => void react(r.id, mine)} accessibilityRole="button" accessibilityLabel={r.label} accessibilityState={{ selected: mine }} style={({ pressed }) => [st.react, mine && { backgroundColor: 'rgba(214,51,79,0.15)', borderWidth: 2, borderColor: 'rgba(214,51,79,0.4)' }, pressed && { transform: [{ scale: 0.9 }] }]}>
+                  <ReactionArt body={r.id} size={34} />
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+        {opts.reply && row('reply', 'Responder', null, () => { onClose(); onReply(m); })}
+        {opts.copy && row('file-text', 'Copiar', null, () => void copy())}
+        {opts.edit && onEdit && row('pencil', 'Editar', 'Até 15 minutos depois de enviar.', () => { onClose(); onEdit(m); })}
+        {opts.deleteForMe && row('trash', 'Apagar', opts.deleteForAll ? 'Para todos ou só para ti.' : 'Só para ti.', () => setStep('delete'), true)}
+        {opts.report && row('flag', 'Denunciar mensagem', 'Avisa a moderação. A pessoa não sabe.', () => setStep('report'))}
       </View>
     </Sheet>
   );
@@ -114,6 +201,9 @@ const st = StyleSheet.create({
   rowIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   rowTitle: { fontSize: 17, fontWeight: '600', color: colors.zinc900 },
   rowSub: { fontSize: 14, color: colors.zinc600 },
+  askText: { paddingHorizontal: 4, paddingBottom: 12, fontSize: 15, lineHeight: 21, color: colors.zinc600 },
+  askBtn: { height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  askBtnText: { fontSize: 17, fontWeight: '600' },
   request: { borderTopWidth: 1, borderTopColor: colors.zinc100, paddingHorizontal: 16, paddingTop: 12 },
   requestText: { textAlign: 'center', fontSize: 14, lineHeight: 19, color: colors.zinc700 },
   btn: { flex: 1, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

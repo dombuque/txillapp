@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { useBubbleHold } from '@/components/bubbleHold';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 import { groupKeys, groupsApi, type GroupPlan, type Poll } from '@/lib/api.groups';
@@ -20,6 +21,8 @@ export function usePlan(id: string, enabled = true) {
 /** Sondagem: tocar numa opção vota (ou tira o voto); barras com a percentagem; quem criou ou um admin pode fechar. */
 export function PollView({ poll, groupId, me, admin, compact = false }: { poll: Poll; groupId: string; me: string; admin: boolean; compact?: boolean }) {
   const qc = useQueryClient();
+  // Dentro de uma bolha do chat, segurar uma opção abre o menu da mensagem (fora do chat, no Plano, não faz nada).
+  const hold = useBubbleHold();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   // Fechar não tem volta: pede-se confirmação.
@@ -79,7 +82,7 @@ export function PollView({ poll, groupId, me, admin, compact = false }: { poll: 
         const pct = total ? Math.round((o.votes / total) * 100) : 0;
         const win = poll.closed && o.votes === top && top > 0;
         return (
-          <Pressable key={o.id} onPress={() => void vote(o.id)} disabled={poll.closed} style={({ pressed }) => [st.opt, mine && { borderColor: colors.brand }, pressed && { opacity: 0.8 }]} accessibilityRole={poll.multiple ? 'checkbox' : 'radio'} accessibilityState={{ checked: mine, disabled: poll.closed }} accessibilityLabel={`${o.text}, ${o.votes} votos`}>
+          <Pressable key={o.id} {...hold} onPress={() => void vote(o.id)} disabled={poll.closed} style={({ pressed }) => [st.opt, mine && { borderColor: colors.brand }, pressed && { opacity: 0.8 }]} accessibilityRole={poll.multiple ? 'checkbox' : 'radio'} accessibilityState={{ checked: mine, disabled: poll.closed }} accessibilityLabel={`${o.text}, ${o.votes} votos`}>
             {showResults && <View style={[st.bar, { width: `${pct}%` }, (mine || win) && { backgroundColor: 'rgba(214,51,79,0.16)' }]} />}
             <View style={[st.tick, poll.multiple && { borderRadius: 6 }, mine && { backgroundColor: colors.brand, borderColor: colors.brand }]}>{mine && <Icon name="check" size={12} strokeWidth={3} color="#fff" />}</View>
             <Text style={[st.optText, win && { fontWeight: '800' }]} numberOfLines={2}>{o.text}</Text>
@@ -89,7 +92,7 @@ export function PollView({ poll, groupId, me, admin, compact = false }: { poll: 
       })}
       <ErrText text={err} />
       {!poll.closed && (admin || poll.createdBy === me) && (
-        <Pressable onPress={() => { setErr(''); setAsking(true); }} disabled={busy} style={{ alignSelf: 'flex-start', paddingVertical: 4 }} accessibilityRole="button">
+        <Pressable {...hold} onPress={() => { setErr(''); setAsking(true); }} disabled={busy} style={{ alignSelf: 'flex-start', paddingVertical: 4 }} accessibilityRole="button">
           <Text style={{ fontSize: 13, fontWeight: '700', color: colors.zinc600 }}>Fechar a sondagem</Text>
         </Pressable>
       )}

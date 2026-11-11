@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Linking, Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { bubbleLines } from '@/lib/sendLocation';
+import { useBubbleHold } from './bubbleHold';
 import { Icon } from './Icon';
 
 /**
@@ -16,13 +17,15 @@ export function LocationBubble({ m, ink, style, map, onLongPress }: {
   map: ReactNode;
   onLongPress?: () => void;
 }) {
+  // O mesmo segurar das outras bolhas (components/bubbleHold): um só menu por toque, também na web/iPhone.
+  const hold = useBubbleHold();
   const l = bubbleLines(m);
   const muted = ink === '#fff' ? 'rgba(255,255,255,0.85)' : '#52525b';
   return (
     <Pressable
+      {...hold}
       onPress={() => void Linking.openURL(`https://www.google.com/maps?q=${m.lat},${m.lng}`)}
-      onLongPress={onLongPress}
-      delayLongPress={450}
+      onLongPress={hold.onLongPress ?? onLongPress}
       style={[style, { overflow: 'hidden' }]}
       accessibilityRole="link"
       accessibilityLabel={`Localização: ${l.title}${l.sub ? `, ${l.sub}` : ''}. Abrir no mapa`}

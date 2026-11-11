@@ -9,8 +9,9 @@ import { Avatar } from '@/components/Avatar';
 import { quoteText, type Msg } from '@/components/ChatBubbles';
 import { ChatComposer } from '@/components/ChatComposer';
 import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus, OnlineDot } from '@/components/ChatHeader';
+import { ChatEditBar } from '@/components/ChatEditBar';
 import { ChatList } from '@/components/ChatList';
-import { MessageMenu, NotFollowingNote, RequestBar, sendTyping, stopLiveShare } from '@/components/ChatParts';
+import { MessageMenu, NotFollowingNote, RequestBar, saveEdit, sendTyping, stopLiveShare } from '@/components/ChatParts';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { Icon } from '@/components/Icon';
 import { api, raw, type ChatThread, type Conversation } from '@/lib/api';
@@ -31,7 +32,10 @@ export default function Thread() {
   const [err, setErr] = useState('');
   const [replying, setReplying] = useState<{ id: string; text: string; who: string } | null>(null);
   const [viewing, setViewing] = useState<{ url: string | null; body: string } | null>(null);
-  const [menuFor, setMenuFor] = useState<Msg | null>(null);
+  // O menu da mensagem (segurar) e, se veio da ação "Apagar" do leitor de ecrã, já na confirmação.
+  const [menuFor, setMenuFor] = useState<{ m: Msg; start?: 'delete' } | null>(null);
+  // A minha mensagem que estou a editar (a barra de escrever passa a ser a de editar).
+  const [editing, setEditing] = useState<Msg | null>(null);
   const [searching, setSearching] = useState(false);
   const [more, setMore] = useState(false);
   const [raised, setRaised] = useState(false);
@@ -222,7 +226,8 @@ export default function Thread() {
         peerAvatar={avatarOf}
         meHandle={user?.username}
         top={!request && rel && !rel.theyFollow && person ? <NotFollowingNote name={firstName} left={rel.left} /> : null}
-        onMenu={setMenuFor}
+        onMenu={(m) => setMenuFor({ m })}
+        onDelete={(m) => setMenuFor({ m, start: 'delete' })}
         onCheer={(m) => void cheer(m)}
         onOpenOnce={(m) => void openOnce(m)}
         onStopLive={(m) => void stopSharing(m)}
@@ -236,12 +241,34 @@ export default function Thread() {
         <Text style={[st.foot, { paddingBottom: Math.max(insets.bottom, 16) }]}>{firstName} ainda não respondeu. Podes escrever outra vez quando responder, aceitar ou te seguir.</Text>
       ) : first?.blocked ? (
         <Text style={[st.foot, { paddingBottom: Math.max(insets.bottom, 16) }]}>Não podes trocar mensagens com esta conta.</Text>
+      ) : editing ? (
+        <ChatEditBar
+          key={editing.id}
+          original={editing.body}
+          bottom={insets.bottom}
+          onCancel={() => setEditing(null)}
+          onSave={async (text) => {
+            await saveEdit(qc, ['chat-thread', username], editing.id, text);
+            setEditing(null);
+          }}
+        />
       ) : (
         <ChatComposer username={username} person={person} onSent={() => void q.refetch()} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} onTyping={onTyping} />
       )}
       {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
 
-      {menuFor && <MessageMenu m={menuFor} onClose={() => setMenuFor(null)} onReply={startReply} onDone={() => void q.refetch()} onError={setErr} />}
+      {menuFor && (
+        <MessageMenu
+          m={menuFor.m}
+          start={menuFor.start}
+          cacheKey={['chat-thread', username]}
+          onClose={() => setMenuFor(null)}
+          onReply={(m) => { setEditing(null); startReply(m); }}
+          onEdit={(m) => { setReplying(null); setEditing(m); }}
+          onDone={() => void q.refetch()}
+          onError={setErr}
+        />
+      )}
       {more && (
         <ChatMenuSheet
           onClose={() => setMore(false)}

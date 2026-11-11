@@ -6,7 +6,7 @@ import { PG_POOL } from '../db/db.module';
 import { PushService } from '../push/push.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
-import { ChatService, Outgoing, type MessageKind } from './chat.service';
+import { ChatService, Outgoing, notHiddenFor, type MessageKind } from './chat.service';
 import { GroupAccess, NO_MAP_PLACE, venueOnMap } from '../groups/group-access';
 import { roundPlace } from '../nearby/geo-sql';
 import { PlanService } from '../groups/plan.service';
@@ -168,11 +168,11 @@ export class GroupsService {
               (SELECT json_agg(t) FROM (SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar"
                   FROM social.group_members x JOIN identity.users u ON u.id = x.user_id WHERE x.group_id = g.id AND x.user_id <> $1 ORDER BY x.joined_at LIMIT 3) t) AS preview,
               CASE WHEN lm.view_once THEN '' WHEN lm.kind = 'poll' THEN (SELECT p.question FROM social.group_polls p WHERE p.id::text = lm.body) ELSE lm.body END AS last_body, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, su.display_name AS last_name,
-              (SELECT count(*) FROM social.messages m WHERE m.group_id = g.id AND m.sender_id <> $1 AND m.deleted_at IS NULL
+              (SELECT count(*) FROM social.messages m WHERE m.group_id = g.id AND m.sender_id <> $1 AND m.deleted_at IS NULL AND ${notHiddenFor('m', '$1')}
                   AND (gm.read_id IS NULL OR m.id > gm.read_id))::int AS unread
          FROM social.group_members gm
          JOIN social.groups g ON g.id = gm.group_id
-         LEFT JOIN LATERAL (SELECT body, kind, sender_id, created_at, view_once FROM social.messages WHERE group_id = g.id AND deleted_at IS NULL ORDER BY id DESC LIMIT 1) lm ON true
+         LEFT JOIN LATERAL (SELECT x.body, x.kind, x.sender_id, x.created_at, x.view_once FROM social.messages x WHERE x.group_id = g.id AND x.deleted_at IS NULL AND ${notHiddenFor('x', '$1')} ORDER BY x.id DESC LIMIT 1) lm ON true
          LEFT JOIN identity.users su ON su.id = lm.sender_id
         WHERE gm.user_id = $1
         ORDER BY COALESCE(lm.created_at, g.created_at) DESC LIMIT 100`,
@@ -212,9 +212,9 @@ export class GroupsService {
       )
     ).rows as { id: string; username: string; displayName: string; hasAvatar: boolean; role: 'admin' | 'member' }[];
     const { rows } = await this.pool.query(
-      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.place_name, m.place_address, m.reply_to, m.created_at, m.view_once,
+      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.place_name, m.place_address, m.reply_to, m.created_at, m.view_once, m.deleted_at, m.edited_at,
               CASE WHEN m.sender_id = $4 THEN EXISTS (SELECT 1 FROM social.message_views v WHERE v.message_id = m.id) ELSE EXISTS (SELECT 1 FROM social.message_views v WHERE v.message_id = m.id AND v.user_id = $4) END AS viewed_at
-         FROM social.messages m WHERE m.group_id = $1 AND m.deleted_at IS NULL AND ($2::uuid IS NULL OR m.id < $2) ORDER BY m.id DESC LIMIT $3`,
+         FROM social.messages m WHERE m.group_id = $1 AND (m.deleted_at IS NULL OR m.deleted_notice) AND ${notHiddenFor('m', '$4')} AND ($2::uuid IS NULL OR m.id < $2) ORDER BY m.id DESC LIMIT $3`,
       [groupId, cursor ?? null, PAGE + 1, me],
     );
     const page = rows.slice(0, PAGE);
@@ -229,7 +229,7 @@ export class GroupsService {
       const s = bySender.get(page[i].sender_id as string);
       return {
         ...it,
-        ...(page[i].kind === 'poll' ? { poll: polls.get(String(page[i].body)) ?? null } : {}),
+        ...(page[i].kind === 'poll' && !page[i].deleted_at ? { poll: polls.get(String(page[i].body)) ?? null } : {}),
         sender: s ? { username: s.username, displayName: s.displayName, hasAvatar: s.hasAvatar } : { username: '', displayName: 'Ex-membro', hasAvatar: false },
       };
     });

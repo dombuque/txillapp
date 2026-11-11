@@ -7,6 +7,7 @@ import { createElement, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
+import { BubbleHoldCtx, useBubbleHold, type BubbleHold } from '@/components/bubbleHold';
 import { ReplySwipe, type ReplySpot } from '@/components/ReplySwipe';
 import { Icon } from '@/components/Icon';
 import { LocationBubble } from '@/components/LocationBubble';
@@ -19,8 +20,16 @@ import { type ChatMessage } from '@/lib/api';
 import { AVATAR, AVATAR_GAP, GAP_IN, GAP_OUT, corners, type Ticks } from '@/lib/chatLayout';
 import { timeLabel } from '@/lib/chatTimeline';
 import { abs, sized } from '@/lib/config';
+import { HOLD_MS, bubbleA11yActions, deletedText, isSent, recentlyHeld } from '@/lib/messageMenu';
 import { canSwipeReply } from '@/lib/replySwipe';
 import { colors } from '@/lib/theme';
+
+/**
+ * O texto das bolhas só é selecionável no computador (rato). No telemóvel (app e site) segurar a bolha abre o menu da
+ * mensagem (com "Copiar"): com texto selecionável, o Android e o Safari do iPhone começavam a selecionar (lupa, "Copiar"
+ * do sistema) em vez de abrir o menu.
+ */
+const SELECTABLE = Platform.OS === 'web' && typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: fine)').matches;
 
 /** Fundo das bolhas da outra pessoa. */
 const OTHER_BG = '#ffffff';
@@ -158,15 +167,16 @@ function VoiceMessage({ m, dim }: { m: Msg; dim: boolean }) {
     if (!w || !len) return;
     try { void player.seekTo((Math.max(0, Math.min(1, x / w)) * len) / 1000); } catch { /* ainda a carregar */ }
   };
+  const hold = useBubbleHold();
   const shown = playing || at > 0 ? at : len;
   const played = mine ? '#fff' : colors.zinc900;
   const rest = mine ? 'rgba(255,255,255,0.35)' : colors.zinc300;
   return (
     <View style={[st.voice, mine ? { backgroundColor: colors.brand } : OTHER_SURFACE, dim && { opacity: 0.7 }]}>
-      <Pressable onPress={toggle} style={[st.voiceBtn, { backgroundColor: mine ? '#fff' : colors.zinc900 }]} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar' : 'Ouvir mensagem de voz'}>
+      <Pressable {...hold} onPress={toggle} style={[st.voiceBtn, { backgroundColor: mine ? '#fff' : colors.zinc900 }]} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar' : 'Ouvir mensagem de voz'}>
         <Icon name={playing ? 'pause' : 'play'} size={19} solid color={mine ? colors.brand : '#fff'} />
       </Pressable>
-      <Pressable onPress={(e) => seek(e.nativeEvent.locationX)} onLayout={(e) => setW(e.nativeEvent.layout.width)} style={st.wave} accessibilityRole="adjustable" accessibilityLabel="Posição da mensagem de voz">
+      <Pressable {...hold} onPress={(e) => seek(e.nativeEvent.locationX)} onLayout={(e) => setW(e.nativeEvent.layout.width)} style={st.wave} accessibilityRole="adjustable" accessibilityLabel="Posição da mensagem de voz">
         {heights.map((h, i) => (
           <View key={i} pointerEvents="none" style={{ flex: 1, minWidth: 2, maxWidth: 4, height: `${Math.round(h * 100)}%`, borderRadius: 999, backgroundColor: (i + 0.5) / BARS <= frac ? played : rest }} />
         ))}
@@ -175,6 +185,7 @@ function VoiceMessage({ m, dim }: { m: Msg; dim: boolean }) {
         <Text style={{ fontSize: 12, lineHeight: 12, fontWeight: '600', fontVariant: ['tabular-nums'], color: mine ? 'rgba(255,255,255,0.9)' : colors.zinc600 }}>{mmss(shown)}</Text>
         {(playing || at > 0 || speed !== 1) && (
           <Pressable
+            {...hold}
             onPress={() => {
               rate = RATES[(RATES.indexOf(rate) + 1) % RATES.length];
               setSpeed(rate);
@@ -196,6 +207,7 @@ function VoiceMessage({ m, dim }: { m: Msg; dim: boolean }) {
 /** Publicação ou reel partilhado numa conversa: miniatura, autor e texto. Tocar abre o post (ou o reel). */
 function SharedPost({ post, radius, tone, ink }: { post: ChatMessage['post']; radius: object; tone: object; ink: string }) {
   const router = useRouter();
+  const hold = useBubbleHold();
   if (!post) {
     return (
       <View style={[st.shared, tone, radius, { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12, opacity: 0.8 }]}>
@@ -210,7 +222,7 @@ function SharedPost({ post, radius, tone, ink }: { post: ChatMessage['post']; ra
   const thumb = m ? (video ? m.posterUrl : sized(m.url, 480)) : null;
   const go = () => router.push((video ? `/reels?start=${shown.id}` : `/p/${shown.code ?? shown.id}`) as never);
   return (
-    <Pressable onPress={go} style={[st.shared, tone, radius, { overflow: 'hidden' }]} accessibilityRole="link">
+    <Pressable {...hold} onPress={go} style={[st.shared, tone, radius, { overflow: 'hidden' }]} accessibilityRole="link">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingTop: 10 }}>
         <Icon name={video ? 'film' : 'image'} size={14} color={ink} />
         <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: ink, opacity: 0.9 }} numberOfLines={1}>{video ? 'TCHEKA' : 'Publicação'} de {shown.author.displayName}</Text>
@@ -286,12 +298,13 @@ export function callLabel(body: string, mine: boolean): { text: string; missed: 
 /** A chamada na conversa: um cartão pequeno com o ícone, o resultado e a hora; tocar liga de volta (o mesmo tipo de chamada). */
 function CallLine({ m, mine, peerHandle }: { m: Msg; mine: boolean; peerHandle?: string }) {
   const { text, missed, video } = callLabel(m.body, mine);
+  const hold = useBubbleHold();
   const back = () => {
     if (!peerHandle) return;
     void import('@/lib/calls').then((c) => c.startCall(peerHandle, video)).catch(() => undefined);
   };
   return (
-    <Pressable onPress={back} style={({ pressed }) => [st.callLine, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={`${text}. Toca para ligar de volta`}>
+    <Pressable {...hold} onPress={back} style={({ pressed }) => [st.callLine, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={`${text}. Toca para ligar de volta`}>
       <View style={[st.callIcon, { backgroundColor: missed ? '#fee2e2' : colors.zinc100 }]}>
         {video ? <Icon name="video" size={18} color={missed ? colors.red600 : colors.zinc800} /> : <CallIcon name={missed ? 'missed' : 'handset'} size={18} color={missed ? colors.red600 : colors.zinc800} />}
       </View>
@@ -311,6 +324,7 @@ function CallLine({ m, mine, peerHandle }: { m: Msg; mine: boolean; peerHandle?:
  */
 function QuotedMedia({ kind, uri, mine, label, onPress }: { kind: 'zas' | 'mimo'; uri: string | null; mine: boolean; label: string; onPress?: () => void }) {
   const [failed, setFailed] = useState(false);
+  const hold = useBubbleHold();
   const zas = kind === 'zas';
   const ok = !!uri && !failed;
   const w = ok ? (zas ? 128 : 90) : 112;
@@ -335,9 +349,10 @@ function QuotedMedia({ kind, uri, mine, label, onPress }: { kind: 'zas' | 'mimo'
     <View style={{ marginBottom: 4, flexDirection: mine ? 'row-reverse' : 'row', alignItems: 'stretch', gap: 6 }}>
       <View style={{ width: 3, borderRadius: 2, backgroundColor: mine ? QUOTE_BAR_MINE : colors.zinc300 }} />
       {onPress && ok ? (
-        <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.85 }} accessibilityRole="button" accessibilityLabel={label}>{pic}</Pressable>
+        <Pressable {...hold} onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.85 }} accessibilityRole="button" accessibilityLabel={label}>{pic}</Pressable>
       ) : (
-        <View accessible accessibilityRole="image" accessibilityLabel={ok ? label : gone}>{pic}</View>
+        // Não abre nada ao tocar, mas segurar abre o menu da mensagem (como no resto da bolha).
+        <Pressable {...hold} accessible accessibilityRole="image" accessibilityLabel={ok ? label : gone}>{pic}</Pressable>
       )}
     </View>
   );
@@ -360,7 +375,7 @@ function SideAvatar({ who }: { who: Who }) {
 
 export function Bubble({
   m, group = false, prevSame, nextSame, first, last, seen = false, ticks, flash = false, peerName, peerHandle, peerHasAvatar = true, meHandle, showAvatars = true,
-  onMenu, onRetry, onOpenOnce, onJump, onCheer, onStopLive, onReply,
+  onMenu, onRetry, onOpenOnce, onJump, onCheer, onStopLive, onReply, onDelete,
 }: {
   m: Msg; group?: boolean;
   /** A mensagem antes/depois (no tempo) é da mesma pessoa e junta-se a esta. */
@@ -383,10 +398,22 @@ export function Bubble({
   showAvatars?: boolean;
   onMenu: (m: Msg) => void; onRetry: (m: Msg) => void; onOpenOnce: (m: Msg) => void;
   onJump?: (id: string) => void; onCheer?: (m: Msg) => void; onStopLive?: (m: Msg) => void; onReply?: (m: Msg) => void;
+  /** Leitor de ecrã, ação "Apagar": abre logo a folha "Apagar mensagem?". */
+  onDelete?: (m: Msg) => void;
 }) {
   const router = useRouter();
   const mine = m.fromMe;
-  const real = !m.id.startsWith('tmp-');
+  const real = isSent(m);
+  const gone = !!m.deleted;
+  // Segurar abre o menu. Pode chegar por mais de um caminho no mesmo toque (o onLongPress de um Pressable de dentro ou da
+  // bolha e, na web, o temporizador e o contextmenu do ReplySwipe): só o primeiro conta (lib/messageMenu, recentlyHeld).
+  const heldAt = useRef(0);
+  const openMenu = () => {
+    if (!real || recentlyHeld(heldAt.current)) return;
+    heldAt.current = Date.now();
+    onMenu(m);
+  };
+  const hold: BubbleHold = real ? { onLongPress: openMenu, delayLongPress: HOLD_MS } : {};
   const [full, setFull] = useState(false);
   const [showTime, setShowTime] = useState(false);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -400,7 +427,8 @@ export function Bubble({
   const tick: Ticks | null = !mine ? null : ticks !== undefined ? ticks : seen ? 'seen' : null;
   // Deslizar para a direita responde (components/ReplySwipe); o ícone fica à esquerda da bolha, à altura do meio dela.
   const swipe = !!onReply && canSwipeReply(m);
-  const reply = () => onReply?.(m);
+  // Depois de segurar (o menu abriu), deslizar no mesmo toque já não responde.
+  const reply = () => { if (!recentlyHeld(heldAt.current)) onReply?.(m); };
   const [spot, setSpot] = useState<ReplySpot | null>(null);
   const rowAt = useRef({ y: 0, h: 0, x: 0 });
   const place = (p: Partial<{ y: number; h: number; x: number }>) => {
@@ -412,12 +440,20 @@ export function Bubble({
   };
 
   let content: React.ReactNode;
-  if (m.viewOnce) {
+  if (gone) {
+    // Apagada para todos: só o aviso cinzento no lugar dela (segurar ainda abre o menu, para "Apagar para mim").
+    content = (
+      <View style={[st.bubble, st.deleted, radius]}>
+        <Icon name="block" size={15} color={colors.zinc500} />
+        <Text style={st.deletedText}>{deletedText(mine)}</Text>
+      </View>
+    );
+  } else if (m.viewOnce) {
     const label = m.opened ? 'Aberta' : mine ? 'Visualização única · por abrir' : m.kind === 'image' ? 'Foto · toca para abrir' : m.kind === 'video' ? 'Vídeo · toca para abrir' : m.kind === 'voice' ? 'Voz · toca para abrir' : 'Mensagem · toca para abrir';
     const surface = m.opened ? OTHER_SURFACE : { backgroundColor: mine ? colors.brand : colors.zinc900 };
     const fg = m.opened ? colors.zinc500 : '#fff';
     content = (
-      <Pressable disabled={mine || !!m.opened || m.state === 'sending'} onPress={() => onOpenOnce(m)} style={({ pressed }) => [st.once, radius, surface, dimStyle, pressed && !mine && !m.opened && { transform: [{ scale: 0.95 }] }]}>
+      <Pressable {...hold} disabled={mine || !!m.opened || m.state === 'sending'} onPress={() => onOpenOnce(m)} style={({ pressed }) => [st.once, radius, surface, dimStyle, pressed && !mine && !m.opened && { transform: [{ scale: 0.95 }] }]}>
         <Icon name="once" size={24} color={fg} />
         <Text style={{ fontSize: 15, fontWeight: '600', color: fg, flexShrink: 1 }}>{label}</Text>
       </Pressable>
@@ -456,10 +492,10 @@ export function Bubble({
           // Vídeo: toca dentro da bolha, com os controlos (play, pausa, som, barra); o botão do canto abre o visor.
           <View style={{ height: 288, width: '100%', backgroundColor: '#000' }}>
             <ChatVideoPlayer url={url} />
-            <Pressable onPress={() => setFull(true)} style={st.expand} accessibilityRole="button" accessibilityLabel="Ver maior"><Icon name="expand" size={18} color="#fff" /></Pressable>
+            <Pressable {...hold} onPress={() => setFull(true)} style={st.expand} accessibilityRole="button" accessibilityLabel="Ver maior"><Icon name="expand" size={18} color="#fff" /></Pressable>
           </View>
         ) : (
-          <Pressable onPress={() => setFull(true)} accessibilityRole="imagebutton" accessibilityLabel="Foto enviada">
+          <Pressable {...hold} onPress={() => setFull(true)} accessibilityRole="imagebutton" accessibilityLabel="Foto enviada">
             <View style={{ height: 288, width: '100%', backgroundColor: colors.zinc200 }}>
               <Image source={{ uri: url }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
             </View>
@@ -485,13 +521,13 @@ export function Bubble({
             </View>
           </View>
         )}
-        <View style={[st.bubble, tone, radius, dimStyle]}><Text selectable style={[st.text, { color: ink }]}>{shown}</Text></View>
+        <View style={[st.bubble, tone, radius, dimStyle]}><Text selectable={SELECTABLE} style={[st.text, { color: ink }]}>{shown}</Text></View>
       </View>
     );
   }
 
   // Um toque mostra/esconde a hora; dois toques seguidos brindam (só nas mensagens já enviadas e que não são de ver uma vez).
-  const canCheer = real && !m.viewOnce && !!onCheer;
+  const canCheer = real && !gone && !m.viewOnce && !!onCheer;
   const onPress = () => {
     if (tapTimer.current) {
       clearTimeout(tapTimer.current);
@@ -519,11 +555,16 @@ export function Bubble({
   const wide = m.kind === 'text' || m.kind === 'story_reply' || m.kind === 'zas_reply';
   // Hora por baixo da última bolha de cada grupo (e, nas minhas, os vistos); tocar numa bolha mostra a hora exata (com o dia).
   const timeText = showTime ? timeLabel(m.at) : isLast ? clock(m.at) : null;
+  // Editada: "editada" discreto ao lado da hora (mesmo nas bolhas do meio, que não mostram a hora).
+  const edited = !!m.edited && !gone;
+  const a11y = bubbleA11yActions({ reply: swipe, remove: real, menu: real });
 
   return (
     <ReplySwipe
       enabled={swipe}
       onReply={reply}
+      // Web: o toque longo em qualquer ponto da mensagem (e o botão direito do rato) também abre o menu.
+      onMenu={real ? openMenu : undefined}
       spot={spot}
       // Uma resposta leva sempre o espaço maior por cima: a citação fica colada à SUA bolha, não à de cima.
       style={{ marginTop: isFirst || m.replyTo ? GAP_OUT : GAP_IN }}
@@ -532,6 +573,7 @@ export function Bubble({
       {group && !mine && isFirst && m.sender && <Text style={{ marginBottom: 2, paddingHorizontal: 14, fontSize: 12, fontWeight: '700', color: senderColor(m.sender.username) }}>{m.sender.displayName.split(' ')[0]}</Text>}
       {m.replyTo && (
         <Pressable
+          {...hold}
           disabled={m.replyTo.gone}
           onPress={() => !m.replyTo!.gone && onJump?.(m.replyTo!.id)}
           hitSlop={{ top: 12, bottom: 6, left: 8, right: 8 }}
@@ -566,21 +608,25 @@ export function Bubble({
       <View style={[st.row, { justifyContent: mine ? 'flex-end' : 'flex-start' }]} onLayout={swipe ? (e) => place({ y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height }) : undefined}>
         {who && isLast && <View style={st.avatar}><SideAvatar who={who} /></View>}
         <Pressable
+          {...hold}
           onPress={onPress}
-          onLongPress={real ? () => onMenu(m) : undefined}
-          delayLongPress={450}
           onLayout={swipe && mine ? (e) => place({ x: e.nativeEvent.layout.x }) : undefined}
           style={{ maxWidth: wide ? '78%' : '100%' }}
-          accessibilityHint={canCheer ? 'Toca para ver a hora, duas vezes para brindar, mantém para mais opções' : 'Toca para ver a hora'}
-          // O mesmo que deslizar para a direita, para quem usa o leitor de ecrã.
-          accessibilityActions={swipe ? [{ name: 'reply', label: 'Responder' }] : undefined}
-          onAccessibilityAction={swipe ? (e) => { if (e.nativeEvent.actionName === 'reply') reply(); } : undefined}
+          accessibilityHint={gone ? 'Mantém para apagar para ti' : canCheer ? 'Toca para ver a hora, duas vezes para brindar, mantém para mais opções' : 'Toca para ver a hora'}
+          // O mesmo que deslizar para a direita e que segurar, para quem usa o leitor de ecrã.
+          accessibilityActions={a11y.length ? a11y : undefined}
+          onAccessibilityAction={a11y.length ? (e) => {
+            const a = e.nativeEvent.actionName;
+            if (a === 'reply') reply();
+            else if (a === 'delete') (onDelete ?? onMenu)(m);
+            else if (a === 'longpress') onMenu(m);
+          } : undefined}
         >
-          {content}
+          <BubbleHoldCtx.Provider value={hold}>{content}</BubbleHoldCtx.Provider>
         </Pressable>
       </View>
       {!!m.reactions?.length && (
-        <Pressable onPress={() => onMenu(m)} accessibilityRole="button" accessibilityLabel="Reações" style={[st.reactions, mine ? { marginRight: 10 } : { marginLeft: 10 }]}>
+        <Pressable {...hold} onPress={() => onMenu(m)} accessibilityRole="button" accessibilityLabel="Reações" style={[st.reactions, mine ? { marginRight: 10 } : { marginLeft: 10 }]}>
           {m.reactions.map((r) => (
             <View key={r.reaction} style={[st.react, r.mine && { backgroundColor: 'rgba(214,51,79,0.1)' }]}>
               <ReactionArt body={r.reaction} size={20} />
@@ -593,20 +639,20 @@ export function Bubble({
         <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 }}>
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: m.live ? '#10b981' : colors.zinc300 }} />
           <Text style={{ fontSize: 12, fontWeight: '600', color: '#047857' }}>{m.live ? `Em direto até às ${clock(m.liveUntil)}` : 'Partilha em direto terminada'}</Text>
-          {m.live && mine && <Pressable onPress={() => onStopLive?.(m)} style={{ borderRadius: 999, backgroundColor: '#fef2f2', paddingHorizontal: 12, paddingVertical: 4 }}><Text style={{ fontSize: 12, fontWeight: '600', color: '#b91c1c' }}>Parar</Text></Pressable>}
+          {m.live && mine && <Pressable {...hold} onPress={() => onStopLive?.(m)} style={{ borderRadius: 999, backgroundColor: '#fef2f2', paddingHorizontal: 12, paddingVertical: 4 }}><Text style={{ fontSize: 12, fontWeight: '600', color: '#b91c1c' }}>Parar</Text></Pressable>}
         </View>
       ) : null}
       {m.state === 'failed' ? (
         <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 }}>
           <Icon name="alert" size={14} color={colors.red600} />
           <Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600 }}>Não enviada</Text>
-          <Pressable onPress={() => onRetry(m)} hitSlop={10}><Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600, textDecorationLine: 'underline' }}>Tentar de novo</Text></Pressable>
+          <Pressable {...hold} onPress={() => onRetry(m)} hitSlop={10}><Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600, textDecorationLine: 'underline' }}>Tentar de novo</Text></Pressable>
         </View>
       ) : m.state === 'sending' ? (
         <Text style={st.time}>A enviar…</Text>
-      ) : timeText ? (
+      ) : timeText || edited ? (
         <View style={st.meta} accessibilityLiveRegion="polite">
-          <Text style={st.time}>{timeText}</Text>
+          <Text style={st.time}>{[timeText, edited ? 'editada' : null].filter(Boolean).join(' · ')}</Text>
           {tick && (isLast || showTime) ? (
             <Text style={[st.ticks, tick === 'seen' && { color: colors.brand }]} accessibilityLabel={tick === 'seen' ? 'Visto' : 'Entregue'}>{tick === 'seen' ? '✓✓' : '✓'}</Text>
           ) : null}
@@ -674,5 +720,7 @@ const st = StyleSheet.create({
   voice: { width: 264, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 999, paddingVertical: 6, paddingLeft: 6, paddingRight: 14 },
   voiceBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   wave: { flex: 1, minWidth: 0, height: 40, flexDirection: 'row', alignItems: 'center', gap: 2 },
+  deleted: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.zinc100, borderWidth: 1, borderColor: colors.zinc200 },
+  deletedText: { fontSize: 14, lineHeight: 20, fontStyle: 'italic', color: colors.zinc500 },
   noteBubble: { maxWidth: '100%', borderRadius: 20, backgroundColor: OTHER_BG, borderWidth: 1, borderColor: '#ececf0', paddingHorizontal: 14, paddingVertical: 10, textAlign: 'center', fontSize: 15, lineHeight: 20.6, fontWeight: '500', color: colors.zinc800, overflow: 'hidden' },
 });

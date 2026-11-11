@@ -20,7 +20,7 @@ export const CHAT_BG = '#f5f6f8';
  */
 export function ChatList({
   items, group = false, loading, hasNext, fetchNext, fetchingNext, typing, seenId, emptyText, emptyTitle, emptyArt, unread = 0, top, peerName, peerHandle, peerAvatar, meHandle,
-  onRaised, onMenu, onCheer, onOpenOnce, onStopLive, onRetry, onReply,
+  onRaised, onMenu, onCheer, onOpenOnce, onStopLive, onRetry, onReply, onDelete,
 }: {
   items: Msg[]; group?: boolean; loading: boolean; hasNext: boolean; fetchNext: () => Promise<unknown> | void; fetchingNext: boolean; typing?: boolean;
   seenId: string | null; emptyText: string; emptyTitle?: string; emptyArt?: ReactNode;
@@ -35,6 +35,8 @@ export function ChatList({
   onMenu: (m: Msg) => void; onCheer: (m: Msg) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onRetry: (m: Msg) => void;
   /** Deslizar uma bolha para a direita responde-lhe (o mesmo que "Responder" no menu). */
   onReply?: (m: Msg) => void;
+  /** Leitor de ecrã, ação "Apagar" de uma bolha: a folha "Apagar mensagem?". */
+  onDelete?: (m: Msg) => void;
 }) {
   const list = useRef<FlatList<Msg>>(null);
   const [away, setAway] = useState(false);
@@ -141,6 +143,7 @@ export function ChatList({
                   onStopLive={onStopLive}
                   onRetry={onRetry}
                   onReply={onReply}
+                  onDelete={onDelete}
                   onJump={(id) => void jumpTo(id)}
                 />
               </View>

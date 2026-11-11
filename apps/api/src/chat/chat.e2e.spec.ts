@@ -179,7 +179,7 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     await api().post('/api/v1/media/uploads').set(auth(cb)).send({ mime: 'audio/webm', size: 10 }).expect(415); // áudio só no chat
   });
 
-  it('apagar mensagem: desaparece para os dois, sem rasto; só quem enviou apaga; a escrever…', async () => {
+  it('apagar mensagem para todos: o conteúdo desaparece para os dois e fica o aviso; só quem enviou apaga; a escrever…', async () => {
     const { ca, cb } = u;
     const sent = (await send(cb, ca, 'mensagem a apagar').expect(201)).body.id;
     await send(cb, ca, 'esta fica').expect(201);
@@ -188,7 +188,9 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     for (const viewer of [ca, cb]) {
       const t = await thread(viewer, viewer === ca ? cb : ca);
       expect(t.items.map((m: { body: string }) => m.body)).not.toContain('mensagem a apagar');
-      expect(JSON.stringify(t)).not.toMatch(/apagad/i); // nada de "Mensagem apagada"
+      expect(JSON.stringify(t)).not.toContain('mensagem a apagar');
+      // No lugar dela, o aviso cinzento ("Apagaste esta mensagem" para quem a apagou).
+      expect(t.items.find((m: { id: string }) => m.id === sent)).toMatchObject({ deleted: true, kind: 'text', body: viewer === cb ? 'Apagaste esta mensagem' : 'Esta mensagem foi apagada' });
     }
     expect((await list(ca)).find((c) => c.username === cb.username)!.lastMessage.body).toBe('esta fica');
     await api().post(`/api/v1/chat/with/${ca.username}/typing`).set(auth(cb)).expect(204);
@@ -370,7 +372,7 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     // Apagar a minha mensagem no grupo.
     const msgId = (await gp(ch, `/${id}`).expect(200)).body.items[1].id as string;
     await api().delete(`/api/v1/chat/messages/${msgId}`).set(auth(ch)).expect(204);
-    expect((await gp(ci, `/${id}`).expect(200)).body.items.some((m: { id: string }) => m.id === msgId)).toBe(false);
+    expect((await gp(ci, `/${id}`).expect(200)).body.items.find((m: { id: string }) => m.id === msgId)).toMatchObject({ deleted: true, body: 'Esta mensagem foi apagada', mediaUrl: null });
   });
 
   it('política de mensagens de quem não se segue: aviso, limite de 3, pedido, aceitar, recusar', async () => {

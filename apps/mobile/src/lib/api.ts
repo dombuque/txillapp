@@ -195,6 +195,10 @@ export interface ChatMessage {
   opened?: boolean;
   replyTo?: { id: string; gone: true } | { id: string; gone: false; fromMe: boolean; name: string; kind: MsgKind; body: string } | null;
   reactions?: { reaction: string; count: number; mine: boolean }[];
+  /** Apagada para todos: o servidor manda só o aviso ("Esta mensagem foi apagada") e nada do que tinha. */
+  deleted?: boolean;
+  /** Editada depois de enviada ("editada" ao lado da hora). */
+  edited?: boolean;
   at: string;
 }
 export interface Presence { online: boolean; lastSeen: string | null }
@@ -594,7 +598,12 @@ export const api = {
   chatThread: (username: string, cursor?: string): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${cursor ? `?cursor=${cursor}` : ''}`),
   chatSend: (username: string, msg: { body?: string; kind?: MsgKind; mediaId?: string; instantId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; name?: string; address?: string; liveMinutes?: 15 | 60 | 480; once?: boolean; replyTo?: string }): Promise<{ id: string }> => raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)),
   chatOpen: (id: string): Promise<{ kind: MsgKind; body: string; mediaUrl: string | null; durationMs: number | null; waveform: string | null }> => raw(`/chat/messages/${id}/open`, post({})),
+  /** Apagar para todos (só as minhas): fica o aviso "Esta mensagem foi apagada". */
   chatDelete: (id: string): Promise<void> => raw(`/chat/messages/${id}`, { method: 'DELETE' }),
+  /** Apagar para mim: só eu deixo de ver esta mensagem (minha ou de outra pessoa; também nos grupos). */
+  chatHide: (id: string): Promise<void> => raw(`/chat/messages/${id}/hide`, post({})),
+  /** Editar a minha mensagem de texto (nos primeiros 15 minutos). */
+  chatEdit: (id: string, body: string): Promise<{ id: string; body: string; edited: true }> => raw(`/chat/messages/${id}`, { method: 'PATCH', body: JSON.stringify({ body }) }),
   /** Marcar a conversa como por ler (só para mim). */
   chatMarkUnread: (username: string): Promise<{ ok: true }> => raw(`/chat/with/${encodeURIComponent(username)}/unread`, post({})),
   /** Apagar a conversa só do meu lado (a outra pessoa continua a ver tudo). */
