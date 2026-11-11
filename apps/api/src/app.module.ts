@@ -44,6 +44,7 @@ import { RemindersModule } from './reminders/reminders.module';
 import { SuperTxillModule } from './supertxill/supertxill.module';
 import { PaymentsModule } from './payments/payments.module';
 import { BoostsModule } from './boosts/boosts.module';
+import { FinModule } from './backoffice/fin.module';
 
 @Module({})
 export class AppModule {
@@ -72,6 +73,7 @@ export class AppModule {
         BackofficeModule,
         PaymentsModule,
         BoostsModule,
+        FinModule,
         MediaModule,
         PushModule,
         NotificationsModule,

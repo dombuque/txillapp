@@ -5,6 +5,8 @@ import { useState } from 'react';
 import BarChart from '../../components/BarChart';
 import Icon from '../../components/Icon';
 import { PageHeader } from './bo';
+import { Funnel, LineChart, SERIES, Sparkline } from './ui/fin-charts';
+import { fmt, Kpi, PeriodPicker } from './ui/fin-ui';
 import { api } from '../../lib/api';
 
 // Limites "bom / a melhorar" dos Core Web Vitals (Google). A cor nunca vai sozinha: leva ícone e texto.
@@ -23,91 +25,81 @@ const LIMITS: Record<string, { good: number; poor: number; unit: string; label: 
 /** Nomes das plataformas (browser/pwa: o site antigo; web/android/ios: a app nova, que também é o site). */
 const PLATFORM: Record<string, string> = { android: 'Android', ios: 'iPhone', web: 'Site (app nova)', pwa: 'Site antigo instalado', browser: 'Site antigo no browser' };
 
-function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-      <p className="text-sm text-zinc-600">{label}</p>
-      <p className="mt-1 text-3xl font-extrabold tabular-nums">{value}</p>
-      {hint && <p className="mt-0.5 text-xs text-zinc-500">{hint}</p>}
-    </div>
-  );
-}
-
 const pct = (v: number | null) => (v === null ? '—' : `${v}%`);
+const pctOf = (a: number, b: number) => (b > 0 ? `${Math.round((a / b) * 1000) / 10}%` : '—');
 
-/** Painel de produto: quem usa, retenção, funil, interação com o feed, desempenho e erros. Só para a moderação. */
+/** Painel de produto: quem usa, retenção, funil, interação com o feed, desempenho e erros. */
 export default function AdminStats() {
-  const [days, setDays] = useState(14);
+  const [days, setDays] = useState(30);
   const q = useQuery({ queryKey: ['admin-stats', days], queryFn: () => api.adminStats(days), retry: false });
   const s = q.data;
+  const dd = s?.series.opens.map((p) => p.day) ?? [];
+  const vals = (x: { value: number }[]) => x.map((p) => p.value);
   return (
     <>
       <PageHeader
         title={tr('Estatísticas')}
         description="Quem usa o Txillapp, retenção, funil, feed, desempenho e erros."
-        actions={
-          <div role="tablist" aria-label={tr('Período')} className="flex gap-1 rounded-lg bg-zinc-200/70 p-1">
-            {[7, 14, 30].map((d) => (
-              <button key={d} role="tab" aria-selected={days === d} onClick={() => setDays(d)} className={`h-8 rounded-md px-4 text-sm font-semibold ${days === d ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-600 hover:text-zinc-900'}`}>
-                {d} {tr('dias')}
-              </button>
-            ))}
-          </div>
-        }
+        actions={<PeriodPicker value={days} onChange={setDays} />}
       />
       <div className="space-y-4">
         {q.isError && <p role="alert" className="py-10 text-center text-zinc-600">{tr('Sem acesso')}</p>}
         {q.isLoading && <LoadingBlock />}
         {s && (
           <>
-            <div className="grid grid-cols-4 gap-4">
-              <Tile label={tr('Contas ativas')} value={String(s.totals.users)} hint={`${s.totals.posts} publicações · ${s.totals.messages} mensagens`} />
-              <Tile label={tr('Ativos hoje (DAU)')} value={String(s.active.dau)} hint={`${s.active.wau} na semana · ${s.active.mau} no mês`} />
-              <Tile label={tr('Voltam no dia 1')} value={pct(s.retention.d1)} hint={`de ${s.retention.d1Base} contas novas`} />
-              <Tile label={tr('Voltam no dia 7')} value={pct(s.retention.d7)} hint={`de ${s.retention.d7Base} contas novas`} />
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <Kpi label={tr('Ativos hoje (DAU)')} value={fmt(s.active.dau)} icon="users" hint={<span className="flex items-center justify-between gap-2"><span>{fmt(s.active.wau)} na semana · {fmt(s.active.mau)} no mês</span><Sparkline values={vals(s.series.opens)} width={72} height={22} /></span>} />
+              <Kpi label={tr('Rácio DAU/MAU')} value={pctOf(s.active.dau, s.active.mau)} icon="repeat" hint="Quanto do mês volta todos os dias" />
+              <Kpi label={tr('Voltam no dia 1')} value={pct(s.retention.d1)} icon="check-circle" tone={s.retention.d1 !== null && s.retention.d1 < 20 ? 'warn' : 'neutral'} hint={`de ${s.retention.d1Base} contas novas`} />
+              <Kpi label={tr('Voltam no dia 7')} value={pct(s.retention.d7)} icon="calendar" tone={s.retention.d7 !== null && s.retention.d7 < 10 ? 'warn' : 'neutral'} hint={`de ${s.retention.d7Base} contas novas`} />
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <BarChart title={tr('Pessoas que abriram a app')} data={s.series.opens} />
-              <BarChart title={tr('Contas novas')} data={s.series.signups} />
+            <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+              <section className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-4" aria-label={tr('Pessoas e contas novas')}>
+                <LineChart title={tr('Pessoas que abriram a app e contas novas')} days={dd} series={[
+                  { label: tr('Abriram a app'), values: vals(s.series.opens), color: SERIES[0] },
+                  { label: tr('Contas novas'), values: vals(s.series.signups), color: SERIES[1] },
+                  ...(s.series.inviteSignups ? [{ label: tr('Por convite'), values: vals(s.series.inviteSignups), color: SERIES[2] }] : []),
+                ]} />
+              </section>
+              <section className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-4" aria-label={tr('Totais')}>
+                <h2 className="font-bold">{tr('Totais')}</h2>
+                <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <dt className="text-zinc-600">{tr('Contas ativas')}</dt><dd className="text-right font-semibold tabular-nums">{fmt(s.totals.users)}</dd>
+                  <dt className="text-zinc-600">{tr('Publicações')}</dt><dd className="text-right font-semibold tabular-nums">{fmt(s.totals.posts)}</dd>
+                  <dt className="text-zinc-600">{tr('Comentários')}</dt><dd className="text-right font-semibold tabular-nums">{fmt(s.totals.comments)}</dd>
+                  <dt className="text-zinc-600">{tr('Mensagens')}</dt><dd className="text-right font-semibold tabular-nums">{fmt(s.totals.messages)}</dd>
+                  <dt className="text-zinc-600">{tr('Seguimentos')}</dt><dd className="text-right font-semibold tabular-nums">{fmt(s.totals.follows)}</dd>
+                </dl>
+                {s.sources && (
+                  <div className="mt-4 border-t border-zinc-100 pt-3">
+                    <p className="text-sm text-zinc-600">{tr('Fonte: convite')}</p>
+                    <p className="text-2xl font-extrabold tabular-nums">{fmt(s.sources.invite.joined)} <span className="text-sm font-semibold text-zinc-500">· {pct(s.sources.invite.share)} {tr('das contas novas')}</span></p>
+                    <p className="mt-0.5 text-xs text-zinc-500">{s.sources.invite.active} ficaram ativas · {s.sources.invite.paid} premiadas · {s.sources.invite.blocked} sem prémio (antifraude)</p>
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <BarChart title={tr('Publicações')} data={s.series.posts} />
               <BarChart title={tr('Brindes')} data={s.series.cheers} />
               <BarChart title={tr('Comentários')} data={s.series.comments} />
               <BarChart title={tr('Mensagens')} data={s.series.messages} />
-              {s.series.inviteSignups && <BarChart title={tr('Entraram por convite')} data={s.series.inviteSignups} />}
-              {s.sources && (
-                <Tile
-                  label={tr('Fonte: convite')}
-                  value={String(s.sources.invite.joined)}
-                  hint={`${pct(s.sources.invite.share)} das contas novas · ${s.sources.invite.active} ficaram ativas · ${s.sources.invite.paid} premiadas · ${s.sources.invite.blocked} sem prémio (antifraude)`}
-                />
-              )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 lg:grid-cols-2">
 
-            <section className="rounded-2xl border border-zinc-200 bg-white p-4" aria-label={tr('Funil das contas novas')}>
-              <h2 className="font-bold">{tr('Funil das contas novas (')}{days} {tr('dias)')}</h2>
-              <ul className="mt-3 space-y-2">
-                {[
-                  ['Registaram-se', s.funnel.signed],
-                  ['Publicaram', s.funnel.posted],
-                  ['Seguiram alguém', s.funnel.followed],
-                  ['Brindaram', s.funnel.cheered],
-                ].map(([label, n]) => (
-                  <li key={label as string}>
-                    <div className="flex justify-between text-sm">
-                      <span>{label}</span>
-                      <span className="tabular-nums text-zinc-600">{n} · {pct(s.funnel.signed ? Math.round(((n as number) / s.funnel.signed) * 1000) / 10 : null)}</span>
-                    </div>
-                    <div className="mt-1 h-2 overflow-hidden rounded-full bg-zinc-100">
-                      <div className="h-full rounded-full bg-brand" style={{ width: `${s.funnel.signed ? ((n as number) / s.funnel.signed) * 100 : 0}%` }} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
+            <section className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-4" aria-label={tr('Funil das contas novas')}>
+              <h2 className="mb-3 font-bold">{tr('Funil das contas novas (')}{days} {tr('dias)')}</h2>
+              <Funnel steps={[
+                { label: tr('Registaram-se'), value: s.funnel.signed },
+                { label: tr('Seguiram alguém'), value: s.funnel.followed },
+                { label: tr('Publicaram'), value: s.funnel.posted },
+                { label: tr('Brindaram'), value: s.funnel.cheered },
+              ]} />
             </section>
 
-            <section className="rounded-2xl border border-zinc-200 bg-white p-4" aria-label={tr('Feed')}>
+            <section className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-4" aria-label={tr('Feed')}>
               <h2 className="font-bold">{tr('Feed')}</h2>
               <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                 <dt className="text-zinc-600">{tr('Publicações vistas')}</dt><dd className="text-right tabular-nums">{s.feed.seen}</dd>
@@ -116,7 +108,7 @@ export default function AdminStats() {
               </dl>
             </section>
 
-            <section className="rounded-2xl border border-zinc-200 bg-white p-4" aria-label={tr('Desempenho')}>
+            <section className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-4" aria-label={tr('Desempenho')}>
               <h2 className="font-bold">{tr('Desempenho (percentil 75)')}</h2>
               {s.perf.length === 0 && <p className="mt-2 text-sm text-zinc-500">{tr('Ainda sem medições.')}</p>}
               <ul className="mt-2 divide-y divide-zinc-100">
@@ -139,7 +131,7 @@ export default function AdminStats() {
               </ul>
             </section>
 
-            <section className="rounded-2xl border border-zinc-200 bg-white p-4" aria-label={tr('Ecrãs e erros')}>
+            <section className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-4" aria-label={tr('Ecrãs e erros')}>
               <h2 className="font-bold">{tr('Ecrãs mais vistos')}</h2>
               <ul className="mt-2 text-sm">
                 {s.screens.length === 0 && <li className="text-zinc-500">{tr('Sem dados.')}</li>}

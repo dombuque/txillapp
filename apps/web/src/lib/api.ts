@@ -564,6 +564,9 @@ async function raw(path: string, init: RequestInit = {}, retry = true): Promise<
   return text ? JSON.parse(text) : undefined;
 }
 
+/** O mesmo pedido, para os ecrãs do backoffice que têm o seu próprio cliente (pages/backoffice/ui/fin-api.ts). */
+export const boRequest = (path: string, init: RequestInit = {}): Promise<any> => raw(path, init);
+
 const post = (b: unknown, extra: HeadersInit = {}): RequestInit => ({ method: 'POST', body: JSON.stringify(b), headers: extra });
 /** crypto.randomUUID só existe em contextos seguros (HTTPS/localhost): em http://IP-da-rede (teste no telemóvel) usa getRandomValues. */
 const newKey = () => {

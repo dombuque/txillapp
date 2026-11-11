@@ -18,6 +18,11 @@ const GROUPS: { title: string; items: Item[] }[] = [
     { to: '/backoffice/users', label: 'Utilizadores', icon: 'user', perm: 'users.view' },
     { to: '/backoffice/team', label: 'Equipa', icon: 'users', perm: 'staff.manage' },
   ] },
+  { title: 'Negócio', items: [
+    { to: '/backoffice/finance', label: 'Finanças', icon: 'wallet', perm: 'wallet.view' },
+    { to: '/backoffice/bombar', label: 'Bombar', icon: 'flame', perm: 'wallet.view' },
+    { to: '/backoffice/growth', label: 'Crescimento', icon: 'sprout', perm: 'invites.view' },
+  ] },
   { title: 'Sistema', items: [
     { to: '/backoffice/audit', label: 'Auditoria', icon: 'file-text', perm: 'audit.read' },
     { to: '/backoffice/stats', label: 'Estatísticas', icon: 'trending', perm: 'stats.view' },
