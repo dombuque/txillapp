@@ -21,7 +21,9 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   // TxillGroups vistos de fora (data: { groupId, groupName }): pediram para entrar (aos admins), aceitaram o meu pedido (a quem pediu),
   // alguém entrou num grupo público (aos admins).
   // Fizeram-me administrador de um grupo (à pessoa promovida; ator = quem promoveu; o mesmo data).
-  | 'group_join_request' | 'group_join_accepted' | 'group_member_joined' | 'group_admin_granted';
+  | 'group_join_request' | 'group_join_accepted' | 'group_member_joined' | 'group_admin_granted'
+  // Brindaram a minha geleira (só da primeira vez que cada pessoa brinda; ator = quem brindou; sem data).
+  | 'geleira_cheer';
 
 /** A categoria que a pessoa pode desligar (os avisos de bloqueio e de verificação ficam sempre). */
 export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
@@ -30,6 +32,7 @@ export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   mention: 'mentions', tag: 'mentions', repost: 'reposts', gift: 'gifts',
   missed_call: 'calls', venue_invite: 'venues', venue_payment: 'venues', venue_review: 'venues',
   group_join_request: 'messages', group_join_accepted: 'messages', group_member_joined: 'messages', group_admin_granted: 'messages',
+  geleira_cheer: 'reactions',
 };
 
 /** Tipos que não se repetem enquanto houver uma igual por ler (evita spam de seguir/deixar de seguir). */
@@ -120,6 +123,8 @@ export class NotificationsService {
       group_member_joined: { body: `entrou em ${String(n.data?.groupName ?? 'o teu TxillGroup')}`, url: groupUrl },
       // Abre os detalhes do grupo, onde a pessoa passa a ter os botões de quem administra.
       group_admin_granted: { body: `fez-te administrador de ${String(n.data?.groupName ?? 'um TxillGroup')}`, url: groupUrl === '/notifications' ? groupUrl : `${groupUrl}?info=1` },
+      // Abre o meu perfil, onde está a geleira (e quem a brindou).
+      geleira_cheer: { body: 'brindou a tua geleira', url: '/profile' },
       venue_payment: { body: `pagou ${Number(n.data?.amount ?? 0)} Txills ${n.data?.venueName ? `em ${String(n.data.venueName)}` : 'no teu local'}`, url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}/gerir?s=txills` : '/notifications' },
     };
     const m = t[n.kind];

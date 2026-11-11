@@ -487,6 +487,9 @@ export class AuthService {
       await client.query('DELETE FROM social.suggestion_dismissals WHERE user_id = $1 OR dismissed_id = $1', [userId]);
       await client.query('DELETE FROM social.story_hidden WHERE owner_id = $1 OR hidden_id = $1', [userId]);
       await client.query('DELETE FROM taste.user_items WHERE user_id = $1', [userId]);
+      // Brindes à geleira, dados e recebidos (a conta só fica anonimizada, por isso o CASCADE não chega).
+      await client.query('DELETE FROM taste.geleira_cheers WHERE owner_id = $1 OR user_id = $1', [userId]);
+      await client.query('DELETE FROM taste.geleira_cheer_notices WHERE owner_id = $1 OR user_id = $1', [userId]);
       await client.query(`UPDATE taste.items SET created_by = NULL WHERE created_by = $1 AND status = 'pending'`, [userId]);
       await client.query('DELETE FROM social.blocks WHERE blocker_id = $1 OR blocked_id = $1', [userId]);
       await client.query('DELETE FROM social.notifications WHERE user_id = $1 OR actor_id = $1', [userId]);

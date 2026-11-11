@@ -74,6 +74,26 @@ export class GeleiraController {
     return this.geleira.level(req.userId!, username);
   }
 
+  /** Brindar a geleira de alguém (só quem a pode ver; a própria não); DELETE tira o brinde. Devolve { cheered, cheers }. */
+  @Put('users/:username/geleira/cheer')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  cheer(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.geleira.cheer(req.userId!, username, true);
+  }
+
+  @Delete('users/:username/geleira/cheer')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  uncheer(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.geleira.cheer(req.userId!, username, false);
+  }
+
+  /** Quem brindou a minha geleira (só o dono). */
+  @Get('users/:username/geleira/cheers')
+  cheers(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.geleira.cheers(req.userId!, username);
+  }
+
   @Get('users/:username/geleira')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   of(@Req() req: AuthedReq, @Param('username') username: string) {

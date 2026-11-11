@@ -50,6 +50,13 @@ export class ExportService {
         `SELECT i.name, i.kind, i.category, ui.rating, ui.favorite, ui.visibility
            FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id WHERE ui.user_id = $1 ORDER BY i.kind, i.name`,
       ),
+      // Brindes à geleira: os que dei (a quem) e os que recebi (de quem).
+      geleiraCheersGiven: await q(
+        `SELECT o.username AS "to", c.created_at AS "createdAt" FROM taste.geleira_cheers c JOIN identity.users o ON o.id = c.owner_id WHERE c.user_id = $1 ORDER BY c.created_at`,
+      ).catch(() => []),
+      geleiraCheersReceived: await q(
+        `SELECT u.username AS "from", c.created_at AS "createdAt" FROM taste.geleira_cheers c JOIN identity.users u ON u.id = c.user_id WHERE c.owner_id = $1 ORDER BY c.created_at`,
+      ).catch(() => []),
       // Chamadas feitas e recebidas (só o registo: o som e a imagem nunca passam pelo servidor).
       calls: await q(
         `SELECT c.id, (c.caller_id = $1) AS outgoing, o.username AS "with", c.video, c.status, c.created_at AS "createdAt", c.started_at AS "startedAt", c.ended_at AS "endedAt"

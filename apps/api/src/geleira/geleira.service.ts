@@ -1,10 +1,11 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { ageOf } from '@txillapp/shared';
 import { PG_POOL } from '../db/db.module';
 import { normalizeTag } from '../common/hashtags';
 import { uuidv7 } from '../common/uuid7';
-import { canView } from '../social/visibility';
+import { NotificationsService } from '../notifications/notifications.service';
+import { blockedBetween, canView } from '../social/visibility';
 
 export const KINDS = ['vibe', 'bebida', 'comida', 'sitio'] as const;
 export type Kind = (typeof KINDS)[number];
@@ -41,7 +42,47 @@ const itemOut = (r: ItemRow, viewer: string) => ({
 
 @Injectable()
 export class GeleiraService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly notifications: NotificationsService,
+  ) {}
+
+  /**
+   * O dono de uma geleira visto por quem pede: `can` (a conta é visível, sem bloqueio em nenhum sentido) e `shown`
+   * (a visibilidade da geleira deixa: todos, seguidores, amigos próximos ou só o dono). Regra única de of/level/brindes.
+   */
+  private async owner(viewerId: string, username: string) {
+    const { rows } = await this.pool.query(
+      `SELECT u.id, (${canView('u', '$2')}) AS can, u.birth_date,
+              (u.id = $2 OR u.geleira_visibility = 'everyone'
+               OR (u.geleira_visibility = 'followers' AND EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $2 AND f.followee_id = u.id))
+               OR (u.geleira_visibility = 'close_friends' AND EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $2))) AS shown
+         FROM identity.users u WHERE lower(u.username) = lower($1)`,
+      [username, viewerId],
+    );
+    return rows[0] as { id: string; can: boolean; birth_date: string | null; shown: boolean } | undefined;
+  }
+
+  /** O dono de uma geleira que quem pede pode ver; senão 404 (não se distingue "escondida" de "não existe"). */
+  private async visibleOwner(viewerId: string, username: string) {
+    const o = await this.owner(viewerId, username);
+    if (!o || !o.can || !o.shown) throw new NotFoundException('Sem geleira para mostrar');
+    return o;
+  }
+
+  /**
+   * Brindes contados de uma geleira: sem contas inativas nem quem tem bloqueio com o dono (a contagem bate com a lista
+   * que o dono vê). `cheered`: se quem pede brindou.
+   */
+  private async cheersOf(ownerId: string, viewerId: string) {
+    const { rows } = await this.pool.query(
+      `SELECT count(*)::int AS n, bool_or(c.user_id = $2) AS mine
+         FROM taste.geleira_cheers c JOIN identity.users u ON u.id = c.user_id
+        WHERE c.owner_id = $1 AND u.status = 'active' AND NOT ${blockedBetween('u.id', 'c.owner_id')}`,
+      [ownerId, viewerId],
+    );
+    return { cheered: !!rows[0].mine, cheers: rows[0].n as number };
+  }
 
   /** Menores (ou sem data de nascimento) não têm álcool: nem veem, nem adicionam. */
   private async isAdult(userId: string) {
@@ -160,23 +201,16 @@ export class GeleiraService {
    * (não se distingue "escondida" de "vazia", para ninguém a descobrir por tentativa).
    */
   async of(viewerId: string, username: string) {
-    const { rows: owner } = await this.pool.query(
-      `SELECT u.id, (${canView('u', '$2')}) AS can,
-              (u.id = $2 OR u.geleira_visibility = 'everyone'
-               OR (u.geleira_visibility = 'followers' AND EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $2 AND f.followee_id = u.id))
-               OR (u.geleira_visibility = 'close_friends' AND EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $2))) AS shown
-         FROM identity.users u WHERE lower(u.username) = lower($1)`,
-      [username, viewerId],
-    );
-    if (!owner[0] || !owner[0].can) throw new NotFoundException('Essa pessoa não existe');
-    if (!owner[0].shown) return [];
+    const o = await this.owner(viewerId, username);
+    if (!o || !o.can) throw new NotFoundException('Essa pessoa não existe');
+    if (!o.shown) return [];
     const adult = await this.isAdult(viewerId);
     const { rows } = await this.pool.query(
       `SELECT i.id, i.slug, i.name, i.kind, i.category, i.alcoholic, i.status, i.created_by, ui.rating, ui.favorite
          FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id
         WHERE ui.user_id = $1 AND i.status = 'curated' AND ($2 OR NOT i.alcoholic)
         ORDER BY ui.favorite DESC, ui.rating DESC NULLS LAST, ui.updated_at DESC`,
-      [owner[0].id, adult],
+      [o.id, adult],
     );
     return rows.map((r) => ({ ...itemOut(r, viewerId), rating: r.rating as number | null, favorite: r.favorite as boolean }));
   }
@@ -184,17 +218,10 @@ export class GeleiraService {
   /**
    * Nível da geleira de alguém: pontos (álcool e vibes de festa valem mais) e título em calão da malta. O título do topo
    * respeita a idade (madala só a partir dos 45), sem nunca devolver a data de nascimento. Só para quem pode ver a geleira.
+   * Traz também os brindes à geleira (`cheers`) e se eu brindei (`cheered`).
    */
   async level(viewerId: string, username: string) {
-    const { rows: owner } = await this.pool.query(
-      `SELECT u.id, (${canView('u', '$2')}) AS can, u.birth_date,
-              (u.id = $2 OR u.geleira_visibility = 'everyone'
-               OR (u.geleira_visibility = 'followers' AND EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $2 AND f.followee_id = u.id))
-               OR (u.geleira_visibility = 'close_friends' AND EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $2))) AS shown
-         FROM identity.users u WHERE lower(u.username) = lower($1)`,
-      [username, viewerId],
-    );
-    if (!owner[0] || !owner[0].can || !owner[0].shown) throw new NotFoundException('Sem geleira para mostrar');
+    const o = await this.visibleOwner(viewerId, username);
     // O nível premeia quantidade, variedade e gostos avaliados (nunca o álcool nem os Txills). Só contam bebidas e comidas, que é o que a geleira mostra.
     const { rows } = await this.pool.query(
       `SELECT count(*)::int AS n,
@@ -203,7 +230,7 @@ export class GeleiraService {
               count(DISTINCT i.category)::int AS cats
          FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id
         WHERE ui.user_id = $1 AND i.status = 'curated' AND i.kind IN ('bebida', 'comida')`,
-      [owner[0].id],
+      [o.id],
     );
     const { n, fav, rated, cats } = rows[0] as { n: number; fav: number; rated: number; cats: number };
     const points = n + fav + Math.floor(rated / 2) + cats;
@@ -213,7 +240,7 @@ export class GeleiraService {
     const gate = cats >= 6 && rated >= 10 ? 4 : cats >= 4 && rated >= 5 ? 3 : 2;
     const level = Math.min(byPoints, gate);
     const held = level < byPoints;
-    const age = owner[0].birth_date ? Math.floor((Date.now() - new Date(owner[0].birth_date as string).getTime()) / 31_557_600_000) : null;
+    const age = o.birth_date ? Math.floor((Date.now() - new Date(o.birth_date).getTime()) / 31_557_600_000) : null;
     const top = age !== null && age >= 45 ? 'Madala da paulada' : age !== null && age >= 30 ? 'Mestre da paulada' : 'Lenda da paulada';
     const titles = ['Geleira seca', 'A txilar', 'Maningue abastecida', 'Paulada garantida', top];
     return {
@@ -225,7 +252,39 @@ export class GeleiraService {
       toNext: level >= 4 ? null : held ? null : steps[level] - points,
       hint: held ? (level >= 2 ? `Para subir: mais variedade (${level === 2 ? 4 : 6} grupos diferentes) e gostos avaliados (${level === 2 ? 5 : 10})` : null) : null,
       nextTitle: level >= 4 ? null : level === 3 ? top : titles[level + 1],
+      ...(await this.cheersOf(o.id, viewerId)),
     };
+  }
+
+  /**
+   * Brindar a geleira de alguém (on) ou tirar o brinde. Só quem a pode ver; a própria não. Repetir dá o mesmo resultado.
+   * O dono é avisado (na lista e no telemóvel) só da PRIMEIRA vez que cada pessoa brinda: tirar e voltar a pôr não avisa.
+   */
+  async cheer(viewerId: string, username: string, on: boolean) {
+    const o = await this.visibleOwner(viewerId, username);
+    if (o.id === viewerId) throw new BadRequestException('Não podes brindar a tua própria geleira');
+    if (on) {
+      await this.pool.query('INSERT INTO taste.geleira_cheers (owner_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [o.id, viewerId]);
+      const first = await this.pool.query('INSERT INTO taste.geleira_cheer_notices (owner_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [o.id, viewerId]);
+      if (first.rowCount) await this.notifications.notify({ userId: o.id, actorId: viewerId, kind: 'geleira_cheer' });
+    } else {
+      await this.pool.query('DELETE FROM taste.geleira_cheers WHERE owner_id = $1 AND user_id = $2', [o.id, viewerId]);
+    }
+    return this.cheersOf(o.id, viewerId);
+  }
+
+  /** Quem brindou a minha geleira, os mais recentes primeiro. Só o dono vê; sem contas inativas nem bloqueios. */
+  async cheers(viewerId: string, username: string) {
+    const me = await this.pool.query('SELECT 1 FROM identity.users WHERE id = $1 AND lower(username) = lower($2)', [viewerId, username]);
+    if (!me.rowCount) throw new ForbiddenException('Só o dono vê quem brindou a geleira');
+    const { rows } = await this.pool.query(
+      `SELECT u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, c.created_at
+         FROM taste.geleira_cheers c JOIN identity.users u ON u.id = c.user_id
+        WHERE c.owner_id = $1 AND u.status = 'active' AND NOT ${blockedBetween('u.id', 'c.owner_id')}
+        ORDER BY c.created_at DESC LIMIT 200`,
+      [viewerId],
+    );
+    return { items: rows.map((r) => ({ username: r.username as string, displayName: r.display_name as string, hasAvatar: !!r.has_avatar, at: r.created_at as Date })) };
   }
 
   async settings(userId: string) {
