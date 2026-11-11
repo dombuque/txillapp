@@ -7,7 +7,10 @@ export interface TasteItem { id: string; slug: string; name: string; kind: Taste
 export interface CatalogItem extends TasteItem { mine: boolean; rating: number | null; favorite: boolean; fans: number; region: 'local' | 'global' | 'foreign' }
 export interface MyTaste extends TasteItem { rating: number | null; favorite: boolean }
 export interface TheirTaste extends TasteItem { rating: number | null; favorite: boolean }
-export interface GeleiraLevel { points: number; level: number; title: string; toNext: number | null; nextTitle: string | null }
+/** `cheers`/`cheered`: os brindes à geleira (servidor antigo não manda → sem botão de brindar). */
+export interface GeleiraLevel { points: number; level: number; title: string; toNext: number | null; nextTitle: string | null; cheers?: number; cheered?: boolean }
+export interface GeleiraCheer { cheered: boolean; cheers: number }
+export interface GeleiraCheerer { username: string; displayName: string; hasAvatar: boolean; at: string }
 
 export interface InstantItem { id: string; url: string; caption: string; at: string; expiresAt: string; views?: number; reactions?: { reaction: string; count: number }[] }
 export interface InstantTray {
@@ -24,6 +27,11 @@ export const geleiraApi = {
   remove: (itemId: string): Promise<void> => raw(`/geleira/me/items/${itemId}`, { method: 'DELETE' }),
   suggest: (b: { name: string; kind: TasteKind; category: string; alcoholic?: boolean }): Promise<TasteItem> => raw('/geleira/items', post(b)),
   level: (username: string): Promise<GeleiraLevel> => raw(`/users/${encodeURIComponent(username)}/geleira/level`),
+  /** Brinda a geleira de alguém (400 na própria, 404 se não a pode ver). */
+  cheer: (username: string): Promise<GeleiraCheer> => raw(`/users/${encodeURIComponent(username)}/geleira/cheer`, { method: 'PUT', body: '{}' }),
+  uncheer: (username: string): Promise<GeleiraCheer> => raw(`/users/${encodeURIComponent(username)}/geleira/cheer`, { method: 'DELETE' }),
+  /** Quem brindou a minha geleira (só o dono). */
+  cheers: (username: string): Promise<{ items: GeleiraCheerer[] }> => raw(`/users/${encodeURIComponent(username)}/geleira/cheers`),
   geo: (): Promise<{ country: string | null }> => raw('/health/geo'),
 };
 

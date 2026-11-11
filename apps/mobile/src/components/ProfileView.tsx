@@ -262,7 +262,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
         {!blocked && p.canView && geleiraOpen && (
           <View>
             <View pointerEvents="none" style={[styles.tip, { right: p.isMe && rowW ? (rowW - 24) / 5 / 2 - 11 : 11 }]} />
-            <GeleiraShelf username={p.username} isMe={p.isMe} flush pointed />
+            <GeleiraShelf username={p.username} name={p.displayName} isMe={p.isMe} flush pointed />
           </View>
         )}
 
