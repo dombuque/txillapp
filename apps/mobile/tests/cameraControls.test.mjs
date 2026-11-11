@@ -331,3 +331,14 @@ test('quiet: nem exceções síncronas nem promessas rejeitadas escapam', async 
     process.off('unhandledRejection', onUnhandled);
   }
 });
+
+test('recordingNotice: falha, toque curto, ou vídeo que serve', () => {
+  assert.equal(c.recordingNotice(3000, true), 'Não consegui gravar o vídeo. Tenta outra vez.');
+  assert.equal(c.recordingNotice(600, true), 'Mantém carregado para gravar');
+  assert.equal(c.recordingNotice(Number.NaN, true), 'Mantém carregado para gravar');
+  assert.equal(c.recordingNotice(300, false), 'Mantém carregado para gravar');
+  assert.equal(c.recordingNotice(c.DROP_VIDEO_MS, false), 'Mantém carregado para gravar');
+  assert.equal(c.recordingNotice(800, false), null);
+  assert.equal(c.recordingNotice(5000, false), null);
+  assert.ok(c.MIN_VIDEO_MS >= 900 && c.MIN_VIDEO_MS <= 1200);
+});

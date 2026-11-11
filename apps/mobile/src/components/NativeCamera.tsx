@@ -17,7 +17,7 @@ import {
   activeStop, cameraProblem, createValueStore, crossedStop, crossedZero, displayMultiplier, exposureBarOrigin, exposureFromDrag,
   exposureRange, exposureStep, flashA11y, focusBoxOrigin, formatStop, formatZoom, isLowLight, isMinorCameraError, maxDisplayZoom,
   meteringModes, needsScreenFlash, nextFlash, permissionView, photoFlashMode, photoPriority, pickStabilization, pickVideoFps,
-  pinchZoom, previewPoint, quiet, recTime, slideZoom, sunOffset, torchFor, zoomA11y, zoomAnimationArg, zoomBounds, zoomStops,
+  pinchZoom, previewPoint, quiet, recordingNotice, recTime, slideZoom, sunOffset, torchFor, zoomA11y, zoomAnimationArg, zoomBounds, zoomStops,
   type CamPlatform, type CamProblem, type ExposureRange, type FlashChoice, type LensInfo, type ValueStore,
 } from '@/lib/cameraControls';
 import { colors } from '@/lib/theme';
@@ -120,6 +120,10 @@ export function NativeCamera({
   const [lastThumb, setLastThumb] = useState<string | null>(null);
   // Problemas da câmara (ocupada, quente, erro) e a chave para a montar de novo ("Tentar outra vez").
   const [problem, setProblem] = useState<CamProblem | null>(null);
+  // Aviso curto por cima do visor (ex.: a gravação falhou); some sozinho.
+  const [notice, setNotice] = useState<string | null>(null);
+  const noticeT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const restoreT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [camKey, setCamKey] = useState(0);
   const [noDevice, setNoDevice] = useState(false);
   // Sobe a cada configuração nova da câmara: o controlador novo só existe depois de o ecrã se redesenhar.
@@ -242,6 +246,7 @@ export function NativeCamera({
   const stopAsked = useRef(false);
   const holdT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const holding = useRef(false);
+  const swallowRelease = useRef(false);
   const slide = useRef<{ y: number; z: number } | null>(null);
   const recTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const countTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
@@ -274,7 +279,7 @@ export function NativeCamera({
   /** Larga um ficheiro da câmara: apaga-o se ainda for nosso (se foi usado, já saiu do conjunto). */
   const discard = (uri: string | null | undefined) => { if (uri && ownTemp.current.delete(uri)) dropTemp(uri); };
   useEffect(() => () => {
-    clearTimeout(holdT.current); clearInterval(recTimer.current); clearInterval(countTimer.current); clearTimeout(hideT.current); clearTimeout(errT.current);
+    clearTimeout(holdT.current); clearInterval(recTimer.current); clearInterval(countTimer.current); clearTimeout(hideT.current); clearTimeout(errT.current); clearTimeout(noticeT.current); clearTimeout(restoreT.current);
     // A sair a meio de uma gravação, deita-se fora (a câmara larga-se sozinha quando a sessão é desmontada).
     quiet(() => recorder.current?.cancelRecording());
     ownTemp.current.forEach(dropTemp);
@@ -315,6 +320,7 @@ export function NativeCamera({
     if (id && typeof min === 'number' && typeof max === 'number' && max >= min) {
       setCtrlInfo({ id, min, max, ratio: z && dz ? dz / z : 1 });
     }
+    restoreLive();
     const lf = lastFocus.current;
     if (lf) runFocus(lf.x, lf.y, lf.locked);
     if (IOS && mode === 'picture') {
@@ -352,6 +358,17 @@ export function NativeCamera({
     if (crossedStop(prevD, next * mult, stops) !== null) tick();
     const c = cam.current?.controller;
     if (c) quiet(() => c.setZoom(next));
+  }
+  /**
+   * Repõe no controlador o zoom e a exposição que a pílula e o sol mostram. Ao voltar a arrancar (depois do editor, da
+   * galeria ou de segundo plano) o CameraX liga a câmara de novo a 1× e a 0 EV, mas a prop `zoom` não mudou e a
+   * VisionCamera não a manda outra vez: a pílula dizia 2× e a imagem estava a 1×.
+   */
+  function restoreLive() {
+    const c = cam.current?.controller;
+    if (!c) return;
+    quiet(() => c.setZoom(clamp(zoomLive.current, minZoom, maxZoom)));
+    if (expoR) quiet(() => c.setExposureBias(expoLive.current));
   }
   /** Assenta o zoom na prop da câmara (no fim da pinça, do deslizar ou da animação). */
   function commitZoom(z = zoomLive.current) {
@@ -587,6 +604,22 @@ export function NativeCamera({
     }
   }
 
+  /** Mostra um aviso curto por cima do visor (2,5 s). */
+  function showNotice(text: string) {
+    clearTimeout(noticeT.current);
+    setNotice(text);
+    noticeT.current = setTimeout(() => setNotice(null), 2500);
+  }
+
+  /**
+   * A gravação acabou (bem, mal, ou chegou aos 60 s). Se o dedo ainda estiver no obturador, o largar seguinte não conta
+   * (senão, uma gravação que falha a meio tirava uma foto ao largar); o toque a seguir já funciona normalmente.
+   */
+  function endHold() {
+    if (holding.current) swallowRelease.current = true;
+    holding.current = false;
+  }
+
   async function startRecording() {
     // Só uma vez por pedido (avisa a câmara e o tempo limite: o primeiro que chegar).
     if (!pendingRecord.current) return;
@@ -597,7 +630,8 @@ export function NativeCamera({
     try {
       rec = await videoOutput.createRecorder({ maxDuration: MAX_VIDEO_S });
     } catch {
-      holding.current = false;
+      endHold();
+      showNotice('Não consegui gravar o vídeo. Tenta outra vez.');
       setMode('picture');
       return;
     }
@@ -619,22 +653,29 @@ export function NativeCamera({
         }, reject);
       });
       const durationMs = Date.now() - startedAt.current;
-      if (path && durationMs > 400) {
+      const msg = recordingNotice(durationMs, false);
+      if (path && !msg) {
         const uri = fileUri(path);
         ownTemp.current.add(uri);
         setReview({ uri, video: true, mime: 'video/mp4', durationMs });
-      } else if (path) {
-        dropTemp(fileUri(path)); // toque curto demais: não chega a ser vídeo
+      } else {
+        if (path) dropTemp(fileUri(path)); // toque curto demais: não chega a ser vídeo
+        if (msg) showNotice(msg);
       }
     } catch {
-      /* gravação interrompida */
+      // A gravação falhou (no emulador o CameraX dá ERROR_NO_VALID_DATA; também sem espaço, ou câmara interrompida):
+      // diz-se em vez de voltar ao visor calado, e apaga-se o ficheiro meio escrito que tenha ficado.
+      const tmp = safe(() => rec.filePath);
+      quiet(() => rec.cancelRecording());
+      if (tmp) dropTemp(fileUri(tmp));
+      showNotice(recordingNotice(Date.now() - startedAt.current, true) ?? 'Não consegui gravar o vídeo. Tenta outra vez.');
     } finally {
       recorder.current = null;
       stopAsked.current = false;
       clearInterval(recTimer.current);
       setRecording(false);
       setRecMs(0);
-      holding.current = false;
+      endHold();
       setMode('picture');
     }
   }
@@ -681,6 +722,7 @@ export function NativeCamera({
   // Obturador: tocar = foto (com o temporizador, se houver); manter = vídeo; a gravar, deslizar para cima aproxima.
   function shutterStart(e: GestureResponderEvent) {
     holding.current = false;
+    swallowRelease.current = false;
     if (!ready || busy || countdown !== null || recording) return;
     press(0.9);
     slide.current = { y: e.nativeEvent.pageY, z: zoomLive.current };
@@ -704,6 +746,8 @@ export function NativeCamera({
     const slid = !!slide.current && holding.current;
     slide.current = null;
     if (slid) commitZoom();
+    // A gravação já acabou com o dedo em cima (falhou ou chegou ao limite): largar não tira foto.
+    if (swallowRelease.current) { swallowRelease.current = false; holding.current = false; return; }
     if (holding.current) {
       holding.current = false;
       if (pendingRecord.current) { pendingRecord.current = false; setMode('picture'); return; } // largou antes de começar
@@ -813,7 +857,13 @@ export function NativeCamera({
                   onConfigured={onReady}
                   // A câmara a correr está pronta a tirar fotos. (Num telemóvel lento a abrir, um erro pequeno antes do
                   // arranque podia ter posto `ready` a falso e o obturador ficava morto até virar a câmara.)
-                  onStarted={() => { running.current = true; clearTimeout(errT.current); setProblem(null); setReady(true); }}
+                  onStarted={() => {
+                    running.current = true; clearTimeout(errT.current); setProblem(null); setReady(true);
+                    // Repõe já e outra vez daqui a nada (há Android que só aceita o zoom depois do primeiro frame).
+                    restoreLive();
+                    clearTimeout(restoreT.current);
+                    restoreT.current = setTimeout(restoreLive, 300);
+                  }}
                   onStopped={() => { running.current = false; }}
                   onError={onCamError}
                   onInterruptionStarted={onInterruption}
@@ -868,6 +918,12 @@ export function NativeCamera({
               {!device && facing === 'front' ? (
                 <Pressable onPress={flip} style={[st.cta, { marginTop: 14 }]} accessibilityRole="button"><Text style={st.ctaText}>Usar a de trás</Text></Pressable>
               ) : null}
+            </View>
+          ) : null}
+
+          {notice ? (
+            <View pointerEvents="none" style={[st.noticeWrap, { top: view.y + view.h * 0.42, left: view.x, width: view.w }]}>
+              <Text style={st.noticeText} accessibilityRole="alert" accessibilityLiveRegion="assertive">{notice}</Text>
             </View>
           ) : null}
 
@@ -1126,6 +1182,8 @@ const st = StyleSheet.create({
   tickL: { left: 0, top: BOX / 2 - 2.25, height: 1.5, width: 7 },
   tickR: { right: 0, top: BOX / 2 - 2.25, height: 1.5, width: 7 },
   lockWrap: { position: 'absolute', zIndex: 6, alignItems: 'center' },
+  noticeWrap: { position: 'absolute', zIndex: 7, alignItems: 'center', paddingHorizontal: 24 },
+  noticeText: { overflow: 'hidden', borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.72)', color: '#fff', fontSize: 14, fontWeight: '700', textAlign: 'center', paddingHorizontal: 16, paddingVertical: 9 },
   lockText: { overflow: 'hidden', borderRadius: 4, backgroundColor: YELLOW, color: colors.zinc900, fontSize: 12, fontWeight: '800', letterSpacing: 0.6, paddingHorizontal: 8, paddingVertical: 3 },
   // Área de toque larga (44 pt) à volta da linha fina; o fundo quase invisível faz dela alvo de toque no Android.
   expo: { position: 'absolute', zIndex: 6, width: EXPO_W, height: EXPO_H, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.001)' },
