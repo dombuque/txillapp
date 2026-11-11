@@ -844,6 +844,9 @@ export const api = {
   pushUnsubscribe: (endpoint: string): Promise<void> => raw('/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint }) }),
   trending: (): Promise<{ tags: TrendingTag[] }> => raw('/search/trending'),
   searchTags: (q: string): Promise<{ tags: TagCount[] }> => raw(`/search/tags?q=${encodeURIComponent(q)}`),
+  /** Análises do backoffice (insights.view): só agregados; a página e o tipo da resposta estão em pages/backoffice/ui/an-*.tsx. */
+  boInsights: <T,>(page: string, days: number, country: string | null): Promise<T> => raw(`/admin/insights/${page}?days=${days}${country ? `&country=${country}` : ''}`),
+  boInsightsCountries: (): Promise<{ k: number; countries: { code: string; people: number }[] }> => raw('/admin/insights/countries'),
   tagPage: (tag: string, sort: 'recent' | 'top', cursor?: string): Promise<TagPage> => raw(`/tags/${encodeURIComponent(tag)}?sort=${sort}&limit=10${cursor ? `&cursor=${cursor}` : ''}`),
   adminStats: (days: number): Promise<AdminStats> => raw(`/admin/stats?days=${days}`),
   explore: (topic: string | null, cursor?: string): Promise<Page<Post>> => raw(`/feed/explore?limit=18${topic ? `&topic=${encodeURIComponent(topic)}` : ''}${cursor ? `&cursor=${cursor}` : ''}`),

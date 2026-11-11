@@ -63,6 +63,7 @@ const BoUser = lazy(() => import('./pages/backoffice/UserSheet'));
 const BoAudit = lazy(() => import('./pages/backoffice/Audit'));
 const BoTeam = lazy(() => import('./pages/backoffice/Team'));
 const BoVenues = lazy(() => import('./pages/backoffice/Venues'));
+const BoAnalyses = lazy(() => import('./pages/backoffice/Analyses'));
 const SupportAbout = lazy(() => import('./pages/Support').then((m) => ({ default: m.About })));
 const SupportHelp = lazy(() => import('./pages/Support').then((m) => ({ default: m.Help })));
 const SupportOrders = lazy(() => import('./pages/Support').then((m) => ({ default: m.Orders })));
@@ -211,6 +212,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="venues" element={<Suspense fallback={null}><BoVenues /></Suspense>} />
                   <Route path="stats" element={<Suspense fallback={null}><BoStats /></Suspense>} />
                   <Route path="verifications" element={<Suspense fallback={null}><BoVerifications /></Suspense>} />
+                  <Route path="analises/*" element={<Suspense fallback={null}><BoAnalyses /></Suspense>} />
             </Route>
             <Route path="/admin" element={<Navigate to="/backoffice/reports" replace />} />
             <Route path="/admin/verifications" element={<Navigate to="/backoffice/verifications" replace />} />

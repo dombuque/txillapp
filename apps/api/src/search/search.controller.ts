@@ -6,11 +6,15 @@ import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { SearchService } from './search.service';
+import { SearchStatsService } from '../analytics/search-stats.service';
 
 @Controller('search')
 @UseGuards(JwtAuthGuard)
 export class SearchController {
-  constructor(private readonly search: SearchService) {}
+  constructor(
+    private readonly search: SearchService,
+    private readonly stats: SearchStatsService,
+  ) {}
 
   /** Hashtags em alta (últimas 48 h). */
   @Get('trending')
@@ -35,8 +39,11 @@ export class SearchController {
 
   @Get()
   @Throttle({ default: { limit: 90, ttl: 60_000 } })
-  find(@Req() req: Request & { userId?: string }, @Query('q') q = '') {
-    return this.search.search(req.userId!, q);
+  async find(@Req() req: Request & { userId?: string }, @Query('q') q = '') {
+    const r = await this.search.search(req.userId!, q);
+    // Contador agregado (sem a conta) para as Análises: o que se procura e o que não dá resultados.
+    this.stats.note(req.userId!, q, !r.people.length && !r.posts.length && !r.tags.length && !r.venues.length);
+    return r;
   }
 }
 
