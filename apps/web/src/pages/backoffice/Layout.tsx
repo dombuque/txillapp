@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Icon, { type IconName } from '../../components/Icon';
 import { api, staffSession } from '../../lib/api';
 import { Wordmark } from '../../components/ui';
@@ -77,10 +77,23 @@ function Palette({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** Backoffice do Txillapp: barra lateral escura, menu por equipa e conteúdo largo, para computador. */
+/**
+ * Backoffice do Txillapp: barra lateral escura, menu por equipa e conteúdo largo. No computador (a partir de 768 px) a barra
+ * está sempre à vista; no telemóvel fica escondida atrás do botão de menu da barra de cima e abre por cima do conteúdo.
+ */
 export default function BackofficeLayout() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [palette, setPalette] = useState(false);
+  const [menu, setMenu] = useState(false);
+  // O menu do telemóvel fecha ao mudar de página e com Escape.
+  useEffect(() => { setMenu(false); }, [pathname]);
+  useEffect(() => {
+    if (!menu) return;
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(false); };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [menu]);
   const who = useQuery({ queryKey: ['bo-who'], queryFn: api.staffMe, retry: false, staleTime: 5 * 60_000 });
   async function leave() {
     await api.staffLogout().catch(() => undefined);
@@ -115,13 +128,33 @@ export default function BackofficeLayout() {
 
   return (
     <StaffContext.Provider value={staff}>
-      <div className="flex min-h-screen bg-[#f5f6f8] text-zinc-900 antialiased">
-        <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col bg-[#0f1219] text-zinc-300">
-          <div className="px-5 pb-4 pt-6">
-            <Wordmark className="h-9 text-white" />
-            <p className="mt-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">Backoffice</p>
+      <div className="min-h-screen bg-[#f5f6f8] text-zinc-900 antialiased md:flex">
+        {/* Telemóvel: barra de cima com o menu e a procura. */}
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 bg-[#0f1219] px-2 text-zinc-300 md:hidden">
+          <button type="button" onClick={() => setMenu(true)} aria-label="Abrir o menu" aria-expanded={menu} aria-controls="bo-menu" className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-white/10">
+            <Icon name="menu" size={22} />
+          </button>
+          <Wordmark className="h-7 text-white" />
+          <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">Backoffice</span>
+          <button type="button" onClick={() => setPalette(true)} aria-label="Procurar conta" className="ml-auto flex h-11 w-11 items-center justify-center rounded-lg hover:bg-white/10">
+            <Icon name="search" size={20} />
+          </button>
+        </header>
+        {menu && <div className="fixed inset-0 z-40 bg-zinc-950/50 md:hidden" onClick={() => setMenu(false)} aria-hidden />}
+        <aside
+          id="bo-menu"
+          className={`fixed inset-y-0 left-0 z-50 flex h-dvh w-72 max-w-[85vw] shrink-0 flex-col bg-[#0f1219] text-zinc-300 shadow-2xl transition-transform duration-200 md:sticky md:top-0 md:z-auto md:h-screen md:w-64 md:max-w-none md:translate-x-0 md:shadow-none ${menu ? 'translate-x-0' : 'max-md:invisible -translate-x-full'}`}
+        >
+          <div className="flex items-start justify-between px-5 pb-4 pt-6">
+            <div>
+              <Wordmark className="h-9 text-white" />
+              <p className="mt-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">Backoffice</p>
+            </div>
+            <button type="button" onClick={() => setMenu(false)} aria-label="Fechar o menu" className="-mr-2 -mt-1 flex h-11 w-11 items-center justify-center rounded-lg text-zinc-400 hover:bg-white/10 hover:text-white md:hidden">
+              <Icon name="x" size={20} />
+            </button>
           </div>
-          <button type="button" onClick={() => setPalette(true)} className="mx-4 mb-3 flex h-9 items-center justify-between rounded-lg bg-white/[0.06] px-3 text-sm text-zinc-400 hover:bg-white/10">
+          <button type="button" onClick={() => { setMenu(false); setPalette(true); }} className="mx-4 mb-3 flex h-9 items-center justify-between rounded-lg bg-white/[0.06] px-3 text-sm text-zinc-400 hover:bg-white/10">
             <span className="flex items-center gap-2"><Icon name="search" size={15} /> Procurar conta</span><span className="flex gap-1"><Kbd>Ctrl</Kbd><Kbd>K</Kbd></span>
           </button>
           <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4" aria-label="Backoffice">
@@ -132,7 +165,7 @@ export default function BackofficeLayout() {
                 <div key={g.title}>
                   <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-zinc-500">{g.title}</p>
                   {items.map((n) => (
-                    <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `group flex items-center gap-3 rounded-lg px-3 py-2 text-[14.5px] font-semibold transition ${isActive ? 'bg-white/10 text-white' : 'text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-100'}`}>
+                    <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setMenu(false)} className={({ isActive }) => `group flex items-center gap-3 rounded-lg px-3 py-2 text-[14.5px] font-semibold transition ${isActive ? 'bg-white/10 text-white' : 'text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-100'}`}>
                       <Icon name={n.icon} size={18} />
                       <span className="flex-1">{n.label}</span>
                       {badge(n.badge) > 0 && <span className="rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-white">{badge(n.badge)}</span>}
@@ -149,7 +182,7 @@ export default function BackofficeLayout() {
             <button type="button" onClick={() => void leave()} className="mt-2 inline-block text-xs text-zinc-400 underline hover:text-white">Sair da equipa</button>
           </div>
         </aside>
-        <main className="min-w-0 flex-1 px-8 py-8">
+        <main className="min-w-0 flex-1 px-4 py-4 md:px-8 md:py-8">
           <div className="mx-auto max-w-6xl">
             <Outlet />
           </div>
