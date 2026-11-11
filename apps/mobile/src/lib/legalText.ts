@@ -2,16 +2,15 @@
  * apps/web/src/pages/Legal.tsx, gera-se a partir daqui. Marcação mínima: **negrito** e __itálico__.
  * Manter TERMS_UPDATED igual a TERMS_VERSION (packages/shared): mudar a versão pede nova aceitação. */
 export type LegalBlock = { t: 'h2' | 'h3' | 'p'; x: string } | { t: 'ul'; x: string[] };
-export const TERMS_UPDATED = '2026-11-09';
+export const TERMS_UPDATED = '2026-11-11';
 /** O que mudou nesta versão, em poucas linhas (aparece no aviso "Atualizámos os termos"). Atualizar sempre que TERMS_UPDATED muda. */
 export const TERMS_CHANGES: string[] = [
-  'Chamadas: o Txillapp não as grava. Fica só o registo, que podes apagar e que sai sozinho ao fim de 12 meses. Podes esconder o teu IP.',
-  'TxillGroups: plano, sondagens, lista, despesas, álbum e um cofre de Txills, devolvido a quem pôs, na proporção de cada um.',
-  'TxillGroups no mapa: um grupo pode ser privado, visível no mapa (pede-se para entrar) ou público (entra-se logo). Quem entra vê o que já foi partilhado. Um sítio marcado no mapa para o grupo fica só aproximado (cerca de 1,5 km).',
-  'Locais: aprovados pela equipa antes de ficarem públicos; pagar com Txills onde aceitam, eventos, e publicações como o local sem mostrar que gestor publicou.',
-  'À tua volta: mapa do que há perto. Só apareces se ligares a opção (18+), pela zona aproximada, e sais ao fim de 3 horas.',
-  'Fotos: tiramos a localização e os outros dados escondidos (EXIF) de todas as fotos que envias.',
-  'Eliminar a conta apaga também chamadas, check-ins, favoritas, aparelhos e o mapa; os teus locais passam a um administrador.',
+  'GIFs do GIPHY nas conversas e nos comentários: a pesquisa passa pelo nosso servidor, mas as imagens vêm do GIPHY, que vê o endereço de rede de quem as vê. Guardamos só a ligação ao GIF.',
+  'Mensagens: podes apagar para ti ou para todos, e editar as tuas mensagens de texto até 15 minutos. Ao denunciar uma mensagem, guardamos uma cópia dela para a moderação, apagada 180 dias depois da decisão.',
+  'Localização no chat: nada é enviado sem confirmares. Podes enviar a posição atual, um ponto no mapa ou um sítio, ou partilhar em direto (15 min, 1 h ou 8 h) enquanto a app está aberta.',
+  'Locais no mapa: o sítio de um local é público e aparece no À tua volta, salvo se o dono desligar «Mostrar no mapa».',
+  'Publicações: a posição sai arredondada a cerca de 1 km (salvo publicadas como um local no mapa), e as tuas não te aparecem no À tua volta.',
+  'Exportação de dados: passa a incluir as mensagens enviadas nos TxillGroups, edições, sítios, GIFs e o que apagaste para ti.',
 ];
 export const TERMS: LegalBlock[][] = [
  [
