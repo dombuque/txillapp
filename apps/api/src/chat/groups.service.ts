@@ -157,6 +157,8 @@ export class GroupsService {
       client.release();
     }
     for (const u of invitees) this.events.emit(u, { type: 'message', group: id });
+    // O grupo novo aparece também na lista dos meus outros aparelhos.
+    this.events.echo(me, { type: 'message', group: id });
     return { id };
   }
 
@@ -219,7 +221,9 @@ export class GroupsService {
     );
     const page = rows.slice(0, PAGE);
     if (!cursor && page[0]) {
-      await this.pool.query('UPDATE social.group_members SET read_id = $3 WHERE group_id = $1 AND user_id = $2 AND read_id IS DISTINCT FROM $3::uuid', [groupId, me, page[0].id]);
+      const upd = await this.pool.query('UPDATE social.group_members SET read_id = $3 WHERE group_id = $1 AND user_id = $2 AND read_id IS DISTINCT FROM $3::uuid', [groupId, me, page[0].id]);
+      // Li noutro aparelho: os meus outros aparelhos tiram o número de "por ler" da lista.
+      if (upd.rowCount) this.events.echo(me, { type: 'read', group: groupId });
     }
     const bySender = new Map(members.map((m) => [m.id, m]));
     // Sondagens que aparecem nesta página da conversa (mensagens kind 'poll', body = id da sondagem).
@@ -364,8 +368,8 @@ export class GroupsService {
     });
     if (!added) return false;
     await this.notifyMembers(groupId, by);
-    // Quem entrou vê o grupo aparecer na lista de conversas.
-    this.events.emit(userId, { type: 'message', group: groupId });
+    // Quem entrou vê o grupo aparecer na lista de conversas (se entrou sozinho, num grupo público, o eco de notifyMembers já chega).
+    if (by !== userId) this.events.emit(userId, { type: 'message', group: groupId });
     return true;
   }
 
@@ -404,7 +408,9 @@ export class GroupsService {
       await this.pot.refundAll(me, groupId, `fecho:${groupId}`);
       await this.pool.query('DELETE FROM social.groups WHERE id = $1', [groupId]);
     }
-    this.events.emit(target, { type: 'deleted', group: groupId });
+    // Quem saiu pelo seu pé: o grupo some dos seus outros aparelhos (eco); quem foi tirado é avisado.
+    if (target === me) this.events.echo(me, { type: 'deleted', group: groupId });
+    else this.events.emit(target, { type: 'deleted', group: groupId });
     await this.notifyMembers(groupId, me);
   }
 
@@ -441,8 +447,15 @@ export class GroupsService {
     return { username: r.username, role };
   }
 
-  private async notifyMembers(groupId: string, except: string) {
-    const rows = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1 AND user_id <> $2', [groupId, except])).rows;
-    for (const r of rows) this.events.emit(r.user_id as string, { type: 'read', group: groupId });
+  /**
+   * Mudaram os membros ou os dados do grupo: os outros membros voltam a pedir o grupo; quem fez a mudança (`by`, se ainda
+   * for membro) recebe o eco ('message' com self: a conversa e a lista põem-se em dia nos seus outros aparelhos).
+   */
+  private async notifyMembers(groupId: string, by: string) {
+    const rows = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1', [groupId])).rows;
+    for (const r of rows) {
+      if (r.user_id === by) this.events.echo(by, { type: 'message', group: groupId });
+      else this.events.emit(r.user_id as string, { type: 'read', group: groupId });
+    }
   }
 }

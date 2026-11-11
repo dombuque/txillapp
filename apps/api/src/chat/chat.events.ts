@@ -7,6 +7,13 @@ export interface ChatEvent {
   from?: string;
   /** Id do grupo, quando o evento é de um grupo. */
   group?: string;
+  /**
+   * Eco para os meus outros aparelhos (a mesma conta noutro telemóvel, no computador ou noutra sessão): fui eu que mudei
+   * a conversa (enviei, editei, apaguei, reagi, li, abri, aceitei…). `from` é o OUTRO lado da conversa (a chave da
+   * conversa na app), `group` o grupo. A app só põe os dados em dia: sem som, sem aviso, sem mexer no "a escrever…".
+   * Com `self`, 'read' quer dizer "li eu" (muda só a lista). O 'typing' nunca vem com `self`.
+   */
+  self?: boolean;
 }
 
 /** Evento de chamada (voz ou vídeo) no mesmo canal em tempo real. O formato exato está no topo de calls/calls.service.ts. */
@@ -72,6 +79,15 @@ export class ChatEvents {
 
   emit(to: string, event: StreamEvent) {
     this.bus.next({ to, event });
+  }
+
+  /**
+   * Eco para os outros aparelhos de quem fez a mudança (ver ChatEvent.self): o aparelho que fez a mudança também o
+   * recebe e só volta a pedir os dados. `from` = o outro lado da conversa; nos grupos, `group`.
+   */
+  echo(me: string, event: Omit<ChatEvent, 'self'>) {
+    if (event.type === 'typing') return;
+    this.emit(me, { ...event, self: true });
   }
 
   forUser(userId: string): Observable<StreamEvent> {
