@@ -378,6 +378,20 @@ describe('À tua volta: locais, eventos, publicações, TxillGroups e a malta (i
     });
   });
 
+  // A app pede os cinco tipos de uma vez e filtra do seu lado (trocar de filtro não volta a pedir): só funciona se o
+  // limite de cada tipo não depender dos outros tipos pedidos.
+  it('pedir tudo de uma vez dá o mesmo que pedir cada tipo à parte; os tipos não pedidos vêm vazios', async () => {
+    for (const when of ['today', 'week']) {
+      const all = (await nearby(cliente, `radiusKm=30&when=${when}`).expect(200)).body;
+      expect(mine(all.venues).length).toBeGreaterThan(0);
+      for (const k of ['venues', 'events', 'posts', 'groups', 'people']) {
+        const one = (await nearby(cliente, `kinds=${k}&radiusKm=30&when=${when}`).expect(200)).body;
+        expect(one[k]).toEqual(all[k]);
+        for (const other of ['venues', 'events', 'posts', 'groups', 'people'].filter((x) => x !== k)) expect(one[other]).toEqual([]);
+      }
+    }
+  });
+
   it('limite de pedidos: 30 por minuto', async () => {
     for (let i = 0; i < 30; i++) await nearby(cliente, 'kinds=venues').expect(200);
     await nearby(cliente, 'kinds=venues').expect(429);

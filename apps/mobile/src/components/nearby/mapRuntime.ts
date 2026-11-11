@@ -25,6 +25,10 @@ export interface MapState {
   radiusKm: number;
   markers: MapMarker[];
   selectedId?: string | null;
+  /** Mostrar o ponto azul "estou aqui" (só com a localização do telemóvel; com uma cidade escolhida não). */
+  showMe?: boolean;
+  /** Píxeis do fundo do mapa tapados (a folha da lista no telemóvel): o enquadramento e o item escolhido ficam acima. */
+  coverBottom?: number;
 }
 export interface MapHandle {
   update: (s: MapState) => void;
@@ -85,6 +89,10 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
       '.txme{background:none;border:0;pointer-events:none}',
       '.txme .pulse{position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;background:rgba(29,155,240,.2)}',
       '.txme .dot{position:absolute;left:4px;top:4px;width:16px;height:16px;border-radius:50%;background:#1d9bf0;border:3px solid #fff;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.3)}',
+      // "Voltar ao centro": só aparece depois de o mapa sair do enquadramento do raio.
+      '.txc{display:none;width:44px;height:44px;border-radius:50%;background:#fff;border:0;padding:0;margin:0;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.25);align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}',
+      '.txc.on{display:flex}',
+      '.txc:focus-visible{outline:2px solid ' + BRAND + ';outline-offset:2px}',
       '.leaflet-container{font-family:system-ui,sans-serif;background:#f2efe9}',
       '.leaflet-control-attribution{font-size:10px}',
     ].join('\n');
@@ -115,6 +123,84 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
   let st: MapState | null = null;
   let fitKey = '';
   let selKey: string | null = null;
+  let coverKey = 0;
+  /** O enquadramento do raio (centro e zoom) depois do último fitBounds; null = ainda não houve. */
+  let fitted: { c: Leaflet.LatLng; z: number } | null = null;
+
+  /** Quanto do fundo do mapa está tapado (nunca mais de 60%, senão não sobra mapa para enquadrar). */
+  const cover = () => Math.max(0, Math.min(st?.coverBottom ?? 0, map.getSize().y * 0.6));
+
+  // "Voltar ao centro": um botão redondo no canto, só visível quando o mapa já não mostra o raio (arrastaste, aproximaste
+  // ou o mapa foi até um item).
+  const LOCATE = '<path d="M12 4.5v-2.5M12 22v-2.5M4.5 12H2M22 12h-2.5"/><path d="M5.5 12a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0 -13 0"/><path d="M9.6 12a2.4 2.4 0 1 0 4.8 0a2.4 2.4 0 1 0 -4.8 0"/>';
+  let recenterBtn: HTMLButtonElement | null = null;
+  const Recenter = L.Control.extend({
+    onAdd() {
+      const b = L.DomUtil.create('button', 'txc') as HTMLButtonElement;
+      b.type = 'button';
+      b.title = 'Voltar ao centro';
+      b.setAttribute('aria-label', 'Voltar ao centro da procura');
+      b.innerHTML = svg(LOCATE, 22, BRAND);
+      L.DomEvent.disableClickPropagation(b);
+      L.DomEvent.on(b, 'click', (e) => {
+        L.DomEvent.preventDefault(e);
+        fit();
+        draw();
+      });
+      recenterBtn = b;
+      return b;
+    },
+  });
+  new Recenter({ position: 'topright' }).addTo(map);
+
+  /** O mapa ainda mostra o enquadramento do raio? (o mesmo zoom e o centro a menos de 40 px) */
+  function onFit() {
+    if (!fitted) return false;
+    if (Math.abs(map.getZoom() - fitted.z) >= 0.5) return false;
+    const a = map.latLngToContainerPoint(fitted.c);
+    const b = map.latLngToContainerPoint(map.getCenter());
+    return a.distanceTo(b) < 40;
+  }
+  const syncRecenter = () => recenterBtn?.classList.toggle('on', !!fitted && !onFit());
+
+  /** Enquadra o círculo do raio (acima da parte tapada pela lista). */
+  function fit() {
+    if (!st) return;
+    const c = st.center;
+    // Caixa do círculo à mão (o getBounds do círculo precisa de o mapa já ter vista).
+    const dLat = st.radiusKm / 111.32;
+    const dLng = st.radiusKm / (111.32 * Math.max(0.2, Math.cos((c.lat * Math.PI) / 180)));
+    const size = map.getSize();
+    if (!size.x || !size.y) {
+      // Ainda sem tamanho (a página está a montar): uma vista provisória; o resize volta a enquadrar.
+      map.setView([c.lat, c.lng], 12, { animate: false });
+      fitted = null;
+      syncRecenter();
+      return;
+    }
+    map.fitBounds(
+      [
+        [c.lat - dLat, c.lng - dLng],
+        [c.lat + dLat, c.lng + dLng],
+      ],
+      { paddingTopLeft: [12, 12], paddingBottomRight: [12, 12 + cover()], animate: false },
+    );
+    fitted = { c: map.getCenter(), z: map.getZoom() };
+    syncRecenter();
+  }
+
+  /** O item escolhido fica à vista, na parte do mapa que a lista não tapa. */
+  function reveal(id: string) {
+    const m = st?.markers.find((x) => x.id === id);
+    if (!m) return;
+    const size = map.getSize();
+    const visH = size.y - cover();
+    const p = map.latLngToContainerPoint([m.lat, m.lng]);
+    const padX = size.x * 0.15;
+    const padY = visH * 0.15;
+    if (p.x >= padX && p.x <= size.x - padX && p.y >= padY && p.y <= visH - padY) return;
+    map.panBy([p.x - size.x / 2, p.y - visH / 2]);
+  }
 
   function iconFor(m: MapMarker, sel: boolean): Leaflet.DivIcon {
     const img = m.image ? `<img src="${esc(m.image)}" alt="" referrerpolicy="no-referrer">` : '';
@@ -160,9 +246,15 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
     const list = st.markers.slice(0, MAX);
     const buckets = new Map<string, MapMarker[]>();
     const singles: MapMarker[] = [];
+    const haloAt = new Set<string>();
     for (const m of list) {
-      // Pessoas: um círculo suave à volta (a posição é aproximada, nunca a exata).
-      if (m.kind === 'person') L.circle([m.lat, m.lng], { radius: 700, stroke: false, fillColor: BRAND, fillOpacity: 0.08, interactive: false }).addTo(halos);
+      // Pessoas: um círculo suave à volta (a posição é aproximada, nunca a exata). Várias pessoas na mesma quadrícula
+      // têm o mesmo ponto: um só círculo (empilhados ficavam cada vez mais escuros).
+      const hk = `${m.lat},${m.lng}`;
+      if (m.kind === 'person' && !haloAt.has(hk)) {
+        haloAt.add(hk);
+        L.circle([m.lat, m.lng], { radius: 700, stroke: false, fillColor: BRAND, fillOpacity: 0.08, interactive: false }).addTo(halos);
+      }
       if (m.id === st.selectedId) {
         singles.push(m);
         continue;
@@ -174,11 +266,14 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
       else buckets.set(k, [m]);
     }
     buckets.forEach((b) => {
-      if (b.length === 1 || zoom >= 18) {
+      const bounds = L.latLngBounds(b.map((m) => [m.lat, m.lng] as [number, number]));
+      // No mesmo sítio (menos de 30 m: a mesma quadrícula da malta, o mesmo prédio): fica sempre agrupado, senão os
+      // marcadores ficavam uns por cima dos outros e só o de cima se podia tocar.
+      const same = bounds.getNorthEast().distanceTo(bounds.getSouthWest()) < 30;
+      if (b.length === 1 || (zoom >= 18 && !same)) {
         singles.push(...b);
         return;
       }
-      const bounds = L.latLngBounds(b.map((m) => [m.lat, m.lng] as [number, number]));
       const c = bounds.getCenter();
       const mk = L.marker(c, {
         icon: L.divIcon({ className: 'txm', html: `<div class="b tx-cluster">${b.length > 99 ? '99+' : b.length}</div>`, iconSize: [40, 40], iconAnchor: [20, 20] }),
@@ -186,7 +281,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
         title: `${b.length} sítios`,
       });
       mk.on('click', () => {
-        const same = bounds.getNorthEast().distanceTo(bounds.getSouthWest()) < 30;
+        // No mesmo sítio não adianta aproximar: escolhe o primeiro e a lista mostra-o (os outros estão logo a seguir).
         if (same) onPress(b[0].id);
         else map.fitBounds(bounds.pad(0.4), { maxZoom: 18 });
       });
@@ -209,30 +304,33 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
       ring.setLatLng([next.center.lat, next.center.lng]);
       ring.setRadius(next.radiusKm * 1000);
       me.setLatLng([next.center.lat, next.center.lng]);
-      // Caixa do círculo à mão (o getBounds do círculo precisa de o mapa já ter vista).
-      const dLat = next.radiusKm / 111.32;
-      const dLng = next.radiusKm / (111.32 * Math.max(0.2, Math.cos((next.center.lat * Math.PI) / 180)));
-      map.fitBounds(
-        [
-          [next.center.lat - dLat, next.center.lng - dLng],
-          [next.center.lat + dLat, next.center.lng + dLng],
-        ],
-        { padding: [12, 12], animate: false },
-      );
+      fit();
     }
+    // O ponto azul só com a localização do telemóvel (no centro de uma cidade escolhida não estás tu).
+    const showMe = next.showMe !== false;
+    if (showMe && !map.hasLayer(me)) me.addTo(map);
+    else if (!showMe && map.hasLayer(me)) me.remove();
     draw();
-    // Escolheste um item da lista: o mapa vai até ele se estiver fora da vista.
-    if (next.selectedId && next.selectedId !== selKey) {
-      const m = next.markers.find((x) => x.id === next.selectedId);
-      if (m && !map.getBounds().pad(-0.15).contains([m.lat, m.lng])) map.panTo([m.lat, m.lng]);
-    }
+    // Escolheste um item da lista (ou a lista subiu e tapou-o): o mapa vai até ele se estiver fora da parte à vista.
+    const cv = Math.round(next.coverBottom ?? 0);
+    if (next.selectedId && (next.selectedId !== selKey || cv !== coverKey)) reveal(next.selectedId);
     selKey = next.selectedId ?? null;
+    coverKey = cv;
   }
 
   map.on('zoomend', draw);
+  map.on('moveend', syncRecenter);
   return {
     update,
-    resize: () => map.invalidateSize(),
+    resize: () => {
+      // Se o mapa ainda mostrava o raio (ou nem tinha tamanho), volta a enquadrar com o tamanho novo.
+      const wasOnFit = !fitted || onFit();
+      map.invalidateSize();
+      if (wasOnFit && st) {
+        fit();
+        draw();
+      } else syncRecenter();
+    },
     destroy: () => map.remove(),
   };
 }

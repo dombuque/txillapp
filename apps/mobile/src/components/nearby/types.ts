@@ -12,6 +12,10 @@ export interface NearbyMapProps {
   selectedId?: string | null;
   /** Botões + e − (no computador). */
   zoomControl?: boolean;
+  /** O ponto azul "estou aqui" (só com a localização do telemóvel). */
+  showMe?: boolean;
+  /** Píxeis do fundo do mapa tapados pela lista (telemóvel): o raio e o item escolhido ficam na parte à vista. */
+  coverBottom?: number;
   style?: StyleProp<ViewStyle>;
 }
 

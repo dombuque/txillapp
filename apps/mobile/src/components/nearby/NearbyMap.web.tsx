@@ -5,13 +5,13 @@ import { createNearbyMap, type MapHandle } from './mapRuntime';
 import type { NearbyMapProps } from './types';
 
 /** Mapa do "À tua volta" no site: o Leaflet do npm (o CSP do site não deixa scripts de fora), desenhado num div. */
-export function NearbyMap({ center, radiusKm, markers, onMarkerPress, selectedId, zoomControl = false, style }: NearbyMapProps) {
+export function NearbyMap({ center, radiusKm, markers, onMarkerPress, selectedId, zoomControl = false, showMe = true, coverBottom = 0, style }: NearbyMapProps) {
   const host = useRef<React.ComponentRef<typeof View>>(null);
   const handle = useRef<MapHandle | null>(null);
   const press = useRef(onMarkerPress);
   press.current = onMarkerPress;
-  const state = useRef({ center, radiusKm, markers, selectedId });
-  state.current = { center, radiusKm, markers, selectedId };
+  const state = useRef({ center, radiusKm, markers, selectedId, showMe, coverBottom });
+  state.current = { center, radiusKm, markers, selectedId, showMe, coverBottom };
 
   useEffect(() => {
     // O site é gerado estático (sem window no servidor): o Leaflet só se carrega aqui, já no browser.
@@ -36,8 +36,8 @@ export function NearbyMap({ center, radiusKm, markers, onMarkerPress, selectedId
   }, [zoomControl]);
 
   useEffect(() => {
-    handle.current?.update({ center, radiusKm, markers, selectedId });
-  }, [center, radiusKm, markers, selectedId]);
+    handle.current?.update({ center, radiusKm, markers, selectedId, showMe, coverBottom });
+  }, [center, radiusKm, markers, selectedId, showMe, coverBottom]);
 
   return <View ref={host} style={[{ flex: 1, backgroundColor: '#f2efe9', overflow: 'hidden' }, style]} accessibilityLabel="Mapa do que há à tua volta" />;
 }
