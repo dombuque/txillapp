@@ -1,10 +1,12 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { closeAlert, useAlertRequest } from '@/lib/alertHost';
+import { useOverlay } from '@/lib/overlays';
 import { colors } from '@/lib/theme';
 
 /** Caixa de confirmação (apagar, sair, bloquear…): título, texto e botões; o cancelar fecha sem fazer nada. */
 export function AlertHost() {
   const r = useAlertRequest();
+  useOverlay(!!r);
   if (!r) return null;
   const cancel = r.buttons.find((b) => b.style === 'cancel');
   const row = r.buttons.length === 2;

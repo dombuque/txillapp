@@ -13,6 +13,7 @@ import { AlertHost } from '@/components/AlertHost';
 import { AppUpdate } from '@/components/AppUpdate';
 import { CallOverlay } from '@/components/calls/CallOverlay';
 import { PermissionsOnboarding } from '@/components/PermissionsOnboarding';
+import { PushReminderHost } from '@/components/PushReminder';
 import { DesktopShell } from '@/components/DesktopShell';
 import { isStandaloneWeb } from '@/components/Landing';
 import { useDesktop } from '@/lib/desktop';
@@ -181,6 +182,8 @@ function Gate() {
       <ChatLive />
       <AppUpdate />
       <PermissionsOnboarding />
+      {/* "As tuas notificações estão desligadas": de tempos a tempos, nos momentos certos. */}
+      {user ? <PushReminderHost /> : null}
       {shell ? <DesktopShell>{stack}</DesktopShell> : stack}
       {/* Chamadas de voz e vídeo: o ecrã da chamada aparece por cima de qualquer ecrã (só com sessão). */}
       {user ? <CallOverlay /> : null}

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/lib/api';
+import { useOverlay } from '@/lib/overlays';
 import { colors } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
 
@@ -28,6 +29,7 @@ export function WelcomeTour() {
   const privacy = useQuery({ queryKey: ['privacy'], queryFn: api.privacy, staleTime: 60_000 });
   const [i, setI] = useState(0);
   const p = privacy.data;
+  useOverlay(!!p && p.welcomed === false);
   if (!p || p.welcomed !== false) return null;
   const step = STEPS[i];
   const last = i === STEPS.length - 1;

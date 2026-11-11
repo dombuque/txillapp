@@ -8,10 +8,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
 import { kvGet, kvSet } from '@/lib/kv';
 import { askNotifications, onNotificationOpen, registerNativePush } from '@/lib/nativePush';
+import { useOverlay } from '@/lib/overlays';
 import { colors } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
 
 const DONE_KEY = 'tx_perms_v1';
+
+/** Já passou pelo passo a passo das permissões neste telemóvel (até lá, nada de lembretes das notificações). */
+export const permissionsOnboardingDone = async (): Promise<boolean> => !!(await kvGet(DONE_KEY));
 
 interface Step { id: string; icon: IconName; title: string; text: string; ask: () => Promise<unknown> }
 const STEPS: Step[] = [
@@ -35,6 +39,7 @@ export function PermissionsOnboarding() {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  useOverlay(step !== null);
 
   useEffect(() => {
     if (Platform.OS === 'web' || !user) return;

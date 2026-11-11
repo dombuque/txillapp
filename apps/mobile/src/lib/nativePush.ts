@@ -37,6 +37,9 @@ export async function notificationsGranted(): Promise<boolean> {
   try { return (await Notifications.getPermissionsAsync()).granted; } catch { return false; }
 }
 
+/** Este telemóvel já registou o seu código no servidor (com esta instalação). */
+export const hasNativeToken = async (): Promise<boolean> => !!(await kvGet(TOKEN_KEY));
+
 /** Pede licença para notificações (mostra o pedido do sistema). */
 export async function askNotifications(): Promise<boolean> {
   if (Platform.OS === 'web') return false;
