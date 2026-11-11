@@ -15,7 +15,6 @@ import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
-import { FeatureIntro } from './FeatureIntro';
 import { enqueueTask } from '@/lib/publishQueue';
 import { applyZasFx } from '@/lib/zasFx';
 import { usePanGesture } from 'react-native-gesture-handler';
@@ -429,7 +428,8 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
     : { flex: 1, backgroundColor: '#08080b', paddingTop: Math.max(8, insets.top) };
   return (
     <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <FeatureIntro id="zas" />
+      {/* Uma só explicação na primeira vez (a janela "Zás! Tirou, mandou, já foi.", em baixo): a folha do FeatureIntro
+          do Zás já não se mostra aqui, e "Percebi" marca as duas como vistas. */}
       <View style={rootStyle}>
         {!isWeb && <LinearGradient colors={['transparent', 'rgba(255,92,92,0.28)']} start={{ x: 0.5, y: 0.4 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />}
         {!(isWeb && editing) && (
@@ -538,9 +538,9 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
               <Text style={{ marginTop: 4, textAlign: 'center', fontSize: 15, fontWeight: '600', color: colors.zinc600 }}>Tirou, mandou, já foi.</Text>
               <View style={{ marginTop: 16, gap: 12 }}>
                 {([
-                  ['camera', 'Uma foto tirada na hora. Sem galeria e sem filtros.'],
-                  ['send', 'O botão envia logo. Tens 6 segundos para desfazer.'],
-                  ['eye', 'Cada pessoa vê uma só vez e depois desaparece.'],
+                  ['camera', 'Uma foto tirada na hora, sem galeria. Desliza na foto para os filtros.'],
+                  ['send', 'O botão tira e envia logo.'],
+                  ['eye', 'Cada pessoa vê uma só vez e depois desaparece. Vês quem viu e as reações.'],
                   ['clock', 'Dura 24 horas.'],
                   ['users', 'Vai para os teus amigos (quem se segue contigo) ou só para os Próximos.'],
                 ] as const).map(([ic, text]) => (
@@ -550,7 +550,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
                   </View>
                 ))}
               </View>
-              <Pressable onPress={() => { void remember(INTRO_KEY, '1'); setIntro(false); }} accessibilityRole="button" style={{ marginTop: 20, height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
+              <Pressable onPress={() => { void remember(INTRO_KEY, '1'); markSeen('intro:zas'); setIntro(false); }} accessibilityRole="button" style={{ marginTop: 20, height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Percebi</Text>
               </Pressable>
             </View>
