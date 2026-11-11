@@ -377,6 +377,21 @@ export function quiet(f: () => unknown): void {
   }
 }
 
+/** Abaixo disto (ms) uma gravação que falhou conta como toque curto ("Mantém carregado para gravar"). */
+export const MIN_VIDEO_MS = 1000;
+/** Abaixo disto (ms) um vídeo que até gravou bem deita-se fora (é um toque, não um vídeo). */
+export const DROP_VIDEO_MS = 400;
+
+/**
+ * O aviso curto depois de uma gravação que não deu vídeo: largou cedo demais ("Mantém carregado para gravar"), ou a
+ * câmara falhou (no CameraX, por exemplo, ERROR_NO_VALID_DATA). `null` quando correu bem e o vídeo serve.
+ */
+export function recordingNotice(durationMs: number, failed: boolean): string | null {
+  const ms = finite(durationMs) ? durationMs : 0;
+  if (failed) return ms < MIN_VIDEO_MS ? 'Mantém carregado para gravar' : 'Não consegui gravar o vídeo. Tenta outra vez.';
+  return ms <= DROP_VIDEO_MS ? 'Mantém carregado para gravar' : null;
+}
+
 // ———————————————————————————————————————— Vários ————————————————————————————————————————
 
 /** Tempo de gravação: "0:07", "1:00". */
