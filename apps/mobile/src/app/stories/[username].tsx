@@ -17,6 +17,7 @@ import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
 import { api, type Story } from '@/lib/api';
 import { SITE_URL, abs, sized } from '@/lib/config';
 import { useOwnSeen, writeOwnSeen } from '@/lib/ownSeen';
+import { firstToWatch, markSeen, nextOwnSeen, seenUpTo } from '@/lib/ownStorySeen';
 import { useAuth } from '@/lib/auth';
 import { timeAgo } from '@/lib/time';
 import { saveToGallery } from '@/lib/saveToGallery';
@@ -120,7 +121,7 @@ export default function StoryViewer() {
   const stories = q.data ?? [];
   const [i, setI] = useState(0);
   const [ready, setReady] = useState(false); // já se escolheu por onde começar
-  const ownSeen = useOwnSeen();
+  const ownSeen = useOwnSeen(me?.username);
   const [held, setHeld] = useState(false);
   const [typing, setTyping] = useState(false);
   /** Muda a cada brinde: os copos aparecem no meio do mimo, como nas publicações. */
@@ -195,9 +196,8 @@ export default function StoryViewer() {
   useEffect(() => {
     if (!q.data || started.current === username) return;
     started.current = username;
-    // Os meus: o servidor não conta o autor, por isso "visto" é o que este aparelho guardou (hora do último visto).
-    const firstNew = mine ? stories.findIndex((x) => !ownSeen || x.createdAt > ownSeen) : stories.findIndex((x) => !x.seen);
-    setI(firstNew === -1 ? 0 : firstNew);
+    // Os meus: o `seen` vem do servidor (guardado na conta, vale em todos os aparelhos), reforçado pelo que este aparelho guardou.
+    setI(firstToWatch(stories, mine, ownSeen));
     setReady(true);
   }, [q.isSuccess, q.isFetching, username]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -208,9 +208,14 @@ export default function StoryViewer() {
     setVideoMs(null);
     setSeePost(false);
     if (!ready || !cur) return;
-    if (!mine) void api.viewStory(cur.id).catch(() => undefined);
-    // Os meus: fica guardado até onde vi (o servidor não conta o autor); no último, o anel apaga-se.
-    else if (!ownSeen || cur.createdAt > ownSeen) void writeOwnSeen(i === stories.length - 1 ? ((tray.data ?? []).find((t) => t.isMe)?.latestAt ?? cur.createdAt) : cur.createdAt);
+    // Também nos meus: o servidor não me conta como espectador, mas guarda na conta até onde vi (o anel apaga-se em todos
+    // os aparelhos). Este aparelho guarda-o já, para o anel não esperar pela rede.
+    if (mine && me && !seenUpTo(ownSeen, cur.createdAt)) void writeOwnSeen(me.username, nextOwnSeen(ownSeen, cur.createdAt));
+    const seen = cur;
+    qc.setQueryData<Story[]>(['stories', username], (old) => markSeen(old, seen, mine));
+    void api.viewStory(cur.id)
+      .then(() => qc.invalidateQueries({ queryKey: ['stories'], exact: true })) // a bandeja (no Início e nos outros ecrãs)
+      .catch(() => undefined);
   }, [cur?.id, ready]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!seePost) return;

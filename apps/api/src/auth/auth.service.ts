@@ -516,6 +516,7 @@ export class AuthService {
         'DELETE FROM social.cheer_notices WHERE user_id = $1 OR owner_id = $1',
         'DELETE FROM social.cheer_pushes WHERE user_id = $1',
         'DELETE FROM content.story_views WHERE viewer_id = $1',
+        'DELETE FROM content.story_own_seen WHERE user_id = $1',
         'DELETE FROM content.story_replies WHERE author_id = $1',
         'DELETE FROM content.story_cheers WHERE user_id = $1',
         'DELETE FROM content.photo_tags WHERE tagged_id = $1',
