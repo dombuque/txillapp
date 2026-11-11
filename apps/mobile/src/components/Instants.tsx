@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import * as SecureStore from 'expo-secure-store';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { Animated, Easing, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, uploadMedia } from '@/lib/api';
@@ -15,8 +15,7 @@ import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
-import { FeatureIntro } from './FeatureIntro';
-import { enqueueTask } from '@/lib/publishQueue';
+import { dropPublish, enqueueTask } from '@/lib/publishQueue';
 import { applyZasFx } from '@/lib/zasFx';
 import { usePanGesture } from 'react-native-gesture-handler';
 import { FUN_FX } from './zas/funFilters';
@@ -29,6 +28,7 @@ import { useVisibleViewport } from './zas/useVisibleViewport';
 import { WebZasStudio } from './zas/WebZasStudio';
 import { ZasNativeCamera, type ZasCamStatus } from './zas/ZasNativeCamera';
 import { zasCardSize } from './zas/zasFrame';
+import { ZAS_UNDO_MS, undoSecondsLeft, waitUndoWindow } from './zas/zasUndo';
 import { saveZas, shareZas } from './zas/zasImage';
 
 type Audience = 'friends' | 'close';
@@ -346,25 +346,39 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   const [screenLight, setScreenLight] = useState(false);
   const [shooting, setShooting] = useState(false);
   const shootRef = useRef<(() => Promise<string | null>) | null>(null);
-  // Zás instantâneo: aparece logo "enviado" (com Desfazer) e o envio segue em segundo plano (faixa no Início).
-  const pendingZas = useRef(new Map<string, { cancelled: boolean; id?: string }>());
+  // Zás instantâneo: aparece logo "enviado" com 6 s para desfazer, e o envio segue em segundo plano (faixa no Início).
+  // A foto começa logo a subir, mas o Zás só é criado no servidor quando a janela acaba: nesses 6 s ninguém o pode
+  // receber (nem há aviso nenhum), e "Desfazer" só tem de o cancelar.
+  const pendingZas = useRef(new Map<string, { cancelled: boolean; id?: string; task?: string; sentAt: number }>());
+  const undoBar = useRef(new Animated.Value(1)).current;
+  const [undoLeft, setUndoLeft] = useState(0);
+  const undoTick = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  useEffect(() => () => clearInterval(undoTick.current), []);
   async function send(uri: string, mime: string) {
     setErr('');
-    const key = `zas-${Date.now()}`;
-    const state: { cancelled: boolean; id?: string } = { cancelled: false };
+    const sentAt = Date.now();
+    const key = `zas-${sentAt}`;
+    const state: { cancelled: boolean; id?: string; task?: string; sentAt: number } = { cancelled: false, sentAt };
     pendingZas.current.set(key, state);
     const text = caption.trim(), who = audience;
     setCaption('');
     setSent(key);
+    // A contagem (6…1) e a barra a esvaziar; no fim o aviso sai sozinho.
     clearTimeout(undoTimer.current);
-    undoTimer.current = setTimeout(() => setSent(null), 2200);
+    clearInterval(undoTick.current);
+    setUndoLeft(undoSecondsLeft(sentAt, Date.now()));
+    undoTick.current = setInterval(() => setUndoLeft(undoSecondsLeft(sentAt, Date.now())), 250);
+    undoTimer.current = setTimeout(() => { clearInterval(undoTick.current); setSent((s) => (s === key ? null : s)); }, ZAS_UNDO_MS);
+    undoBar.stopAnimation();
+    undoBar.setValue(1);
+    Animated.timing(undoBar, { toValue: 0, duration: ZAS_UNDO_MS, easing: Easing.linear, useNativeDriver: false }).start();
     // O clarão e o toque do obturador já se deram ao tirar; este é o "foi enviado".
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     const chosenFx = fxRef.current;
-    enqueueTask('zas', { uri, mime, video: false }, async () => {
+    state.task = enqueueTask('zas', { uri, mime, video: false }, async () => {
       const src = await applyZasFx(uri, chosenFx);
       const mediaId = await uploadMedia(src, mime);
-      if (state.cancelled) return;
+      if (await waitUndoWindow(sentAt, () => state.cancelled)) return;
       const res = await instantsApi.create(mediaId, text, who);
       state.id = res.id;
       if (state.cancelled) { await instantsApi.remove(res.id).catch(() => undefined); return; }
@@ -397,8 +411,14 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
     if (!sent) return;
     const state = pendingZas.current.get(sent);
     setSent(null);
+    clearTimeout(undoTimer.current);
+    clearInterval(undoTick.current);
+    undoBar.stopAnimation();
     if (!state) return;
-    state.cancelled = true; // ainda a enviar: nem chega a ser criado
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    state.cancelled = true; // ainda dentro da janela: nem chega a ser criado no servidor
+    if (state.task) dropPublish(state.task); // e some a faixa "a enviar" do Início
+    pendingZas.current.delete(sent);
     if (state.id) { await instantsApi.remove(state.id).catch(() => undefined); refresh(); }
   }
 
@@ -418,9 +438,27 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   const { w: cardW, h: cardH } = zasCardSize(camArea.w, camArea.h - 8);
   const sentBox = sent ? (
 
-            <View accessibilityLiveRegion="polite" style={st.sent}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingLeft: 20, paddingRight: 8 }}>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>Zás enviado!</Text>
+            <View style={st.sent}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, paddingLeft: 20, paddingRight: 6 }}>
+                <View accessibilityLiveRegion="polite" style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>Zás enviado!</Text>
+                  {/* Contagem discreta; o leitor de ecrã não a lê a cada segundo. */}
+                  <Text importantForAccessibility="no" accessibilityElementsHidden style={{ fontSize: 13, fontWeight: '600', color: colors.zinc500, fontVariant: ['tabular-nums'] }}>{undoLeft > 0 ? `${undoLeft} s` : ''}</Text>
+                </View>
+                <Pressable
+                  onPress={() => void undo()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Desfazer"
+                  accessibilityHint="Cancela o envio deste Zás"
+                  hitSlop={6}
+                  style={({ pressed }) => ({ minHeight: 44, minWidth: 44, paddingHorizontal: 16, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? colors.zinc200 : colors.zinc100 })}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: colors.brand }}>Desfazer</Text>
+                </Pressable>
+              </View>
+              {/* A barra a esvaziar durante os 6 segundos. */}
+              <View pointerEvents="none" style={{ height: 3, backgroundColor: colors.zinc100 }}>
+                <Animated.View style={{ height: 3, backgroundColor: colors.brand, width: undoBar.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }} />
               </View>
             </View>
           ) : null;
@@ -429,7 +467,8 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
     : { flex: 1, backgroundColor: '#08080b', paddingTop: Math.max(8, insets.top) };
   return (
     <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <FeatureIntro id="zas" />
+      {/* Uma só explicação na primeira vez (a janela "Zás! Tirou, mandou, já foi.", em baixo): a folha do FeatureIntro
+          do Zás já não se mostra aqui, e "Percebi" marca as duas como vistas. */}
       <View style={rootStyle}>
         {!isWeb && <LinearGradient colors={['transparent', 'rgba(255,92,92,0.28)']} start={{ x: 0.5, y: 0.4 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />}
         {!(isWeb && editing) && (
@@ -538,9 +577,9 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
               <Text style={{ marginTop: 4, textAlign: 'center', fontSize: 15, fontWeight: '600', color: colors.zinc600 }}>Tirou, mandou, já foi.</Text>
               <View style={{ marginTop: 16, gap: 12 }}>
                 {([
-                  ['camera', 'Uma foto tirada na hora. Sem galeria e sem filtros.'],
-                  ['send', 'O botão envia logo. Tens 6 segundos para desfazer.'],
-                  ['eye', 'Cada pessoa vê uma só vez e depois desaparece.'],
+                  ['camera', 'Uma foto tirada na hora, sem galeria. Desliza na foto para os filtros.'],
+                  ['send', 'O botão tira e envia logo. Tens 6 segundos para desfazer.'],
+                  ['eye', 'Cada pessoa vê uma só vez e depois desaparece. Vês quem viu e as reações.'],
                   ['clock', 'Dura 24 horas.'],
                   ['users', 'Vai para os teus amigos (quem se segue contigo) ou só para os Próximos.'],
                 ] as const).map(([ic, text]) => (
@@ -550,7 +589,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
                   </View>
                 ))}
               </View>
-              <Pressable onPress={() => { void remember(INTRO_KEY, '1'); setIntro(false); }} accessibilityRole="button" style={{ marginTop: 20, height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
+              <Pressable onPress={() => { void remember(INTRO_KEY, '1'); markSeen('intro:zas'); setIntro(false); }} accessibilityRole="button" style={{ marginTop: 20, height: 48, borderRadius: 999, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Percebi</Text>
               </Pressable>
             </View>
