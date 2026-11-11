@@ -1,8 +1,10 @@
 /** "À tua volta": o que há perto (locais, eventos, publicações, TxillGroups e malta) e os eventos dos locais. */
 import { post, raw } from '@/lib/api';
+import type { NearbyKind, NearbyWhen } from '@/lib/nearbyView';
 
-export type NearbyKind = 'venues' | 'events' | 'posts' | 'groups' | 'people';
-export type NearbyWhen = 'now' | 'today' | 'week';
+export type { NearbyKind, NearbyWhen } from '@/lib/nearbyView';
+// Os textos das distâncias e das datas dos eventos vivem em nearbyView (testados em Node); ficam aqui para quem já os importava.
+export { eventWhen, kmLabel } from '@/lib/nearbyView';
 export type NearbyVisibility = 'off' | 'mutual' | 'following';
 
 export interface NearbyVenue { slug: string; name: string; kind: string; avatarUrl: string | null; verified: boolean; acceptsTxills?: boolean; lat: number; lng: number; distanceKm: number; checkinsToday: number; followers: number }
@@ -74,23 +76,4 @@ export const nearbyApi = {
 export function directionsUrl(lat: number, lng: number, label: string, ios: boolean): string {
   const q = encodeURIComponent(label);
   return ios ? `https://maps.apple.com/?daddr=${lat},${lng}&q=${q}` : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-}
-
-/** "a 1,2 km" / "a 300 m". */
-export const kmLabel = (km: number) => (km < 1 ? `a ${Math.max(50, Math.round((km * 1000) / 50) * 50)} m` : `a ${km.toLocaleString('pt-PT', { maximumFractionDigits: 1 })} km`);
-
-const WD = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
-const MO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-const hm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-/** "Hoje · 21:00", "Amanhã · 18:30", "sáb, 14 nov · 22:00". */
-export function eventWhen(startsAt: string, endsAt?: string | null): string {
-  const d = new Date(startsAt);
-  if (isNaN(d.getTime())) return '';
-  const now = new Date();
-  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diff = Math.round((day(d) - day(now)) / 86_400_000);
-  const e = endsAt ? new Date(endsAt) : null;
-  const live = e && d.getTime() <= now.getTime() && now.getTime() <= e.getTime();
-  const head = live ? 'A decorrer' : diff === 0 ? 'Hoje' : diff === 1 ? 'Amanhã' : `${WD[d.getDay()]}, ${d.getDate()} ${MO[d.getMonth()]}`;
-  return `${head} · ${hm(d)}${e && !isNaN(e.getTime()) ? ` até ${hm(e)}` : ''}`;
 }

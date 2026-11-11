@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, AppState, FlatList, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Alert, Animated, AppState, FlatList, Linking, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { BackButton } from '@/components/BackButton';
@@ -21,10 +21,11 @@ import { ApiError, api } from '@/lib/api';
 import type { GroupKind } from '@/lib/api.groups';
 import { KIND_LABEL } from '@/lib/api.locais';
 import { joinModeOf } from '@/lib/groupAccess';
-import { eventWhen, kmLabel, nearbyApi, round2, type NearbyGroup, type NearbyKind, type NearbyResult, type NearbyVisibility, type NearbyWhen } from '@/lib/api.nearby';
+import { eventWhen, kmLabel, nearbyApi, round2, type NearbyGroup, type NearbyResult, type NearbyVisibility, type NearbyWhen } from '@/lib/api.nearby';
 import { SITE_URL, sized } from '@/lib/config';
 import { useDesktop } from '@/lib/desktop';
 import { kvGet, kvSet } from '@/lib/kv';
+import { emptyHint, kindsToFetch, loadErrorText, locateProblemText, shownKinds, type LocateProblem, type NearbyFilter } from '@/lib/nearbyView';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
@@ -43,7 +44,7 @@ const CITIES: { name: string; lat: number; lng: number }[] = [
 ];
 const PLACE_KEY = 'txill.perto.place';
 const RADII = [5, 10, 20, 30] as const;
-type Filter = 'all' | 'venues' | 'events' | 'people' | 'posts' | 'groups';
+type Filter = NearbyFilter;
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'Tudo' },
   { key: 'venues', label: 'Locais' },
@@ -53,14 +54,6 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: 'posts', label: 'Publicações' },
   { key: 'groups', label: 'TxillGroups' },
 ];
-const KINDS: Record<Filter, NearbyKind[]> = {
-  all: ['venues', 'events', 'posts', 'groups', 'people'],
-  venues: ['venues'],
-  events: ['events'],
-  people: ['people'],
-  posts: ['posts'],
-  groups: ['groups'],
-};
 const WHENS: { key: NearbyWhen; label: string }[] = [
   { key: 'now', label: 'A decorrer' },
   { key: 'today', label: 'Hoje' },
@@ -73,6 +66,36 @@ const VIS: { key: NearbyVisibility; label: string; sub: string }[] = [
 ];
 
 type Place = { lat: number; lng: number; label: string; gps: boolean };
+
+/** Uma promessa com prazo: o GPS dentro de casa pode ficar à procura minutos a fio. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('timeout')), ms);
+    p.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); },
+    );
+  });
+}
+
+/** A posição: a última conhecida (até 10 min) ou uma nova (até 15 s); se não der, a última da última hora. */
+async function currentPosition(): Promise<Location.LocationObject | null> {
+  const native = Platform.OS !== 'web';
+  const last = native ? await Location.getLastKnownPositionAsync({ maxAge: 10 * 60_000 }).catch(() => null) : null;
+  if (last) return last;
+  try {
+    return await withTimeout(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), 15_000);
+  } catch {
+    return native ? await Location.getLastKnownPositionAsync({ maxAge: 60 * 60_000 }).catch(() => null) : null;
+  }
+}
+
+/** Avisa porque não deu para usar a localização (com "Abrir definições" quando é isso que resolve). */
+function alertProblem(p: LocateProblem) {
+  const t = locateProblemText(p, Platform.OS === 'web');
+  Alert.alert(t.title, t.text, t.settings ? [{ text: 'Agora não', style: 'cancel' }, { text: 'Abrir definições', onPress: () => void Linking.openSettings() }] : undefined);
+}
+
 interface Item {
   key: string;
   kind: MapMarkerKind;
@@ -146,23 +169,32 @@ export default function Perto() {
   const [visSheet, setVisSheet] = useState(false);
   const [hideCard, setHideCard] = useState(false);
   const [groupInfo, setGroupInfo] = useState<NearbyGroup | null>(null);
+  /** Porque é que a localização não deu (mostrado no ecrã de escolher a cidade). */
+  const [problem, setProblem] = useState<LocateProblem | null>(null);
+  /** Quando foi a última posição do GPS (para a refrescar se ficou velha). */
+  const fixAt = useRef(0);
 
   // ----- Onde estou: GPS (se deixares) ou a cidade escolhida -----
-  const locate = useCallback(async (requestIfNeeded: boolean) => {
+  /** null = deu; senão, o problema. `quiet`: atualizar sem mostrar "A ver onde estás…" (já há sítio no ecrã). */
+  const locate = useCallback(async (requestIfNeeded: boolean, quiet = false): Promise<LocateProblem | null> => {
     try {
       let perm = await Location.getForegroundPermissionsAsync();
       if (!perm.granted && requestIfNeeded && perm.canAskAgain !== false) perm = await Location.requestForegroundPermissionsAsync();
-      if (!perm.granted) return false;
-      setAsk('locating');
-      const last = Platform.OS === 'web' ? null : await Location.getLastKnownPositionAsync({ maxAge: 10 * 60_000 }).catch(() => null);
-      const pos = last ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
+      if (!perm.granted) return perm.canAskAgain === false ? 'blocked' : 'denied';
+      if (Platform.OS !== 'web' && !(await Location.hasServicesEnabledAsync().catch(() => true))) return 'off';
+      if (!quiet) setAsk('locating');
+      const pos = await currentPosition();
+      if (!pos) return 'failed';
       // Arredondado logo aqui: a posição exata nunca sai deste ecrã.
-      setPlace({ lat: round2(pos.coords.latitude), lng: round2(pos.coords.longitude), label: 'Perto de mim', gps: true });
-      setAsk(null);
+      const lat = round2(pos.coords.latitude);
+      const lng = round2(pos.coords.longitude);
+      fixAt.current = Date.now();
+      setPlace((prev) => (prev?.gps && prev.lat === lat && prev.lng === lng ? prev : { lat, lng, label: 'Perto de mim', gps: true }));
+      if (!quiet) setAsk(null);
       void kvSet(PLACE_KEY, 'gps');
-      return true;
+      return null;
     } catch {
-      return false;
+      return 'failed';
     }
   }, []);
 
@@ -179,8 +211,15 @@ export default function Perto() {
       }
       const perm = await Location.getForegroundPermissionsAsync().catch(() => null);
       if (!alive) return;
-      if (perm?.granted && (await locate(false))) return;
-      if (alive) setAsk(perm && !perm.granted && perm.canAskAgain === false ? 'cities' : 'explain');
+      if (perm?.granted) {
+        const p = await locate(false);
+        if (!p || !alive) return;
+        // Com autorização mas sem posição (GPS desligado, sem sinal): explica e deixa tentar outra vez ou escolher a cidade.
+        setProblem(p);
+        setAsk('explain');
+        return;
+      }
+      setAsk(perm && !perm.granted && perm.canAskAgain === false ? 'cities' : 'explain');
     })();
     return () => {
       alive = false;
@@ -189,35 +228,55 @@ export default function Perto() {
 
   const goMine = async () => {
     setPlaceSheet(false);
-    const ok = await locate(true);
-    if (!ok) {
-      setAsk(place ? null : 'cities');
-      if (place) Alert.alert('Sem localização', 'Não consegui saber onde estás. Escolhe uma cidade ou liga a localização nas definições do telemóvel.');
-    }
+    const p = await locate(true);
+    setProblem(place ? null : p);
+    if (!p) return;
+    if (place) {
+      setAsk(null);
+      alertProblem(p);
+    } else setAsk('cities');
   };
+
+  // ----- Aparecer em À tua volta (a malta) -----
+  const vis = useQuery({ queryKey: ['nearby-settings'], queryFn: nearbyApi.settings, staleTime: 5 * 60_000, retry: false });
+  const visibility: NearbyVisibility | null = vis.data?.visibility ?? null;
+  const visible = visibility === 'mutual' || visibility === 'following';
+
   const pickCity = (c: (typeof CITIES)[number]) => {
+    // Com uma cidade escolhida não apareces à malta (diz a folha): a última posição do GPS sai logo, não espera as 3 h.
+    if (visible && place?.gps) void nearbyApi.clearPresence().catch(() => undefined);
     setPlace({ lat: c.lat, lng: c.lng, label: c.name, gps: false });
     setAsk(null);
+    setProblem(null);
     setPlaceSheet(false);
     void kvSet(PLACE_KEY, c.name);
   };
 
   // ----- O que há à volta -----
-  const kinds = KINDS[filter];
+  // Pede-se tudo de uma vez e filtra-se aqui (trocar de filtro é instantâneo); ver nearbyView.kindsToFetch.
+  const fetchKinds = kindsToFetch(filter, when);
   const q = useQuery({
-    queryKey: ['nearby', place?.lat, place?.lng, radius, kinds.join(','), when],
-    queryFn: () => nearbyApi.around({ lat: place!.lat, lng: place!.lng, radiusKm: radius, kinds, when }),
+    queryKey: ['nearby', place?.lat, place?.lng, radius, fetchKinds.join(','), when],
+    queryFn: () => nearbyApi.around({ lat: place!.lat, lng: place!.lng, radiusKm: radius, kinds: fetchKinds, when }),
     enabled: !!place,
     staleTime: 60_000,
-    placeholderData: (prev) => prev,
+    // Enquanto chega a resposta fica a anterior, mas só do mesmo sítio (a de outra cidade punha distâncias erradas na lista).
+    placeholderData: (prev, prevQuery) => (prevQuery && prevQuery.queryKey[1] === place?.lat && prevQuery.queryKey[2] === place?.lng ? prev : undefined),
   });
-  const items = useMemo(() => toItems(q.data), [q.data]);
+  const shown = useMemo(() => shownKinds(filter), [filter]);
+  const items = useMemo(() => toItems(q.data).filter((i) => shown.has(i.kind)), [q.data, shown]);
+  const [pulling, setPulling] = useState(false);
+  const pullRefresh = async () => {
+    setPulling(true);
+    try {
+      await q.refetch();
+    } finally {
+      setPulling(false);
+    }
+  };
   const markers = useMemo<MapMarker[]>(() => items.map((i) => ({ id: i.key, kind: i.kind, lat: i.lat, lng: i.lng, title: i.title, image: i.image, date: i.date ?? null })), [items]);
   const center = useMemo(() => (place ? { lat: place.lat, lng: place.lng } : { lat: -25.97, lng: 32.57 }), [place]);
 
-  // ----- Aparecer em À tua volta (a malta) -----
-  const vis = useQuery({ queryKey: ['nearby-settings'], queryFn: nearbyApi.settings, staleTime: 5 * 60_000, retry: false });
-  const visibility: NearbyVisibility | null = vis.data?.visibility ?? null;
   const setVis = useMutation({
     mutationFn: (v: NearbyVisibility) => nearbyApi.setSettings(v),
     onSuccess: (r, v) => {
@@ -228,7 +287,6 @@ export default function Perto() {
     },
     onError: (e) => Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.'),
   });
-  const visible = visibility === 'mutual' || visibility === 'following';
   // Menores de 18 não podem aparecer: o servidor diz canEnable = false e escondemos o cartão e o botão.
   const canEnable = vis.data?.canEnable !== false;
 
@@ -253,6 +311,24 @@ export default function Perto() {
     const t = setInterval(tick, 60_000);
     return () => clearInterval(t);
   }, [sendPresence]);
+
+  // A posição do GPS não fica parada: ao voltar ao ecrã (ou à app) e a cada 5 minutos com ele aberto, se a última tem mais
+  // de 4 min e meio, pede-se outra sem perguntar nada. Sem autorização (tirada nas definições), deixa de contar como GPS.
+  const gps = !!place?.gps;
+  useEffect(() => {
+    if (!gps || !focused || !active) return;
+    const refresh = () => {
+      if (Date.now() - fixAt.current < 4.5 * 60_000) return;
+      void locate(false, true).then((p) => {
+        if (p !== 'denied' && p !== 'blocked') return;
+        setPlace((prev) => (prev?.gps ? { ...prev, label: 'Último sítio', gps: false } : prev));
+        void nearbyApi.clearPresence().catch(() => undefined);
+      });
+    };
+    refresh();
+    const t = setInterval(refresh, 5 * 60_000);
+    return () => clearInterval(t);
+  }, [gps, focused, active, locate]);
 
   // ----- Abrir um item -----
   const groups = useQuery({ queryKey: ['chat-groups'], queryFn: api.chatGroups, staleTime: 60_000, enabled: items.some((i) => i.kind === 'group') });
@@ -283,11 +359,13 @@ export default function Perto() {
     );
 
   // ----- Filtros: uma só fila (zona e distância num chip que abre a folha "Onde procurar", depois o que mostrar) -----
-  const zoneLabel = place ? `${place.label} · ${radius} km` : '';
+  // À procura do GPS (pedido na folha "Onde procurar"): o chip diz, para o toque não parecer perdido.
+  const zoneLabel = place ? (ask === 'locating' ? 'A ver onde estás…' : `${place.label} · ${radius} km`) : '';
   const zonePill = place ? (
     <Pressable
       onPress={() => setPlaceSheet(true)}
       style={({ pressed }) => [st.zone, pressed && { backgroundColor: colors.zinc100 }]}
+      hitSlop={{ top: 4, bottom: 4 }}
       accessibilityRole="button"
       accessibilityLabel={`Zona: ${place.label}, até ${radius} km. Mudar o sítio ou a distância`}
     >
@@ -331,26 +409,38 @@ export default function Perto() {
       <VisibilityStrip onOpen={() => setVisSheet(true)} onLater={() => setHideCard(true)} />
     ) : null;
 
-  const wider = RADII.find((r) => r > radius);
+  // Vazio: a razão certa para cada filtro (a malta só com visibilidade, eventos de hoje vs. da semana…) e o botão que resolve.
+  const hint = emptyHint({ filter, when, radius, radii: RADII, canEnable });
   const listEmpty = q.isLoading ? (
     <View style={st.center}><ActivityIndicator /></View>
   ) : q.isError ? (
     <View style={st.center}>
+      <View style={st.emptyIcon}><Icon name="alert" size={24} color={colors.brand} /></View>
       <Text style={st.emptyTitle}>Não consegui ver o que há à volta</Text>
+      <Text style={st.emptySub}>{loadErrorText(q.error instanceof ApiError ? q.error.status : null)}</Text>
       <Pressable onPress={() => void q.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>Tentar outra vez</Text></Pressable>
     </View>
   ) : (
     <View style={st.center}>
       <View style={st.emptyIcon}><Icon name="compass" size={26} color={colors.brand} /></View>
-      <Text style={st.emptyTitle}>Por aqui está calmo</Text>
-      <Text style={st.emptySub}>{wider ? 'Não há nada perto com estes filtros. Vê um pouco mais longe ou troca o filtro.' : 'Troca o filtro ou volta mais logo: há sempre coisas novas.'}</Text>
-      {wider ? (
-        <Pressable onPress={() => setRadius(wider)} style={st.retry} accessibilityRole="button">
-          <Text style={st.retryText}>Ver até {wider} km</Text>
+      <Text style={st.emptyTitle}>{hint.title}</Text>
+      <Text style={st.emptySub}>{hint.sub}</Text>
+      {hint.action ? (
+        <Pressable
+          onPress={() => {
+            const a = hint.action!;
+            if (a.radius) setRadius(a.radius);
+            if (a.when) setWhen(a.when);
+          }}
+          style={st.retry}
+          accessibilityRole="button"
+        >
+          <Text style={st.retryText}>{hint.action.label}</Text>
         </Pressable>
       ) : null}
     </View>
   );
+  const listState = { loading: q.isLoading, updating: q.isPlaceholderData, failed: q.isError };
 
   // ----- Antes de haver sítio -----
   if (!place) {
@@ -367,15 +457,17 @@ export default function Perto() {
                 <Text style={st.explainText}>
                   Locais, eventos, a malta e o que se está a publicar perto de ti. Para isso o Txillapp precisa de saber onde estás: usamos só para esta procura, arredondada ao bairro, e não guardamos o teu percurso.
                 </Text>
-                <Pressable onPress={() => void goMine()} style={st.primary} accessibilityRole="button"><Text style={st.primaryText}>Usar a minha localização</Text></Pressable>
+                {problem ? <ProblemNote problem={problem} /> : null}
+                <Pressable onPress={() => void goMine()} style={st.primary} accessibilityRole="button"><Text style={st.primaryText}>{problem ? 'Tentar outra vez' : 'Usar a minha localização'}</Text></Pressable>
                 <Pressable onPress={() => setAsk('cities')} style={st.secondary} accessibilityRole="button"><Text style={st.secondaryText}>Prefiro escolher a cidade</Text></Pressable>
               </View>
             ) : (
               <>
                 <Text style={st.explainTitle}>Escolhe a cidade</Text>
                 <Text style={st.explainText}>Sem localização também dá. Mostramos o que há à volta do centro da cidade.</Text>
+                {problem ? <ProblemNote problem={problem} /> : null}
                 <CityGrid onPick={pickCity} />
-                <Pressable onPress={() => void goMine()} style={st.secondary}><Text style={st.secondaryText}>Usar a minha localização</Text></Pressable>
+                <Pressable onPress={() => void goMine()} style={st.secondary} accessibilityRole="button"><Text style={st.secondaryText}>Usar a minha localização</Text></Pressable>
               </>
             )}
           </ScrollView>
@@ -421,7 +513,16 @@ export default function Perto() {
       {visSheet ? (
         <Sheet title="Aparecer em À tua volta" onClose={() => setVisSheet(false)}>
           <View style={{ paddingHorizontal: 16, paddingBottom: 20 }}>
-            <VisibilityOptions value={visibility ?? 'off'} onPick={(v) => setVis.mutate(v)} busy={setVis.isPending} gps={place.gps} />
+            <VisibilityOptions
+              value={visibility ?? 'off'}
+              onPick={(v) => setVis.mutate(v)}
+              busy={setVis.isPending}
+              gps={place.gps}
+              onUseGps={() => {
+                setVisSheet(false);
+                void goMine();
+              }}
+            />
           </View>
         </Sheet>
       ) : null}
@@ -442,11 +543,11 @@ export default function Perto() {
         <View style={{ paddingHorizontal: 12, paddingTop: 12 }}>{chips}</View>
         <View style={{ flex: 1, flexDirection: 'row', gap: 16, paddingHorizontal: 24, paddingBottom: 24 }}>
           <View style={{ flex: 1, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: colors.zinc200 }}>
-            <NearbyMap center={center} radiusKm={radius} markers={markers} selectedId={selected} onMarkerPress={setSelected} zoomControl />
+            <NearbyMap center={center} radiusKm={radius} markers={markers} selectedId={selected} onMarkerPress={setSelected} showMe={place.gps} zoomControl />
           </View>
           <View style={st.deskList}>
-            <ListHead items={items} loading={q.isLoading} />
-            <DeskList items={items} selected={selected} header={card} empty={listEmpty} render={row} />
+            <ListHead items={items} {...listState} />
+            <DeskList items={items} selected={selected} header={card} empty={listEmpty} render={row} refreshing={pulling} onRefresh={() => void pullRefresh()} />
           </View>
         </View>
         {sheets}
@@ -458,9 +559,17 @@ export default function Perto() {
   return (
     <PertoPage right={eyeButton}>
       <View style={st.phoneTop}>{chips}</View>
-      <PhoneBody items={items} selected={selected} head={<ListHead items={items} loading={q.isLoading} />} header={card} empty={listEmpty} render={row} onMarker={setSelected}>
-        <NearbyMap center={center} radiusKm={radius} markers={markers} selectedId={selected} onMarkerPress={setSelected} />
-      </PhoneBody>
+      <PhoneBody
+        items={items}
+        selected={selected}
+        head={<ListHead items={items} {...listState} />}
+        header={card}
+        empty={listEmpty}
+        render={row}
+        refreshing={pulling}
+        onRefresh={() => void pullRefresh()}
+        map={(cover) => <NearbyMap center={center} radiusKm={radius} markers={markers} selectedId={selected} onMarkerPress={setSelected} showMe={place.gps} coverBottom={cover} />}
+      />
       {sheets}
     </PertoPage>
   );
@@ -490,6 +599,8 @@ function Chip({ label, on, onPress, dark = false, small = false, soft = false }:
   return (
     <Pressable
       onPress={onPress}
+      // 36 pt de altura (32 nos pequenos) + 4 em cima e em baixo: o toque chega aos 44 sem os chips ficarem maiores.
+      hitSlop={{ top: 4, bottom: 4 }}
       style={[
         st.chip,
         small && { height: 32, paddingHorizontal: 13 },
@@ -524,6 +635,8 @@ function Row({ item, selected, onPress, onOpen, onHover }: { item: Item; selecte
       style={(s) => [st.row, selected && st.rowSel, (s as { hovered?: boolean }).hovered && !selected && { backgroundColor: colors.zinc100 }]}
       accessibilityRole="button"
       accessibilityLabel={`${item.title}, ${kmLabel(item.distanceKm)}. ${item.sub}`}
+      // O primeiro toque mostra no mapa, o segundo abre (quem usa o leitor de ecrã não vê isto).
+      accessibilityHint={selected ? 'Toca para abrir' : 'Toca para mostrar no mapa e outra vez para abrir'}
       accessibilityState={{ selected }}
     >
       {item.kind === 'person' ? (
@@ -549,10 +662,19 @@ function Row({ item, selected, onPress, onOpen, onHover }: { item: Item; selecte
   );
 }
 
-type ListProps = { items: Item[]; selected: string | null; header: React.ReactElement | null; empty: React.ReactElement; render: (it: Item) => React.ReactElement };
+type ListProps = {
+  items: Item[];
+  selected: string | null;
+  header: React.ReactElement | null;
+  empty: React.ReactElement;
+  render: (it: Item) => React.ReactElement;
+  /** Puxar a lista para baixo volta a pedir o que há à volta. */
+  refreshing: boolean;
+  onRefresh: () => void;
+};
 
 /** Lista do computador: o item escolhido no mapa rola para a vista. */
-function DeskList({ items, selected, header, empty, render }: ListProps) {
+function DeskList({ items, selected, header, empty, render, refreshing, onRefresh }: ListProps) {
   const list = useRef<FlatList<Item>>(null);
   useEffect(() => {
     const i = items.findIndex((x) => x.key === selected);
@@ -566,6 +688,8 @@ function DeskList({ items, selected, header, empty, render }: ListProps) {
       renderItem={({ item }) => render(item)}
       ListHeaderComponent={header ?? undefined}
       ListEmptyComponent={empty}
+      refreshing={refreshing}
+      onRefresh={onRefresh}
       onScrollToIndexFailed={(e) => setTimeout(() => list.current?.scrollToOffset({ offset: e.averageItemLength * e.index, animated: true }), 50)}
       contentContainerStyle={{ paddingBottom: 16 }}
     />
@@ -580,13 +704,24 @@ const KIND_COUNT: Record<MapMarkerKind, [string, string]> = {
   person: ['pessoa', 'pessoas'],
 };
 
-/** Cabeçalho da lista: quantos há (grande) e de que tipo (pequeno). */
-function ListHead({ items, loading }: { items: Item[]; loading: boolean }) {
+/** Cabeçalho da lista: quantos há (grande) e de que tipo (pequeno). `updating`: o que se vê é o anterior, a resposta nova vem a caminho. */
+function ListHead({ items, loading, updating, failed }: { items: Item[]; loading: boolean; updating: boolean; failed: boolean }) {
   const n = items.length;
   const by = new Map<MapMarkerKind, number>();
   for (const i of items) by.set(i.kind, (by.get(i.kind) ?? 0) + 1);
   const parts = [...by.entries()].map(([k, c]) => `${c} ${KIND_COUNT[k][c === 1 ? 0 : 1]}`);
-  const sub = n ? (parts.length > 1 ? `${parts.join(' · ')} · mais perto primeiro` : 'Mais perto primeiro') : loading ? 'A procurar…' : 'Nada por perto com estes filtros';
+  const sub =
+    loading || (updating && !n)
+      ? 'A procurar…'
+      : updating
+        ? 'A atualizar…'
+        : n
+          ? parts.length > 1
+            ? `${parts.join(' · ')} · mais perto primeiro`
+            : 'Mais perto primeiro'
+          : failed
+            ? 'Sem resposta do servidor'
+            : 'Nada por perto com estes filtros';
   return (
     <View style={st.listHead} accessibilityRole="header" accessibilityLabel={n ? `${n} à tua volta. ${sub}` : `À tua volta. ${sub}`}>
       <Text style={st.listHeadTitle} numberOfLines={1}>{n ? `${n} à tua volta` : 'À tua volta'}</Text>
@@ -601,9 +736,11 @@ const PEEK_ROWS = 90;
 const HEAD_GUESS = 72;
 
 /** Telemóvel: o mapa ocupa tudo e a lista vive numa folha com três alturas (espreitar, meio e cheia). Em repouso só espreita. */
-function PhoneBody({ items, selected, head, header, empty, render, children }: ListProps & { head: React.ReactElement; onMarker: (id: string) => void; children: React.ReactNode }) {
+function PhoneBody({ items, selected, head, header, empty, render, refreshing, onRefresh, map }: ListProps & { head: React.ReactElement; map: (coverBottom: number) => React.ReactNode }) {
   const insets = useSafeAreaInsets();
   const [h, setH] = useState(0);
+  /** Quanto do mapa a folha tapa (na altura em que parou): o mapa enquadra o raio e o item escolhido acima dela. */
+  const [cover, setCover] = useState(0);
   const ty = useRef(new Animated.Value(10_000)).current;
   const pos = useRef(0);
   const start = useRef(0);
@@ -627,6 +764,7 @@ function PhoneBody({ items, selected, head, header, empty, render, children }: L
   }, [ty]);
 
   const snapTo = useCallback((v: number) => {
+    setCover(Math.max(0, Math.round(hRef.current - v)));
     Animated.spring(ty, { toValue: v, useNativeDriver: nd, bounciness: 2, speed: 16 }).start();
   }, [ty, nd]);
 
@@ -638,6 +776,7 @@ function PhoneBody({ items, selected, head, header, empty, render, children }: L
     if (first) {
       ty.setValue(snaps(H)[2]);
       pos.current = snaps(H)[2];
+      setCover(Math.round(H - snaps(H)[2]));
     }
   };
 
@@ -658,6 +797,7 @@ function PhoneBody({ items, selected, head, header, empty, render, children }: L
     if (firstTime) {
       ty.setValue(low);
       pos.current = low;
+      setCover(Math.round(hRef.current - low));
     } else snapTo(low);
   };
 
@@ -699,7 +839,7 @@ function PhoneBody({ items, selected, head, header, empty, render, children }: L
 
   return (
     <View style={{ flex: 1 }} onLayout={onLayout}>
-      <View style={StyleSheet.absoluteFill}>{children}</View>
+      <View style={StyleSheet.absoluteFill}>{map(cover)}</View>
       {h > 0 ? (
         <Animated.View style={[st.sheet, { height: h - 24, transform: [{ translateY: ty }] }]}>
           <View onLayout={onHeadLayout}>
@@ -716,6 +856,8 @@ function PhoneBody({ items, selected, head, header, empty, render, children }: L
             keyExtractor={(i) => i.key}
             renderItem={({ item }) => render(item)}
             ListEmptyComponent={empty}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
             onScrollToIndexFailed={(e) => setTimeout(() => list.current?.scrollToOffset({ offset: e.averageItemLength * e.index, animated: true }), 50)}
             contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
             nestedScrollEnabled
@@ -726,7 +868,26 @@ function PhoneBody({ items, selected, head, header, empty, render, children }: L
   );
 }
 
-function VisibilityOptions({ value, onPick, busy, gps }: { value: NearbyVisibility; onPick: (v: NearbyVisibility) => void; busy: boolean; gps: boolean }) {
+/** Porque não deu para usar a localização, com "Abrir definições" quando é isso que resolve (só na app). */
+function ProblemNote({ problem }: { problem: LocateProblem }) {
+  const t = locateProblemText(problem, Platform.OS === 'web');
+  return (
+    <View style={st.problem} accessibilityRole="alert">
+      <Icon name="alert" size={20} color={colors.amber600} />
+      <View style={{ flex: 1, gap: 4 }}>
+        <Text style={st.optTitle}>{t.title}</Text>
+        <Text style={st.cardText}>{t.text}</Text>
+        {t.settings ? (
+          <Pressable onPress={() => void Linking.openSettings()} hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="button" style={{ alignSelf: 'flex-start', paddingVertical: 2 }}>
+            <Text style={[st.mineText, { fontSize: 14 }]}>Abrir definições</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function VisibilityOptions({ value, onPick, busy, gps, onUseGps }: { value: NearbyVisibility; onPick: (v: NearbyVisibility) => void; busy: boolean; gps: boolean; onUseGps: () => void }) {
   return (
     <View style={{ gap: 10 }}>
       <View style={st.privacy}>
@@ -735,7 +896,15 @@ function VisibilityOptions({ value, onPick, busy, gps }: { value: NearbyVisibili
           Quem escolheres vê que estás por perto, só com a zona aproximada (o bairro, nunca o sítio exato). Só atualiza com este ecrã aberto e some sozinho passadas 3 h.
         </Text>
       </View>
-      {!gps ? <Text style={[st.cardText, { color: colors.amber600 }]}>Para apareceres tens de usar a localização do telemóvel (com uma cidade escolhida não apareces).</Text> : null}
+      {!gps ? (
+        <View style={{ gap: 8 }}>
+          <Text style={[st.cardText, { color: colors.amber600 }]}>Para apareceres tens de usar a localização do telemóvel (com uma cidade escolhida não apareces).</Text>
+          <Pressable onPress={onUseGps} style={st.mineRow} accessibilityRole="button">
+            <Icon name="locate" size={20} color={colors.brand} />
+            <Text style={[st.mineText, { flex: 1 }]}>Usar a minha localização</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {VIS.map((o) => {
         const on = value === o.key;
         return (
@@ -867,6 +1036,7 @@ const st = StyleSheet.create({
   stripLink: { fontSize: 14, fontWeight: '800', color: colors.brand, paddingHorizontal: 6 },
   stripX: { width: 32, height: 44, alignItems: 'center', justifyContent: 'center' },
   privacy: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 14, backgroundColor: colors.zinc100 },
+  problem: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 14, backgroundColor: colors.zinc100, alignSelf: 'stretch' },
   emptyIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.rose50, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
   rowSel: { backgroundColor: colors.rose50 },

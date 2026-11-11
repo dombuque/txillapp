@@ -31,15 +31,15 @@ const PAGES: Partial<Record<'z' | 'n', string>> = {};
 const page = (z: boolean) => (PAGES[z ? 'z' : 'n'] ??= html(z));
 
 /** Mapa do "À tua volta" na app: uma WebView com o mesmo mapa do site (sem chaves pagas nem SDK de mapas). */
-export function NearbyMap({ center, radiusKm, markers, onMarkerPress, selectedId, zoomControl = false, style }: NearbyMapProps) {
+export function NearbyMap({ center, radiusKm, markers, onMarkerPress, selectedId, zoomControl = false, showMe = true, coverBottom = 0, style }: NearbyMapProps) {
   const web = useRef<WebView<{}>>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (!ready) return;
-    const s = JSON.stringify({ center, radiusKm, markers, selectedId: selectedId ?? null });
+    const s = JSON.stringify({ center, radiusKm, markers, selectedId: selectedId ?? null, showMe, coverBottom });
     web.current?.injectJavaScript(`window.txUpdate && window.txUpdate(${s});true;`);
-  }, [ready, center, radiusKm, markers, selectedId]);
+  }, [ready, center, radiusKm, markers, selectedId, showMe, coverBottom]);
 
   const onMessage = (e: WebViewMessageEvent) => {
     let m: { type?: string; id?: string; message?: string };

@@ -6,6 +6,6 @@ export const SITE_URL = (process.env.EXPO_PUBLIC_API_URL ?? (Platform.OS === 'we
 /** Endereço absoluto de um caminho da API (ex.: /api/v1/media/abc). Endereços completos ficam como estão. */
 export const abs = (path: string | null | undefined): string | undefined => (!path ? undefined : /^https?:\/\//.test(path) ? path : `${SITE_URL}${path}`);
 
-/** Versão leve de uma foto: o servidor devolve WebP na largura pedida (como na web). */
+/** Versão leve de uma foto: o servidor devolve WebP na largura pedida (como na web). Com "?" já no endereço (ex.: ?poster=1) junta-se com "&". */
 export const sized = (url: string | null | undefined, width: number): string | undefined =>
-  url && url.startsWith('/api/v1/media/') ? abs(`${url}?w=${width}`) : abs(url);
+  url && url.startsWith('/api/v1/media/') ? abs(`${url}${url.includes('?') ? '&' : '?'}w=${width}`) : abs(url);
