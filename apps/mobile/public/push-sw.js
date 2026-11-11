@@ -122,6 +122,12 @@ function txRingMode(c, s) {
 }
 
 /** Atendida ou recusada: 'close' (só fechar) ou 'replace' (fechar e deixar uma notificação discreta). */
+/** Mensagem com o chat à vista: noutros browsers não se mostra; no Safari tem de se mostrar (sem som) e fecha-se logo. */
+function txMessageMode(s) {
+  if (!s.inChat) return 'show';
+  return s.apple ? 'quiet' : 'skip';
+}
+
 function txEndMode(s) {
   if (s.apple) return 'replace';
   return s.had && !s.visible ? 'replace' : 'close';
@@ -217,18 +223,28 @@ self.addEventListener('push', (event) => {
           return false;
         }
       });
-      if (inChat) return undefined;
-      return self.registration.showNotification(data.title || 'Txillapp', {
-        body: data.body || '',
-        icon: '/icon-192.png',
-        badge: '/badge-96.png',
-        tag: data.tag,
-        // Mesma conversa/pessoa: a notificação nova substitui a antiga mas volta a avisar (som e vibração).
-        renotify: !!data.tag,
-        timestamp: Date.now(),
-        lang: 'pt',
-        data: { url: data.url || '/' },
-      });
+      const mode = txMessageMode({ inChat, apple: TX_APPLE });
+      if (mode === 'skip') return undefined;
+      const quiet = mode === 'quiet';
+      // iPhone/Safari: um aviso sem notificação conta como "silencioso" e, ao fim de poucos, o Safari cancela a
+      // subscrição (as notificações deixam de chegar de vez). Por isso mostra-se sempre, sem som, e fecha-se logo.
+      const tag = data.tag || (quiet ? 'tx-quiet' : undefined);
+      return self.registration
+        .showNotification(data.title || 'Txillapp', {
+          body: data.body || '',
+          icon: '/icon-192.png',
+          badge: '/badge-96.png',
+          tag,
+          // Mesma conversa/pessoa: a notificação nova substitui a antiga mas volta a avisar (som e vibração).
+          renotify: !quiet && !!tag,
+          silent: quiet,
+          timestamp: Date.now(),
+          lang: 'pt',
+          data: { url: data.url || '/' },
+        })
+        .then(() => {
+          if (quiet) txCloseLater(tag, 1500);
+        });
     }),
   );
 });
@@ -299,4 +315,4 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // Para os testes (tests/pushSw.test.mjs): as regras puras.
-self.__txCall = { txCallInfo, txCallUrl, txCallNotification, txEndNotification, txRingMode, txEndMode, TX_RING_VIBRATE };
+self.__txCall = { txCallInfo, txCallUrl, txCallNotification, txEndNotification, txRingMode, txEndMode, txMessageMode, TX_RING_VIBRATE };

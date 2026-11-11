@@ -31,7 +31,7 @@ function load({ ua = ANDROID, windows = [], fetchImpl } = {}) {
     getNotifications: async (filter = {}) =>
       shown.filter((n) => !n.closed && (!filter.tag || n.options.tag === filter.tag)).map((n) => ({ tag: n.options.tag, data: n.options.data, close: () => { n.closed = true; } })),
   };
-  const clients = windows.map((w) => ({ url: 'https://txillapp.com/', visibilityState: w, postMessage: (m) => messages.push(plain(m)), focus: async () => undefined, navigate: async () => undefined }));
+  const clients = windows.map((w) => ({ url: typeof w === 'object' ? w.url : 'https://txillapp.com/', visibilityState: typeof w === 'object' ? w.state : w, postMessage: (m) => messages.push(plain(m)), focus: async () => undefined, navigate: async () => undefined }));
   const self = {
     navigator: { userAgent: ua },
     location: { origin: 'https://txillapp.com' },
@@ -212,4 +212,25 @@ test('chamada perdida: substitui a que tocava (mesma etiqueta) e abre /calls', a
   assert.equal(open.length, 1);
   assert.equal(open[0].options.body, 'Chamada perdida');
   assert.equal(open[0].options.data.url, '/calls');
+});
+
+test('mensagem com o chat à vista: o Android não mostra; o iPhone mostra sem som e fecha (senão o Safari cancela a subscrição)', async () => {
+  const msg = { title: 'Ana', body: 'enviou-te uma mensagem', url: '/messages/ana', tag: 'chat:1' };
+  const chat = { state: 'visible', url: 'https://txillapp.com/messages/ana' };
+  const android = load({ windows: [chat] });
+  await android.push(msg);
+  assert.equal(android.shown.length, 0);
+  const iphone = load({ ua: IPHONE, windows: [chat] });
+  await iphone.push(msg);
+  assert.equal(iphone.shown.length, 1);
+  assert.equal(iphone.shown[0].options.silent, true);
+  assert.equal(iphone.shown[0].options.renotify, false);
+  const away = load({ ua: IPHONE, windows: ['hidden'] });
+  await away.push(msg);
+  assert.equal(away.shown[0].options.silent, false);
+  assert.equal(away.shown[0].options.renotify, true);
+  const { api } = load();
+  assert.equal(api.txMessageMode({ inChat: false }), 'show');
+  assert.equal(api.txMessageMode({ inChat: true }), 'skip');
+  assert.equal(api.txMessageMode({ inChat: true, apple: true }), 'quiet');
 });
