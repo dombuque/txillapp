@@ -34,7 +34,7 @@ export function DesktopShell({ children }: { children: ReactNode }) {
   const home = path === '/';
   // À tua volta: o mapa ocupa a área toda (com a lista numa coluna à direita).
   const full = msgs || path.startsWith('/reels') || path.startsWith('/r/') || path.startsWith('/stories/') || path === '/perto';
-  const wide = /^\/(profile|u\/|search|t\/|tag\/|place\/|v\/|saved|locais|geleira|insights|evento)/.test(path);
+  const wide = /^\/(profile|u\/|search|t\/|tag\/|place\/|v\/|saved|locais|geleira|insights|evento|settings)/.test(path); // Definições: duas colunas
   const main = full ? st.mainFull : { ...st.main, maxWidth: wide ? 935 : 630 };
   return (
     <View style={st.shell}>
@@ -54,6 +54,7 @@ export function DesktopShell({ children }: { children: ReactNode }) {
 function Sidebar({ labels, path }: { labels: boolean; path: string }) {
   const router = useRouter();
   const { user } = useAuth();
+  const inSettings = path === '/settings' || path.startsWith('/settings/');
   const unread = useQuery({ queryKey: ['unread'], queryFn: api.unreadCount, refetchInterval: 30_000, staleTime: 10_000 });
   const chats = useQuery({ queryKey: ['chat-unread'], queryFn: api.chatUnread, refetchInterval: 20_000, staleTime: 8_000 });
   const items: { key: string; label: string; icon?: IconName; to: string; active: boolean; count?: number }[] = [
@@ -107,10 +108,10 @@ function Sidebar({ labels, path }: { labels: boolean; path: string }) {
         style={(s) => [st.item, !labels && st.itemIcon, (s as HoverState).hovered && st.itemHover, { marginBottom: 20 }]}
         accessibilityRole="link"
         accessibilityLabel="Mais: definições, guardados, carteira e sair"
-        accessibilityState={{ selected: path === '/settings' }}
+        accessibilityState={{ selected: inSettings }}
       >
-        <Icon name="menu" size={27} color={colors.zinc900} strokeWidth={path === '/settings' ? 2.4 : 1.9} />
-        {labels ? <Text style={[st.label, path === '/settings' && { fontWeight: '800' }]}>Mais</Text> : null}
+        <Icon name="menu" size={27} color={colors.zinc900} strokeWidth={inSettings ? 2.4 : 1.9} />
+        {labels ? <Text style={[st.label, inSettings && { fontWeight: '800' }]}>Mais</Text> : null}
       </Pressable>
     </View>
   );

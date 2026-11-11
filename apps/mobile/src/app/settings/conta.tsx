@@ -1,0 +1,89 @@
+import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Alert, Platform, Share } from 'react-native';
+import { EditProfileSheet } from '@/components/ProfileSheets';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { RegionRow } from '@/components/settings/device';
+import { genderLabel } from '@/components/settings/options';
+import { SettingRow, SettingsSection } from '@/components/settings/SettingRow';
+import { SettingsPage } from '@/components/settings/SettingsPage';
+import { DeleteSheet, GenderSheet } from '@/components/settings/sheets';
+import { usePrivacy } from '@/components/settings/usePrivacy';
+import { api, openActivate } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+
+/** Conta: o perfil, o email e o @, como te identificas, a verificação, os teus dados e, no fundo, eliminar a conta. */
+export default function AccountSettings() {
+  const router = useRouter();
+  const { user, signOut } = useAuth();
+  const { p, save } = usePrivacy();
+  const [sheet, setSheet] = useState<null | 'edit' | 'gender' | 'delete'>(null);
+  const [exporting, setExporting] = useState(false);
+  const close = () => setSheet(null);
+  const profile = useQuery({ queryKey: ['profile', user!.username], queryFn: () => api.profile(user!.username) });
+  const email = useQuery({ queryKey: ['email-status'], queryFn: api.emailStatus, staleTime: 60_000 });
+  const ver = useQuery({ queryKey: ['verification'], queryFn: api.verificationStatus, staleTime: 60_000 });
+  const out = () => void signOut().then(() => router.replace('/login'));
+
+  async function downloadData() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const json = await api.exportData();
+      if (Platform.OS === 'web') {
+        const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `txillapp-dados-${user!.username}.json`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      } else {
+        await Share.share({ message: json, title: `txillapp-dados-${user!.username}.json` });
+      }
+    } catch (x) {
+      Alert.alert('Os meus dados', (x as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  const e = email.data;
+  const unconfirmed = !!e && e.required && !e.verified;
+  return (
+    <SettingsPage title="Conta">
+      <SettingsSection>
+        <SettingRow anchor="editProfile" icon="user" title="Editar perfil" description="Nome, foto, bio e cidade" onPress={profile.data ? () => setSheet('edit') : undefined} />
+        <SettingRow
+          anchor="email"
+          icon="mail"
+          title="Email"
+          value={e?.email ?? (email.isLoading ? '…' : undefined)}
+          description={unconfirmed ? 'Por confirmar: toca para ativar a conta' : e?.verified ? 'Confirmado' : undefined}
+          onPress={unconfirmed ? openActivate : undefined}
+          locked={!unconfirmed}
+        />
+        <SettingRow anchor="username" icon="at" title="Nome de utilizador" value={`@${user!.username}`} locked />
+      </SettingsSection>
+
+      <SettingsSection title="Perfil">
+        <SettingRow anchor="gender" icon="user-circle" title="Como me identifico" value={p ? (p.gender ? genderLabel(p.gender) : 'Por escolher') : '…'} onPress={p && !p.gender ? () => setSheet('gender') : undefined} locked={!!p?.gender} />
+        {p && p.gender && p.gender !== 'unspecified' ? <SettingRow anchor="showGender" icon="user" title="Mostrar no perfil" description="Quem vê o teu perfil vê também isto." toggle={{ on: p.showGender, onChange: (v) => void save({ showGender: v }) }} /> : null}
+        <SettingRow anchor="verification" icon={<VerifiedBadge size={22} tier={ver.data?.tier} />} title={ver.data?.verified ? 'A tua conta está verificada' : 'Pedir o selo de verificado'} to="/verification" />
+        <RegionRow />
+      </SettingsSection>
+
+      <SettingsSection title="Os teus dados" note="Um ficheiro com o teu perfil, publicações, conversas e o resto do que é teu.">
+        <SettingRow anchor="exportData" icon="download" title={exporting ? 'A preparar…' : 'Descarregar os meus dados'} onPress={() => void downloadData()} />
+      </SettingsSection>
+
+      <SettingsSection title="Zona perigosa">
+        <SettingRow anchor="deleteAccount" icon="trash" title="Eliminar conta" description="Apaga a conta e tudo o que é teu. Não se desfaz." danger onPress={() => setSheet('delete')} />
+      </SettingsSection>
+
+      {sheet === 'edit' && profile.data && <EditProfileSheet profile={profile.data} onClose={close} />}
+      {sheet === 'gender' && p && <GenderSheet value={p.gender} onPick={(g) => void save({ gender: g })} onClose={close} />}
+      {sheet === 'delete' && <DeleteSheet username={user!.username} onClose={close} onDeleted={out} />}
+    </SettingsPage>
+  );
+}

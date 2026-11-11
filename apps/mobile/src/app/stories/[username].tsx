@@ -427,7 +427,7 @@ export default function StoryViewer() {
 
         {panel === 'menu' && (
           <Panel title="O teu mimo" onClose={() => setPanel(null)}>
-            <Pressable onPress={() => { close(); router.push('/settings' as never); }} style={st.menuRow}><Text style={st.menuText}>Definições do mimo</Text></Pressable>
+            <Pressable onPress={() => { close(); router.push('/settings/privacidade?o=storyReplies' as never); }} style={st.menuRow}><Text style={st.menuText}>Definições do mimo</Text></Pressable>
             <Pressable onPress={() => void saveMimo()} style={st.menuRow}><Text style={st.menuText}>{saving ? 'A guardar…' : 'Guardar na galeria'}</Text></Pressable>
             <Pressable onPress={() => void shareMimo()} style={st.menuRow}><Text style={st.menuText}>Partilhar</Text></Pressable>
             <Pressable onPress={() => void toggleComments()} style={st.menuRow}><Text style={st.menuText}>{cur.commentsOff ? 'Ativar comentários' : 'Desativar comentários'}</Text></Pressable>
