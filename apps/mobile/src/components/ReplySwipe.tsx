@@ -10,7 +10,7 @@ import {
   fromLeftEdge, replyArmed, replyLock, replyProgress, replyPull,
 } from '@/lib/replySwipe';
 import { HOLD_MS, holdStill } from '@/lib/messageMenu';
-import { claimSwipe } from '@/lib/swipeClaim';
+import { claimSwipe, releaseSwipeSoon } from '@/lib/swipeClaim';
 import { colors } from '@/lib/theme';
 
 /** Onde está a bolha dentro da mensagem (para o ícone ficar à esquerda dela e à altura do meio): x da esquerda, y e altura da linha. */
@@ -294,6 +294,7 @@ function WebReplySwipe({ enabled, onReply, spot, style, innerStyle, onMenu, chil
       const gg = g;
       g = null;
       if (gg?.mode !== 'reply') return;
+      releaseSwipeSoon(); // o gesto foi da mensagem só até largar: não fica reclamado para o toque seguinte
       quietUntil = Date.now() + 450;
       const go = replyArmed(x);
       paint(0, true);
@@ -301,7 +302,10 @@ function WebReplySwipe({ enabled, onReply, spot, style, innerStyle, onMenu, chil
     };
     const cancel = () => {
       dropHold();
-      if (g?.mode === 'reply') paint(0, true);
+      if (g?.mode === 'reply') {
+        paint(0, true);
+        releaseSwipeSoon();
+      }
       g = null;
     };
     /** A lista rolou: já não é segurar. */

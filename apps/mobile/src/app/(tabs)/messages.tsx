@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
-import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { closeOpenSwipe, SwipeRow, type SwipeAction } from '@/components/SwipeRow';
@@ -26,8 +26,9 @@ import type { TxillGroupSummary } from '@/lib/api.groups';
 import { kvGet, kvSet } from '@/lib/kv';
 import { badgeText, inboxCounts, inboxRows, INBOX_TAB_KEY, nextInboxView, parseInboxTab, tabLabel, type InboxTab, type InboxView } from '@/lib/inboxTabs';
 import { gruposApi } from '@/lib/api.grupos';
-import { decideSwipe, innerPager, registerInnerPager, type InnerPager } from '@/lib/swipeClaim';
+import { innerPager, registerInnerPager, type InnerPager } from '@/lib/swipeClaim';
 import { FadeCell, fadeCellsIn, useTabSlider } from '@/components/TabSlider';
+import { usePagerPan } from '@/components/SwipePager';
 
 /** Último separador usado, guardado também em memória para voltar ao ecrã sem piscar "Conversas" antes de ler o kv. */
 let lastTab: InboxTab | null = null;
@@ -244,20 +245,9 @@ export default function Messages() {
   }, []));
   // Telemóvel: o deslize grande fora das linhas (as linhas tratam o seu em SwipeRow). Pede bem mais para o lado (40 px)
   // do que a linha (14 px) e desiste depressa na vertical, para não roubar o scroll. Na web é em lib/swipeTabs.
+  // (components/SwipePager, o mesmo pan do Perfil.) As notas rolam para o lado: aí o deslize é delas.
   const notesTouch = useRef(false);
-  const pagerPan = usePanGesture(useMemo(() => ({
-    runOnJS: true,
-    maxPointers: 1,
-    activeOffsetX: [-40, 40] as [number, number],
-    failOffsetY: [-12, 12] as [number, number],
-    enabled: Platform.OS !== 'web',
-    onDeactivate: (e: { translationX: number; translationY: number; velocityX: number; canceled?: boolean }) => {
-      if (e.canceled || notesTouch.current) return; // as notas rolam para o lado: aí o deslize é delas
-      const p = innerPager();
-      const d = decideSwipe({ dx: e.translationX, dy: e.translationY, vx: e.velocityX, width }, p);
-      if (d.to === 'inner' && p) p.go(d.dir);
-    },
-  }), [width]));
+  const pagerPan = usePagerPan({ width, pager: innerPager, skip: () => notesTouch.current });
   const slider = useTabSlider<InboxView>(searching ? null : view);
   const small = width < 360;
   const newGroup = () => router.push('/messages/new?group=1' as never);

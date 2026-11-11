@@ -10,6 +10,12 @@ export function isSwipeClaimed(): boolean { return claimed; }
 /** Reposto no início de cada toque (lib/swipeTabs chama-o no touchstart, em fase de captura). */
 export function resetSwipeClaim(): void { claimed = false; }
 /**
+ * Devolver o gesto logo a seguir ao toque acabar (depois de o touchend chegar a todos, incluindo lib/swipeTabs, que ouve no
+ * document): quem reclama ao largar não deixa a reclamação presa. O touchstart de lib/swipeTabs também a repõe, mas só
+ * nos ecrãs principais; noutros ecrãs (uma conversa, o perfil de outra pessoa) ficava presa até lá.
+ */
+export function releaseSwipeSoon(): void { setTimeout(releaseSwipe, 0); }
+/**
  * A partir desta distância horizontal (px) o gesto é de mudar de menu (ou de separador), mesmo começando numa linha com swipe.
  * Na web lê a largura da janela; no telemóvel (onde `window.innerWidth` não existe) passa-se a largura do ecrã.
  */
@@ -71,4 +77,25 @@ export function decideSwipe(g: SwipeGesture, p: InnerPager | null): { to: 'none'
   const dir = swipeDir(g.dx);
   if (!isBigSwipe(g)) return { to: 'none', dir };
   return { to: p?.canGo(dir) ? 'inner' : 'outer', dir };
+}
+
+/** Um gesto que nasce nos primeiros/últimos px da borda é do sistema (o voltar do iPhone): os separadores não lhe tocam. */
+export const SWIPE_EDGE = 24;
+/** Web: depois de quantos px se decide se o gesto é para o lado (separador) ou para cima/baixo (rolar). */
+export const PAGER_LOCK_PX = 10;
+/** Web: para ser de mudar de separador, |dx| tem de ser pelo menos 1,5 vezes |dy| (o mesmo das linhas com swipe). */
+export const PAGER_LOCK_RATIO = 1.5;
+
+/**
+ * Web (components/SwipePager, separadores que mudam com toques do DOM): o que é este gesto ao fim de uns px
+ * (`cancelable` = o browser ainda não começou a rolar):
+ * - `wait`: ainda não andou o bastante para se saber;
+ * - `side`: claramente para o lado e há separador desse lado → é nosso (a lista não rola e o toque nas miniaturas é cancelado);
+ * - `off`: rolar, já a rolar, ou para um lado sem separador (no primeiro, para a direita) → fica com o browser e com quem
+ *   estiver por fora (voltar atrás; na web, mudar de menu em lib/swipeTabs).
+ */
+export function pagerLock(dx: number, dy: number, cancelable: boolean, p: InnerPager | null): 'wait' | 'side' | 'off' {
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < PAGER_LOCK_PX) return 'wait';
+  if (!cancelable || Math.abs(dx) <= Math.abs(dy) * PAGER_LOCK_RATIO) return 'off';
+  return p?.canGo(swipeDir(dx)) ? 'side' : 'off';
 }

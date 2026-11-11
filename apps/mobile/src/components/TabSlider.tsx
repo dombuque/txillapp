@@ -1,18 +1,21 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { StyleSheet, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { Easing, makeMutable, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 import { colors } from '@/lib/theme';
 
 /** A mesma curva de abrir/fechar as linhas (SwipeRow): curta e decidida. */
 const SLIDE = { duration: 220, easing: Easing.bezier(0.2, 0.8, 0.2, 1) };
+/** O fade com que o conteúdo novo entra ao mudar de separador. */
+const FADE_MS = 180;
 
 /**
  * O traço por baixo do separador ativo, que desliza de um separador para o outro (em vez de saltar).
  * Cada separador mede-se com `layout(chave)` no onLayout; os que estão dentro de uma caixa (uma View no meio) dizem o
  * nome da caixa, e a caixa mede-se com `box(nome)` (o x do separador conta a partir dela). `bar` vai dentro da View que
  * tem os separadores, por último. `active = null` esconde o traço (ex.: a pesquisar, com "Resultados").
+ * `barStyle` acerta o traço a cada ecrã (no Perfil é o de 2 px colado à linha de baixo, da largura do separador).
  */
-export function useTabSlider<K extends string>(active: K | null) {
+export function useTabSlider<K extends string>(active: K | null, barStyle?: StyleProp<ViewStyle>) {
   const spots = useRef<Partial<Record<K, { x: number; w: number; box?: string }>>>({});
   const boxes = useRef<Record<string, number>>({});
   const activeRef = useRef(active);
@@ -55,7 +58,7 @@ export function useTabSlider<K extends string>(active: K | null) {
   };
 
   const style = useAnimatedStyle(() => ({ opacity: shown.value, width: w.value, transform: [{ translateX: x.value }] }));
-  const bar = <Animated.View pointerEvents="none" style={[st.bar, style]} />;
+  const bar = <Animated.View pointerEvents="none" style={[st.bar, barStyle, style]} />;
   return { layout, box, bar };
 }
 
@@ -64,7 +67,20 @@ const cellFade = makeMutable(1);
 
 /** Chamar ao mudar de separador (antes de mudar o estado): as linhas que aparecem entram a partir de transparente. */
 export function fadeCellsIn() {
-  cellFade.value = withSequence(withTiming(0, { duration: 0 }), withTiming(1, { duration: 180 }));
+  cellFade.value = withSequence(withTiming(0, { duration: 0 }), withTiming(1, { duration: FADE_MS }));
+}
+
+/**
+ * O mesmo fade de `fadeCellsIn`, mas só para um bloco (ex.: a grelha do Perfil, que não é uma FlatList): `style` vai numa
+ * Animated.View à volta do conteúdo e `fadeIn()` chama-se ao mudar de separador (antes de mudar o estado).
+ */
+export function useFadeIn() {
+  const o = useSharedValue(1);
+  const style = useAnimatedStyle(() => ({ opacity: o.value }));
+  const fadeIn = useCallback(() => {
+    o.value = withSequence(withTiming(0, { duration: 0 }), withTiming(1, { duration: FADE_MS }));
+  }, [o]);
+  return { style, fadeIn };
 }
 
 /**
