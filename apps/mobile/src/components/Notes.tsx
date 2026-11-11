@@ -11,6 +11,7 @@ import { TrackCard } from '@/components/TrackCard';
 import { notesApi, type Note } from '@/lib/api.notes';
 import type { Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
+import { notesRow } from '@/lib/notesRow';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
@@ -49,15 +50,17 @@ function Field({ children }: { children: ReactNode }) {
 /**
  * Notas, como no Instagram: uma frase de até 60 caracteres por cima da tua foto, durante 24 horas.
  * Só as vêem os teus seguidores. Não se editam. Tocar numa nota de outra pessoa deixa-te responder.
+ * Depois das notas vêm as pessoas com quem já conversaste, mesmo sem nota (tocar abre a conversa) — ver lib/notesRow.ts.
  */
 export function NotesStrip() {
   const { user } = useAuth();
   const q = useQuery({ queryKey: ['notes'], queryFn: notesApi.list, staleTime: 60_000, refetchInterval: 120_000 });
   const [editing, setEditing] = useState(false);
   const [viewing, setViewing] = useState<Note | null>(null);
+  const router = useRouter();
   const mine = q.data?.mine ?? null;
-  const items = q.data?.items ?? [];
-  const names = items.filter((n) => n.hasAvatar).map((n) => n.username);
+  const row = notesRow(q.data?.items, q.data?.people, user?.username);
+  const names = row.map((e) => (e.kind === 'note' ? e.note : e.person)).filter((p) => p.hasAvatar).map((p) => p.username);
   const presence = useQuery({ queryKey: ['notes-online', names.join(',')], queryFn: () => notesApi.online(names), enabled: names.length > 0, refetchInterval: 30_000, staleTime: 15_000 });
   const online = new Set((presence.data?.online ?? []).map((x) => x.toLowerCase()));
   if (!user) return null;
@@ -73,16 +76,33 @@ export function NotesStrip() {
           </View>
           <Text style={styles.label} numberOfLines={1}>A tua nota</Text>
         </Pressable>
-        {items.map((n) => (
-          <Pressable key={n.username} onPress={() => setViewing(n)} accessibilityRole="button" accessibilityLabel={`Nota de ${n.displayName}: ${n.body}`} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
-            <View style={styles.bubbleSlot}><Bubble text={n.body} track={trackLine(n)} cheers={n.cheered ? 1 : 0} /></View>
-            <View>
-              <Avatar name={n.displayName} username={n.hasAvatar ? n.username : undefined} size={64} />
-              {n.hasAvatar && online.has(n.username.toLowerCase()) && <View style={styles.online} accessibilityLabel="Online" />}
-            </View>
-            <Text style={styles.label} numberOfLines={1}>{n.displayName.split(' ')[0]}</Text>
-          </Pressable>
-        ))}
+        {row.map((e) => {
+          if (e.kind === 'note') {
+            const n = e.note;
+            return (
+              <Pressable key={e.key} onPress={() => setViewing(n)} accessibilityRole="button" accessibilityLabel={`Nota de ${n.displayName}: ${n.body}`} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
+                <View style={styles.bubbleSlot}><Bubble text={n.body} track={trackLine(n)} cheers={n.cheered ? 1 : 0} /></View>
+                <View>
+                  <Avatar name={n.displayName} username={n.hasAvatar ? n.username : undefined} size={64} />
+                  {n.hasAvatar && online.has(n.username.toLowerCase()) && <View style={styles.online} accessibilityLabel="Online" />}
+                </View>
+                <Text style={styles.label} numberOfLines={1}>{n.displayName.split(' ')[0]}</Text>
+              </Pressable>
+            );
+          }
+          // Alguém das minhas conversas, sem nota: sem balão (mas com o lugar dele, para as fotos ficarem todas alinhadas).
+          const p = e.person;
+          return (
+            <Pressable key={e.key} onPress={() => router.push(`/messages/${p.username}` as never)} accessibilityRole="button" accessibilityLabel={`Conversa com ${p.displayName}`} style={({ pressed }) => [styles.item, pressed && { transform: [{ scale: 0.95 }] }]}>
+              <View style={styles.bubbleSlot} />
+              <View>
+                <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={64} />
+                {p.hasAvatar && online.has(p.username.toLowerCase()) && <View style={styles.online} accessibilityLabel="Online" />}
+              </View>
+              <Text style={styles.label} numberOfLines={1}>{p.displayName.split(' ')[0]}</Text>
+            </Pressable>
+          );
+        })}
       </ScrollView>
       {editing && <NoteEditor current={mine} onClose={() => setEditing(false)} />}
       {viewing && <NoteView note={viewing} onClose={() => setViewing(null)} />}
