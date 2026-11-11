@@ -1,12 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
-import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as SecureStore from 'expo-secure-store';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Animated, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, uploadMedia } from '@/lib/api';
@@ -20,7 +18,7 @@ import { Icon } from './Icon';
 import { FeatureIntro } from './FeatureIntro';
 import { enqueueTask } from '@/lib/publishQueue';
 import { applyZasFx } from '@/lib/zasFx';
-import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import { usePanGesture } from 'react-native-gesture-handler';
 import { FUN_FX } from './zas/funFilters';
 import { markSeen } from '@/lib/whatsNew';
 import { Sheet } from './Sheet';
@@ -29,6 +27,8 @@ import { CurvedCaption } from './zas/CurvedCaption';
 import { squircle } from './zas/squircle';
 import { useVisibleViewport } from './zas/useVisibleViewport';
 import { WebZasStudio } from './zas/WebZasStudio';
+import { ZasNativeCamera, type ZasCamStatus } from './zas/ZasNativeCamera';
+import { zasCardSize } from './zas/zasFrame';
 import { saveZas, shareZas } from './zas/zasImage';
 
 type Audience = 'friends' | 'close';
@@ -339,12 +339,13 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   }
 
   /** Envia a foto (uri local ou blob:) como Zás, com 6 s para desfazer. */
-  // Nativo: a câmara vive dentro do cartão (como no site), em vez de abrir a câmara do sistema.
-  const [camPerm, askCam] = useCameraPermissions();
-  const camRef = useRef<CameraView | null>(null);
+  // Nativo: a câmara vive dentro do cartão (como no site): a VisionCamera, em zas/ZasNativeCamera.
   const [facing, setFacing] = useState<'back' | 'front'>('back');
-  const [torch, setTorch] = useState(false);
-  const [camReady, setCamReady] = useState(false);
+  const [flashOn, setFlashOn] = useState(false);
+  const [cam, setCam] = useState<ZasCamStatus>({ granted: false, ready: false, hasFlash: false });
+  const [screenLight, setScreenLight] = useState(false);
+  const [shooting, setShooting] = useState(false);
+  const shootRef = useRef<(() => Promise<string | null>) | null>(null);
   // Zás instantâneo: aparece logo "enviado" (com Desfazer) e o envio segue em segundo plano (faixa no Início).
   const pendingZas = useRef(new Map<string, { cancelled: boolean; id?: string }>());
   async function send(uri: string, mime: string) {
@@ -357,7 +358,8 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
     setSent(key);
     clearTimeout(undoTimer.current);
     undoTimer.current = setTimeout(() => setSent(null), 2200);
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    // O clarão e o toque do obturador já se deram ao tirar; este é o "foi enviado".
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     const chosenFx = fxRef.current;
     enqueueTask('zas', { uri, mime, video: false }, async () => {
       const src = await applyZasFx(uri, chosenFx);
@@ -369,34 +371,18 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
       refresh();
     }, qc);
   }
-  /** Nativo: a câmara do telemóvel (sem galeria). Na web a câmara é a ao vivo (WebZasStudio). */
+  /** Nativo: tira a foto na câmara do cartão e manda logo (sem galeria). Na web a câmara é a ao vivo (WebZasStudio). */
   async function shoot() {
-    if (busy) return;
+    if (busy || shooting || !shootRef.current) return;
     setErr('');
-    // Com a câmara ao vivo no cartão: tira ali mesmo e manda.
-    if (Platform.OS !== 'web' && camPerm?.granted && camRef.current && camReady) {
-      try {
-        const pic = await camRef.current.takePictureAsync({ quality: 0.85, skipProcessing: false });
-        if (pic?.uri) await send(pic.uri, 'image/jpeg');
-      } catch (e) {
-        setErr((e as Error).message || 'Não consegui tirar a foto');
-      }
-      return;
-    }
-    if (Platform.OS !== 'web' && !camPerm?.granted) {
-      const r = await askCam();
-      if (!r.granted) setErr('Preciso de acesso à câmara para o Zás.');
-      return;
-    }
+    setShooting(true);
     try {
-      const p = await ImagePicker.requestCameraPermissionsAsync();
-      if (!p.granted) return setErr('Preciso de acesso à câmara.');
-      const r = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.9, allowsEditing: false });
-      const a = r.canceled ? null : r.assets[0];
-      if (!a) return;
-      await send(a.uri, a.mimeType ?? 'image/jpeg');
+      const uri = await shootRef.current();
+      if (uri) await send(uri, 'image/jpeg');
     } catch (e) {
       setErr((e as Error).message || 'Não consegui tirar a foto');
+    } finally {
+      setShooting(false);
     }
   }
   async function sendBlob(blob: Blob) {
@@ -421,8 +407,15 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   const vv = useVisibleViewport();
   const [editing, setEditing] = useState(false);
   const [capEdit, setCapEdit] = useState(false);
-  const cardH = Math.min(520, height - insets.top - insets.bottom - 330);
-  const cardW = Math.min(cardH * 0.75, width - 64);
+  // O cartão mede-se no espaço que sobra de facto (onLayout), não numa estimativa do ecrã: 0,75 exata, nunca negativo,
+  // e só aparece depois de medido. Com o teclado da legenda aberto fica do tamanho que tinha (não salta).
+  const [camArea, setCamArea] = useState({ w: 0, h: 0 });
+  const onCamArea = (e: LayoutChangeEvent) => {
+    const { width: w, height: h } = e.nativeEvent.layout;
+    if (capEdit && camArea.w > 0) return;
+    if (Math.abs(w - camArea.w) > 0.5 || Math.abs(h - camArea.h) > 0.5) setCamArea({ w, h });
+  };
+  const { w: cardW, h: cardH } = zasCardSize(camArea.w, camArea.h - 8);
   const sentBox = sent ? (
 
             <View accessibilityLiveRegion="polite" style={st.sent}>
@@ -466,18 +459,21 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
           <WebZasStudio caption={caption} onCaption={setCaption} audience={audience} onAudience={pickAudience} busy={busy} err={err} editing={editing} onEditing={setEditing} onCapture={(b) => void sendBlob(b)} sentBox={sentBox} />
         ) : (
           <>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <GestureDetector gesture={fxSwipe}>
-          <View style={[st.cam, squircle(cardW), { width: cardW, height: cardW / 0.75 }]} collapsable={false}>
-            {camPerm?.granted ? (
-              <CameraView ref={camRef} style={StyleSheet.absoluteFill} facing={facing} enableTorch={torch} mirror={facing === 'front'} onCameraReady={() => setCamReady(true)} />
-            ) : (
-              <Pressable onPress={() => void askCam()} accessibilityRole="button" accessibilityLabel="Permitir a câmara" style={{ alignItems: 'center', gap: 10, paddingHorizontal: 24 }}>
-                <Icon name="camera" size={44} color="rgba(255,255,255,0.7)" />
-                <Text style={{ fontSize: 15, fontWeight: '600', color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>{camPerm && !camPerm.canAskAgain ? 'A câmara está bloqueada. Ativa-a nas definições do telemóvel.' : 'Toca para ligar a câmara'}</Text>
-              </Pressable>
-            )}
-            <CurvedCaption w={cardW} h={cardW / 0.75} text={caption || 'Adicionar legenda…'} hint={!caption} caret={capEdit} caretFirst={!caption} />
+        <View onLayout={onCamArea} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          {cardW > 0 ? (
+          <ZasNativeCamera
+            w={cardW}
+            h={cardH}
+            facing={facing}
+            flash={flashOn}
+            // overflow + borderRadius na MESMA vista que leva a câmara (é assim que o Android corta os cantos).
+            style={[st.cam, squircle(cardW)]}
+            swipe={fxSwipe}
+            shootRef={shootRef}
+            onStatus={setCam}
+            onScreenLight={setScreenLight}
+          >
+            <CurvedCaption w={cardW} h={cardH} text={caption || 'Adicionar legenda…'} hint={!caption} caret={capEdit} caretFirst={!caption} />
             <TextInput
               value={caption}
               onChangeText={setCaption}
@@ -491,24 +487,25 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
             {err ? <Text accessibilityRole="alert" style={st.err}>{err}</Text> : null}
             {fxName ? <View pointerEvents="none" style={st.fxName}><Text style={st.fxNameText}>{fxName}</Text></View> : null}
             {fx > 0 && !fxName ? <View pointerEvents="none" style={st.fxPill}><Icon name="sparkles" size={13} color="#fff" /><Text style={st.fxPillText}>{FUN_FX[fx].name}</Text></View> : null}
-          </View>
-          </GestureDetector>
+          </ZasNativeCamera>
+          ) : null}
         </View>
 
         <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: Math.max(16, insets.bottom) }}>
           {sentBox}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
-            <Pressable onPress={() => setTorch((t) => !t)} disabled={!camPerm?.granted || facing === 'front'} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, torch && { backgroundColor: '#fcd34d' }, (!camPerm?.granted || facing === 'front') && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel="Lanterna" accessibilityState={{ selected: torch }}>
-              <Icon name="bolt" size={22} solid={torch} color={torch ? colors.zinc900 : '#fff'} />
+            {/* Flash: o da câmara de trás; na da frente, o ecrã acende-se branco ao tirar (iluminação de ecrã). */}
+            <Pressable onPress={() => setFlashOn((t) => !t)} disabled={!cam.granted} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, flashOn && { backgroundColor: '#fcd34d' }, !cam.granted && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel={facing === 'front' || !cam.hasFlash ? 'Flash de ecrã' : 'Flash'} accessibilityState={{ selected: flashOn }}>
+              <Icon name="bolt" size={22} solid={flashOn} color={flashOn ? colors.zinc900 : '#fff'} />
             </Pressable>
-            <Pressable onPress={() => void shoot()} disabled={busy} accessibilityRole="button" accessibilityLabel="Tirar e enviar" style={[st.shutterRing, busy && { opacity: 0.5 }]}>
+            <Pressable onPress={() => void shoot()} disabled={busy || shooting} accessibilityRole="button" accessibilityLabel="Tirar e enviar" style={[st.shutterRing, (busy || shooting || !cam.ready) && { opacity: 0.5 }]}>
               <LinearGradient colors={['#ff5c5c', '#ff9a5b', '#ffd166', '#ff5c5c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
               <View style={st.shutterGap} />
               <View style={[st.shutter, { backgroundColor: busy ? colors.brand : '#fff' }]}>
                 {busy ? <ActivityIndicator color="#fff" /> : <Icon name="bolt" size={30} solid color={colors.brand} />}
               </View>
             </Pressable>
-            <Pressable onPress={() => { setTorch(false); setCamReady(false); setFacing((f) => (f === 'back' ? 'front' : 'back')); }} disabled={!camPerm?.granted} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, !camPerm?.granted && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel="Virar câmara">
+            <Pressable onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))} disabled={!cam.granted || shooting} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, !cam.granted && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel="Virar câmara">
               <Icon name="flip-camera" size={22} color="#fff" />
             </Pressable>
           </View>
@@ -527,6 +524,9 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
         </View>
           </>
         )}
+
+        {/* Iluminação de ecrã (câmara da frente com o flash ligado): o ecrã todo branco enquanto se tira a foto. */}
+        {screenLight && !isWeb ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 50, elevation: 50, backgroundColor: '#fff' }]} /> : null}
 
         {intro && (
           <View style={st.introWrap}>
