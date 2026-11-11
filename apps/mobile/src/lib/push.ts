@@ -1,4 +1,5 @@
 import { pushApi } from '@/lib/api.settings';
+import { track } from '@/lib/analytics';
 
 /**
  * Web Push (só na web; o service worker é o /sw.js, que importa o /push-sw.js). Porta de apps/web/src/lib/push.ts.
@@ -65,6 +66,7 @@ export async function enablePush(): Promise<'on' | 'denied' | 'off'> {
   const reg = await wait(navigator.serviceWorker.ready, 8_000, 'O serviço de notificações ainda não arrancou. Fecha e abre a app e tenta outra vez.');
   const sub = await wait(freshSubscription(reg, publicKey), 15_000, 'Não consegui registar este telemóvel. Tenta outra vez daqui a pouco.');
   await wait(registerSubscription(sub), 10_000, 'Sem ligação ao servidor. Tenta outra vez.');
+  track('push_enabled', { via: 'webpush' });
   return 'on';
 }
 
@@ -112,8 +114,10 @@ export function installState(): 'none' | 'installed' | 'prompt' | 'ios' | 'ios-s
 export async function installApp(): Promise<void> {
   const e = deferred();
   if (!e) return;
+  track('install_prompt');
   await e.prompt();
-  await e.userChoice;
+  const choice = await e.userChoice;
+  if (choice?.outcome === 'accepted') track('install_accepted');
   (window as unknown as { __txInstall?: null }).__txInstall = null;
 }
 

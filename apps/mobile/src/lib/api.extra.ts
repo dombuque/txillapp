@@ -1,4 +1,5 @@
 import { post, raw } from '@/lib/api';
+import { track, trackOk } from '@/lib/analytics';
 
 /**
  * Chamadas à API que ainda não estão em api.ts (cópia das do site, apps/web/src/lib/api.ts).
@@ -38,6 +39,14 @@ export const extraApi = {
     raw('/payments/orders', { ...post(b), headers: { 'Idempotency-Key': key } }),
   paymentsCancel: (id: string): Promise<void> => raw(`/payments/orders/${id}/cancel`, post({})),
   paymentsSandboxPay: (id: string): Promise<PaymentOrder> => raw(`/payments/orders/${id}/sandbox-pay`, post({})),
-  chatGroupSend: (id: string, msg: ChatSendBody): Promise<{ id: string }> => raw(`/chat/groups/${id}/messages`, post(msg)),
-  shareToStory: (postId: string, audience: 'all' | 'close_friends' = 'all', caption = '', stickers: { id: string; x: number; y: number; s: number; r: number }[] = []): Promise<{ id: string }> => raw('/stories/share', post({ postId, audience, caption, stickers })),
+  chatGroupSend: (id: string, msg: ChatSendBody): Promise<{ id: string }> =>
+    trackOk(raw(`/chat/groups/${id}/messages`, post(msg)), 'message_send', () => {
+      if (msg.kind === 'post') track('share', { target: 'chat' });
+      return { kind: msg.kind ?? 'text', group: true };
+    }),
+  shareToStory: (postId: string, audience: 'all' | 'close_friends' = 'all', caption = '', stickers: { id: string; x: number; y: number; s: number; r: number }[] = []): Promise<{ id: string }> =>
+    trackOk(raw('/stories/share', post({ postId, audience, caption, stickers })), 'share', () => {
+      track('story_create', { source: 'share', closeFriends: audience === 'close_friends' });
+      return { target: 'story' };
+    }),
 };

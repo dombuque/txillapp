@@ -8,6 +8,7 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, isTcheka, type Post } from '@/lib/api';
 import { extraApi } from '@/lib/api.extra';
+import { track } from '@/lib/analytics';
 import { SITE_URL, abs, sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
@@ -147,16 +148,20 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
   async function copy() {
     try {
       await Clipboard.setStringAsync(url);
+      track('share', { target: 'link' });
       setNote('Link copiado. Bora espalhar!');
     } catch {
       setNote('Não consegui copiar');
     }
   }
-  const open = (href: string) => void Linking.openURL(href).catch(() => setNote('Não consegui abrir a app'));
+  const open = (href: string) => void Linking.openURL(href).then(() => track('share', { target: 'app' }), () => setNote('Não consegui abrir a app'));
   async function system() {
     try {
       const r = await Share.share({ message: url, url });
-      if (r.action === Share.sharedAction) onClose();
+      if (r.action === Share.sharedAction) {
+        track('share', { target: 'system' });
+        onClose();
+      }
     } catch {
       /* cancelado */
     }

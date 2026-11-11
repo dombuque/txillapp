@@ -4,6 +4,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, api, isTcheka, type Post } from '@/lib/api';
 import { SITE_URL } from '@/lib/config';
+import { track } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
@@ -212,7 +213,8 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare }: { post:
       return;
     }
     try {
-      await Share.share({ message: postLink(post), url: postLink(post) });
+      const r = await Share.share({ message: postLink(post), url: postLink(post) });
+      if (r.action === Share.sharedAction) track('share', { target: 'system' });
     } catch { /* cancelado */ }
     onClose();
   }

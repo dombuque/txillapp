@@ -14,7 +14,14 @@ const LIMITS: Record<string, { good: number; poor: number; unit: string; label: 
   CLS: { good: 0.1, poor: 0.25, unit: '', label: 'Saltos no ecrã' },
   FCP: { good: 1800, poor: 3000, unit: ' ms', label: 'Primeiro conteúdo' },
   TTFB: { good: 800, poor: 1800, unit: ' ms', label: 'Resposta do servidor' },
+  // Da app (apps/mobile): do arranque até ao primeiro ecrã útil (na web conta desde o pedido da página).
+  first_screen_android: { good: 2000, poor: 4000, unit: ' ms', label: 'Primeiro ecrã útil (Android)' },
+  first_screen_ios: { good: 2000, poor: 4000, unit: ' ms', label: 'Primeiro ecrã útil (iPhone)' },
+  first_screen_web: { good: 2500, poor: 4000, unit: ' ms', label: 'Primeiro ecrã útil (site)' },
 };
+
+/** Nomes das plataformas (browser/pwa: o site antigo; web/android/ios: a app nova, que também é o site). */
+const PLATFORM: Record<string, string> = { android: 'Android', ios: 'iPhone', web: 'Site (app nova)', pwa: 'Site antigo instalado', browser: 'Site antigo no browser' };
 
 function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -139,9 +146,24 @@ export default function AdminStats() {
                   <li key={x.message} className="flex justify-between gap-3 border-t border-zinc-100 py-1.5 first:border-0"><span className="min-w-0 break-words">{x.message}</span><span className="tabular-nums text-zinc-600">{x.n}</span></li>
                 ))}
               </ul>
-              <p className="mt-4 text-sm text-zinc-600">
-                {tr('Instalada como app:')} {s.platform.find((p) => p.platform === 'pwa')?.users ?? 0} {tr('· no browser:')} {s.platform.find((p) => p.platform === 'browser')?.users ?? 0}
-              </p>
+              <h2 className="mt-4 font-bold">{tr('Pessoas por plataforma')}</h2>
+              <ul className="mt-2 text-sm">
+                {s.platform.length === 0 && <li className="text-zinc-500">{tr('Sem dados.')}</li>}
+                {s.platform.map((p) => (
+                  <li key={p.platform} className="flex justify-between border-t border-zinc-100 py-1.5 first:border-0"><span>{tr(PLATFORM[p.platform] ?? p.platform)}</span><span className="tabular-nums text-zinc-600">{p.users}</span></li>
+                ))}
+              </ul>
+              {s.platform.length > 1 && <p className="mt-1 text-xs text-zinc-500">{tr('Quem usa mais do que uma plataforma conta em cada uma; os ativos lá em cima contam cada pessoa uma vez.')}</p>}
+              {!!s.versions?.length && (
+                <>
+                  <h2 className="mt-4 font-bold">{tr('Versões da app')}</h2>
+                  <ul className="mt-2 text-sm">
+                    {s.versions.map((v) => (
+                      <li key={`${v.platform}-${v.version}`} className="flex justify-between border-t border-zinc-100 py-1.5 first:border-0"><span>{tr(PLATFORM[v.platform] ?? v.platform)} {v.version}</span><span className="tabular-nums text-zinc-600">{v.users}</span></li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </section>
             </div>
           </>

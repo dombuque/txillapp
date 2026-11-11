@@ -288,7 +288,10 @@ export interface AdminStats {
   perf: { metric: string; p75: number; n: number }[];
   screens: { path: string; n: number }[];
   errors: { message: string; n: number }[];
-  platform: { platform: 'browser' | 'pwa'; users: number }[];
+  /** browser/pwa: o site antigo; web/android/ios: a app (apps/mobile). */
+  platform: { platform: 'browser' | 'pwa' | 'web' | 'android' | 'ios'; users: number }[];
+  /** Versões da app em uso (servidores antigos não mandam). */
+  versions?: { platform: string; version: string; users: number }[];
 }
 export type Who = 'everyone' | 'following' | 'off';
 export interface Conversation {

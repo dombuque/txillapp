@@ -10,6 +10,12 @@ export const EVENT_NAMES = [
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 
+/** De onde vêm: `browser`/`pwa` é o site antigo (apps/web); `web`/`ios`/`android` é a app (apps/mobile, que também é o site). */
+export const PLATFORMS = ['browser', 'pwa', 'web', 'ios', 'android'] as const;
+export type Platform = (typeof PLATFORMS)[number];
+/** Até quanto tempo atrás pode ser um evento: a app guarda-os no aparelho quando está sem rede e envia-os depois (até 3 dias). */
+export const MAX_AGO_MS = 3 * 86_400_000;
+
 export interface IncomingEvent {
   name: EventName;
   props?: Record<string, unknown>;
@@ -24,7 +30,7 @@ export class AnalyticsService {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   /** Guarda os eventos, se a pessoa não os desligou. Valores de texto são cortados; nada de objetos grandes. */
-  async record(userId: string, sessionId: string, platform: 'browser' | 'pwa', events: IncomingEvent[]) {
+  async record(userId: string, sessionId: string, platform: Platform, events: IncomingEvent[], appVersion?: string) {
     const { rows } = await this.pool.query('SELECT share_analytics FROM identity.users WHERE id = $1', [userId]);
     if (!rows[0]?.share_analytics) return { stored: 0 };
     const clean = events.map((e) => {
@@ -35,13 +41,13 @@ export class AnalyticsService {
         else if (typeof v === 'boolean') props[k.slice(0, 40)] = v;
       }
       const json = JSON.stringify(props);
-      return { name: e.name, props: json.length > MAX_PROPS_BYTES ? {} : props, ago: Math.min(Math.max(e.ago ?? 0, 0), 3_600_000) };
+      return { name: e.name, props: json.length > MAX_PROPS_BYTES ? {} : props, ago: Math.min(Math.max(e.ago ?? 0, 0), MAX_AGO_MS) };
     });
     await this.pool.query(
-      `INSERT INTO analytics.events (user_id, session_id, name, props, platform, at)
-       SELECT $1, $2, x.name, x.props, $3, now() - (x.ago || ' milliseconds')::interval
+      `INSERT INTO analytics.events (user_id, session_id, name, props, platform, app_version, at)
+       SELECT $1, $2, x.name, x.props, $3, $5, now() - (x.ago || ' milliseconds')::interval
          FROM jsonb_to_recordset($4::jsonb) AS x(name text, props jsonb, ago int)`,
-      [userId, sessionId, platform, JSON.stringify(clean)],
+      [userId, sessionId, platform, JSON.stringify(clean), appVersion ?? null],
     );
     return { stored: clean.length };
   }
@@ -111,8 +117,14 @@ export class AnalyticsService {
       `SELECT left(props->>'message', 120) AS message, count(*)::int AS n FROM analytics.events
         WHERE name = 'client_error' AND at > now() - make_interval(days => $1) GROUP BY 1 ORDER BY n DESC LIMIT 5`,
     );
+    // Pessoas por plataforma. Quem usa a app e o site conta em ambas; o DAU/WAU/MAU de cima conta cada pessoa uma vez.
     const platform = await q(
-      `SELECT platform, count(DISTINCT user_id)::int AS users FROM analytics.events WHERE name = 'app_open' AND at > now() - make_interval(days => $1) GROUP BY 1`,
+      `SELECT platform, count(DISTINCT user_id)::int AS users FROM analytics.events WHERE name = 'app_open' AND at > now() - make_interval(days => $1) GROUP BY 1 ORDER BY users DESC`,
+    );
+    // Versões da app em uso (para saber quando se pode deixar de suportar uma versão antiga).
+    const versions = await q(
+      `SELECT platform, app_version AS version, count(DISTINCT user_id)::int AS users FROM analytics.events
+        WHERE name = 'app_open' AND app_version IS NOT NULL AND at > now() - make_interval(days => $1) GROUP BY 1, 2 ORDER BY users DESC, 2 DESC LIMIT 10`,
     );
     const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
 
@@ -135,6 +147,7 @@ export class AnalyticsService {
       screens,
       errors,
       platform,
+      versions,
     };
   }
 }
