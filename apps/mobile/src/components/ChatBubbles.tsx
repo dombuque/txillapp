@@ -22,6 +22,7 @@ import { timeLabel } from '@/lib/chatTimeline';
 import { abs, sized } from '@/lib/config';
 import { HOLD_MS, bubbleA11yActions, deletedText, isSent, recentlyHeld } from '@/lib/messageMenu';
 import { canSwipeReply } from '@/lib/replySwipe';
+import { liveShareEnded } from '@/lib/sendLocation';
 import { colors } from '@/lib/theme';
 
 /**
@@ -439,6 +440,8 @@ export function Bubble({
     setSpot((o) => (o && o.x === at.x && o.y === at.y && o.h === at.h ? o : at));
   };
 
+  // Partilha em direto terminada (sem posição): a bolha já diz tudo, sem a etiqueta por baixo.
+  const liveEnded = !gone && liveShareEnded(m);
   let content: React.ReactNode;
   if (gone) {
     // Apagada para todos: só o aviso cinzento no lugar dela (segurar ainda abre o menu, para "Apagar para mim").
@@ -475,6 +478,15 @@ export function Bubble({
     content = <View style={dimStyle}><Sticker id={m.body} size={120} /></View>;
   } else if (m.kind === 'post') {
     content = <SharedPost post={m.post ?? null} radius={radius} tone={tone} ink={ink} />;
+  } else if (liveEnded) {
+    // Partilha em direto que acabou: o servidor já não manda a posição, por isso não há mapa. Só a bolha discreta
+    // (como o aviso das apagadas); segurar continua a abrir o menu, pelo Pressable de fora (`hold`).
+    content = (
+      <View style={[st.bubble, st.deleted, radius, dimStyle]}>
+        <Icon name="map-pin" size={15} color={colors.zinc500} />
+        <Text style={st.liveEndedText}>Partilha em direto terminada</Text>
+      </View>
+    );
   } else if (m.kind === 'location' && m.lat != null && m.lng != null) {
     // Nome e morada do sítio por cima do mapa (components/LocationBubble); o toque longo abre o menu da mensagem.
     content = <LocationBubble m={{ ...m, lat: m.lat, lng: m.lng }} ink={ink} style={[st.shared, tone, radius, dimStyle]} map={<TileMap lat={m.lat} lng={m.lng} width={240} height={132} />} onLongPress={real ? () => onMenu(m) : undefined} />;
@@ -635,7 +647,7 @@ export function Bubble({
           ))}
         </Pressable>
       )}
-      {m.kind === 'location' && m.liveUntil ? (
+      {m.kind === 'location' && m.liveUntil && !liveEnded ? (
         <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 }}>
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: m.live ? '#10b981' : colors.zinc300 }} />
           <Text style={{ fontSize: 12, fontWeight: '600', color: '#047857' }}>{m.live ? `Em direto até às ${clock(m.liveUntil)}` : 'Partilha em direto terminada'}</Text>
@@ -722,5 +734,6 @@ const st = StyleSheet.create({
   wave: { flex: 1, minWidth: 0, height: 40, flexDirection: 'row', alignItems: 'center', gap: 2 },
   deleted: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.zinc100, borderWidth: 1, borderColor: colors.zinc200 },
   deletedText: { fontSize: 14, lineHeight: 20, fontStyle: 'italic', color: colors.zinc500 },
+  liveEndedText: { fontSize: 14, lineHeight: 20, fontWeight: '600', color: colors.zinc500 },
   noteBubble: { maxWidth: '100%', borderRadius: 20, backgroundColor: OTHER_BG, borderWidth: 1, borderColor: '#ececf0', paddingHorizontal: 14, paddingVertical: 10, textAlign: 'center', fontSize: 15, lineHeight: 20.6, fontWeight: '500', color: colors.zinc800, overflow: 'hidden' },
 });

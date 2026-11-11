@@ -6,6 +6,7 @@ import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
 import { staffLogin } from '../staff/staff-test';
+import { ModerationService, REPORT_EVIDENCE_DAYS } from '../moderation/moderation.service';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
@@ -222,6 +223,30 @@ describe('privacidade do chat: exportação, eliminar conta, apagar para todos, 
     await report(outsider, msg).expect(404);
     await api().patch(`/api/v1/chat/messages/${msg}`).set(auth(a)).send({ body: 'já não é ofensa' }).expect(200);
     expect((await queue()).find((x) => x.id === msg)).toMatchObject({ reported: { body: 'ofensa no grupo' }, current: { body: 'já não é ofensa', deleted: false } });
+  });
+
+  it(`5. prazo da prova: ${REPORT_EVIDENCE_DAYS} dias depois de decidida a denúncia, a cópia apaga-se e a denúncia fica; por decidir, fica`, async () => {
+    const { pva: a, pvb: b, pvc: c } = u;
+    const old = await send(a, b, 'decidida há muito');
+    const recent = await send(a, b, 'decidida há pouco');
+    const open = await send(a, c, 'ainda por decidir');
+    for (const [x, id] of [[b, old], [b, recent], [c, open]] as [U, string][]) await report(x, id).expect(204);
+    for (const id of [old, recent]) await api().post('/api/v1/admin/reports/resolve').set(sauth()).send({ type: 'message', id, action: 'dismiss' }).expect(204);
+    const ev = async (id: string) => (await pool.query("SELECT evidence, status FROM social.reports WHERE target_type = 'message' AND target_id = $1", [id])).rows[0];
+    // A decisão (e a denúncia por decidir) com datas antigas: só a decidida há mais de 180 dias perde a cópia.
+    await pool.query(`UPDATE social.reports SET resolved_at = now() - interval '${REPORT_EVIDENCE_DAYS + 1} days' WHERE target_type = 'message' AND target_id = $1`, [old]);
+    await pool.query(`UPDATE social.reports SET resolved_at = now() - interval '${REPORT_EVIDENCE_DAYS - 1} days' WHERE target_type = 'message' AND target_id = $1`, [recent]);
+    await pool.query(`UPDATE social.reports SET created_at = now() - interval '400 days' WHERE target_type = 'message' AND target_id = $1`, [open]);
+
+    expect(await app.get(ModerationService).purgeEvidence()).toBeGreaterThanOrEqual(1);
+    expect(await ev(old)).toMatchObject({ evidence: null, status: 'dismissed' });
+    expect((await ev(recent)).evidence).toMatchObject({ body: 'decidida há pouco' });
+    expect(await ev(open)).toMatchObject({ evidence: { body: 'ainda por decidir' }, status: 'open' });
+    // O histórico continua a mostrar a denúncia, agora sem cópia (o texto atual da mensagem).
+    const decided = (await api().get('/api/v1/admin/reports/decided?status=dismissed').set(sauth()).expect(200)).body.items as Queued[];
+    expect(decided.find((x) => x.id === old)).toMatchObject({ reported: null, current: null, preview: 'decidida há muito' });
+    // Correr outra vez não muda nada.
+    expect(await app.get(ModerationService).purgeEvidence()).toBe(0);
   });
 
   it('6. partilha em direto terminada (Parar ou fim do tempo): a última posição deixa de ser servida; as localizações fixas mantêm o ponto', async () => {

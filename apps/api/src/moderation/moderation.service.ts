@@ -1,5 +1,6 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
+import { AppConfig, CONFIG } from '../config';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { SearchIndexer } from '../search/search-index';
@@ -13,6 +14,12 @@ export const USER_REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message']
 export const REPORT_REASONS = ['spam', 'harassment', 'hate', 'nudity', 'violence', 'scam', 'impersonation', 'minor', 'other'] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 export type ReportReason = (typeof REPORT_REASONS)[number];
+
+/**
+ * Quantos dias fica a prova de uma denúncia (a cópia da mensagem, social.reports.evidence) depois de a denúncia ser
+ * decidida. Passado esse prazo a cópia apaga-se (fica a null) e a denúncia continua. As denúncias por decidir mantêm-na.
+ */
+export const REPORT_EVIDENCE_DAYS = 180;
 
 /** A cópia de uma mensagem guardada no momento da denúncia (social.reports.evidence, 0111). */
 export interface MessageEvidence { kind: string; body: string; placeName: string | null; placeAddress: string | null; editedAt: string | null }
@@ -50,11 +57,38 @@ export function messageProof(r: Record<string, any>) {
 }
 
 @Injectable()
-export class ModerationService {
+export class ModerationService implements OnModuleInit, OnModuleDestroy {
+  private readonly log = new Logger('Moderação');
+  private purger?: NodeJS.Timeout;
+
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly indexer: SearchIndexer,
+    @Inject(CONFIG) private readonly config: AppConfig,
   ) {}
+
+  /** No arranque e de 24 em 24 horas (fora dos testes): apaga as provas das denúncias decididas há mais de REPORT_EVIDENCE_DAYS. */
+  onModuleInit() {
+    if (this.config.NODE_ENV === 'test') return;
+    const run = () => void this.purgeEvidence().catch((e) => this.log.warn(`falha a limpar provas de denúncias: ${(e as Error).message}`));
+    run();
+    this.purger = setInterval(run, 24 * 3_600_000);
+    this.purger.unref();
+  }
+
+  onModuleDestroy() {
+    if (this.purger) clearInterval(this.purger);
+  }
+
+  /** Tira a cópia (evidence) às denúncias decididas há mais de REPORT_EVIDENCE_DAYS dias. A denúncia fica. Devolve quantas mudaram. */
+  async purgeEvidence(days = REPORT_EVIDENCE_DAYS) {
+    const r = await this.pool.query(
+      `UPDATE social.reports SET evidence = NULL
+        WHERE evidence IS NOT NULL AND status <> 'open' AND resolved_at IS NOT NULL AND resolved_at < now() - make_interval(days => $1)`,
+      [days],
+    );
+    return r.rowCount ?? 0;
+  }
 
   async isAdmin(userId: string) {
     const r = await this.pool.query(`SELECT 1 FROM identity.users WHERE id = $1 AND is_admin AND status = 'active'`, [userId]);

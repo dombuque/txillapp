@@ -345,3 +345,13 @@ export function bubbleLines(m: { body?: string | null; placeName?: string | null
   if (m.liveUntil) return { title: body ?? 'Localização em direto', sub: null, named: false };
   return { title: body ?? 'Localização', sub: null, named: false };
 }
+
+/**
+ * Partilha em direto que já acabou e de que o servidor já não manda a posição (o tempo acabou ou alguém carregou em
+ * "Parar"): a bolha fica só "Partilha em direto terminada", sem mapa. Uma localização fixa (sem `liveUntil`) nunca é.
+ */
+export function liveShareEnded(m: { kind?: string; lat?: number | null; lng?: number | null; liveUntil?: string | null }, now = Date.now()): boolean {
+  if (m.kind !== 'location' || !m.liveUntil || (m.lat != null && m.lng != null)) return false;
+  const until = Date.parse(m.liveUntil);
+  return Number.isFinite(until) && until <= now;
+}

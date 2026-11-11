@@ -174,3 +174,27 @@ test('a folha nunca envia sozinha: "Localização" abre a folha nas conversas e 
   assert.equal((sheet.match(/onSend\(/g) ?? []).length, 1);
   assert.match(sheet, /allowLive=\{false\}|allowLive: boolean/);
 });
+
+test('partilha em direto terminada: sem posição e com liveUntil no passado; nunca numa localização fixa nem a decorrer', () => {
+  const now = Date.parse('2026-11-11T12:00:00Z');
+  const past = '2026-11-11T11:59:00Z';
+  const future = '2026-11-11T12:10:00Z';
+  assert.equal(L.liveShareEnded({ kind: 'location', lat: null, lng: null, liveUntil: past }, now), true);
+  assert.equal(L.liveShareEnded({ kind: 'location', lat: null, lng: null, liveUntil: '2026-11-11T12:00:00Z' }, now), true);
+  // A decorrer, com posição, fixa (sem liveUntil), de outro tipo ou com data estragada: não.
+  assert.equal(L.liveShareEnded({ kind: 'location', lat: null, lng: null, liveUntil: future }, now), false);
+  assert.equal(L.liveShareEnded({ kind: 'location', lat: -25.9, lng: 32.5, liveUntil: past }, now), false);
+  assert.equal(L.liveShareEnded({ kind: 'location', lat: null, lng: null, liveUntil: null }, now), false);
+  assert.equal(L.liveShareEnded({ kind: 'location', lat: -25.9, lng: 32.5 }, now), false);
+  assert.equal(L.liveShareEnded({ kind: 'text', lat: null, lng: null, liveUntil: past }, now), false);
+  assert.equal(L.liveShareEnded({ kind: 'location', lat: null, lng: null, liveUntil: 'nada' }, now), false);
+});
+
+test('a bolha de partilha em direto terminada: sem mapa nem etiqueta repetida, e segurar abre o menu', () => {
+  const src = readFileSync(path.join(ROOT, 'src', 'components', 'ChatBubbles.tsx'), 'utf8');
+  assert.match(src, /const liveEnded = !gone && liveShareEnded\(m\)/);
+  assert.match(src, /\} else if \(liveEnded\) \{[\s\S]*?Partilha em direto terminada[\s\S]*?\} else if \(m\.kind === 'location' && m\.lat != null/);
+  assert.match(src, /m\.kind === 'location' && m\.liveUntil && !liveEnded \?/);
+  // A bolha fica dentro do Pressable de fora, que tem o `hold` (o toque longo para o menu).
+  assert.match(src, /<Pressable\s+\{\.\.\.hold\}\s+onPress=\{onPress\}/);
+});
