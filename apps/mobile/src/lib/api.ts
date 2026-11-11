@@ -4,6 +4,7 @@ import { kvGet, kvSet } from './kv';
 import { Platform } from 'react-native';
 import { SITE_URL } from './config';
 import { track, trackOk, trackThrottled } from './analytics';
+import type { SponsoredSlot } from './api.boosts';
 
 /** Resposta de entrada: a app nativa recebe também o token de renovação (guardado no cofre do telemóvel, nunca em texto simples). */
 export interface PublicUser { id: string; username: string; displayName: string }
@@ -591,7 +592,9 @@ export const api = {
     accessToken = null;
     await refreshStore.clear();
   },
-  feed: (cursor?: string): Promise<Page<Post>> => raw(`/feed${cursor ? `?cursor=${encodeURIComponent(cursor)}&limit=10` : '?limit=10'}`),
+  /** `near` (opcional, 2 casas decimais): só para o servidor escolher os destaques do Bombar (`sponsored`); não se guarda. */
+  feed: (cursor?: string, near?: { lat: number; lng: number } | null): Promise<Page<Post> & { sponsored?: SponsoredSlot[] }> =>
+    raw(`/feed${cursor ? `?cursor=${encodeURIComponent(cursor)}&limit=10` : '?limit=10'}${near ? `&lat=${near.lat}&lng=${near.lng}` : ''}`),
   cheer: (id: string): Promise<{ cheered: boolean; cheers: number }> => trackOk(raw(`/posts/${id}/cheers`, post({})), 'cheer', (r) => r?.cheered && { target: 'post' }),
   gift: (id: string, amount: number, key: string, note = '', visibility: GiftVisibility = 'silent'): Promise<{ transactionId: string; post: Post; announcement: Post | null }> =>
     raw(`/posts/${id}/gifts`, { ...post({ amount, note, visibility }), headers: { 'Idempotency-Key': key } }),

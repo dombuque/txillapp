@@ -23,7 +23,7 @@ export interface TransferResult {
 }
 
 /** Tipos de movimento do ledger (iguais ao CHECK de ledger.transactions). */
-export type LedgerType = 'welcome_bonus' | 'transfer' | 'gift' | 'topup' | 'invite' | 'group_contribution' | 'venue_payment' | 'group_refund';
+export type LedgerType = 'welcome_bonus' | 'transfer' | 'gift' | 'topup' | 'invite' | 'group_contribution' | 'venue_payment' | 'group_refund' | 'boost' | 'boost_refund';
 
 /**
  * Movimento entre contas quaisquer (carteiras, cofres de grupo, carteiras de locais).
@@ -53,6 +53,8 @@ export function historyLabel(type: LedgerType, amount: number, x: { who: string 
     case 'transfer': return out ? `Enviaste a ${x.who ?? 'alguém'}` : `Recebeste de ${x.who ?? 'alguém'}`;
     case 'group_contribution': return `Puseste no cofre de ${x.group ?? 'um grupo'}`;
     case 'group_refund': return `Devolução do cofre de ${x.group ?? 'um grupo'}`;
+    case 'boost': return `Bombar ${x.venue ?? 'o local'}`;
+    case 'boost_refund': return `Devolução do Bombar de ${x.venue ?? 'um local'}`;
     case 'venue_payment':
       if (!out) return x.who ? `Pagamento de ${x.who}` : `Pagamento do cofre de ${x.group ?? 'um grupo'}`;
       return x.group ? `Pago em ${x.venue ?? 'um local'} com o cofre de ${x.group}` : `Pagaste em ${x.venue ?? 'um local'}`;
@@ -299,6 +301,15 @@ export class WalletService {
     } finally {
       c.release();
     }
+  }
+
+  /**
+   * Um movimento dentro da transação de quem chama (que já viu a idempotência e bloqueou as contas).
+   * Uma conta que ficasse negativa faz falhar a query com o código 23514 (CHECK no_overdraft).
+   */
+  postIn(c: PoolClient, t: { type: LedgerType; actorId: string; key: string; legs: [string, number][]; metadata: Record<string, unknown> }): Promise<string> {
+    if (t.legs.length < 2 || t.legs.reduce((s, [, a]) => s + a, 0) !== 0 || t.legs.some(([, a]) => !Number.isInteger(a) || a === 0)) throw new UnprocessableEntityException('Movimento inválido');
+    return this.post(c, t);
   }
 
   private async post(

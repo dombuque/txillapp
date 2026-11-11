@@ -711,6 +711,10 @@ export const api = {
   /** Aprovar ou recusar um local (recusar leva o motivo, que o dono vê). */
   boReviewVenue: (slug: string, decision: 'approved' | 'rejected', note?: string): Promise<{ slug: string; reviewStatus: string }> =>
     raw(`/venues/${encodeURIComponent(slug)}/review`, { method: 'PUT', body: JSON.stringify({ decision, ...(note ? { note } : {}) }) }),
+  /** Bombar: as campanhas (a decorrer ou todas); suspender (com ou sem devolução) e repor. */
+  boBoosts: (filter: 'live' | 'all'): Promise<BoBoost[]> => raw(`/venues/admin/boosts?filter=${filter}`),
+  boSuspendBoost: (id: string, note: string, refund: boolean): Promise<unknown> => raw(`/venues/admin/boosts/${id}/suspend`, { method: 'PUT', body: JSON.stringify({ refund, ...(note ? { note } : {}) }) }),
+  boReinstateBoost: (id: string): Promise<unknown> => raw(`/venues/admin/boosts/${id}/reinstate`, { method: 'PUT', body: '{}' }),
   boVerifyVenue: (slug: string, verified: boolean): Promise<{ slug: string; verified: boolean }> => raw(`/venues/${encodeURIComponent(slug)}/verified`, { method: 'PUT', body: JSON.stringify({ verified }) }),
   venue: (slug: string): Promise<Venue> => raw(`/venues/${encodeURIComponent(slug)}`),
   findVenue: (name: string): Promise<Venue | null> => raw(`/venues/find?name=${encodeURIComponent(name)}`),
@@ -937,6 +941,13 @@ export interface Venue {
   /** Só o dono o recebe. */
   qrToken?: string;
   checkedIn: boolean;
+}
+
+export interface BoBoost {
+  id: string; state: 'scheduled' | 'active' | 'ended' | 'stopped' | 'suspended' | 'pending';
+  venue: { slug: string; name: string }; target: { kind: 'event' | 'post'; id: string; title: string };
+  startsAt: string; endsAt: string; stoppedAt: string | null; radiusKm: number; price: number; refunded: number; note: string | null;
+  report: { impressions: number; people: number; taps: number; checkins: number };
 }
 
 export interface BoVenue {

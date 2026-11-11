@@ -22,6 +22,8 @@ export interface MapMarker {
   image?: string | null;
   /** Só eventos: quando começa (ISO), para o pin mostrar o dia. */
   date?: string | null;
+  /** Destaque pago (Bombar): pino realçado com a etiqueta "Patrocinado", nunca agrupado e por cima dos outros. */
+  boosted?: boolean;
 }
 export interface MapState {
   center: { lat: number; lng: number };
@@ -96,6 +98,11 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
       '.txc{display:none;width:44px;height:44px;border-radius:50%;background:#fff;border:0;padding:0;margin:0;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.25);align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}',
       '.txc.on{display:flex}',
       '.txc:focus-visible{outline:2px solid ' + BRAND + ';outline-offset:2px}',
+      // Bombar: anel dourado e a etiqueta "Patrocinado" por cima do pino (publicidade identificada).
+      '.txm.boost .b{box-shadow:0 0 0 3px #f59e0b,' + SH + '}',
+      '.txm.boost .tx-event .h{box-shadow:0 0 0 3px #f59e0b,' + SH + '}',
+      '.txm.boost .tx-event{box-shadow:none}',
+      '.txm .bt{position:absolute;left:50%;bottom:100%;margin-bottom:6px;transform:translateX(-50%);white-space:nowrap;padding:2px 7px;border-radius:999px;background:#f59e0b;color:#18181b;font:800 10px system-ui,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.25);pointer-events:none}',
       '.leaflet-container{font-family:system-ui,sans-serif;background:#f2efe9}',
       '.leaflet-control-attribution{font-size:10px}',
     ].join('\n');
@@ -231,7 +238,8 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
       size = [38, 38];
       anchor = [19, 19];
     }
-    return L.divIcon({ className: 'txm' + (sel ? ' sel' : ''), html, iconSize: size, iconAnchor: anchor });
+    if (m.boosted) html = html.slice(0, html.lastIndexOf('</div>')) + '<span class="bt">Patrocinado</span></div>';
+    return L.divIcon({ className: 'txm' + (sel ? ' sel' : '') + (m.boosted ? ' boost' : ''), html, iconSize: size, iconAnchor: anchor });
   }
 
   // Foto que não carrega: some e fica o fundo (iniciais ou cor). Sem onerror no HTML (o CSP do site não deixa).
@@ -258,7 +266,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
         haloAt.add(hk);
         L.circle([m.lat, m.lng], { radius: 700, stroke: false, fillColor: BRAND, fillOpacity: 0.08, interactive: false }).addTo(halos);
       }
-      if (m.id === st.selectedId) {
+      if (m.id === st.selectedId || m.boosted) {
         singles.push(m);
         continue;
       }
@@ -292,7 +300,7 @@ export function createNearbyMap(L: typeof Leaflet, el: HTMLElement, onPress: (id
     });
     for (const m of singles) {
       const sel = m.id === st.selectedId;
-      const mk = L.marker([m.lat, m.lng], { icon: iconFor(m, sel), title: m.title, keyboard: true, riseOnHover: true, zIndexOffset: sel ? 1000 : m.kind === 'event' ? 200 : 0 });
+      const mk = L.marker([m.lat, m.lng], { icon: iconFor(m, sel), title: m.boosted ? `${m.title} · Patrocinado` : m.title, keyboard: true, riseOnHover: true, zIndexOffset: sel ? 1000 : m.boosted ? 800 : m.kind === 'event' ? 200 : 0 });
       mk.on('click', () => onPress(m.id));
       mk.on('add', () => hideBroken(mk));
       mk.addTo(layer);

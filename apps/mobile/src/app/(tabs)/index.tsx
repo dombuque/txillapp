@@ -10,6 +10,7 @@ import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import { Icon } from '@/components/Icon';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { PostCard } from '@/components/PostCard';
+import { SponsoredCard } from '@/components/boost/SponsoredCard';
 import { ProfileNudge } from '@/components/ProfileNudge';
 import { StoriesTray } from '@/components/StoriesTray';
 import { useTabPress } from '@/lib/tabPress';
@@ -19,6 +20,8 @@ import { PublishBanner } from '@/components/PublishBanner';
 import { WelcomeTour } from '@/components/WelcomeTour';
 import { Wordmark } from '@/components/Wordmark';
 import { api, type Post } from '@/lib/api';
+import { feedPosition } from '@/lib/api.boosts';
+import { slotsByAnchor } from '@/lib/boostView';
 import { useAuth } from '@/lib/auth';
 import { useDesktop } from '@/lib/desktop';
 import { trackSeen } from '@/lib/seen';
@@ -92,7 +95,8 @@ function Feed() {
   const early = !!me.data && me.data.counts.following < 25 && !snoozed;
   const q = useInfiniteQuery({
     queryKey: ['feed'],
-    queryFn: ({ pageParam }) => api.feed(pageParam),
+    // Com a posição aproximada do "À tua volta" (se houver): o servidor junta os destaques do Bombar (`sponsored`).
+    queryFn: async ({ pageParam }) => api.feed(pageParam, await feedPosition()),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
@@ -101,6 +105,8 @@ function Feed() {
   const seen = new Set<string>();
   const posts: Post[] = (q.data?.pages.flatMap((p) => p.items) ?? []).filter((p) => !seen.has(p.id) && !!seen.add(p.id));
   const firstSeen = posts.findIndex((p) => p.feed?.seen);
+  // Destaques do Bombar (no máximo 1 a cada ~11 publicações, decidido no servidor), pela publicação depois da qual entram.
+  const slots = slotsByAnchor(q.data?.pages ?? []);
 
   // Sinal de novidades: de tempos a tempos espreita a primeira página sem mexer no que estás a ler. Não atualiza sozinho:
   // mostra um aviso e, ao tocar (ou ao puxar para atualizar), traz as novas.
@@ -192,6 +198,7 @@ function Feed() {
               </View>
             )}
             <PostCard post={item} me={user?.id} />
+            {(slots.get(item.id) ?? []).map((s) => <SponsoredCard key={s.campaignId} slot={s} me={user?.id} />)}
             {((early && index === 0) || (!early && index === 1 && showSuggestions)) && <Suggestions />}
           </>
         )}
@@ -229,6 +236,7 @@ function Feed() {
         }
         ListFooterComponent={
           <>
+            {q.isSuccess && posts.length === 0 && (slots.get(null) ?? []).map((s) => <SponsoredCard key={s.campaignId} slot={s} me={user?.id} />)}
             {q.isSuccess && (posts.length === 0 || (posts.length === 1 && !early)) && <Suggestions />}
             {q.isFetchingNextPage ? <ActivityIndicator color={colors.brand} style={{ marginBottom: 24 }} /> : <View style={{ height: 8 }} />}
           </>

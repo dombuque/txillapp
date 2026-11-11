@@ -551,6 +551,12 @@ export class AuthService {
         'UPDATE social.group_polls SET created_by = NULL WHERE created_by = $1',
         'UPDATE social.groups SET created_by = NULL WHERE created_by = $1',
         'UPDATE content.venue_events SET created_by = NULL WHERE created_by = $1',
+        // Bombar: os destaques que escondeu saem; as vezes que viu ou tocou ficam só nos totais, sem pessoa;
+        // as campanhas são do local, por isso só se tira quem as criou ou parou.
+        'DELETE FROM content.boost_hidden WHERE user_id = $1',
+        'UPDATE content.boost_impressions SET user_id = NULL WHERE user_id = $1',
+        'UPDATE content.boost_campaigns SET created_by = NULL WHERE created_by = $1',
+        'UPDATE content.boost_campaigns SET stopped_by = NULL WHERE stopped_by = $1',
         // Pedidos de recarga: ficam para a contabilidade, mas sem os últimos dígitos do telemóvel.
         "UPDATE payments.orders SET phone_tail = NULL WHERE user_id = $1",
       ]) await client.query(sql, [userId]);

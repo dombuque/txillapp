@@ -7,8 +7,10 @@ export type { NearbyKind, NearbyWhen } from '@/lib/nearbyView';
 export { eventWhen, kmLabel } from '@/lib/nearbyView';
 export type NearbyVisibility = 'off' | 'mutual' | 'following';
 
-export interface NearbyVenue { slug: string; name: string; kind: string; avatarUrl: string | null; verified: boolean; acceptsTxills?: boolean; lat: number; lng: number; distanceKm: number; checkinsToday: number; followers: number }
-export interface NearbyEvent { id: string; title: string; startsAt: string; endsAt: string | null; coverUrl: string | null; venue: { slug: string; name: string; lat: number; lng: number }; distanceKm: number; interested: number }
+/** Destaque pago (Bombar): o pino fica realçado e no topo da lista, com a etiqueta "Patrocinado". */
+export interface NearbyBoost { campaignId: string; label: string }
+export interface NearbyVenue { slug: string; name: string; kind: string; avatarUrl: string | null; verified: boolean; acceptsTxills?: boolean; lat: number; lng: number; distanceKm: number; checkinsToday: number; followers: number; boosted?: NearbyBoost | null }
+export interface NearbyEvent { id: string; title: string; startsAt: string; endsAt: string | null; coverUrl: string | null; venue: { slug: string; name: string; lat: number; lng: number }; distanceKm: number; interested: number; boosted?: NearbyBoost | null }
 export interface NearbyPost { id: string; code: string; thumbUrl: string | null; kind: 'photo' | 'video'; locationLabel: string | null; lat: number; lng: number; distanceKm: number; createdAt: string; author: { username: string; displayName: string } }
 export interface NearbyGroup { id: string; name: string; kind: string; coverUrl: string | null; destination: string | null; startsOn: string | null; lat: number; lng: number; distanceKm: number; members: number; /** Se o servidor já disser se estou no grupo. */ isMember?: boolean; /** Foto de perfil do grupo. */ avatarUrl?: string | null; visibility?: 'private' | 'public'; /** 'open' = entra logo; 'request' = pede e um administrador aprova. */ joinMode?: 'open' | 'request'; /** Onde aparece no mapa ("Costa do Sol", ou o local do Plano). */ placeLabel?: string | null }
 /** Malta à volta: a posição vem arredondada pelo servidor (célula de ~1,5 km), nunca a exata. */

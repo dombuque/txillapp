@@ -80,6 +80,8 @@ export class ExportService {
       ).catch(() => []),
       venuesFollowed: await q(`SELECT v.slug, v.name, f.created_at AS "since" FROM content.venue_follows f JOIN content.venues v ON v.id = f.venue_id WHERE f.user_id = $1 ORDER BY f.created_at`).catch(() => []),
       checkins: await q(`SELECT v.slug, v.name, c.created_at AS "createdAt" FROM content.checkins c JOIN content.venues v ON v.id = c.venue_id WHERE c.user_id = $1 ORDER BY c.created_at`).catch(() => []),
+      // Bombar: os locais cujos destaques pediste para não ver.
+      boostsHidden: await q(`SELECT v.slug, v.name, h.created_at AS "since" FROM content.boost_hidden h JOIN content.venues v ON v.id = h.venue_id WHERE h.user_id = $1 ORDER BY h.created_at`).catch(() => []),
       // Como afinei o algoritmo do Explorar e das Tchekas.
       feedSettings: (await q(`SELECT following, freshness, media, variety, hide_seen AS "hideSeen", calm FROM social.feed_settings WHERE user_id = $1`).catch(() => []))[0] ?? null,
       topicPrefs: await q(`SELECT topic, pref FROM social.explore_prefs WHERE user_id = $1 ORDER BY topic`).catch(() => []),

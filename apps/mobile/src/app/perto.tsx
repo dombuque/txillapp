@@ -18,6 +18,7 @@ import { GroupCover } from '@/components/groups/GroupParts';
 import { NearbyMap } from '@/components/nearby/NearbyMap';
 import type { MapMarker, MapMarkerKind } from '@/components/nearby/types';
 import { ApiError, api } from '@/lib/api';
+import { boostsApi } from '@/lib/api.boosts';
 import type { GroupKind } from '@/lib/api.groups';
 import { KIND_LABEL } from '@/lib/api.locais';
 import { joinModeOf } from '@/lib/groupAccess';
@@ -110,6 +111,8 @@ interface Item {
   username?: string;
   group?: NearbyGroup;
   to?: string;
+  /** Destaque pago (Bombar): realçado no mapa, no topo da lista e com a etiqueta. */
+  boost?: { campaignId: string; label: string } | null;
 }
 
 /** "há 20 min": o servidor pode mandar uma data, minutos ou o texto já feito. */
@@ -128,12 +131,12 @@ function toItems(d: NearbyResult | undefined): Item[] {
   const out: Item[] = [];
   for (const v of d.venues ?? [])
     out.push({
-      key: `v:${v.slug}`, kind: 'venue', title: v.name, image: sized(v.avatarUrl, 120) ?? null, distanceKm: v.distanceKm, lat: v.lat, lng: v.lng, verified: v.verified, to: `/v/${v.slug}`,
+      key: `v:${v.slug}`, kind: 'venue', title: v.name, image: sized(v.avatarUrl, 120) ?? null, distanceKm: v.distanceKm, lat: v.lat, lng: v.lng, verified: v.verified, to: `/v/${v.slug}`, boost: v.boosted ?? null,
       sub: [KIND_LABEL[v.kind] ?? 'Local', v.checkinsToday ? `${v.checkinsToday} check-in${v.checkinsToday === 1 ? '' : 's'} hoje` : null, v.acceptsTxills ? 'aceita Txills' : null].filter(Boolean).join(' · '),
     });
   for (const e of d.events ?? [])
     out.push({
-      key: `e:${e.id}`, kind: 'event', title: e.title, image: sized(e.coverUrl, 160) ?? null, distanceKm: e.distanceKm, lat: e.venue.lat, lng: e.venue.lng, date: e.startsAt, to: `/evento/${e.id}`,
+      key: `e:${e.id}`, kind: 'event', title: e.title, image: sized(e.coverUrl, 160) ?? null, distanceKm: e.distanceKm, lat: e.venue.lat, lng: e.venue.lng, date: e.startsAt, to: `/evento/${e.id}`, boost: e.boosted ?? null,
       sub: [eventWhen(e.startsAt, e.endsAt), e.venue.name, e.interested ? `${e.interested} com interesse` : null].filter(Boolean).join(' · '),
     });
   for (const p of d.posts ?? [])
@@ -151,7 +154,9 @@ function toItems(d: NearbyResult | undefined): Item[] {
       key: `u:${u.username}`, kind: 'person', title: u.displayName, username: u.username, image: u.hasAvatar ? `${SITE_URL}/api/v1/avatars/${encodeURIComponent(u.username)}` : null,
       distanceKm: u.approxKm, lat: u.lat, lng: u.lng, to: `/u/${u.username}`, sub: `perto de ti · ${agoText(u.ago)}`,
     });
-  return out.sort((a, b) => a.distanceKm - b.distanceKm);
+  out.sort((a, b) => a.distanceKm - b.distanceKm);
+  // Os destaques do Bombar vão à frente (entre eles, pela distância).
+  return [...out.filter((i) => i.boost), ...out.filter((i) => !i.boost)];
 }
 
 /** "À tua volta": mapa com o que se passa perto (locais, eventos, malta, publicações e TxillGroups), dentro do raio escolhido. */
@@ -279,7 +284,7 @@ export default function Perto() {
       setPulling(false);
     }
   };
-  const markers = useMemo<MapMarker[]>(() => items.map((i) => ({ id: i.key, kind: i.kind, lat: i.lat, lng: i.lng, title: i.title, image: i.image, date: i.date ?? null })), [items]);
+  const markers = useMemo<MapMarker[]>(() => items.map((i) => ({ id: i.key, kind: i.kind, lat: i.lat, lng: i.lng, title: i.title, image: i.image, date: i.date ?? null, boosted: !!i.boost })), [items]);
   const center = useMemo(() => (place ? { lat: place.lat, lng: place.lng } : { lat: -25.97, lng: 32.57 }), [place]);
 
   const setVis = useMutation({
@@ -338,6 +343,8 @@ export default function Perto() {
   // ----- Abrir um item -----
   const groups = useQuery({ queryKey: ['chat-groups'], queryFn: api.chatGroups, staleTime: 60_000, enabled: items.some((i) => i.kind === 'group') });
   const open = (it: Item) => {
+    // Tocar num destaque conta no relatório do local (no servidor; só o total).
+    if (it.boost) void boostsApi.tap(it.boost.campaignId, 'map').catch(() => undefined);
     if (it.kind === 'group' && it.group) {
       const member = it.group.isMember ?? (groups.data ?? []).some((g) => g.id === it.group!.id);
       if (member) router.push(`/messages/g/${it.group.id}` as never);
@@ -645,7 +652,7 @@ function Row({ item, selected, onPress, onOpen, onHover }: { item: Item; selecte
       onHoverIn={onHover}
       style={(s) => [st.row, selected && st.rowSel, (s as { hovered?: boolean }).hovered && !selected && { backgroundColor: colors.zinc100 }]}
       accessibilityRole="button"
-      accessibilityLabel={`${item.title}, ${kmLabel(item.distanceKm)}. ${item.sub}`}
+      accessibilityLabel={`${item.boost ? `${item.boost.label.replace(' · ', ', ')}. ` : ''}${item.title}, ${kmLabel(item.distanceKm)}. ${item.sub}`}
       // O primeiro toque mostra no mapa, o segundo abre. Com o leitor de ecrã há também a ação "Abrir", que abre logo.
       accessibilityHint={selected ? 'Toca para abrir' : 'Toca para mostrar no mapa e outra vez para abrir. Ou usa a ação Abrir'}
       accessibilityState={{ selected }}
@@ -668,6 +675,12 @@ function Row({ item, selected, onPress, onOpen, onHover }: { item: Item; selecte
           {item.verified ? <VerifiedBadge size={14} /> : null}
         </View>
         <Text style={st.rowSub} numberOfLines={1}>{item.sub}</Text>
+        {item.boost ? (
+          <View style={st.boostTag}>
+            <Icon name="flame" size={12} color={colors.brand} />
+            <Text style={st.boostText}>{item.boost.label}</Text>
+          </View>
+        ) : null}
       </View>
       <Text style={st.rowKm}>{kmLabel(item.distanceKm).replace(/^a /, '')}</Text>
       <Pressable onPress={onOpen} hitSlop={8} style={st.rowOpen} accessibilityRole="link" accessibilityLabel={`Abrir ${item.title}`}>
@@ -1059,6 +1072,8 @@ const st = StyleSheet.create({
   personHalo: { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(214,51,79,0.14)', alignItems: 'center', justifyContent: 'center' },
   rowTitle: { fontSize: 15, fontWeight: '700', color: colors.zinc900, flexShrink: 1 },
   rowSub: { fontSize: 13, color: colors.zinc500, marginTop: 2 },
+  boostTag: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 4, borderRadius: 999, backgroundColor: colors.rose50, paddingHorizontal: 8, paddingVertical: 2 },
+  boostText: { fontSize: 11, fontWeight: '800', color: colors.brand },
   rowKm: { fontSize: 13, fontWeight: '700', color: colors.zinc700 },
   rowOpen: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   cardText: { fontSize: 14, lineHeight: 20, color: colors.zinc600 },

@@ -256,7 +256,7 @@ export class PostsService implements OnModuleInit {
     const last = page[page.length - 1];
     return {
       items: items.map((i) => ({ ...i, feed: meta.get(i.id) ?? { source: 'following' as const, seen: false } })),
-      nextCursor: ranked.length > limit && last ? encodeCursor({ s: last.score, id: last.id, t: session }) : null,
+      nextCursor: ranked.length > limit && last ? encodeCursor({ s: last.score, id: last.id, t: session, n: (cur?.n ?? 0) + items.length }) : null,
     };
   }
 
