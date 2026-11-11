@@ -521,6 +521,9 @@ export class AuthService {
         'DELETE FROM content.comments WHERE author_id = $1',
         'DELETE FROM content.cheers WHERE user_id = $1',
         'DELETE FROM content.comment_cheers WHERE user_id = $1',
+        // Quem já foi contado nos avisos de brindes (dados e recebidos) e o travão desses avisos no telemóvel.
+        'DELETE FROM social.cheer_notices WHERE user_id = $1 OR owner_id = $1',
+        'DELETE FROM social.cheer_pushes WHERE user_id = $1',
         'DELETE FROM content.story_views WHERE viewer_id = $1',
         'DELETE FROM content.story_replies WHERE author_id = $1',
         'DELETE FROM content.story_cheers WHERE user_id = $1',
