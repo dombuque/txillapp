@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { abs } from '@/lib/config';
+import { useChatVisible } from '@/lib/chatVisible';
 import { useAuth } from '@/lib/auth';
 import { Alert, KeyboardAvoidingView, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -70,9 +71,11 @@ export default function GroupThreadScreen() {
   const unread = useMemo(() => qc.getQueryData<GroupSummary[]>(['chat-groups'])?.find((g) => g.id === id)?.unread ?? 0, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (side && tab === 'plan') setTab('chat'); }, [side, tab]);
 
+  // Só marca como lidas com o grupo mesmo à vista; ao voltar a ele (ecrã, app ou janela), pede outra vez para as ler.
+  const visible = useChatVisible(() => void qc.invalidateQueries({ queryKey: ['chat-group', id] }));
   const q = useInfiniteQuery({
     queryKey: ['chat-group', id],
-    queryFn: ({ pageParam }) => gruposApi.thread(id, pageParam),
+    queryFn: ({ pageParam }) => gruposApi.thread(id, pageParam, !pageParam && visible()),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (l: GroupThread) => l.nextCursor ?? undefined,
     refetchInterval: 30_000, // o tempo real faz o trabalho; isto é só uma rede de segurança

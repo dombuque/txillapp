@@ -554,6 +554,12 @@ export async function uploadMedia(uri: string, mime: string, purpose: 'public' |
 
 export const uploadChatMedia = (uri: string, mime: string) => uploadMedia(uri, mime, 'chat');
 
+/** ?cursor=…&read=0 das conversas (o servidor só marca como lida sem `read=0`). */
+export function threadQuery(cursor: string | undefined, read: boolean): string {
+  const p = [cursor ? `cursor=${cursor}` : '', read ? '' : 'read=0'].filter(Boolean);
+  return p.length ? `?${p.join('&')}` : '';
+}
+
 export const api = {
   async login(identifier: string, password: string): Promise<AuthResult> {
     const r = (await parse(await call('/auth/login', post({ identifier, password }), false))) as AuthResult;
@@ -624,7 +630,8 @@ export const api = {
   createPost: (b: { body: string; locationLabel?: string; mediaIds: string[] }): Promise<Post> => trackOk(raw('/posts', post(b)), 'post_create', { media: b.mediaIds.length }),
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),
-  chatThread: (username: string, cursor?: string): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${cursor ? `?cursor=${cursor}` : ''}`),
+  /** `read: false`: só os dados, sem marcar como lida (pré-carregar, ou a conversa está por trás de outro ecrã). */
+  chatThread: (username: string, cursor?: string, read = true): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${threadQuery(cursor, read)}`),
   chatSend: (username: string, msg: { body?: string; kind?: MsgKind; mediaId?: string; instantId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; name?: string; address?: string; liveMinutes?: 15 | 60 | 480; once?: boolean; replyTo?: string; gif?: import('./gifs').ChatGif }): Promise<{ id: string }> =>
     trackOk(raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)), 'message_send', () => {
       if (msg.kind === 'post') track('share', { target: 'chat' });

@@ -143,8 +143,8 @@ export class ChatController {
 
   @Get('groups/:id')
   @UseGuards(JwtAuthGuard)
-  groupThread(@Req() req: AuthedReq, @Param('id') id: string, @Query('cursor') cursor?: string) {
-    return this.groups.thread(req.userId!, id, cursor);
+  groupThread(@Req() req: AuthedReq, @Param('id') id: string, @Query('cursor') cursor?: string, @Query('read') read?: string) {
+    return this.groups.thread(req.userId!, id, cursor, read !== '0');
   }
 
   @NeedsVerifiedEmail()
@@ -186,8 +186,9 @@ export class ChatController {
 
   @Get('with/:username')
   @UseGuards(JwtAuthGuard)
-  async thread(@Req() req: AuthedReq, @Param('username') username: string, @Query('cursor') cursor?: string) {
-    const t = await this.chat.thread(req.userId!, username, cursor);
+  async thread(@Req() req: AuthedReq, @Param('username') username: string, @Query('cursor') cursor?: string, @Query('read') read?: string) {
+    // `read=0`: só ler os dados (pré-carregar, atualizar com a conversa por trás) sem marcar como lida.
+    const t = await this.chat.thread(req.userId!, username, cursor, read !== '0');
     if (cursor) return t;
     // A nota ativa da pessoa, por baixo da foto do cabeçalho (só na 1.ª página e só se eu a puder ver). Junta-se aqui e
     // não no ChatService porque o NotesService já depende do ChatService (as respostas às notas vão como mensagem).

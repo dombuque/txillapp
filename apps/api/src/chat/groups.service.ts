@@ -202,7 +202,7 @@ export class GroupsService {
   }
 
   /** O grupo e as mensagens (as mais recentes primeiro). Abrir marca como lido. */
-  async thread(me: string, groupId: string, cursor?: string) {
+  async thread(me: string, groupId: string, cursor?: string, markRead = true) {
     const myRole = await this.needMember(groupId, me);
     if (cursor && !UUID.test(cursor)) throw new BadRequestException('cursor inválido');
     const g = (await this.pool.query('SELECT id, name FROM social.groups WHERE id = $1', [groupId])).rows[0];
@@ -220,7 +220,7 @@ export class GroupsService {
       [groupId, cursor ?? null, PAGE + 1, me],
     );
     const page = rows.slice(0, PAGE);
-    if (!cursor && page[0]) {
+    if (!cursor && markRead && page[0]) {
       const upd = await this.pool.query('UPDATE social.group_members SET read_id = $3 WHERE group_id = $1 AND user_id = $2 AND read_id IS DISTINCT FROM $3::uuid', [groupId, me, page[0].id]);
       // Li noutro aparelho: os meus outros aparelhos tiram o número de "por ler" da lista.
       if (upd.rowCount) this.events.echo(me, { type: 'read', group: groupId });

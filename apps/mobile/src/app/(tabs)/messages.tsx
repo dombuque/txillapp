@@ -136,7 +136,7 @@ export default function Messages() {
   const qc = useQueryClient();
   const direct = useQuery({ queryKey: ['chat-list'], queryFn: api.chatList, refetchInterval: 60_000 });
   // Conversas a abrir já carregadas: pré-carrega as 6 mais recentes assim que a lista chega (e ao tocar numa linha).
-  const warm = (u: string) => void qc.prefetchInfiniteQuery({ queryKey: ['chat-thread', u], queryFn: ({ pageParam }) => api.chatThread(u, pageParam as string | undefined), initialPageParam: undefined as string | undefined, staleTime: 15_000 }).catch(() => undefined);
+  const warm = (u: string) => void qc.prefetchInfiniteQuery({ queryKey: ['chat-thread', u], queryFn: ({ pageParam }) => api.chatThread(u, pageParam as string | undefined, false), initialPageParam: undefined as string | undefined, staleTime: 15_000 }).catch(() => undefined);
   useEffect(() => {
     (direct.data ?? []).slice(0, 6).forEach((c) => warm(c.username));
   }, [direct.data]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -1,5 +1,5 @@
 /** API dos grupos de chat (copiada do site, apps/web/src/lib/api.ts). Só usa o que a app já exporta em '@/lib/api'. */
-import { post, raw, type ChatMessage, type GroupSummary, type MsgKind } from '@/lib/api';
+import { post, raw, threadQuery, type ChatMessage, type GroupSummary, type MsgKind } from '@/lib/api';
 import { track, trackOk } from '@/lib/analytics';
 
 export type { GroupSummary };
@@ -30,7 +30,7 @@ export interface GroupSendBody {
 
 export const gruposApi = {
   list: (): Promise<GroupSummary[]> => raw('/chat/groups'),
-  thread: (id: string, cursor?: string): Promise<GroupThread> => raw(`/chat/groups/${id}${cursor ? `?cursor=${cursor}` : ''}`),
+  thread: (id: string, cursor?: string, read = true): Promise<GroupThread> => raw(`/chat/groups/${id}${threadQuery(cursor, read)}`),
   send: (id: string, msg: GroupSendBody): Promise<{ id: string }> =>
     trackOk(raw(`/chat/groups/${id}/messages`, post(msg)), 'message_send', () => {
       if (msg.kind === 'post') track('share', { target: 'chat' });

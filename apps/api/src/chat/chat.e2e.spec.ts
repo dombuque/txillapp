@@ -69,6 +69,17 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     await send(ca, ca, 'a mim próprio').expect(400);
   });
 
+  it('read=0 (pré-carregar ou a conversa por trás) traz as mensagens sem as marcar como lidas', async () => {
+    const { ci, ce } = u;
+    await send(ce, ci, 'não leias já').expect(201);
+    const pre = (await api().get(`/api/v1/chat/with/${ce.username}?read=0`).set(auth(ci)).expect(200)).body;
+    expect(pre.items[0].body).toBe('não leias já');
+    expect((await list(ci)).find((c) => c.username === ce.username)!.unread).toBe(1);
+    expect((await thread(ce, ci)).otherRead).toBeNull(); // quem enviou não vê "lido"
+    await thread(ci, ce); // abrir à vista lê
+    expect((await list(ci)).find((c) => c.username === ce.username)!.unread).toBe(0);
+  });
+
   it('marcar como por ler (até abrir) e apagar a conversa só do meu lado (volta com mensagens novas)', async () => {
     const { cg, ch } = u;
     await send(ch, cg, 'primeira').expect(201);
