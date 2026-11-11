@@ -99,6 +99,8 @@ export class GroupAccess {
     await this.pool.query('UPDATE social.groups SET last_message_at = now() WHERE id = $1', [groupId]);
     const others = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1 AND user_id <> $2', [groupId, senderId])).rows.map((r) => r.user_id as string);
     const meta = (await this.pool.query('SELECT g.name, u.display_name FROM social.groups g, identity.users u WHERE g.id = $1 AND u.id = $2', [groupId, senderId])).rows[0];
+    // Os outros aparelhos de quem enviou mostram logo a mensagem (eco, sem aviso).
+    this.events.echo(senderId, { type: 'message', group: groupId });
     for (const u of others) {
       this.events.emit(u, { type: 'message', group: groupId });
       if (!this.events.isActive(u, `g:${groupId}`)) void this.push.send(u, { title: meta.name as string, body: `${(meta.display_name as string).split(' ')[0]}: ${what}`, url: `/messages/g/${groupId}`, tag: `group:${groupId}`, category: 'messages' });

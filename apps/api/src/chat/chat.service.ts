@@ -176,6 +176,8 @@ export class ChatService {
               hidden_a = CASE WHEN user_a = $2 THEN false ELSE hidden_a END, hidden_b = CASE WHEN user_b = $2 THEN false ELSE hidden_b END WHERE id = $1`,
       [conv, me],
     );
+    // Os meus outros aparelhos: a conversa sai dos pedidos (lista e aviso de pedido na conversa).
+    this.events.echo(me, { type: 'message', from: other.username });
   }
 
   /** Recusar o pedido: some da minha lista e deixo de receber avisos desta conversa (a outra pessoa não é avisada). */
@@ -187,6 +189,7 @@ export class ChatService {
       `UPDATE social.conversations SET hidden_a = CASE WHEN user_a = $2 THEN true ELSE hidden_a END, hidden_b = CASE WHEN user_b = $2 THEN true ELSE hidden_b END WHERE id = $1`,
       [conv, me],
     );
+    this.events.echo(me, { type: 'message', from: other.username });
   }
 
   /** Marcar a conversa como por ler (só para mim). */
@@ -195,6 +198,8 @@ export class ChatService {
     const conv = await this.conversation(me, other.id, false);
     if (!conv) throw new NotFoundException('Conversa não encontrada');
     await this.pool.query('UPDATE social.conversations SET unread_mark_a = CASE WHEN user_a = $2 THEN true ELSE unread_mark_a END, unread_mark_b = CASE WHEN user_b = $2 THEN true ELSE unread_mark_b END WHERE id = $1', [conv, me]);
+    // Só muda a lista (o ponto de "por ler"): 'read' com self.
+    this.events.echo(me, { type: 'read', from: other.username });
     return { ok: true };
   }
 
@@ -215,6 +220,7 @@ export class ChatService {
         WHERE c.id = $1 AND m.last IS NOT NULL`,
       [conv, me],
     );
+    this.events.echo(me, { type: 'deleted', from: other.username });
     return { ok: true };
   }
 
@@ -327,15 +333,22 @@ export class ChatService {
     );
     const page = rows.slice(0, PAGE);
     // Abrir tira a marca de "por ler".
-    if (!cursor) await this.pool.query('UPDATE social.conversations SET unread_mark_a = CASE WHEN user_a = $2 THEN false ELSE unread_mark_a END, unread_mark_b = CASE WHEN user_b = $2 THEN false ELSE unread_mark_b END WHERE id = $1', [conv, me]);
+    // (Só quando havia marca: assim sei se mudou alguma coisa para avisar os meus outros aparelhos.)
+    const unmarked = cursor
+      ? 0
+      : (await this.pool.query('UPDATE social.conversations SET unread_mark_a = CASE WHEN user_a = $2 THEN false ELSE unread_mark_a END, unread_mark_b = CASE WHEN user_b = $2 THEN false ELSE unread_mark_b END WHERE id = $1 AND CASE WHEN user_a = $2 THEN unread_mark_a ELSE unread_mark_b END', [conv, me])).rowCount ?? 0;
+    let readNow = false;
     if (!cursor && page[0]) {
       const upd = await this.pool.query(
         `UPDATE social.conversations SET read_a = CASE WHEN user_a = $2 THEN $3::uuid ELSE read_a END, read_b = CASE WHEN user_b = $2 THEN $3::uuid ELSE read_b END
           WHERE id = $1 AND (CASE WHEN user_a = $2 THEN read_a ELSE read_b END IS DISTINCT FROM $3::uuid)`,
         [conv, me, page[0].id],
       );
-      if (upd.rowCount) this.events.emit(other.id, { type: 'read', from: await this.usernameOf(me) });
+      readNow = !!upd.rowCount;
+      if (readNow) this.events.emit(other.id, { type: 'read', from: await this.usernameOf(me) });
     }
+    // Li noutro aparelho: os meus outros aparelhos tiram o número de "por ler" da lista.
+    if (readNow || unmarked) this.events.echo(me, { type: 'read', from: other.username });
     const reads = (await this.pool.query('SELECT user_a, read_a, read_b FROM social.conversations WHERE id = $1', [conv])).rows[0];
     const otherRead = (reads.user_a === me ? reads.read_b : reads.read_a) as string | null;
     return {
@@ -588,9 +601,11 @@ export class ChatService {
         // A sondagem saiu também do plano do grupo: os ecrãs abertos voltam a pedir as sondagens.
         if (m.kind === 'poll') this.events.emit(r.user_id as string, { type: 'group', groupId: m.group_id, what: 'poll' });
       }
+      this.events.echo(me, { type: 'deleted', group: m.group_id });
       return;
     }
     this.events.emit(m.other!, { type: 'deleted', from: await this.usernameOf(me) });
+    this.events.echo(me, { type: 'deleted', from: await this.usernameOf(m.other!) });
   }
 
   /**
@@ -609,8 +624,8 @@ export class ChatService {
     if (!mine) throw new NotFoundException('Mensagem não encontrada');
     await this.pool.query('INSERT INTO social.message_hidden (user_id, message_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [me, messageId]);
     // Os meus outros aparelhos põem a conversa em dia.
-    if (m.group_id) this.events.emit(me, { type: 'deleted', group: m.group_id as string });
-    else this.events.emit(me, { type: 'deleted', from: await this.usernameOf((m.user_a === me ? m.user_b : m.user_a) as string) });
+    if (m.group_id) this.events.echo(me, { type: 'deleted', group: m.group_id as string });
+    else this.events.echo(me, { type: 'deleted', from: await this.usernameOf((m.user_a === me ? m.user_b : m.user_a) as string) });
   }
 
   /**
@@ -647,8 +662,10 @@ export class ChatService {
     if (m.group_id) {
       const members = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1 AND user_id <> $2', [m.group_id, me])).rows;
       for (const r of members) this.events.emit(r.user_id as string, { type: 'edited', group: m.group_id as string });
+      this.events.echo(me, { type: 'edited', group: m.group_id as string });
     } else {
       this.events.emit(other!, { type: 'edited', from: await this.usernameOf(me) });
+      this.events.echo(me, { type: 'edited', from: await this.usernameOf(other!) });
     }
     return { id: messageId, body: text.slice(0, 2000), edited: true };
   }
@@ -663,16 +680,19 @@ export class ChatService {
     ).rows[0];
     if (!m) throw new NotFoundException('Mensagem não encontrada');
     let notify: { to: string; event: { type: 'message'; from?: string; group?: string } }[];
+    let echo: { type: 'message'; from?: string; group?: string };
     if (m.group_id) {
       const members = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1', [m.group_id])).rows.map((r) => r.user_id as string);
       if (!members.includes(me)) throw new NotFoundException('Mensagem não encontrada');
       notify = members.filter((u) => u !== me).map((u) => ({ to: u, event: { type: 'message' as const, group: m.group_id as string } }));
+      echo = { type: 'message', group: m.group_id as string };
     } else {
       if (m.user_a !== me && m.user_b !== me) throw new NotFoundException('Mensagem não encontrada');
       const other = (m.user_a === me ? m.user_b : m.user_a) as string;
       const blocked = (await this.pool.query(`SELECT ${blockedBetween('$2::uuid', '$1::uuid')} AS b`, [me, other])).rows[0].b as boolean;
       if (blocked) throw new ForbiddenException('Não podes reagir aqui');
       notify = [{ to: other, event: { type: 'message' as const, from: await this.usernameOf(me) } }];
+      echo = { type: 'message', from: await this.usernameOf(other) };
     }
     if (reaction === null) await this.pool.query('DELETE FROM social.message_reactions WHERE message_id = $1 AND user_id = $2', [messageId, me]);
     else
@@ -682,6 +702,7 @@ export class ChatService {
         [messageId, me, reaction],
       );
     for (const n of notify) this.events.emit(n.to, n.event);
+    this.events.echo(me, echo);
   }
 
   /**
@@ -709,6 +730,8 @@ export class ChatService {
     // Já foi aberta: o ficheiro fica só uns minutos (para acabar de ver) e depois é apagado do armazenamento.
     if (rows[0].media_id) await this.media.expireIn(rows[0].media_id as string, 15);
     this.events.emit(m.sender_id as string, { type: 'read', from: await this.usernameOf(me) });
+    // Nos meus outros aparelhos a mensagem passa a "Aberta".
+    this.events.echo(me, { type: 'message', from: await this.usernameOf(m.sender_id as string) });
     const r = rows[0];
     return {
       kind: r.kind as MessageKind,
@@ -742,6 +765,7 @@ export class ChatService {
       if (r.media_id) await this.media.expireIn(r.media_id as string, 15);
     }
     this.events.emit(senderId, { type: 'message', group: groupId });
+    this.events.echo(me, { type: 'message', group: groupId });
     return {
       kind: r.kind as MessageKind,
       body: r.body as string,
@@ -759,7 +783,14 @@ export class ChatService {
       [messageId, me, Math.round(lat * 1e5) / 1e5, Math.round(lng * 1e5) / 1e5],
     );
     if (!rows[0]) throw new NotFoundException('Esta partilha já terminou');
-    this.events.emit(rows[0].other as string, { type: 'message', from: await this.usernameOf(me) });
+    await this.liveChanged(me, rows[0].other as string | null);
+  }
+
+  /** A partilha em direto mudou: avisa o outro lado e os meus outros aparelhos (lá também se vê o mapa a mexer). */
+  private async liveChanged(me: string, other: string | null) {
+    if (!other) return;
+    this.events.emit(other, { type: 'message', from: await this.usernameOf(me) });
+    this.events.echo(me, { type: 'message', from: await this.usernameOf(other) });
   }
 
   /**
@@ -773,7 +804,7 @@ export class ChatService {
        RETURNING (SELECT CASE WHEN c.user_a = $2 THEN c.user_b ELSE c.user_a END FROM social.conversations c WHERE c.id = m.conversation_id) AS other`,
       [messageId, me],
     );
-    if (rows[0]) this.events.emit(rows[0].other as string, { type: 'message', from: await this.usernameOf(me) });
+    if (rows[0]) await this.liveChanged(me, rows[0].other as string | null);
   }
 
   /**
@@ -792,7 +823,8 @@ export class ChatService {
     );
     const [from, to] = await Promise.all([this.usernameOf(callerId), this.usernameOf(calleeId)]);
     this.events.emit(calleeId, { type: 'message', from });
-    this.events.emit(callerId, { type: 'message', from: to });
+    // Quem ligou é quem "enviou" o registo: para os aparelhos dele é um eco (sem som nem aviso).
+    this.events.echo(callerId, { type: 'message', from: to });
   }
 
   /** "A escrever…": não é guardado, só chega a quem tem a conversa aberta. */
@@ -821,6 +853,8 @@ export class ChatService {
               hidden_a = CASE WHEN user_a = $2 THEN false ELSE hidden_a END, hidden_b = CASE WHEN user_b = $2 THEN false ELSE hidden_b END WHERE id = $1`,
       [conv, me],
     );
+    // Os meus outros aparelhos (e este) mostram logo a mensagem enviada (todos os tipos: texto, presentes, partilhas, mimos…).
+    this.events.echo(me, { type: 'message', from: await this.usernameOf(other) });
     const theirs = await this.relationOf(other, me, conv);
     // Quem recusou a conversa não recebe avisos dela.
     if (theirs.hidden) return { id, kind };

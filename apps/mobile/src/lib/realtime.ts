@@ -7,7 +7,13 @@
  *  - iOS/Android: `fetch` de 'expo/fetch' (suporta ReadableStream); o token vem de refreshSession() a cada ligação,
  *    porque '@/lib/api' não exporta o access token.
  *  - Se o streaming falhar 3 vezes seguidas, passa a "polling inteligente": invalida as queries de 4 em 4 s e volta a
- *    tentar o stream de 60 em 60 s. Em segundo plano (AppState) tudo pára; ao voltar, liga e atualiza logo.
+ *    tentar o stream de 60 em 60 s. Em segundo plano (AppState; na web, o separador escondido) tudo pára; ao voltar,
+ *    liga e atualiza logo.
+ *  - Vigia (lib/streamEvents): sem dados há mais de 60 s (o ping vem de 25 em 25 s), o stream caiu em silêncio
+ *    (proxy, rede móvel, iOS em segundo plano breve): aborta e volta a ligar, em vez de ficar pendurado no read().
+ *
+ * A mesma conta em vários aparelhos: o servidor manda também a mim o eco do que faço (`self: true`, com `from` = o outro
+ * lado da conversa). Esses só põem os dados em dia (lib/streamEvents → planChatEvent): sem "a escrever…" nem onEvent.
  */
 import { useQueryClient } from '@tanstack/react-query';
 import { fetch as expoFetch } from 'expo/fetch';
@@ -15,8 +21,9 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import { SITE_URL } from '@/lib/config';
 import { authHeaders, refreshSession } from '@/lib/api';
+import { planChatEvent, refreshKeys, startWatchdog, type StreamChatEvent } from '@/lib/streamEvents';
 
-export interface ChatEvent { type: string; from?: string; group?: string }
+export type ChatEvent = StreamChatEvent;
 
 const POLL_MS = 4000;
 const RETRY_STREAM_MS = 60_000;
@@ -78,18 +85,14 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
     let stop = false;
     const isActive = (st = AppState.currentState) => st === 'active' || held;
     let active = isActive();
-    let ctrl: AbortController | null = null;
+    /** Corta a ligação atual (aborta o pedido e cancela a leitura, para o read() não ficar pendurado). */
+    let kill: (() => void) | null = null;
     let wake: (() => void) | null = null;
 
-    const refresh = (e?: ChatEvent) => {
-      void qc.invalidateQueries({ queryKey: ['chat-list'] });
-      void qc.invalidateQueries({ queryKey: ['chat-unread'] });
-      void qc.invalidateQueries({ queryKey: ['chat-groups'] });
-      if (e?.group) void qc.invalidateQueries({ queryKey: ['chat-group', e.group] });
-      else if (!e) void qc.invalidateQueries({ queryKey: ['chat-group'] });
-      if (e?.from) void qc.invalidateQueries({ queryKey: ['chat-thread', e.from] });
-      else if (!e) void qc.invalidateQueries({ queryKey: ['chat-thread'] });
+    const invalidate = (keys: readonly (readonly unknown[])[]) => {
+      for (const queryKey of keys) void qc.invalidateQueries({ queryKey });
     };
+    const refresh = (e?: ChatEvent) => invalidate(refreshKeys(e));
 
     function handle(data: string) {
       let e: ChatEvent;
@@ -120,9 +123,13 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
         }
         return;
       }
-      typingSubs.forEach((f) => f(e));
-      cb.current?.(e);
-      if (e.type !== 'typing') refresh(e);
+      // Eco do que eu fiz (self): só põe os dados em dia; não desliga o "a escrever…" do outro nem chega ao onEvent.
+      const plan = planChatEvent(e);
+      if (plan.notify) {
+        typingSubs.forEach((f) => f(e));
+        cb.current?.(e);
+      }
+      invalidate(plan.keys);
     }
 
     const sleep = (ms: number) => new Promise<void>((r) => {
@@ -131,29 +138,61 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
     });
 
     async function readStream() {
-      ctrl = new AbortController();
+      const ac = new AbortController();
+      let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+      const cut = () => {
+        ac.abort();
+        void reader?.cancel().catch(() => undefined);
+      };
+      kill = cut;
+      // Vigia: sem nada do servidor (nem o ping de 25 s) em 60 s, desiste desta ligação e volta a ligar.
+      // Aborta o pedido e cancela a leitura (o read() pendurado acaba com done, ou com erro do abort).
+      let stalled = false;
+      let got = false;
+      const dog = startWatchdog(() => {
+        stalled = true;
+        cut();
+      });
+      try {
+        await readFrom(ac, (r) => { reader = r; }, () => { got = true; dog.feed(); });
+        // Respondeu mas nunca mandou nada (ex.: um proxy que guarda o stream): é uma falha, para cair no polling.
+        if (stalled && !got) throw new Error('stalled');
+        return got;
+      } catch (err) {
+        // Pendurada depois de já ter recebido dados: é uma ligação que acabou (volta a ligar logo, sem contar como falha).
+        // Se nunca chegou nada (o pedido nem respondeu), conta como falha (3 seguidas → polling).
+        if (stalled && got) return true;
+        throw err;
+      } finally {
+        dog.stop();
+        if (kill === cut) kill = null;
+      }
+    }
+
+    async function readFrom(ac: AbortController, onReader: (r: ReadableStreamDefaultReader<Uint8Array>) => void, feed: () => void) {
       const headers: Record<string, string> = { Accept: 'text/event-stream', 'X-Requested-With': 'txillapp' };
       let res: { ok: boolean; status: number; body: ReadableStream<Uint8Array> | null };
       if (isWeb) {
         // No site o cookie da sessão só vai para /auth (HttpOnly, por conta): o stream precisa do token e da conta,
         // como qualquer pedido da API. Sem isto dava 401 e o chat caía para o polling (e as chamadas não ligavam).
         const s = await refreshSession();
-        res = await fetch(`${SITE_URL}/api/v1/chat/stream`, { headers: { ...authHeaders(), ...headers, Authorization: `Bearer ${s.accessToken}` }, credentials: 'include', signal: ctrl.signal });
+        res = await fetch(`${SITE_URL}/api/v1/chat/stream`, { headers: { ...authHeaders(), ...headers, Authorization: `Bearer ${s.accessToken}` }, credentials: 'include', signal: ac.signal });
       } else {
         const s = await refreshSession();
         headers.Authorization = `Bearer ${s.accessToken}`;
         headers['X-Client'] = 'txillapp-mobile';
-        res = (await expoFetch(`${SITE_URL}/api/v1/chat/stream`, { headers, signal: ctrl.signal })) as unknown as typeof res;
+        res = (await expoFetch(`${SITE_URL}/api/v1/chat/stream`, { headers, signal: ac.signal })) as unknown as typeof res;
       }
       if (!res.ok || !res.body) throw new Error(String(res.status));
+      if (ac.signal.aborted) throw new Error('aborted');
       const reader = res.body.getReader();
+      onReader(reader);
       const decoder = new TextDecoder();
       let buf = '';
-      let got = false;
       for (;;) {
         const { value, done } = await reader.read();
         if (done) break;
-        got = true;
+        feed();
         buf += decoder.decode(value, { stream: true });
         let i: number;
         while ((i = buf.indexOf('\n\n')) >= 0) {
@@ -163,7 +202,6 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
           if (data) handle(data);
         }
       }
-      return got;
     }
 
     async function loop() {
@@ -198,7 +236,7 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
     const onState = (s = AppState.currentState) => {
       const was = active;
       active = isActive(s);
-      if (!active) ctrl?.abort();
+      if (!active) kill?.();
       else if (!was) { refresh(); wake?.(); }
     };
     const sub = AppState.addEventListener('change', (s) => onState(s));
@@ -207,7 +245,7 @@ export function useChatStream(onEvent?: (e: ChatEvent) => void, enabled = true) 
     void loop();
     return () => {
       stop = true;
-      ctrl?.abort();
+      kill?.();
       wake?.();
       sub.remove();
       holdSubs.delete(onHold);
