@@ -17,6 +17,7 @@ import { NoteView } from '@/components/Notes';
 import { MessageMenu, NotFollowingNote, RequestBar, saveEdit, sendTyping, stopLiveShare } from '@/components/ChatParts';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { Icon } from '@/components/Icon';
+import { abs } from '@/lib/config';
 import { api, raw, type ChatThread, type Conversation } from '@/lib/api';
 import { startCall } from '@/lib/calls';
 import { useAuth } from '@/lib/auth';
@@ -143,7 +144,7 @@ export default function Thread() {
   async function openOnce(m: Msg) {
     try {
       const r = await api.chatOpen(m.id);
-      setViewing({ url: r.mediaUrl, body: r.body });
+      setViewing({ url: abs(r.mediaUrl) ?? null, body: r.body });
       void q.refetch();
     } catch (e) {
       Alert.alert('Não consegui abrir', (e as Error).message);

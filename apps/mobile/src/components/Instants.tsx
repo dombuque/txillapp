@@ -15,6 +15,7 @@ import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
+import { abs } from '@/lib/config';
 import { enqueueTask } from '@/lib/publishQueue';
 import { applyZasFx } from '@/lib/zasFx';
 import { usePanGesture } from 'react-native-gesture-handler';
@@ -611,7 +612,7 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
                     accessibilityLabel={it.caption || 'Zás'}
                     style={({ pressed }) => [{ width: cell, height: Math.round(cell / 0.75), backgroundColor: colors.zinc800, transform: [{ scale: pressed ? 0.97 : 1 }], opacity: pressed ? 0.8 : 1 }, squircle(cell), noSelect]}
                   >
-                    <Image source={{ uri: it.url }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
+                    <Image source={{ uri: abs(it.url) }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
                     <Pressable onPress={() => void showWho(it.id)} accessibilityRole="button" accessibilityLabel="Quem viu" style={[st.views, countShadow]}>
                       {top ? (
                         <>
@@ -859,7 +860,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 8 }}>
           <View style={[{ width: cardW, height: cardH, backgroundColor: colors.zinc900 }, squircle(cardW)]}>
             {cur ? (
-              <Image source={{ uri: cur.url }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={cur.caption || 'Zás'} />
+              <Image source={{ uri: abs(cur.url) }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={cur.caption || 'Zás'} />
             ) : (
               <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
                 {err ? <Text style={{ color: 'rgba(255,255,255,0.7)' }}>{err}</Text> : <ActivityIndicator color="#fff" />}
