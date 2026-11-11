@@ -30,6 +30,12 @@ export interface GroupCardProps {
   requests?: number;
   onPress: () => void;
   onPressIn?: () => void;
+  /** Segurar o cartão (no telemóvel; na web é o SwipeRow à volta que trata disso). */
+  onLongPress?: () => void;
+  delayLongPress?: number;
+  /** As ações do leitor de ecrã (as mesmas de deslizar e de segurar) e o que fazer com elas. */
+  accessibilityActions?: { name: string; label: string }[];
+  onAccessibilityAction?: (name: string) => void;
 }
 
 /** As cores da faixa quando o grupo não tem capa (nunca um vazio cinzento). */
@@ -108,8 +114,13 @@ export function GroupCard(p: GroupCardProps) {
       <Pressable
         onPressIn={p.onPressIn}
         onPress={p.onPress}
+        onLongPress={p.onLongPress}
+        delayLongPress={p.delayLongPress}
         accessibilityRole="button"
         accessibilityLabel={label}
+        accessibilityHint={p.accessibilityActions?.length ? 'Toca para abrir. Mantém premido para mais opções.' : undefined}
+        accessibilityActions={p.accessibilityActions?.length ? p.accessibilityActions : undefined}
+        onAccessibilityAction={p.onAccessibilityAction ? (e) => p.onAccessibilityAction?.(e.nativeEvent.actionName) : undefined}
         style={({ pressed }) => [s.card, pressed && s.pressed]}
       >
         <View style={s.clip}>

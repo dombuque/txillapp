@@ -5,7 +5,9 @@ import Animated, { Easing, useAnimatedStyle, useDerivedValue, useSharedValue, wi
 import { scheduleOnRN } from 'react-native-worklets';
 import { Icon, type IconName } from '@/components/Icon';
 import { useDesktop } from '@/lib/desktop';
-import { claimSwipe, decideSwipe, innerPager, navSwipeThreshold, releaseSwipe } from '@/lib/swipeClaim';
+import { contextMenuOpens } from '@/lib/inboxMenu';
+import { HOLD_MS, holdStill } from '@/lib/messageMenu';
+import { claimSwipe, decideSwipe, innerPager, navSwipeThreshold, releaseSwipe, releaseSwipeSoon } from '@/lib/swipeClaim';
 import { colors } from '@/lib/theme';
 
 export interface SwipeAction {
@@ -65,6 +67,17 @@ export function closeOpenSwipe() {
   openRow = null;
 }
 
+/**
+ * Segurar a linha (`onHold` do SwipeRow) no telemóvel: o Pressable de dentro espalha `{...rowHold(onHold)}`. É o
+ * onLongPress do próprio Pressable, que desiste se o dedo andar mais de 10 px (rolar ou deslizar a linha nunca é segurar)
+ * e que, depois de segurar, não abre a conversa ao largar. Na web não leva nada: aí é o temporizador da WebSwipeRow.
+ */
+export function rowHold(onHold?: () => void): { onLongPress?: () => void; delayLongPress?: number } {
+  return onHold && Platform.OS !== 'web' ? { onLongPress: onHold, delayLongPress: HOLD_MS } : {};
+}
+
+type RowProps = { left: SwipeAction[]; right: SwipeAction[]; onHold?: () => void; children: ReactNode };
+
 type RowGesture = {
   x0: number;
   y0: number;
@@ -85,8 +98,15 @@ const dom = (r: { current: HTMLElement | null }) => r.current;
  * - se o dedo passar esse limite, a linha volta ao sítio e o gesto passa a ser de mudar de menu;
  * - para cima/baixo é rolar a lista e a linha não mexe; enquanto a linha mexe a lista não rola;
  * - tocar abre a conversa; um deslize nunca a abre; tocar numa linha com outra aberta só fecha essa.
+ * Segurar (`onHold`), como as bolhas do chat (components/ReplySwipe):
+ * - um temporizador próprio (HOLD_MS) que desiste se o dedo andar mais de HOLD_SLOP, se a linha apanhar o gesto, ao
+ *   rolar, ao largar ou com dois dedos; ao disparar fecha a linha aberta, cancela o toque (não abre a conversa), reclama
+ *   o gesto (lib/swipeClaim: não muda de menu se o dedo depois andar) e o clique que vem a seguir não conta;
+ * - em ecrãs de toque a linha não tem seleção de texto nem o menu do sistema (`user-select` e `-webkit-touch-callout`
+ *   a none): no iPhone, segurar abria a lupa ou a seleção, e a seleção cancelava o toque antes de a folha abrir;
+ * - `contextmenu`: o botão direito do rato abre a folha; o do toque longo (Android) só se impede (lib/inboxMenu, contextMenuOpens).
  */
-function WebSwipeRow({ left, right, children }: { left: SwipeAction[]; right: SwipeAction[]; children: ReactNode }) {
+function WebSwipeRow({ left, right, onHold, children }: RowProps) {
   const box = useRef<HTMLElement>(null);
   const front = useRef<HTMLElement>(null);
   const paneL = useRef<HTMLElement>(null);
@@ -94,15 +114,33 @@ function WebSwipeRow({ left, right, children }: { left: SwipeAction[]; right: Sw
   const widths = useRef({ l: 0, r: 0 });
   widths.current = { l: W * left.length, r: W * right.length };
   const closeMe = useRef<() => void>(() => {});
+  const holdRef = useRef(onHold);
+  holdRef.current = onHold;
+  const canHold = !!onHold;
 
   useEffect(() => {
     const el = dom(box);
     if (!el) return;
     el.style.touchAction = 'pan-y'; // o browser só rola na vertical; para o lado é connosco
+    // Ecrã de toque: sem seleção de texto nem menu do sistema na linha (as ações estão na folha de segurar).
+    const touchScreen = typeof window !== 'undefined' && !window.matchMedia?.('(pointer: fine)').matches;
+    const css = el.style as CSSStyleDeclaration & { webkitUserSelect?: string; webkitTouchCallout?: string };
+    const noSelect = canHold && touchScreen ? 'none' : '';
+    css.userSelect = noSelect;
+    css.webkitUserSelect = noSelect;
+    css.webkitTouchCallout = noSelect;
     let x = 0;
     let g: RowGesture | null = null;
     let quietUntil = 0;
     const quiet = () => { quietUntil = Date.now() + 450; };
+    /** Segurar: o temporizador e onde o dedo pousou; `held` = a folha já abriu neste toque. */
+    let hold: { t: ReturnType<typeof setTimeout>; x0: number; y0: number } | null = null;
+    let held = false;
+    let lastTouch = 0;
+    const dropHold = () => {
+      if (hold) clearTimeout(hold.t);
+      hold = null;
+    };
 
     const paint = (to: number, animate: boolean) => {
       x = to;
@@ -146,7 +184,22 @@ function WebSwipeRow({ left, right, children }: { left: SwipeAction[]; right: Sw
       return (b.x - a.x) / (b.t - a.t);
     };
 
+    /** Segurou: fecha a linha aberta e abre a folha; o resto deste toque já não mexe a linha nem abre a conversa. */
+    const fireHold = () => {
+      hold = null;
+      held = true;
+      g = null;
+      cancelPress(); // o Pressable de dentro não abre a conversa ao largar
+      claimSwipe(); // nem lib/swipeTabs muda de menu se o dedo depois andar
+      if (x !== 0) settle(0);
+      closeOpenSwipe();
+      holdRef.current?.();
+    };
+
     const start = (e: TouchEvent) => {
+      dropHold();
+      held = false;
+      lastTouch = Date.now();
       if (e.touches.length !== 1) {
         if (g?.mode === 'row') settle(0);
         g = null;
@@ -154,8 +207,13 @@ function WebSwipeRow({ left, right, children }: { left: SwipeAction[]; right: Sw
       }
       const t = e.touches[0];
       g = { x0: t.clientX, y0: t.clientY, base: x, mode: 'wait', pts: [{ x: t.clientX, t: Date.now() }] };
+      if (holdRef.current) hold = { x0: t.clientX, y0: t.clientY, t: setTimeout(fireHold, HOLD_MS) };
     };
     const move = (e: TouchEvent) => {
+      if (hold) {
+        const h = e.touches[0];
+        if (!h || e.touches.length !== 1 || !holdStill(h.clientX - hold.x0, h.clientY - hold.y0)) dropHold();
+      }
       if (!g || g.mode === 'off' || g.mode === 'free') return;
       const t = e.touches[0];
       const dx = t.clientX - g.x0;
@@ -165,9 +223,11 @@ function WebSwipeRow({ left, right, children }: { left: SwipeAction[]; right: Sw
         // Não cancelável = o browser já começou a rolar: é rolar, mesmo que o dedo tenha ido um pouco para o lado.
         if (Math.abs(dx) <= Math.abs(dy) * LOCK_RATIO || !e.cancelable) {
           g.mode = 'off'; // rolar: fica com o browser, e fecha a linha que estiver aberta
+          dropHold();
           closeOpenSwipe();
           return;
         }
+        dropHold(); // a linha apanhou o gesto: não é segurar
         cancelPress();
         const { l, r } = widths.current;
         if (g.base === 0 && !(dx > 0 ? l : r)) {
@@ -193,6 +253,13 @@ function WebSwipeRow({ left, right, children }: { left: SwipeAction[]; right: Sw
       paint(resist(g.base + dx), false);
     };
     const end = (e: TouchEvent) => {
+      dropHold();
+      if (held) {
+        // A folha abriu ao segurar: o clique que o browser manda a seguir não é um toque (nem na linha nem na folha).
+        quiet();
+        swallowEverywhere();
+        releaseSwipeSoon();
+      }
       const gg = g;
       g = null;
       if (!gg) return;
@@ -217,6 +284,8 @@ function WebSwipeRow({ left, right, children }: { left: SwipeAction[]; right: Sw
       }
     };
     const cancel = () => {
+      dropHold();
+      if (held) releaseSwipeSoon();
       if (g?.mode === 'row') {
         const { l, r } = widths.current;
         settle(l && x >= W * 0.6 ? l : r && x <= -W * 0.6 ? -r : 0);
@@ -229,21 +298,52 @@ function WebSwipeRow({ left, right, children }: { left: SwipeAction[]; right: Sw
         e.stopPropagation();
       }
     };
+    /** Depois de segurar, o clique pode cair no fundo da folha que acabou de abrir (e fechava-a): engole-o em todo o lado. */
+    let unswallow: (() => void) | null = null;
+    const swallowEverywhere = () => {
+      unswallow?.();
+      window.addEventListener('click', swallow, true);
+      const t = setTimeout(() => unswallow?.(), 450);
+      unswallow = () => {
+        clearTimeout(t);
+        window.removeEventListener('click', swallow, true);
+        unswallow = null;
+      };
+    };
+    /** A lista rolou: já não é segurar. */
+    const scrolled = () => dropHold();
+    /** Botão direito do rato: a folha. Segurar no Android: a folha já abriu pelo temporizador; só se impede o menu do browser. */
+    const context = (e: MouseEvent) => {
+      if (!holdRef.current) return;
+      e.preventDefault();
+      if (!contextMenuOpens(Date.now() - lastTouch, held, !!hold)) return;
+      dropHold();
+      held = true;
+      if (x !== 0) settle(0);
+      closeOpenSwipe();
+      holdRef.current();
+    };
 
     el.addEventListener('touchstart', start, { passive: true });
     el.addEventListener('touchmove', move, { passive: false });
     el.addEventListener('touchend', end);
     el.addEventListener('touchcancel', cancel);
     el.addEventListener('click', swallow, true);
+    el.addEventListener('contextmenu', context);
+    window.addEventListener('scroll', scrolled, true);
     return () => {
+      dropHold();
+      unswallow?.();
       el.removeEventListener('touchstart', start);
       el.removeEventListener('touchmove', move);
       el.removeEventListener('touchend', end);
       el.removeEventListener('touchcancel', cancel);
       el.removeEventListener('click', swallow, true);
+      el.removeEventListener('contextmenu', context);
+      window.removeEventListener('scroll', scrolled, true);
       if (openRow === me) openRow = null;
     };
-  }, []);
+  }, [canHold]);
 
   const run = (a: SwipeAction): SwipeAction => ({ ...a, onPress: () => { closeMe.current(); a.onPress(); } });
   return (
@@ -260,8 +360,10 @@ function WebSwipeRow({ left, right, children }: { left: SwipeAction[]; right: Sw
  * - telemóvel: deslizar para a direita mostra `left`, para a esquerda mostra `right`;
  * - computador: as mesmas ações aparecem como botões pequenos ao passar o rato.
  * Tocar numa ação fecha a linha antes de a correr.
+ * `onHold`: segurar a linha (ou o botão direito do rato, na web) fecha a linha aberta e corre-o (a folha com as mesmas
+ * ações, em app/(tabs)/messages). No telemóvel, o Pressable de dentro também espalha `{...rowHold(onHold)}`.
  */
-export function SwipeRow({ left = [], right = [], children }: { left?: SwipeAction[]; right?: SwipeAction[]; children: ReactNode }) {
+export function SwipeRow({ left = [], right = [], onHold, children }: { left?: SwipeAction[]; right?: SwipeAction[]; onHold?: () => void; children: ReactNode }) {
   const desktop = useDesktop();
   const [hover, setHover] = useState(false);
 
@@ -271,6 +373,7 @@ export function SwipeRow({ left = [], right = [], children }: { left?: SwipeActi
       <View
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
+        {...(onHold ? { onContextMenu: (e: { preventDefault(): void }) => { e.preventDefault(); onHold(); } } : {})}
         style={{ position: 'relative' }}
       >
         {children}
@@ -288,9 +391,9 @@ export function SwipeRow({ left = [], right = [], children }: { left?: SwipeActi
     );
   }
 
-  if (Platform.OS === 'web') return <WebSwipeRow left={left} right={right}>{children}</WebSwipeRow>;
+  if (Platform.OS === 'web') return <WebSwipeRow left={left} right={right} onHold={onHold}>{children}</WebSwipeRow>;
 
-  return <NativeSwipeRow left={left} right={right}>{children}</NativeSwipeRow>;
+  return <NativeSwipeRow left={left} right={right} onHold={onHold}>{children}</NativeSwipeRow>;
 }
 
 /** Até à largura das ações segue o dedo; depois disso custa mais (e para um lado sem ações não sai do sítio). */
@@ -311,8 +414,9 @@ function resistNative(v: number, l: number, r: number) {
  * - num ecrã com separadores (lib/swipeClaim, innerPager: Mensagens), se o dedo passar navSwipeThreshold para um lado onde
  *   há separador, a linha volta fechada (sem correr ação) e, ao largar, o ecrã muda de separador. A linha pergunta
  *   diretamente ao innerPager() (sem prop): assim todas as listas com SwipeRow nesse ecrã ficam iguais sem mexer nelas.
+ * - segurar (`onHold`) é o onLongPress do Pressable de dentro (rowHold); com a linha aberta, segurar fecha-a e corre-o.
  */
-function NativeSwipeRow({ left, right, children }: { left: SwipeAction[]; right: SwipeAction[]; children: ReactNode }) {
+function NativeSwipeRow({ left, right, onHold, children }: RowProps) {
   const lw = W * left.length;
   const rw = W * right.length;
   const x = useSharedValue(0);
@@ -405,7 +509,7 @@ function NativeSwipeRow({ left, right, children }: { left: SwipeAction[]; right:
         {right.length ? <View style={[st.nativePane, { right: 0 }]}><ActionButtons actions={right.map(run)} side="right" progress={showR} /></View> : null}
         <Animated.View style={[{ backgroundColor: '#fff' }, front]}>
           {children}
-          {side ? <Pressable style={StyleSheet.absoluteFill} onPress={() => me.close()} accessibilityRole="button" accessibilityLabel="Fechar" /> : null}
+          {side ? <Pressable style={StyleSheet.absoluteFill} onPress={() => me.close()} {...rowHold(onHold ? () => { me.close(); onHold(); } : undefined)} accessibilityRole="button" accessibilityLabel="Fechar" /> : null}
         </Animated.View>
       </View>
     </GestureDetector>
