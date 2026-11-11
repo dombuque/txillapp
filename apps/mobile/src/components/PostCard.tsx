@@ -84,7 +84,15 @@ function usePatch(id: string) {
 }
 
 /** O cartão de uma publicação, igual ao do site: cantos de 26, sombra suave, autor, texto, fotos e a barra de ações. */
-function PostCardBase({ post, me, detail, openComments, highlightComment }: { post: Post; me?: string; /** Já estamos na página desta publicação: tocar no cartão não a volta a abrir. */ detail?: boolean; /** Abre logo os comentários (vindo de uma notificação), realçando `highlightComment`. */ openComments?: boolean; highlightComment?: string }) {
+/** Destaque pago (Bombar): a etiqueta por cima do cartão, lida pelo leitor de ecrã, e o aviso de que tocaram nele. */
+export interface SponsoredInfo {
+  label: string;
+  /** O que o leitor de ecrã diz (a etiqueta e quem paga). */
+  a11y: string;
+  onOpen?: () => void;
+}
+
+function PostCardBase({ post, me, detail, openComments, highlightComment, sponsored }: { post: Post; me?: string; /** Já estamos na página desta publicação: tocar no cartão não a volta a abrir. */ detail?: boolean; /** Abre logo os comentários (vindo de uma notificação), realçando `highlightComment`. */ openComments?: boolean; highlightComment?: string; /** Destaque pago do Bombar (com a etiqueta "Patrocinado"). */ sponsored?: SponsoredInfo }) {
   const router = useRouter();
   // A música do post toca enquanto ele está à vista neste ecrã (e o ecrã está à frente); pára ao sair.
   const inList = useIsPostVisible(post.id);
@@ -111,13 +119,13 @@ function PostCardBase({ post, me, detail, openComments, highlightComment }: { po
       </View>
     );
   }
-  return <PostBody post={post} me={me} detail={detail} openComments={openComments} highlightComment={highlightComment} musicOn={musicOn} />;
+  return <PostBody post={post} me={me} detail={detail} openComments={openComments} highlightComment={highlightComment} musicOn={musicOn} sponsored={sponsored} />;
 }
 
 type SheetState = null | 'menu' | 'comments' | 'repost' | 'share' | { gift: { username: string; displayName: string; amount?: number; note?: string } } | { people: PeopleKind };
 type GiftExtra = { recipient: { username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null } };
 
-function PostBody({ post, me, detail, openComments, highlightComment, musicOn = false }: { post: Post; me?: string; detail?: boolean; openComments?: boolean; highlightComment?: string; /** O post está à vista: a música toca. */ musicOn?: boolean }) {
+function PostBody({ post, me, detail, openComments, highlightComment, musicOn = false, sponsored }: { post: Post; me?: string; detail?: boolean; openComments?: boolean; highlightComment?: string; /** O post está à vista: a música toca. */ musicOn?: boolean; sponsored?: SponsoredInfo }) {
   // No computador a app vive numa coluna de 576 ao centro: as medidas saem dela, não da janela.
   const width = Math.min(useWindowDimensions().width, 576);
   const router = useRouter();
@@ -125,7 +133,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   const { burst, brindar, celebrate } = useBrindar(post, patch);
   const tapText = useTap(() => void brindar());
   // Tocar na publicação (fora de botões, ligações e fotos) abre a página dela; num repost com comentário abre o repost (com a original por baixo).
-  const goPost = () => { if (!detail) openPost(post); };
+  const goPost = () => { if (!detail) { sponsored?.onOpen?.(); openPost(post); } };
   const mine = post.author.id === me;
   const margin = width >= 360 ? 8 : 6;
   const pad = width >= 360 ? 16 : 14;
@@ -138,7 +146,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   const quote = post.kind === 'repost' && !!post.body && !post.gift;
   const g = post.gift;
   const goAuthor = () => router.push(profileOf(post.author, me) as never);
-  const goVenue = () => post.venue && router.push({ pathname: '/v/[slug]', params: { slug: post.venue.slug } });
+  const goVenue = () => { if (!post.venue) return; sponsored?.onOpen?.(); router.push({ pathname: '/v/[slug]', params: { slug: post.venue.slug } }); };
   const openPost = (o: Post) => router.push((isTcheka(o) ? `/r/${o.code ?? o.id}` : `/p/${o.code ?? o.id}`) as never);
 
   async function toggleSave() {
@@ -168,6 +176,12 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
 
   return (
     <Pressable onPress={goPost} disabled={detail} accessible={false} style={[styles.card, cardShadow, { marginHorizontal: margin, paddingHorizontal: pad }]}>
+      {sponsored ? (
+        <View style={styles.sponsored} accessible accessibilityRole="text" accessibilityLabel={sponsored.a11y}>
+          <Icon name="flame" size={14} color={colors.brand} />
+          <Text style={styles.sponsoredText}>{sponsored.label}</Text>
+        </View>
+      ) : null}
       {g ? (
         <GiftBlock post={post} g={g} me={me} onDouble={() => void brindar()} menu={menuBtn} onOpenPost={openPost} />
       ) : quote ? (
@@ -612,6 +626,8 @@ const styles = StyleSheet.create({
   giftUnit: { fontSize: 13, fontWeight: '700', letterSpacing: 2.6, color: 'rgba(255,255,255,0.85)' },
   giftNote: { marginTop: 16, maxWidth: '92%', overflow: 'hidden', borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, lineHeight: 22, color: '#fff', textAlign: 'center' },
   card: { backgroundColor: colors.white, borderRadius: 26, paddingTop: 16, marginBottom: 20 },
+  sponsored: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginBottom: 10, borderRadius: 999, backgroundColor: colors.rose50, paddingHorizontal: 10, paddingVertical: 4 },
+  sponsoredText: { fontSize: 12, fontWeight: '800', color: colors.brand, letterSpacing: 0.2 },
   repostBar: { flexDirection: 'row', alignItems: 'center', gap: THREAD_GAP, marginRight: 24, marginBottom: 6 },
   repostText: { fontSize: 14, fontWeight: '600', color: colors.zinc500, lineHeight: 20 },
   // Quem citou, por baixo da original no fio: avatar de 36, nome e @ · tempo, e o comentário em letra maior.

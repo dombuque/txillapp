@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, type BoVenue } from '../../lib/api';
 import { Badge, Empty, PageHeader, btnDanger, btnGhost, btnPrimary, td, th, useCan, when } from './bo';
+import { VenueBoosts } from './VenueBoosts';
 
 const KIND: Record<string, string> = { bar: 'Bar', restaurante: 'Restaurante', discoteca: 'Discoteca', cafe: 'Café', hotel: 'Hotel', evento: 'Evento', outro: 'Outro' };
 
@@ -118,6 +119,7 @@ export default function BackofficeVenues() {
           </table>
         </div>
       )}
+      <VenueBoosts />
     </div>
   );
 }

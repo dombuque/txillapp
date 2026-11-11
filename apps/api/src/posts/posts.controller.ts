@@ -9,6 +9,10 @@ import { ZodPipe } from '../common/zod.pipe';
 import { requireIdempotencyKey } from '../wallet/wallet.controller';
 import { visibilitySchema } from './gifts.controller';
 import { MAX_PHOTOS, PostsService } from './posts.service';
+import { BoostsService } from '../boosts/boosts.service';
+import { EventsService } from '../nearby/events.service';
+import { coarse } from '../nearby/geo-sql';
+import { decodeCursor } from './feed';
 
 type AuthedReq = Request & { userId?: string };
 
@@ -39,12 +43,30 @@ const hideSchema = z.object({ postId: z.string().uuid() });
 @Controller('feed')
 @UseGuards(JwtAuthGuard)
 export class FeedController {
-  constructor(private readonly posts: PostsService) {}
+  constructor(private readonly posts: PostsService, private readonly boosts: BoostsService, private readonly events: EventsService) {}
 
+  /**
+   * `lat`/`lng` (opcionais): a posição aproximada que a app já usa no "À tua volta" (ou o centro da cidade escolhida).
+   * Arredonda-se aqui a 2 casas (~1 km) e só serve para escolher os destaques do Bombar; nunca se guarda.
+   * Com posição, a página traz `sponsored`: os destaques (etiqueta "Bombado · Patrocinado") e depois de que publicação entram.
+   */
   @Get()
-  feed(@Req() req: AuthedReq, @Query('cursor') cursor?: string, @Query('limit') limit?: string) {
+  async feed(@Req() req: AuthedReq, @Query('cursor') cursor?: string, @Query('limit') limit?: string, @Query('lat') lat?: string, @Query('lng') lng?: string) {
     const n = Math.min(Math.max(Number(limit) || 10, 1), 30);
-    return this.posts.rankedFeed(req.userId!, cursor, n);
+    const page = await this.posts.rankedFeed(req.userId!, cursor, n);
+    const la = Number(lat), ln = Number(lng);
+    if (!lat || !lng || !Number.isFinite(la) || !Number.isFinite(ln) || Math.abs(la) > 90 || Math.abs(ln) > 180) return page;
+    const me = req.userId!;
+    const sponsored = await this.boosts.feedSlots(
+      me,
+      { lat: coarse(la), lng: coarse(ln) },
+      { start: decodeCursor(cursor)?.n ?? 0, items: page.items, last: !page.nextCursor },
+      {
+        post: async (id) => ({ ...(await this.posts.getOne(me, id)), sponsored: true as const }),
+        event: (id) => this.events.get(me, id),
+      },
+    );
+    return { ...page, sponsored };
   }
 
   /** Vídeos curtos (Reels): os que mais te vão interessar, sem repetir os que já viste. */

@@ -23,6 +23,8 @@ export interface FeedCursor {
   id: string;
   /** Início da sessão (ISO): congela "o que já viste" e a variedade. */
   t: string;
+  /** Quantas publicações a sessão já mostrou (para os destaques do Bombar caírem de ~11 em ~11). Cursores antigos não o têm. */
+  n?: number;
 }
 
 export function encodeCursor(c: FeedCursor) {
@@ -34,6 +36,7 @@ export function decodeCursor(token: string | undefined): FeedCursor | null {
   try {
     const c = JSON.parse(Buffer.from(token, 'base64url').toString('utf8'));
     const okTime = typeof c.t === 'string' && !Number.isNaN(Date.parse(c.t)) && Date.parse(c.t) <= Date.now() + 60_000;
+    if (c.n !== undefined && !(Number.isInteger(c.n) && c.n >= 0 && c.n < 100_000)) delete c.n;
     if (typeof c.s === 'number' && Number.isFinite(c.s) && /^[0-9a-f-]{36}$/.test(c.id) && okTime) return c as FeedCursor;
   } catch {
     /* cai no erro abaixo */

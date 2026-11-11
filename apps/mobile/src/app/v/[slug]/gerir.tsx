@@ -14,6 +14,7 @@ import { StackPage } from '@/components/StackPage';
 import { VenueLogo } from '@/components/VenueCard';
 import { VenueQr } from '@/components/VenueQr';
 import { VenueTxills, venuePaymentsKey } from '@/components/VenueTxills';
+import { VenueBoost, boostKey } from '@/components/boost/VenueBoost';
 import { uploadMedia } from '@/lib/api';
 import { eventWhen, nearbyApi } from '@/lib/api.nearby';
 import { KINDS, KIND_LABEL, ROLE_LABEL, locaisApi, type ManagerRole, type Venue, type VenueKind, type VenueProfileInput } from '@/lib/api.locais';
@@ -22,9 +23,9 @@ import { sized } from '@/lib/config';
 import { canSetShowOnMap, formatAddress, needsMapPin, showsOnMap, venuePlace, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
 import { colors } from '@/lib/theme';
 
-type Section = 'perfil' | 'gestores' | 'eventos' | 'qr' | 'txills' | 'painel';
+type Section = 'perfil' | 'gestores' | 'eventos' | 'qr' | 'txills' | 'bombar' | 'painel';
 
-/** Gerir a página de um local: perfil (logótipo, capa, contactos), gestores (convidar, papéis), eventos, QR do check-in, Txills e o painel. */
+/** Gerir a página de um local: perfil (logótipo, capa, contactos), gestores (convidar, papéis), eventos, QR do check-in, Txills, Bombar e o painel. */
 export default function ManageVenue() {
   const { slug = '', s } = useLocalSearchParams<{ slug: string; s?: Section }>();
   const q = useQuery({ queryKey: ['venue', slug], queryFn: () => locaisApi.venue(slug), retry: false });
@@ -36,9 +37,9 @@ export default function ManageVenue() {
   const askPin = (what: 'map' | 'search') => { setSection('perfil'); setPinAsk((o) => ({ what, n: (o?.n ?? 0) + 1 })); };
   // A notificação de pagamento abre ?s=txills: se a página já estava aberta, muda de secção.
   useEffect(() => { if (s) setSection(s); }, [s]);
-  const sections: [Section, string][] = [['perfil', 'Perfil'], ['gestores', 'Gestores'], ['eventos', 'Eventos'], ['qr', 'QR'], ['txills', 'Txills'], ['painel', 'Painel']];
+  const sections: [Section, string][] = [['perfil', 'Perfil'], ['gestores', 'Gestores'], ['eventos', 'Eventos'], ['qr', 'QR'], ['txills', 'Txills'], ['bombar', 'Bombar'], ['painel', 'Painel']];
   // Puxar para atualizar: o local (saldo, estado) e, na secção Txills, os pagamentos recebidos.
-  const pull = usePullToRefresh(() => Promise.all([q.refetch(), section === 'txills' ? qc.invalidateQueries({ queryKey: venuePaymentsKey(slug) }) : section === 'eventos' ? qc.invalidateQueries({ queryKey: ['venue-events', slug] }) : null]), q.isRefetching);
+  const pull = usePullToRefresh(() => Promise.all([q.refetch(), section === 'txills' ? qc.invalidateQueries({ queryKey: venuePaymentsKey(slug) }) : section === 'eventos' ? qc.invalidateQueries({ queryKey: ['venue-events', slug] }) : section === 'bombar' ? qc.invalidateQueries({ queryKey: boostKey(slug) }) : null]), q.isRefetching);
 
   return (
     <StackPage title={v ? `Gerir ${v.name}` : 'Gerir o local'}>
@@ -74,6 +75,7 @@ export default function ManageVenue() {
             {section === 'eventos' && <Events v={v} />}
             {section === 'qr' && (v.qrToken ? <View style={{ paddingTop: 4 }}><VenueQr venue={v} /></View> : null)}
             {section === 'txills' && <VenueTxills v={v} />}
+            {section === 'bombar' && <VenueBoost v={v} />}
             {section === 'painel' && <Insights v={v} />}
           </ScrollView>
           </PullView>

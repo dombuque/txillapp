@@ -2,6 +2,8 @@ import { BadRequestException, Inject, Injectable, Logger, OnModuleDestroy, OnMod
 import { Pool } from 'pg';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
+import { SPONSORED_LABEL } from '../boosts/boost-config';
+import { BoostsService, type MapBoost } from '../boosts/boosts.service';
 import { memberBlocked, venueOnMap } from '../groups/group-access';
 import { blockedBetween, canView } from '../social/visibility';
 import { eventEnd } from './events.service';
@@ -58,6 +60,7 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(CONFIG) private readonly config: AppConfig,
     private readonly probe: SchemaProbe,
+    private readonly boosts: BoostsService,
   ) {}
 
   onModuleInit() {
@@ -78,14 +81,39 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
 
   async around(viewerId: string, c: Center, radiusKm: number, kinds: Set<NearbyKind>, when: NearbyWhen) {
     const p = [viewerId, c.lat, c.lng, radiusKm];
-    const [venues, events, posts, groups, people] = await Promise.all([
+    const [venues, events, posts, groups, people, boosts] = await Promise.all([
       kinds.has('venues') ? this.venues(p) : [],
       kinds.has('events') ? this.events(p, when) : [],
       kinds.has('posts') ? this.posts(p) : [],
       kinds.has('groups') ? this.groups(p) : [],
       kinds.has('people') ? this.people(p) : [],
+      // Bombar: os locais e eventos com uma campanha para esta pessoa aqui ficam realçados e no topo da lista.
+      kinds.has('venues') || kinds.has('events') ? this.boosts.forMap(viewerId, c) : [],
     ]);
-    return { center: { lat: c.lat, lng: c.lng }, radiusKm, venues, events, posts, groups, people };
+    const h = this.highlight(venues, events, boosts);
+    await this.boosts.recordMapViews(viewerId, h.shown);
+    return { center: { lat: c.lat, lng: c.lng }, radiusKm, venues: h.venues, events: h.events, posts, groups, people };
+  }
+
+  /**
+   * Marca `boosted` (com a etiqueta "Patrocinado") no pino do evento de uma campanha de evento, ou no do local numa
+   * campanha de publicação, e põe-nos à frente (pela distância entre eles). `shown`: as campanhas que ficaram à vista.
+   */
+  private highlight<V extends { slug: string }, E extends { id: string }>(venues: V[], events: E[], boosts: MapBoost[]) {
+    const byEvent = new Map(boosts.filter((b) => b.kind === 'event' && b.eventId).map((b) => [b.eventId!, b]));
+    const byVenue = new Map(boosts.filter((b) => b.kind === 'post').map((b) => [b.venueSlug, b]));
+    const shown = new Set<string>();
+    const tag = <T>(x: T, b: MapBoost | undefined) => {
+      if (!b) return { ...x, boosted: null };
+      shown.add(b.campaignId);
+      return { ...x, boosted: { campaignId: b.campaignId, label: SPONSORED_LABEL } };
+    };
+    const first = <T extends { boosted: unknown }>(xs: T[]) => [...xs.filter((x) => x.boosted), ...xs.filter((x) => !x.boosted)];
+    return {
+      venues: first(venues.map((v) => tag(v, byVenue.get(v.slug)))),
+      events: first(events.map((e) => tag(e, byEvent.get(e.id)))),
+      shown: [...shown],
+    };
   }
 
   private async venues(p: unknown[], search = false) {

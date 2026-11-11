@@ -43,6 +43,7 @@ import { NearbyModule } from './nearby/nearby.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { SuperTxillModule } from './supertxill/supertxill.module';
 import { PaymentsModule } from './payments/payments.module';
+import { BoostsModule } from './boosts/boosts.module';
 
 @Module({})
 export class AppModule {
@@ -70,6 +71,7 @@ export class AppModule {
         SuperTxillModule,
         BackofficeModule,
         PaymentsModule,
+        BoostsModule,
         MediaModule,
         PushModule,
         NotificationsModule,
