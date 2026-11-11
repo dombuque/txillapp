@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -122,13 +122,18 @@ export default function Connections() {
   const slide = useRef(new Animated.Value(start === 'following' ? -win : 0)).current;
   const settle = (k: Kind) => Animated.spring(slide, { toValue: k === 'followers' ? 0 : -widthRef.current, useNativeDriver: false, bounciness: 0, speed: 16 }).start();
   useEffect(() => { settle(cur); }, [cur, width]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Os toques são lidos no document: com outro ecrã por cima (ex.: o perfil de quem se tocou, que também desliza entre
+  // separadores), este fica montado por baixo e não pode trocar de lista às escondidas.
+  const focused = useIsFocused();
+  const focusedRef = useRef(focused);
+  focusedRef.current = focused;
   useEffect(() => {
     if (!web || typeof document === 'undefined') return;
     let s: { x: number; y: number; t: number; horiz: boolean | null } | null = null;
     const down = (e: TouchEvent) => {
       const t = e.touches[0];
       const tag = (e.target as HTMLElement | null)?.tagName ?? '';
-      s = e.touches.length === 1 && t.clientX > 24 && t.clientX < window.innerWidth - 24 && !/INPUT|TEXTAREA/.test(tag) ? { x: t.clientX, y: t.clientY, t: Date.now(), horiz: null } : null;
+      s = focusedRef.current && e.touches.length === 1 && t.clientX > 24 && t.clientX < window.innerWidth - 24 && !/INPUT|TEXTAREA/.test(tag) ? { x: t.clientX, y: t.clientY, t: Date.now(), horiz: null } : null;
     };
     const move = (e: TouchEvent) => {
       if (!s) return;

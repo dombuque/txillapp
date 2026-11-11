@@ -3,8 +3,10 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, FlatList, Linking, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Animated, FlatList, Linking, Platform, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { GestureDetector } from 'react-native-gesture-handler';
+import Reanimated from 'react-native-reanimated';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +14,8 @@ import { ApiError, api, type Post, type ProfileTab } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useDesktop } from '@/lib/desktop';
 import { sized } from '@/lib/config';
+import { nextProfileTab, profileTabEdges, visibleProfileTabs } from '@/lib/profileTabs';
+import type { InnerPager } from '@/lib/swipeClaim';
 import { cardShadow, colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
 import { BookmarkIcon } from './BookmarkIcon';
@@ -25,8 +29,11 @@ import { EditProfileSheet, RequestsSheet } from './ProfileSheets';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
+import { usePagerPan, useWebPager } from './SwipePager';
+import { useFadeIn, useTabSlider } from './TabSlider';
 import { VerifiedBadge } from './VerifiedBadge';
 
+/** Os ícones e nomes dos separadores; quais aparecem e por que ordem se desliza é de lib/profileTabs. */
 const TABS: { id: ProfileTab; label: string; icon: IconName | 'bookmark' }[] = [
   { id: 'all', label: 'Tudo', icon: 'grid' },
   { id: 'reels', label: 'Tcheka', icon: 'film' },
@@ -90,6 +97,12 @@ function Grid({ posts, onOpen, width }: { posts: Post[]; onOpen: (p: Post) => vo
   );
 }
 
+/** No telemóvel, o pan dos separadores à volta do conteúdo; na web são os toques do DOM (useWebPager) e não há detetor. */
+function SwipeArea({ gesture, children }: { gesture: ReturnType<typeof usePagerPan>; children: ReactNode }) {
+  if (Platform.OS === 'web') return <>{children}</>;
+  return <GestureDetector gesture={gesture}>{children}</GestureDetector>;
+}
+
 /** Perfil (meu ou de outra pessoa): cabeçalho, números, botões, separadores e grelha, como no site. */
 export function ProfileView({ username }: { username: string; isMe?: boolean }) {
   const router = useRouter();
@@ -117,7 +130,37 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
 
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username), retry: false });
   const p = q.data;
-  const tabs = TABS.filter((x) => x.id !== 'saved' || username === user?.username);
+  const isMine = username === user?.username;
+  const shownIds = useMemo(() => visibleProfileTabs(isMine), [isMine]);
+  const tabs = TABS.filter((x) => shownIds.includes(x.id));
+
+  // Separadores: um toque ou um deslize grande para os lados no conteúdo (components/SwipePager, como nas Mensagens).
+  // O traço desliza de um ícone para o outro e o conteúdo novo entra com o mesmo fade (components/TabSlider).
+  const slider = useTabSlider<ProfileTab>(tab, styles.tabBar);
+  const fade = useFadeIn();
+  const switched = useRef(false);
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+  const switchTab = (t: ProfileTab) => {
+    if (t === tabRef.current) return;
+    switched.current = true;
+    fade.fadeIn();
+    setTab(t);
+  };
+  const nav = useRef({ shownIds, switchTab });
+  nav.current = { shownIds, switchTab };
+  const pager = useMemo<InnerPager>(() => ({
+    canGo: (d) => nextProfileTab(nav.current.shownIds, tabRef.current, d) !== null,
+    go: (d) => {
+      const n = nextProfileTab(nav.current.shownIds, tabRef.current, d);
+      if (n) nav.current.switchTab(n);
+    },
+  }), []);
+  // Telemóvel: só ativa para os lados onde há separador (no primeiro, para a direita, o gesto fica para o voltar atrás).
+  const pagerPan = usePagerPan({ width, pager: () => pager, can: profileTabEdges(shownIds, tab), leaveEdge: true });
+  // Web (browser/PWA): os mesmos deslizes com os toques do DOM, no próprio conteúdo.
+  const webPager = useWebPager(() => pager);
+
   const posts = useInfiniteQuery({
     queryKey: ['profile-posts', username, tab],
     queryFn: ({ pageParam }) => (tab === 'saved' ? api.savedPosts(pageParam) : api.userPosts(username, pageParam, tab)),
@@ -126,6 +169,12 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
     enabled: !!p?.canView,
   });
   const items = posts.data?.pages.flatMap((x) => x.items) ?? [];
+  // Um separador ainda por carregar: quando a grelha chega, entra também com o fade (e não aos saltos).
+  const arrived = useRef(false);
+  useLayoutEffect(() => {
+    if (posts.isSuccess && !arrived.current && switched.current) fade.fadeIn();
+    arrived.current = posts.isSuccess;
+  }, [posts.isSuccess, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (q.isError) {
     const missing = q.error instanceof ApiError && q.error.status === 404;
@@ -282,15 +331,17 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           <Text style={styles.privateText}>{p.requested ? 'Pedido enviado. Quando aceitar, vês as publicações e mimos.' : 'Segue para ver as publicações e mimos.'}</Text>
         </View>
       ) : p.canView ? (
-        <View style={{ marginTop: 24, paddingHorizontal: 16 }} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && Math.abs(w - gridW) > 1) setGridW(w); }}>
+        <SwipeArea gesture={pagerPan}>
+        <View ref={webPager} collapsable={false} style={{ marginTop: 24, paddingHorizontal: 16 }} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && Math.abs(w - gridW) > 1) setGridW(w); }}>
           <View style={styles.tabs} accessibilityRole="tablist">
             {tabs.map((t) => (
-              <Pressable key={t.id} onPress={() => setTab(t.id)} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id }} accessibilityLabel={t.label} style={[styles.tab, tab === t.id && { borderBottomColor: colors.zinc900 }]}>
+              <Pressable key={t.id} onPress={() => switchTab(t.id)} onLayout={slider.layout(t.id)} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id }} aria-selected={tab === t.id} accessibilityLabel={t.label} style={styles.tab}>
                 {t.icon === 'bookmark' ? <BookmarkIcon on={tab === t.id} size={24} /> : <Icon name={t.icon} size={24} color={tab === t.id ? colors.zinc900 : '#a1a1aa'} />}
               </Pressable>
             ))}
+            {slider.bar}
           </View>
-          <View style={{ minHeight: height * 0.4 }}>
+          <Reanimated.View style={[{ minHeight: height * 0.4 }, fade.style]}>
           {posts.isLoading && <Text style={styles.loading}>A carregar…</Text>}
           {posts.isSuccess && items.length === 0 && tab !== 'all' && <Text style={styles.emptyText}>{p.isMe ? EMPTY[tab].me : EMPTY[tab].other}</Text>}
           {posts.isSuccess && items.length === 0 && tab === 'all' && (
@@ -306,8 +357,9 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
               {posts.isFetchingNextPage ? <ActivityIndicator color={colors.brand} /> : <Text style={styles.ghostText}>Ver mais</Text>}
             </Pressable>
           )}
-          </View>
+          </Reanimated.View>
         </View>
+        </SwipeArea>
       ) : null}
     </View>
   );
@@ -394,7 +446,9 @@ const styles = StyleSheet.create({
   privateTitle: { marginTop: 12, fontSize: 20, fontWeight: '800', color: colors.zinc900 },
   privateText: { marginTop: 4, color: colors.zinc600, textAlign: 'center' },
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.zinc200, marginBottom: 12 },
-  tab: { flex: 1, height: 48, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tab: { flex: 1, height: 48, alignItems: 'center', justifyContent: 'center' },
+  // O traço do separador ativo (components/TabSlider): o mesmo de antes, 2 px colado à linha de baixo, da largura do separador.
+  tabBar: { bottom: 0, height: 2, borderRadius: 0 },
   loading: { paddingVertical: 32, textAlign: 'center', fontSize: 14, color: colors.zinc500 },
   emptyText: { marginTop: 32, textAlign: 'center', color: colors.zinc600 },
   noPosts: { marginTop: 8, fontWeight: '600', color: colors.zinc600 },

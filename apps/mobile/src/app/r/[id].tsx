@@ -83,10 +83,14 @@ export default function ReelPage() {
   // Na primeira tcheka, arrastar para baixo volta à publicação. Na web não há "bounce": lê-se o gesto do dedo.
   const closeRef = useRef(close);
   closeRef.current = close;
+  // Os toques são lidos no document: com outro ecrã por cima (ex.: o perfil do autor), este fica montado por baixo e não
+  // pode fechar-se (o router.back() tirava o ecrã de cima).
+  const focusedRef = useRef(focused);
+  focusedRef.current = focused;
   useEffect(() => {
     if (!isWeb || typeof document === 'undefined') return;
     let s: { y: number; x: number; t: number } | null = null;
-    const down = (e: TouchEvent) => { const t = e.touches[0]; s = activeRef.current === 0 && offsetY.current <= 2 ? { y: t.clientY, x: t.clientX, t: Date.now() } : null; };
+    const down = (e: TouchEvent) => { const t = e.touches[0]; s = focusedRef.current && activeRef.current === 0 && offsetY.current <= 2 ? { y: t.clientY, x: t.clientX, t: Date.now() } : null; };
     const up = (e: TouchEvent) => {
       if (!s) return;
       const t = e.changedTouches[0];
