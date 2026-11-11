@@ -36,6 +36,8 @@ export interface VenueProfileInput {
   website?: string | null;
   lat?: number | null;
   lng?: number | null;
+  /** Aparecer no mapa e em "perto de mim" por distância (por omissão sim). */
+  showOnMap?: boolean;
   avatarMediaId?: string | null;
   coverMediaId?: string | null;
   /** O local aceita pagamentos em Txills (dono e administradores). */
@@ -43,6 +45,9 @@ export interface VenueProfileInput {
 }
 
 const PAYMENTS_PAGE = 30;
+
+/** A posição de um local é pública (é um sítio, não uma pessoa): guarda-se com 6 casas decimais (~10 cm). */
+const coord6 = (n: number | null | undefined) => (n == null ? null : Math.round(n * 1_000_000) / 1_000_000);
 
 /**
  * Locais: bares, restaurantes, discotecas… Cada local é uma página (como no Facebook): tem dono e gestores, perfil
@@ -98,8 +103,11 @@ export class VenuesService {
       acceptsTxills: !!r.accepts_txills,
       /** Saldo de Txills do local: só quem o gere o vê. */
       txillsBalance: role ? Number(r.txills_balance ?? 0) : undefined,
-      lat: (r.lat as number | null) ?? null,
-      lng: (r.lng as number | null) ?? null,
+      /** Aparece no mapa e em "perto de mim" (quem gere pode desligar). */
+      showOnMap: r.show_on_map !== false,
+      // Fora do mapa, a posição só a vê quem gere o local (para a poder acertar).
+      lat: r.lat == null || (r.show_on_map === false && !role) ? null : Number(r.lat),
+      lng: r.lng == null || (r.show_on_map === false && !role) ? null : Number(r.lng),
       checkins: Number(r.checkins ?? 0),
       checkinsToday: Number(r.checkins_today ?? 0),
       followers: Number(r.followers ?? 0),
@@ -165,6 +173,12 @@ export class VenuesService {
 
   private clean(b: VenueProfileInput) {
     this.filter.assertClean(b.name ?? '', b.city ?? '', b.about ?? '', b.address ?? '', b.hours ?? '');
+    // A posição vai junta (as duas, ou as duas a null) e dentro dos limites.
+    if ((b.lat === undefined) !== (b.lng === undefined) || (b.lat === null) !== (b.lng === null)) throw new BadRequestException('Manda a latitude e a longitude juntas');
+    if (b.lat != null && b.lng != null) {
+      if (!Number.isFinite(b.lat) || !Number.isFinite(b.lng) || Math.abs(b.lat) > 90 || Math.abs(b.lng) > 180) throw new BadRequestException('Posição inválida');
+      if (b.lat === 0 && b.lng === 0) throw new BadRequestException('Escolhe no mapa onde fica o local');
+    }
     if (b.website && !/^https?:\/\/[^\s]{3,}$/i.test(b.website)) throw new BadRequestException('O site tem de começar por http:// ou https://');
     for (const k of ['phone', 'whatsapp'] as const) if (b[k] && !/^\+?[0-9 ()-]{6,30}$/.test(b[k]!)) throw new BadRequestException(`Confirma o número de ${k === 'phone' ? 'telefone' : 'WhatsApp'}`);
   }
@@ -190,11 +204,10 @@ export class VenuesService {
     for (let i = 2; (await this.pool.query('SELECT 1 FROM content.venues WHERE slug = $1', [slug])).rowCount; i++) slug = `${base.slice(0, 46)}-${i}`;
     const id = uuidv7();
     const country = (await this.pool.query('SELECT country FROM identity.users WHERE id = $1', [userId])).rows[0]?.country ?? null;
-    const q = (n: number | null | undefined) => (n == null ? null : Math.round(n * 1000) / 1000);
     await this.pool.query(
-      `INSERT INTO content.venues (id, slug, name, kind, city, country, lat, lng, about, address, hours, phone, whatsapp, website, owner_id, check_token)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
-      [id, slug, b.name.trim(), b.kind, b.city?.trim() || null, country, q(b.lat), q(b.lng), b.about?.trim() || null, b.address?.trim() || null, b.hours?.trim() || null, b.phone?.trim() || null, b.whatsapp?.trim() || null, b.website?.trim() || null, userId, randomBytes(12).toString('hex')],
+      `INSERT INTO content.venues (id, slug, name, kind, city, country, lat, lng, about, address, hours, phone, whatsapp, website, owner_id, check_token, show_on_map)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+      [id, slug, b.name.trim(), b.kind, b.city?.trim() || null, country, coord6(b.lat), coord6(b.lng), b.about?.trim() || null, b.address?.trim() || null, b.hours?.trim() || null, b.phone?.trim() || null, b.whatsapp?.trim() || null, b.website?.trim() || null, userId, randomBytes(12).toString('hex'), b.showOnMap ?? true],
     );
     return this.get(userId, slug);
   }
@@ -205,15 +218,15 @@ export class VenuesService {
     this.clean(b);
     if (b.avatarMediaId) await this.assertImage(userId, b.avatarMediaId);
     if (b.coverMediaId) await this.assertImage(userId, b.coverMediaId);
-    const q = (n: number | null | undefined) => (n == null ? null : Math.round(n * 1000) / 1000);
     const sets: string[] = [];
     const vals: unknown[] = [];
     const set = (col: string, val: unknown) => { vals.push(val); sets.push(`${col} = $${vals.length}`); };
     if (b.name !== undefined) { if (b.name.trim().length < 2) throw new BadRequestException('Escolhe um nome com pelo menos 2 letras'); set('name', b.name.trim()); }
     if (b.kind !== undefined) set('kind', b.kind);
     for (const k of ['city', 'about', 'address', 'hours', 'phone', 'whatsapp', 'website'] as const) if (b[k] !== undefined) set(k, b[k]?.trim() || null);
-    if (b.lat !== undefined) set('lat', q(b.lat));
-    if (b.lng !== undefined) set('lng', q(b.lng));
+    if (b.lat !== undefined) set('lat', coord6(b.lat));
+    if (b.lng !== undefined) set('lng', coord6(b.lng));
+    if (b.showOnMap !== undefined) set('show_on_map', b.showOnMap);
     if (b.avatarMediaId !== undefined) set('avatar_media_id', b.avatarMediaId);
     if (b.coverMediaId !== undefined) set('cover_media_id', b.coverMediaId);
     if (b.acceptsTxills !== undefined) set('accepts_txills', b.acceptsTxills);
@@ -268,7 +281,10 @@ export class VenuesService {
     return rows.map((r) => this.dto(r, viewerId));
   }
 
-  /** Descobrir: perto de mim (se der a posição) e os mais movimentados da semana, no meu país. */
+  /**
+   * Descobrir: perto de mim (se der a posição) e os mais movimentados da semana, no meu país.
+   * Os locais fora do mapa não entram em "perto de mim" (podem estar nos movimentados, sem posição).
+   */
   async discover(viewerId: string, at: { lat: number; lng: number } | null) {
     const country = `(v.country IS NULL OR v.country IS NOT DISTINCT FROM (SELECT country FROM identity.users WHERE id = $1))`;
     const popular = (await this.pool.query(
@@ -284,7 +300,7 @@ export class VenuesService {
     if (at) {
       // Distância aproximada (graus → km), chega para ordenar o que está a menos de ~25 km.
       nearby = (await this.pool.query(
-        `${this.SELECT} WHERE v.lat IS NOT NULL AND v.lng IS NOT NULL AND v.review_status = 'approved'
+        `${this.SELECT} WHERE v.lat IS NOT NULL AND v.lng IS NOT NULL AND v.review_status = 'approved' AND v.show_on_map
             AND abs(v.lat - $2) < 0.25 AND abs(v.lng - $3) < 0.25
           ORDER BY ((v.lat - $2) * (v.lat - $2) + (v.lng - $3) * (v.lng - $3) * cos(radians($2)) * cos(radians($2))) ASC LIMIT 12`,
         [viewerId, at.lat, at.lng],

@@ -14,6 +14,18 @@ export interface PlaceHit {
   name: string;
   sub: string;
   kind: string;
+  /** Posição do sítio (dado público do OpenStreetMap, via Photon), para o pôr no mapa. */
+  lat: number;
+  lng: number;
+  /** Rua e número, quando houver (ex. "Av. Julius Nyerere 123"). */
+  address: string | null;
+  city: string | null;
+}
+/** O que está num ponto do mapa (arrastar o pino ou usar a localização atual). */
+export interface ReversePlace {
+  name: string | null;
+  address: string | null;
+  city: string | null;
 }
 export interface NearbyPlaces {
   area: string | null;
@@ -30,6 +42,20 @@ const USER_AGENT = process.env.GEO_USER_AGENT ?? 'TxillappMVP/0.1';
 
 /** ~110 m: suficiente para sugerir sítios, sem precisão de GPS. As coordenadas nunca são guardadas nem registadas. */
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
+/** ~11 m: o reverso precisa de chegar à rua; continua sem precisão de GPS e nunca é guardado nem registado. */
+const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
+/** Sem a posição de quem procura, a pesquisa puxa para Moçambique (centro aproximado do país, raio largo). */
+const MZ_BIAS = '&lat=-18.7&lon=35.5&zoom=5&location_bias_scale=0.5';
+const SEARCH_LIMIT = 7;
+
+const str = (x: unknown) => (typeof x === 'string' && x.trim() ? x.trim() : null);
+/** "Rua 123" (ou só a rua); sem rua, nada. */
+const streetLine = (street: unknown, number: unknown) => {
+  const st = str(street);
+  return st ? [st, str(number)].filter(Boolean).join(' ') : null;
+};
+const validCoord = (lat: unknown, lng: unknown): boolean =>
+  typeof lat === 'number' && typeof lng === 'number' && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
 
 function distanceM(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371000;
@@ -91,32 +117,85 @@ export class PlacesService {
 
   private readonly searchCache = new Map<string, { exp: number; value: PlaceHit[] }>();
 
-  /** Pesquisa por nome (Photon, feito para sugestões ao escrever). Só nomes saem daqui; nada é guardado. */
+  /**
+   * Pesquisa por nome (Photon, feito para sugestões ao escrever): nome, posição do sítio, rua e cidade. Nada é guardado.
+   * Com a posição de quem procura (arredondada a ~110 m) o Photon privilegia o que está perto. Sem ela, puxa para
+   * Moçambique (viés de posição no centro do país) e, entre os resultados, os de Moçambique vêm primeiro.
+   * Resultados sem posição válida ficam de fora.
+   */
   async search(text: string, lat?: number, lng?: number): Promise<PlaceHit[]> {
-    const near = lat != null && lng != null ? `&lat=${round3(lat)}&lon=${round3(lng)}` : '';
+    const hasNear = lat != null && lng != null;
+    const near = hasNear ? `&lat=${round3(lat)}&lon=${round3(lng)}` : MZ_BIAS;
     const key = `${text.toLowerCase()}|${near}`;
     const hit = this.searchCache.get(key);
     if (hit && hit.exp > Date.now()) return hit.value;
 
     const base = process.env.GEO_SEARCH_URL ?? 'https://photon.komoot.io/api/';
-    const data = await this.get(`${base}?q=${encodeURIComponent(text)}&limit=7&lang=en${near}`).catch(() => ({ features: [] }));
+    // Sem posição pede-se um pouco mais, para haver por onde escolher os de Moçambique.
+    const ask = hasNear ? SEARCH_LIMIT : SEARCH_LIMIT + 3;
+    const data = await this.get(`${base}?q=${encodeURIComponent(text)}&limit=${ask}&lang=en${near}`).catch(() => ({ features: [] }));
     const seen = new Set<string>();
-    const out: PlaceHit[] = [];
+    const found: (PlaceHit & { mz: boolean })[] = [];
     for (const f of data.features ?? []) {
       const p: Record<string, string> = f.properties ?? {};
+      // O Photon dá a posição em GeoJSON: [lng, lat].
+      const [flng, flat] = (Array.isArray(f.geometry?.coordinates) ? f.geometry.coordinates : []) as unknown[];
+      if (!validCoord(flat, flng)) continue;
       const name = p.name ?? p.street;
       if (!name) continue;
       const sub = [p.district ?? p.locality, p.city ?? p.county, p.state, p.country].filter((x, i, a) => x && a.indexOf(x) === i && x !== name).slice(0, 3).join(', ');
       const id = `${name}|${sub}`.toLowerCase();
       if (seen.has(id)) continue;
       seen.add(id);
-      out.push({ name, sub, kind: kindOf({ [p.osm_key ?? '']: p.osm_value ?? '' }) });
+      found.push({
+        name,
+        sub,
+        kind: kindOf({ [p.osm_key ?? '']: p.osm_value ?? '' }),
+        lat: flat as number,
+        lng: flng as number,
+        address: streetLine(p.street, p.housenumber),
+        city: str(p.city) ?? (p.type === 'city' ? str(p.name) : null),
+        mz: String(p.countrycode ?? '').toUpperCase() === 'MZ',
+      });
     }
+    // Ordenação estável: sem posição, os de Moçambique sobem (mantendo entre eles a ordem do Photon).
+    const ordered = hasNear ? found : [...found.filter((x) => x.mz), ...found.filter((x) => !x.mz)];
+    const out: PlaceHit[] = ordered.slice(0, SEARCH_LIMIT).map(({ mz: _mz, ...h }) => h);
     if (out.length) {
       if (this.searchCache.size >= CACHE_MAX) this.searchCache.delete(this.searchCache.keys().next().value!);
       this.searchCache.set(key, { exp: Date.now() + CACHE_TTL_MS, value: out });
     }
     return out;
+  }
+
+  private readonly reverseCache = new Map<string, { exp: number; value: ReversePlace }>();
+
+  /**
+   * O que está num ponto (Nominatim): o nome do sítio (se o ponto cair num), rua e número, e a cidade. A posição é
+   * arredondada a ~11 m antes de sair e não é guardada nem registada. Se o serviço falhar, vem tudo a null.
+   */
+  async reverseAddress(lat: number, lng: number): Promise<ReversePlace> {
+    const rlat = round4(lat);
+    const rlng = round4(lng);
+    const key = `${rlat},${rlng}`;
+    const hit = this.reverseCache.get(key);
+    if (hit && hit.exp > Date.now()) return hit.value;
+    const url = `${NOMINATIM}?format=jsonv2&zoom=18&addressdetails=1&accept-language=pt&lat=${rlat.toFixed(4)}&lon=${rlng.toFixed(4)}`;
+    const data = await this.get(url).catch(() => null);
+    const a: Record<string, string> = data?.address ?? {};
+    const road = str(a.road ?? a.pedestrian ?? a.footway);
+    const name = str(data?.name);
+    const value: ReversePlace = {
+      // O nome só se for de um sítio (não repete a rua).
+      name: name && name !== road ? name : null,
+      address: streetLine(road, a.house_number),
+      city: str(a.city ?? a.town ?? a.municipality ?? a.village ?? a.county),
+    };
+    if (value.name || value.address || value.city) {
+      if (this.reverseCache.size >= CACHE_MAX) this.reverseCache.delete(this.reverseCache.keys().next().value!);
+      this.reverseCache.set(key, { exp: Date.now() + CACHE_TTL_MS, value });
+    }
+    return value;
   }
 
   private async get(url: string, init: RequestInit = {}): Promise<any> {

@@ -39,7 +39,7 @@ export class EventsService {
     const { accepts } = await this.probe.bits();
     return `
       SELECT e.id, e.title, e.description, e.starts_at, e.ends_at, e.cover_media_id, e.cancelled_at,
-             v.slug, v.name, v.avatar_media_id, v.verified, v.lat, v.lng, ${accepts ? 'v.accepts_txills' : 'NULL::boolean'} AS accepts_txills,
+             v.slug, v.name, v.avatar_media_id, v.verified, v.lat, v.lng, v.show_on_map, ${accepts ? 'v.accepts_txills' : 'NULL::boolean'} AS accepts_txills,
              (SELECT count(*) FROM content.venue_event_interest i WHERE i.event_id = e.id)::int AS interested,
              EXISTS (SELECT 1 FROM content.venue_event_interest i WHERE i.event_id = e.id AND i.user_id = $1) AS mine,
              (v.owner_id = $1 OR EXISTS (SELECT 1 FROM content.venue_managers m WHERE m.venue_id = v.id AND m.user_id = $1 AND m.status = 'active')) AS can_manage
@@ -61,8 +61,9 @@ export class EventsService {
         name: r.name as string,
         avatarUrl: media(r.avatar_media_id),
         verified: !!r.verified,
-        lat: r.lat == null ? null : Number(r.lat),
-        lng: r.lng == null ? null : Number(r.lng),
+        // Local fora do mapa: o evento não leva posição (nem para quem o gere; a do local vê-se na página dele).
+        lat: r.lat == null || r.show_on_map === false ? null : Number(r.lat),
+        lng: r.lng == null || r.show_on_map === false ? null : Number(r.lng),
         ...(r.accepts_txills == null ? {} : { acceptsTxills: !!r.accepts_txills }),
       },
       interested: Number(r.interested),
