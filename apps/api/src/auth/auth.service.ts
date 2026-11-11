@@ -522,6 +522,7 @@ export class AuthService {
         'DELETE FROM content.cheers WHERE user_id = $1',
         'DELETE FROM content.comment_cheers WHERE user_id = $1',
         'DELETE FROM content.story_views WHERE viewer_id = $1',
+        'DELETE FROM content.story_own_seen WHERE user_id = $1',
         'DELETE FROM content.story_replies WHERE author_id = $1',
         'DELETE FROM content.story_cheers WHERE user_id = $1',
         'DELETE FROM content.photo_tags WHERE tagged_id = $1',

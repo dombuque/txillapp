@@ -21,6 +21,15 @@ const sharedOk = (s = 's') =>
   `(${s}.shared_post_id IS NULL OR EXISTS (SELECT 1 FROM content.posts sp WHERE sp.id = ${s}.shared_post_id AND sp.removed_at IS NULL))
    AND EXISTS (SELECT 1 FROM content.media_assets sma WHERE sma.id = ${s}.media_id AND sma.status = 'ready')`;
 
+/**
+ * "Visto" de um story para quem o vê. Os meus: o servidor guarda até onde vi (content.story_own_seen), porque o autor não
+ * entra em story_views. Os dos outros: há uma visualização minha.
+ */
+const seenBy = (s = 's', v = '$1') =>
+  `(CASE WHEN ${s}.author_id = ${v}
+         THEN COALESCE(${s}.created_at <= (SELECT os.seen_at FROM content.story_own_seen os WHERE os.user_id = ${v}), false)
+         ELSE EXISTS (SELECT 1 FROM content.story_views v WHERE v.story_id = ${s}.id AND v.viewer_id = ${v}) END)`;
+
 const notHidden = (author: string, viewer = '$1') =>
   `NOT EXISTS (SELECT 1 FROM social.story_hidden h WHERE h.owner_id = ${author} AND h.hidden_id = ${viewer})`;
 
@@ -60,23 +69,25 @@ export class StoriesService {
     return this.getOne(userId, id);
   }
 
-  /** Bandeja: stories activos de quem sigo (e os meus). O próprio primeiro, depois "não vistos", depois os mais recentes. */
+  /**
+   * Bandeja: stories activos de quem sigo (e os meus). O próprio primeiro, depois "não vistos", depois os mais recentes.
+   * O meu fica visto quando já vi o mais recente (max(created_at) <= seen_at), em qualquer aparelho.
+   */
   async tray(userId: string) {
     const { rows } = await this.pool.query(
       `WITH active AS (
-         SELECT s.id, s.author_id, s.created_at, s.audience,
-                EXISTS (SELECT 1 FROM content.story_views v WHERE v.story_id = s.id AND v.viewer_id = $1) AS seen
+         SELECT s.id, s.author_id, s.created_at, s.audience, ${seenBy()} AS seen
            FROM content.stories s
           WHERE s.expires_at > now()
             AND (s.author_id = $1 OR EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = s.author_id))
             AND ${notHidden('s.author_id')} AND ${audienceOk()} AND ${sharedOk()}
        )
        SELECT u.username, u.display_name, (u.id = $1) AS is_me,
-              count(*)::int AS story_count, bool_and(a.seen OR u.id = $1) AS seen,
-              count(*) FILTER (WHERE a.seen AND u.id <> $1)::int AS seen_count, bool_and(a.audience = 'close_friends') AS close_only, max(a.created_at) AS latest_at
+              count(*)::int AS story_count, bool_and(a.seen) AS seen,
+              count(*) FILTER (WHERE a.seen)::int AS seen_count, bool_and(a.audience = 'close_friends') AS close_only, max(a.created_at) AS latest_at
          FROM active a JOIN identity.users u ON u.id = a.author_id
         GROUP BY u.id
-        ORDER BY (u.id = $1) DESC, bool_and(a.seen OR u.id = $1) ASC, max(a.created_at) DESC
+        ORDER BY (u.id = $1) DESC, bool_and(a.seen) ASC, max(a.created_at) DESC
         LIMIT 50`,
       [userId],
     );
@@ -101,7 +112,7 @@ export class StoriesService {
               (SELECT m.duration_ms FROM content.media_assets m WHERE m.id = s.media_id) AS duration_ms,
               s.shared_post_id,
               (SELECT json_build_object('username', su.username, 'displayName', su.display_name) FROM content.posts sp JOIN identity.users su ON su.id = sp.author_id WHERE sp.id = s.shared_post_id) AS shared_from,
-              EXISTS (SELECT 1 FROM content.story_views v WHERE v.story_id = s.id AND v.viewer_id = $1) AS seen,
+              ${seenBy()} AS seen,
               (SELECT count(*) FROM content.story_views v WHERE v.story_id = s.id)::int AS view_count,
               EXISTS (SELECT 1 FROM content.story_cheers c WHERE c.story_id = s.id AND c.user_id = $1) AS cheered,
               (SELECT count(*) FROM content.story_cheers c WHERE c.story_id = s.id)::int AS cheer_count,
@@ -126,7 +137,17 @@ export class StoriesService {
 
   async view(viewerId: string, storyId: string) {
     const s = await this.visibleStory(viewerId, storyId);
-    if (s.author_id === viewerId) return; // o autor não conta como visualização
+    if (s.author_id === viewerId) {
+      // O autor não conta como visualização (nem em "quem viu", nem nas contagens): guarda-se só até onde viu os seus,
+      // na conta, para o anel "O teu mimo" se apagar em todos os aparelhos. Nunca recua (ver um mais antigo não o desfaz).
+      await this.pool.query(
+        `INSERT INTO content.story_own_seen (user_id, seen_at)
+         SELECT $1, s.created_at FROM content.stories s WHERE s.id = $2 AND s.author_id = $1
+         ON CONFLICT (user_id) DO UPDATE SET seen_at = GREATEST(content.story_own_seen.seen_at, EXCLUDED.seen_at)`,
+        [viewerId, storyId],
+      );
+      return;
+    }
     await this.pool.query('INSERT INTO content.story_views (story_id, viewer_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [storyId, viewerId]);
   }
 

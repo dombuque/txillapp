@@ -6,6 +6,7 @@ import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-n
 import { api } from '@/lib/api';
 import { SITE_URL } from '@/lib/config';
 import { useOwnSeen } from '@/lib/ownSeen';
+import { seenSegments } from '@/lib/ownStorySeen';
 import { Avatar } from './Avatar';
 import { Ring } from './StoryRing';
 
@@ -18,7 +19,7 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
   const { width } = useWindowDimensions();
   const [show, setShow] = useState(false);
   const held = useRef(false);
-  const ownSeenAt = useOwnSeen();
+  const ownSeenAt = useOwnSeen(isMe ? username : null);
   const q = useQuery({ queryKey: ['stories', username], queryFn: () => api.storiesOf(username), retry: false });
   const list = q.data ?? [];
   const avatarName = displayName || username;
@@ -49,8 +50,7 @@ export function ProfileStoryAvatar({ username, displayName, isMe, hasAvatar, siz
     );
   }
 
-  const latest = list[list.length - 1].createdAt;
-  const seenCount = isMe ? (ownSeenAt === latest ? list.length : 0) : list.filter((x) => x.seen).length;
+  const seenCount = seenSegments(list, isMe, ownSeenAt);
   const green = list.every((x) => x.audience === 'close_friends');
   const box = size + 12;
   return (
