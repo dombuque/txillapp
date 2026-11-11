@@ -231,6 +231,11 @@ export interface ChatThread {
   otherRead: string | null;
   items: ChatMessage[];
   nextCursor: string | null;
+  /**
+   * A nota ativa da pessoa, se eu a puder ver (por baixo da foto do cabeçalho). Só na 1.ª página; servidores antigos
+   * não mandam.
+   */
+  peerNote?: { body: string; music: import('./api.music').Track | null; createdAt: string; expiresAt: string; cheered: boolean } | null;
 }
 export interface Story {
   id: string;

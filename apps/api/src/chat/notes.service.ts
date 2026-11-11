@@ -57,8 +57,20 @@ export class NotesService {
     }));
   }
 
-  /** A minha nota (se ainda vale) e as de quem me deixa vê-las (os brindes e as respostas só valem para estas). */
-  private async visible(me: string) {
+  /**
+   * A nota ativa da outra pessoa, para o cabeçalho da conversa 1:1 (como o recado do WhatsApp por baixo da foto): só se
+   * eu a puder ver (as mesmas regras de `visible`, com os bloqueios). A minha própria nota não conta.
+   */
+  async peerNote(me: string, username: string) {
+    const n = (await this.visible(me, username)).items[0];
+    return n ? { body: n.body, music: n.music, createdAt: n.createdAt, expiresAt: n.expiresAt, cheered: n.cheered } : null;
+  }
+
+  /**
+   * A minha nota (se ainda vale) e as de quem me deixa vê-las (os brindes e as respostas só valem para estas).
+   * `only` (username) = só a dessa pessoa (e a minha, se for eu).
+   */
+  private async visible(me: string, only?: string) {
     const { rows } = await this.pool.query(
       `SELECT n.user_id, n.body, n.music, n.audience, n.created_at, n.expires_at, u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar,
               (SELECT count(*)::int FROM social.note_cheers c WHERE c.note_user_id = n.user_id) AS cheers,
@@ -68,8 +80,9 @@ export class NotesService {
           AND (n.user_id = $1 OR (
                 NOT ${blockedBetween('u.id', '$1')}
                 AND EXISTS (SELECT 1 FROM social.follows a WHERE a.follower_id = $1 AND a.followee_id = u.id)))
+          AND ($2::text IS NULL OR lower(u.username) = lower($2))
         ORDER BY n.created_at DESC LIMIT 60`,
-      [me],
+      [me, only ?? null],
     );
     const map = (r: Record<string, unknown>) => ({
       username: r.username as string,
