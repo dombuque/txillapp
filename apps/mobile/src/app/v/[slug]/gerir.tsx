@@ -19,7 +19,7 @@ import { eventWhen, nearbyApi } from '@/lib/api.nearby';
 import { KINDS, KIND_LABEL, ROLE_LABEL, locaisApi, type ManagerRole, type Venue, type VenueKind, type VenueProfileInput } from '@/lib/api.locais';
 import { useAuth } from '@/lib/auth';
 import { sized } from '@/lib/config';
-import { formatAddress, needsMapPin, showsOnMap, venuePlace, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
+import { canSetShowOnMap, formatAddress, needsMapPin, showsOnMap, venuePlace, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
 import { colors } from '@/lib/theme';
 
 type Section = 'perfil' | 'gestores' | 'eventos' | 'qr' | 'txills' | 'painel';
@@ -105,6 +105,8 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
     return () => clearTimeout(t);
   }, [pinAsk]);
   // Sem ponto ainda: a pesquisa já começa com a morada (ou o nome e a cidade) que o local tinha em texto.
+  // "Mostrar no mapa" só o dono e os administradores o mudam.
+  const canMap = canSetShowOnMap(v.role);
   const startQuery = v.address ? formatAddress(v) : v.city ? `${v.name}, ${v.city}` : '';
   const set = (k: keyof typeof f, val: string) => setF((o) => ({ ...o, [k]: val }));
 
@@ -115,7 +117,7 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
       const body: VenueProfileInput = patch ?? {
         name: f.name.trim(), kind: f.kind, about: f.about.trim() || null,
         // Sem sítio escolhido a morada e a cidade em texto ficam como estavam.
-        ...venuePlaceBody(place, showOnMap),
+        ...venuePlaceBody(place, canMap ? showOnMap : undefined),
         hours: f.hours.trim() || null, phone: f.phone.trim() || null, whatsapp: f.whatsapp.trim() || null, website: f.website.trim() || null,
       };
       const nv = await locaisApi.updateVenue(v.slug, body);
@@ -176,13 +178,15 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
       <Text style={st.label}>Onde e quando</Text>
       <PlaceField ref={placeRef} label="Onde fica?" value={place} onChange={setPlace} initialQuery={place ? '' : startQuery} placeholder="Procurar o sítio… (nome, rua ou bairro)" mapHint="Arrasta o mapa até o alfinete ficar na porta do local." />
       {!place && (v.address || v.city) ? <Text style={st.hint}>Em texto: {formatAddress(v)}. Escolhe o sítio para o local aparecer no mapa.</Text> : null}
-      <View style={st.switchRow}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>Mostrar no mapa</Text>
-          <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc600 }}>O teu local aparece no mapa do À tua volta. Desliga se não tiver porta aberta ao público.</Text>
+      {canMap ? (
+        <View style={st.switchRow}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>Mostrar no mapa</Text>
+            <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc600 }}>O teu local aparece no mapa do À tua volta. Desliga se não tiver porta aberta ao público.</Text>
+          </View>
+          <Switch value={showOnMap} onValueChange={setShowOnMap} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Mostrar no mapa do À tua volta" />
         </View>
-        <Switch value={showOnMap} onValueChange={setShowOnMap} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Mostrar no mapa do À tua volta" />
-      </View>
+      ) : null}
       {input('hours', 'Horário (ex.: Ter a Dom, 18h às 2h)', { maxLength: 300 })}
       <Text style={st.label}>Contactos</Text>
       {input('phone', 'Telefone', { keyboardType: 'phone-pad', maxLength: 30 })}

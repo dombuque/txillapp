@@ -16,7 +16,7 @@ import { directionsUrl, eventWhen, nearbyApi } from '@/lib/api.nearby';
 import { KIND_LABEL, ROLE_LABEL, locaisApi, type Venue } from '@/lib/api.locais';
 import { useAuth } from '@/lib/auth';
 import { sized } from '@/lib/config';
-import { formatAddress, showsOnMap, validPoint } from '@/lib/placeField';
+import { directionsByAddress, formatAddress, showsOnMap, validPoint } from '@/lib/placeField';
 import { cardShadow, colors } from '@/lib/theme';
 import { onPostsViewable, postViewability } from '@/lib/visiblePosts';
 
@@ -261,7 +261,8 @@ function About({ v }: { v: Venue }) {
   const hasPoint = validPoint(v.lat, v.lng);
   const pin = hasPoint && (showsOnMap(v) || v.mine);
   const maps = pin ? `https://maps.google.com/?q=${v.lat},${v.lng}` : v.address ? `https://maps.google.com/?q=${encodeURIComponent(formatAddress(v))}` : null;
-  const route = pin ? directionsUrl(v.lat as number, v.lng as number, v.name, Platform.OS === 'ios') : null;
+  // Sem coordenadas (local escondido do mapa, ou ainda por marcar): "Como chegar" pela morada em texto, se houver.
+  const route = pin ? directionsUrl(v.lat as number, v.lng as number, v.name, Platform.OS === 'ios') : v.address ? directionsByAddress(formatAddress(v), Platform.OS === 'ios') : null;
   const row = (icon: IconName, label: string, value: string, onPress?: () => void) => (
     <Pressable key={label} onPress={onPress} disabled={!onPress} style={st.aboutRow} accessibilityRole={onPress ? 'link' : undefined}>
       <View style={st.aboutIcon}><Icon name={icon} size={18} color={colors.zinc800} /></View>
@@ -283,10 +284,10 @@ function About({ v }: { v: Venue }) {
   ].filter(Boolean);
   return (
     <View style={[st.card, { marginTop: 8 }]}>
-      {pin && route ? (
+      {route ? (
         <View style={{ gap: 10, marginBottom: 12 }}>
-          <PlaceMiniMap lat={v.lat as number} lng={v.lng as number} label={`Mapa com o pino em ${v.name}`} />
-          {!showsOnMap(v) ? <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc500 }}>Só quem gere vê este mapa: o local não aparece no mapa do À tua volta.</Text> : null}
+          {pin ? <PlaceMiniMap lat={v.lat as number} lng={v.lng as number} label={`Mapa com o pino em ${v.name}`} /> : null}
+          {pin && !showsOnMap(v) ? <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc500 }}>Só quem gere vê este mapa: o local não aparece no mapa do À tua volta.</Text> : null}
           <Pressable onPress={() => open(route)} style={({ pressed }) => [st.route, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="link" accessibilityLabel={`Como chegar a ${v.name}`}>
             <Icon name="compass" size={18} color="#fff" />
             <Text style={st.routeText}>Como chegar</Text>

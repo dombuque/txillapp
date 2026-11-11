@@ -12,7 +12,7 @@ import { StackPage } from '@/components/StackPage';
 import { ApiError, uploadMedia } from '@/lib/api';
 import { locaisApi } from '@/lib/api.locais';
 import { nearbyApi } from '@/lib/api.nearby';
-import { formatAddress, showsOnMap, venuePlace, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
+import { formatAddress, venuePlace, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
 import { colors } from '@/lib/theme';
 
 const WD = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -80,7 +80,8 @@ export default function NovoEvento() {
     setBusy(true);
     try {
       if (place && !venueAt && venue.data?.canEdit) {
-        const nv = await locaisApi.updateVenue(slug, venuePlaceBody(place, showsOnMap(venue.data)));
+        // Só o sítio: "Mostrar no mapa" fica como está.
+        const nv = await locaisApi.updateVenue(slug, venuePlaceBody(place));
         qc.setQueryData(['venue', slug], nv);
         void qc.invalidateQueries({ queryKey: ['venues-mine'] });
       }

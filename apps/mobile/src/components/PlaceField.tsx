@@ -14,7 +14,7 @@ import { startCity } from '@/lib/cities';
 import { devicePosition, locationPermission, preciseDevicePosition, type LatLng } from '@/lib/devicePosition';
 import { kvGet } from '@/lib/kv';
 import {
-  ADDRESS_MAX, CITY_MAX, applyReverse, createDebounce, distanceM, movedValue, placeA11y, placeKindIcon, placeSubtitle, placeTitle, round2, round6,
+  ADDRESS_MAX, CITY_MAX, applyReverse, createDebounce, distanceM, movedValue, reverseEmpty, placeA11y, placeKindIcon, placeSubtitle, placeTitle, round2, round6,
   searchQuery, searchStatus, suggestionToValue, type PlaceSuggestion, type PlaceValue,
 } from '@/lib/placeField';
 import { colors } from '@/lib/theme';
@@ -94,10 +94,17 @@ export function PlaceField({ label, value, onChange, onTyped, initialQuery = '',
       if (!alive.current || my !== seq.current) return;
       const next = applyReverse(v, v, rev);
       onChange(keepAddress ? { ...next, address: v.address ?? next.address, city: v.city ?? next.city } : next);
-      if (!keepAddress && !next.address && !next.city) setMsg('Não encontrei a morada deste ponto. Podes escrevê-la em "Corrigir a morada".');
+      // O serviço não soube a morada (vem tudo a null): o pino fica e abre-se a morada para escrever à mão.
+      if (!keepAddress && reverseEmpty(rev)) {
+        setMsg('Não encontrei a morada deste ponto. O pino fica; escreve a morada à mão.');
+        setEditing(true);
+      }
     } catch {
       if (!alive.current || my !== seq.current) return;
-      if (!keepAddress) setMsg('Não consegui saber a morada agora. O pino fica; podes escrever a morada em "Corrigir a morada".');
+      if (!keepAddress) {
+        setMsg('Não consegui saber a morada agora. O pino fica; escreve a morada à mão.');
+        setEditing(true);
+      }
     } finally {
       if (alive.current && my === seq.current) setReversing(false);
     }

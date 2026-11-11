@@ -111,9 +111,15 @@ export function suggestionToValue(h: PlaceSuggestion): PlaceValue | null {
   return { name, address, city, lat: h.lat as number, lng: h.lng as number };
 }
 
-/** O ponto mudou (arrastado no mapa ou a minha posição) e chegou a morada desse ponto: o nome fica, a morada e a cidade mudam. */
+/** O reverse não soube nada (o serviço falhou: vem tudo a null). */
+export const reverseEmpty = (rev: PlaceReverse | null | undefined) => !rev || (!clean(rev.address, ADDRESS_MAX) && !clean(rev.city, CITY_MAX));
+
+/**
+ * O ponto mudou (arrastado no mapa ou a minha posição) e chegou a morada desse ponto: o nome fica, a morada e a cidade mudam.
+ * Se o reverse não soube nada, o pino muda e a morada que havia fica (escreve-se à mão em "Corrigir a morada").
+ */
 export function applyReverse(prev: PlaceValue, at: { lat: number; lng: number }, rev: PlaceReverse | null): PlaceValue {
-  if (!rev) return { ...prev, lat: at.lat, lng: at.lng };
+  if (!rev || reverseEmpty(rev)) return { ...prev, lat: at.lat, lng: at.lng };
   return {
     name: prev.name ?? null,
     address: clean(rev.address, ADDRESS_MAX),
@@ -195,10 +201,24 @@ export function needsMapPin(v: { lat?: number | null; lng?: number | null } | nu
 /** Por omissão o local aparece no mapa (servidor antigo sem o campo = sim). */
 export const showsOnMap = (v: { showOnMap?: boolean | null } | null | undefined) => v?.showOnMap !== false;
 
-/** O que vai para POST /venues e PATCH /venues/:slug. Sem sítio escolhido não manda morada nem coordenadas (ficam como estão). */
-export function venuePlaceBody(p: PlaceValue | null, showOnMap: boolean): { address?: string | null; city?: string | null; lat?: number; lng?: number; showOnMap: boolean } {
-  if (!p) return { showOnMap };
-  return { address: clean(p.address, ADDRESS_MAX), city: clean(p.city, CITY_MAX), lat: round6(p.lat), lng: round6(p.lng), showOnMap };
+/**
+ * O que vai para POST /venues e PATCH /venues/:slug. Sem sítio escolhido (ou com um ponto que não existe, como o 0,0) não manda
+ * morada nem coordenadas (ficam como estão); `lat` e `lng` vão sempre os dois juntos. `showOnMap` só vai se vier (só o dono e
+ * os administradores o podem mudar: aos editores o servidor diz que não).
+ */
+export function venuePlaceBody(p: PlaceValue | null, showOnMap?: boolean): { address?: string | null; city?: string | null; lat?: number; lng?: number; showOnMap?: boolean } {
+  const show = showOnMap === undefined ? {} : { showOnMap };
+  if (!p || !validPoint(p.lat, p.lng)) return show;
+  return { address: clean(p.address, ADDRESS_MAX), city: clean(p.city, CITY_MAX), lat: round6(p.lat), lng: round6(p.lng), ...show };
+}
+
+/** Quem pode mudar "Mostrar no mapa": o dono e os administradores do local. */
+export const canSetShowOnMap = (role: string | null | undefined) => role === 'owner' || role === 'admin';
+
+/** "Como chegar" pela morada em texto (local escondido do mapa: quem não gere não recebe as coordenadas). */
+export function directionsByAddress(address: string, ios: boolean): string {
+  const q = encodeURIComponent(address);
+  return ios ? `https://maps.apple.com/?daddr=${q}` : `https://www.google.com/maps/dir/?api=1&destination=${q}`;
 }
 
 /** ~10 cm chegam: não se manda o número todo da posição do aparelho. */
