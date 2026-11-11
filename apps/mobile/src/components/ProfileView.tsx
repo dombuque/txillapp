@@ -246,8 +246,9 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
               <>
                 <FollowButton username={p.username} following={p.following} requested={p.requested} isPrivate={p.isPrivate} />
                 {p.following && (
-                  <Pressable onPress={() => setSheet('gift')} style={[styles.small, { flex: 1, flexDirection: 'row', gap: 6 }]} accessibilityRole="button">
-                    <Icon name="gift" size={18} /><Text style={styles.smallText}>Presentear</Text>
+                  <Pressable onPress={() => setSheet('gift')} style={[styles.small, { flex: 1, flexDirection: 'row', gap: 5, paddingHorizontal: 8 }]} accessibilityRole="button" accessibilityLabel="Presentear">
+                    {/* Numa linha só (com cinco botões na fila, partia-se em "Presente / ar"). */}
+                    <Icon name="gift" size={18} /><Text style={[styles.smallText, { flexShrink: 1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Presentear</Text>
                   </Pressable>
                 )}
                 <Pressable onPress={() => router.push(`/messages/${p.username}` as never)} style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel="Enviar mensagem"><Icon name="send" size={18} /></Pressable>
