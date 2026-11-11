@@ -528,7 +528,8 @@ export function Bubble({
       enabled={swipe}
       onReply={reply}
       spot={spot}
-      style={{ marginTop: isFirst ? GAP_OUT : GAP_IN }}
+      // Uma resposta leva sempre o espaço maior por cima: a citação fica colada à SUA bolha, não à de cima.
+      style={{ marginTop: isFirst || m.replyTo ? GAP_OUT : GAP_IN }}
       innerStyle={[{ alignItems: mine ? 'flex-end' : 'flex-start', borderRadius: 24 }, indent && { paddingLeft: AVATAR + AVATAR_GAP }, flash && { backgroundColor: 'rgba(214,51,79,0.15)' }]}
     >
       {group && !mine && isFirst && m.sender && <Text style={{ marginBottom: 2, paddingHorizontal: 14, fontSize: 12, fontWeight: '700', color: senderColor(m.sender.username) }}>{m.sender.displayName.split(' ')[0]}</Text>}
