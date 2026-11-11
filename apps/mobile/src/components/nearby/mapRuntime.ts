@@ -1,6 +1,6 @@
 /**
  * O mapa do "À tua volta" (Leaflet + mosaicos do OpenStreetMap servidos pelo Txillapp, com a atribuição) e o mapa pequeno
- * de "Marcar no mapa" (createPickMap, o sítio de um TxillGroup).
+ * de "Marcar no mapa" (createPickMap: o sítio de um TxillGroup ou de um local, e o mapa só de ver da página do local).
  * Este ficheiro corre em dois sítios e por isso NÃO importa nada (só tipos):
  *  - no site (NearbyMap.web.tsx, PlacePickMap.web.tsx) é importado como módulo normal;
  *  - na app (NearbyMap.tsx, PlacePickMap.tsx) vai como texto dentro da página da WebView. Depois de mudar este ficheiro corre
@@ -244,12 +244,23 @@ export interface PickHandle {
   destroy: () => void;
 }
 
+
+export interface PickOptions {
+  zoomControl: boolean;
+  /** O círculo de ~750 m da zona gravada (TxillGroups). Sem ele (locais) o ponto vai exato. Por omissão: sim. */
+  zone?: boolean;
+  /** Só para ver (o mapa pequeno da página do local): não se arrasta nem faz zoom; a página rola por cima. */
+  still?: boolean;
+  /** O zoom da primeira vista (15 por omissão). */
+  zoom?: number;
+}
+
 /**
- * O mapa pequeno de "Marcar no mapa" (o sítio de um TxillGroup): arrasta-se o mapa e o alfinete fica parado ao centro (o
- * alfinete é desenhado por cima, fora daqui). Um círculo de ~750 m (metade da quadrícula de 1,5 km) mostra a zona que fica gravada. Avisa o centro em `onMove`
- * quando o mapa para.
+ * O mapa pequeno de "Marcar no mapa" (o sítio de um TxillGroup ou de um local): arrasta-se o mapa e o alfinete fica parado ao
+ * centro (o alfinete é desenhado por cima, fora daqui). Nos grupos, um círculo de ~750 m (metade da quadrícula de 1,5 km) mostra
+ * a zona que fica gravada. Avisa o centro em `onMove` quando o mapa para. Com `still`, só mostra o sítio.
  */
-export function createPickMap(L: typeof Leaflet, el: HTMLElement, onMove: (c: { lat: number; lng: number }) => void, opts: { zoomControl: boolean }): PickHandle {
+export function createPickMap(L: typeof Leaflet, el: HTMLElement, onMove: (c: { lat: number; lng: number }) => void, opts: PickOptions): PickHandle {
   const BRAND = '#d6334f';
   if (!document.getElementById('tx-pick-css')) {
     const css = document.createElement('style');
@@ -257,25 +268,38 @@ export function createPickMap(L: typeof Leaflet, el: HTMLElement, onMove: (c: { 
     css.textContent = '.leaflet-container{font-family:system-ui,sans-serif;background:#f2efe9}.leaflet-control-attribution{font-size:10px}';
     document.head.appendChild(css);
   }
-  const map = L.map(el, { zoomControl: false, attributionControl: true, zoomSnap: 0.5, minZoom: 5, maxZoom: 18 });
-  if (opts.zoomControl) L.control.zoom({ position: 'topright', zoomInTitle: 'Aproximar', zoomOutTitle: 'Afastar' }).addTo(map);
+  const still = !!opts.still;
+  const map = L.map(el, {
+    zoomControl: false,
+    attributionControl: true,
+    zoomSnap: 0.5,
+    minZoom: 5,
+    maxZoom: 18,
+    dragging: !still,
+    touchZoom: !still,
+    scrollWheelZoom: !still,
+    doubleClickZoom: !still,
+    boxZoom: !still,
+    keyboard: !still,
+  });
+  if (opts.zoomControl && !still) L.control.zoom({ position: 'topright', zoomInTitle: 'Aproximar', zoomOutTitle: 'Afastar' }).addTo(map);
   map.attributionControl.setPrefix(false);
   L.tileLayer('https://txillapp.com/tiles/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
   }).addTo(map);
-  const zone = L.circle([0, 0], { radius: 750, color: BRAND, weight: 1.5, opacity: 0.55, fillColor: BRAND, fillOpacity: 0.08, interactive: false }).addTo(map);
+  const zone = opts.zone === false ? null : L.circle([0, 0], { radius: 750, color: BRAND, weight: 1.5, opacity: 0.55, fillColor: BRAND, fillOpacity: 0.08, interactive: false }).addTo(map);
   let ready = false;
   const emit = () => {
     const c = map.getCenter();
-    zone.setLatLng(c);
+    if (zone) zone.setLatLng(c);
     onMove({ lat: c.lat, lng: c.lng });
   };
-  map.on('move', () => zone.setLatLng(map.getCenter()));
+  map.on('move', () => { if (zone) zone.setLatLng(map.getCenter()); });
   map.on('moveend', () => { if (ready) emit(); });
   return {
     setCenter: (c, zoom) => {
-      map.setView([c.lat, c.lng], zoom ?? (ready ? map.getZoom() : 15), { animate: false });
+      map.setView([c.lat, c.lng], zoom ?? (ready ? map.getZoom() : (opts.zoom ?? 15)), { animate: false });
       ready = true;
       emit();
     },

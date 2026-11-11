@@ -2,19 +2,21 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { FlatList, Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { FlatList, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator, PontoLoader } from '@/components/PontoLoader';
 import { Empty } from '@/components/Empty';
 import { Icon, type IconName } from '@/components/Icon';
+import { PlaceMiniMap } from '@/components/nearby/PlaceMiniMap';
 import { PostCard } from '@/components/PostCard';
 import { StackPage } from '@/components/StackPage';
 import { FollowVenueButton, VenueLogo } from '@/components/VenueCard';
 import { VenuePaySheet } from '@/components/VenuePaySheet';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
-import { eventWhen, nearbyApi } from '@/lib/api.nearby';
+import { directionsUrl, eventWhen, nearbyApi } from '@/lib/api.nearby';
 import { KIND_LABEL, ROLE_LABEL, locaisApi, type Venue } from '@/lib/api.locais';
 import { useAuth } from '@/lib/auth';
 import { sized } from '@/lib/config';
+import { directionsByAddress, formatAddress, showsOnMap, validPoint } from '@/lib/placeField';
 import { cardShadow, colors } from '@/lib/theme';
 import { onPostsViewable, postViewability } from '@/lib/visiblePosts';
 
@@ -250,12 +252,17 @@ export default function VenueScreen() {
   );
 }
 
-/** O separador Sobre: morada, horário, contactos, mapa e quem criou a página. */
+/** O separador Sobre: o mapa com o pino e "Como chegar", morada, horário, contactos e quem criou a página. */
 function About({ v }: { v: Venue }) {
   const open = (url: string) => void Linking.openURL(url).catch(() => undefined);
   const tel = v.phone?.replace(/[^+0-9]/g, '');
   const wa = v.whatsapp?.replace(/[^0-9]/g, '');
-  const maps = v.lat != null && v.lng != null ? `https://maps.google.com/?q=${v.lat},${v.lng}` : v.address ? `https://maps.google.com/?q=${encodeURIComponent(`${v.address}${v.city ? `, ${v.city}` : ''}`)}` : null;
+  // O pino só se o local estiver no mapa (quem gere vê-o sempre, com o aviso de que está escondido).
+  const hasPoint = validPoint(v.lat, v.lng);
+  const pin = hasPoint && (showsOnMap(v) || v.mine);
+  const maps = pin ? `https://maps.google.com/?q=${v.lat},${v.lng}` : v.address ? `https://maps.google.com/?q=${encodeURIComponent(formatAddress(v))}` : null;
+  // Sem coordenadas (local escondido do mapa, ou ainda por marcar): "Como chegar" pela morada em texto, se houver.
+  const route = pin ? directionsUrl(v.lat as number, v.lng as number, v.name, Platform.OS === 'ios') : v.address ? directionsByAddress(formatAddress(v), Platform.OS === 'ios') : null;
   const row = (icon: IconName, label: string, value: string, onPress?: () => void) => (
     <Pressable key={label} onPress={onPress} disabled={!onPress} style={st.aboutRow} accessibilityRole={onPress ? 'link' : undefined}>
       <View style={st.aboutIcon}><Icon name={icon} size={18} color={colors.zinc800} /></View>
@@ -267,7 +274,7 @@ function About({ v }: { v: Venue }) {
     </Pressable>
   );
   const rows = [
-    v.address ? row('map-pin', 'Morada', `${v.address}${v.city ? `, ${v.city}` : ''}`, maps ? () => open(maps) : undefined) : null,
+    v.address ? row('map-pin', 'Morada', formatAddress(v), maps ? () => open(maps) : undefined) : null,
     !v.address && maps ? row('map-pin', 'Mapa', 'Abrir no mapa', () => open(maps)) : null,
     v.hours ? row('clock', 'Horário', v.hours) : null,
     tel ? row('phone', 'Telefone', v.phone!, () => open(`tel:${tel}`)) : null,
@@ -277,6 +284,16 @@ function About({ v }: { v: Venue }) {
   ].filter(Boolean);
   return (
     <View style={[st.card, { marginTop: 8 }]}>
+      {route ? (
+        <View style={{ gap: 10, marginBottom: 12 }}>
+          {pin ? <PlaceMiniMap lat={v.lat as number} lng={v.lng as number} label={`Mapa com o pino em ${v.name}`} /> : null}
+          {pin && !showsOnMap(v) ? <Text style={{ fontSize: 13, lineHeight: 18, color: colors.zinc500 }}>Só quem gere vê este mapa: o local não aparece no mapa do À tua volta.</Text> : null}
+          <Pressable onPress={() => open(route)} style={({ pressed }) => [st.route, pressed && { transform: [{ scale: 0.98 }] }]} accessibilityRole="link" accessibilityLabel={`Como chegar a ${v.name}`}>
+            <Icon name="compass" size={18} color="#fff" />
+            <Text style={st.routeText}>Como chegar</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {v.about ? <Text style={{ fontSize: 15, lineHeight: 22, color: colors.zinc800, marginBottom: rows.length ? 12 : 0 }}>{v.about}</Text> : null}
       {rows.length ? rows : <Text style={{ fontSize: 14, color: colors.zinc500 }}>{v.canEdit ? 'Completa o perfil em Gerir: morada, horário e contactos.' : 'A página ainda não tem morada nem contactos.'}</Text>}
     </View>
@@ -311,6 +328,8 @@ const st = StyleSheet.create({
   tab: { flex: 1, height: 38, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   tabOn: { backgroundColor: colors.zinc900 },
   tabText: { fontSize: 14, fontWeight: '700', color: colors.zinc700 },
+  route: { height: 44, borderRadius: 999, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.zinc900 },
+  routeText: { fontSize: 15, fontWeight: '700', color: '#fff' },
   aboutRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   aboutIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   reviewBox: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', marginHorizontal: 16, marginTop: 12, marginBottom: 4, borderRadius: 16, backgroundColor: '#fffbeb', paddingHorizontal: 16, paddingVertical: 12 },
