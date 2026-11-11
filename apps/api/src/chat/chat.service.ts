@@ -7,9 +7,16 @@ import { PostsService } from '../posts/posts.service';
 import { PushService } from '../push/push.service';
 import { MediaService } from '../media/media.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
+import { readGif, type GifInput } from '../gifs/gif';
 import { ChatEvents } from './chat.events';
 
-export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call' | 'poll';
+export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call' | 'poll' | 'gif';
+
+/**
+ * O texto de uma mensagem GIF (kind 'gif'): o GIF vai na coluna `gif`; o body leva só "GIF", que é o que as versões
+ * antigas da app (que não conhecem o tipo) mostram na bolha e na lista de conversas.
+ */
+export const GIF_BODY = 'GIF';
 
 /** Stickers que existem (o desenho está na app; aqui só se confirma que o id é válido). */
 /** Os stickers são desenhados na app; o servidor só confirma que o id tem o feitio certo (a lista cresce sem mexer aqui). */
@@ -41,7 +48,7 @@ const pair = (x: string, y: string) => (x < y ? ([x, y] as const) : ([y, x] as c
  *  - numa sondagem de grupo (kind 'poll', body = id da sondagem) apaga a sondagem, as opções e os votos;
  *  - apaga as reações e as vistas (visualização única nos grupos);
  *  - na linha fica só quem enviou, onde, quando e quando foi apagada: o texto, o ficheiro, o sítio, a partilha em direto,
- *    a duração, a onda, o valor do presente, a visualização única, a hora da edição e a citação vão-se, e o tipo passa a
+ *    a duração, a onda, o valor do presente, a visualização única, a hora da edição, a citação e o GIF vão-se, e o tipo passa a
  *    'text' (a app desenha o aviso a partir de `deleted`, não do tipo). O presente em si (a transação na carteira) não se
  *    desfaz: `gift_tx` fica, para o mesmo presente não voltar a entrar na conversa.
  * `notice` = deixar o aviso "Esta mensagem foi apagada" no lugar (o "Apagar para todos"); a moderação remove sem aviso.
@@ -58,7 +65,7 @@ export async function wipeMessage(db: Pick<Pool, 'query'>, messageId: string, no
   await db.query(
     `UPDATE social.messages SET deleted_at = now(), deleted_notice = $2, kind = 'text', body = '', media_id = NULL, story_media_id = NULL,
             duration_ms = NULL, waveform = NULL, lat = NULL, lng = NULL, place_name = NULL, place_address = NULL, live_until = NULL,
-            gift_amount = NULL, view_once = false, viewed_at = NULL, edited_at = NULL, reply_to = NULL
+            gift_amount = NULL, view_once = false, viewed_at = NULL, edited_at = NULL, reply_to = NULL, gif = NULL
       WHERE id = $1`,
     [messageId, notice],
   );
@@ -70,8 +77,10 @@ export const liveEnded = (m: { kind?: unknown; live_until?: unknown }) =>
 
 export interface Outgoing {
   body: string;
-  kind: 'text' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply';
+  kind: 'text' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply' | 'gif';
   mediaId?: string;
+  /** GIF do GIPHY (kind 'gif'): já validado pelo gifSchema (url https de media*.giphy.com, id e medidas). */
+  gif?: GifInput;
   /** Resposta a um Zás (kind 'zas_reply'): qual. A foto do Zás fica na mensagem. */
   instantId?: string;
   durationMs?: number;
@@ -310,7 +319,7 @@ export class ChatService {
     const newPosts = blocked || cursor ? { count: 0, latestId: null } : await this.posts.newPostsBy(me, other.id);
     if (!conv) return { person, blocked, relation, newPosts, otherRead: null, items: [], nextCursor: null };
     const { rows } = await this.pool.query(
-      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.place_name, m.place_address, m.view_once, m.viewed_at, m.live_until, m.gift_amount, m.reply_to, m.created_at, m.deleted_at, m.edited_at FROM social.messages m
+      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.place_name, m.place_address, m.view_once, m.viewed_at, m.live_until, m.gift_amount, m.reply_to, m.created_at, m.deleted_at, m.edited_at, m.gif FROM social.messages m
         WHERE m.conversation_id = $1 AND (m.deleted_at IS NULL OR m.deleted_notice) AND ${notHiddenFor('m', '$4')} AND ($2::uuid IS NULL OR m.id < $2)
           AND m.id > COALESCE((SELECT CASE WHEN c.user_a = $4 THEN c.cleared_a ELSE c.cleared_b END FROM social.conversations c WHERE c.id = $1), '00000000-0000-0000-0000-000000000000'::uuid)
         ORDER BY m.id DESC LIMIT $3`,
@@ -385,6 +394,8 @@ export class ChatService {
       placeAddress: ended ? null : ((m.place_address as string | null) ?? null),
       /** Presente enviado na conversa: quanto (a nota vai no texto). */
       giftAmount: (m.gift_amount as number | null) ?? null,
+      /** GIF do GIPHY (kind 'gif'): { id, w, h, url, still?, title? }; null nas outras. */
+      gif: m.kind === 'gif' ? readGif(m.gif) : null,
       /** Localização em direto ainda a decorrer. */
       live: !!m.live_until && new Date(m.live_until as string).getTime() > Date.now(),
       liveUntil: (m.live_until as string | null) ?? null,
@@ -424,6 +435,7 @@ export class ChatService {
       placeName: null,
       placeAddress: null,
       giftAmount: null,
+      gif: null,
       live: false,
       liveUntil: null,
       replyTo: null,
@@ -438,6 +450,11 @@ export class ChatService {
       if (!msg.body.trim()) throw new BadRequestException('Mensagem vazia');
     } else if (msg.kind === 'sticker') {
       if (!STICKER_ID.test(msg.body)) throw new BadRequestException('Sticker inválido');
+    } else if (msg.kind === 'gif') {
+      // O gifSchema (no controlador) já confirmou o anfitrião, o id e as medidas; aqui só se exige que venha.
+      if (!msg.gif) throw new BadRequestException('Falta o GIF');
+      // O título (vem do GIPHY, só para o leitor de ecrã) não pode ser usado para passar o que o filtro barra: sai.
+      if (msg.gif.title && this.filter.check(msg.gif.title)) msg.gif = { ...msg.gif, title: undefined };
     } else if (msg.kind === 'post') {
       // Só se partilha o que quem envia pode ver (e que ainda existe).
       if (!/^[0-9a-f-]{36}$/.test(msg.body)) throw new BadRequestException('Publicação inválida');
@@ -468,6 +485,7 @@ export class ChatService {
    * e para apps antigas) e o nome e a morada do sítio, se vierem. Nas outras mensagens, o texto como veio e nada de sítio.
    */
   placeFields(msg: Outgoing): { body: string; name: string | null; address: string | null } {
+    if (msg.kind === 'gif') return { body: GIF_BODY, name: null, address: null };
     if (msg.kind !== 'location') return { body: msg.body, name: null, address: null };
     const name = msg.name?.trim().slice(0, 80) || null;
     const address = msg.address?.trim().slice(0, 160) || null;
@@ -526,7 +544,7 @@ export class ChatService {
     const once = !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice' || msg.kind === 'video');
     const live = msg.kind === 'location' && msg.liveMinutes && [15, 60, 480].includes(msg.liveMinutes) ? msg.liveMinutes : null;
     const spot = this.placeFields(msg);
-    return this.insert(me, other.id, spot.body, msg.kind, null, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place, { once, liveMinutes: live, replyTo: msg.replyTo, placeName: spot.name, placeAddress: spot.address });
+    return this.insert(me, other.id, spot.body, msg.kind, null, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place, { once, liveMinutes: live, replyTo: msg.replyTo, placeName: spot.name, placeAddress: spot.address, gif: msg.kind === 'gif' ? msg.gif : undefined });
   }
 
   /** Resposta/reacção a um story: já foi autorizada pela definição de respostas do autor. */
@@ -785,12 +803,12 @@ export class ChatService {
     this.events.emit(other.id, { type: 'typing', from: await this.usernameOf(me) });
   }
 
-  private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null, waveform: string | null, place: { lat: number; lng: number } | null, extra: { once?: boolean; liveMinutes?: number | null; giftTx?: string; giftAmount?: number; replyTo?: string; placeName?: string | null; placeAddress?: string | null } = {}) {
+  private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null, waveform: string | null, place: { lat: number; lng: number } | null, extra: { once?: boolean; liveMinutes?: number | null; giftTx?: string; giftAmount?: number; replyTo?: string; placeName?: string | null; placeAddress?: string | null; gif?: GifInput } = {}) {
     const conv = await this.conversation(me, other, true);
     const id = uuidv7();
     await this.pool.query(
-      "INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms, waveform, lat, lng, view_once, live_until, gift_tx, gift_amount, reply_to, place_name, place_address) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CASE WHEN $13::int IS NULL THEN NULL ELSE now() + ($13::int * interval '1 minute') END, $14, $15, (SELECT r.id FROM social.messages r WHERE r.id = $16::uuid AND r.conversation_id = $2 AND r.deleted_at IS NULL), $17, $18)",
-      [id, conv, me, body, kind, storyMediaId, mediaId, durationMs, waveform, place?.lat ?? null, place?.lng ?? null, !!extra.once, extra.liveMinutes ?? null, extra.giftTx ?? null, extra.giftAmount ?? null, extra.replyTo ?? null, extra.placeName ?? null, extra.placeAddress ?? null],
+      "INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms, waveform, lat, lng, view_once, live_until, gift_tx, gift_amount, reply_to, place_name, place_address, gif) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CASE WHEN $13::int IS NULL THEN NULL ELSE now() + ($13::int * interval '1 minute') END, $14, $15, (SELECT r.id FROM social.messages r WHERE r.id = $16::uuid AND r.conversation_id = $2 AND r.deleted_at IS NULL), $17, $18, $19::jsonb)",
+      [id, conv, me, body, kind, storyMediaId, mediaId, durationMs, waveform, place?.lat ?? null, place?.lng ?? null, !!extra.once, extra.liveMinutes ?? null, extra.giftTx ?? null, extra.giftAmount ?? null, extra.replyTo ?? null, extra.placeName ?? null, extra.placeAddress ?? null, extra.gif ? JSON.stringify(extra.gif) : null],
     );
     await this.pool.query(
       `UPDATE social.conversations SET last_message_at = now(),
@@ -810,7 +828,7 @@ export class ChatService {
     this.events.emit(other, { type: 'message', from });
     // Também no telemóvel, sem o texto da mensagem.
     const sender = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0].display_name as string;
-    const what: Partial<Record<MessageKind, string>> = { story_reply: 'respondeu ao teu mimo', story_reaction: 'reagiu ao teu mimo', image: 'enviou-te uma foto', video: 'enviou-te um vídeo', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo', gift: 'enviou-te um presente' };
+    const what: Partial<Record<MessageKind, string>> = { story_reply: 'respondeu ao teu mimo', story_reaction: 'reagiu ao teu mimo', image: 'enviou-te uma foto', video: 'enviou-te um vídeo', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', gif: 'enviou-te um GIF', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo', gift: 'enviou-te um presente' };
     if (!this.events.isActive(other, `u:${from}`)) void this.push.send(other, { title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : extra.once ? 'enviou-te uma mensagem de visualização única' : extra.liveMinutes ? 'está a partilhar a localização em direto' : (what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' });
     return { id, kind };
   }

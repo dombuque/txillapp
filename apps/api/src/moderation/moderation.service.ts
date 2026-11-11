@@ -22,7 +22,7 @@ export type ReportReason = (typeof REPORT_REASONS)[number];
 export const REPORT_EVIDENCE_DAYS = 180;
 
 /** A cópia de uma mensagem guardada no momento da denúncia (social.reports.evidence, 0111). */
-export interface MessageEvidence { kind: string; body: string; placeName: string | null; placeAddress: string | null; editedAt: string | null }
+export interface MessageEvidence { kind: string; body: string; placeName: string | null; placeAddress: string | null; editedAt: string | null; /** GIF do GIPHY (0113): o url da imagem. */ gifUrl?: string | null }
 
 /**
  * SQL das filas agrupadas por conteúdo (`r` = social.reports, `m` = LEFT JOIN social.messages): a cópia da 1.ª denúncia
@@ -41,7 +41,7 @@ export const EVIDENCE_COLUMNS = `(array_agg(r.evidence ORDER BY r.created_at) FI
 export function messageProof(r: Record<string, any>) {
   const e = (r.evidence as MessageEvidence | null) ?? null;
   if (!e) return { reported: null, current: null };
-  const reported = { kind: e.kind, body: e.body ?? '', placeName: e.placeName ?? null, placeAddress: e.placeAddress ?? null, editedAt: e.editedAt ?? null };
+  const reported = { kind: e.kind, body: e.body ?? '', placeName: e.placeName ?? null, placeAddress: e.placeAddress ?? null, editedAt: e.editedAt ?? null, gifUrl: e.gifUrl ?? null };
   const gone = !r.cur_exists || !!r.cur_deleted;
   const now = {
     kind: gone ? null : (r.cur_kind as string),
@@ -135,7 +135,7 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
     await this.pool.query(
       `INSERT INTO social.reports (id, reporter_id, target_type, target_id, target_user_id, reason, note, evidence)
        VALUES ($1, $2, $3, $4, $5, $6, $7,
-               CASE WHEN $3::text = 'message' THEN (SELECT jsonb_build_object('kind', m.kind, 'body', m.body, 'placeName', m.place_name, 'placeAddress', m.place_address, 'editedAt', m.edited_at)
+               CASE WHEN $3::text = 'message' THEN (SELECT jsonb_build_object('kind', m.kind, 'body', m.body, 'placeName', m.place_name, 'placeAddress', m.place_address, 'editedAt', m.edited_at, 'gifUrl', m.gif->>'url')
                                                       FROM social.messages m WHERE m.id = $4) END)
        ON CONFLICT (reporter_id, target_type, target_id) DO NOTHING`,
       [uuidv7(), reporter, type, id, owner, reason, note || null],

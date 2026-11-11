@@ -11,6 +11,8 @@ import { colors } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
 import { SendLocationSheet } from './SendLocationSheet';
 import { StickerPanel } from './StickerPanel';
+import { useGifsConfig } from './GifPanel';
+import { gifMessage } from '@/lib/gifs';
 import { NewBadge } from './WhatsNew';
 import { markSeen } from '@/lib/whatsNew';
 
@@ -30,6 +32,7 @@ export function GroupComposer({
   onPoll?: () => void;
 }) {
   const grow = useGrowInput();
+  const gifs = useGifsConfig();
   const [text, setText] = useState('');
   const [panel, setPanel] = useState<null | 'stickers' | 'attach'>(null);
   const [err, setErr] = useState('');
@@ -166,7 +169,7 @@ export function GroupComposer({
           <Pressable onPress={onClearReply} hitSlop={8} style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Cancelar resposta"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
         </View>
       )}
-      {panel === 'stickers' && <StickerPanel onPick={(id) => { setPanel(null); void dispatch({ kind: 'sticker', body: id }); }} />}
+      {panel === 'stickers' && <StickerPanel onPick={(id) => { setPanel(null); void dispatch({ kind: 'sticker', body: id }); }} onGif={(g) => { setPanel(null); void dispatch(gifMessage(g)); }} />}
       <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: Math.max(20, bottom + 10) }}>
         {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
         <View style={styles.composer}>
@@ -182,7 +185,7 @@ export function GroupComposer({
             <>
               <Bar icon="mic" label="Gravar mensagem de voz" onPress={() => void startRecording()} />
               <Bar icon="image" label="Enviar foto ou vídeo da galeria" onPress={() => void pick('library')} />
-              <Bar icon="sticker" label="Stickers" light badge on={panel === 'stickers'} onPress={() => { markSeen('stickers'); setPanel(panel === 'stickers' ? null : 'stickers'); }} />
+              <Bar icon="sticker" label={gifs.enabled ? 'Stickers e GIFs' : 'Stickers'} light badge on={panel === 'stickers'} onPress={() => { markSeen('stickers'); setPanel(panel === 'stickers' ? null : 'stickers'); }} />
               <Bar icon="plus" label="Mais" light on={panel === 'attach'} onPress={() => setPanel(panel === 'attach' ? null : 'attach')} />
             </>
           )}

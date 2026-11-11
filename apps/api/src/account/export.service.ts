@@ -32,7 +32,7 @@ export class ExportService {
                 (SELECT COALESCE(json_agg('/api/v1/media/' || pm.media_id ORDER BY pm.position), '[]'::json) FROM content.post_media pm WHERE pm.post_id = p.id) AS photos
            FROM content.posts p WHERE p.author_id = $1 ORDER BY p.id`,
       ),
-      comments: await q(`SELECT c.id, c.post_id AS "postId", c.body, c.created_at AS "createdAt" FROM content.comments c WHERE c.author_id = $1 ORDER BY c.id`),
+      comments: await q(`SELECT c.id, c.post_id AS "postId", c.body, c.gif, c.created_at AS "createdAt" FROM content.comments c WHERE c.author_id = $1 ORDER BY c.id`),
       stories: await q(`SELECT s.id, s.caption, s.audience, s.music, s.stickers, s.created_at AS "createdAt", s.expires_at AS "expiresAt" FROM content.stories s WHERE s.author_id = $1 ORDER BY s.id`),
       storyComments: await q(`SELECT id, story_id AS "storyId", body, created_at AS "createdAt" FROM content.story_comments WHERE author_id = $1 ORDER BY id`),
       brindes: await q(`SELECT post_id AS "postId", created_at AS "createdAt" FROM content.cheers WHERE user_id = $1 ORDER BY created_at`),
@@ -41,7 +41,7 @@ export class ExportService {
       // As que recebi não entram: são dados de quem as escreveu.
       messagesSent: await q(
         `SELECT m.id, o.username AS "to", g.name AS "group", m.kind, m.body, m.created_at AS "createdAt", m.edited_at AS "editedAt",
-                m.lat, m.lng, m.place_name AS "placeName", m.place_address AS "placeAddress", m.live_until AS "liveUntil"
+                m.lat, m.lng, m.place_name AS "placeName", m.place_address AS "placeAddress", m.live_until AS "liveUntil", m.gif
            FROM social.messages m
            LEFT JOIN social.conversations c ON c.id = m.conversation_id
            LEFT JOIN identity.users o ON o.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END

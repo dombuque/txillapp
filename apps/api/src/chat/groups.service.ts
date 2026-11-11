@@ -212,7 +212,7 @@ export class GroupsService {
       )
     ).rows as { id: string; username: string; displayName: string; hasAvatar: boolean; role: 'admin' | 'member' }[];
     const { rows } = await this.pool.query(
-      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.place_name, m.place_address, m.reply_to, m.created_at, m.view_once, m.deleted_at, m.edited_at,
+      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.place_name, m.place_address, m.reply_to, m.created_at, m.view_once, m.deleted_at, m.edited_at, m.gif,
               CASE WHEN m.sender_id = $4 THEN EXISTS (SELECT 1 FROM social.message_views v WHERE v.message_id = m.id) ELSE EXISTS (SELECT 1 FROM social.message_views v WHERE v.message_id = m.id AND v.user_id = $4) END AS viewed_at
          FROM social.messages m WHERE m.group_id = $1 AND (m.deleted_at IS NULL OR m.deleted_notice) AND ${notHiddenFor('m', '$4')} AND ($2::uuid IS NULL OR m.id < $2) ORDER BY m.id DESC LIMIT $3`,
       [groupId, cursor ?? null, PAGE + 1, me],
@@ -248,10 +248,10 @@ export class GroupsService {
     const id = uuidv7();
     const spot = this.chat.placeFields(msg);
     await this.pool.query(
-      'INSERT INTO social.messages (id, group_id, sender_id, body, kind, media_id, duration_ms, waveform, lat, lng, view_once, reply_to, place_name, place_address) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $12, (SELECT r.id FROM social.messages r WHERE r.id = $11::uuid AND r.group_id = $2 AND r.deleted_at IS NULL), $13, $14)',
-      [id, groupId, me, spot.body, msg.kind, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place?.lat ?? null, place?.lng ?? null, msg.replyTo ?? null, !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice' || msg.kind === 'video'), spot.name, spot.address],
+      'INSERT INTO social.messages (id, group_id, sender_id, body, kind, media_id, duration_ms, waveform, lat, lng, view_once, reply_to, place_name, place_address, gif) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $12, (SELECT r.id FROM social.messages r WHERE r.id = $11::uuid AND r.group_id = $2 AND r.deleted_at IS NULL), $13, $14, $15::jsonb)',
+      [id, groupId, me, spot.body, msg.kind, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place?.lat ?? null, place?.lng ?? null, msg.replyTo ?? null, !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice' || msg.kind === 'video'), spot.name, spot.address, msg.kind === 'gif' && msg.gif ? JSON.stringify(msg.gif) : null],
     );
-    await this.access.fanOut(groupId, me, id, msg.kind === 'text' ? 'enviou uma mensagem' : msg.kind === 'image' ? 'enviou uma foto' : msg.kind === 'video' ? 'enviou um vídeo' : msg.kind === 'voice' ? 'enviou uma mensagem de voz' : msg.kind === 'sticker' ? 'enviou um sticker' : msg.kind === 'location' ? 'partilhou a localização' : 'partilhou uma publicação');
+    await this.access.fanOut(groupId, me, id, msg.kind === 'text' ? 'enviou uma mensagem' : msg.kind === 'image' ? 'enviou uma foto' : msg.kind === 'video' ? 'enviou um vídeo' : msg.kind === 'voice' ? 'enviou uma mensagem de voz' : msg.kind === 'sticker' ? 'enviou um sticker' : msg.kind === 'gif' ? 'enviou um GIF' : msg.kind === 'location' ? 'partilhou a localização' : 'partilhou uma publicação');
     return { id, kind: msg.kind };
   }
 

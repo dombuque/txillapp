@@ -15,6 +15,8 @@ import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
 import { Sticker, StickerPanel } from './StickerPanel';
+import { GifView, useGifsConfig } from './GifPanel';
+import { gifPayload, validGif } from '@/lib/gifs';
 import { VerifiedBadge } from './VerifiedBadge';
 
 // Reações rápidas desenhadas com a mascote do Txillapp; ao tocar, escrevem o emoji no comentário (conteúdo do utilizador).
@@ -100,7 +102,8 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
     setMenu(true);
   };
-  const startEdit = () => { if (stickerOf(text.body)) return; setDraft(text.body); setSel({ start: text.body.length, end: text.body.length }); setEditing(true); };
+  // Um comentário que é só um sticker ou só um GIF não tem texto para editar (com texto, edita-se o texto e o GIF fica).
+  const startEdit = () => { if (stickerOf(text.body) || !text.body) return; setDraft(text.body); setSel({ start: text.body.length, end: text.body.length }); setEditing(true); };
 
   return (
     <Pressable onLongPress={openMenu} delayLongPress={380} style={[styles.row, highlighted && { backgroundColor: colors.rose50 }]} accessibilityHint="Segura para mais opções">
@@ -125,8 +128,9 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
             </View>
           </View>
         ) : (
-          stickerOf(text.body) ? <View style={{ marginTop: 2 }}><Sticker id={stickerOf(text.body)!} size={96} /></View> : <RichText text={text.body} style={styles.body} />
+          stickerOf(text.body) ? <View style={{ marginTop: 2 }}><Sticker id={stickerOf(text.body)!} size={96} /></View> : text.body ? <RichText text={text.body} style={styles.body} /> : null
         )}
+        {validGif(c.gif) && <View style={{ marginTop: 6 }}><GifView gif={c.gif} /></View>}
         {ask && !editing && (
           <View style={styles.ask} accessibilityRole="summary">
             <View style={styles.askIcon}><Icon name="gift" size={18} color="#b45309" /></View>
@@ -250,14 +254,16 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
     setExpanded((s) => new Set(s).add(c.parentId ?? c.id));
     input.current?.focus();
   }
-  const [stickers, setStickers] = useState(false);
-  async function submit(explicit?: string) {
+  const [stickers, setStickers] = useState<null | 'stickers' | 'gif'>(null);
+  const gifs = useGifsConfig();
+  /** `explicit`: um sticker ([sticker:id]). `gif`: um GIF do GIPHY, com o texto que estiver escrito (ou sem texto). */
+  async function submit(explicit?: string, gif?: import('@/lib/gifs').ChatGif) {
     const body = (explicit ?? text).trim();
-    if (!body || busy) return;
+    if ((!body && !gif) || busy) return;
     setBusy(true);
     setErr('');
     try {
-      const c = await api.addComment(post.id, body, replyTo?.id);
+      const c = await api.addComment(post.id, body, replyTo?.id, gif);
       onDelta(1);
       if (!explicit) setText('');
       setReplyTo(null);
@@ -336,14 +342,20 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
               {typing.length === 1 ? `${typing[0]} está a escrever…` : typing.length === 2 ? `${typing[0]} e ${typing[1]} estão a escrever…` : `${typing[0]} e mais ${typing.length - 1} estão a escrever…`}
             </Text>
           )}
-          {stickers && <View style={{ maxHeight: 300 }}><StickerPanel onPick={(id) => { setStickers(false); void submit(`[sticker:${id}]`); }} /></View>}
+          {stickers && <View style={{ maxHeight: gifs.enabled ? 340 : 300 }}><StickerPanel key={stickers} start={stickers} onPick={(id) => { setStickers(null); void submit(`[sticker:${id}]`); }} onGif={(g) => { setStickers(null); void submit(undefined, gifPayload(g)); }} /></View>}
           <View style={styles.quick}>
             {QUICK.map((e) => (
               <Pressable key={e} onPress={() => { setText((t) => t + e); input.current?.focus(); }} accessibilityLabel={`Adicionar ${e}`} style={({ pressed }) => [pressed && { transform: [{ scale: 1.25 }] }]}><Text style={{ fontSize: 24, lineHeight: 32 }}>{e}</Text></Pressable>
             ))}
-            <Pressable onPress={() => setStickers((v) => !v)} accessibilityRole="button" accessibilityLabel="Stickers" accessibilityState={{ expanded: stickers }} style={[{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }, stickers && { backgroundColor: colors.rose50 }]}>
-              <Icon name="sticker" size={24} color={stickers ? colors.brand : colors.zinc700} />
+            <Pressable onPress={() => setStickers((v) => (v === 'stickers' ? null : 'stickers'))} accessibilityRole="button" accessibilityLabel="Stickers" accessibilityState={{ expanded: stickers === 'stickers' }} style={[{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }, stickers === 'stickers' && { backgroundColor: colors.rose50 }]}>
+              <Icon name="sticker" size={24} color={stickers === 'stickers' ? colors.brand : colors.zinc700} />
             </Pressable>
+            {gifs.enabled && (
+              // GIF do GIPHY no comentário (vai com o texto que estiver escrito, ou sozinho).
+              <Pressable onPress={() => setStickers((v) => (v === 'gif' ? null : 'gif'))} hitSlop={6} accessibilityRole="button" accessibilityLabel="GIF" accessibilityHint="Escolher um GIF para o comentário" accessibilityState={{ expanded: stickers === 'gif' }} style={[styles.gifBtn, stickers === 'gif' && { backgroundColor: colors.rose50, borderColor: colors.brand }]}>
+                <Text style={[styles.gifBtnText, stickers === 'gif' && { color: colors.brand }]}>GIF</Text>
+              </Pressable>
+            )}
           </View>
           <MentionSuggest mention={mention} style={{ marginTop: 8 }} />
           <View style={styles.compose}>
@@ -361,6 +373,8 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
 }
 
 const styles = StyleSheet.create({
+  gifBtn: { minWidth: 44, height: 32, borderRadius: 8, borderWidth: 1.5, borderColor: colors.zinc700, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
+  gifBtnText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5, color: colors.zinc700 },
   head: { borderBottomWidth: 1, borderBottomColor: colors.zinc200, paddingBottom: 12 },
   headTitle: { textAlign: 'center', fontSize: 16, fontWeight: '700', color: colors.zinc900 },
   row: { flexDirection: 'row', gap: 12, paddingVertical: 10, paddingHorizontal: 16 },

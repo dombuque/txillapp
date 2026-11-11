@@ -44,6 +44,7 @@ function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, g
   if (m.kind === 'post') return `${you}Partilhou uma publicação`;
   if (m.kind === 'gift') return `${m.fromMe ? 'Tu: ' : ''}Presente`;
   if (m.kind === 'sticker') return `${you}Sticker`;
+  if (m.kind === 'gif') return `${you}GIF`;
   if (m.kind === 'call') return callLabel(m.body, m.fromMe).text;
   if (m.kind === 'location') return `${you}Localização`;
   if ((m.kind as string) === 'poll') return `${you}Sondagem${m.body ? `: ${m.body}` : ''}`;

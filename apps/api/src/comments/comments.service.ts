@@ -5,11 +5,12 @@ import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { NotificationsService } from '../notifications/notifications.service';
 import { allowedBy, canView } from '../social/visibility';
+import { readGif, type GifInput } from '../gifs/gif';
 
 const UUID = /^[0-9a-f-]{36}$/;
 
 const SELECT = `
-  SELECT c.id, c.post_id, c.parent_id, c.body, c.created_at, c.edited_at,
+  SELECT c.id, c.post_id, c.parent_id, c.body, c.gif, c.created_at, c.edited_at,
          EXISTS (SELECT 1 FROM social.follows af WHERE af.follower_id = $1 AND af.followee_id = u.id) AS author_followed,
          u.id AS author_id, u.username, u.display_name, u.verified, u.verified_tier,
          (SELECT count(*) FROM content.comment_cheers x WHERE x.comment_id = c.id)::int AS cheers,
@@ -48,8 +49,11 @@ export class CommentsService {
     return this.page(rows, limit);
   }
 
-  async create(userId: string, postId: string, body: string, parentId?: string) {
+  async create(userId: string, postId: string, body: string, parentId?: string, gif?: GifInput) {
     this.filter.assertClean(body);
+    if (!body && !gif) throw new BadRequestException('Escreve alguma coisa');
+    // O título do GIF (do GIPHY, só para o leitor de ecrã) não pode passar o que o filtro barra.
+    if (gif?.title && this.filter.check(gif.title)) gif = { ...gif, title: undefined };
     const postAuthorId = await this.assertCanComment(userId, postId);
     let threadParent: string | null = null;
     let parentAuthorId: string | null = null;
@@ -62,14 +66,14 @@ export class CommentsService {
     }
     const id = uuidv7();
     await this.pool.query(
-      'INSERT INTO content.comments (id, post_id, author_id, body, parent_id) VALUES ($1, $2, $3, $4, $5)',
-      [id, postId, userId, body, threadParent],
+      'INSERT INTO content.comments (id, post_id, author_id, body, parent_id, gif) VALUES ($1, $2, $3, $4, $5, $6::jsonb)',
+      [id, postId, userId, body, threadParent, gif ? JSON.stringify(gif) : null],
     );
-    const data = { postId, commentId: id, snippet: body.slice(0, 80) };
+    const data = { postId, commentId: id, snippet: (body || 'GIF').slice(0, 80) };
     // Avisa quem foi respondido e, se for outra pessoa, o dono da publicação.
     if (parentAuthorId) await this.notifications.notify({ userId: parentAuthorId, actorId: userId, kind: 'reply', data });
     if (postAuthorId !== parentAuthorId) await this.notifications.notify({ userId: postAuthorId, actorId: userId, kind: 'comment', data });
-    void this.notifications.notifyMentions(userId, body, data);
+    if (body) void this.notifications.notifyMentions(userId, body, data);
     return this.getOne(userId, id);
   }
 
@@ -156,6 +160,8 @@ export class CommentsService {
     postId: r.post_id,
     parentId: r.parent_id,
     body: r.body,
+    /** GIF do GIPHY no comentário: { id, w, h, url, still?, title? } ou null. */
+    gif: readGif(r.gif),
     createdAt: r.created_at,
     author: { id: r.author_id, username: r.username, displayName: r.display_name, verified: r.verified as boolean, verifiedTier: (r.verified_tier as string | null) ?? null },
     cheers: r.cheers,

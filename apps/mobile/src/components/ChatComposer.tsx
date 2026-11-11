@@ -13,6 +13,8 @@ import { Icon, type IconName } from './Icon';
 import { GiftSheet } from './PostSheets';
 import { SendLocationSheet } from './SendLocationSheet';
 import { StickerPanel } from './StickerPanel';
+import { useGifsConfig } from './GifPanel';
+import { gifMessage } from '@/lib/gifs';
 
 const nativeDriver = Platform.OS !== 'web';
 const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
@@ -52,6 +54,7 @@ export function ChatComposer({
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const timer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const stickersNew = useIsNew('stickers');
+  const gifs = useGifsConfig();
   useEffect(() => () => clearInterval(timer.current), []);
   // Ao escolher "Responder" numa mensagem, o teclado abre logo para escrever a resposta.
   useEffect(() => {
@@ -184,7 +187,7 @@ export function ChatComposer({
           <Pressable onPress={() => setOnceHelp(false)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Fechar a explicação"><Icon name="x" size={16} color="#fff" /></Pressable>
         </View>
       )}
-      {panel === 'stickers' && <StickerPanel onPick={(id) => { setPanel(null); void dispatch({ kind: 'sticker', body: id }); }} />}
+      {panel === 'stickers' && <StickerPanel onPick={(id) => { setPanel(null); void dispatch({ kind: 'sticker', body: id }); }} onGif={(g) => { setPanel(null); void dispatch(gifMessage(g)); }} />}
       <View style={pad}>
         {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
         {replyTo && (
@@ -233,7 +236,7 @@ export function ChatComposer({
               <Tool icon="image" label="Enviar foto ou vídeo da galeria" onPress={() => void pick('library')} disabled={busy} />
               <Tool
                 icon="sticker"
-                label={stickersNew ? 'Stickers (novos)' : 'Stickers'}
+                label={`${gifs.enabled ? 'Stickers e GIFs' : 'Stickers'}${stickersNew ? ' (novos)' : ''}`}
                 on={panel === 'stickers'}
                 dot={stickersNew}
                 onPress={() => {

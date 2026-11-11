@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+/** Uma variável vazia (ex.: `GIPHY_API_KEY=` no .env) conta como não definida. */
+const blankToUndefined = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
+
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET deve ter pelo menos 32 caracteres'),
@@ -50,6 +53,13 @@ const schema = z.object({
   SUPERTXILL_DAILY_LIMIT: z.coerce.number().int().min(1).max(500).default(20),
   /** Respostas por mês, em toda a app: o teto do custo. */
   SUPERTXILL_MONTHLY_CAP: z.coerce.number().int().min(1).max(1_000_000).default(3000),
+  /**
+   * GIFs do GIPHY (chat e comentários). Sem a chave, os GIFs ficam escondidos na app e /gifs/* responde { enabled: false }.
+   * A chave fica só no servidor: a app pesquisa através de /api/v1/gifs (o GIPHY não vê quem pesquisa).
+   */
+  GIPHY_API_KEY: z.preprocess(blankToUndefined, z.string().trim().min(10).optional()),
+  /** O canal do Txillapp no GIPHY (o nome de utilizador, sem o @) para o separador "Txillapp" do painel dos GIFs. Opcional. */
+  GIPHY_CHANNEL: z.preprocess((v) => blankToUndefined(typeof v === 'string' ? v.trim().replace(/^@/, '') : v), z.string().regex(/^[A-Za-z0-9_.-]{2,50}$/).optional()),
   /** Chaves VAPID (notificações no telemóvel). Sem elas as notificações push ficam desligadas. Gera com: npx web-push generate-vapid-keys */
   VAPID_PUBLIC_KEY: z.string().min(20).optional(),
   VAPID_PRIVATE_KEY: z.string().min(20).optional(),

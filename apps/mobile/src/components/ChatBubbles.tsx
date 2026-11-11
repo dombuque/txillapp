@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { createElement, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
 import { BubbleHoldCtx, useBubbleHold, type BubbleHold } from '@/components/bubbleHold';
@@ -20,6 +21,7 @@ import { type ChatMessage } from '@/lib/api';
 import { AVATAR, AVATAR_GAP, GAP_IN, GAP_OUT, corners, type Ticks } from '@/lib/chatLayout';
 import { timeLabel } from '@/lib/chatTimeline';
 import { abs, sized } from '@/lib/config';
+import { gifLabel, gifSize, validGif, type ChatGif } from '@/lib/gifs';
 import { HOLD_MS, bubbleA11yActions, deletedText, isSent, recentlyHeld } from '@/lib/messageMenu';
 import { canSwipeReply } from '@/lib/replySwipe';
 import { liveShareEnded } from '@/lib/sendLocation';
@@ -54,7 +56,7 @@ export function senderColor(username: string): string {
   return PALETTE[h % PALETTE.length];
 }
 
-const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voice: 'Mensagem de voz', sticker: 'Sticker', post: 'Publicação', location: 'Localização', gift: 'Presente', poll: 'Sondagem' };
+const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voice: 'Mensagem de voz', sticker: 'Sticker', gif: 'GIF', post: 'Publicação', location: 'Localização', gift: 'Presente', poll: 'Sondagem' };
 /** Excerto de uma mensagem para citar (na bolha e na barra de resposta). */
 export const quoteText = (kind: ChatMessage['kind'], body: string) => (kind === 'text' || kind === 'story_reply' || kind === 'zas_reply' ? body : KIND_LABEL[kind] ?? 'Mensagem');
 export const clock = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
@@ -374,6 +376,21 @@ function SideAvatar({ who }: { who: Who }) {
   );
 }
 
+/**
+ * GIF do GIPHY numa bolha: a imagem animada (expo-image aceita GIF e WebP animados) no tamanho certo pela proporção, com os
+ * cantos da bolha. Sem Pressable próprio: tocar e segurar são os da bolha (menu da mensagem, hora, brindar).
+ * "Reduzir movimento": mostra a primeira imagem, parada.
+ */
+function GifBubble({ gif, radius, dim }: { gif: ChatGif; radius: object; dim: object | null }) {
+  const reduce = useReducedMotion();
+  const size = gifSize(gif.w, gif.h);
+  return (
+    <View style={[{ width: size.width, height: size.height, overflow: 'hidden', backgroundColor: colors.zinc200 }, radius, dim]} accessible accessibilityRole="image" accessibilityLabel={gifLabel(gif.title)}>
+      <Image source={{ uri: reduce && gif.still ? gif.still : gif.url }} autoplay={!reduce} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={gif.id} accessibilityIgnoresInvertColors />
+    </View>
+  );
+}
+
 export function Bubble({
   m, group = false, prevSame, nextSame, first, last, seen = false, ticks, flash = false, peerName, peerHandle, peerHasAvatar = true, meHandle, showAvatars = true,
   onMenu, onRetry, onOpenOnce, onJump, onCheer, onStopLive, onReply, onDelete,
@@ -476,6 +493,8 @@ export function Bubble({
     );
   } else if (m.kind === 'sticker') {
     content = <View style={dimStyle}><Sticker id={m.body} size={120} /></View>;
+  } else if (m.kind === 'gif' && validGif(m.gif)) {
+    content = <GifBubble gif={m.gif} radius={radius} dim={dimStyle} />;
   } else if (m.kind === 'post') {
     content = <SharedPost post={m.post ?? null} radius={radius} tone={tone} ink={ink} />;
   } else if (liveEnded) {
