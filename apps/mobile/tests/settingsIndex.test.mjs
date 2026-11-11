@@ -160,15 +160,19 @@ test('ligações antigas: /settings?s=…, ?section=…, /settings#… e nomes e
   }
 });
 
-test('o início trata as ligações antigas e /settings/aparelhos funciona enquanto o ecrã próprio não existe', () => {
+test('o início trata as ligações antigas e /settings/aparelhos tem ecrã próprio, igual aos grupos', () => {
   const index = readFileSync(path.join(SETTINGS, 'index.tsx'), 'utf8');
   assert.match(index, /legacySettingsTarget\(params, hash\)/);
   assert.match(index, /window\.location\.hash/);
   assert.match(index, /<Redirect href=\{target/);
   const fallback = readFileSync(path.join(SETTINGS, '[grupo].tsx'), 'utf8');
-  assert.match(fallback, /grupo === 'aparelhos'/);
-  assert.match(fallback, /<DevicesList \/>/);
+  // O ecrã próprio (settings/aparelhos.tsx) passa à frente de [grupo]: sem lista antiga duplicada aqui.
+  assert.doesNotMatch(fallback, /=== 'aparelhos'|DevicesList/);
   assert.match(fallback, /settingsTargetFor\(/);
+  const devices = readFileSync(path.join(SETTINGS, 'aparelhos.tsx'), 'utf8');
+  assert.match(devices, /<SettingsPage title="Os teus aparelhos">/);
+  assert.match(devices, /<SettingsSection /);
+  assert.doesNotMatch(devices, /StackPage/, 'no computador abre na coluna da direita, sem cabeçalho próprio');
   assert.match(readFileSync(path.join(SETTINGS, 'seguranca.tsx'), 'utf8'), /to="\/settings\/aparelhos"/);
 });
 

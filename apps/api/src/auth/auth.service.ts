@@ -6,6 +6,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { Pool, PoolClient } from 'pg';
 import { z } from 'zod';
 import { LoginInput, PublicUser, RegisterInput, usernameSchema, TERMS_VERSION } from '@txillapp/shared';
+import { describeDevice } from '../common/device';
 import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
 import { hashNet, isDisposable } from '../invites/rules';
@@ -31,13 +32,6 @@ export interface Tokens {
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
-/** "Chrome · Windows" a partir do user-agent (só para mostrar a lista de dispositivos). */
-function describeDevice(ua?: string | null): string {
-  if (!ua) return 'Dispositivo desconhecido';
-  const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
-  const os = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad|iOS/.test(ua) ? 'iOS' : /Mac OS X|Macintosh/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : 'Dispositivo';
-  return `${browser} · ${os}`;
-}
 
 @Injectable()
 export class AuthService {
@@ -400,25 +394,32 @@ export class AuthService {
     }
   }
 
-  /** Dispositivos com sessão iniciada (um por "família" de refresh tokens). */
+  /** Dispositivos com sessão iniciada (um por "família" de refresh tokens): o aparelho, quando entrou e a última atividade. */
   async sessions(userId: string, currentRefreshToken?: string) {
     const current = currentRefreshToken
       ? (await this.pool.query('SELECT family_id FROM identity.sessions WHERE token_hash = $1 AND user_id = $2', [sha256(currentRefreshToken), userId])).rows[0]?.family_id
       : undefined;
     const { rows } = await this.pool.query(
-      `SELECT family_id, min(created_at) AS first_seen, max(created_at) AS last_used,
+      `SELECT family_id, min(created_at) AS first_seen, max(greatest(created_at, used_at)) AS last_used,
               (array_agg(user_agent ORDER BY created_at DESC))[1] AS ua
-         FROM identity.sessions WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()
-        GROUP BY family_id ORDER BY max(created_at) DESC LIMIT 30`,
+         FROM identity.sessions WHERE user_id = $1
+        GROUP BY family_id
+       HAVING bool_or(revoked_at IS NULL AND expires_at > now())
+        ORDER BY max(greatest(created_at, used_at)) DESC LIMIT 30`,
       [userId],
     );
-    return rows.map((r) => ({
-      id: r.family_id as string,
-      device: describeDevice(r.ua),
-      firstSeen: r.first_seen,
-      lastUsed: r.last_used,
-      current: r.family_id === current,
-    }));
+    return rows.map((r) => {
+      const d = describeDevice(r.ua);
+      return {
+        id: r.family_id as string,
+        device: d.label,
+        kind: d.kind,
+        mobile: d.mobile,
+        firstSeen: r.first_seen,
+        lastUsed: r.last_used,
+        current: r.family_id === current,
+      };
+    });
   }
 
   async revokeSession(userId: string, familyId: string) {

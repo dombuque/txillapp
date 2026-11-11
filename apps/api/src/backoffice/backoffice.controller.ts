@@ -71,17 +71,7 @@ export class BackofficeController {
     return this.bo.overview();
   }
 
-  @Get('users')
-  @Needs('users.view')
-  users(@Query('q') q?: string, @Query('status') status?: string, @Query('cursor') cursor?: string) {
-    return this.bo.users(q, status, cursor && /^[0-9a-f-]{36}$/.test(cursor) ? cursor : undefined);
-  }
-
-  @Get('users/:id')
-  @Needs('users.view')
-  user(@Param('id', ParseUUIDPipe) id: string) {
-    return this.bo.user(id);
-  }
+  // A lista de contas, a ficha e as sessões estão em contas.controller.ts (Backoffice › Contas).
 
   @Post('users/:id/verify-email')
   @Needs('users.verify_email')

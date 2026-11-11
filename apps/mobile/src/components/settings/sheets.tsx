@@ -7,7 +7,6 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { Sheet } from '@/components/Sheet';
 import { ApiError, api, type Gender } from '@/lib/api';
 import { colors } from '@/lib/theme';
-import { timeAgo } from '@/lib/time';
 import { GENDERS } from './options';
 import { settingsStyles as s } from './SettingRow';
 
@@ -171,31 +170,6 @@ export function PasswordSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** Onde a conta tem sessão iniciada, com "Terminar" em cada um e em todos os outros. */
-export function DevicesList() {
-  const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['devices'], queryFn: api.sessions });
-  const refresh = () => qc.invalidateQueries({ queryKey: ['devices'] });
-  const others = (q.data ?? []).filter((d) => !d.current);
-  return (
-    <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-      <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>Sítios onde a tua conta está com sessão iniciada. Não reconheces algum? Termina-o.</Text>
-      {q.isLoading && <ActivityIndicator style={{ margin: 24 }} color={colors.brand} />}
-      {q.data?.map((d) => (
-        <View key={d.id} style={s.person}>
-          <View style={st.devIcon}><Icon name={/Android|iOS/.test(d.device) ? 'phone' : 'laptop'} size={22} color={colors.zinc800} /></View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} numberOfLines={1}>{d.device}{d.current ? '  ' : ''}{d.current ? <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534', backgroundColor: '#dcfce7' }}> Este dispositivo </Text> : null}</Text>
-            <Text style={{ fontSize: 14, color: colors.zinc600 }}>Última atividade {timeAgo(d.lastUsed).toLowerCase()}</Text>
-          </View>
-          {!d.current && <Pressable onPress={async () => { await api.revokeSession(d.id); void refresh(); }} style={s.outline} accessibilityRole="button" accessibilityLabel={`Terminar a sessão em ${d.device}`}><Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc900 }}>Terminar</Text></Pressable>}
-        </View>
-      ))}
-      {others.length > 0 && <Pressable onPress={async () => { await api.revokeOtherSessions(); void refresh(); }} style={[s.ghost, { marginTop: 12 }]} accessibilityRole="button"><Text style={s.ghostText}>Terminar em todos os outros</Text></Pressable>}
-    </View>
-  );
-}
-
 export function DeleteSheet({ username, onClose, onDeleted }: { username: string; onClose: () => void; onDeleted: () => void }) {
   const [confirm, setConfirm] = useState('');
   const [password, setPassword] = useState('');
@@ -235,5 +209,4 @@ export function DeleteSheet({ username, onClose, onDeleted }: { username: string
 const st = StyleSheet.create({
   gender: { flex: 1, minHeight: 72, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 2, borderColor: colors.zinc200, backgroundColor: '#fff' },
   add: { minHeight: 48, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
-  devIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
 });

@@ -10,6 +10,7 @@ import { Request, Response } from 'express';
 import { AuthResponse, LoginInput, RegisterInput, genderSchema, loginSchema, passwordSchema, registerSchema, birthDateSchema } from '@txillapp/shared';
 import { ZodPipe } from '../common/zod.pipe';
 import { countryOf } from '../common/geo';
+import { sessionUserAgent } from '../common/device';
 import { AuthService, REFRESH_TTL_MS, Tokens } from './auth.service';
 
 const COOKIE = 'txill_rt';
@@ -97,7 +98,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    const { tokens, user } = await this.auth.register(body, req.headers['user-agent'], req.ip);
+    const { tokens, user } = await this.auth.register(body, sessionUserAgent(req.headers), req.ip);
     return this.respond(res, tokens, user);
   }
 
@@ -108,7 +109,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    const { tokens, user } = await this.auth.login(body, req.headers['user-agent']);
+    const { tokens, user } = await this.auth.login(body, sessionUserAgent(req.headers));
     return this.respond(res, tokens, user);
   }
 
@@ -121,7 +122,7 @@ export class AuthController {
     const token = refreshTokenOf(req);
     if (!token) throw new UnauthorizedException();
     try {
-      const { tokens, user } = await this.auth.refresh(token, req.headers['user-agent']);
+      const { tokens, user } = await this.auth.refresh(token, sessionUserAgent(req.headers));
       return this.respond(res, tokens, user);
     } catch (e) {
       // Só se apaga o cookie quando o token é mesmo inválido; um erro temporário não pode deslogar ninguém.
@@ -158,7 +159,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const r = await this.auth.googleLogin(body.idToken, req.headers['user-agent']);
+    const r = await this.auth.googleLogin(body.idToken, sessionUserAgent(req.headers));
     if (r.kind === 'session') return this.respond(res, r.tokens, r.user);
     return { needsUsername: true as const, signupToken: r.signupToken, displayName: r.displayName, suggestedUsername: r.suggestedUsername };
   }
@@ -171,7 +172,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const r = await this.auth.appleLogin(body.identityToken, body.nonce, body.fullName, req.headers['user-agent']);
+    const r = await this.auth.appleLogin(body.identityToken, body.nonce, body.fullName, sessionUserAgent(req.headers));
     if (r.kind === 'session') return this.respond(res, r.tokens, r.user);
     return { needsUsername: true as const, signupToken: r.signupToken, displayName: r.displayName, suggestedUsername: r.suggestedUsername };
   }
@@ -184,7 +185,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    const { tokens, user } = await this.auth.appleComplete(body.signupToken, body.username, req.headers['user-agent'], body.gender, body.birthDate);
+    const { tokens, user } = await this.auth.appleComplete(body.signupToken, body.username, sessionUserAgent(req.headers), body.gender, body.birthDate);
     return this.respond(res, tokens, user);
   }
 
@@ -196,7 +197,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    const { tokens, user } = await this.auth.googleComplete(body.signupToken, body.username, req.headers['user-agent'], body.gender, body.birthDate);
+    const { tokens, user } = await this.auth.googleComplete(body.signupToken, body.username, sessionUserAgent(req.headers), body.gender, body.birthDate);
     return this.respond(res, tokens, user);
   }
 
@@ -220,7 +221,7 @@ export class AuthController {
     @Body(new ZodPipe(passwordChangeSchema)) b: z.infer<typeof passwordChangeSchema>,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    const { tokens, user } = await this.auth.changePassword(req.userId!, b.currentPassword, b.newPassword, req.headers['user-agent']);
+    const { tokens, user } = await this.auth.changePassword(req.userId!, b.currentPassword, b.newPassword, sessionUserAgent(req.headers));
     return this.respond(res, tokens, user); // sessão nova para este dispositivo; as outras terminam
   }
 

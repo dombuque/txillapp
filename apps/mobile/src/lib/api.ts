@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { accounts } from './accounts';
 import { kvGet, kvSet } from './kv';
@@ -136,7 +137,8 @@ export interface PrivacySettings {
   welcomed?: boolean;
 }
 export interface StorySettings { replies: Who; hidden: { username: string; displayName: string }[] }
-export interface DeviceSession { id: string; device: string; firstSeen: string; lastUsed: string; current: boolean }
+/** Uma sessão em /auth/sessions. `kind` e `mobile` só vêm nos servidores novos (lib/aparelhos adivinha pelo nome nos antigos). */
+export interface DeviceSession { id: string; device: string; kind?: 'app' | 'pwa' | 'browser' | 'unknown'; mobile?: boolean; firstSeen: string; lastUsed: string; current: boolean }
 export type DocType = 'id_card' | 'passport' | 'driver_licence' | 'residence' | 'other';
 export interface VerificationStatus {
   items: { key: string; label: string; ok: boolean; hint: string }[];
@@ -351,7 +353,25 @@ export const refreshStore = {
   },
 };
 
-const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'X-Requested-With': 'txillapp', 'X-Client': isWeb ? 'txillapp-web' : 'txillapp-mobile' };
+/**
+ * Para a lista "Os teus aparelhos" mostrar "Android · app Txillapp 1.25" ou "iPhone · Safari (app instalada)": a versão e a
+ * plataforma da app nativa, ou se a versão web está instalada no ecrã principal. Nada mais (nem IP, nem modelo do telemóvel).
+ */
+function deviceHeaders(): Record<string, string> {
+  try {
+    if (!isWeb) {
+      const v = (Constants.expoConfig?.version ?? Constants.nativeApplicationVersion ?? '').trim();
+      const p = Platform.OS === 'ios' ? ((Platform as unknown as { isPad?: boolean }).isPad ? 'ipad' : 'ios') : 'android';
+      return { ...(/^\d{1,3}\.\d{1,3}(\.\d{1,4})?$/.test(v) ? { 'X-App-Version': v } : {}), 'X-App-Platform': p };
+    }
+    const standalone = typeof window !== 'undefined' && ((navigator as unknown as { standalone?: boolean }).standalone === true || !!window.matchMedia?.('(display-mode: standalone)').matches);
+    return standalone ? { 'X-App-Display': 'standalone' } : {};
+  } catch {
+    return {};
+  }
+}
+
+const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'X-Requested-With': 'txillapp', 'X-Client': isWeb ? 'txillapp-web' : 'txillapp-mobile', ...deviceHeaders() };
 
 async function call(path: string, init: RequestInit = {}, auth = true): Promise<Response> {
   return fetch(`${SITE_URL}/api/v1${path}`, {

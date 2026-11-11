@@ -565,6 +565,16 @@ async function raw(path: string, init: RequestInit = {}, retry = true): Promise<
 }
 
 const post = (b: unknown, extra: HeadersInit = {}): RequestInit => ({ method: 'POST', body: JSON.stringify(b), headers: extra });
+
+/** Backoffice › Contas (pages/backoffice/ui/contas-api.ts): pedidos com a sessão da equipa, e ficheiros (CSV). */
+export const boContasRaw = (path: string, init: RequestInit = {}): Promise<unknown> => raw(path, init);
+export async function boContasFile(path: string): Promise<{ blob: Blob; name: string | null }> {
+  const res = await fetch(`/api/v1${path}`, { headers: { Authorization: `Bearer ${staffToken ?? ''}`, 'X-Requested-With': 'txillapp' } });
+  if (res.status === 401) staffSession.clear();
+  if (!res.ok) throw new ApiError(res.status, res.status === 403 ? 'Não tens permissão para exportar.' : res.status === 429 ? 'Já exportaste várias vezes. Tenta daqui a pouco.' : 'Não foi possível preparar o ficheiro');
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? null;
+  return { blob: await res.blob(), name };
+}
 /** crypto.randomUUID só existe em contextos seguros (HTTPS/localhost): em http://IP-da-rede (teste no telemóvel) usa getRandomValues. */
 const newKey = () => {
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
