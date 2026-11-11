@@ -214,7 +214,7 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     await mk(a, `dois${run}`, `praia do tofo ${run}`, -23.8512, 35.5443);
     const p3 = await mk(a, `tres${run}`, 'Barra', -23.8, 35.5); // perto (~7 km)
     await mk(a, `quatro${run}`, 'Maputo', -25.96, 32.58); // longe
-    expect((await pool.query('SELECT location_lat, location_lng FROM content.posts WHERE id = $1', [p1.id])).rows[0]).toEqual({ location_lat: -23.851, location_lng: 35.544 }); // arredondado
+    expect((await pool.query('SELECT location_lat, location_lng FROM content.posts WHERE id = $1', [p1.id])).rows[0]).toEqual({ location_lat: -23.85, location_lng: 35.54 }); // arredondado a 2 casas (~1 km)
     const at = (await api().get(`/api/v1/feed/place?label=Praia%20do%20Tofo%20${run}&mode=at`).set(auth(b)).expect(200)).body as { items: { id: string; body: string }[]; hasNear: boolean };
     expect(at.items.map((x) => x.body).sort()).toEqual([`dois${run}`, `um${run}`]);
     expect(at.hasNear).toBe(true);

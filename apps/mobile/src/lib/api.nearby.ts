@@ -1,6 +1,6 @@
 /** "À tua volta": o que há perto (locais, eventos, publicações, TxillGroups e malta) e os eventos dos locais. */
 import { post, raw } from '@/lib/api';
-import type { NearbyKind, NearbyWhen } from '@/lib/nearbyView';
+import { clearOnSignOut, type NearbyKind, type NearbyWhen } from '@/lib/nearbyView';
 
 export type { NearbyKind, NearbyWhen } from '@/lib/nearbyView';
 // Os textos das distâncias e das datas dos eventos vivem em nearbyView (testados em Node); ficam aqui para quem já os importava.
@@ -23,8 +23,6 @@ export interface NearbyResult {
   groups: NearbyGroup[];
   people?: NearbyPerson[];
 }
-
-export interface PlaceHit { type: 'venue' | 'event'; id: string; slug?: string; name: string; lat: number; lng: number; distanceKm?: number }
 
 export interface EventDetail {
   id: string;
@@ -55,8 +53,7 @@ export const nearbyApi = {
     const q = new URLSearchParams({ lat: String(round2(p.lat)), lng: String(round2(p.lng)), radiusKm: String(p.radiusKm), kinds: p.kinds.join(','), when: p.when });
     return raw(`/nearby?${q.toString()}`);
   },
-  places: (q: string, lat: number, lng: number): Promise<PlaceHit[]> =>
-    raw(`/nearby/places?${new URLSearchParams({ q, lat: String(round2(lat)), lng: String(round2(lng)) }).toString()}`),
+  // (GET /nearby/places, a pesquisa da caixa do mapa, existe no servidor e devolve { venues, events }; a app não a usa.)
 
   settings: (): Promise<{ visibility: NearbyVisibility; canEnable?: boolean }> => raw('/nearby/settings'),
   setSettings: (visibility: NearbyVisibility): Promise<{ visibility: NearbyVisibility }> => raw('/nearby/settings', put({ visibility })),
@@ -71,6 +68,9 @@ export const nearbyApi = {
   // O servidor devolve { items }: desembrulha aqui para os ecrãs receberem a lista.
   venueEvents: async (slug: string): Promise<VenueEvent[]> => ((await raw(`/venues-events/${encodeURIComponent(slug)}`)) as { items?: VenueEvent[] }).items ?? [],
 };
+
+/** Ao terminar sessão: tira-me do mapa da malta, sem prender a saída (ver nearbyView.clearOnSignOut). */
+export const leaveMapOnSignOut = () => clearOnSignOut(() => nearbyApi.clearPresence());
 
 /** Abrir o caminho até um sítio na app de mapas do telemóvel (Apple Maps no iPhone, Google Maps no resto). */
 export function directionsUrl(lat: number, lng: number, label: string, ios: boolean): string {

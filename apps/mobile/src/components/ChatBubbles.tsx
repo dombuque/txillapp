@@ -13,6 +13,7 @@ import { CallIcon } from '@/components/calls/CallIcons';
 import { Sticker } from '@/components/StickerPanel';
 import { ReactionArt } from '@/components/StoryParts';
 import { PollBubble } from '@/components/groups/PollCard';
+import { TILE_URL } from '@/components/nearby/mapRuntime';
 import { type ChatMessage } from '@/lib/api';
 import { AVATAR, AVATAR_GAP, GAP_IN, GAP_OUT, corners, type Ticks } from '@/lib/chatLayout';
 import { timeLabel } from '@/lib/chatTimeline';
@@ -80,6 +81,8 @@ const px = (lat: number, lng: number) => {
   const r = (lat * Math.PI) / 180;
   return { x: ((lng + 180) / 360) * n * T, y: ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n * T };
 };
+/** Um mosaico do OpenStreetMap, pelo servidor do Txillapp (/tiles), como os outros mapas: o aparelho não fala com o OSM. */
+const tileUri = (x: number, y: number) => TILE_URL.replace('{z}', String(Z)).replace('{x}', String(x)).replace('{y}', String(y));
 /** Mini-mapa fixo de um ponto (azulejos do OpenStreetMap à volta do ponto), como no site. */
 function TileMap({ lat, lng, width, height }: { lat: number; lng: number; width: number; height: number }) {
   const c = px(lat, lng);
@@ -90,7 +93,7 @@ function TileMap({ lat, lng, width, height }: { lat: number; lng: number; width:
   return (
     <View style={{ width, height, overflow: 'hidden', backgroundColor: colors.zinc200 }}>
       {tiles.map((t) => (
-        <Image key={`${t.x}/${t.y}`} source={{ uri: `https://tile.openstreetmap.org/${Z}/${t.x}/${t.y}.png` }} style={{ position: 'absolute', width: T, height: T, left: t.x * T - left, top: t.y * T - top }} />
+        <Image key={`${t.x}/${t.y}`} source={{ uri: tileUri(t.x, t.y) }} style={{ position: 'absolute', width: T, height: T, left: t.x * T - left, top: t.y * T - top }} />
       ))}
       <View style={{ position: 'absolute', left: width / 2 - 15, top: height / 2 - 38 }}>
         <Svg width={30} height={38} viewBox="0 0 30 38" fill="none">

@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ApiError, api, migrateWebAccounts, refreshSession, refreshStore, setSessionExpiredHandler, type AuthResult, type PublicUser } from './api';
 import { accounts } from './accounts';
+import { leaveMapOnSignOut } from './api.nearby';
 import { unregisterNativePush } from './nativePush';
 
 interface AuthState {
@@ -91,6 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [qc]);
 
   const signOut = useCallback(async () => {
+    // Ainda com sessão: deixo de aparecer à malta no mapa. Se falhar (sem rede), não prende a saída: a presença expira em 3 h.
+    await leaveMapOnSignOut();
     await unregisterNativePush(); // este telemóvel deixa de receber as notificações desta conta
     await api.logout();
     qc.clear(); // a próxima pessoa não vê dados da anterior

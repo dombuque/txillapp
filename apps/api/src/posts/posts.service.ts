@@ -9,6 +9,7 @@ import { allowedBy, blockedBetween, canView, inMyNetwork, listVisibleTo } from '
 import { SearchIndexer } from '../search/search-index';
 import { extractHashtags, prefixQuery } from '../common/hashtags';
 import { TOPICS, classify, topicLabel } from '../common/topics';
+import { coarse, notHiddenVenuePost, postGeo } from '../nearby/geo-sql';
 
 const TOPIC_IDS = new Set(TOPICS.map((t) => t.id));
 import { RANKED_SQL, decodeCursor, encodeCursor, tchekaPost } from './feed';
@@ -35,7 +36,7 @@ const CALM_TOPICS = ['festa', 'bebidas'];
 const ADULT = "(u.birth_date <= (current_date - interval '18 years') OR p.author_id = $1)";
 
 const FEED_SQL = `
-  SELECT p.id, p.short_code, p.body, p.music, p.location_label, p.created_at, p.edited_at, p.comments_off, p.location_lat, p.location_lng, p.kind, p.gift_amount, p.repost_of,
+  SELECT p.id, p.short_code, p.body, p.music, p.location_label, p.created_at, p.edited_at, p.comments_off, ${postGeo('lat', 'p', 'pv', '$1')} AS location_lat, ${postGeo('lng', 'p', 'pv', '$1')} AS location_lng, p.kind, p.gift_amount, p.repost_of,
          u.id AS author_id, u.username, u.display_name, u.verified AS author_verified, u.verified_tier AS author_tier,
          (p.author_id = $1) AS by_viewer,
          pv.slug AS venue_slug, pv.name AS venue_name, pv.kind AS venue_kind, pv.verified AS venue_verified, pv.avatar_media_id AS venue_avatar,
@@ -90,6 +91,8 @@ export class PostsService implements OnModuleInit {
   async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null, venueId: string | null = null) {
     this.filter.assertClean(body, locationLabel, musicIn?.title, 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
     const music = await this.musicSvc.prepare(userId, musicIn);
+    // Ligada a um local no mapa: guarda-se a posição do local (pública) tal como está.
+    let fromVenue = false;
     if (venueId) {
       // Publicar como um local: só o dono e os gestores ativos da página. O sítio da publicação passa a ser o próprio local.
       const v = await this.pool.query(
@@ -102,7 +105,10 @@ export class PostsService implements OnModuleInit {
       locationLabel = v.rows[0].name as string;
       // Local fora do mapa: a publicação não leva posição (nem a do local, nem a de quem publica).
       if (v.rows[0].show_on_map === false) geo = null;
-      else if (v.rows[0].lat != null && v.rows[0].lng != null) geo = { lat: v.rows[0].lat as number, lng: v.rows[0].lng as number };
+      else if (v.rows[0].lat != null && v.rows[0].lng != null) {
+        geo = { lat: v.rows[0].lat as number, lng: v.rows[0].lng as number };
+        fromVenue = true;
+      }
     }
     if (mediaIds.length > MAX_PHOTOS) throw new BadRequestException(`No máximo ${MAX_PHOTOS} fotos por publicação`);
     if (new Set(mediaIds).size !== mediaIds.length) throw new BadRequestException('Fotos repetidas');
@@ -123,12 +129,12 @@ export class PostsService implements OnModuleInit {
         // Fotos e vídeos podem ir juntos (carrossel). Um vídeo sozinho é uma tcheka.
       }
       const id = uuidv7();
-      // A posição do SÍTIO escolhido (arredondada; zonas e cidades ainda mais): nunca a posição exata de quem publica.
+      // A posição do SÍTIO escolhido, arredondada a 2 casas (~1 km): nunca a posição exata de quem publica.
+      // Só a de um local no mapa (sítio público) vai tal como está.
       // Menores de 18 anos: só o nome do sítio, nunca a posição (e ficam fora da descoberta por sítio).
       const adult = !!geo && !!(await client.query("SELECT 1 FROM identity.users WHERE id = $1 AND birth_date <= (current_date - interval '18 years')", [userId])).rowCount;
       if (!adult) geo = null;
-      const dp = geo?.coarse ? 2 : 3;
-      const q = (n: number) => Math.round(n * 10 ** dp) / 10 ** dp;
+      const q = (n: number) => (fromVenue ? n : coarse(n));
       await client.query('INSERT INTO content.posts (id, author_id, body, location_label, music, location_lat, location_lng, topics, venue_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)', [
         id, userId, body.trim(), locationLabel || null, music ? JSON.stringify(music) : null, locationLabel && geo ? q(geo.lat) : null, locationLabel && geo ? q(geo.lng) : null, classify(`${body} ${locationLabel ?? ''}`, extractHashtags(body)), venueId,
       ]);
@@ -466,19 +472,22 @@ export class PostsService implements OnModuleInit {
     if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
     const name = label.trim().slice(0, 80);
     if (!name) throw new BadRequestException('Sítio em falta');
+    // Publicações feitas como um local que saiu do mapa não contam para o ponto nem para o "perto" (a posição delas não sai).
     // O ponto do sítio: a média das posições guardadas em publicações com este nome (arredondadas).
     // Só com publicações que ESTE espectador pode ver e de adultos; a mediana impede que alguém desloque o sítio com posições falsas.
     const c = (await this.pool.query(
       `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY p.location_lat) AS lat, percentile_cont(0.5) WITHIN GROUP (ORDER BY p.location_lng) AS lng
          FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
-        WHERE lower(p.location_label) = lower($2) AND p.location_lat IS NOT NULL AND ${ADULT} AND ${canView()} AND ${inMyNetwork()}`,
+        WHERE lower(p.location_label) = lower($2) AND p.location_lat IS NOT NULL AND ${notHiddenVenuePost()} AND ${ADULT} AND ${canView()} AND ${inMyNetwork()}`,
       [viewerId, name],
     )).rows[0];
+    // O ponto que sai na resposta vai a 2 casas (~1 km), como a posição de cada publicação.
     const center = c?.lat != null ? { lat: Number(c.lat), lng: Number(c.lng) } : null;
+    const shownCenter = center ? { lat: coarse(center.lat), lng: coarse(center.lng) } : null;
     const cond =
       mode === 'near'
         ? center
-          ? `p.location_lat IS NOT NULL AND p.location_lat BETWEEN $5 - 0.1 AND $5 + 0.1 AND p.location_lng BETWEEN $6 - 0.1 / GREATEST(cos(radians($5)), 0.01) AND $6 + 0.1 / GREATEST(cos(radians($5)), 0.01)
+          ? `p.location_lat IS NOT NULL AND ${notHiddenVenuePost()} AND p.location_lat BETWEEN $5 - 0.1 AND $5 + 0.1 AND p.location_lng BETWEEN $6 - 0.1 / GREATEST(cos(radians($5)), 0.01) AND $6 + 0.1 / GREATEST(cos(radians($5)), 0.01)
              AND 2 * 6371 * asin(sqrt(sin(radians(p.location_lat - $5) / 2) ^ 2 + cos(radians($5)) * cos(radians(p.location_lat)) * sin(radians(p.location_lng - $6) / 2) ^ 2)) <= 10 AND $2::text IS NOT NULL`
           : 'false AND $2::text IS NOT NULL'
         : 'lower(p.location_label) = lower($2)';
@@ -487,7 +496,7 @@ export class PostsService implements OnModuleInit {
       mode === 'near' && center ? [viewerId, name, cursor ?? null, limit + 1, center.lat, center.lng] : [viewerId, name, cursor ?? null, limit + 1],
     );
     const page = rows.slice(0, limit);
-    return { label: name, mode, hasNear: !!center, center, items: await this.hydrate(viewerId, page), nextCursor: rows.length > limit ? page[page.length - 1].id : null };
+    return { label: name, mode, hasNear: !!center, center: shownCenter, items: await this.hydrate(viewerId, page), nextCursor: rows.length > limit ? page[page.length - 1].id : null };
   }
 
   /** Guardar ou tirar dos guardados (privado). */
