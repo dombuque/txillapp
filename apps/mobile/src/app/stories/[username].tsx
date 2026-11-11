@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { RichText } from '@/components/RichText';
+import { CheersPour } from '@/components/CheersPour';
 import { ActivityPanel, CommentsPanel, Panel, ReplyBar, useKeyboardHeight } from '@/components/StoryParts';
 import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
 import { api, type Story } from '@/lib/api';
@@ -122,6 +123,8 @@ export default function StoryViewer() {
   const ownSeen = useOwnSeen();
   const [held, setHeld] = useState(false);
   const [typing, setTyping] = useState(false);
+  /** Muda a cada brinde: os copos aparecem no meio do mimo, como nas publicações. */
+  const [burst, setBurst] = useState(0);
   const [panel, setPanel] = useState<null | 'menu' | 'viewers' | 'comments'>(null);
   const [away, setAway] = useState(false); // outro ecrã por cima (ex.: a publicação)
   const [seePost, setSeePost] = useState(false);
@@ -369,6 +372,8 @@ export default function StoryViewer() {
           </Pressable>
         )}
 
+        <CheersPour n={burst} size={Math.min(240, width * 0.6)} />
+
         <LinearGradient colors={['rgba(0,0,0,0.6)', 'transparent']} style={[st.top, { paddingTop: Math.max(insets.top, 12) }]} pointerEvents="box-none">
           <View style={st.bars} pointerEvents="none">
             {stories.map((s, n) => (
@@ -411,7 +416,7 @@ export default function StoryViewer() {
               <Pressable onPress={() => void shareMimo()} style={[st.chip, { minHeight: 40, backgroundColor: 'rgba(0,0,0,0.4)' }]} accessibilityRole="button" accessibilityLabel="Partilhar o mimo"><Icon name="share" size={18} color="#fff" /></Pressable>
             </View>
           )}
-          {!mine && cur.canReply && <ReplyBar key={cur.id} story={cur} username={cur.author.username} onFocusChange={setTyping} inputRef={replyRef} />}
+          {!mine && cur.canReply && <ReplyBar key={cur.id} story={cur} username={cur.author.username} onFocusChange={setTyping} inputRef={replyRef} onCheered={() => setBurst((b) => b + 1)} />}
           {!mine && !cur.canReply && <Text style={st.noReply}>Este mimo não aceita respostas</Text>}
         </LinearGradient>
 

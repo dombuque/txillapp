@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Animated, Keyboard, PanResponder, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
@@ -75,7 +76,7 @@ export function Panel({ title, onClose, children }: { title: string; onClose: ()
 }
 
 /** Responder ao story ou reagir com a mascote; brindar alterna e conta ao autor. */
-export function ReplyBar({ story, username, onFocusChange, inputRef }: { story: Story; username: string; onFocusChange: (v: boolean) => void; inputRef: React.RefObject<React.ComponentRef<typeof TextInput> | null> }) {
+export function ReplyBar({ story, username, onFocusChange, inputRef, onCheered }: { story: Story; username: string; onFocusChange: (v: boolean) => void; inputRef: React.RefObject<React.ComponentRef<typeof TextInput> | null>; /** Brindou (não quando tira o brinde): o ecrã mostra os copos, como nas publicações. */ onCheered?: () => void }) {
   const [text, setText] = useState('');
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -86,6 +87,10 @@ export function ReplyBar({ story, username, onFocusChange, inputRef }: { story: 
   async function cheer() {
     const next = !cheered;
     setCheered(next);
+    if (next) {
+      onCheered?.();
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    }
     try { await api.cheerStory(story.id, next); } catch (e) { setCheered(!next); flash((e as Error).message); }
   }
   async function send(body: string) {
