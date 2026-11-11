@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
+import { currentDevicePosition } from '@/lib/watchPosition';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Icon, type IconName } from '@/components/Icon';
@@ -38,8 +39,8 @@ async function whereAmI(): Promise<{ lat: number; lng: number }> {
   }
   const perm = await Location.requestForegroundPermissionsAsync();
   if (!perm.granted) throw new Error('Sem permissão de localização. Ativa-a nas definições ou escreve à mão.');
-  const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-  return { lat: p.coords.latitude, lng: p.coords.longitude };
+  const p = await currentDevicePosition(false);
+  return { lat: p.lat, lng: p.lng };
 }
 
 function Row({ o, onPick }: { o: Option; onPick: () => void }) {

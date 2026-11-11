@@ -11,6 +11,7 @@ import {
   type Fix, type LatLng, type LiveMinutes, type LocationMessage, type SheetState, type SpotChoice, type SpotRow,
 } from '@/lib/sendLocation';
 import { colors } from '@/lib/theme';
+import { watchDevicePosition } from '@/lib/watchPosition';
 import { Icon, type IconName } from './Icon';
 import { PlaceMiniMap } from './nearby/PlaceMiniMap';
 import { PlacePickMap } from './nearby/PlacePickMap';
@@ -99,10 +100,9 @@ export function SendLocationSheet({ onClose, onSend, allowLive, who }: {
   useEffect(() => {
     if (permission !== 'granted') return;
     let alive = true;
-    let sub: Location.LocationSubscription | null = null;
-    const onFix = (p: Location.LocationObject) => {
+    let stopWatch: (() => void) | null = null;
+    const onFix = (f: Fix) => {
       if (!alive) return;
-      const f: Fix = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy ?? null };
       if (!validPoint(f)) return;
       setFixErr('');
       setFix((old) => {
@@ -114,15 +114,22 @@ export function SendLocationSheet({ onClose, onSend, allowLive, who }: {
     (async () => {
       if (!web) {
         const last = await Location.getLastKnownPositionAsync({ maxAge: 60_000 }).catch(() => null);
-        if (last) onFix(last);
+        if (last) onFix({ lat: last.coords.latitude, lng: last.coords.longitude, accuracy: last.coords.accuracy ?? null });
       }
-      const s = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, timeInterval: 2_000, distanceInterval: 1 }, onFix);
-      if (alive) sub = s;
-      else s.remove();
+      const stop = await watchDevicePosition({ high: true, intervalMs: 2_000, distanceM: 1 }, onFix, (e) => {
+        if (!alive) return;
+        // No browser, recusar fica gravado no site: passa a "bloqueada" (com a explicação do cadeado).
+        if (e === 'denied') return setPermission('blocked');
+        setFixErr(e === 'timeout'
+          ? 'Ainda não consegui saber onde estás. Se estiveres dentro de casa, chega a uma janela; ou procura um sítio ou arrasta o mapa.'
+          : 'Não consegui saber onde estás. Vê se a localização do aparelho está ligada.');
+      });
+      if (alive) stopWatch = stop;
+      else stop();
     })().catch(() => { if (alive) setFixErr('Não consegui saber onde estás. Vê se a localização do aparelho está ligada.'); });
     return () => {
       alive = false;
-      sub?.remove();
+      stopWatch?.();
     };
   }, [permission]);
 

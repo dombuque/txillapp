@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import { currentDevicePosition } from '@/lib/watchPosition';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
@@ -44,8 +45,8 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
     try {
       const perm = await Location.requestForegroundPermissionsAsync();
       if (!perm.granted) return setErr('Sem acesso à localização. Dá permissão ou escreve o sítio');
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const r = await api.nearbyPlaces(pos.coords.latitude, pos.coords.longitude);
+      const pos = await currentDevicePosition(false);
+      const r = await api.nearbyPlaces(pos.lat, pos.lng);
       const label = [r.area, r.city].filter((x, i, a) => x && a.indexOf(x) === i).join(', ');
       if (label) setCity(label.slice(0, 40));
       else setErr('Não consegui saber o nome do sítio. Escreve-o tu');

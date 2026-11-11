@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
 import { Platform } from 'react-native';
+import { currentDevicePosition } from './watchPosition';
 
 export type LatLng = { lat: number; lng: number };
 
@@ -21,8 +22,10 @@ export async function devicePosition(ask: boolean): Promise<LatLng | null> {
     if (!perm.granted && ask && perm.canAskAgain !== false) perm = await Location.requestForegroundPermissionsAsync();
     if (!perm.granted) return null;
     const last = Platform.OS === 'web' ? null : await Location.getLastKnownPositionAsync({ maxAge: 10 * 60_000 }).catch(() => null);
-    const pos = last ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
-    return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    if (last) return { lat: last.coords.latitude, lng: last.coords.longitude };
+    // Com tempo-limite (lib/watchPosition): no site o expo-location podia ficar à espera para sempre.
+    const pos = await currentDevicePosition(false);
+    return { lat: pos.lat, lng: pos.lng };
   } catch {
     return null;
   }
@@ -34,8 +37,8 @@ export async function preciseDevicePosition(): Promise<LatLng | null> {
     let perm = await Location.getForegroundPermissionsAsync();
     if (!perm.granted && perm.canAskAgain !== false) perm = await Location.requestForegroundPermissionsAsync();
     if (!perm.granted) return null;
-    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-    return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    const pos = await currentDevicePosition(true);
+    return { lat: pos.lat, lng: pos.lng };
   } catch {
     return null;
   }

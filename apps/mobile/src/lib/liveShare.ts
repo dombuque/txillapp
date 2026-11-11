@@ -1,4 +1,4 @@
-import * as Location from 'expo-location';
+import { watchDevicePosition } from '@/lib/watchPosition';
 import { ApiError, raw } from '@/lib/api';
 
 /**
@@ -9,7 +9,7 @@ import { ApiError, raw } from '@/lib/api';
  */
 const EVERY_MS = 20_000;
 const active = new Map<string, number>(); // id da mensagem → fim (ms)
-let sub: Location.LocationSubscription | null = null;
+let sub: (() => void) | null = null;
 let starting = false;
 let timer: ReturnType<typeof setInterval> | null = null;
 let last: { lat: number; lng: number } | null = null;
@@ -33,7 +33,7 @@ async function push() {
 }
 
 function stop() {
-  sub?.remove();
+  sub?.();
   sub = null;
   if (timer) clearInterval(timer);
   timer = null;
@@ -48,12 +48,13 @@ export function startLive(messageId: string, until: number, from?: { lat: number
   if (!timer) timer = setInterval(() => void push(), EVERY_MS);
   if (sub || starting) return;
   starting = true;
-  Location.watchPositionAsync({ accuracy: Location.Accuracy.High, timeInterval: 10_000, distanceInterval: 10 }, (p) => {
-    last = { lat: p.coords.latitude, lng: p.coords.longitude };
+  // lib/watchPosition: no site o watchPositionAsync do expo-location nunca entregava as posições.
+  watchDevicePosition({ high: true, intervalMs: 10_000, distanceM: 10 }, (p) => {
+    last = { lat: p.lat, lng: p.lng };
   })
     .then((s) => {
       // Entretanto a partilha pode ter acabado.
-      if (active.size === 0) s.remove();
+      if (active.size === 0) s();
       else sub = s;
     })
     .catch(() => undefined)
