@@ -557,7 +557,7 @@ function DevicesSheet({ onClose }: { onClose: () => void }) {
       {q.isLoading && <LoadingBlock className="py-6" />}
       {q.data?.map((d) => (
         <div key={d.id} className="flex items-center gap-3 py-2.5">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-100" aria-hidden><Icon name={/Android|iOS/.test(d.device) ? 'phone' : 'laptop'} size={22} /></span>
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-100" aria-hidden><Icon name={/Android|iOS|iPhone|iPad/.test(d.device) ? 'phone' : 'laptop'} size={22} /></span>
           <span className="min-w-0 flex-1">
             <span className="block truncate font-semibold">{d.device}{d.current && <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-bold text-green-800">{tr('Este dispositivo')}</span>}</span>
             <span className="block text-sm text-zinc-600">{tr('Última atividade')} {timeAgo(d.lastUsed).toLowerCase()}</span>

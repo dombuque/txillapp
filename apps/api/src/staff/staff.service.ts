@@ -5,7 +5,7 @@ import { PG_POOL } from '../db/db.module';
 
 /** Tudo o que a equipa pode fazer no backoffice. */
 export const PERMISSIONS = [
-  'users.view', 'users.notes', 'users.verify_email', 'users.suspend',
+  'users.view', 'users.notes', 'users.verify_email', 'users.suspend', 'users.sessions', 'users.export',
   'reports.read', 'reports.decide',
   'verification.decide',
   'catalog.manage',
@@ -20,7 +20,7 @@ export interface TeamDef { id: string; name: string; description: string; permis
 export const TEAMS: readonly TeamDef[] = [
   { id: 'administracao', name: 'Administração', description: 'Tudo, incluindo gerir a equipa.', permissions: PERMISSIONS },
   { id: 'moderacao', name: 'Moderação', description: 'Queixas e conteúdo; suspender contas e gerir o catálogo.', permissions: ['users.view', 'users.notes', 'users.suspend', 'reports.read', 'reports.decide', 'catalog.manage'] },
-  { id: 'suporte', name: 'Suporte', description: 'Ajudar utilizadores: ver contas, confirmar emails, deixar notas.', permissions: ['users.view', 'users.notes', 'users.verify_email'] },
+  { id: 'suporte', name: 'Suporte', description: 'Ajudar utilizadores: ver contas, confirmar emails, deixar notas e terminar sessões.', permissions: ['users.view', 'users.notes', 'users.verify_email', 'users.sessions'] },
   { id: 'verificacao', name: 'Verificação', description: 'Decidir os pedidos de selo.', permissions: ['users.view', 'verification.decide'] },
   { id: 'financas', name: 'Finanças', description: 'Ver Txills, pedidos e números.', permissions: ['users.view', 'wallet.view', 'stats.view'] },
   { id: 'crescimento', name: 'Crescimento e parceiros', description: 'Convites, números e parceiros.', permissions: ['users.view', 'invites.view', 'stats.view'] },

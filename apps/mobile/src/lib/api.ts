@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { accounts } from './accounts';
 import { kvGet, kvSet } from './kv';
@@ -351,7 +352,25 @@ export const refreshStore = {
   },
 };
 
-const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'X-Requested-With': 'txillapp', 'X-Client': isWeb ? 'txillapp-web' : 'txillapp-mobile' };
+/**
+ * Para a lista "Os teus aparelhos" mostrar "Android · app Txillapp 1.25" ou "iPhone · Safari (app instalada)": a versão e a
+ * plataforma da app nativa, ou se a versão web está instalada no ecrã principal. Nada mais (nem IP, nem modelo do telemóvel).
+ */
+function deviceHeaders(): Record<string, string> {
+  try {
+    if (!isWeb) {
+      const v = (Constants.expoConfig?.version ?? Constants.nativeApplicationVersion ?? '').trim();
+      const p = Platform.OS === 'ios' ? ((Platform as unknown as { isPad?: boolean }).isPad ? 'ipad' : 'ios') : 'android';
+      return { ...(/^\d{1,3}\.\d{1,3}(\.\d{1,4})?$/.test(v) ? { 'X-App-Version': v } : {}), 'X-App-Platform': p };
+    }
+    const standalone = typeof window !== 'undefined' && ((navigator as unknown as { standalone?: boolean }).standalone === true || !!window.matchMedia?.('(display-mode: standalone)').matches);
+    return standalone ? { 'X-App-Display': 'standalone' } : {};
+  } catch {
+    return {};
+  }
+}
+
+const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'X-Requested-With': 'txillapp', 'X-Client': isWeb ? 'txillapp-web' : 'txillapp-mobile', ...deviceHeaders() };
 
 async function call(path: string, init: RequestInit = {}, auth = true): Promise<Response> {
   return fetch(`${SITE_URL}/api/v1${path}`, {
