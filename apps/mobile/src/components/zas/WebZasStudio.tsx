@@ -72,6 +72,8 @@ export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, e
   const video = useRef<HTMLVideoElement | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const fxCanvas = useRef<HTMLCanvasElement | null>(null);
+  /** O campo da legenda: tocar dentro da foto abre-o. */
+  const capInput = useRef<React.ComponentRef<typeof TextInput> | null>(null);
   const fxRenderer = useRef<FunRenderer | null>(null);
   const swipe = useRef<{ x: number; y: number; t: number } | null>(null);
   const pinch = useRef<{ d0: number; z0: number } | null>(null);
@@ -334,6 +336,8 @@ export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, e
                   if (isTap(dx, dy, Date.now() - s.t)) {
                     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                     focusTap(e.changedTouches[0].clientX - r.left, e.changedTouches[0].clientY - r.top);
+                    // Tocar dentro da foto também abre a legenda ("Adicionar legenda…" só aparece aí).
+                    capInput.current?.focus();
                   }
                 },
               },
@@ -368,6 +372,7 @@ export function WebZasStudio({ caption, onCaption, audience, onAudience, busy, e
               (caption || editing) && <CurvedCaption key="cap" w={cw} h={ch} text={caption || 'Adicionar legenda…'} hint={!caption} caret={editing} caretFirst={!caption} />,
               <TextInput
                 key="inp"
+                ref={capInput}
                 value={caption}
                 onChangeText={onCaption}
                 onFocus={() => onEditing(true)}

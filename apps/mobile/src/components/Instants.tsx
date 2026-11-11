@@ -427,6 +427,8 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   const vv = useVisibleViewport();
   const [editing, setEditing] = useState(false);
   const [capEdit, setCapEdit] = useState(false);
+  /** O campo da legenda: tocar dentro da foto abre-o. */
+  const capInput = useRef<React.ComponentRef<typeof TextInput> | null>(null);
   // O cartão mede-se no espaço que sobra de facto (onLayout), não numa estimativa do ecrã: 0,75 exata, nunca negativo,
   // e só aparece depois de medido. Com o teclado da legenda aberto fica do tamanho que tinha (não salta).
   const [camArea, setCamArea] = useState({ w: 0, h: 0 });
@@ -511,10 +513,12 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
             shootRef={shootRef}
             onStatus={setCam}
             onScreenLight={setScreenLight}
+            onTap={() => capInput.current?.focus()}
           >
-            {/* "Adicionar legenda…" só aparece depois de tocar no topo da foto (ou quando já há legenda). */}
+            {/* "Adicionar legenda…" só aparece depois de tocar dentro da foto (ou quando já há legenda). */}
             {caption || capEdit ? <CurvedCaption w={cardW} h={cardH} text={caption || 'Adicionar legenda…'} hint={!caption} caret={capEdit} caretFirst={!caption} /> : null}
             <TextInput
+              ref={capInput}
               value={caption}
               onChangeText={setCaption}
               onFocus={() => setCapEdit(true)}

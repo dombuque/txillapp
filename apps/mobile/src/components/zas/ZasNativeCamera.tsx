@@ -33,7 +33,7 @@ const fileUri = (p: string) => (p.startsWith('file://') ? p : `file://${p}`);
 const RING = 64;
 
 export function ZasNativeCamera({
-  w, h, facing, flash, style, swipe, shootRef, onStatus, onScreenLight, children,
+  w, h, facing, flash, style, swipe, shootRef, onStatus, onScreenLight, onTap, children,
 }: {
   w: number;
   h: number;
@@ -48,6 +48,8 @@ export function ZasNativeCamera({
   onStatus: (s: ZasCamStatus) => void;
   /** Pede ao ecrã do Zás para pôr o ecrã todo branco (o "flash" da câmara da frente). */
   onScreenLight: (on: boolean) => void;
+  /** Um toque dentro da foto (além de focar ali): o ecrã do Zás abre a legenda. */
+  onTap?: () => void;
   children?: ReactNode;
 }) {
   const cam = useRef<CameraRef | null>(null);
@@ -128,7 +130,7 @@ export function ZasNativeCamera({
     onBegin: () => { z0.current = zoom; },
     onUpdate: (e) => setZoom(pinchZoom(z0.current, e.scale, minZoom, maxZoom)),
   });
-  const tap = useTapGesture({ numberOfTaps: 1, runOnJS: true, enabled: ready, onActivate: (e) => focusAt(e.x, e.y) });
+  const tap = useTapGesture({ numberOfTaps: 1, runOnJS: true, enabled: ready, onActivate: (e) => { focusAt(e.x, e.y); onTap?.(); } });
   const gestures = useSimultaneousGestures(pinch, tap, swipe);
 
   shootRef.current = async () => {
