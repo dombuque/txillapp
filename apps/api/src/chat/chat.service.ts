@@ -300,7 +300,7 @@ export class ChatService {
   }
 
   /** Mensagens da conversa (as mais recentes primeiro, por cursor). Abrir marca como lidas e avisa o outro lado. */
-  async thread(me: string, username: string, cursor?: string) {
+  async thread(me: string, username: string, cursor?: string, markRead = true) {
     if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
     const other = await this.userByName(username);
     const blocked = (await this.pool.query(`SELECT ${blockedBetween('$2::uuid', '$1::uuid')} AS b`, [me, other.id])).rows[0].b as boolean;
@@ -327,8 +327,9 @@ export class ChatService {
     );
     const page = rows.slice(0, PAGE);
     // Abrir tira a marca de "por ler".
-    if (!cursor) await this.pool.query('UPDATE social.conversations SET unread_mark_a = CASE WHEN user_a = $2 THEN false ELSE unread_mark_a END, unread_mark_b = CASE WHEN user_b = $2 THEN false ELSE unread_mark_b END WHERE id = $1', [conv, me]);
-    if (!cursor && page[0]) {
+    // Só quando a conversa está mesmo à vista (`markRead`): pré-carregar ou atualizar por trás não lê nada.
+    if (!cursor && markRead) await this.pool.query('UPDATE social.conversations SET unread_mark_a = CASE WHEN user_a = $2 THEN false ELSE unread_mark_a END, unread_mark_b = CASE WHEN user_b = $2 THEN false ELSE unread_mark_b END WHERE id = $1', [conv, me]);
+    if (!cursor && markRead && page[0]) {
       const upd = await this.pool.query(
         `UPDATE social.conversations SET read_a = CASE WHEN user_a = $2 THEN $3::uuid ELSE read_a END, read_b = CASE WHEN user_b = $2 THEN $3::uuid ELSE read_b END
           WHERE id = $1 AND (CASE WHEN user_a = $2 THEN read_a ELSE read_b END IS DISTINCT FROM $3::uuid)`,

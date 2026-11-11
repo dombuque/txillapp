@@ -1,5 +1,5 @@
 /** API dos grupos de chat (copiada do site, apps/web/src/lib/api.ts). Só usa o que a app já exporta em '@/lib/api'. */
-import { post, raw, type ChatMessage, type GroupSummary, type MsgKind } from '@/lib/api';
+import { post, raw, threadQuery, type ChatMessage, type GroupSummary, type MsgKind } from '@/lib/api';
 
 export type { GroupSummary };
 export type GroupRole = 'admin' | 'member';
@@ -29,7 +29,7 @@ export interface GroupSendBody {
 
 export const gruposApi = {
   list: (): Promise<GroupSummary[]> => raw('/chat/groups'),
-  thread: (id: string, cursor?: string): Promise<GroupThread> => raw(`/chat/groups/${id}${cursor ? `?cursor=${cursor}` : ''}`),
+  thread: (id: string, cursor?: string, read = true): Promise<GroupThread> => raw(`/chat/groups/${id}${threadQuery(cursor, read)}`),
   send: (id: string, msg: GroupSendBody): Promise<{ id: string }> => raw(`/chat/groups/${id}/messages`, post(msg)),
   create: (name: string, members: string[]): Promise<{ id: string }> => raw('/chat/groups', post({ name, members })),
   rename: (id: string, name: string): Promise<void> => raw(`/chat/groups/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),

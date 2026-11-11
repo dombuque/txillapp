@@ -26,6 +26,7 @@ import { headerLine, newPostsLabel, newPostsTarget, newPostsText } from '@/lib/c
 import { NOTE_FOLD_MS, NOTE_FOLD_START, noteFold, peerBubble, peerBubbleKey } from '@/lib/chatPeerNote';
 import { activeLabel } from '@/lib/chatTimeline';
 import { useTyping } from '@/lib/realtime';
+import { useChatVisible } from '@/lib/chatVisible';
 import { colors } from '@/lib/theme';
 
 /** Conversa com uma pessoa, igual à do site: tempo real, "a escrever…", "Visto", citações, reações, apagar, pedidos de mensagem. */
@@ -54,9 +55,11 @@ export default function Thread() {
   // Por ler ao abrir (da lista de conversas, antes de a conversa as marcar como lidas): para o "Mensagens novas".
   const unread = useMemo(() => qc.getQueryData<Conversation[]>(['chat-list'])?.find((c) => c.username === username)?.unread ?? 0, [username]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Só marca como lidas com a conversa mesmo à vista; ao voltar a ela (ecrã, app ou janela), pede outra vez para as ler.
+  const visible = useChatVisible(() => void qc.invalidateQueries({ queryKey: ['chat-thread', username] }));
   const q = useInfiniteQuery({
     queryKey: ['chat-thread', username],
-    queryFn: ({ pageParam }) => api.chatThread(username, pageParam),
+    queryFn: ({ pageParam }) => api.chatThread(username, pageParam, !pageParam && visible()),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (l: ChatThread) => l.nextCursor ?? undefined,
     // O tempo real faz o trabalho; isto é só uma rede de segurança.
