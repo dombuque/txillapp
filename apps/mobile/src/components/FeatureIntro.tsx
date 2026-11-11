@@ -27,7 +27,7 @@ export const INTROS: Record<string, Intro> = {
     icon: 'bolt',
     title: 'Zás!',
     points: [
-      { icon: 'camera', title: 'Foto na hora', text: 'Sem galeria: é o momento, como está. Vai logo, com 6 segundos para desfazer.' },
+      { icon: 'camera', title: 'Foto na hora', text: 'Sem galeria: é o momento, como está. O botão tira e envia logo.' },
       { icon: 'clock', title: 'Dura 24 horas', text: 'E cada pessoa só vê uma vez. Depois desaparece.' },
       { icon: 'users', title: 'Só para a malta', text: 'Chega aos amigos próximos e a quem segues e te segue.' },
     ],

@@ -15,7 +15,7 @@ import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
-import { dropPublish, enqueueTask } from '@/lib/publishQueue';
+import { enqueueTask } from '@/lib/publishQueue';
 import { applyZasFx } from '@/lib/zasFx';
 import { usePanGesture } from 'react-native-gesture-handler';
 import { FUN_FX } from './zas/funFilters';
@@ -28,7 +28,6 @@ import { useVisibleViewport } from './zas/useVisibleViewport';
 import { WebZasStudio } from './zas/WebZasStudio';
 import { ZasNativeCamera, type ZasCamStatus } from './zas/ZasNativeCamera';
 import { zasCardSize } from './zas/zasFrame';
-import { ZAS_UNDO_MS, undoSecondsLeft, waitUndoWindow } from './zas/zasUndo';
 import { saveZas, shareZas } from './zas/zasImage';
 
 type Audience = 'friends' | 'close';
@@ -278,7 +277,7 @@ function ZasStack({ others, total, snoozed, bottom, rise, shrink, slide, pan, on
 
 /**
  * Mandar um Zás. No site a câmara é aberta no próprio ecrã; na app abre a câmara do telemóvel (sem galeria) e o Zás vai logo
- * (com 6 s para desfazer). Em cima, o cartão 3:4 com a legenda; em baixo o obturador e para quem vai.
+ *. Em cima, o cartão 3:4 com a legenda; em baixo o obturador e para quem vai.
  */
 export function InstantsHub({ onClose }: { onClose: () => void }) {
   // Abrir o Zás conta como descoberto: some o "NOVA" do botão.
@@ -291,11 +290,9 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   const [audience, setAudience] = useState<Audience>('friends');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [sent, setSent] = useState<string | null>(null);
   const [intro, setIntro] = useState(false);
   const [grid, setGrid] = useState(false);
   const [setupClose, setSetupClose] = useState(false);
-  const undoTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Filtros divertidos na app: deslizar no cartão troca (como no site); o filtro entra na foto ao tirar.
   const [fx, setFx] = useState(0);
   const [fxName, setFxName] = useState<string | null>(null);
@@ -328,7 +325,6 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     void remember(INTRO_KEY).then((v) => setIntro(v !== '1'));
     void remember(AUDIENCE_KEY).then((v) => setAudience(v === 'close' ? 'close' : 'friends'));
-    return () => clearTimeout(undoTimer.current);
   }, []);
 
   function pickAudience(a: Audience) {
@@ -338,7 +334,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
     void remember(AUDIENCE_KEY, a);
   }
 
-  /** Envia a foto (uri local ou blob:) como Zás, com 6 s para desfazer. */
+  /** Envia a foto (uri local ou blob:) como Zás. */
   // Nativo: a câmara vive dentro do cartão (como no site): a VisionCamera, em zas/ZasNativeCamera.
   const [facing, setFacing] = useState<'back' | 'front'>('back');
   const [flashOn, setFlashOn] = useState(false);
@@ -346,42 +342,19 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   const [screenLight, setScreenLight] = useState(false);
   const [shooting, setShooting] = useState(false);
   const shootRef = useRef<(() => Promise<string | null>) | null>(null);
-  // Zás instantâneo: aparece logo "enviado" com 6 s para desfazer, e o envio segue em segundo plano (faixa no Início).
-  // A foto começa logo a subir, mas o Zás só é criado no servidor quando a janela acaba: nesses 6 s ninguém o pode
-  // receber (nem há aviso nenhum), e "Desfazer" só tem de o cancelar.
-  const pendingZas = useRef(new Map<string, { cancelled: boolean; id?: string; task?: string; sentAt: number }>());
-  const undoBar = useRef(new Animated.Value(1)).current;
-  const [undoLeft, setUndoLeft] = useState(0);
-  const undoTick = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
-  useEffect(() => () => clearInterval(undoTick.current), []);
+  // Zás instantâneo: o botão tira e envia logo, sem aviso nem "Desfazer" (pedido do dono); o envio segue em segundo
+  // plano, com a faixa no Início.
   async function send(uri: string, mime: string) {
     setErr('');
-    const sentAt = Date.now();
-    const key = `zas-${sentAt}`;
-    const state: { cancelled: boolean; id?: string; task?: string; sentAt: number } = { cancelled: false, sentAt };
-    pendingZas.current.set(key, state);
     const text = caption.trim(), who = audience;
     setCaption('');
-    setSent(key);
-    // A contagem (6…1) e a barra a esvaziar; no fim o aviso sai sozinho.
-    clearTimeout(undoTimer.current);
-    clearInterval(undoTick.current);
-    setUndoLeft(undoSecondsLeft(sentAt, Date.now()));
-    undoTick.current = setInterval(() => setUndoLeft(undoSecondsLeft(sentAt, Date.now())), 250);
-    undoTimer.current = setTimeout(() => { clearInterval(undoTick.current); setSent((s) => (s === key ? null : s)); }, ZAS_UNDO_MS);
-    undoBar.stopAnimation();
-    undoBar.setValue(1);
-    Animated.timing(undoBar, { toValue: 0, duration: ZAS_UNDO_MS, easing: Easing.linear, useNativeDriver: false }).start();
-    // O clarão e o toque do obturador já se deram ao tirar; este é o "foi enviado".
+    // O clarão e o toque do obturador já se deram ao tirar; este é o "foi".
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     const chosenFx = fxRef.current;
-    state.task = enqueueTask('zas', { uri, mime, video: false }, async () => {
+    enqueueTask('zas', { uri, mime, video: false }, async () => {
       const src = await applyZasFx(uri, chosenFx);
       const mediaId = await uploadMedia(src, mime);
-      if (await waitUndoWindow(sentAt, () => state.cancelled)) return;
-      const res = await instantsApi.create(mediaId, text, who);
-      state.id = res.id;
-      if (state.cancelled) { await instantsApi.remove(res.id).catch(() => undefined); return; }
+      await instantsApi.create(mediaId, text, who);
       refresh();
     }, qc);
   }
@@ -407,21 +380,6 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
       setTimeout(() => URL.revokeObjectURL(url), 8000);
     }
   }
-  async function undo() {
-    if (!sent) return;
-    const state = pendingZas.current.get(sent);
-    setSent(null);
-    clearTimeout(undoTimer.current);
-    clearInterval(undoTick.current);
-    undoBar.stopAnimation();
-    if (!state) return;
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-    state.cancelled = true; // ainda dentro da janela: nem chega a ser criado no servidor
-    if (state.task) dropPublish(state.task); // e some a faixa "a enviar" do Início
-    pendingZas.current.delete(sent);
-    if (state.id) { await instantsApi.remove(state.id).catch(() => undefined); refresh(); }
-  }
-
   // Cartão 3:4 que cabe no espaço que sobra.
   const isWeb = Platform.OS === 'web';
   const vv = useVisibleViewport();
@@ -438,32 +396,6 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
     if (Math.abs(w - camArea.w) > 0.5 || Math.abs(h - camArea.h) > 0.5) setCamArea({ w, h });
   };
   const { w: cardW, h: cardH } = zasCardSize(camArea.w, camArea.h - 8);
-  const sentBox = sent ? (
-
-            <View style={st.sent}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, paddingLeft: 20, paddingRight: 6 }}>
-                <View accessibilityLiveRegion="polite" style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>Zás enviado!</Text>
-                  {/* Contagem discreta; o leitor de ecrã não a lê a cada segundo. */}
-                  <Text importantForAccessibility="no" accessibilityElementsHidden style={{ fontSize: 13, fontWeight: '600', color: colors.zinc500, fontVariant: ['tabular-nums'] }}>{undoLeft > 0 ? `${undoLeft} s` : ''}</Text>
-                </View>
-                <Pressable
-                  onPress={() => void undo()}
-                  accessibilityRole="button"
-                  accessibilityLabel="Desfazer"
-                  accessibilityHint="Cancela o envio deste Zás"
-                  hitSlop={6}
-                  style={({ pressed }) => ({ minHeight: 44, minWidth: 44, paddingHorizontal: 16, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? colors.zinc200 : colors.zinc100 })}
-                >
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: colors.brand }}>Desfazer</Text>
-                </Pressable>
-              </View>
-              {/* A barra a esvaziar durante os 6 segundos. */}
-              <View pointerEvents="none" style={{ height: 3, backgroundColor: colors.zinc100 }}>
-                <Animated.View style={{ height: 3, backgroundColor: colors.brand, width: undoBar.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }} />
-              </View>
-            </View>
-          ) : null;
   const rootStyle = isWeb
     ? ({ flex: 1, backgroundColor: '#08080b', backgroundImage: 'radial-gradient(120% 60% at 50% 105%, rgba(255,92,92,.28), transparent 60%)', paddingTop: Math.max(8, insets.top), ...(vv ? { position: 'absolute', left: 0, right: 0, top: vv.top, height: vv.height } : null) } as never)
     : { flex: 1, backgroundColor: '#08080b', paddingTop: Math.max(8, insets.top) };
@@ -497,7 +429,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
         )}
 
         {isWeb ? (
-          <WebZasStudio caption={caption} onCaption={setCaption} audience={audience} onAudience={pickAudience} busy={busy} err={err} editing={editing} onEditing={setEditing} onCapture={(b) => void sendBlob(b)} sentBox={sentBox} />
+          <WebZasStudio caption={caption} onCaption={setCaption} audience={audience} onAudience={pickAudience} busy={busy} err={err} editing={editing} onEditing={setEditing} onCapture={(b) => void sendBlob(b)} sentBox={null} />
         ) : (
           <>
         <View onLayout={onCamArea} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -536,7 +468,6 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
         </View>
 
         <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: Math.max(16, insets.bottom) }}>
-          {sentBox}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
             {/* Flash: o da câmara de trás; na da frente, o ecrã acende-se branco ao tirar (iluminação de ecrã). */}
             <Pressable onPress={() => setFlashOn((t) => !t)} disabled={!cam.granted} style={[st.small, { width: 54, height: 54, borderRadius: 27 }, flashOn && { backgroundColor: '#fcd34d' }, !cam.granted && { opacity: 0.4 }]} accessibilityRole="button" accessibilityLabel={facing === 'front' || !cam.hasFlash ? 'Flash de ecrã' : 'Flash'} accessibilityState={{ selected: flashOn }}>
@@ -583,7 +514,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
               <View style={{ marginTop: 16, gap: 12 }}>
                 {([
                   ['camera', 'Uma foto tirada na hora, sem galeria. Desliza na foto para os filtros.'],
-                  ['send', 'O botão tira e envia logo. Tens 6 segundos para desfazer.'],
+                  ['send', 'O botão tira e envia logo.'],
                   ['eye', 'Cada pessoa vê uma só vez e depois desaparece. Vês quem viu e as reações.'],
                   ['clock', 'Dura 24 horas.'],
                   ['users', 'Vai para os teus amigos (quem se segue contigo) ou só para os Próximos.'],
