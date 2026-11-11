@@ -11,3 +11,6 @@ uploads-test/
 img/
 .models/
 *.tsbuildinfo
+
+# Chaves e segredos locais (nunca para o git)
+secrets/
