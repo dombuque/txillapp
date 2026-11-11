@@ -15,6 +15,8 @@ import { SendLocationSheet } from './SendLocationSheet';
 import { StickerPanel } from './StickerPanel';
 import { useGifsConfig } from './GifPanel';
 import { gifMessage } from '@/lib/gifs';
+import { usePastedImage } from '@/lib/usePastedImage';
+import { PastedImageSheet } from './PastedImageSheet';
 
 const nativeDriver = Platform.OS !== 'web';
 const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
@@ -61,6 +63,8 @@ export function ChatComposer({
   const timer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const stickersNew = useIsNew('stickers');
   const gifs = useGifsConfig();
+  // Site: colar ou arrastar uma imagem para a caixa abre a pré-visualização (Enviar ou Cancelar).
+  const paste = usePastedImage({ inputRef: input, onProblem: setErr, onOpen: () => { setErr(''); setPanel(null); setMore(false); } });
   useEffect(() => () => clearInterval(timer.current), []);
   // Ao escolher "Responder" numa mensagem, o teclado abre logo para escrever a resposta.
   useEffect(() => {
@@ -96,18 +100,35 @@ export function ChatComposer({
         : ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.8 }));
       const a = r.canceled ? null : r.assets[0];
       if (!a) return;
-      setBusy(true);
       const video = a.type === 'video';
-      const mime = a.mimeType ?? (video ? 'video/mp4' : 'image/jpeg');
-      const mediaId = await uploadChatMedia(a.uri, mime);
+      await sendMedia(a.uri, a.mimeType ?? (video ? 'video/mp4' : 'image/jpeg'), video);
+    } catch (e) {
+      setErr((e as Error).message || 'Não consegui enviar');
+    }
+  }
+  /** Envia uma foto ou vídeo (da galeria, da câmara ou colado), com o texto escrito como legenda e "Ver uma vez". */
+  async function sendMedia(uri: string, mime: string, video: boolean) {
+    setBusy(true);
+    try {
+      const mediaId = await uploadChatMedia(uri, mime);
       await dispatch({ kind: video ? 'video' : 'image', mediaId, body: text.trim() || undefined, once });
       setText('');
       grow.reset();
       setOnce(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+  /** "Enviar" na pré-visualização da imagem colada ou arrastada: o mesmo caminho da galeria. */
+  async function sendPasted() {
+    const p = paste.take();
+    if (!p) return;
+    try {
+      await sendMedia(p.uri, p.type, false);
     } catch (e) {
       setErr((e as Error).message || 'Não consegui enviar');
     } finally {
-      setBusy(false);
+      paste.release(p);
     }
   }
   /** "Localização": abre a folha "Enviar localização" (como no WhatsApp). Nada se envia sem um toque em Enviar nela. */
@@ -219,7 +240,7 @@ export function ChatComposer({
             </Pressable>
           )}
           <TextInput
-            ref={input}
+            ref={paste.ref}
             value={text}
             onChangeText={(v) => { setText(v); if (v) onTyping?.(); }}
             onFocus={() => setPanel(null)}
@@ -273,6 +294,7 @@ export function ChatComposer({
       )}
       {gift && person && <GiftSheet recipient={person} onClose={() => { setGift(false); onSent(); }} />}
       {place && <SendLocationSheet allowLive who={firstName} onSend={sendLocation} onClose={() => setPlace(false)} />}
+      {paste.pending && <PastedImageSheet uri={paste.pending.uri} caption={text.trim()} once={once} onCancel={paste.cancel} onSend={() => void sendPasted()} />}
     </View>
   );
 }
