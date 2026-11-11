@@ -13,6 +13,7 @@ import { ReactionArt } from '@/components/StoryParts';
 import { ApiError, api, type AppNotification } from '@/lib/api';
 import { groupsApi } from '@/lib/api.groups';
 import { locaisApi } from '@/lib/api.locais';
+import { cheerPeople, cheerTarget, cheerVerb } from '@/lib/cheerNotice';
 import { notifGroup, notifGroupTarget } from '@/lib/groupAccess';
 import { sized } from '@/lib/config';
 import { useAuth } from '@/lib/auth';
@@ -91,6 +92,8 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'group_member_joined': return { text: <>{many ? 'entraram' : 'entrou'} em <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
     case 'group_admin_granted': return { text: <>fez-te administrador de <Text style={{ fontWeight: '700' }}>{notifGroup(n).name}</Text></> };
     case 'geleira_cheer': return { text: many ? 'brindaram a tua geleira' : 'brindou a tua geleira' };
+    // Brindes numa publicação (ou tcheka) ou num comentário: o servidor já os juntou numa linha.
+    case 'cheer': return { text: cheerVerb(n.data, many) };
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
     default: return { text: 'tem novidades para ti' };
   }
@@ -117,6 +120,7 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'venue_review': return n.data.venueSlug ? `/v/${n.data.venueSlug}` : null;
     case 'missed_call': return '/calls';
     case 'geleira_cheer': return '/profile';
+    case 'cheer': return cheerTarget(n.data);
     case 'group_join_request':
     case 'group_join_accepted':
     case 'group_member_joined':
@@ -136,11 +140,12 @@ function Faces({ actors }: { actors: AppNotification['actor'][] }) {
   );
 }
 
-function Names({ actors }: { actors: AppNotification['actor'][] }) {
+/** `total`: quantas pessoas são ao todo, quando só vêm as primeiras (os brindes: o servidor manda a contagem e os dois últimos). */
+function Names({ actors, total = actors.length }: { actors: AppNotification['actor'][]; total?: number }) {
   const b = (a: AppNotification['actor']) => <Text key={a.username} style={{ fontWeight: '700' }}>{a.username}</Text>;
-  const rest = actors.length - 2;
+  const rest = Math.max(total, actors.length) - 2;
   if (actors.length === 1) return b(actors[0]);
-  if (actors.length === 2) return <>{b(actors[0])} e {b(actors[1])}</>;
+  if (rest <= 0) return <>{b(actors[0])} e {b(actors[1])}</>;
   return <>{b(actors[0])}, {b(actors[1])} e {rest === 1 ? 'outra pessoa' : `${rest} outros`}</>;
 }
 
@@ -148,7 +153,9 @@ function Row({ g, me }: { g: Group; me?: string }) {
   const router = useRouter();
   const qc = useQueryClient();
   const n = g.first;
-  const many = g.actors.length > 1;
+  // Os brindes já vêm juntos do servidor (quem ainda tem o brinde posto e quantos são); os outros juntam-se aqui.
+  const people = g.kind === 'cheer' ? cheerPeople(n.cheer, n.actor) : { actors: g.actors, total: g.actors.length };
+  const many = people.total > 1;
   // Uma pessoa: abre o perfil/publicação; várias a seguir-te: a lista de seguidores.
   const single = targetOf(n);
   const target = many && g.kind === 'follow' ? targetOf(n, me) : single;
@@ -216,12 +223,12 @@ function Row({ g, me }: { g: Group; me?: string }) {
 
   return (
     <Pressable onPress={() => go(target)} disabled={!target} style={({ pressed }) => [styles.row, g.fresh && { backgroundColor: 'rgba(255,241,242,0.7)' }, pressed && target && { backgroundColor: colors.zinc100 }]}>
-      <Pressable onPress={() => router.push(`/u/${g.actors[0].username}` as never)} accessibilityRole="link" accessibilityLabel={g.actors[0].displayName}>
-        <Faces actors={g.actors} />
+      <Pressable onPress={() => router.push(`/u/${people.actors[0].username}` as never)} accessibilityRole="link" accessibilityLabel={people.actors[0].displayName}>
+        <Faces actors={people.actors} />
       </Pressable>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.line}>
-          <Names actors={g.actors} /> {text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt)}</Text>
+          <Names actors={people.actors} total={people.total} /> {text} <Text style={{ color: colors.zinc500 }}>{timeAgo(n.createdAt)}</Text>
         </Text>
         {sub ? <Text style={styles.sub} numberOfLines={2}>{sub}</Text> : null}
         {(n.kind === 'comment' || n.kind === 'reply' || (n.kind === 'mention' && n.data.commentId)) && !many ? (

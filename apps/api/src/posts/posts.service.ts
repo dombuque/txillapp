@@ -727,7 +727,12 @@ export class PostsService implements OnModuleInit {
     await this.assertPost(userId, postId);
     const del = await this.pool.query('DELETE FROM content.cheers WHERE post_id = $1 AND user_id = $2', [postId, userId]);
     if (!del.rowCount) {
-      await this.pool.query('INSERT INTO content.cheers (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [postId, userId]);
+      const ins = await this.pool.query('INSERT INTO content.cheers (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [postId, userId]);
+      // Avisa quem publicou (agrupado por publicação; tirar o brinde não apaga o aviso). Ver NotificationsService.notifyCheer.
+      if (ins.rowCount) {
+        const p = (await this.pool.query(`SELECT p.author_id, ${tchekaPost()} AS tcheka FROM content.posts p WHERE p.id = $1`, [postId])).rows[0];
+        if (p) await this.notifications.notifyCheer(p.author_id as string, userId, { kind: 'post', postId, tcheka: !!p.tcheka });
+      }
     }
     const c = await this.pool.query('SELECT count(*)::int AS n FROM content.cheers WHERE post_id = $1', [postId]);
     return { cheered: !del.rowCount, cheers: c.rows[0].n };

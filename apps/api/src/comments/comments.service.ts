@@ -81,7 +81,12 @@ export class CommentsService {
     await this.assertComment(userId, commentId);
     const del = await this.pool.query('DELETE FROM content.comment_cheers WHERE comment_id = $1 AND user_id = $2', [commentId, userId]);
     if (!del.rowCount) {
-      await this.pool.query('INSERT INTO content.comment_cheers (comment_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [commentId, userId]);
+      const ins = await this.pool.query('INSERT INTO content.comment_cheers (comment_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [commentId, userId]);
+      // Avisa quem escreveu o comentário (agrupado por comentário). Ver NotificationsService.notifyCheer.
+      if (ins.rowCount) {
+        const c = (await this.pool.query('SELECT author_id, post_id FROM content.comments WHERE id = $1', [commentId])).rows[0];
+        if (c) await this.notifications.notifyCheer(c.author_id as string, userId, { kind: 'comment', postId: c.post_id as string, commentId });
+      }
     }
     const c = await this.pool.query('SELECT count(*)::int AS n FROM content.comment_cheers WHERE comment_id = $1', [commentId]);
     return { cheered: !del.rowCount, cheers: c.rows[0].n };

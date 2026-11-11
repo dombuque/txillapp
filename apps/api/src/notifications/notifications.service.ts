@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { PushService, type NotifyCategory } from '../push/push.service';
@@ -23,7 +23,10 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   // Fizeram-me administrador de um grupo (à pessoa promovida; ator = quem promoveu; o mesmo data).
   | 'group_join_request' | 'group_join_accepted' | 'group_member_joined' | 'group_admin_granted'
   // Brindaram a minha geleira (só da primeira vez que cada pessoa brinda; ator = quem brindou; sem data).
-  | 'geleira_cheer';
+  | 'geleira_cheer'
+  // Brindaram a minha publicação (ou tcheka) ou o meu comentário: UMA linha por coisa brindada a cada 24 h, que sobe ao topo com
+  // o último a brindar (ator). data: { target: 'post' | 'comment', targetId, postId, commentId?, tcheka?, since }. Ver notifyCheer.
+  | 'cheer';
 
 /** A categoria que a pessoa pode desligar (os avisos de bloqueio e de verificação ficam sempre). */
 export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
@@ -32,8 +35,24 @@ export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   mention: 'mentions', tag: 'mentions', repost: 'reposts', gift: 'gifts',
   missed_call: 'calls', venue_invite: 'venues', venue_payment: 'venues', venue_review: 'venues',
   group_join_request: 'messages', group_join_accepted: 'messages', group_member_joined: 'messages', group_admin_granted: 'messages',
-  geleira_cheer: 'reactions',
+  geleira_cheer: 'reactions', cheer: 'reactions',
 };
+
+/** O que se brindou: uma publicação (ou tcheka) ou um comentário. */
+export type CheerTarget = { kind: 'post'; postId: string; tcheka?: boolean } | { kind: 'comment'; postId: string; commentId: string };
+
+/** O travão dos brindes no telemóvel: no máximo um aviso por coisa brindada a cada 30 min, e 6 por pessoa em 24 h. */
+export const CHEER_PUSH_EVERY_MIN = 30;
+export const CHEER_PUSH_DAILY_MAX = 6;
+
+const cheerTargetId = (t: CheerTarget) => (t.kind === 'post' ? t.postId : t.commentId);
+const cheerWhat = (t: CheerTarget) =>
+  t.kind === 'comment' ? { a: 'o teu comentário', in: 'no teu comentário' } : t.tcheka ? { a: 'a tua tcheka', in: 'na tua tcheka' } : { a: 'a tua publicação', in: 'na tua publicação' };
+const cheerUrl = (t: CheerTarget) => (t.kind === 'comment' ? `/p/${t.postId}?comments=1&c=${t.commentId}` : `/p/${t.postId}`);
+/** O brinde ainda está posto (tirar o brinde não apaga o aviso, mas já não conta). `cn` = linha de social.cheer_notices. */
+const cheerStillOn = (cn = 'cn') =>
+  `(CASE ${cn}.kind WHEN 'post' THEN EXISTS (SELECT 1 FROM content.cheers ch WHERE ch.post_id = ${cn}.target_id AND ch.user_id = ${cn}.user_id)
+                    ELSE EXISTS (SELECT 1 FROM content.comment_cheers ch WHERE ch.comment_id = ${cn}.target_id AND ch.user_id = ${cn}.user_id) END)`;
 
 /** Tipos que não se repetem enquanto houver uma igual por ler (evita spam de seguir/deixar de seguir). */
 const DEDUPE_UNREAD = new Set<NotificationKind>(['blocked', 'follow', 'follow_request']);
@@ -161,6 +180,114 @@ export class NotificationsService {
     }
   }
 
+  /**
+   * Brindaram uma publicação (ou tcheka) ou um comentário de `ownerId`. Os avisos juntam-se, como no Instagram:
+   * - cada pessoa conta uma vez por coisa brindada (tirar e voltar a pôr não avisa outra vez);
+   * - há UMA linha por coisa brindada a cada 24 h: o primeiro brinde abre-a, os seguintes sobem-na ao topo (por ler) com o
+   *   último a brindar como ator; quem são e quantos calcula-se na lista, só com os brindes que ainda estão postos;
+   * - não avisa quem brinda o que é seu, nem com bloqueio entre os dois, nem com a categoria "Reações" desligada.
+   * Nunca falha o brinde: um erro aqui só fica registado. O aviso no telemóvel segue à parte, com travão (ver pushCheer).
+   */
+  async notifyCheer(ownerId: string, actorId: string, t: CheerTarget): Promise<void> {
+    if (ownerId === actorId) return;
+    const targetId = cheerTargetId(t);
+    let client: PoolClient | undefined;
+    try {
+      if ((await this.push.off(ownerId)).includes('reactions')) return;
+      client = await this.pool.connect();
+      await client.query('BEGIN');
+      // Um brinde de cada vez por coisa brindada: dois ao mesmo tempo não abrem duas linhas.
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`cheer:${ownerId}:${targetId}`]);
+      const ok = await client.query(`SELECT 1 FROM identity.users o WHERE o.id = $1 AND o.status = 'active' AND NOT ${blockedBetween('o.id', '$2')}`, [ownerId, actorId]);
+      const first = ok.rowCount
+        ? await client.query('INSERT INTO social.cheer_notices (kind, target_id, user_id, owner_id) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING', [t.kind, targetId, actorId, ownerId])
+        : null;
+      if (!first?.rowCount) {
+        await client.query('ROLLBACK');
+        return;
+      }
+      const open = await client.query(
+        `SELECT id FROM social.notifications
+          WHERE user_id = $1 AND kind = 'cheer' AND data->>'targetId' = $2 AND (data->>'since')::timestamptz > now() - interval '24 hours'
+          ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+        [ownerId, targetId],
+      );
+      if (open.rows[0]) {
+        // A mesma linha sobe ao topo (id novo, que ordena a lista) e volta a estar por ler.
+        await client.query('UPDATE social.notifications SET id = $2, actor_id = $3, created_at = now(), read_at = NULL WHERE id = $1', [open.rows[0].id, uuidv7(), actorId]);
+      } else {
+        const data = { target: t.kind, targetId, postId: t.postId, ...(t.kind === 'comment' ? { commentId: t.commentId } : t.tcheka ? { tcheka: true } : {}) };
+        await client.query(
+          `INSERT INTO social.notifications (id, user_id, actor_id, kind, data) VALUES ($1, $2, $3, 'cheer', $4::jsonb || jsonb_build_object('since', now()))`,
+          [uuidv7(), ownerId, actorId, JSON.stringify(data)],
+        );
+      }
+      await client.query('COMMIT');
+      void this.pushCheer(ownerId, actorId, t);
+    } catch (e) {
+      await client?.query('ROLLBACK').catch(() => undefined);
+      this.log.warn(`falha a criar o aviso de brinde: ${(e as Error).message}`);
+    } finally {
+      client?.release();
+    }
+  }
+
+  /**
+   * O aviso no telemóvel de um brinde, com travão para não ser chato: o primeiro brinde avisa; depois, no máximo um aviso por
+   * coisa brindada a cada 30 min, com a contagem do que entrou entretanto ("+4 brindes na tua publicação"); e nunca mais de 6
+   * avisos de brindes por pessoa em 24 h. O texto nunca leva o conteúdo da publicação nem do comentário.
+   */
+  private async pushCheer(ownerId: string, actorId: string, t: CheerTarget) {
+    if (!this.push.enabled) return;
+    const targetId = cheerTargetId(t);
+    let client: PoolClient | undefined;
+    let count = 0;
+    try {
+      client = await this.pool.connect();
+      await client.query('BEGIN');
+      // Um de cada vez por pessoa avisada: as contas do travão batem certo com brindes ao mesmo tempo.
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`cheer-push:${ownerId}`]);
+      await client.query(`DELETE FROM social.cheer_pushes WHERE user_id = $1 AND sent_at < now() - interval '2 days'`, [ownerId]);
+      const s = (
+        await client.query(
+          `SELECT count(*) FILTER (WHERE sent_at > now() - interval '24 hours')::int AS today,
+                  max(sent_at) FILTER (WHERE target_id = $2) AS last
+             FROM social.cheer_pushes WHERE user_id = $1`,
+          [ownerId, targetId],
+        )
+      ).rows[0] as { today: number; last: Date | null };
+      const tooSoon = s.last && Date.now() - new Date(s.last).getTime() < CHEER_PUSH_EVERY_MIN * 60_000;
+      if (s.today < CHEER_PUSH_DAILY_MAX && !tooSoon) {
+        // Os brindes que entraram depois do último aviso (no máximo das últimas 24 h) e que ainda estão postos.
+        count = (
+          await client.query(
+            `SELECT count(*)::int AS n FROM social.cheer_notices cn JOIN identity.users cu ON cu.id = cn.user_id AND cu.status = 'active'
+              WHERE cn.kind = $1 AND cn.target_id = $2 AND cn.created_at > COALESCE($4::timestamptz, now() - interval '24 hours')
+                AND NOT ${blockedBetween('cu.id', '$3')} AND ${cheerStillOn('cn')}`,
+            [t.kind, targetId, ownerId, s.last],
+          )
+        ).rows[0].n as number;
+        if (count > 0) await client.query('INSERT INTO social.cheer_pushes (user_id, target_id) VALUES ($1, $2)', [ownerId, targetId]);
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client?.query('ROLLBACK').catch(() => undefined);
+      this.log.warn(`falha no travão dos brindes: ${(e as Error).message}`);
+      return;
+    } finally {
+      client?.release();
+    }
+    if (count < 1) return;
+    const what = cheerWhat(t);
+    const tag = `cheer:${targetId}`;
+    if (count === 1) {
+      const who = ((await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [actorId])).rows[0]?.display_name as string | undefined) ?? 'Alguém';
+      await this.push.send(ownerId, { title: who, body: `brindou ${what.a}`, url: cheerUrl(t), tag, category: 'reactions' });
+    } else {
+      await this.push.send(ownerId, { title: 'A malta brindou-te', body: `+${count} brindes ${what.in}`, url: cheerUrl(t), tag, category: 'reactions' });
+    }
+  }
+
   /** Lista paginada por cursor. O aviso de bloqueio aparece sempre; as outras de quem entretanto foi bloqueado ficam escondidas. */
   async list(userId: string, cursor?: string, limit = 30) {
     if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
@@ -179,6 +306,7 @@ export class NotificationsService {
       [userId, cursor ?? null, limit + 1],
     );
     const page = rows.slice(0, limit);
+    const cheers = await this.cheersOf(userId, page.filter((r) => r.kind === 'cheer').map((r) => r.id as string));
     return {
       items: page.map((r) => ({
         id: r.id,
@@ -189,9 +317,40 @@ export class NotificationsService {
         actor: { username: r.username, displayName: r.status === 'active' ? r.display_name : 'Conta eliminada', isPrivate: !!r.is_private, following: !!r.i_follow, requested: !!r.requested },
         // A miniatura da publicação (a primeira foto; nos vídeos, o cartaz), como na lista de notificações do Instagram.
         thumb: r.thumb ? { url: `/api/v1/media/${(r.thumb as { id: string }).id}${(r.thumb as { video: boolean }).video ? '?poster=1' : ''}`, video: !!(r.thumb as { video: boolean }).video } : null,
+        // Brindes: quantos ainda estão postos nesta janela e os dois últimos a brindar (para as fotos e "Ana, Rui e 3 outros").
+        ...(r.kind === 'cheer' ? { cheer: cheers.get(r.id as string) ?? { count: 0, actors: [] } } : {}),
       })),
       nextCursor: rows.length > limit ? page[page.length - 1].id : null,
     };
+  }
+
+  /**
+   * Para cada linha de brindes: quem brindou nessa janela de 24 h e ainda tem o brinde posto (sem bloqueios nem contas inativas),
+   * o mais recente primeiro. Devolve a contagem e os dois primeiros.
+   */
+  private async cheersOf(userId: string, ids: string[]) {
+    const out = new Map<string, { count: number; actors: { username: string; displayName: string }[] }>();
+    if (!ids.length) return out;
+    const { rows } = await this.pool.query(
+      `SELECT id, total, username, display_name FROM (
+         SELECT n.id, cu.username, cu.display_name,
+                row_number() OVER (PARTITION BY n.id ORDER BY cn.created_at DESC) AS rn,
+                count(*) OVER (PARTITION BY n.id)::int AS total
+           FROM social.notifications n
+           JOIN social.cheer_notices cn ON cn.kind = n.data->>'target' AND cn.target_id = (n.data->>'targetId')::uuid
+                AND cn.created_at >= (n.data->>'since')::timestamptz AND cn.created_at < (n.data->>'since')::timestamptz + interval '24 hours'
+           JOIN identity.users cu ON cu.id = cn.user_id AND cu.status = 'active'
+          WHERE n.id = ANY($2::uuid[]) AND n.user_id = $1 AND n.kind = 'cheer'
+            AND NOT ${blockedBetween('cu.id', '$1')} AND ${cheerStillOn('cn')}
+       ) x WHERE rn <= 2 ORDER BY id, rn`,
+      [userId, ids],
+    );
+    for (const r of rows) {
+      const g = out.get(r.id as string) ?? { count: r.total as number, actors: [] };
+      g.actors.push({ username: r.username as string, displayName: r.display_name as string });
+      out.set(r.id as string, g);
+    }
+    return out;
   }
 
   async unreadCount(userId: string) {

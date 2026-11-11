@@ -59,18 +59,20 @@ export interface Comment {
 export type GiftVisibility = 'silent' | 'private' | 'public';
 export type ReportReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence' | 'scam' | 'impersonation' | 'minor' | 'other';
 export type ReportType = 'post' | 'comment' | 'story' | 'user' | 'message';
-export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review' | 'group_join_request' | 'group_join_accepted' | 'group_member_joined' | 'group_admin_granted' | 'geleira_cheer';
+export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review' | 'group_join_request' | 'group_join_accepted' | 'group_member_joined' | 'group_admin_granted' | 'geleira_cheer' | 'cheer';
 export interface AppNotification {
   id: string;
   kind: NotificationKind;
   /** TxillGroups: o grupo vem em `data.groupId/groupName`; aceita-se também ao nível de cima, se o servidor o mandar aí. */
   groupId?: string;
   groupName?: string;
-  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected' };
+  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected' };
   createdAt: string;
   read: boolean;
   actor: { username: string; displayName: string; isPrivate?: boolean; following?: boolean; requested?: boolean };
   thumb?: { url: string; video: boolean } | null;
+  /** Só nos brindes (`cheer`): quantos ainda estão postos nesta linha e os dois últimos a brindar. */
+  cheer?: { count: number; actors: { username: string; displayName: string }[] };
 }
 export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved';
 export type MentionSuggestContext = 'post' | 'group' | 'story' | 'zas' | 'chat';
