@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, interpolate, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
 import { HEADER_AVATAR_BOTTOM, HEADER_AVATAR_LEFT, HEADER_AVATAR_SIZE } from '@/components/ChatHeader';
-import { peerNoteLabel, peerNoteLines, type PeerNoteLike } from '@/lib/chatPeerNote';
+import { Icon } from '@/components/Icon';
+import { peerBioLabel, peerBioLines, peerNoteLabel, peerNoteLines, type PeerBubble } from '@/lib/chatPeerNote';
 import { colors } from '@/lib/theme';
 
 // Onde ficam as bolinhas e o balão, a contar do fundo do cabeçalho (y = 0) e da esquerda do ecrã. A foto acaba
@@ -18,9 +19,13 @@ const BUBBLE_LEFT = HEADER_AVATAR_LEFT - 4;
  * um balão branco com o texto (e ♪ título, se tiver música). Ao abrir, as bolinhas crescem a partir da foto e o balão
  * entra com uma mola (~320 ms); ao fechar (`open` false) encolhe tudo de volta para a foto. Com "Reduzir movimento",
  * aparece e desaparece sem animação. Tocar no balão abre a nota (ver, brindar, responder).
+ *
+ * Sem nota, o mesmo balão mostra a bio do perfil (`bubble.kind === 'bio'`): uma linha (duas em ecrãs estreitos) com
+ * reticências, sem ♪ nem brinde, com um pequeno ícone de pessoa e o texto num tom mais discreto, para não se confundir
+ * com uma nota. Tocar nele abre o perfil.
  */
-export function PeerNoteBubble({ note, name, online, open, reduceMotion, onPress }: {
-  note: PeerNoteLike; name: string; online: boolean; open: boolean; reduceMotion: boolean; onPress: () => void;
+export function PeerNoteBubble({ bubble, name, online, open, reduceMotion, onPress }: {
+  bubble: PeerBubble; name: string; online: boolean; open: boolean; reduceMotion: boolean; onPress: () => void;
 }) {
   const { width } = useWindowDimensions();
   const d1 = useSharedValue(0);
@@ -60,7 +65,9 @@ export function PeerNoteBubble({ note, name, online, open, reduceMotion, onPress
     transform: [{ translateY: (1 - b.value) * -10 }, { scale: 0.35 + 0.65 * b.value }],
   }));
 
-  const { text, track } = peerNoteLines(note);
+  const isBio = bubble.kind === 'bio';
+  const { text, track } = isBio ? { text: bubble.text, track: '' } : peerNoteLines(bubble.note);
+  const label = isBio ? peerBioLabel(name, bubble.text) : peerNoteLabel(name, bubble.note);
   const maxWidth = Math.min(320, width - BUBBLE_LEFT - 16);
   const hidden = !open;
   return (
@@ -72,7 +79,7 @@ export function PeerNoteBubble({ note, name, online, open, reduceMotion, onPress
           onPress={onPress}
           disabled={hidden}
           accessibilityRole="button"
-          accessibilityLabel={peerNoteLabel(name, note)}
+          accessibilityLabel={label}
           accessibilityElementsHidden={hidden}
           importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
           aria-hidden={hidden}
@@ -81,7 +88,8 @@ export function PeerNoteBubble({ note, name, online, open, reduceMotion, onPress
           {!!text && (
             <View style={st.line}>
               {online ? <View style={st.online} /> : null}
-              <Text style={st.text} numberOfLines={2}>{text}</Text>
+              {isBio ? <Icon name="user" size={14} strokeWidth={2} color={colors.zinc500} /> : null}
+              <Text style={isBio ? st.bio : st.text} numberOfLines={isBio ? peerBioLines(width) : 2} ellipsizeMode="tail">{text}</Text>
             </View>
           )}
           {!!track && (
@@ -96,7 +104,7 @@ export function PeerNoteBubble({ note, name, online, open, reduceMotion, onPress
   );
 }
 
-/** O ponto discreto na foto quando o balão está encolhido (há nota; tocar na foto volta a mostrá-la). */
+/** O ponto discreto na foto quando o balão está encolhido (há nota ou bio; tocar na foto volta a mostrá-la). */
 export function NoteDot({ visible, reduceMotion }: { visible: boolean; reduceMotion: boolean }) {
   const s = useSharedValue(0);
   useEffect(() => {
@@ -117,6 +125,7 @@ const st = StyleSheet.create({
   line: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
   online: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10b981' },
   text: { flexShrink: 1, fontSize: 14, lineHeight: 19, fontWeight: '500', color: colors.zinc800 },
+  bio: { flexShrink: 1, fontSize: 14, lineHeight: 19, fontWeight: '400', color: colors.zinc600 },
   track: { flexShrink: 1, marginTop: 1, fontSize: 12.5, lineHeight: 16, color: colors.zinc500 },
   noteDot: { position: 'absolute', left: -1, bottom: -1, width: 11, height: 11, borderRadius: 6, backgroundColor: '#fff', borderWidth: 2, borderColor: '#fff', boxShadow: '0 0 0 1px rgba(24,24,27,0.10), 0 1px 3px rgba(24,24,27,0.30)' } as object,
 });

@@ -188,7 +188,10 @@ export class ChatController {
     if (cursor) return t;
     // A nota ativa da pessoa, por baixo da foto do cabeçalho (só na 1.ª página e só se eu a puder ver). Junta-se aqui e
     // não no ChatService porque o NotesService já depende do ChatService (as respostas às notas vão como mensagem).
-    return { ...t, peerNote: await this.notes.peerNote(req.userId!, t.person.username) };
+    // Sem nota, vai a bio do perfil no mesmo sítio (a nota ganha sempre; regras em NotesService.peerBio).
+    const peerNote = await this.notes.peerNote(req.userId!, t.person.username);
+    const peerBio = peerNote ? null : await this.notes.peerBio(req.userId!, t.person.username);
+    return { ...t, peerNote, peerBio };
   }
 
   @NeedsVerifiedEmail()

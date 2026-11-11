@@ -238,6 +238,11 @@ export interface ChatThread {
    * não mandam.
    */
   peerNote?: { body: string; music: import('./api.music').Track | null; createdAt: string; expiresAt: string; cheered: boolean } | null;
+  /**
+   * Sem nota, a bio do perfil da pessoa (tal como está, até 150 caracteres), se eu puder ver o perfil e não houver
+   * bloqueio; vai no mesmo balão. Só na 1.ª página; servidores antigos não mandam.
+   */
+  peerBio?: string | null;
 }
 export interface Story {
   id: string;

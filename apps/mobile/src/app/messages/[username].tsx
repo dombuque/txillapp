@@ -21,7 +21,7 @@ import { api, raw, type ChatThread, type Conversation } from '@/lib/api';
 import { startCall } from '@/lib/calls';
 import { useAuth } from '@/lib/auth';
 import { headerLine, newPostsLabel, newPostsTarget, newPostsText } from '@/lib/chatNewPosts';
-import { activePeerNote, NOTE_FOLD_MS, NOTE_FOLD_START, noteFold, peerNoteKey } from '@/lib/chatPeerNote';
+import { NOTE_FOLD_MS, NOTE_FOLD_START, noteFold, peerBubble, peerBubbleKey } from '@/lib/chatPeerNote';
 import { activeLabel } from '@/lib/chatTimeline';
 import { useTyping } from '@/lib/realtime';
 import { colors } from '@/lib/theme';
@@ -67,11 +67,13 @@ export default function Thread() {
   // O servidor manda do mais recente para o mais antigo: a lista mostra de baixo para cima (invertida).
   const items: Msg[] = q.data?.pages.flatMap((p) => p.items) ?? [];
 
-  // A nota da pessoa por baixo da foto do cabeçalho (lib/chatPeerNote): abre ao entrar e encolhe ao subir nas
-  // mensagens ou ao fim de 8 s; tocar na foto volta a mostrá-la, tocar no balão abre a nota.
+  // A nota da pessoa (ou, sem nota, a bio do perfil) por baixo da foto do cabeçalho (lib/chatPeerNote): abre ao entrar e
+  // encolhe ao subir nas mensagens ou ao fim de 8 s; tocar na foto volta a mostrá-la, tocar no balão abre a nota (ou o
+  // perfil, se for a bio).
   const reduceMotion = useReducedMotion();
-  const peerNote = first?.blocked ? null : activePeerNote(first?.peerNote);
-  const noteKey = peerNoteKey(peerNote);
+  const bubble = first?.blocked ? null : peerBubble(first?.peerNote, first?.peerBio);
+  const peerNote = bubble?.kind === 'note' ? bubble.note : null;
+  const noteKey = peerBubbleKey(bubble);
   const [fold, foldDispatch] = useReducer(noteFold, NOTE_FOLD_START);
   const [noteOpen, setNoteOpen] = useState(false);
   const scrollY = useRef(0);
@@ -201,12 +203,12 @@ export default function Thread() {
           <View>
             <Avatar name={person?.displayName ?? username} username={avatarOf} size={36} />
             {online ? <OnlineDot size={36} /> : null}
-            {peerNote ? <NoteDot visible={!fold.open} reduceMotion={reduceMotion} /> : null}
+            {bubble ? <NoteDot visible={!fold.open} reduceMotion={reduceMotion} /> : null}
           </View>
         }
-        avatarAction={person && peerNote && !fold.open ? { label: `Mostrar a nota de ${person.displayName}`, onPress: () => foldDispatch({ type: 'show', y: scrollY.current }) } : undefined}
-        overlay={person && peerNote ? (
-          <PeerNoteBubble note={peerNote} name={person.displayName} online={!!online} open={fold.open} reduceMotion={reduceMotion} onPress={() => setNoteOpen(true)} />
+        avatarAction={person && bubble && !fold.open ? { label: `Mostrar a ${bubble.kind === 'bio' ? 'bio' : 'nota'} de ${person.displayName}`, onPress: () => foldDispatch({ type: 'show', y: scrollY.current }) } : undefined}
+        overlay={person && bubble ? (
+          <PeerNoteBubble bubble={bubble} name={person.displayName} online={!!online} open={fold.open} reduceMotion={reduceMotion} onPress={() => (bubble.kind === 'bio' ? openProfile?.() : setNoteOpen(true))} />
         ) : null}
         title={person?.displayName ?? ''}
         subtitleAction={person && newPostsGo ? { label: newPostsLabel(newPosts?.count, person.displayName), onPress: () => router.push(newPostsGo as never) } : undefined}

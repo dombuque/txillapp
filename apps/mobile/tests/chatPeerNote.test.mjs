@@ -79,3 +79,45 @@ test('noteFold: nota nova reabre; sem nota fecha e tocar não abre nada', () => 
   assert.equal(gone.key, null);
   assert.equal(t.noteFold(gone, { type: 'show', y: 0 }), gone);
 });
+
+test('peerBioText: as quebras de linha e os espaços seguidos passam a um espaço só', () => {
+  assert.equal(t.peerBioText('Maputo de coração\nCafé, praia\r\n\n  e boa malta  '), 'Maputo de coração Café, praia e boa malta');
+  assert.equal(t.peerBioText('\tolá\u00a0malta'), 'olá malta');
+  assert.equal(t.peerBioText('   \n '), '');
+  assert.equal(t.peerBioText(null), '');
+  assert.equal(t.peerBioText(undefined), '');
+});
+
+test('peerBubble: a nota ganha; sem nota (ou com a nota acabada), a bio; sem as duas, nada', () => {
+  const n = note();
+  assert.deepEqual(t.peerBubble(n, 'Café e praia', NOW), { kind: 'note', note: n });
+  assert.deepEqual(t.peerBubble(null, 'Café\ne praia', NOW), { kind: 'bio', text: 'Café e praia' });
+  assert.deepEqual(t.peerBubble(undefined, 'Café', NOW), { kind: 'bio', text: 'Café' });
+  assert.deepEqual(t.peerBubble(note({ expiresAt: '2026-11-11T11:00:00.000Z' }), 'Café', NOW), { kind: 'bio', text: 'Café' });
+  assert.equal(t.peerBubble(null, '  \n ', NOW), null);
+  assert.equal(t.peerBubble(null, null, NOW), null);
+  assert.equal(t.peerBubble(undefined, undefined, NOW), null);
+});
+
+test('peerBubbleKey: a nota guarda a chave dela; a bio tem a sua, e muda com o texto', () => {
+  assert.equal(t.peerBubbleKey(null), null);
+  assert.equal(t.peerBubbleKey({ kind: 'note', note: note() }), t.peerNoteKey(note()));
+  const bio = t.peerBubbleKey({ kind: 'bio', text: 'Café' });
+  assert.equal(bio, t.peerBubbleKey({ kind: 'bio', text: 'Café' }));
+  assert.notEqual(bio, t.peerBubbleKey({ kind: 'bio', text: 'Praia' }));
+  assert.notEqual(bio, t.peerBubbleKey({ kind: 'note', note: note({ body: 'Café' }) }));
+  // A bio usa o mesmo encolher da nota: abre, encolhe ao fim do tempo e o ponto volta a mostrá-la.
+  const open = t.noteFold(t.NOTE_FOLD_START, { type: 'note', key: bio, y: 0 });
+  assert.equal(open.open, true);
+  const folded = t.noteFold(open, { type: 'timeout' });
+  assert.equal(folded.open, false);
+  assert.equal(t.noteFold(folded, { type: 'show', y: 0 }).open, true);
+});
+
+test('peerBioLines e peerBioLabel: uma linha (duas em ecrãs estreitos) e o que o leitor de ecrã diz', () => {
+  assert.equal(t.peerBioLines(320), 2);
+  assert.equal(t.peerBioLines(t.BIO_NARROW_WIDTH - 1), 2);
+  assert.equal(t.peerBioLines(t.BIO_NARROW_WIDTH), 1);
+  assert.equal(t.peerBioLines(412), 1);
+  assert.equal(t.peerBioLabel('Ana', 'Café e praia'), 'Bio de Ana: Café e praia. Abrir o perfil');
+});

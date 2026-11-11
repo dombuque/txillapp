@@ -1,6 +1,6 @@
-// A nota da outra pessoa no cabeçalho da conversa 1:1 (como o recado do WhatsApp por baixo da foto): quando o balão
-// aparece, quando encolhe de volta para a foto, e o que diz. Sem dependências (os testes correm em Node:
-// tests/chatPeerNote.test.mjs).
+// A nota da outra pessoa no cabeçalho da conversa 1:1 (como o recado do WhatsApp por baixo da foto) ou, sem nota, a bio
+// do perfil: quando o balão aparece, quando encolhe de volta para a foto, e o que diz. Sem dependências (os testes
+// correm em Node: tests/chatPeerNote.test.mjs).
 
 /** Quanto se sobe nas mensagens (pt) até o balão encolher. */
 export const NOTE_FOLD_SCROLL = 80;
@@ -40,6 +40,31 @@ export function peerNoteLabel(name: string, note: PeerNoteLike) {
   const said = [text, title ? `música ${title}` : ''].filter(Boolean).join(', ');
   return `Nota de ${name}: ${said}. Abrir`;
 }
+
+/** Abaixo desta largura de ecrã (pt), a bio pode ocupar duas linhas no balão; acima, uma. */
+export const BIO_NARROW_WIDTH = 360;
+
+/** A bio para o balão: as quebras de linha e os espaços seguidos passam a um espaço só (a reticência fica para o Text). */
+export const peerBioText = (bio: string | null | undefined) => (bio ?? '').replace(/\s+/g, ' ').trim();
+
+/** Quantas linhas a bio pode ocupar no balão: uma, ou duas em ecrãs estreitos. */
+export const peerBioLines = (screenWidth: number) => (screenWidth < BIO_NARROW_WIDTH ? 2 : 1);
+
+/** O que o leitor de ecrã diz do balão da bio: "Bio de Ana: Café e praia. Abrir o perfil". */
+export const peerBioLabel = (name: string, text: string) => `Bio de ${name}: ${text}. Abrir o perfil`;
+
+/** O que vai no balão: a nota (se ainda vale) ganha; sem nota, a bio (se disser alguma coisa); senão nada. */
+export type PeerBubble<N extends PeerNoteLike = PeerNoteLike> = { kind: 'note'; note: N } | { kind: 'bio'; text: string };
+
+export function peerBubble<N extends PeerNoteLike>(note: N | null | undefined, bio: string | null | undefined, now = Date.now()): PeerBubble<N> | null {
+  const n = activePeerNote(note, now);
+  if (n) return { kind: 'note', note: n };
+  const text = peerBioText(bio);
+  return text ? { kind: 'bio', text } : null;
+}
+
+/** Identifica o que o balão mostra: uma nota nova, ou a bio a mudar (ou a nota a acabar e a dar lugar à bio), reabre-o. */
+export const peerBubbleKey = (b: PeerBubble | null | undefined) => (!b ? null : b.kind === 'note' ? peerNoteKey(b.note) : `bio|${b.text}`);
 
 /**
  * Estado do balão: `open` = à vista; fechado = encolhido na foto (fica o ponto). `anchorY` = onde estava a lista quando

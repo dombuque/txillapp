@@ -67,6 +67,23 @@ export class NotesService {
   }
 
   /**
+   * A bio da outra pessoa, para o mesmo sítio do cabeçalho quando ela não tem nota. Segue a regra do perfil: a bio é do
+   * cabeçalho do perfil e vê-a quem abre o perfil, mesmo numa conta privada que não sigo (só as publicações, as stories e
+   * as listas ficam escondidas). Aqui, além disso, nada com bloqueio (em qualquer sentido), com a conta inativa ou para
+   * mim próprio. Vai tal como está (até 150 caracteres); a app é que a corta.
+   */
+  async peerBio(me: string, username: string) {
+    const { rows } = await this.pool.query(
+      `SELECT u.bio FROM identity.users u
+        WHERE lower(u.username) = lower($2) AND u.status = 'active' AND u.id <> $1
+          AND NOT ${blockedBetween('u.id', '$1')}
+          AND char_length(btrim(COALESCE(u.bio, ''))) > 0`,
+      [me, username],
+    );
+    return (rows[0]?.bio as string | undefined) ?? null;
+  }
+
+  /**
    * A minha nota (se ainda vale) e as de quem me deixa vê-las (os brindes e as respostas só valem para estas).
    * `only` (username) = só a dessa pessoa (e a minha, se for eu).
    */
