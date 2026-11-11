@@ -20,6 +20,18 @@ const PAGE = 40;
 /** Quantas mensagens se podem mandar a quem não nos segue, antes de a pessoa responder, aceitar ou seguir de volta. */
 export const STRANGER_LIMIT = 3;
 
+/**
+ * SQL: a mensagem `m` não foi apagada para mim ("Apagar para mim", social.message_hidden). `me` é o parâmetro com o meu id.
+ * Entra nas conversas, nos grupos, na última mensagem da lista e nas contas de por ler.
+ */
+export const notHiddenFor = (m: string, me: string) => `NOT EXISTS (SELECT 1 FROM social.message_hidden h WHERE h.message_id = ${m}.id AND h.user_id = ${me})`;
+
+/** Até quando (depois de enviar) se pode editar uma mensagem de texto. A app tem o mesmo número (src/lib/messageMenu.ts). */
+export const EDIT_WINDOW_MS = 15 * 60_000;
+
+/** O aviso que fica no lugar de uma mensagem apagada para todos (é também o que as versões antigas da app mostram). */
+export const deletedNotice = (mine: boolean) => (mine ? 'Apagaste esta mensagem' : 'Esta mensagem foi apagada');
+
 const pair = (x: string, y: string) => (x < y ? ([x, y] as const) : ([y, x] as const));
 
 export interface Outgoing {
@@ -199,14 +211,14 @@ export class ChatService {
               (SELECT count(*) FROM social.messages sm WHERE sm.conversation_id = c.id AND sm.sender_id = $1 AND sm.deleted_at IS NULL)::int AS sent_by_me,
               (CASE WHEN c.user_a = $1 THEN c.accepted_a ELSE c.accepted_b END) AS accepted,
               (SELECT count(*) FROM social.messages m
-                WHERE m.conversation_id = c.id AND m.sender_id <> $1 AND m.deleted_at IS NULL
+                WHERE m.conversation_id = c.id AND m.sender_id <> $1 AND m.deleted_at IS NULL AND ${notHiddenFor('m', '$1')}
                   AND (CASE WHEN c.user_a = $1 THEN c.read_a ELSE c.read_b END IS NULL
                        OR m.id > (CASE WHEN c.user_a = $1 THEN c.read_a ELSE c.read_b END))
                   AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR m.id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)))::int AS unread,
               (CASE WHEN c.user_a = $1 THEN c.unread_mark_a ELSE c.unread_mark_b END) AS unread_mark
          FROM social.conversations c
          JOIN identity.users o ON o.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
-         JOIN LATERAL (SELECT body, kind, sender_id, created_at, view_once FROM social.messages WHERE conversation_id = c.id AND deleted_at IS NULL AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)) ORDER BY id DESC LIMIT 1) lm ON true
+         JOIN LATERAL (SELECT x.body, x.kind, x.sender_id, x.created_at, x.view_once FROM social.messages x WHERE x.conversation_id = c.id AND x.deleted_at IS NULL AND ${notHiddenFor('x', '$1')} AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR x.id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)) ORDER BY x.id DESC LIMIT 1) lm ON true
         WHERE (c.user_a = $1 OR c.user_b = $1) AND NOT ${blockedBetween('o.id', '$1')}
           AND NOT (CASE WHEN c.user_a = $1 THEN c.hidden_a ELSE c.hidden_b END)
         ORDER BY lm.created_at DESC LIMIT 100`,
@@ -261,8 +273,8 @@ export class ChatService {
     const newPosts = blocked || cursor ? { count: 0, latestId: null } : await this.posts.newPostsBy(me, other.id);
     if (!conv) return { person, blocked, relation, newPosts, otherRead: null, items: [], nextCursor: null };
     const { rows } = await this.pool.query(
-      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.view_once, m.viewed_at, m.live_until, m.gift_amount, m.reply_to, m.created_at FROM social.messages m
-        WHERE m.conversation_id = $1 AND m.deleted_at IS NULL AND ($2::uuid IS NULL OR m.id < $2)
+      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.view_once, m.viewed_at, m.live_until, m.gift_amount, m.reply_to, m.created_at, m.deleted_at, m.edited_at FROM social.messages m
+        WHERE m.conversation_id = $1 AND (m.deleted_at IS NULL OR m.deleted_notice) AND ${notHiddenFor('m', '$4')} AND ($2::uuid IS NULL OR m.id < $2)
           AND m.id > COALESCE((SELECT CASE WHEN c.user_a = $4 THEN c.cleared_a ELSE c.cleared_b END FROM social.conversations c WHERE c.id = $1), '00000000-0000-0000-0000-000000000000'::uuid)
         ORDER BY m.id DESC LIMIT $3`,
       [conv, cursor ?? null, PAGE + 1, me],
@@ -308,7 +320,7 @@ export class ChatService {
     for (const r of rx.rows) reactions.set(r.message_id, [...(reactions.get(r.message_id) ?? []), { reaction: r.reaction, count: r.n, mine: r.mine }]);
     const quoted = new Map(rp.rows.map((r) => [r.id as string, r]));
     return Promise.all(
-      page.map(async (m) => ({
+      page.map(async (m) => m.deleted_at ? this.deletedItem(me, m) : ({
         id: m.id as string,
         fromMe: m.sender_id === me,
         // Visualização única: o conteúdo nunca vai na lista (nem para quem enviou); só se lê ao abrir, uma vez.
@@ -338,9 +350,37 @@ export class ChatService {
           return { id: q.id as string, gone: false, fromMe: q.sender_id === me, name: (q.name as string) || '', kind: q.kind as MessageKind, body: q.view_once || q.kind !== 'text' ? '' : String(q.body).slice(0, 120) };
         })(),
         reactions: reactions.get(m.id as string) ?? [],
+        /** Foi editada depois de enviada (a bolha mostra "editada" ao lado da hora). */
+        edited: !!m.edited_at,
         at: m.created_at as string,
       })),
     );
+  }
+
+  /** Mensagem apagada para todos: só o aviso, no lugar dela (nada do que tinha: texto, ficheiro, sítio, reações, citação). */
+  private deletedItem(me: string, m: Record<string, any>) {
+    const fromMe = m.sender_id === me;
+    return {
+      id: m.id as string,
+      fromMe,
+      deleted: true as const,
+      body: deletedNotice(fromMe),
+      kind: 'text' as MessageKind,
+      viewOnce: false,
+      opened: false,
+      storyUrl: null,
+      mediaUrl: null,
+      durationMs: null,
+      waveform: null,
+      lat: null,
+      lng: null,
+      giftAmount: null,
+      live: false,
+      liveUntil: null,
+      replyTo: null,
+      reactions: [] as { reaction: string; count: number; mine: boolean }[],
+      at: m.created_at as string,
+    };
   }
 
   /** Valida o conteúdo de uma mensagem (texto, sticker, publicação, localização ou ficheiro do chat) e devolve a localização arredondada, se houver. */
@@ -433,7 +473,11 @@ export class ChatService {
     return this.insert(me, recipientId, body, kind, storyMediaId, null, null, null, null, {});
   }
 
-  /** Apagar para todos (só quem enviou): a mensagem desaparece da conversa, sem deixar rasto visível. */
+  /**
+   * Apagar para todos (só quem enviou; sem limite de tempo): o conteúdo desaparece (texto, ficheiro, sítio, partilha em
+   * direto) e no lugar fica o aviso "Apagaste esta mensagem" / "Esta mensagem foi apagada", que cada um pode tirar com
+   * "Apagar para mim". De outra pessoa, já apagada ou que não existe: 404.
+   */
   async remove(me: string, messageId: string) {
     // O ficheiro (foto, vídeo, voz) desaparece do armazenamento com a mensagem.
     await this.pool.query(
@@ -441,18 +485,79 @@ export class ChatService {
       [messageId, me],
     );
     const { rows } = await this.pool.query(
-      `UPDATE social.messages m SET deleted_at = now(), body = '', media_id = NULL, story_media_id = NULL
+      `UPDATE social.messages m SET deleted_at = now(), deleted_notice = true, body = '', media_id = NULL, story_media_id = NULL,
+              lat = NULL, lng = NULL, live_until = NULL, waveform = NULL
         WHERE m.id = $1 AND m.sender_id = $2 AND m.deleted_at IS NULL
        RETURNING m.group_id, (SELECT CASE WHEN c.user_a = $2 THEN c.user_b ELSE c.user_a END FROM social.conversations c WHERE c.id = m.conversation_id) AS other`,
       [messageId, me],
     );
-    if (!rows[0]) throw new NotFoundException('Mensagem não encontrada');
+    if (!rows[0]) throw new NotFoundException('Esta mensagem já foi apagada ou não é tua');
     if (rows[0].group_id) {
       const members = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1 AND user_id <> $2', [rows[0].group_id, me])).rows;
       for (const r of members) this.events.emit(r.user_id as string, { type: 'deleted', group: rows[0].group_id as string });
       return;
     }
     this.events.emit(rows[0].other, { type: 'deleted', from: await this.usernameOf(me) });
+  }
+
+  /**
+   * Apagar para mim: qualquer mensagem de uma conversa ou de um TxillGroup em que estou (minha ou de outra pessoa, e
+   * também o aviso de uma apagada para todos) deixa de me aparecer. Os outros continuam a vê-la. Repetir não faz mal.
+   */
+  async hideForMe(me: string, messageId: string) {
+    const m = (
+      await this.pool.query(
+        `SELECT m.group_id, c.user_a, c.user_b, EXISTS (SELECT 1 FROM social.group_members gm WHERE gm.group_id = m.group_id AND gm.user_id = $2) AS member
+           FROM social.messages m LEFT JOIN social.conversations c ON c.id = m.conversation_id WHERE m.id = $1`,
+        [messageId, me],
+      )
+    ).rows[0];
+    const mine = !!m && (m.group_id ? !!m.member : m.user_a === me || m.user_b === me);
+    if (!mine) throw new NotFoundException('Mensagem não encontrada');
+    await this.pool.query('INSERT INTO social.message_hidden (user_id, message_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [me, messageId]);
+    // Os meus outros aparelhos põem a conversa em dia.
+    if (m.group_id) this.events.emit(me, { type: 'deleted', group: m.group_id as string });
+    else this.events.emit(me, { type: 'deleted', from: await this.usernameOf((m.user_a === me ? m.user_b : m.user_a) as string) });
+  }
+
+  /**
+   * Editar uma mensagem (como no WhatsApp): só a minha, só texto (não de visualização única), só nos primeiros
+   * EDIT_WINDOW_MS depois de a enviar, com o mesmo filtro do envio. Guarda `edited_at`; o outro lado (ou o grupo) recebe
+   * o evento 'edited' e a conversa põe-se em dia. Numa conversa com bloqueio não se edita.
+   */
+  async edit(me: string, messageId: string, body: string) {
+    const text = body.trim();
+    if (!text) throw new BadRequestException('Escreve alguma coisa');
+    const m = (
+      await this.pool.query(
+        `SELECT m.sender_id, m.kind, m.view_once, m.created_at, m.deleted_at, m.group_id, c.user_a, c.user_b,
+                EXISTS (SELECT 1 FROM social.group_members gm WHERE gm.group_id = m.group_id AND gm.user_id = $2) AS member
+           FROM social.messages m LEFT JOIN social.conversations c ON c.id = m.conversation_id WHERE m.id = $1`,
+        [messageId, me],
+      )
+    ).rows[0];
+    const inside = !!m && (m.group_id ? !!m.member : m.user_a === me || m.user_b === me);
+    if (!inside || m.deleted_at) throw new NotFoundException('Mensagem não encontrada');
+    if (m.sender_id !== me) throw new ForbiddenException('Só podes editar as tuas mensagens');
+    if (m.kind !== 'text' || m.view_once) throw new BadRequestException('Só se editam mensagens de texto');
+    if (Date.now() - new Date(m.created_at as string).getTime() > EDIT_WINDOW_MS) {
+      throw new ForbiddenException('Já passaram 15 minutos: esta mensagem já não se pode editar');
+    }
+    this.filter.assertClean(text);
+    let other: string | null = null;
+    if (!m.group_id) {
+      other = (m.user_a === me ? m.user_b : m.user_a) as string;
+      const blocked = (await this.pool.query(`SELECT ${blockedBetween('$2::uuid', '$1::uuid')} AS b`, [me, other])).rows[0].b as boolean;
+      if (blocked) throw new ForbiddenException('Não podes editar mensagens nesta conversa');
+    }
+    await this.pool.query('UPDATE social.messages SET body = $2, edited_at = now() WHERE id = $1 AND deleted_at IS NULL', [messageId, text.slice(0, 2000)]);
+    if (m.group_id) {
+      const members = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1 AND user_id <> $2', [m.group_id, me])).rows;
+      for (const r of members) this.events.emit(r.user_id as string, { type: 'edited', group: m.group_id as string });
+    } else {
+      this.events.emit(other!, { type: 'edited', from: await this.usernameOf(me) });
+    }
+    return { id: messageId, body: text.slice(0, 2000), edited: true };
   }
 
   /** Reagir a uma mensagem (de uma conversa ou grupo em que estou): uma reação por pessoa; `null` tira-a. */

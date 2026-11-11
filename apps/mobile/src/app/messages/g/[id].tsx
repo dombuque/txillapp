@@ -7,8 +7,9 @@ import { Alert, KeyboardAvoidingView, Pressable, StyleSheet, Text, View, useWind
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { quoteText, type Msg } from '@/components/ChatBubbles';
 import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus } from '@/components/ChatHeader';
+import { ChatEditBar } from '@/components/ChatEditBar';
 import { ChatList } from '@/components/ChatList';
-import { MessageMenu, stopLiveShare } from '@/components/ChatParts';
+import { MessageMenu, saveEdit, stopLiveShare } from '@/components/ChatParts';
 import { GroupComposer } from '@/components/GroupComposer';
 import { GroupInfoSheet } from '@/components/GroupSheets';
 import { Icon, type IconName } from '@/components/Icon';
@@ -48,7 +49,10 @@ export default function GroupThreadScreen() {
   const side = desktop && width - (labels ? 244 : 76) - 380 >= 760;
   const [tab, setTab] = useState<Tab>(TABS.some((t) => t.id === tabParam) ? (tabParam as Tab) : 'chat');
   const [err, setErr] = useState('');
-  const [menuFor, setMenuFor] = useState<Msg | null>(null);
+  // O menu da mensagem (segurar) e, se veio da ação "Apagar" do leitor de ecrã, já na confirmação.
+  const [menuFor, setMenuFor] = useState<{ m: Msg; start?: 'delete' } | null>(null);
+  // A minha mensagem que estou a editar (a barra de escrever passa a ser a de editar).
+  const [editing, setEditing] = useState<Msg | null>(null);
   const [replying, setReplying] = useState<{ id: string; text: string; who: string } | null>(null);
   const [viewing, setViewing] = useState<{ url: string | null; body: string } | null>(null);
   const [members, setMembers] = useState(info === '1');
@@ -146,7 +150,8 @@ export default function GroupThreadScreen() {
           seenId={null}
           emptyText="Ainda não há mensagens. Diz olá à malta do TxillGroup 👋"
           meHandle={user?.username}
-          onMenu={setMenuFor}
+          onMenu={(m) => setMenuFor({ m })}
+          onDelete={(m) => setMenuFor({ m, start: 'delete' })}
           onCheer={(m) => void cheer(m)}
           onOpenOnce={(m) => void openOnce(m)}
           onStopLive={(m) => void stopLiveShare(m.id).then(() => q.refetch()).catch(() => undefined)}
@@ -154,7 +159,18 @@ export default function GroupThreadScreen() {
           onReply={startReply}
         />
       )}
-      {group && (
+      {group && editing ? (
+        <ChatEditBar
+          key={editing.id}
+          original={editing.body}
+          bottom={insets.bottom}
+          onCancel={() => setEditing(null)}
+          onSave={async (text) => {
+            await saveEdit(qc, ['chat-group', id], editing.id, text);
+            setEditing(null);
+          }}
+        />
+      ) : group && (
         <GroupComposer send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} />
       )}
     </View>
@@ -200,7 +216,18 @@ export default function GroupThreadScreen() {
         </View>
 
         {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
-        {menuFor && <MessageMenu m={menuFor} onClose={() => setMenuFor(null)} onReply={startReply} onDone={() => void q.refetch()} onError={setErr} />}
+        {menuFor && (
+          <MessageMenu
+            m={menuFor.m}
+            start={menuFor.start}
+            cacheKey={['chat-group', id]}
+            onClose={() => setMenuFor(null)}
+            onReply={(m) => { setEditing(null); startReply(m); }}
+            onEdit={(m) => { setReplying(null); setEditing(m); }}
+            onDone={() => void q.refetch()}
+            onError={setErr}
+          />
+        )}
         {viewing && (
           <Pressable onPress={() => setViewing(null)} style={st.viewer} accessibilityLabel="Fechar">
             {viewing.url ? <Image source={{ uri: viewing.url }} style={{ flex: 1 }} contentFit="contain" /> : <Text style={{ color: '#fff', fontSize: 20, textAlign: 'center', padding: 24 }}>{viewing.body}</Text>}

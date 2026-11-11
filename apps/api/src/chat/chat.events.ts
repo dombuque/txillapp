@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Observable, Subject, filter, map } from 'rxjs';
 
 export interface ChatEvent {
-  type: 'message' | 'typing' | 'read' | 'deleted';
+  type: 'message' | 'typing' | 'read' | 'deleted' | 'edited';
   /** @utilizador de quem provocou o evento (o outro lado da conversa); vazio nos grupos. */
   from?: string;
   /** Id do grupo, quando o evento é de um grupo. */

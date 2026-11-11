@@ -57,6 +57,8 @@ const sendSchema = z.object({
 });
 const activeSchema = z.object({ key: z.string().regex(/^(u:[A-Za-z0-9_.]{1,40}|g:[0-9a-f-]{36})$/).nullable() });
 const reactSchema = z.object({ reaction: z.string().regex(/^:[a-z]{2,12}:$/) });
+/** Editar uma mensagem de texto (o texto novo; o resto das regras está no serviço). */
+const editSchema = z.object({ body: z.string().max(2000) });
 
 @Controller('chat')
 export class ChatController {
@@ -266,10 +268,28 @@ export class ChatController {
     return this.chat.react(req.userId!, id, null);
   }
 
+  /** Apagar para todos (só as minhas): fica o aviso "Esta mensagem foi apagada". */
   @Delete('messages/:id')
   @UseGuards(JwtAuthGuard)
   @HttpCode(204)
   remove(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
     return this.chat.remove(req.userId!, id);
+  }
+
+  /** Editar a minha mensagem de texto (nos primeiros 15 minutos). */
+  @Patch('messages/:id')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  edit(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(editSchema)) b: z.infer<typeof editSchema>) {
+    return this.chat.edit(req.userId!, id, b.body);
+  }
+
+  /** Apagar para mim (qualquer mensagem de uma conversa ou grupo em que estou): só deixa de me aparecer a mim. */
+  @Post('messages/:id/hide')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  hide(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.chat.hideForMe(req.userId!, id);
   }
 }
