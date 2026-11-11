@@ -36,6 +36,7 @@ export class ExportService {
       stories: await q(`SELECT s.id, s.caption, s.audience, s.music, s.stickers, s.created_at AS "createdAt", s.expires_at AS "expiresAt" FROM content.stories s WHERE s.author_id = $1 ORDER BY s.id`),
       storyComments: await q(`SELECT id, story_id AS "storyId", body, created_at AS "createdAt" FROM content.story_comments WHERE author_id = $1 ORDER BY id`),
       brindes: await q(`SELECT post_id AS "postId", created_at AS "createdAt" FROM content.cheers WHERE user_id = $1 ORDER BY created_at`),
+      commentCheers: await q(`SELECT comment_id AS "commentId", created_at AS "createdAt" FROM content.comment_cheers WHERE user_id = $1 ORDER BY created_at`).catch(() => []),
       // As mensagens que enviei, nas conversas a dois (`to` = o @ da outra pessoa) e nos TxillGroups (`group` = o nome do grupo),
       // com a hora da edição, o ponto, o nome e a morada do sítio e até quando durava a partilha em direto (o que está guardado).
       // As que recebi não entram: são dados de quem as escreveu.
@@ -82,6 +83,25 @@ export class ExportService {
       checkins: await q(`SELECT v.slug, v.name, c.created_at AS "createdAt" FROM content.checkins c JOIN content.venues v ON v.id = c.venue_id WHERE c.user_id = $1 ORDER BY c.created_at`).catch(() => []),
       // Bombar: os locais cujos destaques pediste para não ver.
       boostsHidden: await q(`SELECT v.slug, v.name, h.created_at AS "since" FROM content.boost_hidden h JOIN content.venues v ON v.id = h.venue_id WHERE h.user_id = $1 ORDER BY h.created_at`).catch(() => []),
+      // Bombar: as vezes que um destaque me foi mostrado ou em que toquei (o local só vê totais).
+      boostViews: await q(
+        `SELECT v.slug, v.name, c.target_kind AS "target", i.kind, i.surface, i.created_at AS "createdAt"
+           FROM content.boost_impressions i JOIN content.boost_campaigns c ON c.id = i.campaign_id JOIN content.venues v ON v.id = c.venue_id
+          WHERE i.user_id = $1 ORDER BY i.created_at`,
+      ).catch(() => []),
+      // Convites: o meu código, quem me convidou e quem convidei (sem a impressão da rede).
+      invites: {
+        code: (await q(`SELECT code, active, created_at AS "createdAt" FROM social.invite_codes WHERE user_id = $1`).catch(() => []))[0] ?? null,
+        invitedBy: (await q(`SELECT u.username, r.status, r.created_at AS "joinedAt" FROM social.referrals r JOIN identity.users u ON u.id = r.inviter_id WHERE r.invitee_id = $1`).catch(() => []))[0] ?? null,
+        invited: await q(
+          `SELECT u.username, r.status, r.reason, r.amount, r.created_at AS "joinedAt", r.qualified_at AS "activeAt", r.paid_at AS "paidAt"
+             FROM social.referrals r JOIN identity.users u ON u.id = r.invitee_id WHERE r.inviter_id = $1 ORDER BY r.created_at`,
+        ).catch(() => []),
+      },
+      // Estatísticas de uso ("Ajudar a melhorar o Txillapp"): as 10 000 mais recentes.
+      usageStats: await q(
+        `SELECT name, props, platform, app_version AS "appVersion", session_id AS "sessionId", at FROM analytics.events WHERE user_id = $1 ORDER BY at DESC LIMIT 10000`,
+      ).catch(() => []),
       // Como afinei o algoritmo do Explorar e das Tchekas.
       feedSettings: (await q(`SELECT following, freshness, media, variety, hide_seen AS "hideSeen", calm FROM social.feed_settings WHERE user_id = $1`).catch(() => []))[0] ?? null,
       topicPrefs: await q(`SELECT topic, pref FROM social.explore_prefs WHERE user_id = $1 ORDER BY topic`).catch(() => []),

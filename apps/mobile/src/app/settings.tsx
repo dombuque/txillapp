@@ -70,7 +70,7 @@ const NOTIFY_LABELS: Record<string, [string, string]> = {
   reposts: ['Reposts', 'Quando repostam uma publicação tua'],
   gifts: ['Presentes', 'Quando te oferecem Txills'],
   reactions: ['Brindes e reações', 'Brindes nas tuas publicações, Tchekas, comentários, notas e geleira, e reações aos teus Zás'],
-  invites: ['Convites', 'Quando alguém entra com o teu convite'],
+  invites: ['Convites', 'Quando alguém entra com o teu convite e quando um convite te dá Txills'],
   calls: ['Chamadas perdidas', 'Quando te ligam e não atendes (o toque de quem liga não se desliga aqui)'],
   venues: ['Locais que geres', 'Convites para gerir uma página e pagamentos em Txills recebidos'],
 };
@@ -422,7 +422,7 @@ export default function Settings() {
         <Section title="O que me pode notificar"><NotifyPrefs /></Section>
 
         <Section title="Privacidade dos dados">
-          {p ? <Toggle icon={ic('info')} label="Ajudar a melhorar o Txillapp" text="Estatísticas de uso só nossas, sem terceiros (aberturas, ecrãs, erros). Nunca o conteúdo." on={p.shareAnalytics} onChange={(v) => void savePrivacy({ shareAnalytics: v })} /> : null}
+          {p ? <Toggle icon={ic('info')} label="Ajudar a melhorar o Txillapp" text="Estatísticas de uso só nossas, sem terceiros: aberturas, ecrãs, erros e o que fazes (publicar, brindar, seguir, enviar mensagens…). Nunca o conteúdo nem a posição. Desligado, o que estava à espera é apagado." on={p.shareAnalytics} onChange={(v) => void savePrivacy({ shareAnalytics: v })} /> : null}
         </Section>
 
         <Section title="Segurança">
