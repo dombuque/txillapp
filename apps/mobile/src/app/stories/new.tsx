@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, BackHandler, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
@@ -22,6 +22,7 @@ import { colors } from '@/lib/theme';
 import { FeatureIntro } from '@/components/FeatureIntro';
 import { StickerCanvas, StickerPicker, StickerToolbar } from '@/components/Stickers';
 import { MAX_STICKERS, newPlaced, type PlacedSticker } from '@/lib/stickers';
+import { discardCopy, mimoEdited } from '@/lib/discardGuard';
 
 const EMERALD = '#10b981';
 const web = (o: Record<string, unknown>) => o as never;
@@ -145,6 +146,30 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
     else router.replace('/' as never);
   }
 
+  // Fechar (o × e o voltar do Android) perde a foto acabada de tirar e o que se lhe juntou: pergunta antes.
+  // "Tirar outra" só pergunta se já houver legenda, stickers ou música (a foto nova substitui a antiga).
+  function confirmClose() {
+    if (busy) return;
+    const t = discardCopy('mimo', asset.video);
+    Alert.alert(t.title, t.message, [{ text: t.keep, style: 'cancel' }, { text: t.discard, style: 'destructive', onPress: onClose }]);
+  }
+  function confirmRetake(go: () => void) {
+    if (!mimoEdited({ caption, stickers: stickers.length, music: !!music })) return go();
+    const t = discardCopy('retake');
+    Alert.alert(t.title, t.message, [{ text: t.keep, style: 'cancel' }, { text: t.discard, style: 'destructive', onPress: go }]);
+  }
+  const closeRef = useRef(confirmClose);
+  closeRef.current = confirmClose;
+  const overlayOpen = pickMusic || pickSticker || listOpen;
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (overlayOpen) return false; // a folha por cima trata
+      closeRef.current();
+      return true;
+    });
+    return () => sub.remove();
+  }, [overlayOpen]);
+
   const tool = (icon: Parameters<typeof Icon>[0]['name'], label: string, onPress: () => void, on = false) => (
     <Pressable onPress={onPress} style={[st.tool, on && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: on }}>
       <Icon name={icon} size={22} color={on ? colors.zinc900 : '#fff'} strokeWidth={2} />
@@ -173,11 +198,11 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
 
       {/* Em cima: voltar à câmara; no meio, os botões do sticker escolhido; à direita, as ferramentas. */}
       <View style={[st.top, { paddingTop: Math.max(insets.top, 12) }]}>
-        <Pressable onPress={onClose} style={st.tool} accessibilityRole="button" accessibilityLabel="Cancelar"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
+        <Pressable onPress={confirmClose} style={st.tool} accessibilityRole="button" accessibilityLabel="Cancelar"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
         {sel !== null && stickers[sel] ? <StickerToolbar item={stickers[sel]} onChange={updateSel} onDelete={deleteSel} onDone={() => setSel(null)} /> : <View />}
         <View style={{ gap: 10 }}>
-          {tool('camera', 'Tirar outra', onCamera ?? onRetake)}
-          {onCamera ? tool('images', 'Galeria', onRetake) : null}
+          {tool('camera', 'Tirar outra', () => confirmRetake(onCamera ?? onRetake))}
+          {onCamera ? tool('images', 'Galeria', () => confirmRetake(onRetake)) : null}
           {!asset.video ? tool('expand', fill ? 'Mostrar a foto inteira' : 'Preencher o ecrã', () => setFill((f) => !f), fill) : null}
           {tool('music', music ? 'Mudar a música' : 'Adicionar música', () => setPickMusic(true), !!music)}
           {tool('sticker', 'Stickers', () => setPickSticker(true), stickers.length > 0)}
