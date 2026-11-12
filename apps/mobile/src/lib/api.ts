@@ -63,7 +63,8 @@ export interface Comment {
 }
 export type GiftVisibility = 'silent' | 'private' | 'public';
 export type ReportReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence' | 'scam' | 'impersonation' | 'minor' | 'other';
-export type ReportType = 'post' | 'comment' | 'story' | 'user' | 'message';
+/** O que se denuncia: `user` e `venue` vão pelo id (uuid), nunca pelo @ ou pelo slug. `story` é um mimo, `story_comment` um comentário num mimo e `instant` um Zás. */
+export type ReportType = 'post' | 'comment' | 'story' | 'story_comment' | 'instant' | 'user' | 'message' | 'venue';
 export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review' | 'group_join_request' | 'group_join_accepted' | 'group_member_joined' | 'group_admin_granted' | 'geleira_cheer' | 'cheer' | 'invite_joined'
   // Avisos da equipa do Txillapp (0121): conteúdo removido ou reposto, e aviso da moderação (data.type, data.reason).
   | 'content_removed' | 'content_restored' | 'moderation_warning';

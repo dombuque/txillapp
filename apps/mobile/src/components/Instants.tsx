@@ -23,6 +23,7 @@ import { applyZasFx } from '@/lib/zasFx';
 import { usePanGesture } from 'react-native-gesture-handler';
 import { FUN_FX } from './zas/funFilters';
 import { markSeen } from '@/lib/whatsNew';
+import { ReportSheet } from './ReportSheet';
 import { Sheet } from './Sheet';
 import { CloseFriendsSheet, REACTIONS, ReactionArt } from './StoryParts';
 import { CurvedCaption } from './zas/CurvedCaption';
@@ -727,6 +728,9 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
   const [err, setErr] = useState('');
   const [reply, setReply] = useState('');
   const [note, setNote] = useState('');
+  /** O Zás de outra pessoa que se está a denunciar (e se a denúncia já foi). */
+  const [reporting, setReporting] = useState<string | null>(null);
+  const reportedZas = useRef(false);
   const marked = useRef(new Set<string>());
   const noteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -896,6 +900,11 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
             </Text>
           )}
           {items && items.length > 1 && <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>· {i + 1}/{items.length}</Text>}
+          {!own && cur ? (
+            <Pressable onPress={() => setReporting(cur.id)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Denunciar este Zás" style={{ marginLeft: 4, padding: 4 }}>
+              <Icon name="flag" size={18} color="rgba(255,255,255,0.75)" />
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(16, insets.bottom) }}>
@@ -957,6 +966,24 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
           )}
         </View>
         {viewers && <WhoSheet viewers={viewers} onClose={() => setViewers(null)} />}
+        {/* Denunciado, o Zás sai para quem denunciou (o servidor também já não o devolve): passa ao seguinte ou fecha. */}
+        {reporting && (
+          <ReportSheet
+            type="instant"
+            id={reporting}
+            onReported={() => { reportedZas.current = true; }}
+            onClose={() => {
+              const id = reporting;
+              setReporting(null);
+              if (!reportedZas.current) return;
+              reportedZas.current = false;
+              const rest = (items ?? []).filter((x) => x.id !== id);
+              if (!rest.length) return onClose();
+              setItems(rest);
+              setI((n) => Math.min(n, rest.length - 1));
+            }}
+          />
+        )}
       </Animated.View>
     </Modal>
   );

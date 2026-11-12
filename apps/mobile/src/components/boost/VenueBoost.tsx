@@ -9,6 +9,7 @@ import { newKey } from '@/lib/api.extra';
 import type { Venue } from '@/lib/api.locais';
 import { STATE_LABEL, priceFor, refundPreview, reportLines, shortWhen, txills, type BoostPackageId } from '@/lib/boostView';
 import { sized } from '@/lib/config';
+import { PURCHASES } from '@/lib/purchases';
 import { eventWhen } from '@/lib/nearbyView';
 import { colors } from '@/lib/theme';
 
@@ -28,6 +29,8 @@ function confirmThen(title: string, text: string, ok: string, go: () => void) {
  * Gerir › Bombar: destacar um evento ou uma publicação do local no feed e no mapa de quem está perto, pago com os Txills
  * da carteira do local. Mostra o custo e o saldo, as campanhas ativas e passadas com o relatório (só totais) e deixa parar.
  * Só o dono e os administradores bombam.
+ * Nas versões das lojas (lib/storeRules.ts) não se criam campanhas novas, porque o destaque é publicidade dentro da app e
+ * teria de ser pago com a compra da loja: veem-se e param-se as que já existem.
  */
 export function VenueBoost({ v }: { v: Venue }) {
   const qc = useQueryClient();
@@ -109,6 +112,19 @@ export function VenueBoost({ v }: { v: Venue }) {
   };
 
   const nothing = !o.targets.events.length && !o.targets.posts.length;
+  if (!PURCHASES.buyBoosts) {
+    return (
+      <View style={{ paddingHorizontal: 16, gap: 12 }}>
+        <View style={st.intro}>
+          <Icon name="flame" size={22} color={colors.brand} />
+          <Text style={[st.hint, { flex: 1 }]}>Nesta versão da app não se criam campanhas novas do Bombar. Aqui vês as campanhas do local, com o relatório, e podes parar as que estão ativas.</Text>
+        </View>
+        {msg ? <Text accessibilityRole="alert" style={{ textAlign: 'center', fontSize: 14, color: msg.ok ? colors.green700 : colors.red600 }}>{msg.text}</Text> : null}
+        <Campaigns title="Ativas" items={camps.data?.active ?? []} onStop={stop} empty="Nenhuma campanha a bombar agora." />
+        <Campaigns title="Passadas" items={camps.data?.past ?? []} empty="Ainda não há campanhas passadas." />
+      </View>
+    );
+  }
   return (
     <View style={{ paddingHorizontal: 16, gap: 12 }}>
       <View style={st.intro}>

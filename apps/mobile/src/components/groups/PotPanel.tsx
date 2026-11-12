@@ -13,6 +13,7 @@ import { newKey } from '@/lib/api.extra';
 import { groupKeys, groupsApi, txills, type PotView, type VenueHit, type VenueRef } from '@/lib/api.groups';
 import { abs, sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
+import { PURCHASES } from '@/lib/purchases';
 import { timeAgo } from '@/lib/time';
 import { ConfirmSheet, ErrText, Field, Pill, Section, VenuePickerSheet } from './GroupParts';
 
@@ -233,7 +234,7 @@ function ContributeSheet({ groupId, onClose, onDone }: { groupId: string; onClos
               })}
             </View>
             <Field value={custom} onChangeText={(t) => setCustom(t.replace(/\D/g, ''))} keyboardType="number-pad" maxLength={7} placeholder="Outro valor" accessibilityLabel="Outro valor em Txills" />
-            {short && <Text style={[st.muted, { color: colors.red600 }]}>Não tens Txills suficientes. Carrega a carteira primeiro.</Text>}
+            {short && <Text style={[st.muted, { color: colors.red600 }]}>{PURCHASES.buyTxills ? 'Não tens Txills suficientes. Carrega a carteira primeiro.' : 'Não tens Txills suficientes.'}</Text>}
             {tooSmall && <Text style={st.muted}>O mínimo são 10 Txills.</Text>}
             <ErrText text={err} />
             <Pill label={value ? `Meter ${txills(value)}` : 'Escolhe um valor'} disabled={!value || short || tooSmall || value > 100000} onPress={() => setConfirm(true)} />

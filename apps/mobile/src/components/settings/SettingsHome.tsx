@@ -11,13 +11,15 @@ import { accounts } from '@/lib/accounts';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SETTINGS_GROUPS, searchSettings, type SettingsGroupId, type SettingsHit } from '@/lib/settingsIndex';
+import { PURCHASES } from '@/lib/purchases';
+import { hiddenSettingsFor, paymentsSubtitleFor } from '@/lib/storeRules';
 import { colors } from '@/lib/theme';
 import { SettingRow, SettingsSection } from './SettingRow';
 import { LogoutSheet, SwitchAccountSheet } from './sheets';
 import { useLeave } from './useLeave';
 
 /** Opções que este aparelho não mostra: a pesquisa também não as propõe. */
-const HIDDEN_HERE = Platform.OS === 'web' ? [] : ['installApp', 'contacts'];
+const HIDDEN_HERE = [...(Platform.OS === 'web' ? [] : ['installApp', 'contacts']), ...hiddenSettingsFor(PURCHASES)];
 
 /** O cartão do perfil no topo: foto, nome, @ e "Editar perfil". */
 function ProfileCard() {
@@ -82,7 +84,7 @@ function Results({ hits, onPick }: { hits: SettingsHit[]; onPick: (h: SettingsHi
     <SettingsSection title={hits.length === 1 ? '1 resultado' : `${hits.length} resultados`}>
       {hits.map((h) => {
         const g = h.kind === 'group' ? SETTINGS_GROUPS.find((x) => x.id === h.id) : undefined;
-        return <SettingRow key={`${h.kind}-${h.id}`} icon={(g?.icon ?? 'settings') as IconName} title={h.title} description={g ? g.subtitle : h.where} onPress={() => onPick(h)} />;
+        return <SettingRow key={`${h.kind}-${h.id}`} icon={(g?.icon ?? 'settings') as IconName} title={h.title} description={g ? (g.id === 'pagamentos' ? paymentsSubtitleFor(PURCHASES, g.subtitle) : g.subtitle) : h.where} onPress={() => onPick(h)} />;
       })}
     </SettingsSection>
   );
@@ -131,7 +133,7 @@ export function SettingsHome({ pane = false }: { pane?: boolean }) {
                 key={g.id}
                 icon={g.icon as IconName}
                 title={g.title}
-                subtitle={g.id === 'notificacoes' && notifOff ? 'Desligadas neste aparelho' : g.subtitle}
+                subtitle={g.id === 'notificacoes' && notifOff ? 'Desligadas neste aparelho' : g.id === 'pagamentos' ? paymentsSubtitleFor(PURCHASES, g.subtitle) : g.subtitle}
                 warn={g.id === 'notificacoes' && notifOff}
                 active={active(g.id)}
                 onPress={() => (pane ? router.navigate(`/settings/${g.id}` as never) : open(`/settings/${g.id}`))}

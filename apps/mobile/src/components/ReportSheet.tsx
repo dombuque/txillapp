@@ -17,8 +17,16 @@ const REASONS: { value: ReportReason; label: string; text: string }[] = [
   { value: 'other', label: 'Outro motivo', text: 'Algo que não está na lista.' },
 ];
 
-/** Denunciar uma publicação, comentário, mensagem ou conta. Fica para a moderação analisar; a outra pessoa não é avisada. */
-export function ReportSheet({ type, id, onClose }: { type: ReportType; id: string; onClose: () => void }) {
+/** O que se está a denunciar, para o título da folha. */
+const WHAT: Record<ReportType, string> = {
+  post: 'esta publicação', comment: 'este comentário', story: 'este mimo', story_comment: 'este comentário', instant: 'este Zás', user: 'esta conta', message: 'esta mensagem', venue: 'este local',
+};
+
+/**
+ * Denunciar uma publicação, comentário, mimo, Zás, mensagem, conta ou local. Fica para a moderação analisar; a outra pessoa
+ * não é avisada, e o que denunciaste deixa de te aparecer (o servidor esconde-o; `onReported` deixa o ecrã escondê-lo já).
+ */
+export function ReportSheet({ type, id, onClose, onReported }: { type: ReportType; id: string; onClose: () => void; onReported?: () => void }) {
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -32,6 +40,7 @@ export function ReportSheet({ type, id, onClose }: { type: ReportType; id: strin
     try {
       await api.report(type, id, reason, note.trim() || undefined);
       setDone(true);
+      onReported?.();
     } catch (x) {
       setErr((x as Error).message);
     } finally {
@@ -45,7 +54,7 @@ export function ReportSheet({ type, id, onClose }: { type: ReportType; id: strin
         <View style={{ paddingHorizontal: 24, alignItems: 'center' }}>
           <Icon name="check-circle" size={44} color={colors.zinc300} />
           <Text style={styles.thanks}>Obrigado por avisares</Text>
-          <Text style={styles.sub}>Vamos analisar. A outra pessoa não sabe que foste tu. Se quiseres, podes também bloqueá-la no perfil.</Text>
+          <Text style={styles.sub}>Vamos analisar, com o objetivo de decidir em menos de 24 horas. A outra pessoa não sabe que foste tu{type === 'user' || type === 'venue' ? '' : ', e deixas de ver o que denunciaste'}. Se quiseres, podes também bloqueá-la no perfil.</Text>
           <Pressable onPress={onClose} style={styles.cta}><Text style={styles.ctaText}>Fechar</Text></Pressable>
         </View>
       </Sheet>
@@ -53,7 +62,7 @@ export function ReportSheet({ type, id, onClose }: { type: ReportType; id: strin
   }
 
   return (
-    <Sheet title="Porque queres denunciar?" onClose={onClose}>
+    <Sheet title={`Porque queres denunciar ${WHAT[type]}?`} onClose={onClose}>
       <ScrollView style={{ paddingHorizontal: 24 }} keyboardShouldPersistTaps="handled">
         <View style={{ gap: 8 }} accessibilityRole="radiogroup">
           {REASONS.map((r) => {

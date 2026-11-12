@@ -432,7 +432,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           </View>
         </Sheet>
       )}
-      {sheet === 'report' && <ReportSheet type="user" id={p.username} onClose={() => setSheet(null)} />}
+      {sheet === 'report' && <ReportSheet type="user" id={p.id} onClose={() => setSheet(null)} />}
       {sheet === 'gift' && <GiftSheet recipient={{ username: p.username, displayName: p.displayName }} onClose={() => setSheet(null)} />}
     </View>
   );

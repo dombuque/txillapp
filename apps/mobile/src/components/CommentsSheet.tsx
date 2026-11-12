@@ -151,7 +151,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
       <Pressable onPress={() => void toggle()} hitSlop={12} style={{ alignSelf: 'flex-start', paddingTop: 4 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? 'Tirar o brinde' : 'Brindar comentário'}>
         <Icon name="cheers" size={20} color={cheer.cheered ? colors.brand : '#a1a1aa'} />
       </Pressable>
-      {reporting && <ReportSheet type="comment" id={c.id} onClose={() => setReporting(false)} />}
+      {reporting && <ReportSheet type="comment" id={c.id} onReported={() => onRemoved(c)} onClose={() => setReporting(false)} />}
       {menu && (
         <Sheet onClose={() => setMenu(false)}>
           <View style={styles.menu}>
