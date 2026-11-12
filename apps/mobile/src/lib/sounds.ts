@@ -87,6 +87,6 @@ export function mergePages<T extends { id: string }>(pages: { items: T[] }[] | n
 export function reuseSetting(s: { reuse: boolean; effective: boolean; private: boolean; minor: boolean } | null | undefined): { on: boolean; disabled: boolean; description: string } {
   if (!s) return { on: false, disabled: true, description: 'Outras pessoas podem usar o som das tuas tchekas nas delas.' };
   if (s.private) return { on: false, disabled: true, description: 'A tua conta é privada: ninguém pode usar o som das tuas tchekas.' };
-  if (s.minor) return { on: false, disabled: true, description: 'Só contas de maiores de 18 anos podem deixar usar o seu som.' };
+  if (s.minor) return { on: false, disabled: true, description: 'Só contas de maiores de 18 anos (com a data de nascimento indicada) podem deixar usar o seu som.' };
   return { on: s.reuse, disabled: false, description: 'Outras pessoas podem usar o som das tuas tchekas nas delas, com o teu nome no som. Desligado, as que já o usam continuam.' };
 }

@@ -92,7 +92,9 @@ export interface PostSound { id: string; title: string; kind: SoundKind; author?
  * Pode ser usado por outra pessoa? A definição «Deixar usar o meu som», uma conta pública e de um adulto (18+). Em SQL, com
  * `u` = o autor do som. O próprio autor pode sempre voltar a usar o seu som.
  */
-export const REUSABLE = (u = 'ou') => `(${u}.sound_reuse AND NOT ${u}.is_private AND ${u}.birth_date <= (current_date - interval '18 years'))`;
+export const SOUND_TERMS = '2026-11-14'; // só depois de o autor aceitar os Termos que dão essa licença (as tchekas antigas não ficam usáveis sem isso)
+export const REUSABLE = (u = 'ou') =>
+  `(${u}.sound_reuse AND NOT ${u}.is_private AND ${u}.birth_date <= (current_date - interval '18 years') AND ${u}.terms_version >= '${SOUND_TERMS}')`;
 
 /**
  * O som existe para quem está a ver ($1): não foi tirado e, num som original, a conta está ativa, quem vê pode ver a conta
@@ -370,7 +372,7 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
       const r = (
         await this.pool.query(
           `SELECT s.*, ou.username AS a_username, ou.display_name AS a_display_name, ou.verified AS a_verified, ou.verified_tier AS a_tier, ou.status AS a_status,
-                  ou.is_private, ou.sound_reuse, (ou.birth_date <= (current_date - interval '18 years')) AS adult, ${REUSABLE()} AS reusable,
+                  ou.is_private, ou.sound_reuse, (ou.birth_date <= (current_date - interval '18 years')) AS adult, (ou.terms_version >= '${SOUND_TERMS}') AS terms_ok, ${REUSABLE()} AS reusable,
                   sp.short_code AS source_code
              FROM content.sounds s JOIN identity.users ou ON ou.id = s.owner_id LEFT JOIN content.posts sp ON sp.id = s.source_post_id
             WHERE s.id = $2 AND s.kind = 'original' AND ${SOUND_VISIBLE()}`,
@@ -379,7 +381,7 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
       ).rows[0];
       if (!r) throw new NotFoundException('Som não encontrado');
       const mine = r.owner_id === viewerId;
-      const unavailable: SoundDto['unavailable'] = r.hold_at ? 'held' : mine || r.reusable ? undefined : r.is_private ? 'private' : !r.sound_reuse ? 'off' : 'minor';
+      const unavailable: SoundDto['unavailable'] = r.hold_at ? 'held' : mine || r.reusable ? undefined : r.is_private ? 'private' : !r.sound_reuse || (r.adult && !r.terms_ok) ? 'off' : 'minor';
       return {
         id: r.id,
         kind: 'original',
