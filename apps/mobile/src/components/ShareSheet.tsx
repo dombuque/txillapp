@@ -16,6 +16,7 @@ import { Icon, type IconName } from './Icon';
 import { Sheet, useSheetScroll } from './Sheet';
 import { StickerCanvas, StickerPicker, StickerToolbar } from './Stickers';
 import { MAX_STICKERS, newPlaced, type PlacedSticker } from '@/lib/stickers';
+import { linkShare } from '@/lib/shareLink';
 
 /** Uma conversa (pessoa ou grupo) na grelha de partilha. */
 interface Target {
@@ -157,7 +158,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
   const open = (href: string) => void Linking.openURL(href).then(() => track('share', { target: 'app' }), () => setNote('Não consegui abrir a app'));
   async function system() {
     try {
-      const r = await Share.share({ message: url, url });
+      const r = await Share.share(linkShare('', url));
       if (r.action === Share.sharedAction) {
         track('share', { target: 'system' });
         onClose();

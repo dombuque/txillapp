@@ -7,7 +7,7 @@
  */
 
 /** As frases do cartão, em calão da malta. A mesma lista do servidor (api/src/invites/card.ts). */
-export const INVITE_PHRASES = ['Bora txilar no Txillapp, malta!', 'A tua malta já cá está', 'Traz a tua vibe'] as const;
+export const INVITE_PHRASES = ['Bora txilar no Txillapp, malta!', 'A tua malta já cá está', 'Traz a tua malta'] as const;
 /** O Gelinho (a geleira) que acompanha cada frase, em três stickers da biblioteca. */
 export const PHRASE_STICKERS = ['vem-ca', 'malta-ja', 'bue-fixe'] as const;
 
@@ -143,7 +143,12 @@ const WORDMARK = ['M7 5V27Q7 34 14 34M0 14H14', 'M20 14Q27 24 34 34M34 14Q27 24 
 function wordmarkSvg(cx: number, y: number, width: number) {
   const s = width / 154;
   const x = cx - width / 2;
-  return `<g transform="translate(${(x + 4 * s).toFixed(2)} ${(y + 3 * s).toFixed(2)}) scale(${s.toFixed(4)})" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">${WORDMARK.map((d) => `<path d="${d}"/>`).join('')}<circle cx="42" cy="3.5" r="4.2" fill="#ffd23f" stroke="none"/></g>`;
+  // O logótipo oficial (letras escuras, ponto do i a coral) numa pastilha branca.
+  const h = 54 * s;
+  const px = 0.26 * h;
+  const py = 0.3 * h;
+  const pill = `<rect x="${(x - px).toFixed(2)}" y="${(y - py).toFixed(2)}" width="${(width + 2 * px).toFixed(2)}" height="${(h + 2 * py).toFixed(2)}" rx="${((h + 2 * py) / 2).toFixed(2)}" fill="#ffffff"/>`;
+  return `${pill}<g transform="translate(${(x + 4 * s).toFixed(2)} ${(y + 3 * s).toFixed(2)}) scale(${s.toFixed(4)})" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">${WORDMARK.map((d) => `<path d="${d}"/>`).join('')}<circle cx="42" cy="3.5" r="4.2" fill="${BRAND}" stroke="none"/></g>`;
 }
 
 /** O QR como um só caminho (quadradinhos escuros), dentro do quadrado x,y,size. */
@@ -158,8 +163,8 @@ function qrSvg(m: boolean[][], x: number, y: number, size: number) {
 
 /** As medidas de cada formato (o Status é mais alto: tudo um pouco maior e mais espaçado). */
 const GEO = {
-  post: { markY: 64, markW: 250, avY: 330, avR: 140, stX: 650, stY: 236, stW: 230, nameY: 572, nameS: 66, subY: 628, subS: 38, bubY: 672, bubH: 110, phS: 50, labY: 848, chipY: 872, chipH: 70, chipS: 34, panY: 1050, panH: 250, qr: 206, codeS: 72, smallS: 30 },
-  status: { markY: 150, markW: 300, avY: 560, avR: 180, stX: 690, stY: 450, stW: 290, nameY: 870, nameS: 78, subY: 936, subS: 44, bubY: 992, bubH: 132, phS: 58, labY: 1216, chipY: 1244, chipH: 82, chipS: 40, panY: 1440, panH: 300, qr: 250, codeS: 86, smallS: 34 },
+  post: { markY: 72, markW: 210, avY: 330, avR: 140, stX: 650, stY: 236, stW: 230, nameY: 572, nameS: 66, subY: 628, subS: 38, bubY: 672, bubH: 110, phS: 50, labY: 848, chipY: 872, chipH: 70, chipS: 34, panY: 1050, panH: 250, qr: 206, codeS: 72, smallS: 30 },
+  status: { markY: 160, markW: 270, avY: 560, avR: 180, stX: 690, stY: 450, stW: 290, nameY: 870, nameS: 78, subY: 936, subS: 44, bubY: 992, bubH: 132, phS: 58, labY: 1216, chipY: 1244, chipH: 82, chipS: 40, panY: 1440, panH: 300, qr: 250, codeS: 86, smallS: 34 },
 } as const;
 
 /** Largura estimada de um texto (para as pastilhas); quem pinta encolhe a letra se a conta falhar. */

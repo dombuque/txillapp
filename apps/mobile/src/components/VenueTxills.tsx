@@ -7,6 +7,7 @@ import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { QrSvg, downloadQrSvg, origin } from '@/components/VenueQr';
 import { locaisApi, type Venue, type VenuePayment } from '@/lib/api.locais';
+import { linkShare } from '@/lib/shareLink';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
@@ -131,7 +132,7 @@ function ReceiveQr({ v }: { v: Venue }) {
       return;
     }
     try {
-      await Share.share({ message: `Paga com Txills no Txillapp: ${v.name}${n >= 1 ? ` (${fmt(n)} Txills)` : ''}\n${url}`, url });
+      await Share.share(linkShare(`Paga com Txills no Txillapp: ${v.name}${n >= 1 ? ` (${fmt(n)} Txills)` : ''}`, url));
     } catch {
       /* cancelado */
     }

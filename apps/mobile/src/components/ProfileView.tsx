@@ -32,6 +32,7 @@ import { Sheet } from './Sheet';
 import { usePagerPan, useWebPager } from './SwipePager';
 import { useFadeIn, useTabSlider } from './TabSlider';
 import { VerifiedBadge } from './VerifiedBadge';
+import { linkShare } from '@/lib/shareLink';
 
 /** Os ícones e nomes dos separadores; quais aparecem e por que ordem se desliza é de lib/profileTabs. */
 const TABS: { id: ProfileTab; label: string; icon: IconName | 'bookmark' }[] = [
@@ -198,7 +199,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   async function inviteCrew() {
     try {
       const d = await api.invites();
-      await Share.share({ message: `Entra no Txillapp com o meu convite e ganhamos Txills os dois: ${d.link}`, url: d.link });
+      await Share.share(linkShare('Entra no Txillapp com o meu convite e ganhamos Txills os dois:', d.link));
     } catch {
       /* cancelado ou sem convites */
     }

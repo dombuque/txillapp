@@ -13,6 +13,7 @@ import { QuotedOriginal, THREAD_AVATAR, THREAD_GAP } from './QuoteThread';
 import { Icon, type IconName } from './Icon';
 import { ReportSheet } from './ReportSheet';
 import { Sheet } from './Sheet';
+import { linkShare } from '@/lib/shareLink';
 
 const AMOUNTS = [5, 10, 50, 100];
 const OPTIONS: { value: 'silent' | 'private' | 'public'; icon: IconName; title: string; text: string }[] = [
@@ -213,7 +214,7 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare }: { post:
       return;
     }
     try {
-      const r = await Share.share({ message: postLink(post), url: postLink(post) });
+      const r = await Share.share(linkShare('', postLink(post)));
       if (r.action === Share.sharedAction) track('share', { target: 'system' });
     } catch { /* cancelado */ }
     onClose();

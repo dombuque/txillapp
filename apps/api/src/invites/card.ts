@@ -10,7 +10,7 @@ export const OG_W = 1200;
 export const OG_H = 630;
 
 /** As frases do cartão (as mesmas da app). */
-export const PHRASES = ['Bora txilar no Txillapp, malta!', 'A tua malta já cá está', 'Traz a tua vibe'] as const;
+export const PHRASES = ['Bora txilar no Txillapp, malta!', 'A tua malta já cá está', 'Traz a tua malta'] as const;
 /** A personagem que acompanha cada frase (o Gelinho, a geleira, em três stickers). */
 const CHAR_OF = ['vem-ca', 'malta-ja', 'bue-fixe'] as const;
 
@@ -31,9 +31,14 @@ const FONT = 'DejaVu Sans, Helvetica, Arial, sans-serif';
 /** O logótipo em traços (a mesma geometria de lib/wordmark.ts e media/signature.ts). */
 const circlePath = (cx: number, cy: number, r: number) => `M${cx + r} ${cy}a${r} ${r} 0 1 0 ${-2 * r} 0a${r} ${r} 0 1 0 ${2 * r} 0`;
 const WORDMARK = ['M7 5V27Q7 34 14 34M0 14H14', 'M20 14Q27 24 34 34M34 14Q27 24 20 34', 'M42 14V34', 'M51 3V34', 'M61 3V34', circlePath(77, 24, 9.5), 'M86.5 14V34', circlePath(106, 24, 9.5), 'M96.5 14V46', circlePath(135, 24, 9.5), 'M125.5 14V46'];
+/** O logótipo oficial (letras escuras, ponto do i a coral) numa pastilha branca, para se ler bem em cima do degradê. */
 const wordmark = (x: number, y: number, width: number) => {
   const s = width / 154;
-  return `<g transform="translate(${x + 4 * s} ${y + 3 * s}) scale(${s})" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">${WORDMARK.map((d) => `<path d="${d}"/>`).join('')}<circle cx="42" cy="3.5" r="4.2" fill="#ffd23f" stroke="none"/></g>`;
+  const h = 54 * s;
+  const px = 0.16 * h * 1.6;
+  const py = 0.3 * h;
+  const pill = `<rect x="${x - px}" y="${y - py}" width="${width + 2 * px}" height="${h + 2 * py}" rx="${(h + 2 * py) / 2}" fill="#ffffff"/>`;
+  return `${pill}<g transform="translate(${x + 4 * s} ${y + 3 * s}) scale(${s})" fill="none" stroke="#1f1b24" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">${WORDMARK.map((d) => `<path d="${d}"/>`).join('')}<circle cx="42" cy="3.5" r="4.2" fill="#d6334f" stroke="none"/></g>`;
 };
 
 /** Um sticker da biblioteca (arte em SVG) dentro da caixa x,y,w (mantém a proporção), com uma inclinação. */
@@ -84,7 +89,7 @@ export function ogCardSvg(p: Omit<OgCardInput, 'avatar'> & { hasAvatar: boolean 
 <circle cx="${AV.cx}" cy="${AV.cy}" r="${AV.r + 12}" fill="#ffffff"/>
 <circle cx="${AV.cx}" cy="${AV.cy}" r="${AV.r}" fill="#ffe4e8"/>${initials}
 ${sticker(CHAR_OF[i], 292, 372, 165, 8)}
-${wordmark(480, 54, 230)}
+${wordmark(510, 50, 180)}
 <text x="480" y="210" font-family="${FONT}" font-size="58" font-weight="700" fill="#ffffff">${esc(name)}</text>
 <text x="480" y="262" font-family="${FONT}" font-size="32" fill="#ffffff" fill-opacity="0.92">convidou-te para o Txillapp</text>
 <rect x="480" y="290" width="670" height="84" rx="42" fill="#ffffff"/>

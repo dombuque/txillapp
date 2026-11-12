@@ -13,7 +13,7 @@ const { qrMatrix } = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'q
 const STICKERS = JSON.parse(readFileSync(path.join(ROOT, 'src', 'assets', 'stickers.json'), 'utf8')).items;
 
 test('as frases são as três pedidas, em calão da malta, e cada uma tem o seu Gelinho na biblioteca', () => {
-  assert.deepEqual([...c.INVITE_PHRASES], ['Bora txilar no Txillapp, malta!', 'A tua malta já cá está', 'Traz a tua vibe']);
+  assert.deepEqual([...c.INVITE_PHRASES], ['Bora txilar no Txillapp, malta!', 'A tua malta já cá está', 'Traz a tua malta']);
   assert.equal(c.PHRASE_STICKERS.length, c.INVITE_PHRASES.length);
   for (const id of c.PHRASE_STICKERS) {
     const s = STICKERS.find((x) => x.id === id);

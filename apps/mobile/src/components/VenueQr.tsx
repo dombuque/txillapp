@@ -6,6 +6,7 @@ import { Icon } from '@/components/Icon';
 import { locaisApi, type Venue } from '@/lib/api.locais';
 import { qrMatrix } from '@/lib/qr';
 import { SITE_URL } from '@/lib/config';
+import { linkShare } from '@/lib/shareLink';
 import { cardShadow, colors } from '@/lib/theme';
 
 /** O endereço do site para pôr nos QR (na web o da própria página). */
@@ -63,7 +64,7 @@ export function VenueQr({ venue }: { venue: Venue }) {
       return;
     }
     try {
-      await Share.share({ message: `Faz check-in no Txillapp: ${venue.name}\n${url}`, url });
+      await Share.share(linkShare(`Faz check-in no Txillapp: ${venue.name}`, url));
     } catch {
       /* cancelado */
     }

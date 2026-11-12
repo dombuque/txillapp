@@ -7,6 +7,7 @@ import { qrMatrix } from '@/lib/qr';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 import { Sheet } from './Sheet';
+import { linkShare } from '@/lib/shareLink';
 
 const INK = '#18181b';
 
@@ -65,7 +66,7 @@ export function ProfileQrSheet({ username, displayName, onClose }: { username: s
   async function share() {
     const text = `Segue @${username} no Txillapp, a rede da malta:`;
     try {
-      await Share.share({ title: `${displayName} no Txillapp`, message: `${text} ${url}`, url });
+      await Share.share({ title: `${displayName} no Txillapp`, ...linkShare(text, url) });
     } catch {
       flash('Não consegui partilhar');
     }

@@ -14,6 +14,7 @@ import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
 import { Sticker } from './StickerPanel';
+import { linkShare } from '@/lib/shareLink';
 
 /** Reações a stories: a mesma mascote dos stickers, sem texto (guardam-se como :nome:). */
 export const REACTIONS: { id: string; label: string; art: string }[] = [
@@ -106,7 +107,7 @@ export function ReplyBar({ story, username, onFocusChange, inputRef, onCheered }
   async function share() {
     if (!story.sharedFrom) return;
     const url = `${SITE_URL || 'https://txillapp.com'}/p/${story.sharedFrom.postId}`;
-    try { await Share.share({ message: url, url }); } catch { /* cancelado */ }
+    try { await Share.share(linkShare('', url)); } catch { /* cancelado */ }
   }
   const focus = (v: boolean) => { setOpen(v); onFocusChange(v); };
 
