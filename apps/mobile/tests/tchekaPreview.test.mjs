@@ -57,8 +57,9 @@ test('cada mudança vê-se logo, sem voltar ao início', () => {
   assert.match(studio, /musicNode\.start\(0, from % e\.music\.buf\.duration\)/);
 });
 
-test('escolher um clipe na fila salta para o início dele', () => {
-  assert.match(studio, /onPress=\{\(\) => \{ setSel\(i\); seekTo\(segs\[i\]\?\.start \?\? 0\); \}\}/);
+test('escolher um clipe na linha do tempo salta para o início dele (se o cursor não estiver já nele)', () => {
+  assert.match(studio, /onSelect=\{onSelectClip\}/);
+  assert.match(studio, /if \(s && \(t < s\.start \|\| t >= s\.start \+ s\.dur\)\) seekTo\(s\.start\);/);
 });
 
 test('sair do estúdio ou abrir o seletor de música pára a pré-visualização', () => {
@@ -82,7 +83,7 @@ test('com a montagem em curso, os controlos de edição estão desativados', () 
   const tabs = studio.indexOf('<View style={st.tabs}');
   const end = studio.indexOf('{pickMusic ? <MusicPicker');
   assert.ok(box > 0 && box < tabs, 'a caixa bloqueada começa antes dos separadores');
-  for (const ctl of ["setTransition('fade')", 'setLook(i)', 'setTitleStyle(', 'setCast(c.id)', 'onPress={openPicker}', 'remove(i)', 'cycle(i)', 'Início do clipe', 'Momento da capa']) {
+  for (const ctl of ["setTransition('fade')", 'setLook(i)', 'setTitleStyle(', 'setCast(c.id)', 'onPress={openPicker}', '<Timeline', 'onDelete=', 'onPhoto=', 'onReplace=', 'Início do clipe', 'Momento da capa']) {
     const at = studio.indexOf(ctl, tabs);
     assert.ok(at > box && at < end, `${ctl} está dentro da caixa bloqueada`);
   }
