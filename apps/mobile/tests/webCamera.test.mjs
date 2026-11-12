@@ -31,10 +31,15 @@ test('plano B: do melhor ao mais simples, sempre com a câmara certa, e por fim 
   assert.ok(p[0].height.ideal > p[0].width.ideal);
 });
 
-test('foto 3:4: sobe para 1440×1920 só se o sensor der e ainda não estiver lá', () => {
+test('foto 3:4: sobe para o maior da escada (até 2160×2880) só se o sensor der e ainda não estiver lá', () => {
   const caps = { width: { min: 1, max: 4032 }, height: { min: 1, max: 3024 } };
-  assert.deepEqual(C.photoUpgrade(caps, { width: 1080, height: 1440 }, '3:4'), { width: { ideal: 1440 }, height: { ideal: 1920 }, aspectRatio: { ideal: 3 / 4 } });
-  assert.equal(C.photoUpgrade(caps, { width: 1440, height: 1920 }, '3:4'), null);
+  assert.deepEqual(C.photoUpgrade(caps, { width: 1080, height: 1440 }, '3:4'), { width: { ideal: 2160 }, height: { ideal: 2880 }, aspectRatio: { ideal: 3 / 4 } });
+  // Já com o tamanho de antes (1440×1920): sobe na mesma (é aqui que a foto do iPhone ficava presa).
+  assert.equal(C.photoUpgrade(caps, { width: 1440, height: 1920 }, '3:4').height.ideal, 2880);
+  assert.equal(C.photoUpgrade(caps, { width: 2160, height: 2880 }, '3:4'), null);
+  // Uma câmara que só vai a 1920×1440 (muitas frontais): fica no tamanho de antes.
+  assert.deepEqual(C.photoUpgrade({ width: { max: 1920 }, height: { max: 1440 } }, { width: 1080, height: 1440 }, '3:4'), C.PHOTO_SAFE);
+  assert.equal(C.photoUpgrade({ width: { max: 1920 }, height: { max: 1440 } }, { width: 1440, height: 1920 }, '3:4'), null);
   assert.equal(C.photoUpgrade(caps, { width: 1080, height: 1920 }, '16:9'), null);
   assert.equal(C.photoUpgrade({ width: { max: 1920 }, height: { max: 1080 } }, { width: 1080, height: 1440 }, '3:4'), null);
   assert.equal(C.photoUpgrade(undefined, { width: 1080, height: 1440 }, '3:4'), null);
@@ -235,7 +240,9 @@ test('TxCamera: o vídeo do visor tem playsinline e muted, e usa as contas daqui
   for (const f of ['coverCrop', 'tapToPoint', 'pickRecorderType', 'videoBitrate', 'readCaps', 'classifyCameraError', 'permissionSteps', 'zoomPlan']) assert.ok(SRC.includes(f), f);
   // A foto sai à resolução do vídeo: o canvas usa videoWidth/videoHeight, não o tamanho do ecrã.
   assert.match(SRC, /videoWidth/);
-  assert.match(SRC, /'image\/jpeg', 0\.92/);
+  // JPEG a 92 % (webCamera.encodePhoto; 85 % só se passar do que o servidor aceita).
+  assert.match(SRC, /encodePhoto\(\(q\) => new Promise<Blob \| null>\(\(res\) => c\.toBlob\(res, 'image\/jpeg', q\)\)\)/);
+  assert.equal(C.JPEG_QUALITY, 0.92);
 });
 
 test('TxCamera: controlos com área de toque ≥ 44 e sem papéis que fecham a app no Android', () => {

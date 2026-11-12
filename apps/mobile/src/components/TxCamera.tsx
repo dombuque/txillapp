@@ -11,7 +11,7 @@ import {
   activePill, bestMatch, browserKind, classifyCameraError, clock, coverCrop, exposureLabel, exposureValue, fallbackConstraints, ncc,
   permissionSteps, photoUpgrade, pickRecorderType, readCaps, recorderFile, retryWithFallback, sensorRatioFor, tapToPoint, videoBitrate,
   videoCropToPhoto, zoomLabel, zoomLimits, zoomPills, zoomPlan, type CamCaps, type CamProblem, type Rect,
-  freshVideoFor, nextVideo, viewTransform,
+  freshVideoFor, nextVideo, viewTransform, encodePhoto, fitLong, PHOTO_BASE, PHOTO_MAX_LONG, PHOTO_SAFE, upgradeTooSlow,
 } from '@/lib/webCamera';
 import { useAuth } from '@/lib/auth';
 import { POST_RATIO_DEFAULT, POST_RATIO_MAX, POST_RATIO_MIN } from '@/lib/postAspect';
@@ -53,6 +53,8 @@ export const LOOKS: Look[] = [
   { id: 'vintage', name: 'Vintage', b: 0.98, c: 0.95, s: 0.85, sep: 0.5, g: 0, tint: [120, 60, 30, 0.08] },
   { id: 'pb', name: 'P&B', b: 1.02, c: 1.15, s: 1, sep: 0, g: 1 },
 ];
+/** O JPEG da foto final: 92 %, ou 85 % se passar do que o servidor aceita (webCamera.encodePhoto). */
+const photoJpeg = (c: HTMLCanvasElement) => encodePhoto((q) => new Promise<Blob | null>((res) => c.toBlob(res, 'image/jpeg', q)));
 /** Um filtro na fila: a imagem de exemplo (o que a câmara vê, ou a foto tirada) já com o filtro, e o nome por baixo. */
 function LookSwatch({ look, src, on, onPress }: { look: Look; src: string | null; on: boolean; onPress: () => void }) {
   return (
@@ -163,10 +165,15 @@ export const LAYOUTS: { id: string; name: string; cells: Cell[] }[] = [
   { id: '6', name: '6', cells: [[0, 0, 0.5, 1 / 3], [0.5, 0, 0.5, 1 / 3], [0, 1 / 3, 0.5, 1 / 3], [0.5, 1 / 3, 0.5, 1 / 3], [0, 2 / 3, 0.5, 1 / 3], [0.5, 2 / 3, 0.5, 1 / 3]] },
 ];
 const GAP = 3; // a linha branca entre as fotos
+/** O tamanho da foto do layout (4:5). Era 1080×1350: com o stream maior cada célula tem píxeis que cheguem para 1440×1800. */
+export const LAYOUT_W = 1440, LAYOUT_H = 1800;
 /** Desenha `src` a preencher o retângulo (cover), cortando o que sobra. */
 function cover(g: CanvasRenderingContext2D, src: CanvasImageSource, srcW: number, srcH: number, x: number, y: number, w: number, h: number) {
   const k = Math.max(w / srcW, h / srcH);
   const sw = w / k, sh = h / k;
+  // Cada foto do layout é reduzida para a sua célula: com a qualidade de omissão ('low') a redução serrilha.
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = 'high';
   g.drawImage(src, (srcW - sw) / 2, (srcH - sh) / 2, sw, sh, x, y, w, h);
 }
 
@@ -216,6 +223,18 @@ function grabFrame(v: HTMLVideoElement, r: Rect, mirror: boolean): HTMLCanvasEle
   if (mirror) { g.translate(r.w, 0); g.scale(-1, 1); }
   g.drawImage(v, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
   return c;
+}
+/** Quantas imagens o <video> mostrou em `ms` (requestVideoFrameCallback). Sem ele (browsers antigos): null, não se mede. */
+function countFrames(v: HTMLVideoElement, ms: number): Promise<{ frames: number; ms: number } | null> {
+  const rv = v as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number; cancelVideoFrameCallback?: (h: number) => void };
+  if (typeof rv.requestVideoFrameCallback !== 'function') return Promise.resolve(null);
+  return new Promise((res) => {
+    let frames = 0, h = 0;
+    const t0 = performance.now();
+    const tick = () => { frames += 1; h = rv.requestVideoFrameCallback!(tick); };
+    h = rv.requestVideoFrameCallback(tick);
+    setTimeout(() => { rv.cancelVideoFrameCallback?.(h); res({ frames, ms: performance.now() - t0 }); }, ms);
+  });
 }
 /** Miniatura cinzenta de um retângulo (para comparar a foto do ImageCapture com o que o visor mostrou). */
 function grayThumb(src: CanvasImageSource, r: Rect, w: number, h: number): Float32Array {
@@ -303,11 +322,13 @@ async function capturePhoto(ic: ImageCap, settings: Record<string, unknown>, cro
     const pw = turned ? bh : bw, ph = turned ? bw : bh;
     const r = videoCropToPhoto(crop, vw, vh, pw, ph);
     if (r.w * r.h < crop.w * crop.h * 1.2) return null; // não ganha nada ao vídeo
-    // Até 16 MP (o limite seguro de um canvas nos telemóveis).
-    const k = Math.min(1, Math.sqrt(16_000_000 / (r.w * r.h)));
+    // Até PHOTO_MAX_LONG no lado maior (antes ia até 16 MP: com sensores de 12–50 MP o JPEG passava dos 8 MB que o
+    // servidor aceita e a edição pesava; o ecrã nunca recebe mais de 1600 de largura).
+    const fit = fitLong(r.w, r.h, PHOTO_MAX_LONG);
+    const k = fit.k;
     const out = document.createElement('canvas');
-    out.width = Math.round(r.w * k);
-    out.height = Math.round(r.h * k);
+    out.width = fit.w;
+    out.height = fit.h;
     const g = out.getContext('2d')!;
     g.imageSmoothingQuality = 'high';
     if (mirror) { g.translate(out.width, 0); g.scale(-1, 1); }
@@ -509,6 +530,8 @@ export function TxCamera({
   const canTorch = caps.torch;
   /** Uma câmara aberta pelo plano B (fora da sessão partilhada): é desta câmara que a desligamos. */
   const ownStream = useRef<MediaStream | null>(null);
+  /** A track a que esta câmara subiu a resolução da foto: ao sair volta ao pedido normal (o Zás usa a mesma câmara). */
+  const upgradedTrack = useRef<MediaStreamTrack | null>(null);
   const startSeq = useRef(0);
   const imageCap = useRef<ImageCap | null>(null);
   const photoCaps = useRef<PhotoCaps | null>(null);
@@ -817,6 +840,16 @@ export function TxCamera({
     throw last;
   }
 
+  /** O visor ficou lento com a resolução maior (aparelho mais velho)? Então volta a 1440×1920, como antes. */
+  async function checkSmooth(seq: number, t: MediaStreamTrack, v: HTMLVideoElement) {
+    await sleep(700); // a câmara assenta depois de mudar de tamanho
+    if (seq !== startSeq.current) return;
+    const n = await countFrames(v, 1200);
+    // Só se decide com a medida limpa: a mesma câmara, o mesmo <video>, à vista, e sem gravar (mudar de tamanho a meio estragava o vídeo).
+    if (!n || seq !== startSeq.current || video.current !== v || document.visibilityState !== 'visible' || t.readyState !== 'live' || recorder.current?.state === 'recording') return;
+    if (upgradeTooSlow(n.frames, n.ms)) await t.applyConstraints(PHOTO_SAFE).catch(() => undefined);
+  }
+
   const starting = useRef(false);
   /** Tentativas que faltam para religar a câmara depois de ela cair sozinha. */
   const afterEnded = useRef(0);
@@ -852,11 +885,14 @@ export function TxCamera({
     if (seq !== startSeq.current) { if (ownStream.current === s) stopOwn(); return; }
     stream.current = s;
     const t = s.getVideoTracks()[0];
-    // Foto numa publicação: mais resolução, se o sensor der (lido das getCapabilities()).
+    // Foto numa publicação: mais resolução, se o sensor der (lido das getCapabilities()). No iPhone a foto é um frame
+    // deste vídeo (o Safari não tem ImageCapture), por isso é isto que decide a resolução da foto (webCamera.photoUpgrade).
+    let upgraded = false;
     try {
       const up = t ? photoUpgrade(t.getCapabilities?.() as never, t.getSettings?.(), ratio) : null;
-      if (up && t) await t.applyConstraints(up);
+      if (up && t) { await t.applyConstraints(up); upgraded = true; }
     } catch { /* o aparelho não aceita: fica como está */ }
+    if (upgraded) upgradedTrack.current = t ?? null;
     let v = video.current;
     // Outra câmara (virar para a frontal, ou o plano B): um <video> novo em vez de trocar o srcObject do mesmo. O Safari do
     // iPhone guardava no elemento o tamanho e a rotação do vídeo anterior (a frontal aparecia pequena, ao meio).
@@ -901,6 +937,8 @@ export function TxCamera({
     setReady(true);
     starting.current = false;
     afterEnded.current = 0;
+    // Subiu a resolução: confere-se se o visor continua fluido; se não, volta ao tamanho de antes (1440×1920).
+    if (upgraded && t && v) void checkSmooth(seq, t, v);
     // O ImageCapture (foto inteira do sensor e flash a sério) só se cria ao tirar a primeira foto (ver icBroken).
     imageCap.current = null;
     photoCaps.current = null;
@@ -921,6 +959,10 @@ export function TxCamera({
       if (zoomPump.applied !== null && zoomPump.applied !== 1) t.applyConstraints({ advanced: [{ zoom: 1 } as MediaTrackConstraintSet] }).catch(() => undefined);
       if (expoPump.applied) t.applyConstraints({ advanced: [{ exposureCompensation: 0 } as MediaTrackConstraintSet] }).catch(() => undefined);
     }
+    // A resolução maior da foto é só para aqui: o ecrã seguinte (o Zás) recebe a câmara no tamanho normal dela.
+    const up = upgradedTrack.current;
+    upgradedTrack.current = null;
+    if (up && up.readyState === 'live') up.applyConstraints(PHOTO_BASE).catch(() => undefined);
     stopOwn();
     releaseCamera(2_000);
     clearInterval(timer.current);
@@ -1001,7 +1043,7 @@ export function TxCamera({
     if (!v || !ready || full || !v.videoWidth) return;
     const t = track();
     const front = facing === 'user';
-    // Foto inteira do sensor (ImageCapture, Chrome no Android). No layout não vale a pena: a composição é 1080×1350.
+    // Foto inteira do sensor (ImageCapture, Chrome no Android). No layout não vale a pena: a composição é LAYOUT_W×LAYOUT_H.
     let ic: ImageCap | null = null;
     if (layout === null && t && !icBroken) {
       if (!imageCap.current) { imageCap.current = imageCaptureFor(t); icUsedAt = Date.now(); }
@@ -1100,7 +1142,7 @@ export function TxCamera({
   }
   async function finishLayout(list: HTMLCanvasElement[]) {
     if (layout === null) return;
-    const W = 1080, H = 1350;
+    const W = LAYOUT_W, H = LAYOUT_H;
     const out = document.createElement('canvas');
     out.width = W;
     out.height = H;
@@ -1134,9 +1176,9 @@ export function TxCamera({
         const img = await new Promise<HTMLImageElement>((res, rej) => { const i = document.createElement('img'); i.onload = () => res(i); i.onerror = rej; i.src = url; });
         const cell = LAYOUTS[layout].cells[list.length];
         const c = document.createElement('canvas');
-        // No tamanho final da célula (a composição é 1080×1350): senão a foto saía ampliada e desfocada.
-        c.width = Math.round(cell[2] * 1080);
-        c.height = Math.round(cell[3] * 1350);
+        // No tamanho final da célula (a composição é LAYOUT_W×LAYOUT_H): senão a foto saía ampliada e desfocada.
+        c.width = Math.round(cell[2] * LAYOUT_W);
+        c.height = Math.round(cell[3] * LAYOUT_H);
         cover(c.getContext('2d')!, img, img.naturalWidth, img.naturalHeight, 0, 0, c.width, c.height);
         list = [...list, c];
       } catch { /* ficheiro que não é imagem legível */ } finally { URL.revokeObjectURL(url); }
@@ -1309,7 +1351,7 @@ export function TxCamera({
     if (!r.video) await settleHq();
     const src = reviewSrc.current;
     const blob: Blob | null = !r.video && src
-      ? await new Promise<Blob | null>((res) => renderEdit(src, finalEdit()).toBlob(res, 'image/jpeg', 0.92))
+      ? await photoJpeg(renderEdit(src, finalEdit()))
       : await (await fetch(r.uri)).blob();
     if (!blob) return;
     const f = new File([blob], `txillapp-${Date.now()}.${r.video ? recorderFile(r.mime).ext : 'jpg'}`, { type: blob.type || r.mime });
@@ -1335,7 +1377,8 @@ export function TxCamera({
     const src = reviewSrc.current;
     if (!r.video && src) {
       const e = finalEdit();
-      const jpeg = (sign: boolean) => new Promise<Blob | null>((res) => renderEdit(src, e, sign).toBlob(res, 'image/jpeg', 0.92));
+      // Do original (reviewSrc), nunca da cópia de 1600 px da pré-visualização.
+      const jpeg = (sign: boolean) => photoJpeg(renderEdit(src, e, sign));
       const blob = await jpeg(true);
       // Num tcheka, também a mesma foto sem a assinatura: o estúdio assina o vídeo inteiro (senão ficavam duas).
       const plain = blob && keepClean ? await jpeg(false) : null;
