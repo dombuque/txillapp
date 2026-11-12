@@ -8,6 +8,7 @@ import type { Badged } from '@/lib/api';
 import type { PhotoTag } from '@/lib/api.feed';
 import { sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
+import { CheersPour } from './CheersPour';
 import { Icon } from './Icon';
 import { NameWithBadge } from './NameWithBadge';
 import { RichText } from './RichText';
@@ -56,7 +57,7 @@ function Photo({ photo, w, h, index, total, onTag }: { photo: ViewerPhoto; w: nu
  * Foto em ecrã completo, como no X: fundo preto, deslizar entre as fotos, fechar com o X ou arrastando para baixo;
  * por baixo o autor, o texto e a barra de ações (`footer`).
  */
-export function PhotoViewer({ photos, start = 0, author, body, footer, onClose }: { photos: ViewerPhoto[]; start?: number; author: { displayName: string; username: string } & Badged; body?: string; footer?: ReactNode; onClose: () => void }) {
+export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0, onClose }: { photos: ViewerPhoto[]; start?: number; author: { displayName: string; username: string } & Badged; body?: string; footer?: ReactNode; /** Muda a cada brinde: os copos aparecem no meio da foto, como no feed. */ burst?: number; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width, height } = useWindowDimensions();
@@ -120,6 +121,7 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, onClose }
           />
         </Animated.View>
 
+        <CheersPour n={burst} size={Math.min(240, width * 0.6)} />
         {footer ? <View style={[styles.rail, { bottom: footH + 12 }]} pointerEvents="box-none">{footer}</View> : null}
         <View style={[styles.foot, { paddingBottom: Math.max(insets.bottom, 8) + 56 }]} onLayout={(e) => setFootH(Math.round(e.nativeEvent.layout.height))}>
           <NameWithBadge name={author.displayName} who={author} style={styles.who} gap={4}>

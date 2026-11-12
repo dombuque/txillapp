@@ -19,6 +19,7 @@ import { isStandaloneWeb } from '@/components/Landing';
 import { useDesktop } from '@/lib/desktop';
 import { installWebAlert } from '@/lib/alertHost';
 import { installWebBack } from '@/lib/webBack';
+import { installDeskScroll } from '@/lib/deskScroll';
 import { accounts } from '@/lib/accounts';
 import { syncPush } from '@/lib/push';
 import { installCallRing } from '@/lib/callRing';
@@ -108,6 +109,8 @@ function Gate() {
   useEffect(() => {
     if (!loading) void SplashScreen.hideAsync();
   }, [loading]);
+  // Computador (rato): a roda rola o ecrã também por cima das margens e da barra lateral, e a barra de deslocamento vê-se.
+  useEffect(() => (Platform.OS === 'web' ? installDeskScroll() : undefined), []);
 
   useEffect(() => {
     if (loading || offline) return;
@@ -164,6 +167,9 @@ function Gate() {
   // Modo computador (browser largo, com sessão, fora das páginas de entrada e das páginas públicas): barra lateral e conteúdo largo.
   const outside = ['login', 'register', 'forgot-password', 'google-username', 'verify-email', 'reset-password', 'terms', 'termos', 'privacy', 'privacidade', 'apagar-conta', 'c'].includes(segments[0] ?? '');
   const shell = desktop && !!user && !outside;
+  // Sem sessão no computador, a apresentação (endereço principal) e as páginas de entrar ocupam a janela (têm o seu layout
+  // de duas colunas); as páginas de texto (termos, privacidade, ajuda) ficam na coluna de leitura.
+  const wideOut = desktop && !user && (pathname === '/' || ['login', 'register', 'forgot-password', 'google-username'].includes(segments[0] ?? ''));
   const stack = (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.white } }}>
       <Stack.Screen name="(tabs)" />
@@ -196,7 +202,7 @@ function Gate() {
     </Stack>
   );
   return (
-    <View style={shell ? styles.desk : styles.column}>
+    <View style={shell || wideOut ? styles.desk : styles.column} nativeID={shell ? undefined : 'tx-main'}>
       <ChatLive />
       <AnalyticsLive userId={user?.id ?? null} ready />
       <AppUpdate />

@@ -149,6 +149,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   const [gone, setGone] = useState(false);
   // Foto em ecrã inteiro: `of` é a publicação cujas fotos se veem (a original, num repost com comentário).
   const [viewer, setViewer] = useState<null | { of: Post; start: number }>(null);
+  const [viewerBurst, setViewerBurst] = useState(0);
   // Repost com comentário (citação): em "fio", a original em cima (ou o aviso de que já não está disponível) e quem citou por baixo.
   const quote = post.kind === 'repost' && !!post.body && !post.gift;
   const g = post.gift;
@@ -182,7 +183,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   const giftTo = { username: post.author.username, displayName: post.author.displayName };
 
   return (
-    <Pressable onPress={goPost} disabled={detail} accessible={false} style={[styles.card, cardShadow, { marginHorizontal: margin, paddingHorizontal: pad }]}>
+    <Pressable onPress={goPost} accessible={false} style={[styles.card, cardShadow, { marginHorizontal: margin, paddingHorizontal: pad }]}>
       {sponsored ? (
         <View style={styles.sponsored} accessible accessibilityRole="text" accessibilityLabel={sponsored.a11y}>
           <Icon name="flame" size={14} color={colors.brand} />
@@ -285,9 +286,11 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
           author={viewer.of.author}
           body={viewer.of.body}
           onClose={() => setViewer(null)}
+          burst={viewerBurst}
           footer={
             <ViewerBar
               post={livePost(post, viewer.of)}
+              onCheered={() => setViewerBurst((n) => n + 1)}
               full={viewer.of.id === post.id}
               mine={mine}
               onOpen={(k) => {
@@ -335,7 +338,7 @@ export function livePost(current: Post, opened: Post): Post {
   return opened;
 }
 
-function ViewerBar({ post, full, mine, onOpen }: { post: Post; full: boolean; mine: boolean; onOpen: (k: 'comments' | 'repost' | 'gift' | 'share') => void }) {
+function ViewerBar({ post, full, mine, onOpen, onCheered }: { post: Post; full: boolean; mine: boolean; onOpen: (k: 'comments' | 'repost' | 'gift' | 'share') => void; /** Brindou (não ao tirar o brinde): os copos no meio da foto. */ onCheered?: () => void }) {
   const patch = usePatch(post.id);
   // O estado do brinde fica aqui também: o visor pode ter aberto a partir de uma lista que o patch não atualiza
   // (pesquisa, hashtags, guardados…). Acompanha a publicação quando ela muda por fora.
@@ -350,6 +353,7 @@ function ViewerBar({ post, full, mine, onOpen }: { post: Post; full: boolean; mi
     const next = { cheered: !before.cheered, cheers: Math.max(0, before.cheers + (before.cheered ? -1 : 1)) };
     setMine2(next);
     patch(next);
+    if (next.cheered) onCheered?.();
     try {
       const r = await api.cheer(post.id);
       setMine2({ cheered: r.cheered, cheers: r.cheers });

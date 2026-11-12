@@ -11,3 +11,11 @@ test('brindar no visor da publicação aberta: lê a publicação atual e guarda
   assert.match(src, /<B icon="cheers" n=\{mine2\.cheers\} on=\{mine2\.cheered\}/);
   assert.match(src, /if \(busy\.current\) return;/);
 });
+
+test('ao brindar na publicação aberta, os copos aparecem no meio da foto', () => {
+  const viewer = readFileSync(new URL('../src/components/PhotoViewer.tsx', import.meta.url), 'utf8');
+  assert.match(viewer, /<CheersPour n=\{burst\}/);
+  assert.match(src, /burst=\{viewerBurst\}/);
+  assert.match(src, /onCheered=\{\(\) => setViewerBurst\(\(n\) => n \+ 1\)\}/);
+  assert.match(src, /if \(next\.cheered\) onCheered\?\.\(\);/);
+});

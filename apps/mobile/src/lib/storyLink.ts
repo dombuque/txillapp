@@ -17,3 +17,12 @@ export function startIndex(stories: { mediaUrl: string }[], wanted: string | nul
   const i = stories.findIndex((s) => storyMediaId(s.mediaUrl) === id);
   return i >= 0 ? i : fallback;
 }
+
+/**
+ * Já dá para escolher por onde começar? Só com uma lista pedida depois de o visor abrir, ou quando já não há pedido a
+ * correr (sem rede fica a que houver). Com a lista antiga em memória, os mimos já vistos podiam vir como novos e o visor
+ * começava sempre do primeiro.
+ */
+export function freshEnough(dataUpdatedAt: number, openedAt: number, fetching: boolean): boolean {
+  return dataUpdatedAt >= openedAt || !fetching;
+}

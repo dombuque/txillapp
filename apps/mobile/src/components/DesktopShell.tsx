@@ -41,7 +41,7 @@ export function DesktopShell({ children }: { children: ReactNode }) {
       <Sidebar labels={labels} path={path} />
       <View style={[st.area, !full && st.areaPad]}>
         {msgs ? <View style={st.msgList}><MessagesScreen /></View> : null}
-        <View style={main}>
+        <View style={main} nativeID="tx-main">
           {msgsHome ? <MessagesEmpty /> : null}
           <View style={[{ flex: 1 }, msgsHome && { display: 'none' }]}>{children}</View>
         </View>
