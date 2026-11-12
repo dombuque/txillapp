@@ -309,8 +309,8 @@ export function ChatComposer({
   );
 }
 
-/** Um ícone da pílula (44 de largura, 40 de altura; com o hitSlop a área de toque passa os 44). */
-function Tool({ icon, label, onPress, on, dot, disabled, expanded }: { icon: IconName; label: string; onPress: () => void; on?: boolean; dot?: boolean; disabled?: boolean; expanded?: boolean }) {
+/** Um ícone da pílula (44 de largura, 40 de altura; com o hitSlop a área de toque passa os 44). Também na barra dos TxillGroups. */
+export function Tool({ icon, label, onPress, on, dot, disabled, expanded }: { icon: IconName; label: string; onPress: () => void; on?: boolean; dot?: boolean; disabled?: boolean; expanded?: boolean }) {
   return (
     <Pressable
       onPress={onPress}
@@ -327,7 +327,7 @@ function Tool({ icon, label, onPress, on, dot, disabled, expanded }: { icon: Ico
   );
 }
 
-function SendButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
+export function SendButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
   return (
     <Pressable onPress={onPress} disabled={disabled} hitSlop={SLOP} style={({ pressed }) => [st.send, pressed && { transform: [{ scale: 0.92 }] }, disabled && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={label}>
       <Icon name="arrow-up" size={22} color="#fff" strokeWidth={2.4} />
@@ -336,7 +336,7 @@ function SendButton({ label, onPress, disabled }: { label: string; onPress: () =
 }
 
 /** Entra com uma animação curta (aparece e cresce um pouco): usado para a troca ícones ↔ Enviar. */
-function Pop({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+export function Pop({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const v = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(v, { toValue: 1, duration: 160, easing: Easing.out(Easing.back(1.6)), useNativeDriver: nativeDriver }).start();
@@ -346,7 +346,7 @@ function Pop({ children, style }: { children: ReactNode; style?: StyleProp<ViewS
 }
 
 /** O ponto vermelho da gravação, a pulsar. */
-function RecDot() {
+export function RecDot() {
   const v = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     const loop = Animated.loop(Animated.sequence([

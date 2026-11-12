@@ -3,12 +3,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { uploadChatMedia } from '@/lib/api';
 import { type GroupSendBody } from '@/lib/api.grupos';
 import type { LocationMessage } from '@/lib/sendLocation';
 import { colors } from '@/lib/theme';
-import { Icon, type IconName } from './Icon';
+import { Icon } from './Icon';
+import { Pop, RecDot, SendButton, Tool } from './ChatComposer';
 import { SendLocationSheet } from './SendLocationSheet';
 import { StickerPanel } from './StickerPanel';
 import { useGifsConfig } from './GifPanel';
@@ -16,12 +17,11 @@ import { gifMessage } from '@/lib/gifs';
 import { pendingFrom, sendPending } from '@/lib/chatPending';
 import { usePastedImage } from '@/lib/usePastedImage';
 import { PastedImageSheet } from './PastedImageSheet';
-import { NewBadge } from './WhatsNew';
-import { markSeen } from '@/lib/whatsNew';
+import { markSeen, useIsNew } from '@/lib/whatsNew';
 
 /**
- * A barra de escrever do chat, igual à do site: câmara à esquerda (degradê), o campo ao meio e, à direita,
- * visualização única, voz, galeria, stickers e "mais" (localização e presente). Com texto, só aparece "Enviar".
+ * A barra de escrever dos TxillGroups, com o mesmo desenho da das conversas a dois (components/ChatComposer): uma pílula,
+ * câmara à esquerda, "Mensagem…" ao meio e, com o campo vazio, voz, galeria, stickers e "+" (sondagem e localização); ao escrever, Enviar.
  */
 export function GroupComposer({
   send, onSent, bottom, replyTo, onClearReply, onPoll, closeTick, onOpenChange, pendingKey,
@@ -42,6 +42,7 @@ export function GroupComposer({
 }) {
   const grow = useGrowInput();
   const gifs = useGifsConfig();
+  const stickersNew = useIsNew('stickers');
   const [text, setText] = useState('');
   const [panel, setPanel] = useState<null | 'stickers' | 'attach'>(null);
   useEffect(() => { if (closeTick) setPanel(null); }, [closeTick]);
@@ -170,63 +171,88 @@ export function GroupComposer({
     }
   }
   const mmss = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  // O mesmo desenho e as mesmas medidas da barra das conversas a dois (components/ChatComposer): uma pílula só.
+  const pad = { paddingHorizontal: 10, paddingTop: 6, paddingBottom: Math.max(14, bottom + 8) };
 
   if (recording) {
     return (
-      <View style={[styles.rec, { paddingBottom: Math.max(bottom, 12) }]}>
-        <Pressable onPress={() => void finishRecording(false)} style={styles.recX} accessibilityRole="button" accessibilityLabel="Cancelar a gravação"><Icon name="trash" size={22} color={colors.zinc700} /></Pressable>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
-          <View style={styles.recDot} />
-          <Text style={styles.recTime}>{mmss}</Text>
+      <View style={[styles.wrap, pad]}>
+        <View style={[styles.pill, { alignItems: 'center' }]}>
+          <Pressable onPress={() => void finishRecording(false)} hitSlop={SLOP} style={styles.recX} accessibilityRole="button" accessibilityLabel="Cancelar a gravação">
+            <Icon name="trash" size={21} color={colors.zinc700} />
+          </Pressable>
+          <View style={styles.recMid} accessibilityLiveRegion="polite" accessibilityLabel={`A gravar, ${mmss}`}>
+            <RecDot />
+            <Text style={styles.recTime}>{mmss}</Text>
+            <Text style={styles.recHint}>A gravar…</Text>
+          </View>
+          <Pop>
+            <SendButton label="Enviar a mensagem de voz" onPress={() => void finishRecording(true)} />
+          </Pop>
         </View>
-        <Pressable onPress={() => void finishRecording(true)} style={styles.recSend} accessibilityRole="button" accessibilityLabel="Enviar"><Icon name="send" size={20} color="#fff" /></Pressable>
       </View>
     );
   }
 
-  const Bar = ({ icon, label, onPress, on, size = 22, light, badge }: { icon: IconName; label: string; onPress: () => void; on?: boolean; size?: number; light?: boolean; badge?: boolean }) => (
-    <Pressable onPress={onPress} style={[styles.bar, on && { backgroundColor: light ? '#fff' : colors.brand }, badge && { overflow: 'visible' }]} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: !!on }}>
-      <Icon name={icon} size={size} color={on ? (light ? colors.brand : '#fff') : colors.zinc800} />
-      {badge && <View style={{ position: 'absolute', right: -8, top: -8 }}><NewBadge id="stickers" /></View>}
-    </Pressable>
-  );
+  const hasText = !!text.trim();
 
   return (
-    <View style={{ borderTopWidth: 1, borderTopColor: colors.zinc100 }}>
+    <View style={styles.wrap}>
       {panel === 'attach' && (
         <View style={styles.attach}>
-          {onPoll && <Pressable onPress={() => { setPanel(null); onPoll(); }} style={styles.attachItem}><View style={styles.attachIcon}><Icon name="trending" size={22} /></View><Text style={styles.attachLabel}>Sondagem</Text></Pressable>}
-          <Pressable onPress={openPlace} style={styles.attachItem} accessibilityRole="button" accessibilityLabel="Localização: escolher o que enviar"><View style={styles.attachIcon}><Icon name="map-pin" size={22} /></View><Text style={styles.attachLabel}>Localização</Text></Pressable>
-        </View>
-      )}
-      {replyTo && (
-        <View style={styles.reply}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[styles.replyText, { fontWeight: '700' }]} numberOfLines={1}>A responder a {replyTo.who ?? ''}</Text>
-            <Text style={[styles.replyText, { color: colors.zinc600 }]} numberOfLines={1}>{replyTo.text}</Text>
-          </View>
-          <Pressable onPress={onClearReply} hitSlop={8} style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Cancelar resposta"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
+          {onPoll && (
+            <Pressable onPress={() => { setPanel(null); onPoll(); }} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Sondagem: perguntar à malta">
+              <View style={styles.attachIcon}><Icon name="trending" size={22} color={colors.zinc800} /></View>
+              <Text style={styles.attachLabel}>Sondagem</Text>
+            </Pressable>
+          )}
+          <Pressable onPress={openPlace} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Localização: escolher o que enviar">
+            <View style={styles.attachIcon}><Icon name="map-pin" size={22} color={colors.zinc800} /></View>
+            <Text style={styles.attachLabel}>Localização</Text>
+          </Pressable>
         </View>
       )}
       {panel === 'stickers' && <StickerPanel onPick={(id) => { setPanel(null); void dispatch({ kind: 'sticker', body: id }); }} onGif={(g) => { setPanel(null); void dispatch(gifMessage(g)); }} />}
-      <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: Math.max(20, bottom + 10) }}>
+      <View style={pad}>
         {err ? <Text style={styles.err} accessibilityRole="alert">{err}</Text> : null}
-        <View style={styles.composer}>
-          <Pressable onPress={() => void pick('camera')} disabled={busy} accessibilityRole="button" accessibilityLabel="Abrir a câmara">
+        {replyTo && (
+          <View style={styles.reply}>
+            <View style={styles.replyBar} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.replyWho} numberOfLines={1}>A responder a {replyTo.who ?? ''}</Text>
+              <Text style={styles.replyText} numberOfLines={1}>{replyTo.text}</Text>
+            </View>
+            <Pressable onPress={onClearReply} hitSlop={6} style={styles.replyX} accessibilityRole="button" accessibilityLabel="Cancelar resposta"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
+          </View>
+        )}
+        <View style={styles.pill}>
+          <Pressable onPress={() => void pick('camera')} disabled={busy} hitSlop={SLOP} style={busy && { opacity: 0.5 }} accessibilityRole="button" accessibilityLabel="Abrir a câmara" accessibilityState={{ disabled: busy }}>
             <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.camera}>
               <Icon name="camera" size={20} color="#fff" />
             </LinearGradient>
           </Pressable>
           <TextInput ref={paste.ref} value={text} onChangeText={setText} onFocus={() => setPanel(null)} multiline numberOfLines={1} maxLength={2000} placeholder="Mensagem…" placeholderTextColor={colors.zinc500} onContentSizeChange={grow.onContentSizeChange} style={[styles.input, grow.style]} accessibilityLabel="Mensagem" />
-          {text.trim() ? (
-            <Pressable onPress={() => void sendText()} style={styles.send} accessibilityRole="button"><Text style={styles.sendText}>Enviar</Text></Pressable>
+          {hasText ? (
+            <Pop key="send">
+              <SendButton label="Enviar" onPress={() => void sendText()} disabled={busy} />
+            </Pop>
           ) : (
-            <>
-              <Bar icon="mic" label="Gravar mensagem de voz" onPress={() => void startRecording()} />
-              <Bar icon="image" label="Enviar foto ou vídeo da galeria" onPress={() => void pick('library')} />
-              <Bar icon="sticker" label={gifs.enabled ? 'Stickers e GIFs' : 'Stickers'} light badge on={panel === 'stickers'} onPress={() => { markSeen('stickers'); setPanel(panel === 'stickers' ? null : 'stickers'); }} />
-              <Bar icon="plus" label="Mais" light on={panel === 'attach'} onPress={() => setPanel(panel === 'attach' ? null : 'attach')} />
-            </>
+            <Pop key="tools" style={styles.tools}>
+              <Tool icon="mic" label="Gravar mensagem de voz" onPress={() => void startRecording()} />
+              <Tool icon="image" label="Enviar foto ou vídeo da galeria" onPress={() => void pick('library')} disabled={busy} />
+              <Tool
+                icon="sticker"
+                label={`${gifs.enabled ? 'Stickers e GIFs' : 'Stickers'}${stickersNew ? ' (novos)' : ''}`}
+                on={panel === 'stickers'}
+                dot={stickersNew}
+                onPress={() => {
+                  markSeen('stickers');
+                  if (panel !== 'stickers') Keyboard.dismiss();
+                  setPanel(panel === 'stickers' ? null : 'stickers');
+                }}
+              />
+              <Tool icon={panel === 'attach' ? 'x' : 'plus'} label={panel === 'attach' ? 'Fechar o menu' : 'Mais: sondagem e localização'} on={panel === 'attach'} expanded={panel === 'attach'} onPress={() => setPanel(panel === 'attach' ? null : 'attach')} />
+            </Pop>
           )}
         </View>
       </View>
@@ -236,25 +262,27 @@ export function GroupComposer({
   );
 }
 
+const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
+
+// As medidas da barra das conversas a dois (components/ChatComposer), para as duas serem iguais.
 const styles = StyleSheet.create({
-  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, borderRadius: 26, backgroundColor: colors.zinc100, padding: 6 },
+  wrap: { backgroundColor: colors.white },
+  pill: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, minHeight: 48, borderRadius: 24, backgroundColor: colors.zinc100, padding: 4, borderWidth: 1.5, borderColor: colors.zinc100 },
   camera: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  input: { flex: 1, minWidth: 0, minHeight: 40, maxHeight: 128, paddingHorizontal: 8, paddingVertical: 10, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' } as object,
-  bar: { width: 32, height: 32, marginBottom: 4, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  send: { height: 40, borderRadius: 20, backgroundColor: colors.brand, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
-  sendText: { color: '#fff', fontWeight: '700' },
-  err: { textAlign: 'center', fontSize: 14, color: colors.red600, paddingBottom: 4 },
-  help: { marginHorizontal: 12, marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 16, backgroundColor: colors.zinc900, paddingHorizontal: 16, paddingVertical: 8 },
-  helpText: { flex: 1, color: '#fff', fontSize: 13, fontWeight: '600' },
+  input: { flex: 1, minWidth: 0, minHeight: 40, maxHeight: 148, paddingHorizontal: 10, paddingTop: 10, paddingBottom: 10, fontSize: 16, lineHeight: 20, color: colors.zinc900, outlineStyle: 'none' } as object,
+  tools: { flexDirection: 'row', alignItems: 'flex-end' },
+  err: { textAlign: 'center', fontSize: 14, color: colors.red600, paddingBottom: 6 },
   attach: { marginHorizontal: 12, marginTop: 8, flexDirection: 'row', justifyContent: 'flex-end', gap: 4 },
-  attachItem: { width: 84, alignItems: 'center', gap: 6, paddingVertical: 8 },
+  attachItem: { width: 84, alignItems: 'center', gap: 6, paddingVertical: 8, borderRadius: 16 },
   attachIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   attachLabel: { fontSize: 12, fontWeight: '600', color: colors.zinc700 },
-  reply: { marginHorizontal: 12, marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 16, borderLeftWidth: 4, borderLeftColor: colors.brand, backgroundColor: '#fafafa', paddingVertical: 6, paddingLeft: 12, paddingRight: 6 },
-  replyText: { fontSize: 13, lineHeight: 18, color: colors.zinc700 },
-  rec: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.zinc100 },
-  recX: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
-  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.red600 },
-  recTime: { fontSize: 18, fontWeight: '700', color: colors.zinc900, fontVariant: ['tabular-nums'] },
-  recSend: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  reply: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6, marginHorizontal: 4, borderRadius: 14, backgroundColor: '#fafafa', borderWidth: 1, borderColor: colors.zinc100, paddingVertical: 6, paddingLeft: 10, paddingRight: 2 },
+  replyBar: { alignSelf: 'stretch', width: 3, borderRadius: 2, backgroundColor: colors.brand },
+  replyWho: { fontSize: 13, lineHeight: 17, fontWeight: '700', color: colors.brand },
+  replyText: { fontSize: 13, lineHeight: 18, color: colors.zinc600 },
+  replyX: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  recX: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  recMid: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 },
+  recTime: { fontSize: 17, fontWeight: '700', color: colors.zinc900, fontVariant: ['tabular-nums'] },
+  recHint: { fontSize: 14, color: colors.zinc500 },
 });
