@@ -4,6 +4,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { Icon } from '@/components/Icon';
 import { Group, Line } from '@/components/Lines';
 import { StackPage } from '@/components/StackPage';
+import { normalize } from '@/lib/settingsIndex';
 import { colors } from '@/lib/theme';
 
 const SUPPORT = 'suporte@txillapp.com';
@@ -48,15 +49,18 @@ const FAQ: { q: string; a: string }[] = [
   { q: 'Que estatísticas de uso a app envia?', a: 'Com "Ajudar a melhorar o Txillapp" ligado (Definições, Privacidade, Contactos e dados), a app envia-nos, só a nós: as aberturas, os ecrãs vistos (só o nome do ecrã), o tempo de arranque, os erros (uma mensagem curta e limpa de dados pessoais) e as ações que fazes (publicar, comentar, brindar, seguir, repostar, partilhar, enviar mensagens, pesquisar, ver mimos, ligar as notificações), com a plataforma e a versão da app. Nunca o conteúdo nem a posição. Sem internet, até 200 registos esperam no aparelho (no máximo 3 dias). Desligado, ou com "não rastrear" no browser, não enviamos nada e o que estava à espera é apagado.' },
   { q: 'Porque me aparece o aviso das notificações desligadas?', a: 'Porque as notificações estão desligadas neste aparelho e podes perder mensagens e chamadas. Aparece no máximo uma vez por dia e, de cada vez que tocas em "Agora não", espera mais (3, 7, 14 e depois 30 dias). Em Definições, Notificações, há também uma faixa para as ligar. As horas destes avisos ficam só no teu aparelho.' },
   { q: 'Como mudo a privacidade da conta?', a: 'Em Definições, Privacidade: perfil público ou privado, quem comenta e quem te menciona. Quem te envia mensagens e quem te pode ligar está em Definições, Mensagens e chamadas. Também podes procurar qualquer opção em "Procurar nas definições".' },
-  { q: 'Esqueci-me da senha. E agora?', a: 'No ecrã de entrada, toca em "Esqueci-me da senha". Enviamos-te um email para criares uma nova.' },
+  { q: 'Esqueci-me da senha. E agora?', a: 'No ecrã de entrada, toca em "Esqueceste a senha?". Enviamos-te um email para criares uma nova.' },
   { q: 'Como elimino a minha conta?', a: 'Em Definições, Conta, "Eliminar conta". Isto não se desfaz: apagamos o perfil, as publicações, as conversas, as chamadas e o resto dos teus dados. Podes descarregar os teus dados antes, no mesmo ecrã.' },
 ];
 
 /** Ajuda: perguntas frequentes e contacto (igual à do site). */
 export default function Help() {
-  const [open, setOpen] = useState<number | null>(null);
+  // A pergunta aberta guarda-se pelo texto (não pela posição na lista): ao procurar, não abre outra pergunta qualquer.
+  const [open, setOpen] = useState<string | null>(null);
   const [term, setTerm] = useState('');
-  const list = FAQ.filter((f) => !term.trim() || `${f.q} ${f.a}`.toLowerCase().includes(term.trim().toLowerCase()));
+  // Sem acentos nem maiúsculas, como em "Procurar nas definições": "notificacoes" encontra "notificações".
+  const words = normalize(term).split(/\s+/).filter(Boolean);
+  const list = FAQ.filter((f) => { const hay = normalize(`${f.q} ${f.a}`); return words.every((w) => hay.includes(w)); });
   const subject = encodeURIComponent('Problema no Txillapp');
   const body = encodeURIComponent(`\n\n---\nVersão: ${Constants.expoConfig?.version ?? ''}\nAparelho: ${Platform.OS} ${Platform.Version}`);
   return (
@@ -65,18 +69,19 @@ export default function Help() {
         <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
           <View style={st.search}>
             <Icon name="search" size={18} color={colors.zinc500} />
-            <TextInput value={term} onChangeText={setTerm} placeholder="Procurar na ajuda" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar na ajuda" style={st.input} />
+            <TextInput value={term} onChangeText={setTerm} placeholder="Procurar na ajuda" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar na ajuda" autoCorrect={false} returnKeyType="search" style={st.input} />
+            {term ? <Pressable onPress={() => setTerm('')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa"><Icon name="x" size={16} color={colors.zinc600} /></Pressable> : null}
           </View>
         </View>
         <Group title="Perguntas frequentes">
           {list.length === 0 ? <Text style={st.none}>Nada com essa palavra. Fala connosco, em baixo.</Text> : null}
-          {list.map((f, i) => (
+          {list.map((f) => (
             <View key={f.q}>
-              <Pressable onPress={() => setOpen(open === i ? null : i)} accessibilityRole="button" accessibilityState={{ expanded: open === i }} style={({ pressed }) => [st.q, pressed && { backgroundColor: '#fafafa' }]}>
+              <Pressable onPress={() => setOpen(open === f.q ? null : f.q)} accessibilityRole="button" accessibilityState={{ expanded: open === f.q }} aria-expanded={open === f.q} style={({ pressed }) => [st.q, pressed && { backgroundColor: '#fafafa' }]}>
                 <Text style={st.qText}>{f.q}</Text>
-                <View style={{ transform: [{ rotate: open === i ? '90deg' : '0deg' }] }}><Icon name="chevron-right" size={18} color="#a1a1aa" /></View>
+                <View style={{ transform: [{ rotate: open === f.q ? '90deg' : '0deg' }] }}><Icon name="chevron-right" size={18} color="#a1a1aa" /></View>
               </Pressable>
-              {open === i ? <Text style={st.a}>{f.a}</Text> : null}
+              {open === f.q ? <Text style={st.a}>{f.a}</Text> : null}
             </View>
           ))}
         </Group>

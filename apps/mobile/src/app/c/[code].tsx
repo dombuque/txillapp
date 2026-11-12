@@ -8,7 +8,7 @@ import { Avatar } from '@/components/Avatar';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { StickerArt } from '@/components/Stickers';
 import { Wordmark } from '@/components/Wordmark';
-import { api, inviteStore } from '@/lib/api';
+import { ApiError, api, inviteStore } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { INVITE_PHRASES, PHRASE_STICKERS, phraseIndexOf } from '@/lib/inviteCard';
 import { stickerById } from '@/lib/stickers';
@@ -30,6 +30,8 @@ export default function InviteLanding() {
   const i = phraseIndexOf(code);
   const phrase = p?.phrase ?? INVITE_PHRASES[i];
   const sticker = stickerById(PHRASE_STICKERS[i]);
+  // Sem rede (ou o servidor em baixo) não é "o convite já não está ativo": deixa tentar outra vez.
+  const offline = q.isError && !(q.error instanceof ApiError && q.error.status < 500);
 
   // O código fica guardado: se a pessoa sair e voltar ao registo mais tarde, o convite continua a contar.
   useEffect(() => {
@@ -46,7 +48,16 @@ export default function InviteLanding() {
       <ScrollView contentContainerStyle={[st.page, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }]}>
         <View accessible accessibilityRole="image" accessibilityLabel="Txillapp"><Wordmark height={34} color="#ffffff" /></View>
         {q.isLoading && <ActivityIndicator style={{ marginTop: 60 }} color="#ffffff" />}
-        {!q.isLoading && !p && (
+        {!q.isLoading && !p && offline && (
+          <View style={st.card}>
+            <Text style={st.title} accessibilityRole="header">Não consegui abrir o convite</Text>
+            <Text style={st.text}>Verifica a internet e tenta outra vez.</Text>
+            <Pressable onPress={() => void q.refetch()} style={[st.btn, { marginTop: 16, alignSelf: 'stretch', backgroundColor: colors.zinc100 }]} accessibilityRole="button">
+              <Text style={[st.btnText, { color: colors.zinc900 }]}>Tentar outra vez</Text>
+            </Pressable>
+          </View>
+        )}
+        {!q.isLoading && !p && !offline && (
           <View style={st.card}>
             <Text style={st.title} accessibilityRole="header">Este convite já não está ativo</Text>
             <Text style={st.text}>Mas podes entrar na mesma: o Txillapp é a rede da malta.</Text>
