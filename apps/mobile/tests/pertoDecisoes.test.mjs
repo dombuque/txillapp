@@ -74,3 +74,9 @@ test('mosaicos: nenhum mapa da app vai direto ao tile.openstreetmap.org; o do ch
   assert.match(chat, /import \{ TILE_URL \} from '@\/components\/nearby\/mapRuntime';/);
   assert.match(chat, /source=\{\{ uri: tileUri\(t\.x, t\.y\) \}\}/);
 });
+
+test('abre onde estás: com o GPS autorizado a cidade guardada só fica se o GPS não der, e o mapa centra na posição exata', () => {
+  assert.match(perto, /if \(city\) \{\s*if \(perm\?\.granted && !\(await locate\(false\)\)\) return;/);
+  assert.match(perto, /const at = \{ lat: pos\.coords\.latitude, lng: pos\.coords\.longitude \};/);
+  assert.match(perto, /\(place\.gps && place\.at\) \|\| \{ lat: place\.lat, lng: place\.lng \}/);
+});

@@ -66,7 +66,8 @@ const VIS: { key: NearbyVisibility; label: string; sub: string }[] = [
   { key: 'following', label: 'Quem eu sigo', sub: 'As pessoas que tu segues.' },
 ];
 
-type Place = { lat: number; lng: number; label: string; gps: boolean };
+/** `lat`/`lng` arredondados (o que vai ao servidor); `at` é a posição exata do GPS, só para centrar o mapa neste ecrã. */
+type Place = { lat: number; lng: number; label: string; gps: boolean; at?: { lat: number; lng: number } };
 
 /** Uma promessa com prazo: o GPS dentro de casa pode ficar à procura minutos a fio. */
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -190,11 +191,12 @@ export default function Perto() {
       if (!quiet) setAsk('locating');
       const pos = await currentPosition();
       if (!pos) return 'failed';
-      // Arredondado logo aqui: a posição exata nunca sai deste ecrã.
+      // Ao servidor vai arredondado; a posição exata só centra o mapa e nunca sai deste ecrã.
       const lat = round2(pos.coords.latitude);
       const lng = round2(pos.coords.longitude);
+      const at = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       fixAt.current = Date.now();
-      setPlace((prev) => (prev?.gps && prev.lat === lat && prev.lng === lng ? prev : { lat, lng, label: 'Perto de mim', gps: true }));
+      setPlace((prev) => (prev?.gps && prev.at && prev.lat === lat && prev.lng === lng ? prev : { lat, lng, label: 'Perto de mim', gps: true, at }));
       if (!quiet) setAsk(null);
       void kvSet(PLACE_KEY, 'gps');
       return null;
@@ -209,16 +211,19 @@ export default function Perto() {
       const saved = await kvGet(PLACE_KEY);
       const city = CITIES.find((c) => c.name === saved);
       if (!alive) return;
-      if (city) {
-        setPlace({ lat: city.lat, lng: city.lng, label: city.name, gps: false });
-        setAsk(null);
-        return;
-      }
       const perm = await Location.getForegroundPermissionsAsync().catch(() => null);
       if (!alive) return;
       // Sem autorização ao abrir (tirada com a app fechada): a última presença no mapa sai logo, não espera as 3 h
       // (como quando a autorização se perde com o mapa aberto).
       if (!perm?.granted) void nearbyApi.clearPresence().catch(() => undefined);
+      // «À tua volta» abre onde estás: com o GPS autorizado, a cidade escolhida da outra vez só fica se o GPS não der.
+      if (city) {
+        if (perm?.granted && !(await locate(false))) return;
+        if (!alive) return;
+        setPlace({ lat: city.lat, lng: city.lng, label: city.name, gps: false });
+        setAsk(null);
+        return;
+      }
       if (perm?.granted) {
         const p = await locate(false);
         if (!p || !alive) return;
@@ -285,7 +290,7 @@ export default function Perto() {
     }
   };
   const markers = useMemo<MapMarker[]>(() => items.map((i) => ({ id: i.key, kind: i.kind, lat: i.lat, lng: i.lng, title: i.title, image: i.image, date: i.date ?? null, boosted: !!i.boost })), [items]);
-  const center = useMemo(() => (place ? { lat: place.lat, lng: place.lng } : { lat: -25.97, lng: 32.57 }), [place]);
+  const center = useMemo(() => (place ? (place.gps && place.at) || { lat: place.lat, lng: place.lng } : { lat: -25.97, lng: 32.57 }), [place]);
 
   const setVis = useMutation({
     mutationFn: (v: NearbyVisibility) => nearbyApi.setSettings(v),
