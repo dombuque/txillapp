@@ -318,8 +318,9 @@ export class StoriesService {
    * Partilhar uma publicação (foto ou reel) no meu status. Só publicações públicas e normais, que eu possa ver;
    * o story reutiliza o ficheiro e mostra de quem é. Se a publicação for apagada, o story deixa de aparecer.
    */
-  async share(userId: string, postId: string, caption: string, audience: 'all' | 'close_friends' = 'all', stickers: PlacedSticker[] = []) {
-    this.filter.assertClean(caption);
+  /** Partilhar uma publicação no mimo, agora também com música (a mesma escolha do mimo normal). */
+  async share(userId: string, postId: string, caption: string, audience: 'all' | 'close_friends' = 'all', stickers: PlacedSticker[] = [], musicIn: MusicInput | null = null) {
+    this.filter.assertClean(caption, musicIn?.title, musicIn && 'artist' in musicIn ? musicIn.artist : undefined);
     const { rows } = await this.pool.query(
       `SELECT (SELECT pm.media_id FROM content.post_media pm JOIN content.media_assets m ON m.id = pm.media_id
                 WHERE pm.post_id = p.id AND m.status = 'ready' ORDER BY pm.position LIMIT 1) AS media_id
@@ -329,9 +330,10 @@ export class StoriesService {
     );
     if (!rows[0]) throw new NotFoundException('Publicação não encontrada');
     if (!rows[0].media_id) throw new BadRequestException('Só se partilham publicações com foto ou vídeo');
+    const music = await this.musicSvc.prepare(userId, musicIn, 'story');
     const id = uuidv7();
-    await this.pool.query('INSERT INTO content.stories (id, author_id, media_id, caption, audience, shared_post_id, stickers) VALUES ($1, $2, $3, $4, $5, $6, $7)', [
-      id, userId, rows[0].media_id, caption || null, audience, postId, stickers.length ? JSON.stringify(stickers) : null,
+    await this.pool.query('INSERT INTO content.stories (id, author_id, media_id, caption, audience, shared_post_id, stickers, music) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [
+      id, userId, rows[0].media_id, caption || null, audience, postId, stickers.length ? JSON.stringify(stickers) : null, music ? JSON.stringify(music) : null,
     ]);
     return this.getOne(userId, id);
   }

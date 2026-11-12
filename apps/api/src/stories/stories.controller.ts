@@ -11,7 +11,7 @@ import { StoriesService } from './stories.service';
 type AuthedReq = Request & { userId?: string };
 const createSchema = z.object({ mediaId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all'), music: musicSchema.nullable().optional(), stickers: stickersSchema.default([]) });
 
-const shareSchema = z.object({ postId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all'), stickers: stickersSchema.default([]) });
+const shareSchema = z.object({ postId: z.string().uuid(), caption: z.string().trim().max(200).default(''), audience: z.enum(['all', 'close_friends']).default('all'), stickers: stickersSchema.default([]), music: musicSchema.nullable().optional() });
 const replySchema = z.object({ body: z.string().trim().min(1).max(500) });
 const settingsSchema = z.object({ replies: z.enum(['everyone', 'following', 'off']) });
 
@@ -31,7 +31,7 @@ export class StoriesController {
   @Post('share')
   @HttpCode(201)
   share(@Req() req: AuthedReq, @Body(new ZodPipe(shareSchema)) b: z.infer<typeof shareSchema>) {
-    return this.stories.share(req.userId!, b.postId, b.caption, b.audience, b.stickers);
+    return this.stories.share(req.userId!, b.postId, b.caption, b.audience, b.stickers, b.music ?? null);
   }
 
   @Get('close-friends')

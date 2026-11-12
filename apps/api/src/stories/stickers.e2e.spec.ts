@@ -81,4 +81,23 @@ describe('stickers nos mimos e partilhar a própria publicação (integração)'
     const other = await signup('stko');
     await api().post('/api/v1/stories/share').set(auth(other)).send({ postId: post.id }).expect(404);
   });
+
+  it('partilhar uma publicação no mimo também leva música', async () => {
+    const good = { id: 'ov-share-1', title: 'Marrabenta da partilha', artist: 'Artista Livre', url: 'https://cdn.freesound.org/previews/1/1_1-hq.mp3', landing: 'https://freesound.org/s/1/', license: 'by', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/', durationMs: 90000, cover: null };
+    const track = { id: good.id, title: good.title, artist: good.artist, duration: 90, previewUrl: good.url, cover: null, source: 'ccmixter', license: 'by', licenseUrl: good.licenseUrl, landing: good.landing, styles: ['marrabenta'], kind: 'music' };
+    await pool.query(
+      `INSERT INTO content.music_catalog (id, source, kind, track, styles, quality) VALUES ($1, 'ccmixter', 'music', $2, '{marrabenta}', 0.8)
+       ON CONFLICT (id) DO UPDATE SET track = EXCLUDED.track, refreshed_at = now()`,
+      [good.id, JSON.stringify(track)],
+    );
+    const me = await signup('stkm');
+    const m = await upload(me);
+    const post = (await api().post('/api/v1/posts').set(auth(me)).send({ body: 'com música', mediaIds: [m] }).expect(201)).body;
+    const shared = (await api().post('/api/v1/stories/share').set(auth(me)).send({ postId: post.id, music: good }).expect(201)).body;
+    expect(shared.sharedFrom?.postId).toBe(post.id);
+    expect(shared.music?.title).toBe(good.title);
+    // sem música continua a funcionar
+    const plain = (await api().post('/api/v1/stories/share').set(auth(me)).send({ postId: post.id }).expect(201)).body;
+    expect(plain.music ?? null).toBeNull();
+  });
 });
