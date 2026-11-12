@@ -31,7 +31,7 @@ export class PushController {
     return this.push.subscribe(req.userId!, b);
   }
 
-  /** App nativa (Android): regista o código do aparelho no Firebase. */
+  /** App nativa: regista o código do aparelho (Android: FCM; iPhone: APNs). */
   @Post('device')
   @HttpCode(204)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })

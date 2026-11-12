@@ -6,7 +6,7 @@ import { kvGet, kvSet } from './kv';
 import { track } from './analytics';
 
 /**
- * Notificações na app nativa (Android/iPhone). O servidor envia pelo FCM para o código deste telemóvel, no canal "txillapp".
+ * Notificações na app nativa (Android/iPhone). O servidor envia para o código deste telemóvel: pelo FCM no Android (canal "txillapp"), direto pelo APNs no iPhone.
  * Aqui: criar o canal, pedir licença (no passo a passo das permissões), registar o código no servidor e abrir o que a
  * notificação traz ao tocar nela. Na web as notificações são as do browser (lib/push).
  */
