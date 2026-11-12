@@ -27,6 +27,8 @@ import { FUN_FX } from './zas/funFilters';
 import { markSeen } from '@/lib/whatsNew';
 import { ReportSheet } from './ReportSheet';
 import { Sheet } from './Sheet';
+import { finePointer, type Rect } from '@/lib/desktopKeys';
+import { useViewerKeys } from '@/lib/desktopHooks';
 import { CloseFriendsSheet, REACTIONS, ReactionArt } from './StoryParts';
 import { CurvedCaption } from './zas/CurvedCaption';
 import { squircle } from './zas/squircle';
@@ -574,6 +576,8 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
   const [who, setWho] = useState<Viewer[] | null>(null);
   const [del, setDel] = useState<InstantItem | null>(null);
   const [menu, setMenu] = useState<InstantItem | null>(null);
+  /** Computador: onde abre o menu do Zás (junto ao rato, no botão direito). */
+  const [menuAt, setMenuAt] = useState<Rect | null>(null);
   const load = useCallback(() => instantsApi.of(username).then(setItems).catch((e) => setErr((e as Error).message)), [username]);
   useEffect(() => {
     void load();
@@ -612,9 +616,9 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
                   <Pressable
                     key={it.id}
                     onPress={() => setOpen(it.id)}
-                    onLongPress={() => setMenu(it)}
+                    onLongPress={() => { setMenuAt(null); setMenu(it); }}
                     delayLongPress={450}
-                    {...(Platform.OS === 'web' ? ({ onContextMenu: (e: { preventDefault: () => void }) => { e.preventDefault(); setMenu(it); } } as object) : null)}
+                    {...(Platform.OS === 'web' ? ({ onContextMenu: (e: { preventDefault: () => void; nativeEvent?: { clientX?: number; clientY?: number } }) => { e.preventDefault(); setMenuAt(e.nativeEvent?.clientX != null ? { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY ?? 0, w: 0, h: 0 } : null); setMenu(it); } } as object) : null)}
                     accessibilityRole="button"
                     accessibilityLabel={it.caption || 'Zás'}
                     style={({ pressed }) => [{ width: cell, height: Math.round(cell / 0.75), backgroundColor: colors.zinc800, transform: [{ scale: pressed ? 0.97 : 1 }], opacity: pressed ? 0.8 : 1 }, squircle(cell), noSelect]}
@@ -646,8 +650,8 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
           <Text style={{ fontSize: 17, fontWeight: '700', color: colors.zinc900 }}>Mandar um Zás</Text>
         </Pressable>
         {menu && (
-          <Sheet title="Zás" onClose={() => setMenu(null)}>
-            <View style={{ paddingHorizontal: 24 }}>
+          <Sheet title="Zás" onClose={() => setMenu(null)} variant="menu" anchor={menuAt}>
+            <View style={{ paddingHorizontal: menuAt ? 8 : 24 }}>
               {(Platform.OS === 'web'
                 ? ([
                     ['image', 'Guardar na galeria', 'Abre «Guardar imagem» no telemóvel.', () => void saveZas(menu, 'gallery'), false],
@@ -855,10 +859,13 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
   const cardW = Math.min(Math.min(470, Math.max(200, room)) * 0.75, width - 72);
   const cardH = cardW / 0.75;
   const first = who.displayName.split(' ')[0] || who.username;
+  // Computador: ←/→ anterior e seguinte (Esc fecha: é do Modal); com rato não se arrasta o Zás.
+  const mouse = finePointer();
+  useViewerKeys(!!items && !reporting && !viewers, { prev: () => setI((k) => Math.max(0, k - 1)), next });
 
   return (
     <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <Animated.View {...pan.panHandlers} style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(12, insets.top), transform: [{ translateY: drag }] }} accessibilityViewIsModal>
+      <Animated.View {...(mouse ? {} : pan.panHandlers)} style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(12, insets.top), transform: [{ translateY: drag }] }} accessibilityViewIsModal>
         <View style={st.vTop}>
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" style={st.vBtn}><Icon name="x" size={28} color="#fff" /></Pressable>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>

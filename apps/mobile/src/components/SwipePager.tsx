@@ -165,6 +165,8 @@ export function useWebPager(pager: () => InnerPager | null) {
     detach.current?.();
     detach.current = null;
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    // Computador (rato): os separadores mudam por clique e pelas setas do teclado, nunca a arrastar.
+    if (window.matchMedia?.('(hover: hover) and (pointer: fine)').matches && !navigator.maxTouchPoints) return;
     const el = node as HTMLElement | null;
     if (!el || typeof el.addEventListener !== 'function') return;
     detach.current = attachWebPager(el, () => get.current());

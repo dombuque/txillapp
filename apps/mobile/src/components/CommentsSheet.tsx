@@ -14,6 +14,8 @@ import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
 import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
+import { useDesktop } from '@/lib/desktop';
+import { anchorOf, type Rect } from '@/lib/desktopKeys';
 import { Sticker, StickerPanel } from './StickerPanel';
 import { GifView, useGifsConfig } from './GifPanel';
 import { gifPayload, validGif } from '@/lib/gifs';
@@ -98,8 +100,13 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
   // Segurar no comentário abre o menu (responder, editar, apagar, denunciar), como no Instagram.
   // Fica antes do `return` do comentário apagado: um hook depois dele mudava a ordem dos hooks e o ecrã rebentava ao apagar.
   const [menu, setMenu] = useState(false);
+  // Computador: o menu abre junto ao «⋯» (que aparece ao passar o rato) ou ao rato (botão direito).
+  const desktop = useDesktop();
+  const [menuAt, setMenuAt] = useState<Rect | null>(null);
+  const [over, setOver] = useState(false);
   const openMenu = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    setMenuAt(null);
     setMenu(true);
   };
   // Um comentário que é só um sticker ou só um GIF não tem texto para editar (com texto, edita-se o texto e o GIF fica).
@@ -107,7 +114,22 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
   if (gone) return null;
 
   return (
-    <Pressable onLongPress={openMenu} delayLongPress={380} style={[styles.row, highlighted && { backgroundColor: colors.rose50 }]} accessibilityHint="Segura para mais opções">
+    <Pressable
+      onLongPress={openMenu}
+      delayLongPress={380}
+      style={[styles.row, highlighted && { backgroundColor: colors.rose50 }, desktop && over && !highlighted && { backgroundColor: '#fafafa' }]}
+      accessibilityHint={desktop ? 'Botão direito para mais opções' : 'Segura para mais opções'}
+      {...(desktop ? {
+        onMouseEnter: () => setOver(true),
+        onMouseLeave: () => setOver(false),
+        onContextMenu: (e: { preventDefault: () => void; nativeEvent?: { clientX?: number; clientY?: number } }) => {
+          if (typeof window !== 'undefined' && String(window.getSelection?.() ?? '').trim()) return;
+          e.preventDefault();
+          setMenuAt({ x: e.nativeEvent?.clientX ?? 0, y: e.nativeEvent?.clientY ?? 0, w: 0, h: 0 });
+          setMenu(true);
+        },
+      } : null)}
+    >
       <View style={{ alignSelf: 'flex-start' }}>
         <Avatar name={c.author.displayName} username={c.author.username} size={isReply ? 28 : 36} />
       </View>
@@ -146,13 +168,18 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
           <Pressable onPress={() => onReply(c)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} accessibilityRole="button"><Text style={styles.link}>Responder</Text></Pressable>
         </View>
       </View>
+      {desktop ? (
+        <Pressable onPress={(e) => { setMenuAt(anchorOf(e)); setMenu(true); }} style={(s) => [styles.moreBtn, { opacity: over || menu ? 1 : 0 }, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Mais opções do comentário" {...({ dataSet: { tip: 'Mais opções' } } as object)}>
+          <Icon name="more" size={18} strokeWidth={2.6} color={colors.zinc600} />
+        </Pressable>
+      ) : null}
       <Pressable onPress={() => void toggle()} hitSlop={12} style={{ alignSelf: 'flex-start', paddingTop: 4 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? 'Tirar o brinde' : 'Brindar comentário'}>
         <Icon name="cheers" size={20} color={cheer.cheered ? colors.brand : '#a1a1aa'} />
       </Pressable>
       {reporting && <ReportSheet type="comment" id={c.id} onReported={() => onRemoved(c)} onClose={() => setReporting(false)} />}
       {menu && (
-        <Sheet onClose={() => setMenu(false)}>
-          <View style={styles.menu}>
+        <Sheet onClose={() => setMenu(false)} variant="menu" anchor={desktop ? menuAt : null}>
+          <View style={[styles.menu, desktop && menuAt ? { paddingHorizontal: 6 } : null]}>
             <Pressable onPress={() => { setMenu(false); onReply(c); }} style={styles.menuRow} accessibilityRole="button"><Icon name="reply" size={22} /><Text style={styles.menuText}>Responder</Text></Pressable>
             {mine && !editing && <Pressable onPress={() => { setMenu(false); startEdit(); }} style={styles.menuRow} accessibilityRole="button"><Icon name="pencil" size={22} /><Text style={styles.menuText}>Editar</Text></Pressable>}
             {canDelete && <Pressable onPress={() => { setMenu(false); setTimeout(confirmDelete, 250); }} style={styles.menuRow} accessibilityRole="button"><Icon name="trash" size={22} color={colors.red600} /><Text style={[styles.menuText, { color: colors.red600 }]}>Apagar</Text></Pressable>}
@@ -285,7 +312,7 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
   const gift = (c: Comment, amount: number, note: string) => onGift({ username: c.author.username, displayName: c.author.displayName }, amount, note);
 
   return (
-    <Sheet title="Comentários" onClose={onClose} full plain>
+    <Sheet title="Comentários" onClose={onClose} full plain variant="panel">
       <View style={styles.head}><Text style={styles.headTitle}>Comentários</Text></View>
       <FlatList
         ref={list}
@@ -377,6 +404,7 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
 }
 
 const styles = StyleSheet.create({
+  moreBtn: { alignSelf: 'flex-start', width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   gifBtn: { minWidth: 44, height: 32, borderRadius: 8, borderWidth: 1.5, borderColor: colors.zinc700, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
   gifBtnText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5, color: colors.zinc700 },
   head: { borderBottomWidth: 1, borderBottomColor: colors.zinc200, paddingBottom: 12 },

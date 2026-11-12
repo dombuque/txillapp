@@ -28,6 +28,8 @@ import { StickerLayer } from '@/components/Stickers';
 import { isGone } from '@/lib/postCache';
 import { storyPaused } from '@/lib/storyPlayback';
 import { freshEnough, startIndex } from '@/lib/storyLink';
+import { finePointer, overlayOpen } from '@/lib/desktopKeys';
+import { useViewerKeys } from '@/lib/desktopHooks';
 
 /** Quanto tempo fica à vista um mimo de foto (os de vídeo duram o vídeo, até 30 s). */
 const IMAGE_MS = 30_000;
@@ -128,7 +130,9 @@ export default function StoryViewer() {
   const [i, setI] = useState(0);
   const [ready, setReady] = useState(false); // já se escolheu por onde começar
   const ownSeen = useOwnSeen(me?.username);
-  const [held, setHeld] = useState(false);
+  const [holding, setHeld] = useState(false);
+  /** Computador: o espaço pausa e retoma o mimo. */
+  const [kbPaused, setKbPaused] = useState(false);
   const [typing, setTyping] = useState(false);
   /** Muda a cada brinde: os copos aparecem no meio do mimo, como nas publicações. */
   const [burst, setBurst] = useState(0);
@@ -154,7 +158,11 @@ export default function StoryViewer() {
     const sub = AppState.addEventListener('change', (s) => setBackground(s !== 'active'));
     return () => sub.remove();
   }, []);
+  // Segurar (dedo ou rato) ou o espaço do teclado (computador) pausam.
+  const held = holding || kbPaused;
   const paused = storyPaused({ held, typing, panelOpen: panel !== null, away, background });
+  // Com rato (computador) não se arrasta o mimo: muda-se com os cliques nas metades, com ←/→ e fecha-se com Esc.
+  const mouse = finePointer();
 
   useFocusEffect(useCallback(() => { setAway(false); }, []));
   useEffect(() => {
@@ -315,6 +323,14 @@ export default function StoryViewer() {
     await q.refetch();
   }
   const tap = (fn: () => void) => () => { if (Date.now() - down.current < 250) fn(); };
+  // Teclado (computador): ←/→ anterior e seguinte, espaço pausa, Esc fecha. Não enquanto se escreve nem com um painel aberto.
+  useViewerKeys(true, {
+    prev: () => { setSeePost(false); prev(); },
+    next: () => { setSeePost(false); next(); },
+    pause: () => setKbPaused((v) => !v),
+    close: () => close(),
+  }, () => panel !== null || typing || overlayOpen());
+  useEffect(() => { setKbPaused(false); }, [cur?.id]);
   const hold = { onPressIn: () => { down.current = Date.now(); setHeld(true); }, onPressOut: () => setHeld(false) };
 
   if (q.isLoading) return <View style={st.center}><ActivityIndicator color="#fff" /></View>;
@@ -369,7 +385,7 @@ export default function StoryViewer() {
     <View style={[{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }, vvOn && vv ? { position: 'absolute', left: 0, right: 0, top: vv.top, height: vv.height } : null]}>
       <Animated.View
         style={[st.root, wide && { maxWidth: 460, borderRadius: 24, overflow: 'hidden', maxHeight: 860 }, { transform: [{ translateY: dy }, { translateX: Animated.add(dx, enter.interpolate({ inputRange: [0, 1], outputRange: [enterDir * 90, 0] })) }, { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }], opacity: Animated.multiply(dy.interpolate({ inputRange: [0, 300], outputRange: [1, 0.4], extrapolate: 'clamp' }), enter.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] })) }]}
-        {...pan.panHandlers}
+        {...(mouse ? {} : pan.panHandlers)}
         onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (width !== box.w || height !== box.h) setBox({ w: width, h: height }); }}
       >
         {/* Fundo desfocado da própria foto: a imagem aparece inteira, sem barras pretas (recortado: está ampliado e não pode sair do ecrã). */}
