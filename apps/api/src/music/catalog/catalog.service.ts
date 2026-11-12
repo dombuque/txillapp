@@ -5,6 +5,7 @@ import { AppConfig, CONFIG } from '../../config';
 import { PG_POOL } from '../../db/db.module';
 import { curate, norm, type Curated } from './curation';
 import { archive, ccmixter, freesound, jamendo, STYLE_ALIASES, type ExternalSource } from './sources';
+import { coverTint } from './tint';
 import { MUSIC_STYLES, STYLE_IDS, toPicker, type CatalogTrack, type LocalMusicSource, type MusicStyleId, type PickerTrack } from './track';
 
 /** «Não gosto desta»: a faixa desce para todos quando pelo menos estas pessoas a marcam… */
@@ -18,14 +19,20 @@ const REFRESH_EVERY_MS = 12 * 3_600_000;
 const STALE_DAYS = 30;
 /** Cache em memória do catálogo, das contagens e das marcas (o seletor abre muitas vezes). */
 const SNAPSHOT_TTL_MS = 2 * 60_000;
+/** Os usos desde sempre (o «1,2 mil usos») contam-se de 10 em 10 minutos: percorrem todas as publicações com música. */
+const TOTALS_TTL_MS = 10 * 60_000;
+/** Quantas capas se leem de cada vez (depois de cada atualização), e quantas ao mesmo tempo. */
+const TINT_BATCH = 400;
+const TINT_PARALLEL = 4;
 
-interface Row { track: CatalogTrack; quality: number; signals: Record<string, number>; refreshedAt: string; stale: boolean }
+interface Row { track: CatalogTrack; quality: number; signals: Record<string, number>; refreshedAt: string; stale: boolean; tint: [string, string] | null }
 interface Snapshot {
   at: number;
   rows: Map<string, Row>;
   flags: Map<string, { status: 'hidden' | 'featured'; reason: string; at: string }>;
   uses7: Map<string, number>;
   uses30: Map<string, number>;
+  usesTotal: Map<string, number>;
   dislikes: Map<string, number>;
   local: CatalogTrack[];
 }
@@ -60,6 +67,8 @@ export class MusicCatalogService implements OnModuleInit, OnModuleDestroy {
   private snap: Snapshot | null = null;
   private loading: Promise<Snapshot> | null = null;
   private running: Promise<RefreshResult> | null = null;
+  private tinting: Promise<number> | null = null;
+  private totals: { at: number; map: Map<string, number> } | null = null;
   private lastRun: RefreshResult | null = null;
   private timer?: NodeJS.Timeout;
   /** Para os testes: as fontes externas podem ser trocadas (o fetch é simulado de qualquer forma). */
@@ -166,7 +175,40 @@ export class MusicCatalogService implements OnModuleInit, OnModuleDestroy {
     this.lastRun = { added, updated, total, sources };
     this.invalidate();
     this.log.log(`catálogo de música: ${added} novas, ${updated} atualizadas, ${total} no total`);
+    // As cores das capas novas (para o destaque no seletor) leem-se depois, sem atrasar a resposta.
+    if (this.config.NODE_ENV !== 'test') void this.tintCovers().catch((e) => this.log.warn(`falha a ler as cores das capas: ${(e as Error).message}`));
     return this.lastRun;
+  }
+
+  /**
+   * Lê as cores das capas que ainda não as têm (ou cuja capa mudou), com sharp, e guarda-as em `cover_tint`. Uma volta de cada
+   * vez; devolve quantas leu. Uma capa que falha fica marcada sem cores (não se tenta outra vez até a capa mudar).
+   */
+  tintCovers(): Promise<number> {
+    if (!this.tinting) this.tinting = this.doTint().finally(() => (this.tinting = null));
+    return this.tinting;
+  }
+
+  private async doTint(): Promise<number> {
+    const { rows } = await this.pool.query(
+      `SELECT id, track->>'cover' AS cover FROM content.music_catalog
+        WHERE kind = 'music' AND track->>'cover' IS NOT NULL AND (cover_tint IS NULL OR cover_tint->>'cover' IS DISTINCT FROM track->>'cover')
+        ORDER BY quality DESC LIMIT ${TINT_BATCH}`,
+    );
+    const f: typeof fetch = (...a) => this.fetcher(...a);
+    let next = 0;
+    let done = 0;
+    const worker = async () => {
+      while (next < rows.length) {
+        const r = rows[next++];
+        const colors = await coverTint(r.cover as string, f).catch(() => null);
+        await this.pool.query('UPDATE content.music_catalog SET cover_tint = $2 WHERE id = $1', [r.id, JSON.stringify({ cover: r.cover, colors })]);
+        done++;
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(TINT_PARALLEL, rows.length) }, worker));
+    if (done) this.invalidate();
+    return done;
   }
 
   // ---------------------------------------------------------------- leitura
@@ -183,7 +225,11 @@ export class MusicCatalogService implements OnModuleInit, OnModuleDestroy {
 
   private async load(): Promise<Snapshot> {
     const [rows, flags, uses, dislikes, local] = await Promise.all([
-      this.pool.query(`SELECT track, quality, signals, refreshed_at, refreshed_at <= now() - interval '${STALE_DAYS} days' AS stale FROM content.music_catalog`),
+      this.pool.query(
+        `SELECT track, quality, signals, refreshed_at, refreshed_at <= now() - interval '${STALE_DAYS} days' AS stale,
+                CASE WHEN cover_tint->>'cover' = track->>'cover' THEN cover_tint->'colors' END AS tint
+           FROM content.music_catalog`,
+      ),
       this.pool.query('SELECT track_id, status, reason, updated_at FROM content.music_flags'),
       this.pool.query(
         `WITH used AS (
@@ -197,15 +243,31 @@ export class MusicCatalogService implements OnModuleInit, OnModuleDestroy {
       this.pool.query('SELECT track_id, count(*)::int AS n FROM content.music_dislikes GROUP BY track_id'),
       this.localList({ limit: 300 }),
     ]);
+    const totals = await this.usesTotal();
     return {
       at: Date.now(),
-      rows: new Map(rows.rows.map((r) => [(r.track as CatalogTrack).id, { track: r.track as CatalogTrack, quality: Number(r.quality), signals: r.signals as Record<string, number>, refreshedAt: new Date(r.refreshed_at as string).toISOString(), stale: !!r.stale }])),
+      rows: new Map(rows.rows.map((r) => [(r.track as CatalogTrack).id, { track: r.track as CatalogTrack, quality: Number(r.quality), signals: r.signals as Record<string, number>, refreshedAt: new Date(r.refreshed_at as string).toISOString(), stale: !!r.stale, tint: Array.isArray(r.tint) && r.tint.length === 2 ? (r.tint as [string, string]) : null }])),
       flags: new Map(flags.rows.map((r) => [r.track_id as string, { status: r.status as 'hidden' | 'featured', reason: r.reason as string, at: new Date(r.updated_at as string).toISOString() }])),
       uses7: new Map(uses.rows.map((r) => [r.id as string, r.uses7 as number])),
       uses30: new Map(uses.rows.map((r) => [r.id as string, r.uses30 as number])),
+      usesTotal: totals,
       dislikes: new Map(dislikes.rows.map((r) => [r.track_id as string, r.n as number])),
       local,
     };
+  }
+
+  /** Vezes que cada faixa foi usada em mimos e tchekas desde sempre (sem clipes próprios). Só números. */
+  private async usesTotal(): Promise<Map<string, number>> {
+    if (this.totals && Date.now() - this.totals.at < TOTALS_TTL_MS) return this.totals.map;
+    const { rows } = await this.pool.query(
+      `SELECT id, count(*)::int AS n FROM (
+         SELECT p.music->>'id' AS id FROM content.posts p WHERE p.music IS NOT NULL AND p.removed_at IS NULL AND p.music->>'kind' IS DISTINCT FROM 'clip'
+         UNION ALL
+         SELECT s.music->>'id' FROM content.stories s WHERE s.music IS NOT NULL AND s.music->>'kind' IS DISTINCT FROM 'clip') u
+        WHERE id IS NOT NULL GROUP BY id`,
+    );
+    this.totals = { at: Date.now(), map: new Map(rows.map((r) => [r.id as string, r.n as number])) };
+    return this.totals.map;
   }
 
   private async localList(opts: { style?: MusicStyleId; q?: string; limit: number }): Promise<CatalogTrack[]> {
@@ -260,7 +322,24 @@ export class MusicCatalogService implements OnModuleInit, OnModuleDestroy {
   }
 
   private pick(s: Snapshot, t: CatalogTrack, withUses = false): PickerTrack {
-    return toPicker(t, { ...(withUses ? { uses: s.uses7.get(t.id) ?? 0 } : {}), featured: s.flags.get(t.id)?.status === 'featured' });
+    // Os totais contam-se mais devagar do que os 30 dias: nunca menos do que esses.
+    const usesTotal = Math.max(s.usesTotal.get(t.id) ?? 0, s.uses30.get(t.id) ?? 0);
+    return toPicker(t, { ...(withUses ? { uses: s.uses7.get(t.id) ?? 0 } : {}), featured: s.flags.get(t.id)?.status === 'featured', usesTotal, coverColors: s.rows.get(t.id)?.tint ?? null });
+  }
+
+  /**
+   * As faixas guardadas (favoritas) com o que o catálogo sabe delas agora: estilos, usos, cores da capa e, nas locais, o endereço
+   * do trecho outra vez válido. As que o catálogo já não mostra ficam como foram guardadas.
+   */
+  async enrich<T extends { id: string }>(list: T[]): Promise<(T | PickerTrack)[]> {
+    if (!list.length) return list;
+    const s = await this.snapshot();
+    const byId = new Map(this.visible(s).map((t) => [t.id, t]));
+    return list.map((t) => {
+      const c = byId.get(t.id);
+      if (c) return this.pick(s, c);
+      return t.id.startsWith('local:') ? (this.resolveLocal(t as unknown as Record<string, unknown>) as unknown as T) : t;
+    });
   }
 
   /** «Em alta no Txillapp»: destacadas, depois as mais usadas nos últimos 7 dias; completa com as de melhor qualidade. */

@@ -129,10 +129,13 @@ export class MusicService {
     return { ...music, id: `clip:${music.mediaId as string}`, artist: '', url: this.media.chatUrl(music.mediaId as string), landing: null, license: 'own', licenseUrl: null, cover: null };
   }
 
-  /** As minhas faixas favoritas, as mais recentes primeiro. */
-  async favorites(userId: string): Promise<Track[]> {
+  /**
+   * As minhas faixas favoritas («Guardadas» no seletor), as mais recentes primeiro, com o que o catálogo sabe delas agora
+   * (estilos, usos, cores da capa; nas locais, o trecho outra vez válido).
+   */
+  async favorites(userId: string): Promise<(Track | PickerTrack)[]> {
     const { rows } = await this.pool.query('SELECT track FROM content.music_favorites WHERE user_id = $1 ORDER BY created_at DESC LIMIT 200', [userId]);
-    return rows.map((r) => r.track as Track);
+    return this.catalog.enrich(rows.map((r) => r.track as Track));
   }
 
   /** Marcar uma faixa como favorita (validada como qualquer outra; clipes próprios não entram). Até 200. */
