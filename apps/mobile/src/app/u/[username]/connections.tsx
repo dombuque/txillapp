@@ -12,6 +12,7 @@ import { StackPage } from '@/components/StackPage';
 import { api, type Person } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { goBack } from '@/lib/nav';
 
 type Kind = 'followers' | 'following';
 
@@ -186,7 +187,7 @@ export default function Connections() {
       {profile.isError && (
         <View>
           <Empty icon="search" title="Essa pessoa não existe" />
-          <Pressable onPress={() => router.back()} style={{ alignSelf: 'center', marginTop: 24 }}><Text style={{ textDecorationLine: 'underline', fontSize: 16 }}>Voltar</Text></Pressable>
+          <Pressable onPress={() => goBack(router)} style={{ alignSelf: 'center', marginTop: 24 }}><Text style={{ textDecorationLine: 'underline', fontSize: 16 }}>Voltar</Text></Pressable>
         </View>
       )}
       {p && !p.canSeeConnections && <Empty icon="lock" title="Estas listas são privadas" text={`${p.displayName} escolheu quem as pode ver.`} />}

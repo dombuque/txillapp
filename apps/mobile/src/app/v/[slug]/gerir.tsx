@@ -22,6 +22,7 @@ import { useAuth } from '@/lib/auth';
 import { sized } from '@/lib/config';
 import { canSetShowOnMap, formatAddress, needsMapPin, showsOnMap, venuePlace, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
 import { colors } from '@/lib/theme';
+import { goBack } from '@/lib/nav';
 
 type Section = 'perfil' | 'gestores' | 'eventos' | 'qr' | 'txills' | 'bombar' | 'painel';
 
@@ -226,7 +227,7 @@ function Managers({ v }: { v: Venue }) {
   const remove = (u: string, self: boolean) => {
     const go = () => run(async () => {
       const r = await locaisApi.removeManager(v.slug, u);
-      if ('left' in r) { void qc.invalidateQueries({ queryKey: ['venue', v.slug] }); void qc.invalidateQueries({ queryKey: ['venues-mine'] }); router.back(); }
+      if ('left' in r) { void qc.invalidateQueries({ queryKey: ['venue', v.slug] }); void qc.invalidateQueries({ queryKey: ['venues-mine'] }); goBack(router, '/locais'); }
       return r;
     }, self ? 'Saíste da página.' : 'Gestor removido.');
     if (Platform.OS === 'web') { if (confirm(self ? 'Sair desta página?' : `Tirar @${u} da página?`)) void go(); return; }

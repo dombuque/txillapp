@@ -33,6 +33,7 @@ import { usePagerPan, useWebPager } from './SwipePager';
 import { useFadeIn, useTabSlider } from './TabSlider';
 import { VerifiedBadge } from './VerifiedBadge';
 import { linkShare } from '@/lib/shareLink';
+import { goBack } from '@/lib/nav';
 
 /** Os ícones e nomes dos separadores; quais aparecem e por que ordem se desliza é de lib/profileTabs. */
 const TABS: { id: ProfileTab; label: string; icon: IconName | 'bookmark' }[] = [
@@ -183,7 +184,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       <View style={[styles.center, { paddingTop: insets.top + 64 }]}>
         <Icon name={missing ? 'search' : 'alert'} size={44} color={colors.zinc300} />
         <Text style={styles.errTitle}>{missing ? 'Essa pessoa não existe' : 'Não consegui abrir este perfil'}</Text>
-        <Pressable onPress={() => router.back()} style={styles.ghost}><Text style={styles.ghostText}>Voltar</Text></Pressable>
+        <Pressable onPress={() => goBack(router)} style={styles.ghost}><Text style={styles.ghostText}>Voltar</Text></Pressable>
       </View>
     );
   }
