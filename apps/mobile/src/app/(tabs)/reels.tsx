@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
+import { limitBuffer } from '@/lib/videoMemory';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { enterImmersive, leaveImmersive } from '@/lib/immersive';
 import { Animated, AppState, Easing, FlatList, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
@@ -257,6 +258,7 @@ export function Reel({ post, active, onScreen = true, height, onChange, me, onMo
   const teach = !mine && (post as Post & { authorFollowed?: boolean }).authorFollowed === false;
 
   const player = useVideoPlayer(abs(m.url) ?? '', (p) => {
+    limitBuffer(p, 'reel');
     p.loop = !onMore;
     p.muted = true;
     p.timeUpdateEventInterval = 0.25;
