@@ -170,6 +170,8 @@ function Gate() {
       <Stack.Screen name="u/[username]" />
       <Stack.Screen name="p/[id]" />
       <Stack.Screen name="messages/[username]" />
+      {/* Nova conversa: a folha abre por cima das Mensagens (que ficam à vista por trás), sem um ecrã branco a deslizar antes. */}
+      <Stack.Screen name="messages/new" options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }} />
       <Stack.Screen name="settings" />
       <Stack.Screen name="saved" />
       <Stack.Screen name="verification" />
@@ -179,8 +181,9 @@ function Gate() {
       <Stack.Screen name="invites" />
       <Stack.Screen name="t/[tag]" />
       <Stack.Screen name="u/[username]/connections" />
-      <Stack.Screen name="stories/[username]" options={{ animation: 'fade' }} />
-      <Stack.Screen name="m/[username]" options={{ animation: 'fade' }} />
+      {/* Nos mimos deslizar para os lados muda de pessoa e para baixo fecha: o gesto de voltar do iPhone baralhava-os. */}
+      <Stack.Screen name="stories/[username]" options={{ animation: 'fade', gestureEnabled: false }} />
+      <Stack.Screen name="m/[username]" options={{ animation: 'fade', gestureEnabled: false }} />
       <Stack.Screen name="stories/new" options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="calls" />
       <Stack.Screen name="call/[id]" options={{ animation: 'fade' }} />

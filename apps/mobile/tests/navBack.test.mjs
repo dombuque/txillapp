@@ -54,3 +54,11 @@ test('os ecrãs que tinham um «Voltar» sem saída usam goBack com um sítio qu
   assert.match(src('app/stories/new.tsx'), /else if \(!asset\) goBack\(router\);/);
   assert.match(src('app/v/[slug]/gerir.tsx'), /goBack\(router, '\/locais'\)/);
 });
+
+test('animações da pilha: a nova conversa abre transparente por cima das Mensagens; nos mimos o gesto de voltar do iPhone fica desligado', () => {
+  const l = readFileSync(path.join(ROOT, 'src', 'app', '_layout.tsx'), 'utf8');
+  assert.match(l, /name="messages\/new" options=\{\{ presentation: 'transparentModal', animation: 'fade', contentStyle: \{ backgroundColor: 'transparent' \} \}\}/);
+  assert.match(l, /name="stories\/\[username\]" options=\{\{ animation: 'fade', gestureEnabled: false \}\}/);
+  assert.match(l, /name="m\/\[username\]" options=\{\{ animation: 'fade', gestureEnabled: false \}\}/);
+  assert.match(readFileSync(path.join(ROOT, 'src', 'app', 'messages', 'new.tsx'), 'utf8'), /backgroundColor: 'transparent'/);
+});
