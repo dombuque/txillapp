@@ -12,6 +12,8 @@
 //  - Atender (ou tocar na notificação) abre /call/<id>?…&accept=1 e a app atende logo. Recusar recusa a partir daqui,
 //    com o código que veio no aviso (sem abrir a app). Atendida ou recusada noutro sítio: chega um aviso 'call_end' que
 //    fecha a notificação; perdida ou cancelada, a notificação de chamada perdida (mesma etiqueta) toma o lugar dela.
+//  - Cada aviso de chamada também diz ao servidor que chegou (POST /calls/:id/ringing?ack=<ackToken>, sem sessão), ao
+//    lado da notificação e sem a atrasar: quem liga passa de «A chamar…» a «A tocar…».
 
 /** Safari / WebKit (iPhone, iPad, Mac): não deixa avisos sem notificação, nem mostra botões. */
 const TX_APPLE = (() => {
@@ -48,9 +50,33 @@ function txCallInfo(data, extra) {
     name: String(data.title || extra.title || ''),
     video: v === true || v === 1 || v === '1' || v === 'true',
     declineToken: pick('declineToken') ? String(pick('declineToken')) : '',
+    ackToken: pick('ackToken') ? String(pick('ackToken')) : '',
     repeat: pick('repeat') === '1' || pick('repeat') === true,
     reason: String(pick('reason') || ''),
   };
+}
+
+/** Chamadas que este aparelho já confirmou ao servidor como entregues (os reenvios não voltam a pedir). Só em memória. */
+const txAcked = new Set();
+
+/**
+ * «A chamada chegou a este aparelho»: quem liga passa de «A chamar…» a «A tocar…». Sem sessão (o service worker não a
+ * tem), com o código do aviso, que só serve para isto. Nunca falha nem atrasa a notificação: corre ao lado dela.
+ */
+async function txAck(c) {
+  if (!c.callId || !c.ackToken || txAcked.has(c.callId)) return undefined;
+  try {
+    const r = await fetch('/api/v1/calls/' + encodeURIComponent(c.callId) + '/ringing?ack=' + encodeURIComponent(c.ackToken), {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'txillapp' },
+      credentials: 'omit',
+    });
+    // 409: já não toca; 404: código fora de prazo. Nos dois casos não vale a pena tentar no reenvio.
+    if (r.ok || r.status === 409 || r.status === 404) txRemember(txAcked, c.callId);
+  } catch {
+    /* sem rede: o reenvio (ou a app, ao abrir) tenta outra vez */
+  }
+  return undefined;
 }
 
 /** Endereço da chamada na app; `accept` atende logo, `decline` recusa logo. */
@@ -196,7 +222,9 @@ self.addEventListener('push', (event) => {
   const extra = data.data && typeof data.data === 'object' ? data.data : {};
   const kind = data.kind || extra.kind;
   if (kind === 'call') {
-    event.waitUntil(txOnRing(txCallInfo(data, extra)));
+    // A notificação (regra do Safari: cada aviso mostra uma) e, ao lado, o «chegou» para quem liga ver «A tocar…».
+    const c = txCallInfo(data, extra);
+    event.waitUntil(Promise.all([txOnRing(c), txAck(c)]));
     return;
   }
   if (kind === 'call_end') {
@@ -315,4 +343,4 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // Para os testes (tests/pushSw.test.mjs): as regras puras.
-self.__txCall = { txCallInfo, txCallUrl, txCallNotification, txEndNotification, txRingMode, txEndMode, txMessageMode, TX_RING_VIBRATE };
+self.__txCall = { txCallInfo, txAck, txCallUrl, txCallNotification, txEndNotification, txRingMode, txEndMode, txMessageMode, TX_RING_VIBRATE };
