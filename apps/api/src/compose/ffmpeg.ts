@@ -74,11 +74,13 @@ export async function probe(file: string, safe: string[] = []): Promise<Probe> {
 }
 
 /** As amostras (mono, `rate` Hz, até `seconds` s) de um ficheiro de áudio, para detetar as batidas. */
-export async function decodeMono(file: string, seconds: number, rate: number, opts: { cwd: string; signal?: AbortSignal }): Promise<Float32Array> {
+export async function decodeMono(file: string, seconds: number, rate: number, opts: { cwd: string; signal?: AbortSignal; startS?: number }): Promise<Float32Array> {
   const parts: Buffer[] = [];
   let size = 0;
   const max = Math.ceil(seconds * rate) * 4;
-  await ffmpeg([...SAFE_AUDIO, '-i', file, '-t', String(seconds), '-vn', '-ac', '1', '-ar', String(rate), '-f', 'f32le', 'pipe:1'], {
+  // `startS`: a partir de onde (o trecho escolhido da música).
+  const from = opts.startS && opts.startS > 0 ? ['-ss', opts.startS.toFixed(3)] : [];
+  await ffmpeg([...SAFE_AUDIO, ...from, '-i', file, '-t', String(seconds), '-vn', '-ac', '1', '-ar', String(rate), '-f', 'f32le', 'pipe:1'], {
     ...opts,
     stdout: (d) => { if (size < max) { parts.push(d); size += d.length; } },
   });

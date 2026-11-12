@@ -24,10 +24,11 @@ import { TextFilter } from '../safety/text-filter.service';
 import { canView } from '../social/visibility';
 import { parseSoundId, REUSABLE, SOUND_VISIBLE } from '../sounds/sounds.service';
 import { stickersSvg } from '../stories/stickers';
+import { encodeWav, renderSfxTrack, reverbImpulse, type SfxCue, type VoiceFxId } from './audio';
 import { composeSchema, firstProblem, PHOTO_DEFAULT_MS, type ComposeInput } from './compose.schema';
 import { decodeMono, ffmpeg, FfmpegError, probe, SAFE_AUDIO, SAFE_VIDEO } from './ffmpeg';
-import { clipArgs, cleanText, finalArgs, FPS, frameSlots, OUT_H, OUT_W, PHOTO_OVERSCAN, DUET, textFilters, type OverlayImage, type TextItem, type Transition } from './plan';
-import { beatGrid, checkTcheka, clampTrim, clipSeconds, detectBeats, rhythmDurations, TCHEKA_MAX_S } from './rules';
+import { clipArgs, cleanText, finalArgs, FPS, frameSlots, OUT_H, OUT_W, PHOTO_OVERSCAN, DUET, RATE, textFilters, type OverlayImage, type TextItem, type Transition } from './plan';
+import { beatGrid, checkTcheka, clampTrim, clipSeconds, detectBeats, MIN_VOICE_S, rhythmDurations, TCHEKA_MAX_S } from './rules';
 
 /** A letra do texto (DejaVu Sans Bold, licença livre: assets/fonts/DejaVu-LICENSE.txt). */
 const FONT_CANDIDATES = [resolve(__dirname, '../../assets/fonts/DejaVuSans-Bold.ttf'), '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'];
@@ -63,6 +64,20 @@ export interface ComposeSpec {
   texts: { text: string; color: string; bg: string | null; x: number; y: number; size: number; start: number; end: number | null }[];
   stickers: { id: string; x: number; y: number; s: number; r: number; start: number | null; end: number | null }[];
   cover: number | null;
+  /** O som do estúdio (docs/montagem.md, «O som»). Opcional: os trabalhos de antes não o têm. */
+  mix?: ComposeMix;
+}
+
+/** O trecho, os fades, o ducking, a voz-off, os efeitos de voz e os efeitos sonoros (tempos em segundos). */
+export interface ComposeMix {
+  musicStart: number;
+  fadeIn: number;
+  fadeOut: number;
+  ducking: boolean;
+  originalFx: VoiceFxId;
+  voice: { mediaId: string; start: number; volume: number; fx: VoiceFxId } | null;
+  sfx: SfxCue[];
+  sfxVolume: number;
 }
 
 /**
@@ -202,7 +217,12 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     const durations = rhythm ? rhythmDurations(clips.map((c) => ({ video: c.kind === 'video', seconds: c.seconds, beats: c.beats })), beatGrid(rhythm.bpm, 0, TCHEKA_MAX_S + 30)) : clips.map((c) => c.seconds);
     // Os volumes por omissão do estúdio: com um som de outra tcheka o original começa calado; com música, mais baixo.
     const originalVolume = b.originalVolume ?? (audio ? (audio.kind === 'sound' ? 0 : 0.4) : 1);
-    const rules = checkTcheka({ clips: clips.map((c, i) => ({ video: c.kind === 'video', seconds: durations[i] })), music: !!audio || !!duet, originalVolume });
+    // A voz-off: um áudio meu, enviado e pronto, do armazenamento privado. Conta como o som com 3 s ou mais dentro da tcheka
+    // (se ainda não se souber quanto dura, conta; no trabalho volta a contar-se com a duração verdadeira).
+    const voice = b.voiceOver ? await this.checkVoice(userId, b.voiceOver.mediaId) : null;
+    const sum = durations.reduce((x, d) => x + d, 0);
+    const voiceSeconds = voice && b.voiceOver ? (voice.seconds !== null ? Math.max(0, Math.min(b.voiceOver.startMs / 1000 + voice.seconds, sum) - b.voiceOver.startMs / 1000) : MIN_VOICE_S) : 0;
+    const rules = checkTcheka({ clips: clips.map((c, i) => ({ video: c.kind === 'video', seconds: durations[i] })), music: !!audio || !!duet, originalVolume, voiceSeconds });
     if (!rules.ok) throw new BadRequestException({ message: rules.hint, problem: rules.problem });
     const total = Math.min(rules.total, TCHEKA_MAX_S, duet ? duet.seconds : Infinity);
 
@@ -231,6 +251,16 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
       texts: texts.map((t) => ({ text: t.text, color: t.color, bg: t.bg ?? null, x: t.x, y: t.y, size: t.size, start: t.startMs / 1000, end: t.endMs !== undefined ? t.endMs / 1000 : null })),
       stickers: (b.stickers ?? []).map((s) => ({ id: s.id, x: s.x, y: s.y, s: s.s, r: s.r, start: s.startMs !== undefined ? s.startMs / 1000 : null, end: s.endMs !== undefined ? s.endMs / 1000 : null })),
       cover: b.coverMs !== undefined ? b.coverMs / 1000 : null,
+      mix: {
+        musicStart: (b.musicStartMs ?? 0) / 1000,
+        fadeIn: (b.musicFadeInMs ?? 0) / 1000,
+        fadeOut: (b.musicFadeOutMs ?? 0) / 1000,
+        ducking: b.ducking ?? true,
+        originalFx: b.originalEffect ?? 'normal',
+        voice: b.voiceOver ? { mediaId: b.voiceOver.mediaId, start: b.voiceOver.startMs / 1000, volume: b.voiceOver.volume, fx: b.voiceOver.effect } : null,
+        sfx: (b.soundEffects ?? []).map((s) => ({ id: s.id, at: s.atMs / 1000 })),
+        sfxVolume: b.soundEffectsVolume ?? 1,
+      },
     };
   }
 
@@ -264,6 +294,16 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     }
     const c = await this.catalog.canonical(t.data.id);
     return { kind: 'music', src: c.found ? this.urlSource(c.track.previewUrl) : { from: 'url', url: t.data.url } };
+  }
+
+  /**
+   * A voz-off: um áudio de quem monta, já enviado e pronto, como os clipes de áudio (`purpose: 'chat'`: fica no armazenamento
+   * privado e nunca se serve em público; o vídeo final é que leva a voz misturada).
+   */
+  private async checkVoice(userId: string, mediaId: string): Promise<{ seconds: number | null }> {
+    const r = (await this.pool.query(`SELECT duration_ms FROM content.media_assets WHERE id = $1 AND owner_id = $2 AND purpose = 'chat' AND status = 'ready' AND mime LIKE 'audio/%'`, [mediaId, userId])).rows[0];
+    if (!r) throw new BadRequestException('A voz-off não é tua ou ainda não está pronta. Envia-a outra vez.');
+    return { seconds: r.duration_ms ? Number(r.duration_ms) / 1000 : null };
   }
 
   /** O áudio de uma faixa do catálogo (endereço https) ou dos artistas (o ficheiro privado do trecho). */
@@ -499,6 +539,18 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
       if (!p?.hasVideo) throw new ComposeRejected('A tcheka do dueto já não está disponível');
       duet = { file: 'duet.mp4', hasAudio: p.hasAudio, seconds: p.seconds };
     }
+    const mix = spec.mix ?? null;
+    let voice: { file: string; seconds: number } | null = null;
+    if (mix?.voice) {
+      try {
+        await writeFile(join(tmp, 'voice.bin'), await this.media.rawBytes(mix.voice.mediaId, 'private'));
+      } catch {
+        throw new ComposeRejected('A voz-off já não está disponível. Grava-a outra vez.');
+      }
+      const p = await probe(join(tmp, 'voice.bin'), SAFE_AUDIO).catch(() => null);
+      if (!p?.hasAudio) throw new ComposeRejected('Não consegui ler a voz-off. Grava-a outra vez.');
+      voice = { file: 'voice.bin', seconds: p.seconds };
+    }
     onProgress(0.06);
 
     // 2. As durações: ao ritmo, as fotos acabam nas batidas da música (lidas aqui, como o estúdio faz no browser).
@@ -507,16 +559,20 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
       let bpm = spec.rhythm.bpm, offset = 0;
       if (spec.rhythm.auto) {
         const rate = 22_050;
-        const samples = await decodeMono(join(tmp, music), TCHEKA_MAX_S + 5, rate, { cwd: tmp, signal }).catch(() => null);
+        // As batidas do trecho escolhido (como o estúdio: a detectBeats a partir de musicStartMs).
+        const samples = await decodeMono(join(tmp, music), TCHEKA_MAX_S + 5, rate, { cwd: tmp, signal, startS: mix?.musicStart ?? 0 }).catch(() => null);
         const info = samples ? detectBeats(samples, rate) : null;
         if (info?.bpm) { bpm = info.bpm; offset = info.offset; }
       }
       durations = rhythmDurations(spec.clips.map((c) => ({ video: c.kind === 'video', seconds: c.seconds, beats: c.beats })), beatGrid(bpm, offset, TCHEKA_MAX_S + 30));
     }
-    // As regras outra vez, agora a saber se os vídeos têm som (no pedido ainda não se sabia). Passar dos 60 s só corta.
-    const rules = checkTcheka({ clips: spec.clips.map((c, i) => ({ video: c.kind === 'video', seconds: durations[i], hasAudio: c.kind === 'video' ? inputs.get(c.mediaId)!.hasAudio : undefined })), music: !!music || !!duet, originalVolume: spec.originalVolume });
-    if (!rules.ok && rules.problem !== 'longo') throw new ComposeRejected(rules.hint ?? 'Não dá para montar esta tcheka');
+    // As regras outra vez, agora a saber se os vídeos têm som e quanto dura a voz-off (no pedido ainda não se sabia).
+    // Passar dos 60 s só corta.
     const limit = Math.min(TCHEKA_MAX_S, duet ? duet.seconds : Infinity);
+    const until = Math.min(limit, durations.reduce((x, d) => x + d, 0));
+    const voiceSeconds = voice && mix?.voice ? Math.max(0, Math.min(mix.voice.start + voice.seconds, until) - mix.voice.start) : 0;
+    const rules = checkTcheka({ clips: spec.clips.map((c, i) => ({ video: c.kind === 'video', seconds: durations[i], hasAudio: c.kind === 'video' ? inputs.get(c.mediaId)!.hasAudio : undefined })), music: !!music || !!duet, originalVolume: spec.originalVolume, voiceSeconds });
+    if (!rules.ok && rules.problem !== 'longo') throw new ComposeRejected(rules.hint ?? 'Não dá para montar esta tcheka');
     const slots = frameSlots(durations, limit);
     const frames = slots.reduce((n, s) => n + s.frames, 0);
     if (frames < FPS / 2) throw new ComposeRejected('A tcheka ficou curta demais');
@@ -566,12 +622,23 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     const tx = textFilters(items, OUT_W, OUT_H, 'font.ttf', (i, j) => `text_${i}_${j}.txt`);
     for (const f of tx.files) await writeFile(join(tmp, f.name), f.text, 'utf8');
 
+    // O som gerado aqui com o mesmo desenho do estúdio (compose/audio.ts): os efeitos sonoros numa faixa e, com o Estádio,
+    // a resposta ao impulso do reverb.
+    const cues = (mix?.sfx ?? []).filter((c) => c.at < T);
+    if (cues.length) await writeFile(join(tmp, 'sfx.wav'), encodeWav([renderSfxTrack(cues, T, RATE)], RATE));
+    const needIr = mix && (mix.originalFx === 'estadio' || (voice && mix.voice?.fx === 'estadio'));
+    if (needIr) await writeFile(join(tmp, 'ir.wav'), encodeWav(reverbImpulse(RATE), RATE));
+
     // 5. 2.º passo: juntar, dueto, texto, stickers, assinatura e o som; o MP4 final.
     const fin = finalArgs({
       seconds: T, videoList: 'videos.txt', audioList: 'audios.txt',
-      music: music ? { file: music, volume: spec.musicVolume } : null,
+      music: music ? { file: music, volume: spec.musicVolume, startS: mix?.musicStart ?? 0, fadeIn: mix?.fadeIn ?? 0, fadeOut: mix?.fadeOut ?? 0 } : null,
       duet: duet ? { file: duet.file, hasAudio: duet.hasAudio, volume: spec.musicVolume } : null,
-      originalVolume: spec.originalVolume, texts: tx.filters, overlays, out: 'out.mp4', threads,
+      originalVolume: spec.originalVolume, originalFx: mix?.originalFx ?? 'normal',
+      voice: voice && mix?.voice && mix.voice.start < T ? { file: voice.file, startS: mix.voice.start, volume: mix.voice.volume, fx: mix.voice.fx, duck: mix.ducking } : null,
+      sfx: cues.length ? { file: 'sfx.wav', volume: mix!.sfxVolume } : null,
+      irFile: needIr ? 'ir.wav' : null,
+      texts: tx.filters, overlays, out: 'out.mp4', threads,
     }, 'graph.txt');
     await writeFile(join(tmp, 'graph.txt'), fin.graph, 'utf8');
     await run(fin.args, (s) => onProgress(0.45 + 0.5 * Math.min(1, s / T)));

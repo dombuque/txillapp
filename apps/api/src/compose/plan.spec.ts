@@ -1,5 +1,5 @@
 import { lookFilter, LOOKS } from './looks';
-import { alphaExpr, atempo, cleanText, clipArgs, DUET, finalArgs, frameSlots, SPF, textFilters, transitionSeconds, wrapText } from './plan';
+import { alphaExpr, atempo, cleanText, clipArgs, DUCK_SC, DUET, finalArgs, frameSlots, SPF, textFilters, transitionSeconds, voiceFxGraph, wrapText } from './plan';
 
 describe('montagem: as contas sem ffmpeg', () => {
   it('a grelha de frames não escorrega com os arredondamentos e corta nos 60 s', () => {
@@ -69,5 +69,41 @@ describe('montagem: as contas sem ffmpeg', () => {
     expect(f.graph).toContain('amix=inputs=3:duration=first:dropout_transition=0:normalize=0');
     expect(f.args).toEqual(expect.arrayContaining(['-stream_loop', '-1', '-movflags', '+faststart', '-filter_complex_script', 'graph.txt']));
     expect(f.args.slice(f.args.indexOf('-t'), f.args.indexOf('-t') + 2)).toEqual(['-t', '4']);
+  });
+
+  it('o som do estúdio: o trecho, os fades, a voz-off com ducking, os efeitos sonoros e o Estádio', () => {
+    const f = finalArgs({
+      seconds: 6, videoList: 'v.txt', audioList: 'a.txt', music: { file: 'm.bin', volume: 0.8, startS: 42.5, fadeIn: 1.5, fadeOut: 2 }, duet: null,
+      originalVolume: 0.4, originalFx: 'estadio', voice: { file: 'voice.bin', startS: 1.25, volume: 0.9, fx: 'esquilo', duck: true }, sfx: { file: 'sfx.wav', volume: 0.7 }, irFile: 'ir.wav',
+      texts: [], overlays: [], out: 'o.mp4',
+    }, 'graph.txt');
+    // As entradas: vídeos, sons, música, voz, efeitos e a resposta ao impulso (só para o original, que tem o Estádio).
+    const files = f.args.filter((_, i) => f.args[i - 1] === '-i');
+    expect(files).toEqual(['v.txt', 'a.txt', 'm.bin', 'voice.bin', 'sfx.wav', 'ir.wav']);
+    expect(f.graph).toContain('[2:a]atrim=42.5:48.5,asetpts=PTS-STARTPTS');
+    expect(f.graph).toContain('afade=t=in:st=0:d=1.5,afade=t=out:st=4:d=2,volume=0.8[am_dry]');
+    expect(f.graph).toContain(`[am_dry][av_sc]sidechaincompress=${DUCK_SC}[am]`);
+    expect(f.graph).toContain('asetrate=72000,aresample=48000,atempo=0.666667[av_fx]');
+    expect(f.graph).toContain('[av_fx]adelay=delays=1250:all=1,apad,atrim=end=6,asplit=2[av_raw][av_sc]');
+    expect(f.graph).toContain('[av_raw]volume=0.9[av]');
+    expect(f.graph).toContain('[4:a]asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=0.7,apad,atrim=end=6[ae]');
+    expect(f.graph).toContain('[ofx_w][5:a]afir=dry=1:wet=1:gtype=-1:irgain=1,volume=0.6[ofx_r]');
+    expect(f.graph).toContain('[ao][av][am][ae]amix=inputs=4');
+    // Sem nada disto, o som fica como antes (sem fades, sem ducking, o original sem efeito).
+    const plain = finalArgs({ seconds: 4, videoList: 'v.txt', audioList: 'a.txt', music: { file: 'm.bin', volume: 1 }, duet: null, originalVolume: 1, texts: [], overlays: [], out: 'o.mp4' }, 'g.txt');
+    expect(plain.graph).toContain('[2:a]atrim=0:4,asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=1[am]');
+    expect(plain.graph).toContain('[ao_in]anull[ao_fx]');
+    expect(plain.graph).not.toContain('afade');
+    expect(plain.graph).not.toContain('sidechaincompress');
+  });
+
+  it('os efeitos de voz em filtros do ffmpeg, com os números do estúdio', () => {
+    expect(voiceFxGraph('normal', '[i]', '[o]', 'x', null)).toEqual(['[i]anull[o]']);
+    expect(voiceFxGraph('robo', '[i]', '[o]', 'x', null)[0]).toBe("[i]aeval=exprs='val(0)*sin(2*PI*60*t)|val(1)*sin(2*PI*60*t)':c=same,aecho=1:1:6|12|18|24:0.45|0.2025|0.0911|0.041[o]");
+    expect(voiceFxGraph('grave', '[i]', '[o]', 'x', null)[0]).toBe('[i]asetrate=34560,aresample=48000,atempo=1.388889[o]');
+    expect(voiceFxGraph('eco', '[i]', '[o]', 'x', null)[0]).toBe('[i]aecho=1:1:280|560|840|1120:0.6|0.27|0.1215|0.0547[o]');
+    expect(voiceFxGraph('radio', '[i]', '[o]', 'x', null)[0]).toBe("[i]highpass=f=500,lowpass=f=3200,equalizer=f=1500:t=q:w=1:g=6,aeval=exprs='tanh(2.5*val(0))/tanh(2.5)|tanh(2.5*val(1))/tanh(2.5)':c=same[o]");
+    expect(voiceFxGraph('estadio', '[i]', '[o]', 'x', '[9:a]')).toHaveLength(4);
+    expect(() => voiceFxGraph('estadio', '[i]', '[o]', 'x', null)).toThrow();
   });
 });

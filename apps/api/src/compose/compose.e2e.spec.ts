@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { execFileSync } from 'child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import ffmpegPath from 'ffmpeg-static';
@@ -13,8 +13,10 @@ import { createApp } from '../main';
 import { uuidv7 } from '../common/uuid7';
 import { MusicCatalogService } from '../music/catalog/catalog.service';
 import { SoundsService } from '../sounds/sounds.service';
+import { encodeWav, renderSfxTrack, reverbImpulse, VOICE_FX_IDS } from './audio';
 import { ComposeService, RESTART_ERROR } from './compose.service';
 import { probe } from './ffmpeg';
+import { voiceFxGraph } from './plan';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
@@ -22,6 +24,8 @@ const FF = ffmpegPath as unknown as string;
 const MEDIA = './uploads-test';
 const MUSIC_URL = 'https://ccmixter.org/content/teste/batida.mp3';
 const work = mkdtempSync(join(tmpdir(), 'txill-comp-'));
+/** Outras músicas «do catálogo» que o fetcher falso serve (o som dos testes do trecho, dos fades e do ducking). */
+const servedMusic = new Map<string, Buffer>();
 
 /** Um ficheiro gerado com o ffmpeg (nada de fora): `lavfi` são as fontes de teste (testsrc, color, sine…). */
 function make(name: string, args: string[]) {
@@ -115,8 +119,9 @@ describe('montagem das tchekas no servidor (POST /tchekas/compose)', () => {
     svc.fetcher = (async (input: string | URL | Request) => {
       const url = String(input);
       fetched.push(url);
-      if (url !== MUSIC_URL) return new Response('não', { status: 404 });
-      return new Response(new Uint8Array(mp3), { status: 200, headers: { 'content-type': 'audio/mpeg', 'content-length': String(mp3.length) } });
+      const body = url === MUSIC_URL ? mp3 : servedMusic.get(url);
+      if (!body) return new Response('não', { status: 404 });
+      return new Response(new Uint8Array(body), { status: 200, headers: { 'content-type': 'audio/mpeg', 'content-length': String(body.length) } });
     }) as typeof fetch;
     a = await register('cpa');
     b = await register('cpb');
@@ -336,6 +341,202 @@ describe('montagem das tchekas no servidor (POST /tchekas/compose)', () => {
     // Publicação apagada: não.
     await pool.query('UPDATE content.posts SET removed_at = now() WHERE id = $1', [post.id]);
     await compose(a, { clips: [{ mediaId: mine, kind: 'video' }], duet: { postId: post.id } }).expect(404);
+  }, 240_000);
+
+  // ------------------------------------------------------------------ o som do estúdio (trecho, fades, voz-off, efeitos)
+
+  /** Uma música de teste servida pelo fetcher falso (a faixa como vem do catálogo). */
+  function catalogTrack(name: string, expr: string) {
+    const url = `https://ccmixter.org/content/teste/${name}.mp3`;
+    servedMusic.set(url, make(`${name}.mp3`, ['-f', 'lavfi', '-i', `aevalsrc='${expr}':s=44100:d=20`, '-c:a', 'libmp3lame', '-b:a', '128k']));
+    return { ...music, id: `ccmixter:teste-${name}`, title: name, url };
+  }
+  /** Uma voz-off (opus em webm, como grava o browser), enviada como os clipes de áudio: `purpose: 'chat'`, privada. */
+  async function uploadVoice(u: U, name: string, expr: string, seconds: number) {
+    const bytes = make(`${name}.webm`, ['-f', 'lavfi', '-i', `aevalsrc='${expr}':s=48000:d=${seconds}`, '-c:a', 'libopus', '-b:a', '64k']);
+    const up = await calm(() => api().post('/api/v1/media/uploads').set(as(u)).send({ mime: 'audio/webm', size: bytes.length, purpose: 'chat' }));
+    expect(up.status).toBe(201);
+    expect((await calm(() => api().put(up.body.uploadUrl).set('Content-Type', 'audio/webm').send(bytes))).status).toBe(200);
+    return up.body.assetId as string;
+  }
+  const SR = 16_000;
+  /** O som do vídeo final, mono a 16 kHz. */
+  function pcm(file: string): Float32Array {
+    const b = execFileSync(FF, ['-v', 'error', '-i', file, '-vn', '-ac', '1', '-ar', String(SR), '-f', 'f32le', '-'], { maxBuffer: 64 * 1024 * 1024 });
+    return new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.length));
+  }
+  /** A amplitude de uma frequência entre t0 e t1 (Goertzel): um seno de amplitude A dá ≈ A. */
+  function tone(x: Float32Array, hz: number, t0: number, t1: number) {
+    const a = Math.round(t0 * SR), b = Math.min(x.length, Math.round(t1 * SR));
+    const c = 2 * Math.cos((2 * Math.PI * hz) / SR);
+    let s1 = 0, s2 = 0;
+    for (let i = a; i < b; i++) { const s0 = x[i] + c * s1 - s2; s2 = s1; s1 = s0; }
+    return (2 * Math.sqrt(Math.max(0, s1 * s1 + s2 * s2 - c * s1 * s2))) / Math.max(1, b - a);
+  }
+  function rms(x: Float32Array, t0: number, t1: number) {
+    const a = Math.round(t0 * SR), b = Math.min(x.length, Math.round(t1 * SR));
+    let e = 0;
+    for (let i = a; i < b; i++) e += x[i] * x[i];
+    return Math.sqrt(e / Math.max(1, b - a));
+  }
+  /**
+   * Muitas montagens seguidas passam o limite de pedidos por minuto da API (120): estes testes perguntam de 1 em 1 s (como a
+   * app) e, se mesmo assim levarem 429, esperam e repetem.
+   */
+  async function calm<T extends { status: number }>(send: () => PromiseLike<T>): Promise<T> {
+    for (let i = 0; ; i++) {
+      const r = await send();
+      if (r.status !== 429 || i > 40) return r;
+      await new Promise((ok) => setTimeout(ok, 3000));
+    }
+  }
+  async function waitCalm(u: U, jobId: string) {
+    for (let i = 0; i < 240; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      const res = await calm(() => api().get(`/api/v1/tchekas/compose/${jobId}`).set(as(u)));
+      expect(res.status).toBe(200);
+      const s = res.body as { status: string; mediaId?: string; error?: string };
+      if (s.status === 'done' || s.status === 'failed') return s;
+    }
+    throw new Error('a montagem demorou demais');
+  }
+  const done = async (u: U, body: unknown) => {
+    const r = await calm(() => compose(u, body));
+    expect(r.status).toBe(202);
+    const job = await waitCalm(u, r.body.jobId);
+    expect(job.error).toBeUndefined();
+    expect(job.status).toBe('done');
+    return out(job.mediaId!);
+  };
+  /** Um pedido recusado: 400 e a mensagem. */
+  const bad = async (body: unknown) => { const r = await calm(() => compose(a, body)); expect(r.status).toBe(400); return r.body.message as string; };
+  /** Um vídeo enviado e convertido (com calma no limite de pedidos). */
+  async function calmVideo(u: U, bytes: Buffer) {
+    const up = await calm(() => api().post('/api/v1/media/uploads').set(as(u)).send({ mime: 'video/mp4', size: bytes.length }));
+    if (up.status !== 201) throw new Error(`envio do vídeo: ${up.status} ${JSON.stringify(up.body)}`);
+    await calm(() => api().put(up.body.uploadUrl).set('Content-Type', 'video/mp4').send(bytes));
+    const id = up.body.assetId as string;
+    await calm(() => api().post(`/api/v1/media/${id}/complete`).set(as(u)));
+    for (let i = 0; i < 120; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      const st = (await calm(() => api().get(`/api/v1/media/${id}/status`).set(as(u)))).body as { status: string };
+      if (st.status === 'ready') return id;
+    }
+    throw new Error('conversão demorou demais');
+  }
+  const three = () => photos.map((id) => ({ mediaId: id, kind: 'photo', durationMs: 2000 }));
+  /** Voz de 1 kHz dos 0,5 aos 3,5 s (4 s de gravação). */
+  const VOICE = '0.5*sin(2*PI*1000*t)*between(t,0.5,3.5)';
+  let voiceId = '';
+  /** A voz-off de teste (enviada uma vez; cada teste do som pode correr sozinho). */
+  const ensureVoice = async () => (voiceId ||= await uploadVoice(a, 'voz', VOICE, 4));
+
+  it('som: o trecho escolhido (musicStartMs) e os fades da música', async () => {
+    // 300 Hz nos primeiros 10 s, 900 Hz a seguir: começar aos 10 s ouve-se só o 900.
+    const duas = catalogTrack('duas', '0.5*sin(2*PI*if(lt(t,10),300,900)*t)');
+    const f = await done(a, { clips: three(), sound: { kind: 'music', music: duas }, musicStartMs: 10_000, musicFadeInMs: 2000, musicFadeOutMs: 1500 });
+    const x = pcm(f);
+    expect(tone(x, 900, 2.5, 3.5)).toBeGreaterThan(0.3);
+    expect(tone(x, 300, 2.5, 3.5)).toBeLessThan(0.03);
+    // Fade-in de 2 s (a direito: a 0,1 s quase nada, a 1 s metade) e fade-out de 1,5 s.
+    const mid = rms(x, 2.5, 3.5);
+    expect(rms(x, 0, 0.2)).toBeLessThan(mid * 0.15);
+    const half = rms(x, 0.9, 1.1) / mid;
+    expect(half).toBeGreaterThan(0.35);
+    expect(half).toBeLessThan(0.65);
+    expect(rms(x, 5.8, 6)).toBeLessThan(mid * 0.15);
+    // Ao ritmo: as batidas leem-se do trecho (a batida a 0,4 s na faixa fica a 0,2 s começando aos 200 ms).
+    const r = await done(a, { clips: photos.map((id) => ({ mediaId: id, kind: 'photo' })), sound: { kind: 'music', music }, beats: { mode: 'auto', perPhoto: 2 }, musicStartMs: 200 });
+    expect(Math.abs((await probe(r)).seconds - 3.2)).toBeLessThan(0.08);
+  }, 240_000);
+
+  it('som: a voz-off sozinha conta como som (3 s ou mais), entra no instante dela e a música baixa por baixo (ducking)', async () => {
+    await ensureVoice();
+    // Só fotos e a voz-off (sem música): monta, e a voz entra aos 1 + 0,5 s.
+    const solo = pcm(await done(a, { clips: three(), voiceOver: { mediaId: voiceId, startMs: 1000 } }));
+    expect(tone(solo, 1000, 2, 3)).toBeGreaterThan(0.3);
+    expect(rms(solo, 0.2, 1.3)).toBeLessThan(0.01);
+    expect(rms(solo, 4.7, 5.5)).toBeLessThan(0.01); // sem efeito, nada de cauda depois da voz
+    // Com música constante de 300 Hz: com ducking a música desce mais de 6 dB enquanto se fala; sem ducking, não.
+    const flat = catalogTrack('plana', '0.5*sin(2*PI*300*t)');
+    const ducked = pcm(await done(a, { clips: three(), sound: { kind: 'music', music: flat }, voiceOver: { mediaId: voiceId, startMs: 1000 } }));
+    const before = tone(ducked, 300, 0.2, 1.2), during = tone(ducked, 300, 2.2, 4.2);
+    expect(before).toBeGreaterThan(0.3);
+    expect(during / before).toBeLessThan(0.5);
+    expect(tone(ducked, 300, 5.4, 5.9) / before).toBeGreaterThan(0.8); // volta depois da voz
+    const open = pcm(await done(a, { clips: three(), sound: { kind: 'music', music: flat }, voiceOver: { mediaId: voiceId, startMs: 1000, volume: 0.5 }, ducking: false }));
+    expect(tone(open, 300, 2.2, 4.2) / tone(open, 300, 0.2, 1.2)).toBeGreaterThan(0.85);
+    // O volume da voz-off: a metade.
+    expect(tone(open, 1000, 2, 3) / tone(solo, 1000, 2, 3)).toBeGreaterThan(0.4);
+    expect(tone(open, 1000, 2, 3) / tone(solo, 1000, 2, 3)).toBeLessThan(0.6);
+  }, 300_000);
+
+  it('som: a voz-off curta não chega; e só uma voz-off minha, de áudio e com efeitos conhecidos (400 com a dica)', async () => {
+    await ensureVoice();
+    const short = await uploadVoice(a, 'curta', '0.5*sin(2*PI*1000*t)', 1.5);
+    const r = await calm(() => compose(a, { clips: three(), voiceOver: { mediaId: short } }));
+    expect(r.status).toBe(202);
+    const job = await waitCalm(a, r.body.jobId);
+    expect(job.status).toBe('failed');
+    expect(job.error).toBe('Grava mais 2 s de voz-off ou escolhe uma música');
+    const hers = await uploadVoice(b, 'dela', VOICE, 4);
+    const notMine = 'A voz-off não é tua ou ainda não está pronta. Envia-a outra vez.';
+    expect(await bad({ clips: three(), voiceOver: { mediaId: hers } })).toBe(notMine);
+    expect(await bad({ clips: three(), voiceOver: { mediaId: photos[0] } })).toBe(notMine);
+    expect(await bad({ clips: three(), sound: { kind: 'music', music }, voiceOver: { mediaId: voiceId, effect: 'gato' } })).toBe('Efeito de voz desconhecido');
+    expect(await bad({ clips: three(), sound: { kind: 'music', music }, originalEffect: 'gato' })).toBe('Efeito de voz desconhecido');
+    expect(await bad({ clips: three(), sound: { kind: 'music', music }, musicFadeInMs: 4000 })).toBe('O fade vai de 0 a 3 s');
+    expect(await bad({ clips: three(), sound: { kind: 'music', music }, soundEffects: [{ id: 'buzina', atMs: 0 }] })).toBe('Efeito sonoro desconhecido');
+    expect(await bad({ clips: three(), sound: { kind: 'music', music }, soundEffects: Array.from({ length: 31 }, () => ({ id: 'pop', atMs: 0 })) })).toBe('No máximo 30 efeitos sonoros');
+  }, 240_000);
+
+  it('som: efeitos de voz — o Esquilo sobe o tom, o Estádio deixa cauda, o Grave baixa o som original', async () => {
+    await ensureVoice();
+    const squirrel = pcm(await done(a, { clips: three(), voiceOver: { mediaId: voiceId, effect: 'esquilo' } }));
+    expect(tone(squirrel, 1500, 1, 3)).toBeGreaterThan(tone(squirrel, 1000, 1, 3) * 3);
+    const stadium = pcm(await done(a, { clips: three(), voiceOver: { mediaId: voiceId, effect: 'estadio' } }));
+    expect(tone(stadium, 1000, 1, 3)).toBeGreaterThan(0.3);
+    expect(rms(stadium, 3.7, 4.3)).toBeGreaterThan(0.01); // a cauda do reverb depois da voz (acaba aos 3,5 s)
+    const echo = pcm(await done(a, { clips: three(), voiceOver: { mediaId: voiceId, effect: 'eco' } }));
+    expect(tone(echo, 1000, 3.62, 3.75)).toBeGreaterThan(0.1); // a primeira repetição (280 ms) depois do fim
+    // No som original de um vídeo (440 Hz): Grave = × 0,72 ≈ 317 Hz. (Com a conta c: a «a» já passou dos 10 vídeos por hora,
+    // que contam também as tchekas montadas.)
+    const v = await calmVideo(c, video('quatro', 4));
+    const low = pcm(await done(c, { clips: [{ mediaId: v, kind: 'video' }], originalEffect: 'grave' }));
+    expect(tone(low, 317, 1, 3)).toBeGreaterThan(tone(low, 440, 1, 3) * 3);
+  }, 300_000);
+
+  it('som: todos os efeitos de voz montam no ffmpeg e dão som com a duração certa', () => {
+    const ir = join(work, 'ir.wav');
+    writeFileSync(ir, encodeWav(reverbImpulse(48_000), 48_000));
+    const got: Record<string, { seconds: number; loud: boolean }> = {};
+    const want: Record<string, { seconds: number; loud: boolean }> = {};
+    for (const id of VOICE_FX_IDS) {
+      const graph = ['[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[i]', ...voiceFxGraph(id, '[i]', '[o]', 'fx', id === 'estadio' ? '[1:a]' : null)].join(';');
+      const outFile = join(work, `fx_${id}.wav`);
+      execFileSync(FF, ['-y', '-v', 'error', '-f', 'lavfi', '-i', "aevalsrc='0.5*sin(2*PI*440*t)':s=48000:d=1", ...(id === 'estadio' ? ['-i', ir] : []), '-filter_complex', graph, '-map', '[o]', '-t', '1', outFile]);
+      const x = pcm(outFile);
+      got[id] = { seconds: Math.round((x.length / SR) * 10) / 10, loud: rms(x, 0.2, 0.9) > 0.05 };
+      want[id] = { seconds: 1, loud: true };
+    }
+    expect(got).toEqual(want);
+  }, 120_000);
+
+  it('som: os efeitos sonoros são gerados no servidor com o mesmo desenho e tocam no instante deles', async () => {
+    const x = pcm(await done(a, { clips: three(), sound: { kind: 'music', music }, musicVolume: 0, soundEffects: [{ id: 'tambor', atMs: 1000 }, { id: 'ding', atMs: 3000 }] }));
+    expect(rms(x, 0.1, 0.95)).toBeLessThan(0.003); // a música calada e nada antes do tambor
+    expect(rms(x, 1, 1.3)).toBeGreaterThan(0.05);
+    expect(tone(x, 880, 3.02, 3.4)).toBeGreaterThan(0.05); // o ding (880 Hz)
+    // A mesma faixa que o estúdio gera (renderSfxTrack): o envelope bate (correlação alta, em blocos de 20 ms), não é só
+    // «algum som» (as amostras não se comparam: o AAC e a reamostragem mexem na fase).
+    const ref = renderSfxTrack([{ id: 'tambor', at: 1 }, { id: 'ding', at: 3 }], 6, SR);
+    const env = (s: Float32Array) => Array.from({ length: 200 }, (_, k) => rms(s, 0.9 + k * 0.02, 0.92 + k * 0.02));
+    const ex = env(x), er = env(ref);
+    const mean = (v: number[]) => v.reduce((p, q) => p + q, 0) / v.length;
+    const mx = mean(ex), mr = mean(er);
+    let xy = 0, xx = 0, yy = 0;
+    for (let k = 0; k < ex.length; k++) { xy += (ex[k] - mx) * (er[k] - mr); xx += (ex[k] - mx) ** 2; yy += (er[k] - mr) ** 2; }
+    expect(xy / Math.sqrt(xx * yy)).toBeGreaterThan(0.9);
   }, 240_000);
 
   it('os temporários e os ficheiros: nada fica para trás', () => {
