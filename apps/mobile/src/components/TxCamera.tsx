@@ -16,7 +16,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { POST_RATIO_DEFAULT, POST_RATIO_MAX, POST_RATIO_MIN } from '@/lib/postAspect';
 import {
-  SEAL_BLUE, SEAL_CHECK, SEAL_CHECK_WIDTH, SEAL_OFFICIAL, SEAL_PATH, WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, sealOf, signLayout,
+  SEAL_BLUE, SEAL_CHECK, SEAL_CHECK_WIDTH, SEAL_CORAL, SEAL_PATH, WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, sealOf, sealPaint, signLayout,
   type SealTier,
 } from '@/lib/wordmark';
 
@@ -132,8 +132,8 @@ export function stampTxillapp(g: CanvasRenderingContext2D, W: number, H: number,
     g.save();
     g.translate(b.x, b.y);
     g.scale(b.k, b.k);
-    if (b.tier === 'official') {
-      const o = SEAL_OFFICIAL;
+    if (sealPaint(b.tier) === 'coral') {
+      const o = SEAL_CORAL;
       const grad = g.createLinearGradient(o.x0, o.y0, o.x1, o.y1);
       grad.addColorStop(0, o.from);
       grad.addColorStop(1, o.to);

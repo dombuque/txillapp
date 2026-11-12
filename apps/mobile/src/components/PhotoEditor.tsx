@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { POST_RATIO_DEFAULT, POST_RATIO_MAX } from '@/lib/postAspect';
 import { colors } from '@/lib/theme';
 import {
-  SEAL_BLUE, SEAL_CHECK, SEAL_CHECK_WIDTH, SEAL_OFFICIAL, SEAL_PATH, WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, sealOf, signLayout,
+  SEAL_BLUE, SEAL_CHECK, SEAL_CHECK_WIDTH, SEAL_CORAL, SEAL_PATH, WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, sealOf, sealPaint, signLayout,
   type SealTier,
 } from '@/lib/wordmark';
 import { Icon } from './Icon';
@@ -266,8 +266,8 @@ function drawSign(canvas: SkCanvas, W: number, H: number, font: SkFont | null, u
     canvas.scale(b.k, b.k);
     const fill = Skia.Paint();
     fill.setAntiAlias(true);
-    if (b.tier === 'official') {
-      const o = SEAL_OFFICIAL;
+    if (sealPaint(b.tier) === 'coral') {
+      const o = SEAL_CORAL;
       fill.setShader(Skia.Shader.MakeLinearGradient({ x: o.x0, y: o.y0 }, { x: o.x1, y: o.y1 }, [Skia.Color(o.from), Skia.Color(o.to)], [0, 1], TileMode.Clamp));
     } else {
       fill.setColor(Skia.Color(SEAL_BLUE));

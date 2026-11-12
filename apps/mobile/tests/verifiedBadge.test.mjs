@@ -24,7 +24,7 @@ test('NameWithBadge: o nome encolhe (flexShrink, numberOfLines) e o selo fica fo
   // ~0,9× a letra do nome, e segue a letra do style quando não se diz o tamanho.
   assert.match(s, /export const badgeSize = \(fontSize = 14\) => Math\.max\(10, Math\.round\(fontSize \* 0\.9\)\)/);
   assert.match(s, /const fontSize = StyleSheet\.flatten\(style\)\?\.fontSize;/);
-  // Só aparece a quem é verificado; sem tier, o azul de sempre; 'official' é o coral do Txillapp.
+  // Só aparece a quem é verificado; sem tier, o 'verified' (coral do Txillapp); o azul é só o 'paid'.
   assert.match(s, /if \(!who\?\.verified\) return null;\s*return <VerifiedBadge size=\{size \?\? badgeSize\(fontSize\)\} tier=\{who\.verifiedTier \?\? 'verified'\} \/>/);
   // Nas frases que quebram linha (notificações, convite), o selo vai dentro da frase, centrado na letra.
   assert.match(s, /export function InlineBadge\(\{ who, fontSize = 15 \}/);
@@ -33,7 +33,7 @@ test('NameWithBadge: o nome encolhe (flexShrink, numberOfLines) e o selo fica fo
 
 test('o tipo Badged é o mesmo par dos posts e do perfil (verified + verifiedTier)', () => {
   const api = read('lib/api.ts');
-  assert.match(api, /export type VerifiedTier = 'verified' \| 'official' \| null;\s*export interface Badged \{ verified\?: boolean; verifiedTier\?: VerifiedTier \}/);
+  assert.match(api, /export type VerifiedTier = 'verified' \| 'official' \| 'paid' \| null;\s*export interface Badged \{ verified\?: boolean; verifiedTier\?: VerifiedTier \}/);
 });
 
 // Cada sítio da lista: o ficheiro, o que tem de usar o selo e de onde vem a pessoa.
@@ -116,7 +116,7 @@ test('os dados trazem o selo: Zás, chamadas, grupos, notas e convites guardam v
   const zas = read('components/Instants.tsx');
   assert.match(zas, /type Who = \{ username: string; displayName: string \} & Badged;/);
   assert.match(zas, /setQueue\(others\.map\(\(o\) => \(\{ username: o\.username, displayName: o\.displayName, verified: o\.verified, verifiedTier: o\.verifiedTier \}\)\)\)/);
-  assert.match(read('lib/calls/types.ts'), /export interface CallPeer \{[^}]*verified\?: boolean; verifiedTier\?: 'verified' \| 'official' \| null \}/);
+  assert.match(read('lib/calls/types.ts'), /export interface CallPeer \{[^}]*verified\?: boolean; verifiedTier\?: 'verified' \| 'official' \| 'paid' \| null \}/);
   assert.match(read('app/messages/[username].tsx'), /startCall\(\{ username: person\.username, displayName: person\.displayName, hasAvatar: person\.hasAvatar, verified: person\.verified, verifiedTier: person\.verifiedTier \}, video\)/);
   assert.match(read('app/messages/g/[id].tsx'), /verified: m\.verified, verifiedTier: m\.verifiedTier/);
   assert.match(read('components/GroupSheets.tsx'), /verified: c\.verified, verifiedTier: c\.verifiedTier/);
@@ -135,6 +135,7 @@ test('cartão do convite: com conta verificada, o nome leva o selo (e espaço pa
   assert.equal(v.badge, 'verified');
   assert.ok(v.maxWidth < plain.maxWidth, 'o nome encolhe antes de empurrar o selo para fora');
   assert.equal(name(card.cardLayout(cardInput({ badge: 'official' }))).badge, 'official');
+  assert.equal(name(card.cardLayout(cardInput({ badge: 'paid' }))).badge, 'paid');
 });
 
 test('cartão do convite: o selo fica a seguir ao nome, com ~0,9× a letra, e os dois centram-se juntos', () => {
@@ -147,16 +148,34 @@ test('cartão do convite: o selo fica a seguir ao nome, com ~0,9× a letra, e os
   assert.equal(left.textX, 100);
 });
 
-test('cartão do convite: o desenho do selo é o do VerifiedBadge (azul, ou coral na conta oficial)', () => {
+test('cartão do convite: o desenho e as cores do selo são os do VerifiedBadge (coral no verificado e na oficial, azul só no pago)', () => {
   const seal = /'(M22[^']+)'/.exec(read('components/VerifiedBadge.tsx'))[1];
-  const blue = card.sealSvg('verified', 59);
-  assert.ok(blue.includes(seal) && blue.includes('#1d9bf0') && blue.includes('width="59"'));
-  const off = card.sealSvg('official', 59);
-  assert.ok(off.includes('url(#off)') && off.includes('#d6334f') && !off.includes('#1d9bf0'));
+  const coral = '<linearGradient id="seal-coral" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff6b81"/><stop offset="1" stop-color="#d6334f"/></linearGradient>';
+  for (const tier of ['verified', 'official']) {
+    const s = card.sealSvg(tier, 59);
+    assert.ok(s.includes(seal) && s.includes('width="59"'), tier);
+    assert.ok(s.includes('fill="url(#seal-coral)"') && s.includes(coral), `${tier}: coral`);
+    assert.ok(!s.includes('#1d9bf0'), `${tier}: sem azul`);
+  }
+  const paid = card.sealSvg('paid', 59);
+  assert.ok(paid.includes(seal) && paid.includes('fill="#1d9bf0"') && paid.includes('width="59"'));
+  assert.ok(!paid.includes('linearGradient') && !paid.includes('#ff6b81'), 'pago: só azul');
   // Os dois pintores (Skia e canvas) usam o mesmo lugar e o mesmo desenho.
   for (const f of ['lib/inviteCardImage.ts', 'lib/inviteCardImage.web.ts']) {
     const s = read(f);
     assert.match(s, /badgePlace\(t, w, size\)/, f);
     assert.match(s, /sealSvg\(t\.badge, b\.size\)/, f);
   }
+});
+
+test('Ajuda: «O que querem dizer as cores do selo?» (vermelho do Txillapp, azul da verificação paga quando existir)', () => {
+  const help = read('app/help.tsx');
+  const m = /\{ q: 'O que querem dizer as cores do selo\?', a: '([^']+)' \}/.exec(help);
+  assert.ok(m, 'a pergunta está na Ajuda');
+  const a = m[1];
+  assert.match(a, /vermelho[^.]*Txillapp[^.]*mérito[^.]*pedido de verificação foi aceite/);
+  assert.match(a, /conta oficial do Txillapp também tem o selo vermelho/);
+  assert.match(a, /azul é o da verificação paga, quando existir\./);
+  // Não promete nem vende nada: nada de preços, comprar ou subscrever já.
+  assert.doesNotMatch(a, /compra|preço|subscreve|Txills|loja/i);
 });

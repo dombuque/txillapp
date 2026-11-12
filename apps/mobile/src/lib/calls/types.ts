@@ -1,6 +1,6 @@
 /** Tipos das chamadas 1:1 (voz e vídeo). O contrato do servidor está em ./api.ts. */
 
-export interface CallPeer { username: string; displayName: string; hasAvatar: boolean; /** Selo de verificado (o mesmo par dos posts e do perfil). */ verified?: boolean; verifiedTier?: 'verified' | 'official' | null }
+export interface CallPeer { username: string; displayName: string; hasAvatar: boolean; /** Selo de verificado (o mesmo par dos posts e do perfil). */ verified?: boolean; verifiedTier?: 'verified' | 'official' | 'paid' | null }
 
 export interface IceServer { urls: string | string[]; username?: string; credential?: string }
 
