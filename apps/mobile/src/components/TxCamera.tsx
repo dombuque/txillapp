@@ -11,6 +11,7 @@ import {
   activePill, bestMatch, browserKind, classifyCameraError, clock, coverCrop, exposureLabel, exposureValue, fallbackConstraints, ncc,
   permissionSteps, photoUpgrade, pickRecorderType, readCaps, recorderFile, retryWithFallback, sensorRatioFor, tapToPoint, videoBitrate,
   videoCropToPhoto, zoomLabel, zoomLimits, zoomPills, zoomPlan, type CamCaps, type CamProblem, type Rect,
+  freshVideoFor, nextVideo, viewTransform,
 } from '@/lib/webCamera';
 import { useAuth } from '@/lib/auth';
 import { POST_RATIO_DEFAULT, POST_RATIO_MAX, POST_RATIO_MIN } from '@/lib/postAspect';
@@ -826,7 +827,15 @@ export function TxCamera({
       const up = t ? photoUpgrade(t.getCapabilities?.() as never, t.getSettings?.(), ratio) : null;
       if (up && t) await t.applyConstraints(up);
     } catch { /* o aparelho não aceita: fica como está */ }
-    const v = video.current;
+    let v = video.current;
+    // Outra câmara (virar para a frontal, ou o plano B): um <video> novo em vez de trocar o srcObject do mesmo. O Safari do
+    // iPhone guardava no elemento o tamanho e a rotação do vídeo anterior (a frontal aparecia pequena, ao meio).
+    if (v && freshVideoFor(v.srcObject, s)) {
+      lastDims.current = '';
+      setVkey((n) => n + 1);
+      v = await nextVideo(() => video.current, v);
+      if (seq !== startSeq.current) return;
+    }
     if (v) {
       if (v.srcObject !== s) v.srcObject = s;
       const playing = v.play().catch(() => undefined);
@@ -1311,8 +1320,9 @@ export function TxCamera({
   const retake = () => { pending.current = null; renderSeq.current += 1; shotId.current += 1; hqJob.current = null; setReview(null); setFreeCrop(false); };
 
   const left = MAX_VIDEO_S - seconds;
-  const mirror = facing === 'user' ? 'scaleX(-1)' : 'none';
   const fill = { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover' };
+  /** A caixa do visor à volta do <video>: é ela que leva o espelho, o zoom digital e o filtro. */
+  const VIEW_BOX = { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', overflow: 'hidden' };
   const bottomPad = Math.max(insets.bottom, 14) + 6;
   // Flash a sério (ImageCapture), lanterna, ou, na câmara da frente, o ecrã como flash. Sem nada disto, não aparece.
   const showFlash = canTorch || facing === 'user' || caps.flash;
@@ -1382,10 +1392,17 @@ export function TxCamera({
           },
         },
         // playsinline + muted (iPhone: sem isto o vídeo abre em ecrã inteiro ou não arranca); cover a encher o visor.
-        dom('video', {
-          key: `v${vkey}`, ref: videoRef, playsInline: true, muted: true, autoPlay: true, disablePictureInPicture: true, onResize: onVideoResize, 'aria-hidden': true,
-          style: { ...fill, transform: `${mirror === 'none' ? '' : mirror + ' '}scale(${digital})`, filter: lookCss(LOOKS[look]), visibility: ready ? 'visible' : 'hidden', transition: 'filter 180ms' },
-        }),
+        // O espelho (câmara da frente), o zoom digital e o filtro ficam numa caixa à volta do <video>, não nele: no iPhone,
+        // com o vídeo da frontal (que chega rodado) transformado, o Safari deixava de aplicar o object-fit: cover e a imagem
+        // ficava num retângulo pequeno ao meio (~56%), com preto à volta.
+        dom(
+          'div',
+          { key: 'vbox', style: { ...VIEW_BOX, ...viewTransform(facing === 'user', digital), filter: lookCss(LOOKS[look]), visibility: ready ? 'visible' : 'hidden', transition: 'filter 180ms' } },
+          dom('video', {
+            key: `v${vkey}`, ref: videoRef, playsInline: true, muted: true, autoPlay: true, disablePictureInPicture: true, onResize: onVideoResize, 'aria-hidden': true,
+            style: fill,
+          }),
+        ),
         // O quadrado do foco (amarelo, como na câmara do iPhone): encolhe até ao ponto e apaga-se.
         focusAt && dom('div', { key: `f${focusAt.k}`, style: { position: 'absolute', left: focusAt.x - 38, top: focusAt.y - 38, width: 76, height: 76, borderRadius: 4, border: '1.5px solid #ffd60a', boxShadow: '0 0 0 1px rgba(0,0,0,0.2)', pointerEvents: 'none', zIndex: 3, animation: 'txfocus 1200ms ease-out forwards' } }),
         focusAt && dom('style', { key: 'fk' }, '@keyframes txfocus{0%{transform:scale(1.45);opacity:0}14%{transform:scale(1);opacity:1}24%{transform:scale(1.04)}34%{transform:scale(1)}75%{opacity:1}100%{opacity:0}}'),
