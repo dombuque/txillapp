@@ -258,13 +258,15 @@ export class GroupsService {
     const place = await this.chat.validateOutgoing(me, msg);
     const id = uuidv7();
     const spot = this.chat.placeFields(msg);
-    await this.pool.query(
+    const ins = await this.pool.query(
       // Mensagens temporárias ligadas no grupo: leva `expires_at` (criação + duração). Só se responde a uma que ainda existe.
-      `INSERT INTO social.messages (id, group_id, sender_id, body, kind, media_id, duration_ms, waveform, lat, lng, view_once, reply_to, place_name, place_address, gif, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $12, (SELECT r.id FROM social.messages r WHERE r.id = $11::uuid AND r.group_id = $2 AND r.deleted_at IS NULL AND r.kind <> 'system' AND ${notExpired('r')}), $13, $14, $15::jsonb, ${expiresFor('groups', '$2')})`,
+      `INSERT INTO social.messages (id, group_id, sender_id, body, kind, media_id, duration_ms, waveform, lat, lng, view_once, reply_to, place_name, place_address, gif, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $12, (SELECT r.id FROM social.messages r WHERE r.id = $11::uuid AND r.group_id = $2 AND r.deleted_at IS NULL AND r.kind <> 'system' AND ${notExpired('r')}), $13, $14, $15::jsonb, ${expiresFor('groups', '$2')}) RETURNING expires_at`,
       [id, groupId, me, spot.body, msg.kind, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place?.lat ?? null, place?.lng ?? null, msg.replyTo ?? null, !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice' || msg.kind === 'video'), spot.name, spot.address, msg.kind === 'gif' && msg.gif ? JSON.stringify(msg.gif) : null],
     );
     await this.access.fanOut(groupId, me, id, msg.kind === 'text' ? 'enviou uma mensagem' : msg.kind === 'image' ? 'enviou uma foto' : msg.kind === 'video' ? 'enviou um vídeo' : msg.kind === 'voice' ? 'enviou uma mensagem de voz' : msg.kind === 'sticker' ? 'enviou um sticker' : msg.kind === 'gif' ? 'enviou um GIF' : msg.kind === 'location' ? 'partilhou a localização' : 'partilhou uma publicação');
-    return { id, kind: msg.kind };
+    // Com as temporárias ligadas, a app sabe logo quando a mensagem enviada desaparece (envio otimista, lib/chatPending).
+    const exp = ins.rows[0]?.expires_at as Date | string | null | undefined;
+    return { id, kind: msg.kind, expiresAt: exp ? new Date(exp).toISOString() : null };
   }
 
   /**

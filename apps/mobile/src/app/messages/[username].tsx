@@ -1,9 +1,8 @@
 import { BackButton } from '@/components/BackButton';
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
-import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { Alert, AppState, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
@@ -12,7 +11,10 @@ import { ChatComposer } from '@/components/ChatComposer';
 import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus, OnlineDot } from '@/components/ChatHeader';
 import { ChatEditBar } from '@/components/ChatEditBar';
 import { confirmClear, TtlBadge, TtlSheet, useLiveItems } from '@/components/ChatTemporary';
+import { ChatScreen, useComposerBottom } from '@/components/ChatScreen';
 import { ChatList } from '@/components/ChatList';
+import { OnceViewer } from '@/components/OnceViewer';
+import type { OnceContent } from '@/lib/onceView';
 import { NoteDot, PeerNoteBubble } from '@/components/ChatPeerNote';
 import { NoteView } from '@/components/Notes';
 import { MessageMenu, NotFollowingNote, RequestBar, saveEdit, sendTyping, stopLiveShare } from '@/components/ChatParts';
@@ -29,6 +31,8 @@ import { activeLabel } from '@/lib/chatTimeline';
 import { TTL_TITLE, ttlBadgeLabel } from '@/lib/chatTemporary';
 import { useTyping } from '@/lib/realtime';
 import { useChatVisible } from '@/lib/chatVisible';
+import { blockingError, threadErrorText } from '@/lib/chatErrors';
+import { clearPending } from '@/lib/chatPending';
 import { colors } from '@/lib/theme';
 
 /** Conversa com uma pessoa, igual à do site: tempo real, "a escrever…", "Visto", citações, reações, apagar, pedidos de mensagem. */
@@ -36,6 +40,8 @@ export default function Thread() {
   const { username = '' } = useLocalSearchParams<{ username: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Com o teclado aberto a barra de escrever fica colada a ele (sem a margem do sistema por baixo).
+  const composerBottom = useComposerBottom(insets.bottom);
   const qc = useQueryClient();
   const { user } = useAuth();
   const [err, setErr] = useState('');
@@ -44,7 +50,7 @@ export default function Thread() {
   const [closeTick, setCloseTick] = useState(0);
   const composerOpen = useRef(false);
   const onComposerOpen = useCallback((o: boolean) => { composerOpen.current = o; }, []);
-  const [viewing, setViewing] = useState<{ url: string | null; body: string } | null>(null);
+  const [viewing, setViewing] = useState<OnceContent | null>(null);
   // O menu da mensagem (segurar) e, se veio da ação "Apagar" do leitor de ecrã, já na confirmação.
   const [menuFor, setMenuFor] = useState<{ m: Msg; start?: 'delete' } | null>(null);
   // A minha mensagem que estou a editar (a barra de escrever passa a ser a de editar).
@@ -56,7 +62,8 @@ export default function Thread() {
   const typing = useTyping(username);
   const typingSent = useRef(0);
   // Por ler ao abrir (da lista de conversas, antes de a conversa as marcar como lidas): para o "Mensagens novas".
-  const unread = useMemo(() => qc.getQueryData<Conversation[]>(['chat-list'])?.find((c) => c.username === username)?.unread ?? 0, [username]); // eslint-disable-line react-hooks/exhaustive-deps
+  const listed = useMemo(() => qc.getQueryData<Conversation[]>(['chat-list'])?.find((c) => c.username === username), [username]); // eslint-disable-line react-hooks/exhaustive-deps
+  const unread = listed?.unread ?? 0;
 
   // Só marca como lidas com a conversa mesmo à vista; ao voltar a ela (ecrã, app ou janela), pede outra vez para as ler.
   const visible = useChatVisible(() => void qc.invalidateQueries({ queryKey: ['chat-thread', username] }));
@@ -72,7 +79,6 @@ export default function Thread() {
     retryDelay: (n) => Math.min(400 * 2 ** n, 3000),
     staleTime: 15_000,
   });
-  const qs = { isError: q.isError as boolean, isFetching: q.isFetching as boolean, refetch: () => q.refetch() };
   const first = q.data?.pages[0];
   const person = first?.person;
   const firstName = person?.displayName.split(' ')[0] ?? '';
@@ -158,7 +164,7 @@ export default function Thread() {
   async function openOnce(m: Msg) {
     try {
       const r = await api.chatOpen(m.id);
-      setViewing({ url: abs(r.mediaUrl) ?? null, body: r.body });
+      setViewing({ kind: r.kind, url: abs(r.mediaUrl) ?? null, body: r.body });
       void q.refetch();
     } catch (e) {
       Alert.alert('Não consegui abrir', (e as Error).message);
@@ -192,6 +198,7 @@ export default function Thread() {
   /** Limpar a conversa só para mim: some já daqui; a conversa fica na lista, vazia. */
   function clearChat() {
     confirmClear(false, () => {
+      clearPending(`u:${username}`);
       qc.setQueryData<InfiniteData<ChatThread>>(['chat-thread', username], (d) => d && { ...d, pages: d.pages.slice(0, 1).map((p) => ({ ...p, items: [], nextCursor: null })), pageParams: d.pageParams.slice(0, 1) });
       void api.chatClearKeep(username)
         .then(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); void qc.invalidateQueries({ queryKey: ['chat-unread'] }); })
@@ -199,14 +206,18 @@ export default function Thread() {
     });
   }
 
-  if (q.isError) {
+  // Com a conversa já carregada, uma falha ao pô-la em dia não a tapa (lib/chatErrors).
+  if (blockingError(q.isError, !!first)) {
+    const status = (q.error as { status?: number } | null)?.status;
     return (
       <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
         <View style={st.header}><BackButton fallback="/messages" style={{ width: 44, height: 44, borderRadius: 22 }} /></View>
         <View style={{ marginHorizontal: 24, marginTop: 64, alignItems: 'center' }}>
           <Icon name="alert" size={44} color={colors.zinc300} />
           <Text style={{ marginTop: 12, fontSize: 20, fontWeight: '700', color: colors.zinc900, textAlign: 'center' }}>Não consegui abrir esta conversa</Text>
-          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/messages' as never))} style={{ marginTop: 16, minHeight: 44, justifyContent: 'center' }}><Text style={{ fontWeight: '600', color: colors.brand, fontSize: 16 }}>Voltar</Text></Pressable>
+          <Text style={st.failText}>{threadErrorText(status)}</Text>
+          {status !== 404 && status !== 403 ? <Pressable onPress={() => void q.refetch()} disabled={q.isFetching} style={[st.failBtn, q.isFetching && { opacity: 0.6 }]} accessibilityRole="button"><Text style={st.failBtnText}>{q.isFetching ? 'A tentar…' : 'Tentar outra vez'}</Text></Pressable> : null}
+          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/messages' as never))} style={{ marginTop: 8, minHeight: 44, justifyContent: 'center' }}><Text style={{ fontWeight: '600', color: colors.brand, fontSize: 16 }}>Voltar</Text></Pressable>
         </View>
       </View>
     );
@@ -224,14 +235,15 @@ export default function Thread() {
   const newPostsGo = person && line === 'newPosts' ? newPostsTarget(newPosts, person.username) : null;
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} behavior="padding">
+    <ChatScreen style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <ChatHeader
         raised={raised}
         onOpen={openProfile}
         openLabel={person ? `Ver o perfil de ${person.displayName}${ttl ? `. ${ttlBadgeLabel(ttl)}` : ''}` : 'Conversa'}
         avatar={
           <View>
-            <Avatar name={person?.displayName ?? username} username={avatarOf} size={36} />
+            {/* Enquanto carrega, o nome e a foto vêm da lista de conversas (o cabeçalho não aparece vazio e depois salta). */}
+            <Avatar name={person?.displayName ?? listed?.displayName ?? username} username={person ? avatarOf : listed?.hasAvatar ? username : undefined} size={36} />
             {online ? <OnlineDot size={36} /> : null}
             {ttl ? <TtlBadge size={36} /> : null}
             {bubble ? <NoteDot visible={!fold.open} reduceMotion={reduceMotion} /> : null}
@@ -241,7 +253,7 @@ export default function Thread() {
         overlay={person && bubble ? (
           <PeerNoteBubble bubble={bubble} name={person.displayName} online={!!online} open={fold.open} reduceMotion={reduceMotion} onPress={() => (bubble.kind === 'bio' ? openProfile?.() : setNoteOpen(true))} />
         ) : null}
-        title={person?.displayName ?? ''}
+        title={person?.displayName ?? listed?.displayName ?? ''}
         subtitleAction={person && newPostsGo ? { label: newPostsLabel(newPosts?.count, person.displayName), onPress: () => router.push(newPostsGo as never) } : undefined}
         subtitle={
           line === 'typing' ? <HeaderStatus text="a escrever…" tone="typing" />
@@ -263,18 +275,12 @@ export default function Thread() {
         }
       />
 
-      {qs.isError && items.length === 0 ? (
-        <View style={st.failBox}>
-          <Text style={st.failTitle}>Não consegui abrir esta conversa</Text>
-          <Text style={st.failText}>Verifica a internet e tenta outra vez.</Text>
-          <Pressable onPress={() => void qs.refetch()} style={st.failBtn} accessibilityRole="button"><Text style={st.failBtnText}>Tentar outra vez</Text></Pressable>
-        </View>
-      ) : null}
       <ChatList
         key={username}
+        pendingKey={`u:${username}`}
         onTouch={() => { if (composerOpen.current) setCloseTick((t) => t + 1); }}
         items={items}
-        loading={q.isLoading || (qs.isError && items.length === 0 && qs.isFetching)}
+        loading={q.isLoading}
         hasNext={!!q.hasNextPage}
         fetchNext={() => q.fetchNextPage()}
         fetchingNext={q.isFetchingNextPage}
@@ -310,7 +316,7 @@ export default function Thread() {
         <ChatEditBar
           key={editing.id}
           original={editing.body}
-          bottom={insets.bottom}
+          bottom={composerBottom}
           onCancel={() => setEditing(null)}
           onSave={async (text) => {
             await saveEdit(qc, ['chat-thread', username], editing.id, text);
@@ -318,7 +324,7 @@ export default function Thread() {
           }}
         />
       ) : (
-        <ChatComposer closeTick={closeTick} onOpenChange={onComposerOpen} username={username} person={person} onSent={() => { void q.refetch(); remindPush('sent', firstName || person?.displayName); }} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} onTyping={onTyping} />
+        <ChatComposer closeTick={closeTick} onOpenChange={onComposerOpen} username={username} person={person} onSent={() => { void q.refetch(); remindPush('sent', firstName || person?.displayName); }} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onTyping={onTyping} />
       )}
       {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
 
@@ -357,23 +363,16 @@ export default function Thread() {
           onClose={() => setNoteOpen(false)}
         />
       )}
-      {viewing && (
-        <Pressable onPress={() => setViewing(null)} style={st.viewer} accessibilityLabel="Fechar">
-          {viewing.url ? <Image source={{ uri: viewing.url }} style={{ flex: 1 }} contentFit="contain" /> : <Text style={{ color: '#fff', fontSize: 20, textAlign: 'center', padding: 24 }}>{viewing.body}</Text>}
-          <Text style={{ color: '#fff', textAlign: 'center', paddingBottom: 32 }}>Toca para fechar. Esta mensagem não volta a abrir.</Text>
-        </Pressable>
-      )}
-    </KeyboardAvoidingView>
+      {/* Ver uma vez: foto, vídeo, voz ou texto (components/OnceViewer). */}
+      {viewing && <OnceViewer content={viewing} onClose={() => setViewing(null)} />}
+    </ChatScreen>
   );
 }
 
 const st = StyleSheet.create({
-  failBox: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 24 },
-  failTitle: { fontSize: 18, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
   failText: { marginTop: 4, fontSize: 15, color: colors.zinc600, textAlign: 'center' },
   failBtn: { marginTop: 14, height: 44, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center' },
   failBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  viewer: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: '#000', justifyContent: 'center', zIndex: 50 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 6 },
   foot: { borderTopWidth: 1, borderTopColor: colors.zinc100, paddingHorizontal: 24, paddingTop: 16, textAlign: 'center', fontSize: 14, color: colors.zinc600 },
   err: { position: 'absolute', left: 0, right: 0, bottom: 88, textAlign: 'center', fontSize: 14, color: colors.red600 },

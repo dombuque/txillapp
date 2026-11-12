@@ -32,7 +32,8 @@ export interface GroupSendBody {
 export const gruposApi = {
   list: (): Promise<GroupSummary[]> => raw('/chat/groups'),
   thread: (id: string, cursor?: string, read = true): Promise<GroupThread> => raw(`/chat/groups/${id}${threadQuery(cursor, read)}`),
-  send: (id: string, msg: GroupSendBody): Promise<{ id: string }> =>
+  /** `expiresAt`: com as mensagens temporárias ligadas, quando a mensagem desaparece (null = fica). */
+  send: (id: string, msg: GroupSendBody): Promise<{ id: string; expiresAt?: string | null }> =>
     trackOk(raw(`/chat/groups/${id}/messages`, post(msg)), 'message_send', () => {
       if (msg.kind === 'post') track('share', { target: 'chat' });
       return { kind: msg.kind ?? 'text', group: true };

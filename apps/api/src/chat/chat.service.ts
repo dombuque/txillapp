@@ -959,11 +959,14 @@ export class ChatService {
   private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null, waveform: string | null, place: { lat: number; lng: number } | null, extra: { once?: boolean; liveMinutes?: number | null; giftTx?: string; giftAmount?: number; replyTo?: string; placeName?: string | null; placeAddress?: string | null; gif?: GifInput } = {}) {
     const conv = await this.conversation(me, other, true);
     const id = uuidv7();
-    await this.pool.query(
+    const ins = await this.pool.query(
       // Mensagens temporárias ligadas: leva `expires_at` (criação + duração). Só se responde a uma que ainda existe.
-      `INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms, waveform, lat, lng, view_once, live_until, gift_tx, gift_amount, reply_to, place_name, place_address, gif, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CASE WHEN $13::int IS NULL THEN NULL ELSE now() + ($13::int * interval '1 minute') END, $14, $15, (SELECT r.id FROM social.messages r WHERE r.id = $16::uuid AND r.conversation_id = $2 AND r.deleted_at IS NULL AND r.kind <> 'system' AND ${notExpired('r')}), $17, $18, $19::jsonb, ${expiresFor('conversations', '$2')})`,
+      `INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms, waveform, lat, lng, view_once, live_until, gift_tx, gift_amount, reply_to, place_name, place_address, gif, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CASE WHEN $13::int IS NULL THEN NULL ELSE now() + ($13::int * interval '1 minute') END, $14, $15, (SELECT r.id FROM social.messages r WHERE r.id = $16::uuid AND r.conversation_id = $2 AND r.deleted_at IS NULL AND r.kind <> 'system' AND ${notExpired('r')}), $17, $18, $19::jsonb, ${expiresFor('conversations', '$2')}) RETURNING expires_at`,
       [id, conv, me, body, kind, storyMediaId, mediaId, durationMs, waveform, place?.lat ?? null, place?.lng ?? null, !!extra.once, extra.liveMinutes ?? null, extra.giftTx ?? null, extra.giftAmount ?? null, extra.replyTo ?? null, extra.placeName ?? null, extra.placeAddress ?? null, extra.gif ? JSON.stringify(extra.gif) : null],
     );
+    // Com as temporárias ligadas, a app sabe logo quando a mensagem enviada desaparece (envio otimista, lib/chatPending).
+    const exp = ins.rows[0]?.expires_at as Date | string | null | undefined;
+    const expiresAt = exp ? new Date(exp).toISOString() : null;
     await this.pool.query(
       `UPDATE social.conversations SET last_message_at = now(),
               read_a = CASE WHEN user_a = $2 THEN $3::uuid ELSE read_a END, read_b = CASE WHEN user_b = $2 THEN $3::uuid ELSE read_b END WHERE id = $1`,
@@ -979,13 +982,13 @@ export class ChatService {
     this.events.echo(me, { type: 'message', from: await this.usernameOf(other) });
     const theirs = await this.relationOf(other, me, conv);
     // Quem recusou a conversa não recebe avisos dela.
-    if (theirs.hidden) return { id, kind };
+    if (theirs.hidden) return { id, kind, expiresAt };
     const from = await this.usernameOf(me);
     this.events.emit(other, { type: 'message', from });
     // Também no telemóvel, sem o texto da mensagem.
     const sender = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0].display_name as string;
     const what: Partial<Record<MessageKind, string>> = { story_reply: 'respondeu ao teu mimo', story_reaction: 'reagiu ao teu mimo', image: 'enviou-te uma foto', video: 'enviou-te um vídeo', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', gif: 'enviou-te um GIF', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo', gift: 'enviou-te um presente' };
     if (!this.events.isActive(other, `u:${from}`)) void this.push.send(other, { title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : extra.once ? 'enviou-te uma mensagem de visualização única' : extra.liveMinutes ? 'está a partilhar a localização em direto' : (what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' });
-    return { id, kind };
+    return { id, kind, expiresAt };
   }
 }

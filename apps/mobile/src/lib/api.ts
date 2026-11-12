@@ -667,7 +667,7 @@ export const api = {
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),
   /** `read: false`: só os dados, sem marcar como lida (pré-carregar, ou a conversa está por trás de outro ecrã). */
   chatThread: (username: string, cursor?: string, read = true): Promise<ChatThread> => raw(`/chat/with/${encodeURIComponent(username)}${threadQuery(cursor, read)}`),
-  chatSend: (username: string, msg: { body?: string; kind?: MsgKind; mediaId?: string; instantId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; name?: string; address?: string; liveMinutes?: 15 | 60 | 480; once?: boolean; replyTo?: string; gif?: import('./gifs').ChatGif }): Promise<{ id: string }> =>
+  chatSend: (username: string, msg: { body?: string; kind?: MsgKind; mediaId?: string; instantId?: string; durationMs?: number; waveform?: string; lat?: number; lng?: number; name?: string; address?: string; liveMinutes?: 15 | 60 | 480; once?: boolean; replyTo?: string; gif?: import('./gifs').ChatGif }): Promise<{ id: string; expiresAt?: string | null }> =>
     trackOk(raw(`/chat/with/${encodeURIComponent(username)}`, post(msg)), 'message_send', () => {
       if (msg.kind === 'post') track('share', { target: 'chat' });
       return { kind: msg.kind ?? 'text', group: false, ...(msg.once ? { once: true } : {}) };

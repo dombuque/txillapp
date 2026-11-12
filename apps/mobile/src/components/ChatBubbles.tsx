@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { createElement, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
+import { Animated, Easing, Linking, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
@@ -26,6 +26,7 @@ import { HOLD_MS, bubbleA11yActions, deletedText, isSent, recentlyHeld } from '@
 import { canSwipeReply } from '@/lib/replySwipe';
 import { liveShareEnded } from '@/lib/sendLocation';
 import { colors } from '@/lib/theme';
+import { chatSegments, type ChatSeg } from '@/lib/chatLinks';
 
 /**
  * O texto das bolhas só é selecionável no computador (rato). No telemóvel (app e site) segurar a bolha abre o menu da
@@ -267,7 +268,7 @@ export function MediaFull({ url, video, onClose }: { url: string; video: boolean
 }
 
 /** Leitor de vídeo da conversa: dentro da bolha (sem tocar sozinho) ou no visor. Controlos nativos: play, pausa, som e barra. */
-function ChatVideoPlayer({ url, autoPlay = false, inModal = false }: { url: string; autoPlay?: boolean; inModal?: boolean }) {
+export function ChatVideoPlayer({ url, autoPlay = false, inModal = false }: { url: string; autoPlay?: boolean; inModal?: boolean }) {
   if (Platform.OS === 'web') {
     return createElement('video', {
       src: url, controls: true, playsInline: true, preload: 'metadata', autoPlay,
@@ -373,6 +374,34 @@ function SideAvatar({ who }: { who: Who }) {
     <Pressable onPress={() => router.push(`/u/${who.username}` as never)} hitSlop={8} accessibilityRole="link" accessibilityLabel={`Perfil de ${who.name}`}>
       {avatar}
     </Pressable>
+  );
+}
+
+/**
+ * O texto de uma bolha (ou a legenda de uma foto) com as ligações e as @menções a funcionar (lib/chatLinks): as do
+ * Txillapp abrem dentro da app, as outras no browser, @username abre o perfil. Nas minhas (fundo da marca) a branco
+ * sublinhado; nas da outra pessoa na cor da marca. Segurar uma ligação abre o menu da mensagem, como no resto da bolha.
+ */
+function ChatText({ text, mine, style, onLongPress }: { text: string; mine: boolean; style: StyleProp<TextStyle>; onLongPress?: () => void }) {
+  const router = useRouter();
+  const segs = useMemo(() => chatSegments(text), [text]);
+  if (segs.length === 1 && segs[0].t === 'text') return <Text selectable={SELECTABLE} style={style}>{text}</Text>;
+  const link: TextStyle = mine ? { color: '#fff', textDecorationLine: 'underline', fontWeight: '600' } : { color: colors.brand, textDecorationLine: 'underline', fontWeight: '600' };
+  const open = (s: ChatSeg) => {
+    if (s.t === 'mention') router.push(`/u/${s.username}` as never);
+    else if (s.t === 'url') {
+      if (s.path) router.push(s.path as never);
+      else void Linking.openURL(s.href).catch(() => undefined);
+    }
+  };
+  return (
+    <Text selectable={SELECTABLE} style={style}>
+      {segs.map((s, i) => (s.t === 'text' ? s.s : (
+        <Text key={i} onPress={() => open(s)} onLongPress={onLongPress} style={s.t === 'mention' ? { fontWeight: '700', color: mine ? '#fff' : colors.brand } : link} accessibilityRole="link">
+          {s.s}
+        </Text>
+      )))}
+    </Text>
   );
 }
 
@@ -532,7 +561,7 @@ export function Bubble({
             </View>
           </Pressable>
         )}
-        {m.kind === 'image' && m.body ? <Text style={[st.text, { paddingHorizontal: 13, paddingVertical: 8, color: ink }]}>{m.body}</Text> : null}
+        {m.kind === 'image' && m.body ? <ChatText text={m.body} mine={mine} style={[st.text, { paddingHorizontal: 13, paddingVertical: 8, color: ink }]} onLongPress={hold.onLongPress} /> : null}
         {full && <MediaFull url={url} video={m.kind === 'video'} onClose={() => setFull(false)} />}
       </View>
     );
@@ -552,7 +581,7 @@ export function Bubble({
             </View>
           </View>
         )}
-        <View style={[st.bubble, tone, radius, dimStyle]}><Text selectable={SELECTABLE} style={[st.text, { color: ink }]}>{shown}</Text></View>
+        <View style={[st.bubble, tone, radius, dimStyle]}><ChatText text={shown} mine={mine} style={[st.text, { color: ink }]} onLongPress={hold.onLongPress} /></View>
       </View>
     );
   }
@@ -677,7 +706,8 @@ export function Bubble({
         <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 }}>
           <Icon name="alert" size={14} color={colors.red600} />
           <Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600 }}>Não enviada</Text>
-          <Pressable {...hold} onPress={() => onRetry(m)} hitSlop={10}><Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600, textDecorationLine: 'underline' }}>Tentar de novo</Text></Pressable>
+          <Pressable {...hold} onPress={() => onRetry(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel="Tentar enviar de novo"><Text style={st.failLink}>Tentar de novo</Text></Pressable>
+          {onDelete ? <Pressable {...hold} onPress={() => onDelete(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel="Apagar a mensagem que não foi enviada"><Text style={[st.failLink, { color: colors.zinc600 }]}>Apagar</Text></Pressable> : null}
         </View>
       ) : m.state === 'sending' ? (
         <Text style={st.time}>A enviar…</Text>
@@ -728,6 +758,9 @@ const st = StyleSheet.create({
   avatar: { position: 'absolute', left: -(AVATAR + AVATAR_GAP), bottom: 0 },
   meta: { marginTop: 3, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6 },
   time: { fontSize: 11, lineHeight: 14, color: colors.zinc500 },
+  // "Tentar de novo" e "Apagar" de uma que falhou: texto pequeno, mas com 32 pt de altura e o hitSlop (passa os 44).
+  failBtn: { minHeight: 32, justifyContent: 'center' },
+  failLink: { fontSize: 12, fontWeight: '600', color: colors.red600, textDecorationLine: 'underline' },
   ticks: { fontSize: 11, lineHeight: 14, fontWeight: '700', letterSpacing: -2.5, paddingRight: 2.5, color: colors.zinc500 },
   caption: { marginBottom: 4, paddingHorizontal: 6, fontSize: 12, lineHeight: 16, color: colors.zinc500 },
   quote: { maxWidth: '78%', marginBottom: 3, flexDirection: 'row', alignItems: 'stretch', gap: 6, paddingHorizontal: 4 },

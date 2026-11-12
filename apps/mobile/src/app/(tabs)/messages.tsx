@@ -23,6 +23,7 @@ import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { listTime, rowLabel, unreadBadge } from '@/lib/inboxRow';
 import { emptyPreview } from '@/lib/chatTemporary';
+import { inboxFailed } from '@/lib/chatErrors';
 
 import { callLabel } from '@/components/ChatBubbles';
 import { GroupCard, groupCardData } from '@/components/groups/GroupCard';
@@ -43,7 +44,7 @@ function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, g
   if (m.kind === 'image') return `${you}${m.body || 'Foto'}`;
   if (m.kind === 'voice') return `${you}Mensagem de voz`;
   if (m.kind === 'video') return `${you}Vídeo`;
-  if (m.kind === 'post') return `${you}Partilhou uma publicação`;
+  if (m.kind === 'post') return m.fromMe ? 'Partilhaste uma publicação' : 'Partilhou uma publicação';
   if (m.kind === 'gift') return `${m.fromMe ? 'Tu: ' : ''}Presente`;
   if (m.kind === 'sticker') return `${you}Sticker`;
   if (m.kind === 'gif') return `${you}GIF`;
@@ -305,6 +306,8 @@ export default function Messages() {
   const known = new Set((direct.data ?? []).map((c) => c.username.toLowerCase()));
   const strangers = term ? (people.data ?? []).filter((p) => !known.has(p.username.toLowerCase())) : [];
   const loading = direct.isLoading || groups.isLoading;
+  const failed = inboxFailed(view, searching, { isError: direct.isError, hasData: !!direct.data }, { isError: groups.isError, hasData: !!groups.data });
+  const retrying = direct.isFetching || groups.isFetching;
 
   const pull = usePullToRefresh(async () => { await Promise.all([direct.refetch(), groups.refetch()]); });
   const header = (
@@ -416,7 +419,17 @@ export default function Messages() {
           );
         }}
         ListEmptyComponent={
-          loading ? <Skeleton /> : strangers.length > 0 ? <View /> : (
+          loading ? <Skeleton /> : strangers.length > 0 ? <View /> : failed ? (
+            // Não carregou (sem rede): não é "Ainda sem cochichos" (lib/chatErrors).
+            <View style={styles.empty}>
+              <Icon name="alert" size={44} color={colors.zinc300} />
+              <Text style={styles.emptyTitle}>Não consegui carregar as mensagens</Text>
+              <Text style={styles.emptySub}>Verifica a internet e tenta outra vez.</Text>
+              <Pressable onPress={() => { void direct.refetch(); void groups.refetch(); }} disabled={retrying} style={[styles.newBtn, retrying && { opacity: 0.6 }]} accessibilityRole="button">
+                <Text style={styles.newBtnText}>{retrying ? 'A tentar…' : 'Tentar outra vez'}</Text>
+              </Pressable>
+            </View>
+          ) : (
             <View style={styles.empty}>
               <Icon name={view === 'groups' && !term ? 'users' : 'messages'} size={44} color={colors.zinc300} />
               <Text style={styles.emptyTitle}>{term ? 'Nada com esse nome' : view === 'requests' ? 'Sem pedidos' : view === 'groups' ? 'Ainda não tens TxillGroups' : 'Ainda sem cochichos'}</Text>
@@ -436,7 +449,7 @@ export default function Messages() {
             <View>
               <Text style={styles.others}>OUTRAS PESSOAS</Text>
               {strangers.map((p) => (
-                <Pressable key={p.username} onPress={() => router.push(`/messages/${p.username}` as never)} style={({ pressed }) => [styles.row, { paddingVertical: 10 }, pressed && { backgroundColor: colors.zinc100 }]}>
+                <Pressable key={p.username} onPress={() => router.push(`/messages/${p.username}` as never)} accessibilityRole="button" accessibilityLabel={`Conversar com ${p.displayName}`} style={({ pressed }) => [styles.row, { paddingVertical: 10 }, pressed && { backgroundColor: colors.zinc100 }]}>
                   <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={46} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.name, { fontSize: 16 }]} numberOfLines={1}>{p.displayName}</Text>
@@ -476,7 +489,8 @@ const styles = StyleSheet.create({
   compose: { position: 'absolute', right: 0, top: 2, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   handle: { maxWidth: '54%', fontSize: 20, fontWeight: '800', color: colors.zinc900 },
   search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16, marginBottom: 8 },
-  sBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  // 44 de altura (a da caixa) para o toque chegar aos 44 pt.
+  sBtn: { width: 36, height: 44, alignItems: 'center', justifyContent: 'center' },
   newBtn: { marginTop: 16, height: 44, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
   newBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
   input: { flex: 1, minWidth: 0, fontSize: 16, color: colors.zinc900, padding: 0, outlineStyle: 'none' } as object,

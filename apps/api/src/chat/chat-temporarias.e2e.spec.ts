@@ -107,6 +107,10 @@ describe('mensagens temporárias e limpar conversa (integração)', () => {
     const now = await items(tb, ta);
     near(now.find((m) => m.id === after)!.expiresAt, WEEK);
     expect(now.find((m) => m.id === before)!.expiresAt).toBeNull();
+    // A resposta ao envio já traz o `expiresAt` (o envio otimista da app usa-o: lib/chatPending).
+    const sentNow = (await api().post(`/api/v1/chat/with/${tb.username}`).set(auth(ta)).send({ body: 'com hora de saída' }).expect(201)).body as { id: string; expiresAt: string | null };
+    near(sentNow.expiresAt, WEEK);
+    expect((await items(tb, ta)).find((m) => m.id === sentNow.id)!.expiresAt).toBe(sentNow.expiresAt);
 
     // O outro muda para 24 horas e depois desliga.
     await setTtl(tb, ta, DAY).expect(200);

@@ -1,18 +1,21 @@
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
-import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { abs } from '@/lib/config';
 import { useChatVisible } from '@/lib/chatVisible';
 import { useAuth } from '@/lib/auth';
-import { Alert, KeyboardAvoidingView, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { quoteText, type Msg } from '@/components/ChatBubbles';
 import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus } from '@/components/ChatHeader';
 import { ChatEditBar } from '@/components/ChatEditBar';
 import { confirmClear, TtlBadge, TtlSheet, useLiveItems } from '@/components/ChatTemporary';
 import { TTL_TITLE, ttlBadgeLabel } from '@/lib/chatTemporary';
+import { clearPending } from '@/lib/chatPending';
+import { ChatScreen, useComposerBottom } from '@/components/ChatScreen';
 import { ChatList } from '@/components/ChatList';
+import { OnceViewer } from '@/components/OnceViewer';
+import type { OnceContent } from '@/lib/onceView';
 import { MessageMenu, saveEdit, stopLiveShare } from '@/components/ChatParts';
 import { GroupComposer } from '@/components/GroupComposer';
 import { GroupInfoSheet } from '@/components/GroupSheets';
@@ -22,9 +25,9 @@ import { GroupCover } from '@/components/groups/GroupParts';
 import { PlanPanel } from '@/components/groups/PlanPanel';
 import { GroupCtx, NewPollSheet } from '@/components/groups/PollCard';
 import { PotPanel } from '@/components/groups/PotPanel';
-import { api, type GroupSummary } from '@/lib/api';
+import { api } from '@/lib/api';
 import { gruposApi, type GroupThread } from '@/lib/api.grupos';
-import { dateRange, groupKindOf, kindInfo, type TxillGroupInfo } from '@/lib/api.groups';
+import { dateRange, groupKindOf, kindInfo, type TxillGroupInfo, type TxillGroupSummary } from '@/lib/api.groups';
 import { useDesktopSizes } from '@/lib/desktop';
 import { colors } from '@/lib/theme';
 
@@ -45,6 +48,8 @@ export default function GroupThreadScreen() {
   const { id = '', tab: tabParam, info } = useLocalSearchParams<{ id: string; tab?: string; info?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Com o teclado aberto a barra de escrever fica colada a ele (sem a margem do sistema por baixo).
+  const composerBottom = useComposerBottom(insets.bottom);
   const qc = useQueryClient();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
@@ -62,7 +67,7 @@ export default function GroupThreadScreen() {
   const [closeTick, setCloseTick] = useState(0);
   const composerOpen = useRef(false);
   const onComposerOpen = useCallback((o: boolean) => { composerOpen.current = o; }, []);
-  const [viewing, setViewing] = useState<{ url: string | null; body: string } | null>(null);
+  const [viewing, setViewing] = useState<OnceContent | null>(null);
   const [members, setMembers] = useState(info === '1');
   useEffect(() => { if (info === '1') setMembers(true); }, [info, id]);
   const [polling, setPolling] = useState(false);
@@ -71,7 +76,8 @@ export default function GroupThreadScreen() {
   const [searching, setSearching] = useState(false);
   const [raised, setRaised] = useState(false);
   // Por ler ao abrir (da lista de TxillGroups, antes de a conversa as marcar como lidas): para o "Mensagens novas".
-  const unread = useMemo(() => qc.getQueryData<GroupSummary[]>(['chat-groups'])?.find((g) => g.id === id)?.unread ?? 0, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const listed = useMemo(() => qc.getQueryData<TxillGroupSummary[]>(['chat-groups'])?.find((g) => g.id === id), [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const unread = listed?.unread ?? 0;
   useEffect(() => { if (side && tab === 'plan') setTab('chat'); }, [side, tab]);
 
   // Só marca como lidas com o grupo mesmo à vista; ao voltar a ele (ecrã, app ou janela), pede outra vez para as ler.
@@ -121,7 +127,7 @@ export default function GroupThreadScreen() {
   async function openOnce(m: Msg) {
     try {
       const r = await api.chatOpen(m.id);
-      setViewing({ url: abs(r.mediaUrl) ?? null, body: r.body });
+      setViewing({ kind: r.kind, url: abs(r.mediaUrl) ?? null, body: r.body });
       void q.refetch();
     } catch (e) {
       Alert.alert('Não consegui abrir', (e as Error).message);
@@ -136,6 +142,7 @@ export default function GroupThreadScreen() {
   /** Limpar a conversa do grupo só para mim: some já daqui; o grupo fica na lista com "Sem mensagens". */
   function clearChat() {
     confirmClear(true, () => {
+      clearPending(`g:${id}`);
       qc.setQueryData<InfiniteData<GroupThread>>(['chat-group', id], (d) => d && { ...d, pages: d.pages.slice(0, 1).map((p) => ({ ...p, items: [], nextCursor: null })), pageParams: d.pageParams.slice(0, 1) });
       void gruposApi.clear(id)
         .then(() => { void qc.invalidateQueries({ queryKey: ['chat-groups'] }); void qc.invalidateQueries({ queryKey: ['chat-unread'] }); })
@@ -166,6 +173,7 @@ export default function GroupThreadScreen() {
       ) : (
         <ChatList
           key={id}
+          pendingKey={`g:${id}`}
           onTouch={() => { if (composerOpen.current) setCloseTick((t) => t + 1); }}
           items={items}
           group
@@ -193,7 +201,7 @@ export default function GroupThreadScreen() {
         <ChatEditBar
           key={editing.id}
           original={editing.body}
-          bottom={insets.bottom}
+          bottom={composerBottom}
           onCancel={() => setEditing(null)}
           onSave={async (text) => {
             await saveEdit(qc, ['chat-group', id], editing.id, text);
@@ -201,25 +209,26 @@ export default function GroupThreadScreen() {
           }}
         />
       ) : group && (
-        <GroupComposer closeTick={closeTick} onOpenChange={onComposerOpen} send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} />
+        <GroupComposer pendingKey={`g:${id}`} closeTick={closeTick} onOpenChange={onComposerOpen} send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} />
       )}
     </View>
   );
 
   return (
     <GroupCtx.Provider value={group ? { id, me, admin } : null}>
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} behavior="padding">
+      <ChatScreen style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
         <ChatHeader
           raised={raised || tab !== 'chat'}
           onOpen={group ? () => setMembers(true) : undefined}
           openLabel={group ? `Ver os detalhes de ${group.name}${ttl ? `. ${ttlBadgeLabel(ttl)}` : ''}` : 'TxillGroup'}
+          // Enquanto carrega, o nome e a foto vêm da lista de TxillGroups (o cabeçalho não aparece vazio e depois salta).
           avatar={
             <View>
-              <GroupCover url={group?.avatarUrl ?? group?.coverUrl} kind={groupKindOf(group)} size={36} radius={18} />
+              <GroupCover url={group ? group.avatarUrl ?? group.coverUrl : listed?.avatarUrl ?? listed?.coverUrl} kind={groupKindOf(group ?? listed)} size={36} radius={18} />
               {ttl ? <TtlBadge size={36} /> : null}
             </View>
           }
-          title={group?.name ?? ''}
+          title={group?.name ?? listed?.name ?? ''}
           subtitle={group ? <HeaderStatus text={sub} /> : null}
           actions={group ? <HeaderButton label="Mais opções" onPress={() => setMore(true)}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></HeaderButton> : null}
           below={
@@ -263,12 +272,8 @@ export default function GroupThreadScreen() {
             onError={setErr}
           />
         )}
-        {viewing && (
-          <Pressable onPress={() => setViewing(null)} style={st.viewer} accessibilityLabel="Fechar">
-            {viewing.url ? <Image source={{ uri: viewing.url }} style={{ flex: 1 }} contentFit="contain" /> : <Text style={{ color: '#fff', fontSize: 20, textAlign: 'center', padding: 24 }}>{viewing.body}</Text>}
-            <Text style={{ color: '#fff', textAlign: 'center', paddingBottom: 32 }}>Toca para fechar. Esta mensagem não volta a abrir.</Text>
-          </Pressable>
-        )}
+        {/* Ver uma vez: foto, vídeo, voz ou texto (components/OnceViewer). */}
+        {viewing && <OnceViewer content={viewing} onClose={() => setViewing(null)} />}
         {members && group && <GroupInfoSheet group={group} onClose={() => setMembers(false)} onChanged={() => { void q.refetch(); void qc.invalidateQueries({ queryKey: ['chat-groups'] }); }} onLeft={left} />}
         {more && group && (
           <ChatMenuSheet
@@ -287,13 +292,12 @@ export default function GroupThreadScreen() {
           <ChatSearchSheet items={items} nameOf={(m) => (m.fromMe ? 'Tu' : m.sender?.displayName ?? '')} hasNext={!!q.hasNextPage} fetchNext={() => void q.fetchNextPage()} onClose={() => setSearching(false)} />
         )}
         {polling && <NewPollSheet groupId={id} onClose={() => { setPolling(false); void q.refetch(); }} />}
-      </KeyboardAvoidingView>
+      </ChatScreen>
     </GroupCtx.Provider>
   );
 }
 
 const st = StyleSheet.create({
-  viewer: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: '#000', justifyContent: 'center', zIndex: 50 },
   tabs: { flexDirection: 'row', paddingHorizontal: 8 },
   tab: { flex: 1, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabOn: { borderBottomColor: colors.zinc900 },
