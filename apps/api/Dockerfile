@@ -33,6 +33,8 @@ COPY --from=build /app/packages/shared/dist packages/shared/dist
 COPY --from=build /app/apps/api/package.json apps/api/package.json
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/migrations apps/api/migrations
+# A letra do texto das tchekas montadas no servidor (docs/montagem.md).
+COPY --from=build /app/apps/api/assets apps/api/assets
 # Pastas de dados (montadas como volumes): ficheiros enviados e modelo de verificação de fotos.
 RUN mkdir -p /data/uploads /data/models && chown -R node:node /data
 USER node

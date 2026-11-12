@@ -187,6 +187,10 @@ const schema = z.object({
   MUSIC_LICENSED_TERRITORIES: z.preprocess(blankToUndefined, z.string().regex(/^\s*[A-Za-z]{2}\s*(,\s*[A-Za-z]{2}\s*)*$/).default('MZ')),
   /** A duração máxima do excerto (segundos). Os contratos de vídeo curto ficam pelos 60 s. */
   MUSIC_LICENSED_CLIP_SECONDS: z.preprocess(blankToUndefined, z.coerce.number().int().min(5).max(60).default(60)),
+  /** Montagem das tchekas no servidor (docs/montagem.md): quantas ao mesmo tempo (1 ou 2), o prazo de cada uma e os fios do ffmpeg (0 = todos). */
+  COMPOSE_CONCURRENCY: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).max(2).default(1)),
+  COMPOSE_TIMEOUT_S: z.preprocess(blankToUndefined, z.coerce.number().int().min(30).max(1800).default(480)),
+  COMPOSE_THREADS: z.preprocess(blankToUndefined, z.coerce.number().int().min(0).max(16).default(0)),
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });

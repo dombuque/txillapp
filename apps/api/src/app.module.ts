@@ -47,6 +47,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { BoostsModule } from './boosts/boosts.module';
 import { FinModule } from './backoffice/fin.module';
 import { IapModule } from './iap/iap.module';
+import { ComposeModule } from './compose/compose.module';
 
 @Module({})
 export class AppModule {
@@ -96,6 +97,7 @@ export class AppModule {
         InstantsModule,
         SocialModule,
         SearchModule,
+        ComposeModule,
       ],
       controllers: [HealthController, MetricsController],
       providers: [
