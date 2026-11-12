@@ -468,7 +468,7 @@ export class FinService {
               count(*) FILTER (WHERE c.status = 'stopped')::int AS stopped,
               coalesce(sum(c.price), 0)::bigint AS price, coalesce(sum(c.refunded), 0)::bigint AS refunded,
               count(DISTINCT c.venue_id)::int AS venues
-         FROM content.boost_campaigns c WHERE c.created_at > now() - make_interval(days => $1)`,
+         FROM content.boost_campaigns c WHERE c.created_at > now() - make_interval(days => $1) AND c.status <> 'draft'`,
       [days],
     );
     const [imp] = await this.q(
@@ -486,7 +486,7 @@ export class FinService {
               (SELECT count(*) FROM content.boost_impressions i JOIN content.boost_campaigns c2 ON c2.id = i.campaign_id WHERE c2.venue_id = v.id AND i.kind = 'view' AND i.created_at > now() - make_interval(days => $1))::int AS views,
               (SELECT count(*) FROM content.boost_impressions i JOIN content.boost_campaigns c2 ON c2.id = i.campaign_id WHERE c2.venue_id = v.id AND i.kind = 'tap' AND i.created_at > now() - make_interval(days => $1))::int AS taps
          FROM content.boost_campaigns c JOIN content.venues v ON v.id = c.venue_id
-        WHERE c.created_at > now() - make_interval(days => $1)
+        WHERE c.created_at > now() - make_interval(days => $1) AND c.status <> 'draft'
         GROUP BY v.id ORDER BY spent DESC, campaigns DESC LIMIT 10`,
       [days],
     );

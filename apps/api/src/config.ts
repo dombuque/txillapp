@@ -118,6 +118,54 @@ const schema = z.object({
   PAYMENTS_STORE_TOPUP: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   /** Segredo com que os fornecedores assinam os avisos de pagamento (webhooks). */
   PAYMENTS_WEBHOOK_SECRET: z.string().min(16).optional(),
+  /**
+   * Compras pela loja (só a verificação paga e o Bombar; ver docs/lojas/iap.md). Sem a configuração de uma loja, o
+   * GET /iap/catalog dessa plataforma diz `enabled: false` e as rotas dela respondem 503.
+   * Apple: a chave .p8 «In-App Purchase» do App Store Connect (PEM com `\n` numa linha, ou o ficheiro em base64).
+   */
+  /**
+   * O interruptor geral das compras pela loja. Por omissão DESLIGADO, mesmo com credenciais: o catálogo diz
+   * `enabled: false`, verify e restore respondem 503 e os avisos das lojas (notificações da Apple, RTDN da Google) só
+   * ficam registados, sem aplicar direitos. Liga-se com IAP_ENABLED=true quando a app estiver na conta de programador própria.
+   */
+  IAP_ENABLED: z.preprocess(blankToUndefined, z.enum(['true', 'false']).default('false').transform((v) => v === 'true')),
+  IAP_APPLE_ISSUER_ID: z.preprocess(blankToUndefined, z.string().trim().optional()),
+  IAP_APPLE_KEY_ID: z.preprocess(blankToUndefined, z.string().trim().optional()),
+  IAP_APPLE_KEY_P8: z.preprocess(blankToUndefined, z.string().optional()),
+  IAP_APPLE_BUNDLE_ID: z.preprocess(blankToUndefined, z.string().trim().optional()),
+  /** O ambiente das compras: 'Production' (App Store e TestFlight) ou 'Sandbox' (só testes). */
+  IAP_APPLE_ENV: z.preprocess(blankToUndefined, z.enum(['Production', 'Sandbox']).default('Production')),
+  /**
+   * Em 'Production', aceitar também compras de sandbox (a App Review e o TestFlight compram em sandbox). Ficam marcadas
+   * como Sandbox e fora das receitas no backoffice.
+   */
+  IAP_APPLE_ACCEPT_SANDBOX: z.preprocess(blankToUndefined, z.enum(['true', 'false']).default('true').transform((v) => v === 'true')),
+  /** Só para testes: outro servidor para a App Store Server API, e outra raiz de confiança (PEM ou base64) em vez da Apple Root CA - G3. */
+  IAP_APPLE_API_ORIGIN: z.preprocess(blankToUndefined, z.string().url().optional()),
+  IAP_APPLE_ROOT_CA: z.preprocess(blankToUndefined, z.string().optional()),
+  /** Google Play: a conta de serviço (o JSON, ou o JSON em base64) com acesso à Google Play Developer API. */
+  IAP_GOOGLE_SERVICE_ACCOUNT_JSON: z.preprocess(blankToUndefined, z.string().optional()),
+  /** O nome do pacote da app Android (ex.: com.txillapp.app). */
+  IAP_GOOGLE_PACKAGE: z.preprocess(blankToUndefined, z.string().trim().optional()),
+  /** O segredo no URL do push do Pub/Sub: POST /api/v1/iap/google/rtdn?token=… Sem ele, a rota responde 503. */
+  IAP_GOOGLE_RTDN_TOKEN: z.preprocess(blankToUndefined, z.string().min(24, 'IAP_GOOGLE_RTDN_TOKEN deve ter pelo menos 24 caracteres').optional()),
+  /** Só para testes: outro servidor para a Google Play Developer API e para o OAuth. */
+  IAP_GOOGLE_API_ORIGIN: z.preprocess(blankToUndefined, z.string().url().optional()),
+  IAP_GOOGLE_OAUTH_URL: z.preprocess(blankToUndefined, z.string().url().optional()),
+  /** Os ids dos produtos nas lojas (iguais na App Store e no Google Play). */
+  IAP_PRODUCT_VERIFY_MONTHLY: z.preprocess(blankToUndefined, z.string().trim().default('txillapp.verificado.mensal')),
+  IAP_PRODUCT_VERIFY_YEARLY: z.preprocess(blankToUndefined, z.string().trim().default('txillapp.verificado.anual')),
+  IAP_PRODUCT_BOOST_1D: z.preprocess(blankToUndefined, z.string().trim().default('txillapp.bombar.1d')),
+  IAP_PRODUCT_BOOST_3D: z.preprocess(blankToUndefined, z.string().trim().default('txillapp.bombar.3d')),
+  IAP_PRODUCT_BOOST_7D: z.preprocess(blankToUndefined, z.string().trim().default('txillapp.bombar.7d')),
+  /** O raio fixo (km) de cada pacote do Bombar comprado na loja, como `1d:3,3d:3,7d:3` (o preço base dos pacotes cobre 3 km). */
+  IAP_BOOST_RADIUS_KM: z.preprocess(blankToUndefined, z.string().regex(/^\s*\d+d\s*:\s*\d+\s*(,\s*\d+d\s*:\s*\d+\s*)*$/).default('1d:3,3d:3,7d:3')),
+  /**
+   * Preços de referência (em centavos de IAP_CURRENCY) para os totais do backoffice quando a loja não diz o valor
+   * (a Google não diz; a Apple diz, e é esse que conta). Formato: `id_do_produto=centavos,…`.
+   */
+  IAP_PRICES: z.preprocess(blankToUndefined, z.string().default('txillapp.verificado.mensal=29900,txillapp.verificado.anual=299000,txillapp.bombar.1d=15000,txillapp.bombar.3d=40000,txillapp.bombar.7d=80000')),
+  IAP_CURRENCY: z.preprocess(blankToUndefined, z.string().trim().regex(/^[A-Z]{3}$/).default('MZN')),
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });
@@ -128,6 +176,11 @@ export type AppConfig = z.infer<typeof schema>;
 function validateStorage(c: AppConfig) {
   if (c.NODE_ENV === 'production' && c.PAYMENTS_SANDBOX) throw new Error('Configuração inválida: PAYMENTS_SANDBOX não pode estar ligado em produção');
   if (!!c.SMTP_USER !== !!c.SMTP_PASS) throw new Error('Configuração inválida: SMTP_USER e SMTP_PASS têm de vir os dois (ou nenhum)');
+  // A raiz de confiança e os servidores falsos das lojas são só para testes: em produção, nunca.
+  if (c.NODE_ENV === 'production') {
+    const testOnly = (['IAP_APPLE_ROOT_CA', 'IAP_APPLE_API_ORIGIN', 'IAP_GOOGLE_API_ORIGIN', 'IAP_GOOGLE_OAUTH_URL'] as const).filter((k) => c[k]);
+    if (testOnly.length) throw new Error(`Configuração inválida: ${testOnly.join(', ')} só existe para testes (não pode estar definido em produção)`);
+  }
   if (c.SEARCH_BACKEND === 'elasticsearch' && !c.ELASTICSEARCH_URL) throw new Error('Configuração inválida: SEARCH_BACKEND=elasticsearch precisa de ELASTICSEARCH_URL');
   if (c.STORAGE_DRIVER === 's3') {
     const missing = (['S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'] as const).filter((k) => !c[k]);

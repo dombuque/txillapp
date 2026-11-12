@@ -641,6 +641,10 @@ export class AuthService {
         'UPDATE content.boost_campaigns SET stopped_by = NULL WHERE stopped_by = $1',
         // Pedidos de recarga: ficam para a contabilidade, mas sem os últimos dígitos do telemóvel.
         "UPDATE payments.orders SET phone_tail = NULL WHERE user_id = $1",
+        // Compras pela loja: ficam para a contabilidade e para os reembolsos que a loja ainda mande, mas sem o que a loja
+        // disse da transação; a verificação paga (elegibilidade e o selo anterior) sai. A subscrição cancela-se na loja.
+        "UPDATE payments.iap_purchases SET raw = '{}' WHERE user_id = $1",
+        "DELETE FROM payments.paid_verification WHERE user_id = $1",
       ]) await client.query(sql, [userId]);
       // As páginas de locais que eram suas passam para o administrador mais antigo; sem administrador, deixam de aparecer
       // (as consultas dos locais escondem páginas cujo dono foi eliminado).

@@ -23,7 +23,7 @@ const requestSchema = z.object({
   faceMediaId: z.string().uuid(),
   selfieMediaId: z.string().uuid(),
 });
-const decideSchema = z.object({ action: z.enum(['approve', 'reject']), reason: z.string().trim().max(300).optional(), tier: z.enum(VERIFIED_TIERS).optional() });
+const decideSchema = z.object({ action: z.enum(['approve', 'reject', 'approve_paid']), reason: z.string().trim().max(300).optional(), tier: z.enum(VERIFIED_TIERS).optional() });
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -52,7 +52,7 @@ export class VerificationController {
   @UseGuards(StaffGuard)
   @Needs('verification.decide')
   queue(@Query('status') status?: string) {
-    return this.verification.queue(status === 'approved' || status === 'rejected' ? status : 'pending');
+    return this.verification.queue(status === 'approved' || status === 'rejected' || status === 'paid_eligible' ? status : 'pending');
   }
 
   @Post('admin/verifications/:id/decide')
