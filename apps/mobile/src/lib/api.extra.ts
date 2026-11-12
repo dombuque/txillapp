@@ -1,5 +1,6 @@
 import { post, raw } from '@/lib/api';
 import { track, trackOk } from '@/lib/analytics';
+import { musicPayload, type Track } from './api.music';
 
 /**
  * Chamadas à API que ainda não estão em api.ts (cópia das do site, apps/web/src/lib/api.ts).
@@ -44,9 +45,9 @@ export const extraApi = {
       if (msg.kind === 'post') track('share', { target: 'chat' });
       return { kind: msg.kind ?? 'text', group: true };
     }),
-  shareToStory: (postId: string, audience: 'all' | 'close_friends' = 'all', caption = '', stickers: { id: string; x: number; y: number; s: number; r: number }[] = []): Promise<{ id: string }> =>
-    trackOk(raw('/stories/share', post({ postId, audience, caption, stickers })), 'share', () => {
-      track('story_create', { source: 'share', closeFriends: audience === 'close_friends' });
+  shareToStory: (postId: string, audience: 'all' | 'close_friends' = 'all', caption = '', stickers: { id: string; x: number; y: number; s: number; r: number }[] = [], music?: Track | null): Promise<{ id: string }> =>
+    trackOk(raw('/stories/share', post({ postId, audience, caption, stickers, music: musicPayload(music) })), 'share', () => {
+      track('story_create', { source: 'share', closeFriends: audience === 'close_friends', music: !!music });
       return { target: 'story' };
     }),
 };

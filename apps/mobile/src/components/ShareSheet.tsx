@@ -20,6 +20,8 @@ import { Sheet, useSheetScroll } from './Sheet';
 import { StickerCanvas, StickerPicker, StickerToolbar } from './Stickers';
 import { MAX_STICKERS, newPlaced, type PlacedSticker } from '@/lib/stickers';
 import { linkShare } from '@/lib/shareLink';
+import type { Track } from '@/lib/api.music';
+import { MusicPicker } from './MusicPicker';
 
 /** Uma conversa (pessoa ou grupo) na grelha de partilha. */
 interface Target {
@@ -63,6 +65,8 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
   const [preview, setPreview] = useState<'all' | 'close_friends' | null>(null);
   const [caption, setCaption] = useState('');
   const [stickers, setStickers] = useState<PlacedSticker[]>([]);
+  /** A música do mimo partilhado (a mesma escolha do mimo normal). */
+  const [music, setMusic] = useState<Track | null>(null);
   const url = linkOf(post);
   // Os presentes vão para o status como um cartão desenhado no site (canvas); na app ainda não há essa imagem.
   const canStory = post.kind === 'post' && post.media.length > 0;
@@ -138,7 +142,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
     if (!preview) return;
     setBusy(true);
     try {
-      await extraApi.shareToStory(post.id, preview, caption.trim(), stickers);
+      await extraApi.shareToStory(post.id, preview, caption.trim(), stickers, music);
       const aud = preview;
       setPreview(null);
       setNote(aud === 'all' ? 'Adicionado ao teu mimo' : 'Partilhado com amigos próximos');
@@ -251,7 +255,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
 
       {preview ? (
         <Modal visible transparent={false} animationType="slide" onRequestClose={() => setPreview(null)} statusBarTranslucent>
-          <StoryPreview post={post} audience={preview} setAudience={setPreview} caption={caption} setCaption={setCaption} stickers={stickers} setStickers={setStickers} busy={busy} onBack={() => setPreview(null)} onPublish={() => void publishStory()} />
+          <StoryPreview post={post} audience={preview} setAudience={setPreview} caption={caption} setCaption={setCaption} stickers={stickers} setStickers={setStickers} music={music} setMusic={setMusic} busy={busy} onBack={() => setPreview(null)} onPublish={() => void publishStory()} />
         </Modal>
       ) : null}
     </View>
@@ -270,10 +274,11 @@ function PreviewVideo({ url }: { url: string }) {
 }
 
 /** Pré-visualização do mimo: o ecrã 9:16 com a publicação, os stickers por cima, a legenda e a escolha de quem vê. */
-function StoryPreview({ post, audience, setAudience, caption, setCaption, stickers, setStickers, busy, onBack, onPublish }: {
+function StoryPreview({ post, audience, setAudience, caption, setCaption, stickers, setStickers, music, setMusic, busy, onBack, onPublish }: {
   post: Post; audience: 'all' | 'close_friends'; setAudience: (a: 'all' | 'close_friends') => void; caption: string; setCaption: (c: string) => void;
-  stickers: PlacedSticker[]; setStickers: (s: PlacedSticker[]) => void; busy: boolean; onBack: () => void; onPublish: () => void;
+  stickers: PlacedSticker[]; setStickers: (s: PlacedSticker[]) => void; music: Track | null; setMusic: (t: Track | null) => void; busy: boolean; onBack: () => void; onPublish: () => void;
 }) {
+  const [pickMusic, setPickMusic] = useState(false);
   const insets = useSafeAreaInsets();
   const win = useWindowDimensions();
   const [sel, setSel] = useState<number | null>(null);
@@ -296,7 +301,10 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, sticke
         <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: '#fff' }}>Pré-visualização do mimo</Text>
         {sel !== null && stickers[sel]
           ? <StickerToolbar item={stickers[sel]} onChange={(p) => setStickers(stickers.map((x, i) => (i === sel ? p : x)))} onDelete={() => { setStickers(stickers.filter((_, i) => i !== sel)); setSel(null); }} onDone={() => setSel(null)} />
-          : <Pressable onPress={() => setPick(true)} accessibilityRole="button" accessibilityLabel="Stickers" style={[st.back, stickers.length > 0 && { backgroundColor: '#fff' }]}><Icon name="sticker" size={22} color={stickers.length > 0 ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>}
+          : <>
+            <Pressable onPress={() => setPickMusic(true)} accessibilityRole="button" accessibilityLabel={music ? 'Mudar a música' : 'Adicionar música'} style={[st.back, music && { backgroundColor: '#fff' }]}><Icon name="music" size={22} color={music ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>
+            <Pressable onPress={() => setPick(true)} accessibilityRole="button" accessibilityLabel="Stickers" style={[st.back, stickers.length > 0 && { backgroundColor: '#fff' }]}><Icon name="sticker" size={22} color={stickers.length > 0 ? colors.zinc900 : '#fff'} strokeWidth={2} /></Pressable>
+          </>}
       </View>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 }}>
         <View style={[st.phone, { width: pw, height: Math.round(pw * 16 / 9) }]}>
@@ -311,7 +319,15 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, sticke
         </View>
       </View>
       {pick && <StickerPicker onClose={() => setPick(false)} onPick={addSticker} />}
+      {pickMusic && <MusicPicker hint={caption || post.body} allowLocal onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
       <View style={{ paddingHorizontal: 16, paddingTop: 12, gap: 12 }}>
+        {music ? (
+          <View style={st.musicChip}>
+            <Icon name="music" size={16} color="#fff" />
+            <Text style={{ flex: 1, minWidth: 0, color: '#fff', fontSize: 14, fontWeight: '700' }} numberOfLines={1}>{music.title}{music.kind === 'clip' ? '' : ` · ${music.artist || 'Autor desconhecido'}`}</Text>
+            <Pressable onPress={() => setMusic(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={16} color="#fff" strokeWidth={2.5} /></Pressable>
+          </View>
+        ) : null}
         <TextInput value={caption} onChangeText={(v) => setCaption(v.slice(0, 200))} placeholder="Adicionar legenda…" placeholderTextColor="rgba(255,255,255,0.6)" accessibilityLabel="Legenda" style={st.cap} />
         <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup">
           {([['all', 'Os teus seguidores', 'square-plus'], ['close_friends', 'Amigos próximos', 'heart']] as const).map(([v, label, ic]) => {
@@ -333,6 +349,7 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, sticke
 }
 
 const st = StyleSheet.create({
+  musicChip: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 14, paddingVertical: 10 },
   searchRow: { paddingHorizontal: 16, paddingBottom: 8, paddingTop: 4 },
   search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 16 },
   input: { flex: 1, minWidth: 0, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' as never },

@@ -108,7 +108,9 @@ function StoryMusic({ track, paused, onLive }: { track: NonNullable<Story['music
     return () => { try { player.pause(); } catch { /* já libertado */ } };
   }, [player]);
   useEffect(() => { try { if (paused || bg) player.pause(); else player.play(); } catch { /* */ } }, [paused, bg, player]);
-  useEffect(() => { try { player.volume = muted ? 0 : 1; } catch { /* */ } }, [muted, player]);
+  // `muted` e não `volume`: no Safari do iPhone o volume de um áudio não se pode mudar (fica sempre a 1), por isso o
+  // botão mostrava «sem som» mas a música continuava. O `muted` funciona em todo o lado.
+  useEffect(() => { try { player.muted = muted; player.volume = 1; } catch { /* */ } }, [muted, player]);
   const playing = !!status.playing && !paused && !bg;
   useEffect(() => { onLive?.({ playing, player: playing ? player : null }); }, [playing, player, onLive]);
   useEffect(() => () => onLive?.({ playing: false, player: null }), [onLive]);
