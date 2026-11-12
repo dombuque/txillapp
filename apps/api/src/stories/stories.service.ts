@@ -380,7 +380,7 @@ export class StoriesService {
   /** O meu mimo para guardar na galeria: a foto ou o vídeo com a assinatura do Txillapp (logótipo e o meu @). */
   async download(userId: string, id: string): Promise<{ mime: string; bytes: Buffer; filename: string }> {
     const { rows } = await this.pool.query(
-      `SELECT s.media_id, s.author_id, s.stickers, u.username, m.mime FROM content.stories s JOIN identity.users u ON u.id = s.author_id JOIN content.media_assets m ON m.id = s.media_id WHERE s.id = $1`,
+      `SELECT s.media_id, s.author_id, s.stickers, u.username, m.mime, m.signed FROM content.stories s JOIN identity.users u ON u.id = s.author_id JOIN content.media_assets m ON m.id = s.media_id WHERE s.id = $1`,
       [id],
     );
     const r = rows[0];
@@ -388,10 +388,12 @@ export class StoriesService {
     if (r.author_id !== userId) throw new ForbiddenException('Só podes guardar os teus mimos');
     const raw = await this.media.rawBytes(r.media_id as string, 'public');
     const video = String(r.mime).startsWith('video/');
-    // Os stickers vão gravados (parados) por baixo da assinatura.
+    // Os stickers vão gravados (parados) por baixo da assinatura. Ficheiro que já vem assinado da câmara da app (`signed`):
+    // não se assina outra vez (o @ ficava a dobrar, desfocado); os stickers vão na mesma, por cima dessa assinatura.
     const placed = stickersOf(r.stickers);
     const overlay = (W: number, H: number) => stickersSvg(W, H, placed);
-    const bytes = video ? await signVideo(raw, r.username as string, overlay) : await signImage(raw, r.username as string, overlay);
+    const withSign = !r.signed;
+    const bytes = video ? await signVideo(raw, r.username as string, overlay, withSign) : await signImage(raw, r.username as string, overlay, withSign);
     return { mime: video ? 'video/mp4' : 'image/jpeg', bytes, filename: `txillapp-mimo-${String(id).slice(0, 8)}.${video ? 'mp4' : 'jpg'}` };
   }
 

@@ -7,7 +7,8 @@ import { ZodPipe } from '../common/zod.pipe';
 import { Needs, StaffGuard } from '../staff/staff.guard';
 import { MediaService, parseIdParam } from './media.service';
 
-const requestSchema = z.object({ mime: z.string().max(50), size: z.number().int().positive(), purpose: z.enum(['public', 'chat']).default('public') });
+/** `signed`: o ficheiro já traz a assinatura do Txillapp (gravada pela câmara da app); ao guardar um mimo não se volta a pôr. */
+const requestSchema = z.object({ mime: z.string().max(50), size: z.number().int().positive(), purpose: z.enum(['public', 'chat']).default('public'), signed: z.boolean().optional() });
 
 @Controller('media')
 export class MediaController {
@@ -19,7 +20,7 @@ export class MediaController {
     @Req() req: Request & { userId?: string },
     @Body(new ZodPipe(requestSchema)) body: z.infer<typeof requestSchema>,
   ) {
-    return this.media.requestUpload(req.userId!, body.mime, body.size, body.purpose);
+    return this.media.requestUpload(req.userId!, body.mime, body.size, body.purpose, body.signed ?? false);
   }
 
   /** Autorizado pela assinatura do URL (como um URL pré-assinado de S3). */

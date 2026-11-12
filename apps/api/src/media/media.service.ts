@@ -145,7 +145,7 @@ export class MediaService implements OnModuleInit {
     setInterval(run, 10 * 60_000).unref();
   }
 
-  async requestUpload(userId: string, mime: string, size: number, purpose: 'public' | 'chat' = 'public') {
+  async requestUpload(userId: string, mime: string, size: number, purpose: 'public' | 'chat' = 'public', signed = false) {
     const audio = AUDIO.has(mime);
     const video = VIDEO.has(mime);
     if (!ALLOWED.has(mime) && !(audio && purpose === 'chat') && !video) throw new UnsupportedMediaTypeException('Apenas JPEG, PNG ou WebP (e vídeos MP4)');
@@ -160,8 +160,8 @@ export class MediaService implements OnModuleInit {
     }
     const id = uuidv7();
     await this.pool.query(
-      'INSERT INTO content.media_assets (id, owner_id, mime, size_bytes, storage_key, purpose) VALUES ($1, $2, $3, $4, $5, $6)',
-      [id, userId, mime, size, `${id}`, purpose],
+      'INSERT INTO content.media_assets (id, owner_id, mime, size_bytes, storage_key, purpose, signed) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [id, userId, mime, size, `${id}`, purpose, signed],
     );
     // Na nuvem: conversas no bucket privado; vídeos entram como "original" no privado até serem verificados e convertidos.
     if (this.s3) return { assetId: id, uploadUrl: await this.s3.presignPut(video ? `${id}.src` : id, mime, size, UPLOAD_TTL_S, video || purpose === 'chat' ? 'private' : 'public') };
