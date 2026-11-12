@@ -25,6 +25,7 @@ import { GalleryPicker } from './GalleryPicker';
 import { Icon } from './Icon';
 import { PhotoEditor } from './PhotoEditor';
 import type { Shot } from './TxCamera';
+import { editedPhoto } from '@/lib/signedMedia';
 import { discardCopy } from '@/lib/discardGuard';
 
 const IOS = Platform.OS === 'ios';
@@ -821,7 +822,7 @@ export function NativeCamera({
         <Pressable onPress={() => setGalleryOpen(true)} style={{ marginTop: 6, padding: 12 }} accessibilityRole="button"><Text style={st.linkText}>Escolher da galeria</Text></Pressable>
         {galleryOpen ? <GalleryPicker title={galleryTitle} multi={multi} onPick={picked} onCamera={() => setGalleryOpen(false)} onClose={() => setGalleryOpen(false)} /> : null}
         {editing ? (
-          <PhotoEditor uri={editing} aspect={aspect} onCancel={() => setEditing(null)} onDone={(file) => { setEditing(null); onShot({ uri: file, video: false, mime: 'image/jpeg' }); }} />
+          <PhotoEditor uri={editing} aspect={aspect} onCancel={() => setEditing(null)} onDone={(file) => { setEditing(null); onShot(editedPhoto(file)); }} />
         ) : null}
       </View>
     );
@@ -1090,7 +1091,7 @@ export function NativeCamera({
           aspect={aspect}
           onCancel={() => { discard(editing); setEditing(null); }}
           // O editor grava sempre um ficheiro novo: o original da câmara já não faz falta.
-          onDone={(file) => { discard(editing); setEditing(null); onShot({ uri: file, video: false, mime: 'image/jpeg' }); }}
+          onDone={(file) => { discard(editing); setEditing(null); onShot(editedPhoto(file)); }}
         />
       ) : null}
       {galleryOpen ? <GalleryPicker title={galleryTitle} multi={multi} onPick={picked} onCamera={() => setGalleryOpen(false)} onClose={() => setGalleryOpen(false)} /> : null}

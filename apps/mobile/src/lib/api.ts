@@ -5,6 +5,7 @@ import { kvGet, kvSet } from './kv';
 import { Platform } from 'react-native';
 import { SITE_URL } from './config';
 import { friendlyFetchError } from './netError';
+import { uploadRequest } from './signedMedia';
 import { track, trackOk, trackThrottled } from './analytics';
 import type { SponsoredSlot } from './api.boosts';
 
@@ -578,12 +579,15 @@ export function releaseBlob(blob: Blob | null | undefined) {
   try { (blob as { close?: () => void } | null | undefined)?.close?.(); } catch { /* já largado */ }
 }
 
-/** Envia uma foto, vídeo ou áudio do chat (privado): pede o URL assinado, envia os bytes, confirma e espera que fique pronto. Devolve o id do ficheiro. */
-export async function uploadMedia(uri: string, mime: string, purpose: 'public' | 'chat' = 'chat', onWait?: () => void): Promise<string> {
+/**
+ * Envia uma foto, vídeo ou áudio do chat (privado): pede o URL assinado, envia os bytes, confirma e espera que fique pronto. Devolve o id do ficheiro.
+ * `signed`: o ficheiro já leva a assinatura do Txillapp (saiu da câmara da app); o servidor não a volta a pôr ao guardar um mimo.
+ */
+export async function uploadMedia(uri: string, mime: string, purpose: 'public' | 'chat' = 'chat', onWait?: () => void, signed?: boolean): Promise<string> {
   const blob = await readLocalBlob(uri);
   let up: { assetId: string; uploadUrl: string };
   try {
-    up = (await raw('/media/uploads', post({ mime, size: blob.size, purpose }))) as { assetId: string; uploadUrl: string };
+    up = (await raw('/media/uploads', post(uploadRequest(mime, blob.size, purpose, signed)))) as { assetId: string; uploadUrl: string };
     const url = /^https?:\/\//.test(up.uploadUrl) ? up.uploadUrl : `${SITE_URL}${up.uploadUrl}`;
     await putBlob(url, blob, mime);
   } finally {

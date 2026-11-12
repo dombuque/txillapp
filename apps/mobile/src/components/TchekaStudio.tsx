@@ -244,7 +244,8 @@ export function TchekaStudio({ clips, initialMusic, onDone, onClose }: { clips: 
     void ac?.close();
     setProgress(null);
     if (cancel.current || !blob.size) return;
-    onDone({ uri: URL.createObjectURL(blob), video: true, mime: blob.type || 'video/mp4', durationMs: Math.round(performance.now() - t0) }, music);
+    // O vídeo sai com a assinatura do Txillapp em todos os frames (signed): o servidor não a volta a pôr.
+    onDone({ uri: URL.createObjectURL(blob), video: true, mime: blob.type || 'video/mp4', durationMs: Math.round(performance.now() - t0), signed: true }, music);
   }
 
   const topPad = Math.max(insets.top, 12);

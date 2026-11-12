@@ -19,7 +19,7 @@ export interface Draft {
   body: string;
   place: string;
   /** Endereços das fotos/vídeo escolhidos (mesma ordem em `video`). */
-  photos: { uri: string; video?: boolean; mime?: string; durationMs?: number }[];
+  photos: { uri: string; video?: boolean; mime?: string; durationMs?: number; signed?: boolean }[];
   /** Pessoas identificadas em cada foto (mesma ordem de `photos`). */
   tags?: { username: string; displayName: string; x: number; y: number }[][];
   savedAt: number;

@@ -16,6 +16,7 @@ import { TxCamera, liveCameraSupported, type Shot } from '@/components/TxCamera'
 import { api, uploadMedia } from '@/lib/api';
 import { enqueueTask } from '@/lib/publishQueue';
 import { shrinkPhoto } from '@/lib/cropToRatio';
+import { mimoFromParams } from '@/lib/signedMedia';
 import { musicApi, type Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
@@ -27,7 +28,8 @@ import { goBack } from '@/lib/nav';
 
 const EMERALD = '#10b981';
 const web = (o: Record<string, unknown>) => o as never;
-type Asset = { uri: string; video: boolean; mime: string };
+/** `signed`: já leva a assinatura do Txillapp (câmara da app); ao guardar o mimo o servidor não a volta a pôr. A galeria não. */
+type Asset = { uri: string; video: boolean; mime: string; signed?: boolean };
 
 /**
  * Criar um status: no site abre a câmara oficial do Txillapp (foto ou vídeo até 60 s, galeria lá dentro);
@@ -36,8 +38,8 @@ type Asset = { uri: string; video: boolean; mime: string };
 export default function NewStory() {
   const router = useRouter();
   // Vindo da câmara do "+" com o Mimo escolhido: já traz a foto ou vídeo.
-  const given = useLocalSearchParams<{ uri?: string; video?: string; mime?: string }>();
-  const [asset, setAsset] = useState<Asset | null>(() => (given.uri ? { uri: String(given.uri), video: given.video === '1', mime: String(given.mime || (given.video === '1' ? 'video/mp4' : 'image/jpeg')) } : null));
+  const given = useLocalSearchParams<{ uri?: string; video?: string; mime?: string; signed?: string }>();
+  const [asset, setAsset] = useState<Asset | null>(() => mimoFromParams(given));
   const [err, setErr] = useState('');
   const isWeb = Platform.OS === 'web';
   const cam = isWeb && liveCameraSupported();
@@ -76,7 +78,7 @@ export default function NewStory() {
     if (cam) {
       return (
         <View style={{ flex: 1, backgroundColor: '#000' }}>
-          <TxCamera count={0} max={1} modes={['photo', 'video']} onShot={(s: Shot) => setAsset({ uri: s.uri, video: s.video, mime: s.mime })} onGallery={fromFiles} onClose={close} />
+          <TxCamera count={0} max={1} modes={['photo', 'video']} onShot={(s: Shot) => setAsset({ uri: s.uri, video: s.video, mime: s.mime, signed: s.signed })} onGallery={fromFiles} onClose={close} />
         </View>
       );
     }
@@ -130,11 +132,12 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
     setBusy(true);
     const a = asset, text = caption.trim(), who = audience, track = music, placed = stickers;
     try {
-      enqueueTask('mimo', { uri: a.uri, mime: a.mime, video: a.video }, async (_p, stage) => {
+      enqueueTask('mimo', { uri: a.uri, mime: a.mime, video: a.video, signed: a.signed }, async (_p, stage) => {
         // Fotos do recorte do sistema vêm à resolução original: reduz-se antes de enviar (os stickers usam posições relativas).
         const src = a.video ? a.uri : await shrinkPhoto(a.uri);
         const mime = src === a.uri ? a.mime : 'image/jpeg';
-        const id = await uploadMedia(src, mime, 'public', () => stage('prepare'));
+        // Foto ou vídeo já assinado pela câmara da app (signed): o servidor não a volta a assinar ao guardar o mimo.
+        const id = await uploadMedia(src, mime, 'public', () => stage('prepare'), a.signed);
         stage('post');
         await musicApi.createStory(id, text, who, track, placed);
         await qc.invalidateQueries({ queryKey: ['stories'] });

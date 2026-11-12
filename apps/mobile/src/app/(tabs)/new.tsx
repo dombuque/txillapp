@@ -32,6 +32,7 @@ import { type Track } from '@/lib/api.music';
 import { clearDraft, listDrafts, loadDraft, newDraftKey, saveDraft, type DraftItem } from '@/lib/drafts';
 import { useAuth } from '@/lib/auth';
 import { cropToRatio, imageRatio } from '@/lib/cropToRatio';
+import { editedPhoto, mimoParams } from '@/lib/signedMedia';
 import { clampPostRatio } from '@/lib/postAspect';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
@@ -72,8 +73,12 @@ async function toJpeg(f: File): Promise<File | null> {
     URL.revokeObjectURL(url);
   }
 }
-/** `ratio`: proporção (largura/altura) já conhecida da foto, quando foi cortada aqui (poupa voltar a lê-la). */
-interface Asset { uri: string; video: boolean; mime: string; durationMs?: number; tags: PhotoTag[]; ratio?: number }
+/**
+ * `ratio`: proporção (largura/altura) já conhecida da foto, quando foi cortada aqui (poupa voltar a lê-la).
+ * `signed`: já leva a assinatura do Txillapp (câmara da app, editor de fotos, estúdio de tchekas); ver lib/signedMedia.
+ * `clean`: a mesma foto sem a assinatura (câmara do site num tcheka): é a que entra no estúdio, que assina o vídeo inteiro.
+ */
+interface Asset { uri: string; video: boolean; mime: string; durationMs?: number; tags: PhotoTag[]; ratio?: number; signed?: boolean; clean?: string }
 
 /**
  * Carrossel como no Instagram: todas as fotos com a proporção da primeira foto da publicação (limitada entre 4:5 e 1,91:1),
@@ -101,7 +106,8 @@ async function fitCarousel(cur: Asset[], next: Asset[]): Promise<Asset[]> {
     if (uri === a.uri) { out.push(a); continue; }
     // Na web a foto original era um URL de objeto só nosso: liberta-se a memória.
     if (Platform.OS === 'web' && a.uri.startsWith('blob:')) URL.revokeObjectURL(a.uri);
-    out.push({ ...a, uri, mime: 'image/jpeg', ratio: target });
+    // Cortada ao centro, a assinatura do canto pode ter ficado de fora: deixa de contar como assinada (o servidor assina).
+    out.push({ ...a, uri, mime: 'image/jpeg', ratio: target, signed: undefined });
   }
   return out;
 }
@@ -220,7 +226,7 @@ export default function Compose() {
   };
   useEffect(refreshDrafts, [user, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const snapshot = () => ({ body, place, photos: assets.map((a) => ({ uri: a.uri, video: a.video, mime: a.mime, durationMs: a.durationMs })), tags: assets.map((a) => a.tags) });
+  const snapshot = () => ({ body, place, photos: assets.map((a) => ({ uri: a.uri, video: a.video, mime: a.mime, durationMs: a.durationMs, signed: a.signed })), tags: assets.map((a) => a.tags) });
 
   // Vindo dos rascunhos: preenche o que estava guardado.
   useEffect(() => {
@@ -232,7 +238,7 @@ export default function Compose() {
     setBody(d.body);
     setPlace(d.place);
     setPlaceGeo(null);
-    setAssets(d.photos.map((p, i) => ({ uri: p.uri, video: !!p.video, mime: p.mime ?? (p.video ? 'video/mp4' : 'image/jpeg'), durationMs: p.durationMs, tags: d.tags?.[i] ?? [] })));
+    setAssets(d.photos.map((p, i) => ({ uri: p.uri, video: !!p.video, mime: p.mime ?? (p.video ? 'video/mp4' : 'image/jpeg'), durationMs: p.durationMs, signed: p.signed, tags: d.tags?.[i] ?? [] })));
     setRestored(true);
     setStep('write');
   }
@@ -322,7 +328,7 @@ export default function Compose() {
   function routeByKind(s: Shot): boolean {
     if (kindSel === 'mimo') {
       bumpKind('mimo');
-      router.replace({ pathname: '/stories/new', params: { uri: s.uri, video: s.video ? '1' : '0', mime: s.mime } } as never);
+      router.replace({ pathname: '/stories/new', params: mimoParams(s) } as never);
       return true;
     }
     return false;
@@ -335,12 +341,12 @@ export default function Compose() {
     // Na web, num tcheka juntam-se as fotos e vídeos na câmara (o estúdio monta-os); no telemóvel segue logo para a publicação.
     const collect = kindSel === 'tcheka' && web && !inPost;
     if (s.video) {
-      const v: Asset = { uri: s.uri, video: true, mime: videoMime(s.mime), durationMs: s.durationMs, tags: [] };
+      const v: Asset = { uri: s.uri, video: true, mime: videoMime(s.mime), durationMs: s.durationMs, tags: [], signed: s.signed };
       setAssets((cur) => [...cur, v].slice(0, MAX_PHOTOS));
       if (!collect) { bumpKind(kindSel); setCameraOpen(false); setStep('write'); }
     } else {
       // Numa publicação a foto junta-se às outras (fotos e vídeos) e vai-se logo para a publicação.
-      setAssets((cur) => [...cur, { uri: s.uri, video: false, mime: s.mime, tags: [] }].slice(0, MAX_PHOTOS));
+      setAssets((cur) => [...cur, { uri: s.uri, video: false, mime: s.mime, tags: [], signed: s.signed, clean: s.clean }].slice(0, MAX_PHOTOS));
       if (!collect) { bumpKind(kindSel); setCameraOpen(false); setStep('write'); }
     }
   }
@@ -419,7 +425,7 @@ export default function Compose() {
     setBusy(true);
     setErr('');
     enqueuePublish({
-      assets: assets.map((a) => ({ uri: a.uri, mime: a.mime, video: a.video })),
+      assets: assets.map((a) => ({ uri: a.uri, mime: a.mime, video: a.video, signed: a.signed })),
       post: {
         body,
         music,
@@ -471,10 +477,10 @@ export default function Compose() {
       return (
         <View style={{ flex: 1, backgroundColor: '#000' }}>
           <TchekaStudio
-            clips={assets.map((a) => ({ uri: a.uri, video: a.video, mime: a.mime, durationMs: a.durationMs }))}
+            clips={assets.map((a) => ({ uri: a.clean ?? a.uri, video: a.video, mime: a.mime, durationMs: a.durationMs }))}
             initialMusic={music}
             onClose={() => setStudio(false)}
-            onDone={(s, m) => { setAssets([{ uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [] }]); setMusic(m); setStudio(false); setStep('write'); }}
+            onDone={(s, m) => { setAssets([{ uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [], signed: s.signed }]); setMusic(m); setStudio(false); setStep('write'); }}
           />
         </View>
       );
@@ -495,6 +501,7 @@ export default function Compose() {
           onText={() => setStep('write')}
           doneLabel={kindSel === 'tcheka' ? 'Montar' : 'Seguinte'}
           aspect={kindSel === 'post' ? 4 / 5 : 9 / 16}
+          keepClean={kindSel === 'tcheka'}
           thumbs={assets.map((a) => a.uri)}
           kinds={kinds}
           kind={kindSel}
@@ -529,7 +536,7 @@ export default function Compose() {
               else pickMany(list);
             }}
           />
-          {editUri ? <PhotoEditor uri={editUri} aspect={4 / 5} onCancel={() => setEditUri(null)} onDone={(file) => { setEditUri(null); shot({ uri: file, video: false, mime: 'image/jpeg' }); }} /> : null}
+          {editUri ? <PhotoEditor uri={editUri} aspect={4 / 5} onCancel={() => setEditUri(null)} onDone={(file) => { setEditUri(null); shot(editedPhoto(file)); }} /> : null}
         </View>
       );
     }

@@ -4,12 +4,14 @@ import { ApiError, putBlob, raw, readLocalBlob, releaseBlob, waitMediaReady, typ
 import { POST_MAX_SIDE, shrinkPhoto } from './cropToRatio';
 import { composeApi } from './api.compose';
 import { SITE_URL } from './config';
+import { uploadRequest } from './signedMedia';
 
 /**
  * Publicar em segundo plano (como no Instagram): o cartão fecha logo e o envio continua aqui, com uma faixa no Início a
  * mostrar o progresso. Se falhar, a faixa deixa tentar outra vez ou descartar. Vive enquanto a app estiver aberta.
  */
-export interface PublishAsset { uri: string; mime: string; video: boolean }
+/** `signed`: já leva a assinatura do Txillapp (câmara da app); o servidor não a volta a pôr (ver lib/signedMedia). */
+export interface PublishAsset { uri: string; mime: string; video: boolean; signed?: boolean }
 export interface PublishJob {
   assets: PublishAsset[];
   post: Parameters<typeof composeApi.createPost>[0] extends infer P ? Omit<P, 'mediaIds'> : never;
@@ -53,7 +55,7 @@ async function uploadWithProgress(a: PublishAsset, onProgress: (p: number) => vo
   const blob = await readLocalBlob(src);
   let up: { assetId: string; uploadUrl: string };
   try {
-    up = (await raw('/media/uploads', { method: 'POST', body: JSON.stringify({ mime, size: blob.size, purpose: 'public' }) })) as { assetId: string; uploadUrl: string };
+    up = (await raw('/media/uploads', { method: 'POST', body: JSON.stringify(uploadRequest(mime, blob.size, 'public', a.signed)) })) as { assetId: string; uploadUrl: string };
     const url = /^https?:\/\//.test(up.uploadUrl) ? up.uploadUrl : `${SITE_URL}${up.uploadUrl}`;
     await putBlob(url, blob, mime, onProgress);
   } finally {

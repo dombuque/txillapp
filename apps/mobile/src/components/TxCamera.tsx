@@ -24,7 +24,12 @@ import { WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, signLayout
  */
 export const liveCameraSupported = () => Platform.OS === 'web' && typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
 
-export interface Shot { uri: string; video: boolean; mime: string; durationMs?: number }
+/**
+ * Uma foto ou vídeo pronto a usar. `signed`: já leva a assinatura do Txillapp gravada pela câmara da app (ao guardar um
+ * mimo, o servidor não a volta a pôr); fotos e vídeos da galeria não a levam. `clean`: a mesma foto sem a assinatura (só
+ * quando se pede `keepClean`, para o estúdio de tchekas, que assina o vídeo inteiro).
+ */
+export interface Shot { uri: string; video: boolean; mime: string; durationMs?: number; signed?: boolean; clean?: string }
 export type CamMode = 'photo' | 'video' | 'text';
 type Problem = null | CamProblem | 'unsupported';
 const MAX_VIDEO_S = 60;
@@ -439,7 +444,7 @@ function TopTool({ on, label, onPress, children }: { on?: boolean; label: string
 }
 
 export function TxCamera({
-  count, max, modes = ['photo', 'video', 'text'], onShot, onGallery, onClose, onDone, onText, doneLabel = 'Feito', thumbs, kinds, kind, onKind, aspect = 9 / 16,
+  count, max, modes = ['photo', 'video', 'text'], onShot, onGallery, onClose, onDone, onText, doneLabel = 'Feito', thumbs, kinds, kind, onKind, aspect = 9 / 16, keepClean = false,
 }: {
   count: number; max: number; modes?: CamMode[]; onShot: (s: Shot) => void; onGallery: (files: File[]) => void; onClose: () => void; onDone?: () => void; onText?: () => void; doneLabel?: string;
   /** Miniaturas do que já foi escolhido (a fila de "recentes", como no Instagram). */
@@ -448,6 +453,8 @@ export function TxCamera({
   kinds?: { id: string; label: string }[]; kind?: string; onKind?: (id: string) => void;
   /** Proporção da foto (largura/altura): 4:5 numa publicação, 9:16 num mimo ou tcheka. A moldura mostra exatamente o que sai. */
   aspect?: number;
+  /** Num tcheka: cada foto traz também a cópia sem assinatura (`clean`), que é a que entra no estúdio. */
+  keepClean?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const video = useRef<HTMLVideoElement | null>(null);
@@ -1288,11 +1295,15 @@ export function TxCamera({
     if (!r.video && hqJob.current) { setSaving(true); await settleHq(); setSaving(false); }
     const src = reviewSrc.current;
     if (!r.video && src) {
-      renderEdit(src, finalEdit()).toBlob((blob) => {
-        reviewSrc.current = null; previewSrc.current = null; pending.current = null;
-        setReview(null); setTool(null); setFreeCrop(false);
-        onShot(blob ? { uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' } : r);
-      }, 'image/jpeg', 0.92);
+      const e = finalEdit();
+      const jpeg = (sign: boolean) => new Promise<Blob | null>((res) => renderEdit(src, e, sign).toBlob(res, 'image/jpeg', 0.92));
+      const blob = await jpeg(true);
+      // Num tcheka, também a mesma foto sem a assinatura: o estúdio assina o vídeo inteiro (senão ficavam duas).
+      const plain = blob && keepClean ? await jpeg(false) : null;
+      reviewSrc.current = null; previewSrc.current = null; pending.current = null;
+      setReview(null); setTool(null); setFreeCrop(false);
+      // A foto sai com a assinatura gravada (signed): ao guardar o mimo, o servidor não a volta a pôr.
+      onShot(blob ? { uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg', signed: true, ...(plain ? { clean: URL.createObjectURL(plain) } : {}) } : r);
       return;
     }
     setReview(null); setTool(null); onShot(r);
