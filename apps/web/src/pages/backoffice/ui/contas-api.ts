@@ -27,7 +27,7 @@ export interface AccountRow {
   created_at: string;
   country: string | null;
   verified: boolean;
-  badge: 'verified' | 'official' | null;
+  badge: 'verified' | 'official' | 'paid' | null;
   minor: boolean;
   posts: number;
   followers: number;
@@ -40,7 +40,7 @@ export interface AccountSheet {
   user: {
     id: string; username: string; display_name: string; email: string; status: AccountStatus; is_admin: boolean; is_private: boolean;
     created_at: string; country: string | null; city: string | null; terms_version: string | null; terms_accepted_at: string | null;
-    email_verified_at: string | null; badge: 'verified' | 'official' | null; has_avatar: boolean; age: number | null; minor: boolean;
+    email_verified_at: string | null; badge: 'verified' | 'official' | 'paid' | null; has_avatar: boolean; age: number | null; minor: boolean;
     posts: number; posts_removed: number; stories: number; comments: number; followers: number; following: number; messages: number;
     sessions: number; last_seen: string | null; last_active: string | null; txills: string;
   };

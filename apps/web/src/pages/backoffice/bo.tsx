@@ -38,8 +38,8 @@ export const btnDanger = `${btn} bg-red-700 text-white hover:bg-red-800`;
 export const th = 'px-3 py-2 text-left text-xs font-bold uppercase tracking-wide text-zinc-500';
 export const td = 'px-3 py-2.5 align-top text-sm text-zinc-800';
 
-/** Janela para pedir o motivo (obrigatório) antes de uma ação que fica no registo. */
-export function ReasonDialog({ title, help, confirm, danger, onCancel, onConfirm }: { title: string; help?: string; confirm: string; danger?: boolean; onCancel: () => void; onConfirm: (reason: string) => Promise<void> }) {
+/** Janela para pedir o motivo (obrigatório) antes de uma ação que fica no registo. Com `children`, o que mais se escolhe (por cima do motivo); `ready` a false desliga o botão. */
+export function ReasonDialog({ title, help, confirm, danger, onCancel, onConfirm, children, ready = true }: { title: string; help?: string; confirm: string; danger?: boolean; onCancel: () => void; onConfirm: (reason: string) => Promise<void>; children?: ReactNode; ready?: boolean }) {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -58,6 +58,7 @@ export function ReasonDialog({ title, help, confirm, danger, onCancel, onConfirm
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-lg font-bold">{title}</h3>
         {help && <p className="mt-1 text-sm text-zinc-600">{help}</p>}
+        {children}
         <label className="mt-4 block text-sm font-semibold text-zinc-700">
           Motivo (fica no registo)
           <textarea autoFocus value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={300} className="mt-1 w-full rounded-lg border border-zinc-300 p-2.5 text-sm outline-none focus:border-zinc-900" />
@@ -65,7 +66,7 @@ export function ReasonDialog({ title, help, confirm, danger, onCancel, onConfirm
         {err && <p role="alert" className="mt-2 text-sm text-red-600">{err}</p>}
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" onClick={onCancel} className={btnGhost}>Cancelar</button>
-          <button type="button" disabled={busy || reason.trim().length < 3} onClick={() => void go()} className={danger ? btnDanger : btnPrimary}>{busy ? 'A guardar…' : confirm}</button>
+          <button type="button" disabled={busy || !ready || reason.trim().length < 3} onClick={() => void go()} className={danger ? btnDanger : btnPrimary}>{busy ? 'A guardar…' : confirm}</button>
         </div>
       </div>
     </div>

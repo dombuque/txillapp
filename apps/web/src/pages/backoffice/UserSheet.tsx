@@ -5,7 +5,7 @@ import Icon from '../../components/Icon';
 import { api } from '../../lib/api';
 import { Badge, Card, ReasonDialog, ago, btnDanger, btnGhost, btnPrimary, statusBadge, useCan, when } from './bo';
 import { appUrl, contasApi, countryName, type AccountSession, type AccountSheet } from './ui/contas-api';
-import { BadgeTier, ContasError, ContasFacts, ContasLoading, ContasNone, ContasStat, ContasTabs, DeviceGlyph, MinorBadge, SessionStateBadge } from './ui/contas-ui';
+import { BadgeTier, TierPicker, tierShort, type Tier, ContasError, ContasFacts, ContasLoading, ContasNone, ContasStat, ContasTabs, DeviceGlyph, MinorBadge, SessionStateBadge } from './ui/contas-ui';
 
 const ACTION: Record<string, string> = {
   'backoffice.verify_email': 'Confirmou o email',
@@ -20,6 +20,8 @@ const ACTION: Record<string, string> = {
   'moderation.dismiss': 'Ignorou uma queixa',
   'verification.approve': 'Aprovou o selo',
   'verification.reject': 'Recusou o selo',
+  'verification.set_tier': 'Mudou o selo',
+  'verification.remove': 'Tirou o selo',
   'staff.set_teams': 'Mudou as equipas',
   'staff.remove': 'Tirou o acesso à equipa',
   'account.deleted': 'Eliminou a conta',
@@ -39,8 +41,10 @@ export default function BackofficeUser() {
   const canVerify = useCan('users.verify_email');
   const canSuspend = useCan('users.suspend');
   const canSessions = useCan('users.sessions');
+  const canBadge = useCan('verification.decide');
   const q = useQuery({ queryKey: ['bo-user', id], queryFn: () => contasApi.sheet(id), retry: false });
-  const [dialog, setDialog] = useState<null | 'verify' | 'suspend' | 'reactivate'>(null);
+  const [dialog, setDialog] = useState<null | 'verify' | 'suspend' | 'reactivate' | 'badge'>(null);
+  const [tier, setTier] = useState<Tier | null>(null);
   const tabParam = (params.get('tab') ?? 'resumo') as Tab;
   const tab: Tab = tabParam === 'sessoes' && !canSessions ? 'resumo' : tabParam;
   const setTab = (t: Tab) => setParams(t === 'resumo' ? {} : { tab: t }, { replace: true });
@@ -87,6 +91,7 @@ export default function BackofficeUser() {
           {canVerify && !u.email_verified_at && u.status !== 'deleted' && <button type="button" onClick={() => setDialog('verify')} className={btnPrimary}>Confirmar email à mão</button>}
           {canSuspend && u.status === 'active' && !u.is_admin && <button type="button" onClick={() => setDialog('suspend')} className={btnDanger}>Suspender</button>}
           {canSuspend && u.status === 'suspended' && <button type="button" onClick={() => setDialog('reactivate')} className={btnPrimary}>Reativar</button>}
+          {canBadge && u.status !== 'deleted' && <button type="button" onClick={() => { setTier(u.badge); setDialog('badge'); }} className={btnGhost}>{u.badge ? 'Mudar o selo' : 'Dar o selo'}</button>}
           {u.status !== 'deleted' && <a href={appUrl(`/u/${u.username}`)} target="_blank" rel="noreferrer" className={btnGhost}>Ver o perfil na app</a>}
         </div>
       </header>
@@ -109,6 +114,19 @@ export default function BackofficeUser() {
         {tab === 'historico' && <History history={s.history} />}
       </div>
 
+      {dialog === 'badge' && (
+        <ReasonDialog
+          title={`O selo de @${u.username}`}
+          help={`Agora: ${tierShort(u.badge)}. O vermelho é do Txillapp (mérito, pedido aceite ou conta oficial); o azul é só para a verificação paga.`}
+          confirm={tier ? 'Guardar o selo' : 'Tirar o selo'}
+          danger={!tier}
+          ready={tier !== u.badge}
+          onCancel={() => setDialog(null)}
+          onConfirm={async (reason) => { await api.boSetBadge(id, tier, reason); setDialog(null); await refresh(); }}
+        >
+          <TierPicker name="bo-tier" value={tier} onChange={setTier} allowNone={!!u.badge} />
+        </ReasonDialog>
+      )}
       {dialog === 'verify' && <ReasonDialog title="Confirmar o email à mão" help={`Marca o email ${u.email} como confirmado sem a pessoa clicar na ligação. Usa só se tiveres a certeza de quem é.`} confirm="Confirmar email" onCancel={() => setDialog(null)} onConfirm={async (reason) => { await api.boVerifyEmail(id, reason); setDialog(null); await refresh(); }} />}
       {dialog === 'suspend' && <ReasonDialog title={`Suspender @${u.username}`} help="Perde as sessões e não volta a entrar até ser reativada." confirm="Suspender" danger onCancel={() => setDialog(null)} onConfirm={async (reason) => { await api.boSuspend(id, reason); setDialog(null); await refresh(); }} />}
       {dialog === 'reactivate' && <ReasonDialog title={`Reativar @${u.username}`} confirm="Reativar" onCancel={() => setDialog(null)} onConfirm={async (reason) => { await api.boReactivate(id, reason); setDialog(null); await refresh(); }} />}
@@ -131,7 +149,7 @@ function Summary({ s }: { s: AccountSheet }) {
           <ContasFacts rows={[
             ['Email', <span key="e" className="break-all">{u.email}</span>],
             ['Email confirmado', u.email_verified_at ? when(u.email_verified_at) : 'por confirmar'],
-            ['Selo', u.badge === 'official' ? 'conta oficial' : u.badge === 'verified' ? 'verificada' : 'sem selo'],
+            ['Selo', tierShort(u.badge)],
             ['Perfil', u.is_private ? 'privado' : 'público'],
             ['Conta criada', when(u.created_at)],
             ['Termos aceites', u.terms_version ? `${u.terms_version}${u.terms_accepted_at ? ` · ${new Date(u.terms_accepted_at).toLocaleDateString('pt-PT')}` : ''}` : '—'],
@@ -362,7 +380,9 @@ function History({ history }: { history: AccountSheet['history'] }) {
   const reason = (m: Record<string, unknown>): ReactNode => {
     const r = typeof m?.reason === 'string' ? m.reason : typeof m?.motivo === 'string' ? m.motivo : null;
     const device = typeof m?.device === 'string' ? m.device : null;
-    return <>{device && <span className="text-zinc-600"> · {device}</span>}{r && <span className="text-zinc-600"> — {r}</span>}</>;
+    // O selo: «verificada → verificação paga» ao mudar; o nível dado ao aprovar um pedido.
+    const seal = m && 'to' in m ? `${tierShort(m.from as string | null)} → ${tierShort(m.to as string | null)}` : typeof m?.tier === 'string' ? tierShort(m.tier) : null;
+    return <>{seal && <span className="text-zinc-600"> · {seal}</span>}{device && <span className="text-zinc-600"> · {device}</span>}{r && <span className="text-zinc-600"> — {r}</span>}</>;
   };
   return (
     <Card title="Histórico" right={
