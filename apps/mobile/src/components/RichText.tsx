@@ -6,7 +6,7 @@ import { colors } from '@/lib/theme';
 const TOKEN = /(?<![\p{L}\p{N}_.&#])(?:@([a-zA-Z0-9_.]{3,30})|#([\p{L}\p{N}_]{2,30}))/gu;
 
 /** Texto com @menções e #hashtags a coral, em negrito (como no site). */
-export function RichText({ text, style }: { text: string; style?: TextStyle }) {
+export function RichText({ text, style, numberOfLines }: { text: string; style?: TextStyle; /** Corta ao fim de N linhas (ex.: a legenda de uma tcheka antes de expandir). */ numberOfLines?: number }) {
   const router = useRouter();
   const out: React.ReactNode[] = [];
   let last = 0;
@@ -24,5 +24,5 @@ export function RichText({ text, style }: { text: string; style?: TextStyle }) {
     last = start + 1 + name.length;
   }
   if (last < text.length) out.push(text.slice(last));
-  return <Text style={style}>{out}</Text>;
+  return <Text style={style} numberOfLines={numberOfLines}>{out}</Text>;
 }

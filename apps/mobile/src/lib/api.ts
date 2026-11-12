@@ -705,7 +705,8 @@ export const api = {
   closeFriends: (): Promise<({ username: string; displayName: string; hasAvatar: boolean } & Badged)[]> => raw('/stories/close-friends'),
   addCloseFriend: (username: string): Promise<void> => raw(`/stories/close-friends/${encodeURIComponent(username)}`, { method: 'PUT' }),
   removeCloseFriend: (username: string): Promise<void> => raw(`/stories/close-friends/${encodeURIComponent(username)}`, { method: 'DELETE' }),
-  reels: (cursor?: string): Promise<Page<Post>> => raw(`/feed/reels${cursor ? `?cursor=${cursor}&limit=6` : '?limit=6'}`),
+  /** Tchekas «Para ti»; com `following`, «A seguir» (só de quem segues). */
+  reels: (cursor?: string, following = false): Promise<Page<Post>> => raw(`/feed/reels?limit=6${cursor ? `&cursor=${cursor}` : ''}${following ? '&following=1' : ''}`),
   createPost: (b: { body: string; locationLabel?: string; mediaIds: string[] }): Promise<Post> => trackOk(raw('/posts', post(b)), 'post_create', { media: b.mediaIds.length }),
   chatList: (): Promise<Conversation[]> => raw('/chat/conversations'),
   chatGroups: (): Promise<GroupSummary[]> => raw('/chat/groups'),

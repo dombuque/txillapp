@@ -226,7 +226,7 @@ function Replies({ c, meId, expanded, toggle, canDeleteFor, onReply, onRemoved, 
 }
 
 /** Comentários de uma publicação: igual ao do site (responder, brindar, editar, apagar, denunciar e aviso de pedido de pagamento). */
-export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { post: Post; onClose: () => void; onDelta: (n: number) => void; onGift: (to: { username: string; displayName: string }, amount: number, note: string) => void; /** Comentário a realçar (vindo de uma notificação). */ highlight?: string }) {
+export function CommentsSheet({ post, onClose, onDelta, onGift, highlight, dim }: { /** Quanto escurece o que está por trás (as tchekas: pouco, o vídeo continua a tocar por cima). */ dim?: number; post: Post; onClose: () => void; onDelta: (n: number) => void; onGift: (to: { username: string; displayName: string }, amount: number, note: string) => void; /** Comentário a realçar (vindo de uma notificação). */ highlight?: string }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const input = useRef<React.ComponentRef<typeof TextInput>>(null);
@@ -312,7 +312,7 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
   const gift = (c: Comment, amount: number, note: string) => onGift({ username: c.author.username, displayName: c.author.displayName }, amount, note);
 
   return (
-    <Sheet title="Comentários" onClose={onClose} full plain variant="panel">
+    <Sheet title="Comentários" onClose={onClose} full plain variant="panel" dim={dim}>
       <View style={styles.head}><Text style={styles.headTitle}>Comentários</Text></View>
       <FlatList
         ref={list}
