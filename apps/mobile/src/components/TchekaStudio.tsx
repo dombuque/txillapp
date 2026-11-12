@@ -1,12 +1,12 @@
 import { createElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import stickers from '../assets/stickers.json';
 import type { Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
 import {
-  beatGrid, checkTcheka, clampTrim, clipSeconds, detectBeats, fmtS, previewClock, previewResume, rhythmDurations, SPEEDS, speedLabel, studioSignature, TCHEKA_MAX_S, textAlpha, type Trim,
+  beatGrid, checkTcheka, clampTrim, clipSeconds, detectBeats, editLocked, fmtS, previewClock, previewResume, rhythmDurations, SPEEDS, speedLabel, studioSignature, TCHEKA_MAX_S, textAlpha, type Trim,
 } from '@/lib/tchekaRules';
 import { colors } from '@/lib/theme';
 import { sealOf } from '@/lib/wordmark';
@@ -172,7 +172,20 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   const setPlaying = (on: boolean) => { playingRef.current = on; setPlayingState(on); };
   const setT = (t: number) => { tRef.current = t; setPlayT(t); };
   const [loading, setLoading] = useState(true);
-  const [progress, setProgress] = useState<number | null>(null);
+  const [progress, setProgressState] = useState<number | null>(null);
+  // A montagem em curso (null quando não há): enquanto dura, a edição fica bloqueada (ver `editLocked`).
+  const progressRef = useRef<number | null>(null);
+  const setProgress = (p: number | null) => { progressRef.current = p; setProgressState(p); };
+  const cancelled = useRef(false);
+  const editBox = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = editBox.current as (HTMLElement & { inert?: boolean }) | null;
+    if (!el || typeof el.setAttribute !== 'function') return;
+    el.inert = progress !== null;
+    if (progress !== null) el.setAttribute('inert', ''); else el.removeAttribute('inert');
+    // Quem estava a escrever no texto sai do campo (o teclado deixa de mexer na montagem).
+    if (progress !== null && typeof document !== 'undefined' && el.contains(document.activeElement)) (document.activeElement as HTMLElement | null)?.blur?.();
+  }, [progress !== null]); // eslint-disable-line react-hooks/exhaustive-deps
   const [err, setErr] = useState('');
   const [readyTick, setReadyTick] = useState(0);
 
@@ -574,7 +587,19 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   function openPicker() { pickerWasPlaying.current = playingRef.current; if (playingRef.current) pause(); setPickMusic(true); }
   function closePicker() { setPickMusic(false); if (pickerWasPlaying.current && !resumeAfterPick.current) play(pausedAt.current); pickerWasPlaying.current = false; }
   /** Sair do estúdio pára logo a pré-visualização (o resto liberta-se ao desmontar). */
-  function close() { if (playingRef.current) pause(); onClose(); }
+  function close() {
+    if (progressRef.current !== null) {
+      Alert.alert('Cancelar a montagem?', 'O que editaste fica como está e podes montar outra vez.', [
+        { text: 'Continuar a montar', style: 'cancel' },
+        { text: 'Cancelar a montagem', style: 'destructive', onPress: cancelBuild },
+      ]);
+      return;
+    }
+    if (playingRef.current) pause();
+    onClose();
+  }
+  /** Pára a montagem em curso: o ciclo sai no frame seguinte e a edição volta a ficar ativa. */
+  function cancelBuild() { if (progressRef.current === null) return; cancelled.current = true; gen.current += 1; }
 
   // Recomeça a pré-visualização quando a sequência muda (um pouco depois, para não recomeçar a cada toque).
   useEffect(() => {
@@ -645,13 +670,17 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     if (typeof MediaRecorder === 'undefined' || !(canvasRef.current as (HTMLCanvasElement & { captureStream?: unknown }) | null)?.captureStream) { setErr('Este browser não consegue montar o vídeo'); return; }
     setProgress(0);
     try {
+      cancelled.current = false;
       const out = await run(0, { record: true, speakers: false, onProgress: setProgress });
       setProgress(null);
       if (!alive.current) return;
+      // Cancelada no ×: volta à edição tal como estava, sem aviso de erro.
+      if (cancelled.current) { cancelled.current = false; play(0); return; }
       if (!out.blob || !out.blob.size) { setErr('Não consegui montar o tcheka. Tenta outra vez.'); play(0); return; }
       finish(out.blob, out.blob.type || 'video/mp4', false);
     } catch {
       setProgress(null);
+      if (cancelled.current) { cancelled.current = false; play(0); return; }
       setErr('Não consegui montar o tcheka');
     }
   }
@@ -684,6 +713,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     </Pressable>
   );
   const busy = progress !== null;
+  /** Com a montagem em curso nada se edita (o vídeo que sai é o que estava no ecrã ao carregar em «Seguinte»). */
+  const locked = editLocked(progress);
   const prepared = readyTick > 0 && ready.current?.sig === fullSig;
   const left = Math.max(0, Math.ceil(playTotal * (1 - (progress ?? 0))));
   const TABS: { id: Tab; label: string }[] = [{ id: 'clipes', label: 'Clipes' }, { id: 'som', label: 'Som' }, { id: 'texto', label: 'Texto' }, { id: 'efeitos', label: 'Efeitos' }, { id: 'capa', label: 'Capa' }];
@@ -701,7 +732,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
       </View>
       {rules.hint ? (
         <View style={st.hintWrap}>
-          <Pressable onPress={() => setTab(rules.problem === 'som' ? 'som' : 'clipes')} style={st.hint} accessibilityRole="button" accessibilityLabel={`Para seguir: ${rules.hint}`}>
+          <Pressable onPress={() => setTab(rules.problem === 'som' ? 'som' : 'clipes')} disabled={locked} style={st.hint} accessibilityRole="button" accessibilityLabel={`Para seguir: ${rules.hint}`}>
             <Icon name="info" size={15} color="#fff" />
             <Text style={st.hintText} accessibilityLiveRegion="polite">{rules.hint}</Text>
           </Pressable>
@@ -735,6 +766,13 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
         )}
       </Pressable>
 
+      <View
+        ref={(el) => { editBox.current = el as unknown as HTMLElement | null; }}
+        style={[{ flexShrink: 0 }, locked && st.locked]}
+        pointerEvents={locked ? 'none' : 'auto'}
+        accessibilityState={{ disabled: locked }}
+        aria-disabled={locked}
+      >
       <View style={st.tabs} accessibilityRole="tablist">
         {TABS.map((t) => (
           <Pressable key={t.id} onPress={() => setTab(t.id)} style={st.tabBtn} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id }} accessibilityLabel={t.label}>
@@ -838,7 +876,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
         {tab === 'texto' ? (
           <>
             <View style={st.textRow}>
-              <TextInput value={title} onChangeText={(v) => setTitle(v.slice(0, 80))} placeholder="Texto por cima do tcheka" placeholderTextColor="rgba(255,255,255,0.55)" style={st.input} accessibilityLabel="Texto do tcheka" maxLength={80} />
+              <TextInput value={title} editable={!locked} onChangeText={(v) => { if (!locked) setTitle(v.slice(0, 80)); }} placeholder="Texto por cima do tcheka" placeholderTextColor="rgba(255,255,255,0.55)" style={st.input} accessibilityLabel="Texto do tcheka" maxLength={80} />
               {chip(titleStyle === 'branco', 'Branco', () => setTitleStyle('branco'))}
               {chip(titleStyle === 'coral', 'Coral', () => setTitleStyle('coral'))}
             </View>
@@ -880,6 +918,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
         ) : null}
         {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
       </ScrollView>
+      </View>
       {pickMusic ? <MusicPicker allowLocal onClose={closePicker} onPick={pickedMusic} /> : null}
     </View>
   );
@@ -902,6 +941,7 @@ const st = StyleSheet.create({
   timeline: { position: 'absolute', left: 10, right: 10, bottom: 8, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)' },
   timeFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 2, backgroundColor: '#fff' },
   beatTick: { position: 'absolute', top: -3, width: 2, height: 10, marginLeft: -1, borderRadius: 1, backgroundColor: '#ffd60a' },
+  locked: { opacity: 0.35 },
   controls: { position: 'absolute', left: 10, right: 10, bottom: 18, flexDirection: 'row', alignItems: 'center', gap: 10 },
   playBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.55)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
   clock: { color: '#fff', fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'], textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 },

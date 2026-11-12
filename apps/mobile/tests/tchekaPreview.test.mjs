@@ -65,7 +65,40 @@ test('sair do estúdio ou abrir o seletor de música pára a pré-visualização
   assert.match(studio, /function openPicker\(\) \{ pickerWasPlaying\.current = playingRef\.current; if \(playingRef\.current\) pause\(\); setPickMusic\(true\); \}/);
   assert.match(studio, /<Pressable onPress=\{openPicker\}/);
   assert.match(studio, /<MusicPicker allowLocal onClose=\{closePicker\}/);
-  assert.match(studio, /if \(playingRef\.current\) pause\(\);\s*onClose\(\);/, 'o × pára antes de fechar');
+  assert.match(studio, /if \(playingRef\.current\) pause\(\);\n\s+onClose\(\);/, 'o × pára antes de fechar');
   assert.match(studio, /e\.videos\.forEach\(\(v\) => \{ v\.pause\(\);/, 'ao desmontar, os vídeos param');
   assert.match(studio, /void e\.ac\?\.close\(\)/, 'e o som fecha');
+});
+
+test('com a montagem em curso, os controlos de edição estão desativados', () => {
+  assert.equal(r.editLocked(null), false);
+  assert.equal(r.editLocked(undefined), false);
+  assert.equal(r.editLocked(0), true, 'logo ao carregar em Seguinte (0%)');
+  assert.equal(r.editLocked(0.6), true);
+  assert.match(studio, /const locked = editLocked\(progress\);/);
+  // A caixa com os separadores e todos os controlos (transição, filtro, texto, cor, stickers, música, clipes, durações,
+  // cortes e capa): esbatida, sem toques e sem teclado.
+  const box = studio.indexOf("pointerEvents={locked ? 'none' : 'auto'}");
+  const tabs = studio.indexOf('<View style={st.tabs}');
+  const end = studio.indexOf('{pickMusic ? <MusicPicker');
+  assert.ok(box > 0 && box < tabs, 'a caixa bloqueada começa antes dos separadores');
+  for (const ctl of ["setTransition('fade')", 'setLook(i)', 'setTitleStyle(', 'setCast(c.id)', 'onPress={openPicker}', 'remove(i)', 'cycle(i)', 'Início do clipe', 'Momento da capa']) {
+    const at = studio.indexOf(ctl, tabs);
+    assert.ok(at > box && at < end, `${ctl} está dentro da caixa bloqueada`);
+  }
+  assert.match(studio, /style=\{\[\{ flexShrink: 0 \}, locked && st\.locked\]\}/);
+  assert.match(studio, /locked: \{ opacity: 0\.35 \}/);
+  assert.match(studio, /accessibilityState=\{\{ disabled: locked \}\}/);
+  assert.match(studio, /el\.setAttribute\('inert', ''\)/, 'no browser, inert tira o foco e o teclado');
+  assert.match(studio, /<TextInput value=\{title\} editable=\{!locked\}/);
+  assert.match(studio, /disabled=\{locked\} style=\{st\.hint\}/);
+});
+
+test('o × durante a montagem pede confirmação; cancelar ou falhar volta à edição sem perder nada', () => {
+  assert.match(studio, /Alert\.alert\('Cancelar a montagem\?'/);
+  assert.match(studio, /\{ text: 'Cancelar a montagem', style: 'destructive', onPress: cancelBuild \}/);
+  assert.match(studio, /function cancelBuild\(\) \{ if \(progressRef\.current === null\) return; cancelled\.current = true; gen\.current \+= 1; \}/);
+  // Depois: a montagem acaba (progress volta a null, a edição fica ativa) e o que se editou fica (o estado não muda).
+  assert.match(studio, /if \(cancelled\.current\) \{ cancelled\.current = false; play\(0\); return; \}/);
+  assert.match(studio, /\} catch \{\n\s+setProgress\(null\);/);
 });

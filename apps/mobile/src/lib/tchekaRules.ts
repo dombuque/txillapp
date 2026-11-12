@@ -303,3 +303,5 @@ export function previewClock(t: number, total: number): string {
   return `${f(Math.min(t, total))} / ${f(total)}`;
 }
 
+/** A edição do estúdio fica bloqueada enquanto a montagem corre (`progress` de 0 a 1; null quando não há montagem). */
+export const editLocked = (progress: number | null | undefined): boolean => progress !== null && progress !== undefined;
