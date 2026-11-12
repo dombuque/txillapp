@@ -32,19 +32,37 @@ import { VenueLogo } from './VenueCard';
 import { CheersPour } from './CheersPour';
 import { KIND_LABEL } from '@/lib/api.locais';
 import { navTap } from '@/lib/tapGuard';
+import { useDesktop } from '@/lib/desktop';
+import { anchorOf, finePointer, isTypingTarget, overlayOpen, type Rect } from '@/lib/desktopKeys';
 
 /** Abre um ecrã, mas só uma vez: dois toques rápidos no cartão já não empilham dois ecrãs iguais. */
 const pushOnce = (router: ReturnType<typeof useRouter>, to: string) => { if (navTap(to)) router.push(to as never); };
 
+type Hover = { pressed: boolean; hovered?: boolean };
+/** Dica do browser (title) nos botões só com ícone: só na web. */
+const tip = (t: string) => (finePointer() ? ({ dataSet: { tip: t } } as object) : null);
+/** O botão direito num campo, numa ligação ou com texto selecionado fica com o menu do browser (copiar, abrir noutro separador). */
+function contextMenuIsBrowser(target: unknown): boolean {
+  if (typeof window === 'undefined') return true;
+  const sel = window.getSelection?.();
+  if (sel && !sel.isCollapsed && String(sel).trim()) return true;
+  for (let el = target as HTMLElement | null, k = 0; el && k < 12; el = el.parentElement, k++) {
+    if (isTypingTarget(el) || el.tagName === 'A' || el.tagName === 'VIDEO') return true;
+  }
+  return false;
+}
+
 /** Toque simples ou duplo: o duplo chama `double`; o simples só corre (com um pequeno atraso) se não vier segundo toque. */
 function useTap(double?: () => void) {
   const t = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastDouble = useRef(0);
   useEffect(() => () => { if (t.current) clearTimeout(t.current); }, []);
-  return (single?: () => void) => {
+  const run = (single?: () => void) => {
     if (!double) return single?.();
     if (t.current != null) {
       clearTimeout(t.current);
       t.current = null;
+      lastDouble.current = Date.now();
       double();
       return;
     }
@@ -53,6 +71,14 @@ function useTap(double?: () => void) {
       single?.();
     }, 260);
   };
+  /** O `dblclick` do DOM (computador): o mesmo duplo toque, sem contar duas vezes se o 2.º clique já chegou. */
+  run.dbl = () => {
+    if (!double || Date.now() - lastDouble.current < 500) return;
+    if (t.current != null) { clearTimeout(t.current); t.current = null; }
+    lastDouble.current = Date.now();
+    double();
+  };
+  return run;
 }
 
 /** Duplo toque: brinda (só põe, nunca tira) e dá o sinal para a animação do copo. */
@@ -147,6 +173,11 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   const pad = width >= 360 ? 16 : 14;
   const inner = width - margin * 2 - pad * 2;
   const [sheet, setSheet] = useState<SheetState>(openComments ? 'comments' : null);
+  // Computador: o «⋯» abre um menu pendente junto a ele; o botão direito no cartão abre o mesmo menu junto ao rato.
+  const desktop = useDesktop();
+  const [menuAt, setMenuAt] = useState<Rect | null>(null);
+  const [hot, setHot] = useState(false);
+  const openMenu = (at: Rect | null) => { setMenuAt(at); setSheet('menu'); };
   const [gone, setGone] = useState(false);
   // Foto em ecrã inteiro: `of` é a publicação cujas fotos se veem (a original, num repost com comentário).
   const [viewer, setViewer] = useState<null | { of: Post; start: number }>(null);
@@ -177,14 +208,31 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   }
 
   const menuBtn = (
-    <Pressable onPress={() => setSheet('menu')} hitSlop={6} style={styles.more} accessibilityRole="button" accessibilityLabel="Mais opções da publicação">
+    <Pressable onPress={(e) => openMenu(anchorOf(e))} hitSlop={6} style={(st) => [styles.more, (st as Hover).hovered && styles.iconHover]} accessibilityRole="button" accessibilityLabel="Mais opções da publicação" {...tip('Mais opções')}>
       <Icon name="more" size={26} strokeWidth={3} />
     </Pressable>
   );
   const giftTo = { username: post.author.username, displayName: post.author.displayName };
 
   return (
-    <Pressable onPress={goPost} accessible={false} style={[styles.card, cardShadow, { marginHorizontal: margin, paddingHorizontal: pad }]}>
+    <Pressable
+      onPress={goPost}
+      accessible={false}
+      style={[styles.card, cardShadow, { marginHorizontal: margin, paddingHorizontal: pad }, desktop && hot && styles.cardHot]}
+      {...(desktop ? {
+        // DOM (mouseenter/leave): o hover do Pressable não chega ao cartão quando o rato está por cima de um filho clicável.
+        onMouseEnter: () => setHot(true),
+        onMouseLeave: () => setHot(false),
+        // Botão direito: o menu da publicação junto ao rato (no texto selecionado, nas ligações e nos campos fica o do browser).
+        onContextMenu: (e: { preventDefault: () => void; clientX?: number; clientY?: number; nativeEvent?: { clientX?: number; clientY?: number }; target?: unknown }) => {
+          if (contextMenuIsBrowser(e.target)) return;
+          e.preventDefault();
+          const x = e.nativeEvent?.clientX ?? e.clientX ?? 0;
+          const y = e.nativeEvent?.clientY ?? e.clientY ?? 0;
+          openMenu({ x, y, w: 0, h: 0 });
+        },
+      } : null)}
+    >
       {sponsored ? (
         <View style={styles.sponsored} accessible accessibilityRole="text" accessibilityLabel={sponsored.a11y}>
           <Icon name="flame" size={14} color={colors.brand} />
@@ -255,7 +303,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
               {timeAgo(post.createdAt)}
               {post.editedAt ? ' · editado' : ''}
             </Text>
-            <Pressable onPress={() => void toggleSave()} hitSlop={6} style={styles.save} accessibilityRole="button" accessibilityLabel={post.saved ? 'Tirar dos guardados' : 'Guardar'}>
+            <Pressable onPress={() => void toggleSave()} hitSlop={6} style={(st) => [styles.save, (st as Hover).hovered && styles.iconHover]} accessibilityRole="button" accessibilityLabel={post.saved ? 'Tirar dos guardados' : 'Guardar'} {...tip(post.saved ? 'Tirar dos guardados' : 'Guardar')}>
               <BookmarkIcon on={!!post.saved} size={24} />
             </Pressable>
             {menuBtn}
@@ -277,7 +325,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
       ) : (
         <CheersPour n={burst} size={Math.min(200, inner * 0.55)} />
       )}
-      <Actions post={post} mine={mine} patch={patch} onCheer={celebrate} open={(k) => setSheet(k === 'gift' ? { gift: giftTo } : k)} people={(k) => setSheet({ people: k })} />
+      <Actions hot={desktop && hot} post={post} mine={mine} patch={patch} onCheer={celebrate} open={(k) => setSheet(k === 'gift' ? { gift: giftTo } : k)} people={(k) => setSheet({ people: k })} />
       {/* Publicações que o algoritmo te mostra (de quem não segues): ensina o que queres ver. */}
       {post.feed?.source === 'discover' && !mine ? <TeachBar postId={post.id} onNo={() => setGone(true)} /> : null}
       {viewer && (
@@ -302,7 +350,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
           }
         />
       )}
-      {sheet === 'menu' && <PostMenuSheet post={post} mine={mine} onClose={() => setSheet(null)} onSaved={(saved) => patch({ saved })} onShare={() => setSheet('share')} />}
+      {sheet === 'menu' && <PostMenuSheet post={post} mine={mine} anchor={desktop ? menuAt : null} onClose={() => setSheet(null)} onSaved={(saved) => patch({ saved })} onShare={() => setSheet('share')} />}
       {sheet === 'share' && <ShareSheet post={post} onClose={() => setSheet(null)} />}
       {sheet === 'comments' && (
         <CommentsSheet
@@ -485,6 +533,37 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = fals
   const [measured, setMeasured] = useState(0);
   const width = measured || guess;
   const list = useRef<FlatList<Post['media'][number]>>(null);
+  // Computador: setas ‹ › por cima da foto ao passar o rato, e ←/→ do teclado enquanto o rato está por cima.
+  const desktop = useDesktop();
+  const [over, setOver] = useState(false);
+  const cur = useRef({ i, n: media.length, width });
+  cur.current = { i, n: media.length, width };
+  // Duplo clique (computador): brinda, também quando o browser não passa o 2.º clique ao Pressable.
+  const tapRef = useRef(tap);
+  tapRef.current = tap;
+  const dblRef = useCallback((node: unknown) => {
+    const el = node as HTMLElement | null;
+    if (!el || typeof el.addEventListener !== 'function') return;
+    el.addEventListener('dblclick', (e) => { e.preventDefault(); tapRef.current.dbl(); });
+  }, []);
+  const goTo = useCallback((n: number) => {
+    const c = cur.current;
+    const k = Math.max(0, Math.min(c.n - 1, n));
+    if (k === c.i) return;
+    list.current?.scrollToOffset({ offset: k * c.width, animated: true });
+    setI(k);
+    setShowTags(false);
+  }, []);
+  useEffect(() => {
+    if (!desktop || !over || media.length < 2 || typeof window === 'undefined') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(e.target as HTMLElement) || overlayOpen()) return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(cur.current.i - 1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); goTo(cur.current.i + 1); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [desktop, over, media.length, goTo]);
   // A largura mudou (janela redimensionada, rodar o ecrã): a foto atual volta a ficar alinhada.
   useEffect(() => {
     if (measured && i > 0) list.current?.scrollToOffset({ offset: i * measured, animated: false });
@@ -507,7 +586,12 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = fals
   };
   return (
     <View style={{ marginTop: 12 }}>
-      <View onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && Math.abs(w - measured) > 1) setMeasured(w); }} style={{ borderRadius: 12, overflow: 'hidden', height: h, backgroundColor: colors.zinc100 }}>
+      <View
+        onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && Math.abs(w - measured) > 1) setMeasured(w); }}
+        style={[{ borderRadius: 12, overflow: 'hidden', height: h, backgroundColor: colors.zinc100 }, desktop && ({ userSelect: 'none' } as object)]}
+        {...(desktop ? ({ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) } as object) : null)}
+        ref={desktop ? dblRef : undefined}
+      >
         <FlatList
           ref={list}
           data={media}
@@ -555,6 +639,20 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = fals
             )}
           </>
         )}
+        {desktop && over && media.length > 1 ? (
+          <>
+            {i > 0 ? (
+              <Pressable onPress={() => goTo(i - 1)} style={(st) => [styles.arrow, { left: 10 }, (st as Hover).hovered && styles.arrowHover]} accessibilityRole="button" accessibilityLabel="Foto anterior" {...tip('Foto anterior (←)')}>
+                <Icon name="chevron-left" size={22} color={colors.zinc900} strokeWidth={2.4} />
+              </Pressable>
+            ) : null}
+            {i < media.length - 1 ? (
+              <Pressable onPress={() => goTo(i + 1)} style={(st) => [styles.arrow, { right: 10 }, (st as Hover).hovered && styles.arrowHover]} accessibilityRole="button" accessibilityLabel="Foto seguinte" {...tip('Foto seguinte (→)')}>
+                <Icon name="chevron-right" size={22} color={colors.zinc900} strokeWidth={2.4} />
+              </Pressable>
+            ) : null}
+          </>
+        ) : null}
         {media.length > 1 && (
           <View style={styles.counter} pointerEvents="none">
             <Text style={styles.counterText}>{i + 1}/{media.length}</Text>
@@ -573,7 +671,7 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = fals
 }
 
 /** Contadores em cima e, por baixo da linha, as ações com ícone e nome (Brindar, Comentar, Repostar, Presentear, Partilhar). */
-function Actions({ post, mine, patch, open, people, onCheer }: { post: Post; mine: boolean; patch: (p: Partial<Post>) => void; open: (k: 'comments' | 'repost' | 'gift' | 'share') => void; people: (k: PeopleKind) => void; /** Brindou pelo botão: mostra a animação. */ onCheer?: () => void }) {
+function Actions({ post, mine, patch, open, people, onCheer, hot = false }: { /** Computador: o rato está por cima do cartão (as ações ficam realçadas). */ hot?: boolean; post: Post; mine: boolean; patch: (p: Partial<Post>) => void; open: (k: 'comments' | 'repost' | 'gift' | 'share') => void; people: (k: PeopleKind) => void; /** Brindou pelo botão: mostra a animação. */ onCheer?: () => void }) {
   const cheer = useMutation({
     mutationFn: () => api.cheer(post.id),
     onMutate: () => {
@@ -593,7 +691,7 @@ function Actions({ post, mine, patch, open, people, onCheer }: { post: Post; min
   const canSee = (k: PeopleKind) => (post.kind !== 'repost' || k === 'cheers') && !!post.lists?.[k];
 
   const Btn = ({ label, icon, onPress, color = colors.zinc800, size = 22, strokeWidth }: { label: string; icon: Parameters<typeof Icon>[0]['name']; onPress: () => void; color?: string; size?: number; strokeWidth?: number }) => (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.barBtn, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={label}>
+    <Pressable onPress={onPress} style={(st) => [styles.barBtn, hot && styles.barBtnHot, (st as Hover).hovered && styles.barBtnHover, st.pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button" accessibilityLabel={label}>
       <Icon name={icon} size={size} color={color} strokeWidth={strokeWidth} />
       <Text style={[styles.word, { color }]} numberOfLines={1}>{label}</Text>
     </Pressable>
@@ -623,7 +721,7 @@ function Actions({ post, mine, patch, open, people, onCheer }: { post: Post; min
           </Pressable>
         )}
       </View>
-      <View style={styles.bar}>
+      <View style={[styles.bar, hot && styles.barHot]}>
         <Btn label={post.cheered ? 'Brindou' : 'Brindar'} icon="cheers" size={24} color={post.cheered ? colors.amber600 : colors.zinc800} onPress={() => cheer.mutate()} />
         <Btn label="Comentar" icon="comment" onPress={() => open('comments')} />
         <Btn label={post.reposted ? 'Repostado' : 'Repostar'} icon="repeat" color={post.reposted ? colors.green700 : colors.zinc800} onPress={() => open('repost')} />
@@ -665,6 +763,13 @@ const styles = StyleSheet.create({
   giftUnit: { fontSize: 13, fontWeight: '700', letterSpacing: 2.6, color: 'rgba(255,255,255,0.85)' },
   giftNote: { marginTop: 16, maxWidth: '92%', overflow: 'hidden', borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, lineHeight: 22, color: '#fff', textAlign: 'center' },
   card: { backgroundColor: colors.white, borderRadius: 26, paddingTop: 16, marginBottom: 20 },
+  arrow: { position: 'absolute', top: '50%', marginTop: -18, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.88)', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' },
+  arrowHover: { backgroundColor: '#fff' },
+  cardHot: { boxShadow: '0 4px 22px rgba(0,0,0,0.13)' },
+  iconHover: { backgroundColor: colors.zinc100, borderRadius: 20 },
+  barHot: { borderTopColor: colors.zinc300 },
+  barBtnHot: { backgroundColor: '#fafafa' },
+  barBtnHover: { backgroundColor: colors.zinc100, borderRadius: 14 },
   sponsored: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginBottom: 10, borderRadius: 999, backgroundColor: colors.rose50, paddingHorizontal: 10, paddingVertical: 4 },
   sponsoredText: { fontSize: 12, fontWeight: '800', color: colors.brand, letterSpacing: 0.2 },
   repostBar: { flexDirection: 'row', alignItems: 'center', gap: THREAD_GAP, marginRight: 24, marginBottom: 6 },

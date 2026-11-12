@@ -12,7 +12,9 @@ import { BookmarkIcon } from './BookmarkIcon';
 import { QuotedOriginal, THREAD_AVATAR, THREAD_GAP } from './QuoteThread';
 import { Icon, type IconName } from './Icon';
 import { ReportSheet } from './ReportSheet';
-import { Sheet } from './Sheet';
+import { Sheet, useSheetMode } from './Sheet';
+import type { Rect } from '@/lib/desktopKeys';
+import { useDesktop } from '@/lib/desktop';
 import { linkShare } from '@/lib/shareLink';
 
 const AMOUNTS = [5, 10, 50, 100];
@@ -25,12 +27,21 @@ const OPTIONS: { value: 'silent' | 'private' | 'public'; icon: IconName; title: 
 export const postLink = (post: { code: string; media: { kind?: string }[] }) => `${SITE_URL || 'https://txillapp.com'}/${isTcheka(post) ? 'r' : 'p'}/${post.code}`;
 
 export function MenuRow({ icon, title, text, onPress, disabled }: { icon: ReactNode; title: string; text: string; onPress: () => void; disabled?: boolean }) {
+  // Menu pendente do computador: uma linha compacta (ícone e título; a explicação aparece ao passar o rato).
+  const compact = useSheetMode() === 'menu';
   return (
-    <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: colors.zinc100 }, disabled && { opacity: 0.6 }]} accessibilityRole="button">
-      <View style={styles.menuIcon}>{icon}</View>
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={(s) => [styles.menuRow, compact && styles.menuRowCompact, ((s as { hovered?: boolean }).hovered || s.pressed) && { backgroundColor: colors.zinc100 }, disabled && { opacity: 0.6 }]}
+      accessibilityRole={compact ? 'menuitem' : 'button'}
+      accessibilityHint={compact ? text : undefined}
+      {...(compact ? ({ dataSet: { tip: text } } as object) : null)}
+    >
+      <View style={compact ? styles.menuIconCompact : styles.menuIcon}>{icon}</View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.menuTitle}>{title}</Text>
-        <Text style={styles.menuText}>{text}</Text>
+        <Text style={compact ? styles.menuTitleCompact : styles.menuTitle} numberOfLines={compact ? 1 : undefined}>{title}</Text>
+        {compact ? null : <Text style={styles.menuText}>{text}</Text>}
       </View>
     </Pressable>
   );
@@ -190,7 +201,7 @@ export function RepostSheet({ post, onChange, onClose }: { post: Post; onChange:
 }
 
 /** ⋯ da publicação: partilhar, guardar, copiar ligação, editar, apagar (as minhas), não me interessa e denunciar (de outras pessoas). */
-export function PostMenuSheet({ post, mine, onClose, onSaved, onShare }: { post: Post; mine: boolean; onClose: () => void; onSaved: (saved: boolean) => void; onShare?: () => void }) {
+export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = null }: { post: Post; mine: boolean; onClose: () => void; onSaved: (saved: boolean) => void; onShare?: () => void; /** Computador: abre como menu pendente junto a este sítio (o «⋯» ou o rato, no botão direito). */ anchor?: Rect | null }) {
   const qc = useQueryClient();
   const [view, setView] = useState<'menu' | 'edit' | 'report'>('menu');
   const [draft, setDraft] = useState(post.body);
@@ -198,6 +209,7 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare }: { post:
   const [saving, setSaving] = useState(false);
   const [editErr, setEditErr] = useState('');
   const refresh = async (keys: string[]) => { for (const k of keys) await qc.invalidateQueries({ queryKey: [k] }); };
+  const deskMenu = useDesktop();
 
   async function copy() {
     try {
@@ -274,8 +286,8 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare }: { post:
     );
   }
   return (
-    <Sheet title="Publicação" onClose={onClose}>
-      <ScrollView style={{ paddingHorizontal: 24 }}>
+    <Sheet title="Publicação" onClose={onClose} variant="menu" anchor={anchor}>
+      <ScrollView style={{ paddingHorizontal: anchor && deskMenu ? 6 : 24 }}>
         <MenuRow icon={<Icon name="share" size={22} />} title="Partilhar" text="No teu mimo, por ligação ou por outra app." onPress={() => void share()} />
         <MenuRow icon={<BookmarkIcon on={!!post.saved} size={22} color={colors.zinc800} />} title={post.saved ? 'Tirar dos guardados' : 'Guardar'} text="Só tu vês os teus guardados." onPress={() => void toggleSave()} />
         <MenuRow icon={<Icon name="link" size={22} />} title="Copiar ligação" text={note || 'Para partilhares onde quiseres.'} onPress={() => void copy()} />
@@ -310,6 +322,9 @@ const styles = StyleSheet.create({
   menuIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   menuTitle: { fontSize: 17, fontWeight: '600', color: colors.zinc900 },
   menuText: { fontSize: 14, color: colors.zinc600 },
+  menuRowCompact: { gap: 12, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9 },
+  menuIconCompact: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  menuTitleCompact: { fontSize: 15, fontWeight: '500', color: colors.zinc900 },
   field: { borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colors.zinc900 },
   amount: { flex: 1, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   amountText: { fontWeight: '600', fontSize: 16, color: colors.zinc900 },

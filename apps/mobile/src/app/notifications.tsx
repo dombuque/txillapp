@@ -239,7 +239,7 @@ function Row({ g, me }: { g: Group; me?: string }) {
   ) : null;
 
   return (
-    <Pressable onPress={() => go(target)} disabled={!target} style={({ pressed }) => [styles.row, g.fresh && { backgroundColor: 'rgba(255,241,242,0.7)' }, pressed && target && { backgroundColor: colors.zinc100 }]}>
+    <Pressable onPress={() => go(target)} disabled={!target} style={(s) => [styles.row, g.fresh && { backgroundColor: 'rgba(255,241,242,0.7)' }, (s as { hovered?: boolean }).hovered && target && { backgroundColor: '#fafafa' }, s.pressed && target && { backgroundColor: colors.zinc100 }]}>
       <Pressable onPress={() => !n.actor.staff && router.push(`/u/${people.actors[0].username}` as never)} disabled={!!n.actor.staff} accessibilityRole="link" accessibilityLabel={people.actors[0].displayName}>
         <Faces actors={people.actors} />
       </Pressable>

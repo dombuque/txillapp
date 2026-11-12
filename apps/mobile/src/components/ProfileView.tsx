@@ -30,6 +30,7 @@ import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
 import { usePagerPan, useWebPager } from './SwipePager';
+import { anchorOf, gridColumns, tabArrow, type Rect as Anchor } from '@/lib/desktopKeys';
 import { useFadeIn, useTabSlider } from './TabSlider';
 import { VerifiedBadge } from './VerifiedBadge';
 import { ArtistTag } from './ArtistUi';
@@ -68,14 +69,17 @@ function QrGlyph() {
 
 function Grid({ posts, onOpen, width }: { posts: Post[]; onOpen: (p: Post) => void; width: number }) {
   const gap = 6;
-  const size = (width - 32 - gap * 2) / 3;
+  // Computador: mais colunas quando a coluna é larga (3 no telemóvel).
+  const desktop = useDesktop();
+  const n = gridColumns(width - 32, desktop);
+  const size = (width - 32 - gap * (n - 1)) / n;
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
       {posts.map((post) => {
         const shown = post.kind === 'repost' && post.repostOf ? post.repostOf : post;
         const m = shown.media[0];
         return (
-          <Pressable key={post.id} onPress={() => onOpen(post)} style={{ width: size, height: size, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.rose50 }} accessibilityRole="button" accessibilityLabel={`Abrir publicação: ${post.body || shown.body || 'foto'}`}>
+          <Pressable key={post.id} onPress={() => onOpen(post)} style={(s) => [{ width: size, height: size, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.rose50 }, desktop && (s as { hovered?: boolean }).hovered && { opacity: 0.88 }]} accessibilityRole="button" accessibilityLabel={`Abrir publicação: ${post.body || shown.body || 'foto'}`}>
             {post.kind === 'gift' && post.gift ? (
               <LinearGradient colors={[colors.brand, '#e8475f', '#ff8a5b']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gift}>
                 <View style={{ width: 46, height: 28 }}>
@@ -120,6 +124,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   const [tab, setTab] = useState<ProfileTab>('all');
   const [sheet, setSheet] = useState<null | 'menu' | 'gift' | 'report' | 'edit' | 'requests' | 'qr' | 'block'>(null);
   const [geleiraOpen, setGeleiraOpen] = useState(false);
+  /** Computador: o menu «⋯» abre junto ao botão. */
+  const [menuAt, setMenuAt] = useState<Anchor | null>(null);
   /** A bloquear ou desbloquear: um toque só (e o botão diz que está a tratar). */
   const [acting, setActing] = useState(false);
   const [rowW, setRowW] = useState(0);
@@ -256,7 +262,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
         <View style={[styles.topOther, deskCol]}>
           <BackButton />
           <Text style={[styles.handleTop, { flex: 1 }]} numberOfLines={1}>@{p.username}</Text>
-          <Pressable onPress={() => setSheet('menu')} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={24} strokeWidth={2.4} /></Pressable>
+          <Pressable onPress={(e) => { setMenuAt(anchorOf(e)); setSheet('menu'); }} style={(s) => [styles.iconBtn, desktop && (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Mais opções" {...(desktop ? ({ dataSet: { tip: 'Mais opções' } } as object) : null)}><Icon name="more" size={24} strokeWidth={2.4} /></Pressable>
         </View>
       )}
 
@@ -385,9 +391,14 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       ) : p.canView ? (
         <SwipeArea gesture={pagerPan}>
         <View ref={webPager} collapsable={false} style={{ marginTop: 24, paddingHorizontal: 16 }} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && Math.abs(w - gridW) > 1) setGridW(w); }}>
-          <View style={styles.tabs} accessibilityRole="tablist">
+          <View
+            style={styles.tabs}
+            accessibilityRole="tablist"
+            // Teclado: com o foco nos separadores, ←/→ mudam de separador (computador).
+            {...({ onKeyDown: (e: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; preventDefault: () => void }) => { const d = tabArrow(e); if (d && pager.canGo(d)) { e.preventDefault(); pager.go(d); } } } as object)}
+          >
             {tabs.map((t) => (
-              <Pressable key={t.id} onPress={() => switchTab(t.id)} onLayout={slider.layout(t.id)} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id }} aria-selected={tab === t.id} accessibilityLabel={t.label} style={styles.tab}>
+              <Pressable key={t.id} onPress={() => switchTab(t.id)} onLayout={slider.layout(t.id)} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id }} aria-selected={tab === t.id} accessibilityLabel={t.label} style={(s) => [styles.tab, desktop && (s as { hovered?: boolean }).hovered && { backgroundColor: '#fafafa' }]} {...(desktop ? ({ dataSet: { tip: t.label } } as object) : null)}>
                 {t.icon === 'bookmark' ? <BookmarkIcon on={tab === t.id} size={24} /> : <Icon name={t.icon} size={24} color={tab === t.id ? colors.zinc900 : '#a1a1aa'} />}
               </Pressable>
             ))}
@@ -423,8 +434,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       {sheet === 'edit' && <EditProfileSheet profile={p} onClose={() => setSheet(null)} />}
       {sheet === 'requests' && <RequestsSheet username={p.username} onClose={() => setSheet(null)} />}
       {sheet === 'menu' && (
-        <Sheet title={`@${p.username}`} onClose={() => setSheet(null)}>
-          <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
+        <Sheet title={`@${p.username}`} onClose={() => setSheet(null)} variant="menu" anchor={desktop ? menuAt : null}>
+          <View style={{ paddingHorizontal: desktop && menuAt ? 8 : 24, paddingBottom: 8 }}>
             <Pressable onPress={() => setSheet('block')} style={styles.menuRow} accessibilityRole="button">
               <View style={[styles.menuIcon, { backgroundColor: '#fef2f2' }]}><Icon name="block" size={24} color="#b91c1c" /></View>
               <View style={{ flex: 1 }}>

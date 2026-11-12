@@ -25,6 +25,8 @@ import { StickerCanvas, StickerPicker, StickerToolbar } from '@/components/Stick
 import { MAX_STICKERS, newPlaced, type PlacedSticker } from '@/lib/stickers';
 import { discardCopy, mimoEdited } from '@/lib/discardGuard';
 import { goBack } from '@/lib/nav';
+import { overlayOpen as anyOverlay } from '@/lib/desktopKeys';
+import { useViewerKeys } from '@/lib/desktopHooks';
 
 const EMERALD = '#10b981';
 const web = (o: Record<string, unknown>) => o as never;
@@ -173,6 +175,8 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
     });
     return () => sub.remove();
   }, [overlayOpen]);
+  // Computador: Esc fecha (com a mesma pergunta do ×), menos a escrever ou com uma folha por cima.
+  useViewerKeys(true, { close: () => closeRef.current() }, () => overlayOpen || anyOverlay());
 
   const tool = (icon: Parameters<typeof Icon>[0]['name'], label: string, onPress: () => void, on = false) => (
     <Pressable onPress={onPress} style={[st.tool, on && { backgroundColor: '#fff' }]} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: on }}>

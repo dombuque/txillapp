@@ -20,6 +20,7 @@ import { useDesktop } from '@/lib/desktop';
 import { installWebAlert } from '@/lib/alertHost';
 import { installWebBack } from '@/lib/webBack';
 import { installDeskScroll } from '@/lib/deskScroll';
+import { installDeskPolish } from '@/lib/deskPolish';
 import { accounts } from '@/lib/accounts';
 import { syncPush } from '@/lib/push';
 import { installCallRing } from '@/lib/callRing';
@@ -111,6 +112,8 @@ function Gate() {
   }, [loading]);
   // Computador (rato): a roda rola o ecrã também por cima das margens e da barra lateral, e a barra de deslocamento vê-se.
   useEffect(() => (Platform.OS === 'web' ? installDeskScroll() : undefined), []);
+  // E os detalhes: mãozinha no que se clica, foco visível ao teclado e dicas nos botões só com ícone.
+  useEffect(() => (Platform.OS === 'web' ? installDeskPolish() : undefined), []);
 
   useEffect(() => {
     if (loading || offline) return;

@@ -12,6 +12,7 @@ import { useAuth } from '@/lib/auth';
 import { enterImmersive, leaveImmersive } from '@/lib/immersive';
 import { isGone } from '@/lib/postCache';
 import { createOnce } from '@/lib/tapGuard';
+import { useDeskReels } from '@/lib/desktopHooks';
 import { Reel } from '../(tabs)/reels';
 
 const isWeb = Platform.OS === 'web';
@@ -85,6 +86,12 @@ export default function ReelPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length, more.hasNextPage]);
 
+  // Computador: ↑/↓ e a roda passam à tcheka anterior/seguinte (na primeira, ↑ não faz nada; Esc é o voltar do ecrã); espaço pausa.
+  const desk = useDeskReels(focused, () => activeRef.current, (k) => {
+    if (k >= 0 && k < items.length) list.current?.scrollToIndex({ index: k, animated: true });
+    else if (k >= items.length && more.hasNextPage) void more.fetchNextPage();
+  });
+
   // Na primeira tcheka, arrastar para baixo volta à publicação. Na web não há "bounce": lê-se o gesto do dedo.
   const closeRef = useRef(close);
   closeRef.current = close;
@@ -136,7 +143,7 @@ export default function ReelPage() {
         </View>
       )}
       {items.length > 0 && (
-        <View style={[st.column, desktop && height > 0 && { maxWidth: Math.min(576, Math.round((height * 9) / 16)) }]} onLayout={(e: LayoutChangeEvent) => { const h = Math.round(e.nativeEvent.layout.height); if (h > 0) setHeight((o) => (Math.abs(o - h) >= 1 ? h : o)); }}>
+        <View ref={desk.ref as never} style={[st.column, desktop && height > 0 && { maxWidth: Math.min(576, Math.round((height * 9) / 16)) }]} onLayout={(e: LayoutChangeEvent) => { const h = Math.round(e.nativeEvent.layout.height); if (h > 0) setHeight((o) => (Math.abs(o - h) >= 1 ? h : o)); }}>
           {height > 0 && (
             <FlatList
               ref={list}
@@ -161,7 +168,7 @@ export default function ReelPage() {
               maxToRenderPerBatch={2}
               onScrollToIndexFailed={(info) => list.current?.scrollToOffset({ offset: info.index * height, animated: true })}
               renderItem={({ item, index }) => (
-                <Reel post={item} active={index === active} onScreen={focused} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={insets.bottom} />
+                <Reel pauseSignal={desk.pauseSignal} post={item} active={index === active} onScreen={focused} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={insets.bottom} />
               )}
               onEndReached={() => { if (more.hasNextPage && !more.isFetchingNextPage) void more.fetchNextPage(); }}
               onEndReachedThreshold={1}

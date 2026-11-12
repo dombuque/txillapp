@@ -21,6 +21,8 @@ import { VenueRow, VenueTile } from '@/components/VenueCard';
 import { sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
+import { useDesktop } from '@/lib/desktop';
+import { gridColumns } from '@/lib/desktopKeys';
 
 const RECENT_KEY = 'txill.recent-searches';
 const readRecent = async (): Promise<string[]> => {
@@ -126,7 +128,10 @@ export default function Search() {
   const tags = q.data?.tags ?? [];
   const posts = q.data?.posts ?? [];
   const foundVenues = q.data?.venues ?? [];
-  const cell = (col - 4) / 3;
+  // Computador: mais colunas quando a coluna é larga (3 no telemóvel).
+  const desktop = useDesktop();
+  const ncol = gridColumns(col - 4, desktop);
+  const cell = (col - 4 - 2 * (ncol - 3)) / ncol;
 
   /**
    * Grelha do Explorar (igual ao `grid-flow-dense` do site): 3 colunas de células quadradas; o 1.º bloco (e de 10 em 10)
@@ -135,7 +140,7 @@ export default function Search() {
   const block = (list: Post[], offset: number) => {
     const occ: boolean[][] = [];
     const fits = (r: number, c: number, w: number) => {
-      for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) if (c + x > 2 || occ[r + y]?.[c + x]) return false;
+      for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) if (c + x > ncol - 1 || occ[r + y]?.[c + x]) return false;
       return true;
     };
     let rows = 0;
@@ -144,7 +149,7 @@ export default function Search() {
       let r = 0;
       let c = 0;
       let found = false;
-      for (r = 0; !found; r++) for (c = 0; c < 3 && !found; c++) if (fits(r, c, w)) found = true;
+      for (r = 0; !found; r++) for (c = 0; c < ncol && !found; c++) if (fits(r, c, w)) found = true;
       r -= 1;
       c -= 1;
       for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) (occ[r + y] ??= [])[c + x] = true;
@@ -157,7 +162,7 @@ export default function Search() {
           const m = p.media[0];
           const size = w * cell + (w - 1) * 2;
           return (
-            <Pressable key={p.id} onPress={() => setViewing(p.id)} style={{ position: 'absolute', left: c * (cell + 2), top: r * (cell + 2), width: size, height: size, backgroundColor: colors.rose50 }} accessibilityRole="button" accessibilityLabel={`Abrir publicação de ${p.author.displayName}`}>
+            <Pressable key={p.id} onPress={() => setViewing(p.id)} style={(s) => [{ position: 'absolute', left: c * (cell + 2), top: r * (cell + 2), width: size, height: size, backgroundColor: colors.rose50 }, desktop && (s as { hovered?: boolean }).hovered && { opacity: 0.88 }]} accessibilityRole="button" accessibilityLabel={`Abrir publicação de ${p.author.displayName}`}>
               <Image source={{ uri: sized(m.kind === 'video' ? m.posterUrl ?? m.url : m.url, w > 1 ? 720 : 360) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} accessibilityIgnoresInvertColors />
               {isTcheka(p) ? <View style={styles.tag}><Icon name="film" size={18} color="#fff" /></View> : p.media.length > 1 ? <View style={styles.tag}><Icon name="images" size={18} color="#fff" /></View> : null}
             </Pressable>

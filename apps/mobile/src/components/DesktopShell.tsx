@@ -16,6 +16,7 @@ import { NewBadge } from './WhatsNew';
 import { Icon, type IconName } from './Icon';
 import { NameWithBadge } from './NameWithBadge';
 import { Wordmark } from './Wordmark';
+import { DesktopShortcuts } from './DesktopShortcuts';
 
 const badge = (n: number) => (n > 9 ? '9+' : String(n));
 type HoverState = { pressed: boolean; hovered?: boolean };
@@ -38,6 +39,7 @@ export function DesktopShell({ children }: { children: ReactNode }) {
   const main = full ? st.mainFull : { ...st.main, maxWidth: wide ? 935 : 630 };
   return (
     <View style={st.shell}>
+      <DesktopShortcuts />
       <Sidebar labels={labels} path={path} />
       <View style={[st.area, !full && st.areaPad]}>
         {msgs ? <View style={st.msgList}><MessagesScreen /></View> : null}
@@ -129,7 +131,7 @@ function RightRail() {
   return (
     <ScrollView style={st.rail} contentContainerStyle={{ paddingTop: 36, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
       {user ? (
-        <Pressable onPress={() => router.navigate('/profile' as never)} style={st.meRow} accessibilityRole="link" accessibilityLabel="O teu perfil">
+        <Pressable onPress={() => router.navigate('/profile' as never)} style={(h) => [st.meRow, (h as HoverState).hovered && st.rowHover]} accessibilityRole="link" accessibilityLabel="O teu perfil">
           <Avatar name={user.displayName} username={user.username} size={48} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={st.meName} numberOfLines={1}>{user.displayName}</Text>
@@ -146,7 +148,7 @@ function RightRail() {
           </View>
           {people.map((p) => (
             <View key={p.username} style={st.person}>
-              <Pressable onPress={() => router.push(`/u/${p.username}` as never)} style={st.personLink} accessibilityRole="link" accessibilityLabel={`Perfil de ${p.displayName}`}>
+              <Pressable onPress={() => router.push(`/u/${p.username}` as never)} style={(h) => [st.personLink, (h as HoverState).hovered && { opacity: 0.75 }]} accessibilityRole="link" accessibilityLabel={`Perfil de ${p.displayName}`}>
                 <Avatar name={p.displayName} username={p.username} size={40} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <NameWithBadge name={p.displayName} who={p} style={st.pName} gap={4} />
@@ -162,7 +164,7 @@ function RightRail() {
       ) : null}
       <View style={st.foot}>
         {links.map(([label, to]) => (
-          <Pressable key={to} onPress={() => router.push(to as never)} accessibilityRole="link"><Text style={st.footLink}>{label}</Text></Pressable>
+          <Pressable key={to} onPress={() => router.push(to as never)} accessibilityRole="link">{(h) => <Text style={[st.footLink, (h as HoverState).hovered && { textDecorationLine: 'underline' }]}>{label}</Text>}</Pressable>
         ))}
       </View>
       <Text style={st.copy}>© {new Date().getFullYear()} Txillapp</Text>
@@ -200,6 +202,7 @@ const st = StyleSheet.create({
   mainFull: { flex: 1, minWidth: 0 },
   msgList: { width: 380, borderRightWidth: 1, borderRightColor: colors.zinc100 },
   rail: { width: 320, flexGrow: 0, flexShrink: 0 },
+  rowHover: { backgroundColor: '#fafafa', borderRadius: 12 },
   meRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
   meName: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
   meHandle: { fontSize: 14, color: colors.zinc500 },

@@ -12,20 +12,97 @@ import { CheersPour } from './CheersPour';
 import { Icon } from './Icon';
 import { NameWithBadge } from './NameWithBadge';
 import { RichText } from './RichText';
+import { clampRectPan, finePointer, rectZoomAt, type RectZoom } from '@/lib/desktopKeys';
+import { useViewerKeys } from '@/lib/desktopHooks';
+import { wheelFactor } from '@/lib/zoomMath';
 
 export interface ViewerPhoto { url: string; width?: number | null; height?: number | null; tags?: PhotoTag[] }
 
 /** Foto inteira (sem cortes) com as etiquetas das pessoas nas posições certas. */
-function Photo({ photo, w, h, index, total, onTag }: { photo: ViewerPhoto; w: number; h: number; index: number; total: number; onTag: (username: string) => void }) {
+/**
+ * Computador (rato): a roda amplia à volta do cursor (1× a 5×), arrastar move a foto ampliada e o duplo clique alterna.
+ * Mexe só no `transform` do elemento (sem novos renders). Volta a 1× quando `active` deixa de ser esta foto.
+ */
+function useDeskZoom(active: boolean, photo: { w: number; h: number }, view: { w: number; h: number }) {
+  const ref = useRef<HTMLElement | null>(null);
+  const size = useRef({ photo, view });
+  size.current = { photo, view };
+  const on = active && finePointer();
+  useEffect(() => {
+    const el = ref.current;
+    if (!on || !el || typeof el.addEventListener !== 'function') return;
+    let z: RectZoom = { scale: 1, x: 0, y: 0 };
+    let drag: { x: number; y: number; zx: number; zy: number; id: number } | null = null;
+    const paint = (n: RectZoom, ease: boolean) => {
+      z = n;
+      el.style.transition = ease ? 'transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none';
+      el.style.transform = `translate(${n.x}px, ${n.y}px) scale(${n.scale})`;
+      el.style.cursor = n.scale > 1 ? (drag ? 'grabbing' : 'grab') : 'zoom-in';
+    };
+    const rel = (cx: number, cy: number) => {
+      const r = (el.parentElement ?? el).getBoundingClientRect();
+      return { x: cx - (r.left + r.width / 2), y: cy - (r.top + r.height / 2) };
+    };
+    const wheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const f = rel(e.clientX, e.clientY);
+      paint(rectZoomAt(z, wheelFactor(e.deltaY, e.deltaMode, e.ctrlKey), f.x, f.y, size.current.photo, size.current.view), false);
+    };
+    const dbl = (e: MouseEvent) => {
+      const f = rel(e.clientX, e.clientY);
+      paint(z.scale > 1 ? { scale: 1, x: 0, y: 0 } : rectZoomAt(z, 2.5, f.x, f.y, size.current.photo, size.current.view), true);
+    };
+    const down = (e: PointerEvent) => {
+      if (z.scale <= 1 || e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      drag = { x: e.clientX, y: e.clientY, zx: z.x, zy: z.y, id: e.pointerId };
+      try { el.setPointerCapture(e.pointerId); } catch { /* sem captura */ }
+      paint(z, false);
+    };
+    const move = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      e.preventDefault();
+      e.stopPropagation();
+      paint(clampRectPan({ scale: z.scale, x: drag.zx + e.clientX - drag.x, y: drag.zy + e.clientY - drag.y }, size.current.photo, size.current.view), false);
+    };
+    const up = () => { if (drag) { drag = null; paint(z, false); } };
+    const noDrag = (e: Event) => e.preventDefault();
+    paint(z, false);
+    el.addEventListener('wheel', wheel, { passive: false });
+    el.addEventListener('dblclick', dbl);
+    el.addEventListener('pointerdown', down, { capture: true });
+    el.addEventListener('pointermove', move, { capture: true });
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('dragstart', noDrag);
+    return () => {
+      el.removeEventListener('wheel', wheel);
+      el.removeEventListener('dblclick', dbl);
+      el.removeEventListener('pointerdown', down, { capture: true });
+      el.removeEventListener('pointermove', move, { capture: true });
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      el.removeEventListener('dragstart', noDrag);
+      el.style.transform = '';
+      el.style.transition = '';
+      el.style.cursor = '';
+    };
+  }, [on]);
+  return ref;
+}
+
+function Photo({ photo, w, h, index, total, onTag, active = false }: { photo: ViewerPhoto; w: number; h: number; index: number; total: number; onTag: (username: string) => void; /** É a foto à vista (no computador, a que amplia com a roda). */ active?: boolean }) {
   const [nat, setNat] = useState<{ w: number; h: number } | null>(photo.width && photo.height ? { w: photo.width, h: photo.height } : null);
   const ratio = nat ? nat.w / nat.h : 1;
   // A foto ocupa o maior retângulo que cabe no ecrã (object-contain).
   const bw = nat ? Math.min(w, h * ratio) : w;
   const bh = nat ? Math.min(h, w / ratio) : h;
   const tags = (photo.tags ?? []).filter((t) => typeof t.x === 'number' && typeof t.y === 'number');
+  const zoomRef = useDeskZoom(active, { w: bw, h: bh }, { w, h });
   return (
-    <View style={{ width: w, height: h, alignItems: 'center', justifyContent: 'center' }}>
-      <View style={{ width: bw, height: bh }}>
+    <View style={{ width: w, height: h, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      <View ref={zoomRef as never} style={{ width: bw, height: bh }}>
         <Image
           source={{ uri: sized(photo.url, 1600) }}
           style={StyleSheet.absoluteFill}
@@ -84,6 +161,15 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0
     }),
   ).current;
 
+  // Computador: ←/→ mudam de foto (Esc fecha: é do Modal); setas ‹ › nos lados. Sem arrastar com o rato para fechar.
+  const mouse = finePointer();
+  const go = (k: number) => {
+    const t = Math.max(0, Math.min(n - 1, k));
+    if (t === i) return;
+    list.current?.scrollToIndex({ index: t, animated: true });
+    setI(t);
+  };
+  useViewerKeys(true, { prev: () => go(i - 1), next: () => go(i + 1) });
   const bg = drag.interpolate({ inputRange: [0, 500], outputRange: ['rgba(0,0,0,1)', 'rgba(0,0,0,0.35)'], extrapolate: 'clamp' });
   const openTag = (u: string) => {
     onClose();
@@ -94,7 +180,7 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View style={[styles.root, { backgroundColor: bg }]} accessibilityViewIsModal accessibilityLabel={`Fotos de ${author.displayName}`}>
         <View style={[styles.top, { paddingTop: Math.max(insets.top, 8) }]}>
-          <Pressable onPress={onClose} style={styles.close} accessibilityRole="button" accessibilityLabel="Fechar">
+          <Pressable onPress={onClose} style={styles.close} accessibilityRole="button" accessibilityLabel="Fechar" {...(mouse ? ({ dataSet: { tip: 'Fechar (Esc)' } } as object) : null)}>
             <Icon name="x" size={22} color="#fff" strokeWidth={2.4} />
           </Pressable>
           {n > 1 ? (
@@ -105,7 +191,7 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0
           <View style={{ width: 44 }} />
         </View>
 
-        <Animated.View style={{ flex: 1, transform: [{ translateY: drag }] }} onLayout={(e) => setPagerH(e.nativeEvent.layout.height)} {...pan.panHandlers}>
+        <Animated.View style={{ flex: 1, transform: [{ translateY: drag }] }} onLayout={(e) => setPagerH(e.nativeEvent.layout.height)} {...(mouse ? {} : pan.panHandlers)}>
           <FlatList
             ref={list}
             data={photos}
@@ -117,9 +203,24 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0
             initialScrollIndex={start}
             onScroll={(e) => { const k = Math.round(e.nativeEvent.contentOffset.x / Math.max(1, width)); if (k >= 0 && k < n) setI(k); }}
             scrollEventThrottle={32}
-            renderItem={({ item, index }) => <Photo photo={item} w={width} h={pagerH} index={index} total={n} onTag={openTag} />}
+            renderItem={({ item, index }) => <Photo photo={item} w={width} h={pagerH} index={index} total={n} onTag={openTag} active={index === i} />}
+            extraData={i}
           />
         </Animated.View>
+        {mouse && n > 1 ? (
+          <>
+            {i > 0 ? (
+              <Pressable onPress={() => go(i - 1)} style={(st) => [styles.side, { left: 16 }, (st as { hovered?: boolean }).hovered && styles.sideHover]} accessibilityRole="button" accessibilityLabel="Foto anterior" {...({ dataSet: { tip: 'Foto anterior (←)' } } as object)}>
+                <Icon name="chevron-left" size={26} color="#fff" strokeWidth={2.4} />
+              </Pressable>
+            ) : null}
+            {i < n - 1 ? (
+              <Pressable onPress={() => go(i + 1)} style={(st) => [styles.side, { right: 16 }, (st as { hovered?: boolean }).hovered && styles.sideHover]} accessibilityRole="button" accessibilityLabel="Foto seguinte" {...({ dataSet: { tip: 'Foto seguinte (→)' } } as object)}>
+                <Icon name="chevron-right" size={26} color="#fff" strokeWidth={2.4} />
+              </Pressable>
+            ) : null}
+          </>
+        ) : null}
 
         <CheersPour n={burst} size={Math.min(240, width * 0.6)} />
         {footer ? <View style={[styles.rail, { bottom: footH + 12 }]} pointerEvents="box-none">{footer}</View> : null}
@@ -141,6 +242,8 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0
 const styles = StyleSheet.create({
   root: { flex: 1 },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingBottom: 4 },
+  side: { position: 'absolute', top: '45%', width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center', zIndex: 6 },
+  sideHover: { backgroundColor: 'rgba(255,255,255,0.3)' },
   close: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)' },
   count: { borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 4 },
   countText: { color: '#fff', fontSize: 14, fontWeight: '600' },
