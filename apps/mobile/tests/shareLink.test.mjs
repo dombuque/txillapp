@@ -14,7 +14,7 @@ test('a ligação vai uma só vez: à parte no iPhone e no browser, no fim do te
 });
 
 test('nenhuma partilha mete a ligação no texto e outra vez em url', () => {
-  for (const f of ['components/ProfileView.tsx', 'components/ProfileQrSheet.tsx', 'components/PostSheets.tsx', 'components/ShareSheet.tsx', 'components/StoryParts.tsx', 'components/VenueQr.tsx', 'components/VenueTxills.tsx']) {
+  for (const f of ['components/ProfileQrSheet.tsx', 'components/PostSheets.tsx', 'components/ShareSheet.tsx', 'components/StoryParts.tsx', 'components/VenueQr.tsx', 'components/VenueTxills.tsx']) {
     const src = readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
     assert.doesNotMatch(src, /Share\.share\(\{[^)]*message:/, f);
     assert.match(src, /linkShare\(/, f);

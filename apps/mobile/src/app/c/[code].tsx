@@ -37,6 +37,10 @@ export default function InviteLanding() {
   useEffect(() => {
     if (p && !user) void inviteStore.set(code);
   }, [p, user, code]);
+  // Quem já tem conta (leu o QR do perfil, por exemplo) vai direto ao perfil de quem convidou.
+  useEffect(() => {
+    if (p && user) router.replace(`/u/${p.username}` as never);
+  }, [p, user, router]);
   useEffect(() => {
     if (Platform.OS === 'web' && typeof document !== 'undefined') document.title = p ? `${p.displayName} convidou-te para o Txillapp` : 'Convite para o Txillapp';
   }, [p]);

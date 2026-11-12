@@ -32,7 +32,6 @@ import { Sheet } from './Sheet';
 import { usePagerPan, useWebPager } from './SwipePager';
 import { useFadeIn, useTabSlider } from './TabSlider';
 import { VerifiedBadge } from './VerifiedBadge';
-import { linkShare } from '@/lib/shareLink';
 import { useTabPress } from '@/lib/tabPress';
 import { goBack } from '@/lib/nav';
 
@@ -216,14 +215,6 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       <Text style={styles.statL}>{label}</Text>
     </Pressable>
   );
-  async function inviteCrew() {
-    try {
-      const d = await api.invites();
-      await Share.share(linkShare('Entra no Txillapp com o meu convite e ganhamos Txills os dois:', d.link));
-    } catch {
-      /* cancelado ou sem convites */
-    }
-  }
   async function unblock() {
     if (acting) return;
     setActing(true);
@@ -324,8 +315,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
             {p.isMe ? (
               <>
                 <Pressable onPress={() => setSheet('edit')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Editar perfil"><Icon name="pencil" size={20} /></Pressable>
-                <Pressable onPress={() => setSheet('qr')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="O meu QR e partilhar perfil"><QrGlyph /></Pressable>
-                <Pressable onPress={() => void inviteCrew()} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Convidar a malta"><Icon name="user-plus" size={20} /></Pressable>
+                <Pressable onPress={() => setSheet('qr')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Partilhar o perfil (com o teu convite)"><QrGlyph /></Pressable>
+                <Pressable onPress={() => router.push('/supertxill' as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Malta para ti: sugestões de amigos"><Icon name="user-plus" size={20} /></Pressable>
                 <Pressable onPress={() => router.push('/wallet' as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Carteira de Txills"><Icon name="wallet" size={20} /></Pressable>
                 <GeleiraToggle username={p.username} isMe open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon grow />
               </>
@@ -405,7 +396,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   return (
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <FlatList ref={listRef} data={[] as never[]} renderItem={() => null} ListHeaderComponent={header} ListFooterComponent={<View style={{ height: 32 }} />} showsVerticalScrollIndicator={false} />
-      {sheet === 'qr' && <ProfileQrSheet username={p.username} displayName={p.displayName} onClose={() => setSheet(null)} />}
+      {sheet === 'qr' && <ProfileQrSheet username={p.username} displayName={p.displayName} invite={p.isMe} onClose={() => setSheet(null)} />}
       {sheet === 'edit' && <EditProfileSheet profile={p} onClose={() => setSheet(null)} />}
       {sheet === 'requests' && <RequestsSheet username={p.username} onClose={() => setSheet(null)} />}
       {sheet === 'menu' && (

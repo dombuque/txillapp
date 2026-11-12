@@ -1,7 +1,9 @@
 import * as Clipboard from 'expo-clipboard';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
+import { api } from '@/lib/api';
 import { SITE_URL } from '@/lib/config';
 import { qrMatrix } from '@/lib/qr';
 import { colors } from '@/lib/theme';
@@ -52,10 +54,16 @@ export function QrCode({ value, size, color = INK }: { value: string; size: numb
   );
 }
 
-/** Partilhar o perfil com um QR: quem o lê abre o teu perfil. Também se partilha ou copia a ligação. */
-export function ProfileQrSheet({ username, displayName, onClose }: { username: string; displayName: string; onClose: () => void }) {
+/**
+ * Partilhar o perfil com um QR. No meu perfil (`invite`), o QR e a ligação são os do meu convite (/c/CÓDIGO): quem ainda
+ * não tem conta entra com ele e ganhamos Txills os dois; quem já tem conta vai direto ao meu perfil. Sem o convite
+ * (a carregar ou sem rede), fica a ligação do perfil.
+ */
+export function ProfileQrSheet({ username, displayName, invite = false, onClose }: { username: string; displayName: string; invite?: boolean; onClose: () => void }) {
   const origin = SITE_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://txillapp.com');
-  const url = `${origin}/u/${username}`;
+  const inv = useQuery({ queryKey: ['invites-me'], queryFn: api.invites, enabled: invite, staleTime: 5 * 60_000, retry: 1 });
+  const link = invite ? inv.data?.link : undefined;
+  const url = link || `${origin}/u/${username}`;
   const [note, setNote] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -65,7 +73,7 @@ export function ProfileQrSheet({ username, displayName, onClose }: { username: s
     timer.current = setTimeout(() => setNote(''), 2000);
   };
   async function share() {
-    const text = `Segue @${username} no Txillapp, a rede da malta:`;
+    const text = link ? `Segue-me no Txillapp (@${username}) e entra com o meu convite: ganhamos Txills os dois.` : `Segue @${username} no Txillapp, a rede da malta:`;
     try {
       await Share.share({ title: `${displayName} no Txillapp`, ...linkShare(text, url) });
     } catch {
@@ -91,7 +99,7 @@ export function ProfileQrSheet({ username, displayName, onClose }: { username: s
           {/* O logótipo oficial (o mesmo do cartão do convite e da entrada), não o nome escrito à mão. */}
           <View style={st.brand} accessible accessibilityRole="image" accessibilityLabel="Txillapp"><Wordmark height={22} /></View>
         </View>
-        <Text style={st.hint}>Aponta a câmara ao QR para abrir o perfil.</Text>
+        <Text style={st.hint}>{link ? 'Aponta a câmara ao QR: quem já tem conta abre o teu perfil, quem ainda não tem entra com o teu convite.' : 'Aponta a câmara ao QR para abrir o perfil.'}</Text>
         <View style={{ marginTop: 16, flexDirection: 'row', gap: 8 }}>
           <Pressable onPress={() => void share()} accessibilityRole="button" style={st.btn}>
             <Icon name="share" size={18} />
