@@ -102,6 +102,22 @@ export class ExportService {
            FROM content.artist_track_uses u JOIN content.artist_tracks t ON t.id = u.track_id LEFT JOIN content.artist_profiles ap ON ap.user_id = t.artist_id
           WHERE u.user_id = $1 ORDER BY u.created_at`,
       ).catch(() => []),
+      // Sons das tchekas (0133): «Deixar usar o meu som», os meus sons originais (de que tcheka saíram, quantas tchekas os usam,
+      // se estão em análise ou foram tirados), os sons que usei nas minhas tchekas e as denúncias de sons que fiz.
+      soundReuse: ((await q(`SELECT sound_reuse FROM identity.users WHERE id = $1`).catch(() => []))[0]?.sound_reuse as boolean | undefined) ?? null,
+      sounds: await q(
+        `SELECT s.id, s.title, s.duration_ms AS "durationMs", s.source_post_id AS "sourcePostId", s.created_at AS "createdAt", s.hold_at AS "heldAt",
+                s.removed_at AS "removedAt", s.removed_reason AS "removedReason",
+                (SELECT count(*) FROM content.posts p WHERE p.sound_id = s.id AND p.removed_at IS NULL)::int AS uses
+           FROM content.sounds s WHERE s.owner_id = $1 AND s.kind = 'original' ORDER BY s.created_at`,
+      ).catch(() => []),
+      soundsUsed: await q(
+        `SELECT p.id AS "postId", s.id AS "soundId", s.kind, s.title, p.created_at AS "createdAt"
+           FROM content.posts p JOIN content.sounds s ON s.id = p.sound_id WHERE p.author_id = $1 ORDER BY p.created_at`,
+      ).catch(() => []),
+      soundReportsFiled: await q(
+        `SELECT r.sound_id AS "soundId", r.reason, r.note, r.status, r.created_at AS "createdAt" FROM content.sound_reports r WHERE r.reporter_id = $1 ORDER BY r.created_at`,
+      ).catch(() => []),
       // Locais: os que criei, os que giro (e o papel), os que sigo e os meus check-ins.
       // Com a morada e a posição no mapa (e se o local aparece no mapa), que são dados que a pessoa deu.
       venuesOwned: await q(`SELECT slug, name, kind, address, city, lat, lng, show_on_map AS "showOnMap", created_at AS "createdAt" FROM content.venues WHERE owner_id = $1 ORDER BY created_at`).catch(() => []),
