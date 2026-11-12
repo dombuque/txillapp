@@ -38,7 +38,19 @@ export interface GroupEvent {
   what: 'plan' | 'poll' | 'checklist' | 'expense' | 'pot' | 'info';
 }
 
-export type StreamEvent = ChatEvent | CallEvent | GroupEvent;
+/**
+ * Zás: chegou um Zás novo (ou foi apagado) de alguém que eu posso ver. Vai só para quem o pode ver (as regras do
+ * instants.service: amigos próximos, seguidores mútuos se for para "amigos", nunca com bloqueios) e, como eco (`self`),
+ * para os outros aparelhos de quem o fez. Sem `from` de propósito: as apps antigas só voltam a pedir a lista das conversas.
+ * A app nova volta a pedir a faixa dos Zás (lib/streamEvents → planChatEvent).
+ */
+export interface ZasEvent {
+  type: 'zas';
+  what: 'new' | 'gone';
+  self?: boolean;
+}
+
+export type StreamEvent = ChatEvent | CallEvent | GroupEvent | ZasEvent;
 
 /**
  * Canal em tempo real do chat (Server-Sent Events). Em memória: serve uma instância só.

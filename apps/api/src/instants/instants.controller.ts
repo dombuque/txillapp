@@ -29,6 +29,12 @@ export class InstantsController {
     return this.instants.tray(req.userId!);
   }
 
+  /** Todos os Zás por ver, numa lista só (o visor em pilha). */
+  @Get('feed')
+  feed(@Req() req: AuthedReq) {
+    return this.instants.feed(req.userId!);
+  }
+
   @Get('of/:username')
   of(@Req() req: AuthedReq, @Param('username') username: string) {
     return this.instants.of(req.userId!, username);

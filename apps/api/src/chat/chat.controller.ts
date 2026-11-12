@@ -106,8 +106,9 @@ export class ChatController {
   /** Fotos e voz do chat: URL assinado e temporário (não público). */
   @Get('media/:id')
   @SkipThrottle()
-  async file(@Param('id') id: string, @Query('exp') exp: string, @Query('sig') sig: string, @Res() res: Response) {
-    const found = await this.media.locateChat(parseIdParam(id), Number(exp), sig);
+  async file(@Param('id') id: string, @Query('exp') exp: string, @Query('sig') sig: string, @Query('w') w: string | undefined, @Res() res: Response) {
+    // ?w=: a largura leve de uma foto (o visor do Zás); sem ela, o original.
+    const found = await this.media.locateChat(parseIdParam(id), Number(exp), sig, w ? Number(w) : undefined);
     if ('url' in found) return res.setHeader('Cache-Control', 'private, max-age=240').redirect(302, found.url);
     res.setHeader('Content-Type', found.mime);
     res.setHeader('Cache-Control', 'private, max-age=3600');

@@ -32,12 +32,20 @@ export function refreshKeys(e?: StreamChatEvent): QueryKey[] {
   else if (!e) keys.push(['chat-group']);
   if (e?.from) keys.push(['chat-thread', e.from]);
   else if (!e) keys.push(['chat-thread']);
+  // Ao voltar a ligar: também a faixa dos Zás (pode ter chegado um enquanto o stream estava em baixo).
+  if (!e) keys.push(...ZAS_KEYS);
   return keys;
 }
+
+/** A faixa dos Zás e a lista do visor em pilha (components/Instants.tsx). */
+export const ZAS_KEYS: QueryKey[] = [['instants'], ['instants-feed']];
 
 /** O que fazer com um evento de chat (não 'call' nem 'group': esses têm o seu caminho em realtime.ts). */
 export function planChatEvent(e: StreamChatEvent): EventPlan {
   if (e.type === 'ping') return { notify: false, keys: [] };
+  // Zás novo (ou apagado) de alguém que posso ver, ou o eco de um meu noutro aparelho: só a faixa dos Zás se põe em dia
+  // (sem som, sem aviso, sem mexer nas conversas).
+  if (e.type === 'zas') return { notify: false, keys: ZAS_KEYS };
   if (e.self) {
     // O meu próprio "a escrever" nunca devia chegar; se chegar, ignora-se.
     if (e.type === 'typing') return { notify: false, keys: [] };

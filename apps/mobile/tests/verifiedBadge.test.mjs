@@ -88,7 +88,7 @@ const SCREENS = [
   ['convites: «Convite de» no registo', 'app/register.tsx', /<InlineBadge who=\{invite\}/],
   ['chamadas: ecrã', 'components/calls/CallOverlay.tsx', /<NameWithBadge name=\{c\.peer\?\.displayName \?\? ''\} who=\{c\.peer\}/],
   ['chamadas: histórico', 'app/calls.tsx', /<NameWithBadge name=\{c\.peer\.displayName\} who=\{c\.peer\}/],
-  ['Zás: visor', 'components/Instants.tsx', /<NameWithBadge name=\{own \? 'Os teus Zás' : who\.username\} who=\{own \? null : who\}/],
+  ['Zás: visor', 'components/Instants.tsx', /<NameWithBadge name=\{own \? 'Os teus Zás' : `@\$\{who\?\.username \?\? ''\}`\} who=\{own \? null : who \?\? null\}/],
   ['Zás: quem viu', 'components/Instants.tsx', /<NameWithBadge name=\{v\.displayName\} who=\{v\}/],
   ['carteira: histórico', 'app/wallet.tsx', /<NameWithBadge name=\{label\} who=\{who\}/],
   ['carteira: presentear alguém', 'app/wallet.tsx', /<NameWithBadge name=\{x\.displayName\} who=\{x\}/],
@@ -114,8 +114,9 @@ test('nenhum ecrã da lista escreve o selo à mão dentro do Text que encolhe', 
 
 test('os dados trazem o selo: Zás, chamadas, grupos, notas e convites guardam verified/verifiedTier ao passar a pessoa', () => {
   const zas = read('components/Instants.tsx');
-  assert.match(zas, /type Who = \{ username: string; displayName: string \} & Badged;/);
-  assert.match(zas, /setQueue\(others\.map\(\(o\) => \(\{ username: o\.username, displayName: o\.displayName, verified: o\.verified, verifiedTier: o\.verifiedTier \}\)\)\)/);
+  // Zás: cada cartão do visor traz quem o fez (a lista do servidor, ou a faixa num servidor antigo), com o selo.
+  assert.match(zas, /const authorOf = \(o: \{ username: string; displayName: string; hasAvatar: boolean \} & Badged\): InstantAuthor => \(\{ username: o\.username, displayName: o\.displayName, hasAvatar: o\.hasAvatar, verified: o\.verified, verifiedTier: o\.verifiedTier \}\)/);
+  assert.match(read('lib/api.geleira.ts'), /export type InstantAuthor = \{ username: string; displayName: string; hasAvatar: boolean \} & Badged;/);
   assert.match(read('lib/calls/types.ts'), /export interface CallPeer \{[^}]*verified\?: boolean; verifiedTier\?: 'verified' \| 'official' \| 'paid' \| null \}/);
   assert.match(read('app/messages/[username].tsx'), /startCall\(\{ username: person\.username, displayName: person\.displayName, hasAvatar: person\.hasAvatar, verified: person\.verified, verifiedTier: person\.verifiedTier \}, video\)/);
   assert.match(read('app/messages/g/[id].tsx'), /verified: m\.verified, verifiedTier: m\.verifiedTier/);
