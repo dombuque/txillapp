@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
+import { tierOf, type VerifiedTier } from '../common/badge';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { SearchIndexer } from '../search/search-index';
@@ -75,6 +76,39 @@ export class BackofficeService {
     await this.pool.query(`UPDATE identity.users SET status = 'active' WHERE id = $1`, [id]);
     await this.audit(admin, 'backoffice.reactivate', `user:${id}`, { reason });
     this.indexer.userChanged(id);
+  }
+
+  /**
+   * Dar, mudar ou tirar o selo de uma conta, à mão: 'verified' (mérito ou pedido aceite) e 'official' (conta oficial do
+   * Txillapp), a vermelho; 'paid' (verificação paga), a azul; null tira o selo. Fica no registo, com o antes e o depois.
+   */
+  async setBadge(admin: string, id: string, tier: VerifiedTier | null, reason: string) {
+    const t = await this.target(id);
+    if (t.status === 'deleted') throw new BadRequestException('Conta eliminada');
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const before = (await client.query('SELECT verified, verified_tier FROM identity.users WHERE id = $1 FOR UPDATE', [id])).rows[0];
+      const from = tierOf(before.verified, before.verified_tier);
+      if (from === tier) throw new BadRequestException(tier ? 'A conta já tem este selo' : 'A conta não tem selo');
+      await client.query(
+        `UPDATE identity.users SET verified = $2, verified_tier = $3,
+                verified_at = CASE WHEN $3::text IS NULL THEN NULL ELSE COALESCE(verified_at, now()) END
+          WHERE id = $1`,
+        [id, tier !== null, tier],
+      );
+      await client.query('INSERT INTO audit.audit_log (id, actor_id, action, target, metadata) VALUES ($1, $2, $3, $4, $5)', [
+        uuidv7(), admin, tier ? 'verification.set_tier' : 'verification.remove', `user:${id}`, { from, to: tier, reason },
+      ]);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw e;
+    } finally {
+      client.release();
+    }
+    this.indexer.userChanged(id);
+    return { verified: tier !== null, verifiedTier: tier };
   }
 
   async addNote(admin: string, id: string, body: string) {

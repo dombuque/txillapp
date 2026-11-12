@@ -3,6 +3,7 @@ import { MusicService, type MusicInput } from '../music/music.service';
 import { TextFilter } from '../safety/text-filter.service';
 import { Pool, PoolClient } from 'pg';
 import { uuidv7 } from '../common/uuid7';
+import type { VerifiedTier } from '../common/badge';
 import { PG_POOL } from '../db/db.module';
 import { NotificationsService, mentionableBy } from '../notifications/notifications.service';
 import { allowedBy, blockedBetween, canView, inMyNetwork, listVisibleTo } from '../social/visibility';
@@ -66,7 +67,7 @@ export interface PhotoTag {
   username: string;
   displayName: string;
   verified?: boolean;
-  verifiedTier?: 'verified' | 'official' | null;
+  verifiedTier?: VerifiedTier | null;
   x: number;
   y: number;
 }

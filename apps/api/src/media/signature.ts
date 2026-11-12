@@ -23,15 +23,17 @@ const PATHS = [
 const DOT = { cx: 42, cy: 3.5, r: 4.2 };
 
 /**
- * O selo de verificado (o desenho do VerifiedBadge da app, numa caixa de 24×24): a roseta azul, ou coral em degradê na
- * conta oficial do Txillapp, e o visto branco por cima.
+ * O selo de verificado (o desenho do VerifiedBadge da app, numa caixa de 24×24): a roseta coral em degradê (verificado
+ * pelo Txillapp e a conta oficial), ou azul na verificação paga, e o visto branco por cima.
  */
-export type SealTier = 'verified' | 'official';
+export type SealTier = 'verified' | 'official' | 'paid';
 export const SEAL_PATH =
   'M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91c-1.31.67-2.2 1.91-2.2 3.34s.89 2.67 2.2 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91c1.31-.67 2.19-1.91 2.19-3.34z';
 const SEAL_CHECK = 'm8 12.4 2.8 2.8L16.4 9.4';
 const SEAL_BLUE = '#1d9bf0';
-const SEAL_OFFICIAL = ['#ff6b81', '#d6334f'] as const;
+const SEAL_CORAL = ['#ff6b81', '#d6334f'] as const;
+/** A cor de cada nível (igual à `sealPaint` de apps/mobile/src/lib/wordmark.ts): só a verificação paga é azul. */
+export const sealPaint = (tier: SealTier): 'blue' | 'coral' => (tier === 'paid' ? 'blue' : 'coral');
 /** Como na app: 1,05 vezes a letra do @, a uma folga de 0,15 da letra, com o meio a 0,36 da letra acima da linha de base. */
 const SEAL_SCALE = 1.05, SEAL_GAP = 0.15, SEAL_LIFT = 0.36;
 
@@ -80,10 +82,10 @@ export function signatureSvg(W: number, H: number, username?: string | null, ext
   const at = b ? `transform="translate(${b.x.toFixed(2)} ${b.y.toFixed(2)}) scale(${b.k.toFixed(4)})"` : '';
   const badge = b
     ? `<g filter="url(#sh)" opacity="0.5" transform="translate(0 1)"><path ${at} fill="#000000" d="${SEAL_PATH}"/></g>
-<g ${at}><path fill="${b.tier === 'official' ? 'url(#seal-off)' : SEAL_BLUE}" d="${SEAL_PATH}"/><path fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="${SEAL_CHECK}"/></g>`
+<g ${at}><path fill="${sealPaint(b.tier) === 'blue' ? SEAL_BLUE : 'url(#seal-coral)'}" d="${SEAL_PATH}"/><path fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="${SEAL_CHECK}"/></g>`
     : '';
-  const grad = b?.tier === 'official'
-    ? `<linearGradient id="seal-off" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${SEAL_OFFICIAL[0]}"/><stop offset="1" stop-color="${SEAL_OFFICIAL[1]}"/></linearGradient>`
+  const grad = b && sealPaint(b.tier) === 'coral'
+    ? `<linearGradient id="seal-coral" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${SEAL_CORAL[0]}"/><stop offset="1" stop-color="${SEAL_CORAL[1]}"/></linearGradient>`
     : '';
   return `${head}
 <defs><filter id="sh" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="${(L.blur / 2).toFixed(2)}"/></filter>${grad}</defs>

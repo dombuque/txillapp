@@ -5,7 +5,8 @@ import { PG_POOL } from '../db/db.module';
 import { MediaService } from '../media/media.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
-export type VerifiedTier = 'verified' | 'official';
+import type { VerifiedTier } from '../common/badge';
+export type { VerifiedTier } from '../common/badge';
 
 /** Requisitos automáticos para poder pedir o selo (o primeiro filtro do processo híbrido). */
 export const REQUIREMENTS = { minAgeDays: 30, minPosts: 3, minFollowers: 10, sanctionDays: 90, retryDays: 30 } as const;
@@ -144,6 +145,11 @@ export class VerificationService {
       ).rows[0];
       if (!req) throw new NotFoundException('Pedido não encontrado ou já decidido');
       if (action === 'approve') await client.query(`UPDATE identity.users SET verified = true, verified_at = now(), verified_tier = $2 WHERE id = $1`, [req.user_id, tier]);
+      // Fica no registo, na ficha da conta (Histórico), como as outras ações da equipa.
+      await client.query('INSERT INTO audit.audit_log (id, actor_id, action, target, metadata) VALUES ($1, $2, $3, $4, $5)', [
+        uuidv7(), adminId, action === 'approve' ? 'verification.approve' : 'verification.reject', `user:${req.user_id}`,
+        action === 'approve' ? { request: id, tier } : { request: id, reason: reason!.trim().slice(0, 300) },
+      ]);
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK');

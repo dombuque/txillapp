@@ -6,6 +6,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { Pool, PoolClient } from 'pg';
 import { z } from 'zod';
 import { LoginInput, PublicUser, RegisterInput, usernameSchema, TERMS_VERSION } from '@txillapp/shared';
+import { tierOf, type VerifiedTier } from '../common/badge';
 import { describeDevice } from '../common/device';
 import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
@@ -33,11 +34,11 @@ export interface Tokens {
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
 /** Quem tem a sessão, com o selo de verificado (e qual): a app grava-o na assinatura das fotos que a pessoa tira. */
-export type SessionUser = PublicUser & { verified: boolean; verifiedTier: 'verified' | 'official' | null };
+export type SessionUser = Omit<PublicUser, 'verified' | 'verifiedTier'> & { verified: boolean; verifiedTier: VerifiedTier | null };
 interface UserRow { id: string; username: string; display_name: string; verified?: boolean | null; verified_tier?: string | null }
 const sessionUser = (r: UserRow): SessionUser => {
   const verified = r.verified === true;
-  return { id: r.id, username: r.username, displayName: r.display_name, verified, verifiedTier: verified ? (r.verified_tier === 'official' ? 'official' : 'verified') : null };
+  return { id: r.id, username: r.username, displayName: r.display_name, verified, verifiedTier: tierOf(verified, r.verified_tier) };
 };
 
 

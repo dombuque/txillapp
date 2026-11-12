@@ -10,7 +10,7 @@ import { ChatService } from '../chat/chat.service';
 import { MusicService, type MusicInput } from '../music/music.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { blockedBetween, canView, notReportedBy } from '../social/visibility';
-import { badge, badgeJson } from '../common/badge';
+import { badge, badgeJson, tierOf } from '../common/badge';
 
 /** O autor escondeu os stories a este espectador? */
 /** Stories só para amigos próximos: visíveis ao autor e à lista dele. */
@@ -396,7 +396,7 @@ export class StoriesService {
     const overlay = (W: number, H: number) => stickersSvg(W, H, placed);
     const withSign = !r.signed;
     // Conta verificada: o selo vai a seguir ao @ (num ficheiro já assinado, o selo vem da própria app).
-    const seal: SealTier | null = r.verified === true ? (r.verified_tier === 'official' ? 'official' : 'verified') : null;
+    const seal: SealTier | null = tierOf(r.verified, r.verified_tier);
     const bytes = video ? await signVideo(raw, r.username as string, overlay, withSign, seal) : await signImage(raw, r.username as string, overlay, withSign, seal);
     return { mime: video ? 'video/mp4' : 'image/jpeg', bytes, filename: `txillapp-mimo-${String(id).slice(0, 8)}.${video ? 'mp4' : 'jpg'}` };
   }
