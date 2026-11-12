@@ -69,6 +69,16 @@ export interface FinBoosts {
   campaigns: FinBoost[];
 }
 
+/** Lembretes de regresso (GET /admin/growth/comeback): só números agregados. `returned` = voltaram a abrir a app nas 48 h seguintes. */
+export interface FinComeback {
+  days: number;
+  totals: { sent: number; people: number; returned: number };
+  series: { day: string; push: number; email: number; returned: number }[];
+  byStage: { stage: number; afterDays: number; sent: number; returned: number }[];
+  byChannel: { channel: 'push' | 'email'; sent: number; returned: number }[];
+  byKind: { kind: string; sent: number; returned: number }[];
+}
+
 export interface FinGrowth {
   days: number;
   invites: { joined: number; waiting: number; active: number; holding: number; paid: number; blocked: number; blockedBy: { reason: string; count: number }[]; share: number | null };
@@ -97,6 +107,7 @@ export const finApi = {
   purchases: (days: number): Promise<FinPurchases> => boRequest(`/admin/fin/purchases?days=${days}`),
   boosts: (days: number, filter: 'live' | 'all'): Promise<FinBoosts> => boRequest(`/admin/fin/boosts?days=${days}&filter=${filter}`),
   growth: (days: number): Promise<FinGrowth> => boRequest(`/admin/growth?days=${days}`),
+  comeback: (days: number): Promise<FinComeback> => boRequest(`/admin/growth/comeback?days=${days}`),
 };
 
 /* ───────────── Compras pela loja (App Store / Google Play): verificação paga e Bombar ───────────── */

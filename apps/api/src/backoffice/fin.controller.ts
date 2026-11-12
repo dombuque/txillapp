@@ -2,6 +2,7 @@ import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { Needs, StaffGuard } from '../staff/staff.guard';
 import { StaffService } from '../staff/staff.service';
+import { ComebackReminderService } from '../reminders/comeback-reminder.service';
 import { FinService } from './fin.service';
 
 type AuthedReq = Request & { userId?: string };
@@ -20,12 +21,13 @@ const period = (v?: string, def = 30) => Math.min(Math.max(Math.trunc(Number(v))
  * - GET /admin/fin/purchases?days=              -> fornecedores, pacotes e pedidos de compra de Txills                      (wallet.view)
  * - GET /admin/fin/boosts?days&filter=live|all  -> Bombar de todos os locais                                                (wallet.view)
  * - GET /admin/growth?days=                     -> convites, quem mais convida, orçamento, série, funil e fontes            (invites.view)
+ * - GET /admin/growth/comeback?days=            -> lembretes de regresso: por dia, etapa e canal, e quantos voltaram em 48 h (invites.view)
  * Suspender e repor campanhas: PUT /venues/admin/boosts/:id/(suspend|reinstate) (catalog.manage), como já existia.
  */
 @Controller('admin')
 @UseGuards(StaffGuard)
 export class FinController {
-  constructor(private readonly fin: FinService, private readonly staff: StaffService) {}
+  constructor(private readonly fin: FinService, private readonly staff: StaffService, private readonly comeback: ComebackReminderService) {}
 
   @Get('summary')
   async summary(@Req() req: AuthedReq) {
@@ -78,5 +80,12 @@ export class FinController {
   @Needs('invites.view')
   growth(@Query('days') days?: string) {
     return this.fin.growth(period(days));
+  }
+
+  /** Lembretes de regresso: só números agregados (nunca quem os recebeu). */
+  @Get('growth/comeback')
+  @Needs('invites.view')
+  comebackStats(@Query('days') days?: string) {
+    return this.comeback.stats(period(days));
   }
 }

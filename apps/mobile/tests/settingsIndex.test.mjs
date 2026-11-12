@@ -90,6 +90,12 @@ test('pesquisa: pelo nome, por sinónimos, sem acentos nem maiúsculas', () => {
   assert.equal(first('sair'), 'logout');
   assert.equal(first('estatisticas de uso'), 'analytics');
   assert.equal(first('Brindes e reações'), 'notify-reactions');
+  // Lembretes de regresso: pelo nome e por sinónimos, no ecrã das Notificações.
+  assert.equal(first('lembretes quando nao passo por ca'), 'notify-comeback');
+  assert.equal(first('lembretes'), 'notify-comeback');
+  assert.equal(first('lembretes de regresso'), 'notify-comeback');
+  assert.equal(first('deixar de receber'), 'notify-comeback');
+  assert.equal(m.settingsEntry('notify-comeback').group, 'notificacoes');
   // Sem acentos e em maiúsculas: o grupo vem primeiro.
   assert.deepEqual(m.searchSettings('NOTIFICAÇÕES')[0], { kind: 'group', id: 'notificacoes', title: 'Notificações', where: '', path: '/settings/notificacoes' });
   assert.equal(m.searchSettings('notificacoes')[0].id, 'notificacoes');

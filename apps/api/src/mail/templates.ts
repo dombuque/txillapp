@@ -6,9 +6,21 @@ export interface Mail {
   subject: string;
   text: string;
   html: string;
+  /** Cabeçalhos extra (ex.: List-Unsubscribe nos lembretes). */
+  headers?: Record<string, string>;
 }
 
-function layout(publicUrl: string, o: { title: string; intro: string; button: string; url: string; outro: string }): Mail {
+interface LayoutOpts {
+  title: string;
+  intro: string;
+  button: string;
+  url: string;
+  outro: string;
+  /** Ligação no rodapé (ex.: "Deixar de receber estes lembretes"). */
+  footer?: { label: string; url: string };
+}
+
+function layout(publicUrl: string, o: LayoutOpts): Mail {
   const html = `<!doctype html><html lang="pt"><body style="margin:0;background:#ebebea;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#18181b">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:24px;padding:32px">
@@ -20,8 +32,8 @@ function layout(publicUrl: string, o: { title: string; intro: string; button: st
 <tr><td style="padding-top:20px;font-size:13px;line-height:1.5;color:#71717a">${esc(o.outro)}</td></tr>
 </table>
 <p style="font-size:12px;color:#71717a;margin:16px 0 0">Txillapp · <a href="${esc(publicUrl)}" style="color:#71717a">txillapp.com</a></p>
-</td></tr></table></body></html>`;
-  const text = `${o.title}\n\n${o.intro}\n\n${o.button}: ${o.url}\n\n${o.outro}\n\nTxillapp · ${publicUrl}`;
+${o.footer ? `<p style="font-size:12px;color:#71717a;margin:8px 0 0"><a href="${esc(o.footer.url)}" style="color:#71717a">${esc(o.footer.label)}</a></p>\n` : ''}</td></tr></table></body></html>`;
+  const text = `${o.title}\n\n${o.intro}\n\n${o.button}: ${o.url}\n\n${o.outro}\n\nTxillapp · ${publicUrl}${o.footer ? `\n\n${o.footer.label}: ${o.footer.url}` : ''}`;
   return { subject: o.title, text, html };
 }
 
@@ -54,4 +66,21 @@ export function deleteAccountMail(publicUrl: string, name: string, token: string
     url: `${publicUrl}/apagar-conta?token=${encodeURIComponent(token)}`,
     outro: 'O link vale 1 hora. Se não foste tu, ignora esta mensagem: a tua conta continua igual.',
   });
+}
+
+/**
+ * Lembrete de regresso por e-mail (só quando não há push que chegue): o mesmo texto do aviso, um botão para o sítio certo
+ * e, no rodapé, "Deixar de receber estes lembretes" (um clique, sem entrar na conta). `unsubscribeUrl` também vai no
+ * cabeçalho List-Unsubscribe (com List-Unsubscribe-Post, para o botão "Cancelar subscrição" do Gmail e do Outlook).
+ */
+export function comebackMail(publicUrl: string, name: string, o: { title: string; body: string; path: string; unsubscribeUrl: string }): Mail {
+  const mail = layout(publicUrl, {
+    title: o.title,
+    intro: `Olá, ${name}! ${o.body}`,
+    button: 'Abrir o Txillapp',
+    url: `${publicUrl}${o.path}`,
+    outro: 'Enviamos isto de vez em quando a quem não passa pelo Txillapp há uns dias. Podes desligar estes lembretes em Definições → Notificações ou na ligação aqui em baixo.',
+    footer: { label: 'Deixar de receber estes lembretes', url: o.unsubscribeUrl },
+  });
+  return { ...mail, headers: { 'List-Unsubscribe': `<${o.unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } };
 }

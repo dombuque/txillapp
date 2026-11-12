@@ -108,6 +108,14 @@ export class ExportService {
       profileVisits: await q(
         `SELECT u.username, v.day FROM social.profile_views v JOIN identity.users u ON u.id = v.profile_id WHERE v.viewer_id = $1 ORDER BY v.day DESC LIMIT 10000`,
       ).catch(() => []),
+      // Lembretes de regresso que recebi: quando, que etapa, por onde (push ou e-mail), de que tipo e quando voltei.
+      // O texto não se guarda. `remindersOn`: se estão ligados (Definições → Notificações).
+      comebackReminders: {
+        remindersOn: !((await q(`SELECT off FROM social.notification_prefs WHERE user_id = $1`).catch(() => []))[0]?.off as string[] | undefined)?.includes('comeback'),
+        sent: await q(
+          `SELECT sent_at AS "sentAt", stage, channel, kind, returned_at AS "returnedAt" FROM social.comeback_reminders WHERE user_id = $1 AND channel <> 'pending' ORDER BY sent_at`,
+        ).catch(() => []),
+      },
       // Como afinei o algoritmo do Explorar e das Tchekas.
       feedSettings: (await q(`SELECT following, freshness, media, variety, hide_seen AS "hideSeen", calm FROM social.feed_settings WHERE user_id = $1`).catch(() => []))[0] ?? null,
       topicPrefs: await q(`SELECT topic, pref FROM social.explore_prefs WHERE user_id = $1 ORDER BY topic`).catch(() => []),
