@@ -96,6 +96,12 @@ const schema = z.object({
    * e testes; é recusado em produção). Os fornecedores reais (M-Pesa, e-Mola, cartão) ligam-se com as respetivas chaves.
    */
   PAYMENTS_SANDBOX: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  /**
+   * Recarregar Txills também nas versões das lojas (Google Play e App Store). Desligado por omissão: só se liga quando a
+   * carteira cumprir as regras das lojas (ver docs/lojas/pagamentos-e-ugc.md). A app lê-o em GET /payments/config
+   * (`storeTopup`), por isso liga e desliga sem versão nova.
+   */
+  PAYMENTS_STORE_TOPUP: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   /** Segredo com que os fornecedores assinam os avisos de pagamento (webhooks). */
   PAYMENTS_WEBHOOK_SECRET: z.string().min(16).optional(),
   WEB_ORIGIN: z.string().default('http://localhost:5173'),

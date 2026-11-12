@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { helpFaqFor, hiddenSettingsFor, isStoreChannel, paymentsSubtitleFor, purchaseRulesFor } from '../src/lib/storeRules.ts';
+import { STORE_TOPUP_READY, helpFaqFor, hiddenSettingsFor, isStoreChannel, paymentsSubtitleFor, purchaseRulesFor } from '../src/lib/storeRules.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (...p) => readFileSync(path.join(ROOT, 'src', ...p), 'utf8').replace(/\r\n/g, '\n');
@@ -26,6 +26,28 @@ test('nas lojas não se recarregam Txills nem se paga o Bombar; no site e no APK
     assert.equal(isStoreChannel(c), false);
     assert.deepEqual(purchaseRulesFor(c), { buyTxills: true, buyBoosts: true }, c);
   }
+});
+
+test('a recarga nas lojas só com os dois interruptores: esta versão pronta (STORE_TOPUP_READY) e o servidor (storeTopup)', () => {
+  // Esta versão ainda não tem a carteira que as lojas aceitam: o servidor não a consegue ligar.
+  assert.equal(STORE_TOPUP_READY, false);
+  assert.equal(purchaseRulesFor('appstore', { storeTopup: true }).buyTxills, false);
+  assert.equal(purchaseRulesFor('play', { storeTopup: true }).buyTxills, false);
+  // Numa versão pronta, liga e desliga pelo servidor; sem resposta fica desligada. O Bombar nunca se paga nas lojas.
+  for (const c of ['play', 'appstore']) {
+    assert.deepEqual(purchaseRulesFor(c, { storeTopup: true }, true), { buyTxills: true, buyBoosts: false }, c);
+    assert.deepEqual(purchaseRulesFor(c, { storeTopup: false }, true), { buyTxills: false, buyBoosts: false }, c);
+    assert.deepEqual(purchaseRulesFor(c, null, true), { buyTxills: false, buyBoosts: false }, c);
+    assert.deepEqual(purchaseRulesFor(c, {}, true), { buyTxills: false, buyBoosts: false }, c);
+  }
+  // No site e no APK beta o interruptor não conta.
+  assert.deepEqual(purchaseRulesFor('web', { storeTopup: false }, true), { buyTxills: true, buyBoosts: true });
+  assert.deepEqual(purchaseRulesFor('beta', null, false), { buyTxills: true, buyBoosts: true });
+  // A app só pergunta ao servidor quando a versão está pronta, e enquanto espera não mostra a recarga.
+  const p = read('lib', 'purchases.ts');
+  assert.match(p, /const ASK = isStoreChannel\(CHANNEL\) && STORE_TOPUP_READY;/);
+  assert.match(p, /queryKey: \['payments-config'\]/);
+  assert.match(read('app', 'orders.tsx'), /if \(rules\.pending\) return/);
 });
 
 test('nas lojas as Definições escondem «Pedidos e pagamentos» (também na pesquisa) e o subtítulo não fala de recargas', () => {
@@ -49,19 +71,20 @@ test('a Ajuda nas lojas não manda recarregar nem bombar; no site fica igual', (
   assert.deepEqual(helpFaqFor(purchaseRulesFor('web'), faq), faq);
   // A pergunta e a frase verdadeiras da Ajuda são as que o filtro apanha.
   const help = read('app', 'help.tsx');
-  assert.match(help, /helpFaqFor\(PURCHASES, FAQ\)/);
+  assert.match(help, /helpFaqFor\(purchases, FAQ\)/);
   assert.match(help, /Também podes recarregar em Definições[^.]*\./);
   assert.match(help, /q: 'Como bombo o meu local\?'/);
 });
 
 test('os ecrãs de compra não aparecem nas lojas: /orders vai para a carteira, sem linha nas Definições nem «carrega a carteira»', () => {
   const orders = read('app', 'orders.tsx');
-  assert.match(orders, /if \(!PURCHASES\.buyTxills\) return <Redirect href=\{'\/wallet' as never\} \/>;/);
-  assert.match(read('app', 'settings', 'pagamentos.tsx'), /PURCHASES\.buyTxills \? <SettingRow anchor="orders"/);
+  assert.match(orders, /const rules = usePurchases\(\);/);
+  assert.match(orders, /if \(!rules\.buyTxills\) return <Redirect href=\{'\/wallet' as never\} \/>;/);
+  assert.match(read('app', 'settings', 'pagamentos.tsx'), /rules\.buyTxills \? <SettingRow anchor="orders"/);
   const home = read('components', 'settings', 'SettingsHome.tsx');
-  assert.match(home, /hiddenSettingsFor\(PURCHASES\)/);
-  assert.match(home, /paymentsSubtitleFor\(PURCHASES, g\.subtitle\)/);
-  assert.match(read('components', 'groups', 'PotPanel.tsx'), /PURCHASES\.buyTxills \? 'Não tens Txills suficientes\. Carrega a carteira primeiro\.' : 'Não tens Txills suficientes\.'/);
+  assert.match(home, /hiddenSettingsFor\(purchases\)/);
+  assert.match(home, /paymentsSubtitleFor\(purchases, g\.subtitle\)/);
+  assert.match(read('components', 'groups', 'PotPanel.tsx'), /purchases\.buyTxills \? 'Não tens Txills suficientes\. Carrega a carteira primeiro\.' : 'Não tens Txills suficientes\.'/);
   // O Bombar nas lojas: sem campanha nova (só ver e parar as que existem).
   const boost = read('components', 'boost', 'VenueBoost.tsx');
   assert.match(boost, /if \(!PURCHASES\.buyBoosts\) \{/);

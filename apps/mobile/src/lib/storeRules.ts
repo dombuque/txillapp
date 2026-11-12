@@ -10,7 +10,14 @@ import type { Channel } from './channel';
  *  • pagar destaques do Bombar (publicidade dentro da app).
  * O que já se tem continua a usar-se: presentear com os Txills que já tens, receber Txills, pôr no cofre de um TxillGroup e
  * pagar nos locais (bens e serviços do mundo real). No site (web) e no APK beta não muda nada.
- * Ver docs/lojas/pagamentos-e-ugc.md.
+ *
+ * O dono quer recarregar com M-Pesa/e-Mola/cartão (sem a compra das lojas). As lojas só o aceitam se os Txills forem dinheiro
+ * entre pessoas (Apple 3.2.1(vii): presente opcional e 100% para quem recebe; Google: pagamento entre pessoas) e se nada
+ * digital se pagar com eles. Hoje não são: não se levantam, os pacotes têm bónus e o Bombar paga-se com eles. Por isso a
+ * recarga nas lojas tem dois interruptores, e os dois têm de estar ligados:
+ *  • STORE_TOPUP_READY (esta versão da app já tem a carteira que cumpre as regras), hoje `false`;
+ *  • `storeTopup` em GET /payments/config (PAYMENTS_STORE_TOPUP na API), para ligar e desligar sem versão nova.
+ * O Bombar nunca se paga nas lojas. Ver docs/lojas/pagamentos-e-ugc.md.
  */
 export interface PurchaseRules {
   /** Recarregar Txills com dinheiro e ver os pedidos de recarga (ecrã /orders). */
@@ -21,9 +28,18 @@ export interface PurchaseRules {
 
 export const isStoreChannel = (channel: Channel) => channel === 'play' || channel === 'appstore';
 
-export function purchaseRulesFor(channel: Channel): PurchaseRules {
+/**
+ * Esta versão da app já tem a carteira que as lojas aceitam com pagamentos locais (levantar o saldo, 1 Txill = 1 MT, nada
+ * digital pago com Txills; ver o documento). Enquanto for `false`, a recarga nunca aparece nas lojas, diga a API o que disser.
+ */
+export const STORE_TOPUP_READY = false;
+
+/** O que vem do servidor (GET /payments/config). Sem resposta, conta como desligado. */
+export interface RemotePurchaseFlags { storeTopup?: boolean }
+
+export function purchaseRulesFor(channel: Channel, remote?: RemotePurchaseFlags | null, ready: boolean = STORE_TOPUP_READY): PurchaseRules {
   const store = isStoreChannel(channel);
-  return { buyTxills: !store, buyBoosts: !store };
+  return { buyTxills: !store || (ready && remote?.storeTopup === true), buyBoosts: !store };
 }
 
 /** Opções das Definições que esta cópia não mostra (a pesquisa também não as propõe). */

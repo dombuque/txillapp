@@ -8,7 +8,7 @@ import { Group, Line } from '@/components/Lines';
 import { StackPage } from '@/components/StackPage';
 import { api } from '@/lib/api';
 import { extraApi, newKey, type PaymentOrder } from '@/lib/api.extra';
-import { PURCHASES } from '@/lib/purchases';
+import { usePurchases } from '@/lib/purchases';
 import { colors } from '@/lib/theme';
 
 /** Na app nativa (APK beta), sem métodos de pagamento ativos não se mostra nada de "em breve". */
@@ -33,7 +33,9 @@ const date = (iso: string) => {
  * existe e uma ligação antiga para /orders abre a carteira.
  */
 export default function Orders() {
-  if (!PURCHASES.buyTxills) return <Redirect href={'/wallet' as never} />;
+  const rules = usePurchases();
+  if (rules.pending) return <StackPage title="Pedidos e pagamentos"><ActivityIndicator style={{ margin: 32 }} color={colors.brand} /></StackPage>;
+  if (!rules.buyTxills) return <Redirect href={'/wallet' as never} />;
   return <OrdersScreen />;
 }
 

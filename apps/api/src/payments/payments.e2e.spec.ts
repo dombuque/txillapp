@@ -45,6 +45,8 @@ describe('recarregar Txills: pacotes, pedidos, idempotência, crédito e avisos 
   it('config: pacotes e fornecedores ligados (só o de teste, neste ambiente)', async () => {
     const c = (await api().get('/api/v1/payments/config').set(auth(u.pya)).expect(200)).body;
     expect(c.providers.map((p: { id: string }) => p.id)).toEqual(['sandbox']);
+    // Nas versões das lojas a recarga fica desligada até PAYMENTS_STORE_TOPUP=true.
+    expect(c.storeTopup).toBe(false);
     expect(c.packages.map((p: { id: string }) => p.id)).toEqual(['pequeno', 'medio', 'grande', 'mega']);
     expect(c.packages[0]).toMatchObject({ txills: 500, priceMinor: 5000, currency: 'MZN' });
     await api().get('/api/v1/payments/config').expect(401);
