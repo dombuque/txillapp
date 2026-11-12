@@ -3,6 +3,7 @@ import type { Badged } from '@/lib/api';
 import { musicPayload, type Track } from '@/lib/api.music';
 import type { PlaceReverse, PlaceSuggestion } from '@/lib/placeField';
 import { trackOk } from '@/lib/analytics';
+import type { RemixInput } from '@/lib/remix';
 
 export interface NearbyPlaces { area: string | null; city: string | null; places: { name: string; kind: string; distanceM: number; lat: number; lng: number }[] }
 export interface PhotoTag extends Badged { username: string; displayName: string; x: number; y: number }
@@ -16,7 +17,8 @@ export const composeApi = {
   /** A morada e a cidade de um ponto (o pino arrastado no mapa ou a minha posição). */
   reversePlace: (lat: number, lng: number): Promise<PlaceReverse> => raw(`/places/reverse?lat=${lat}&lng=${lng}`),
   mentionable: (q: string): Promise<({ username: string; displayName: string; hasAvatar: boolean; following: boolean } & Badged)[]> => raw(`/mentionable?q=${encodeURIComponent(q)}`),
-  createPost: (b: { body: string; music?: Track | null; locationLabel?: string; locationLat?: number; locationLng?: number; locationCoarse?: boolean; mediaIds: string[]; tags?: { index: number; username: string; x: number; y: number }[]; /** Publicar como um local que giro. */ venueId?: string | null }) =>
+  createPost: (b: { body: string; music?: Track | null; locationLabel?: string; locationLat?: number; locationLng?: number; locationCoarse?: boolean; mediaIds: string[]; tags?: { index: number; username: string; x: number; y: number }[]; /** Publicar como um local que giro. */ venueId?: string | null; /** Dueto ou resposta com tcheka (lib/remix). */ remixOf?: RemixInput | null }) =>
     // Estatísticas: só o feitio da publicação (quantas fotos, com música, como local), nunca o texto nem o sítio.
-    trackOk(raw('/posts', post({ ...b, music: musicPayload(b.music) })), 'post_create', { media: b.mediaIds.length, music: !!b.music, tags: !!b.tags?.length, venue: !!b.venueId }),
+    // Num dueto, `music: undefined` fica com o som do original; `music: null` vai como "sem música" (o servidor distingue).
+    trackOk(raw('/posts', post({ ...b, music: b.remixOf && b.music === null ? null : musicPayload(b.music) })), 'post_create', { media: b.mediaIds.length, music: !!b.music, tags: !!b.tags?.length, venue: !!b.venueId, ...(b.remixOf ? { remix: b.remixOf.kind } : {}) }),
 };

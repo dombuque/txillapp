@@ -17,6 +17,7 @@ import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
 import { GiftSheet, PostMenuSheet, RepostSheet } from '@/components/PostSheets';
 import { RichText } from '@/components/RichText';
+import { RemixButton, RemixTag, ReplyStickerOverlay } from '@/components/remix/RemixParts';
 import { ShareSheet } from '@/components/ShareSheet';
 import { Sheet } from '@/components/Sheet';
 import { Wordmark } from '@/components/Wordmark';
@@ -453,8 +454,12 @@ export function Reel({ post, active, onScreen = true, height, onChange, me, onMo
         </View>
       )}
       {failed && <View style={st.flashWrap} pointerEvents="none"><Text style={st.failed}>Não consegui carregar este vídeo.</Text></View>}
+      {/* Resposta com tcheka: o comentário por cima do vídeo, onde a pessoa o deixou (leva ao comentário). */}
+      <ReplyStickerOverlay remix={post.remixOf} />
 
       <View style={[st.info, { bottom: lift }]} pointerEvents="box-none">
+        {/* «Dueto com @x» / «Resposta a @y»: leva ao original. */}
+        {post.remixOf ? <View style={{ marginBottom: 8 }}><RemixTag remix={post.remixOf} /></View> : null}
         <View style={st.author}>
           <Pressable onPress={() => router.push(`/u/${post.author.username}` as never)} accessibilityRole="button"><Avatar name={post.author.displayName} username={post.author.username} size={40} /></Pressable>
           <Pressable onPress={() => router.push(`/u/${post.author.username}` as never)} style={{ flexShrink: 1, minWidth: 0 }} accessibilityRole="button">
@@ -490,6 +495,8 @@ export function Reel({ post, active, onScreen = true, height, onChange, me, onMo
         <Pressable onPress={() => setSheet('share')} style={({ pressed }) => [st.rail, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Partilhar">
           <View style={circle()}><Icon name="share" size={26} color="#fff" /></View>
         </Pressable>
+        {/* Remix: fazer dueto e ver os duetos e respostas (components/remix). */}
+        <RemixButton post={post} circleStyle={st.circle} labelStyle={st.railText} />
         {!mine && post.canGift && (
           <Pressable onPress={() => setSheet('gift')} style={({ pressed }) => [st.rail, pressed && { transform: [{ scale: 0.9 }] }]} accessibilityRole="button" accessibilityLabel="Presentear">
             <View style={circle()}><Icon name="gift" size={26} color="#fff" /></View>
