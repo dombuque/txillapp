@@ -10,6 +10,7 @@ import { AppConfig, CONFIG, loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
 import { ChatEvents, type CallEvent, type StreamEvent } from '../chat/chat.events';
+import { ackToken } from './call-push';
 import { CallsService } from './calls.service';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
@@ -135,7 +136,7 @@ describe('chamadas de voz e vídeo 1:1 (integração)', () => {
     expect(atB).toEqual([{ type: 'call', event: 'ring', callId: c.id, video: true, from: { username: la.username, displayName: 'la Teste', hasAvatar: false, verified: false, verifiedTier: null } }]);
     // Aviso no telemóvel de quem recebe: os campos da chamada ao nível de cima.
     expect(pushes.find((x) => x.payload.callId === c.id)?.payload).toEqual({
-      kind: 'call', callId: c.id, from: la.username, video: '1', declineToken: expect.any(String), title: 'la Teste', body: 'Videochamada', url: `/call/${c.id}?from=${la.username}&video=1`, tag: `call-${c.id}`,
+      kind: 'call', callId: c.id, from: la.username, video: '1', declineToken: expect.any(String), ackToken: expect.any(String), ackUrl: expect.any(String), title: 'la Teste', body: 'Videochamada', url: `/call/${c.id}?from=${la.username}&video=1`, tag: `call-${c.id}`,
     });
 
     // Só quem recebe atende; quem está de fora nem vê a chamada.
@@ -271,6 +272,78 @@ describe('chamadas de voz e vídeo 1:1 (integração)', () => {
     const mine = pushes.filter((x) => x.payload.callId === c.id).map((x) => x.payload);
     expect(mine.map((x) => x.kind)).toEqual(['call', 'call_end']);
     expect(mine[1]).toMatchObject({ kind: 'call_end', reason: 'declined', tag: `call-${c.id}` });
+  });
+
+  it('«A tocar…»: só quem recebe confirma que a chamada chegou; guarda a primeira vez e avisa quem ligou uma vez só', async () => {
+    const { lc, ld } = u;
+    await subscribe(ld);
+    const atC = listen(lc);
+    const c = (await call(lc, ld).expect(201)).body;
+    await tick();
+    const p = pushes.find((x) => x.payload.callId === c.id && x.payload.kind === 'call')!.payload;
+    expect(p.ackToken).toMatch(/^\d+\.[A-Za-z0-9_-]{43}$/);
+    expect(p.ackUrl).toBe(`${app.get<AppConfig>(CONFIG).PUBLIC_URL.replace(/\/$/, '')}/api/v1/calls/${c.id}/ringing?ack=${encodeURIComponent(p.ackToken)}`);
+    const delivered = async () => (await pool.query('SELECT delivered_at FROM social.calls WHERE id = $1', [c.id])).rows[0].delivered_at as Date | null;
+
+    // Quem liga não pode, quem está de fora nem vê a chamada, sem sessão nem código não dá.
+    await api().post(`/api/v1/calls/${c.id}/ringing`).set(auth(lc)).expect(403);
+    await api().post(`/api/v1/calls/${c.id}/ringing`).set(auth(u.lj)).expect(404);
+    await api().post(`/api/v1/calls/${c.id}/ringing`).expect(401);
+    await api().post('/api/v1/calls/not-a-uuid/ringing').set(auth(ld)).expect(400);
+    await tick();
+    expect(atC.filter((e) => e.event === 'ringing')).toEqual([]);
+    expect(await delivered()).toBeNull();
+
+    // Quem recebe (a app aberta, com sessão): fica entregue e quem ligou recebe «ringing».
+    const first = (await api().post(`/api/v1/calls/${c.id}/ringing`).set(auth(ld)).expect(200)).body;
+    expect(first).toEqual({ status: 'ringing', deliveredAt: expect.any(String) });
+    expect(new Date(first.deliveredAt).getTime()).toBe((await delivered())!.getTime());
+    // Outra vez, e de outro aparelho com o código do aviso: a mesma resposta, sem mudar a hora nem voltar a avisar.
+    await tick(20);
+    expect((await api().post(`/api/v1/calls/${c.id}/ringing`).set(auth(ld)).expect(200)).body).toEqual(first);
+    expect((await api().post(`/api/v1/calls/${c.id}/ringing?ack=${encodeURIComponent(p.ackToken)}`).expect(200)).body).toEqual(first);
+    await tick();
+    const fromD = { username: ld.username, displayName: 'ld Teste', hasAvatar: false, verified: false, verifiedTier: null };
+    expect(atC.filter((e) => e.event === 'ringing')).toEqual([{ type: 'call', event: 'ringing', callId: c.id, video: false, from: fromD }]);
+
+    // Depois de atendida (ou acabada) já não está a tocar.
+    await api().post(`/api/v1/calls/${c.id}/accept`).set(auth(ld)).expect(200);
+    await api().post(`/api/v1/calls/${c.id}/ringing`).set(auth(ld)).expect(409);
+    await api().post(`/api/v1/calls/${c.id}/end`).set(auth(lc)).expect(200);
+    await api().post(`/api/v1/calls/${c.id}/ringing?ack=${encodeURIComponent(p.ackToken)}`).expect(409);
+  });
+
+  it('«A tocar…» pelo service worker: o código do aviso funciona sem sessão, só nesta chamada, expira e não serve para mais nada', async () => {
+    const { lc, ld } = u;
+    const atC = listen(lc);
+    const c = (await call(lc, ld, true).expect(201)).body;
+    await tick();
+    const ack = pushes.find((x) => x.payload.callId === c.id && x.payload.kind === 'call')!.payload.ackToken;
+    const at = (token: string) => api().post(`/api/v1/calls/${c.id}/ringing?ack=${encodeURIComponent(token)}`);
+    const secret = 'k'.repeat(40);
+    const soon = Math.floor(Date.now() / 1000) + 60;
+    // Inventado, mexido, de outra pessoa (quem liga), já fora de prazo ou de outra chamada: não serve.
+    await at('x').expect(404);
+    await at(ack.slice(0, -1) + (ack.endsWith('A') ? 'B' : 'A')).expect(404);
+    await at(`${Number(ack.split('.')[0]) + 3600}.${ack.split('.')[1]}`).expect(404); // prazo esticado à mão
+    await at(ackToken(secret, c.id, lc.id, soon)).expect(404);
+    await at(ackToken(secret, c.id, ld.id, Math.floor(Date.now() / 1000) - 1)).expect(404);
+    await at(ackToken('z'.repeat(40), c.id, ld.id, soon)).expect(404);
+    const other = '01900000-0000-7000-8000-' + Date.now().toString(16).padStart(12, '0').slice(-12);
+    await api().post(`/api/v1/calls/${other}/ringing?ack=${encodeURIComponent(ack)}`).expect(404);
+    // O código não abre mais nada: atender, recusar pelo botão, desligar, o histórico.
+    await api().post(`/api/v1/calls/${c.id}/accept?ack=${encodeURIComponent(ack)}`).expect(401);
+    await api().post(`/api/v1/calls/${c.id}/end?ack=${encodeURIComponent(ack)}`).expect(401);
+    await api().get(`/api/v1/calls?ack=${encodeURIComponent(ack)}`).expect(401);
+    await api().post(`/api/v1/calls/${c.id}/decline-push`).send({ token: ack }).expect(404);
+    await tick();
+    expect(atC.filter((e) => e.event === 'ringing' && e.callId === c.id)).toEqual([]);
+    // O verdadeiro, sem sessão: entregue e quem ligou fica a saber.
+    expect((await at(ack).expect(200)).body).toEqual({ status: 'ringing', deliveredAt: expect.any(String) });
+    await tick();
+    expect(atC.filter((e) => e.event === 'ringing' && e.callId === c.id)).toHaveLength(1);
+    expect((await pool.query('SELECT status FROM social.calls WHERE id = $1', [c.id])).rows[0].status).toBe('ringing'); // continua a tocar
+    await api().post(`/api/v1/calls/${c.id}/end`).set(auth(lc)).expect(200);
   });
 
   it('ninguém atende: ao fim do tempo fica perdida, avisa os dois e deixa a notificação de chamada perdida', async () => {

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ExecutionContext, Get, HttpCode, Injectable, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
@@ -77,6 +77,16 @@ export class CallsController {
 
 const declinePushSchema = z.object({ token: z.string().min(16).max(200) });
 
+/** Com `?ack=` não pede sessão (o código é verificado no serviço); sem ele, é a sessão normal. */
+@Injectable()
+class SessionOrAckGuard extends JwtAuthGuard {
+  async canActivate(ctx: ExecutionContext) {
+    const ack = ctx.switchToHttp().getRequest<Request>().query.ack;
+    if (typeof ack === 'string' && ack) return true;
+    return super.canActivate(ctx);
+  }
+}
+
 /**
  * Recusar pelo botão da notificação do browser. O service worker não tem a sessão (cookie HttpOnly e token na memória da
  * página), por isso não usa a conta: só o código que veio no aviso Web Push desta chamada (vale só para recusar esta).
@@ -84,6 +94,19 @@ const declinePushSchema = z.object({ token: z.string().min(16).max(200) });
 @Controller('calls')
 export class CallsPushController {
   constructor(private readonly calls: CallsService) {}
+
+  /**
+   * «A chamada chegou a este aparelho» (quem liga passa a ver «A tocar…»). Com sessão: a app aberta, quando recebe o
+   * `ring`. Sem sessão, com `?ack=<ackToken>` do aviso push: o service worker do browser e a app Android fechada.
+   */
+  @Post(':id/ringing')
+  @HttpCode(200)
+  @UseGuards(SessionOrAckGuard)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  ringing(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Query('ack') ack?: string | string[]) {
+    if (Array.isArray(ack)) throw new BadRequestException('ack inválido');
+    return this.calls.ringing(req.userId ?? null, id, ack || undefined);
+  }
 
   @Post(':id/decline-push')
   @HttpCode(200)
