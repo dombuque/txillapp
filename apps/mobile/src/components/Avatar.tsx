@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
 import { useSyncExternalStore } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { avatarPath } from '@/lib/avatarSrc';
 import { SITE_URL } from '@/lib/config';
+import { listImageProps } from '@/lib/listImage';
 import { colors } from '@/lib/theme';
 
 let version = 0;
@@ -34,7 +35,7 @@ export function Avatar({ username, name, size = 40 }: { username?: string; name:
     <View style={[styles.box, { width: size, height: size, borderRadius: size / 2 }]}>
       <Text style={[styles.initials, { fontSize: Math.max(11, size * 0.3) }]}>{initials}</Text>
       {username ? (
-        <Image source={{ uri: avatarUri(username, v) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} accessibilityIgnoresInvertColors />
+        <Image source={{ uri: avatarUri(username, v) }} style={StyleSheet.absoluteFill} contentFit="cover" {...listImageProps(Platform.OS, 120)} accessibilityIgnoresInvertColors />
       ) : null}
     </View>
   );

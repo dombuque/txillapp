@@ -5,6 +5,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Modal } from '@/components/Modal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { abs } from '@/lib/config';
+import { listImageProps } from '@/lib/listImage';
 import { Icon } from './Icon';
 
 /**
@@ -80,6 +81,10 @@ function WebVideo({ src, cover, durationMs, width, height, active, mute, passive
   const ref = useRef<HTMLVideoElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
+  // A capa fica por cima até o vídeo mostrar o primeiro frame (como no NativeVideo): no Safari do iPhone, ao arrancar
+  // sozinho, o poster some antes de haver imagem e o cartão ficava preto por um instante (piscava ao rolar o feed).
+  const [framed, setFramed] = useState(false);
+  const framedRef = useRef(false);
   const seen = useRef(false);
   const isDouble = useDouble(onDouble);
 
@@ -125,8 +130,14 @@ function WebVideo({ src, cover, durationMs, width, height, active, mute, passive
     ref,
     src, poster: cover, playsInline: true, loop: true, muted: true, preload: 'metadata',
     onPlay: () => setPlaying(true), onPause: () => setPlaying(false),
+    onTimeUpdate: (e: { currentTarget: HTMLVideoElement }) => {
+      if (!framedRef.current && e.currentTarget.currentTime > 0) { framedRef.current = true; setFramed(true); }
+    },
     style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' },
   });
+  const coverImg = cover && !framed
+    ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" pointerEvents="none" {...listImageProps(Platform.OS, 0)} />
+    : null;
   if (passive) {
     // Tcheka no feed: o toque no vídeo abre a Tcheka (tratado por fora); o botão do canto liga/desliga o som.
     const toggle = () => {
@@ -139,7 +150,7 @@ function WebVideo({ src, cover, durationMs, width, height, active, mute, passive
     };
     return (
       <View style={{ width, height, backgroundColor: '#000' }} pointerEvents="box-none">
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">{video}</View>
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">{video}{coverImg}</View>
         <Overlay playing={playing} muted durationMs={durationMs} showSound={false} />
         {!mute && playing ? <SoundButton muted={muted} onPress={toggle} /> : null}
       </View>
@@ -148,6 +159,7 @@ function WebVideo({ src, cover, durationMs, width, height, active, mute, passive
   return (
     <Pressable onPress={press} style={{ width, height, backgroundColor: '#000' }} accessibilityRole="button" accessibilityLabel={muted ? 'Ligar o som' : 'Tirar o som'}>
       {video}
+      {coverImg}
       <Overlay playing={playing} muted={muted} durationMs={durationMs} showSound={!mute} />
     </Pressable>
   );

@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { memo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { PostCard } from '@/components/PostCard';
 import { VenueLogo } from '@/components/VenueCard';
@@ -9,6 +9,7 @@ import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { boostsApi, type SponsoredSlot } from '@/lib/api.boosts';
 import { sponsoredA11y } from '@/lib/boostView';
 import { sized } from '@/lib/config';
+import { listImageProps } from '@/lib/listImage';
 import { eventWhen } from '@/lib/nearbyView';
 import { cardShadow, colors } from '@/lib/theme';
 
@@ -61,7 +62,7 @@ function EventCard({ slot, a11y, onOpen }: { slot: SponsoredSlot; a11y: string; 
       </Pressable>
       <Pressable onPress={open} accessibilityRole="button" accessibilityLabel={`Abrir o evento ${e.title}, ${eventWhen(e.startsAt, e.endsAt)}`} style={({ pressed }) => [pressed && { opacity: 0.85 }]}>
         {e.coverUrl ? (
-          <Image source={{ uri: sized(e.coverUrl, 1080) }} style={st.cover} contentFit="cover" accessibilityIgnoresInvertColors />
+          <Image source={{ uri: sized(e.coverUrl, 1080) }} style={st.cover} contentFit="cover" {...listImageProps(Platform.OS, 0)} accessibilityIgnoresInvertColors />
         ) : (
           <View style={[st.cover, st.coverEmpty]}><Icon name="calendar" size={40} color="#fff" /></View>
         )}
