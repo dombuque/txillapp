@@ -13,14 +13,20 @@ import expo.modules.kotlin.modules.ModuleDefinition
  * - start(name, video): põe o serviço em primeiro plano, ou atualiza o tipo se a câmara ligou ou desligou a meio.
  * - stop(): tira-o.
  * - evento onHangUp: tocaram em «Desligar» na notificação.
+ * - setSpeaker(on) / audioRoute() / resetAudio(): o viva-voz (ver CallAudio.kt); evento onAudioRoute quando a saída
+ *   do som muda (auscultadores ligados ou tirados).
  */
 class CallServiceModule : Module() {
   private val context get() = requireNotNull(appContext.reactContext) { "Sem contexto Android" }
+  private var audio: CallAudio? = null
+  private fun audio(): CallAudio = audio ?: CallAudio(context.applicationContext) { route, headset ->
+    sendEvent("onAudioRoute", mapOf("route" to route, "headset" to headset))
+  }.also { audio = it }
 
   override fun definition() = ModuleDefinition {
     Name("TxCallService")
 
-    Events("onHangUp")
+    Events("onHangUp", "onAudioRoute")
 
     OnCreate {
       CallService.onHangUp = { sendEvent("onHangUp", mapOf<String, Any>()) }
@@ -28,6 +34,8 @@ class CallServiceModule : Module() {
 
     OnDestroy {
       CallService.onHangUp = null
+      audio?.reset()
+      audio = null
     }
 
     Function("start") { name: String, video: Boolean ->
@@ -47,6 +55,12 @@ class CallServiceModule : Module() {
         false
       }
     }
+
+    Function("setSpeaker") { on: Boolean -> audio().setSpeaker(on) }
+
+    Function("audioRoute") { mapOf("route" to audio().route(), "headset" to audio().headset()) }
+
+    Function("resetAudio") { audio?.reset() }
 
     Function("stop") {
       // stopService funciona também com a app em segundo plano; o onDestroy do serviço tira a notificação.

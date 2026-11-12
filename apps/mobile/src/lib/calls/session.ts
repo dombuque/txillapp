@@ -17,11 +17,12 @@ import { holdStream, onCallEvent } from '@/lib/realtime';
 import { callsApi } from './api';
 import type { DataChannelLike, IceEventLike, PeerLike, SdpLike, TrackEventLike } from './peer';
 import { startRingback, startRinging, stopSounds } from './sounds';
+import { initialSpeaker, speakerAfterRoute, speakerLit, type Headset } from './speaker';
 import type { CallEvent, CallPeer, CallState, EndReason, IceServer } from './types';
 import * as rtc from './webrtc';
 
 const IDLE: CallState = {
-  phase: 'idle', callId: null, peer: null, outgoing: false, video: false, micOn: true, camOn: false, front: true, speaker: false, canFlip: false,
+  phase: 'idle', callId: null, peer: null, outgoing: false, video: false, micOn: true, camOn: false, front: true, speaker: false, audioRoute: null, canFlip: false,
   local: null, remote: null, remoteMic: null, remoteCam: null, startedAt: null, endedAt: null, endReason: null, minimised: false, message: null, error: null,
 };
 
@@ -63,6 +64,8 @@ let pendingIce: unknown[] = [];
 let early: NonNullable<CallEvent['signal']>[] = [];
 let queue: Promise<void> = Promise.resolve();
 let iceRestarted = false;
+/** Os auscultadores que o telemóvel disse estarem ligados (undefined: ainda não disse nada nesta chamada). */
+let headset: Headset | undefined;
 /** Chamadas que já acabaram aqui (um push atrasado não as volta a pôr a tocar). */
 const done = new Set<string>();
 /** Cada chamada tem um número; o que chega atrasado de uma chamada antiga é ignorado. */
@@ -121,6 +124,7 @@ function teardown() {
   rtc.stopMedia(state.local);
   rtc.playRemote(null);
   void rtc.callAudio(false, false);
+  headset = undefined;
   holdStream(false);
 }
 
@@ -365,7 +369,7 @@ export async function startCall(peer: CallPeer | string, video: boolean): Promis
   const hint: CallPeer = typeof peer === 'string' ? { username: peer, displayName: peer, hasAvatar: false } : peer;
   gen += 1;
   const g = gen;
-  set({ ...IDLE, phase: 'outgoing', outgoing: true, peer: hint, video, camOn: video, speaker: video });
+  set({ ...IDLE, phase: 'outgoing', outgoing: true, peer: hint, video, camOn: video, speaker: initialSpeaker(video) });
   try {
     await dial(g, hint, video);
   } catch (e) {
@@ -393,7 +397,7 @@ async function dial(g: number, hint: CallPeer, video: boolean): Promise<void> {
   const camOn = video && rtc.hasVideoTrack(local);
   bump();
   set({ local, camOn, canFlip: camOn ? await rtc.canFlip().catch(() => false) : false });
-  void rtc.callAudio(true, video);
+  void rtc.callAudio(true, state.speaker);
   try {
     const req = callsApi.start(hint.username, video);
     // Resposta que chega depois de se desistir (tempo esgotado ou cancelado): a chamada não fica a tocar do outro lado.
@@ -438,7 +442,7 @@ export function openIncomingCall({ callId, from: who, video }: { callId: string;
   }
   gen += 1;
   const g = gen;
-  set({ ...IDLE, phase: 'incoming', outgoing: false, callId, peer: from, video, camOn: video, speaker: video });
+  set({ ...IDLE, phase: 'incoming', outgoing: false, callId, peer: from, video, camOn: video, speaker: initialSpeaker(video) });
   holdStream(true);
   startRinging();
   after('ring', RING_IN_MS, () => g === gen && state.phase === 'incoming' && finish('missed'));
@@ -462,7 +466,7 @@ export async function acceptCall(withVideo = state.video): Promise<void> {
   clear('ring');
   // A pré-visualização sai; abre-se o microfone (e a câmara, se for com vídeo).
   rtc.stopMedia(state.local);
-  set({ phase: 'connecting', local: null, camOn: withVideo, speaker: withVideo || state.video });
+  set({ phase: 'connecting', local: null, camOn: withVideo, speaker: initialSpeaker(withVideo || state.video) });
   if (!rtc.rtcSupported()) {
     void callsApi.decline(id).catch(() => undefined);
     finish('failed', { error: 'As chamadas ainda não funcionam neste aparelho. Atualiza a app ou usa outro browser.' });
@@ -546,11 +550,26 @@ export async function flipCamera() {
   } catch { /* fica a mesma câmara */ }
 }
 
+/** Viva-voz: liga ou desliga o altifalante (desligado = auscultador, ou os auscultadores ligados). */
 export function toggleSpeaker() {
-  const on = !state.speaker;
+  if (state.phase === 'idle' || state.phase === 'ended' || state.phase === 'incoming') return;
+  setSpeaker(!speakerLit(state.speaker, state.audioRoute));
+}
+
+function setSpeaker(on: boolean) {
   set({ speaker: on });
   void rtc.callAudio(true, on);
 }
+
+/** O telemóvel avisa que a saída do som mudou (ligaram ou tiraram auscultadores, ou acabou de aplicar um pedido). */
+rtc.onAudioRoute((r) => {
+  if (state.phase === 'idle' || state.phase === 'ended' || state.phase === 'incoming') return;
+  const next = speakerAfterRoute(headset, r, state.camOn);
+  headset = r.headset;
+  set({ audioRoute: r.route });
+  // Só muda quando os auscultadores entram ou saem (e então volta a aplicar, mesmo que o valor seja o mesmo).
+  if (next !== null) setSpeaker(next);
+});
 
 export function minimiseCall() {
   if (state.phase !== 'idle' && state.phase !== 'ended') set({ minimised: true });
@@ -569,7 +588,7 @@ export function dropIncoming(callId: string) {
 /** Ouvir as mudanças do estado da chamada fora do React (ex.: fechar a notificação quando se atende). */
 export const onCallState = subscribe;
 
-export const speakerSelectable = rtc.speakerSelectable;
+export const { audioOutputs, currentAudioOutput, onAudioOutputsChange, setAudioOutput, speakerMode } = rtc;
 export { VideoView } from './webrtc';
 
 /** "02:31" (ou "1:02:31" acima de uma hora). */

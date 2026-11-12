@@ -44,3 +44,6 @@ export interface VideoViewProps {
   zOrder?: number;
   style?: StyleProp<ViewStyle>;
 }
+
+/** Uma saída de som do browser (enumerateDevices, kind "audiooutput"). */
+export interface AudioOutput { id: string; label: string }

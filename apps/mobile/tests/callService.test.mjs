@@ -95,9 +95,9 @@ test('ligações no JS: o CallOverlay instala o serviço; sair ou trocar de cont
   assert.match(auth, /const switchTo = useCallback\(async \(username: string\) => \{\r?\n    hangUp\(\);/);
 });
 
-test('o módulo nativo: só Android, tipo microphone (+ camera), notificação baixa «Chamadas em curso» com Desligar', () => {
+test('o módulo nativo: serviço só no Android, tipo microphone (+ camera), notificação baixa «Chamadas em curso» com Desligar', () => {
   const cfg = JSON.parse(read('modules', 'call-service', 'expo-module.config.json'));
-  assert.deepEqual(cfg.platforms, ['android']);
+  assert.deepEqual(cfg.platforms, ['android', 'apple']); // o iPhone só tem o viva-voz (tests/speaker.test.mjs)
   assert.deepEqual(cfg.android.modules, ['com.txillapp.callservice.CallServiceModule']);
   const dir = ['modules', 'call-service', 'android', 'src', 'main', 'java', 'com', 'txillapp', 'callservice'];
   const svc = read(...dir, 'CallService.kt');
@@ -110,7 +110,7 @@ test('o módulo nativo: só Android, tipo microphone (+ camera), notificação b
   assert.match(svc, /setOngoing\(true\)/);
   const mod = read(...dir, 'CallServiceModule.kt');
   assert.match(mod, /Name\("TxCallService"\)/);
-  assert.match(mod, /Events\("onHangUp"\)/);
+  assert.match(mod, /Events\("onHangUp", "onAudioRoute"\)/);
   // Sem licença do microfone não arranca (o Android 14 recusava); sem licença de notificações arranca na mesma.
   assert.match(mod, /if \(!granted\(Manifest\.permission\.RECORD_AUDIO\)\) return@Function false/);
   assert.doesNotMatch(mod, /POST_NOTIFICATIONS/);

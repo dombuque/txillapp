@@ -5,11 +5,13 @@
  * O módulo nativo é carregado só quando é preciso e dentro de try: uma app instalada antes de o módulo existir (APK antigo)
  * não rebenta ao arrancar; simplesmente diz que as chamadas ainda não estão disponíveis nesta versão.
  */
+import { requireOptionalNativeModule, type EventSubscription } from 'expo';
 import { setAudioModeAsync } from 'expo-audio';
 import { createElement } from 'react';
 import { PermissionsAndroid, Platform, View, type Permission } from 'react-native';
 import type { IceServer } from './types';
-import type { PeerLike, VideoViewProps } from './peer';
+import type { AudioOutput, PeerLike, VideoViewProps } from './peer';
+import { createCallAudio, parseReport, speakerUi, type AudioReport, type SpeakerNative, type SpeakerUi } from './speaker';
 
 type RTC = typeof import('react-native-webrtc');
 type NStream = import('react-native-webrtc').MediaStream;
@@ -200,16 +202,57 @@ export function remoteFromTrack(e: { track: unknown; streams?: readonly unknown[
 /** No telemóvel o som do outro lado toca sozinho (o WebRTC trata disso). */
 export function playRemote(_stream: unknown | null) {}
 
-/** Prepara o áudio para a chamada: gravar e falar, pelo altifalante ou pelo auscultador. */
-export async function callAudio(on: boolean, speaker: boolean): Promise<void> {
+/** O módulo local modules/call-service: no Android e no iPhone escolhe a saída do som. Num APK antigo não existe. */
+interface TxAudioModule extends SpeakerNative {
+  addListener?(event: 'onAudioRoute', listener: (e: { route?: string; headset?: string }) => void): EventSubscription;
+}
+const audioNative = Platform.OS === 'android' || Platform.OS === 'ios' ? requireOptionalNativeModule<TxAudioModule>('TxCallService') : null;
+const speakerNative = audioNative && typeof audioNative.setSpeaker === 'function' && typeof audioNative.resetAudio === 'function' ? audioNative : null;
+
+/** O modo de áudio do expo-audio: gravar e falar, e o auscultador (modo de comunicação) ou o altifalante. */
+async function audioMode(on: boolean, speaker: boolean): Promise<void> {
   try {
     if (on) await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, shouldRouteThroughEarpiece: !speaker, interruptionMode: 'doNotMix', shouldPlayInBackground: true });
     else await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true, shouldRouteThroughEarpiece: false, interruptionMode: 'mixWithOthers', shouldPlayInBackground: false });
   } catch { /* sem modo de áudio: fica o padrão */ }
 }
 
-/** Há altifalante para escolher (no telemóvel, sim). */
-export const speakerSelectable = true;
+const audio = createCallAudio(audioMode, speakerNative);
+
+/**
+ * Prepara o áudio para a chamada: gravar e falar, pelo altifalante ou pelo auscultador (ou pelos auscultadores
+ * ligados). `on = false` no fim da chamada: repõe o áudio normal. A regra está em ./speaker.ts.
+ */
+export async function callAudio(on: boolean, speaker: boolean): Promise<void> {
+  if (on) await audio.start(speaker);
+  else await audio.end();
+}
+
+/** Avisos do telemóvel quando a saída do som muda (auscultadores ligados ou tirados). Devolve a função que desliga. */
+export function onAudioRoute(listener: (r: AudioReport) => void): () => void {
+  if (!speakerNative?.addListener) return () => undefined;
+  try {
+    const sub = speakerNative.addListener('onAudioRoute', (e) => listener(parseReport(e)));
+    return () => sub.remove();
+  } catch {
+    return () => undefined;
+  }
+}
+
+/** Como é o botão do altifalante: no telemóvel, um interruptor (Android e iPhone). */
+export const speakerMode = (_outputs: readonly AudioOutput[] = []): SpeakerUi => speakerUi({ os: Platform.OS });
+
+/** Só no site há saídas de som para escolher numa lista. */
+export async function audioOutputs(): Promise<AudioOutput[]> {
+  return [];
+}
+export async function setAudioOutput(_id: string): Promise<boolean> {
+  return false;
+}
+export const currentAudioOutput = (): string => '';
+export function onAudioOutputsChange(_f: () => void): () => void {
+  return () => undefined;
+}
 
 /** Mostra um stream (câmara minha ou do outro lado). */
 export function VideoView({ stream, mirror, cover = true, zOrder, style }: VideoViewProps) {

@@ -7,8 +7,9 @@ import { Avatar } from '@/components/Avatar';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
 import {
-  acceptCall, declineCall, dismissEnded, expandCall, flipCamera, fmtDuration, hangUp, minimiseCall, speakerSelectable,
-  toggleCamera, toggleMic, toggleSpeaker, useCall, useStreamRev, VideoView, type CallPeer, type CallState,
+  acceptCall, audioOutputs, currentAudioOutput, declineCall, dismissEnded, expandCall, flipCamera, fmtDuration, hangUp, minimiseCall,
+  onAudioOutputsChange, setAudioOutput, speakerLabel, speakerLit, speakerMode, toggleCamera, toggleMic, toggleSpeaker, useCall, useStreamRev,
+  VideoView, type AudioOutput, type CallPeer, type CallState,
 } from '@/lib/calls';
 import { installCallService } from '@/lib/calls/callServiceNative';
 import { SITE_URL } from '@/lib/config';
@@ -158,11 +159,75 @@ function BigBtn({ bg, label, onPress, children, size = 70 }: { bg: string; label
 }
 
 /** Botão dos controlos (microfone, câmara…): vidro escuro; desligado fica branco com o ícone escuro. */
-function Ctrl({ label, off, onPress, children }: { label: string; off?: boolean; onPress: () => void; children: (color: string) => ReactNode }) {
+function Ctrl({ label, hint, off, onPress, children }: { label: string; hint?: string; off?: boolean; onPress: () => void; children: (color: string) => ReactNode }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: !!off }} style={({ pressed }) => [st.ctrl, off && { backgroundColor: '#fff' }, pressed && { transform: [{ scale: 0.92 }] }]}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityHint={hint} accessibilityState={{ selected: !!off }} style={({ pressed }) => [st.ctrl, off && { backgroundColor: '#fff' }, pressed && { transform: [{ scale: 0.92 }] }]}>
       {children(off ? colors.zinc900 : '#fff')}
     </Pressable>
+  );
+}
+
+/* ---------- Altifalante (viva-voz) ---------- */
+
+/** As saídas de som do browser (só na web; no telemóvel fica vazio). Volta a ler quando se liga ou tira um aparelho. */
+function useAudioOutputs(): AudioOutput[] {
+  const [list, setList] = useState<AudioOutput[]>([]);
+  useEffect(() => {
+    if (native) return;
+    let alive = true;
+    const load = () => void audioOutputs().then((l) => { if (alive) setList(l); }, () => undefined);
+    load();
+    const off = onAudioOutputsChange(load);
+    return () => { alive = false; off(); };
+  }, []);
+  return list;
+}
+
+/**
+ * O botão «Altifalante», ao lado do microfone. No telemóvel liga e desliga o viva-voz (aceso = altifalante; com
+ * auscultadores ligados apaga-se, porque o som vai para eles). No computador, onde o browser deixa escolher, abre a
+ * lista das saídas de som. No iPhone/iPad pelo browser não aparece (lib/calls/speaker.ts).
+ * `spacer`: sem botão, deixa o lugar vazio (para o ecrã «A chamar…» ficar centrado).
+ */
+function SpeakerButton({ c, spacer }: { c: CallState; spacer?: boolean }) {
+  const outputs = useAudioOutputs();
+  const [open, setOpen] = useState(false);
+  const [cur, setCur] = useState(currentAudioOutput());
+  const mode = speakerMode(outputs);
+  if (mode === 'none') return spacer ? <View style={{ width: 56 }} /> : null;
+  if (mode === 'toggle') {
+    const lit = speakerLit(c.speaker, c.audioRoute);
+    const headset = c.audioRoute === 'bluetooth' || c.audioRoute === 'wired';
+    return (
+      <Ctrl label={speakerLabel(lit)} hint={headset ? (c.audioRoute === 'bluetooth' ? 'O som está no aparelho Bluetooth' : 'O som está nos auscultadores') : undefined} off={lit} onPress={toggleSpeaker}>
+        {(col) => <Icon name="volume" size={24} color={col} />}
+      </Ctrl>
+    );
+  }
+  const selected = outputs.some((o) => o.id === cur) ? cur : 'default';
+  const pick = (id: string) => {
+    setOpen(false);
+    void setAudioOutput(id).then((ok) => { if (ok) setCur(currentAudioOutput()); });
+  };
+  return (
+    <>
+      <Ctrl label="Saída do som" hint={outputs.find((o) => o.id === selected)?.label} off={open} onPress={() => setOpen(true)}>
+        {(col) => <Icon name="volume" size={24} color={col} />}
+      </Ctrl>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable style={st.sinkBackdrop} onPress={() => setOpen(false)} accessibilityRole="button" accessibilityLabel="Fechar">
+          <Pressable style={st.sinkSheet} onPress={() => undefined}>
+            <Text style={st.repliesTitle}>Saída do som</Text>
+            {outputs.map((o) => (
+              <Pressable key={o.id} onPress={() => pick(o.id)} style={({ pressed }) => [st.reply, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="radio" accessibilityState={{ selected: o.id === selected }}>
+                <Text style={[st.replyText, { flex: 1 }]} numberOfLines={1}>{o.label}</Text>
+                {o.id === selected ? <Icon name="check" size={18} color={colors.zinc900} /> : null}
+              </Pressable>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -252,9 +317,7 @@ function Outgoing({ c }: { c: CallState }) {
       <View style={[st.bar, { paddingBottom: pad.bottom }]}>
         <View style={{ marginTop: 7 }}><Ctrl label={c.micOn ? 'Desligar o microfone' : 'Ligar o microfone'} off={!c.micOn} onPress={toggleMic}>{(col) => c.micOn ? <Icon name="mic" size={24} color={col} /> : <CallIcon name="mic-off" size={24} color={col} />}</Ctrl></View>
         <BigBtn bg={RED} label="Cancelar" onPress={hangUp}><CallIcon name="hangup" size={30} color="#fff" strokeWidth={2.1} /></BigBtn>
-        {speakerSelectable ? (
-          <View style={{ marginTop: 7 }}><Ctrl label={c.speaker ? 'Desligar o altifalante' : 'Ligar o altifalante'} off={c.speaker} onPress={toggleSpeaker}>{(col) => <Icon name="volume" size={24} color={col} />}</Ctrl></View>
-        ) : <View style={{ width: 56 }} />}
+        <View style={{ marginTop: 7 }}><SpeakerButton c={c} spacer /></View>
       </View>
     </View>
   );
@@ -303,9 +366,7 @@ function Controls({ c, camera }: { c: CallState; camera: boolean }) {
         {camera && c.camOn && c.canFlip ? (
           <Ctrl label="Virar a câmara" onPress={() => void flipCamera()}>{(col) => <Icon name="flip-camera" size={24} color={col} />}</Ctrl>
         ) : null}
-        {speakerSelectable ? (
-          <Ctrl label={c.speaker ? 'Desligar o altifalante' : 'Ligar o altifalante'} off={c.speaker} onPress={toggleSpeaker}>{(col) => <Icon name="volume" size={24} color={col} />}</Ctrl>
-        ) : null}
+        <SpeakerButton c={c} />
         <Pressable onPress={hangUp} style={({ pressed }) => [st.ctrl, { backgroundColor: RED }, pressed && { transform: [{ scale: 0.92 }] }]} accessibilityRole="button" accessibilityLabel="Desligar">
           <CallIcon name="hangup" size={26} color="#fff" strokeWidth={2.1} />
         </Pressable>
@@ -503,6 +564,8 @@ const st = StyleSheet.create({
   writeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4, paddingVertical: 8 },
   writeInput: { flex: 1, height: 46, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 18, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' } as object,
   sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  sinkBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'flex-end', padding: 16 },
+  sinkSheet: { width: '100%', maxWidth: 380, backgroundColor: '#fff', borderRadius: 20, padding: 12, gap: 2 },
   bar: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-evenly', paddingHorizontal: 24 },
   ctrl: { width: 56, height: 56, borderRadius: 28, backgroundColor: glass, alignItems: 'center', justifyContent: 'center' },
   controlsWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', gap: 10 },

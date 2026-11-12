@@ -5,7 +5,8 @@
 import { createElement, useEffect, useRef } from 'react';
 import { View } from 'react-native';
 import type { IceServer } from './types';
-import type { PeerLike, VideoViewProps } from './peer';
+import type { AudioOutput, PeerLike, VideoViewProps } from './peer';
+import { isAppleMobile, speakerUi, type AudioReport, type SpeakerUi } from './speaker';
 
 export const rtcSupported = () => typeof window !== 'undefined' && typeof window.RTCPeerConnection === 'function' && !!navigator.mediaDevices?.getUserMedia;
 
@@ -138,14 +139,83 @@ export function playRemote(stream: unknown | null) {
     audioEl.setAttribute('playsinline', '');
     audioEl.style.display = 'none';
     document.body.appendChild(audioEl);
+    if (sinkId) void sinkOf(audioEl)?.(sinkId).catch(() => undefined);
   }
   if (audioEl.srcObject !== stream) audioEl.srcObject = stream as MediaStream;
   void audioEl.play().catch(() => undefined);
 }
 
-/** No browser o som sai por onde o sistema mandar. */
-export async function callAudio(_on: boolean, _speaker: boolean): Promise<void> {}
-export const speakerSelectable = false;
+/* ---------- Saída do som (altifalante) ---------- */
+
+/**
+ * No browser não há «altifalante sim/não»: há saídas de som. Onde o browser deixa escolher (setSinkId e
+ * enumerateDevices, no Chrome/Edge do computador), o botão abre a lista das saídas.
+ * No iPhone/iPad não aparece: o Safari não expõe as saídas e o setSinkId não muda o som do WebRTC de forma fiável (ver
+ * ./speaker.ts); o som sai por onde o iOS decidir.
+ */
+let sinkId = '';
+type SinkFn = (id: string) => Promise<void>;
+const sinkOf = (el: HTMLMediaElement): SinkFn | null => {
+  const f = (el as HTMLMediaElement & { setSinkId?: SinkFn }).setSinkId;
+  return typeof f === 'function' ? f.bind(el) : null;
+};
+
+export function appleMobileWeb(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return isAppleMobile(navigator.userAgent ?? '', navigator.platform ?? '', navigator.maxTouchPoints ?? 0);
+}
+
+export function sinkSupported(): boolean {
+  return typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype && typeof navigator !== 'undefined' && !!navigator.mediaDevices?.enumerateDevices;
+}
+
+/** As saídas de som (a «predefinida» primeiro). Vazio onde não se pode escolher. */
+export async function audioOutputs(): Promise<AudioOutput[]> {
+  if (!sinkSupported() || appleMobileWeb()) return [];
+  try {
+    const all = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput' && d.deviceId !== 'communications');
+    return all.map((d, i) => ({ id: d.deviceId, label: d.deviceId === 'default' ? 'Predefinida do sistema' : d.label || `Saída ${i + 1}` }));
+  } catch {
+    return [];
+  }
+}
+
+/** Manda o som da chamada para esta saída (também para a próxima vez que o <audio> se criar). */
+export async function setAudioOutput(id: string): Promise<boolean> {
+  sinkId = id === 'default' ? '' : id;
+  const f = audioEl ? sinkOf(audioEl) : null;
+  if (!f) return !audioEl;
+  try {
+    await f(id);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export const currentAudioOutput = (): string => sinkId || 'default';
+
+/** Liga ou desliga um aparelho de som (devicechange). */
+export function onAudioOutputsChange(f: () => void): () => void {
+  const md = typeof navigator !== 'undefined' ? navigator.mediaDevices : undefined;
+  if (!md?.addEventListener) return () => undefined;
+  md.addEventListener('devicechange', f);
+  return () => md.removeEventListener('devicechange', f);
+}
+
+/** O botão: lista das saídas onde há duas ou mais; no iPhone, nada. */
+export const speakerMode = (outputs: readonly AudioOutput[] = []): SpeakerUi =>
+  speakerUi({ os: 'web', appleMobileWeb: appleMobileWeb(), sinkSupported: sinkSupported(), outputs: outputs.filter((o) => o.id !== 'default').length });
+
+/** Na web, o fim da chamada esquece a saída escolhida. O resto do som fica com o sistema. */
+export async function callAudio(on: boolean, _speaker: boolean): Promise<void> {
+  if (!on) sinkId = '';
+}
+
+/** Não há módulo nativo no browser: ninguém avisa das rotas. */
+export function onAudioRoute(_listener: (r: AudioReport) => void): () => void {
+  return () => undefined;
+}
 
 /** <video> com o stream (sempre sem som: o som vai pelo <audio> de cima). */
 export function VideoView({ stream, mirror, cover = true, style }: VideoViewProps) {

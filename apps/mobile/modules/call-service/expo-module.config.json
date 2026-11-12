@@ -1,6 +1,9 @@
 {
-  "platforms": ["android"],
+  "platforms": ["android", "apple"],
   "android": {
     "modules": ["com.txillapp.callservice.CallServiceModule"]
+  },
+  "apple": {
+    "modules": ["CallServiceModule"]
   }
 }
