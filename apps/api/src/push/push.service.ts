@@ -1,9 +1,10 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import webpush from 'web-push';
 import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
+import { ApnsSender, apnsOptionsFromEnv, nativeRoute } from './apns';
 import { FcmSender, type FcmPush } from './fcm';
 
 /** O que a pessoa pode ligar ou desligar nas notificações. */
@@ -30,24 +31,39 @@ export function webPushBody(p: PushPayload): string {
   return JSON.stringify({ ...(p.data ?? {}), ...(p.webData ?? {}), title: p.title, body: p.body, url: p.url, tag: p.tag });
 }
 
+/** O aviso de APNs desligado só aparece uma vez por processo. */
+let apnsWarned = false;
+
 /**
- * Notificações no telemóvel (Web Push). O texto nunca inclui o conteúdo de mensagens ou comentários:
- * o ecrã de bloqueio é público.
+ * Notificações no telemóvel: app Android (FCM), app no iPhone (APNs, direto à Apple) e browser (Web Push). O texto nunca
+ * inclui o conteúdo de mensagens ou comentários: o ecrã de bloqueio é público.
  */
 @Injectable()
-export class PushService {
+export class PushService implements OnModuleDestroy {
   private readonly log = new Logger('Push');
   readonly enabled: boolean;
   private readonly fcm: FcmSender;
+  private readonly apns: ApnsSender;
+  private readonly web: boolean;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(CONFIG) private readonly config: AppConfig,
   ) {
     this.fcm = new FcmSender(config.FCM_SERVICE_ACCOUNT_JSON);
-    const web = !!(config.VAPID_PUBLIC_KEY && config.VAPID_PRIVATE_KEY);
-    this.enabled = web || this.fcm.enabled;
-    if (web) webpush.setVapidDetails(config.VAPID_SUBJECT, config.VAPID_PUBLIC_KEY!, config.VAPID_PRIVATE_KEY!);
+    const apns = apnsOptionsFromEnv(config);
+    this.apns = new ApnsSender(apns.options);
+    if (!apns.options && !apnsWarned && config.NODE_ENV !== 'test') {
+      apnsWarned = true;
+      this.log.warn(`APNs desligado (${apns.problem}): as notificações não chegam à app no iPhone. Ver docs/lojas/apns.md`);
+    }
+    this.web = !!(config.VAPID_PUBLIC_KEY && config.VAPID_PRIVATE_KEY);
+    this.enabled = this.web || this.fcm.enabled || this.apns.enabled;
+    if (this.web) webpush.setVapidDetails(config.VAPID_SUBJECT, config.VAPID_PUBLIC_KEY!, config.VAPID_PRIVATE_KEY!);
+  }
+
+  onModuleDestroy() {
+    this.apns.close();
   }
 
   /** As categorias que a pessoa desligou. */
@@ -67,7 +83,7 @@ export class PushService {
     return { publicKey: this.config.VAPID_PUBLIC_KEY && this.config.VAPID_PRIVATE_KEY ? this.config.VAPID_PUBLIC_KEY : null };
   }
 
-  /** App nativa: guarda o código do aparelho (FCM) desta conta. O mesmo aparelho pode mudar de conta. */
+  /** App nativa: guarda o código do aparelho (FCM no Android, APNs no iPhone) desta conta. O mesmo aparelho pode mudar de conta. */
   async registerDevice(userId: string, token: string, platform: 'android' | 'ios') {
     await this.pool.query(
       `INSERT INTO social.push_devices (token, user_id, platform) VALUES ($1, $2, $3)
@@ -98,20 +114,26 @@ export class PushService {
     if (!this.enabled) return;
     try {
       if (payload.category && (await this.off(userId)).includes(payload.category)) return;
-      if (this.fcm.enabled && !payload.webOnly) {
+      if ((this.fcm.enabled || this.apns.enabled) && !payload.webOnly) {
         const devices = (await this.pool.query('SELECT token, platform FROM social.push_devices WHERE user_id = $1', [userId])).rows;
         await Promise.all(
           devices.map(async (d) => {
+            const token = d.token as string;
+            const platform = d.platform === 'ios' ? 'ios' : 'android';
+            // iPhone com código APNs vai à Apple (o FCM não o aceita e apagava o aparelho); Android (e iPhone com código FCM) ao FCM.
+            const route = nativeRoute(platform, token);
+            if (route === 'apns' ? !this.apns.enabled : !this.fcm.enabled) return; // sem configuração: fica guardado, não se apaga
             try {
-              const r = await this.fcm.send(d.token as string, payload, d.platform === 'ios' ? 'ios' : 'android');
-              if (r === 'dead') await this.pool.query('DELETE FROM social.push_devices WHERE token = $1', [d.token]);
-              else if (r === 'error') this.log.warn('falha no push nativo');
+              const r = route === 'apns' ? await this.apns.send(token, payload) : await this.fcm.send(token, payload, platform);
+              if (r === 'dead') await this.pool.query('DELETE FROM social.push_devices WHERE token = $1', [token]);
+              else if (r === 'error' && route === 'fcm') this.log.warn('falha no push nativo');
             } catch (e) {
               this.log.warn(`falha no push nativo: ${(e as Error).message}`);
             }
           }),
         );
       }
+      if (!this.web) return;
       const { rows } = await this.pool.query('SELECT endpoint, p256dh, auth FROM social.push_subscriptions WHERE user_id = $1', [userId]);
       await Promise.all(
         rows.map(async (r) => {

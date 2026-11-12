@@ -81,6 +81,20 @@ const schema = z.object({
   /** Conta de serviço do Firebase (JSON numa linha) para as notificações da app Android. Sem isto, só há push web. */
   FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
   /**
+   * Notificações da app no iPhone (APNs, direto à Apple). A chave .p8 de "Apple Push Notifications service": o conteúdo
+   * (PEM, com `\n` numa linha, ou o ficheiro todo em base64) em APNS_KEY_P8, ou o caminho do ficheiro em APNS_KEY_PATH.
+   * Sem chave, APNS_KEY_ID e APNS_TEAM_ID, o envio para o iPhone fica desligado (ver docs/lojas/apns.md).
+   */
+  APNS_KEY_P8: z.preprocess(blankToUndefined, z.string().optional()),
+  APNS_KEY_PATH: z.preprocess(blankToUndefined, z.string().optional()),
+  APNS_KEY_ID: z.preprocess(blankToUndefined, z.string().trim().optional()),
+  APNS_TEAM_ID: z.preprocess(blankToUndefined, z.string().trim().optional()),
+  APNS_BUNDLE_ID: z.preprocess(blankToUndefined, z.string().trim().default('com.txillapp.app')),
+  /** true: api.push.apple.com (TestFlight e App Store); false: api.sandbox.push.apple.com (builds de desenvolvimento). */
+  APNS_PRODUCTION: z.preprocess(blankToUndefined, z.enum(['true', 'false']).default('true').transform((v) => v === 'true')),
+  /** Só para testes: outro servidor APNs (ex.: http://127.0.0.1:1234, HTTP/2 sem TLS). */
+  APNS_ORIGIN: z.preprocess(blankToUndefined, z.string().url().optional()),
+  /**
    * Chamadas (WebRTC). Servidores TURN para quando a ligação direta não passa (redes móveis, firewalls), separados por vírgula,
    * ex.: turn:turn.txillapp.com:3478?transport=udp,turns:turn.txillapp.com:5349. Com TURN_SECRET (o mesmo `static-auth-secret`
    * do coturn) a app recebe credenciais temporárias. Sem os dois, só há STUN.
