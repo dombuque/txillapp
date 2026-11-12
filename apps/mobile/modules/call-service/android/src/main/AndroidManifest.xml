@@ -1,0 +1,2 @@
+<!-- O <service> e as permissões FOREGROUND_SERVICE_* vão para o manifesto da app pelo plugins/withCallService.js. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />

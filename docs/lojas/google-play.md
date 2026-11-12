@@ -18,22 +18,23 @@ chumbado. Falta o que só o dono pode fazer: conta, chave de upload, declaraçõ
 |---|---|---|---|
 | 1 | O aviso «Nova versão do Txillapp» (`AppUpdate`) ia buscar o `latest.json` e abria o APK do site. | Device and Network Abuse: uma app do Play não se pode atualizar por fora do Play. | No canal `play` o `AppUpdate` não faz pedido nenhum nem mostra nada (`canSelfUpdate`, `src/lib/channel.ts` → `selfUpdates`). O beta fica como estava. |
 | 2 | `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO` e `READ_MEDIA_VISUAL_USER_SELECTED` no manifesto, para a galeria dentro da app. | Photo and Video Permissions (obrigatória desde 28/05/2025): só para apps cujo núcleo é a galeria. Uma rede social não entra. | Bloqueadas em `android.blockedPermissions`. O `expo-media-library` fica com `granularPermissions: []`. No Android, escolher fotos e vídeos passa a usar o **Photo Picker do sistema** (`expo-image-picker`, `src/lib/mediaAccess.ts`). |
-| 3 | `FOREGROUND_SERVICE_MEDIA_PLAYBACK` e o serviço `AudioControlsService` do `expo-audio`, que a app nunca arranca. | Foreground service types: cada tipo precisa de uma declaração na Play Console, com vídeo. Uma declaração que não corresponde ao uso é recusada. | `expo-audio` passa a ter `enableBackgroundPlayback: false`. O plugin `withoutUnusedServices` tira os serviços sem uso: `MediaProjectionService` do WebRTC e os dois de localização em segundo plano. **Fica zero foreground services.** |
+| 3 | `FOREGROUND_SERVICE_MEDIA_PLAYBACK` e o serviço `AudioControlsService` do `expo-audio`, que a app nunca arranca. | Foreground service types: cada tipo precisa de uma declaração na Play Console, com vídeo. Uma declaração que não corresponde ao uso é recusada. | `expo-audio` passa a ter `enableBackgroundPlayback: false`. O plugin `withoutUnusedServices` tira os serviços sem uso: `MediaProjectionService` do WebRTC e os dois de localização em segundo plano. **Fica só o serviço das chamadas** (`microphone` e `camera`, secção 2), com declaração. |
 | 4 | `SYSTEM_ALERT_WINDOW` (vem do modelo do React Native). | A app não precisa dele. É uma permissão especial e chama a atenção na revisão. | Bloqueada. |
 | 5 | O release era assinado com a chave debug e saía em APK. | O Play exige um App Bundle (.aab) assinado com uma chave de upload. Recusa a chave debug. | Plugin `withAndroidUploadSigning`: lê a chave de variáveis de ambiente ou de um `gradle.properties` fora do git. Sem nada disto, usa a chave debug (é o caso do APK beta). Os passos estão na secção 4. |
 
 Também ficaram bloqueadas, por precaução, permissões que nenhum módulo pede hoje mas que um módulo novo poderia trazer
 sem darmos por isso: `REQUEST_INSTALL_PACKAGES`, `ACCESS_BACKGROUND_LOCATION`, `USE_FULL_SCREEN_INTENT`,
 `QUERY_ALL_PACKAGES`, `READ_CONTACTS`, `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM`, `READ_MEDIA_AUDIO`,
-`ACCESS_MEDIA_LOCATION`, `FOREGROUND_SERVICE_MEDIA_PROJECTION` e `FOREGROUND_SERVICE_LOCATION`.
+`ACCESS_MEDIA_LOCATION`, `FOREGROUND_SERVICE_MEDIA_PROJECTION`, `FOREGROUND_SERVICE_LOCATION` e
+`FOREGROUND_SERVICE_PHONE_CALL`.
 
-Os testes estão em `apps/mobile/tests/googlePlay.test.mjs`.
+Os testes estão em `apps/mobile/tests/googlePlay.test.mjs` e `apps/mobile/tests/callService.test.mjs`.
 
 ## 2. Manifesto final: permissões e justificação
 
 Lista tirada do manifesto juntado pelo Gradle neste ramo (`gradlew :app:processReleaseManifest`, 12/11/2026):
-`targetSdkVersion 36`, `minSdkVersion 24`, nenhum `foregroundServiceType`. Confirma-se outra vez no .aab com
-`bundletool dump manifest --bundle app-release.aab`.
+`targetSdkVersion 36`, `minSdkVersion 24`, e um só `foregroundServiceType`: o `microphone|camera` do serviço das
+chamadas. Confirma-se outra vez no .aab com `bundletool dump manifest --bundle app-release.aab`.
 
 | Permissão | De onde vem | Para quê | Declaração no Play? |
 |---|---|---|---|
@@ -41,6 +42,7 @@ Lista tirada do manifesto juntado pelo Gradle neste ramo (`gradlew :app:processR
 | `CAMERA` | app, expo-camera | fotos, vídeos, Zás, videochamadas | não (só Data safety) |
 | `RECORD_AUDIO` | app, expo-camera, expo-audio | vídeos, notas de voz, chamadas | não (só Data safety) |
 | `MODIFY_AUDIO_SETTINGS` | app, expo-audio, WebRTC | altifalante/auricular nas chamadas | não |
+| `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, `FOREGROUND_SERVICE_CAMERA` | `plugins/withCallService.js` | o `CallService`: a chamada continua com a app fora do ecrã | **sim**: «Serviços em primeiro plano» (texto e vídeo mais abaixo) |
 | `BLUETOOTH_CONNECT` | app | **só para o som das chamadas** passar para auscultadores/carro Bluetooth (o WebRTC pede-a no Android 12+). Não procura aparelhos: sem `BLUETOOTH_SCAN` e sem localização ligada a Bluetooth. | não |
 | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | app | «Perto», sugerir sítios, partilhar a localização numa conversa. **Só em primeiro plano** (`requestForegroundPermissionsAsync`, `watchPositionAsync`). Sem `ACCESS_BACKGROUND_LOCATION`. | não (Data safety: localização precisa e aproximada) |
 | `POST_NOTIFICATIONS` | app, expo-notifications | notificações (Android 13+). O pedido aparece **em contexto**: no passo a passo depois de entrar na conta, com a explicação «Para saberes logo quando a malta te escreve…», e pode ficar para depois. Nunca aparece no arranque sem sessão. | não |
@@ -52,7 +54,7 @@ Lista tirada do manifesto juntado pelo Gradle neste ramo (`gradlew :app:processR
 
 **Não estão no manifesto, e convém que continuem fora:** `REQUEST_INSTALL_PACKAGES`, `READ_MEDIA_IMAGES`,
 `READ_MEDIA_VIDEO`, `ACCESS_BACKGROUND_LOCATION`, `USE_FULL_SCREEN_INTENT`, `SYSTEM_ALERT_WINDOW`,
-`QUERY_ALL_PACKAGES`, `READ_CONTACTS`, `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM` e qualquer `FOREGROUND_SERVICE_*`.
+`QUERY_ALL_PACKAGES`, `READ_CONTACTS`, `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM` e qualquer `FOREGROUND_SERVICE_*` além de `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE` e `FOREGROUND_SERVICE_CAMERA`.
 
 ### Fotos e vídeos sem `READ_MEDIA_*`
 
@@ -69,16 +71,56 @@ Lista tirada do manifesto juntado pelo Gradle neste ramo (`gradlew :app:processR
 
 ### Declarações de foreground services (Play Console → Conteúdo da app → Serviços em primeiro plano)
 
-**Nenhuma.** O manifesto final não tem nenhum `FOREGROUND_SERVICE_*` nem nenhum `<service android:foregroundServiceType>`
-ativo. Se a Play Console mostrar a pergunta, responde «A app não usa serviços em primeiro plano».
+**Um serviço, com dois tipos: `microphone` e `camera`.** É o `CallService` (módulo local `modules/call-service`, em
+Kotlin, posto no manifesto pelo `plugins/withCallService.js`). É o **único** foreground service do manifesto final:
 
-Para o futuro: se as chamadas tiverem de continuar com o ecrã desligado ou com outra app à frente (no Android 14+ o
-sistema corta o microfone a uma app em segundo plano), é preciso:
-- um serviço do tipo `phoneCall` (ou `microphone`, mais `camera` nas videochamadas), com `FOREGROUND_SERVICE_PHONE_CALL`;
-- na Play Console, a declaração com a descrição «chamada de voz/vídeo iniciada pelo utilizador, notificação contínua
-  enquanto dura» e um vídeo curto a mostrar a chamada a continuar em segundo plano.
+```xml
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"/>
+<service android:name="com.txillapp.callservice.CallService" android:exported="false"
+         android:foregroundServiceType="microphone|camera" android:stopWithTask="true"/>
+```
 
-Isto não está feito. É uma melhoria, não um requisito para submeter.
+**Porquê:** desde o Android 14, uma app que sai do ecrã perde o microfone e a câmara. Sem o serviço, a chamada ficava
+muda quando a pessoa ia ao WhatsApp ou bloqueava o ecrã.
+
+**Como funciona:**
+- **Arranque.** O serviço arranca quando a chamada começa: ao **ligar**, logo que o microfone abre, e ao **atender**.
+  Arranca sempre com a app à vista, depois de um toque em Ligar ou Atender, que é o que o Android 14 exige para estes
+  tipos.
+- **Tipos.** É `microphone` em todas as chamadas e `microphone|camera` enquanto a câmara está ligada.
+- **Paragem.** Pára em todos os fins: desligar, a outra pessoa desligar, sem resposta, falha, sair da conta ou trocar de
+  conta (o `signOut`/`switchTo` desliga a chamada), e tirar a app dos recentes (`stopWithTask`).
+- **Notificação.** É contínua e de importância baixa, no canal «Chamadas em curso»:
+  - mostra «Chamada com <nome>» e o tempo de chamada;
+  - tocar nela volta à chamada;
+  - a ação «Desligar» desliga.
+  Sem a licença de notificações, o serviço arranca na mesma; só não se vê a notificação.
+- **A tocar não arranca:** ainda não há microfone aberto e a app pode estar fechada.
+- **Plataformas.** Nada disto existe no iPhone nem na web (`src/lib/calls/callService.ts` e `callServiceNative.ts`).
+  Num APK antigo, sem o módulo nativo, a chamada segue sem o serviço.
+
+**Porque não `phoneCall`:** esse tipo só é aceite a apps de telefone ou a apps que usam o Telecom
+(`ConnectionService` com `MANAGE_OWN_CALLS`). Integrar o Telecom é muito mais trabalho:
+- as chamadas passavam a aparecer como chamadas do sistema;
+- ficavam ligadas ao Bluetooth do carro e ao ecrã de bloqueio do telefone;
+- cada fabricante comporta-se de maneira diferente.
+O tipo `microphone`/`camera` está documentado precisamente para «chamadas de voz e vídeo» em apps de comunicação.
+`FOREGROUND_SERVICE_PHONE_CALL` fica bloqueado.
+
+**Declaração na Play Console** (Conteúdo da app → Serviços em primeiro plano / Foreground service permissions):
+
+| Campo | Resposta |
+|---|---|
+| Tipos | **Microphone** e **Camera** |
+| Funcionalidade | «Chamadas de voz e vídeo entre utilizadores» (comunicação em tempo real iniciada pelo utilizador) |
+| Descrição (PT) | Quando a pessoa liga ou atende uma chamada de voz ou vídeo no Txillapp, um serviço em primeiro plano mantém o microfone (e a câmara, se estiver ligada) a funcionar enquanto ela muda de app ou bloqueia o ecrã. Fica uma notificação contínua «Chamada com <nome>», com Desligar. O serviço pára quando a chamada acaba. |
+| Descrição (EN, se pedir) | When the user places or answers a voice or video call, a foreground service keeps the microphone (and the camera, when on) working while they switch apps or lock the screen. An ongoing "Call with <name>" notification with a Hang up action is shown. The service stops as soon as the call ends. |
+| Impacto se for adiado/interrompido | A chamada perde o som (e a imagem) ao sair da app: o utilizador é afetado de imediato. |
+| Vídeo (link do YouTube, não listado) | 30–60 s gravados no telemóvel: (1) abrir uma conversa e tocar no telefone; (2) a outra pessoa atende; (3) carregar em Início: a notificação «Chamada com …» aparece e a voz continua; (4) tocar na notificação: volta à chamada; (5) ligar a câmara, sair outra vez, a imagem continua; (6) «Desligar» na notificação termina a chamada e a notificação desaparece. |
+
+O APK beta também leva o módulo nativo. Para o fazer, é preciso um `prebuild` antes do `assembleRelease`.
 
 ### `USE_FULL_SCREEN_INTENT`
 
@@ -309,7 +351,7 @@ Escolhe «Todas ou algumas funcionalidades estão restritas» e dá uma conta as
    - Classificação de conteúdo (secção 5);
    - Público-alvo (secção 5);
    - Segurança dos dados e Eliminação da conta (equipa de dados);
-   - Serviços em primeiro plano: nenhum (secção 2);
+   - Serviços em primeiro plano: microfone e câmara, para as chamadas (declaração e vídeo na secção 2);
    - Intenção de ecrã inteiro: não usada;
    - Permissões de fotos e vídeos: não usadas (se a Play Console perguntar, responder que a app usa o Photo Picker);
    - App governamental: não; Funcionalidades financeiras: confirmar com a equipa de pagamentos; Saúde: não; Notícias: não.
@@ -333,8 +375,14 @@ Escolhe «Todas ou algumas funcionalidades estão restritas» e dá uma conta as
   e o alargamento a todo o mundo está anunciado para 2027. Quando chegar a Moçambique, o APK beta instalado por fora tem
   de estar registado com uma chave verificada. A chave debug não serve. Planear o fim do APK beta, ou assiná-lo com uma
   chave própria, antes disso.
-- **Chamadas em segundo plano.** Sem foreground service, no Android 14+ o sistema pode cortar o microfone a meio de
-  uma chamada se a pessoa sair da app. Não é um problema de política, é de experiência (secção 2).
+- **Chamadas em segundo plano: resolvido** com o `CallService` (secção 2). Falta testar num telemóvel real com Android
+  14+:
+  - sair da app a meio de uma chamada de voz e de uma de vídeo;
+  - «Desligar» na notificação;
+  - tirar a app dos recentes;
+  - uma conta sem licença de notificações.
+  Se o Play recusar a declaração, a alternativa é o Telecom (`phoneCall` + `ConnectionService`), com bastante mais
+  trabalho.
 - **Galeria no Android.** A galeria «à Instagram» passa a ser o seletor do sistema. A mudança é visível para os
   utilizadores Android do beta, com o mesmo resultado (escolher várias fotos, vídeos até 60 s).
 - **`BLUETOOTH_CONNECT`** é um pedido em tempo de execução no Android 12+. Se o revisor perguntar, a resposta é: áudio
@@ -359,7 +407,10 @@ Escolhe «Todas ou algumas funcionalidades estão restritas» e dá uma conta as
 - [ ] `.aab` feito com `EXPO_PUBLIC_CHANNEL=play` e a chave de upload; `keytool -printcert` **sem** «Android Debug».
 - [ ] No telemóvel (teste interno): Definições → Ajuda → Versão diz `· Google Play`, sem aviso «Nova versão».
 - [ ] Manifesto do .aab igual à secção 2: sem `READ_MEDIA_*`, `REQUEST_INSTALL_PACKAGES`, `SYSTEM_ALERT_WINDOW`,
-      `ACCESS_BACKGROUND_LOCATION`, `USE_FULL_SCREEN_INTENT` ou `FOREGROUND_SERVICE_*`.
+      `ACCESS_BACKGROUND_LOCATION`, `USE_FULL_SCREEN_INTENT`; o único `<service foregroundServiceType>` é o
+      `CallService` (`microphone|camera`).
+- [ ] Num Android 14+: sair da app a meio de uma chamada mantém a voz (e a imagem); a notificação «Chamada com …»
+      aparece, volta à chamada ao tocar e desaparece no fim.
 - [ ] No Android: escolher fotos abre o seletor do sistema; guardar um mimo na galeria funciona (Android 13+ e um ≤12).
 - [ ] Notificações pedidas no passo a passo depois de entrar, não no arranque.
 - [ ] Relatório de pré-lançamento sem crashes.
@@ -371,7 +422,7 @@ Escolhe «Todas ou algumas funcionalidades estão restritas» e dá uma conta as
   - [ ] Anúncios;
   - [ ] Data safety;
   - [ ] Eliminação da conta (URL);
-  - [ ] Serviços em primeiro plano: nenhum;
+  - [ ] Serviços em primeiro plano: microfone e câmara (texto e vídeo da secção 2);
   - [ ] Funcionalidades financeiras.
 - [ ] Ficha da loja: ícone 512, gráfico 1024×500, capturas, textos, contacto, privacidade.
 - [ ] Países e preço (gratuita).

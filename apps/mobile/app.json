@@ -97,7 +97,8 @@
         "android.permission.USE_EXACT_ALARM",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",
-        "android.permission.FOREGROUND_SERVICE_LOCATION"
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.FOREGROUND_SERVICE_PHONE_CALL"
       ],
       "googleServicesFile": "./google-services.json"
     },
@@ -171,7 +172,8 @@
       ],
       "./plugins/withProguardRules",
       "./plugins/withAndroidUploadSigning",
-      "./plugins/withoutUnusedServices"
+      "./plugins/withoutUnusedServices",
+      "./plugins/withCallService"
     ],
     "experiments": {
       "typedRoutes": true,
