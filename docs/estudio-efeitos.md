@@ -138,6 +138,9 @@ format=yuv420p,noise=c0s=round(grão·0,08·255):c0f=t+u          (grão só na 
   `colorchannelmixer` faria) e a vinheta.
 - **Parecido:** o grão, porque é aleatório.
 - Um clipe sem efeitos dá a cadeia vazia. A cadeia foi testada com o ffmpeg 9 (`testsrc2`).
+- **Atenção** (visto na montagem, ffmpeg 6.1): seguida de um `format=yuv420p` (o do grão ou o do resto do clipe), a negociação
+  dos formatos passa a `vignette` para YUV, onde escurece muito mais. O servidor põe um `format=gbrp` no fim da cadeia (ou antes
+  do grão): `serverFxChain` em `apps/api/src/compose/fx.ts`.
 
 ## 3. Transições
 
@@ -166,7 +169,7 @@ igual à web.
 
 O `corte` dá o mesmo resultado nos dois lados. Nas outras transições, o `xfade` tem a curva linear e um desenho parecido,
 mas não igual. Para ficar igual, o servidor pode usar `drawTransition` de `renderTransitions.ts` num canvas do Node: só usa
-o canvas 2D, sem DOM.
+o canvas 2D, sem DOM. **É o que a montagem do servidor faz** (secção 7): as 11 ficam iguais.
 
 ## 4. Velocidade e tempo
 
@@ -295,3 +298,24 @@ DOM: as imagens dos stickers chegam pela função `image` do ambiente.
 Com um vídeo de referência, ele fica na metade esquerda (540×1920), sem efeitos, e a tcheka fica na direita. Os efeitos de
 cor e a vinheta são calculados no retângulo da direita (`d` normalizado a 540×1920). As transições mexem no quadro todo e
 a metade do dueto volta a ser desenhada por cima.
+
+## 7. Na montagem do servidor (o que ficou igual e o que ficou aproximado)
+
+A montagem no servidor (docs/montagem.md, secção 4-B) lê este JSON (`fx` por clipe e `overlays`) e usa as **cópias inteiras**
+de `effects.ts`, `renderOverlays.ts` e `renderTransitions.ts` (em `apps/api/src/compose/`, comparadas com as do site por
+`effects-sync.spec.ts`), com as mesmas fontes, num canvas do Node (`@napi-rs/canvas`).
+
+| Efeito | No servidor | Resultado |
+| --- | --- | --- |
+| Cor (filtro, intensidade, brilho, contraste, saturação, temperatura, matiz) | `lut3d` com `cubeLut(resolveFx(fx).matrix, 33)` (trilinear em vez de tetraédrica: para a matriz afim dá o mesmo e gasta menos de metade) | **Igual**: ΔE76 médio 0,2 a 0,7 por filtro contra `applyFxPixel` (percentil 99 até 1,9); 1,1 no vídeo final, depois do H.264 e do 4:2:0 |
+| Nitidez e vinheta | `convolution` e `vignette` da secção 2 | **Igual** (no mesmo teste) |
+| Grão | `noise` na luminância | **Aproximado**: aleatório nos dois lados (no site soma o mesmo valor a R, G e B; no servidor só à luminância) |
+| Transições (as 11) | o próprio `drawTransition` no canvas do Node, com o último frame do anterior e os frames do novo | **Igual** (diferença média de 0,7 a 2 níveis em 255 no teste). A coluna `xfade` da secção 3 fica só como referência: o `xfade` tem a curva linear e não tem girar, brilho, glitch nem o desfoque do site |
+| Rampas | `rampPieces` a 0,1 s, num `setpts` só (e `atempo` por bocado no som) | **Igual** na duração; a curva vai em degraus de 0,1 s |
+| Inverter | `reverse` aos bocados, já no quadro, a 30 fps (60 com velocidade acima de 1×) | **Igual** (com mais frames do que os 24/s do site); o som fica calado |
+| Congelar | a foto (o frame) com os efeitos, sem zoom | **Igual** |
+| Texto (fontes, estilos, néon, as 7 animações e os ciclos) | o próprio `drawOverlays`; parado num PNG só, a mexer-se num vídeo com alfa | **Igual** (diferença média ~2 níveis no néon a entrar e parado) |
+| Etiquetas (menção, local, hora) e stickers do Txillapp | idem (a arte do Txillapp é a mesma, `STICKER_ART`) | **Igual** |
+| Emoji | idem, com a fonte de emojis da máquina (Noto Color Emoji no servidor) | **Aproximado**: o desenho de cada emoji é o da fonte (no site, o do sistema de quem edita: Apple, Segoe, Noto) |
+| GIF | o ffmpeg lê-o em ciclo (`-ignore_loop 0`) e cada frame entra no `drawOverlays`; o WebP animado pelo sharp | **Igual** no desenho, na escala e na rotação; o ciclo começa no 1.º frame quando a camada entra (no site depende de quando a imagem acabou de carregar) |
+| Dueto | os efeitos e as transições no quadro da pessoa (540×960, o `duetLayout` do servidor) | **Aproximado**: o site faz a transição no quadro inteiro e volta a pôr o original por cima |

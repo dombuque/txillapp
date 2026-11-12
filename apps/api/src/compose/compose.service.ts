@@ -7,11 +7,13 @@ import { copyFile, mkdtemp, open, readdir, readFile, rm, stat, writeFile } from 
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 import { Pool } from 'pg';
+import { loadImage, type Canvas, type Image } from '@napi-rs/canvas';
 import sharp from 'sharp';
 import { tierOf } from '../common/badge';
 import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
+import { giphyMediaUrl } from '../gifs/gif';
 import { MediaService } from '../media/media.service';
 import { S3Storage } from '../media/s3.storage';
 import { signatureSvg, type SealTier } from '../media/signature';
@@ -23,17 +25,28 @@ import { remixAllowed } from '../posts/remix';
 import { TextFilter } from '../safety/text-filter.service';
 import { canView } from '../social/visibility';
 import { parseSoundId, REUSABLE, SOUND_VISIBLE } from '../sounds/sounds.service';
+import { STICKER_ART } from '../stories/sticker-art';
 import { stickersSvg } from '../stories/stickers';
 import { encodeWav, renderSfxTrack, reverbImpulse, type SfxCue, type VoiceFxId } from './audio';
 import { composeSchema, firstProblem, PHOTO_DEFAULT_MS, type ComposeInput } from './compose.schema';
+import { cubeLut, fxSeconds, REVERSE_MAX_S, resolveFx, sanitizeFx, sanitizeOverlay, transitionFor, type ClipFx, type Overlay, type TransitionId } from './effects';
+import { needsLut, rampMaxSpeed, reverseChunks, reverseTooLong } from './fx';
+import { gifReader, renderLayers, renderTransitionHead, stillFramesOf, type StickerImages } from './studio-canvas';
 import { decodeMono, ffmpeg, FfmpegError, probe, SAFE_AUDIO, SAFE_VIDEO } from './ffmpeg';
-import { clipArgs, cleanText, finalArgs, FPS, frameSlots, OUT_H, OUT_W, PHOTO_OVERSCAN, DUET, RATE, textFilters, type OverlayImage, type TextItem, type Transition } from './plan';
+import { clipArgs, reverseChunkArgs, cleanText, finalArgs, FPS, frameSlots, OUT_H, OUT_W, PHOTO_OVERSCAN, DUET, RATE, textFilters, type OverlayImage, type TextItem, type Transition } from './plan';
 import { beatGrid, checkTcheka, clampTrim, clipSeconds, detectBeats, MIN_VOICE_S, rhythmDurations, TCHEKA_MAX_S } from './rules';
 
 /** A letra do texto (DejaVu Sans Bold, licença livre: assets/fonts/DejaVu-LICENSE.txt). */
 const FONT_CANDIDATES = [resolve(__dirname, '../../assets/fonts/DejaVuSans-Bold.ttf'), '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'];
 /** A música de fora descarrega-se só até este tamanho. */
 export const MAX_MUSIC_DOWNLOAD = 25 * 1024 * 1024;
+/**
+ * No modo estúdio, quantos clipes se montam ao mesmo tempo (o grafo de filtros de cada ffmpeg corre num fio, e a cor do
+ * estúdio pesa nele; dois ffmpeg em paralelo usam melhor os núcleos, com ~0,3–0,5 GB cada um).
+ */
+export const STUDIO_CLIPS_AT_ONCE = 2;
+/** Um GIF do GIPHY descarrega-se só até este tamanho. */
+export const MAX_GIF_DOWNLOAD = 8 * 1024 * 1024;
 /** Montagens por pessoa e por hora (cada uma ocupa o servidor uns segundos). */
 export const MAX_JOBS_PER_HOUR = 20;
 const LOCAL_AUDIO = /^\/api\/v1\/music\/local\/audio\/([0-9a-f-]{36})(?:[?#]|$)/;
@@ -53,7 +66,7 @@ export interface ComposeSpec {
   v: 1;
   username: string;
   seal: SealTier | null;
-  clips: { mediaId: string; kind: 'video' | 'photo'; trimStart: number; trimEnd: number; speed: number; seconds: number; beats: number }[];
+  clips: { mediaId: string; kind: 'video' | 'photo'; trimStart: number; trimEnd: number; speed: number; seconds: number; beats: number; fx?: ClipFx }[];
   audio: { kind: 'music' | 'sound'; src: AudioSrc } | null;
   rhythm: { auto: boolean; bpm: number | null } | null;
   duet: { postId: string; mediaId: string; seconds: number } | null;
@@ -66,6 +79,12 @@ export interface ComposeSpec {
   cover: number | null;
   /** O som do estúdio (docs/montagem.md, «O som»). Opcional: os trabalhos de antes não o têm. */
   mix?: ComposeMix;
+  /**
+   * Os efeitos do estúdio (docs/estudio-efeitos.md): com `fx` em algum clipe ou com `overlays`, cada clipe leva a transição
+   * dele (por omissão o fundido de 0,5 s, como no site) e as camadas desenham-se no canvas como no site.
+   */
+  studio?: boolean;
+  overlays?: Overlay[];
 }
 
 /** O trecho, os fades, o ducking, a voz-off, os efeitos de voz e os efeitos sonoros (tempos em segundos). */
@@ -194,18 +213,30 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     );
     const found = new Map(rows.map((r) => [r.id as string, r]));
     const perPhoto = b.beats?.perPhoto ?? 2;
+    const studio = b.clips.some((c) => c.fx) || b.overlays !== undefined;
+    if (studio && (b.transition !== undefined || b.filter !== undefined)) {
+      throw new BadRequestException('Com os efeitos do estúdio (fx), a transição e o filtro vão em cada clipe');
+    }
+    const keys = new Set(b.clips.map((c) => c.id).filter((k): k is string => !!k));
     const clips = b.clips.map((c, i) => {
       const a = found.get(c.mediaId);
       if (!a) throw new BadRequestException('Um dos clipes não é teu ou ainda não está pronto. Envia-o outra vez.');
+      const fx = sanitizeFx(c.fx);
+      if (c.kind === 'photo' && (fx?.ramp || fx?.reverse)) throw new BadRequestException('A rampa e o inverter são só para vídeos');
+      if (c.kind === 'video' && fx?.freeze) throw new BadRequestException('Um frame congelado vai como uma foto');
+      if (fx?.freeze && keys.size && !keys.has(fx.freeze.from)) throw new BadRequestException('O frame congelado tem de vir de um clipe desta tcheka');
       const video = String(a.mime).startsWith('video/');
       if (video !== (c.kind === 'video') || (!video && !String(a.mime).startsWith('image/'))) throw new BadRequestException(`O clipe ${i + 1} não é ${c.kind === 'video' ? 'um vídeo' : 'uma foto'}`);
       if (c.kind === 'video') {
         const length = Math.max(0.5, Number(a.duration_ms ?? 0) / 1000);
         const speed = c.speed ?? 1;
         const trim = clampTrim({ start: (c.trimStartMs ?? 0) / 1000, end: c.trimEndMs !== undefined ? c.trimEndMs / 1000 : length }, length);
-        return { mediaId: c.mediaId, kind: 'video' as const, trimStart: trim.start, trimEnd: trim.end, speed, seconds: clipSeconds(trim, speed), beats: perPhoto };
+        if (fx?.reverse && reverseTooLong(trim.end - trim.start)) throw new BadRequestException(`Para inverter, o clipe pode ter até ${REVERSE_MAX_S} s`);
+        // Com rampa, a duração muda (fxSeconds, como no estúdio); sem ela é o corte à velocidade.
+        const seconds = fx?.ramp ? fxSeconds(trim.end - trim.start, speed, fx) : clipSeconds(trim, speed);
+        return { mediaId: c.mediaId, kind: 'video' as const, trimStart: trim.start, trimEnd: trim.end, speed, seconds, beats: perPhoto, ...(fx ? { fx } : {}) };
       }
-      return { mediaId: c.mediaId, kind: 'photo' as const, trimStart: 0, trimEnd: 0, speed: 1, seconds: (c.durationMs ?? PHOTO_DEFAULT_MS) / 1000, beats: c.beats ?? perPhoto };
+      return { mediaId: c.mediaId, kind: 'photo' as const, trimStart: 0, trimEnd: 0, speed: 1, seconds: (c.durationMs ?? PHOTO_DEFAULT_MS) / 1000, beats: c.beats ?? perPhoto, ...(fx ? { fx } : {}) };
     });
 
     const audio = b.sound ? await this.resolveSound(userId, b.sound) : null;
@@ -222,12 +253,16 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     const voice = b.voiceOver ? await this.checkVoice(userId, b.voiceOver.mediaId) : null;
     const sum = durations.reduce((x, d) => x + d, 0);
     const voiceSeconds = voice && b.voiceOver ? (voice.seconds !== null ? Math.max(0, Math.min(b.voiceOver.startMs / 1000 + voice.seconds, sum) - b.voiceOver.startMs / 1000) : MIN_VOICE_S) : 0;
-    const rules = checkTcheka({ clips: clips.map((c, i) => ({ video: c.kind === 'video', seconds: durations[i] })), music: !!audio || !!duet, originalVolume, voiceSeconds });
+    // Um vídeo ao contrário fica com o som calado (não conta para o som obrigatório, como no estúdio).
+    const rules = checkTcheka({ clips: clips.map((c, i) => ({ video: c.kind === 'video', seconds: durations[i], ...(c.fx?.reverse ? { hasAudio: false } : {}) })), music: !!audio || !!duet, originalVolume, voiceSeconds });
     if (!rules.ok) throw new BadRequestException({ message: rules.hint, problem: rules.problem });
     const total = Math.min(rules.total, TCHEKA_MAX_S, duet ? duet.seconds : Infinity);
 
     // Texto: o filtro de sempre (ameaças, ódio); o que a letra não tem (emojis) sai.
-    this.filter.assertClean(...(b.texts ?? []).map((t) => t.text));
+    // As camadas do estúdio: limpas como o site as lê (sanitizeOverlay); os textos, os locais e as menções passam pelo filtro.
+    const overlays = (b.overlays ?? []).map((o) => sanitizeOverlay(o)).filter((o): o is Overlay => !!o);
+    const said = overlays.flatMap((o) => (o.kind === 'text' ? [o.text] : o.sticker.type === 'location' ? [o.sticker.name] : o.sticker.type === 'mention' ? [o.sticker.username] : []));
+    this.filter.assertClean(...(b.texts ?? []).map((t) => t.text), ...said);
     const texts = (b.texts ?? []).map((t) => ({ ...t, text: cleanText(t.text) })).filter((t) => t.text);
     for (const t of texts) if (t.endMs !== undefined && t.endMs <= t.startMs) throw new BadRequestException('O texto tem de sair depois de entrar');
     for (const s of b.stickers ?? []) {
@@ -261,6 +296,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
         sfx: (b.soundEffects ?? []).map((s) => ({ id: s.id, at: s.atMs / 1000 })),
         sfxVolume: b.soundEffectsVolume ?? 1,
       },
+      ...(studio ? { studio: true, overlays } : {}),
     };
   }
 
@@ -407,7 +443,8 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
       const mediaId = await this.store(row.owner_id as string, out);
       await this.pool.query(`UPDATE content.compose_jobs SET status = 'done', progress = 1, media_id = $2, duration_ms = $3, finished_at = now() WHERE id = $1`, [id, mediaId, Math.round(out.seconds * 1000)]);
       const s = (ms: number) => (ms / 1000).toFixed(1);
-      this.log.log(`montagem ${id}: ${out.seconds.toFixed(1)} s em ${s(Date.now() - t0)} s (ficheiros ${s(out.timings.prep)}, clipes ${s(out.timings.clips)}, final ${s(out.timings.final)})`);
+      const fx = out.timings.layers || out.timings.transitions || out.timings.reverse ? `; estúdio: camadas ${s(out.timings.layers)}, transições ${s(out.timings.transitions)}, inverter ${s(out.timings.reverse)}` : '';
+      this.log.log(`montagem ${id}: ${out.seconds.toFixed(1)} s em ${s(Date.now() - t0)} s (ficheiros ${s(out.timings.prep)}, clipes ${s(out.timings.clips)}, final ${s(out.timings.final)}${fx})`);
     } catch (e) {
       const message = e instanceof ComposeRejected
         ? e.message
@@ -468,6 +505,125 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     throw new ComposeRejected('Não consegui descarregar a música. Tenta outra vez.');
   }
 
+  /**
+   * Um GIF do GIPHY (docs/estudio-efeitos.md, stickers): só https e só dos anfitriões de média do GIPHY, também nos
+   * redireccionamentos (o mesmo que gifs/gif.ts aceita), até MAX_GIF_DOWNLOAD.
+   */
+  private async downloadGif(url: string, signal: AbortSignal): Promise<Buffer> {
+    let at = url;
+    for (let hop = 0; hop < 4; hop++) {
+      if (!giphyMediaUrl(at)) throw new ComposeRejected('O GIF tem de vir do GIPHY');
+      let res: Response;
+      try {
+        res = await this.fetcher(at, { redirect: 'manual', signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]) });
+      } catch {
+        throw new ComposeRejected('Não consegui descarregar um dos GIFs. Tenta outra vez.');
+      }
+      if (res.status >= 300 && res.status < 400) {
+        const next = res.headers.get('location');
+        if (!next) break;
+        at = new URL(next, at).toString();
+        continue;
+      }
+      if (!res.ok || !res.body || Number(res.headers.get('content-length') ?? 0) > MAX_GIF_DOWNLOAD) throw new ComposeRejected('Não consegui descarregar um dos GIFs. Tenta outra vez.');
+      const parts: Buffer[] = [];
+      let size = 0;
+      const reader = res.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.length;
+        if (size > MAX_GIF_DOWNLOAD) { await reader.cancel().catch(() => undefined); throw new ComposeRejected('Um dos GIFs é grande demais'); }
+        parts.push(Buffer.from(value));
+      }
+      return Buffer.concat(parts);
+    }
+    throw new ComposeRejected('Não consegui descarregar um dos GIFs. Tenta outra vez.');
+  }
+
+  /**
+   * As imagens dos stickers do estúdio: os do Txillapp (a arte dos mimos, em PNG pelo sharp) e os GIFs (descarregados do
+   * GIPHY; o GIF lê-se pelo ffmpeg em ciclo, `-ignore_loop 0`, e o WebP animado pelo sharp, que o ffmpeg 6 não lê).
+   */
+  private async stickerImages(overlays: Overlay[], tmp: string, signal: AbortSignal): Promise<{ images: StickerImages; close: () => Promise<void> }> {
+    const still = new Map<string, { img: Canvas | Image; w: number; h: number }>();
+    type Gif = { kind: 'gif'; file: string; gw: number; gh: number } | { kind: 'webp'; frames: Canvas[]; delays: number[]; gw: number; gh: number };
+    const gifs = new Map<string, Gif>();
+    for (const o of overlays) {
+      if (o.kind !== 'sticker') continue;
+      // A maior escala que a camada atinge (pop e pulsar), para a imagem não ficar desfocada.
+      const S = Math.min(4, o.scale * 1.18);
+      if (o.sticker.type === 'txill') {
+        const art = STICKER_ART[o.sticker.id];
+        if (!art) continue;
+        const [, , vw, vh] = art.vb.split(/\s+/).map(Number);
+        const ratio = (vh || 100) / (vw || 100);
+        const w = Math.round(400 * S);
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${art.vb}" width="${w}" height="${Math.round(w * ratio)}">${art.body}</svg>`;
+        still.set(o.id, { img: await loadImage(await sharp(Buffer.from(svg)).png().toBuffer()), w: 1, h: ratio });
+      } else if (o.sticker.type === 'gif') {
+        const bytes = await this.downloadGif(o.sticker.url, signal);
+        const head = bytes.subarray(0, 12).toString('latin1');
+        const isGif = head.startsWith('GIF8');
+        const isWebp = head.startsWith('RIFF') && head.slice(8, 12) === 'WEBP';
+        const meta = isGif || isWebp ? await sharp(bytes, { animated: true, limitInputPixels: 40_000_000 }).metadata().catch(() => null) : null;
+        const h0 = meta?.pageHeight ?? meta?.height;
+        if (!meta?.width || !h0) throw new ComposeRejected('Um dos GIFs não se consegue ler. Escolhe outro.');
+        const gw = Math.max(16, Math.min(1080, Math.round(440 * S)));
+        const gh = Math.max(16, Math.min(1920, Math.round((gw * h0) / meta.width)));
+        if (isGif) {
+          const file = `gif_${gifs.size}.gif`;
+          await writeFile(join(tmp, file), bytes);
+          gifs.set(o.id, { kind: 'gif', file, gw, gh });
+        } else gifs.set(o.id, { kind: 'webp', ...(await stillFramesOf(bytes, gw, gh)), gw, gh });
+      }
+    }
+    const readers = new Map<string, ReturnType<typeof gifReader>>();
+    const images: StickerImages = {
+      still: (o) => still.get(o.id) ?? null,
+      gifFrame: async (o, k) => {
+        const g = gifs.get(o.id);
+        if (!g) return null;
+        if (g.kind === 'webp') {
+          // O frame do instante (k − k0)/30, em ciclo, pelos tempos de cada frame.
+          const total = g.delays.reduce((a, b) => a + b, 0) || 1;
+          let ms = (((k - Math.ceil(o.start * FPS - 1e-6)) / FPS) * 1000) % total;
+          let i = 0;
+          while (i < g.delays.length - 1 && ms >= g.delays[i]) { ms -= g.delays[i]; i++; }
+          return { img: g.frames[i], w: g.gw, h: g.gh };
+        }
+        let r = readers.get(o.id);
+        if (!r) {
+          r = gifReader(g.file, { seconds: Math.max(0.1, o.end - o.start + 0.2), gw: g.gw, gh: g.gh, cwd: tmp, signal });
+          readers.set(o.id, r);
+        }
+        return { img: await r.next(), w: g.gw, h: g.gh };
+      },
+    };
+    return { images, close: async () => { for (const r of readers.values()) await r.close(); } };
+  }
+
+  /**
+   * Inverter um vídeo (docs/estudio-efeitos.md, 4): o corte já no quadro, do fim para o início, aos bocados (o `reverse` guarda
+   * o bocado em memória), junto num ficheiro só que depois se monta como um vídeo normal (desde 0, com a rampa e a velocidade).
+   */
+  private async reversed(i: number, input: string, c: ComposeSpec['clips'][number], W: number, H: number, tmp: string, run: (args: string[]) => Promise<void>, threads?: number): Promise<string> {
+    const len = Math.max(0.1, c.trimEnd - c.trimStart);
+    // Com velocidade ou rampa acima de 1×, tiram-se 60 frames por segundo da fonte (o vídeo final não fica aos saltos).
+    const fps = c.speed * rampMaxSpeed(c.fx) > 1 ? 60 : FPS;
+    const parts = reverseChunks(len, fps > FPS ? 1 : 2);
+    const files: string[] = [];
+    for (let j = 0; j < parts.length; j++) {
+      const out = `rev_${i}_${j}.mp4`;
+      await run(reverseChunkArgs({ input, from: c.trimStart + parts[j].from, len: parts[j].len, fps, w: W, h: H, out, threads }));
+      files.push(out);
+    }
+    await writeFile(join(tmp, `rev_${i}.txt`), files.map((f) => `file '${f}'`).join('\n') + '\n');
+    await run(['-y', '-f', 'concat', '-safe', '0', '-i', `rev_${i}.txt`, '-c', 'copy', `rev_${i}.mp4`]);
+    for (const f of files) await rm(join(tmp, f), { force: true });
+    return `rev_${i}.mp4`;
+  }
+
   private async fetchAudio(src: AudioSrc, dest: string, signal: AbortSignal) {
     if (src.from === 'url') return this.download(src.url, dest, signal);
     try {
@@ -493,7 +649,8 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     const run = (args: string[], onSec?: (s: number) => void) => ffmpeg(args, { cwd: tmp, signal, onProgress: onSec });
     const W = spec.duet ? DUET.w : OUT_W, H = spec.duet ? DUET.h : OUT_H;
     const t0 = Date.now();
-    const timings = { prep: 0, clips: 0, final: 0 };
+    // `layers`, `transitions` e `reverse`: o tempo de cada parte do estúdio (as camadas correm ao mesmo tempo que os clipes).
+    const timings = { prep: 0, clips: 0, final: 0, layers: 0, transitions: 0, reverse: 0 };
 
     // 1. Os ficheiros: os clipes (as fotos já no tamanho do quadro, com folga para o zoom), o som e o original do dueto.
     const font = FONT_CANDIDATES.find((f) => existsSync(f));
@@ -571,7 +728,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     const limit = Math.min(TCHEKA_MAX_S, duet ? duet.seconds : Infinity);
     const until = Math.min(limit, durations.reduce((x, d) => x + d, 0));
     const voiceSeconds = voice && mix?.voice ? Math.max(0, Math.min(mix.voice.start + voice.seconds, until) - mix.voice.start) : 0;
-    const rules = checkTcheka({ clips: spec.clips.map((c, i) => ({ video: c.kind === 'video', seconds: durations[i], hasAudio: c.kind === 'video' ? inputs.get(c.mediaId)!.hasAudio : undefined })), music: !!music || !!duet, originalVolume: spec.originalVolume, voiceSeconds });
+    const rules = checkTcheka({ clips: spec.clips.map((c, i) => ({ video: c.kind === 'video', seconds: durations[i], hasAudio: c.kind === 'video' ? inputs.get(c.mediaId)!.hasAudio && !(spec.studio && c.fx?.reverse) : undefined })), music: !!music || !!duet, originalVolume: spec.originalVolume, voiceSeconds });
     if (!rules.ok && rules.problem !== 'longo') throw new ComposeRejected(rules.hint ?? 'Não dá para montar esta tcheka');
     const slots = frameSlots(durations, limit);
     const frames = slots.reduce((n, s) => n + s.frames, 0);
@@ -580,25 +737,125 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     onProgress(0.08);
     timings.prep = Date.now() - t0;
 
-    // 3. 1.º passo: cada clipe no tamanho final, um de cada vez.
+    // As camadas do estúdio (texto e stickers), desenhadas como no site (renderOverlays.ts no canvas do Node). Não dependem
+    // do vídeo: desenham-se enquanto o ffmpeg monta os clipes (o canvas corre no fio do Node, o ffmpeg nos dele).
+    const studio = !!spec.studio;
+    // Se um clipe falhar, as camadas param antes de o diretório do trabalho se apagar.
+    const stopLayers = new AbortController();
+    const layersSignal = AbortSignal.any([signal, stopLayers.signal]);
+    const layersJob = studio && spec.overlays?.length
+      ? (async () => {
+        const l0 = Date.now();
+        const st = await this.stickerImages(spec.overlays!, tmp, layersSignal);
+        try {
+          return await renderLayers(spec.overlays!, frames, st.images, { cwd: tmp, signal: layersSignal });
+        } finally {
+          await st.close();
+          timings.layers = Date.now() - l0;
+        }
+      })()
+      : null;
+    layersJob?.catch(() => undefined); // o erro aparece no await, mais abaixo
+
+    // 3. 1.º passo: cada clipe no tamanho final. Os de sempre vão um de cada vez (a transição do clipe i usa, no próprio
+    // ffmpeg, o último frame do anterior). No modo estúdio os clipes não dependem uns dos outros (a transição desenha-se
+    // depois, no canvas, com o último frame do anterior e o início deste): vão STUDIO_CLIPS_AT_ONCE de cada vez (o grafo de
+    // filtros do ffmpeg corre num fio só, e a cor do estúdio pesa nele) e cada transição desenha-se logo que os dois lados
+    // estão prontos (os frames em RGBA não se acumulam no disco).
     const segs: string[] = [], auds: string[] = [];
     let doneFrames = 0;
-    let prevStill: string | null = null;
-    for (let i = 0; i < spec.clips.length; i++) {
+    const live = new Map<number, number>();
+    const tick = () => onProgress(0.08 + 0.37 * Math.min(1, (doneFrames + [...live.values()].reduce((x, y) => x + y, 0) * FPS) / frames));
+    const order = spec.clips.map((_, i) => i).filter((i) => slots[i].frames > 0);
+    const prevOf = new Map(order.map((i, k) => [i, k > 0 ? order[k - 1] : -1]));
+    const heads = new Map<number, { frames: number; file: string; type: TransitionId; dur: number }>();
+    const finished = new Set<number>(), drawn = new Set<number>(), claimed = new Set<number>();
+    const clipJob = async (i: number, prevStill: string | null) => {
       const c = spec.clips[i];
       const N = slots[i].frames;
-      if (N <= 0) continue;
       const src = inputs.get(c.mediaId)!;
       const out = { video: `seg_${i}.mp4`, audio: `aud_${i}.wav`, last: `last_${i}.png` };
+      // Os efeitos do estúdio: ao contrário (um ficheiro invertido, sem som), a cor numa LUT 3D (gerada de effects.ts) e a
+      // transição de entrada desenhada no canvas como no site (os primeiros frames saem em RGBA para isso).
+      let input = src.file, trimStart = c.trimStart, hasAudio = src.hasAudio;
+      if (studio && c.kind === 'video' && c.fx?.reverse) {
+        const r0 = Date.now();
+        input = await this.reversed(i, src.file, c, W, H, tmp, (a) => run(a));
+        timings.reverse += Date.now() - r0;
+        trimStart = 0;
+        hasAudio = false;
+      }
+      let lut: string | undefined;
+      if (studio && needsLut(c.fx)) {
+        lut = `lut_${i}.cube`;
+        await writeFile(join(tmp, lut), cubeLut(resolveFx(c.fx).matrix, 33));
+      }
+      const tr = studio && prevOf.get(i)! >= 0 ? transitionFor(c.fx, i, N / FPS) : null;
+      const headFrames = tr ? Math.min(N - 1, Math.ceil(tr.dur * FPS - 1e-6)) : 0;
+      const head = headFrames > 0 ? { frames: headFrames, file: `head_${i}.rgba` } : undefined;
       await run(
-        clipArgs({ kind: c.kind, input: src.file, trimStart: c.trimStart, trimLen: Math.max(0.1, c.trimEnd - c.trimStart), speed: c.speed, hasAudio: src.hasAudio, frames: N, w: W, h: H, look: spec.filter, prevStill, transition: spec.transition, out, threads }),
-        (s) => onProgress(0.08 + 0.37 * Math.min(1, (doneFrames + s * FPS) / frames)),
+        clipArgs({
+          kind: c.kind, input, trimStart, trimLen: Math.max(0.1, c.trimEnd - c.trimStart), speed: c.speed, hasAudio, frames: N, w: W, h: H,
+          look: studio ? null : spec.filter, prevStill, transition: spec.transition, out, threads,
+          ...(studio ? { fx: c.fx ?? {}, lut, head } : {}),
+        }),
+        (sec) => { live.set(i, sec); tick(); },
       );
-      segs.push(out.video);
-      auds.push(out.audio);
-      prevStill = existsSync(join(tmp, out.last)) ? out.last : null;
+      live.delete(i);
       doneFrames += N;
-      onProgress(0.08 + 0.37 * (doneFrames / frames));
+      tick();
+      if (head && tr) heads.set(i, { ...head, type: tr.type, dur: tr.dur });
+      finished.add(i);
+    };
+    /** As transições cujos dois clipes já estão prontos. */
+    const drawHeads = async () => {
+      for (const [i, h] of heads) {
+        const p = prevOf.get(i)!;
+        if (claimed.has(i) || !finished.has(i) || !finished.has(p)) continue;
+        claimed.add(i);
+        const h0 = Date.now();
+        const prev = existsSync(join(tmp, `last_${p}.png`)) ? `last_${p}.png` : null;
+        await renderTransitionHead({ prev, head: h.file, frames: h.frames, type: prev ? h.type : 'corte', dur: h.dur, W, H, out: `segh_${i}.mp4`, cwd: tmp, signal, threads });
+        timings.transitions += Date.now() - h0;
+        await rm(join(tmp, h.file), { force: true });
+        drawn.add(i);
+      }
+    };
+    try {
+      if (studio) {
+        let next = 0, failed = false;
+        const worker = async () => {
+          try {
+            while (next < order.length && !failed) {
+              await clipJob(order[next++], null);
+              await drawHeads();
+            }
+          } catch (e) {
+            failed = true; // o outro não começa mais nenhum; espera-se por ele antes de apagar o diretório
+            throw e;
+          }
+        };
+        const ended = await Promise.allSettled(Array.from({ length: Math.min(STUDIO_CLIPS_AT_ONCE, order.length) }, worker));
+        const bad = ended.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+        if (bad) throw bad.reason;
+        await drawHeads();
+      } else {
+        let prevStill: string | null = null;
+        for (const i of order) {
+          await clipJob(i, prevStill);
+          prevStill = existsSync(join(tmp, `last_${i}.png`)) ? `last_${i}.png` : null;
+        }
+      }
+    } catch (e) {
+      stopLayers.abort();
+      await layersJob?.catch(() => undefined);
+      throw e;
+    }
+    for (const i of order) {
+      if (heads.has(i) && !drawn.has(i)) throw new Error(`a transição do clipe ${i} não se desenhou`);
+      if (drawn.has(i)) segs.push(`segh_${i}.mp4`);
+      segs.push(`seg_${i}.mp4`);
+      auds.push(`aud_${i}.wav`);
     }
     timings.clips = Date.now() - t0 - timings.prep;
     await writeFile(join(tmp, 'videos.txt'), segs.map((f) => `file '${f}'`).join('\n') + '\n');
@@ -613,6 +870,10 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
       const timed = s.start !== null && s.end !== null && s.start < T;
       if (s.start !== null && !timed) continue; // entra depois do fim
       overlays.push({ file: `st_${k}.png`, ...at, start: timed ? s.start : null, end: timed ? Math.min(T, s.end!) : null });
+    }
+    // As camadas do estúdio, por cima dos textos e stickers de antes e por baixo da assinatura.
+    if (layersJob) {
+      for (const l of await layersJob) overlays.push({ file: l.file, x: l.x, y: l.y, start: null, end: null, frames: { k0: l.k0, k1: l.k1, anim: l.anim } });
     }
     const sign = await this.overlayPng(signatureSvg(OUT_W, OUT_H, spec.username, '', true, spec.seal), join(tmp, 'sign.png'));
     if (sign) overlays.push({ file: 'sign.png', ...sign, start: null, end: null });
