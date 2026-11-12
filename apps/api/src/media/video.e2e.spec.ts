@@ -118,6 +118,15 @@ describe('vídeos curtos (conversão, verificação e publicação)', () => {
     expect(reels.every((x) => x.media.length === 1 && x.media[0]?.kind === 'video')).toBe(true); // só tchekas (um vídeo)
     expect(reels.map((x) => x.id)).toContain(post.id);
     expect(reels.map((x) => x.id)).not.toContain(mixed.id);
+
+    // «A seguir» (?following=1): só tchekas de quem se segue
+    const otherAuth = { Authorization: `Bearer ${r.body.accessToken}` };
+    const following = async () => ((await api().get('/api/v1/feed/reels?limit=15&following=1').set(otherAuth).expect(200)).body.items as { id: string; author: { id: string } }[]);
+    expect((await following()).map((x) => x.id)).not.toContain(post.id);
+    await api().post(`/api/v1/users/${u.username}/follow`).set(otherAuth).expect(200);
+    const after = await following();
+    expect(after.map((x) => x.id)).toContain(post.id);
+    expect(after.every((x) => x.author.id === u.id)).toBe(true);
   }, 120_000);
 
   it('recusa vídeos com mais de 60 s, ficheiros que não são vídeo e vídeos impróprios', async () => {

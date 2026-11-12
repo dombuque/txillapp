@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
@@ -7,14 +7,14 @@ import { BackButton } from '@/components/BackButton';
 import { Icon } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useDesktop } from '@/lib/desktop';
-import { api, isTcheka, type Page, type Post } from '@/lib/api';
+import { api, isTcheka, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { enterImmersive, leaveImmersive } from '@/lib/immersive';
 import { isGone } from '@/lib/postCache';
 import { createOnce } from '@/lib/tapGuard';
 import { useDeskReels } from '@/lib/desktopHooks';
 import { reelMounted } from '@/lib/videoMemory';
-import { Reel } from '../(tabs)/reels';
+import { patchReels, Reel, ReelPoster } from '../(tabs)/reels';
 
 const isWeb = Platform.OS === 'web';
 
@@ -54,7 +54,7 @@ export default function ReelPage() {
 
   const patch = (pid: string, c: Partial<Post>) => {
     if (opened && pid === opened.id) qc.setQueryData(['post', id], (d: Post | undefined) => (d ? { ...d, ...c } : d));
-    qc.setQueryData<InfiniteData<Page<Post>>>(['reels'], (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map((i) => (i.id === pid ? { ...i, ...c } : i)) })) });
+    patchReels(qc, pid, c);
   };
   // Fecha uma vez só: puxar para baixo no iPhone dá vários eventos de scroll seguidos já depois do limite, e cada um
   // fazia router.back() — tirava também o ecrã de trás (a publicação, o perfil…).
@@ -170,8 +170,8 @@ export default function ReelPage() {
               onScrollToIndexFailed={(info) => list.current?.scrollToOffset({ offset: info.index * height, animated: true })}
               renderItem={({ item, index }) => (
                 reelMounted(index, active)
-                  ? <Reel pauseSignal={desk.pauseSignal} post={item} active={index === active} onScreen={focused} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={insets.bottom} />
-                  : <View style={{ height, backgroundColor: '#000' }} />
+                  ? <Reel pauseSignal={desk.pauseSignal} seekSignal={desk.seekSignal} post={item} active={index === active} onScreen={focused} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={insets.bottom} />
+                  : <ReelPoster post={item} height={height} />
               )}
               onEndReached={() => { if (more.hasNextPage && !more.isFetchingNextPage) void more.fetchNextPage(); }}
               onEndReachedThreshold={1}

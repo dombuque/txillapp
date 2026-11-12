@@ -28,13 +28,15 @@ export function useViewerKeys(on: boolean, handlers: Partial<Record<ViewerKey, (
 
 /**
  * Tchekas no computador (lista vertical de vídeos): ↑/↓ e a roda do rato passam à anterior/seguinte, uma de cada vez;
- * o espaço muda `pauseSignal` (a tcheka em cena pausa ou continua). Devolve a ref a pôr na View à volta da lista.
+ * o espaço muda `pauseSignal` (a tcheka em cena pausa ou continua) e ←/→ mudam `seekSignal` (recua ou avança 5 s).
+ * Devolve a ref a pôr na View à volta da lista.
  * No telemóvel não liga nada (só com rato: `(hover: hover) and (pointer: fine)`).
  */
 export function useDeskReels(on: boolean, active: () => number, goTo: (index: number) => void) {
   const fns = useRef({ active, goTo });
   fns.current = { active, goTo };
   const [pauseSignal, setPauseSignal] = useState(0);
+  const [seekSignal, setSeekSignal] = useState({ n: 0, by: 0 });
   const [el, setEl] = useState<HTMLElement | null>(null);
   const ref = useRef((node: unknown) => setEl(node && typeof (node as HTMLElement).addEventListener === 'function' ? (node as HTMLElement) : null)).current;
   const wheel = useRef({ acc: 0, until: 0 });
@@ -43,6 +45,8 @@ export function useDeskReels(on: boolean, active: () => number, goTo: (index: nu
     up: () => fns.current.goTo(fns.current.active() - 1),
     down: () => fns.current.goTo(fns.current.active() + 1),
     pause: () => setPauseSignal((n) => n + 1),
+    prev: () => setSeekSignal((s) => ({ n: s.n + 1, by: -5 })),
+    next: () => setSeekSignal((s) => ({ n: s.n + 1, by: 5 })),
   }, overlayOpen);
   useEffect(() => {
     if (!mouse || !el) return;
@@ -56,5 +60,5 @@ export function useDeskReels(on: boolean, active: () => number, goTo: (index: nu
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, [mouse, el]);
-  return { ref, pauseSignal };
+  return { ref, pauseSignal, seekSignal };
 }

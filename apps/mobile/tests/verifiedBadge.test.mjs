@@ -63,7 +63,7 @@ const SCREENS = [
   ['publicações: a responder a', 'components/CommentsSheet.tsx', /<InlineBadge who=\{replyTo\.author\}/],
   ['publicações: quem brindou / repostou / presenteou', 'components/PeopleSheet.tsx', /<NameWithBadge name=\{p\.displayName\} who=\{p\}/],
   ['tchekas: quem brindou / repostou', 'app/(tabs)/reels.tsx', /<NameWithBadge name=\{p\.displayName\} who=\{p\} style=\{st\.personName\}/],
-  ['tchekas: autor', 'app/(tabs)/reels.tsx', /<NameWithBadge name=\{post\.author\.displayName\} who=\{post\.author\} style=\{st\.authorName\}/],
+  ['tchekas: autor (o @, como no TikTok)', 'app/(tabs)/reels.tsx', /<NameWithBadge name=\{`@\$\{post\.author\.username\}`\} who=\{post\.author\} style=\{st\.authorName\}/],
   ['«X repostou»', 'components/PostCard.tsx', /<NameWithBadge name=\{post\.author\.displayName\} who=\{post\.author\} style=\{styles\.repostText\}><Text[^>]*>repostou<\/Text><\/NameWithBadge>/],
   ['identificações nas fotos (cartão)', 'components/PostCard.tsx', /<NameWithBadge name=\{`@\$\{t\.username\}`\} who=\{t\}/],
   ['identificações nas fotos (visor)', 'components/PhotoViewer.tsx', /<NameWithBadge name=\{t\.displayName \?\? t\.username\} who=\{t\}/],

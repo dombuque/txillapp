@@ -570,7 +570,7 @@ export class PostsService implements OnModuleInit {
    *  - variedade: no máximo 2 publicações por conta e uma pequena aleatoriedade diária, para descobrir coisas novas.
    * Com `topic`, só desse tema (e sem o peso do interesse). Só publicações com foto ou vídeo que a pessoa pode ver, de adultos.
    */
-  async explore(viewerId: string, topic: string | null, cursor: string | undefined, limit: number, videoOnly = false) {
+  async explore(viewerId: string, topic: string | null, cursor: string | undefined, limit: number, videoOnly = false, followingOnly = false) {
     const offset = cursor && /^\d{1,5}$/.test(cursor) ? Number(cursor) : 0;
     const t = topic && /^[a-z]{2,20}$/.test(topic) ? topic : null;
     const s = await this.feedSettings(viewerId);
@@ -607,6 +607,7 @@ export class PostsService implements OnModuleInit {
             AND NOT EXISTS (SELECT 1 FROM social.explore_people ep WHERE ep.user_id = $1 AND ep.person_id = p.author_id AND ep.pref < 0)
             AND (NOT $12::boolean OR NOT EXISTS (SELECT 1 FROM content.feed_impressions i2 WHERE i2.post_id = p.id AND i2.user_id = $1))
             AND (NOT $13::boolean OR NOT (COALESCE(p.topics, '{}') && $14::text[]))
+            AND (NOT $15::boolean OR EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = p.author_id))
           ORDER BY p.id DESC LIMIT 800),
        scored AS (
          SELECT c.id, c.author_id,
@@ -621,7 +622,7 @@ export class PostsService implements OnModuleInit {
            FROM cand c),
        ranked AS (SELECT id, score, row_number() OVER (PARTITION BY author_id ORDER BY score DESC) AS rn FROM scored)
        SELECT id FROM ranked WHERE rn <= $11::int ORDER BY score DESC OFFSET $3 LIMIT $4`,
-      [viewerId, t, offset, limit + 1, videoOnly, k.followedMul, k.decayHours, k.engagement, k.videoMul, k.photoMul, k.perAuthor, s.hideSeen, s.calm, CALM_TOPICS],
+      [viewerId, t, offset, limit + 1, videoOnly, k.followedMul, k.decayHours, k.engagement, k.videoMul, k.photoMul, k.perAuthor, s.hideSeen, s.calm, CALM_TOPICS, followingOnly],
     );
     const ids = rows.slice(0, limit).map((r) => r.id as string);
     if (!ids.length) return { items: [], nextCursor: null };

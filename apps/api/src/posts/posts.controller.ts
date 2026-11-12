@@ -159,10 +159,11 @@ export class FeedController {
     return this.posts.listSaved(req.userId!, cursor, n);
   }
 
+  /** Tchekas: «Para ti» (o algoritmo) ou, com `?following=1`, «A seguir» (só de quem segues, com o mesmo algoritmo). */
   @Get('reels')
-  reels(@Req() req: AuthedReq, @Query('cursor') cursor?: string, @Query('limit') limit?: string) {
+  reels(@Req() req: AuthedReq, @Query('cursor') cursor?: string, @Query('limit') limit?: string, @Query('following') following?: string) {
     const n = Math.min(Math.max(Number(limit) || 6, 1), 15);
-    return this.posts.explore(req.userId!, null, cursor, n, true);
+    return this.posts.explore(req.userId!, null, cursor, n, true, following === '1' || following === 'true');
   }
 
   @Post('seen')

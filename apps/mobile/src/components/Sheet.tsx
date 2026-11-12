@@ -38,8 +38,9 @@ export const PANEL_W = 460;
  * (a página por trás não se mexe). `full` ocupa 78% do ecrã (comentários); sem ele ajusta-se ao conteúdo.
  * No computador muda de forma (`variant`, ver SheetVariant), não se arrasta e fecha com Esc, com um clique fora ou no ×.
  * `dark`: a folha escura (fundo #1c1c1e, como o seletor de música por cima do mimo ou do vídeo).
+ * `dim`: quanto escurece o que está por trás (0,4 por omissão; os comentários de uma tcheka escurecem pouco: o vídeo continua à vista).
  */
-export function Sheet({ title, onClose, children, full = false, plain = false, variant = 'dialog', anchor = null, dark = false }: { title?: string; onClose: () => void; children: ReactNode; full?: boolean; plain?: boolean; variant?: SheetVariant; anchor?: Rect | null; dark?: boolean }) {
+export function Sheet({ title, onClose, children, full = false, plain = false, variant = 'dialog', anchor = null, dark = false, dim = 0.4 }: { title?: string; onClose: () => void; children: ReactNode; full?: boolean; plain?: boolean; variant?: SheetVariant; anchor?: Rect | null; dark?: boolean; dim?: number }) {
   const insets = useSafeAreaInsets();
   const h = Dimensions.get('window').height;
   const y = useRef(new Animated.Value(h)).current;
@@ -99,7 +100,7 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
     }),
   ).current;
 
-  const backdrop = y.interpolate({ inputRange: [0, h], outputRange: [0.4, 0], extrapolate: 'clamp' });
+  const backdrop = y.interpolate({ inputRange: [0, h], outputRange: [dim, 0], extrapolate: 'clamp' });
 
   const head = title && !plain ? (
     <View style={[styles.head, mode !== 'bottom' && styles.deskHead, mode === 'menu' && styles.menuHead]}>
