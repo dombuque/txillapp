@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
-type Box = { top: number; height: number };
+/** `width` e `scale`: para distinguir o teclado (só baixa a altura) de a página estar encolhida ou ampliada (muda tudo). */
+type Box = { top: number; height: number; width: number; scale: number };
 
 const read = (): Box | null => {
   const v = Platform.OS === 'web' && typeof window !== 'undefined' ? window.visualViewport : null;
-  return v ? { top: v.offsetTop, height: v.height } : null;
+  return v ? { top: v.offsetTop, height: v.height, width: v.width, scale: v.scale } : null;
 };
 
 /**

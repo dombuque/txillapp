@@ -90,7 +90,7 @@ function Backdrop({ peer, stream, mirror }: { peer: CallPeer | null; stream?: un
     );
   }
   return (
-    <View style={StyleSheet.absoluteFill}>
+    <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
       <LinearGradient colors={['#3b111b', '#18181b']} style={StyleSheet.absoluteFill} />
       {/* Desfocada mas reconhecível (antes, 60 px no iPhone e no site deixavam só uma mancha cinzenta). */}
       {peer?.hasAvatar ? <Image source={{ uri: avatarUrl(peer) }} style={[StyleSheet.absoluteFill, { transform: [{ scale: 1.15 }] }]} contentFit="cover" blurRadius={Platform.OS === 'android' ? 14 : 22} /> : null}

@@ -181,10 +181,12 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
   );
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#000' }} behavior="padding" onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (!typing && (width !== box.w || height !== box.h)) setBox({ w: width, h: height }); }}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#000', overflow: 'hidden' }} behavior="padding" onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (!typing && (width !== box.w || height !== box.h)) setBox({ w: width, h: height }); }}>
       <FeatureIntro id="mimo" />
-      {/* A cena: vídeo, ou a foto inteira sobre ela própria desfocada (sem barras pretas), ou a preencher. */}
-      <View style={StyleSheet.absoluteFill}>
+      {/* A cena: vídeo, ou a foto inteira sobre ela própria desfocada (sem barras pretas), ou a preencher.
+          overflow hidden: o fundo desfocado está ampliado (1,3) e passava 15% para fora do ecrã; no iPhone a página toda
+          encolhia para caber (o editor a 87%, com uma faixa cinzenta à direita e em baixo). */}
+      <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
         {asset.video ? (
           <VideoPreview uri={asset.uri} />
         ) : (

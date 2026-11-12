@@ -14,6 +14,7 @@ import { RichText } from '@/components/RichText';
 import { CheersPour } from '@/components/CheersPour';
 import { ActivityPanel, CommentsPanel, Panel, ReplyBar, useKeyboardHeight } from '@/components/StoryParts';
 import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
+import { sheetViewport } from '@/lib/sheetViewport';
 import { api, type Story } from '@/lib/api';
 import { SITE_URL, abs, sized } from '@/lib/config';
 import { useOwnSeen, writeOwnSeen } from '@/lib/ownSeen';
@@ -110,7 +111,7 @@ export default function StoryViewer() {
   const kb = useKeyboardHeight();
   // Na web (iPhone) o teclado tapa a página sem a encolher: o visor passa a ocupar só a zona visível e a página não rola.
   const vv = useVisibleViewport();
-  const vvOn = Platform.OS === 'web' && !!vv && typeof window !== 'undefined' && vv.height < window.innerHeight - 120;
+  const vvOn = Platform.OS === 'web' && typeof window !== 'undefined' && !!sheetViewport(vv, window.innerHeight, window.innerWidth);
   useEffect(() => {
     if (!vvOn || typeof window === 'undefined') return;
     const fix = () => window.scrollTo(0, 0);
@@ -361,8 +362,8 @@ export default function StoryViewer() {
         {...pan.panHandlers}
         onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (width !== box.w || height !== box.h) setBox({ w: width, h: height }); }}
       >
-        {/* Fundo desfocado da própria foto: a imagem aparece inteira, sem barras pretas */}
-        <View style={StyleSheet.absoluteFill}>
+        {/* Fundo desfocado da própria foto: a imagem aparece inteira, sem barras pretas (recortado: está ampliado e não pode sair do ecrã). */}
+        <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
           {cur.mediaKind === 'video' ? (
             Platform.OS === 'web'
               ? <WebVideoStory key={cur.id} url={abs(cur.mediaUrl) ?? ''} paused={paused} onEnd={next} onDuration={setVideoMs} />

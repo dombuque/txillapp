@@ -4,10 +4,16 @@
  * e a folha passa a viver só nessa zona (o campo de escrever fica logo acima do teclado). No Android (Chrome) a janela
  * encolhe com o teclado, a diferença não aparece e nada muda. No nativo não há `visualViewport` (devolve null).
  */
-export type VisibleBox = { top: number; height: number };
+export type VisibleBox = { top: number; height: number; width?: number; scale?: number };
 
-export function sheetViewport(vv: VisibleBox | null, innerHeight: number): VisibleBox | null {
+/**
+ * Com a página encolhida ou ampliada (zoom: `scale` diferente de 1, ou a zona visível mais estreita do que a janela) a altura
+ * também difere, mas não é o teclado: nesse caso não se mexe (antes lia-se como teclado e a folha ficava presa em cima).
+ */
+export function sheetViewport(vv: VisibleBox | null, innerHeight: number, innerWidth?: number): VisibleBox | null {
   if (!vv || !innerHeight) return null;
+  if (vv.scale != null && Math.abs(vv.scale - 1) > 0.01) return null;
+  if (innerWidth && vv.width != null && vv.width < innerWidth - 2) return null;
   return vv.height < innerHeight - 120 ? { top: Math.max(0, vv.top), height: vv.height } : null;
 }
 
