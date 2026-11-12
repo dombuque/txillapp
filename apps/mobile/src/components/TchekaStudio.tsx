@@ -5,20 +5,25 @@ import type { Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
 import { useDesktop } from '@/lib/desktop';
-import { SFX } from '@/lib/studio/audioDsp';
+import { clampFade, isSfx, SFX } from '@/lib/studio/audioDsp';
+import type { CapulanaSpec } from '@/lib/studio/capulana';
+import { clearCapulanaCache, drawCapulanaFrame, drawCapulanaTransition } from '@/lib/studio/capulanaRender';
+import { isCapulanaTransition, type CapulanaShapeId, type CapulanaTransitionId } from '@/lib/studio/capulanaShapes';
+import { coverRect, type MagicResult, type MagicSource } from '@/lib/studio/magic';
+import { clearMagicCache } from '@/lib/studio/magicAnalyze';
 import { applyLive, createStudioGraph, scheduleMix, sliceBuffer, type MixSchedule, type StudioGraph } from '@/lib/studio/audioEngine';
 import { defaultMix, mixParts, mixTimingParts, voiceSecondsIn, type StudioMix, type Template } from '@/lib/studio/audioMix';
 import { beatsFrom, planRhythm, type BeatState } from '@/lib/studio/audioRhythm';
 import { stickerById } from '@/lib/stickers';
 import { debounce, DRAFT_DEBOUNCE_MS, newDraftId, studioDrafts } from '@/lib/studio/drafts';
 import {
-  animState, fxSeconds, newSticker, newText, playbackRateAt, resolveFx, restingTime, reverseFrameIndex, sanitizeFx, sanitizeOverlay, sourceOffset, transitionFor,
+  animState, fxSeconds, newSticker, newText, playbackRateAt, resolveFx, restingTime, reverseFrameIndex, sanitizeFx, sanitizeOverlay, sanitizePano, sourceOffset, transitionFor,
   type ClipFx, type Overlay, type StickerContent, type StickerOverlay, type TextOverlay,
 } from '@/lib/studio/effects';
 import { canRedo, canUndo, initHistory, mapAll, pushHistory, redo as redoH, replacePresent, undo as undoH, type History } from '@/lib/studio/history';
 import { setStudioFull } from '@/lib/studio/immersive';
 import { studioKey } from '@/lib/studio/keys';
-import { duplicateClip, makeClip, moveClip, removeClip, replaceMedia, setPhoto, setSpeed, splitAt, startsOf, trimEdge, type ProjectClip, type TrimEdge } from '@/lib/studio/project';
+import { duplicateClip, makeClip, moveClip, normalizeClips, removeClip, replaceMedia, setPhoto, setSpeed, splitAt, startsOf, trimEdge, type ProjectClip, type TrimEdge } from '@/lib/studio/project';
 import type { TransitionId } from '@/lib/studio/effects';
 import { loadStudioFonts } from '@/lib/studio/renderFonts';
 import { drawClip, FxGL } from '@/lib/studio/renderGL';
@@ -35,6 +40,9 @@ import { colors } from '@/lib/theme';
 import { sealOf } from '@/lib/wordmark';
 import { Icon } from './Icon';
 import { AudioMarks, AudioPanel, useStudioAudio, type StudioAudioCtl } from './studio/AudioPanel';
+import { CapulanaPanel } from './studio/CapulanaPanel';
+import { MagicButton } from './studio/MagicButton';
+import { MagicMontage } from './studio/MagicMontage';
 import { MusicPicker } from './MusicPicker';
 import { RangeSlider } from './RangeSlider';
 import type { FrameGrab } from './studio/FxFilterStrip';
@@ -53,6 +61,10 @@ const H = 1920;
 const PANEL_W = 400;
 /** A barra do tempo por baixo da imagem. */
 const BAR_H = 44;
+/** A «Capulana» (panos gerados por código: lib/studio/capulana.ts) ligada na Montagem mágica e no estúdio. */
+const CAPULANA_ON = true;
+/** O pano da tcheka quando ainda ninguém escolheu outro. */
+const DEFAULT_PANO: CapulanaSpec = { pattern: 'losangos', palette: 'coral', seed: 1 };
 /**
  * Na gravação, o som entra este bocado mais tarde: o canvas gravado chega ao gravador uns frames depois do som (o frame
  * desenhado, a captura e o codificador). Medido no laboratório (vídeo com o número do frame pintado e um tom): sem isto, o
@@ -75,6 +87,8 @@ interface Project { clips: Item[]; overlays: Overlay[]; mix: StudioMix; origVol:
 /** O resto do estúdio que vai no rascunho (e volta ao abri-lo). As camadas vão em `overlays` e o som em `mix`. */
 export interface StudioSettings {
   music: Track | null; rhythm: boolean; origVol: number; musicVol: number; coverAt: number; overlays?: Overlay[]; mix?: StudioMix; applied?: string | null;
+  /** O pano de capulana da tcheka (transições, molduras, faixas, letras e stickers). */
+  pano?: CapulanaSpec;
 }
 /** Um rascunho aberto: os clipes (já com URLs), o resto e os URLs dos outros ficheiros (a voz-off), pela chave. */
 export interface StudioDraftIn { id: string; clips: ProjectClip[]; settings: Partial<StudioSettings>; media?: Record<string, string> }
@@ -196,7 +210,7 @@ async function filesToClips(files: File[]): Promise<Clip[]> {
  *   como o som da tcheka.
  * - Rascunho automático (lib/studio/drafts): cada mudança guarda-se no IndexedDB (`draftId`); `draft` abre um guardado.
  */
-export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, draft, draftId, draftContext }: {
+export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, draft, draftId, draftContext, startMagic }: {
   clips: Clip[];
   initialMusic: Track | null;
   reference?: { uri: string } | null;
@@ -208,6 +222,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   draftId?: string;
   /** Vai com o rascunho (o som de outra tcheka, o dueto) para o ecrã de criar repor. */
   draftContext?: Record<string, unknown>;
+  /** Abre logo a «Montagem mágica» (o botão do ecrã de escolher os ficheiros). */
+  startMagic?: boolean;
 }) {
   const { user } = useAuth();
   const username = user?.username;
@@ -257,6 +273,12 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const [assetTick, setAssetTick] = useState(0);
   const [revState, setRevState] = useState<Record<string, ReverseState>>({});
   const [freezing, setFreezing] = useState(false);
+  /** O pano de capulana da tcheka (entra no rascunho). */
+  const [pano, setPano] = useState<CapulanaSpec>(() => sanitizePano(init.pano) ?? DEFAULT_PANO);
+  /** A «Montagem mágica» aberta (em ecrã inteiro, por cima do estúdio). */
+  const [magic, setMagic] = useState(!!startMagic);
+  /** No separador Efeitos: os efeitos do clipe ou os panos de capulana. */
+  const [fxMode, setFxMode] = useState<'efeitos' | 'capulana'>('efeitos');
   const [music, setMusic] = useState<Track | null>(initMusic ?? null);
   const [pickMusic, setPickMusic] = useState(false);
   const pickOpen = useRef(false);
@@ -350,12 +372,12 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   /** O que muda o tempo da sequência (obriga a recomeçar a pré-visualização). */
   const timelineSig = studioSignature({ s: segs.map((s) => [s.uri, s.start, s.dur, s.from, s.speed, s.fx?.ramp ?? 0, s.fx?.reverse ? 1 : 0]), m: music?.url ?? null, r: reference?.uri ?? null, a: mixTimingParts(mix) });
   /** Tudo o que muda o vídeo final (para saber se a volta gravada ainda vale). */
-  const fullSig = studioSignature({ t: timelineSig, fx: items.map((it) => it.fx ?? null), ov: overlays, a: assetTick, origVol, musicVol, mix: mixParts(mix), snd: items.map((it) => (it.video ? [it.sound !== false, it.volume ?? 1] : 0)) });
+  const fullSig = studioSignature({ t: timelineSig, fx: items.map((it) => it.fx ?? null), ov: overlays, a: assetTick, origVol, musicVol, mix: mixParts(mix), pano, snd: items.map((it) => (it.video ? [it.sound !== false, it.volume ?? 1] : 0)) });
   const fxs: Record<string, ClipFx | undefined> = {};
   /** O volume do som de cada vídeo (0 se estiver calado), lido a cada frame. */
   const snd: Record<string, number> = {};
   for (const it of items) { fxs[it.key] = it.fx; snd[it.key] = it.sound === false ? 0 : it.volume ?? 1; }
-  const live = { overlays, fxs, snd, origVol, musicVol, segs, total: playTotal, fullSig, mix };
+  const live = { overlays, fxs, snd, origVol, musicVol, segs, total: playTotal, fullSig, mix, pano };
   const cfg = useRef(live);
   cfg.current = live;
 
@@ -400,6 +422,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     e.ref?.pause();
     e.reverse.forEach((r) => r.dispose());
     e.ovImages.forEach((x) => { if (typeof x === 'object') x.img.remove(); });
+    clearMagicCache();
+    clearCapulanaCache();
     void e.ac?.close().catch(() => undefined);
   }, []);
   // As fontes do texto: quando chegam, o frame parado volta a desenhar-se com elas.
@@ -677,15 +701,31 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
       else if (v && v.readyState >= 2) drawClip(g, glFx(), v, v.videoWidth || W, v.videoHeight || H, to, 1, p, seed);
     } else {
       const img = e.images.get(s.uri);
-      // Zoom suave (Ken Burns); um frame congelado fica parado.
-      if (img?.naturalWidth) drawClip(g, glFx(), img, img.naturalWidth, img.naturalHeight, to, fx?.freeze ? 1 : 1 + 0.07 * Math.min(1, tl / Math.max(0.1, s.dur)), p, seed);
+      const u = Math.min(1, tl / Math.max(0.1, s.dur));
+      if (img?.naturalWidth && fx?.moldura) {
+        // A foto inteira numa moldura de capulana (com o filtro e os ajustes dela, desenhada antes num canvas de trabalho).
+        const iw = img.naturalWidth, ih = img.naturalHeight;
+        const k = Math.min(1, 1440 / Math.max(iw, ih));
+        const sc = scratch('moldura', Math.round(iw * k), Math.round(ih * k));
+        if (sc) drawClip(sc.g, glFx(), img, iw, ih, { x: 0, y: 0, w: sc.c.width, h: sc.c.height }, 1, p, seed, { x: 0, y: 0, w: iw, h: ih });
+        const zoom = fx.focus ? fx.focus.from + (fx.focus.to - fx.focus.from) * u : 1 + 0.04 * u;
+        g.save();
+        g.translate(to.x, 0);
+        drawCapulanaFrame(g, sc ? sc.c : img, sc ? sc.c.width : iw, sc ? sc.c.height : ih, to.w, to.h, fx.moldura, zoom, fx.focus);
+        g.restore();
+      } else if (img?.naturalWidth) {
+        // O enquadramento da Montagem mágica (o ponto de interesse, sem cortar a cara) ou o zoom suave ao centro (Ken Burns);
+        // um frame congelado fica parado.
+        const fr = fx?.focus && !fx.freeze ? coverRect(img.naturalWidth, img.naturalHeight, fx.focus, u, to.w, to.h) : null;
+        drawClip(g, glFx(), img, img.naturalWidth, img.naturalHeight, to, fx?.freeze ? 1 : 1 + 0.07 * u, p, seed, fr ? { x: fr.sx, y: fr.sy, w: fr.sw, h: fr.sh } : undefined);
+      }
     }
     if (half) drawRef(g);
   }
   /** Por cima de cada frame: os textos e os stickers (no tempo deles, com as animações) e a assinatura. */
   function overlay(g: CanvasRenderingContext2D, t: number) {
     const e = engine.current;
-    e.boxes = drawOverlays(g, cfg.current.overlays, t, { W, H, image: ovImage });
+    e.boxes = drawOverlays(g, cfg.current.overlays, t, { W, H, image: ovImage, scratch });
     stampTxillapp(g, W, H, username, seal);
   }
   /** Um frame inteiro: o fundo (ou a transição a partir do bocado anterior) e as camadas por cima. */
@@ -701,7 +741,9 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
       cur.g.fillStyle = '#000';
       cur.g.fillRect(0, 0, W, H);
       drawBase(cur.g, s, tl);
-      drawTransition(g, e.last, cur.c, tr.type, tl / tr.dur, W, H, scratch);
+      // Os panos de capulana têm o desenho deles (lib/studio/capulanaRender.ts); as outras, o de renderTransitions.ts.
+      if (isCapulanaTransition(tr.type)) drawCapulanaTransition(g, e.last, cur.c, tr.type, tl / tr.dur, W, H, tr.pano ?? cfg.current.pano);
+      else drawTransition(g, e.last, cur.c, tr.type, tl / tr.dur, W, H, scratch);
       if (reference && e.ref) drawRef(g);
     } else drawBase(g, s, tl);
     overlay(g, t);
@@ -1388,7 +1430,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     void studioDrafts().save({ id: draftKey.current, ...snap, settings: { ...snap.settings }, poster: posterOf(canvasRef.current) }).catch(() => undefined);
   }, DRAFT_DEBOUNCE_MS), []);
   // O som vai sem o URL da voz-off (só vale nesta sessão): o ficheiro dela vai à parte, com a chave dela.
-  const settingsNow: StudioSettings = { music, rhythm, origVol, musicVol, coverAt, overlays: hist.present.overlays, mix: mix.voice ? { ...mix, voice: { ...mix.voice, uri: undefined } } : mix, applied };
+  const settingsNow: StudioSettings = { music, rhythm, origVol, musicVol, coverAt, overlays: hist.present.overlays, mix: mix.voice ? { ...mix, voice: { ...mix.voice, uri: undefined } } : mix, applied, pano };
   const voiceFile = mix.voice?.uri ? [{ key: mix.voice.id, uri: mix.voice.uri, mime: mix.voice.mime ?? 'audio/webm' }] : [];
   const settingsSig = studioSignature(settingsNow);
   useEffect(() => {
@@ -1501,6 +1543,57 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const fitNote = !music
     ? 'Escolhe uma música primeiro'
     : `${Math.round(beatInfo?.bpm ?? 120)} BPM${beatInfo && !beatInfo.detected ? ' (fixo)' : ''}: as fotos e os cortes dos vídeos caem nas batidas do trecho`;
+  // ---------------------------------------------------------------- Montagem mágica (components/studio/MagicMontage)
+  /** Os ficheiros para a montagem: um por ficheiro (as partes divididas e as cópias contam uma vez; os frames congelados não). */
+  const magicSources: MagicSource[] = useMemo(() => {
+    const seen = new Set<string>();
+    return items.filter((c) => !seen.has(c.media) && !!seen.add(c.media) && !c.fx?.freeze)
+      .map((c) => ({ key: c.key, media: c.media, uri: c.uri, video: c.video, mime: c.mime, durationMs: c.durationMs, speed: c.speed }));
+  }, [items]);
+  const openMagic = () => { if (locked) return; if (playingRef.current) pause(); setMagic(true); };
+  /**
+   * «Afinar»: o resultado da montagem entra no projeto num só passo do histórico (os clipes, o texto de abertura e o som),
+   * para «Desfazer» voltar ao que estava. As durações já caem nas batidas, por isso o modo «ao ritmo» fica desligado.
+   */
+  function applyMagic(r: MagicResult) {
+    const before = new Map(items.map((c) => [c.key, c]));
+    const list = normalizeClips(r.clips.map((c) => ({ ...before.get(c.key), ...c, fx: sanitizeFx(c.fx) }))).map((c) => withFx(c, sanitizeFx(c.fx)));
+    if (!list.length) return;
+    const ovs = r.overlays.map(sanitizeOverlay).filter((x): x is Overlay => !!x);
+    commit((p) => ({
+      ...p,
+      clips: list,
+      overlays: [...p.overlays.filter((x) => !x.id.startsWith('magica-')), ...ovs],
+      mix: r.music
+        ? { ...p.mix, musicStartMs: r.music.startMs, musicStartAuto: false, fadeIn: clampFade(r.music.fadeIn), fadeOut: clampFade(r.music.fadeOut), sfx: r.sfx.filter((x) => isSfx(x.id)).map((x, i) => ({ key: `magica-${i}`, id: x.id as (typeof SFX)[number]['id'], at: x.at })) }
+        : p.mix,
+    }));
+    if (r.pano) setPano(sanitizePano(r.pano) ?? pano);
+    setRhythm(false);
+    setSelKey(list[0]?.key ?? null);
+    setTab('clipes');
+    replayFrom(0);
+    if (r.left.length) say(`${r.left.length} ${r.left.length === 1 ? 'ficheiro não coube' : 'ficheiros não couberam'} nos 60 s`);
+  }
+  // ---------------------------------------------------------------- Capulana (components/studio/CapulanaPanel)
+  const selFx = cur?.fx;
+  const capTransition = selFx?.transition && isCapulanaTransition(selFx.transition.type) ? (selFx.transition.type as CapulanaTransitionId) : null;
+  /** Põe um texto ou um sticker de pano a partir de agora. */
+  const addLayer = (o: Overlay) => { if (locked) return; if (playingRef.current) pause(); setOverlays((l) => [...l, o]); setSelOv(o.id); };
+  const capulanaPanel = (
+    <CapulanaPanel
+      pano={pano}
+      onPano={(v) => { if (!locked) setPano(v); }}
+      transition={capTransition}
+      onTransition={(id) => { if (sel > 0) setFx(sel, (f) => sanitizeFx({ ...f, transition: id ? { type: id, dur: 0.7, pano } : undefined })); if (id && sel > 0) previewJunction(sel); }}
+      frame={!!selFx?.moldura}
+      canFrame={!!cur && !cur.video}
+      onFrame={(on) => { if (sel >= 0) setFx(sel, (f) => sanitizeFx({ ...f, moldura: on ? pano : undefined })); }}
+      onBand={() => addLayer({ ...newText(nowT(), playTotal, 'O teu texto'), bg: 'pano', pano })}
+      onText={() => addLayer({ ...newText(nowT(), playTotal, 'TXILL'), pano, size: 150 })}
+      onSticker={(shape: CapulanaShapeId) => addLayer(newSticker({ type: 'capulana', shape, pano }, nowT(), playTotal))}
+    />
+  );
   /** Os vídeos, cada um com o som dele (para o misturador). */
   const clipSounds = items.flatMap((it, i) => (it.video ? [{ key: it.key, label: `Vídeo ${i + 1}`, on: it.sound !== false, volume: it.volume ?? 1, hasAudio: it.hasAudio }] : []));
 
@@ -1526,12 +1619,14 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   /** O tamanho da pré-visualização (medido) e onde fica a imagem 9:16 dentro dela (a barra do tempo tem a largura dela). */
   const [pv, setPv] = useState({ w: 0, h: 0 });
   const imgW = Math.max(0, Math.min(pv.w, (pv.h - BAR_H) * (9 / 16)));
-  const imgBox = { w: imgW || pv.w, left: imgW ? (pv.w - imgW) / 2 : 0 };
+  // A barra do tempo tem a largura da imagem, mas nunca menos de 260 px (no telemóvel o tempo não parte em duas linhas).
+  const barW = Math.min(pv.w, Math.max(imgW || pv.w, 260));
+  const imgBox = { w: barW, left: (pv.w - barW) / 2 };
   // No telemóvel os painéis ficam numa folha em baixo, com altura fixa (rola por dentro); tocar outra vez no separador
   // escolhido fecha-a e a pré-visualização fica com o espaço todo.
   const win = useWindowDimensions();
   const [sheetOpen, setSheetOpen] = useState(true);
-  const sheetH = Math.round(Math.max(160, Math.min(260, win.height * 0.22)));
+  const sheetH = Math.round(Math.max(150, Math.min(240, win.height * 0.19)));
   const pickTab = (id: Tab) => { if (wide) { setTab(id); return; } if (id === tab) setSheetOpen((o) => !o); else { setTab(id); setSheetOpen(true); } };
   /** No site do telemóvel o estúdio cobre o ecrã todo (100dvh: sem a barra das abas nem a página a rolar por baixo). */
   const fullScreen = Platform.OS === 'web' && !wide ? ({ position: 'fixed', left: 0, top: 0, right: 0, height: '100dvh', zIndex: 50 } as unknown as object) : null;
@@ -1542,7 +1637,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     <View style={[st.root, fullScreen, { paddingTop: wide ? topPad : Math.max(insets.top, 6), paddingBottom: wide ? botPad : Math.max(insets.bottom, 4) }]} accessibilityViewIsModal>
       <View style={[st.top, !wide && st.topPhone]}>
         <Pressable onPress={close} style={st.round} accessibilityRole="button" accessibilityLabel="Voltar"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
-        <Text style={[st.title, !wide && { fontSize: 16 }]} numberOfLines={1}>Nova tcheka</Text>
+        {/* Num telemóvel estreito (menos de 380 px) o título sai: os botões precisam do espaço todo. */}
+        <Text style={[st.title, !wide && { fontSize: 16 }, !wide && win.width < 380 && { opacity: 0 }]} numberOfLines={1}>Nova tcheka</Text>
         <View style={st.history}>
           <Pressable onPress={undo} disabled={locked || !canUndo(hist)} style={[st.histBtn, (locked || !canUndo(hist)) && st.histOff]} accessibilityRole="button" accessibilityLabel="Desfazer" accessibilityHint="Ctrl+Z">
             <Icon name="undo" size={20} color="#fff" strokeWidth={2.1} />
@@ -1589,7 +1685,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
               <Icon name={playing ? 'pause' : 'play'} size={18} color="#fff" solid />
             </Pressable>
           ) : null}
-          {!busy ? <Text style={st.clock} pointerEvents="none">{previewClock(playT, playTotal)}{prepared && rules.ok ? ' · pronto' : ''}</Text> : null}
+          {!busy ? <Text style={st.clock} numberOfLines={1} pointerEvents="none">{previewClock(playT, playTotal)}{prepared && rules.ok ? ' · pronto' : ''}</Text> : null}
           <View style={st.timeline} pointerEvents="none">
             <View style={[st.timeFill, { width: `${playTotal ? Math.min(100, (playT / playTotal) * 100) : 0}%` }]} />
             {useRhythm ? segs.slice(0, -1).map((s) => <View key={s.key} style={[st.beatTick, { left: `${((s.start + s.dur) / Math.max(0.1, playTotal)) * 100}%` }]} />) : null}
@@ -1660,6 +1756,10 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
       <ScrollView style={wide ? { maxHeight: Math.max(160, stage.h - 56) } : { height: sheetOpen ? sheetH : 0 }} contentContainerStyle={{ paddingBottom: 12 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {tab === 'clipes' ? (
           <>
+            {/* A Montagem mágica: a tcheka feita a partir dos ficheiros (depois afina-se aqui). */}
+            <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+              <MagicButton onPress={openMagic} disabled={magicSources.length < 2 || locked} hint={magicSources.length < 2 ? 'Junta pelo menos 2 fotos ou vídeos' : undefined} />
+            </View>
             {/* As ações do clipe escolhido na linha do tempo. */}
             <TimelineActions
               clip={cur ?? null}
@@ -1754,6 +1854,13 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         ) : null}
 
         {tab === 'efeitos' ? (
+          <View style={[st.rowWrap, { marginTop: 4 }]} accessibilityRole="tablist" accessibilityLabel="Efeitos ou capulana">
+            {chip(fxMode === 'efeitos', 'Efeitos do clipe', () => setFxMode('efeitos'), 'fxm-efeitos')}
+            {chip(fxMode === 'capulana', 'Capulana', () => setFxMode('capulana'), 'fxm-capulana')}
+          </View>
+        ) : null}
+        {tab === 'efeitos' && fxMode === 'capulana' ? capulanaPanel : null}
+        {tab === 'efeitos' && fxMode === 'efeitos' ? (
           <FxPanel
             clips={segs.map((s) => ({ key: s.key, video: s.video, uri: s.uri, fx: s.fx, dur: s.dur, trimLen: s.len, start: s.start }))}
             sel={Math.max(0, sel)}
@@ -1782,6 +1889,19 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
       </View>
       </View>
       {pickMusic ? <MusicPicker allowLocal onClose={closePicker} onPick={pickedMusic} /> : null}
+      {magic ? (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 60, backgroundColor: '#000' }]}>
+          <MagicMontage
+            sources={magicSources}
+            music={music ? { url: abs(music.url) ?? music.url, title: music.title } : null}
+            capulana={CAPULANA_ON}
+            onApply={(r) => { applyMagic(r); setMagic(false); }}
+            onClose={() => setMagic(false)}
+            topInset={insets.top}
+            bottomInset={insets.bottom}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1818,7 +1938,7 @@ const st = StyleSheet.create({
   locked: { opacity: 0.35 },
   controls: { position: 'absolute', bottom: 0, height: BAR_H, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 2 },
   playBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
-  clock: { color: '#fff', fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'], textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 },
+  clock: { flexShrink: 0, color: '#fff', fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'], textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 },
   building: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 32 },
   track: { width: '100%', height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3, backgroundColor: colors.brand },

@@ -28,6 +28,7 @@ import { enqueuePublish } from '@/lib/publishQueue';
 import { InstantsHub } from '@/components/Instants';
 import { TchekaStudio, type StudioDraftIn } from '@/components/TchekaStudio';
 import { StudioDrafts } from '@/components/studio/StudioDrafts';
+import { MagicButton } from '@/components/studio/MagicButton';
 import { newDraftId, studioDrafts, type StudioDraft } from '@/lib/studio/drafts';
 import { normalizeClips } from '@/lib/studio/project';
 import { PhotoViewer } from '@/components/PhotoViewer';
@@ -202,6 +203,8 @@ export default function Compose() {
   const bumpKind = (k: string) => setKindUse((u) => { const n = { ...u, [k]: (u[k] ?? 0) + 1 }; try { localStorage.setItem('tx_kind_use', JSON.stringify(n)); } catch { /* sem armazenamento */ } return n; });
   // Tcheka: as fotos e vídeos juntam-se e o estúdio monta um vídeo só (filtro e música).
   const [studio, setStudio] = useState(false);
+  /** O estúdio abre com a «Montagem mágica» (o botão por cima da câmara, com 2 ou mais ficheiros). */
+  const [studioMagic, setStudioMagic] = useState(false);
   /** Rascunhos do estúdio (guardados sozinhos a cada mudança, no IndexedDB): «Continuar o rascunho?» ao entrar em Tcheka. */
   const [studioOffer, setStudioOffer] = useState<StudioDraft[] | null>(null);
   const studioOffered = useRef(false);
@@ -560,10 +563,11 @@ export default function Compose() {
             initialMusic={music}
             reference={duet}
             draft={studioDraft}
+            startMagic={studioMagic}
             draftId={studioDraftId.current}
             draftContext={{ ...(sound ? { soundId: sound.id } : {}), ...(duetoParam ? { dueto: String(duetoParam) } : {}) }}
-            onClose={() => { setStudio(false); if (studioDraft) { setStudioDraft(null); studioDraftId.current = newDraftId(); } }}
-            onDone={(s, m) => { setAssets([{ uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [], signed: s.signed, studio: true, posterMs: s.posterMs }]); setMusic(m); setStudio(false); setStep('write'); releaseClipUrls(assets, s.uri); }}
+            onClose={() => { setStudio(false); setStudioMagic(false); if (studioDraft) { setStudioDraft(null); studioDraftId.current = newDraftId(); } }}
+            onDone={(s, m) => { setAssets([{ uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [], signed: s.signed, studio: true, posterMs: s.posterMs }]); setMusic(m); setStudio(false); setStep('write'); releaseClipUrls(assets, s.uri); setStudioMagic(false); }}
           />
         </View>
       );
@@ -598,6 +602,13 @@ export default function Compose() {
           onKind={(k) => { setKindSel(k); if (k === 'zas' && !zasCounted.current) { zasCounted.current = true; bumpKind('zas'); } }}
         />
 
+        {/* A Montagem mágica logo aqui, com 2 ou mais fotos e vídeos: o estúdio abre com a montagem por fazer. No site fica por
+            cima da camada da câmara (fixa, z-index 9999). */}
+        {kindSel === 'tcheka' && assets.length >= 2 && !assets.some((a) => a.studio) ? (
+          <View style={[{ position: 'absolute', left: 16, right: 16, top: insets.top + 124, alignItems: 'center' }, web && ({ position: 'fixed', zIndex: 10000 } as unknown as object)]} pointerEvents="box-none">
+            <MagicButton onPress={() => { bumpKind('tcheka'); setStudioMagic(true); setStudio(true); }} />
+          </View>
+        ) : null}
         {err ? <Text style={[styles.err, { position: 'absolute', top: insets.top + 72, left: 0, right: 0, color: '#fff' }]} accessibilityRole="alert">{err}</Text> : null}
         {pickMusic ? <MusicPicker allowLocal onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} /> : null}
         {studioOffer && kindSel === 'tcheka' ? (

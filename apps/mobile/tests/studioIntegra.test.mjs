@@ -107,3 +107,58 @@ test('reprodução com fotos e vídeos: sem seek a mais no ponto de corte, à es
   assert.match(run, /if \(Math\.abs\(drift\) > 0\.5\) active\.currentTime = srcAt\(s, tl\);/, 'só um atraso grande faz o seek');
   assert.match(studio, /recDelay\.delayTime\.value = REC_AV_DELAY_S;/, 'o som da gravação acerta com a imagem');
 });
+
+// ---------------------------------------------------------------- Montagem mágica e Capulana (estudio-unico)
+const cap = await mod('capulana.ts');
+const shapes = await mod('capulanaShapes.ts');
+
+test('capulana: os ids copiados no effects.ts são os do capulana.ts e do capulanaShapes.ts', () => {
+  assert.deepEqual(fx.CAPULANA_PATTERN_IDS, cap.CAPULANA_PATTERNS.map((x) => x.id));
+  assert.deepEqual([...fx.CAPULANA_PALETTE_IDS].sort(), cap.CAPULANA_PALETTES.map((x) => x.id).sort());
+  assert.deepEqual([...fx.CAPULANA_SHAPE_IDS].sort(), shapes.CAPULANA_SHAPES.map((x) => x.id).sort());
+  for (const t of shapes.CAPULANA_TRANSITIONS) {
+    const mine = fx.TRANSITIONS.find((x) => x.id === t.id);
+    assert.ok(mine, t.id);
+    assert.equal(mine.name, t.name);
+    assert.equal(mine.ffmpeg, t.ffmpeg);
+  }
+  for (const x of [{ pattern: 'sol', palette: 'indico', seed: 12.7 }, { pattern: 'nada', palette: 'coral', seed: 1 }, { pattern: 'flores', palette: 'neon', seed: -3e9 }, null]) {
+    assert.deepEqual(fx.sanitizePano(x), cap.sanitizeCapulana(x), JSON.stringify(x));
+  }
+});
+
+test('capulana: o contrato guarda o pano das transições, a moldura, o enquadramento, as letras, a faixa e o sticker', () => {
+  const pano = { pattern: 'losangos', palette: 'coral', seed: 4 };
+  const f = fx.sanitizeFx({ transition: { type: 'capulana-vento', dur: 0.7, pano }, moldura: pano, focus: { x: 0.3, y: 0.2, from: 1, to: 1.1, keep: { x0: 0.1, y0: 0.1, x1: 0.5, y1: 0.4 } } });
+  assert.deepEqual(f.transition, { type: 'capulana-vento', dur: 0.7, pano });
+  assert.deepEqual(f.moldura, pano);
+  assert.deepEqual(f.focus.keep, { x0: 0.1, y0: 0.1, x1: 0.5, y1: 0.4 });
+  assert.deepEqual(fx.transitionFor(f, 1, 3).pano, pano, 'a transição leva o pano até ao desenho');
+  assert.equal(fx.sanitizeFx({ transition: { type: 'fundido', dur: 0.5, pano } }).transition.pano, undefined, 'só as de capulana levam pano');
+  const band = fx.sanitizeOverlay({ ...fx.newText(0, 10, 'Olá'), bg: 'pano', pano });
+  assert.equal(band.bg, 'pano');
+  assert.deepEqual(band.pano, pano);
+  assert.equal(fx.sanitizeOverlay({ ...fx.newText(0, 10, 'Olá'), bg: 'pano' }).bg, 'nenhum', 'faixa sem pano não serve');
+  const st = fx.sanitizeOverlay(fx.newSticker({ type: 'capulana', shape: 'estrela', pano }, 0, 10));
+  assert.deepEqual(st.sticker, { type: 'capulana', shape: 'estrela', pano });
+  assert.equal(fx.sanitizeOverlay(fx.newSticker({ type: 'capulana', shape: 'quadrado', pano }, 0, 10)), null);
+});
+
+test('ligação: Montagem mágica e Capulana no estúdio', () => {
+  assert.match(studio, /<MagicButton onPress=\{openMagic\}/, 'o botão na aba Clipes');
+  assert.match(studio, /<MagicMontage\n\s+sources=\{magicSources\}[\s\S]*?capulana=\{CAPULANA_ON\}/);
+  assert.match(studio, /const CAPULANA_ON = true;/);
+  const apply = studio.slice(studio.indexOf('function applyMagic('), studio.indexOf('// ---------------------------------------------------------------- Capulana'));
+  assert.equal((apply.match(/commit\(/g) || []).length, 1, '«Afinar» é um passo só');
+  assert.doesNotMatch(apply, /setItems\(|setOverlays\(|setMix\(/);
+  assert.match(studio, /if \(isCapulanaTransition\(tr\.type\)\) drawCapulanaTransition\(g, e\.last, cur\.c, tr\.type, tl \/ tr\.dur, W, H, tr\.pano \?\? cfg\.current\.pano\);/);
+  assert.match(studio, /drawCapulanaFrame\(g, /);
+  assert.match(studio, /<CapulanaPanel/);
+  const ro = read('lib', 'studio', 'renderOverlays.ts');
+  for (const f of ['drawCapulanaBand(', 'drawCapulanaText(', 'drawCapulanaSticker(']) assert.ok(ro.includes(f), f);
+  assert.match(read('app', '(tabs)', 'new.tsx'), /<MagicButton onPress=\{\(\) => \{ bumpKind\('tcheka'\); setStudioMagic\(true\); setStudio\(true\); \}\} \/>/, 'e no ecrã de escolher os ficheiros');
+  const magic = read('lib', 'studio', 'magic.ts');
+  assert.match(magic, /export type MagicClip = ProjectClip;/);
+  assert.match(magic, /export type MagicFx = ClipFx;/);
+  assert.match(magic, /export type MagicText = TextOverlay;/);
+});

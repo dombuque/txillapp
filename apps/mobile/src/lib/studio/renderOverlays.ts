@@ -7,6 +7,7 @@ import {
   animState, contrastOn, fontById, fontCss, timeLabel, visibleChars, waveOffset,
   type AnimFrame, type Overlay, type StickerOverlay, type TextOverlay,
 } from './effects';
+import { drawCapulanaBand, drawCapulanaSticker, drawCapulanaText } from './capulanaRender';
 
 type Ctx = CanvasRenderingContext2D;
 export interface OverlayEnv {
@@ -14,6 +15,8 @@ export interface OverlayEnv {
   H: number;
   /** A imagem de um sticker (Txillapp ou GIF) jÃ¡ carregada, ou null (ainda nÃ£o chegou: nÃ£o se desenha). */
   image: (o: StickerOverlay) => { img: CanvasImageSource; w: number; h: number } | null;
+  /** Canvas de trabalho (as letras com pano de capulana); sem ele, as letras ficam na cor. */
+  scratch?: (name: string, w: number, h: number) => { c: CanvasImageSource; g: Ctx } | null;
 }
 /** Onde ficou uma camada (px do quadro): centro, tamanho jÃ¡ com a escala dela (sem a animaÃ§Ã£o) e rotaÃ§Ã£o em graus. */
 export interface OverlayBox { id: string; cx: number; cy: number; w: number; h: number; rot: number }
@@ -247,6 +250,11 @@ function stickerLayout(g: Ctx, o: StickerOverlay, env: OverlayEnv): StickerLayou
         },
       };
     }
+    case 'capulana': {
+      // Um autocolante de pano: raio de 180 px no quadro de 1080 (antes da escala).
+      const st = s;
+      return { size: { w: 396, h: 396 }, draw: (c) => drawCapulanaSticker(c, st.shape, st.pano, 0, 0, 180) };
+    }
     case 'time': {
       const lines = timeLabel(s.format, s.at);
       const big = s.format !== 'data';
@@ -281,6 +289,16 @@ export function drawOverlays(g: Ctx, overlays: readonly Overlay[], t: number, en
     if (!f.visible) continue;
     const S = Math.max(0.05, o.scale * f.scale);
     let size: { w: number; h: number };
+    // A faixa de capulana vai de lado a lado do quadro, à altura do texto (não roda nem escala com a camada).
+    if (o.kind === 'text' && o.bg === 'pano' && o.pano) {
+      const h = o.size * 2.6 * o.scale;
+      g.save();
+      g.globalAlpha = Math.min(1, f.alpha * 1.4);
+      drawCapulanaBand(g, o.pano, env.W, { y: o.y * env.H + f.dy, h, text: o.text, font: fontCss(o.font, 10).replace(/\d+px/, '{size}px'), open: f.alpha });
+      g.restore();
+      boxes.push({ id: o.id, cx: env.W / 2, cy: o.y * env.H, w: env.W, h, rot: 0 });
+      continue;
+    }
     g.save();
     g.globalAlpha = f.alpha;
     g.translate(o.x * env.W + f.dx, o.y * env.H + f.dy);
@@ -288,7 +306,9 @@ export function drawOverlays(g: Ctx, overlays: readonly Overlay[], t: number, en
     g.scale(S, S);
     if (o.kind === 'text') {
       size = overlaySize(g, o, env);
-      drawText(g, o, f, t, S, env.W);
+      // As letras cheias com o pano de capulana (com contorno, para se lerem por cima de qualquer vídeo).
+      if (o.pano && env.scratch) drawCapulanaText(g, wrapText(g, o.text || ' ', env.W * 0.84).join('\n'), o.pano, { x: 0, y: 0, size: o.size, font: fontCss(o.font, o.size), scratch: env.scratch, alpha: 1 });
+      else drawText(g, o, f, t, S, env.W);
     } else {
       const L = stickerLayout(g, o, env);
       size = L.size;

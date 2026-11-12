@@ -371,7 +371,7 @@ test('ligação: o estúdio desenha com os efeitos e grava o que se vê', () => 
   const studio = read('components', 'TchekaStudio.tsx');
   assert.match(studio, /drawClip\(g, glFx\(\), v, /, 'os vídeos com o shader dos efeitos');
   assert.match(studio, /drawTransition\(g, e\.last, cur\.c, tr\.type, tl \/ tr\.dur, W, H, scratch\)/, 'transição por junção');
-  assert.match(studio, /drawOverlays\(g, cfg\.current\.overlays, t, \{ W, H, image: ovImage \}\)/, 'textos e stickers');
+  assert.match(studio, /drawOverlays\(g, cfg\.current\.overlays, t, \{ W, H, image: ovImage, scratch \}\)/, 'textos e stickers (com os canvas de trabalho das letras de capulana)');
   assert.match(studio, /stampTxillapp\(g, W, H, username, seal\);/, 'a assinatura continua por cima');
   assert.match(studio, /fxSeconds\(it\.trim\.end - it\.trim\.start, it\.speed, it\.fx\)/, 'a rampa muda a duração');
   assert.match(studio, /hasAudio: it\.fx\?\.reverse \|\| !soundOn\(it\) \? false : it\.hasAudio/, 'ao contrário (ou com o som do vídeo desligado), o som original não conta');

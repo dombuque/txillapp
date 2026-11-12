@@ -246,9 +246,10 @@ export function drawFx2D(g: CanvasRenderingContext2D, src: CanvasImageSource, cr
  * simples (o mais rápido). Uma fonte que já não se pode desenhar (um frame libertado, um vídeo sem dados) não pára a
  * montagem: esse frame fica como estava.
  */
-export function drawClip(g: CanvasRenderingContext2D, gl: FxGL | null, src: TexImageSource & CanvasImageSource, sw: number, sh: number, to: Rect, zoom: number, p: FxParams, seed = 0): void {
+export function drawClip(g: CanvasRenderingContext2D, gl: FxGL | null, src: TexImageSource & CanvasImageSource, sw: number, sh: number, to: Rect, zoom: number, p: FxParams, seed = 0, source?: { x: number; y: number; w: number; h: number }): void {
   if (!sw || !sh) return;
-  const crop = coverCrop(sw, sh, to.w, to.h, zoom);
+  // `source`: o retângulo da fonte já escolhido (o enquadramento da Montagem mágica); sem ele, cover centrado com o zoom.
+  const crop = source ?? coverCrop(sw, sh, to.w, to.h, zoom);
   try {
     if (fxIsNone(p)) { g.drawImage(src, crop.x, crop.y, crop.w, crop.h, to.x, to.y, to.w, to.h); return; }
     const out = gl?.render(src, sw, sh, crop, p, Math.round(to.w), Math.round(to.h), seed);

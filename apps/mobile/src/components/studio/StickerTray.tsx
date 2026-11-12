@@ -98,6 +98,7 @@ function stickerName(s: StickerContent): string {
   switch (s.type) {
     case 'emoji': return s.emoji;
     case 'mention': return `@${s.username}`;
+    case 'capulana': return 'Capulana';
     case 'location': return s.name;
     case 'time': return s.format === 'data' ? 'Data' : 'Hora';
     case 'gif': return 'GIF';

@@ -62,6 +62,8 @@ verificam que todos os ids de filtros, transições, rampas, fontes e animaçõe
 | `ramp` | `montaria`, `heroi`, `bala`, `flash` | Só vídeos: rampa de velocidade por cima da velocidade do clipe |
 | `reverse` | `true` | Só vídeos: o clipe toca ao contrário e o som original dele fica calado |
 | `freeze` | `{ from, at }` | Só fotos: a foto é um frame congelado do clipe `from`, no segundo `at` do ficheiro. Fica parada, sem zoom |
+| `focus` | `{ x, y, from, to, keep? }` | Só fotos (Montagem mágica): o ponto de interesse (frações da foto), o zoom lento de `from` a `to` (1 a 1,5) e a caixa da cara `keep` (`x0, y0, x1, y1`), que nunca se corta. O recorte é o `coverRect` de `lib/studio/magic.ts` |
+| `moldura` | pano | Só fotos: a foto vai inteira numa moldura de capulana (`frameLayout`, ver `docs/estudio-unico.md` 4.8) |
 
 ## 2. Cor (filtro e ajustes)
 
@@ -166,6 +168,15 @@ igual à web.
 | `flash` | Flash | branco a subir até ao meio e a descer (sin(πp)^1,6) | `fadewhite` |
 | `brilho` | Brilho | fundido com bloom e uma luz coral/dourada a atravessar, em modo de luz | `fadefast` |
 | `glitch` | Glitch | tiras deslocadas dos dois clipes e cores separadas (cião/magenta), estável por frame | `pixelize` |
+| `capulana-deslizar` | Pano | o pano atravessa o ecrã de lado, com a franja à frente | `wipeleft` |
+| `capulana-desenrolar` | Desenrolar | o pano desenrola-se de cima e volta a enrolar | `wipedown` |
+| `capulana-rasgar` | Rasgar | dois panos fecham em ziguezague e rasgam para os lados | `horzopen` |
+| `capulana-losango` | Losango | um losango de pano abre do centro | `diagtl` |
+| `capulana-vento` | Ao vento | o pano passa na diagonal, a ondular | `wipetl` |
+
+As cinco de capulana levam o pano em `transition.pano` (`{ pattern, palette, seed }`; sem ele vale o pano da tcheka) e
+desenham-se com `drawCapulanaTransition` (`lib/studio/capulanaRender.ts`). As fórmulas estão em `docs/estudio-unico.md`
+(secção 4.7); o `xfade` da tabela é só o mais parecido, sem pano.
 
 O `corte` dá o mesmo resultado nos dois lados. Nas outras transições, o `xfade` tem a curva linear e um desenho parecido,
 mas não igual. Para ficar igual, o servidor pode usar `drawTransition` de `renderTransitions.ts` num canvas do Node: só usa
@@ -245,6 +256,9 @@ contado desde `start`.
 - `outline`: contorno com 0,16× o tamanho, a preto ou branco (o que contrastar com a cor).
 - `shadow`: sombra rgba(0,0,0,.55), com desfoque de 0,22× e 0,05× para baixo.
 - `neon`: três passagens de brilho na cor (desfoque de 0,9×, 0,32× e 0,08×) e o miolo a 70 % de branco. Não leva contorno.
+- `pano`: as letras cheias com um pano de capulana (`drawCapulanaText`), com três contornos para se lerem.
+- `bg: 'pano'` (com `pano`): uma faixa de capulana de lado a lado do quadro, à altura do texto (`drawCapulanaBand`), com o
+  texto na placa do meio. A faixa não roda nem escala com a camada.
 
 | id | Nome | Família (Google Fonts) | Ficheiro |
 | --- | --- | --- | --- |
@@ -272,6 +286,7 @@ CSP só aceita fontes do Txillapp). O servidor usa o TTF da mesma família.
 | `mention` | `username` | etiqueta `@nome` |
 | `location` | `name` | etiqueta com um alfinete e o nome em maiúsculas |
 | `time` | `format` (`hora`, `data`, `hora-data`) e `at` (ms) | a hora (Orbitron 120 px) e/ou a data, na hora de Moçambique (UTC+2): «22:41», «Qui, 12 nov.» |
+| `capulana` | `shape` (`circulo`, `losango`, `estrela`, `coracao`, `selo`) e `pano` | um autocolante de pano com 180 px de raio (`drawCapulanaSticker`) |
 
 `variant` (`branco`, `coral`, `escuro`) muda as etiquetas: fundo branco com a letra coral, gradiente coral→laranja com a
 letra branca, ou vidro escuro com borda. A chave do GIPHY fica só no servidor. A app procura os GIFs por `/api/v1/gifs/*`

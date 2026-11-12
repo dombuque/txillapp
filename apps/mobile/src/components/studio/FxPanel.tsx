@@ -19,7 +19,7 @@ export interface ReverseState { status: 'ready' | 'working' | 'too-long' | 'erro
 type Sub = 'filtros' | 'ajustes' | 'transicoes' | 'tempo';
 const SUBS: { id: Sub; label: string }[] = [{ id: 'filtros', label: 'Filtros' }, { id: 'ajustes', label: 'Ajustes' }, { id: 'transicoes', label: 'Transições' }, { id: 'tempo', label: 'Tempo' }];
 const ADJ_ICON: Record<AdjustKey, IconName> = { brightness: 'sun', contrast: 'moon', saturation: 'water', temperature: 'flame', hue: 'sparkles', sharpen: 'bolt', vignette: 'eye', grain: 'grid' };
-const TR_GLYPH: Record<TransitionId, string> = {
+const TR_GLYPH: Partial<Record<TransitionId, string>> = {
   corte: '✂', fundido: '◐', 'deslizar-esquerda': '←', 'deslizar-direita': '→', 'deslizar-cima': '↑', 'deslizar-baixo': '↓',
   zoom: '⤢', desfoque: '◌', girar: '↻', flash: '✦', brilho: '☀', glitch: '▚',
 };
@@ -123,7 +123,7 @@ export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, 
           <>
             <Text style={[ui.note, { color: fxc.muted }]}>Do clipe {i} para o {i + 1}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 6 }}>
-              {TRANSITIONS.map((t) => {
+              {TRANSITIONS.filter((t) => !t.id.startsWith('capulana-')).map((t) => {
                 const now = fxNow?.transition ?? DEFAULT_TRANSITION;
                 const on = now.type === t.id;
                 return (
