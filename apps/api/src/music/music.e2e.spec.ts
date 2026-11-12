@@ -44,7 +44,8 @@ describe('música nas notas: catálogo de licenças abertas e crédito (integra�
       [good.id, JSON.stringify(track)],
     );
     await pool.query('DELETE FROM content.music_flags WHERE track_id = $1', [good.id]);
-    app.get(MusicCatalogService).invalidate();
+    // Só o catálogo aberto: sem a fonte local do programa de artistas (que tem os testes dele e pode ter faixas na base partilhada).
+    app.get(MusicCatalogService).registerLocalSource(null);
   }, 60_000);
 
   afterAll(async () => {

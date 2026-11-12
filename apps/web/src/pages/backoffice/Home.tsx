@@ -33,7 +33,7 @@ export default function BackofficeHome() {
     { key: 'reports', show: can('reports.read'), label: 'Queixas por tratar', value: d.reportsOpen, icon: 'flag', to: '/backoffice/reports', tone: busy(d.reportsOpen) },
     { key: 'verifications', show: can('verification.decide'), label: 'Verificações por decidir', value: d.verificationsPending, icon: 'shield', to: '/backoffice/verifications', tone: busy(d.verificationsPending) },
     { key: 'venues', show: can('catalog.manage'), label: 'Locais por aprovar', value: d.venuesPending, icon: 'map-pin', to: '/backoffice/venues', tone: busy(d.venuesPending) },
-    { key: 'music', show: canMusic, label: 'Música por decidir', value: musicN, icon: 'music', to: '/backoffice/music', tone: busy(musicN), hint: music.data ? `${music.data.artists} pedidos · ${music.data.tracks} faixas · ${music.data.claims} denúncias` : undefined },
+    { key: 'music', show: canMusic, label: 'Música por decidir', value: musicN, icon: 'music', to: '/backoffice/music?tab=artists', tone: busy(musicN), hint: music.data ? `${music.data.artists} pedidos · ${music.data.tracks} faixas · ${music.data.claims} denúncias` : undefined },
     { key: 'alerts', show: canWallet, label: 'Alertas de Txills', value: alertN, icon: 'alert', to: '/backoffice/finance', tone: alerts.data?.items.some((x) => x.level === 'critical') ? 'bad' : busy(alertN), hint: alertN ? 'Presentes fora do normal e outros' : 'Tudo normal' },
     { key: 'suspended', show: can('users.view'), label: 'Contas suspensas', value: o?.suspended, icon: 'lock', to: '/backoffice/users?status=suspended' },
   ];

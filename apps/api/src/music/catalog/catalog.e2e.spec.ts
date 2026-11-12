@@ -1,11 +1,12 @@
 import 'reflect-metadata';
-import { INestApplication } from '@nestjs/common';
+import { BadRequestException, INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { Pool } from 'pg';
 import { loadConfig } from '../../config';
 import { migrate } from '../../db/migrate';
 import { createApp } from '../../main';
 import { staffLogin } from '../../staff/staff-test';
+import { MusicService } from '../music.service';
 import { MusicCatalogService } from './catalog.service';
 import type { CatalogTrack, LocalMusicSource } from './track';
 
@@ -106,6 +107,9 @@ describe('música: catálogo curado, Em alta, «Não gosto desta», fonte local 
     app = await createApp(loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'd'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test', JAMENDO_CLIENT_ID: 'jamendo-teste', FREESOUND_TOKEN: 'freesound-token-teste' }));
     await app.init();
     catalog = app.get(MusicCatalogService);
+    // O programa de artistas (ArtistsService) regista-se como a fonte local no arranque: estes testes começam sem ela e usam
+    // uma fonte simulada no fim (o programa tem os testes dele em artists.e2e.spec.ts).
+    catalog.registerLocalSource(null);
     // Começa de um catálogo limpo (a base de testes é partilhada).
     await pool.query("DELETE FROM content.music_catalog WHERE source IN ('ccmixter', 'archive', 'jamendo', 'freesound')");
     await pool.query('DELETE FROM content.music_flags');
@@ -312,6 +316,11 @@ describe('música: catálogo curado, Em alta, «Não gosto desta», fonte local 
     const local: LocalMusicSource = {
       list: async ({ style, q }) => [mano].filter((t) => (!style || t.styles.includes(style)) && (!q || `${t.title} ${t.artist}`.toLowerCase().includes(q.toLowerCase()))),
       get: async (id) => (id === mano.id ? mano : null),
+      // Como o ArtistsService: confirma a faixa e devolve o que fica guardado (a versão do servidor, nunca a da app).
+      prepareUse: async (_user, id) => {
+        if (id !== mano.id) throw new BadRequestException('Esta música já não está disponível');
+        return { source: 'local', id: mano.id, title: mano.title, artist: mano.artist, artistUsername: mano.artistUsername, url: mano.previewUrl, license: 'txillapp' };
+      },
     };
     catalog.registerLocalSource(local);
     const h = await home(u.mca);
@@ -322,9 +331,14 @@ describe('música: catálogo curado, Em alta, «Não gosto desta», fonte local 
     expect(ids((await api().get('/api/v1/music/search?q=mano').set(auth(u.mca)).expect(200)).body)).toEqual([mano.id]);
 
     const sent = { id: mano.id, title: 'Outro título', artist: 'X', url: 'https://evil.example.com/a.mp3', landing: null, license: 'txillapp', licenseUrl: null, durationMs: 1000, cover: null, source: 'local' };
-    const post = (await api().post('/api/v1/posts').set(auth(u.mca)).send({ body: 'marrabenta', music: sent }).expect(201)).body;
-    expect(post.music).toMatchObject({ id: mano.id, title: 'Marrabenta do Bairro', url: mano.previewUrl, license: 'txillapp', artistUsername: 'mano_txill', source: 'local' });
-    await api().post('/api/v1/posts').set(auth(u.mca)).send({ body: 'x', music: { ...sent, id: 'local:nao-existe' } }).expect(400);
+    // A licença dos artistas só deixa usar as faixas em mimos e tchekas: numa publicação só com texto, o servidor recusa.
+    await api().post('/api/v1/posts').set(auth(u.mca)).send({ body: 'marrabenta', music: sent }).expect(400);
+    // Num mimo, fica a versão do servidor (passa pela fonte local).
+    const music = app.get(MusicService);
+    const kept = await music.prepare(u.mca.id, { source: 'local', id: mano.id }, 'story');
+    expect(kept).toMatchObject({ id: mano.id, title: 'Marrabenta do Bairro', url: mano.previewUrl, license: 'txillapp', artistUsername: 'mano_txill', source: 'local' });
+    await expect(music.prepare(u.mca.id, { source: 'local', id: 'local:nao-existe' }, 'story')).rejects.toThrow(BadRequestException);
+    await expect(music.prepare(u.mca.id, { source: 'local', id: mano.id }, 'note')).rejects.toThrow(BadRequestException);
     await api().put('/api/v1/music/favorites').set(auth(u.mca)).send(sent).expect(200);
     expect((await api().get('/api/v1/music/favorites').set(auth(u.mca)).expect(200)).body[0]).toMatchObject({ id: mano.id, url: mano.previewUrl });
 
@@ -333,6 +347,7 @@ describe('música: catálogo curado, Em alta, «Não gosto desta», fonte local 
     expect((await api().get('/api/v1/admin/music?q=mano').set(auth(mod)).expect(200)).body.items[0]).toMatchObject({ id: mano.id, source: 'local' });
     await api().post('/api/v1/admin/music/status').set(auth(mod)).send({ id: mano.id, status: 'hidden', reason: 'Pedido do artista' }).expect(204);
     expect((await home(u.mca)).local).toBeNull();
+    await expect(music.prepare(u.mca.id, { source: 'local', id: mano.id }, 'story')).rejects.toThrow(BadRequestException); // escondida
 
     catalog.registerLocalSource(null);
     expect((await home(u.mca)).local).toBeNull();

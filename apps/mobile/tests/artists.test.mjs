@@ -89,7 +89,7 @@ test('os avisos da equipa (music_review): texto, motivo e destino', () => {
 
 test('o que vai para o servidor: de uma faixa de artista só o id (o servidor busca o resto)', () => {
   const src = read('lib', 'api.music.ts');
-  assert.match(src, /t\.source === 'local' \? \{ source: 'local' as const, id: t\.id \}/);
+  assert.match(src, /if \(t\.source === 'local'\) return \{ source: 'local' as const, id: t\.id \};/);
 });
 
 test('o seletor só mostra os «Artistas de Moçambique» em mimos e tchekas (o que a licença autoriza)', () => {
@@ -99,6 +99,9 @@ test('o seletor só mostra os «Artistas de Moçambique» em mimos e tchekas (o 
   assert.doesNotMatch(read('components', 'Notes.tsx'), /allowLocal/);
   const picker = read('components', 'MusicPicker.tsx');
   assert.match(picker, /allowLocal = false/);
+  // No seletor do catálogo curado: o separador e as listas ficam sem faixas locais fora dos mimos e das tchekas.
+  assert.match(picker, /pickerTabs\(home\.data, allowLocal\)/);
+  assert.match(picker, /onlyAllowed\(withoutDisliked\(q\.data, disliked\), allowLocal\)/);
   // As faixas dos artistas não vão para as favoritas (o servidor só guarda faixas do catálogo aberto).
   assert.match(picker, /t\.kind !== 'clip' && t\.source !== 'local'/);
 });

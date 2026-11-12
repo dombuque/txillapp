@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { LoadingBlock } from '../../components/Loading';
 import { Badge, Card, Empty, PageHeader, ReasonDialog, ago, btnDanger, btnGhost, btnPrimary, useCan, when } from './bo';
 import { MusicCatalogPanel } from './MusicCatalog';
@@ -228,7 +228,10 @@ export default function BackofficeMusic() {
   const qc = useQueryClient();
   const can = useCan('music.manage');
   const canCatalog = useCan('catalog.manage');
-  const [tab, setTab] = useState<Tab>(canCatalog ? 'catalog' : 'artists');
+  // ?tab=artists|tracks|claims|catalog (o cartão «Música por decidir» do início abre logo os pedidos).
+  const [params] = useSearchParams();
+  const asked = params.get('tab') as Tab | null;
+  const [tab, setTab] = useState<Tab>(asked === 'catalog' ? (canCatalog ? 'catalog' : 'artists') : asked && ['artists', 'tracks', 'claims'].includes(asked) && can ? asked : canCatalog ? 'catalog' : 'artists');
   const [aStatus, setAStatus] = useState<ArtistStatus>('pending');
   const [tStatus, setTStatus] = useState<TrackStatus>('pending');
   const [cStatus, setCStatus] = useState<ClaimStatus>('open');

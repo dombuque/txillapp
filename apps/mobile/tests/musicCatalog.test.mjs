@@ -99,7 +99,7 @@ test('o seletor: «Em alta no Txillapp», «Não gosto desta» com Desfazer, art
   assert.match(src, /musicApi\.dislike\(/);
   assert.match(src, /musicApi\.undislike\(/);
   assert.match(src, />Desfazer</);
-  assert.match(src, /pickerTabs\(home\.data\)/); // os separadores (local e sons) dependem do que o servidor manda
+  assert.match(src, /pickerTabs\(home\.data, allowLocal\)/); // os separadores (local e sons) dependem do que o servidor manda
   assert.match(src, /musicApi\.home/);
   assert.match(src, /musicApi\.search\(/);
   assert.doesNotMatch(src, /GENRES/); // acabaram os géneros fixos na app

@@ -8,7 +8,7 @@ Rascunho para o guardião das políticas integrar nos Termos de Utilização e n
   - o nome artístico, os estilos e as ligações (redes e streaming, só https);
   - quem tem os direitos (o próprio artista ou uma editora, com o nome) e uma declaração;
   - opcionalmente, uma foto de prova (privada, apagada depois da decisão).
-- **Aprovação.** A equipa decide no backoffice, em «Música dos artistas» (permissão `music.manage`, equipa Moderação). Tudo fica na auditoria (`artist.approve`, `artist.reject`, `artist.revoke`). Uma conta aprovada tem a etiqueta «Artista» no perfil. Não é o selo de verificado.
+- **Aprovação.** A equipa decide no backoffice, em Música, nos separadores Pedidos de artista, Faixas e Direitos de autor (permissão `music.manage`, equipa Moderação). Tudo fica na auditoria (`artist.approve`, `artist.reject`, `artist.revoke`). Uma conta aprovada tem a etiqueta «Artista» no perfil. Não é o selo de verificado.
 - **Faixas.** Só artistas aprovados as carregam:
   - um ficheiro MP3, M4A ou AAC, até 20 MB e entre 15 s e 15 min;
   - o título, a capa, os estilos e se é explícita;
