@@ -15,6 +15,7 @@ import { SendLocationSheet } from './SendLocationSheet';
 import { StickerPanel } from './StickerPanel';
 import { useGifsConfig } from './GifPanel';
 import { gifMessage } from '@/lib/gifs';
+import { pendingFrom, sendPending } from '@/lib/chatPending';
 import { usePastedImage } from '@/lib/usePastedImage';
 import { PastedImageSheet } from './PastedImageSheet';
 
@@ -73,8 +74,16 @@ export function ChatComposer({
 
   async function dispatch(msg: Parameters<typeof api.chatSend>[1]) {
     setErr('');
+    const payload = { ...msg, ...(replyTo ? { replyTo: replyTo.id } : null) };
+    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); se falhar, fica com "Tentar de novo" (nada se perde).
+    const shown = pendingFrom(msg, replyTo);
+    if (shown) {
+      onClearReply?.();
+      await sendPending(`u:${username}`, shown, () => api.chatSend(username, payload), { onSent });
+      return;
+    }
     try {
-      await api.chatSend(username, { ...msg, ...(replyTo ? { replyTo: replyTo.id } : null) });
+      await api.chatSend(username, payload);
       onClearReply?.();
       onSent();
     } catch (e) {

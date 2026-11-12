@@ -250,6 +250,7 @@ export default function Thread() {
       ) : null}
       <ChatList
         key={username}
+        pendingKey={`u:${username}`}
         onTouch={() => { if (composerOpen.current) setCloseTick((t) => t + 1); }}
         items={items}
         loading={q.isLoading || (qs.isError && items.length === 0 && qs.isFetching)}

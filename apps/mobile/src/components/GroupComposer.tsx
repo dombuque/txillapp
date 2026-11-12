@@ -13,6 +13,7 @@ import { SendLocationSheet } from './SendLocationSheet';
 import { StickerPanel } from './StickerPanel';
 import { useGifsConfig } from './GifPanel';
 import { gifMessage } from '@/lib/gifs';
+import { pendingFrom, sendPending } from '@/lib/chatPending';
 import { usePastedImage } from '@/lib/usePastedImage';
 import { PastedImageSheet } from './PastedImageSheet';
 import { NewBadge } from './WhatsNew';
@@ -23,8 +24,10 @@ import { markSeen } from '@/lib/whatsNew';
  * visualização única, voz, galeria, stickers e "mais" (localização e presente). Com texto, só aparece "Enviar".
  */
 export function GroupComposer({
-  send, onSent, bottom, replyTo, onClearReply, onPoll, closeTick, onOpenChange,
+  send, onSent, bottom, replyTo, onClearReply, onPoll, closeTick, onOpenChange, pendingKey,
 }: {
+  /** A conversa nas mensagens a caminho (lib/chatPending, `g:<id>`): texto, stickers e GIFs aparecem logo. */
+  pendingKey?: string;
   /** Avisa se os stickers ou os anexos estão abertos. */
   onOpenChange?: (open: boolean) => void;
   /** Muda quando se toca fora (na lista de mensagens): fecha os stickers e o menu de anexos. */
@@ -56,8 +59,16 @@ export function GroupComposer({
 
   async function dispatch(msg: GroupSendBody) {
     setErr('');
+    const payload = { ...msg, ...(replyTo ? { replyTo: replyTo.id } : null) };
+    // Texto, sticker ou GIF: a bolha aparece logo (lib/chatPending); se falhar, fica com "Tentar de novo" (nada se perde).
+    const shown = pendingKey ? pendingFrom(msg, replyTo) : null;
+    if (pendingKey && shown) {
+      onClearReply?.();
+      await sendPending(pendingKey, shown, () => send(payload) as Promise<{ id: string }>, { onSent });
+      return;
+    }
     try {
-      await send({ ...msg, ...(replyTo ? { replyTo: replyTo.id } : null) });
+      await send(payload);
       onClearReply?.();
       onSent();
     } catch (e) {

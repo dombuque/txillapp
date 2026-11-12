@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { FlatList, Platform, Pressable, StyleSheet, Text, View, type NativeScrollEvent } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { ticksFor } from '@/lib/chatLayout';
+import { dropPending, listKey, mergePending, pendingOf, prunePending, retryPending, subscribePending, type PendingMsg } from '@/lib/chatPending';
 import { chatTimeline, firstUnreadId } from '@/lib/chatTimeline';
 import { colors } from '@/lib/theme';
 import { Bubble, TypingBubble, type Msg } from './ChatBubbles';
 import { Pulse } from './ChatParts';
+
+const NONE: readonly PendingMsg[] = [];
 
 /** Fundo da área das mensagens (cinzento muito claro; o cabeçalho e a barra de escrever ficam brancos). */
 export const CHAT_BG = '#f5f6f8';
@@ -19,10 +22,13 @@ export const CHAT_BG = '#f5f6f8';
  * a única que decide separadores e agrupamento) faz-se por ordem de tempo.
  */
 export function ChatList({
-  items, group = false, loading, hasNext, fetchNext, fetchingNext, typing, seenId, emptyText, emptyTitle, emptyArt, unread = 0, top, peerName, peerHandle, peerAvatar, meHandle,
+  items: serverItems, pendingKey, group = false, loading, hasNext, fetchNext, fetchingNext, typing, seenId, emptyText, emptyTitle, emptyArt, unread = 0, top, peerName, peerHandle, peerAvatar, meHandle,
   onRaised, onScrollY, onTouch, onMenu, onCheer, onOpenOnce, onStopLive, onRetry, onReply, onDelete,
 }: {
-  items: Msg[]; group?: boolean; loading: boolean; hasNext: boolean; fetchNext: () => Promise<unknown> | void; fetchingNext: boolean; typing?: boolean;
+  items: Msg[];
+  /** A conversa nas mensagens a caminho (lib/chatPending): `u:<username>` ou `g:<id>`. Junta-as às do servidor. */
+  pendingKey?: string;
+  group?: boolean; loading: boolean; hasNext: boolean; fetchNext: () => Promise<unknown> | void; fetchingNext: boolean; typing?: boolean;
   seenId: string | null; emptyText: string; emptyTitle?: string; emptyArt?: ReactNode;
   /** Tocaram na lista: quem chama fecha o painel dos stickers e o menu "+" do compositor (tocar fora fecha). */
   onTouch?: () => void;
@@ -43,6 +49,20 @@ export function ChatList({
   onDelete?: (m: Msg) => void;
 }) {
   const list = useRef<FlatList<Msg>>(null);
+  // As que estou a enviar (aparecem logo, antes da resposta do servidor) juntam-se às do servidor.
+  const pending = useSyncExternalStore(subscribePending, () => (pendingKey ? pendingOf(pendingKey) : NONE), () => NONE);
+  const items = useMemo(() => mergePending(serverItems, pending) as Msg[], [serverItems, pending]);
+  useEffect(() => {
+    if (pendingKey && pending.some((p) => p.realId)) prunePending(pendingKey, new Set(serverItems.map((m) => m.id)));
+  }, [pendingKey, pending, serverItems]);
+  // Enviei uma mensagem com a conversa lá em cima: desce ao fim para a ver (como nas outras apps de mensagens).
+  const newest = pending[0]?.id;
+  useEffect(() => {
+    if (newest) list.current?.scrollToOffset({ offset: 0, animated: true });
+  }, [newest]);
+  const isTmp = (m: Msg) => !!pendingKey && m.id.startsWith('tmp-');
+  const retry = (m: Msg) => (isTmp(m) ? void retryPending(pendingKey!, m.id) : onRetry(m));
+  const remove = (m: Msg) => (isTmp(m) ? dropPending(pendingKey!, m.id) : onDelete?.(m));
   const [away, setAway] = useState(false);
   const [flashId, setFlashId] = useState<string | null>(null);
   const itemsRef = useRef(items);
@@ -64,7 +84,7 @@ export function ChatList({
 
   // Mensagens que chegaram enquanto estavas lá em cima (o número no botão de ir ao fim).
   const awayFrom = useRef<string | null>(null);
-  const cut = away && awayFrom.current ? items.findIndex((m) => m.id === awayFrom.current) : -1;
+  const cut = away && awayFrom.current ? items.findIndex((m) => listKey(m.id) === awayFrom.current) : -1;
   const freshCount = cut > 0 ? items.slice(0, cut).filter((m) => !m.fromMe).length : 0;
 
   // Sombra do cabeçalho: há mensagens acima do que está à vista (lista invertida: o fim do deslize é o topo do ecrã).
@@ -83,7 +103,7 @@ export function ChatList({
     const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
     const far = contentOffset.y > 320;
     if (far !== away) {
-      awayFrom.current = far ? itemsRef.current[0]?.id ?? null : null;
+      awayFrom.current = far && itemsRef.current[0] ? listKey(itemsRef.current[0].id) : null;
       setAway(far);
     }
     updateRaised({ y: contentOffset.y, h: layoutMeasurement.height, c: contentSize.height });
@@ -117,7 +137,8 @@ export function ChatList({
           inverted
           data={items}
           extraData={`${flashId}|${seenId}|${newFrom}|${rows.length}`}
-          keyExtractor={(m) => m.id}
+          // A bolha enviada daqui mantém a chave de quando estava a caminho (não remonta quando o servidor a traz).
+          keyExtractor={(m) => listKey(m.id)}
           // Invertida: 'flex-start' é o fundo do ecrã; poucas mensagens ficam junto à barra de escrever, como nas boas apps de mensagens.
           contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 10, paddingTop: 8, flexGrow: 1, justifyContent: 'flex-start' }}
           onScroll={onScroll}
@@ -147,9 +168,9 @@ export function ChatList({
                   onCheer={onCheer}
                   onOpenOnce={onOpenOnce}
                   onStopLive={onStopLive}
-                  onRetry={onRetry}
+                  onRetry={retry}
                   onReply={onReply}
-                  onDelete={onDelete}
+                  onDelete={remove}
                   onJump={(id) => void jumpTo(id)}
                 />
               </View>
@@ -220,7 +241,7 @@ function NewMark() {
 const UNFLIP = Platform.OS === 'android' ? [{ scale: -1 }] : [{ scaleY: -1 }];
 
 const st = StyleSheet.create({
-  older: { alignSelf: 'center', marginVertical: 8, borderRadius: 999, backgroundColor: colors.white, paddingHorizontal: 16, minHeight: 36, justifyContent: 'center' },
+  older: { alignSelf: 'center', marginVertical: 8, borderRadius: 999, backgroundColor: colors.white, paddingHorizontal: 16, minHeight: 44, justifyContent: 'center' },
   olderText: { fontSize: 14, fontWeight: '600', color: colors.zinc700 },
   // Pílula branca no fundo cinzento (zinc500 em branco passa o AA; em #ebedf0 ficava abaixo).
   divider: { alignSelf: 'center', marginTop: 16, marginBottom: 6, borderRadius: 999, backgroundColor: colors.white, paddingHorizontal: 12, paddingVertical: 4, boxShadow: '0 1px 1px rgba(24,24,27,0.04)' },

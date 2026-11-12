@@ -677,7 +677,8 @@ export function Bubble({
         <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 }}>
           <Icon name="alert" size={14} color={colors.red600} />
           <Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600 }}>Não enviada</Text>
-          <Pressable {...hold} onPress={() => onRetry(m)} hitSlop={10}><Text style={{ fontSize: 12, fontWeight: '600', color: colors.red600, textDecorationLine: 'underline' }}>Tentar de novo</Text></Pressable>
+          <Pressable {...hold} onPress={() => onRetry(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel="Tentar enviar de novo"><Text style={st.failLink}>Tentar de novo</Text></Pressable>
+          {onDelete ? <Pressable {...hold} onPress={() => onDelete(m)} hitSlop={10} style={st.failBtn} accessibilityRole="button" accessibilityLabel="Apagar a mensagem que não foi enviada"><Text style={[st.failLink, { color: colors.zinc600 }]}>Apagar</Text></Pressable> : null}
         </View>
       ) : m.state === 'sending' ? (
         <Text style={st.time}>A enviar…</Text>
@@ -728,6 +729,9 @@ const st = StyleSheet.create({
   avatar: { position: 'absolute', left: -(AVATAR + AVATAR_GAP), bottom: 0 },
   meta: { marginTop: 3, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6 },
   time: { fontSize: 11, lineHeight: 14, color: colors.zinc500 },
+  // "Tentar de novo" e "Apagar" de uma que falhou: texto pequeno, mas com 32 pt de altura e o hitSlop (passa os 44).
+  failBtn: { minHeight: 32, justifyContent: 'center' },
+  failLink: { fontSize: 12, fontWeight: '600', color: colors.red600, textDecorationLine: 'underline' },
   ticks: { fontSize: 11, lineHeight: 14, fontWeight: '700', letterSpacing: -2.5, paddingRight: 2.5, color: colors.zinc500 },
   caption: { marginBottom: 4, paddingHorizontal: 6, fontSize: 12, lineHeight: 16, color: colors.zinc500 },
   quote: { maxWidth: '78%', marginBottom: 3, flexDirection: 'row', alignItems: 'stretch', gap: 6, paddingHorizontal: 4 },

@@ -145,6 +145,7 @@ export default function GroupThreadScreen() {
       ) : (
         <ChatList
           key={id}
+          pendingKey={`g:${id}`}
           onTouch={() => { if (composerOpen.current) setCloseTick((t) => t + 1); }}
           items={items}
           group
@@ -180,7 +181,7 @@ export default function GroupThreadScreen() {
           }}
         />
       ) : group && (
-        <GroupComposer closeTick={closeTick} onOpenChange={onComposerOpen} send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} />
+        <GroupComposer pendingKey={`g:${id}`} closeTick={closeTick} onOpenChange={onComposerOpen} send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} />
       )}
     </View>
   );
