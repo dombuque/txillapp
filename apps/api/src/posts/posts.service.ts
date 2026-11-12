@@ -93,7 +93,7 @@ export class PostsService implements OnModuleInit {
 
   async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null, venueId: string | null = null) {
     this.filter.assertClean(body, locationLabel, musicIn?.title, 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
-    const music = await this.musicSvc.prepare(userId, musicIn);
+    const music = await this.musicSvc.prepare(userId, musicIn, 'post', mediaIds);
     // Ligada a um local no mapa: guarda-se a posição do local (pública) tal como está.
     let fromVenue = false;
     if (venueId) {

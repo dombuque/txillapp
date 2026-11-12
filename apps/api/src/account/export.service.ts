@@ -74,6 +74,33 @@ export class ExportService {
           WHERE c.caller_id = $1 OR c.callee_id = $1 ORDER BY c.id`,
       ).catch(() => []),
       musicFavorites: await q(`SELECT track_id AS "trackId", track, created_at AS "createdAt" FROM content.music_favorites WHERE user_id = $1 ORDER BY created_at`).catch(() => []),
+      // Programa de artistas (0128): o meu pedido de artista, as minhas faixas (com os totais de usos), cada aceitação da licença
+      // (versão, resumo do texto e data), as denúncias de direitos que fiz e as faixas de artistas que usei.
+      artist: (await q(
+        `SELECT stage_name AS "stageName", styles, links, rights_kind AS "rightsKind", label_name AS "labelName", rights_statement AS "rightsStatement",
+                status, review_reason AS "reason", created_at AS "createdAt", updated_at AS "updatedAt", approved_at AS "approvedAt"
+           FROM content.artist_profiles WHERE user_id = $1`,
+      ).catch(() => []))[0] ?? null,
+      artistTracks: await q(
+        `SELECT t.id, t.title, t.styles, t.explicit, t.status, (t.hold_at IS NOT NULL) AS "onHold", t.duration_ms AS "durationMs", t.preview_start_ms AS "previewStartMs",
+                t.preview_ms AS "previewMs", t.license_version AS "licenseVersion", t.created_at AS "createdAt", t.approved_at AS "approvedAt", t.withdrawn_at AS "withdrawnAt",
+                t.removed_at AS "removedAt", (SELECT count(*) FROM content.artist_track_uses u WHERE u.track_id = t.id)::int AS uses,
+                (SELECT count(DISTINCT u.user_id) FROM content.artist_track_uses u WHERE u.track_id = t.id)::int AS people
+           FROM content.artist_tracks t WHERE t.artist_id = $1 ORDER BY t.created_at`,
+      ).catch(() => []),
+      musicLicenseAcceptances: await q(
+        `SELECT l.track_id AS "trackId", t.title, l.version, l.text_sha256 AS "textSha256", l.accepted_at AS "acceptedAt"
+           FROM content.artist_track_licenses l JOIN content.artist_tracks t ON t.id = l.track_id WHERE l.user_id = $1 ORDER BY l.accepted_at`,
+      ).catch(() => []),
+      copyrightReportsFiled: await q(
+        `SELECT t.title, c.claimant_name AS "claimantName", c.contact_email AS "contactEmail", c.relation, c.details, c.status, c.created_at AS "createdAt"
+           FROM content.artist_track_claims c JOIN content.artist_tracks t ON t.id = c.track_id WHERE c.reporter_id = $1 ORDER BY c.created_at`,
+      ).catch(() => []),
+      artistTracksUsed: await q(
+        `SELECT t.title, ap.stage_name AS artist, u.surface, u.created_at AS "createdAt"
+           FROM content.artist_track_uses u JOIN content.artist_tracks t ON t.id = u.track_id LEFT JOIN content.artist_profiles ap ON ap.user_id = t.artist_id
+          WHERE u.user_id = $1 ORDER BY u.created_at`,
+      ).catch(() => []),
       // Locais: os que criei, os que giro (e o papel), os que sigo e os meus check-ins.
       // Com a morada e a posição no mapa (e se o local aparece no mapa), que são dados que a pessoa deu.
       venuesOwned: await q(`SELECT slug, name, kind, address, city, lat, lng, show_on_map AS "showOnMap", created_at AS "createdAt" FROM content.venues WHERE owner_id = $1 ORDER BY created_at`).catch(() => []),

@@ -32,10 +32,13 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   | 'invite_joined'
   // A moderação (ator = a conta de equipa, que a lista mostra como «Txillapp») removeu ou repôs um conteúdo meu, ou deixou-me
   // um aviso. data: { type: 'post' | 'comment' | 'story' | 'message' | 'media' | 'user' | 'venue', reason, postId?, tcheka? } (0121).
-  | 'content_removed' | 'content_restored' | 'moderation_warning';
+  | 'content_removed' | 'content_restored' | 'moderation_warning'
+  // Programa de artistas (0128): a equipa decidiu o meu pedido de artista ou uma faixa minha.
+  // data: { what: 'artist' | 'track', decision: 'approved' | 'rejected' | 'revoked' | 'removed' | 'restored', title?, reason? }.
+  | 'music_review';
 
 /** Avisos da equipa do Txillapp: não se desligam e mostram-se em nome do Txillapp (não da pessoa da equipa). */
-export const STAFF_KINDS = new Set<NotificationKind>(['content_removed', 'content_restored', 'moderation_warning', 'venue_review']);
+export const STAFF_KINDS = new Set<NotificationKind>(['content_removed', 'content_restored', 'moderation_warning', 'venue_review', 'music_review']);
 /** O que se diz do conteúdo nos avisos da moderação. */
 export const contentNoun = (type: unknown, tcheka?: unknown) =>
   type === 'comment' ? 'o teu comentário' : type === 'story' ? 'o teu mimo' : type === 'message' ? 'a tua mensagem' : type === 'media' ? 'a tua foto'
@@ -164,6 +167,12 @@ export class NotificationsService {
       content_removed: { body: `Removemos ${contentNoun(n.data?.type, n.data?.tcheka)}. Toca para ver o motivo.`, url: '/notifications' },
       content_restored: { body: `Repusemos ${contentNoun(n.data?.type, n.data?.tcheka)}.`, url: n.data?.type === 'post' && n.data?.postId ? `/p/${String(n.data.postId)}` : '/notifications' },
       moderation_warning: { body: 'Tens um aviso da moderação. Toca para ver.', url: '/notifications' },
+      music_review: {
+        body: n.data?.what === 'artist'
+          ? n.data?.decision === 'approved' ? 'A tua conta já é de artista. Já podes carregar as tuas músicas.' : 'Há novidades sobre o teu pedido de artista. Toca para ver.'
+          : n.data?.decision === 'approved' ? `«${String(n.data?.title ?? 'A tua música')}» já está no Txillapp.` : `Há novidades sobre «${String(n.data?.title ?? 'a tua música')}». Toca para ver.`,
+        url: '/artista/gerir',
+      },
       venue_payment: { body: `pagou ${Number(n.data?.amount ?? 0)} Txills ${n.data?.venueName ? `em ${String(n.data.venueName)}` : 'no teu local'}`, url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}/gerir?s=txills` : '/notifications' },
     };
     const m = t[n.kind];

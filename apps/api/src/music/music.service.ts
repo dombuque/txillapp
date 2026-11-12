@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { z } from 'zod';
 import { PG_POOL } from '../db/db.module';
 import { MediaService } from '../media/media.service';
+import { ArtistsService } from '../artists/artists.service';
 
 /** Onde as faixas de licença aberta estão alojadas (o Openverse junta estes e outros). Só se tocam faixas destes sítios. */
 const ALLOWED_HOSTS = [
@@ -75,8 +76,19 @@ export const clipSchema = z.object({
   title: z.string().trim().max(60).default('Áudio original'),
 });
 
-/** O que uma nota ou um post pode levar: uma faixa de licença aberta ou um clipe próprio. */
-export const musicSchema = z.union([clipSchema, trackSchema]);
+/**
+ * Faixa do programa de artistas moçambicanos (`source: 'local'`): a app só manda o id; o servidor vai buscar o resto
+ * (título, artista, trecho) e confirma que a faixa está disponível. O título e o artista que venham são ignorados.
+ */
+export const localTrackSchema = z.object({
+  source: z.literal('local'),
+  id: z.string().min(1).max(50),
+  title: z.string().max(120).optional(),
+  artist: z.string().max(120).optional(),
+});
+
+/** O que uma nota ou um post pode levar: uma faixa de licença aberta, uma faixa de um artista moçambicano ou um clipe próprio. */
+export const musicSchema = z.union([clipSchema, localTrackSchema, trackSchema]);
 export type MusicInput = z.infer<typeof musicSchema>;
 
 interface OpenverseAudio {
@@ -105,11 +117,20 @@ export class MusicService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly media: MediaService,
+    private readonly artists: ArtistsService,
   ) {}
 
-  /** Antes de guardar: um clipe tem de ser áudio meu, privado e já carregado (nunca de outra pessoa). */
-  async prepare(userId: string, music: MusicInput | null | undefined): Promise<Record<string, unknown> | null> {
+  /**
+   * Antes de guardar: um clipe tem de ser áudio meu, privado e já carregado (nunca de outra pessoa). Uma faixa de um artista
+   * moçambicano só pode ir num mimo (`where: 'story'`) ou numa tcheka (publicação com um só vídeo, `mediaIds`), como diz a licença.
+   */
+  async prepare(userId: string, music: MusicInput | null | undefined, where: 'post' | 'story' | 'note' = 'note', mediaIds: string[] = []): Promise<Record<string, unknown> | null> {
     if (!music) return null;
+    if ('source' in music && music.source === 'local') {
+      const tcheka = where === 'post' && mediaIds.length === 1 && !!(await this.pool.query(`SELECT 1 FROM content.media_assets WHERE id = $1 AND mime LIKE 'video/%'`, [mediaIds[0]])).rowCount;
+      if (where === 'note' || (where === 'post' && !tcheka)) throw new BadRequestException('As músicas dos artistas de Moçambique só podem ir em mimos e tchekas');
+      return this.artists.prepareUse(userId, music.id, where === 'post' ? 'post' : 'story');
+    }
     if (!('kind' in music)) return music as unknown as Record<string, unknown>;
     const r = await this.pool.query(`SELECT 1 FROM content.media_assets WHERE id = $1 AND owner_id = $2 AND purpose = 'chat' AND status = 'ready' AND mime LIKE 'audio/%'`, [music.mediaId, userId]);
     if (!r.rowCount) throw new BadRequestException('Áudio inválido ou ainda não carregado');
@@ -118,6 +139,7 @@ export class MusicService {
 
   /** Ao devolver: o clipe ganha um URL assinado e temporário (como as mensagens de voz). */
   resolve(music: Record<string, unknown> | null): Record<string, unknown> | null {
+    if (music?.source === 'local') return this.artists.resolveSnapshot(music) as unknown as Record<string, unknown>;
     if (!music || music.kind !== 'clip') return music;
     return { ...music, id: `clip:${music.mediaId as string}`, artist: '', url: this.media.chatUrl(music.mediaId as string), landing: null, license: 'own', licenseUrl: null, cover: null };
   }

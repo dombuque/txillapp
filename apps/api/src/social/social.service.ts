@@ -74,7 +74,8 @@ export class SocialService {
               ${canView('u')} AS can_view,
               EXISTS (SELECT 1 FROM social.blocks b WHERE b.blocker_id = $1 AND b.blocked_id = u.id) AS blocked_by_me,
               EXISTS (SELECT 1 FROM social.blocks b WHERE b.blocker_id = u.id AND b.blocked_id = $1) AS blocked_me,
-              (SELECT count(*) FROM content.stories s WHERE s.author_id = u.id AND s.expires_at > now() AND ${canView('u')})::int AS active_stories
+              (SELECT count(*) FROM content.stories s WHERE s.author_id = u.id AND s.expires_at > now() AND ${canView('u')})::int AS active_stories,
+              (SELECT json_build_object('stageName', ap.stage_name, 'styles', ap.styles, 'links', ap.links) FROM content.artist_profiles ap WHERE ap.user_id = u.id AND ap.status = 'approved') AS artist
          FROM identity.users u WHERE u.username = $2 AND u.status = 'active'`,
       [viewerId, username],
     );
@@ -93,6 +94,8 @@ export class SocialService {
       /** Selo de perfil verificado (o processo de verificação fica para depois). */
       verified: r.verified as boolean,
       verifiedTier: (r.verified_tier as string | null) ?? null,
+      /** Programa de artistas: a etiqueta «Artista» (não é o selo de verificado), o nome artístico e as ligações. */
+      artist: (r.artist as { stageName: string; styles: string[]; links: { kind: string; url: string }[] } | null) ?? null,
       /** Género: só a própria pessoa o vê, a menos que tenha escolhido mostrá-lo no perfil. */
       gender: isMe || (r.show_gender && !r.blocked_by_me && !r.blocked_me) ? (r.gender as string | null) : null,
       joinedAt: r.created_at,

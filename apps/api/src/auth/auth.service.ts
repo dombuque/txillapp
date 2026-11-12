@@ -645,6 +645,15 @@ export class AuthService {
         // disse da transação; a verificação paga (elegibilidade e o selo anterior) sai. A subscrição cancela-se na loja.
         "UPDATE payments.iap_purchases SET raw = '{}' WHERE user_id = $1",
         "DELETE FROM payments.paid_verification WHERE user_id = $1",
+        // Programa de artistas (0128): as faixas do artista deixam de estar disponíveis (e de tocar, também nos usos antigos);
+        // o pedido de artista (nome artístico, ligações, declaração) sai; os usos que fiz de faixas de outros saem dos totais;
+        // as denúncias de direitos que fiz saem (e a faixa volta a aparecer se não houver outra aberta). Fica só o registo de
+        // quem aceitou a licença e quando (prova da autorização), ligado à conta anonimizada.
+        "UPDATE content.artist_tracks SET status = 'removed', removed_at = coalesce(removed_at, now()), review_reason = coalesce(review_reason, 'Conta eliminada') WHERE artist_id = $1 AND status <> 'removed'",
+        'DELETE FROM content.artist_profiles WHERE user_id = $1',
+        'DELETE FROM content.artist_track_uses WHERE user_id = $1',
+        'DELETE FROM content.artist_track_claims WHERE reporter_id = $1',
+        `UPDATE content.artist_tracks t SET hold_at = NULL WHERE $1::uuid IS NOT NULL AND t.hold_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM content.artist_track_claims c WHERE c.track_id = t.id AND c.status = 'open')`,
       ]) await client.query(sql, [userId]);
       // As páginas de locais que eram suas passam para o administrador mais antigo; sem administrador, deixam de aparecer
       // (as consultas dos locais escondem páginas cujo dono foi eliminado).
