@@ -51,7 +51,12 @@ export function RemixReview({ uri, title, overlay, options, busy, error, onBack,
   const [body, setBody] = useState('');
   const [box, setBox] = useState({ w: 0, h: 0 });
   const player = useVideoPlayer(uri, (p) => { p.loop = true; p.play(); });
-  const onLayout = (e: LayoutChangeEvent) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height });
+  // O vídeo 9:16 o maior possível dentro do espaço que sobra (medido: percentagens com aspectRatio falham no browser).
+  const onLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    const w = Math.max(0, Math.min(width - 32, (height * 9) / 16));
+    setBox({ w: Math.round(w), h: Math.round((w * 16) / 9) });
+  };
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[st.root, { paddingTop: Math.max(insets.top, 10), paddingBottom: Math.max(insets.bottom, 14) }]}>
       <View style={st.top}>
@@ -59,9 +64,9 @@ export function RemixReview({ uri, title, overlay, options, busy, error, onBack,
         <Text style={st.title} numberOfLines={1}>{title}</Text>
         <View style={{ width: 44 }} />
       </View>
-      <View style={st.stage}>
-        <View style={st.frame} onLayout={onLayout}>
-          <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} allowsPictureInPicture={false} />
+      <View style={st.stage} onLayout={onLayout}>
+        <View style={[st.frame, { width: box.w, height: box.h }]}>
+          <VideoView player={player} style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]} contentFit="cover" nativeControls={false} allowsPictureInPicture={false} />
           {overlay && box.w ? overlay(box) : null}
         </View>
       </View>
@@ -96,7 +101,7 @@ const st = StyleSheet.create({
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, color: '#fff', fontSize: 16, fontWeight: '800', textAlign: 'center' },
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, minHeight: 200 },
-  frame: { height: '100%', maxWidth: '100%', aspectRatio: 9 / 16, borderRadius: 18, overflow: 'hidden', backgroundColor: '#111' },
+  frame: { borderRadius: 18, overflow: 'hidden', backgroundColor: '#111' },
   input: { minHeight: 44, maxHeight: 96, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff', paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
   err: { color: '#fecaca', fontSize: 13, textAlign: 'center' },
   cta: { height: 48, borderRadius: 24, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },

@@ -321,7 +321,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
       )}
       {/* Dueto ou resposta com tcheka: «Dueto com @x» leva ao original. O som já vem no vídeo (o original e a voz): a música
           da publicação só fica como ligação ao som, sem tocar por cima nem calar o vídeo. */}
-      {post.remixOf ? <View style={{ paddingHorizontal: 12, paddingBottom: 8 }}><RemixTag remix={post.remixOf} dark={false} /></View> : null}
+      {post.remixOf ? <View style={{ paddingBottom: 8 }}><RemixTag remix={post.remixOf} dark={false} /></View> : null}
       {post.music ? <TrackCard track={post.music} autoplay={!post.remixOf} visible={musicOn} /> : null}
       {!quote && post.media.length ? (
         // O brinde aparece no meio da foto ou do vídeo.
