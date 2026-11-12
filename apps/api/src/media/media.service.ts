@@ -398,13 +398,16 @@ export class MediaService implements OnModuleInit {
 
   /**
    * Foto assinalada para a equipa decidir (inclui fotos privadas de conversas). Só se vê enquanto houver uma queixa por decidir
-   * sobre ela, e cada visualização fica no registo de auditoria.
+   * sobre ela, e cada visualização fica no registo de auditoria. Também a foto de um Zás denunciado (0125), enquanto a
+   * denúncia estiver por decidir.
    */
   async reviewImage(id: string, actorUserId: string): Promise<{ bytes: Buffer; mime: string }> {
     const { rows } = await this.pool.query(
       `SELECT a.mime, a.purpose FROM content.media_assets a
         WHERE a.id = $1 AND a.status = 'ready' AND a.mime LIKE 'image/%'
-          AND EXISTS (SELECT 1 FROM social.reports r WHERE r.target_type = 'media' AND r.target_id = a.id AND r.status = 'open')`,
+          AND (EXISTS (SELECT 1 FROM social.reports r WHERE r.target_type = 'media' AND r.target_id = a.id AND r.status = 'open')
+               OR EXISTS (SELECT 1 FROM social.instants i JOIN social.reports r ON r.target_type = 'instant' AND r.target_id = i.id AND r.status = 'open'
+                           WHERE i.media_id = a.id))`,
       [id],
     );
     if (!rows[0]) throw new NotFoundException();

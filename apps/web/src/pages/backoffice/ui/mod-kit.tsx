@@ -9,8 +9,8 @@ import type { ModAuthorCtx, ModMedia, ModReason, ModReportType, ModTextHit } fro
 
 export const REASON: Record<ModReason, string> = { spam: 'Spam', harassment: 'Assédio', hate: 'Ódio', nudity: 'Nudez', violence: 'Violência', scam: 'Burla', impersonation: 'Falsa identidade', minor: 'Menores', other: 'Outro' };
 export const REASONS = Object.keys(REASON) as ModReason[];
-export const TYPE: Record<ModReportType, string> = { post: 'Publicação', comment: 'Comentário', story: 'Mimo', message: 'Mensagem', user: 'Conta', venue: 'Local', media: 'Foto (automático)' };
-export const TYPE_ICON: Record<ModReportType, IconName> = { post: 'image', comment: 'comment', story: 'sparkles', message: 'messages', user: 'user', venue: 'store', media: 'eye' };
+export const TYPE: Record<ModReportType, string> = { post: 'Publicação', comment: 'Comentário', story: 'Mimo', message: 'Mensagem', user: 'Conta', venue: 'Local', media: 'Foto (automático)', story_comment: 'Comentário de mimo', instant: 'Zás' };
+export const TYPE_ICON: Record<ModReportType, IconName> = { post: 'image', comment: 'comment', story: 'sparkles', message: 'messages', user: 'user', venue: 'store', media: 'eye', story_comment: 'comment', instant: 'bolt' };
 export const RESOLUTION: Record<string, string> = { dismiss: 'Arquivada', remove: 'Conteúdo removido', warn: 'Autor avisado', suspend: 'Conta suspensa' };
 export const SEVERE = new Set<ModReason>(['minor', 'violence', 'hate', 'nudity']);
 

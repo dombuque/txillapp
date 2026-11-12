@@ -6,11 +6,11 @@ import { PG_POOL } from '../db/db.module';
 import { MediaService } from '../media/media.service';
 import { PushService } from '../push/push.service';
 import { TextFilter } from '../safety/text-filter.service';
-import { blockedBetween } from '../social/visibility';
+import { blockedBetween, notReportedBy } from '../social/visibility';
 
 
 /** Quem vê um Zás (`i` = alias da tabela): quem o fez; os amigos próximos dele; e, se for para "amigos", quem se segue mutuamente. Nunca com bloqueios. */
-const visible = (i = 'i', v = '$1') =>
+export const instantVisible = (i = 'i', v = '$1') =>
   `(${i}.author_id = ${v} OR (NOT ${blockedBetween(`${i}.author_id`, v)} AND (
       EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = ${i}.author_id AND cf.friend_id = ${v})
       OR (${i}.audience = 'friends'
@@ -77,7 +77,7 @@ export class InstantsService implements OnModuleInit {
         `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", count(*)::int AS count, max(i.created_at) AS "latestAt", bool_or(EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $1)) AS close, (array_agg(i.preview ORDER BY i.created_at DESC))[1] AS preview
            FROM social.instants i
            JOIN identity.users u ON u.id = i.author_id
-          WHERE i.expires_at > now() AND i.author_id <> $1 AND ${visible('i')}
+          WHERE i.expires_at > now() AND i.author_id <> $1 AND ${instantVisible('i')} AND ${notReportedBy('instant', 'i.id')}
             AND NOT EXISTS (SELECT 1 FROM social.instant_views v WHERE v.instant_id = i.id AND v.viewer_id = $1)
             AND EXISTS (SELECT 1 FROM content.media_assets a WHERE a.id = i.media_id AND a.status = 'ready')
           GROUP BY u.id ORDER BY bool_or(EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $1)) DESC, max(i.created_at) DESC LIMIT 40`,
@@ -103,7 +103,7 @@ export class InstantsService implements OnModuleInit {
       `SELECT i.id, i.media_id, i.caption, i.created_at, i.expires_at, (SELECT count(*)::int FROM social.instant_views v WHERE v.instant_id = i.id) AS views,
               coalesce((SELECT json_agg(json_build_object('reaction', x.reaction, 'count', x.n) ORDER BY x.n DESC) FROM (SELECT reaction, count(*)::int AS n FROM social.instant_reactions r WHERE r.instant_id = i.id GROUP BY reaction) x), '[]'::json) AS reactions
          FROM social.instants i
-        WHERE i.author_id = $2 AND i.expires_at > now() AND ${visible('i')}
+        WHERE i.author_id = $2 AND i.expires_at > now() AND ${instantVisible('i')} AND ${notReportedBy('instant', 'i.id')}
           AND ($2 = $1 OR NOT EXISTS (SELECT 1 FROM social.instant_views v WHERE v.instant_id = i.id AND v.viewer_id = $1))
           AND EXISTS (SELECT 1 FROM content.media_assets m WHERE m.id = i.media_id AND m.status = 'ready')
         ORDER BY i.created_at`,
@@ -116,7 +116,7 @@ export class InstantsService implements OnModuleInit {
   async view(me: string, id: string) {
     const r = await this.pool.query(
       `INSERT INTO social.instant_views (instant_id, viewer_id)
-       SELECT i.id, $1 FROM social.instants i WHERE i.id = $2 AND i.author_id <> $1 AND i.expires_at > now() AND ${visible('i')}
+       SELECT i.id, $1 FROM social.instants i WHERE i.id = $2 AND i.author_id <> $1 AND i.expires_at > now() AND ${instantVisible('i')}
        ON CONFLICT DO NOTHING`,
       [me, id],
     );
@@ -125,7 +125,7 @@ export class InstantsService implements OnModuleInit {
 
   /** Reagir a um Zás (de quem me deixa vê-lo): uma reação por pessoa; a mesma outra vez tira-a. */
   async react(me: string, id: string, reaction: string | null) {
-    const ok = await this.pool.query(`SELECT 1 FROM social.instants i WHERE i.id = $1 AND i.author_id <> $2 AND i.expires_at > now() AND ${visible('i', '$2')}`, [id, me]);
+    const ok = await this.pool.query(`SELECT 1 FROM social.instants i WHERE i.id = $1 AND i.author_id <> $2 AND i.expires_at > now() AND ${instantVisible('i', '$2')}`, [id, me]);
     if (!ok.rowCount) throw new NotFoundException('Zás não encontrado');
     if (reaction === null) await this.pool.query('DELETE FROM social.instant_reactions WHERE instant_id = $1 AND user_id = $2', [id, me]);
     else {

@@ -4,7 +4,7 @@ import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { NotificationsService } from '../notifications/notifications.service';
-import { allowedBy, canView } from '../social/visibility';
+import { allowedBy, canView, notReportedBy } from '../social/visibility';
 import { readGif, type GifInput } from '../gifs/gif';
 
 const UUID = /^[0-9a-f-]{36}$/;
@@ -31,7 +31,7 @@ export class CommentsService {
     await this.assertPost(userId, postId);
     this.assertCursor(cursor);
     const { rows } = await this.pool.query(
-      `${SELECT} WHERE c.post_id = $2 AND c.parent_id IS NULL AND ($3::uuid IS NULL OR c.id < $3)
+      `${SELECT} WHERE c.post_id = $2 AND c.parent_id IS NULL AND ($3::uuid IS NULL OR c.id < $3) AND ${notReportedBy('comment', 'c.id')}
         ORDER BY c.id DESC LIMIT $4`,
       [userId, postId, cursor ?? null, limit + 1],
     );
@@ -43,7 +43,7 @@ export class CommentsService {
     this.assertCursor(cursor);
     await this.assertComment(userId, commentId);
     const { rows } = await this.pool.query(
-      `${SELECT} WHERE c.parent_id = $2 AND ($3::uuid IS NULL OR c.id > $3) ORDER BY c.id ASC LIMIT $4`,
+      `${SELECT} WHERE c.parent_id = $2 AND ($3::uuid IS NULL OR c.id > $3) AND ${notReportedBy('comment', 'c.id')} ORDER BY c.id ASC LIMIT $4`,
       [userId, commentId, cursor ?? null, limit + 1],
     );
     return this.page(rows, limit);

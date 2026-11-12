@@ -2,7 +2,8 @@ import { boBlob, boRaw } from '../../../lib/api';
 
 /** Cliente da área «Conteúdo e moderação» do backoffice (fila de queixas, conteúdo, catálogo da Geleira e auditoria). */
 
-export type ModReportType = 'post' | 'comment' | 'story' | 'user' | 'message' | 'media' | 'venue';
+/** 'story_comment' (comentário num mimo) e 'instant' (Zás) desde a 0125. */
+export type ModReportType = 'post' | 'comment' | 'story' | 'user' | 'message' | 'media' | 'venue' | 'story_comment' | 'instant';
 export type ModReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence' | 'scam' | 'impersonation' | 'minor' | 'other';
 export type ModAction = 'dismiss' | 'remove' | 'warn' | 'suspend';
 export type ModSort = 'severity' | 'oldest' | 'newest' | 'reports';
