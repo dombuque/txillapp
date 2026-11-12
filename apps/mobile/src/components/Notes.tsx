@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useRef, useState, type ReactNode } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
 import { MusicPicker } from '@/components/MusicPicker';
 import { Sheet } from '@/components/Sheet';
@@ -86,7 +87,7 @@ export function NotesStrip() {
                   <Avatar name={n.displayName} username={n.hasAvatar ? n.username : undefined} size={64} />
                   {n.hasAvatar && online.has(n.username.toLowerCase()) && <View style={styles.online} accessibilityLabel="Online" />}
                 </View>
-                <Text style={styles.label} numberOfLines={1}>{n.displayName.split(' ')[0]}</Text>
+                <NameWithBadge name={n.displayName.split(' ')[0]} who={n} center gap={2} style={[styles.label, styles.labelName]} containerStyle={{ marginTop: 4 }} />
               </Pressable>
             );
           }
@@ -99,7 +100,7 @@ export function NotesStrip() {
                 <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={64} />
                 {p.hasAvatar && online.has(p.username.toLowerCase()) && <View style={styles.online} accessibilityLabel="Online" />}
               </View>
-              <Text style={styles.label} numberOfLines={1}>{p.displayName.split(' ')[0]}</Text>
+              <NameWithBadge name={p.displayName.split(' ')[0]} who={p} center gap={2} style={[styles.label, styles.labelName]} containerStyle={{ marginTop: 4 }} />
             </Pressable>
           );
         })}
@@ -266,6 +267,8 @@ const styles = StyleSheet.create({
   plus: { position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
   online: { position: 'absolute', right: 0, bottom: 0, width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#fff', backgroundColor: '#10b981' },
   label: { marginTop: 4, width: '100%', textAlign: 'center', fontSize: 12, color: colors.zinc600 },
+  /** Na linha com o selo (o selo fica a seguir ao nome, os dois centrados). */
+  labelName: { marginTop: 0, width: undefined },
   big: { alignSelf: 'center', maxWidth: 320, borderRadius: 18, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12, textAlign: 'center', fontSize: 17, fontWeight: '500', lineHeight: 23, color: colors.zinc900, overflow: 'hidden' },
   hint: { marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.zinc500 },
   err: { marginTop: 8, textAlign: 'center', fontSize: 14, color: colors.red600 },

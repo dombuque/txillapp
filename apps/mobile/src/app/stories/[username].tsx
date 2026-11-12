@@ -9,6 +9,7 @@ import { Alert, Animated, AppState, Easing, PanResponder, Platform, Pressable, S
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
 import { ReportSheet } from '@/components/ReportSheet';
 import { RichText } from '@/components/RichText';
@@ -409,7 +410,7 @@ export default function StoryViewer() {
             <Pressable onPress={() => { setAway(true); router.push((mine ? '/profile' : `/u/${cur.author.username}`) as never); }} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 }} accessibilityRole="link" accessibilityLabel={`Perfil de ${cur.author.displayName}`}>
               <Avatar name={cur.author.displayName} username={cur.author.username} size={40} />
               <View style={{ flex: 1, minWidth: 0 }} pointerEvents="none">
-                <Text style={st.name} numberOfLines={1}>{cur.author.username}</Text>
+                <NameWithBadge name={cur.author.username} who={cur.author} style={st.name} />
                 <Text style={st.ago}>{timeAgo(cur.createdAt)}{mine ? ` · ${expiresIn(cur.expiresAt)}` : ''}</Text>
               </View>
             </Pressable>

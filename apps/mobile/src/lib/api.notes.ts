@@ -1,11 +1,11 @@
-import { post, raw } from '@/lib/api';
+import { post, raw, type Badged } from '@/lib/api';
 import { musicPayload, type Track } from '@/lib/api.music';
 
 export type NoteAudience = 'mutual' | 'close_friends';
 /** Igual ao tipo `Note` do site. */
-export interface Note { music?: Track | null; username: string; displayName: string; hasAvatar: boolean; body: string; audience: NoteAudience; createdAt: string; expiresAt: string; cheers?: number; cheered?: boolean }
+export interface Note extends Badged { music?: Track | null; username: string; displayName: string; hasAvatar: boolean; body: string; audience: NoteAudience; createdAt: string; expiresAt: string; cheers?: number; cheered?: boolean }
 /** Alguém com quem já conversei, sem nota: aparece na faixa a seguir às notas. */
-export interface NotePerson { username: string; displayName: string; hasAvatar: boolean; lastAt: string }
+export interface NotePerson extends Badged { username: string; displayName: string; hasAvatar: boolean; lastAt: string }
 
 export const notesApi = {
   /**

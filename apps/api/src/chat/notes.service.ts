@@ -4,6 +4,7 @@ import { TextFilter } from '../safety/text-filter.service';
 import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
 import { blockedBetween } from '../social/visibility';
+import { badge } from '../common/badge';
 import { PushService } from '../push/push.service';
 import { ChatService } from './chat.service';
 
@@ -36,7 +37,7 @@ export class NotesService {
    */
   private async people(me: string, skip: string[]) {
     const { rows } = await this.pool.query(
-      `SELECT o.username, o.display_name, (o.avatar_media_id IS NOT NULL) AS has_avatar, lm.created_at AS last_at
+      `SELECT o.username, o.display_name, o.verified, o.verified_tier, (o.avatar_media_id IS NOT NULL) AS has_avatar, lm.created_at AS last_at
          FROM social.conversations c
          JOIN identity.users o ON o.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END AND o.status = 'active' AND o.id <> $1
          JOIN LATERAL (SELECT created_at FROM social.messages WHERE conversation_id = c.id AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now()) AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)) ORDER BY id DESC LIMIT 1) lm ON true
@@ -52,6 +53,7 @@ export class NotesService {
     return rows.map((r) => ({
       username: r.username as string,
       displayName: r.display_name as string,
+      ...badge(r.verified, r.verified_tier),
       hasAvatar: r.has_avatar as boolean,
       lastAt: r.last_at as string,
     }));
@@ -89,7 +91,7 @@ export class NotesService {
    */
   private async visible(me: string, only?: string) {
     const { rows } = await this.pool.query(
-      `SELECT n.user_id, n.body, n.music, n.audience, n.created_at, n.expires_at, u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar,
+      `SELECT n.user_id, n.body, n.music, n.audience, n.created_at, n.expires_at, u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar,
               (SELECT count(*)::int FROM social.note_cheers c WHERE c.note_user_id = n.user_id) AS cheers,
               EXISTS (SELECT 1 FROM social.note_cheers c WHERE c.note_user_id = n.user_id AND c.user_id = $1) AS cheered
          FROM social.notes n JOIN identity.users u ON u.id = n.user_id AND u.status = 'active'
@@ -104,6 +106,7 @@ export class NotesService {
     const map = (r: Record<string, unknown>) => ({
       username: r.username as string,
       displayName: r.display_name as string,
+      ...badge(r.verified, r.verified_tier),
       hasAvatar: r.has_avatar as boolean,
       body: r.body as string,
       /** Faixa de licença aberta com o crédito do autor, se a nota leva música. */

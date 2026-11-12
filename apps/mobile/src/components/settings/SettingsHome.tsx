@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon, type IconName } from '@/components/Icon';
 import { EditProfileSheet } from '@/components/ProfileSheets';
 import { showsOffBanner, useDeviceNotifications } from '@/components/PushReminder';
@@ -40,7 +41,7 @@ function ProfileCard() {
       >
         <Avatar name={name} username={profile.data?.hasAvatar ? user.username : undefined} size={60} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={st.meName} numberOfLines={2}>{name}</Text>
+          <NameWithBadge name={name} who={profile.data} style={st.meName} numberOfLines={2} />
           <Text style={st.meHandle} numberOfLines={1}>@{user.username}</Text>
           <Text style={st.meEdit}>Editar perfil</Text>
         </View>

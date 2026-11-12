@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon, type IconName } from '@/components/Icon';
 import { ApiError } from '@/lib/api';
 import { groupKeys, groupsApi, type JoinRequest, type TxillGroupInfo } from '@/lib/api.groups';
@@ -239,7 +240,7 @@ function JoinRequests({ groupId, hint, onChanged }: { groupId: string; hint?: nu
           <View key={r.username} style={s.req}>
             <Avatar name={r.displayName} username={r.avatarUrl ? r.username : undefined} size={40} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={s.reqName} numberOfLines={1}>{r.displayName}</Text>
+              <NameWithBadge name={r.displayName} who={r} style={s.reqName} />
               <Text style={s.reqSub} numberOfLines={1}>@{r.username} · {timeAgo(r.createdAt)}</Text>
             </View>
             <Pressable disabled={!!busy} onPress={() => void answer(r, true)} style={[s.accept, busy === r.username && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`Aceitar ${r.displayName}`}>

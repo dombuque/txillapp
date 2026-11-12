@@ -74,7 +74,7 @@ export class InstantsService implements OnModuleInit {
   async tray(me: string) {
     const others = (
       await this.pool.query(
-        `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", count(*)::int AS count, max(i.created_at) AS "latestAt", bool_or(EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $1)) AS close, (array_agg(i.preview ORDER BY i.created_at DESC))[1] AS preview
+        `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", u.verified, u.verified_tier AS "verifiedTier", count(*)::int AS count, max(i.created_at) AS "latestAt", bool_or(EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $1)) AS close, (array_agg(i.preview ORDER BY i.created_at DESC))[1] AS preview
            FROM social.instants i
            JOIN identity.users u ON u.id = i.author_id
           WHERE i.expires_at > now() AND i.author_id <> $1 AND ${instantVisible('i')} AND ${notReportedBy('instant', 'i.id')}
@@ -147,7 +147,7 @@ export class InstantsService implements OnModuleInit {
     const own = await this.pool.query('SELECT 1 FROM social.instants WHERE id = $1 AND author_id = $2', [id, me]);
     if (!own.rowCount) throw new NotFoundException('Zás não encontrado');
     const { rows } = await this.pool.query(
-      `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", v.viewed_at AS "at", r.reaction
+      `SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", u.verified, u.verified_tier AS "verifiedTier", v.viewed_at AS "at", r.reaction
          FROM social.instant_views v JOIN identity.users u ON u.id = v.viewer_id
          LEFT JOIN social.instant_reactions r ON r.instant_id = v.instant_id AND r.user_id = v.viewer_id
         WHERE v.instant_id = $1 ORDER BY v.viewed_at DESC LIMIT 200`,

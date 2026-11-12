@@ -4,6 +4,7 @@ import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { PushService, type NotifyCategory } from '../push/push.service';
 import { allowedBy, blockedBetween, canView } from '../social/visibility';
+import { badge, type Badge } from '../common/badge';
 
 /** @utilizador num texto (o @ não pode vir colado a letras, para não apanhar e-mails). */
 export const MENTION_RE = /(?<![\w.])@([a-zA-Z0-9_.]{3,30})/g;
@@ -311,7 +312,7 @@ export class NotificationsService {
   async list(userId: string, cursor?: string, limit = 30) {
     if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
     const { rows } = await this.pool.query(
-      `SELECT n.id, n.kind, n.data, n.created_at, n.read_at, a.username, a.display_name, a.status, a.is_private,
+      `SELECT n.id, n.kind, n.data, n.created_at, n.read_at, a.username, a.display_name, a.status, a.is_private, a.verified, a.verified_tier,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = a.id) AS i_follow,
               EXISTS (SELECT 1 FROM social.follow_requests r WHERE r.requester_id = $1 AND r.target_id = a.id) AS requested,
               (SELECT json_build_object('id', pm.media_id, 'video', ma.mime LIKE 'video/%')
@@ -335,8 +336,8 @@ export class NotificationsService {
         read: r.read_at !== null,
         // Os avisos da equipa vêm em nome do Txillapp (nunca o nome nem o @ da pessoa da equipa).
         actor: r.status === 'staff'
-          ? { username: 'txillapp', displayName: 'Txillapp', isPrivate: false, following: false, requested: false, staff: true }
-          : { username: r.username, displayName: r.status === 'active' ? r.display_name : 'Conta eliminada', isPrivate: !!r.is_private, following: !!r.i_follow, requested: !!r.requested },
+          ? { username: 'txillapp', displayName: 'Txillapp', isPrivate: false, following: false, requested: false, staff: true, verified: true, verifiedTier: 'official' as const }
+          : { username: r.username, displayName: r.status === 'active' ? r.display_name : 'Conta eliminada', isPrivate: !!r.is_private, following: !!r.i_follow, requested: !!r.requested, ...(r.status === 'active' ? badge(r.verified, r.verified_tier) : badge(false, null)) },
         // A miniatura da publicação (a primeira foto; nos vídeos, o cartaz), como na lista de notificações do Instagram.
         thumb: r.thumb ? { url: `/api/v1/media/${(r.thumb as { id: string }).id}${(r.thumb as { video: boolean }).video ? '?poster=1' : ''}`, video: !!(r.thumb as { video: boolean }).video } : null,
         // Brindes: quantos ainda estão postos nesta janela e os dois últimos a brindar (para as fotos e "Ana, Rui e 3 outros").
@@ -351,11 +352,11 @@ export class NotificationsService {
    * o mais recente primeiro. Devolve a contagem e os dois primeiros.
    */
   private async cheersOf(userId: string, ids: string[]) {
-    const out = new Map<string, { count: number; actors: { username: string; displayName: string }[] }>();
+    const out = new Map<string, { count: number; actors: ({ username: string; displayName: string } & Badge)[] }>();
     if (!ids.length) return out;
     const { rows } = await this.pool.query(
-      `SELECT id, total, username, display_name FROM (
-         SELECT n.id, cu.username, cu.display_name,
+      `SELECT id, total, username, display_name, verified, verified_tier FROM (
+         SELECT n.id, cu.username, cu.display_name, cu.verified, cu.verified_tier,
                 row_number() OVER (PARTITION BY n.id ORDER BY cn.created_at DESC) AS rn,
                 count(*) OVER (PARTITION BY n.id)::int AS total
            FROM social.notifications n
@@ -369,7 +370,7 @@ export class NotificationsService {
     );
     for (const r of rows) {
       const g = out.get(r.id as string) ?? { count: r.total as number, actors: [] };
-      g.actors.push({ username: r.username as string, displayName: r.display_name as string });
+      g.actors.push({ username: r.username as string, displayName: r.display_name as string, ...badge(r.verified, r.verified_tier) });
       out.set(r.id as string, g);
     }
     return out;

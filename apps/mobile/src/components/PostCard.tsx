@@ -26,6 +26,7 @@ import { GiftSheet, PostMenuSheet, RepostSheet } from './PostSheets';
 import { ShareSheet } from './ShareSheet';
 import { TrackCard } from './TrackCard';
 import { VerifiedBadge } from './VerifiedBadge';
+import { NameWithBadge } from './NameWithBadge';
 import { VenueLogo } from './VenueCard';
 import { CheersPour } from './CheersPour';
 import { KIND_LABEL } from '@/lib/api.locais';
@@ -116,7 +117,9 @@ function PostCardBase({ post, me, detail, openComments, highlightComment, sponso
             <Icon name="repeat" size={15} color={colors.zinc500} strokeWidth={2} />
           </View>
           <Pressable onPress={() => pushOnce(router, profileOf(post.author, me))} accessibilityRole="link" style={{ flexShrink: 1 }}>
-            <Text style={styles.repostText} numberOfLines={1}>{post.author.id === me ? 'Repostaste' : `${post.author.displayName} repostou`}</Text>
+            {post.author.id === me
+              ? <Text style={styles.repostText} numberOfLines={1}>Repostaste</Text>
+              : <NameWithBadge name={post.author.displayName} who={post.author} style={styles.repostText}><Text style={[styles.repostText, { flexShrink: 0 }]}>repostou</Text></NameWithBadge>}
           </Pressable>
         </View>
         <PostCard post={post.repostOf} me={me} />
@@ -419,7 +422,7 @@ function GiftedPost({ original, onOpen }: { original: Post; onOpen?: (p: Post) =
     <Pressable onPress={() => onOpen?.(original)} style={({ pressed }) => [styles.gifted, pressed && { backgroundColor: '#fafafa' }]} accessibilityRole="link">
       <View style={styles.giftedHead}>
         <Avatar name={original.author.displayName} username={original.author.username} size={30} />
-        <Text style={[styles.quoteName, { flexShrink: 1 }]} numberOfLines={1}>{original.author.displayName}</Text>
+        <NameWithBadge name={original.author.displayName} who={original.author} style={styles.quoteName} containerStyle={{ flexShrink: 1 }} />
         <Text style={styles.quoteTime}>· {timeAgo(original.createdAt)}</Text>
       </View>
       {original.body ? <Text style={styles.quoteBody} numberOfLines={3}>{original.body}</Text> : null}
@@ -513,7 +516,7 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = fals
               <View style={styles.tagsList}>
                 {tags.map((t) => (
                   <Pressable key={t.username} onPress={() => router.push(`/u/${t.username}` as never)} style={styles.tagPill} accessibilityRole="link">
-                    <Text style={styles.tagPillText}>@{t.username}</Text>
+                    <NameWithBadge name={`@${t.username}`} who={t} style={styles.tagPillText} />
                   </Pressable>
                 ))}
               </View>

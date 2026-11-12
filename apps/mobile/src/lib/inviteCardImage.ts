@@ -2,7 +2,7 @@ import { ClipOp, ImageFormat, matchFont, Skia, type SkCanvas, type SkFont, type 
 import { File, Paths } from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { Linking, Platform, Share } from 'react-native';
-import { cardLayout, whatsappUrl, type CardInput, type CardText } from './inviteCard';
+import { badgePlace, cardLayout, sealSvg, whatsappUrl, type CardInput, type CardText } from './inviteCard';
 
 /**
  * O cartão do convite no telemóvel: desenhado no aparelho com a Skia (o fundo em SVG, a foto recortada em círculo e as letras
@@ -39,6 +39,19 @@ function drawText(canvas: SkCanvas, t: CardText) {
     w = widthOf(font);
   }
   let x = t.align === 'center' ? t.x - w / 2 : t.x;
+  if (t.badge) {
+    // O selo de verificado a seguir ao nome: o nome e o selo centram-se juntos.
+    const b = badgePlace(t, w, size);
+    canvas.drawText(t.text, b.textX, t.y, paint, font);
+    const seal = Skia.SVG.MakeFromString(sealSvg(t.badge, b.size));
+    if (seal) {
+      canvas.save();
+      canvas.translate(b.x, b.y);
+      canvas.drawSvg(seal, b.size, b.size);
+      canvas.restore();
+    }
+    return;
+  }
   if (!t.spacing) return canvas.drawText(t.text, x, t.y, paint, font);
   for (const ch of chars) {
     canvas.drawText(ch, x, t.y, paint, font);

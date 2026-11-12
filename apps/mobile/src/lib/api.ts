@@ -13,9 +13,12 @@ import type { SponsoredSlot } from './api.boosts';
 export interface PublicUser { id: string; username: string; displayName: string }
 export interface AuthResult { accessToken: string; /** Só na app nativa; na web vai no cookie. */ refreshToken?: string; user: PublicUser }
 
-export interface PostMedia { url: string; kind?: 'image' | 'video'; posterUrl?: string; width?: number | null; height?: number | null; durationMs?: number | null; tags?: { username: string }[] }
+export interface PostMedia { url: string; kind?: 'image' | 'video'; posterUrl?: string; width?: number | null; height?: number | null; durationMs?: number | null; tags?: ({ username: string; displayName?: string } & Badged)[] }
 /** Tcheka = uma publicação com um único vídeo. Fotos e vídeos juntos são um carrossel normal (abre como publicação). */
 export const isTcheka = (p: { media: { kind?: string }[] } | null | undefined) => !!p && p.media.length === 1 && p.media[0]?.kind === 'video';
+/** Selo de verificado: os mesmos campos que a API manda nos posts e no perfil. */
+export type VerifiedTier = 'verified' | 'official' | null;
+export interface Badged { verified?: boolean; verifiedTier?: VerifiedTier }
 export interface Author { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null }
 export interface Post {
   /** Música da publicação (licença aberta ou clipe próprio). */
@@ -44,7 +47,7 @@ export interface Post {
   feed?: { source: 'following' | 'self' | 'discover'; seen: boolean };
   kind: 'post' | 'gift' | 'repost';
   repostOf?: Post | null;
-  gift: { amount: number; recipient: { username: string; displayName: string } } | null;
+  gift: { amount: number; recipient: { username: string; displayName: string } & Badged } | null;
 }
 export interface Comment {
   id: string;
@@ -78,15 +81,15 @@ export interface AppNotification {
   createdAt: string;
   read: boolean;
   /** `staff`: aviso da equipa do Txillapp (o servidor mostra-o como «txillapp»; não há perfil para abrir). */
-  actor: { username: string; displayName: string; isPrivate?: boolean; following?: boolean; requested?: boolean; staff?: boolean };
+  actor: { username: string; displayName: string; isPrivate?: boolean; following?: boolean; requested?: boolean; staff?: boolean } & Badged;
   thumb?: { url: string; video: boolean } | null;
   /** Só nos brindes (`cheer`): quantos ainda estão postos nesta linha e os dois últimos a brindar. */
-  cheer?: { count: number; actors: { username: string; displayName: string }[] };
+  cheer?: { count: number; actors: ({ username: string; displayName: string } & Badged)[] };
 }
 export type ProfileTab = 'all' | 'reels' | 'reposts' | 'gifts' | 'saved';
 export type MentionSuggestContext = 'post' | 'group' | 'story' | 'zas' | 'chat';
-export interface MentionSuggestion { username: string; displayName: string; hasAvatar: boolean; verified?: boolean; reason?: 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proximo' | 'neste-post' | 'no-grupo' }
-export interface Person { username: string; displayName: string; following: boolean; followsYou: boolean; isPrivate?: boolean; requested?: boolean; verified?: boolean }
+export interface MentionSuggestion extends Badged { username: string; displayName: string; hasAvatar: boolean; reason?: 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proximo' | 'neste-post' | 'no-grupo' }
+export interface Person extends Badged { username: string; displayName: string; following: boolean; followsYou: boolean; isPrivate?: boolean; requested?: boolean }
 export interface InvitesInfo {
   code: string;
   link: string;
@@ -98,14 +101,14 @@ export interface InvitesInfo {
    * Para desenhar o cartão do convite no aparelho (servidor antigo não manda). `items`: só os da geleira à vista de todos
    * (vazio se a geleira ou a conta não forem públicas); `adult`: false → nada de álcool no cartão.
    */
-  card?: { displayName: string; username: string; hasAvatar: boolean; adult: boolean; geleiraPublic: boolean; items: { name: string; kind: string; category: string; alcoholic: boolean; favorite: boolean }[] };
+  card?: { displayName: string; username: string; hasAvatar: boolean; verified?: boolean; verifiedTier?: VerifiedTier; adult: boolean; geleiraPublic: boolean; items: { name: string; kind: string; category: string; alcoholic: boolean; favorite: boolean }[] };
 }
 /** O convite visto por quem ainda não tem conta (página /c/CÓDIGO e registo). */
-export interface InvitePreview { username: string; displayName: string; hasAvatar?: boolean; items?: string[]; reward?: number; phrase?: string }
+export interface InvitePreview extends Badged { username: string; displayName: string; hasAvatar?: boolean; items?: string[]; reward?: number; phrase?: string }
 export interface WalletView {
   currency: string;
   balance: number;
-  history: { id: string; amount: number; type: string; createdAt: string; counterparty: { username: string; displayName: string } | null; note: string | null }[];
+  history: { id: string; amount: number; type: string; createdAt: string; counterparty: ({ username: string; displayName: string } & Badged) | null; note: string | null }[];
 }
 export interface TagPage { tag: string; posts: number; authors: number; items: Post[]; nextCursor: string | null }
 function qsp(cursor?: string, q?: string) {
@@ -142,7 +145,7 @@ export interface PrivacySettings {
   /** Já viu (ou saltou) a visita guiada. */
   welcomed?: boolean;
 }
-export interface StorySettings { replies: Who; hidden: { username: string; displayName: string }[] }
+export interface StorySettings { replies: Who; hidden: ({ username: string; displayName: string } & Badged)[] }
 /** Uma sessão em /auth/sessions. `kind` e `mobile` só vêm nos servidores novos (lib/aparelhos adivinha pelo nome nos antigos). */
 export interface DeviceSession { id: string; device: string; kind?: 'app' | 'pwa' | 'browser' | 'unknown'; mobile?: boolean; firstSeen: string; lastUsed: string; current: boolean }
 export type DocType = 'id_card' | 'passport' | 'driver_licence' | 'residence' | 'other';
@@ -190,7 +193,7 @@ export interface Profile {
 }
 export interface SearchResults {
   query: string;
-  people: { username: string; displayName: string; verified?: boolean; isPrivate: boolean; following: boolean; requested: boolean; followsYou: boolean }[];
+  people: ({ username: string; displayName: string; isPrivate: boolean; following: boolean; requested: boolean; followsYou: boolean } & Badged)[];
   posts: Post[];
   tags: { tag: string; posts: number }[];
   /** Locais (páginas) com esse nome ou nessa cidade. */
@@ -231,7 +234,7 @@ export interface ChatMessage {
   at: string;
 }
 export interface Presence { online: boolean; lastSeen: string | null }
-export interface Conversation {
+export interface Conversation extends Badged {
   username: string;
   displayName: string;
   hasAvatar: boolean;
@@ -250,7 +253,7 @@ export interface GroupSummary {
   id: string;
   name: string;
   members: number;
-  preview: { username: string; displayName: string; hasAvatar: boolean }[];
+  preview: ({ username: string; displayName: string; hasAvatar: boolean } & Badged)[];
   /** `cleared`: está vazia porque a limpei ("Sem mensagens"); `empty` sem `cleared` = grupo novo, sem mensagens. */
   lastMessage: { body: string; kind: MsgKind; fromMe: boolean; senderName: string | null; at: string; empty: boolean; cleared?: boolean };
   /** Mensagens temporárias: quanto dura cada mensagem nova (segundos), ou null (desligadas). */
@@ -261,7 +264,7 @@ export interface ChatThread {
   relation?: { iFollow: boolean; theyFollow: boolean; request: boolean; left: number | null };
   /** Publicações da pessoa que ainda não vi (últimos 7 dias): "1 publicação nova" no cabeçalho. Servidores antigos não mandam. */
   newPosts?: { count: number; latestId: string | null };
-  person: { username: string; displayName: string; hasAvatar: boolean; canGift?: boolean; presence?: Presence | null };
+  person: { username: string; displayName: string; hasAvatar: boolean; canGift?: boolean; presence?: Presence | null } & Badged;
   blocked: boolean;
   /** Mensagens temporárias nesta conversa (segundos: 86400, 604800 ou 7776000), ou null. Servidores antigos não mandam. */
   ttl?: number | null;
@@ -286,10 +289,10 @@ export interface Story {
   audience: 'all' | 'close_friends';
   mediaKind: 'image' | 'video';
   durationMs: number | null;
-  sharedFrom: { postId: string; username: string; displayName: string } | null;
+  sharedFrom: ({ postId: string; username: string; displayName: string } & Badged) | null;
   createdAt: string;
   expiresAt: string;
-  author: { username: string; displayName: string };
+  author: { username: string; displayName: string } & Badged;
   seen: boolean;
   viewCount: number | null;
   cheered?: boolean;
@@ -303,8 +306,8 @@ export interface Story {
   /** Stickers por cima do mimo (centro e largura em fração do ecrã, rotação em graus). */
   stickers?: { id: string; x: number; y: number; s: number; r: number }[];
 }
-export interface StoryComment { id: string; body: string; createdAt: string; mine: boolean; canDelete: boolean; author: { username: string; displayName: string; hasAvatar: boolean } }
-export interface TrayUser { username: string; displayName: string; isMe: boolean; count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string }
+export interface StoryComment { id: string; body: string; createdAt: string; mine: boolean; canDelete: boolean; author: { username: string; displayName: string; hasAvatar: boolean } & Badged }
+export interface TrayUser extends Badged { username: string; displayName: string; isMe: boolean; count: number; seenCount: number; seen: boolean; closeFriends: boolean; latestAt: string }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 
 export class ApiError extends Error {
@@ -682,13 +685,13 @@ export const api = {
   deleteStory: (id: string): Promise<void> => raw(`/stories/${id}`, { method: 'DELETE' }),
   setStoryComments: (id: string, commentsOff: boolean): Promise<{ commentsOff: boolean }> => raw(`/stories/${id}`, { method: 'PATCH', body: JSON.stringify({ commentsOff }) }),
   replyStory: (id: string, body: string): Promise<{ id: string; kind: 'reply' | 'reaction' }> => trackOk(raw(`/stories/${id}/replies`, post({ body })), 'message_send', (r) => ({ kind: r?.kind === 'reaction' ? 'story_reaction' : 'story_reply', group: false })),
-  storyReplies: (id: string): Promise<{ id: string; body: string; kind: 'reply' | 'reaction'; createdAt: string; author: { username: string; displayName: string } }[]> => raw(`/stories/${id}/replies`),
-  storyViewers: (id: string): Promise<{ username: string; displayName: string; viewedAt: string; cheered?: boolean }[]> => raw(`/stories/${id}/viewers`),
+  storyReplies: (id: string): Promise<{ id: string; body: string; kind: 'reply' | 'reaction'; createdAt: string; author: { username: string; displayName: string } & Badged }[]> => raw(`/stories/${id}/replies`),
+  storyViewers: (id: string): Promise<({ username: string; displayName: string; viewedAt: string; cheered?: boolean } & Badged)[]> => raw(`/stories/${id}/viewers`),
   cheerStory: (id: string, on: boolean): Promise<{ cheered: boolean }> => trackOk(raw(`/stories/${id}/cheer`, { method: on ? 'PUT' : 'DELETE' }), 'cheer', on && { target: 'story' }),
   storyComments: (id: string): Promise<StoryComment[]> => raw(`/stories/${id}/comments`),
   commentStory: (id: string, body: string): Promise<{ id: string }> => trackOk(raw(`/stories/${id}/comments`, post({ body })), 'comment', { target: 'story' }),
   deleteStoryComment: (commentId: string): Promise<void> => raw(`/stories/comments/${commentId}`, { method: 'DELETE' }),
-  closeFriends: (): Promise<{ username: string; displayName: string; hasAvatar: boolean }[]> => raw('/stories/close-friends'),
+  closeFriends: (): Promise<({ username: string; displayName: string; hasAvatar: boolean } & Badged)[]> => raw('/stories/close-friends'),
   addCloseFriend: (username: string): Promise<void> => raw(`/stories/close-friends/${encodeURIComponent(username)}`, { method: 'PUT' }),
   removeCloseFriend: (username: string): Promise<void> => raw(`/stories/close-friends/${encodeURIComponent(username)}`, { method: 'DELETE' }),
   reels: (cursor?: string): Promise<Page<Post>> => raw(`/feed/reels${cursor ? `?cursor=${cursor}&limit=6` : '?limit=6'}`),
@@ -720,7 +723,7 @@ export const api = {
   chatReact: (id: string, reaction: string): Promise<void> => raw(`/chat/messages/${id}/reaction`, { method: 'PUT', body: JSON.stringify({ reaction }) }),
   chatAccept: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/accept`, post({})),
   chatDecline: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/decline`, post({})),
-  mentionable: (q: string): Promise<{ username: string; displayName: string; hasAvatar: boolean; following: boolean; verified?: boolean }[]> => raw(`/mentionable?q=${encodeURIComponent(q)}`),
+  mentionable: (q: string): Promise<({ username: string; displayName: string; hasAvatar: boolean; following: boolean } & Badged)[]> => raw(`/mentionable?q=${encodeURIComponent(q)}`),
   /** Sugestões ao escrever @: as pessoas mais próximas primeiro; `context` + `id` sobem quem está na publicação/no grupo/no mimo. */
   mentionSuggest: (q: string, context?: MentionSuggestContext, id?: string): Promise<{ items: MentionSuggestion[] }> =>
     raw(`/mentions/suggest?q=${encodeURIComponent(q)}${context && id ? `&context=${context}&id=${encodeURIComponent(id)}` : ''}`),
@@ -736,12 +739,12 @@ export const api = {
   follow: (username: string): Promise<FollowState> => trackOk(raw(`/users/${encodeURIComponent(username)}/follow`, post({})), 'follow', (r) => ({ requested: !!r?.requested })),
   unfollow: (username: string): Promise<FollowState> => raw(`/users/${encodeURIComponent(username)}/unfollow`, post({})),
   block: (username: string): Promise<void> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'PUT' }),
-  unblock: (username: string): Promise<{ username: string; displayName: string }[]> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'DELETE' }),
+  unblock: (username: string): Promise<({ username: string; displayName: string } & Badged)[]> => raw(`/blocks/${encodeURIComponent(username)}`, { method: 'DELETE' }),
   invites: (): Promise<InvitesInfo> => raw('/invites/me'),
   updateMe: (b: { displayName?: string; bio?: string; isPrivate?: boolean; website?: string; city?: string }): Promise<{ displayName: string }> => raw('/users/me', { method: 'PATCH', body: JSON.stringify(b) }),
   setAvatar: (mediaId: string): Promise<{ hasAvatar: boolean }> => raw('/users/me/avatar', { method: 'PUT', body: JSON.stringify({ mediaId }) }),
   clearAvatar: (): Promise<{ hasAvatar: boolean }> => raw('/users/me/avatar', { method: 'DELETE' }),
-  followRequests: (): Promise<{ username: string; displayName: string; requestedAt: string }[]> => raw('/follow-requests'),
+  followRequests: (): Promise<({ username: string; displayName: string; requestedAt: string } & Badged)[]> => raw('/follow-requests'),
   explorePrefs: (): Promise<Record<string, number>> => raw('/feed/prefs'),
   exploreActivity: (): Promise<{ id: string; label: string }[]> => raw('/feed/algorithm'),
   setExplorePref: (topic: string, pref: -1 | 0 | 1): Promise<Record<string, number>> => raw('/feed/prefs', { method: 'PUT', body: JSON.stringify({ topic, pref }) }),
@@ -762,7 +765,7 @@ export const api = {
   setStoryReplies: (replies: Who): Promise<StorySettings> => raw('/stories/settings', { method: 'PATCH', body: JSON.stringify({ replies }) }),
   hideStoryFrom: (username: string): Promise<StorySettings> => raw(`/stories/hidden/${encodeURIComponent(username)}`, { method: 'PUT' }),
   unhideStoryFrom: (username: string): Promise<StorySettings> => raw(`/stories/hidden/${encodeURIComponent(username)}`, { method: 'DELETE' }),
-  blocked: (): Promise<{ username: string; displayName: string }[]> => raw('/blocks'),
+  blocked: (): Promise<({ username: string; displayName: string } & Badged)[]> => raw('/blocks'),
   geo: (): Promise<{ country: string | null }> => raw('/health/geo'),
   notifySettings: (): Promise<{ categories: string[]; off: string[] }> => raw('/notifications/settings'),
   saveNotifySettings: (off: string[]): Promise<void> => raw('/notifications/settings', { method: 'PUT', body: JSON.stringify({ off }) }),

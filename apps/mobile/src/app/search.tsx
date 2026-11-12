@@ -14,7 +14,7 @@ import { FollowButton } from '@/components/FollowButton';
 import { Icon } from '@/components/Icon';
 import { Suggestions } from '@/components/Suggestions';
 import { Bolt } from '@/components/SuperTxillPanel';
-import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { api, isTcheka, type Post } from '@/lib/api';
 import { locaisApi } from '@/lib/api.locais';
 import { VenueRow, VenueTile } from '@/components/VenueCard';
@@ -310,11 +310,9 @@ export default function Search() {
                     <Pressable onPress={() => { remember(term); router.push(`/u/${p.username}` as never); }} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                       <Avatar name={p.displayName} username={p.username} size={48} />
                       <View style={{ flex: 1, minWidth: 0 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                          <Text style={styles.pName} numberOfLines={1}>{p.displayName}</Text>
-                          {p.verified && <VerifiedBadge size={15} />}
+                        <NameWithBadge name={p.displayName} who={p} style={styles.pName} gap={4}>
                           {p.isPrivate && <Icon name="lock" size={14} color={colors.zinc500} />}
-                        </View>
+                        </NameWithBadge>
                         <Text style={styles.pHandle} numberOfLines={1}>@{p.username}{p.followsYou ? ' · segue-te' : ''}</Text>
                       </View>
                     </Pressable>
@@ -360,7 +358,7 @@ export default function Search() {
                       <View style={[styles.thumb, { backgroundColor: colors.rose50, alignItems: 'center', justifyContent: 'center' }]}><Icon name="comment" size={24} /></View>
                     )}
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.pName} numberOfLines={1}>{p.author.displayName}</Text>
+                      <NameWithBadge name={p.author.displayName} who={p.author} style={styles.pName} />
                       <Text style={{ fontSize: 14, color: colors.zinc700 }} numberOfLines={2}>{p.body || (p.media.length ? 'Foto' : '')}</Text>
                       <Text style={{ fontSize: 12, color: colors.zinc500 }}>{timeAgo(p.createdAt)}{p.locationLabel ? ` · ${p.locationLabel}` : ''}</Text>
                     </View>

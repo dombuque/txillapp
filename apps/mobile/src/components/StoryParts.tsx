@@ -9,6 +9,7 @@ import { SITE_URL } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
+import { NameWithBadge } from './NameWithBadge';
 import { Icon } from './Icon';
 import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
 import { ReportSheet } from './ReportSheet';
@@ -177,7 +178,7 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
             <View key={c.id} style={st.item}>
               <Avatar name={c.author.displayName} username={c.author.hasAvatar ? c.author.username : undefined} size={36} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ fontSize: 14, color: colors.zinc500 }} numberOfLines={1}><Text style={{ fontWeight: '700', color: colors.zinc900 }}>{c.author.username}</Text> · {timeAgo(c.createdAt)}</Text>
+                <NameWithBadge name={c.author.username} who={c.author} style={st.who}><Text style={st.whoAgo}>· {timeAgo(c.createdAt)}</Text></NameWithBadge>
                 <RichText text={c.body} style={{ fontSize: 15, lineHeight: 21, color: colors.zinc900 }} />
               </View>
               {!c.mine && <Pressable onPress={() => setReporting(c.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Denunciar o comentário de ${c.author.username}`} style={{ padding: 6 }}><Icon name="flag" size={17} color={colors.zinc500} /></Pressable>}
@@ -227,7 +228,7 @@ export function ActivityPanel({ story, onClose }: { story: Story; onClose: () =>
               <View key={r.id} style={st.item}>
                 <Avatar name={r.author.displayName} username={r.author.username} size={40} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontSize: 14, color: colors.zinc500 }} numberOfLines={1}><Text style={{ fontWeight: '700', color: colors.zinc900 }}>{r.author.displayName}</Text> · {timeAgo(r.createdAt)}</Text>
+                  <NameWithBadge name={r.author.displayName} who={r.author} style={st.who}><Text style={st.whoAgo}>· {timeAgo(r.createdAt)}</Text></NameWithBadge>
                   {r.kind === 'reaction' ? <ReactionArt body={r.body} size={44} /> : <Text style={st.bubble}>{r.body}</Text>}
                 </View>
               </View>
@@ -242,7 +243,7 @@ export function ActivityPanel({ story, onClose }: { story: Story; onClose: () =>
               <View key={v.username} style={[st.item, { alignItems: 'center' }]}>
                 <Avatar name={v.displayName} username={v.username} size={40} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} numberOfLines={1}>{v.displayName}</Text>
+                  <NameWithBadge name={v.displayName} who={v} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} />
                   <Text style={{ fontSize: 14, color: colors.zinc500 }} numberOfLines={1}>@{v.username}</Text>
                 </View>
                 {v.cheered && <Icon name="cheers" size={18} color={colors.brand} />}
@@ -280,7 +281,7 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
           <View key={f.username} style={[st.item, { alignItems: 'center' }]}>
             <Avatar name={f.displayName} username={f.hasAvatar ? f.username : undefined} size={40} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} numberOfLines={1}>{f.displayName}</Text>
+              <NameWithBadge name={f.displayName} who={f} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} />
               <Text style={{ fontSize: 14, color: colors.zinc500 }} numberOfLines={1}>@{f.username}</Text>
             </View>
             <Pressable onPress={() => void toggle(f.username, false)} style={[st.pill, { backgroundColor: '#ecfdf5' }]} accessibilityRole="button"><Text style={{ fontWeight: '700', fontSize: 14, color: '#047857' }}>Na lista</Text></Pressable>
@@ -292,7 +293,7 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
           <View key={p.username} style={[st.item, { alignItems: 'center' }]}>
             <Avatar name={p.displayName} username={p.username} size={40} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} numberOfLines={1}>{p.displayName}</Text>
+              <NameWithBadge name={p.displayName} who={p} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} />
               <Text style={{ fontSize: 14, color: colors.zinc500 }} numberOfLines={1}>@{p.username}</Text>
             </View>
             <Pressable onPress={() => void toggle(p.username, true)} style={[st.pill, { backgroundColor: colors.brand }]} accessibilityRole="button"><Text style={{ fontWeight: '700', fontSize: 14, color: '#fff' }}>Adicionar</Text></Pressable>
@@ -315,6 +316,8 @@ const st = StyleSheet.create({
   flash: { marginTop: 8, textAlign: 'center', fontSize: 14, fontWeight: '500', color: '#fff' },
   none: { paddingVertical: 24, textAlign: 'center', color: colors.zinc500, fontSize: 16 },
   item: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 10 },
+  who: { fontSize: 14, fontWeight: '700', color: colors.zinc900 },
+  whoAgo: { flexShrink: 0, fontSize: 14, color: colors.zinc500 },
   compose: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: colors.zinc100, paddingTop: 12 },
   commentInput: { flex: 1, height: 44, borderRadius: 22, backgroundColor: colors.zinc100, paddingHorizontal: 16, fontSize: 15, color: colors.zinc900, outlineStyle: 'none' as never },
   closed: { marginTop: 8, borderRadius: 12, backgroundColor: '#fafafa', paddingHorizontal: 12, paddingVertical: 10, textAlign: 'center', fontSize: 14, color: colors.zinc600 },

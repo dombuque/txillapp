@@ -6,6 +6,7 @@ import { normalizeTag } from '../common/hashtags';
 import { uuidv7 } from '../common/uuid7';
 import { NotificationsService } from '../notifications/notifications.service';
 import { blockedBetween, canView } from '../social/visibility';
+import { badge } from '../common/badge';
 
 export const KINDS = ['vibe', 'bebida', 'comida', 'sitio'] as const;
 export type Kind = (typeof KINDS)[number];
@@ -287,14 +288,14 @@ export class GeleiraService {
     if (!o || (!isOwner && (!o.can || !o.shown))) throw new NotFoundException('Sem geleira para mostrar');
     if (!isOwner && !o.cheers_public) throw new ForbiddenException('Só o dono vê quem brindou a geleira');
     const { rows } = await this.pool.query(
-      `SELECT u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, c.created_at
+      `SELECT u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar, c.created_at
          FROM taste.geleira_cheers c JOIN identity.users u ON u.id = c.user_id
         WHERE c.owner_id = $1 AND u.status = 'active' AND NOT ${blockedBetween('u.id', 'c.owner_id')}
           AND (c.owner_id = $2 OR NOT ${blockedBetween('u.id', '$2')})
         ORDER BY c.created_at DESC LIMIT 200`,
       [o.id, viewerId],
     );
-    return { items: rows.map((r) => ({ username: r.username as string, displayName: r.display_name as string, hasAvatar: !!r.has_avatar, at: r.created_at as Date })) };
+    return { items: rows.map((r) => ({ username: r.username as string, displayName: r.display_name as string, ...badge(r.verified, r.verified_tier), hasAvatar: !!r.has_avatar, at: r.created_at as Date })) };
   }
 
   async settings(userId: string) {

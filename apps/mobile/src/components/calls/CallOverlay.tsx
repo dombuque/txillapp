@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
 import {
   acceptCall, declineCall, dismissEnded, expandCall, flipCamera, fmtDuration, hangUp, minimiseCall, speakerSelectable,
@@ -178,7 +179,7 @@ function Incoming({ c }: { c: CallState }) {
       <Backdrop peer={c.peer} stream={c.video ? c.local : null} mirror />
       <View style={[st.center, { paddingTop: pad.top + 40 }]}>
         <PulseAvatar peer={c.peer} size={124} pulse />
-        <Text style={st.name} numberOfLines={2}>{c.peer?.displayName ?? ''}</Text>
+        <NameWithBadge name={c.peer?.displayName ?? ''} who={c.peer} style={[st.name, { marginTop: 0 }]} numberOfLines={2} center containerStyle={{ marginTop: 14 }} gap={6} />
         <Kind video={c.video} />
       </View>
 
@@ -245,7 +246,7 @@ function Outgoing({ c }: { c: CallState }) {
       <Backdrop peer={c.peer} stream={c.video && c.camOn ? c.local : null} mirror={c.front} />
       <View style={[st.center, { paddingTop: pad.top + 40 }]}>
         <PulseAvatar peer={c.peer} size={116} pulse />
-        <Text style={st.name} numberOfLines={2}>{c.peer?.displayName ?? ''}</Text>
+        <NameWithBadge name={c.peer?.displayName ?? ''} who={c.peer} style={[st.name, { marginTop: 0 }]} numberOfLines={2} center containerStyle={{ marginTop: 14 }} gap={6} />
         <Kind video={c.video} text={c.callId ? 'A chamar…' : 'A ligar…'} />
       </View>
       <View style={[st.bar, { paddingBottom: pad.bottom }]}>
@@ -270,7 +271,7 @@ function Header({ c }: { c: CallState }) {
         <CallIcon name="chevron-down" size={26} color="#fff" strokeWidth={2.2} />
       </Pressable>
       <View style={{ flex: 1, alignItems: 'center' }}>
-        <Text style={st.headName} numberOfLines={1}>{c.peer?.displayName ?? ''}</Text>
+        <NameWithBadge name={c.peer?.displayName ?? ''} who={c.peer} style={st.headName} center />
         <Text style={st.headTime}>{c.phase === 'active' ? fmtDuration(t) : 'A ligar…'}</Text>
       </View>
       <View style={{ width: 44 }} />
@@ -326,7 +327,7 @@ function VoiceCall({ c }: { c: CallState }) {
       </View>
       <View style={[st.center, { paddingTop: 24 }]}>
         {c.phase === 'active' ? <PairAvatars peer={c.peer} /> : <PulseAvatar peer={c.peer} size={136} pulse={c.phase === 'connecting'} />}
-        <Text style={st.name} numberOfLines={2}>{c.peer?.displayName ?? ''}</Text>
+        <NameWithBadge name={c.peer?.displayName ?? ''} who={c.peer} style={[st.name, { marginTop: 0 }]} numberOfLines={2} center containerStyle={{ marginTop: 14 }} gap={6} />
         <Text style={st.timer}>{c.phase === 'active' ? fmtDuration(t) : 'A ligar…'}</Text>
         <PeerMuted c={c} />
       </View>
@@ -450,7 +451,7 @@ function Ended({ c }: { c: CallState }) {
       <Backdrop peer={c.peer} />
       <View style={[st.center, { justifyContent: 'center', flex: 1 }]}>
         <PulseAvatar peer={c.peer} size={104} />
-        <Text style={st.name} numberOfLines={2}>{c.peer?.displayName ?? ''}</Text>
+        <NameWithBadge name={c.peer?.displayName ?? ''} who={c.peer} style={[st.name, { marginTop: 0 }]} numberOfLines={2} center containerStyle={{ marginTop: 14 }} gap={6} />
         <Text style={[st.timer, { textAlign: 'center' }]} accessibilityLiveRegion="assertive">{endText(c, ms)}</Text>
         {c.message ? <Text style={st.endMsg} numberOfLines={3}>"{c.message}"</Text> : null}
       </View>
@@ -468,7 +469,7 @@ function MiniCall({ c }: { c: CallState }) {
     <View style={[st.miniWrap, { top: Math.max(insets.top, 8) + 4 }]} pointerEvents="box-none">
       <Pressable onPress={expandCall} style={({ pressed }) => [st.mini, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel="Voltar à chamada">
         {c.video ? <Icon name="video" size={16} color="#fff" /> : <CallIcon name="handset" size={15} color="#fff" />}
-        <Text style={st.miniText} numberOfLines={1}>{c.peer?.displayName ?? ''} · {label}</Text>
+        <NameWithBadge name={c.peer?.displayName ?? ''} who={c.peer} style={st.miniText} containerStyle={{ flexShrink: 1 }}><Text style={[st.miniText, { flexShrink: 0 }]}>· {label}</Text></NameWithBadge>
         {c.micOn ? null : <CallIcon name="mic-off" size={15} color="#fff" />}
       </Pressable>
     </View>

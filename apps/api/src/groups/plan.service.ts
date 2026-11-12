@@ -7,6 +7,7 @@ import { TextFilter } from '../safety/text-filter.service';
 import { GroupAccess, pendingVisible, venueOnMap } from './group-access';
 import { PotService } from './pot.service';
 import { mzn, settle, splitCents, toCents } from './settle';
+import { badge, type Badge } from '../common/badge';
 
 /*
  * TxillGroups: o plano de cada grupo (um por grupo). Os administradores mudam o destino, o local e as datas;
@@ -432,25 +433,25 @@ export class PlanService {
       [groupId],
     )).rows;
     const nets = (await this.pool.query(
-      `SELECT u.username, u.display_name, sum(x.v)::bigint AS net FROM (
+      `SELECT u.username, u.display_name, u.verified, u.verified_tier, sum(x.v)::bigint AS net FROM (
            SELECT paid_by AS uid, amount_cents AS v FROM social.group_expenses WHERE group_id = $1
            UNION ALL
            SELECT s.user_id, -s.share_cents FROM social.group_expense_shares s JOIN social.group_expenses e ON e.id = s.expense_id WHERE e.group_id = $1
-         ) x JOIN identity.users u ON u.id = x.uid GROUP BY u.username, u.display_name`,
+         ) x JOIN identity.users u ON u.id = x.uid GROUP BY u.username, u.display_name, u.verified, u.verified_tier`,
       [groupId],
     )).rows;
     const members = (await this.pool.query(
-      'SELECT u.username, u.display_name FROM social.group_members m JOIN identity.users u ON u.id = m.user_id WHERE m.group_id = $1 ORDER BY m.joined_at',
+      'SELECT u.username, u.display_name, u.verified, u.verified_tier FROM social.group_members m JOIN identity.users u ON u.id = m.user_id WHERE m.group_id = $1 ORDER BY m.joined_at',
       [groupId],
     )).rows;
     // Todos os membros aparecem (mesmo a zero); quem saiu só aparece se ainda tem contas por acertar.
-    const people = new Map<string, { username: string; displayName: string; cents: number }>();
-    for (const m of members) people.set(m.username as string, { username: m.username as string, displayName: m.display_name as string, cents: 0 });
+    const people = new Map<string, { username: string; displayName: string; cents: number } & Badge>();
+    for (const m of members) people.set(m.username as string, { username: m.username as string, displayName: m.display_name as string, ...badge(m.verified, m.verified_tier), cents: 0 });
     for (const n of nets) {
       const cents = Number(n.net);
       const p = people.get(n.username as string);
       if (p) p.cents = cents;
-      else if (cents !== 0) people.set(n.username as string, { username: n.username as string, displayName: n.display_name as string, cents });
+      else if (cents !== 0) people.set(n.username as string, { username: n.username as string, displayName: n.display_name as string, ...badge(n.verified, n.verified_tier), cents });
     }
     const settlements = settle(new Map([...people.values()].map((p) => [p.username, p.cents])));
     return {
@@ -465,7 +466,7 @@ export class PlanService {
         canDelete: r.created_by === me || myRole === 'admin',
       })),
       total: mzn(items.reduce((s, r) => s + Number(r.amount_cents), 0)),
-      balances: [...people.values()].map((p) => ({ username: p.username, displayName: p.displayName, net: mzn(p.cents) })),
+      balances: [...people.values()].map((p) => ({ username: p.username, displayName: p.displayName, verified: p.verified, verifiedTier: p.verifiedTier, net: mzn(p.cents) })),
       settlements: settlements.map((s) => ({ from: s.from, to: s.to, amount: mzn(s.cents) })),
     };
   }

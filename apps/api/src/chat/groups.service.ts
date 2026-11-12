@@ -6,6 +6,7 @@ import { PG_POOL } from '../db/db.module';
 import { PushService } from '../push/push.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
+import { badge, type Badge } from '../common/badge';
 import { ChatService, Outgoing, expiresFor, notExpired, notHiddenFor, systemText, type MessageKind, type SystemInfo, type Ttl } from './chat.service';
 import { GroupAccess, NO_MAP_PLACE, venueOnMap } from '../groups/group-access';
 import { roundPlace } from '../nearby/geo-sql';
@@ -167,7 +168,7 @@ export class GroupsService {
     const { rows } = await this.pool.query(
       `SELECT g.id, g.name, g.last_message_at, g.ttl_seconds, gm.cleared_id,
               (SELECT count(*) FROM social.group_members x WHERE x.group_id = g.id)::int AS members,
-              (SELECT json_agg(t) FROM (SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar"
+              (SELECT json_agg(t) FROM (SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", u.verified, u.verified_tier AS "verifiedTier"
                   FROM social.group_members x JOIN identity.users u ON u.id = x.user_id WHERE x.group_id = g.id AND x.user_id <> $1 ORDER BY x.joined_at LIMIT 3) t) AS preview,
               CASE WHEN lm.view_once THEN '' WHEN lm.kind = 'poll' THEN (SELECT p.question FROM social.group_polls p WHERE p.id::text = lm.body) ELSE lm.body END AS last_body, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, lm.system AS last_system, su.display_name AS last_name,
               (SELECT count(*) FROM social.messages m WHERE m.group_id = g.id AND m.sender_id <> $1 AND m.deleted_at IS NULL AND m.kind <> 'system' AND ${notHiddenFor('m', '$1')} AND ${notExpired('m')}
@@ -188,7 +189,7 @@ export class GroupsService {
       groupKind: sums.get(r.id as string)!.kind,
       ...(({ kind: _k, ...rest }) => rest)(sums.get(r.id as string)!),
       members: r.members as number,
-      preview: (r.preview ?? []) as { username: string; displayName: string; hasAvatar: boolean }[],
+      preview: (r.preview ?? []) as ({ username: string; displayName: string; hasAvatar: boolean } & Badge)[],
       /** Mensagens temporárias: quanto dura cada mensagem nova (segundos), ou null (desligadas). */
       ttl: (r.ttl_seconds as number | null) ?? null,
       lastMessage: {
@@ -213,11 +214,11 @@ export class GroupsService {
     const g = (await this.pool.query('SELECT g.id, g.name, g.ttl_seconds, gm.cleared_id FROM social.groups g JOIN social.group_members gm ON gm.group_id = g.id AND gm.user_id = $2 WHERE g.id = $1', [groupId, me])).rows[0];
     const members = (
       await this.pool.query(
-        `SELECT u.id, u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", x.role
+        `SELECT u.id, u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", u.verified, u.verified_tier AS "verifiedTier", x.role
            FROM social.group_members x JOIN identity.users u ON u.id = x.user_id WHERE x.group_id = $1 ORDER BY (x.role = 'admin') DESC, x.joined_at`,
         [groupId],
       )
-    ).rows as { id: string; username: string; displayName: string; hasAvatar: boolean; role: 'admin' | 'member' }[];
+    ).rows as ({ id: string; username: string; displayName: string; hasAvatar: boolean; role: 'admin' | 'member' } & Badge)[];
     const { rows } = await this.pool.query(
       `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.place_name, m.place_address, m.reply_to, m.created_at, m.view_once, m.deleted_at, m.edited_at, m.gif, m.expires_at, m.system,
               CASE WHEN m.sender_id = $4 THEN EXISTS (SELECT 1 FROM social.message_views v WHERE v.message_id = m.id) ELSE EXISTS (SELECT 1 FROM social.message_views v WHERE v.message_id = m.id AND v.user_id = $4) END AS viewed_at
@@ -240,7 +241,7 @@ export class GroupsService {
       return {
         ...it,
         ...(page[i].kind === 'poll' && !page[i].deleted_at ? { poll: polls.get(String(page[i].body)) ?? null } : {}),
-        sender: s ? { username: s.username, displayName: s.displayName, hasAvatar: s.hasAvatar } : { username: '', displayName: 'Ex-membro', hasAvatar: false },
+        sender: s ? { username: s.username, displayName: s.displayName, hasAvatar: s.hasAvatar, ...badge(s.verified, s.verifiedTier) } : { username: '', displayName: 'Ex-membro', hasAvatar: false, ...badge(false, null) },
       };
     });
     const sum = (await this.plan.summaries(me, [groupId])).get(groupId)!;

@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
+import { InlineBadge } from '@/components/NameWithBadge';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { StickerArt } from '@/components/Stickers';
 import { Wordmark } from '@/components/Wordmark';
@@ -73,7 +74,7 @@ export default function InviteLanding() {
               <View style={st.ring}><Avatar username={p.hasAvatar === false ? undefined : p.username} name={p.displayName} size={112} /></View>
               {sticker && <View style={st.sticker} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><StickerArt def={sticker} size={86} /></View>}
             </View>
-            <Text style={st.title} accessibilityRole="header">{p.displayName} convidou-te para o Txillapp</Text>
+            <Text style={st.title} accessibilityRole="header">{p.displayName}<InlineBadge who={p} fontSize={24} /> convidou-te para o Txillapp</Text>
             <Text style={st.phrase}>{phrase}</Text>
             {p.items?.length ? (
               <View style={{ marginTop: 14, alignItems: 'center' }} accessible accessibilityLabel={`Na geleira de ${p.displayName}: ${p.items.join(', ')}`}>

@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { useState, type ReactNode } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Avatar } from '@/components/Avatar';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon, type IconName } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 import { abs, sized } from '@/lib/config';
@@ -193,7 +194,7 @@ export function VenuePickerSheet({ title, txillsOnly = false, onPick, onClose }:
 }
 
 // ----- pessoas -----
-export interface MiniPerson { username: string; displayName: string; hasAvatar: boolean }
+export interface MiniPerson { username: string; displayName: string; hasAvatar: boolean; /** Selo de verificado. */ verified?: boolean; verifiedTier?: 'verified' | 'official' | null }
 /** Escolher uma ou várias pessoas do TxillGroup (para quem paga, dividir entre, responsável). */
 export function MemberPickSheet({ title, people, selected, multiple, allowNone, onDone, onClose }: { title: string; people: MiniPerson[]; selected: string[]; multiple?: boolean; allowNone?: boolean; onDone: (usernames: string[]) => void; onClose: () => void }) {
   const [sel, setSel] = useState<string[]>(selected);
@@ -223,7 +224,7 @@ export function MemberPickSheet({ title, people, selected, multiple, allowNone, 
               <Pressable onPress={() => toggle(p.username)} accessibilityState={{ selected: on }} style={({ pressed }) => [ps.row, pressed && { backgroundColor: colors.zinc100 }]}>
                 <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={40} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={ps.rowName} numberOfLines={1}>{p.displayName}</Text>
+                  <NameWithBadge name={p.displayName} who={p} style={ps.rowName} />
                   <Text style={ps.rowSub} numberOfLines={1}>@{p.username}</Text>
                 </View>
                 {multiple ? <View style={[ps.check, on && { borderColor: colors.brand, backgroundColor: colors.brand }]}>{on && <Icon name="check" size={14} strokeWidth={3} color="#fff" />}</View> : on ? <Icon name="check" size={18} color={colors.brand} /> : null}

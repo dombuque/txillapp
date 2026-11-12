@@ -100,7 +100,7 @@ export default function GroupThreadScreen() {
   const ttl = first?.group.ttl ?? null;
   const me = user?.username ?? '';
   const admin = group?.myRole === 'admin';
-  const people = (group?.members ?? []).map((m) => ({ username: m.username, displayName: m.displayName, hasAvatar: m.hasAvatar }));
+  const people = (group?.members ?? []).map((m) => ({ username: m.username, displayName: m.displayName, hasAvatar: m.hasAvatar, verified: m.verified, verifiedTier: m.verifiedTier }));
 
   useEffect(() => {
     void qc.invalidateQueries({ queryKey: ['chat-unread'] });

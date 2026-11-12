@@ -1,4 +1,4 @@
-import { post, raw } from '@/lib/api';
+import { post, raw, type Badged } from '@/lib/api';
 
 /** Tipos e chamadas da Geleira e dos Zás (copiados do site; as chamadas usam a mesma sessão da app). */
 export type TasteKind = 'vibe' | 'bebida' | 'comida' | 'sitio';
@@ -13,14 +13,14 @@ export interface TheirTaste extends TasteItem { rating: number | null; favorite:
  */
 export interface GeleiraLevel { points: number; level: number; title: string; toNext: number | null; nextTitle: string | null; cheers?: number; cheered?: boolean; cheersListable?: boolean }
 export interface GeleiraCheer { cheered: boolean; cheers: number }
-export interface GeleiraCheerer { username: string; displayName: string; hasAvatar: boolean; at: string }
+export interface GeleiraCheerer extends Badged { username: string; displayName: string; hasAvatar: boolean; at: string }
 
 export interface InstantItem { id: string; url: string; caption: string; at: string; expiresAt: string; views?: number; reactions?: { reaction: string; count: number }[] }
 export interface InstantTray {
   mine: { count: number; views: number; endsAt: string | null };
-  others: { username: string; displayName: string; hasAvatar: boolean; count: number; latestAt: string; close: boolean; preview: string | null }[];
+  others: ({ username: string; displayName: string; hasAvatar: boolean; count: number; latestAt: string; close: boolean; preview: string | null } & Badged)[];
 }
-export interface InstantViewer { username: string; displayName: string; hasAvatar: boolean; at: string; reaction?: string | null }
+export interface InstantViewer extends Badged { username: string; displayName: string; hasAvatar: boolean; at: string; reaction?: string | null }
 
 export const geleiraApi = {
   catalog: (q: string, kind?: TasteKind): Promise<CatalogItem[]> => raw(`/geleira/catalog?q=${encodeURIComponent(q)}${kind ? `&kind=${kind}` : ''}`),

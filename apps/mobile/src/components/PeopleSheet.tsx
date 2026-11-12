@@ -6,6 +6,7 @@ import { feedApi, type PeopleKind } from '@/lib/api.feed';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
+import { NameWithBadge } from './NameWithBadge';
 import { Sheet } from './Sheet';
 
 const TITLE: Record<PeopleKind, string> = { reposts: 'Quem repostou', cheers: 'Quem brindou', gifts: 'Quem presenteou' };
@@ -33,7 +34,7 @@ export function PeopleSheet({ postId, kind, onClose }: { postId: string; kind: P
           >
             <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={44} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={st.name} numberOfLines={1}>{p.displayName}</Text>
+              <NameWithBadge name={p.displayName} who={p} style={st.name} />
               <Text style={st.handle} numberOfLines={1}>@{p.username}</Text>
             </View>
             <Text style={st.handle}>{timeAgo(p.at)}</Text>

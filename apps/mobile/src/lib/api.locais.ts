@@ -1,4 +1,4 @@
-import { post, raw, type Post } from '@/lib/api';
+import { post, raw, type Badged, type Post } from '@/lib/api';
 
 export type VenueKind = 'bar' | 'restaurante' | 'discoteca' | 'cafe' | 'hotel' | 'evento' | 'outro';
 export type ManagerRole = 'admin' | 'editor';
@@ -51,7 +51,7 @@ export interface Venue {
   createdAt: string;
 }
 
-export interface VenueManager { username: string; displayName: string; hasAvatar: boolean; role: 'owner' | ManagerRole; status: 'pending' | 'active'; since?: string }
+export interface VenueManager extends Badged { username: string; displayName: string; hasAvatar: boolean; role: 'owner' | ManagerRole; status: 'pending' | 'active'; since?: string }
 export interface VenueInsights {
   followers: number; followersWeek: number; checkins: number; checkinsWeek: number; peopleMonth: number;
   posts: number; cheers: number; comments: number; mentions: number; days: { day: string; checkins: number }[];
@@ -70,7 +70,7 @@ export interface VenueProfileInput {
 export interface VenuePayResult { transactionId: string; balance: number }
 /** Um pagamento recebido pelo local: de uma pessoa ou do cofre de um grupo. */
 export interface VenuePayment {
-  from: { username: string; displayName: string } | { group: { id: string; name: string } };
+  from: ({ username: string; displayName: string } & Badged) | { group: { id: string; name: string } };
   amount: number;
   note: string | null;
   at: string;
@@ -88,7 +88,7 @@ export interface WalletTxExtra {
   venue?: { slug: string | null; name: string; kind?: VenueKind | string | null } | null;
   group?: { id: string; name: string } | null;
   /** Do lado de quem recebe um pagamento feito por uma pessoa. */
-  from?: { username: string; displayName: string } | null;
+  from?: ({ username: string; displayName: string } & Badged) | null;
   /** O texto já pronto que o servidor manda (reserva, se o cliente não conhecer o tipo). */
   label?: string;
 }

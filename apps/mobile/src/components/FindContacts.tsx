@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { FollowButton } from '@/components/FollowButton';
 import { Icon } from '@/components/Icon';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { Sheet } from '@/components/Sheet';
 import { pushApi, type ContactMatch } from '@/lib/api.settings';
 import { canPickContacts, chooseContactsFile, emailsFromFile, hashAll, pickContactEmails } from '@/lib/contacts';
@@ -78,7 +79,7 @@ export function FindContacts({ onClose }: { onClose: () => void }) {
               <Pressable onPress={() => { onClose(); router.push({ pathname: '/u/[username]', params: { username: p.username } } as never); }} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 }} accessibilityRole="link">
                 <Avatar name={p.displayName} username={p.username} size={46} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} numberOfLines={1}>{p.displayName}</Text>
+                  <NameWithBadge name={p.displayName} who={p} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} />
                   <Text style={{ fontSize: 14, color: colors.zinc500 }} numberOfLines={1}>@{p.username} · {p.reason}</Text>
                 </View>
               </Pressable>

@@ -216,7 +216,7 @@ describe('Convites: código, limites, espera e abuso (integração)', () => {
       const pub = (await api().get(`/api/v1/invites/preview/${me.code}`).expect(200)).body;
       expect(pub).toMatchObject({ username: adult.username, displayName: 'cvq Teste', hasAvatar: false, reward: INVITE.REWARD });
       expect((pub.items as string[]).sort()).toEqual(['Matapa', 'Praia']);
-      expect(Object.keys(pub).sort()).toEqual(['displayName', 'hasAvatar', 'items', 'phrase', 'reward', 'username']); // nada de email, id, datas…
+      expect(Object.keys(pub).sort()).toEqual(['displayName', 'hasAvatar', 'items', 'phrase', 'reward', 'username', 'verified', 'verifiedTier']); // nada de email, id, datas…
 
       // Menor: nem no cartão dela aparece álcool (mesmo que o tivesse por algum motivo).
       const teen = await signup('cvr', { old: true });

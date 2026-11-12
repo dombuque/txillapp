@@ -10,6 +10,7 @@ import { ChatService } from '../chat/chat.service';
 import { MusicService, type MusicInput } from '../music/music.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { blockedBetween, canView, notReportedBy } from '../social/visibility';
+import { badge, badgeJson } from '../common/badge';
 
 /** O autor escondeu os stories a este espectador? */
 /** Stories só para amigos próximos: visíveis ao autor e à lista dele. */
@@ -82,7 +83,7 @@ export class StoriesService {
             AND (s.author_id = $1 OR EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = s.author_id))
             AND ${notHidden('s.author_id')} AND ${audienceOk()} AND ${sharedOk()} AND ${notReportedBy('story', 's.id')}
        )
-       SELECT u.username, u.display_name, (u.id = $1) AS is_me,
+       SELECT u.username, u.display_name, u.verified, u.verified_tier, (u.id = $1) AS is_me,
               count(*)::int AS story_count, bool_and(a.seen) AS seen,
               count(*) FILTER (WHERE a.seen)::int AS seen_count, bool_and(a.audience = 'close_friends') AS close_only, max(a.created_at) AS latest_at
          FROM active a JOIN identity.users u ON u.id = a.author_id
@@ -94,6 +95,7 @@ export class StoriesService {
     return rows.map((r) => ({
       username: r.username,
       displayName: r.display_name,
+      ...badge(r.verified, r.verified_tier),
       isMe: r.is_me,
       count: r.story_count,
       /** Quantos já foram vistos: o anel mostra os segmentos vistos a cinzento e os novos a cores. */
@@ -107,11 +109,11 @@ export class StoriesService {
 
   async byUser(viewerId: string, username: string) {
     const { rows } = await this.pool.query(
-      `SELECT s.id, s.media_id, s.caption, s.music, s.stickers, s.created_at, s.expires_at, s.audience, u.id AS author_id, u.username, u.display_name,
+      `SELECT s.id, s.media_id, s.caption, s.music, s.stickers, s.created_at, s.expires_at, s.audience, u.id AS author_id, u.username, u.display_name, u.verified, u.verified_tier,
               (SELECT m.mime FROM content.media_assets m WHERE m.id = s.media_id) AS mime,
               (SELECT m.duration_ms FROM content.media_assets m WHERE m.id = s.media_id) AS duration_ms,
               s.shared_post_id,
-              (SELECT json_build_object('username', su.username, 'displayName', su.display_name) FROM content.posts sp JOIN identity.users su ON su.id = sp.author_id WHERE sp.id = s.shared_post_id) AS shared_from,
+              (SELECT json_build_object('username', su.username, 'displayName', su.display_name, ${badgeJson('su')}) FROM content.posts sp JOIN identity.users su ON su.id = sp.author_id WHERE sp.id = s.shared_post_id) AS shared_from,
               ${seenBy()} AS seen,
               (SELECT count(*) FROM content.story_views v WHERE v.story_id = s.id)::int AS view_count,
               EXISTS (SELECT 1 FROM content.story_cheers c WHERE c.story_id = s.id AND c.user_id = $1) AS cheered,
@@ -185,12 +187,12 @@ export class StoriesService {
     const own = await this.pool.query('SELECT 1 FROM content.stories WHERE id = $1 AND author_id = $2', [storyId, userId]);
     if (!own.rowCount) throw new NotFoundException('Story não encontrado');
     const { rows } = await this.pool.query(
-      `SELECT u.username, u.display_name, v.viewed_at,
+      `SELECT u.username, u.display_name, u.verified, u.verified_tier, v.viewed_at,
               EXISTS (SELECT 1 FROM content.story_cheers c WHERE c.story_id = v.story_id AND c.user_id = v.viewer_id) AS cheered
          FROM content.story_views v JOIN identity.users u ON u.id = v.viewer_id WHERE v.story_id = $1 ORDER BY v.viewed_at DESC LIMIT 200`,
       [storyId],
     );
-    return rows.map((r) => ({ username: r.username, displayName: r.display_name, viewedAt: r.viewed_at, cheered: r.cheered as boolean }));
+    return rows.map((r) => ({ username: r.username, displayName: r.display_name, ...badge(r.verified, r.verified_tier), viewedAt: r.viewed_at, cheered: r.cheered as boolean }));
   }
 
   /** Responder a um story (ou reagir com emoji). Chega ao autor; não se responde ao próprio story nem a um expirado. */
@@ -218,7 +220,7 @@ export class StoriesService {
   async comments(viewerId: string, storyId: string) {
     await this.visibleStory(viewerId, storyId);
     const { rows } = await this.pool.query(
-      `SELECT c.id, c.body, c.created_at, a.username, a.display_name, (a.avatar_media_id IS NOT NULL) AS has_avatar,
+      `SELECT c.id, c.body, c.created_at, a.username, a.display_name, a.verified, a.verified_tier, (a.avatar_media_id IS NOT NULL) AS has_avatar,
               (c.author_id = $1) AS mine, (st.author_id = $1 OR c.author_id = $1) AS can_delete
          FROM content.story_comments c
          JOIN content.stories st ON st.id = c.story_id
@@ -234,7 +236,7 @@ export class StoriesService {
       createdAt: r.created_at as string,
       mine: r.mine as boolean,
       canDelete: r.can_delete as boolean,
-      author: { username: r.username as string, displayName: r.display_name as string, hasAvatar: r.has_avatar as boolean },
+      author: { username: r.username as string, displayName: r.display_name as string, hasAvatar: r.has_avatar as boolean, ...badge(r.verified, r.verified_tier) },
     }));
   }
 
@@ -265,14 +267,14 @@ export class StoriesService {
     const own = await this.pool.query('SELECT 1 FROM content.stories WHERE id = $1 AND author_id = $2', [storyId, userId]);
     if (!own.rowCount) throw new NotFoundException('Story não encontrado');
     const { rows } = await this.pool.query(
-      `SELECT r.id, r.body, r.kind, r.created_at, u.username, u.display_name
+      `SELECT r.id, r.body, r.kind, r.created_at, u.username, u.display_name, u.verified, u.verified_tier
          FROM content.story_replies r JOIN identity.users u ON u.id = r.author_id
         WHERE r.story_id = $1 ORDER BY r.id DESC LIMIT 200`,
       [storyId],
     );
     return rows.map((r) => ({
       id: r.id, body: r.body, kind: r.kind, createdAt: r.created_at,
-      author: { username: r.username, displayName: r.display_name },
+      author: { username: r.username, displayName: r.display_name, ...badge(r.verified, r.verified_tier) },
     }));
   }
 
@@ -280,13 +282,13 @@ export class StoriesService {
   async settings(userId: string) {
     const u = await this.pool.query('SELECT story_replies FROM identity.users WHERE id = $1', [userId]);
     const h = await this.pool.query(
-      `SELECT u.username, u.display_name FROM social.story_hidden h JOIN identity.users u ON u.id = h.hidden_id
+      `SELECT u.username, u.display_name, u.verified, u.verified_tier FROM social.story_hidden h JOIN identity.users u ON u.id = h.hidden_id
         WHERE h.owner_id = $1 ORDER BY h.created_at DESC`,
       [userId],
     );
     return {
       replies: u.rows[0].story_replies as 'everyone' | 'following' | 'off',
-      hidden: h.rows.map((r) => ({ username: r.username, displayName: r.display_name })),
+      hidden: h.rows.map((r) => ({ username: r.username, displayName: r.display_name, ...badge(r.verified, r.verified_tier) })),
     };
   }
 
@@ -337,12 +339,12 @@ export class StoriesService {
   /** Lista de amigos próximos. */
   async closeFriends(userId: string) {
     const { rows } = await this.pool.query(
-      `SELECT u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar
+      `SELECT u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar
          FROM social.close_friends cf JOIN identity.users u ON u.id = cf.friend_id
         WHERE cf.owner_id = $1 AND u.status = 'active' ORDER BY cf.created_at DESC`,
       [userId],
     );
-    return rows.map((r) => ({ username: r.username, displayName: r.display_name, hasAvatar: r.has_avatar }));
+    return rows.map((r) => ({ username: r.username, displayName: r.display_name, hasAvatar: r.has_avatar, ...badge(r.verified, r.verified_tier) }));
   }
 
   /** Só se pode adicionar quem me segue (é quem vê os meus stories na bandeja) e não há bloqueio. */
@@ -399,11 +401,11 @@ export class StoriesService {
 
   private async getOne(userId: string, id: string) {
     const { rows } = await this.pool.query(
-      `SELECT s.id, s.media_id, s.caption, s.music, s.stickers, s.created_at, s.expires_at, s.audience, u.id AS author_id, u.username, u.display_name,
+      `SELECT s.id, s.media_id, s.caption, s.music, s.stickers, s.created_at, s.expires_at, s.audience, u.id AS author_id, u.username, u.display_name, u.verified, u.verified_tier,
               (SELECT m.mime FROM content.media_assets m WHERE m.id = s.media_id) AS mime,
               (SELECT m.duration_ms FROM content.media_assets m WHERE m.id = s.media_id) AS duration_ms,
               s.shared_post_id,
-              (SELECT json_build_object('username', su.username, 'displayName', su.display_name) FROM content.posts sp JOIN identity.users su ON su.id = sp.author_id WHERE sp.id = s.shared_post_id) AS shared_from,
+              (SELECT json_build_object('username', su.username, 'displayName', su.display_name, ${badgeJson('su')}) FROM content.posts sp JOIN identity.users su ON su.id = sp.author_id WHERE sp.id = s.shared_post_id) AS shared_from,
               false AS seen, 0 AS view_count, false AS cheered, 0 AS cheer_count, 0 AS reply_count, 0 AS comment_count, false AS can_reply, s.comments_off
          FROM content.stories s JOIN identity.users u ON u.id = s.author_id WHERE s.id = $1`,
       [id],
@@ -418,7 +420,7 @@ export class StoriesService {
     mediaKind: (String(r.mime ?? '').startsWith('video/') ? 'video' : 'image') as 'video' | 'image',
     durationMs: (r.duration_ms ?? null) as number | null,
     /** Partilhado de uma publicação: de quem e qual (para abrir o original). */
-    sharedFrom: r.shared_post_id ? { postId: r.shared_post_id as string, ...(r.shared_from as { username: string; displayName: string }) } : null,
+    sharedFrom: r.shared_post_id ? { postId: r.shared_post_id as string, ...(r.shared_from as { username: string; displayName: string }), ...badge(r.shared_from?.verified, r.shared_from?.verifiedTier) } : null,
     caption: r.caption,
     /** Stickers por cima (posição, tamanho e rotação relativos ao ecrã). */
     stickers: stickersOf(r.stickers),
@@ -426,7 +428,7 @@ export class StoriesService {
     audience: r.audience as 'all' | 'close_friends',
     createdAt: r.created_at,
     expiresAt: r.expires_at,
-    author: { username: r.username, displayName: r.display_name },
+    author: { username: r.username, displayName: r.display_name, ...badge(r.verified, r.verified_tier) },
     seen: r.seen,
     // Só o autor vê o contador de visualizações.
     viewCount: r.author_id === viewerId ? r.view_count : null,

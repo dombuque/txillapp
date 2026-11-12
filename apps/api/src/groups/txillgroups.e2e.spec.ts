@@ -223,9 +223,9 @@ describe('TxillGroups: plano, sondagens, lista, despesas, cofre e pagar com Txil
     const p = (await api().get(g('/pot')).set(auth(dino)).expect(200)).body;
     expect(p.balance).toBe(100 + ok * 100 + 200);
     expect(p.totalByMember).toEqual(expect.arrayContaining([
-      { username: beto.username, displayName: expect.any(String), amount: 100 },
-      { username: cris.username, displayName: expect.any(String), amount: ok * 100 },
-      { username: ana.username, displayName: expect.any(String), amount: 200 },
+      { username: beto.username, displayName: expect.any(String), amount: 100, verified: false, verifiedTier: null },
+      { username: cris.username, displayName: expect.any(String), amount: ok * 100, verified: false, verifiedTier: null },
+      { username: ana.username, displayName: expect.any(String), amount: 200, verified: false, verifiedTier: null },
     ]));
     expect(p.contributions[0]).toMatchObject({ username: ana.username, amount: 200 });
     expect(p.canManage).toBe(false);

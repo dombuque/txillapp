@@ -1,4 +1,4 @@
-import { cardLayout, whatsappUrl, type CardInput, type CardText } from './inviteCard';
+import { badgePlace, cardLayout, sealSvg, whatsappUrl, type CardInput, type CardText } from './inviteCard';
 
 /**
  * O cartão do convite no browser: desenhado num canvas (o fundo em SVG, a foto recortada em círculo e as letras do sistema)
@@ -16,7 +16,8 @@ const loadImage = (src: string) =>
     img.src = src;
   });
 
-function drawText(g: CanvasRenderingContext2D, t: CardText) {
+/** Pinta uma linha; com selo, devolve onde o pôr (o selo é uma imagem, carrega-se fora daqui). */
+function drawText(g: CanvasRenderingContext2D, t: CardText): ReturnType<typeof badgePlace> | null {
   let size = t.size;
   const set = () => (g.font = `${t.weight} ${size}px ${FONT}`);
   set();
@@ -33,12 +34,19 @@ function drawText(g: CanvasRenderingContext2D, t: CardText) {
   g.textBaseline = 'alphabetic';
   g.textAlign = 'left';
   let x = t.align === 'center' ? t.x - w / 2 : t.x;
+  if (t.badge) {
+    const b = badgePlace(t, w, size);
+    g.fillText(t.text, b.textX, t.y);
+    g.globalAlpha = 1;
+    return b;
+  }
   if (!t.spacing) g.fillText(t.text, x, t.y);
   else for (const ch of chars) {
     g.fillText(ch, x, t.y);
     x += g.measureText(ch).width + t.spacing;
   }
   g.globalAlpha = 1;
+  return null;
 }
 
 /** Desenha o cartão e devolve o PNG (blob e endereço local). `avatarUrl`: a foto de perfil (do mesmo site), ou null. */
@@ -72,7 +80,11 @@ export async function renderInviteCard(input: CardInput, avatarUrl: string | nul
     g.restore();
     bmp.close?.();
   }
-  for (const t of l.texts) drawText(g, t);
+  for (const t of l.texts) {
+    const b = drawText(g, t);
+    // O selo de verificado a seguir ao nome (se a imagem não carregar, o cartão sai sem ele).
+    if (b && t.badge) await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(sealSvg(t.badge, b.size))}`).then((img) => g.drawImage(img, b.x, b.y, b.size, b.size), () => undefined);
+  }
   const blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('Não consegui criar a imagem'))), 'image/png'));
   return { uri: URL.createObjectURL(blob), width: l.width, height: l.height, label: l.label, blob, name: `convite-txillapp-${input.code}-${input.format}.png` };
 }

@@ -13,6 +13,7 @@ import { Avatar } from '@/components/Avatar';
 import { BookmarkIcon } from '@/components/BookmarkIcon';
 import { CommentsSheet } from '@/components/CommentsSheet';
 import { FollowButton } from '@/components/FollowButton';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
 import { GiftSheet, PostMenuSheet, RepostSheet } from '@/components/PostSheets';
 import { RichText } from '@/components/RichText';
@@ -21,7 +22,7 @@ import { Sheet } from '@/components/Sheet';
 import { Wordmark } from '@/components/Wordmark';
 import { useDesktop } from '@/lib/desktop';
 import { GestureDetector, useExclusiveGestures, useTapGesture } from 'react-native-gesture-handler';
-import { api, isTcheka, post as postInit, raw, type Page, type Post } from '@/lib/api';
+import { api, isTcheka, post as postInit, raw, type Badged, type Page, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
 import { colors } from '@/lib/theme';
@@ -165,7 +166,7 @@ function PeopleSheet({ postId, kind, onClose }: { postId: string; kind: PeopleKi
   const router = useRouter();
   const q = useQuery({
     queryKey: ['post-people', postId, kind],
-    queryFn: (): Promise<{ username: string; displayName: string; hasAvatar: boolean }[]> => raw(`/posts/${postId}/people/${kind}`),
+    queryFn: (): Promise<({ username: string; displayName: string; hasAvatar: boolean } & Badged)[]> => raw(`/posts/${postId}/people/${kind}`),
     retry: false,
   });
   return (
@@ -178,7 +179,7 @@ function PeopleSheet({ postId, kind, onClose }: { postId: string; kind: PeopleKi
           <Pressable key={p.username} onPress={() => { onClose(); router.push(`/u/${p.username}` as never); }} style={st.person} accessibilityRole="button">
             <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={44} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={st.personName} numberOfLines={1}>{p.displayName}</Text>
+              <NameWithBadge name={p.displayName} who={p} style={st.personName} />
               <Text style={st.personUser} numberOfLines={1}>@{p.username}</Text>
             </View>
           </Pressable>
@@ -206,7 +207,7 @@ function ReelEnd({ post, mine, replay, more, bottomInset }: { post: Post; mine: 
       <LinearGradient colors={['rgba(0,0,0,0.75)', 'rgba(0,0,0,0.8)', 'rgba(0,0,0,0.9)']} style={StyleSheet.absoluteFill} />
       <View style={{ alignItems: 'center' }}>
         <Pressable onPress={go} style={st.endRing} accessibilityRole="button"><Avatar name={post.author.displayName} username={post.author.username} size={84} /></Pressable>
-        <Pressable onPress={go} accessibilityRole="button"><Text style={st.endName}>{post.author.displayName}</Text></Pressable>
+        <Pressable onPress={go} accessibilityRole="button"><NameWithBadge name={post.author.displayName} who={post.author} style={[st.endName, { marginTop: 0 }]} containerStyle={{ marginTop: 12 }} gap={5} /></Pressable>
         <Text style={st.endUser}>@{post.author.username}</Text>
         {!mine && (post as Post & { authorFollowed?: boolean }).authorFollowed === false && (
           <View style={{ marginTop: 16, width: 160 }}><FollowButton username={post.author.username} following={false} requested={false} isPrivate={false} /></View>
@@ -449,7 +450,7 @@ export function Reel({ post, active, onScreen = true, height, onChange, me, onMo
         <View style={st.author}>
           <Pressable onPress={() => router.push(`/u/${post.author.username}` as never)} accessibilityRole="button"><Avatar name={post.author.displayName} username={post.author.username} size={40} /></Pressable>
           <Pressable onPress={() => router.push(`/u/${post.author.username}` as never)} style={{ flexShrink: 1, minWidth: 0 }} accessibilityRole="button">
-            <Text style={st.authorName} numberOfLines={1}>{post.author.displayName}</Text>
+            <NameWithBadge name={post.author.displayName} who={post.author} style={st.authorName} />
           </Pressable>
           {teach && <View style={{ width: 96 }}><FollowButton username={post.author.username} following={false} requested={false} isPrivate={false} /></View>}
         </View>

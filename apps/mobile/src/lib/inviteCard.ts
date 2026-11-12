@@ -106,6 +106,26 @@ export interface CardText {
   alpha?: number;
   maxWidth?: number;
   spacing?: number;
+  /** O selo de verificado logo a seguir ao texto (quem pinta mede o texto e põe-no ao lado, centrado na letra). */
+  badge?: 'verified' | 'official';
+}
+
+/** O selo de verificado (o mesmo desenho do componente VerifiedBadge) como SVG, para os cartões pintados no aparelho. */
+export function sealSvg(tier: 'verified' | 'official', size: number): string {
+  const fill = tier === 'official' ? 'url(#off)' : '#1d9bf0';
+  const defs = tier === 'official' ? '<defs><linearGradient id="off" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff6b81"/><stop offset="1" stop-color="#d6334f"/></linearGradient></defs>' : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">${defs}<path fill="${fill}" d="M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91c-1.31.67-2.2 1.91-2.2 3.34s.89 2.67 2.2 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91c1.31-.67 2.19-1.91 2.19-3.34z"/><path fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="m8 12.4 2.8 2.8L16.4 9.4"/></svg>`;
+}
+
+/**
+ * Onde vai o selo de uma linha já medida (`w` = largura do texto com a letra `size` já encolhida): ~0,9× a letra, 0,2× de
+ * espaço, centrado na altura das minúsculas. Numa linha centrada, o texto e o selo centram-se juntos. Devolve onde começa o texto.
+ */
+export function badgePlace(t: Pick<CardText, 'x' | 'y' | 'align'>, w: number, size: number): { textX: number; x: number; y: number; size: number } {
+  const s = Math.round(size * 0.9);
+  const gap = Math.round(size * 0.2);
+  const textX = t.align === 'center' ? t.x - (w + gap + s) / 2 : t.x;
+  return { textX, x: textX + w + gap, y: Math.round(t.y - size * 0.36 - s / 2), size: s };
 }
 
 export interface CardInput {
@@ -121,6 +141,8 @@ export interface CardInput {
   /** A matriz do QR da ligação (lib/qr.ts), ou null para não ter QR. */
   qr: boolean[][] | null;
   hasAvatar: boolean;
+  /** Conta verificada: o selo a seguir ao nome (azul, ou coral na conta oficial). */
+  badge?: 'verified' | 'official' | null;
 }
 
 export interface CardLayout {
@@ -200,7 +222,7 @@ export function cardLayout(p: CardInput): CardLayout {
     parts.push(`<g transform="rotate(8 ${g.stX + g.stW / 2} ${g.stY + h / 2}) translate(${g.stX} ${g.stY}) scale(${s.toFixed(4)}) translate(${-vx} ${-vy})">${st.body}</g>`);
   }
 
-  texts.push({ text: name, x: W / 2, y: g.nameY, size: g.nameS, weight: 800, color: '#ffffff', align: 'center', maxWidth: W - 120 });
+  texts.push({ text: name, x: W / 2, y: g.nameY, size: g.nameS, weight: 800, color: '#ffffff', align: 'center', maxWidth: W - 120 - (p.badge ? g.nameS : 0), ...(p.badge ? { badge: p.badge } : {}) });
   texts.push({ text: 'convidou-te para o Txillapp', x: W / 2, y: g.subY, size: g.subS, weight: 400, color: '#ffffff', align: 'center', alpha: 0.92, maxWidth: W - 120 });
 
   // A frase num balão branco. Sem itens da geleira, o balão desce um pouco para o cartão não ficar com um buraco.

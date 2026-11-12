@@ -1,4 +1,4 @@
-import { post, raw } from '@/lib/api';
+import { post, raw, type Badged } from '@/lib/api';
 import type { TasteVisibility } from '@/lib/api.geleira';
 
 /**
@@ -11,7 +11,7 @@ export const settingsApi = {
   setGeleiraSettings: (b: { matching?: boolean; visibility?: TasteVisibility; cheersPublic?: boolean }): Promise<GeleiraSettings> => raw('/geleira/me/settings', { method: 'PUT', body: JSON.stringify(b) }),
 };
 
-export interface ContactMatch { username: string; displayName: string; isPrivate: boolean; requested: boolean; followsYou: boolean; mutual: number; reason: string }
+export interface ContactMatch extends Badged { username: string; displayName: string; isPrivate: boolean; requested: boolean; followsYou: boolean; mutual: number; reason: string }
 
 export const pushApi = {
   pushKey: (): Promise<{ publicKey: string | null }> => raw('/push/key'),

@@ -57,7 +57,7 @@ export class SearchService {
     }
 
     const people = await this.pool.query(
-      `SELECT u.username, u.display_name, u.is_private, u.verified,
+      `SELECT u.username, u.display_name, u.is_private, u.verified, u.verified_tier,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS following,
               EXISTS (SELECT 1 FROM social.follow_requests r WHERE r.requester_id = $1 AND r.target_id = u.id) AS requested,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = u.id AND f.followee_id = $1) AS follows_you,
@@ -79,6 +79,7 @@ export class SearchService {
         displayName: r.display_name,
         isPrivate: r.is_private,
         verified: r.verified as boolean,
+        verifiedTier: (r.verified_tier as string | null) ?? null,
         following: r.following,
         requested: r.requested,
         followsYou: r.follows_you,
@@ -92,7 +93,7 @@ export class SearchService {
   /** Pessoas (por id, pela ordem do Elasticsearch) que quem pesquisa pode ver: ativas, sem bloqueios. */
   private async peopleByIds(viewerId: string, ids: string[]) {
     const { rows } = await this.pool.query(
-      `SELECT u.username, u.display_name, u.is_private, u.verified,
+      `SELECT u.username, u.display_name, u.is_private, u.verified, u.verified_tier,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS following,
               EXISTS (SELECT 1 FROM social.follow_requests r WHERE r.requester_id = $1 AND r.target_id = u.id) AS requested,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = u.id AND f.followee_id = $1) AS follows_you
@@ -101,7 +102,7 @@ export class SearchService {
         ORDER BY array_position($2::uuid[], u.id)`,
       [viewerId, ids],
     );
-    return rows.map((r) => ({ username: r.username, displayName: r.display_name, isPrivate: r.is_private, verified: r.verified as boolean, following: r.following, requested: r.requested, followsYou: r.follows_you }));
+    return rows.map((r) => ({ username: r.username, displayName: r.display_name, isPrivate: r.is_private, verified: r.verified as boolean, verifiedTier: (r.verified_tier as string | null) ?? null, following: r.following, requested: r.requested, followsYou: r.follows_you }));
   }
 
   /** Hashtags que começam por `text` (com quantas publicações públicas as usam). */
