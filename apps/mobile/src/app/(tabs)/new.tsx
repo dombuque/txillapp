@@ -26,7 +26,10 @@ import { Sheet } from '@/components/Sheet';
 import { TrackCard } from '@/components/TrackCard';
 import { enqueuePublish } from '@/lib/publishQueue';
 import { InstantsHub } from '@/components/Instants';
-import { TchekaStudio } from '@/components/TchekaStudio';
+import { TchekaStudio, type StudioDraftIn } from '@/components/TchekaStudio';
+import { StudioDrafts } from '@/components/studio/StudioDrafts';
+import { newDraftId, studioDrafts, type StudioDraft } from '@/lib/studio/drafts';
+import { normalizeClips } from '@/lib/studio/project';
 import { PhotoViewer } from '@/components/PhotoViewer';
 import { composeApi, type PhotoTag } from '@/lib/api.compose';
 import { type Track } from '@/lib/api.music';
@@ -199,6 +202,11 @@ export default function Compose() {
   const bumpKind = (k: string) => setKindUse((u) => { const n = { ...u, [k]: (u[k] ?? 0) + 1 }; try { localStorage.setItem('tx_kind_use', JSON.stringify(n)); } catch { /* sem armazenamento */ } return n; });
   // Tcheka: as fotos e vídeos juntam-se e o estúdio monta um vídeo só (filtro e música).
   const [studio, setStudio] = useState(false);
+  /** Rascunhos do estúdio (guardados sozinhos a cada mudança, no IndexedDB): «Continuar o rascunho?» ao entrar em Tcheka. */
+  const [studioOffer, setStudioOffer] = useState<StudioDraft[] | null>(null);
+  const studioOffered = useRef(false);
+  const [studioDraft, setStudioDraft] = useState<StudioDraftIn | null>(null);
+  const studioDraftId = useRef(newDraftId());
   const [sourceOpen, setSourceOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [tagging, setTagging] = useState<number | null>(null);
@@ -278,6 +286,8 @@ export default function Compose() {
 
   function reset() {
     setBody('');
+    setStudioDraft(null);
+    studioDraftId.current = newDraftId();
     setAssets([]);
     setPlace('');
     setPlaceGeo(null);
@@ -468,10 +478,48 @@ export default function Compose() {
     }, qc);
     settled.current = true;
     await clearDraft(draftKey.current);
+    // A tcheka do estúdio foi publicada: o rascunho do estúdio já não faz falta.
+    if (assets.some((a) => a.studio)) await studioDrafts().remove(studioDraftId.current).catch(() => undefined);
     reset();
     setBusy(false);
     setProgress('');
     router.replace('/');
+  }
+
+  // Ao entrar em Tcheka (na câmara do site, ainda sem clipes): se houver rascunhos do estúdio, pergunta se continua.
+  useEffect(() => {
+    if (!web || step !== 'choose' || kindSel !== 'tcheka' || studio || assets.length || studioOffered.current) return;
+    studioOffered.current = true;
+    void studioDrafts().list().then((l) => { if (l.length) setStudioOffer(l); }).catch(() => undefined);
+  }, [kindSel, step, studio, assets.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Abre um rascunho do estúdio: os clipes (com os ficheiros guardados), o resto do estúdio e o som ou o dueto de onde veio. */
+  async function continueStudioDraft(d: StudioDraft) {
+    setStudioOffer(null);
+    const got = await studioDrafts().load(d.id).catch(() => null);
+    const clips = got ? normalizeClips(got.clips) : [];
+    if (!got || !clips.length) { got?.clips.forEach((c) => { if (c.uri.startsWith('blob:')) URL.revokeObjectURL(c.uri); }); setErr('Não consegui abrir o rascunho'); return; }
+    const ctx = got.draft.context ?? {};
+    if (typeof ctx.soundId === 'string') void soundsApi.get(ctx.soundId).then(setSound).catch(() => undefined);
+    if (typeof ctx.dueto === 'string') void api.getPost(ctx.dueto).then((p) => { const v = p.media.find((m) => m.kind === 'video'); if (v) setDuet({ uri: abs(v.url) ?? v.url }); }).catch(() => undefined);
+    studioDraftId.current = d.id;
+    setStudioDraft({ id: d.id, clips, settings: got.draft.settings });
+    setKindSel('tcheka');
+    setStudio(true);
+  }
+  /**
+   * Os clipes da câmara já montados pelo estúdio deixam de fazer falta (o vídeo que sai é outro): os URLs deles libertam-se,
+   * depois de o rascunho do estúdio acabar de guardar (pode ainda estar a ler algum).
+   */
+  function releaseClipUrls(list: Asset[], keep: string) {
+    setTimeout(() => {
+      void studioDrafts().idle().then(() => {
+        for (const a of list) for (const u of [a.uri, a.clean]) if (u && u !== keep && u.startsWith('blob:')) { try { URL.revokeObjectURL(u); } catch { /* já livre */ } }
+      });
+    }, 1500);
+  }
+  async function dropStudioDraft(id: string) {
+    await studioDrafts().remove(id).catch(() => undefined);
+    setStudioOffer((l) => { const n = (l ?? []).filter((x) => x.id !== id); return n.length ? n : null; });
   }
 
   async function openDraft(d: DraftItem) {
@@ -511,8 +559,11 @@ export default function Compose() {
             clips={assets.map((a) => ({ uri: a.clean ?? a.uri, video: a.video, mime: a.mime, durationMs: a.durationMs, speed: a.speed }))}
             initialMusic={music}
             reference={duet}
-            onClose={() => setStudio(false)}
-            onDone={(s, m) => { setAssets([{ uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [], signed: s.signed, studio: true, posterMs: s.posterMs }]); setMusic(m); setStudio(false); setStep('write'); }}
+            draft={studioDraft}
+            draftId={studioDraftId.current}
+            draftContext={{ ...(sound ? { soundId: sound.id } : {}), ...(duetoParam ? { dueto: String(duetoParam) } : {}) }}
+            onClose={() => { setStudio(false); if (studioDraft) { setStudioDraft(null); studioDraftId.current = newDraftId(); } }}
+            onDone={(s, m) => { setAssets([{ uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [], signed: s.signed, studio: true, posterMs: s.posterMs }]); setMusic(m); setStudio(false); setStep('write'); releaseClipUrls(assets, s.uri); }}
           />
         </View>
       );
@@ -529,7 +580,7 @@ export default function Compose() {
             void addFiles(f);
           }}
           onClose={() => router.replace('/')}
-          onDone={() => { bumpKind(kindSel); if (kindSel === 'tcheka') setStudio(true); else setStep('write'); }}
+          onDone={() => { bumpKind(kindSel); if (kindSel === 'tcheka') { if (assets.some((a) => a.studio)) studioDraftId.current = newDraftId(); setStudio(true); } else setStep('write'); }}
           onText={() => setStep('write')}
           doneLabel={kindSel === 'tcheka' ? 'Montar' : 'Seguinte'}
           aspect={kindSel === 'post' ? 4 / 5 : 9 / 16}
@@ -549,6 +600,11 @@ export default function Compose() {
 
         {err ? <Text style={[styles.err, { position: 'absolute', top: insets.top + 72, left: 0, right: 0, color: '#fff' }]} accessibilityRole="alert">{err}</Text> : null}
         {pickMusic ? <MusicPicker allowLocal onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} /> : null}
+        {studioOffer && kindSel === 'tcheka' ? (
+          <Sheet title="Continuar o rascunho?" dark onClose={() => setStudioOffer(null)}>
+            <StudioDrafts drafts={studioOffer} onContinue={(d) => void continueStudioDraft(d)} onDelete={(id) => void dropStudioDraft(id)} onNew={() => setStudioOffer(null)} />
+          </Sheet>
+        ) : null}
       </View>
     );
   }
