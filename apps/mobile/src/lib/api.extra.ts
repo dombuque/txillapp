@@ -19,7 +19,7 @@ export interface Insights {
 }
 
 export interface PaymentPackage { id: string; name: string; txills: number; priceMinor: number; currency: string }
-export interface PaymentsConfig { providers: { id: 'sandbox' | 'mpesa' | 'emola' | 'card'; label: string; needsPhone: boolean }[]; packages: PaymentPackage[] }
+export interface PaymentsConfig { /** Interruptor da recarga nas versões das lojas (ver lib/storeRules.ts). Servidores antigos não o mandam. */ storeTopup?: boolean; providers: { id: 'sandbox' | 'mpesa' | 'emola' | 'card'; label: string; needsPhone: boolean }[]; packages: PaymentPackage[] }
 export interface PaymentOrder { id: string; packageId: string; txills: number; amountMinor: number; currency: string; provider: string; status: 'pending' | 'paid' | 'failed' | 'cancelled' | 'expired'; phoneTail: string | null; createdAt: string; paidAt: string | null }
 
 export interface ChatSendBody { body?: string; kind?: 'text' | 'post'; replyTo?: string }

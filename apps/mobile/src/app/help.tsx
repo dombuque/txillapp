@@ -4,7 +4,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { Icon } from '@/components/Icon';
 import { Group, Line } from '@/components/Lines';
 import { StackPage } from '@/components/StackPage';
-import { PURCHASES } from '@/lib/purchases';
+import { usePurchases } from '@/lib/purchases';
 import { normalize } from '@/lib/settingsIndex';
 import { helpFaqFor } from '@/lib/storeRules';
 import { colors } from '@/lib/theme';
@@ -62,9 +62,10 @@ export default function Help() {
   // A pergunta aberta guarda-se pelo texto (não pela posição na lista): ao procurar, não abre outra pergunta qualquer.
   const [open, setOpen] = useState<string | null>(null);
   const [term, setTerm] = useState('');
+  const purchases = usePurchases();
   // Sem acentos nem maiúsculas, como em "Procurar nas definições": "notificacoes" encontra "notificações".
   const words = normalize(term).split(/\s+/).filter(Boolean);
-  const list = helpFaqFor(PURCHASES, FAQ).filter((f) => { const hay = normalize(`${f.q} ${f.a}`); return words.every((w) => hay.includes(w)); });
+  const list = helpFaqFor(purchases, FAQ).filter((f) => { const hay = normalize(`${f.q} ${f.a}`); return words.every((w) => hay.includes(w)); });
   const subject = encodeURIComponent('Problema no Txillapp');
   const body = encodeURIComponent(`\n\n---\nVersão: ${Constants.expoConfig?.version ?? ''}\nAparelho: ${Platform.OS} ${Platform.Version}`);
   return (

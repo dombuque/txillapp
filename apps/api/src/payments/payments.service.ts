@@ -44,6 +44,8 @@ export class PaymentsService {
     const on = this.enabled();
     const { rows } = await this.pool.query(`SELECT id, name, txills, price_minor, currency FROM payments.packages WHERE active ORDER BY position`);
     return {
+      // Interruptor das lojas: a app das lojas só mostra a recarga com isto ligado (PAYMENTS_STORE_TOPUP).
+      storeTopup: this.cfg.PAYMENTS_STORE_TOPUP,
       providers: PROVIDERS.filter((p) => on.includes(p.id)),
       packages: rows.map((r) => ({ id: r.id as string, name: r.name as string, txills: r.txills as number, priceMinor: r.price_minor as number, currency: r.currency as string })),
     };

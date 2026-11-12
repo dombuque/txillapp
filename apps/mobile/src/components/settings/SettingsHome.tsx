@@ -11,7 +11,7 @@ import { accounts } from '@/lib/accounts';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SETTINGS_GROUPS, searchSettings, type SettingsGroupId, type SettingsHit } from '@/lib/settingsIndex';
-import { PURCHASES } from '@/lib/purchases';
+import { usePurchases } from '@/lib/purchases';
 import { hiddenSettingsFor, paymentsSubtitleFor } from '@/lib/storeRules';
 import { colors } from '@/lib/theme';
 import { SettingRow, SettingsSection } from './SettingRow';
@@ -19,7 +19,7 @@ import { LogoutSheet, SwitchAccountSheet } from './sheets';
 import { useLeave } from './useLeave';
 
 /** Opções que este aparelho não mostra: a pesquisa também não as propõe. */
-const HIDDEN_HERE = [...(Platform.OS === 'web' ? [] : ['installApp', 'contacts']), ...hiddenSettingsFor(PURCHASES)];
+const HIDDEN_HERE = Platform.OS === 'web' ? [] : ['installApp', 'contacts'];
 
 /** O cartão do perfil no topo: foto, nome, @ e "Editar perfil". */
 function ProfileCard() {
@@ -77,6 +77,7 @@ function SettingsSearch({ query, onChange }: { query: string; onChange: (q: stri
 }
 
 function Results({ hits, onPick }: { hits: SettingsHit[]; onPick: (h: SettingsHit) => void }) {
+  const purchases = usePurchases();
   if (hits.length === 0) {
     return <Text style={st.noHits} accessibilityLiveRegion="polite">Nada com esse nome. Experimenta outra palavra, como "privado", "senha" ou "notificações".</Text>;
   }
@@ -84,7 +85,7 @@ function Results({ hits, onPick }: { hits: SettingsHit[]; onPick: (h: SettingsHi
     <SettingsSection title={hits.length === 1 ? '1 resultado' : `${hits.length} resultados`}>
       {hits.map((h) => {
         const g = h.kind === 'group' ? SETTINGS_GROUPS.find((x) => x.id === h.id) : undefined;
-        return <SettingRow key={`${h.kind}-${h.id}`} icon={(g?.icon ?? 'settings') as IconName} title={h.title} description={g ? (g.id === 'pagamentos' ? paymentsSubtitleFor(PURCHASES, g.subtitle) : g.subtitle) : h.where} onPress={() => onPick(h)} />;
+        return <SettingRow key={`${h.kind}-${h.id}`} icon={(g?.icon ?? 'settings') as IconName} title={h.title} description={g ? (g.id === 'pagamentos' ? paymentsSubtitleFor(purchases, g.subtitle) : g.subtitle) : h.where} onPress={() => onPick(h)} />;
       })}
     </SettingsSection>
   );
@@ -107,6 +108,8 @@ export function SettingsHome({ pane = false }: { pane?: boolean }) {
   }, [user?.username]);
   const { device } = useDeviceNotifications();
   const notifOff = showsOffBanner(device);
+  // Sem recarga (versões das lojas), «Pedidos e pagamentos» também não aparece na pesquisa.
+  const purchases = usePurchases();
 
   const open = (to: string) => router.push(to as never);
   // No telemóvel a pesquisa fica: limpá-la aqui trocava os resultados pela lista dos grupos a meio da animação (via-se por
@@ -115,7 +118,7 @@ export function SettingsHome({ pane = false }: { pane?: boolean }) {
   const pick = (h: SettingsHit) => { if (pane) setQuery(''); open(h.path); };
   // No computador, o grupo aberto fica assinalado (em /settings abre-se a Conta).
   const active = (id: SettingsGroupId) => pane && (path === `/settings/${id}` || (id === 'conta' && path === '/settings') || (id === 'seguranca' && path === '/settings/aparelhos'));
-  const hits = query.trim() ? searchSettings(query, { hidden: HIDDEN_HERE }) : null;
+  const hits = query.trim() ? searchSettings(query, { hidden: [...HIDDEN_HERE, ...hiddenSettingsFor(purchases)] }) : null;
 
   return (
     <View>
@@ -133,7 +136,7 @@ export function SettingsHome({ pane = false }: { pane?: boolean }) {
                 key={g.id}
                 icon={g.icon as IconName}
                 title={g.title}
-                subtitle={g.id === 'notificacoes' && notifOff ? 'Desligadas neste aparelho' : g.id === 'pagamentos' ? paymentsSubtitleFor(PURCHASES, g.subtitle) : g.subtitle}
+                subtitle={g.id === 'notificacoes' && notifOff ? 'Desligadas neste aparelho' : g.id === 'pagamentos' ? paymentsSubtitleFor(purchases, g.subtitle) : g.subtitle}
                 warn={g.id === 'notificacoes' && notifOff}
                 active={active(g.id)}
                 onPress={() => (pane ? router.navigate(`/settings/${g.id}` as never) : open(`/settings/${g.id}`))}
