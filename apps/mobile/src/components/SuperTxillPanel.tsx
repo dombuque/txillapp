@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -26,15 +26,18 @@ function BotAvatar({ size }: { size: number }) {
   );
 }
 
-/** O SuperTxill, aberto a partir da barra de pesquisa: ecrã inteiro, só com dados do Txillapp. */
-export function SuperTxillPanel({ onClose }: { onClose: () => void }) {
+/**
+ * O SuperTxill: um ecrã da pilha (/supertxill), aberto a partir das Mensagens e da Pesquisa, só com dados do Txillapp.
+ * Por ser um ecrã (e não uma janela por cima), arrastar para trás ou o «voltar» do browser volta para onde estavas.
+ */
+export function SuperTxillScreen({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const q = useQuery({ queryKey: ['supertxill-for-you'], queryFn: aiApi.forYou, staleTime: 60_000 });
   const list = q.data ?? [];
 
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <>
       <FeatureIntro id="supertxill" />
       <View style={{ flex: 1, backgroundColor: colors.white, alignItems: 'center' }}>
         <View style={{ flex: 1, width: '100%', maxWidth: 576 }}>
@@ -55,7 +58,7 @@ export function SuperTxillPanel({ onClose }: { onClose: () => void }) {
             <View style={{ marginTop: 8 }}>
               {list.map((p) => (
                 <View key={p.username} style={s.row}>
-                  <Pressable onPress={() => { onClose(); router.push(`/u/${p.username}` as never); }} style={s.who} accessibilityRole="button">
+                  <Pressable onPress={() => router.push(`/u/${p.username}` as never)} style={s.who} accessibilityRole="button">
                     <Avatar name={p.displayName} username={p.username} size={48} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -75,7 +78,7 @@ export function SuperTxillPanel({ onClose }: { onClose: () => void }) {
           </ScrollView>
         </View>
       </View>
-    </Modal>
+    </>
   );
 }
 

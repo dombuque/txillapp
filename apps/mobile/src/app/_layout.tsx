@@ -161,6 +161,7 @@ function Gate() {
       <Stack.Screen name="register" />
       <Stack.Screen name="forgot-password" />
       <Stack.Screen name="search" />
+      <Stack.Screen name="supertxill" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="u/[username]" />
       <Stack.Screen name="p/[id]" />

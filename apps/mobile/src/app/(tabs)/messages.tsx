@@ -15,7 +15,7 @@ import { Icon } from '@/components/Icon';
 import { NotesStrip } from '@/components/Notes';
 import { REACTIONS } from '@/components/StoryParts';
 import { Pulse } from '@/components/ChatParts';
-import { Bolt, SuperTxillPanel } from '@/components/SuperTxillPanel';
+import { Bolt } from '@/components/SuperTxillPanel';
 import { InstantsDock, openZasCamera, zasListScrolling } from '@/components/Instants';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
 import { api, type ChatMessage } from '@/lib/api';
@@ -131,7 +131,6 @@ export default function Messages() {
     if (v !== 'requests' && v !== lastTab) { lastTab = v; void kvSet(INBOX_TAB_KEY, v); }
   };
   const [text, setText] = useState('');
-  const [ai, setAi] = useState(false);
   const [focus, setFocus] = useState(false);
   const qc = useQueryClient();
   const direct = useQuery({ queryKey: ['chat-list'], queryFn: api.chatList, refetchInterval: 60_000 });
@@ -316,7 +315,7 @@ export default function Messages() {
         <Icon name="search" size={18} color={colors.zinc500} />
         <TextInput value={text} onChangeText={setText} placeholder="Procurar pessoas e TxillGroups" placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel="Procurar conversas" onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} />
         {text ? <Pressable onPress={() => setText('')} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Limpar"><Icon name="x" size={16} /></Pressable> : null}
-        <Pressable onPress={() => setAi(true)} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
+        <Pressable onPress={() => router.push('/supertxill' as never)} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
       </View>
       {!term && view !== 'requests' && <View onTouchStart={() => { notesTouch.current = true; }}><NotesStrip /></View>}
       <View style={styles.tabs} accessibilityRole="tablist">
@@ -462,7 +461,6 @@ export default function Messages() {
           onClose={closeMenu}
         />
       ) : null}
-      {ai && <SuperTxillPanel onClose={() => setAi(false)} />}
       <InstantsDock />
     </View>
   );

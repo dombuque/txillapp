@@ -13,7 +13,7 @@ import { ExploreViewer } from '@/components/ExploreViewer';
 import { FollowButton } from '@/components/FollowButton';
 import { Icon } from '@/components/Icon';
 import { Suggestions } from '@/components/Suggestions';
-import { Bolt, SuperTxillPanel } from '@/components/SuperTxillPanel';
+import { Bolt } from '@/components/SuperTxillPanel';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { api, isTcheka, type Post } from '@/lib/api';
 import { locaisApi } from '@/lib/api.locais';
@@ -58,7 +58,6 @@ export default function Search() {
   const [term, setTerm] = useState('');
   const [tab, setTab] = useState<'people' | 'venues' | 'tags' | 'posts' | 'mentions'>('people');
   const [topic, setTopic] = useState<string | null>(null);
-  const [ai, setAi] = useState(false); // SuperTxill aberto
   const [recent, setRecent] = useState<string[]>([]);
   /** Tocaste na pesquisa: mostra as pesquisas recentes (como no Instagram), em vez do Explorar. */
   const [focusMode, setFocusMode] = useState(false);
@@ -177,7 +176,7 @@ export default function Search() {
           <Icon name="search" size={20} color={colors.zinc600} />
           <TextInput ref={input} value={text} onChangeText={setText} onFocus={() => setFocusMode(true)} onSubmitEditing={() => { const t = text.trim(); if (t.length >= 2) { setTerm(t); remember(t); } }} placeholder="Procura malta e publicações…" placeholderTextColor={colors.zinc500} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.input} accessibilityLabel="Pesquisar" />
           {text ? <Pressable onPress={() => setText('')} hitSlop={8} accessibilityLabel="Limpar pesquisa"><Text style={{ fontSize: 22, color: colors.zinc600, paddingHorizontal: 6 }}>×</Text></Pressable> : null}
-          <Pressable onPress={() => setAi(true)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
+          <Pressable onPress={() => router.push('/supertxill' as never)} hitSlop={6} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
         </View>
         {focusMode ? (
           <Pressable onPress={cancelSearch} hitSlop={6} style={{ height: 44, justifyContent: 'center', paddingHorizontal: 6 }} accessibilityRole="button"><Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc900 }}>Cancelar</Text></Pressable>
@@ -360,7 +359,6 @@ export default function Search() {
       </ScrollView>
       {viewing && <ExploreViewer items={grid} startId={viewing} onClose={() => setViewing(null)} />}
       {opened && <ExploreViewer items={[opened]} startId={opened.id} title="Publicação" onClose={() => setOpened(null)} />}
-      {ai && <SuperTxillPanel onClose={() => setAi(false)} />}
     </View>
   );
 }
