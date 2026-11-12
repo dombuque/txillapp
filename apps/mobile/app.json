@@ -60,7 +60,7 @@
     },
     "android": {
       "package": "com.txillapp.app",
-      "versionCode": 67,
+      "versionCode": 68,
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
