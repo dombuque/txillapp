@@ -167,6 +167,9 @@ function Gate() {
   // Modo computador (browser largo, com sessão, fora das páginas de entrada e das páginas públicas): barra lateral e conteúdo largo.
   const outside = ['login', 'register', 'forgot-password', 'google-username', 'verify-email', 'reset-password', 'terms', 'termos', 'privacy', 'privacidade', 'apagar-conta', 'c'].includes(segments[0] ?? '');
   const shell = desktop && !!user && !outside;
+  // Sem sessão no computador, a apresentação (endereço principal) e as páginas de entrar ocupam a janela (têm o seu layout
+  // de duas colunas); as páginas de texto (termos, privacidade, ajuda) ficam na coluna de leitura.
+  const wideOut = desktop && !user && (pathname === '/' || ['login', 'register', 'forgot-password', 'google-username'].includes(segments[0] ?? ''));
   const stack = (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.white } }}>
       <Stack.Screen name="(tabs)" />
@@ -199,7 +202,7 @@ function Gate() {
     </Stack>
   );
   return (
-    <View style={shell ? styles.desk : styles.column} nativeID={shell ? undefined : 'tx-main'}>
+    <View style={shell || wideOut ? styles.desk : styles.column} nativeID={shell ? undefined : 'tx-main'}>
       <ChatLive />
       <AnalyticsLive userId={user?.id ?? null} ready />
       <AppUpdate />
