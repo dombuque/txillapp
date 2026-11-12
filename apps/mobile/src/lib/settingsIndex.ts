@@ -53,7 +53,7 @@ export const NOTIFY_LABELS: Record<string, [string, string]> = {
   calls: ['Chamadas perdidas', 'Quando te ligam e não atendes (o toque de quem liga não se desliga aqui)'],
   venues: ['Locais que geres', 'Convites para gerir uma página e pagamentos em Txills recebidos'],
   // Lembretes de regresso (API: src/reminders/comeback-reminder.service.ts). Ligado por omissão.
-  comeback: ['Lembretes quando não passo por cá', 'Se não abrires o Txillapp há uns dias, avisamos-te do que há de novo, de vez em quando e nunca à noite (sem notificações, por e-mail)'],
+  comeback: ['Lembretes quando não passo por cá', 'Se não abrires o Txillapp há 3 dias ou mais, avisamos-te do que há de novo: no máximo um por semana e só entre as 9h e as 20h. Se a notificação não chegar, vai por email'],
 };
 
 const NOTIFY_KEYWORDS: Record<string, string[]> = {
@@ -67,7 +67,7 @@ const NOTIFY_KEYWORDS: Record<string, string[]> = {
   invites: ['convidados'],
   calls: ['chamadas', 'perdidas', 'ligações'],
   venues: ['locais', 'bar', 'restaurante'],
-  comeback: ['lembretes', 'lembrar', 'não passo por cá', 'saudades', 'e-mail', 'email', 'voltar', 'ausente', 'afastado'],
+  comeback: ['lembretes', 'lembrar', 'não passo por cá', 'saudades', 'e-mail', 'email', 'voltar', 'ausente', 'afastado', 'regresso', 'lembretes de regresso', 'deixar de receber', 'inativo'],
 };
 
 /** Notificações: a âncora de cada categoria. */
