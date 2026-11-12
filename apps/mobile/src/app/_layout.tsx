@@ -24,6 +24,7 @@ import { syncPush } from '@/lib/push';
 import { installCallRing } from '@/lib/callRing';
 import { useChatStream } from '@/lib/realtime';
 import { colors } from '@/lib/theme';
+import { isPublicSegment } from '@/lib/publicRoutes';
 import { AnalyticsLive, reportRenderError, startAnalytics } from '@/lib/analyticsRuntime';
 
 void SplashScreen.preventAutoHideAsync();
@@ -110,8 +111,8 @@ function Gate() {
     const onLogin = segments[0] === 'login' || segments[0] === 'register' || segments[0] === 'forgot-password' || segments[0] === 'google-username';
     // Links dos emails: servem com ou sem sessão (confirmar conta e repor a senha).
     const onEmailLink = segments[0] === 'verify-email' || segments[0] === 'reset-password';
-    // Páginas abertas a todos (termos e privacidade, e a página de um convite, /c/CÓDIGO): também com sessão fechada.
-    const onPublic = segments[0] === 'terms' || segments[0] === 'privacy' || segments[0] === 'help' || segments[0] === 'c';
+    // Páginas abertas a todos (termos, privacidade, suporte, apagar a conta e a página de um convite, /c/CÓDIGO): também sem sessão.
+    const onPublic = isPublicSegment(segments[0]);
     if (onEmailLink || onPublic) return;
     // No browser, a página principal sem sessão é a apresentação do Txillapp (ver (tabs)/index): fica no endereço principal.
     const landingHome = Platform.OS === 'web' && pathname === '/' && !isStandaloneWeb();
@@ -145,8 +146,10 @@ function Gate() {
     if (Platform.OS === 'web' && user && typeof document !== 'undefined') document.title = 'Txillapp';
   }, [user, pathname]);
 
-  if (loading) return <BrandLoader />;
-  if (offline) {
+  // As páginas públicas não esperam pela sessão: quem as abre (também os revisores das lojas) vê-as logo.
+  if (loading && !isPublicSegment(segments[0])) return <BrandLoader />;
+  // As páginas públicas (termos, privacidade, suporte…) abrem mesmo sem ligação ao servidor.
+  if (offline && !isPublicSegment(segments[0])) {
     return (
       <View style={styles.center}>
         <Text style={styles.title}>Sem ligação</Text>
@@ -156,7 +159,7 @@ function Gate() {
     );
   }
   // Modo computador (browser largo, com sessão, fora das páginas de entrada e das páginas públicas): barra lateral e conteúdo largo.
-  const outside = ['login', 'register', 'forgot-password', 'google-username', 'verify-email', 'reset-password', 'terms', 'privacy', 'c'].includes(segments[0] ?? '');
+  const outside = ['login', 'register', 'forgot-password', 'google-username', 'verify-email', 'reset-password', 'terms', 'termos', 'privacy', 'privacidade', 'apagar-conta', 'c'].includes(segments[0] ?? '');
   const shell = desktop && !!user && !outside;
   const stack = (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.white } }}>

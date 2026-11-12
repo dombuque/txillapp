@@ -13,7 +13,7 @@ import { hashNet, isDisposable } from '../invites/rules';
 import { SearchIndexer } from '../search/search-index';
 import { PG_POOL } from '../db/db.module';
 import { MailService } from '../mail/mail.service';
-import { resetPasswordMail, verifyEmailMail } from '../mail/templates';
+import { deleteAccountMail, resetPasswordMail, verifyEmailMail } from '../mail/templates';
 import { AppleService } from './apple.service';
 import { GoogleService } from './google.service';
 import { isReservedUsername } from './reserved-usernames';
@@ -454,13 +454,80 @@ export class AuthService {
     if (u.password_hash && !(password && (await argon2.verify(u.password_hash, password)))) {
       throw new UnauthorizedException('A senha não está certa');
     }
+    await this.eraseAccount(userId, String(u.username), 'account.deleted');
+  }
+
+  /* ───── eliminar a conta sem sessão (página pública txillapp.com/apagar-conta) ───── */
+
+  /** Um resumo do email na ligação: se o email da conta mudar, a ligação deixa de valer. */
+  private deletionMark(email: string) {
+    return sha256(`apagar|${String(email).toLowerCase()}`).slice(0, 16);
+  }
+
+  /**
+   * "Quero apagar a minha conta" sem sessão: manda para o email da conta uma ligação que vale 1 hora. Nunca apaga nada aqui
+   * (escrever um email não chega) e responde sempre igual, exista ou não a conta, para não revelar quem está registado.
+   */
+  async requestAccountDeletion(rawEmail: string) {
+    const email = rawEmail.trim().toLowerCase();
+    if (this.mail.enabled && z.string().email().max(254).safeParse(email).success) {
+      const { rows } = await this.pool.query("SELECT id, email, display_name FROM identity.users WHERE lower(email) = $1 AND status = 'active'", [email]);
+      const u = rows[0];
+      if (u) {
+        const token = await new SignJWT({ m: this.deletionMark(u.email) })
+          .setProtectedHeader({ alg: 'HS256' })
+          .setSubject(u.id)
+          .setIssuer('txillapp')
+          .setAudience('account-delete')
+          .setIssuedAt()
+          .setExpirationTime('1h')
+          .sign(this.secret);
+        await this.mail.send({ to: u.email, ...deleteAccountMail(this.mail.publicUrl, String(u.display_name).split(' ')[0], token) });
+      }
+    }
+    // `mail: false` é igual para toda a gente (o servidor não envia emails): a página manda apagar na app em vez de esperar.
+    return { ok: true, mail: this.mail.enabled };
+  }
+
+  /** A conta a que a ligação do email se refere (ainda ativa e com o mesmo email), ou erro. */
+  private async deletionTarget(token: string) {
+    const bad = () => new BadRequestException('Esta ligação já não vale. Pede outra em txillapp.com/apagar-conta.');
+    let claims;
+    try {
+      claims = (await jwtVerify(token, this.secret, { algorithms: ['HS256'], issuer: 'txillapp', audience: 'account-delete' })).payload;
+    } catch {
+      throw bad();
+    }
+    const { rows } = await this.pool.query("SELECT id, username, display_name, email FROM identity.users WHERE id = $1 AND status = 'active'", [claims.sub]);
+    const u = rows[0];
+    if (!u || claims.m !== this.deletionMark(u.email)) throw bad();
+    return u as { id: string; username: string; display_name: string };
+  }
+
+  /** O que a página mostra antes de confirmar: de que conta se trata. */
+  async deletionPreview(token: string) {
+    const u = await this.deletionTarget(token);
+    return { username: u.username, displayName: u.display_name };
+  }
+
+  /** Confirmado na página aberta pela ligação do email: apaga a conta, como em Definições → Conta → Eliminar conta. */
+  async confirmAccountDeletion(token: string) {
+    const u = await this.deletionTarget(token);
+    await this.eraseAccount(u.id, u.username, 'account.deleted_by_email_link');
+  }
+
+  /**
+   * Apaga a conta (já confirmada por quem pediu): usado pela app (com o @ e a senha) e pela ligação do email.
+   * A linha da conta fica, anonimizada, porque os movimentos de Txills e os registos de convites apontam para ela.
+   */
+  private async eraseAccount(userId: string, username: string, auditAction: string) {
     // Sai dos TxillGroups como quem sai pelo próprio pé: passa a administração, e um grupo que fica vazio devolve o cofre e fecha.
     // (O serviço dos grupos vive no módulo do chat, que já depende deste; vai-se buscá-lo só aqui, sem criar um ciclo.)
     const groups = (await this.pool.query('SELECT group_id FROM social.group_members WHERE user_id = $1', [userId])).rows;
     if (groups.length) {
       const { GroupsService } = await import('../chat/groups.service');
       const svc = this.moduleRef.get(GroupsService, { strict: false });
-      for (const g of groups) await svc.removeMember(userId, g.group_id as string, String(u.username)).catch(() => undefined);
+      for (const g of groups) await svc.removeMember(userId, g.group_id as string, username).catch(() => undefined);
     }
     const client = await this.pool.connect();
     try {
@@ -468,12 +535,14 @@ export class AuthService {
       await client.query(
         `UPDATE identity.users SET status = 'deleted', username = 'eliminado_' || substr(replace(id::text, '-', ''), 1, 12),
                 display_name = 'Conta eliminada', email = 'deleted+' || id::text || '@invalid.local',
-                bio = NULL, google_sub = NULL, apple_sub = NULL, avatar_media_id = NULL, is_private = true, gender = NULL, birth_date = NULL
+                bio = NULL, google_sub = NULL, apple_sub = NULL, avatar_media_id = NULL, is_private = true, gender = NULL, birth_date = NULL,
+                city = NULL, website = NULL, country = NULL, last_seen_at = NULL
           WHERE id = $1`,
         [userId],
       );
       await client.query('DELETE FROM identity.credentials WHERE user_id = $1', [userId]);
-      await client.query('UPDATE identity.sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [userId]);
+      // As sessões saem de vez (com o tipo de aparelho e de browser), não ficam só terminadas.
+      await client.query('DELETE FROM identity.sessions WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM social.follows WHERE follower_id = $1 OR followee_id = $1', [userId]);
       await client.query('DELETE FROM social.follow_requests WHERE requester_id = $1 OR target_id = $1', [userId]);
       await client.query('DELETE FROM social.suggestion_dismissals WHERE user_id = $1 OR dismissed_id = $1', [userId]);
@@ -580,8 +649,19 @@ export class AuthService {
       );
       // Publicações deixam de existir para todos; as fotos passam a 'deleted' e são apagadas do armazenamento.
       await client.query(`UPDATE content.posts SET removed_at = now(), removed_by = 'author' WHERE author_id = $1 AND removed_at IS NULL`, [userId]);
+      // A linha da publicação fica (presentes e reposts de outros apontam para ela), mas sem nada do que lá estava:
+      // texto, sítio, música, temas, país, as fotos e as hashtags.
+      await client.query(
+        `UPDATE content.posts SET body = '', location_label = NULL, location_lat = NULL, location_lng = NULL, music = NULL, topics = NULL, country = NULL
+          WHERE author_id = $1`,
+        [userId],
+      );
+      await client.query('DELETE FROM content.post_media pm USING content.posts p WHERE pm.post_id = p.id AND p.author_id = $1', [userId]);
+      await client.query('DELETE FROM content.post_tags t USING content.posts p WHERE t.post_id = p.id AND p.author_id = $1', [userId]);
+      // A impressão da rede de quem entrou com um convite (antifraude) já não é precisa.
+      await client.query('UPDATE social.referrals SET ip_hash = NULL WHERE invitee_id = $1', [userId]);
       await client.query(`UPDATE content.media_assets SET status = 'deleted' WHERE owner_id = $1 AND status <> 'deleted'`, [userId]);
-      await this.audit(client, userId, 'account.deleted');
+      await this.audit(client, userId, auditAction);
       await client.query('COMMIT');
       this.indexer.userRemoved(userId);
     } catch (e) {

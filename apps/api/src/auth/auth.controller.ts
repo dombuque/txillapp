@@ -84,7 +84,11 @@ const forgotSchema = z.object({ email: z.string().max(254) });
 const resetSchema = z.object({ token: z.string().min(20).max(200), newPassword: passwordSchema });
 const googleSchema = z.object({ idToken: z.string().min(20).max(4096) });
 const appleSchema = z.object({ identityToken: z.string().min(20).max(8192), nonce: z.string().max(200).optional(), fullName: z.string().max(120).optional() });
-const appleCompleteSchema = z.object({ signupToken: z.string().min(20).max(4096), username: z.string().min(1).max(60), gender: genderSchema.optional(), birthDate: birthDateSchema.optional() });
+// Como no registo normal e na Google: a data de nascimento (idade mínima) e a aceitação dos termos são obrigatórias.
+const appleCompleteSchema = z.object({ signupToken: z.string().min(20).max(4096), username: z.string().min(1).max(60), gender: genderSchema.optional(), birthDate: birthDateSchema, acceptTerms: z.literal(true) });
+// Apagar a conta sem sessão (página txillapp.com/apagar-conta): o pedido só manda uma ligação para o email da conta.
+const deletionRequestSchema = z.object({ email: z.string().max(254) });
+const deletionTokenSchema = z.object({ token: z.string().min(20).max(2000) });
 const googleCompleteSchema = z.object({ signupToken: z.string().min(20).max(4096), username: z.string().min(1).max(60), gender: genderSchema.optional(), birthDate: birthDateSchema, acceptTerms: z.literal(true) });
 
 @Controller('auth')
@@ -256,6 +260,30 @@ export class AuthController {
     await this.auth.deleteAccount(req.userId!, b.confirmUsername, b.password);
     res.clearCookie(accountCookie(req.userId!), { path: COOKIE_PATH });
     res.clearCookie(COOKIE, { path: COOKIE_PATH });
+  }
+
+  /** Página pública de apagar a conta: manda para o email da conta uma ligação de confirmação (responde sempre igual). */
+  @Post('delete-account/request')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 3600_000 } })
+  requestDeletion(@Body(new ZodPipe(deletionRequestSchema)) b: z.infer<typeof deletionRequestSchema>) {
+    return this.auth.requestAccountDeletion(b.email);
+  }
+
+  /** A ligação do email: de que conta se trata, antes de confirmar. */
+  @Post('delete-account/preview')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  deletionPreview(@Body(new ZodPipe(deletionTokenSchema)) b: z.infer<typeof deletionTokenSchema>) {
+    return this.auth.deletionPreview(b.token);
+  }
+
+  /** A ligação do email, depois de a pessoa confirmar na página: apaga a conta. */
+  @Post('delete-account/confirm')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async confirmDeletion(@Body(new ZodPipe(deletionTokenSchema)) b: z.infer<typeof deletionTokenSchema>) {
+    await this.auth.confirmAccountDeletion(b.token);
   }
 
   /* ───── e-mail ───── */
