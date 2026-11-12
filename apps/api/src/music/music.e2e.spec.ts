@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
+import { MusicCatalogService } from './catalog/catalog.service';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
@@ -16,7 +17,6 @@ const good = { id: 'ov-1', title: 'Marrabenta de teste', artist: 'Artista Livre'
 describe('música nas notas: catálogo de licenças abertas e crédito (integração)', () => {
   let app: INestApplication;
   let pool: Pool;
-  let fetchSpy: jest.SpyInstance;
   const run = Date.now().toString(36);
   const api = () => request(app.getHttpServer());
   const auth = (x: U) => ({ Authorization: `Bearer ${x.token}` });
@@ -36,30 +36,25 @@ describe('música nas notas: catálogo de licenças abertas e crédito (integra�
     await app.init();
     for (const n of ['mua', 'mub']) u[n] = await signup(n);
     await pool.query('INSERT INTO social.follows (follower_id, followee_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [u.mub.id, u.mua.id]);
-    // O Openverse é simulado: nada sai da máquina nos testes.
-    const real = global.fetch;
-    fetchSpy = jest.spyOn(global, 'fetch').mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input);
-      if (!url.startsWith('https://api.openverse.org/')) return real(input, init);
-      return new Response(JSON.stringify({
-        results: [
-          { id: 'ov-1', title: 'Marrabenta de teste', creator: 'Artista Livre', url: good.url, foreign_landing_url: good.landing, license: 'by', license_url: good.licenseUrl, duration: 90000 },
-          { id: 'ov-2', title: 'Só não comercial', creator: 'X', url: 'https://cdn.freesound.org/previews/2/2.mp3', license: 'by-nc' },
-          { id: 'ov-3', title: 'Sítio estranho', creator: 'Y', url: 'https://evil.example.com/track.mp3', license: 'cc0' },
-        ],
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    });
+    // O catálogo curado (a tarefa periódica não corre nos testes): uma faixa já curada. Nada sai da máquina.
+    const track = { id: good.id, title: good.title, artist: good.artist, duration: 90, previewUrl: good.url, cover: null, source: 'ccmixter', license: 'by', licenseUrl: good.licenseUrl, landing: good.landing, styles: ['marrabenta'], kind: 'music' };
+    await pool.query(
+      `INSERT INTO content.music_catalog (id, source, kind, track, styles, quality) VALUES ($1, 'ccmixter', 'music', $2, '{marrabenta}', 0.8)
+       ON CONFLICT (id) DO UPDATE SET track = EXCLUDED.track, refreshed_at = now()`,
+      [good.id, JSON.stringify(track)],
+    );
+    await pool.query('DELETE FROM content.music_flags WHERE track_id = $1', [good.id]);
+    app.get(MusicCatalogService).invalidate();
   }, 60_000);
 
   afterAll(async () => {
-    fetchSpy.mockRestore();
     await app.close();
     await pool.end();
   });
 
-  it('pesquisa: só licenças que deixam usar e só de sítios permitidos; precisa de sessão e de 2 letras', async () => {
+  it('pesquisa no catálogo curado: precisa de sessão e de 2 letras', async () => {
     const r = (await api().get('/api/v1/music/search?q=marrabenta').set(auth(u.mua)).expect(200)).body as { id: string; license: string }[];
-    expect(r.map((t) => t.id)).toEqual(['ov-1']); // fora a não comercial e a de um sítio estranho
+    expect(r.map((t) => t.id)).toEqual(['ov-1']);
     expect(r[0]).toMatchObject({ title: 'Marrabenta de teste', artist: 'Artista Livre', license: 'by' });
     await api().get('/api/v1/music/search?q=a').set(auth(u.mua)).expect(400);
     await api().get('/api/v1/music/search?q=marrabenta').expect(401);
@@ -80,6 +75,7 @@ describe('música nas notas: catálogo de licenças abertas e crédito (integra�
     await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'x', music: { ...good, url: 'https://evil.example.com/a.mp3' } }).expect(400); // sítio não permitido
     await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'x', music: { ...good, url: 'http://cdn.freesound.org/a.mp3' } }).expect(400); // sem https
     await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'x', music: { ...good, license: 'by-nc' } }).expect(400); // licença não permitida
+    await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'x', music: { ...good, id: 'outra', license: 'by-sa' } }).expect(400); // SA: o mimo teria de ficar em BY-SA
     // Os endereços viram links na app: nada de javascript:, data: nem http (anti-XSS)
     await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'x', music: { ...good, landing: 'javascript:alert(document.cookie)' } }).expect(400);
     await api().put('/api/v1/notes/me').set(auth(mua)).send({ body: 'x', music: { ...good, licenseUrl: 'data:text/html;base64,PHNjcmlwdD4=' } }).expect(400);
