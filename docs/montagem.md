@@ -241,6 +241,11 @@ overlays?: Overlay[]   // texto (fonte, estilo, animação, posição, rotação
 | GIF | descarregado do GIPHY; o GIF lê-se com o ffmpeg em ciclo (`-ignore_loop 0`), a 30 fps e já à largura da camada, e cada frame entra no `drawOverlays` (escalado e rodado pelo desenho, como no site); o WebP animado lê-se pelo sharp (o ffmpeg 6 não o lê) | igual no desenho; o GIF começa no 1.º frame quando a camada entra (no site depende de quando a imagem carregou) |
 
 - O que fica por cima, pela ordem: os textos e stickers de antes, as camadas do estúdio (pela ordem da lista) e a assinatura.
+- **Na imagem Docker** (`docker build -f apps/api/Dockerfile .`): o `@napi-rs/canvas` entra com o binário de linux-x64-gnu, as fontes
+  em `apps/api/assets/fonts/estudio` e os emojis pelo pacote `fonts-noto-color-emoji`. Lá o ffmpeg do `ffmpeg-static` é o 7.0.2
+  (no Windows de desenvolvimento, o 6.1): a cadeia de cor dá o mesmo que a fórmula do site nos dois, e uma montagem com
+  transições, camadas, GIF, rampa e inverter corre dentro do contentor. O aviso «Fontconfig error: Cannot load default config
+  file» desse ffmpeg não tem efeito (as fontes vão sempre por ficheiro).
 - Uma camada que só aparece depois do fim não se desenha; as que passam do fim cortam-se.
 - O `enable` das camadas vai pelo tempo (com meio frame de folga) e não pelo `n`: no `overlay`, o `enable` também se avalia nos
   frames da camada, que contam desde 0.
