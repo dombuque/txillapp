@@ -9,6 +9,7 @@ import {
   acceptCall, declineCall, dismissEnded, expandCall, flipCamera, fmtDuration, hangUp, minimiseCall, speakerSelectable,
   toggleCamera, toggleMic, toggleSpeaker, useCall, useStreamRev, VideoView, type CallPeer, type CallState,
 } from '@/lib/calls';
+import { installCallService } from '@/lib/calls/callServiceNative';
 import { SITE_URL } from '@/lib/config';
 import { useAuth } from '@/lib/auth';
 import { useDesktop } from '@/lib/desktop';
@@ -26,6 +27,8 @@ const QUICK = ['Estou ocupado, já te ligo', 'Estou numa reunião, ligo depois',
  * quando chega um "ring". Minimizado fica uma pílula verde no topo. No computador é um painel ao centro, não a janela toda.
  */
 export function CallOverlay() {
+  // Android: o serviço em primeiro plano mantém o microfone e a câmara com a app fora do ecrã (lib/calls/callService).
+  useEffect(() => installCallService(), []);
   const c = useCall();
   if (c.phase === 'idle') return null;
   if (c.minimised) return <MiniCall c={c} />;

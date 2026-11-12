@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { ApiError, api, migrateWebAccounts, refreshSession, refreshStore, setSessionExpiredHandler, type AuthResult, type PublicUser } from './api';
 import { accounts } from './accounts';
 import { leaveMapOnSignOut } from './api.nearby';
+import { hangUp } from './calls/session';
 import { unregisterNativePush } from './nativePush';
 
 interface AuthState {
@@ -86,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWith = useCallback((r: AuthResult) => { accounts.endAdd(); qc.clear(); setUser(r.user); }, [qc]);
 
   const switchTo = useCallback(async (username: string) => {
+    hangUp(); // a chamada era da outra conta (no Android o serviço da chamada pára com ela)
     await accounts.setCurrent(username);
     const r = await refreshSession();
     qc.clear();
@@ -93,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [qc]);
 
   const signOut = useCallback(async (): Promise<boolean> => {
+    hangUp(); // sair da conta desliga a chamada em curso (no Android o serviço da chamada pára com ela)
     // Ainda com sessão: deixo de aparecer à malta no mapa. Se falhar (sem rede), não prende a saída: a presença expira em 3 h.
     await leaveMapOnSignOut();
     await unregisterNativePush(); // este telemóvel deixa de receber as notificações desta conta
