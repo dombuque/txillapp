@@ -287,7 +287,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
           onClose={() => setViewer(null)}
           footer={
             <ViewerBar
-              post={viewer.of}
+              post={livePost(post, viewer.of)}
               full={viewer.of.id === post.id}
               mine={mine}
               onOpen={(k) => {
@@ -324,15 +324,41 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
 }
 
 /** Barra de ações por baixo da foto em ecrã inteiro: brindar, comentar, repostar, presentear (as outras fecham a foto e abrem a folha). */
+/**
+ * O visor guarda a publicação de quando abriu. Os brindes (e o resto) atualizam a publicação da lista, por isso a barra do
+ * visor lê sempre a versão atual: a própria, ou a original de um repost. Sem isto, brindar parecia não fazer nada e o
+ * segundo toque tirava o brinde do primeiro.
+ */
+export function livePost(current: Post, opened: Post): Post {
+  if (opened.id === current.id) return current;
+  if (current.repostOf && opened.id === current.repostOf.id) return current.repostOf;
+  return opened;
+}
+
 function ViewerBar({ post, full, mine, onOpen }: { post: Post; full: boolean; mine: boolean; onOpen: (k: 'comments' | 'repost' | 'gift' | 'share') => void }) {
   const patch = usePatch(post.id);
+  // O estado do brinde fica aqui também: o visor pode ter aberto a partir de uma lista que o patch não atualiza
+  // (pesquisa, hashtags, guardados…). Acompanha a publicação quando ela muda por fora.
+  const [mine2, setMine2] = useState({ cheered: post.cheered, cheers: post.cheers });
+  useEffect(() => setMine2({ cheered: post.cheered, cheers: post.cheers }), [post.cheered, post.cheers]);
+  const busy = useRef(false);
   async function cheer() {
+    if (busy.current) return;
+    busy.current = true;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-    patch({ cheered: !post.cheered, cheers: post.cheers + (post.cheered ? -1 : 1) });
+    const before = mine2;
+    const next = { cheered: !before.cheered, cheers: Math.max(0, before.cheers + (before.cheered ? -1 : 1)) };
+    setMine2(next);
+    patch(next);
     try {
-      patch(await api.cheer(post.id));
+      const r = await api.cheer(post.id);
+      setMine2({ cheered: r.cheered, cheers: r.cheers });
+      patch(r);
     } catch {
-      patch({ cheered: post.cheered, cheers: post.cheers });
+      setMine2(before);
+      patch(before);
+    } finally {
+      busy.current = false;
     }
   }
   const B = ({ icon, n, on, label, onPress }: { icon: Parameters<typeof Icon>[0]['name']; n?: number; on?: boolean; label: string; onPress: () => void }) => (
@@ -343,7 +369,7 @@ function ViewerBar({ post, full, mine, onOpen }: { post: Post; full: boolean; mi
   );
   return (
     <View style={styles.vBar}>
-      <B icon="cheers" n={post.cheers} on={post.cheered} label={post.cheered ? 'Tirar o brinde' : 'Brindar'} onPress={() => void cheer()} />
+      <B icon="cheers" n={mine2.cheers} on={mine2.cheered} label={mine2.cheered ? 'Tirar o brinde' : 'Brindar'} onPress={() => void cheer()} />
       {full && (
         <>
           <B icon="comment" n={post.comments} label="Comentar" onPress={() => onOpen('comments')} />
