@@ -293,7 +293,7 @@ export class MediaService implements OnModuleInit {
    * O cliente avisa que o upload acabou. No disco local o ficheiro já foi validado no próprio envio;
    * no S3 confirma-se aqui o tamanho e o tipo real (primeiros bytes) antes de o ficheiro passar a 'ready'.
    */
-  async complete(userId: string, id: string): Promise<{ status: string; error?: string }> {
+  async complete(userId: string, id: string, posterMs?: number): Promise<{ status: string; error?: string }> {
     const { rows } = await this.pool.query('SELECT mime, size_bytes, status, processing_error, purpose FROM content.media_assets WHERE id = $1 AND owner_id = $2', [id, userId]);
     const a = rows[0];
     if (!a) throw new NotFoundException();
@@ -301,13 +301,13 @@ export class MediaService implements OnModuleInit {
     if (VIDEO.has(a.mime) && a.status === 'uploaded') {
       // O vídeo foi recebido: converte-se em segundo plano; a app pergunta pelo estado.
       await this.pool.query(`UPDATE content.media_assets SET status = 'processing' WHERE id = $1 AND status = 'uploaded'`, [id]);
-      void this.video.enqueue(id, userId);
+      void this.video.enqueue(id, userId, undefined, posterMs);
       return { status: 'processing' };
     }
     if (a.status === 'ready' || a.status === 'processing') return { status: a.status };
     if (!this.s3) throw new NotFoundException(VIDEO.has(a.mime) ? 'O vídeo ainda não foi enviado' : 'O ficheiro ainda não foi enviado');
     const scope = this.scopeOf(a.purpose);
-    if (VIDEO.has(a.mime)) return this.completeCloudVideo(userId, id, a.purpose === 'chat' ? 'private' : 'public');
+    if (VIDEO.has(a.mime)) return this.completeCloudVideo(userId, id, a.purpose === 'chat' ? 'private' : 'public', posterMs);
     const head = await this.s3.head(id, scope);
     if (!head) throw new NotFoundException('O ficheiro ainda não foi enviado');
     const limit = a.purpose === 'music' ? MAX_MUSIC_BYTES : AUDIO.has(a.mime) ? MAX_AUDIO_BYTES : MAX_IMAGE_BYTES;
@@ -354,7 +354,7 @@ export class MediaService implements OnModuleInit {
 
   /** Vídeo na nuvem: valida o original (bucket privado), converte aqui e publica o resultado no bucket público. */
   /** `scope`: onde fica o vídeo pronto (público nas publicações; privado nas conversas). */
-  private async completeCloudVideo(userId: string, id: string, scope: 'public' | 'private' = 'public'): Promise<{ status: string }> {
+  private async completeCloudVideo(userId: string, id: string, scope: 'public' | 'private' = 'public', posterMs?: number): Promise<{ status: string }> {
     const s3 = this.s3!;
     const src = `${id}.src`;
     const head = await s3.head(src, 'private');
@@ -376,7 +376,7 @@ export class MediaService implements OnModuleInit {
         await s3.remove(src, 'private'); // o original não publicado deixa de existir
       },
       cleanup: async () => void (await Promise.allSettled([s3.remove(src, 'private'), s3.remove(id, scope), s3.remove(`${id}.poster.jpg`, scope)])),
-    });
+    }, posterMs);
     return { status: 'processing' };
   }
 
