@@ -18,6 +18,7 @@ import { DesktopShell } from '@/components/DesktopShell';
 import { isStandaloneWeb } from '@/components/Landing';
 import { useDesktop } from '@/lib/desktop';
 import { installWebAlert } from '@/lib/alertHost';
+import { installWebBack } from '@/lib/webBack';
 import { accounts } from '@/lib/accounts';
 import { syncPush } from '@/lib/push';
 import { installCallRing } from '@/lib/callRing';
@@ -27,6 +28,9 @@ import { AnalyticsLive, reportRenderError, startAnalytics } from '@/lib/analytic
 
 void SplashScreen.preventAutoHideAsync();
 installWebAlert();
+// Web: o «voltar» do browser (e arrastar para trás no PWA do iPhone) fecha a folha ou o visor aberto, em vez de sair do ecrã.
+// Tem de ficar aqui, antes de o expo-router começar a ouvir o histórico.
+installWebBack();
 // Estatísticas de uso (só nossas; respeitam Definições → "Ajudar a melhorar o Txillapp"): aberturas, ecrãs, desempenho e erros.
 startAnalytics();
 
@@ -166,6 +170,8 @@ function Gate() {
       <Stack.Screen name="u/[username]" />
       <Stack.Screen name="p/[id]" />
       <Stack.Screen name="messages/[username]" />
+      {/* Nova conversa: a folha abre por cima das Mensagens (que ficam à vista por trás), sem um ecrã branco a deslizar antes. */}
+      <Stack.Screen name="messages/new" options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }} />
       <Stack.Screen name="settings" />
       <Stack.Screen name="saved" />
       <Stack.Screen name="verification" />
@@ -175,8 +181,9 @@ function Gate() {
       <Stack.Screen name="invites" />
       <Stack.Screen name="t/[tag]" />
       <Stack.Screen name="u/[username]/connections" />
-      <Stack.Screen name="stories/[username]" options={{ animation: 'fade' }} />
-      <Stack.Screen name="m/[username]" options={{ animation: 'fade' }} />
+      {/* Nos mimos deslizar para os lados muda de pessoa e para baixo fecha: o gesto de voltar do iPhone baralhava-os. */}
+      <Stack.Screen name="stories/[username]" options={{ animation: 'fade', gestureEnabled: false }} />
+      <Stack.Screen name="m/[username]" options={{ animation: 'fade', gestureEnabled: false }} />
       <Stack.Screen name="stories/new" options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="calls" />
       <Stack.Screen name="call/[id]" options={{ animation: 'fade' }} />

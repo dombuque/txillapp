@@ -12,6 +12,7 @@ import { StackPage } from '@/components/StackPage';
 import { ApiError, api, type Person } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { goBack } from '@/lib/nav';
 
 type Kind = 'followers' | 'following';
 
@@ -194,7 +195,7 @@ export default function Connections() {
               <Pressable onPress={() => void profile.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>Tentar outra vez</Text></Pressable>
             </>
           )}
-          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/' as never))} style={st.back} accessibilityRole="button"><Text style={{ textDecorationLine: 'underline', fontSize: 16, color: colors.zinc800 }}>Voltar</Text></Pressable>
+          <Pressable onPress={() => goBack(router)} style={st.back} accessibilityRole="button"><Text style={{ textDecorationLine: 'underline', fontSize: 16, color: colors.zinc800 }}>Voltar</Text></Pressable>
         </View>
       )}
       {p && !p.canSeeConnections && <Empty icon="lock" title="Estas listas são privadas" text={`${p.displayName} escolheu quem as pode ver.`} />}

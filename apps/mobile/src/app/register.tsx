@@ -9,6 +9,7 @@ import { ApiError, api, inviteStore } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
 import { colors } from '@/lib/theme';
+import { goBack } from '@/lib/nav';
 import { Field, Screen, authStyles } from './login';
 
 const MIN_AGE = 15;
@@ -159,7 +160,7 @@ export default function Register() {
     }
   }
   function back() {
-    if (i === 0) router.back();
+    if (i === 0) goBack(router, '/login');
     else { setError(''); setI(i - 1); }
   }
   const set = (v: string) => { setError(''); setData({ ...data, [step.key]: v }); };

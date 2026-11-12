@@ -33,6 +33,8 @@ import { usePagerPan, useWebPager } from './SwipePager';
 import { useFadeIn, useTabSlider } from './TabSlider';
 import { VerifiedBadge } from './VerifiedBadge';
 import { linkShare } from '@/lib/shareLink';
+import { useTabPress } from '@/lib/tabPress';
+import { goBack } from '@/lib/nav';
 
 /** Os ícones e nomes dos separadores; quais aparecem e por que ordem se desliza é de lib/profileTabs. */
 const TABS: { id: ProfileTab; label: string; icon: IconName | 'bookmark' }[] = [
@@ -124,6 +126,9 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   // No computador o perfil é largo (grelha de 935): o cabeçalho fica numa coluna mais estreita, ao centro.
   const desktop = useDesktop();
   const deskCol = desktop ? { width: '100%' as const, maxWidth: 680, alignSelf: 'center' as const } : null;
+  // Tocar outra vez em Perfil (já no perfil): volta ao topo.
+  const listRef = useRef<FlatList>(null);
+  useTabPress('profile', () => listRef.current?.scrollToOffset({ offset: 0, animated: true }));
   const bob = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(Animated.sequence([
@@ -182,8 +187,6 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
     arrived.current = posts.isSuccess;
   }, [posts.isSuccess, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Voltar sem histórico (ligação aberta diretamente): vai para o Início em vez de não fazer nada.
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/' as never));
   if (q.isError && !p) {
     const missing = q.error instanceof ApiError && q.error.status === 404;
     return (
@@ -192,7 +195,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
         <Text style={styles.errTitle}>{missing ? 'Essa pessoa não existe' : 'Não consegui abrir este perfil'}</Text>
         {missing ? null : <Text style={styles.errText}>Verifica a internet e tenta outra vez.</Text>}
         {missing ? null : <Pressable onPress={() => void q.refetch()} style={styles.ghost} accessibilityRole="button"><Text style={styles.ghostText}>Tentar outra vez</Text></Pressable>}
-        {isMine ? null : <Pressable onPress={goBack} style={[styles.ghost, !missing && { marginTop: 12 }]} accessibilityRole="button"><Text style={styles.ghostText}>Voltar</Text></Pressable>}
+        {isMine ? null : <Pressable onPress={() => goBack(router)} style={[styles.ghost, !missing && { marginTop: 12 }]} accessibilityRole="button"><Text style={styles.ghostText}>Voltar</Text></Pressable>}
       </View>
     );
   }
@@ -401,7 +404,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
-      <FlatList data={[] as never[]} renderItem={() => null} ListHeaderComponent={header} ListFooterComponent={<View style={{ height: 32 }} />} showsVerticalScrollIndicator={false} />
+      <FlatList ref={listRef} data={[] as never[]} renderItem={() => null} ListHeaderComponent={header} ListFooterComponent={<View style={{ height: 32 }} />} showsVerticalScrollIndicator={false} />
       {sheet === 'qr' && <ProfileQrSheet username={p.username} displayName={p.displayName} onClose={() => setSheet(null)} />}
       {sheet === 'edit' && <EditProfileSheet profile={p} onClose={() => setSheet(null)} />}
       {sheet === 'requests' && <RequestsSheet username={p.username} onClose={() => setSheet(null)} />}

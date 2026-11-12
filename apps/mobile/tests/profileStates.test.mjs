@@ -17,7 +17,9 @@ const conn = read('app', 'u', '[username]', 'connections.tsx');
 test('perfil: 404 → "não existe"; sem rede → "Tentar outra vez"; voltar com recurso ao Início', () => {
   assert.match(profile, /if \(q\.isError && !p\)/);
   assert.match(profile, /onPress=\{\(\) => void q\.refetch\(\)\}/);
-  assert.match(profile, /const goBack = \(\) => \(router\.canGoBack\(\) \? router\.back\(\) : router\.replace\('\/' as never\)\)/);
+  // Voltar sem histórico vai para o Início: o goBack partilhado (lib/nav, do ramo ux-navegacao).
+  assert.match(profile, /import \{ goBack \} from '@\/lib\/nav'/);
+  assert.match(profile, /onPress=\{\(\) => goBack\(router\)\}/);
   assert.doesNotMatch(profile, /onPress=\{\(\) => router\.back\(\)\}/);
 });
 
@@ -51,7 +53,7 @@ test('os números de seguidores dizem ao leitor de ecrã o que são', () => {
 test('seguidores / a seguir: a carregar, sem rede, 404, voltar sem histórico e "segues" quando é o próprio', () => {
   assert.match(conn, /profile\.isLoading \? <ActivityIndicator/);
   assert.match(conn, /Não consegui abrir as listas/);
-  assert.match(conn, /router\.canGoBack\(\) \? router\.back\(\) : router\.replace/);
+  assert.match(conn, /onPress=\{\(\) => goBack\(router\)\}/);
   assert.match(conn, /username === me \? 'Ainda não segues ninguém' : 'Ainda não segue ninguém'/);
   assert.match(conn, /aria-selected=\{cur === k\}/);
   assert.doesNotMatch(conn, /user!/);

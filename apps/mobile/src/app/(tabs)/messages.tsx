@@ -35,6 +35,7 @@ import { gruposApi } from '@/lib/api.grupos';
 import { innerPager, registerInnerPager, type InnerPager } from '@/lib/swipeClaim';
 import { FadeCell, fadeCellsIn, useTabSlider } from '@/components/TabSlider';
 import { usePagerPan } from '@/components/SwipePager';
+import { useTabPress } from '@/lib/tabPress';
 
 /** Último separador usado, guardado também em memória para voltar ao ecrã sem piscar "Conversas" antes de ler o kv. */
 let lastTab: InboxTab | null = null;
@@ -120,6 +121,9 @@ export default function Messages() {
   // Separador ativo: abre no último usado ("Conversas" da primeira vez). Os pedidos não se lembram: são uma visita de passagem.
   const [view, setViewNow] = useState<InboxView>(lastTab ?? 'chats');
   const tapped = useRef(false);
+  // Tocar outra vez em Mensagens (já nas Mensagens): volta ao topo da lista, como no Início.
+  const listRef = useRef<FlatList>(null);
+  useTabPress('messages', () => listRef.current?.scrollToOffset({ offset: 0, animated: true }));
   useEffect(() => {
     if (lastTab) return;
     void kvGet(INBOX_TAB_KEY).then((v) => {
@@ -359,6 +363,7 @@ export default function Messages() {
       <View style={{ flex: 1 }} collapsable={false} onTouchStartCapture={() => { notesTouch.current = false; }}>
       <PullView pull={pull}>
       <FlatList
+        ref={listRef}
         CellRendererComponent={FadeCell}
         onScrollBeginDrag={closeOpenSwipe}
         onScroll={(e) => { pull.onScroll(e); zasListScrolling(); }}

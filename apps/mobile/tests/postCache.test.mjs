@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const c = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'postCache.ts')).href);
 
-const post = (id, extra = {}) => ({ id, code: `c${id}`, body: `post ${id}`, media: [], ...extra });
+const post = (id, extra = {}) => ({ id, code: `c${id}`, body: `post ${id}`, media: [], author: { id: 'a', username: 'ana', displayName: 'Ana' }, ...extra });
 const pages = (...lists) => ({ pages: lists.map((items) => ({ items, nextCursor: null })), pageParams: [] });
 
 test('encontra pelo id ou pelo código curto, em qualquer página', () => {
@@ -51,4 +51,30 @@ test('a página da publicação usa o que já está carregado e tem "Tentar outr
   assert.match(src, /q\.isLoading && <ActivityIndicator/);
   const reel = readFileSync(path.join(ROOT, 'src', 'app', 'r', '[id].tsx'), 'utf8');
   assert.match(reel, /q\.isError && !isGone\(q\.error\)/);
+});
+
+// Os casos do ramo ux-navegacao (a mesma função): perfis com { posts }, falsos positivos e limites.
+test('encontra num perfil ({ posts }) e dentro de uma repostagem fora das páginas', () => {
+  assert.equal(c.findCachedPost([{ posts: [post('9')] }], '9').id, '9');
+  assert.equal(c.findCachedPost([{ items: [post('r1', { kind: 'repost', repostOf: post('7') })] }], '7').id, '7');
+});
+
+test('não confunde outras coisas com o mesmo id (um utilizador, uma notificação sem autor)', () => {
+  assert.equal(c.findCachedPost([{ id: '1', username: 'x' }, [{ id: '1', author: null, media: [] }]], '1'), undefined);
+  assert.equal(c.findCachedPost([{ pages: [] }], '1'), undefined);
+});
+
+test('tem limites: dados enormes ou com ciclos não pesam nem rebentam', () => {
+  const a = { x: null };
+  a.x = a; // ciclo
+  assert.equal(c.findCachedPost([a], '1'), undefined);
+  const big = Array.from({ length: 50_000 }, (_, i) => ({ id: String(i) }));
+  big.push(post('fim'));
+  assert.equal(c.findCachedPost([big], 'fim'), undefined, 'passa o limite de nós: desiste (mostra o carregador)');
+  assert.equal(c.findCachedPost([big], 'fim', 100_000).id, 'fim');
+});
+
+test('sem a publicação nas listas, procura no resto da memória (pesquisa, notificações…)', () => {
+  const src = readFileSync(path.join(ROOT, 'src', 'app', 'p', '[id].tsx'), 'utf8');
+  assert.match(src, /findCachedPost<Post>\(qc\.getQueryCache\(\)\.getAll\(\)\.map\(\(x\) => x\.state\.data\), id\)/);
 });

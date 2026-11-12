@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { feedApi } from '@/lib/api.feed';
 import { useAuth } from '@/lib/auth';
 import { useDesktopSizes } from '@/lib/desktop';
-import { emitTabPress } from '@/lib/tabPress';
+import { emitTabPress, sameTabPress } from '@/lib/tabPress';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
 import { FollowButton } from './FollowButton';
@@ -69,7 +69,9 @@ function Sidebar({ labels, path }: { labels: boolean; path: string }) {
     { key: 'profile', label: 'Perfil', to: '/profile', active: path === '/profile' || (!!user && path === `/u/${user.username}`) },
   ];
   function go(it: (typeof items)[number]) {
-    if (it.active && it.key === 'home') return emitTabPress('index'); // já no Início: volta ao topo / atualiza
+    // Já no Início, nas Mensagens ou no Perfil: volta ao topo (no Início também atualiza), como a barra de baixo do telemóvel.
+    const tab = sameTabPress(it.key, path);
+    if (tab) return emitTabPress(tab);
     router.navigate((it.key === 'zas' ? `/new?kind=zas&t=${Date.now()}` : it.to) as never);
   }
   return (

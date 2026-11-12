@@ -1,9 +1,12 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Dimensions, Keyboard, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Dimensions, Keyboard, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, iosWeb } from '@/components/Modal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
 import { useDesktop } from '@/lib/desktop';
 import { useOverlay } from '@/lib/overlays';
+import { sheetHeights, sheetViewport } from '@/lib/sheetViewport';
+import { useVisibleViewport } from './zas/useVisibleViewport';
 
 /** Os conteúdos rolantes avisam a folha de onde estão (só se fecha a arrastar quando estão no topo). */
 const ScrollCtx = createContext<{ top: React.MutableRefObject<boolean> } | null>(null);
@@ -32,6 +35,19 @@ export function Sheet({ title, onClose, children, full = false, plain = false }:
     };
   }, [y]);
 
+  // Web (iPhone): o teclado tapa a página sem a encolher. Com ele aberto, a folha vive só na zona visível e a página não rola
+  // (como o visor dos mimos e o Zás). No nativo `vv` é null: lá vale o `kb` de cima (o Keyboard da web não dá eventos).
+  const vv = useVisibleViewport();
+  const box = Platform.OS === 'web' && typeof window !== 'undefined' ? sheetViewport(vv, window.innerHeight) : null;
+  const heights = sheetHeights(h, box);
+  useEffect(() => {
+    if (!box || typeof window === 'undefined') return;
+    const fix = () => window.scrollTo(0, 0);
+    fix();
+    window.addEventListener('scroll', fix);
+    return () => window.removeEventListener('scroll', fix);
+  }, [box?.top, box?.height]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // No computador a folha abre ao centro, como uma janela (sem a pega de arrastar).
   const desktop = useDesktop();
   const close = () => Animated.timing(y, { toValue: h, duration: 180, useNativeDriver: Platform.OS !== 'web' }).start(() => onClose());
@@ -59,14 +75,15 @@ export function Sheet({ title, onClose, children, full = false, plain = false }:
 
   const backdrop = y.interpolate({ inputRange: [0, h], outputRange: [0.4, 0], extrapolate: 'clamp' });
 
+  // «Voltar» do browser fecha a folha (no iPhone sem animar: o arrastar para trás já mostrou o ecrã de baixo).
   return (
-    <Modal transparent visible animationType="none" onRequestClose={close} statusBarTranslucent>
-      <View style={[styles.root, desktop && { justifyContent: 'center', padding: 24 }]}>
+    <Modal transparent visible animationType="none" onRequestClose={close} onWebBack={iosWeb ? onClose : close} statusBarTranslucent>
+      <View style={[styles.root, box && { position: 'absolute', left: 0, right: 0, top: box.top, height: box.height, flex: 0 }, desktop && { justifyContent: 'center', padding: 24 }]}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: backdrop }]} />
         <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Fechar" />
         <Animated.View
           {...(desktop ? {} : pan.panHandlers)}
-          style={[styles.sheet, full ? { height: Math.round(h * 0.78) } : { maxHeight: Math.round(h * 0.85) }, { paddingBottom: Math.max(insets.bottom, 16) + (kb ? kb - insets.bottom : 0), transform: [{ translateY: y }] }, desktop && { maxWidth: 540, borderRadius: 24, paddingBottom: 20, transform: [{ translateY: Animated.multiply(y, 0.15) }] }]}
+          style={[styles.sheet, full ? { height: heights.full } : { maxHeight: heights.max }, { paddingBottom: box ? 12 : Math.max(insets.bottom, 16) + (kb ? kb - insets.bottom : 0), transform: [{ translateY: y }] }, desktop && { maxWidth: 540, borderRadius: 24, paddingBottom: 20, transform: [{ translateY: Animated.multiply(y, 0.15) }] }]}
           accessibilityViewIsModal
         >
           <ScrollCtx.Provider value={{ top: atTop }}>

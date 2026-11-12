@@ -23,6 +23,7 @@ import { FeatureIntro } from '@/components/FeatureIntro';
 import { StickerCanvas, StickerPicker, StickerToolbar } from '@/components/Stickers';
 import { MAX_STICKERS, newPlaced, type PlacedSticker } from '@/lib/stickers';
 import { discardCopy, mimoEdited } from '@/lib/discardGuard';
+import { goBack } from '@/lib/nav';
 
 const EMERALD = '#10b981';
 const web = (o: Record<string, unknown>) => o as never;
@@ -52,7 +53,7 @@ export default function NewStory() {
       const r = await (source === 'camera' ? ImagePicker.launchCameraAsync(opts) : ImagePicker.launchImageLibraryAsync(opts));
       const a = r.canceled ? null : r.assets[0];
       if (a) setAsset({ uri: a.uri, video: a.type === 'video', mime: a.mimeType ?? (a.type === 'video' ? 'video/mp4' : 'image/jpeg') });
-      else if (!asset) router.back();
+      else if (!asset) goBack(router);
     } catch (e) {
       setErr((e as Error).message || 'Não consegui abrir a câmara');
     }

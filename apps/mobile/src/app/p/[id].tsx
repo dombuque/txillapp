@@ -25,7 +25,9 @@ export default function PostPage() {
     queryFn: () => api.getPost(id),
     retry: false,
     // Vindo do feed (ou do perfil, do explorar…): mostra já o cartão que lá estava, enquanto chega a versão fresca.
-    placeholderData: () => findCachedPost(LISTS.flatMap((k) => qc.getQueriesData<Post>({ queryKey: [k] }).map(([, d]) => d)), id),
+    // Primeiro as listas de publicações; senão o resto da memória (pesquisa, notificações…), com limites (lib/postCache).
+    placeholderData: () => findCachedPost(LISTS.flatMap((k) => qc.getQueriesData<Post>({ queryKey: [k] }).map(([, d]) => d)), id) ??
+      findCachedPost<Post>(qc.getQueryCache().getAll().map((x) => x.state.data), id),
   });
   // Abrir a publicação conta como vista (o mesmo "visto" do Início): deixa de contar nas "publicações novas" do chat
   // e desce no feed. Envia logo, para a conversa já vir certa quando se volta atrás.
