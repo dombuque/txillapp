@@ -8,6 +8,7 @@ import { Empty } from '@/components/Empty';
 import { Icon, type IconName } from '@/components/Icon';
 import { PlaceMiniMap } from '@/components/nearby/PlaceMiniMap';
 import { PostCard } from '@/components/PostCard';
+import { ReportSheet } from '@/components/ReportSheet';
 import { StackPage } from '@/components/StackPage';
 import { FollowVenueButton, VenueLogo } from '@/components/VenueCard';
 import { VenuePaySheet } from '@/components/VenuePaySheet';
@@ -63,6 +64,7 @@ export default function VenueScreen() {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [paying, setPaying] = useState<{ preset?: number } | null>(null);
+  const [reporting, setReporting] = useState(false);
   const linkUsed = useRef(false);
   const canPay = !!v && v.acceptsTxills && !v.mine;
 
@@ -154,6 +156,11 @@ export default function VenueScreen() {
           {v.mine && v.canPost ? (
             <Pressable onPress={() => router.push({ pathname: '/new', params: { as: slug } } as never)} style={[st.manage, { backgroundColor: colors.zinc900 }]} accessibilityRole="button" accessibilityLabel="Publicar como este local">
               <Icon name="compose" size={18} color="#fff" /><Text style={[st.manageText, { color: '#fff' }]}>Publicar</Text>
+            </Pressable>
+          ) : null}
+          {!v.mine ? (
+            <Pressable onPress={() => setReporting(true)} style={st.manage} accessibilityRole="button" accessibilityLabel="Denunciar este local">
+              <Icon name="flag" size={18} color={colors.zinc900} />
             </Pressable>
           ) : null}
         </View>
@@ -259,6 +266,7 @@ export default function VenueScreen() {
         />
       )}
       {paying && v ? <VenuePaySheet venue={v} preset={paying.preset} onClose={() => setPaying(null)} /> : null}
+      {reporting && v ? <ReportSheet type="venue" id={v.id} onClose={() => setReporting(false)} /> : null}
     </StackPage>
   );
 }

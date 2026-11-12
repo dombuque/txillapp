@@ -260,7 +260,7 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare }: { post:
     setSaving(false);
   }
 
-  if (view === 'report') return <ReportSheet type="post" id={post.id} onClose={onClose} />;
+  if (view === 'report') return <ReportSheet type="post" id={post.id} onReported={() => void refresh(["feed"])} onClose={onClose} />;
   if (view === 'edit') {
     return (
       <Sheet title="Editar a publicação" onClose={onClose}>

@@ -43,3 +43,17 @@ export const allowedBy = (owner: string, column: string, viewer = '$1') =>
 export const listVisibleTo = (owner: string, column: string, viewer = '$1') =>
   `(${owner}.id = ${viewer} OR ${owner}.${column} = 'everyone' OR (${owner}.${column} = 'followers' AND EXISTS (` +
   `SELECT 1 FROM social.follows lf WHERE lf.follower_id = ${viewer} AND lf.followee_id = ${owner}.id)))`;
+
+/**
+ * O espectador denunciou este conteúdo? Usar como `NOT ${...}` nas listagens: o que alguém denunciou deixa de lhe
+ * aparecer (as outras pessoas continuam a vê-lo até a moderação decidir). Usa o índice único (reporter_id, target_type, target_id).
+ *
+ * @param type o tipo da denúncia ('comment', 'story', 'story_comment', 'instant'…)
+ * @param id expressão SQL do id do conteúdo (ex.: 'c.id')
+ * @param viewer placeholder do id do espectador (por omissão $1)
+ */
+export const reportedBy = (type: string, id: string, viewer = '$1') =>
+  `EXISTS (SELECT 1 FROM social.reports rpt WHERE rpt.reporter_id = ${viewer} AND rpt.target_type = '${type}' AND rpt.target_id = ${id})`;
+
+/** O contrário de reportedBy: o espectador não denunciou este conteúdo. */
+export const notReportedBy = (type: string, id: string, viewer = '$1') => `NOT ${reportedBy(type, id, viewer)}`;

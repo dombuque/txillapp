@@ -135,12 +135,14 @@ export class ModerationDeskService {
               max(r.resolution) AS resolution, max(r.resolution_note) AS resolution_note, max(CASE WHEN rb.status = 'staff' THEN rb.display_name ELSE '@' || rb.username END) AS decided_by,
               bool_or(r.reporter_id IS NULL) AS automatic, ${SEVERITY_SQL}::int AS severity,
               tu.username AS owner_username, tu.display_name AS owner_name, tu.status AS owner_status,
-              COALESCE(p.body, c.body, s.caption, max(m.body),
+              COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), NULLIF(max(ins.caption), ''),
                        CASE WHEN r.target_type = 'media' THEN max(r.note) END,
                        CASE WHEN r.target_type = 'venue' THEN max(v.name) || coalesce(' · ' || max(v.about), '') END,
                        CASE WHEN r.target_type = 'user' THEN max(tu.display_name) END, '') AS preview,
               p.removed_at AS post_removed_at, p.removed_by AS post_removed_by, c.post_id AS comment_post_id,
               s.expires_at AS story_expires_at, max(v.slug) AS venue_slug,
+              bool_or(sc.id IS NOT NULL) AS story_comment_exists, max(ins.expires_at) AS instant_expires_at, max(ins.media_id::text) AS instant_media_id,
+              (SELECT ima.nsfw_score FROM content.media_assets ima WHERE ima.id = max(ins.media_id::text)::uuid) AS instant_nsfw,
               (SELECT mr.removed_at FROM content.moderation_removals mr WHERE mr.target_type = r.target_type AND mr.target_id = r.target_id AND mr.restored_at IS NULL) AS mod_removed_at,
               (SELECT ma.nsfw_score FROM content.media_assets ma WHERE r.target_type = 'media' AND ma.id = r.target_id) AS media_nsfw,
               ${EVIDENCE_COLUMNS}
@@ -152,6 +154,8 @@ export class ModerationDeskService {
          LEFT JOIN content.stories s ON r.target_type = 'story' AND s.id = r.target_id
          LEFT JOIN social.messages m ON r.target_type = 'message' AND m.id = r.target_id
          LEFT JOIN content.venues v ON r.target_type = 'venue' AND v.id = r.target_id
+         LEFT JOIN content.story_comments sc ON r.target_type = 'story_comment' AND sc.id = r.target_id
+         LEFT JOIN social.instants ins ON r.target_type = 'instant' AND ins.id = r.target_id
         WHERE r.status = $1 AND ($2::text[] IS NULL OR r.target_type = ANY($2::text[]))
           AND ($4::text IS NULL OR tu.username ILIKE $4 ESCAPE '\\' OR tu.display_name ILIKE $4 ESCAPE '\\')
         GROUP BY r.target_type, r.target_id, r.target_user_id, tu.username, tu.display_name, tu.status, p.body, c.body, s.caption,
@@ -178,12 +182,17 @@ export class ModerationDeskService {
       type === 'post' ? media.posts.get(r.target_id) ?? []
       : type === 'story' ? media.stories.get(r.target_id) ?? []
       : type === 'media' ? [{ id: r.target_id, video: false, nsfw: r.media_nsfw ?? null, url: `/api/v1/media/review/${r.target_id}`, review: true }]
+      // A foto de um Zás é privada (só amigos ou próximos): vê-se pela rota de revisão, com registo, enquanto a queixa está aberta.
+      : type === 'instant' && r.instant_media_id ? [{ id: r.instant_media_id as string, video: false, nsfw: r.instant_nsfw ?? null, url: `/api/v1/media/review/${r.instant_media_id}`, review: true }]
       : [];
     const removed =
       type === 'post' ? (r.post_removed_at ? (r.post_removed_by === 'author' ? 'author' : 'moderation') : null)
       : type === 'story' ? (r.mod_removed_at ? 'moderation' : r.story_expires_at && new Date(r.story_expires_at) < new Date() ? 'expired' : r.story_expires_at ? null : 'gone')
       : type === 'comment' ? (r.mod_removed_at ? 'moderation' : r.comment_post_id ? null : 'gone')
       : type === 'message' ? (proof.current?.deleted ? 'gone' : null)
+      // Comentário de mimo: a moderação apaga-o; Zás: a moderação fá-lo expirar já (0125).
+      : type === 'story_comment' ? (r.story_comment_exists ? null : r.resolution === 'remove' ? 'moderation' : 'gone')
+      : type === 'instant' ? (!r.instant_expires_at ? 'gone' : new Date(r.instant_expires_at) <= new Date() ? (r.resolution === 'remove' ? 'moderation' : 'expired') : null)
       : null;
     return {
       type,

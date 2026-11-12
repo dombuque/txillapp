@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
@@ -8,10 +8,11 @@ import { Group, Line } from '@/components/Lines';
 import { StackPage } from '@/components/StackPage';
 import { api } from '@/lib/api';
 import { extraApi, newKey, type PaymentOrder } from '@/lib/api.extra';
+import { PURCHASES } from '@/lib/purchases';
 import { colors } from '@/lib/theme';
 
-/** Como na versão das lojas do site: sem métodos de pagamento ativos não se mostra nada de "em breve" na app nativa. */
-const STORE_BUILD = Platform.OS !== 'web';
+/** Na app nativa (APK beta), sem métodos de pagamento ativos não se mostra nada de "em breve". */
+const NATIVE = Platform.OS !== 'web';
 
 const n = (v: number) => v.toLocaleString('pt-PT');
 const money = (minor: number, currency: string) => `${(minor / 100).toFixed(2).replace('.', ',')} ${currency === 'MZN' ? 'MT' : currency}`;
@@ -27,8 +28,17 @@ const date = (iso: string) => {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 };
 
-/** Pedidos e pagamentos: o saldo, recarregar Txills e o histórico de pedidos. */
+/**
+ * Pedidos e pagamentos. Nas versões das lojas não se compram Txills por fora da loja (ver lib/storeRules.ts): o ecrã não
+ * existe e uma ligação antiga para /orders abre a carteira.
+ */
 export default function Orders() {
+  if (!PURCHASES.buyTxills) return <Redirect href={'/wallet' as never} />;
+  return <OrdersScreen />;
+}
+
+/** Pedidos e pagamentos: o saldo, recarregar Txills e o histórico de pedidos. */
+function OrdersScreen() {
   const qc = useQueryClient();
   const router = useRouter();
   const w = useQuery({ queryKey: ['wallet'], queryFn: api.wallet });
@@ -115,10 +125,10 @@ export default function Orders() {
           </Pressable>
         </LinearGradient>
 
-        {(!STORE_BUILD || providers.length > 0) && (
+        {(!NATIVE || providers.length > 0) && (
           <Group title="Recarregar Txills">
             {cfg.isLoading ? <ActivityIndicator style={{ margin: 24 }} color={colors.brand} /> : null}
-            {cfg.data && providers.length === 0 && !STORE_BUILD ? <Line icon="wallet" label="Comprar Txills" value="Em breve: M-Pesa, e-Mola e cartão" /> : null}
+            {cfg.data && providers.length === 0 && !NATIVE ? <Line icon="wallet" label="Comprar Txills" value="Em breve: M-Pesa, e-Mola e cartão" /> : null}
             {cfg.data && providers.length > 0 && !current ? (
               <View style={{ padding: 16, gap: 16 }}>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>

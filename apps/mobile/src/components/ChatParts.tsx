@@ -104,7 +104,7 @@ export function MessageMenu({ m, cacheKey, start, onClose, onReply, onEdit, onDo
     await Clipboard.setStringAsync(copyText(m)).catch(() => onError('Não consegui copiar o texto.'));
   }
 
-  if (step === 'report') return <ReportSheet type="message" id={m.id} onClose={() => { setStep('menu'); onClose(); }} />;
+  if (step === 'report') return <ReportSheet type="message" id={m.id} onReported={onDone} onClose={() => { setStep('menu'); onClose(); }} />;
 
   if (step === 'delete') {
     const choices = deleteChoices(opts);

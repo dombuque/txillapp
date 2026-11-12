@@ -10,6 +10,7 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
+import { ReportSheet } from '@/components/ReportSheet';
 import { RichText } from '@/components/RichText';
 import { CheersPour } from '@/components/CheersPour';
 import { ActivityPanel, CommentsPanel, Panel, ReplyBar, useKeyboardHeight } from '@/components/StoryParts';
@@ -129,7 +130,7 @@ export default function StoryViewer() {
   const [typing, setTyping] = useState(false);
   /** Muda a cada brinde: os copos aparecem no meio do mimo, como nas publicações. */
   const [burst, setBurst] = useState(0);
-  const [panel, setPanel] = useState<null | 'menu' | 'viewers' | 'comments'>(null);
+  const [panel, setPanel] = useState<null | 'menu' | 'viewers' | 'comments' | 'more' | 'report'>(null);
   const [away, setAway] = useState(false); // outro ecrã por cima (ex.: a publicação)
   const [seePost, setSeePost] = useState(false);
   const [box, setBox] = useState({ w: 0, h: 0 }); // o tamanho do ecrã do mimo (para pousar os stickers)
@@ -138,6 +139,8 @@ export default function StoryViewer() {
   const progress = useRef(new Animated.Value(0)).current;
   const pval = useRef(0);
   const down = useRef(0);
+  /** O mimo aberto acabou de ser denunciado (ao fechar a folha passa-se ao seguinte). */
+  const reported = useRef(false);
   const replyRef = useRef<React.ComponentRef<typeof TextInput> | null>(null);
   const cur: Story | undefined = stories[i];
   const mine = username === me?.username;
@@ -409,6 +412,7 @@ export default function StoryViewer() {
               </View>
             </Pressable>
             {mine && <Pressable onPress={() => setPanel('menu')} style={st.circle} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={24} color="#fff" strokeWidth={2.4} /></Pressable>}
+            {!mine && <Pressable onPress={() => setPanel('more')} style={st.circle} accessibilityRole="button" accessibilityLabel="Mais opções"><Icon name="more" size={24} color="#fff" strokeWidth={2.4} /></Pressable>}
             <Pressable onPress={close} hitSlop={10} style={st.circle} accessibilityRole="button" accessibilityLabel="Fechar"><Icon name="x" size={24} color="#fff" strokeWidth={2} /></Pressable>
           </View>
         </LinearGradient>
@@ -447,6 +451,15 @@ export default function StoryViewer() {
             <Pressable onPress={() => setPanel(null)} style={st.menuRow}><Text style={st.menuText}>Cancelar</Text></Pressable>
           </Panel>
         )}
+        {panel === 'more' && (
+          <Panel title={`Mimo de ${cur.author.username}`} onClose={() => setPanel(null)}>
+            <Pressable onPress={() => setPanel('report')} style={st.menuRow} accessibilityRole="button"><Text style={[st.menuText, { color: '#dc2626', fontWeight: '600' }]}>Denunciar mimo</Text></Pressable>
+            <Pressable onPress={() => { setAway(true); setPanel(null); router.push(`/u/${cur.author.username}` as never); }} style={st.menuRow} accessibilityRole="button"><Text style={st.menuText}>Ver o perfil (para bloquear)</Text></Pressable>
+            <Pressable onPress={() => setPanel(null)} style={st.menuRow}><Text style={st.menuText}>Cancelar</Text></Pressable>
+          </Panel>
+        )}
+        {/* Denunciado, o mimo sai para quem denunciou: ao fechar passa ao seguinte (o servidor também já não o devolve). */}
+        {panel === 'report' && <ReportSheet type="story" id={cur.id} onReported={() => { reported.current = true; }} onClose={() => { setPanel(null); if (reported.current) { reported.current = false; next(); } }} />}
         {panel === 'comments' && <CommentsPanel story={cur} canComment={mine || cur.canReply} onTyping={setTyping} onClose={() => setPanel(null)} />}
         {panel === 'viewers' && <ActivityPanel story={cur} onClose={() => setPanel(null)} />}
       </Animated.View>

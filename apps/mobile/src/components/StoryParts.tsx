@@ -11,6 +11,7 @@ import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
 import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
+import { ReportSheet } from './ReportSheet';
 import { RichText } from './RichText';
 import { Sheet } from './Sheet';
 import { Sticker } from './StickerPanel';
@@ -143,6 +144,8 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  /** O comentário de outra pessoa que se está a denunciar. */
+  const [reporting, setReporting] = useState<string | null>(null);
   const key = ['story-comments', story.id];
   const list = useQuery({ queryKey: key, queryFn: () => api.storyComments(story.id) });
   const kb = useKeyboardHeight();
@@ -177,6 +180,7 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
                 <Text style={{ fontSize: 14, color: colors.zinc500 }} numberOfLines={1}><Text style={{ fontWeight: '700', color: colors.zinc900 }}>{c.author.username}</Text> · {timeAgo(c.createdAt)}</Text>
                 <RichText text={c.body} style={{ fontSize: 15, lineHeight: 21, color: colors.zinc900 }} />
               </View>
+              {!c.mine && <Pressable onPress={() => setReporting(c.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Denunciar o comentário de ${c.author.username}`} style={{ padding: 6 }}><Icon name="flag" size={17} color={colors.zinc500} /></Pressable>}
               {c.canDelete && <Pressable onPress={() => del(c.id)} hitSlop={8} accessibilityLabel="Apagar comentário" style={{ padding: 6 }}><Icon name="x" size={18} color={colors.zinc500} /></Pressable>}
             </View>
           ))}
@@ -193,6 +197,8 @@ export function CommentsPanel({ story, canComment, onClose, onTyping }: { story:
         )}
         {err ? <Text style={{ marginTop: 4, textAlign: 'center', fontSize: 14, color: colors.red600 }}>{err}</Text> : null}
       </View>
+      {/* O comentário denunciado sai logo da lista de quem denunciou (o servidor também já não o devolve). */}
+      {reporting && <ReportSheet type="story_comment" id={reporting} onReported={refresh} onClose={() => setReporting(null)} />}
     </Panel>
   );
 }

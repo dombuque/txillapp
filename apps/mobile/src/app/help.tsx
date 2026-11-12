@@ -4,7 +4,9 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { Icon } from '@/components/Icon';
 import { Group, Line } from '@/components/Lines';
 import { StackPage } from '@/components/StackPage';
+import { PURCHASES } from '@/lib/purchases';
 import { normalize } from '@/lib/settingsIndex';
+import { helpFaqFor } from '@/lib/storeRules';
 import { colors } from '@/lib/theme';
 
 const SUPPORT = 'suporte@txillapp.com';
@@ -45,7 +47,7 @@ const FAQ: { q: string; a: string }[] = [
   { q: 'Como presenteio alguém?', a: 'Só podes presentear quem segues. Abre o perfil ou o post e toca em "Presentear". Podes deixar o presente em silêncio, privado ou publicá-lo para toda a gente ver.' },
   { q: 'O que é a geleira?', a: 'A tua vitrine de gostos: vibes, bebidas, comidas e sítios. Edita-a em Editar perfil. Quanto mais paulada tiveres lá, mais sobe de nível. Quem a vê pode brindá-la; por omissão só tu vês quem brindou, mas em Editar perfil podes ligar "Mostrar quem brindou a minha geleira".' },
   { q: 'O que é a visualização única?', a: 'Fotos, vídeos, voz e mensagens que só se abrem uma vez e depois desaparecem do chat. Quem recebe pode, mesmo assim, fotografar o ecrã.' },
-  { q: 'Como bloqueio ou denuncio alguém?', a: 'No perfil, toca nos três pontos e escolhe Bloquear. Para denunciar um post, comentário ou conversa, usa o menu dele e escolhe Denunciar. A moderação vê o pedido.' },
+  { q: 'Como bloqueio ou denuncio alguém?', a: 'No perfil, toca nos três pontos e escolhe Bloquear ou Denunciar. Para denunciar uma publicação, um comentário, um mimo (ou um comentário num mimo), um Zás, uma mensagem ou a página de um local, usa o menu dele (os três pontos, ou segura a mensagem ou o comentário) e escolhe Denunciar. A pessoa não sabe que foste tu, e o que denunciaste deixa de te aparecer. A moderação analisa cada denúncia, com o objetivo de decidir em menos de 24 horas, e remove o conteúdo ou suspende a conta quando viola as regras. Também podes escrever para suporte@txillapp.com.' },
   { q: 'Como pedir o selo de verificado?', a: 'Em Definições, Conta, "Pedir o selo de verificado". A conta tem de cumprir alguns requisitos e depois enviamos o pedido com um documento e uma selfie, que a moderação revê. Os documentos são apagados quando há decisão.' },
   { q: 'Quem vê quando estou online?', a: 'Só quem também mostra a presença. Em Definições, Privacidade, "Mostrar quando estou online" desliga isso (e também deixas de ver os outros).' },
   { q: 'Que estatísticas de uso a app envia?', a: 'Com "Ajudar a melhorar o Txillapp" ligado (Definições, Privacidade, Contactos e dados), a app envia-nos, só a nós: as aberturas, os ecrãs vistos (só o nome do ecrã), o tempo de arranque, os erros (uma mensagem curta e limpa de dados pessoais) e as ações que fazes (publicar, comentar, brindar, seguir, repostar, partilhar, enviar mensagens, pesquisar, ver mimos, ligar as notificações), com a plataforma e a versão da app. Nunca o conteúdo nem a posição. Sem internet, até 200 registos esperam no aparelho (no máximo 3 dias). Desligado, ou com "não rastrear" no browser, não enviamos nada e o que estava à espera é apagado.' },
@@ -62,7 +64,7 @@ export default function Help() {
   const [term, setTerm] = useState('');
   // Sem acentos nem maiúsculas, como em "Procurar nas definições": "notificacoes" encontra "notificações".
   const words = normalize(term).split(/\s+/).filter(Boolean);
-  const list = FAQ.filter((f) => { const hay = normalize(`${f.q} ${f.a}`); return words.every((w) => hay.includes(w)); });
+  const list = helpFaqFor(PURCHASES, FAQ).filter((f) => { const hay = normalize(`${f.q} ${f.a}`); return words.every((w) => hay.includes(w)); });
   const subject = encodeURIComponent('Problema no Txillapp');
   const body = encodeURIComponent(`\n\n---\nVersão: ${Constants.expoConfig?.version ?? ''}\nAparelho: ${Platform.OS} ${Platform.Version}`);
   return (

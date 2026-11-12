@@ -9,7 +9,7 @@ import { PG_POOL } from '../db/db.module';
 import { ChatService } from '../chat/chat.service';
 import { MusicService, type MusicInput } from '../music/music.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { blockedBetween, canView } from '../social/visibility';
+import { blockedBetween, canView, notReportedBy } from '../social/visibility';
 
 /** O autor escondeu os stories a este espectador? */
 /** Stories só para amigos próximos: visíveis ao autor e à lista dele. */
@@ -80,7 +80,7 @@ export class StoriesService {
            FROM content.stories s
           WHERE s.expires_at > now()
             AND (s.author_id = $1 OR EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = s.author_id))
-            AND ${notHidden('s.author_id')} AND ${audienceOk()} AND ${sharedOk()}
+            AND ${notHidden('s.author_id')} AND ${audienceOk()} AND ${sharedOk()} AND ${notReportedBy('story', 's.id')}
        )
        SELECT u.username, u.display_name, (u.id = $1) AS is_me,
               count(*)::int AS story_count, bool_and(a.seen) AS seen,
@@ -122,7 +122,7 @@ export class StoriesService {
                  EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = u.id AND f.followee_id = $1))) AND NOT s.comments_off) AS can_reply,
               s.comments_off
          FROM content.stories s JOIN identity.users u ON u.id = s.author_id
-        WHERE u.username = $2 AND s.expires_at > now() AND ${canView('u')} AND ${notHidden('s.author_id')} AND ${audienceOk()} AND ${sharedOk()} ORDER BY s.id ASC`,
+        WHERE u.username = $2 AND s.expires_at > now() AND ${canView('u')} AND ${notHidden('s.author_id')} AND ${audienceOk()} AND ${sharedOk()} AND ${notReportedBy('story', 's.id')} ORDER BY s.id ASC`,
       [viewerId, username],
     );
     return rows.map((r) => this.toDto(r, viewerId));
@@ -223,7 +223,7 @@ export class StoriesService {
          FROM content.story_comments c
          JOIN content.stories st ON st.id = c.story_id
          JOIN identity.users a ON a.id = c.author_id
-        WHERE c.story_id = $2 AND a.status = 'active' AND NOT ${blockedBetween('a.id', '$1')}
+        WHERE c.story_id = $2 AND a.status = 'active' AND NOT ${blockedBetween('a.id', '$1')} AND ${notReportedBy('story_comment', 'c.id')}
           AND (a.id = $1 OR st.author_id = $1 OR ${canView('a')})
         ORDER BY c.id ASC LIMIT 200`,
       [viewerId, storyId],

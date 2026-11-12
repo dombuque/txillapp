@@ -5,13 +5,17 @@ import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { SearchIndexer } from '../search/search-index';
 import { audienceOk } from '../stories/stories.service';
+import { instantVisible } from '../instants/instants.service';
 import { canView } from '../social/visibility';
 import { wipeMessage } from '../chat/chat.service';
 import { purgeRemovalCopies, removeContent } from './content-removal';
 
-export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue'] as const;
-/** O que as pessoas podem denunciar ('media' só é criado pela verificação automática; 'venue' é a página de um local, 0121). */
-export const USER_REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'venue'] as const;
+export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue', 'story_comment', 'instant'] as const;
+/**
+ * O que as pessoas podem denunciar ('media' só é criado pela verificação automática; 'venue' é a página de um local, 0121;
+ * 'story_comment' é um comentário num mimo e 'instant' um Zás, 0125).
+ */
+export const USER_REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'venue', 'story_comment', 'instant'] as const;
 export const REPORT_REASONS = ['spam', 'harassment', 'hate', 'nudity', 'violence', 'scam', 'impersonation', 'minor', 'other'] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 export type ReportReason = (typeof REPORT_REASONS)[number];
@@ -115,6 +119,16 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
         sql = `SELECT s.author_id AS owner FROM content.stories s JOIN identity.users u ON u.id = s.author_id
                 WHERE s.id = $2 AND s.expires_at > now() AND ${canView()} AND ${audienceOk('s', '$1')}`;
         break;
+      case 'story_comment':
+        // Um comentário num mimo que ainda se vê e que quem denuncia pode ver (as mesmas regras do mimo).
+        sql = `SELECT c.author_id AS owner FROM content.story_comments c JOIN content.stories s ON s.id = c.story_id
+                 JOIN identity.users u ON u.id = s.author_id
+                WHERE c.id = $2 AND s.expires_at > now() AND ${canView()} AND ${audienceOk('s', '$1')}`;
+        break;
+      case 'instant':
+        // Um Zás que ainda dura e que quem denuncia pode ver (amigos ou próximos de quem o fez).
+        sql = `SELECT i.author_id AS owner FROM social.instants i WHERE i.id = $2 AND i.expires_at > now() AND ${instantVisible('i', '$1')}`;
+        break;
       case 'media':
         throw new NotFoundException('Conteúdo não encontrado');
       case 'user':
@@ -150,6 +164,19 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
        ON CONFLICT (reporter_id, target_type, target_id) DO NOTHING`,
       [uuidv7(), reporter, type, id, owner, reason, note || null],
     );
+    // O que denunciaste deixa de te aparecer (os outros continuam a ver até a moderação decidir). Publicações: saem do
+    // teu feed, como «Não me interessa»; mensagens: como «Apagar para mim». Comentários, mimos, comentários de mimos e
+    // Zás: as listagens filtram-nos com notReportedBy (social/visibility.ts).
+    if (type === 'post') {
+      await this.pool.query(
+        `INSERT INTO content.feed_impressions (user_id, post_id, hidden) VALUES ($1, $2, true)
+         ON CONFLICT (user_id, post_id) DO UPDATE SET hidden = true, seen_at = now()`,
+        [reporter, id],
+      );
+    }
+    if (type === 'message') {
+      await this.pool.query('INSERT INTO social.message_hidden (user_id, message_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [reporter, id]);
+    }
     // Responde sempre o mesmo, mesmo que já tenha denunciado: não é preciso insistir.
   }
 
@@ -160,7 +187,7 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
               min(r.created_at) AS first_at, min(r.id::text) AS report_id,
               tu.username AS owner_username, tu.display_name AS owner_name, tu.status AS owner_status,
               (SELECT count(*) FROM social.reports x WHERE x.target_user_id = r.target_user_id AND x.status = 'actioned')::int AS owner_strikes,
-              COALESCE(p.body, c.body, s.caption, max(m.body), CASE WHEN r.target_type = 'media' THEN max(r.note) END, '') AS preview,
+              COALESCE(p.body, c.body, s.caption, max(m.body), max(sc.body), max(ins.caption), CASE WHEN r.target_type = 'media' THEN max(r.note) END, '') AS preview,
               ${EVIDENCE_COLUMNS}
          FROM social.reports r
          LEFT JOIN identity.users tu ON tu.id = r.target_user_id
@@ -168,6 +195,8 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
          LEFT JOIN content.comments c ON r.target_type = 'comment' AND c.id = r.target_id
          LEFT JOIN content.stories s ON r.target_type = 'story' AND s.id = r.target_id
          LEFT JOIN social.messages m ON r.target_type = 'message' AND m.id = r.target_id
+         LEFT JOIN content.story_comments sc ON r.target_type = 'story_comment' AND sc.id = r.target_id
+         LEFT JOIN social.instants ins ON r.target_type = 'instant' AND ins.id = r.target_id
         WHERE r.status = $1
         GROUP BY r.target_type, r.target_id, r.target_user_id, tu.username, tu.display_name, tu.status, p.body, c.body, s.caption
         ORDER BY count(*) DESC, min(r.created_at) ASC LIMIT 100`,
@@ -234,7 +263,8 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
  * Remove um conteúdo denunciado, numa transação já aberta. Publicações, comentários e mimos removem-se de forma a poderem
  * ser repostos na página «Conteúdo» (content-removal.ts); se já estavam removidos (ou o autor já os apagou), só se fecham
  * as denúncias. Mensagens: o mesmo que "Apagar para todos", sem deixar o aviso no lugar (a cópia da denúncia fica, para a
- * moderação). Fotos assinaladas pela verificação automática: apagam-se. Contas e locais não se removem aqui.
+ * moderação). Fotos assinaladas pela verificação automática: apagam-se. Comentários de mimos e Zás: ver abaixo. Contas e
+ * locais não se removem aqui.
  */
 export async function removeReported(client: PoolClient, type: ReportType, id: string, actor: string, note?: string) {
   if (type === 'message') {
@@ -244,6 +274,16 @@ export async function removeReported(client: PoolClient, type: ReportType, id: s
   }
   if (type === 'media') {
     await client.query(`UPDATE content.media_assets SET status = 'deleted' WHERE id = $1`, [id]);
+    return;
+  }
+  // Comentário num mimo: apaga-se (como quando o autor do mimo o apaga). Zás: deixa já de se ver (expira agora; a limpeza
+  // dos Zás expirados apaga-o depois, com a foto). Nenhum dos dois se repõe.
+  if (type === 'story_comment') {
+    await client.query('DELETE FROM content.story_comments WHERE id = $1', [id]);
+    return;
+  }
+  if (type === 'instant') {
+    await client.query('UPDATE social.instants SET expires_at = now() WHERE id = $1 AND expires_at > now()', [id]);
     return;
   }
   if (type === 'post' || type === 'comment' || type === 'story') {
