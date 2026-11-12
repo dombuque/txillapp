@@ -98,3 +98,24 @@ export const finApi = {
   boosts: (days: number, filter: 'live' | 'all'): Promise<FinBoosts> => boRequest(`/admin/fin/boosts?days=${days}&filter=${filter}`),
   growth: (days: number): Promise<FinGrowth> => boRequest(`/admin/growth?days=${days}`),
 };
+
+/* ───────────── Compras pela loja (App Store / Google Play): verificação paga e Bombar ───────────── */
+
+export type StorePurchaseStatus = 'active' | 'expired' | 'refunded' | 'revoked' | 'consumed';
+export interface StorePurchaseFilter { store: string; status: string; kind: string; product: string; env: string; user: string; from: string; to: string }
+export interface StoreTotals { purchases: number; renewals: number; refunds: number; grossMinor: number; refundedMinor: number; netMinor: number }
+export interface StorePurchasesPage {
+  config: { enabled: boolean; apple: boolean; google: boolean; currency: string; products: { id: string; kind: 'subscription' | 'consumable' }[] };
+  counts: Record<StorePurchaseStatus, number>;
+  totals: { byProduct: (StoreTotals & { productId: string; store: 'apple' | 'google' })[]; byMonth: (StoreTotals & { month: string })[]; sandbox: StoreTotals | null };
+  items: {
+    id: string; store: 'apple' | 'google'; productId: string; kind: 'subscription' | 'consumable'; status: StorePurchaseStatus; environment: 'Production' | 'Sandbox';
+    user: { id: string; username: string | null }; transactionId: string | null; orderId: string | null; expiresAt: string | null; autoRenew: boolean | null;
+    renewals: number; paidMinor: number | null; campaign: { id: string; status: string; venue: { slug: string; name: string } | null } | null; createdAt: string; updatedAt: string;
+  }[];
+  nextCursor: string | null;
+}
+
+/** Finanças → Compras na loja (só leitura). */
+export const storePurchasesApi = (f: StorePurchaseFilter, cursor?: string): Promise<StorePurchasesPage> =>
+  boRequest(`/admin/fin/store-purchases${qs({ ...f, cursor, limit: 50 })}`);

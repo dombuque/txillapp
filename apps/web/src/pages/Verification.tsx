@@ -129,7 +129,14 @@ export default function Verification() {
               </div>
             )}
 
-            {s.eligible && s.request?.status !== 'pending' && !s.retryAfter && (
+            {s.request?.status === 'paid_eligible' && (
+              <div className="mt-5 rounded-2xl bg-sky-50 p-4">
+                <p className="font-bold">{tr('Identidade aprovada')}</p>
+                <p className="mt-1 text-sm text-zinc-700">{tr('Podes subscrever a verificação paga na app do Txillapp no telemóvel (App Store ou Google Play). O selo aparece com a subscrição ativa.')}</p>
+              </div>
+            )}
+
+            {s.eligible && s.request?.status !== 'pending' && s.request?.status !== 'paid_eligible' && !s.retryAfter && (
               <form onSubmit={(e) => { e.preventDefault(); void submit(); }} className="mt-6 space-y-5">
                 <div role="radiogroup" aria-label={tr('Tipo de conta')} className="grid grid-cols-2 gap-2">
                   {([['person', 'Pessoa'], ['business', 'Negócio ou marca']] as const).map(([v, label]) => (

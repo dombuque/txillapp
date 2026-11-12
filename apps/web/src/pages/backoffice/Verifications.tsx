@@ -17,7 +17,7 @@ function Row({ item, onDone }: { item: VerificationItem; onDone: () => void }) {
   const [approving, setApproving] = useState(false);
   const [tier, setTier] = useState<Tier>('verified');
 
-  async function decide(action: 'approve' | 'reject', tier?: Tier) {
+  async function decide(action: 'approve' | 'reject' | 'approve_paid', tier?: Tier) {
     setBusy(true);
     setErr('');
     try {
@@ -72,6 +72,10 @@ function Row({ item, onDone }: { item: VerificationItem; onDone: () => void }) {
         ) : (
           <>
             <button disabled={busy} onClick={() => setRejecting(true)} className={`${btn} bg-zinc-100 text-zinc-800`}>{tr('Recusar')}</button>
+            {/* Identidade confirmada, sem selo: a pessoa pode subscrever a verificação paga na loja (o selo azul vem com a subscrição). */}
+            <button disabled={busy} title={tr('A identidade fica confirmada e a pessoa pode subscrever a verificação paga na App Store ou no Google Play')}
+              onClick={() => window.confirm('Aprovar a identidade só para a verificação paga? O selo azul aparece quando a pessoa subscrever na loja.') && decide('approve_paid')}
+              className={`${btn} bg-sky-50 text-sky-800 ring-1 ring-sky-200`}>{tr('Elegível (paga)')}</button>
             <button disabled={busy} onClick={() => setApproving(true)} className={`${btn} bg-brand text-white`}>{tr('Verificar…')}</button>
           </>
         )}
