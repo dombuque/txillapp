@@ -207,6 +207,28 @@ export function zoomPlan(total: number, hw: Range | null): { hw: number | null; 
   const snapped = hw.step > 0 ? clamp(hw.min + Math.round((z - hw.min) / hw.step) * hw.step, hw.min, hw.max) : z;
   return { hw: snapped, digital: Math.max(1, total / Math.max(snapped, 0.01)) };
 }
+/**
+ * O transform do visor: espelho na câmara da frente e o zoom digital. Vai numa caixa à volta do <video> e nunca no próprio
+ * <video> (no iPhone, a frontal transformada perdia o object-fit: cover e ficava pequena ao meio).
+ */
+export function viewTransform(front: boolean, digital: number): { transform: string } {
+  const z = Number.isFinite(digital) && digital > 0 ? digital : 1;
+  return { transform: `${front ? 'scaleX(-1) ' : ''}scale(${z})` };
+}
+/** Trocou-se de câmara (outro stream num <video> que já tinha um)? Então usa-se um <video> novo. */
+export function freshVideoFor(prev: unknown, next: unknown): boolean {
+  return prev != null && next != null && prev !== next;
+}
+/** Espera (até `ms`) que o <video> novo apareça (depois de mudar a key). Se não aparecer, segue com o que houver. */
+export async function nextVideo<T>(get: () => T | null, old: T, ms = 1000, step = 16): Promise<T | null> {
+  const t0 = Date.now();
+  for (;;) {
+    const v = get();
+    if (v && v !== old) return v;
+    if (Date.now() - t0 >= ms) return v;
+    await new Promise((r) => setTimeout(r, step));
+  }
+}
 /** Até onde o zoom vai: o do aparelho (até 10×) ou 5× digital. O mínimo é 1× (ou 0,5× se o aparelho tiver grande-angular). */
 export function zoomLimits(hw: Range | null): { min: number; max: number } {
   if (!hw) return { min: 1, max: 5 };
