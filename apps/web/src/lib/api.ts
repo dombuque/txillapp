@@ -93,13 +93,13 @@ export interface Post {
   locationGeo?: { lat: number; lng: number } | null;
   /** Guardada por mim (privado). */
   saved?: boolean;
-  author: { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null };
+  author: { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | 'paid' | null };
   cheers: number;
   comments: number;
   gifts: number;
   cheered: boolean;
   /** Preenchido nos posts "X presenteou Y". */
-  gift: { amount: number; recipient: { username: string; displayName: string; hasAvatar: boolean; verified?: boolean; verifiedTier?: 'verified' | 'official' | null } } | null;
+  gift: { amount: number; recipient: { username: string; displayName: string; hasAvatar: boolean; verified?: boolean; verifiedTier?: 'verified' | 'official' | 'paid' | null } } | null;
   /** Conforme as definições do autor. */
   canComment: boolean;
   commentsOff?: boolean;
@@ -123,7 +123,7 @@ export interface Comment {
   parentId: string | null;
   body: string;
   createdAt: string;
-  author: { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null };
+  author: { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | 'paid' | null };
   cheers: number;
   cheered: boolean;
   replyCount: number;
@@ -134,7 +134,7 @@ export interface Comment {
 export interface Profile {
   id: string;
   verified?: boolean;
-  verifiedTier?: 'verified' | 'official' | null;
+  verifiedTier?: 'verified' | 'official' | 'paid' | null;
   /** Só vem preenchido se a pessoa escolheu mostrá-lo (ou sou eu). */
   gender?: Gender | null;
   username: string;
@@ -434,7 +434,7 @@ export interface VerificationStatus {
   items: { key: string; label: string; ok: boolean; hint: string }[];
   eligible: boolean;
   verified: boolean;
-  tier: 'verified' | 'official' | null;
+  tier: 'verified' | 'official' | 'paid' | null;
   request: { id: string; kind: string; status: 'pending' | 'approved' | 'rejected' | 'withdrawn'; reason: string | null; createdAt: string } | null;
   retryAfter: string | null;
 }
@@ -823,7 +823,7 @@ export const api = {
   verificationRequest: (b: { kind: 'person' | 'business'; fullName: string; proof: string; docType: DocType; docMediaId: string; docBackMediaId?: string; faceMediaId: string; selfieMediaId: string }): Promise<void> => raw('/verification/request', post(b)),
   verificationWithdraw: (): Promise<void> => raw('/verification/request', { method: 'DELETE' }),
   adminVerifications: (): Promise<VerificationItem[]> => raw('/admin/verifications'),
-  verificationDecide: (id: string, action: 'approve' | 'reject', reason?: string, tier?: 'verified' | 'official'): Promise<void> => raw(`/admin/verifications/${id}/decide`, post({ action, reason, tier })),
+  verificationDecide: (id: string, action: 'approve' | 'reject', reason?: string, tier?: 'verified' | 'official' | 'paid'): Promise<void> => raw(`/admin/verifications/${id}/decide`, post({ action, reason, tier })),
   adminResolve: (type: ReportType, id: string, action: 'dismiss' | 'remove' | 'suspend', note?: string): Promise<void> => raw('/admin/reports/resolve', post({ type, id, action, note })),
   boOverview: (): Promise<Record<string, number>> => raw('/admin/overview'),
   boMe: (): Promise<BoMe> => raw('/admin/me'),
@@ -850,6 +850,8 @@ export const api = {
   boVerifyEmail: (id: string, reason: string): Promise<void> => raw(`/admin/users/${id}/verify-email`, post({ reason })),
   boSuspend: (id: string, reason: string): Promise<void> => raw(`/admin/users/${id}/suspend`, post({ reason })),
   boReactivate: (id: string, reason: string): Promise<void> => raw(`/admin/users/${id}/reactivate`, post({ reason })),
+  /** Dar, mudar ou tirar (tier null) o selo de uma conta; fica no registo com o motivo. */
+  boSetBadge: (id: string, tier: 'verified' | 'official' | 'paid' | null, reason: string): Promise<{ verified: boolean; verifiedTier: 'verified' | 'official' | 'paid' | null }> => raw(`/admin/users/${id}/badge`, post({ tier, reason })),
   boNote: (id: string, body: string): Promise<void> => raw(`/admin/users/${id}/notes`, post({ body })),
   boDecided: (status: 'actioned' | 'dismissed', cursor?: string): Promise<{ items: BoDecided[]; nextCursor: string | null }> =>
     raw(`/admin/reports/decided?${new URLSearchParams({ status, ...(cursor ? { cursor } : {}) }).toString()}`),

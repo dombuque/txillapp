@@ -2,7 +2,7 @@
 // O servidor já junta os brindes (uma linha por publicação ou comentário a cada 24 h) e manda a contagem e os dois últimos.
 // Sem dependências (os testes correm em Node: tests/cheerNotice.test.mjs).
 
-export interface CheerActor { username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null }
+export interface CheerActor { username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | 'paid' | null }
 export interface CheerData { target?: 'post' | 'comment'; postId?: string; commentId?: string; tcheka?: boolean }
 export interface CheerInfo { count?: number; actors?: CheerActor[] }
 

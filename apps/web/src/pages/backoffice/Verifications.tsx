@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { LoadingBlock } from '../../components/Loading';
 import { PageHeader } from './bo';
 import { api, type VerificationItem } from '../../lib/api';
+import { TIERS, TierPicker, type Tier } from './ui/contas-ui';
 
 const DOC_LABELS = { id_card: 'BI ou cartão de eleitor', passport: 'Passaporte', driver_licence: 'Carta de condução', residence: 'DIRE (residente)', other: 'Outro documento oficial' } as const;
 
@@ -12,8 +13,11 @@ function Row({ item, onDone }: { item: VerificationItem; onDone: () => void }) {
   const [err, setErr] = useState('');
   const [reason, setReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
+  // Aprovar: primeiro escolhe-se o nível do selo (vermelho do Txillapp por defeito; azul só na verificação paga).
+  const [approving, setApproving] = useState(false);
+  const [tier, setTier] = useState<Tier>('verified');
 
-  async function decide(action: 'approve' | 'reject', tier?: 'verified' | 'official') {
+  async function decide(action: 'approve' | 'reject', tier?: Tier) {
     setBusy(true);
     setErr('');
     try {
@@ -46,9 +50,21 @@ function Row({ item, onDone }: { item: VerificationItem; onDone: () => void }) {
       {rejecting && (
         <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} placeholder={tr('Motivo (a pessoa vai ver)')} aria-label={tr('Motivo da recusa')} className="mt-3 h-11 w-full rounded-xl border border-zinc-300 px-3 text-[16px]" />
       )}
+      {approving && <TierPicker name={`tier-${item.id}`} value={tier} onChange={(t) => t && setTier(t)} />}
       {err && <p role="alert" className="mt-2 text-sm text-red-600">{err}</p>}
       <div className="mt-3 flex gap-2">
-        {rejecting ? (
+        {approving ? (
+          <>
+            <button disabled={busy} onClick={() => setApproving(false)} className={`${btn} bg-zinc-100 text-zinc-800`}>{tr('Voltar')}</button>
+            <button
+              disabled={busy}
+              onClick={() => (tier === 'verified' || window.confirm(`Dar o selo «${TIERS.find((t) => t.id === tier)?.label}»?`)) && decide('approve', tier)}
+              className={`${btn} bg-zinc-900 text-white`}
+            >
+              {tr('Aprovar')}
+            </button>
+          </>
+        ) : rejecting ? (
           <>
             <button disabled={busy} onClick={() => setRejecting(false)} className={`${btn} bg-zinc-100 text-zinc-800`}>{tr('Voltar')}</button>
             <button disabled={busy || !reason.trim()} onClick={() => decide('reject')} className={`${btn} bg-red-700 text-white`}>{tr('Recusar')}</button>
@@ -56,8 +72,7 @@ function Row({ item, onDone }: { item: VerificationItem; onDone: () => void }) {
         ) : (
           <>
             <button disabled={busy} onClick={() => setRejecting(true)} className={`${btn} bg-zinc-100 text-zinc-800`}>{tr('Recusar')}</button>
-            <button disabled={busy} onClick={() => decide('approve', 'verified')} className={`${btn} bg-sky-600 text-white`}>{tr('Verificar')}</button>
-            <button disabled={busy} onClick={() => window.confirm('Dar o selo de conta oficial do Txillapp?') && decide('approve', 'official')} className={`${btn} bg-brand text-white`}>{tr('Oficial')}</button>
+            <button disabled={busy} onClick={() => setApproving(true)} className={`${btn} bg-brand text-white`}>{tr('Verificar…')}</button>
           </>
         )}
       </div>

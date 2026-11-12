@@ -194,7 +194,7 @@ export function VenuePickerSheet({ title, txillsOnly = false, onPick, onClose }:
 }
 
 // ----- pessoas -----
-export interface MiniPerson { username: string; displayName: string; hasAvatar: boolean; /** Selo de verificado. */ verified?: boolean; verifiedTier?: 'verified' | 'official' | null }
+export interface MiniPerson { username: string; displayName: string; hasAvatar: boolean; /** Selo de verificado. */ verified?: boolean; verifiedTier?: 'verified' | 'official' | 'paid' | null }
 /** Escolher uma ou várias pessoas do TxillGroup (para quem paga, dividir entre, responsável). */
 export function MemberPickSheet({ title, people, selected, multiple, allowNone, onDone, onClose }: { title: string; people: MiniPerson[]; selected: string[]; multiple?: boolean; allowNone?: boolean; onDone: (usernames: string[]) => void; onClose: () => void }) {
   const [sel, setSel] = useState<string[]>(selected);

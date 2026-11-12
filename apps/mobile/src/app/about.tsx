@@ -36,7 +36,7 @@ export default function About() {
           <Line icon="user" label="Nome de utilizador" value={`@${user?.username ?? ''}`} />
           <Line icon="clock" label="Conta criada em" value={since} />
           {country ? <Line icon="globe" label="Região" value={country} /> : null}
-          <Line icon="check-circle" label="Verificação" value={ver.data?.verified ? (ver.data.tier === 'official' ? 'Conta oficial do Txillapp' : 'Conta verificada') : 'Sem selo'} to="/verification" />
+          <Line icon="check-circle" label="Verificação" value={ver.data?.verified ? (ver.data.tier === 'official' ? 'Conta oficial do Txillapp' : ver.data.tier === 'paid' ? 'Verificado com subscrição' : 'Conta verificada') : 'Sem selo'} to="/verification" />
         </Group>
         <Group title="Legal">
           <Line icon="shield" label="Política de privacidade" to="/privacy" />

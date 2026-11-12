@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
+import { VERIFIED_TIERS } from '../common/badge';
 import { ZodPipe } from '../common/zod.pipe';
 import { Needs, StaffGuard } from '../staff/staff.guard';
 import { StaffAuthService } from '../staff/staff-auth.service';
@@ -11,7 +12,8 @@ import { BackofficeService } from './backoffice.service';
 type AuthedReq = Request & { userId?: string };
 
 const reasonSchema = z.object({ reason: z.string().trim().min(3, 'Escreve o motivo').max(300) });
-const noteSchema = z.object({ body: z.string().trim().min(1).max(1000) });
+const badgeSchema = z.object({ tier: z.enum(VERIFIED_TIERS).nullable(), reason: z.string().trim().min(3, 'Escreve o motivo').max(300) });
+const noteSchema =z.object({ body: z.string().trim().min(1).max(1000) });
 const teamIds = TEAMS.map((t) => t.id) as [string, ...string[]];
 const inviteSchema = z.object({ email: z.string().trim().toLowerCase().email().max(254), name: z.string().trim().min(1).max(80), teams: z.array(z.enum(teamIds)).min(1) });
 const teamsSchema = z.object({ teams: z.array(z.enum(teamIds)).min(1), reason: z.string().trim().min(3).max(300) });
@@ -95,6 +97,15 @@ export class BackofficeController {
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   reactivate(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(reasonSchema)) b: z.infer<typeof reasonSchema>) {
     return this.bo.reactivate(req.userId!, id, b.reason);
+  }
+
+  /** Dar, mudar ou tirar o selo à mão (tier null tira). Quem decide os pedidos de selo. Fica na auditoria. */
+  @Post('users/:id/badge')
+  @Needs('users.view', 'verification.decide')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  setBadge(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(badgeSchema)) b: z.infer<typeof badgeSchema>) {
+    return this.bo.setBadge(req.userId!, id, b.tier, b.reason);
   }
 
   @Post('users/:id/notes')

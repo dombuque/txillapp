@@ -127,7 +127,7 @@ export const TERMS: LegalBlock[][] = [
   {
    "t": "ul",
    "x": [
-    "Há dois selos: o **azul**, para pessoas e negócios verificados, e o selo coral do Txillapp, só para **contas oficiais** da casa.",
+    "O selo **vermelho** é dado pelo Txillapp: a pessoas e negócios verificados (por mérito ou com o pedido de verificação aceite) e às **contas oficiais** da casa. O selo **azul** é o da verificação paga, quando existir.",
     "Para pedir o selo a conta tem de cumprir requisitos: email confirmado, foto e bio, 30 dias ou mais, 3 publicações ou mais, 10 seguidores ou mais e nenhuma sanção recente.",
     "Depois envias o teu nome, uma prova de quem és (uma ligação ou explicação), uma foto de um documento de identificação e uma selfie. A moderação revê tudo à mão.",
     "Podes ser recusado, com o motivo. Só podes voltar a pedir passados 30 dias. Podemos retirar o selo a contas que violem estes termos, mudem de identidade ou fiquem inativas.",

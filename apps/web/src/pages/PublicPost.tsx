@@ -9,7 +9,7 @@ import { Avatar, Wordmark, timeAgo } from '../components/ui';
 interface PublicPostData {
   code: string;
   kind: 'post' | 'reel';
-  author: { username: string; displayName: string; hasAvatar: boolean; verified: boolean; verifiedTier: 'verified' | 'official' | null };
+  author: { username: string; displayName: string; hasAvatar: boolean; verified: boolean; verifiedTier: 'verified' | 'official' | 'paid' | null };
   body: string;
   locationLabel: string | null;
   createdAt: string;

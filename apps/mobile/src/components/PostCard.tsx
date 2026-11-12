@@ -130,7 +130,7 @@ function PostCardBase({ post, me, detail, openComments, highlightComment, sponso
 }
 
 type SheetState = null | 'menu' | 'comments' | 'repost' | 'share' | { gift: { username: string; displayName: string; amount?: number; note?: string } } | { people: PeopleKind };
-type GiftExtra = { recipient: { username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null } };
+type GiftExtra = { recipient: { username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | 'paid' | null } };
 
 function PostBody({ post, me, detail, openComments, highlightComment, musicOn = false, sponsored }: { post: Post; me?: string; detail?: boolean; openComments?: boolean; highlightComment?: string; /** O post está à vista: a música toca. */ musicOn?: boolean; sponsored?: SponsoredInfo }) {
   // No computador a app vive numa coluna de 576 ao centro: as medidas saem dela, não da janela.

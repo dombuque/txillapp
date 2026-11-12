@@ -74,9 +74,9 @@ export interface PublicUser {
   id: string;
   username: string;
   displayName: string;
-  /** Conta com o selo de verificado e qual (azul ou o da conta oficial): a app grava-o na assinatura das fotos. */
+  /** Conta com o selo de verificado e qual: 'verified' (mérito ou pedido aceite) e 'official' (conta oficial do Txillapp) a vermelho, 'paid' (verificação paga) a azul. A app grava-o na assinatura das fotos. */
   verified?: boolean;
-  verifiedTier?: 'verified' | 'official' | null;
+  verifiedTier?: 'verified' | 'official' | 'paid' | null;
 }
 
 export interface AuthResponse {

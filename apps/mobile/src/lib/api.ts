@@ -13,7 +13,7 @@ import type { SponsoredSlot } from './api.boosts';
 export interface PublicUser {
   id: string; username: string; displayName: string;
   /** Conta com o selo de verificado (e qual: o azul ou o da conta oficial). Respostas antigas não o trazem. */
-  verified?: boolean; verifiedTier?: 'verified' | 'official' | null;
+  verified?: boolean; verifiedTier?: 'verified' | 'official' | 'paid' | null;
 }
 export interface AuthResult { accessToken: string; /** Só na app nativa; na web vai no cookie. */ refreshToken?: string; user: PublicUser }
 
@@ -21,9 +21,9 @@ export interface PostMedia { url: string; kind?: 'image' | 'video'; posterUrl?: 
 /** Tcheka = uma publicação com um único vídeo. Fotos e vídeos juntos são um carrossel normal (abre como publicação). */
 export const isTcheka = (p: { media: { kind?: string }[] } | null | undefined) => !!p && p.media.length === 1 && p.media[0]?.kind === 'video';
 /** Selo de verificado: os mesmos campos que a API manda nos posts e no perfil. */
-export type VerifiedTier = 'verified' | 'official' | null;
+export type VerifiedTier = 'verified' | 'official' | 'paid' | null;
 export interface Badged { verified?: boolean; verifiedTier?: VerifiedTier }
-export interface Author { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | null }
+export interface Author { id: string; username: string; displayName: string; verified?: boolean; verifiedTier?: 'verified' | 'official' | 'paid' | null }
 export interface Post {
   /** Música da publicação (licença aberta ou clipe próprio). */
   music?: import('./api.music').Track | null;
@@ -157,7 +157,7 @@ export interface VerificationStatus {
   items: { key: string; label: string; ok: boolean; hint: string }[];
   eligible: boolean;
   verified: boolean;
-  tier: 'verified' | 'official' | null;
+  tier: 'verified' | 'official' | 'paid' | null;
   request: { id: string; kind: string; status: 'pending' | 'approved' | 'rejected' | 'withdrawn'; reason: string | null; createdAt: string } | null;
   retryAfter: string | null;
 }
@@ -174,7 +174,7 @@ export interface FollowState { following: boolean; requested: boolean; followers
 export interface Profile {
   id: string;
   verified?: boolean;
-  verifiedTier?: 'verified' | 'official' | null;
+  verifiedTier?: 'verified' | 'official' | 'paid' | null;
   username: string;
   displayName: string;
   bio: string | null;

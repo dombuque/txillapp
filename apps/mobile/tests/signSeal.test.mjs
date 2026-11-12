@@ -33,7 +33,7 @@ test('sem selo: a assinatura fica como antes (o @ acaba na margem, sem caixa do 
 
 test('com selo: o selo encostado à direita, 1,05× a letra, a meio da letra; o @ acaba antes dele com uma folga', () => {
   for (const [W, H] of SIZES) {
-    for (const tier of ['verified', 'official']) {
+    for (const tier of ['verified', 'official', 'paid']) {
       const L = w.signLayout(W, H, true, tier);
       const plain = w.signLayout(W, H, true);
       const b = L.seal;
@@ -54,14 +54,47 @@ test('com selo: o selo encostado à direita, 1,05× a letra, a meio da letra; o 
   }
 });
 
-test('sealOf: só contas verificadas levam selo; a oficial leva o coral', () => {
+test('sealOf: só contas verificadas levam selo, com o nível que trazem (verified, official ou paid)', () => {
   assert.equal(w.sealOf(null), null);
   assert.equal(w.sealOf(undefined), null);
   assert.equal(w.sealOf({ id: 'x', username: 'a', displayName: 'A' }), null); // respostas antigas, sem o campo
   assert.equal(w.sealOf({ verified: false, verifiedTier: 'official' }), null);
+  assert.equal(w.sealOf({ verified: false, verifiedTier: 'paid' }), null);
   assert.equal(w.sealOf({ verified: true, verifiedTier: null }), 'verified');
   assert.equal(w.sealOf({ verified: true, verifiedTier: 'verified' }), 'verified');
   assert.equal(w.sealOf({ verified: true, verifiedTier: 'official' }), 'official');
+  assert.equal(w.sealOf({ verified: true, verifiedTier: 'paid' }), 'paid');
+  // Um nível que a app ainda não conhece: o selo do Txillapp de sempre.
+  assert.equal(w.sealOf({ verified: true, verifiedTier: 'gold' }), 'verified');
+});
+
+test('as cores por nível: verificado e conta oficial a coral (vermelho do Txillapp); só a verificação paga é azul', () => {
+  assert.equal(w.sealPaint('verified'), 'coral');
+  assert.equal(w.sealPaint('official'), 'coral');
+  assert.equal(w.sealPaint('paid'), 'blue');
+  assert.equal(w.SEAL_BLUE, '#1d9bf0');
+  assert.deepEqual([w.SEAL_CORAL.from, w.SEAL_CORAL.to], ['#ff6b81', '#d6334f']);
+  assert.deepEqual(w.SEAL_LABEL, { verified: 'Perfil verificado', official: 'Conta oficial do Txillapp', paid: 'Verificado com subscrição' });
+});
+
+test('VerifiedBadge: o degradê coral para verified e official, o azul só para paid, e o texto do leitor de ecrã por nível', () => {
+  const vb = read('components', 'VerifiedBadge.tsx');
+  assert.match(vb, /const t: SealTier = tier === 'official' \|\| tier === 'paid' \? tier : 'verified';/);
+  assert.match(vb, /const coral = sealPaint\(t\) === 'coral';/);
+  assert.match(vb, /\{coral && \(\s*<Defs>\s*<LinearGradient id=\{id\} x1="0" y1="0" x2="1" y2="1">/);
+  assert.match(vb, /<Path fill=\{coral \? `url\(#\$\{id\}\)` : '#1d9bf0'\} d=\{SEAL\} \/>/);
+  assert.match(vb, /accessibilityLabel=\{SEAL_LABEL\[t\]\}/);
+  // Um id por selo (na web os ids do SVG são da página toda).
+  assert.match(vb, /const id = `seal\$\{useId\(\)/);
+  assert.doesNotMatch(vb, /id="off"/);
+});
+
+test('os pintores da assinatura (TxillCam e estúdio pelo stampTxillapp, editor Skia) pintam pela mesma regra: coral salvo na verificação paga', () => {
+  for (const f of ['TxCamera.tsx', 'PhotoEditor.tsx']) {
+    const s = read('components', f);
+    assert.match(s, /if \(sealPaint\(b\.tier\) === 'coral'\) \{\s*const o = SEAL_CORAL;/, f);
+    assert.doesNotMatch(s, /b\.tier === 'official'/, f);
+  }
 });
 
 test('o desenho e as cores do selo são os do VerifiedBadge', () => {
@@ -71,12 +104,12 @@ test('o desenho e as cores do selo são os do VerifiedBadge', () => {
   assert.match(vb, /viewBox="0 0 24 24"/);
   assert.equal(w.SEAL_BOX, 24);
   assert.match(vb, new RegExp(`'${w.SEAL_BLUE}'`));
-  assert.match(vb, new RegExp(`stopColor="${w.SEAL_OFFICIAL.from}"`));
-  assert.match(vb, new RegExp(`stopColor="${w.SEAL_OFFICIAL.to}"`));
+  assert.match(vb, new RegExp(`stopColor="${w.SEAL_CORAL.from}"`));
+  assert.match(vb, new RegExp(`stopColor="${w.SEAL_CORAL.to}"`));
   assert.match(vb, /x1="0" y1="0" x2="1" y2="1"/);
   // A roseta vai de 1,75 a 22,25 (o degradê da oficial cobre essa caixa, como o objectBoundingBox do SVG).
   assert.match(w.SEAL_PATH, /^M22\.25 12/);
-  assert.deepEqual([w.SEAL_OFFICIAL.x0, w.SEAL_OFFICIAL.y0, w.SEAL_OFFICIAL.x1, w.SEAL_OFFICIAL.y1], [1.75, 1.75, 22.25, 22.25]);
+  assert.deepEqual([w.SEAL_CORAL.x0, w.SEAL_CORAL.y0, w.SEAL_CORAL.x1, w.SEAL_CORAL.y1], [1.75, 1.75, 22.25, 22.25]);
 });
 
 test('o servidor desenha o mesmo selo com a mesma conta (api/src/media/signature.ts)', () => {
@@ -84,8 +117,14 @@ test('o servidor desenha o mesmo selo com a mesma conta (api/src/media/signature
   assert.equal(api.match(/export const SEAL_PATH =\s*'([^']+)'/)[1], w.SEAL_PATH);
   assert.equal(api.match(/const SEAL_CHECK = '([^']+)'/)[1], w.SEAL_CHECK);
   assert.equal(api.match(/const SEAL_BLUE = '([^']+)'/)[1], w.SEAL_BLUE);
-  assert.match(api, new RegExp(`const SEAL_OFFICIAL = \\['${w.SEAL_OFFICIAL.from}', '${w.SEAL_OFFICIAL.to}'\\]`));
+  assert.match(api, new RegExp(`const SEAL_CORAL = \\['${w.SEAL_CORAL.from}', '${w.SEAL_CORAL.to}'\\]`));
   assert.match(api, new RegExp(`const SEAL_SCALE = ${w.SEAL_SCALE}, SEAL_GAP = ${w.SEAL_GAP}, SEAL_LIFT = ${w.SEAL_LIFT};`));
+  // A mesma regra de cor e os mesmos níveis.
+  const paint = (src) => src.match(/export const sealPaint = (\(tier: SealTier\)[^;]+);/)[1];
+  assert.equal(paint(api), paint(read('lib', 'wordmark.ts')));
+  assert.match(api, /export type SealTier = 'verified' \| 'official' \| 'paid';/);
+  assert.match(read('lib', 'wordmark.ts'), /export type SealTier = 'verified' \| 'official' \| 'paid';/);
+  assert.match(api, /fill="\$\{sealPaint\(b\.tier\) === 'blue' \? SEAL_BLUE : 'url\(#seal-coral\)'\}"/);
   // O corpo da conta é o mesmo, tirando os nomes das constantes (BOX / WORDMARK_BOX, 24 / SEAL_BOX).
   const body = (src, re) => {
     const at = src.search(re);
@@ -129,5 +168,5 @@ test('editor do telemóvel (Skia): o selo vai na pré-visualização e na foto f
 
 test('a sessão traz o selo: PublicUser da app com verified / verifiedTier (opcionais)', () => {
   const api = read('lib', 'api.ts');
-  assert.match(api, /verified\?: boolean; verifiedTier\?: 'verified' \| 'official' \| null;/);
+  assert.match(api, /verified\?: boolean; verifiedTier\?: 'verified' \| 'official' \| 'paid' \| null;/);
 });

@@ -109,7 +109,7 @@ export default function Verification() {
         {s?.verified && (
           <View style={st.done}>
             <VerifiedBadge size={56} tier={s.tier} />
-            <Text style={{ marginTop: 12, fontSize: 20, fontWeight: '800', color: colors.zinc900, textAlign: 'center' }}>{s.tier === 'official' ? 'Conta oficial do Txillapp' : 'A tua conta está verificada'}</Text>
+            <Text style={{ marginTop: 12, fontSize: 20, fontWeight: '800', color: colors.zinc900, textAlign: 'center' }}>{s.tier === 'official' ? 'Conta oficial do Txillapp' : s.tier === 'paid' ? 'A tua conta está verificada com subscrição' : 'A tua conta está verificada'}</Text>
             <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc600, textAlign: 'center' }}>O selo aparece junto ao teu nome em todo o Txillapp.</Text>
           </View>
         )}
