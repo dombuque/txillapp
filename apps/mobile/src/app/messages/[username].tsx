@@ -3,7 +3,7 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { Alert, AppState, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
@@ -11,6 +11,7 @@ import { quoteText, type Msg } from '@/components/ChatBubbles';
 import { ChatComposer } from '@/components/ChatComposer';
 import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus, OnlineDot } from '@/components/ChatHeader';
 import { ChatEditBar } from '@/components/ChatEditBar';
+import { ChatScreen, useComposerBottom } from '@/components/ChatScreen';
 import { ChatList } from '@/components/ChatList';
 import { NoteDot, PeerNoteBubble } from '@/components/ChatPeerNote';
 import { NoteView } from '@/components/Notes';
@@ -35,6 +36,8 @@ export default function Thread() {
   const { username = '' } = useLocalSearchParams<{ username: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Com o teclado aberto a barra de escrever fica colada a ele (sem a margem do sistema por baixo).
+  const composerBottom = useComposerBottom(insets.bottom);
   const qc = useQueryClient();
   const { user } = useAuth();
   const [err, setErr] = useState('');
@@ -207,7 +210,7 @@ export default function Thread() {
   const newPostsGo = person && line === 'newPosts' ? newPostsTarget(newPosts, person.username) : null;
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} behavior="padding">
+    <ChatScreen style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <ChatHeader
         raised={raised}
         onOpen={openProfile}
@@ -286,7 +289,7 @@ export default function Thread() {
         <ChatEditBar
           key={editing.id}
           original={editing.body}
-          bottom={insets.bottom}
+          bottom={composerBottom}
           onCancel={() => setEditing(null)}
           onSave={async (text) => {
             await saveEdit(qc, ['chat-thread', username], editing.id, text);
@@ -294,7 +297,7 @@ export default function Thread() {
           }}
         />
       ) : (
-        <ChatComposer closeTick={closeTick} onOpenChange={onComposerOpen} username={username} person={person} onSent={() => { void q.refetch(); remindPush('sent', firstName || person?.displayName); }} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} onTyping={onTyping} />
+        <ChatComposer closeTick={closeTick} onOpenChange={onComposerOpen} username={username} person={person} onSent={() => { void q.refetch(); remindPush('sent', firstName || person?.displayName); }} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onTyping={onTyping} />
       )}
       {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
 
@@ -335,7 +338,7 @@ export default function Thread() {
           <Text style={{ color: '#fff', textAlign: 'center', paddingBottom: 32 }}>Toca para fechar. Esta mensagem não volta a abrir.</Text>
         </Pressable>
       )}
-    </KeyboardAvoidingView>
+    </ChatScreen>
   );
 }
 

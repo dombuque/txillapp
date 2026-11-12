@@ -5,11 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { abs } from '@/lib/config';
 import { useChatVisible } from '@/lib/chatVisible';
 import { useAuth } from '@/lib/auth';
-import { Alert, KeyboardAvoidingView, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { quoteText, type Msg } from '@/components/ChatBubbles';
 import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus } from '@/components/ChatHeader';
 import { ChatEditBar } from '@/components/ChatEditBar';
+import { ChatScreen, useComposerBottom } from '@/components/ChatScreen';
 import { ChatList } from '@/components/ChatList';
 import { MessageMenu, saveEdit, stopLiveShare } from '@/components/ChatParts';
 import { GroupComposer } from '@/components/GroupComposer';
@@ -43,6 +44,8 @@ export default function GroupThreadScreen() {
   const { id = '', tab: tabParam, info } = useLocalSearchParams<{ id: string; tab?: string; info?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Com o teclado aberto a barra de escrever fica colada a ele (sem a margem do sistema por baixo).
+  const composerBottom = useComposerBottom(insets.bottom);
   const qc = useQueryClient();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
@@ -173,7 +176,7 @@ export default function GroupThreadScreen() {
         <ChatEditBar
           key={editing.id}
           original={editing.body}
-          bottom={insets.bottom}
+          bottom={composerBottom}
           onCancel={() => setEditing(null)}
           onSave={async (text) => {
             await saveEdit(qc, ['chat-group', id], editing.id, text);
@@ -181,14 +184,14 @@ export default function GroupThreadScreen() {
           }}
         />
       ) : group && (
-        <GroupComposer pendingKey={`g:${id}`} closeTick={closeTick} onOpenChange={onComposerOpen} send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={insets.bottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} />
+        <GroupComposer pendingKey={`g:${id}`} closeTick={closeTick} onOpenChange={onComposerOpen} send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} />
       )}
     </View>
   );
 
   return (
     <GroupCtx.Provider value={group ? { id, me, admin } : null}>
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }} behavior="padding">
+      <ChatScreen style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
         <ChatHeader
           raised={raised || tab !== 'chat'}
           onOpen={group ? () => setMembers(true) : undefined}
@@ -258,7 +261,7 @@ export default function GroupThreadScreen() {
           <ChatSearchSheet items={items} nameOf={(m) => (m.fromMe ? 'Tu' : m.sender?.displayName ?? '')} hasNext={!!q.hasNextPage} fetchNext={() => void q.fetchNextPage()} onClose={() => setSearching(false)} />
         )}
         {polling && <NewPollSheet groupId={id} onClose={() => { setPolling(false); void q.refetch(); }} />}
-      </KeyboardAvoidingView>
+      </ChatScreen>
     </GroupCtx.Provider>
   );
 }
