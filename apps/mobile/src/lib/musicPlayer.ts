@@ -29,6 +29,16 @@ let owner: symbol | null = null;
 let onStop: (() => void) | null = null;
 let endSub: { remove: () => void } | null = null;
 let modeSet = false;
+// O que está mesmo a tocar (para o equalizador, o disco e as ondas): quem pediu a faixa, o endereço e se o som está a sair.
+let live: { id: symbol | null; playing: boolean } = { id: null, playing: false };
+let liveUrl: string | null = null;
+const liveSubs = new Set<() => void>();
+function setLive(id: symbol | null, playing: boolean) {
+  if (live.id === id && live.playing === playing) return;
+  live = { id, playing };
+  liveSubs.forEach((f) => f());
+}
+const subLive = (cb: () => void) => { liveSubs.add(cb); return () => { liveSubs.delete(cb); }; };
 
 /** A música só toca sozinha nos posts depois de a pessoa ter carregado em "tocar" numa faixa (e enquanto não a parar à mão). */
 export const autoAllowed = () => auto;
@@ -65,6 +75,7 @@ export async function playTrack(id: symbol, url: string, opts: { loop: boolean; 
   }
   owner = id;
   onStop = opts.onStop;
+  liveUrl = url;
   const src = /^(file|blob|content|data):/i.test(url) ? url : abs(url);
   if (!src) { owner = null; onStop = null; return false; }
   try {
@@ -76,17 +87,19 @@ export async function playTrack(id: symbol, url: string, opts: { loop: boolean; 
     endSub?.remove();
     endSub = player.addListener('playbackStatusUpdate', (s) => {
       if (s.didJustFinish && owner === id && !player?.loop) stopTrack(id);
+      else if (owner === id) setLive(id, !!s.playing);
     });
     player.loop = opts.loop;
     player.muted = muted;
     await player.seekTo(0).catch(() => undefined);
     if (owner !== id) { try { player.pause(); } catch { /* */ } return false; }
     player.play();
+    setLive(id, true);
     // No browser (sobretudo iPhone), o som sem um toque recente é bloqueado: o leitor fica parado sem dar erro.
     // Nesse caso fica à espera do primeiro toque no ecrã e arranca nessa altura (se ainda for esta a faixa pedida).
     if (Platform.OS === 'web') {
       await new Promise((r) => setTimeout(r, 350));
-      if (owner === id && player && !player.playing) waitForGesture(id, url, opts);
+      if (owner === id && player && !player.playing) { setLive(id, false); waitForGesture(id, url, opts); }
     }
     return true;
   } catch {
@@ -131,6 +144,7 @@ export function stopTrack(id: symbol) {
   owner = null;
   onStop = null;
   try { player?.pause(); } catch { /* */ }
+  setLive(null, false);
   cb?.();
 }
 
@@ -142,3 +156,24 @@ export function resumeTrack(id: symbol) {
   if (owner === id) try { player?.play(); } catch { /* */ }
 }
 export const isPlaying = (id: symbol) => owner === id && !!player && player.playing;
+
+/** Esta faixa (quem a pediu) está a tocar agora? Muda quando começa, pára ou o browser a bloqueia à espera de um toque. */
+export function useTrackLive(id: symbol): boolean {
+  return useSyncExternalStore(subLive, () => live.id === id && live.playing, () => false);
+}
+/** A faixa deste endereço está a tocar (venha de que cartão vier)? Para o visor de fotos, que não tem o leitor. */
+export function useUrlLive(url: string | null | undefined): boolean {
+  return useSyncExternalStore(subLive, () => !!url && !!live.id && live.playing && liveUrl === url, () => false);
+}
+
+/** O tempo do trecho de quem está a tocar (segundos), para o anel de progresso. */
+export function trackTime(id: symbol): { current: number; duration: number | null } | null {
+  if (owner !== id || !player) return null;
+  try {
+    const d = player.duration;
+    return { current: player.currentTime || 0, duration: Number.isFinite(d) && d > 0 ? d : null };
+  } catch { return null; }
+}
+
+/** O leitor partilhado (para medir o som das ondas na web). */
+export const sharedPlayer = (): AudioPlayer | null => player;

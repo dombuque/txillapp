@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, FlatList, Platform, Pressable, Share, StyleSheet, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { api, isTcheka, type Page, type Post } from '@/lib/api';
 import type { PeopleKind } from '@/lib/api.feed';
@@ -26,7 +26,8 @@ import { TeachBar } from './TeachBar';
 import { QuotedOriginal, THREAD_AVATAR, THREAD_GAP } from './QuoteThread';
 import { GiftSheet, PostMenuSheet, RepostSheet } from './PostSheets';
 import { ShareSheet } from './ShareSheet';
-import { TrackCard } from './TrackCard';
+import { MusicBadge, MusicCard } from './PostMusic';
+import { musicPlacement, soundHref, wavesOverMedia } from '@/lib/musicLook';
 import { VerifiedBadge } from './VerifiedBadge';
 import { NameWithBadge } from './NameWithBadge';
 import { VenueLogo } from './VenueCard';
@@ -318,11 +319,12 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
           ) : null}
         </>
       )}
-      {post.music ? <TrackCard track={post.music} autoplay visible={musicOn} /> : null}
+      {/* A música: o cartão completo nas publicações só com texto; com fotos ou vídeo, o selo por cima da imagem. */}
+      {post.music && musicPlacement(post) === 'card' ? <MusicCard track={post.music} visible={musicOn} soundTo={soundHref(post as { sound?: unknown })} /> : null}
       {!quote && post.media.length ? (
         // O brinde aparece no meio da foto ou do vídeo.
         <View>
-          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={!!post.music} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} />
+          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={!!post.music} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} overlay={post.music ? <MusicBadge track={post.music} visible={musicOn} waves={wavesOverMedia(post.media)} /> : undefined} />
           <CheersPour n={burst} size={Math.min(220, inner * 0.6)} />
         </View>
       ) : (
@@ -337,6 +339,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
           start={viewer.of.media.slice(0, viewer.start).filter((m) => m.kind !== 'video').length}
           author={viewer.of.author}
           body={viewer.of.body}
+          music={viewer.of.music}
           onClose={() => setViewer(null)}
           burst={viewerBurst}
           footer={
@@ -525,7 +528,7 @@ function GiftedPost({ original, onOpen }: { original: Post; onOpen?: (p: Post) =
 }
 
 /** Fotos e vídeos: arredondados (12), na proporção da primeira (entre 4:5 e 1,91:1), com contador, pontos e pessoas identificadas. Tocar numa foto abre-a inteira. */
-function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = false, mute = false }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void; onOpen?: (index: number) => void; /** O post está à vista: os vídeos arrancam sozinhos. */ inView?: boolean; /** O post tem música: os vídeos ficam sem som. */ mute?: boolean }) {
+function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = false, mute = false, overlay }: { media: Post['media']; width: number; reelId?: string; onDouble?: () => void; onOpen?: (index: number) => void; /** O post está à vista: os vídeos arrancam sozinhos. */ inView?: boolean; /** O post tem música: os vídeos ficam sem som. */ mute?: boolean; /** Por cima das fotos e por baixo dos controlos: o selo e as ondas da música (o selo no canto de baixo à esquerda). */ overlay?: ReactNode }) {
   const router = useRouter();
   const tap = useTap(onDouble);
   const winH = useWindowDimensions().height;
@@ -625,9 +628,10 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = fals
             </Pressable>
           )}
         />
+        {overlay}
         {tags.length > 0 && (
           <>
-            <Pressable onPress={() => setShowTags((v) => !v)} style={styles.tagsBtn} accessibilityRole="button" accessibilityLabel={`${tags.length} pessoa(s) identificadas`}>
+            <Pressable onPress={() => setShowTags((v) => !v)} style={[styles.tagsBtn, overlay ? styles.tagsRight : null]} accessibilityRole="button" accessibilityLabel={`${tags.length} pessoa(s) identificadas`}>
               <Icon name="users" size={16} color="#fff" />
               <Text style={styles.counterText}>{tags.length}</Text>
             </Pressable>
@@ -740,6 +744,7 @@ export const PostCard = memo(PostCardBase);
 const styles = StyleSheet.create({
   gone: { marginBottom: 20, borderRadius: 16, backgroundColor: colors.zinc100, paddingHorizontal: 16, paddingVertical: 12 },
   goneText: { textAlign: 'center', fontSize: 14, fontWeight: '600', color: colors.zinc600 },
+  tagsRight: { left: undefined, right: 12 },
   tagsBtn: { position: 'absolute', left: 12, bottom: 12, height: 32, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10 },
   tagsList: { position: 'absolute', left: 12, right: 12, bottom: 56, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   tagPill: { borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: 12, paddingVertical: 4 },
