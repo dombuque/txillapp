@@ -32,6 +32,14 @@ export interface Tokens {
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
+/** Quem tem a sessão, com o selo de verificado (e qual): a app grava-o na assinatura das fotos que a pessoa tira. */
+export type SessionUser = PublicUser & { verified: boolean; verifiedTier: 'verified' | 'official' | null };
+interface UserRow { id: string; username: string; display_name: string; verified?: boolean | null; verified_tier?: string | null }
+const sessionUser = (r: UserRow): SessionUser => {
+  const verified = r.verified === true;
+  return { id: r.id, username: r.username, displayName: r.display_name, verified, verifiedTier: verified ? (r.verified_tier === 'official' ? 'official' : 'verified') : null };
+};
+
 
 @Injectable()
 export class AuthService {
@@ -134,7 +142,7 @@ export class AuthService {
 
   async login(input: LoginInput, userAgent?: string) {
     const { rows } = await this.pool.query(
-      `SELECT u.id, u.username, u.display_name, u.status, c.password_hash
+      `SELECT u.id, u.username, u.display_name, u.verified, u.verified_tier, u.status, c.password_hash
          FROM identity.users u JOIN identity.credentials c ON c.user_id = u.id
         WHERE u.email = $1 OR u.username = $1`,
       [input.identifier],
@@ -150,7 +158,7 @@ export class AuthService {
       const tokens = await this.issueSession(client, row.id, uuidv7(), userAgent);
       await this.audit(client, row.id, 'auth.login');
       await client.query('COMMIT');
-      return { tokens, user: { id: row.id, username: row.username, displayName: row.display_name } };
+      return { tokens, user: sessionUser(row) };
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
@@ -166,7 +174,7 @@ export class AuthService {
       await client.query('BEGIN');
       const { rows } = await client.query(
         `SELECT s.id, s.user_id, s.family_id, s.expires_at, s.used_at, s.revoked_at,
-                u.username, u.display_name, u.status
+                u.username, u.display_name, u.verified, u.verified_tier, u.status
            FROM identity.sessions s JOIN identity.users u ON u.id = s.user_id
           WHERE s.token_hash = $1 FOR UPDATE OF s`,
         [sha256(refreshToken)],
@@ -185,7 +193,7 @@ export class AuthService {
       await client.query('UPDATE identity.sessions SET used_at = COALESCE(used_at, now()) WHERE id = $1', [s.id]);
       const tokens = await this.issueSession(client, s.user_id, s.family_id, userAgent);
       await client.query('COMMIT');
-      return { tokens, user: { id: s.user_id, username: s.username, displayName: s.display_name } as PublicUser };
+      return { tokens, user: sessionUser({ ...s, id: s.user_id }) };
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw e;
@@ -207,14 +215,14 @@ export class AuthService {
   async googleLogin(idToken: string, userAgent?: string) {
     const p = await this.google.verify(idToken);
     const found = await this.pool.query(
-      `SELECT id, username, display_name, status FROM identity.users WHERE google_sub = $1`,
+      `SELECT id, username, display_name, verified, verified_tier, status FROM identity.users WHERE google_sub = $1`,
       [p.sub],
     );
     const u = found.rows[0];
     if (u) {
       if (u.status !== 'active') throw new UnauthorizedException('Conta indisponível');
       const tokens = await this.sessionFor(u.id, 'auth.google_login', userAgent);
-      return { kind: 'session' as const, tokens, user: { id: u.id, username: u.username, displayName: u.display_name } };
+      return { kind: 'session' as const, tokens, user: sessionUser(u) };
     }
     // Não se liga automaticamente a uma conta existente com o mesmo email (evita tomadas de conta por email não verificado).
     if ((await this.pool.query('SELECT 1 FROM identity.users WHERE email = $1', [p.email])).rowCount) {
@@ -278,12 +286,12 @@ export class AuthService {
    */
   async appleLogin(identityToken: string, nonce: string | undefined, fullName: string | undefined, userAgent?: string) {
     const p = await this.apple.verify(identityToken, nonce);
-    const found = await this.pool.query(`SELECT id, username, display_name, status FROM identity.users WHERE apple_sub = $1`, [p.sub]);
+    const found = await this.pool.query(`SELECT id, username, display_name, verified, verified_tier, status FROM identity.users WHERE apple_sub = $1`, [p.sub]);
     const u = found.rows[0];
     if (u) {
       if (u.status !== 'active') throw new UnauthorizedException('Conta indisponível');
       const tokens = await this.sessionFor(u.id, 'auth.apple_login', userAgent);
-      return { kind: 'session' as const, tokens, user: { id: u.id, username: u.username, displayName: u.display_name } };
+      return { kind: 'session' as const, tokens, user: sessionUser(u) };
     }
     // Sem email (a pessoa escondeu-o e a Apple não o confirmou) a conta fica sem email até ele ser confirmado mais tarde.
     const email = p.email ?? `${p.sub.replace(/[^a-z0-9]/gi, '').toLowerCase()}@appleid.invalid`;
@@ -804,13 +812,13 @@ export class AuthService {
     }
   }
 
-  async getUser(id: string): Promise<PublicUser> {
+  async getUser(id: string): Promise<SessionUser> {
     const { rows } = await this.pool.query(
-      `SELECT id, username, display_name FROM identity.users WHERE id = $1 AND status = 'active'`,
+      `SELECT id, username, display_name, verified, verified_tier FROM identity.users WHERE id = $1 AND status = 'active'`,
       [id],
     );
     if (!rows[0]) throw new UnauthorizedException();
-    return { id: rows[0].id, username: rows[0].username, displayName: rows[0].display_name };
+    return sessionUser(rows[0]);
   }
 
   private getDummyHash() {

@@ -6,6 +6,7 @@ import type { Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
 import { colors } from '@/lib/theme';
+import { sealOf } from '@/lib/wordmark';
 import { Icon } from './Icon';
 import { MusicPicker } from './MusicPicker';
 import { Sticker } from './StickerPanel';
@@ -56,7 +57,9 @@ const ease = (x: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
  * gravada em tempo real; a música mistura-se por Web Audio. Sem música, fica o som dos próprios vídeos.
  */
 export function TchekaStudio({ clips, initialMusic, onDone, onClose }: { clips: Clip[]; initialMusic: Track | null; onDone: (shot: Shot, music: Track | null) => void; onClose: () => void }) {
-  const username = useAuth().user?.username;
+  const { user } = useAuth();
+  const username = user?.username;
+  const seal = sealOf(user);
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<Item[]>(() => clips.map((c, i) => ({ ...c, key: `${i}-${c.uri}`, speed: 1, seconds: c.video ? Math.min(MAX_S, Math.max(1, Math.round((c.durationMs ?? 5000) / 1000))) : 3 })));
   const [sel, setSel] = useState(0);
@@ -179,7 +182,7 @@ export function TchekaStudio({ clips, initialMusic, onDone, onClose }: { clips: 
           g.restore();
         }
       }
-      stampTxillapp(g, W, H, username);
+      stampTxillapp(g, W, H, username, seal);
       if (castImg) {
         const size = Math.round(W * 0.24);
         const bounce = Math.abs(Math.sin(tGlobal * 2.2)) * 28;

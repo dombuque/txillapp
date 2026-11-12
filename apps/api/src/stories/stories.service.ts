@@ -3,7 +3,7 @@ import { TextFilter } from '../safety/text-filter.service';
 import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { MediaService } from '../media/media.service';
-import { signImage, signVideo } from '../media/signature';
+import { signImage, signVideo, type SealTier } from '../media/signature';
 import { stickersOf, stickersSvg, type PlacedSticker } from './stickers';
 import { PG_POOL } from '../db/db.module';
 import { ChatService } from '../chat/chat.service';
@@ -382,7 +382,7 @@ export class StoriesService {
   /** O meu mimo para guardar na galeria: a foto ou o vídeo com a assinatura do Txillapp (logótipo e o meu @). */
   async download(userId: string, id: string): Promise<{ mime: string; bytes: Buffer; filename: string }> {
     const { rows } = await this.pool.query(
-      `SELECT s.media_id, s.author_id, s.stickers, u.username, m.mime, m.signed FROM content.stories s JOIN identity.users u ON u.id = s.author_id JOIN content.media_assets m ON m.id = s.media_id WHERE s.id = $1`,
+      `SELECT s.media_id, s.author_id, s.stickers, u.username, u.verified, u.verified_tier, m.mime, m.signed FROM content.stories s JOIN identity.users u ON u.id = s.author_id JOIN content.media_assets m ON m.id = s.media_id WHERE s.id = $1`,
       [id],
     );
     const r = rows[0];
@@ -395,7 +395,9 @@ export class StoriesService {
     const placed = stickersOf(r.stickers);
     const overlay = (W: number, H: number) => stickersSvg(W, H, placed);
     const withSign = !r.signed;
-    const bytes = video ? await signVideo(raw, r.username as string, overlay, withSign) : await signImage(raw, r.username as string, overlay, withSign);
+    // Conta verificada: o selo vai a seguir ao @ (num ficheiro já assinado, o selo vem da própria app).
+    const seal: SealTier | null = r.verified === true ? (r.verified_tier === 'official' ? 'official' : 'verified') : null;
+    const bytes = video ? await signVideo(raw, r.username as string, overlay, withSign, seal) : await signImage(raw, r.username as string, overlay, withSign, seal);
     return { mime: video ? 'video/mp4' : 'image/jpeg', bytes, filename: `txillapp-mimo-${String(id).slice(0, 8)}.${video ? 'mp4' : 'jpg'}` };
   }
 

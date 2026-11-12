@@ -77,12 +77,12 @@ test('telemóvel: as fotos do editor (PhotoEditor) vão assinadas; os vídeos e 
   assert.doesNotMatch(nc, /signed: true/);
   // O editor desenha sempre a assinatura na foto final.
   const pe = read('components', 'PhotoEditor.tsx');
-  assert.match(fn(pe, 'drawEdit'), /drawSign\(canvas, W, H, font, username\);/);
+  assert.match(fn(pe, 'drawEdit'), /drawSign\(canvas, W, H, font, username, seal\);/);
 });
 
 test('estúdio de tchekas: o vídeo sai assinado e as fotos da câmara entram sem a assinatura delas', () => {
   const studio = read('components', 'TchekaStudio.tsx');
-  assert.match(studio, /stampTxillapp\(g, W, H, username\);/);
+  assert.match(studio, /stampTxillapp\(g, W, H, username, seal\);/);
   assert.match(studio, /onDone\(\{ uri: URL\.createObjectURL\(blob\), video: true, mime: blob\.type \|\| 'video\/mp4', durationMs: [^}]*, signed: true \}, music\)/);
   const nw = read('app', '(tabs)', 'new.tsx');
   assert.match(nw, /clips=\{assets\.map\(\(a\) => \(\{ uri: a\.clean \?\? a\.uri,/);

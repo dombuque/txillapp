@@ -15,7 +15,10 @@ import {
 } from '@/lib/webCamera';
 import { useAuth } from '@/lib/auth';
 import { POST_RATIO_DEFAULT, POST_RATIO_MAX, POST_RATIO_MIN } from '@/lib/postAspect';
-import { WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, signLayout } from '@/lib/wordmark';
+import {
+  SEAL_BLUE, SEAL_CHECK, SEAL_CHECK_WIDTH, SEAL_OFFICIAL, SEAL_PATH, WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, sealOf, signLayout,
+  type SealTier,
+} from '@/lib/wordmark';
 
 /**
  * A câmara oficial do Txillapp no browser (publicações, status). Ecrã inteiro, com a identidade da marca:
@@ -92,10 +95,10 @@ type Cell = [number, number, number, number];
 /** A assinatura do Txillapp no canto de baixo à direita (o "a" a coral), com fundo translúcido para se ler em qualquer imagem. */
 /**
  * A assinatura do Txillapp nas fotos e tchekas: o logótipo verdadeiro em branco (o ponto do i a coral), com sombra suave,
- * em baixo à direita, e por baixo o @ de quem tirou.
+ * em baixo à direita, e por baixo o @ de quem tirou. Conta verificada (`seal`): o selo a seguir ao @, com a mesma sombra.
  */
-export function stampTxillapp(g: CanvasRenderingContext2D, W: number, H: number, username?: string | null) {
-  const L = signLayout(W, H, !!username);
+export function stampTxillapp(g: CanvasRenderingContext2D, W: number, H: number, username?: string | null, seal?: SealTier | null) {
+  const L = signLayout(W, H, !!username, seal);
   g.save();
   g.shadowColor = 'rgba(0,0,0,0.45)';
   g.shadowBlur = L.blur;
@@ -120,7 +123,34 @@ export function stampTxillapp(g: CanvasRenderingContext2D, W: number, H: number,
     g.textAlign = 'right';
     g.textBaseline = 'alphabetic';
     g.fillStyle = 'rgba(255,255,255,0.92)';
-    g.fillText(`@${username}`, L.right, L.userBaseline);
+    g.fillText(`@${username}`, L.textRight, L.userBaseline);
+    g.restore();
+  }
+  if (L.seal) {
+    // O selo: a roseta com a sombra do @ e, por cima, o visto branco (sem sombra, como no VerifiedBadge).
+    const b = L.seal;
+    g.save();
+    g.translate(b.x, b.y);
+    g.scale(b.k, b.k);
+    if (b.tier === 'official') {
+      const o = SEAL_OFFICIAL;
+      const grad = g.createLinearGradient(o.x0, o.y0, o.x1, o.y1);
+      grad.addColorStop(0, o.from);
+      grad.addColorStop(1, o.to);
+      g.fillStyle = grad;
+    } else {
+      g.fillStyle = SEAL_BLUE;
+    }
+    g.shadowColor = 'rgba(0,0,0,0.5)';
+    g.shadowBlur = L.blur;
+    g.fill(new Path2D(SEAL_PATH));
+    g.shadowColor = 'transparent';
+    g.shadowBlur = 0;
+    g.strokeStyle = '#fff';
+    g.lineWidth = SEAL_CHECK_WIDTH;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    g.stroke(new Path2D(SEAL_CHECK));
     g.restore();
   }
 }
@@ -527,7 +557,7 @@ export function TxCamera({
   // A miniatura dos filtros é a foto tirada, sem filtro (senão cada exemplo levava o filtro escolhido por cima).
   const [swatchSrc, setSwatchSrc] = useState<string | null>(null);
   const { user } = useAuth();
-  const stamp = (g: CanvasRenderingContext2D, w: number, h: number) => stampTxillapp(g, w, h, user?.username);
+  const stamp = (g: CanvasRenderingContext2D, w: number, h: number) => stampTxillapp(g, w, h, user?.username, sealOf(user));
   /** Publicação: a câmara foi aberta em 4:5 (mimo e tcheka abrem em 9:16). Só 1:1, 4:5 e 1,91:1, a começar em 4:5. */
   const isPost = Math.abs(aspect - POST_RATIO_DEFAULT) < 0.01;
   const edit0: Edit = isPost ? { ...EDIT0, aspect: POST_RATIO_DEFAULT } : EDIT0;
