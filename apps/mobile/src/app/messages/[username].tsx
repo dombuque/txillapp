@@ -1,6 +1,5 @@
 import { BackButton } from '@/components/BackButton';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -13,6 +12,8 @@ import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus,
 import { ChatEditBar } from '@/components/ChatEditBar';
 import { ChatScreen, useComposerBottom } from '@/components/ChatScreen';
 import { ChatList } from '@/components/ChatList';
+import { OnceViewer } from '@/components/OnceViewer';
+import type { OnceContent } from '@/lib/onceView';
 import { NoteDot, PeerNoteBubble } from '@/components/ChatPeerNote';
 import { NoteView } from '@/components/Notes';
 import { MessageMenu, NotFollowingNote, RequestBar, saveEdit, sendTyping, stopLiveShare } from '@/components/ChatParts';
@@ -46,7 +47,7 @@ export default function Thread() {
   const [closeTick, setCloseTick] = useState(0);
   const composerOpen = useRef(false);
   const onComposerOpen = useCallback((o: boolean) => { composerOpen.current = o; }, []);
-  const [viewing, setViewing] = useState<{ url: string | null; body: string } | null>(null);
+  const [viewing, setViewing] = useState<OnceContent | null>(null);
   // O menu da mensagem (segurar) e, se veio da ação "Apagar" do leitor de ecrã, já na confirmação.
   const [menuFor, setMenuFor] = useState<{ m: Msg; start?: 'delete' } | null>(null);
   // A minha mensagem que estou a editar (a barra de escrever passa a ser a de editar).
@@ -155,7 +156,7 @@ export default function Thread() {
   async function openOnce(m: Msg) {
     try {
       const r = await api.chatOpen(m.id);
-      setViewing({ url: abs(r.mediaUrl) ?? null, body: r.body });
+      setViewing({ kind: r.kind, url: abs(r.mediaUrl) ?? null, body: r.body });
       void q.refetch();
     } catch (e) {
       Alert.alert('Não consegui abrir', (e as Error).message);
@@ -332,12 +333,8 @@ export default function Thread() {
           onClose={() => setNoteOpen(false)}
         />
       )}
-      {viewing && (
-        <Pressable onPress={() => setViewing(null)} style={st.viewer} accessibilityLabel="Fechar">
-          {viewing.url ? <Image source={{ uri: viewing.url }} style={{ flex: 1 }} contentFit="contain" /> : <Text style={{ color: '#fff', fontSize: 20, textAlign: 'center', padding: 24 }}>{viewing.body}</Text>}
-          <Text style={{ color: '#fff', textAlign: 'center', paddingBottom: 32 }}>Toca para fechar. Esta mensagem não volta a abrir.</Text>
-        </Pressable>
-      )}
+      {/* Ver uma vez: foto, vídeo, voz ou texto (components/OnceViewer). */}
+      {viewing && <OnceViewer content={viewing} onClose={() => setViewing(null)} />}
     </ChatScreen>
   );
 }
@@ -346,7 +343,6 @@ const st = StyleSheet.create({
   failText: { marginTop: 4, fontSize: 15, color: colors.zinc600, textAlign: 'center' },
   failBtn: { marginTop: 14, height: 44, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center' },
   failBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  viewer: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: '#000', justifyContent: 'center', zIndex: 50 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 6 },
   foot: { borderTopWidth: 1, borderTopColor: colors.zinc100, paddingHorizontal: 24, paddingTop: 16, textAlign: 'center', fontSize: 14, color: colors.zinc600 },
   err: { position: 'absolute', left: 0, right: 0, bottom: 88, textAlign: 'center', fontSize: 14, color: colors.red600 },

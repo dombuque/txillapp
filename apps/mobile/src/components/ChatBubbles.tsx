@@ -268,7 +268,7 @@ export function MediaFull({ url, video, onClose }: { url: string; video: boolean
 }
 
 /** Leitor de vídeo da conversa: dentro da bolha (sem tocar sozinho) ou no visor. Controlos nativos: play, pausa, som e barra. */
-function ChatVideoPlayer({ url, autoPlay = false, inModal = false }: { url: string; autoPlay?: boolean; inModal?: boolean }) {
+export function ChatVideoPlayer({ url, autoPlay = false, inModal = false }: { url: string; autoPlay?: boolean; inModal?: boolean }) {
   if (Platform.OS === 'web') {
     return createElement('video', {
       src: url, controls: true, playsInline: true, preload: 'metadata', autoPlay,

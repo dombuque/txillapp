@@ -1,5 +1,4 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { abs } from '@/lib/config';
@@ -12,6 +11,8 @@ import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus 
 import { ChatEditBar } from '@/components/ChatEditBar';
 import { ChatScreen, useComposerBottom } from '@/components/ChatScreen';
 import { ChatList } from '@/components/ChatList';
+import { OnceViewer } from '@/components/OnceViewer';
+import type { OnceContent } from '@/lib/onceView';
 import { MessageMenu, saveEdit, stopLiveShare } from '@/components/ChatParts';
 import { GroupComposer } from '@/components/GroupComposer';
 import { GroupInfoSheet } from '@/components/GroupSheets';
@@ -63,7 +64,7 @@ export default function GroupThreadScreen() {
   const [closeTick, setCloseTick] = useState(0);
   const composerOpen = useRef(false);
   const onComposerOpen = useCallback((o: boolean) => { composerOpen.current = o; }, []);
-  const [viewing, setViewing] = useState<{ url: string | null; body: string } | null>(null);
+  const [viewing, setViewing] = useState<OnceContent | null>(null);
   const [members, setMembers] = useState(info === '1');
   useEffect(() => { if (info === '1') setMembers(true); }, [info, id]);
   const [polling, setPolling] = useState(false);
@@ -118,7 +119,7 @@ export default function GroupThreadScreen() {
   async function openOnce(m: Msg) {
     try {
       const r = await api.chatOpen(m.id);
-      setViewing({ url: abs(r.mediaUrl) ?? null, body: r.body });
+      setViewing({ kind: r.kind, url: abs(r.mediaUrl) ?? null, body: r.body });
       void q.refetch();
     } catch (e) {
       Alert.alert('Não consegui abrir', (e as Error).message);
@@ -241,12 +242,8 @@ export default function GroupThreadScreen() {
             onError={setErr}
           />
         )}
-        {viewing && (
-          <Pressable onPress={() => setViewing(null)} style={st.viewer} accessibilityLabel="Fechar">
-            {viewing.url ? <Image source={{ uri: viewing.url }} style={{ flex: 1 }} contentFit="contain" /> : <Text style={{ color: '#fff', fontSize: 20, textAlign: 'center', padding: 24 }}>{viewing.body}</Text>}
-            <Text style={{ color: '#fff', textAlign: 'center', paddingBottom: 32 }}>Toca para fechar. Esta mensagem não volta a abrir.</Text>
-          </Pressable>
-        )}
+        {/* Ver uma vez: foto, vídeo, voz ou texto (components/OnceViewer). */}
+        {viewing && <OnceViewer content={viewing} onClose={() => setViewing(null)} />}
         {members && group && <GroupInfoSheet group={group} onClose={() => setMembers(false)} onChanged={() => { void q.refetch(); void qc.invalidateQueries({ queryKey: ['chat-groups'] }); }} onLeft={left} />}
         {more && group && (
           <ChatMenuSheet
@@ -267,7 +264,6 @@ export default function GroupThreadScreen() {
 }
 
 const st = StyleSheet.create({
-  viewer: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: '#000', justifyContent: 'center', zIndex: 50 },
   tabs: { flexDirection: 'row', paddingHorizontal: 8 },
   tab: { flex: 1, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabOn: { borderBottomColor: colors.zinc900 },
