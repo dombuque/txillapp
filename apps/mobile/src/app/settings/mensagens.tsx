@@ -6,7 +6,7 @@ import { SettingRow, SettingsSection } from '@/components/settings/SettingRow';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { usePrivacy } from '@/components/settings/usePrivacy';
 
-/** Mensagens e chamadas: quem te escreve, quem te liga, esconder o IP nas chamadas e o registo de chamadas. */
+/** Mensagens e chamadas: quem te escreve, onde estão as opções de cada conversa (temporárias e limpar), quem te liga, esconder o IP nas chamadas e o registo de chamadas. */
 export default function MessagesSettings() {
   const { p, save } = usePrivacy();
   const [sheet, setSheet] = useState<null | 'dms' | 'calls'>(null);
@@ -18,6 +18,11 @@ export default function MessagesSettings() {
     <SettingsPage title="Mensagens e chamadas">
       <SettingsSection title="Mensagens">
         <SettingRow anchor="dms" icon="mail" title="Quem pode enviar-me mensagens" value={p ? whoLabel(p.dmsAllowed) : '…'} onPress={() => setSheet('dms')} />
+      </SettingsSection>
+      {/* Estas duas são de cada conversa (menu «⋯»), não da conta: a linha diz onde estão e leva às Mensagens. */}
+      <SettingsSection title="Em cada conversa">
+        <SettingRow anchor="temporaryMessages" icon="clock" title="Mensagens temporárias" description="No menu ⋯ da conversa. As mensagens novas desaparecem para todos ao fim de 24 horas, 7 dias ou 90 dias. A dois muda qualquer um; num TxillGroup, só quem administra." to="/messages" />
+        <SettingRow anchor="clearChat" icon="trash" title="Limpar conversa" description="No menu ⋯ da conversa. As mensagens desaparecem só para ti: os outros continuam a vê-las." to="/messages" />
       </SettingsSection>
       <SettingsSection title="Chamadas">
         <SettingRow anchor="calls" icon="phone" title="Quem me pode ligar" value={p ? callsLabel(p.callsAllowed ?? 'mutual') : '…'} onPress={() => setSheet('calls')} />

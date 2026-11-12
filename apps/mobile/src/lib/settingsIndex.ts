@@ -113,6 +113,9 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'contacts', group: 'conteudo', title: 'Encontrar amigos nos contactos', keywords: ['contactos', 'amigos', 'agenda', 'procurar amigos'] },
   // Mensagens e chamadas
   { id: 'dms', group: 'mensagens', title: 'Quem pode enviar-me mensagens', keywords: ['mensagens', 'conversas', 'dm', 'chat', 'txillgroups', 'grupos', 'escrever-me'] },
+  // Estas duas mudam-se no menu «⋯» de cada conversa: a linha no ecrã explica onde e leva às Mensagens.
+  { id: 'temporaryMessages', group: 'mensagens', title: 'Mensagens temporárias', keywords: ['desaparecer', 'temporárias', 'efémeras', 'apagar sozinhas', 'autodestruir', '24 horas', '7 dias', '90 dias', 'disappearing'] },
+  { id: 'clearChat', group: 'mensagens', title: 'Limpar conversa', keywords: ['limpar', 'esvaziar', 'apagar mensagens', 'limpar chat', 'apagar histórico', 'clear chat'] },
   { id: 'calls', group: 'mensagens', title: 'Quem me pode ligar', keywords: ['chamadas', 'ligar', 'videochamada', 'chamada de voz'] },
   { id: 'relay', group: 'mensagens', title: 'Esconder o meu IP nas chamadas', keywords: ['ip', 'endereço', 'servidor', 'relay'] },
   { id: 'callLog', group: 'mensagens', title: 'Registo de chamadas', to: '/calls', keywords: ['histórico de chamadas', 'chamadas', 'apagar chamadas'] },
