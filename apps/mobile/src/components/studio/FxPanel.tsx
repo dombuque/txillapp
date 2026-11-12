@@ -57,11 +57,11 @@ export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, 
         const on = k === i;
         const has = !!(c.fx && (c.fx.filter || c.fx.adjust || c.fx.ramp || c.fx.reverse));
         return (
-          <Pressable key={c.key} onPress={() => onSelect(k)} style={[{ width: 32, height: 42, borderRadius: 9, overflow: 'hidden', borderWidth: 2, borderColor: on ? fxc.coralHot : 'rgba(255,255,255,0.14)', backgroundColor: '#1a1a22' }, on && ({ boxShadow: fxc.glow } as object)]} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`Clipe ${k + 1}${c.video ? ', vídeo' : ', foto'}`}>
+          <Pressable key={c.key} onPress={() => onSelect(k)} style={[{ width: 40, height: 52, borderRadius: 10, overflow: 'hidden', borderWidth: 2, borderColor: on ? fxc.coralHot : 'rgba(255,255,255,0.14)', backgroundColor: '#1a1a22' }, on && ({ boxShadow: fxc.glow } as object)]} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`Clipe ${k + 1}${c.video ? ', vídeo' : ', foto'}`}>
             {c.video
               ? dom('video', { src: c.uri, muted: true, playsInline: true, preload: 'metadata', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } })
               : dom('img', { src: c.uri, alt: '', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } })}
-            <View pointerEvents="none" style={{ position: 'absolute', left: 3, top: 2 }}><Text style={{ color: '#fff', fontSize: 11, fontWeight: '900', textShadowColor: '#000', textShadowRadius: 3 }}>{k + 1}</Text></View>
+            <View pointerEvents="none" style={{ position: 'absolute', left: 3, top: 2 }}><Text style={{ color: '#fff', fontSize: 14, fontWeight: '900', textShadowColor: '#000', textShadowRadius: 3 }}>{k + 1}</Text></View>
             {has ? <View pointerEvents="none" style={{ position: 'absolute', right: 3, top: 3, width: 7, height: 7, borderRadius: 4, backgroundColor: fxc.coralHot }} /> : null}
           </Pressable>
         );
@@ -80,7 +80,7 @@ export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, 
             <FxFilterStrip fx={fxNow} grab={grab} playing={playing} refreshKey={`${frameKey}|${cur.key}`} onPick={(id) => put(i, (f) => ({ ...f, filter: id === 'normal' ? undefined : { id, amount: f.filter?.id === id ? f.filter.amount : 1 } }))} />
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginTop: 6 }}>
-            <Text style={{ flex: 1, color: fxc.muted, fontSize: 12 }} numberOfLines={2}><Text style={{ color: '#fff', fontWeight: '800' }}>{filt.name}</Text> · {filt.mood}</Text>
+            <Text style={{ flex: 1, color: fxc.muted, fontSize: 14 }} numberOfLines={2}><Text style={{ color: '#fff', fontWeight: '800' }}>{filt.name}</Text> · {filt.mood}</Text>
             {clips.length > 1 ? <FxAction label="A todos" icon={<Icon name="images" size={14} color="#fff" />} onPress={() => put('all', (f) => ({ ...f, filter: filt.id === 'normal' ? undefined : { id: filt.id, amount } }))} a11y={`Aplicar o filtro ${filt.name} a todos os clipes`} /> : null}
           </View>
           {filt.id !== 'normal' ? (
@@ -100,7 +100,7 @@ export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, 
                     <Icon name={ADJ_ICON[a.id]} size={20} color={adj === a.id ? '#fff' : 'rgba(255,255,255,0.75)'} />
                     {v ? <View style={{ position: 'absolute', right: 1, top: 1, width: 8, height: 8, borderRadius: 4, backgroundColor: fxc.coralHot }} /> : null}
                   </View>
-                  <Text style={{ color: adj === a.id ? '#fff' : fxc.muted, fontSize: 10.5, fontWeight: '700' }} numberOfLines={1}>{a.label}</Text>
+                  <Text style={{ color: adj === a.id ? '#fff' : fxc.muted, fontSize: 14.5, fontWeight: '700' }} numberOfLines={1}>{a.label}</Text>
                 </Pressable>
               );
             })}
@@ -131,7 +131,7 @@ export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, 
                     style={({ pressed }) => [{ width: 66, height: 66, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line }, on && ({ borderColor: fxc.coralHot, backgroundColor: fxc.glassOn, boxShadow: fxc.glow } as object), pressed && { transform: [{ scale: 0.95 }] }]}
                     accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`Transição ${t.id.startsWith('deslizar') ? `deslizar: ${t.name}` : t.name}`}>
                     <Text style={{ color: on ? '#fff' : 'rgba(255,255,255,0.85)', fontSize: 22, fontWeight: '700' }}>{TR_GLYPH[t.id]}</Text>
-                    <Text style={{ color: on ? '#fff' : fxc.muted, fontSize: 10, fontWeight: '800' }} numberOfLines={1}>{t.name}</Text>
+                    <Text style={{ color: on ? '#fff' : fxc.muted, fontSize: 14, fontWeight: '800' }} numberOfLines={1}>{t.name}</Text>
                   </Pressable>
                 );
               })}
@@ -162,7 +162,7 @@ export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, 
                       <View key={k} style={{ width: 3, borderRadius: 2, height: Math.max(3, (rampSpeedAt(r.points, (k + 0.5) / 14) / Math.max(...r.points.map((p) => p[1]))) * 16), backgroundColor: fxNow?.ramp === r.id ? fxc.coralHot : 'rgba(255,255,255,0.55)' }} />
                     ))}
                   </View>
-                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800', marginTop: 3 }}>{r.name}</Text>
+                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800', marginTop: 3 }}>{r.name}</Text>
                 </Pressable>
               ))}
             </FxRow>
@@ -185,7 +185,7 @@ function ReverseRow({ cur, state, onToggle }: { cur: FxClip; state: ReverseState
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, marginTop: 10 }}>
       <FxChip on={on} label={on ? 'Ao contrário' : 'Inverter'} icon={<Icon name="repeat" size={14} color={on ? '#fff' : 'rgba(255,255,255,0.75)'} />} onPress={onToggle} disabled={!on && tooLong} a11y={on ? 'Desligar o vídeo ao contrário' : 'Pôr o vídeo ao contrário'} />
-      <Text style={{ color: fxc.faint, fontSize: 12, flex: 1 }} numberOfLines={2}>
+      <Text style={{ color: fxc.faint, fontSize: 14, flex: 1 }} numberOfLines={2}>
         {tooLong && !on ? `Para inverter, corta o clipe até ${REVERSE_MAX_S} s.`
           : !on ? 'O vídeo toca do fim para o início.'
             : state.status === 'working' ? `A preparar o inverso… ${Math.round(state.progress * 100)}%`

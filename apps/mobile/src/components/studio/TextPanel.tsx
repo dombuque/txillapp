@@ -70,7 +70,7 @@ export function TextPanel({ texts, selId, onSelect, onAdd, onChange, onDelete, t
                   return (
                     <Pressable key={f.id} onPress={() => set({ font: f.id })} style={[{ width: 70, height: 58, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line }, on && ({ borderColor: fxc.coralHot, backgroundColor: fxc.glassOn, boxShadow: fxc.glow } as object)]} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`Fonte ${f.name}`}>
                       <Text style={{ color: '#fff', fontSize: 22 * f.k * 0.9, fontFamily: f.family, fontWeight: String(f.weight) as '400', fontStyle: f.style ?? 'normal', lineHeight: 28 }}>Aa</Text>
-                      <Text style={{ color: on ? '#fff' : fxc.muted, fontSize: 10, fontWeight: '800' }} numberOfLines={1}>{f.name}</Text>
+                      <Text style={{ color: on ? '#fff' : fxc.muted, fontSize: 14, fontWeight: '800' }} numberOfLines={1}>{f.name}</Text>
                     </Pressable>
                   );
                 })}
@@ -83,7 +83,7 @@ export function TextPanel({ texts, selId, onSelect, onAdd, onChange, onDelete, t
             <>
               <FxRow label="Cor">
                 {TEXT_COLORS.map((c) => (
-                  <Pressable key={c} onPress={() => set({ color: c })} style={[{ width: 32, height: 32, borderRadius: 16, backgroundColor: c, borderWidth: 2, borderColor: 'rgba(255,255,255,0.35)' }, cur.color === c && ({ borderColor: '#fff', boxShadow: `0 0 0 2px ${fxc.coralHot}, 0 0 14px ${c}` } as object)]} accessibilityRole="button" accessibilityState={{ selected: cur.color === c }} accessibilityLabel={`Cor ${c}`} />
+                  <Pressable key={c} onPress={() => set({ color: c })} style={[{ width: 44, height: 44, borderRadius: 22, backgroundColor: c, borderWidth: 2, borderColor: 'rgba(255,255,255,0.35)' }, cur.color === c && ({ borderColor: '#fff', boxShadow: `0 0 0 2px ${fxc.coralHot}, 0 0 14px ${c}` } as object)]} accessibilityRole="button" accessibilityState={{ selected: cur.color === c }} accessibilityLabel={`Cor ${c}`} />
                 ))}
               </FxRow>
               <FxRow wrap>

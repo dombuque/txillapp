@@ -128,7 +128,7 @@ export function AudioMixer({ channels, fadeIn, fadeOut, onFade, ducking, onDucki
 
 const st = StyleSheet.create({
   card: { marginHorizontal: 16, marginTop: 8, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingVertical: 8 },
-  cardTitle: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase', paddingHorizontal: 14, paddingBottom: 2 },
+  cardTitle: { color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase', paddingHorizontal: 14, paddingBottom: 2 },
   strip: { paddingTop: 4, paddingBottom: 8 },
   stripSub: { marginLeft: 18, borderLeftWidth: 2, borderLeftColor: 'rgba(255,255,255,0.1)' },
   // A barra tem 48 de zona de toque; o desenho fica mais junto ao nome e ao medidor.
@@ -139,14 +139,14 @@ const st = StyleSheet.create({
   note: { color: 'rgba(255,255,255,0.55)', fontSize: 14, flexShrink: 1 },
   val: { marginLeft: 'auto', color: 'rgba(255,255,255,0.75)', fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },
   mute: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
-  empty: { color: 'rgba(255,255,255,0.6)', fontSize: 13, paddingHorizontal: 14, paddingVertical: 6 },
+  empty: { color: 'rgba(255,255,255,0.6)', fontSize: 14, paddingHorizontal: 14, paddingVertical: 6 },
   fadeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
-  fadeLabel: { color: '#fff', fontSize: 13, fontWeight: '700', width: 58 },
-  fadeVal: { color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '700', width: 40, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  fadeLabel: { color: '#fff', fontSize: 14, fontWeight: '700', width: 58 },
+  fadeVal: { color: 'rgba(255,255,255,0.75)', fontSize: 14, fontWeight: '700', width: 40, textAlign: 'right', fontVariant: ['tabular-nums'] },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 10, marginTop: 4, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
   toggleOn: { backgroundColor: 'rgba(214,51,79,0.12)' },
   knobTrack: { width: 38, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.2)', padding: 3 },
   knob: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#fff' },
-  toggleText: { color: '#fff', fontSize: 13, fontWeight: '800' },
-  toggleSub: { color: 'rgba(255,255,255,0.55)', fontSize: 11 },
+  toggleText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  toggleSub: { color: 'rgba(255,255,255,0.55)', fontSize: 14 },
 });

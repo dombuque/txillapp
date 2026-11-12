@@ -28,7 +28,7 @@ test('o tempo por baixo do botão: «0:07 / 0:20»', () => {
 });
 
 test('o botão tocar/pausar está sempre na pré-visualização (fora dos separadores) e o toque no vídeo também pausa', () => {
-  const preview = studio.indexOf('<Pressable style={st.preview} onPress={togglePlay}');
+  const preview = studio.indexOf('<Pressable style={[st.preview, !wide && st.previewPhone]} onPress={togglePlay}');
   const tabs = studio.indexOf('<View style={st.tabs}');
   assert.ok(preview > 0 && tabs > preview, 'a pré-visualização vem antes dos separadores e é comum a todos');
   const btn = studio.indexOf("accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'}");

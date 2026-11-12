@@ -1,5 +1,5 @@
 import { createElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
@@ -52,7 +52,15 @@ const H = 1920;
 /** No computador: a largura da coluna dos painéis, à direita. */
 const PANEL_W = 400;
 /** A barra do tempo por baixo da imagem. */
-const BAR_H = 36;
+const BAR_H = 44;
+/**
+ * Na gravação, o som entra este bocado mais tarde: o canvas gravado chega ao gravador uns frames depois do som (o frame
+ * desenhado, a captura e o codificador). Medido no laboratório (vídeo com o número do frame pintado e um tom): sem isto, o
+ * som do vídeo montado ia uns 150 ms à frente da imagem.
+ */
+const REC_AV_DELAY_S = 0.12;
+/** O máximo que a sequência espera por um vídeo que ainda não tem imagem no ponto de corte (depois segue na mesma). */
+const HOLD_MAX_MS = 2500;
 type Tab = 'clipes' | 'som' | 'texto' | 'stickers' | 'efeitos' | 'capa';
 
 export interface Clip { uri: string; video: boolean; mime: string; durationMs?: number; /** Velocidade a que foi gravado na câmara (0,5× a 3×). */ speed?: number }
@@ -410,7 +418,11 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     const origGain = ac.createGain();
     musicGain.connect(master);
     origGain.connect(master);
-    master.connect(dest);
+    // Para o gravador, o som vai atrasado o mesmo que a imagem do canvas (REC_AV_DELAY_S); para as colunas, direto.
+    const recDelay = ac.createDelay(1);
+    recDelay.delayTime.value = REC_AV_DELAY_S;
+    master.connect(recDelay);
+    recDelay.connect(dest);
     master.connect(speak);
     speak.connect(ac.destination);
     const graph = createStudioGraph(ac, { origGain, musicGain, master });
@@ -757,7 +769,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     recording.current = !!rec;
     dirty.current = false;
     const recSig = cfg.current.fullSig;
-    const t0 = performance.now() - from * 1000;
+    let t0 = performance.now() - from * 1000;
     rec?.start(500);
     if (musicNode && e.music) musicNode.start(0, (musicStart + from) % e.music.buf.duration);
     // A voz-off, os efeitos sonoros e as curvas da música, no relógio do som (o mesmo instante 0 da tcheka).
@@ -767,6 +779,22 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     let lastUi = 0;
     let lastDraw = 0;
     let t = from;
+    /** Para medir no laboratório (só se a página o definir): o instante, o bocado, o ponto do ficheiro e o frame desenhado. */
+    const probe = (window as unknown as { __tchekaProbe?: (t: number, i: number, src: number, g: CanvasRenderingContext2D) => void }).__tchekaProbe;
+    /** A sequência à espera de um vídeo (desde quando, em ms do relógio): o tempo, o som e a gravação ficam parados. */
+    let hold: number | null = null;
+    /** Desde quando o vídeo de agora não está pronto (uma espera curta não pára o som: o atraso apanha-se depois). */
+    let waitSince: number | null = null;
+    /** O vídeo que pediu para tocar e ainda não começou (o `play()` ainda não resolveu); os que o browser recusou. */
+    let starting: HTMLVideoElement | null = null;
+    const refused = new WeakSet<HTMLVideoElement>();
+    /** Põe um vídeo parado no ponto do ficheiro (só se ainda não estiver lá: um seek a mais num vídeo da câmara pára a imagem). */
+    const cue = (v: HTMLVideoElement, at: number) => { if (v.seeking || Math.abs(v.currentTime - at) > 0.15) v.currentTime = at; };
+    const start = (v: HTMLVideoElement) => {
+      starting = v;
+      void v.play().then(() => { if (starting === v) starting = null; }, () => { refused.add(v); if (starting === v) starting = null; });
+    };
+    const rateAt = (s: Seg, tl: number) => Math.min(16, Math.max(0.0625, playbackRateAt(tl, s.dur, s.speed, fxOf(s))));
     try {
       while (my === gen.current && alive.current) {
         t = (performance.now() - t0) / 1000;
@@ -778,40 +806,78 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
           if (idx >= 0) snapLast(list[idx]);
           active?.pause();
           active = null;
+          starting = null;
           if (s.video) {
             const v = videoFor(s.key, s.uri);
             if (fxOf(s)?.reverse && reverseFor(s)) v.pause(); // ao contrário: os frames vêm do ReverseFrames (e o som fica calado)
             else {
-              v.playbackRate = Math.min(16, Math.max(0.0625, playbackRateAt(tl, s.dur, s.speed, fxOf(s))));
+              v.playbackRate = rateAt(s, tl);
               v.muted = false;
-              v.currentTime = srcAt(s, tl);
-              void v.play().catch(() => undefined);
+              // Já ficou no ponto de corte (preparado durante o clipe anterior): toca dali, sem outro seek.
+              cue(v, srcAt(s, tl));
               active = v;
+              start(v);
             }
           }
-          // O vídeo seguinte já fica no ponto de entrada (sem esperar quando chega a vez dele).
+          // O vídeo seguinte já fica parado no ponto de entrada (sem esperar quando chega a vez dele).
           const nx = list[i + 1];
-          if (nx?.video) { const nv = videoFor(nx.key, nx.uri); if (nv !== active) { nv.pause(); nv.currentTime = srcAt(nx, 0); } }
+          if (nx?.video && nx.key !== s.key) { const nv = videoFor(nx.key, nx.uri); if (nv !== active) { nv.pause(); cue(nv, srcAt(nx, 0)); } }
           idx = i;
         } else if (active && fxOf(s)?.reverse && reverseFor(s)) {
           active.pause(); // o inverso ficou pronto a meio: passa para os frames dele
           active = null;
-        } else if (active && !active.paused && !active.seeking) {
-          // A rampa muda a velocidade ao longo do clipe; e apanha-se o atraso.
-          const rate = Math.min(16, Math.max(0.0625, playbackRateAt(tl, s.dur, s.speed, fxOf(s))));
-          if (Math.abs(active.playbackRate - rate) > 0.01) active.playbackRate = rate;
-          const want = srcAt(s, tl);
-          if (Math.abs(active.currentTime - want) > (fxOf(s)?.ramp ? 0.2 : 0.35)) active.currentTime = want;
+        }
+        // O vídeo deste bocado ainda não está a dar imagem no ponto (a carregar, a fazer o seek ou a arrancar): passados
+        // 80 ms, a sequência espera por ele, com o som e a gravação em pausa, em vez de seguir com a imagem parada e depois
+        // saltar (num telemóvel, um vídeo da câmara pode levar meio segundo a arrancar).
+        const nowMs0 = performance.now();
+        const notReady = !!active && !refused.has(active) && (starting === active || active.seeking || active.readyState < 2);
+        waitSince = notReady ? waitSince ?? nowMs0 : null;
+        if (notReady && nowMs0 - (waitSince ?? nowMs0) > 80 && (hold === null || nowMs0 - hold < HOLD_MAX_MS)) {
+          if (hold === null) {
+            hold = nowMs0;
+            e.ref?.pause();
+            if (rec?.state === 'recording') rec.pause();
+            if (e.ac?.state === 'running') void e.ac.suspend().catch(() => undefined);
+          }
+          await nextFrame();
+          continue;
+        }
+        if (hold !== null) {
+          // Pronto: o tempo continua de onde ficou.
+          t0 += performance.now() - hold;
+          hold = null;
+          t = (performance.now() - t0) / 1000;
+          if (e.ac && e.ac.state !== 'running') void e.ac.resume().catch(() => undefined);
+          if (rec?.state === 'paused') rec.resume();
+          if (e.ref) void e.ref.play().catch(() => undefined);
+        }
+        if (active && active.paused && !active.ended && starting !== active && !refused.has(active)) start(active);
+        else if (active && !active.seeking && !active.paused) {
+          // A rampa muda a velocidade ao longo do clipe. O atraso apanha-se a mudar um pouco a velocidade (sem saltos);
+          // só um atraso grande (meio segundo) volta a fazer o seek.
+          const rate = rateAt(s, tl);
+          const drift = srcAt(s, tl) - active.currentTime;
+          if (Math.abs(drift) > 0.5) active.currentTime = srcAt(s, tl);
+          else {
+            const nudge = Math.abs(drift) > 0.04 ? Math.max(-0.15, Math.min(0.15, drift * 1.5)) : 0;
+            const want = Math.min(16, Math.max(0.0625, rate * (1 + nudge)));
+            if (Math.abs(active.playbackRate - want) > 0.01) active.playbackRate = want;
+          }
         }
         // Desenha a 30 fps (o que a gravação apanha): metade do trabalho do GPU num ecrã de 60 Hz.
         const nowMs = performance.now();
-        if (nowMs - lastDraw >= 30) { lastDraw = nowMs; drawFrame(g, list, i, t); }
+        if (nowMs - lastDraw >= 30) { lastDraw = nowMs; drawFrame(g, list, i, t); probe?.(t, i, s.video ? srcAt(s, tl) : -1, g); }
+        // O som deste vídeo (ligado ou calado e o volume dele) muda logo, a tocar.
+        const cg = active ? e.clipGain.get(active) : undefined;
+        if (cg) { const want = cfg.current.snd[s.key] ?? 1; if (cg.gain.value !== want) cg.gain.value = want; }
         if (t - lastUi > 0.1) { lastUi = t; setT(t); opt.onProgress?.(Math.min(1, t / end)); }
         await nextFrame();
       }
     } finally {
       active?.pause();
       e.ref?.pause();
+      if (hold !== null && e.ac && e.ac.state !== 'running') void e.ac.resume().catch(() => undefined);
       try { musicNode?.stop(); } catch { /* já parou */ }
       sched?.stop();
       if (e.sched === sched) e.sched = null;
@@ -1461,14 +1527,22 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const [pv, setPv] = useState({ w: 0, h: 0 });
   const imgW = Math.max(0, Math.min(pv.w, (pv.h - BAR_H) * (9 / 16)));
   const imgBox = { w: imgW || pv.w, left: imgW ? (pv.w - imgW) / 2 : 0 };
+  // No telemóvel os painéis ficam numa folha em baixo, com altura fixa (rola por dentro); tocar outra vez no separador
+  // escolhido fecha-a e a pré-visualização fica com o espaço todo.
+  const win = useWindowDimensions();
+  const [sheetOpen, setSheetOpen] = useState(true);
+  const sheetH = Math.round(Math.max(160, Math.min(260, win.height * 0.22)));
+  const pickTab = (id: Tab) => { if (wide) { setTab(id); return; } if (id === tab) setSheetOpen((o) => !o); else { setTab(id); setSheetOpen(true); } };
+  /** No site do telemóvel o estúdio cobre o ecrã todo (100dvh: sem a barra das abas nem a página a rolar por baixo). */
+  const fullScreen = Platform.OS === 'web' && !wide ? ({ position: 'fixed', left: 0, top: 0, right: 0, height: '100dvh', zIndex: 50 } as unknown as object) : null;
   /** Tocar ou pausar (o botão e o toque no vídeo): no fim recomeça do princípio. */
   const togglePlay = () => { if (busy) return; if (playingRef.current) pause(); else play(pausedAt.current >= playTotal - 0.05 ? 0 : pausedAt.current); };
 
   return (
-    <View style={[st.root, { paddingTop: topPad, paddingBottom: botPad }]} accessibilityViewIsModal>
-      <View style={st.top}>
+    <View style={[st.root, fullScreen, { paddingTop: wide ? topPad : Math.max(insets.top, 6), paddingBottom: wide ? botPad : Math.max(insets.bottom, 4) }]} accessibilityViewIsModal>
+      <View style={[st.top, !wide && st.topPhone]}>
         <Pressable onPress={close} style={st.round} accessibilityRole="button" accessibilityLabel="Voltar"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
-        <Text style={st.title} numberOfLines={1}>Nova tcheka</Text>
+        <Text style={[st.title, !wide && { fontSize: 16 }]} numberOfLines={1}>Nova tcheka</Text>
         <View style={st.history}>
           <Pressable onPress={undo} disabled={locked || !canUndo(hist)} style={[st.histBtn, (locked || !canUndo(hist)) && st.histOff]} accessibilityRole="button" accessibilityLabel="Desfazer" accessibilityHint="Ctrl+Z">
             <Icon name="undo" size={20} color="#fff" strokeWidth={2.1} />
@@ -1482,7 +1556,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         </Pressable>
       </View>
       {rules.hint ? (
-        <View style={st.hintWrap}>
+        <View style={[st.hintWrap, !wide && { paddingBottom: 4 }]}>
           <Pressable onPress={() => setTab(rules.problem === 'som' ? 'som' : 'clipes')} disabled={locked} style={st.hint} accessibilityRole="button" accessibilityLabel={`Para seguir: ${rules.hint}`}>
             <Icon name="info" size={15} color="#fff" />
             <Text style={st.hintText} accessibilityLiveRegion="polite">{rules.hint}</Text>
@@ -1497,7 +1571,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
       {/* A pré-visualização é o próprio canvas da montagem (o que se vê é o que sai). Tocar na imagem alterna tocar/pausa.
           A barra do tempo fica logo por baixo da imagem, com a largura dela: não tapa o texto nem a assinatura. Um só play
           à vista: o grande ao centro só em pausa; a tocar, o pequeno da barra é a pausa. */}
-      <Pressable style={st.preview} onPress={togglePlay} onLayout={(e) => { const l = e.nativeEvent.layout; setPv((p) => (p.w === l.width && p.h === l.height ? p : { w: l.width, h: l.height })); }} accessibilityRole="button" accessibilityLabel={playing ? 'Pausa' : 'Tocar'}>
+      <Pressable style={[st.preview, !wide && st.previewPhone]} onPress={togglePlay} onLayout={(e) => { const l = e.nativeEvent.layout; setPv((p) => (p.w === l.width && p.h === l.height ? p : { w: l.width, h: l.height })); }} accessibilityRole="button" accessibilityLabel={playing ? 'Pausa' : 'Tocar'}>
         {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { canvasRef.current = el; }, width: W, height: H, 'aria-label': 'Pré-visualização da tcheka', style: { position: 'absolute', left: 0, top: 0, width: '100%', height: `calc(100% - ${BAR_H}px)`, objectFit: 'contain', display: 'block', backgroundColor: '#000' } })}
         {/* Os GIFs dos stickers ficam aqui (quase invisíveis) para o browser os animar; o canvas desenha o frame de agora. */}
         {dom('div', { ref: (el: HTMLDivElement | null) => { gifBox.current = el; }, 'aria-hidden': true, style: { position: 'absolute', left: 0, top: 0, width: 2, height: 2, overflow: 'hidden', opacity: 0.01, pointerEvents: 'none' } })}
@@ -1512,7 +1586,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         <View style={[st.controls, { left: imgBox.left, width: imgBox.w }]} pointerEvents="box-none">
           {!busy && playing ? (
             <Pressable onPress={togglePlay} style={({ pressed }) => [st.playBtn, pressed && { transform: [{ scale: 0.92 }] }]} hitSlop={8} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'}>
-              <Icon name={playing ? 'pause' : 'play'} size={16} color="#fff" solid />
+              <Icon name={playing ? 'pause' : 'play'} size={18} color="#fff" solid />
             </Pressable>
           ) : null}
           {!busy ? <Text style={st.clock} pointerEvents="none">{previewClock(playT, playTotal)}{prepared && rules.ok ? ' · pronto' : ''}</Text> : null}
@@ -1526,8 +1600,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
           <View style={st.building} pointerEvents="none">
             <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>A montar a tcheka…</Text>
             <View style={st.track}><View style={[st.fill, { width: `${Math.round((progress ?? 0) * 100)}%` }]} /></View>
-            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, textAlign: 'center' }}>Faltam {left} s. Não feches a app.</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, textAlign: 'center' }}>Dica: vê a pré-visualização até ao fim e fica logo pronto.</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center' }}>Faltam {left} s. Não feches a app.</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center' }}>Dica: vê a pré-visualização até ao fim e fica logo pronto.</Text>
           </View>
         )}
       </Pressable>
@@ -1552,6 +1626,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         locked={locked}
         beats={useRhythm ? grid : undefined}
         note={note}
+        compact={!wide}
         addButton={<GalleryPick onFiles={(f) => void addFiles(f)} style={st.addClip}><Icon name="plus" size={22} color="#fff" strokeWidth={2.4} /></GalleryPick>}
         onSelect={onSelectClip}
         onSeek={onSeek}
@@ -1575,14 +1650,14 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
       >
       <View style={st.tabs} accessibilityRole="tablist">
         {TABS.map((t) => (
-          <Pressable key={t.id} onPress={() => setTab(t.id)} style={st.tabBtn} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id }} accessibilityLabel={t.label}>
+          <Pressable key={t.id} onPress={() => pickTab(t.id)} style={[st.tabBtn, !wide && st.tabBtnPhone]} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id, expanded: wide || sheetOpen }} accessibilityLabel={t.label}>
             <Text style={[st.tabText, tab === t.id && st.tabOn]}>{t.label}</Text>
-            <View style={[st.tabDot, tab !== t.id && { opacity: 0 }]} />
+            <View style={[st.tabDot, (tab !== t.id || (!wide && !sheetOpen)) && { opacity: 0 }]} />
           </Pressable>
         ))}
       </View>
 
-      <ScrollView style={{ maxHeight: wide ? Math.max(160, stage.h - 56) : 250 }} contentContainerStyle={{ paddingBottom: 8 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView style={wide ? { maxHeight: Math.max(160, stage.h - 56) } : { height: sheetOpen ? sheetH : 0 }} contentContainerStyle={{ paddingBottom: 12 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {tab === 'clipes' ? (
           <>
             {/* As ações do clipe escolhido na linha do tempo. */}
@@ -1597,6 +1672,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
               onPhoto={(v) => { if (cur) changePhoto(cur.key, v); }}
               onDelete={() => { if (cur) remove(cur.key); }}
               onReplace={(f) => { if (cur) void replace(cur.key, f); }}
+              onSound={(v) => { if (cur) setClipSound(cur.key, v); }}
             />
             <Text style={st.meta}>{items.length} {items.length === 1 ? 'clipe' : 'clipes'} · {fmtS(total)} s de {TCHEKA_MAX_S} s · arrasta as pontas para cortar, toque longo para mudar a ordem</Text>
 
@@ -1715,15 +1791,18 @@ const st = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 6 },
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, minWidth: 0, color: '#fff', fontSize: 17, fontWeight: '800', marginLeft: 12 },
+  topPhone: { paddingHorizontal: 8, paddingBottom: 4 },
+  previewPhone: { marginHorizontal: 8, borderRadius: 16, minHeight: 160 },
+  tabBtnPhone: { flex: 1, paddingHorizontal: 2 },
   history: { flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 10, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.08)', padding: 3 },
-  histBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  histBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   histOff: { opacity: 0.32 },
   addClip: { width: '100%', height: '100%', borderRadius: 10, borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(255,79,109,0.7)', backgroundColor: 'rgba(214,51,79,0.12)', alignItems: 'center', justifyContent: 'center' },
-  cta: { height: 40, minWidth: 96, paddingHorizontal: 18, borderRadius: 20, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  cta: { height: 44, minWidth: 100, paddingHorizontal: 18, borderRadius: 20, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   ctaText: { color: '#fff', fontWeight: '800', fontSize: 15 },
   hintWrap: { alignItems: 'center', paddingHorizontal: 16, paddingBottom: 6 },
   hint: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, backgroundColor: 'rgba(214,51,79,0.92)', paddingHorizontal: 12, paddingVertical: 6, maxWidth: '100%' },
-  hintText: { color: '#fff', fontWeight: '700', fontSize: 13, flexShrink: 1 },
+  hintText: { color: '#fff', fontWeight: '700', fontSize: 14, flexShrink: 1 },
   stage: { flex: 1, minHeight: 0 },
   stageWide: { flex: 1, minHeight: 0, flexDirection: 'row', paddingTop: 4, paddingBottom: 10 },
   previewSlot: { flex: 1, minHeight: 0 },
@@ -1738,28 +1817,28 @@ const st = StyleSheet.create({
   beatTick: { position: 'absolute', top: -3, width: 2, height: 10, marginLeft: -1, borderRadius: 1, backgroundColor: '#ffd60a' },
   locked: { opacity: 0.35 },
   controls: { position: 'absolute', bottom: 0, height: BAR_H, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 2 },
-  playBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
-  clock: { color: '#fff', fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'], textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 },
+  playBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  clock: { color: '#fff', fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'], textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 },
   building: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 32 },
   track: { width: '100%', height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3, backgroundColor: colors.brand },
-  tabs: { flexDirection: 'row', justifyContent: 'center', gap: 4, marginTop: 6 },
-  tabBtn: { paddingHorizontal: 8, height: 36, alignItems: 'center', justifyContent: 'center' },
-  tabText: { color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: '800' },
+  tabs: { flexDirection: 'row', justifyContent: 'center', gap: 2, marginTop: 2 },
+  tabBtn: { paddingHorizontal: 8, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  tabText: { color: 'rgba(255,255,255,0.62)', fontSize: 14, fontWeight: '800' },
   tabOn: { color: '#fff' },
   tabDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#fff', marginTop: 3 },
-  meta: { color: 'rgba(255,255,255,0.7)', fontSize: 12, textAlign: 'center', marginTop: 4 },
+  meta: { color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center', marginTop: 4 },
   rowWrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginTop: 8 },
-  label: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', paddingRight: 4 },
-  small: { color: 'rgba(255,255,255,0.65)', fontSize: 12, flexShrink: 1 },
-  chip: { height: 30, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', paddingHorizontal: 13, alignItems: 'center', justifyContent: 'center' },
+  label: { color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', paddingRight: 4 },
+  small: { color: 'rgba(255,255,255,0.68)', fontSize: 14, flexShrink: 1 },
+  chip: { minHeight: 44, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', paddingHorizontal: 13, alignItems: 'center', justifyContent: 'center' },
   chipOn: { backgroundColor: '#fff' },
-  chipText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  chipText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   trimBox: { paddingHorizontal: 16, marginTop: 8, gap: 2 },
   textRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginTop: 10 },
   input: { flex: 1, minWidth: 0, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff', paddingHorizontal: 12, fontSize: 14 },
   musicRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginTop: 10, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 14, paddingVertical: 10 },
-  smallBtn: { height: 34, paddingHorizontal: 12, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },
-  smallBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  err: { color: '#fecaca', textAlign: 'center', marginTop: 8, fontSize: 13 },
+  smallBtn: { minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },
+  smallBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  err: { color: '#fecaca', textAlign: 'center', marginTop: 8, fontSize: 14 },
 });

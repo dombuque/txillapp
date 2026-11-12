@@ -51,6 +51,8 @@ export interface TimelineProps {
   layers?: TimelineLayer[];
   selectedLayer?: string | null;
   onSelectLayer?: (id: string | null) => void;
+  /** No telemóvel: sem a linha de cima (o tempo está na pré-visualização e o zoom faz-se com a pinça); os avisos ficam por cima da régua. */
+  compact?: boolean;
   /** Mexer numa faixa: o início e o fim novos (segundos da tcheka), desde o início do gesto. */
   onLayer?: (id: string, start: number, end: number, phase: 'start' | 'move' | 'end') => void;
 }
@@ -60,16 +62,16 @@ const C = {
   coral: '#d6334f', hot: '#ff4f6d', glow: 'rgba(255,79,109,0.55)', beat: '#ffd60a', text: '#f4f4f5',
 };
 const PAD = 28;
-const HEAD_H = 34;
+const HEAD_H = 48;
 const RULER_H = 22;
 const TRACK_H = 58;
-const HANDLE_W = 16;
+const HANDLE_W = 22;
 const GAP = 2;
 const TILE = 52;
 const SLOT = 58;
 const ADD_W = 54;
 const TW = Math.round((TRACK_H * 9) / 16);
-const LAYER_H = 18;
+const LAYER_H = 22;
 const LAYER_GAP = 3;
 const LAYER_ROWS = 4;
 const LAYER_MIN_S = 0.5;
@@ -122,6 +124,7 @@ const frameStep = (pps: number, speed: number) => { const s = (TW / pps) * speed
 
 export function Timeline(p: TimelineProps) {
   const { clips, durations, locked, selected } = p;
+  const headH = p.compact ? 0 : HEAD_H;
   const total = durations.reduce((a, b) => a + b, 0);
   const wrap = useRef<HTMLDivElement | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
@@ -599,9 +602,9 @@ export function Timeline(p: TimelineProps) {
         <div style={{ position: 'absolute', inset: 0, borderRadius: 9, overflow: 'hidden', background: '#1d1d26' }}>
           {c.video ? tiles : <div style={{ position: 'absolute', inset: 0, backgroundImage: `url("${c.uri}")`, backgroundSize: `${TW}px ${TRACK_H}px`, backgroundRepeat: 'repeat-x' }} />}
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.55) 100%)' }} />
-          {w > 34 ? <span style={{ position: 'absolute', left: labelL, bottom: 4, fontSize: 10, fontWeight: 800, color: '#fff', fontVariantNumeric: 'tabular-nums', letterSpacing: 0.2, textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{fmtS(d)}s</span> : null}
-          {c.video && c.speed !== 1 && w > 30 ? <span style={{ position: 'absolute', left: labelL - 1, top: 4, fontSize: 9, fontWeight: 900, color: '#0b0b0f', background: C.beat, borderRadius: 5, padding: '1px 4px' }}>{speedLabel(c.speed)}</span> : null}
-          {c.video && c.hasAudio === false && w > 50 ? <span style={{ position: 'absolute', right: 5, top: 4, fontSize: 9, fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,0.55)', borderRadius: 5, padding: '1px 4px' }}>sem som</span> : null}
+          {w > 34 ? <span style={{ position: 'absolute', left: labelL, bottom: 4, fontSize: 12, fontWeight: 800, color: '#fff', fontVariantNumeric: 'tabular-nums', letterSpacing: 0.2, textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{fmtS(d)}s</span> : null}
+          {c.video && c.speed !== 1 && w > 30 ? <span style={{ position: 'absolute', left: labelL - 1, top: 4, fontSize: 12, fontWeight: 900, color: '#0b0b0f', background: C.beat, borderRadius: 5, padding: '1px 4px' }}>{speedLabel(c.speed)}</span> : null}
+          {c.video && (c.hasAudio === false || c.sound === false) && w > 56 ? <span style={{ position: 'absolute', right: 5, top: 4, fontSize: 12, fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,0.6)', borderRadius: 5, padding: '1px 5px' }}>{c.sound === false ? 'calado' : 'sem som'}</span> : null}
         </div>
         <div style={{ position: 'absolute', inset: 0, borderRadius: 9, pointerEvents: 'none', boxShadow: sel ? `inset 0 0 0 2px ${C.hot}, 0 0 18px ${C.glow}` : 'inset 0 0 0 1px rgba(255,255,255,0.10)' }} />
         {sel && !reorder && !locked ? handle('start') : null}
@@ -636,7 +639,7 @@ export function Timeline(p: TimelineProps) {
       <div key={l.id} data-tl="layer" data-id={l.id} role="button" aria-pressed={on} aria-label={`${l.label}, de ${fmtS(l.start)} a ${fmtS(l.end)} s`}
         style={{ position: 'absolute', left, top, width: w, height: LAYER_H, borderRadius: 6, zIndex: on ? 3 : 2, cursor: locked ? 'default' : 'grab', touchAction: 'none',
           background: `linear-gradient(90deg, ${c1}, ${c2})`, opacity: on ? 1 : 0.82, boxShadow: on ? `inset 0 0 0 1.5px #fff, 0 0 10px ${c1}` : 'inset 0 0 0 1px rgba(0,0,0,0.25)' }}>
-        <span style={{ position: 'absolute', left: 6, right: 6, top: 0, lineHeight: `${LAYER_H}px`, fontSize: 10, fontWeight: 800, color: '#0b0b0f', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none' }}>{w > 26 ? l.label : ''}</span>
+        <span style={{ position: 'absolute', left: 6, right: 6, top: 0, lineHeight: `${LAYER_H}px`, fontSize: 12, fontWeight: 800, color: '#0b0b0f', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none' }}>{w > 26 ? l.label : ''}</span>
         {on && l.trim && !locked ? edge('start') : null}
         {on && l.trim && !locked ? edge('end') : null}
       </div>
@@ -651,7 +654,7 @@ export function Timeline(p: TimelineProps) {
       title={aria}
       disabled={locked}
       onClick={onClick}
-      style={{ height: 28, minWidth: wide ? 44 : 28, padding: wide ? '0 8px' : 0, borderRadius: 14, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: C.text, fontSize: wide ? 11 : 16, fontWeight: 800, fontFamily: font, cursor: 'pointer', lineHeight: '26px' }}
+      style={{ height: 44, minWidth: wide ? 56 : 44, padding: wide ? '0 10px' : 0, borderRadius: 22, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: C.text, fontSize: wide ? 14 : 18, fontWeight: 800, fontFamily: font, cursor: 'pointer', lineHeight: '42px' }}
     >
       {label}
     </button>
@@ -659,19 +662,21 @@ export function Timeline(p: TimelineProps) {
 
   return (
     <div ref={wrap} aria-label="Linha do tempo" onPointerDownCapture={onPointerDownCapture} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} style={{ position: 'relative', touchAction: 'none', background: `linear-gradient(180deg, ${C.bg}, #0b0b12)`, borderTop: `1px solid ${C.line}`, userSelect: 'none', WebkitUserSelect: 'none', fontFamily: font }}>
+      {p.compact ? (p.note ? <span role="status" style={{ position: 'absolute', left: '50%', top: 2, transform: 'translateX(-50%)', zIndex: 9, color: '#fff', background: 'rgba(214,51,79,0.95)', borderRadius: 999, padding: '4px 12px', fontSize: 14, fontWeight: 800, whiteSpace: 'nowrap', maxWidth: '92%', overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none' }}>{p.note}</span> : null) : (
       <div style={{ height: HEAD_H, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px' }}>
-        <span style={{ color: '#fff', fontSize: 13, fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: 0.3 }}>
+        <span style={{ color: '#fff', fontSize: 14, fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: 0.3 }}>
           <span ref={clockEl}>{preciseClock(showT)}</span>
           <span style={{ color: C.dim, fontWeight: 700 }}> / {preciseClock(Math.min(total, TCHEKA_MAX_S))}</span>
         </span>
-        {over ? <span style={{ color: '#fff', background: C.coral, borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 800 }}>+{fmtS(total - TCHEKA_MAX_S)} s</span> : null}
+        {over ? <span style={{ color: '#fff', background: C.coral, borderRadius: 999, padding: '2px 8px', fontSize: 14, fontWeight: 800 }}>+{fmtS(total - TCHEKA_MAX_S)} s</span> : null}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center' }}>
-          {p.note ? <span role="status" style={{ color: '#fff', background: 'rgba(214,51,79,0.9)', borderRadius: 999, padding: '3px 10px', fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{p.note}</span> : null}
+          {p.note ? <span role="status" style={{ color: '#fff', background: 'rgba(214,51,79,0.9)', borderRadius: 999, padding: '3px 10px', fontSize: 14, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{p.note}</span> : null}
         </div>
         {zoomBtn('−', 'Afastar', () => zoomBy(1 / 1.6))}
         {zoomBtn('Tudo', 'Ver tudo', fitAll, true)}
         {zoomBtn('+', 'Aproximar', () => zoomBy(1.6))}
       </div>
+      )}
       <div
         ref={scroller}
         onPointerDown={onPointerDown}
@@ -683,7 +688,7 @@ export function Timeline(p: TimelineProps) {
           <div data-tl="ruler" style={{ position: 'absolute', left: 0, top: 0, width: contentW, height: RULER_H, cursor: locked ? 'default' : 'col-resize' }}>
             {ticks.map((tk) => (
               <div key={tk.t} style={{ position: 'absolute', left: PAD + tk.t * pps, bottom: 2, width: 1, height: tk.major ? 7 : 3, background: tk.major ? C.dim : C.faint }}>
-                {tk.label ? <span style={{ position: 'absolute', left: 3, bottom: 5, fontSize: 9.5, fontWeight: 700, color: C.dim, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{tk.label}</span> : null}
+                {tk.label ? <span style={{ position: 'absolute', left: 3, bottom: 5, fontSize: 12, fontWeight: 700, color: C.dim, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{tk.label}</span> : null}
               </div>
             ))}
           </div>
@@ -695,7 +700,7 @@ export function Timeline(p: TimelineProps) {
             {blocks}
             {over ? (
               <div aria-hidden style={{ position: 'absolute', left: PAD + TCHEKA_MAX_S * pps, top: -3, height: TRACK_H + 6, width: Math.max(0, (layoutTotal - TCHEKA_MAX_S) * pps), zIndex: 4, pointerEvents: 'none', borderLeft: `2px solid ${C.hot}`, background: 'repeating-linear-gradient(135deg, rgba(214,51,79,0.42) 0 6px, rgba(214,51,79,0.12) 6px 12px)' }}>
-                <span style={{ position: 'absolute', left: 4, top: 3, fontSize: 9, fontWeight: 900, color: '#fff', background: C.coral, borderRadius: 4, padding: '1px 4px' }}>60 s</span>
+                <span style={{ position: 'absolute', left: 4, top: 3, fontSize: 12, fontWeight: 900, color: '#fff', background: C.coral, borderRadius: 4, padding: '1px 4px' }}>60 s</span>
               </div>
             ) : null}
             {(p.beats ?? []).filter((b) => b <= total && PAD + b * pps >= visL && PAD + b * pps <= visR).map((b) => (
@@ -714,7 +719,7 @@ export function Timeline(p: TimelineProps) {
       </div>
       {/* A reordenar: quadrados iguais, o arrastado segue o dedo. */}
       {reorder ? (
-        <div aria-live="polite" style={{ position: 'absolute', left: 0, right: 0, top: HEAD_H + trackTop, height: TRACK_H, pointerEvents: 'none', zIndex: 8 }}>
+        <div aria-live="polite" style={{ position: 'absolute', left: 0, right: 0, top: headH + trackTop, height: TRACK_H, pointerEvents: 'none', zIndex: 8 }}>
           <div style={{ position: 'absolute', left: 8, right: 8, top: -3, bottom: -3, borderRadius: 12, background: 'rgba(255,79,109,0.06)', boxShadow: 'inset 0 0 0 1px rgba(255,79,109,0.35)' }} />
           {(() => {
             const order = clips.map((_, i) => i).filter((i) => i !== reorder.from);

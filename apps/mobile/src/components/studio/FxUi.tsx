@@ -27,7 +27,7 @@ export function FxChip({ on, label, onPress, icon, a11y, disabled, small }: { on
       accessibilityLabel={a11y ?? label}
     >
       {icon}
-      <Text style={[fx.chipText, small && { fontSize: 12 }, on && { color: '#fff' }]} numberOfLines={1}>{label}</Text>
+      <Text style={[fx.chipText, small && { fontSize: 14 }, on && { color: '#fff' }]} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }
@@ -92,21 +92,21 @@ export function FxAction({ label, onPress, icon, tone = 'glass', disabled, a11y 
 }
 
 export const fx = StyleSheet.create({
-  chip: { height: 34, borderRadius: 999, backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line, paddingHorizontal: 13, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },
-  chipSmall: { height: 30, paddingHorizontal: 11 },
+  chip: { minHeight: 44, borderRadius: 999, backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line, paddingHorizontal: 13, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },
+  chipSmall: { minHeight: 44, paddingHorizontal: 12 },
   chipOn: { backgroundColor: fxc.glassOn, borderColor: fxc.coralHot, boxShadow: fxc.glow } as object,
-  chipText: { color: fxc.muted, fontSize: 13, fontWeight: '700' },
+  chipText: { color: fxc.muted, fontSize: 14, fontWeight: '700' },
   rowWrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginTop: 10 },
-  label: { color: fxc.muted, fontSize: 11, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
-  value: { color: '#fff', fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  label: { color: fxc.muted, fontSize: 14, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
+  value: { color: '#fff', fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums'] },
   seg: { flexDirection: 'row', marginHorizontal: 16, marginTop: 8, padding: 3, gap: 3, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: fxc.line },
-  segBtn: { flex: 1, height: 32, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  segBtn: { flex: 1, minHeight: 44, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   segOn: { backgroundColor: 'rgba(214,51,79,0.9)', boxShadow: '0 0 14px rgba(255,92,108,0.45)' } as object,
-  segText: { color: fxc.muted, fontSize: 13, fontWeight: '800' },
+  segText: { color: fxc.muted, fontSize: 14, fontWeight: '800' },
   slider: { paddingHorizontal: 16, marginTop: 8 },
-  action: { height: 32, borderRadius: 16, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line },
+  action: { minHeight: 44, borderRadius: 22, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line },
   actionCoral: { backgroundColor: fxc.coral, borderColor: fxc.coralHot, boxShadow: '0 4px 16px rgba(214,51,79,0.45)' } as object,
   actionDanger: { backgroundColor: 'rgba(220,38,38,0.18)', borderColor: 'rgba(248,113,113,0.45)' },
-  actionText: { color: '#fff', fontSize: 12, fontWeight: '800' },
-  note: { color: fxc.faint, fontSize: 12, paddingHorizontal: 16, marginTop: 6 },
+  actionText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  note: { color: fxc.faint, fontSize: 14, paddingHorizontal: 16, marginTop: 6 },
 });

@@ -59,7 +59,7 @@ export function FxFilterStrip({ fx, grab, playing, onPick, refreshKey }: { fx: C
               {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { if (el) canvases.current.set(f.id, el); else canvases.current.delete(f.id); }, width: TW * 2, height: TH * 2, style: { width: '100%', height: '100%', display: 'block' }, 'aria-hidden': true })}
               {on ? <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: fxc.coralHot }} /> : null}
             </View>
-            <Text numberOfLines={2} style={{ color: on ? fxc.coralHot : 'rgba(255,255,255,0.8)', fontSize: 10.5, lineHeight: 13, textAlign: 'center', fontWeight: on ? '800' : '700', width: TW + 8 }}>{f.name}</Text>
+            <Text numberOfLines={2} style={{ color: on ? fxc.coralHot : 'rgba(255,255,255,0.8)', fontSize: 14.5, lineHeight: 13, textAlign: 'center', fontWeight: on ? '800' : '700', width: TW + 8 }}>{f.name}</Text>
           </Pressable>
         );
       })}

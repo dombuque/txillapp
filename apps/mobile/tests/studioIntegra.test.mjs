@@ -82,3 +82,28 @@ test('o som de cada vídeo: ligado por omissão, desligado não conta para o som
   assert.match(studio, /const origVol = num\(init\.origVol, initMusic\?\.kind === 'sound' \? 0 : 1\);/, 'com música, o som dos vídeos fica inteiro');
   assert.match(studio, /e\.clipGain\.set\(el, gain\)/, 'cada vídeo tem o volume dele');
 });
+
+test('telemóvel: o estúdio cobre o ecrã (100dvh), a folha dos painéis tem altura fixa e fecha no separador escolhido', () => {
+  assert.match(studio, /position: 'fixed', left: 0, top: 0, right: 0, height: '100dvh'/);
+  assert.match(studio, /\{ height: sheetOpen \? sheetH : 0 \}/);
+  assert.match(studio, /if \(id === tab\) setSheetOpen\(\(o\) => !o\)/);
+  assert.match(studio, /compact=\{!wide\}/, 'a linha do tempo compacta no telemóvel');
+  assert.match(studio, /tabBtn: \{ paddingHorizontal: 8, minHeight: 44,/);
+});
+
+test('o som do vídeo na barra de ações do clipe (ligado/calado e volume)', () => {
+  const actions = read('components', 'studio', 'TimelineActions.tsx');
+  assert.match(actions, /Som do vídeo: ligado/);
+  assert.match(actions, /aria-label="Volume do som do vídeo"/);
+  assert.match(studio, /onSound=\{\(v\) => \{ if \(cur\) setClipSound\(cur\.key, v\); \}\}/);
+});
+
+test('reprodução com fotos e vídeos: sem seek a mais no ponto de corte, à espera do vídeo, atraso apanhado sem saltos', () => {
+  const run = studio.slice(studio.indexOf('async function run('), studio.indexOf('async function loop('));
+  assert.match(run, /const cue = \(v: HTMLVideoElement, at: number\) => \{ if \(v\.seeking \|\| Math\.abs\(v\.currentTime - at\) > 0\.15\) v\.currentTime = at; \};/);
+  assert.doesNotMatch(run, /v\.currentTime = srcAt\(s, tl\);/, 'já não faz sempre o seek ao entrar no vídeo');
+  assert.match(run, /starting === active \|\| active\.seeking \|\| active\.readyState < 2/, 'espera pelo play() a sério');
+  assert.match(run, /if \(rec\?\.state === 'recording'\) rec\.pause\(\);/, 'a gravação também espera');
+  assert.match(run, /if \(Math\.abs\(drift\) > 0\.5\) active\.currentTime = srcAt\(s, tl\);/, 'só um atraso grande faz o seek');
+  assert.match(studio, /recDelay\.delayTime\.value = REC_AV_DELAY_S;/, 'o som da gravação acerta com a imagem');
+});

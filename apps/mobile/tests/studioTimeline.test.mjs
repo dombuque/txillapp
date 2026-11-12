@@ -146,9 +146,10 @@ test('a barra do tempo fica por baixo da imagem, com a largura dela; um só play
   assert.match(studio, /\{!busy && playing \? \(/);
 });
 
-test('as velocidades cabem numa linha (compactas) na coluna de 400 px; se não couberem, passam para a seguinte', () => {
+test('as velocidades passam para a linha seguinte quando não cabem, com alvos de toque de 44 px', () => {
   const actions = read('components', 'studio', 'TimelineActions.tsx');
-  assert.match(actions, /flexWrap: 'wrap'/);
-  assert.match(actions, /height: 28, padding: '0 7px'/);
-  assert.doesNotMatch(actions, /overflowX: 'auto'/);
+  const row = actions.slice(actions.indexOf('const row: CSSProperties'), actions.indexOf('\n', actions.indexOf('const row: CSSProperties')));
+  assert.match(row, /flexWrap: 'wrap'/);
+  assert.doesNotMatch(row, /overflowX/, 'as velocidades não rolam: passam para baixo');
+  assert.match(actions, /height: 44, minWidth: 44, padding: '0 10px'/);
 });
