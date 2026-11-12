@@ -54,6 +54,8 @@ export const NOTIFY_LABELS: Record<string, [string, string]> = {
   venues: ['Locais que geres', 'Convites para gerir uma página e pagamentos em Txills recebidos'],
   // Lembretes de regresso (API: src/reminders/comeback-reminder.service.ts). Ligado por omissão.
   comeback: ['Lembretes quando não passo por cá', 'Se não abrires o Txillapp há 3 dias ou mais, avisamos-te do que há de novo: no máximo um por semana e só entre as 9h e as 20h. Se a notificação não chegar, vai por email'],
+  // Remix das tchekas (API: src/posts/remix.ts, 0134).
+  remixes: ['Duetos e respostas', 'Quando fazem um dueto com a tua tcheka ou respondem com uma tcheka a um comentário teu (ou na tua publicação)'],
 };
 
 const NOTIFY_KEYWORDS: Record<string, string[]> = {
@@ -68,6 +70,7 @@ const NOTIFY_KEYWORDS: Record<string, string[]> = {
   calls: ['chamadas', 'perdidas', 'ligações'],
   venues: ['locais', 'bar', 'restaurante'],
   comeback: ['lembretes', 'lembrar', 'não passo por cá', 'saudades', 'e-mail', 'email', 'voltar', 'ausente', 'afastado', 'regresso', 'lembretes de regresso', 'deixar de receber', 'inativo'],
+  remixes: ['duetos', 'dueto', 'remix', 'responder com tcheka', 'respostas com tcheka', 'tchekas'],
 };
 
 /** Notificações: a âncora de cada categoria. */
@@ -111,6 +114,7 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'algorithm', group: 'conteudo', title: 'O teu algoritmo', to: '/reels/filtros', keywords: ['feed', 'tchekas', 'reels', 'interesses', 'tópicos', 'ver mais', 'ver menos', 'filtros', 'explorar', 'recomendações'] },
   { id: 'saved', group: 'conteudo', title: 'Guardados', to: '/saved', keywords: ['favoritos', 'guardar', 'marcadores', 'coleções'] },
   { id: 'geleira', group: 'conteudo', title: 'A minha geleira', to: '/geleira', keywords: ['bebidas', 'gostos', 'frigorífico'] },
+  { id: 'remix', group: 'conteudo', title: 'Deixar fazer duetos e respostas com as minhas tchekas', keywords: ['dueto', 'duetos', 'remix', 'remisturar', 'responder com tcheka', 'resposta em vídeo', 'lado a lado', 'duet', 'stitch', 'tchekas', 'reels'] },
   { id: 'insights', group: 'conteudo', title: 'Estatísticas do perfil', to: '/insights', keywords: ['visitas', 'alcance', 'números', 'insights', 'estatísticas'] },
   { id: 'locais', group: 'conteudo', title: 'Tenho um local (bar, restaurante…)', to: '/locais', keywords: ['negócio', 'bar', 'restaurante', 'página', 'empresa', 'local'] },
   { id: 'soundReuse', group: 'conteudo', title: 'Deixar usar o meu som', keywords: ['som', 'sons', 'som original', 'usar este som', 'tchekas', 'áudio', 'música'] },

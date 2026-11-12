@@ -54,6 +54,12 @@ export interface Post {
   kind: 'post' | 'gift' | 'repost';
   repostOf?: Post | null;
   gift: { amount: number; recipient: { username: string; displayName: string } & Badged } | null;
+  /** Remix (0134): de que tcheka é dueto, ou a que comentário responde. Servidores antigos não mandam. */
+  remixOf?: import('./remix').RemixOf | null;
+  /** O dono deixa fazer dueto (tchekas) e responder com tcheka aos comentários. */
+  canRemix?: boolean;
+  /** Quantos duetos e respostas com tcheka tem. */
+  remixes?: number;
 }
 export interface Comment {
   id: string;
@@ -69,6 +75,10 @@ export interface Comment {
   replyCount: number;
   editedAt?: string | null;
   authorFollowed?: boolean;
+  /** Dá para responder a este comentário com uma tcheka. */
+  canRemix?: boolean;
+  /** «Respondeu com uma tcheka»: quantas e a mais recente. */
+  tchekaReplies?: { count: number; postId: string } | null;
 }
 export type GiftVisibility = 'silent' | 'private' | 'public';
 export type ReportReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence' | 'scam' | 'impersonation' | 'minor' | 'other';
@@ -78,7 +88,9 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   // Avisos da equipa do Txillapp (0121): conteúdo removido ou reposto, e aviso da moderação (data.type, data.reason).
   | 'content_removed' | 'content_restored' | 'moderation_warning'
   // Programa de artistas (0131): a equipa decidiu o pedido de artista ou uma faixa (data.what, data.decision, data.title, data.reason).
-  | 'music_review';
+  | 'music_review'
+  // Remix das tchekas (0134): dueto com a minha tcheka ou resposta com tcheka (data.remixKind, data.role, data.postId = o remix).
+  | 'remix';
 export interface AppNotification {
   id: string;
   kind: NotificationKind;
@@ -150,6 +162,8 @@ export interface PrivacySettings {
   giftsVisible: Viewers;
   showConnections: 'everyone' | 'followers' | 'me';
   suggestable: boolean;
+  /** «Deixar fazer duetos e respostas com as minhas tchekas» (numa conta privada não vale). Servidores antigos não mandam. */
+  remixAllowed?: boolean;
   /** Já viu (ou saltou) a visita guiada. */
   welcomed?: boolean;
 }

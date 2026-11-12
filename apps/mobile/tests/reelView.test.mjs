@@ -143,7 +143,8 @@ test('ações do lado: avatar com «+» (seguir), brindar, comentários, reposta
   }
   // O sítio do remix: um componente à parte (a equipa do remix só mexe nele) e o prop `extraActions`.
   const slot = read('components', 'reel', 'ReelExtraActions.tsx');
-  assert.match(slot, /export function ReelExtraActions\(_props: \{ post: Post; active: boolean \}\): ReactNode \{\n {2}return null;\n\}/);
+  assert.match(slot, /export function ReelExtraActions\(\{ post \}: \{ post: Post; active: boolean \}\): ReactNode \{\n {2}return <RemixButton post=\{post\} circleStyle=\{railStyles\.circle\} labelStyle=\{st\.text\} \/>;\n\}/, 'o slot tem o botão Remix, com o círculo e o texto das outras ações');
+  assert.doesNotMatch(reels, /<RemixButton /, 'o Remix só entra pelo slot (não fica repetido nas ações)');
   assert.match(slot, /export function RailButton\(/);
 });
 

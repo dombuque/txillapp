@@ -13,6 +13,7 @@ import { BoostsService } from '../boosts/boosts.service';
 import { EventsService } from '../nearby/events.service';
 import { coarse } from '../nearby/geo-sql';
 import { decodeCursor } from './feed';
+import { remixSchema } from './remix';
 
 type AuthedReq = Request & { userId?: string };
 
@@ -29,6 +30,8 @@ const createSchema = z.object({
   venueId: z.string().uuid().nullable().optional(),
   /** «Usar este som» (docs/sons.md): o id de um som (original, `cat:…` ou `local:…`). Só em tchekas; o servidor valida-o. */
   soundId: z.string().trim().min(3).max(90).nullable().optional(),
+  /** Dueto com uma tcheka, ou resposta com tcheka a um comentário (ver posts/remix.ts). */
+  remixOf: remixSchema.nullable().optional(),
 });
 const updateSchema = z.object({ body: z.string().max(2000).optional(), commentsOff: z.boolean().optional(), clearLocation: z.boolean().optional() });
 const repostSchema = z.object({ body: z.string().trim().max(500).default('') });
@@ -188,7 +191,14 @@ export class PostsController {
   @NeedsVerifiedEmail()
   @Post()
   create(@Req() req: AuthedReq, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>) {
-    return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds, b.tags, b.music ?? null, b.locationLat != null && b.locationLng != null ? { lat: b.locationLat, lng: b.locationLng, coarse: b.locationCoarse } : null, b.venueId ?? null, b.soundId ?? null);
+    return this.posts.create(req.userId!, b.body, b.locationLabel, b.mediaIds, b.tags, b.music ?? null, b.locationLat != null && b.locationLng != null ? { lat: b.locationLat, lng: b.locationLng, coarse: b.locationCoarse } : null, b.venueId ?? null, b.soundId ?? null, b.remixOf ?? null, b.music !== undefined);
+  }
+
+  /** «Duetos e respostas» desta publicação (?kind=duet|reply para só uns). */
+  @Get(':id/remixes')
+  remixes(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Query('kind') kind?: string, @Query('cursor') cursor?: string, @Query('limit') limit?: string) {
+    const n = Math.min(Math.max(parseInt(limit ?? '18', 10) || 18, 1), 50);
+    return this.posts.remixes(req.userId!, id, kind === 'duet' || kind === 'reply' ? kind : null, cursor, n);
   }
 
   @Get()

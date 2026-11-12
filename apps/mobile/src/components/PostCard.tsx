@@ -33,6 +33,7 @@ import { VerifiedBadge } from './VerifiedBadge';
 import { NameWithBadge } from './NameWithBadge';
 import { VenueLogo } from './VenueCard';
 import { CheersPour } from './CheersPour';
+import { RemixesLink, RemixTag, ReplyStickerOverlay } from './remix/RemixParts';
 import { KIND_LABEL } from '@/lib/api.locais';
 import { navTap } from '@/lib/tapGuard';
 import { useDesktop } from '@/lib/desktop';
@@ -320,18 +321,24 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
           ) : null}
         </>
       )}
+      {/* Dueto ou resposta com tcheka: «Dueto com @x» leva ao original. O som já vem no vídeo (o original e a voz): a música
+          da publicação fica só como ligação ao som (a etiqueta), sem tocar por cima nem calar o vídeo. */}
+      {post.remixOf ? <View style={{ paddingBottom: 8 }}><RemixTag remix={post.remixOf} dark={false} /></View> : null}
       {/* A música: o cartão completo nas publicações só com texto; com fotos ou vídeo, o selo por cima da imagem. */}
       {post.music && musicPlacement(post) === 'card' ? <MusicCard track={post.music} visible={musicOn} soundTo={soundHref(post as { sound?: unknown })} /> : null}
       {!quote && post.media.length ? (
         // O brinde aparece no meio da foto ou do vídeo.
         <View>
-          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={!!post.music} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} overlay={post.music ? <MusicBadge track={post.music} visible={musicOn} waves={wavesOverMedia(post.media)} /> : undefined} />
+          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={!!post.music && !post.remixOf} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} overlay={post.music && !post.remixOf ? <MusicBadge track={post.music} visible={musicOn} waves={wavesOverMedia(post.media)} /> : undefined} />
+          <ReplyStickerOverlay remix={post.remixOf} />
           <CheersPour n={burst} size={Math.min(220, inner * 0.6)} />
         </View>
       ) : (
         <CheersPour n={burst} size={Math.min(200, inner * 0.55)} />
       )}
       <Actions hot={desktop && hot} post={post} mine={mine} patch={patch} onCheer={celebrate} open={(k) => setSheet(k === 'gift' ? { gift: giftTo } : k)} people={(k) => setSheet({ people: k })} />
+      {/* Aberta: «Duetos e respostas» (ou «Fazer dueto» numa tcheka que ainda não tem nenhum). */}
+      {detail ? <RemixesLink post={post} /> : null}
       {/* Publicações que o algoritmo te mostra (de quem não segues): ensina o que queres ver. */}
       {post.feed?.source === 'discover' && !mine ? <TeachBar postId={post.id} onNo={() => setGone(true)} /> : null}
       {viewer && (

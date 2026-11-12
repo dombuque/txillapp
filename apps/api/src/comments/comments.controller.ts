@@ -47,6 +47,12 @@ export class CommentsController {
     return this.comments.toggleCheer(req.userId!, id);
   }
 
+  /** Um comentário (o autocolante do «Responder com tcheka»): com o autor, a publicação e se dá para responder com tcheka. */
+  @Get('comments/:id')
+  one(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    return this.comments.forReply(req.userId!, id);
+  }
+
   @Patch('comments/:id')
   update(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(editSchema)) b: z.infer<typeof editSchema>) {
     return this.comments.update(req.userId!, id, b.body);

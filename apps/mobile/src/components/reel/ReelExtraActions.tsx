@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { RemixButton } from '@/components/remix/RemixParts';
 import type { Post } from '@/lib/api';
 
 const SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 } as const;
@@ -33,11 +34,11 @@ export function RailButton({ icon, label, onPress, accessibilityLabel, selected,
 }
 
 /**
- * O sítio da equipa do remix nas ações do lado (entre «Partilhar» e o disco do som): «Remix» (Dueto e Responder com
- * tcheka). Por agora não mostra nada. Usar <RailButton> para o botão ficar igual aos outros.
+ * O sítio da equipa do remix nas ações do lado (entre «Partilhar» e o disco do som): «Remix» (fazer dueto e ver os duetos e
+ * respostas, components/remix). Usa o círculo e o texto das outras ações para ficar igual a elas.
  */
-export function ReelExtraActions(_props: { post: Post; active: boolean }): ReactNode {
-  return null;
+export function ReelExtraActions({ post }: { post: Post; active: boolean }): ReactNode {
+  return <RemixButton post={post} circleStyle={railStyles.circle} labelStyle={st.text} />;
 }
 
 export const railStyles = StyleSheet.create({

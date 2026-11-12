@@ -20,6 +20,8 @@ import { Sticker, StickerPanel } from './StickerPanel';
 import { GifView, useGifsConfig } from './GifPanel';
 import { gifPayload, validGif } from '@/lib/gifs';
 import { InlineBadge, NameWithBadge } from './NameWithBadge';
+import { useRouter } from 'expo-router';
+import { replyHref, tchekaRepliesLabel } from '@/lib/remix';
 
 // Reações rápidas desenhadas com a mascote do Txillapp; ao tocar, escrevem o emoji no comentário (conteúdo do utilizador).
 // As mesmas reações rápidas do site (vão para o texto do comentário).
@@ -41,6 +43,7 @@ interface RowProps {
 }
 
 function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highlighted }: RowProps) {
+  const router = useRouter();
   const [cheer, setCheer] = useState({ cheered: c.cheered, cheers: c.cheers });
   const [text, setText] = useState({ body: c.body, editedAt: c.editedAt ?? null });
   const [editing, setEditing] = useState(false);
@@ -166,7 +169,16 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
         <View style={styles.links}>
           {cheer.cheers > 0 && <Text style={styles.link}>{cheer.cheers} {cheer.cheers === 1 ? 'brinde' : 'brindes'}</Text>}
           <Pressable onPress={() => onReply(c)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} accessibilityRole="button"><Text style={styles.link}>Responder</Text></Pressable>
+          {/* Remix: responder com uma tcheka (o comentário vai num autocolante por cima do vídeo). */}
+          {c.canRemix ? <Pressable onPress={() => router.push(replyHref(c.id) as never)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} accessibilityRole="button"><Text style={styles.link}>Responder com tcheka</Text></Pressable> : null}
         </View>
+        {c.tchekaReplies ? (
+          <Pressable onPress={() => router.push(`/p/${c.tchekaReplies!.postId}` as never)} style={styles.tchekaReply} accessibilityRole="link" accessibilityLabel={`${tchekaRepliesLabel(c.tchekaReplies.count)}. Ver a tcheka`}>
+            <Icon name="video" size={14} color={colors.brand} />
+            <Text style={styles.tchekaReplyText}>{tchekaRepliesLabel(c.tchekaReplies.count)}</Text>
+            <Icon name="chevron-right" size={14} color={colors.brand} />
+          </Pressable>
+        ) : null}
       </View>
       {desktop ? (
         <Pressable onPress={(e) => { setMenuAt(anchorOf(e)); setMenu(true); }} style={(s) => [styles.moreBtn, { opacity: over || menu ? 1 : 0 }, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Mais opções do comentário" {...({ dataSet: { tip: 'Mais opções' } } as object)}>
@@ -414,7 +426,9 @@ const styles = StyleSheet.create({
   user: { fontSize: 14, fontWeight: '600', color: colors.zinc900 },
   ago: { fontSize: 14, color: colors.zinc500, marginLeft: 4 },
   body: { fontSize: 15, lineHeight: 20, color: colors.zinc800 },
-  links: { marginTop: 4, flexDirection: 'row', gap: 16 },
+  links: { marginTop: 4, flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 4 },
+  tchekaReply: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: '#fdecef' },
+  tchekaReplyText: { fontSize: 12, fontWeight: '700', color: colors.brand },
   link: { fontSize: 12, fontWeight: '600', color: colors.zinc500 },
   menu: { paddingHorizontal: 8, paddingBottom: 8 },
   menuRow: { height: 56, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, borderRadius: 16 },

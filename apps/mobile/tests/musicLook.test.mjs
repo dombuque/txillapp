@@ -83,7 +83,9 @@ test('PostCard: o cartão só nas publicações de texto e o selo dentro da caix
   const pc = read('components', 'PostCard.tsx');
   assert.doesNotMatch(pc, /<TrackCard /);
   assert.match(pc, /post\.music && musicPlacement\(post\) === 'card' \? <MusicCard track=\{post\.music\} visible=\{musicOn\} soundTo=\{soundHref\(/);
-  assert.match(pc, /overlay=\{post\.music \? <MusicBadge track=\{post\.music\} visible=\{musicOn\} waves=\{wavesOverMedia\(post\.media\)\} \/> : undefined\}/);
+  // Num dueto ou resposta com tcheka o som já vem no vídeo: sem selo a tocar por cima (fica a etiqueta do remix).
+  assert.match(pc, /mute=\{!!post\.music && !post\.remixOf\}/);
+  assert.match(pc, /overlay=\{post\.music && !post\.remixOf \? <MusicBadge track=\{post\.music\} visible=\{musicOn\} waves=\{wavesOverMedia\(post\.media\)\} \/> : undefined\}/);
   // O selo vai por cima das fotos e por baixo dos controlos; as pessoas identificadas passam para a direita.
   assert.match(pc, /\{overlay\}\n\s+\{tags\.length > 0 && \(/);
   assert.match(pc, /overlay \? styles\.tagsRight : null/);

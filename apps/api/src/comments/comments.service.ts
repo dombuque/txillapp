@@ -4,18 +4,27 @@ import { Pool } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { NotificationsService } from '../notifications/notifications.service';
-import { allowedBy, canView, notReportedBy } from '../social/visibility';
+import { allowedBy, blockedBetween, canView, notReportedBy } from '../social/visibility';
 import { readGif, type GifInput } from '../gifs/gif';
+import { remixAllowed } from '../posts/remix';
 
 const UUID = /^[0-9a-f-]{36}$/;
 
 const SELECT = `
   SELECT c.id, c.post_id, c.parent_id, c.body, c.gif, c.created_at, c.edited_at,
          EXISTS (SELECT 1 FROM social.follows af WHERE af.follower_id = $1 AND af.followee_id = u.id) AS author_followed,
-         u.id AS author_id, u.username, u.display_name, u.verified, u.verified_tier,
+         u.id AS author_id, u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS author_has_avatar,
          (SELECT count(*) FROM content.comment_cheers x WHERE x.comment_id = c.id)::int AS cheers,
          EXISTS (SELECT 1 FROM content.comment_cheers x WHERE x.comment_id = c.id AND x.user_id = $1) AS cheered,
-         (SELECT count(*) FROM content.comments r WHERE r.parent_id = c.id)::int AS reply_count
+         (SELECT count(*) FROM content.comments r WHERE r.parent_id = c.id)::int AS reply_count,
+         -- Remix (0134): dá para responder a este comentário com uma tcheka (quem o escreveu e o dono da publicação deixam)…
+         (${remixAllowed('u')} AND EXISTS (SELECT 1 FROM content.posts rpo JOIN identity.users rpu ON rpu.id = rpo.author_id
+            WHERE rpo.id = c.post_id AND rpo.kind = 'post' AND rpo.venue_id IS NULL AND ${remixAllowed('rpu')})) AS remix_ok,
+         -- …e as tchekas que já lhe responderam e que este espectador vê: quantas e a mais recente («Respondeu com uma tcheka»).
+         (SELECT json_build_object('count', count(*), 'postId', (array_agg(rxp.id ORDER BY rxp.id DESC))[1])
+            FROM content.post_remixes rxr JOIN content.posts rxp ON rxp.id = rxr.post_id AND rxp.removed_at IS NULL
+            JOIN identity.users ru ON ru.id = rxp.author_id
+           WHERE rxr.comment_id = c.id AND ${canView('ru')}) AS tcheka_replies
     FROM content.comments c JOIN identity.users u ON u.id = c.author_id`;
 
 @Injectable()
@@ -175,5 +184,18 @@ export class CommentsService {
     editedAt: (r.edited_at as string | null) ?? null,
     /** Eu sigo o autor? Só se presenteia quem se segue. */
     authorFollowed: r.author_followed as boolean,
+    /** Posso responder a este comentário com uma tcheka (?resposta=<id> no estúdio). */
+    canRemix: r.remix_ok === true,
+    /** «Respondeu com uma tcheka»: quantas tchekas responderam (que eu vejo) e a mais recente. */
+    tchekaReplies: r.tcheka_replies && Number(r.tcheka_replies.count) > 0 ? { count: Number(r.tcheka_replies.count), postId: r.tcheka_replies.postId as string } : null,
   });
+
+  /** Um comentário para o autocolante do estúdio (?resposta=<id>): o texto, o autor e a publicação, se o posso ver. */
+  async forReply(userId: string, id: string) {
+    await this.assertComment(userId, id);
+    const { rows } = await this.pool.query(`${SELECT} WHERE c.id = $2 AND u.status = 'active' AND NOT ${blockedBetween('u.id', '$1')}`, [userId, id]);
+    if (!rows[0]) throw new NotFoundException('Comentário não encontrado');
+    const dto = this.toDto(rows[0]);
+    return { ...dto, author: { ...dto.author, hasAvatar: rows[0].author_has_avatar === true } };
+  }
 }

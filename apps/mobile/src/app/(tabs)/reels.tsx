@@ -19,6 +19,7 @@ import { Icon } from '@/components/Icon';
 import { GiftSheet, PostMenuSheet, RepostSheet } from '@/components/PostSheets';
 import { ReportSheet } from '@/components/ReportSheet';
 import { RichText } from '@/components/RichText';
+import { RemixTag, ReplyStickerOverlay } from '@/components/remix/RemixParts';
 import { ShareSheet } from '@/components/ShareSheet';
 import { Sheet } from '@/components/Sheet';
 import { Wordmark } from '@/components/Wordmark';
@@ -590,8 +591,13 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
         </Pressable>
       )}
 
+      {/* Resposta com tcheka: o comentário por cima do vídeo, onde a pessoa o deixou (leva ao comentário). */}
+      <ReplyStickerOverlay remix={post.remixOf} />
+
       {/* Em baixo: o @ com o selo, a legenda (expande ao tocar), as hashtags, o local e o letreiro do som. */}
       <Animated.View style={[st.info, { bottom: infoBottom, opacity: chrome }]} pointerEvents={scrubbing || comments ? 'none' : 'box-none'} onLayout={(e) => setInfoW(Math.round(e.nativeEvent.layout.width))}>
+        {/* «Dueto com @x» / «Resposta a @y»: leva ao original. */}
+        {post.remixOf ? <View style={{ marginBottom: 8 }}><RemixTag remix={post.remixOf} /></View> : null}
         <Pressable onPress={() => router.push(`/u/${post.author.username}` as never)} style={{ alignSelf: 'flex-start', maxWidth: '100%' }} accessibilityRole="button">
           <NameWithBadge name={`@${post.author.username}`} who={post.author} style={st.authorName} />
         </Pressable>

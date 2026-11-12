@@ -691,6 +691,8 @@ export class AuthService {
       );
       await client.query('DELETE FROM content.post_media pm USING content.posts p WHERE pm.post_id = p.id AND p.author_id = $1', [userId]);
       await client.query('DELETE FROM content.post_tags t USING content.posts p WHERE t.post_id = p.id AND p.author_id = $1', [userId]);
+      // Remix (0134): as ligações dos meus duetos e respostas (de que eram remix e onde ficava o autocolante).
+      await client.query('DELETE FROM content.post_remixes rx USING content.posts p WHERE rx.post_id = p.id AND p.author_id = $1', [userId]);
       // A impressão da rede de quem entrou com um convite (antifraude) já não é precisa.
       await client.query('UPDATE social.referrals SET ip_hash = NULL WHERE invitee_id = $1', [userId]);
       await client.query(`UPDATE content.media_assets SET status = 'deleted' WHERE owner_id = $1 AND status <> 'deleted'`, [userId]);
