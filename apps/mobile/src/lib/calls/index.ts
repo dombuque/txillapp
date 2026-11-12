@@ -4,6 +4,8 @@
  */
 export {
   acceptCall,
+  audioOutputs,
+  currentAudioOutput,
   declineCall,
   dismissEnded,
   dropIncoming,
@@ -13,9 +15,11 @@ export {
   getCall,
   hangUp,
   minimiseCall,
+  onAudioOutputsChange,
   onCallState,
   openIncomingCall,
-  speakerSelectable,
+  setAudioOutput,
+  speakerMode,
   startCall,
   toggleCamera,
   toggleMic,
@@ -25,4 +29,6 @@ export {
   VideoView,
 } from './session';
 export { callsApi } from './api';
+export { speakerLabel, speakerLit } from './speaker';
+export type { AudioOutput } from './peer';
 export type { CallEvent, CallLogItem, CallPeer, CallPhase, CallState, EndReason } from './types';

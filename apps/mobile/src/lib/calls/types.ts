@@ -1,4 +1,5 @@
 /** Tipos das chamadas 1:1 (voz e vídeo). O contrato do servidor está em ./api.ts. */
+import type { AudioRoute } from './speaker';
 
 export interface CallPeer { username: string; displayName: string; hasAvatar: boolean; /** Selo de verificado (o mesmo par dos posts e do perfil). */ verified?: boolean; verifiedTier?: 'verified' | 'official' | null }
 
@@ -21,7 +22,10 @@ export interface CallState {
   camOn: boolean;
   /** Câmara da frente (selfie). */
   front: boolean;
+  /** Altifalante pedido (viva-voz). Começa ligado só nas videochamadas. */
   speaker: boolean;
+  /** Por onde o telemóvel diz que o som está a sair (null: ainda não disse, ou na web). */
+  audioRoute: AudioRoute | null;
   /** Dá para virar a câmara (no computador com uma só câmara, não). */
   canFlip: boolean;
   /** Streams opacos: MediaStream do browser ou do react-native-webrtc. Só o VideoView da plataforma os sabe mostrar. */
