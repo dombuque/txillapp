@@ -19,7 +19,7 @@ export interface ChatEvent {
 /** Evento de chamada (voz ou vídeo) no mesmo canal em tempo real. O formato exato está no topo de calls/calls.service.ts. */
 export interface CallEvent {
   type: 'call';
-  event: 'ring' | 'accepted' | 'declined' | 'ended' | 'signal';
+  event: 'ring' | 'ringing' | 'accepted' | 'declined' | 'ended' | 'signal';
   callId: string;
   video: boolean;
   /** O outro lado da chamada, visto por quem recebe o evento. */

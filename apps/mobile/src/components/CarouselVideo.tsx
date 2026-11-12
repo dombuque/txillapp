@@ -6,6 +6,7 @@ import { Modal } from '@/components/Modal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { abs } from '@/lib/config';
 import { listImageProps } from '@/lib/listImage';
+import { feedVideoLive, limitBuffer } from '@/lib/videoMemory';
 import { Icon } from './Icon';
 
 /**
@@ -165,8 +166,37 @@ function WebVideo({ src, cover, durationMs, width, height, active, mute, passive
   );
 }
 
-function NativeVideo({ src, cover, durationMs, width, height, active, inView, mute, passive, onDouble }: Props) {
-  const player = useVideoPlayer(src, (p) => { p.loop = true; p.muted = true; });
+/**
+ * No telemóvel só o vídeo que se está a ver tem leitor (lib/videoMemory): os outros cartões do feed mostram a capa. Um
+ * leitor do expo-video começa a carregar mal é criado e, no Android, guardava até 50 s de vídeo no heap Java; com uma
+ * dúzia de vídeos montados pela lista, a app ficava sem memória e fechava.
+ */
+function NativeVideo(props: Props) {
+  return feedVideoLive(props) ? <NativeVideoLive {...props} /> : <NativeVideoIdle {...props} />;
+}
+
+/** Fora de vista: só a capa (sem leitor, sem descodificador, sem memória de vídeo). */
+function NativeVideoIdle({ cover, durationMs, width, height, passive, onDouble }: Props) {
+  const isDouble = useDouble(onDouble);
+  const body = cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" pointerEvents="none" {...listImageProps(Platform.OS, 0)} /> : null;
+  if (passive) {
+    return (
+      <View style={{ width, height, backgroundColor: '#000' }} pointerEvents="box-none">
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">{body}</View>
+        <Overlay playing={false} muted durationMs={durationMs} showSound={false} />
+      </View>
+    );
+  }
+  return (
+    <Pressable onPress={() => void isDouble()} style={{ width, height, backgroundColor: '#000' }} accessibilityRole="button" accessibilityLabel="Vídeo">
+      {body}
+      <Overlay playing={false} muted durationMs={durationMs} showSound={false} />
+    </Pressable>
+  );
+}
+
+function NativeVideoLive({ src, cover, durationMs, width, height, active, inView, mute, passive, onDouble }: Props) {
+  const player = useVideoPlayer(src, (p) => { limitBuffer(p, 'feed'); p.loop = true; p.muted = true; });
   const [playing, setPlaying] = useState(false);
   const [started, setStarted] = useState(false);
   const [muted, setMuted] = useState(true);
@@ -246,7 +276,7 @@ export function VideoPreview({ uri, onClose }: { uri: string; onClose: () => voi
   );
 }
 function NativePreview({ uri }: { uri: string }) {
-  const p = useVideoPlayer(uri, (x) => { x.loop = true; x.play(); });
+  const p = useVideoPlayer(uri, (x) => { limitBuffer(x, 'full'); x.loop = true; x.play(); });
   return <VideoView player={p} style={{ width: '100%', height: '100%' }} nativeControls contentFit="contain" surfaceType="textureView" />;
 }
 

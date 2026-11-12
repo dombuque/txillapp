@@ -182,6 +182,9 @@ test('fluidez: sem pretos (a capa fica até à primeira imagem), a seguinte e a 
   assert.match(reels, /\{m\.posterUrl && !shown \? <Image/);
   assert.match(reels, /windowSize=\{3\}\n\s+initialNumToRender=\{2\}/);
   assert.match(reels, /player\.muted = silent \|\| !active;/, 'as que não estão em cena ficam mudas');
+  // As que estão longe (sem leitor, para poupar memória) mostram a capa, não um ecrã preto.
+  assert.match(reels, /: <ReelPoster post=\{item\} height=\{height\} \/>/);
+  assert.match(page, /: <ReelPoster post=\{item\} height=\{height\} \/>/);
 });
 
 test('computador: ↑/↓ e a roda mudam de tcheka, espaço pausa, ←/→ recuam e avançam 5 s', () => {

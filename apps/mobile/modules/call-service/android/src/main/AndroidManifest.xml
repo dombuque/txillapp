@@ -1,5 +1,19 @@
-<!-- O <service> e as permissões FOREGROUND_SERVICE_* vão para o manifesto da app pelo plugins/withCallService.js. -->
+<!-- O <service> do CallService e as permissões FOREGROUND_SERVICE_* vão para o manifesto da app pelo plugins/withCallService.js. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <!-- O viva-voz (CallAudio.kt): modo de comunicação, altifalante e Bluetooth SCO. -->
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+  <application>
+    <!--
+      As mensagens FCM (TxMessagingService.kt): o do expo-notifications com o «chegou» das chamadas a mais.
+      Prioridade 1 ganha ao ExpoFirebaseMessagingService (que o Expo declara com -1 para isto mesmo).
+    -->
+    <service
+      android:name="com.txillapp.callservice.TxMessagingService"
+      android:exported="false">
+      <intent-filter android:priority="1">
+        <action android:name="com.google.firebase.MESSAGING_EVENT" />
+      </intent-filter>
+    </service>
+  </application>
 </manifest>

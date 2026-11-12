@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { limitBuffer } from '@/lib/videoMemory';
 import { createElement, useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, AppState, Easing, PanResponder, Platform, Pressable, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
@@ -71,7 +72,7 @@ function WebVideoStory({ url, paused, onEnd, onDuration }: { url: string; paused
 }
 
 function VideoStory({ url, paused, onEnd, onDuration }: { url: string; paused: boolean; onEnd: () => void; onDuration: (ms: number) => void }) {
-  const player = useVideoPlayer(url, (p) => { p.loop = false; p.play(); });
+  const player = useVideoPlayer(url, (p) => { limitBuffer(p, 'full'); p.loop = false; p.play(); });
   useEffect(() => {
     const a = player.addListener('playToEnd', onEnd);
     const b = player.addListener('statusChange', () => { if (player.duration) onDuration(player.duration * 1000); });

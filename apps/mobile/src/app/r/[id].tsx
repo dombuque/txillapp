@@ -13,7 +13,8 @@ import { enterImmersive, leaveImmersive } from '@/lib/immersive';
 import { isGone } from '@/lib/postCache';
 import { createOnce } from '@/lib/tapGuard';
 import { useDeskReels } from '@/lib/desktopHooks';
-import { patchReels, Reel } from '../(tabs)/reels';
+import { reelMounted } from '@/lib/videoMemory';
+import { patchReels, Reel, ReelPoster } from '../(tabs)/reels';
 
 const isWeb = Platform.OS === 'web';
 
@@ -168,7 +169,9 @@ export default function ReelPage() {
               maxToRenderPerBatch={2}
               onScrollToIndexFailed={(info) => list.current?.scrollToOffset({ offset: info.index * height, animated: true })}
               renderItem={({ item, index }) => (
-                <Reel pauseSignal={desk.pauseSignal} seekSignal={desk.seekSignal} post={item} active={index === active} onScreen={focused} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={insets.bottom} />
+                reelMounted(index, active)
+                  ? <Reel pauseSignal={desk.pauseSignal} seekSignal={desk.seekSignal} post={item} active={index === active} onScreen={focused} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={insets.bottom} />
+                  : <ReelPoster post={item} height={height} />
               )}
               onEndReached={() => { if (more.hasNextPage && !more.isFetchingNextPage) void more.fetchNextPage(); }}
               onEndReachedThreshold={1}

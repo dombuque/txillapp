@@ -16,6 +16,10 @@ export interface CallState {
   peer: CallPeer | null;
   /** Fui eu que liguei. */
   outgoing: boolean;
+  /** Quem liga: um aparelho do outro lado já disse que a chamada lhe chegou («A tocar…» em vez de «A chamar…»). */
+  delivered: boolean;
+  /** Quem liga: passaram 15 s sem chegar a nenhum aparelho do outro lado («Sem resposta do telemóvel de X»). */
+  unreachable: boolean;
   /** A chamada tem vídeo (pedido ao ligar, ou alguém ligou a câmara depois). */
   video: boolean;
   micOn: boolean;
@@ -48,7 +52,8 @@ export interface CallState {
 /** Evento de chamada que chega no stream do chat (GET /chat/stream). */
 export interface CallEvent {
   type: 'call';
-  event: 'ring' | 'accepted' | 'declined' | 'ended' | 'signal';
+  /** `ringing`: para quem liga, a chamada chegou a um aparelho de quem recebe. */
+  event: 'ring' | 'ringing' | 'accepted' | 'declined' | 'ended' | 'signal';
   callId: string;
   video?: boolean;
   from?: CallPeer;

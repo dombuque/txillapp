@@ -4,6 +4,7 @@ import * as MediaLibrary from 'expo-media-library/legacy';
 import * as Haptics from 'expo-haptics';
 import { useIsFocused } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { limitBuffer } from '@/lib/videoMemory';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Alert, Animated, AppState, BackHandler, Easing, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, useLongPressGesture, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
@@ -1171,7 +1172,7 @@ function Review({ shot, onRetake, onSave, onUse }: { shot: Shot; onRetake: () =>
   );
 }
 function ReviewVideo({ uri }: { uri: string }) {
-  const p = useVideoPlayer(uri, (x) => { x.loop = true; x.play(); });
+  const p = useVideoPlayer(uri, (x) => { limitBuffer(x, 'full'); x.loop = true; x.play(); });
   return <VideoView player={p} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} />;
 }
 

@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { limitBuffer } from '@/lib/videoMemory';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, BackHandler, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -273,7 +274,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
 }
 
 function VideoPreview({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri, (p) => { p.loop = true; p.muted = true; p.play(); });
+  const player = useVideoPlayer(uri, (p) => { limitBuffer(p, 'full'); p.loop = true; p.muted = true; p.play(); });
   return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} />;
 }
 

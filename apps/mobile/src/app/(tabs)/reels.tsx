@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { limitBuffer, reelMounted } from '@/lib/videoMemory';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { enterImmersive, leaveImmersive } from '@/lib/immersive';
 import { Animated, AppState, Easing, FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
@@ -214,6 +215,19 @@ function ReelEnd({ post, mine, replay, more, bottomInset }: { post: Post; mine: 
   );
 }
 
+/**
+ * Uma tcheka longe da que está em cena (sem leitor, para poupar memória): só a capa, para nunca se ver preto ao
+ * deslizar depressa.
+ */
+export function ReelPoster({ post, height }: { post: Post; height: number }) {
+  const poster = post.media[0]?.posterUrl;
+  return (
+    <View style={[{ height, width: '100%', backgroundColor: '#000' }, isWeb && ({ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as object)]}>
+      {poster ? <Image source={{ uri: abs(poster) }} style={StyleSheet.absoluteFill} contentFit="contain" /> : null}
+    </View>
+  );
+}
+
 /** O avatar de quem fez a tcheka, no topo das ações do lado, com o «+» para seguir sem sair do vídeo (como no TikTok). */
 function AuthorBubble({ post, mine, onChange }: { post: ReelPost; mine: boolean; onChange: (p: Partial<ReelPost>) => void }) {
   const router = useRouter();
@@ -306,6 +320,7 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
   const sound = reelSound(post);
 
   const player = useVideoPlayer(abs(m.url) ?? '', (p) => {
+    limitBuffer(p, 'reel');
     p.loop = !onMore;
     p.muted = true;
     p.timeUpdateEventInterval = 0.25;
@@ -824,7 +839,9 @@ export default function Reels() {
             maxToRenderPerBatch={2}
             onScrollToIndexFailed={(info) => list.current?.scrollToOffset({ offset: info.index * height, animated: true })}
             renderItem={({ item, index }) => (
-              <Reel pauseSignal={pauseSignal} seekSignal={desk.seekSignal} post={item} active={index === active} onScreen={focused} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={desktop ? Math.max(insets.bottom, 16) : 76 + Math.max(insets.bottom, 8)} />
+              reelMounted(index, active)
+                ? <Reel pauseSignal={pauseSignal} seekSignal={desk.seekSignal} post={item} active={index === active} onScreen={focused} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={desktop ? Math.max(insets.bottom, 16) : 76 + Math.max(insets.bottom, 8)} />
+                : <ReelPoster post={item} height={height} />
             )}
             onEndReached={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }}
             onEndReachedThreshold={1}

@@ -8,7 +8,7 @@ import { Animated, FlatList, Platform, Pressable, Share, StyleSheet, Text, View,
 import { api, isTcheka, type Page, type Post } from '@/lib/api';
 import type { PeopleKind } from '@/lib/api.feed';
 import { sized } from '@/lib/config';
-import { listImageProps } from '@/lib/listImage';
+import { carouselWindowProps, listImageProps } from '@/lib/listImage';
 import { clampPostRatio } from '@/lib/postAspect';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
@@ -605,6 +605,8 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = fals
           onScroll={onScroll}
           scrollEventThrottle={32}
           extraData={`${i}|${h}|${width}`}
+          getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
+          {...carouselWindowProps(Platform.OS)}
           renderItem={({ item: m, index }) => m.kind === 'video' && media.length > 1 ? (
             // Carrossel com fotos e vídeos: o vídeo toca ali mesmo (uma tcheka, vídeo sozinho, abre no ecrã da Tcheka).
             <CarouselVideo url={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={width} height={h} active={index === i} inView={inView} mute={mute} onDouble={onDouble} />

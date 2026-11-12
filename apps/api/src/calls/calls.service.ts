@@ -8,7 +8,7 @@
  *
  *   {
  *     "type": "call",
- *     "event": "ring" | "accepted" | "declined" | "ended" | "signal",
+ *     "event": "ring" | "ringing" | "accepted" | "declined" | "ended" | "signal",
  *     "callId": "<uuid>",
  *     "video": true | false,
  *     "from": { "username": "ana", "displayName": "Ana", "hasAvatar": true },
@@ -20,6 +20,8 @@
  * dois, quem ligou recebe os dados de quem não atendeu e vice-versa).
  *
  *   ring      → para quem recebe a chamada, logo a seguir a POST /calls.
+ *   ringing   → para quem ligou (todos os aparelhos dele), quando um aparelho de quem recebe confirma que a chamada lhe
+ *               chegou (POST /calls/:id/ringing): a app passa de «A chamar…» para «A tocar…». Só uma vez por chamada.
  *   accepted  → para quem ligou, quando o outro atende (POST /calls/:id/accept).
  *   declined  → para quem ligou, quando o outro recusa (POST /calls/:id/decline).
  *   ended     → para o outro lado, quando alguém desliga (POST /calls/:id/end):
@@ -41,7 +43,9 @@
  *     {title:<nome de quem liga>, message:"Está a ligar-te"|"Videochamada", channelId:'calls', categoryId:'call',
  *      tag:'call-<id>', kind:'call', callId, from:<@>, video:'1'|'0', url:'/call/<id>?from=<@>&video=0|1'}
  *   iOS (FCM para APNs): notificação com aps.category 'call', aps.sound 'ring.wav', aps['interruption-level'] 'time-sensitive'.
- *   Web Push: {kind, callId, from, video, declineToken, title, body, url, tag} ao nível de cima; reenviado (só Web Push,
+ *   Os três levam também ackToken (o código «chegou», válido só durante o toque) e ackUrl (o endereço completo de
+ *   POST /calls/:id/ringing?ack=<ackToken>, para quem não tem a sessão: o service worker e a app Android fechada).
+ *   Web Push: {kind, callId, from, video, ackToken, ackUrl, declineToken, title, body, url, tag} ao nível de cima; reenviado (só Web Push,
  *   com repeat '1') de 9 em 9 s enquanto toca, até 30 s. `declineToken` serve para o botão Recusar do service worker
  *   (POST /calls/:id/decline-push, sem sessão). Atendida ou recusada: Web Push {kind:'call_end', callId, reason
  *   'accepted'|'declined', tag 'call-<id>'} para quem recebe, que fecha a notificação nos browsers dele.
@@ -61,7 +65,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PushService } from '../push/push.service';
 import { blockedBetween } from '../social/visibility';
 import { badge, type Badge } from '../common/badge';
-import { checkDeclineToken, declineToken, endPush, ringPush, ringRepeatDelays, type RingInfo } from './call-push';
+import { ACK_GRACE_S, ackToken, checkAckToken, checkDeclineToken, declineToken, endPush, ringPush, ringRepeatDelays, type RingInfo } from './call-push';
 
 export type CallStatus = 'ringing' | 'active' | 'declined' | 'cancelled' | 'missed' | 'ended';
 export type SignalType = 'offer' | 'answer' | 'ice';
@@ -200,7 +204,9 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     const caller = await this.person(me);
     const callee: Person = { id: u.id, username: u.username, displayName: u.display_name, hasAvatar: u.has_avatar, ...badge(u.verified, u.verified_tier) };
     this.emit(callee.id, 'ring', { id, video }, caller);
-    const ring = { id, video, caller, declineToken: declineToken(this.config.JWT_ACCESS_SECRET, id, callee.id) };
+    const ack = ackToken(this.config.JWT_ACCESS_SECRET, id, callee.id, Math.floor(Date.now() / 1000) + this.ringSeconds + ACK_GRACE_S);
+    const ackUrl = `${this.config.PUBLIC_URL.replace(/\/$/, '')}/api/v1/calls/${id}/ringing?ack=${encodeURIComponent(ack)}`;
+    const ring = { id, video, caller, declineToken: declineToken(this.config.JWT_ACCESS_SECRET, id, callee.id), ackToken: ack, ackUrl };
     void this.push.send(callee.id, ringPush({ ...ring, ttlSeconds: this.ringSeconds }));
     const t = setTimeout(() => void this.expire(id).catch((e) => this.log.warn(`falha a expirar: ${(e as Error).message}`)), this.ringSeconds * 1000);
     t.unref();
@@ -233,6 +239,38 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     const r = (await this.pool.query('SELECT callee_id FROM social.calls WHERE id = $1', [callId])).rows[0];
     if (!r || !checkDeclineToken(this.config.JWT_ACCESS_SECRET, callId, r.callee_id as string, token)) throw new NotFoundException('Chamada não encontrada');
     return this.decline(r.callee_id as string, callId);
+  }
+
+  /* ───────────── entregue («A tocar…») ───────────── */
+
+  /**
+   * Um aparelho de quem recebe diz que a chamada lhe chegou (está a mostrá-la). Com sessão (`me`), só quem recebe; sem
+   * sessão, só com o código «chegou» do aviso push desta chamada (`ack`), que não serve para mais nada. Só enquanto toca.
+   * Guarda a primeira confirmação e só aí avisa quem ligou; as seguintes devolvem o mesmo sem voltar a avisar.
+   */
+  async ringing(me: string | null, callId: string, ack?: string): Promise<{ status: 'ringing'; deliveredAt: string }> {
+    let calleeId: string;
+    if (ack !== undefined) {
+      const r = (await this.pool.query('SELECT callee_id FROM social.calls WHERE id = $1', [callId])).rows[0];
+      if (!r || !checkAckToken(this.config.JWT_ACCESS_SECRET, callId, r.callee_id as string, ack)) throw new NotFoundException('Chamada não encontrada');
+      calleeId = r.callee_id as string;
+    } else {
+      if (!me) throw new NotFoundException('Chamada não encontrada');
+      calleeId = me;
+    }
+    const c = await this.load(callId, calleeId);
+    if (c.callee.id !== calleeId) throw new ForbiddenException('Só quem recebe a chamada pode dizer que está a tocar');
+    const upd = await this.pool.query(
+      `UPDATE social.calls SET delivered_at = now() WHERE id = $1 AND status = 'ringing' AND delivered_at IS NULL RETURNING delivered_at`,
+      [callId],
+    );
+    if (upd.rows[0]) {
+      this.emit(c.caller.id, 'ringing', c, c.callee);
+      return { status: 'ringing', deliveredAt: new Date(upd.rows[0].delivered_at as string).toISOString() };
+    }
+    const cur = (await this.pool.query('SELECT status, delivered_at FROM social.calls WHERE id = $1', [callId])).rows[0];
+    if (cur?.status !== 'ringing' || !cur.delivered_at) throw new ConflictException('Esta chamada já não está a tocar');
+    return { status: 'ringing', deliveredAt: new Date(cur.delivered_at as string).toISOString() };
   }
 
   /* ───────────── atender, recusar, desligar, sinais ───────────── */

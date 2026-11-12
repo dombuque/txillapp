@@ -14,3 +14,14 @@ export function listImageProps(os: string, fadeMs: number, eager = true): { tran
   if (os !== 'web') return { transition: fadeMs };
   return { transition: 0, loading: eager ? 'eager' : 'lazy' };
 }
+
+/**
+ * Quantas páginas de um carrossel ficam montadas. No telemóvel cada foto montada é um bitmap descodificado no heap nativo
+ * (~2 MB numa foto de 720 px) e o FlatList montava as 10 primeiras de cada carrossel: com o feed cheio de carrosséis de 9
+ * fotos, eram ~120 MB de bitmaps (58 fotos) só nas vistas montadas. Fica a página que se vê e as vizinhas. Na web fica
+ * como estava (lá as fotos já são lazy e o virtualizar fazia-as piscar ao voltar).
+ */
+export function carouselWindowProps(os: string): { initialNumToRender?: number; maxToRenderPerBatch?: number; windowSize?: number } {
+  if (os === 'web') return {};
+  return { initialNumToRender: 2, maxToRenderPerBatch: 2, windowSize: 3 };
+}
