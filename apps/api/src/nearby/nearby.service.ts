@@ -6,6 +6,7 @@ import { SPONSORED_LABEL } from '../boosts/boost-config';
 import { BoostsService, type MapBoost } from '../boosts/boosts.service';
 import { memberBlocked, venueOnMap } from '../groups/group-access';
 import { blockedBetween, canView } from '../social/visibility';
+import { badge } from '../common/badge';
 import { eventEnd } from './events.service';
 import { agoLabel, distKm, inBox, km1, postGeo, snapToCell } from './geo-sql';
 import { SchemaProbe } from './schema-probe';
@@ -199,7 +200,7 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
     const { rows } = await this.pool.query(
       `SELECT * FROM (
          SELECT x.*, row_number() OVER (PARTITION BY x.author_id ORDER BY x.created_at DESC) AS nth FROM (
-           SELECT p.id, p.short_code, p.location_label, ${postGeo('lat')} AS location_lat, ${postGeo('lng')} AS location_lng, p.created_at, p.author_id, u.username, u.display_name,
+           SELECT p.id, p.short_code, p.location_label, ${postGeo('lat')} AS location_lat, ${postGeo('lng')} AS location_lng, p.created_at, p.author_id, u.username, u.display_name, u.verified, u.verified_tier,
                   ${distKm(postGeo('lat'), postGeo('lng'))} AS d,
                   fm.media_id AS first_media, (fm.mime LIKE 'video/%') AS is_video
              FROM content.posts p
@@ -228,7 +229,7 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
       lng: Number(r.location_lng),
       distanceKm: km1(r.d),
       createdAt: new Date(r.created_at as string).toISOString(),
-      author: { username: r.username as string, displayName: r.display_name as string },
+      author: { username: r.username as string, displayName: r.display_name as string, ...badge(r.verified, r.verified_tier) },
     }));
   }
 
@@ -287,7 +288,7 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
   private async people(p: unknown[]) {
     const { rows } = await this.pool.query(
       `SELECT * FROM (
-         SELECT u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, pr.cell_lat, pr.cell_lng, pr.updated_at,
+         SELECT u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar, pr.cell_lat, pr.cell_lng, pr.updated_at,
                 floor(extract(epoch FROM (now() - pr.updated_at)) / 60)::int AS mins,
                 ${distKm('pr.cell_lat', 'pr.cell_lng')} AS d
            FROM nearby.presence pr
@@ -307,6 +308,7 @@ export class NearbyService implements OnModuleInit, OnModuleDestroy {
     return rows.map((r) => ({
       username: r.username as string,
       displayName: r.display_name as string,
+      ...badge(r.verified, r.verified_tier),
       hasAvatar: !!r.has_avatar,
       lat: Number(r.cell_lat),
       lng: Number(r.cell_lng),

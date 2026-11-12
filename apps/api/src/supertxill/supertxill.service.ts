@@ -6,6 +6,7 @@ import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { TextFilter } from '../safety/text-filter.service';
 import { blockedBetween, sameCountry } from '../social/visibility';
+import { badge } from '../common/badge';
 import { MSG, SYSTEM_PROMPT } from './constants';
 
 type Turn = { role: 'user' | 'assistant'; content: string };
@@ -66,7 +67,7 @@ export class SuperTxillService {
                 JOIN identity.users ou ON ou.id = o.user_id AND ou.geleira_matching
                 JOIN taste.items i ON i.id = me.item_id AND i.status = 'curated' AND NOT i.alcoholic
                WHERE me.user_id = $1 GROUP BY o.user_id)
-       SELECT u.username, u.display_name, u.is_private,
+       SELECT u.username, u.display_name, u.is_private, u.verified, u.verified_tier,
               COALESCE(cf.score, 0) AS cf, COALESCE(taste.shared, 0) AS shared, taste.item,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = u.id AND f.followee_id = $1) AS follows_me,
               EXISTS (SELECT 1 FROM social.follow_requests r WHERE r.requester_id = $1 AND r.target_id = u.id) AS requested
@@ -82,6 +83,7 @@ export class SuperTxillService {
     return rows.map((r) => ({
       username: r.username as string,
       displayName: r.display_name as string,
+      ...badge(r.verified, r.verified_tier),
       isPrivate: r.is_private as boolean,
       requested: r.requested as boolean,
       followsYou: r.follows_me as boolean,

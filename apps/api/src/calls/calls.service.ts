@@ -60,12 +60,13 @@ import { PG_POOL } from '../db/db.module';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PushService } from '../push/push.service';
 import { blockedBetween } from '../social/visibility';
+import { badge, type Badge } from '../common/badge';
 import { checkDeclineToken, declineToken, endPush, ringPush, ringRepeatDelays, type RingInfo } from './call-push';
 
 export type CallStatus = 'ringing' | 'active' | 'declined' | 'cancelled' | 'missed' | 'ended';
 export type SignalType = 'offer' | 'answer' | 'ice';
 export interface IceServer { urls: string[]; username?: string; credential?: string }
-interface Person { id: string; username: string; displayName: string; hasAvatar: boolean }
+interface Person extends Badge { id: string; username: string; displayName: string; hasAvatar: boolean }
 interface CallRow { id: string; video: boolean; status: CallStatus; caller: Person; callee: Person; startedAt: string | null }
 
 const STUN = ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'];
@@ -79,7 +80,7 @@ const LOST_AFTER_S = 120;
 export const MAX_SIGNAL_BYTES = 64 * 1024;
 const PAGE = 30;
 
-const publicOf = (p: Person) => ({ username: p.username, displayName: p.displayName, hasAvatar: p.hasAvatar });
+const publicOf = (p: Person) => ({ username: p.username, displayName: p.displayName, hasAvatar: p.hasAvatar, verified: p.verified, verifiedTier: p.verifiedTier });
 
 @Injectable()
 export class CallsService implements OnModuleInit, OnModuleDestroy {
@@ -153,14 +154,14 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
   /* ───────────── ligar ───────────── */
 
   private async person(id: string): Promise<Person> {
-    const r = (await this.pool.query('SELECT id, username, display_name, (avatar_media_id IS NOT NULL) AS has_avatar FROM identity.users WHERE id = $1', [id])).rows[0];
-    return { id: r.id, username: r.username, displayName: r.display_name, hasAvatar: r.has_avatar };
+    const r = (await this.pool.query('SELECT id, username, display_name, verified, verified_tier, (avatar_media_id IS NOT NULL) AS has_avatar FROM identity.users WHERE id = $1', [id])).rows[0];
+    return { id: r.id, username: r.username, displayName: r.display_name, hasAvatar: r.has_avatar, ...badge(r.verified, r.verified_tier) };
   }
 
   async create(me: string, username: string, video: boolean) {
     const u = (
       await this.pool.query(
-        `SELECT u.id, u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, u.status, u.calls_allowed,
+        `SELECT u.id, u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar, u.status, u.calls_allowed,
                 ${blockedBetween('u.id', '$1')} AS blocked,
                 EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = u.id AND f.followee_id = $1) AS follows_me,
                 EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS i_follow
@@ -197,7 +198,7 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     }
 
     const caller = await this.person(me);
-    const callee: Person = { id: u.id, username: u.username, displayName: u.display_name, hasAvatar: u.has_avatar };
+    const callee: Person = { id: u.id, username: u.username, displayName: u.display_name, hasAvatar: u.has_avatar, ...badge(u.verified, u.verified_tier) };
     this.emit(callee.id, 'ring', { id, video }, caller);
     const ring = { id, video, caller, declineToken: declineToken(this.config.JWT_ACCESS_SECRET, id, callee.id) };
     void this.push.send(callee.id, ringPush({ ...ring, ttlSeconds: this.ringSeconds }));
@@ -240,8 +241,8 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     const r = (
       await this.pool.query(
         `SELECT c.id, c.video, c.status, c.started_at,
-                a.id AS a_id, a.username AS a_username, a.display_name AS a_name, (a.avatar_media_id IS NOT NULL) AS a_avatar,
-                b.id AS b_id, b.username AS b_username, b.display_name AS b_name, (b.avatar_media_id IS NOT NULL) AS b_avatar
+                a.id AS a_id, a.username AS a_username, a.display_name AS a_name, (a.avatar_media_id IS NOT NULL) AS a_avatar, a.verified AS a_verified, a.verified_tier AS a_tier,
+                b.id AS b_id, b.username AS b_username, b.display_name AS b_name, (b.avatar_media_id IS NOT NULL) AS b_avatar, b.verified AS b_verified, b.verified_tier AS b_tier
            FROM social.calls c JOIN identity.users a ON a.id = c.caller_id JOIN identity.users b ON b.id = c.callee_id
           WHERE c.id = $1`,
         [callId],
@@ -253,8 +254,8 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
       video: r.video,
       status: r.status,
       startedAt: r.started_at,
-      caller: { id: r.a_id, username: r.a_username, displayName: r.a_name, hasAvatar: r.a_avatar },
-      callee: { id: r.b_id, username: r.b_username, displayName: r.b_name, hasAvatar: r.b_avatar },
+      caller: { id: r.a_id, username: r.a_username, displayName: r.a_name, hasAvatar: r.a_avatar, ...badge(r.a_verified, r.a_tier) },
+      callee: { id: r.b_id, username: r.b_username, displayName: r.b_name, hasAvatar: r.b_avatar, ...badge(r.b_verified, r.b_tier) },
     };
   }
 
@@ -438,7 +439,7 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     const { rows } = await this.pool.query(
       `SELECT c.id, c.video, c.status, c.created_at, (c.caller_id = $1) AS outgoing,
               EXTRACT(EPOCH FROM (c.ended_at - c.started_at)) AS d,
-              o.username, o.display_name, o.status AS o_status, (o.avatar_media_id IS NOT NULL) AS has_avatar
+              o.username, o.display_name, o.status AS o_status, (o.avatar_media_id IS NOT NULL) AS has_avatar, o.verified, o.verified_tier
          FROM social.calls c
          JOIN identity.users o ON o.id = CASE WHEN c.caller_id = $1 THEN c.callee_id ELSE c.caller_id END
         WHERE ((c.caller_id = $1 AND NOT c.hidden_by_caller) OR (c.callee_id = $1 AND NOT c.hidden_by_callee)) AND ($2::uuid IS NULL OR c.id < $2)
@@ -452,7 +453,7 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
         video: r.video as boolean,
         direction: (r.outgoing ? 'out' : 'in') as 'in' | 'out',
         status: r.status as CallStatus,
-        peer: { username: r.username as string, displayName: r.o_status === 'active' ? (r.display_name as string) : 'Conta eliminada', hasAvatar: r.has_avatar as boolean },
+        peer: { username: r.username as string, displayName: r.o_status === 'active' ? (r.display_name as string) : 'Conta eliminada', hasAvatar: r.has_avatar as boolean, ...(r.o_status === 'active' ? badge(r.verified, r.verified_tier) : badge(false, null)) },
         startedAt: r.created_at as string,
         durationS: r.d == null ? null : Math.max(0, Math.round(Number(r.d))),
       })),

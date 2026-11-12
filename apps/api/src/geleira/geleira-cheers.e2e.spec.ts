@@ -179,7 +179,7 @@ describe('brindar a geleira: contagem no perfil, quem brindou e aviso só da pri
     const visitor = (await cheersOf(gce).expect(200)).body;
     expect(visitor).toEqual(owner);
     expect(visitor.items.map((i: { username: string }) => i.username).sort()).toEqual([gcb.username, gcc.username, gcd.username].sort());
-    expect(visitor.items[0]).toEqual({ username: expect.any(String), displayName: expect.any(String), hasAvatar: false, at: expect.any(String) });
+    expect(visitor.items[0]).toEqual({ username: expect.any(String), displayName: expect.any(String), verified: false, verifiedTier: null, hasAvatar: false, at: expect.any(String) });
 
     // Quem não pode ver a geleira continua com 404 (nunca 403), mesmo com a lista pública.
     const notFound = async (viewer: U) => {

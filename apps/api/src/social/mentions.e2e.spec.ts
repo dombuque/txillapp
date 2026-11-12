@@ -114,7 +114,7 @@ describe('menções (@utilizador) e amigos próximos (integração)', () => {
 
     const mediaOk = await uploadPng(ma);
     const p = (await api().post('/api/v1/posts').set(auth(ma)).send({ body: 'com malta', mediaIds: [mediaOk], tags: [tag(mb.username)] }).expect(201)).body;
-    expect(p.media[0].tags).toEqual([{ username: mb.username, displayName: `mb Teste`, x: 0.4, y: 0.5 }]);
+    expect(p.media[0].tags).toEqual([{ username: mb.username, displayName: `mb Teste`, verified: false, verifiedTier: null, x: 0.4, y: 0.5 }]);
     await wait();
     expect(((await api().get('/api/v1/notifications').set(auth(mb)).expect(200)).body.items as { kind: string }[]).some((n) => n.kind === 'tag')).toBe(true);
 

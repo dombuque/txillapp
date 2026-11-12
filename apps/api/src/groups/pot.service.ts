@@ -7,6 +7,7 @@ import { VenuesService } from '../venues/venues.service';
 import { MAX_AMOUNT, WalletService } from '../wallet/wallet.service';
 import { GroupAccess } from './group-access';
 import { proRata } from './settle';
+import { badge } from '../common/badge';
 
 /*
  * Cofre de Txills de um TxillGroup (Txills são a moeda do Txillapp). Cada grupo tem no máximo um cofre:
@@ -62,7 +63,7 @@ export class PotService {
     )).rows[0];
     if (!g) throw new NotFoundException('Grupo não encontrado');
     const contributions = (await this.pool.query(
-      `SELECT u.username, u.display_name, (-e.amount)::bigint AS amount, t.created_at
+      `SELECT u.username, u.display_name, u.verified, u.verified_tier, (-e.amount)::bigint AS amount, t.created_at
          FROM ledger.transactions t
          JOIN ledger.entries e ON e.transaction_id = t.id AND e.amount < 0
          JOIN ledger.accounts a ON a.id = e.account_id
@@ -73,7 +74,7 @@ export class PotService {
     )).rows;
     const stakes = (await this.stakes(this.pool, groupId)).filter((s) => s.stake > 0n);
     const people = stakes.length
-      ? new Map((await this.pool.query('SELECT id, username, display_name FROM identity.users WHERE id = ANY($1::uuid[])', [stakes.map((s) => s.userId)])).rows.map((r) => [r.id as string, r]))
+      ? new Map((await this.pool.query('SELECT id, username, display_name, verified, verified_tier FROM identity.users WHERE id = ANY($1::uuid[])', [stakes.map((s) => s.userId)])).rows.map((r) => [r.id as string, r]))
       : new Map();
     const payments = (await this.pool.query(
       `SELECT t.created_at, t.metadata, (t.metadata->>'amount')::bigint AS amount, v.slug, v.name, u.username, u.display_name
@@ -95,9 +96,9 @@ export class PotService {
       balance: Number(g.balance ?? 0),
       goal: g.pot_goal == null ? null : Number(g.pot_goal),
       venue: g.slug ? { slug: g.slug as string, name: g.name as string, avatarUrl: g.avatar_media_id ? `/api/v1/media/${g.avatar_media_id as string}` : null, acceptsTxills: !!g.accepts_txills } : null,
-      contributions: contributions.map((r) => ({ username: r.username as string, displayName: r.display_name as string, amount: Number(r.amount), at: r.created_at as string })),
+      contributions: contributions.map((r) => ({ username: r.username as string, displayName: r.display_name as string, ...badge(r.verified, r.verified_tier), amount: Number(r.amount), at: r.created_at as string })),
       totalByMember: stakes
-        .map((s) => ({ username: people.get(s.userId)?.username as string, displayName: people.get(s.userId)?.display_name as string, amount: Number(s.stake) }))
+        .map((s) => ({ username: people.get(s.userId)?.username as string, displayName: people.get(s.userId)?.display_name as string, ...badge(people.get(s.userId)?.verified, people.get(s.userId)?.verified_tier), amount: Number(s.stake) }))
         .sort((a, b) => b.amount - a.amount || a.username.localeCompare(b.username)),
       payments: payments.map((r) => ({
         venue: { slug: (r.slug as string | null) ?? null, name: (r.name as string | null) ?? String(r.metadata?.venueName ?? 'Local') },

@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
 import { mentionableBy } from '../notifications/notifications.service';
 import { canView, inMyNetwork } from './visibility';
+import { badge } from '../common/badge';
 
 export type MentionContext = 'post' | 'group' | 'story' | 'zas' | 'chat';
 export type MentionReason = 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proximo' | 'neste-post' | 'no-grupo';
@@ -12,6 +13,7 @@ export interface MentionSuggestion {
   displayName: string;
   hasAvatar: boolean;
   verified?: boolean;
+  verifiedTier?: 'verified' | 'official' | null;
   reason?: MentionReason;
 }
 
@@ -167,7 +169,7 @@ export class MentionSuggestService {
          SELECT profile_id, least(10, 2 * count(*)), NULL FROM social.profile_views
           WHERE viewer_id = $1 AND day > current_date - 30 GROUP BY profile_id),
        score AS (SELECT uid, sum(s) AS s, min(r) AS r FROM pts WHERE uid <> $1 GROUP BY uid)
-       SELECT u.id, u.username, u.display_name, u.verified, (u.avatar_media_id IS NOT NULL) AS has_avatar, sc.r
+       SELECT u.id, u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar, sc.r
          FROM score sc JOIN identity.users u ON u.id = sc.uid
         WHERE ${mentionableBy('u', '$1')}
           AND ($4::uuid IS NULL OR EXISTS (SELECT 1 FROM social.group_members gm WHERE gm.group_id = $4::uuid AND gm.user_id = u.id))
@@ -181,7 +183,7 @@ export class MentionSuggestService {
       username: r.username,
       displayName: r.display_name,
       hasAvatar: r.has_avatar,
-      verified: !!r.verified,
+      ...badge(r.verified, r.verified_tier),
       ...(r.r != null && REASONS[r.r] ? { reason: REASONS[r.r] } : {}),
     }));
 
@@ -189,7 +191,7 @@ export class MentionSuggestService {
     // regras do /search/suggest), sem repetir ninguém. Num grupo não: lá só se mencionam membros.
     if (folded && !groupId && items.length < LIMIT) {
       const more = await this.pool.query(
-        `SELECT u.username, u.display_name, u.verified, (u.avatar_media_id IS NOT NULL) AS has_avatar,
+        `SELECT u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar,
                 EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS following,
                 greatest(similarity(lower(u.username::text), $3), similarity(lower(content.f_unaccent(u.display_name)), $3)) AS sim
            FROM identity.users u
@@ -201,7 +203,7 @@ export class MentionSuggestService {
           LIMIT $4`,
         [me, term, folded, LIMIT - items.length, rows.map((r) => r.id)],
       );
-      for (const r of more.rows) items.push({ username: r.username, displayName: r.display_name, hasAvatar: r.has_avatar, verified: !!r.verified });
+      for (const r of more.rows) items.push({ username: r.username, displayName: r.display_name, hasAvatar: r.has_avatar, ...badge(r.verified, r.verified_tier) });
     }
     return { items };
   }

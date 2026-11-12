@@ -8,6 +8,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { MAX_AMOUNT, WalletService } from '../wallet/wallet.service';
 import { TextFilter } from '../safety/text-filter.service';
 import { blockedBetween } from '../social/visibility';
+import { badge } from '../common/badge';
 
 export const VENUE_KINDS = ['bar', 'restaurante', 'discoteca', 'cafe', 'hotel', 'evento', 'outro'] as const;
 export type VenueKind = (typeof VENUE_KINDS)[number];
@@ -321,16 +322,16 @@ export class VenuesService {
   async managers(userId: string, slug: string) {
     const v = await this.need(userId, slug, 'post');
     const { rows } = await this.pool.query(
-      `SELECT u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, m.role, m.status, m.created_at
+      `SELECT u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar, m.role, m.status, m.created_at
          FROM content.venue_managers m JOIN identity.users u ON u.id = m.user_id
         WHERE m.venue_id = $1 AND u.status = 'active'
         ORDER BY (m.status = 'active') DESC, (m.role = 'admin') DESC, m.created_at`,
       [v.id],
     );
-    const owner = (await this.pool.query('SELECT username, display_name, (avatar_media_id IS NOT NULL) AS has_avatar FROM identity.users WHERE id = $1', [v.owner_id])).rows[0];
+    const owner = (await this.pool.query('SELECT username, display_name, verified, verified_tier, (avatar_media_id IS NOT NULL) AS has_avatar FROM identity.users WHERE id = $1', [v.owner_id])).rows[0];
     return [
-      { username: owner.username as string, displayName: owner.display_name as string, hasAvatar: !!owner.has_avatar, role: 'owner' as const, status: 'active' as const },
-      ...rows.map((r) => ({ username: r.username as string, displayName: r.display_name as string, hasAvatar: !!r.has_avatar, role: r.role as ManagerRole, status: r.status as 'pending' | 'active', since: r.created_at as string })),
+      { username: owner.username as string, displayName: owner.display_name as string, ...badge(owner.verified, owner.verified_tier), hasAvatar: !!owner.has_avatar, role: 'owner' as const, status: 'active' as const },
+      ...rows.map((r) => ({ username: r.username as string, displayName: r.display_name as string, ...badge(r.verified, r.verified_tier), hasAvatar: !!r.has_avatar, role: r.role as ManagerRole, status: r.status as 'pending' | 'active', since: r.created_at as string })),
     ];
   }
 
@@ -532,8 +533,8 @@ export class VenuesService {
     if (!acc) return { items: [], balance: 0, nextCursor: null };
     const { rows } = await this.pool.query(
       `SELECT t.id, t.created_at, t.metadata, e.amount,
-              pu.username AS payer_username, pu.display_name AS payer_name,
-              au.username AS actor_username, au.display_name AS actor_name,
+              pu.username AS payer_username, pu.display_name AS payer_name, pu.verified AS payer_verified, pu.verified_tier AS payer_tier,
+              au.username AS actor_username, au.display_name AS actor_name, au.verified AS actor_verified, au.verified_tier AS actor_tier,
               g.name AS group_name
          FROM ledger.entries e
          JOIN ledger.transactions t ON t.id = e.transaction_id
@@ -548,10 +549,10 @@ export class VenuesService {
     return {
       items: page.map((r) => {
         const m = (r.metadata ?? {}) as Record<string, unknown>;
-        const by = { username: r.actor_username as string, displayName: r.actor_name as string };
+        const by = { username: r.actor_username as string, displayName: r.actor_name as string, ...badge(r.actor_verified, r.actor_tier) };
         const from = m.groupId
           ? { group: { id: String(m.groupId), name: (r.group_name as string | null) ?? String(m.groupName ?? 'Grupo') } }
-          : r.payer_username ? { username: r.payer_username as string, displayName: r.payer_name as string } : by;
+          : r.payer_username ? { username: r.payer_username as string, displayName: r.payer_name as string, ...badge(r.payer_verified, r.payer_tier) } : by;
         return { id: r.id as string, from, by, amount: Number(r.amount), note: (m.note as string | null) ?? null, at: r.created_at as string };
       }),
       balance: Number(acc.balance),

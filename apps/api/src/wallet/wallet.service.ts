@@ -2,6 +2,7 @@ import { HttpException, Inject, Injectable, NotFoundException, UnprocessableEnti
 import { Pool, PoolClient } from 'pg';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
+import { badge, type Badge } from '../common/badge';
 
 export const ISSUANCE_ACCOUNT = '00000000-0000-7000-8000-000000000001';
 export const WELCOME_BONUS = 500;
@@ -70,10 +71,10 @@ export function historyLabel(type: LedgerType, amount: number, x: { who: string 
  */
 function historyExtras(r: Record<string, any>) {
   const m = (r.metadata ?? {}) as Record<string, unknown>;
-  const out: { venue?: { slug: string | null; name: string; kind: string | null }; group?: { id: string; name: string }; from?: { username: string; displayName: string } } = {};
+  const out: { venue?: { slug: string | null; name: string; kind: string | null }; group?: { id: string; name: string }; from?: { username: string; displayName: string } & Badge } = {};
   if (r.type === 'venue_payment') {
     out.venue = r.venue_slug ? { slug: r.venue_slug as string, name: r.venue_name as string, kind: r.venue_kind as string } : { slug: null, name: String(m.venueName ?? 'Local'), kind: null };
-    if (Number(r.amount) > 0 && r.payer_username) out.from = { username: r.payer_username as string, displayName: r.payer_name as string };
+    if (Number(r.amount) > 0 && r.payer_username) out.from = { username: r.payer_username as string, displayName: r.payer_name as string, ...badge(r.payer_verified, r.payer_tier) };
   }
   if (['group_contribution', 'group_refund', 'venue_payment'].includes(r.type as string) && m.groupId) {
     out.group = { id: String(m.groupId), name: (r.group_name as string | null) ?? String(m.groupName ?? 'Grupo') };
@@ -120,13 +121,13 @@ export class WalletService {
     const acc = (await this.pool.query('SELECT id, balance FROM ledger.accounts WHERE user_id = $1', [userId])).rows[0];
     const { rows } = await this.pool.query(
       `SELECT e.id, e.amount, e.created_at, t.type, t.metadata,
-              cp.username AS counterparty_username, cp.display_name AS counterparty_name,
+              cp.username AS counterparty_username, cp.display_name AS counterparty_name, cp.verified AS counterparty_verified, cp.verified_tier AS counterparty_tier,
               v.slug AS venue_slug, v.name AS venue_name, v.kind AS venue_kind, g.id AS group_id, g.name AS group_name,
-              pu.username AS payer_username, pu.display_name AS payer_name
+              pu.username AS payer_username, pu.display_name AS payer_name, pu.verified AS payer_verified, pu.verified_tier AS payer_tier
          FROM ledger.entries e
          JOIN ledger.transactions t ON t.id = e.transaction_id
          LEFT JOIN LATERAL (
-           SELECT u.username, u.display_name
+           SELECT u.username, u.display_name, u.verified, u.verified_tier
              FROM ledger.entries e2 JOIN ledger.accounts a2 ON a2.id = e2.account_id
              JOIN identity.users u ON u.id = a2.user_id
             WHERE e2.transaction_id = e.transaction_id AND e2.account_id <> e.account_id AND t.type IN ('transfer', 'gift') LIMIT 1
@@ -147,7 +148,7 @@ export class WalletService {
         type: r.type,
         createdAt: r.created_at,
         counterparty: r.counterparty_username
-          ? { username: r.counterparty_username, displayName: r.counterparty_name }
+          ? { username: r.counterparty_username, displayName: r.counterparty_name, ...badge(r.counterparty_verified, r.counterparty_tier) }
           : null,
         note: r.metadata?.note ?? null,
         /** Local pago (pagamentos com Txills) e grupo do cofre (contribuições e devoluções); o nome guardado no movimento se já não existirem. */

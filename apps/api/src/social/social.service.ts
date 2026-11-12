@@ -8,10 +8,11 @@ import { SearchIndexer } from '../search/search-index';
 import { NotificationsService } from '../notifications/notifications.service';
 import { mentionableBy } from '../notifications/notifications.service';
 import { blockedBetween, canView, sameCountry } from './visibility';
+import { badge, type Badge } from '../common/badge';
 
 const UUID = /^[0-9a-f-]{36}$/;
 
-export interface PersonItem {
+export interface PersonItem extends Badge {
   username: string;
   displayName: string;
   following: boolean;
@@ -231,13 +232,13 @@ export class SocialService {
 
   async requests(userId: string) {
     const { rows } = await this.pool.query(
-      `SELECT u.username, u.display_name, r.created_at FROM social.follow_requests r
+      `SELECT u.username, u.display_name, u.verified, u.verified_tier, r.created_at FROM social.follow_requests r
          JOIN identity.users u ON u.id = r.requester_id
         WHERE r.target_id = $1 AND u.status = 'active' AND NOT ${blockedBetween('u.id', '$1')}
         ORDER BY r.created_at DESC LIMIT 100`,
       [userId],
     );
-    return rows.map((r) => ({ username: r.username, displayName: r.display_name, requestedAt: r.created_at }));
+    return rows.map((r) => ({ username: r.username, displayName: r.display_name, ...badge(r.verified, r.verified_tier), requestedAt: r.created_at }));
   }
 
   async acceptRequest(userId: string, username: string) {
@@ -306,11 +307,11 @@ export class SocialService {
 
   async blocked(userId: string) {
     const { rows } = await this.pool.query(
-      `SELECT u.username, u.display_name FROM social.blocks b JOIN identity.users u ON u.id = b.blocked_id
+      `SELECT u.username, u.display_name, u.verified, u.verified_tier FROM social.blocks b JOIN identity.users u ON u.id = b.blocked_id
         WHERE b.blocker_id = $1 AND u.status = 'active' ORDER BY b.created_at DESC`,
       [userId],
     );
-    return rows.map((r) => ({ username: r.username, displayName: r.display_name }));
+    return rows.map((r) => ({ username: r.username, displayName: r.display_name, ...badge(r.verified, r.verified_tier) }));
   }
 
   /** Contas antigas: data de nascimento (só uma vez, não se altera) e aceitação dos termos em vigor. */
@@ -424,7 +425,7 @@ export class SocialService {
     const unique = [...new Set(hashes.map((h) => h.toLowerCase()))].slice(0, 500);
     if (!unique.length) return [];
     const { rows } = await this.pool.query(
-      `SELECT u.username, u.display_name, u.is_private,
+      `SELECT u.username, u.display_name, u.is_private, u.verified, u.verified_tier,
               EXISTS (SELECT 1 FROM social.follow_requests fr WHERE fr.requester_id = $1 AND fr.target_id = u.id) AS requested
          FROM identity.users u
         WHERE u.email_sha256 = ANY($2) AND u.id <> $1 AND u.status = 'active' AND u.find_by_contacts
@@ -433,7 +434,7 @@ export class SocialService {
         ORDER BY u.display_name LIMIT 100`,
       [userId, unique],
     );
-    return rows.map((r) => ({ username: r.username as string, displayName: r.display_name as string, isPrivate: r.is_private as boolean, requested: r.requested as boolean, reason: 'Está nos teus contactos' }));
+    return rows.map((r) => ({ username: r.username as string, displayName: r.display_name as string, isPrivate: r.is_private as boolean, requested: r.requested as boolean, ...badge(r.verified, r.verified_tier), reason: 'Está nos teus contactos' }));
   }
 
   /* ───────────── sugestões ───────────── */
@@ -446,19 +447,19 @@ export class SocialService {
   async mentionable(userId: string, q: string) {
     const term = q.replace(/^@/, '').replace(/[\\%_]/g, (c) => `\\${c}`);
     const res = await this.pool.query(
-      `SELECT u.username, u.display_name, u.verified, (u.avatar_media_id IS NOT NULL) AS has_avatar,
+      `SELECT u.username, u.display_name, u.verified, u.verified_tier, (u.avatar_media_id IS NOT NULL) AS has_avatar,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) AS following
          FROM identity.users u
         WHERE ${mentionableBy('u', '$1')} AND ($2 = '' OR u.username ILIKE $2 || '%' ESCAPE '\\' OR u.display_name ILIKE '%' || $2 || '%' ESCAPE '\\')
         ORDER BY following DESC, (lower(u.username) = lower($3)) DESC, u.username ASC LIMIT 8`,
       [userId, term, q.replace(/^@/, '')],
     );
-    return res.rows.map((r) => ({ username: r.username, displayName: r.display_name, verified: r.verified, hasAvatar: r.has_avatar, following: r.following }));
+    return res.rows.map((r) => ({ username: r.username, displayName: r.display_name, ...badge(r.verified, r.verified_tier), hasAvatar: r.has_avatar, following: r.following }));
   }
 
   async suggestions(viewerId: string, limit = 12) {
     const { rows } = await this.pool.query(
-      `SELECT u.username, u.display_name, u.is_private,
+      `SELECT u.username, u.display_name, u.is_private, u.verified, u.verified_tier,
               (SELECT count(*) FROM social.follows a JOIN social.follows b ON b.follower_id = a.followee_id AND b.followee_id = u.id
                 WHERE a.follower_id = $1)::int AS mutual,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = u.id AND f.followee_id = $1) AS follows_me,
@@ -478,6 +479,7 @@ export class SocialService {
     return rows.map((r) => ({
       username: r.username,
       displayName: r.display_name,
+      ...badge(r.verified, r.verified_tier),
       isPrivate: r.is_private,
       requested: r.requested,
       followsYou: r.follows_me,
@@ -504,7 +506,7 @@ export class SocialService {
     const [self, other] = kind === 'followers' ? ['f.follower_id', 'f.followee_id'] : ['f.followee_id', 'f.follower_id'];
     const limit = 30;
     const { rows } = await this.pool.query(
-      `SELECT u.id, u.username, u.display_name,
+      `SELECT u.id, u.username, u.display_name, u.verified, u.verified_tier,
               EXISTS (SELECT 1 FROM social.follows x WHERE x.follower_id = $1 AND x.followee_id = u.id) AS following,
               EXISTS (SELECT 1 FROM social.follows x WHERE x.follower_id = u.id AND x.followee_id = $1) AS follows_you,
               u.is_private,
@@ -517,7 +519,7 @@ export class SocialService {
     );
     const page = rows.slice(0, limit);
     return {
-      items: page.map((r): PersonItem => ({ username: r.username, displayName: r.display_name, following: r.following, followsYou: r.follows_you, isPrivate: r.is_private, requested: r.requested })),
+      items: page.map((r): PersonItem => ({ username: r.username, displayName: r.display_name, ...badge(r.verified, r.verified_tier), following: r.following, followsYou: r.follows_you, isPrivate: r.is_private, requested: r.requested })),
       nextCursor: rows.length > limit ? page[page.length - 1].id : null,
     };
   }

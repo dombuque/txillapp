@@ -48,7 +48,7 @@ const FEED_SQL = `
          (SELECT count(*) FROM content.posts rp WHERE rp.repost_of = p.id AND rp.kind = 'repost' AND rp.removed_at IS NULL)::int AS reposts,
          EXISTS (SELECT 1 FROM content.posts rp WHERE rp.repost_of = p.id AND rp.author_id = $1 AND rp.kind = 'repost' AND rp.body = '' AND rp.removed_at IS NULL) AS reposted,
          (SELECT COALESCE(json_agg(json_build_object('id', pm.media_id, 'video', (ma.mime LIKE 'video/%'), 'durationMs', ma.duration_ms, 'w', ma.width, 'h', ma.height, 'tags',
-                  (SELECT COALESCE(json_agg(json_build_object('username', tu.username, 'displayName', tu.display_name, 'x', t.x, 'y', t.y)), '[]'::json)
+                  (SELECT COALESCE(json_agg(json_build_object('username', tu.username, 'displayName', tu.display_name, 'verified', tu.verified, 'verifiedTier', tu.verified_tier, 'x', t.x, 'y', t.y)), '[]'::json)
                      FROM content.photo_tags t JOIN identity.users tu ON tu.id = t.tagged_id
                     WHERE t.media_id = pm.media_id AND t.post_id = p.id AND tu.status = 'active' AND NOT ${blockedBetween('tu.id', '$1')})
                 ) ORDER BY pm.position), '[]'::json)
@@ -65,6 +65,8 @@ const FEED_SQL = `
 export interface PhotoTag {
   username: string;
   displayName: string;
+  verified?: boolean;
+  verifiedTier?: 'verified' | 'official' | null;
   x: number;
   y: number;
 }
@@ -189,12 +191,12 @@ export class PostsService implements OnModuleInit {
       gifts: `SELECT g.sender_id AS who, max(g.created_at) AS at FROM content.gifts g WHERE g.post_id = $2 GROUP BY g.sender_id`,
     }[kind];
     const { rows } = await this.pool.query(
-      `SELECT a.username, a.display_name, (a.avatar_media_id IS NOT NULL) AS has_avatar, a.verified, s.at
+      `SELECT a.username, a.display_name, (a.avatar_media_id IS NOT NULL) AS has_avatar, a.verified, a.verified_tier, s.at
          FROM (${source}) s JOIN identity.users a ON a.id = s.who
         WHERE ${canView('a')} ORDER BY s.at DESC LIMIT 100`,
       [viewerId, postId],
     );
-    return rows.map((r) => ({ username: r.username, displayName: r.display_name, hasAvatar: r.has_avatar, verified: r.verified, at: r.at }));
+    return rows.map((r) => ({ username: r.username, displayName: r.display_name, hasAvatar: r.has_avatar, verified: r.verified, verifiedTier: (r.verified_tier as string | null) ?? null, at: r.at }));
   }
 
   /** Apagar a própria publicação: fica escondida para todos (reposts dela também deixam de aparecer). */

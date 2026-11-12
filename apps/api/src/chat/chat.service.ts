@@ -9,6 +9,7 @@ import { MediaService } from '../media/media.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { readGif, type GifInput } from '../gifs/gif';
 import { ChatEvents } from './chat.events';
+import { badge } from '../common/badge';
 
 export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call' | 'poll' | 'gif' | 'system';
 
@@ -144,11 +145,11 @@ export class ChatService {
 
   private async userByName(username: string) {
     const { rows } = await this.pool.query(
-      `SELECT id, username, display_name, status, (avatar_media_id IS NOT NULL) AS has_avatar FROM identity.users WHERE lower(username) = lower($1)`,
+      `SELECT id, username, display_name, status, verified, verified_tier, (avatar_media_id IS NOT NULL) AS has_avatar FROM identity.users WHERE lower(username) = lower($1)`,
       [username],
     );
     if (!rows[0] || rows[0].status !== 'active') throw new NotFoundException('Pessoa não encontrada');
-    return rows[0] as { id: string; username: string; display_name: string; has_avatar: boolean };
+    return rows[0] as { id: string; username: string; display_name: string; has_avatar: boolean; verified: boolean; verified_tier: string | null };
   }
 
   /**
@@ -347,7 +348,7 @@ export class ChatService {
   /** Conversas, da mais recente para a mais antiga, com a última mensagem e quantas por ler. */
   async list(me: string) {
     const { rows } = await this.pool.query(
-      `SELECT c.id, o.id AS other_id, o.username, o.display_name, (o.avatar_media_id IS NOT NULL) AS has_avatar, o.status, o.show_presence AS o_show, o.last_seen_at,
+      `SELECT c.id, o.id AS other_id, o.username, o.display_name, (o.avatar_media_id IS NOT NULL) AS has_avatar, o.status, o.verified, o.verified_tier, o.show_presence AS o_show, o.last_seen_at,
               lm.body AS last_body, lm.view_once AS last_once, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, lm.system AS last_system,
               c.last_message_at, c.ttl_seconds,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = o.id) AS i_follow,
@@ -374,6 +375,7 @@ export class ChatService {
       username: r.username,
       presence: iShow && r.o_show && r.status === 'active' ? { online: this.events.isOnline(r.other_id as string), lastSeen: (r.last_seen_at as string | null) ?? null } : null,
       displayName: r.status === 'active' ? r.display_name : 'Conta eliminada',
+      ...(r.status === 'active' ? badge(r.verified, r.verified_tier) : badge(false, null)),
       hasAvatar: r.has_avatar,
       /** Mensagens temporárias: quanto dura cada mensagem nova (segundos), ou null (desligadas). */
       ttl: (r.ttl_seconds as number | null) ?? null,
@@ -416,7 +418,7 @@ export class ChatService {
         [me, other.id],
       )
     ).rows[0];
-    const person = { username: other.username, displayName: other.display_name, hasAvatar: other.has_avatar, canGift: !blocked && !!g?.allowed && !!g?.following, presence: blocked ? null : await this.presenceOf(me, other.id) };
+    const person = { username: other.username, displayName: other.display_name, ...badge(other.verified, other.verified_tier), hasAvatar: other.has_avatar, canGift: !blocked && !!g?.allowed && !!g?.following, presence: blocked ? null : await this.presenceOf(me, other.id) };
     const conv = await this.conversation(me, other.id, false);
     const rel = await this.relationOf(me, other.id, conv);
     const relation = { iFollow: rel.iFollow, theyFollow: rel.theyFollow, request: rel.request, left: rel.left };

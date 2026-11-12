@@ -4,6 +4,7 @@ import { GroupsService, MAX_MEMBERS } from '../chat/groups.service';
 import { PG_POOL } from '../db/db.module';
 import { NotificationsService } from '../notifications/notifications.service';
 import { GroupAccess, memberBlocked, pendingVisible, venueOnMap } from './group-access';
+import { badge } from '../common/badge';
 
 /*
  * TxillGroups vistos de fora. Três modos (colunas social.groups.visibility e show_on_map):
@@ -141,7 +142,7 @@ export class PublicGroupsService {
   async list(me: string, groupId: string) {
     await this.access.needAdmin(groupId, me, 'Só quem administra o grupo vê os pedidos');
     const { rows } = await this.pool.query(
-      `SELECT u.username, u.display_name, u.avatar_media_id IS NOT NULL AS has_avatar, jr.created_at
+      `SELECT u.username, u.display_name, u.verified, u.verified_tier, u.avatar_media_id IS NOT NULL AS has_avatar, jr.created_at
          FROM social.group_join_requests jr JOIN identity.users u ON u.id = jr.user_id
         WHERE jr.group_id = $1 AND ${pendingVisible('jr')}
         ORDER BY jr.created_at, u.username`,
@@ -150,6 +151,7 @@ export class PublicGroupsService {
     return rows.map((r) => ({
       username: r.username as string,
       displayName: r.display_name as string,
+      ...badge(r.verified, r.verified_tier),
       avatarUrl: r.has_avatar ? `/api/v1/avatars/${encodeURIComponent(r.username as string)}` : null,
       createdAt: new Date(r.created_at as string).toISOString(),
     }));

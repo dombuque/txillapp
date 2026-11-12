@@ -129,10 +129,10 @@ describe('chamadas de voz e vídeo 1:1 (integração)', () => {
     const atB = listen(lb);
     await subscribe(lb);
     const c = (await call(la, lb, true).expect(201)).body;
-    expect(c).toMatchObject({ video: true, peer: { username: lb.username, displayName: 'lb Teste', hasAvatar: false } });
+    expect(c).toMatchObject({ video: true, peer: { username: lb.username, displayName: 'lb Teste', hasAvatar: false, verified: false, verifiedTier: null } });
     expect(c.iceServers[0].urls).toEqual(['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302']);
     await tick();
-    expect(atB).toEqual([{ type: 'call', event: 'ring', callId: c.id, video: true, from: { username: la.username, displayName: 'la Teste', hasAvatar: false } }]);
+    expect(atB).toEqual([{ type: 'call', event: 'ring', callId: c.id, video: true, from: { username: la.username, displayName: 'la Teste', hasAvatar: false, verified: false, verifiedTier: null } }]);
     // Aviso no telemóvel de quem recebe: os campos da chamada ao nível de cima.
     expect(pushes.find((x) => x.payload.callId === c.id)?.payload).toEqual({
       kind: 'call', callId: c.id, from: la.username, video: '1', declineToken: expect.any(String), title: 'la Teste', body: 'Videochamada', url: `/call/${c.id}?from=${la.username}&video=1`, tag: `call-${c.id}`,
@@ -160,8 +160,8 @@ describe('chamadas de voz e vídeo 1:1 (integração)', () => {
     await api().post(`/api/v1/calls/${c.id}/signal`).set(auth(la)).send({ type: 'ice', data: { big: 'x'.repeat(70_000) } }).expect(400);
     await api().post(`/api/v1/calls/${c.id}/signal`).set(auth(u.lj)).send({ type: 'ice', data: ice }).expect(404);
     await tick();
-    const fromA = { username: la.username, displayName: 'la Teste', hasAvatar: false };
-    const fromB = { username: lb.username, displayName: 'lb Teste', hasAvatar: false };
+    const fromA = { username: la.username, displayName: 'la Teste', hasAvatar: false, verified: false, verifiedTier: null };
+    const fromB = { username: lb.username, displayName: 'lb Teste', hasAvatar: false, verified: false, verifiedTier: null };
     expect(atB.filter((e) => e.event === 'signal')).toEqual([
       { type: 'call', event: 'signal', callId: c.id, video: true, from: fromA, signal: { type: 'offer', data: offer } },
       { type: 'call', event: 'signal', callId: c.id, video: true, from: fromA, signal: { type: 'ice', data: ice } },
@@ -217,8 +217,8 @@ describe('chamadas de voz e vídeo 1:1 (integração)', () => {
       await tick(300);
       const calls = received.filter((e) => e.type === 'call');
       expect(calls).toEqual([
-        { type: 'call', event: 'ring', callId: c.id, video: false, from: { username: la.username, displayName: 'la Teste', hasAvatar: false } },
-        { type: 'call', event: 'ended', callId: c.id, video: false, from: { username: la.username, displayName: 'la Teste', hasAvatar: false }, reason: 'cancelled' },
+        { type: 'call', event: 'ring', callId: c.id, video: false, from: { username: la.username, displayName: 'la Teste', hasAvatar: false, verified: false, verifiedTier: null } },
+        { type: 'call', event: 'ended', callId: c.id, video: false, from: { username: la.username, displayName: 'la Teste', hasAvatar: false, verified: false, verifiedTier: null }, reason: 'cancelled' },
       ]);
       // Para quem recebia, desistir antes de atender é uma chamada perdida.
       const n = (await api().get('/api/v1/notifications').set(auth(lb)).expect(200)).body.items as { kind: string; data: { callId?: string } }[];
@@ -238,7 +238,7 @@ describe('chamadas de voz e vídeo 1:1 (integração)', () => {
     expect(r).toEqual({ status: 'declined', messageSent: true });
     await api().post(`/api/v1/calls/${c.id}/decline`).set(auth(ld)).send({}).expect(409);
     await tick();
-    expect(atC).toContainEqual({ type: 'call', event: 'declined', callId: c.id, video: false, from: { username: ld.username, displayName: 'ld Teste', hasAvatar: false } });
+    expect(atC).toContainEqual({ type: 'call', event: 'declined', callId: c.id, video: false, from: { username: ld.username, displayName: 'ld Teste', hasAvatar: false, verified: false, verifiedTier: null } });
     const t = (await api().get(`/api/v1/chat/with/${ld.username}`).set(auth(lc)).expect(200)).body;
     expect(t.items[0]).toMatchObject({ fromMe: false, kind: 'text', body: 'Estou numa reunião, ligo depois' });
 
@@ -281,8 +281,8 @@ describe('chamadas de voz e vídeo 1:1 (integração)', () => {
     await subscribe(li);
     const c = (await call(lh, li, true).expect(201)).body;
     await tick(RING_S * 1000 + 600);
-    const fromH = { username: lh.username, displayName: 'lh Teste', hasAvatar: false };
-    const fromI = { username: li.username, displayName: 'li Teste', hasAvatar: false };
+    const fromH = { username: lh.username, displayName: 'lh Teste', hasAvatar: false, verified: false, verifiedTier: null };
+    const fromI = { username: li.username, displayName: 'li Teste', hasAvatar: false, verified: false, verifiedTier: null };
     expect(atI[atI.length - 1]).toEqual({ type: 'call', event: 'ended', callId: c.id, video: true, from: fromH, reason: 'missed' });
     expect(atH[atH.length - 1]).toEqual({ type: 'call', event: 'ended', callId: c.id, video: true, from: fromI, reason: 'missed' });
     await api().post(`/api/v1/calls/${c.id}/accept`).set(auth(li)).expect(409);

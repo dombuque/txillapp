@@ -10,6 +10,7 @@ import { PushService } from '../push/push.service';
 import { WalletService } from '../wallet/wallet.service';
 import { ogCardPng, phraseIndexOf, PHRASES } from './card';
 import { INVITE, isDisposable, newCode } from './rules';
+import { badge } from '../common/badge';
 
 /** Idade a partir da qual há bebidas alcoólicas (a mesma da geleira). */
 const ADULT = 18;
@@ -144,7 +145,7 @@ export class InvitesService implements OnModuleInit, OnModuleDestroy {
   private async cardOf(userId: string) {
     const u = (
       await this.pool.query(
-        `SELECT display_name, username, avatar_media_id IS NOT NULL AS has_avatar, birth_date::text AS b, is_private, geleira_visibility FROM identity.users WHERE id = $1`,
+        `SELECT display_name, username, verified, verified_tier, avatar_media_id IS NOT NULL AS has_avatar, birth_date::text AS b, is_private, geleira_visibility FROM identity.users WHERE id = $1`,
         [userId],
       )
     ).rows[0];
@@ -154,6 +155,7 @@ export class InvitesService implements OnModuleInit, OnModuleDestroy {
       displayName: (u?.display_name as string) ?? '',
       username: (u?.username as string) ?? '',
       hasAvatar: !!u?.has_avatar,
+      ...badge(u?.verified, u?.verified_tier),
       adult,
       geleiraPublic: !!u && !u.is_private && u.geleira_visibility === 'everyone',
       items: items.map((i) => ({ name: i.name, kind: i.kind, category: i.category, alcoholic: i.alcoholic, favorite: i.favorite })),
@@ -166,11 +168,11 @@ export class InvitesService implements OnModuleInit, OnModuleDestroy {
     if (code.length < 4) return null;
     const r = (
       await this.pool.query(
-        `SELECT u.id, u.username, u.display_name, u.avatar_media_id IS NOT NULL AS has_avatar FROM social.invite_codes c JOIN identity.users u ON u.id = c.user_id AND u.status = 'active' WHERE c.code = $1 AND c.active`,
+        `SELECT u.id, u.username, u.display_name, u.verified, u.verified_tier, u.avatar_media_id IS NOT NULL AS has_avatar FROM social.invite_codes c JOIN identity.users u ON u.id = c.user_id AND u.status = 'active' WHERE c.code = $1 AND c.active`,
         [code],
       )
     ).rows[0];
-    return r ? { code, id: r.id as string, username: r.username as string, displayName: r.display_name as string, hasAvatar: !!r.has_avatar } : null;
+    return r ? { code, id: r.id as string, username: r.username as string, displayName: r.display_name as string, hasAvatar: !!r.has_avatar, ...badge(r.verified, r.verified_tier) } : null;
   }
 
   /** Itens públicos da geleira para quem não tem conta: nunca álcool (não se sabe a idade de quem abre). */
@@ -185,7 +187,7 @@ export class InvitesService implements OnModuleInit, OnModuleDestroy {
   async preview(raw: string) {
     const o = await this.ownerOf(raw);
     if (!o) throw new NotFoundException('Convite não encontrado');
-    return { username: o.username, displayName: o.displayName, hasAvatar: o.hasAvatar, items: await this.publicItems(o.id, 4), reward: INVITE.REWARD, phrase: PHRASES[phraseIndexOf(o.code)] };
+    return { username: o.username, displayName: o.displayName, hasAvatar: o.hasAvatar, verified: o.verified, verifiedTier: o.verifiedTier, items: await this.publicItems(o.id, 4), reward: INVITE.REWARD, phrase: PHRASES[phraseIndexOf(o.code)] };
   }
 
   /**
