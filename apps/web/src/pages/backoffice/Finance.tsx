@@ -5,16 +5,18 @@ import type { FinLedgerFilter } from './ui/fin-api';
 import { LedgerPanel } from './ui/fin-ledger';
 import { FinOverviewPanel } from './ui/fin-overview';
 import { PurchasesPanel } from './ui/fin-purchases';
+import { StorePurchasesPanel } from './ui/fin-store';
 import { TxDialog } from './ui/fin-tx';
 import { PeriodPicker, Tabs } from './ui/fin-ui';
 import { VenueWalletsPanel } from './ui/fin-venues';
 
-type Tab = 'resumo' | 'movimentos' | 'locais' | 'compras';
+type Tab = 'resumo' | 'movimentos' | 'locais' | 'compras' | 'loja';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'resumo', label: 'Resumo' },
   { id: 'movimentos', label: 'Movimentos' },
   { id: 'locais', label: 'Carteiras dos locais' },
   { id: 'compras', label: 'Compras de Txills' },
+  { id: 'loja', label: 'Compras na loja' },
 ];
 const PERIODS = [7, 30, 90];
 
@@ -34,14 +36,15 @@ export default function Finance() {
 
   return (
     <>
-      <PageHeader title="Finanças" description="Txills em circulação, movimentos, carteiras dos locais e compras de Txills. Só leitura."
-        actions={tab !== 'movimentos' ? <PeriodPicker value={days} onChange={(d) => update({ days: String(d) })} options={PERIODS} /> : undefined} />
+      <PageHeader title="Finanças" description="Txills em circulação, movimentos, carteiras dos locais, compras de Txills e compras na loja (verificação paga e Bombar). Só leitura."
+        actions={tab !== 'movimentos' && tab !== 'loja' ? <PeriodPicker value={days} onChange={(d) => update({ days: String(d) })} options={PERIODS} /> : undefined} />
       <Tabs value={tab} onChange={(t) => update({ tab: t === 'resumo' ? '' : t })} items={TABS} />
       {tab === 'resumo' && <FinOverviewPanel days={days} onAccount={(account) => goLedger({ account })} onType={(type) => goLedger({ type })} />}
       {/* key: os filtros do endereço (vindos de um alerta ou de um local) entram no formulário. */}
       {tab === 'movimentos' && <LedgerPanel key={JSON.stringify(filter)} filter={filter} onFilter={(f) => update({ ...f })} />}
       {tab === 'locais' && <VenueWalletsPanel days={days} onAccount={(account) => goLedger({ account })} />}
       {tab === 'compras' && <PurchasesPanel days={days} onTx={setTx} />}
+      {tab === 'loja' && <StorePurchasesPanel />}
       {tx && <TxDialog id={tx} onClose={() => setTx(null)} />}
     </>
   );

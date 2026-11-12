@@ -13,7 +13,12 @@ type AuthedReq = Request & { userId?: string };
 const createSchema = z.object({
   target: z.object({ kind: z.enum(['event', 'post']), id: z.string().uuid() }),
   package: z.enum(BOOST_PACKAGE_IDS),
-  radiusKm: z.number().int().min(BOOST_RADIUS.min).max(BOOST_RADIUS.max),
+  /** Obrigatório com Txills; nas compras pela loja (`source: 'iap'`) não conta: o raio é o fixo do pacote. */
+  radiusKm: z.number().int().min(BOOST_RADIUS.min).max(BOOST_RADIUS.max).optional(),
+  /** 'iap': a campanha fica em rascunho até a compra na App Store ou no Google Play ser verificada (POST /iap/…/verify). */
+  source: z.enum(['txills', 'iap']).optional(),
+  /** Com 'iap': o id do produto da loja (tem de ser o deste pacote, ex.: txillapp.bombar.3d). */
+  pack: z.string().trim().min(1).max(150).optional(),
   startsAt: z.iso.datetime({ offset: true }).optional(),
   /** Preparado para os meticais; por agora só 'txills' está ligado (os outros dão 422). */
   payment: z.enum(BOOST_PAYMENT_IDS).optional(),
@@ -34,6 +39,8 @@ function idemKey(body?: string, header?: string): string {
  * - GET  /boosts/venue/:slug/options  -> pacotes, preços por raio, pagamentos, saldo, eventos e publicações que se podem bombar.
  * - GET  /boosts/venue/:slug          -> { balance, active: Campaign[], past: Campaign[] } com o relatório (só totais).
  * - POST /boosts/venue/:slug          { target: { kind, id }, package, radiusKm, startsAt?, payment?, idempotencyKey } -> 201 { campaign, balance, replayed }
+ *   Com `source: 'iap'` (compra pela loja): sem radiusKm (é o fixo do pacote) e com a chave opcional; a campanha fica em
+ *   `state: 'draft'` (não aparece a ninguém) até a compra ser verificada em POST /iap/apple/verify ou /iap/google/verify.
  * - POST /boosts/:id/stop             -> { campaign, refunded }
  * - POST /boosts/:id/tap              { surface: 'feed' | 'map' } -> 204 (quem vê tocou no destaque)
  * - POST /boosts/:id/hide             -> 204 (quem vê não quer mais destaques deste local)
@@ -57,7 +64,9 @@ export class BoostsController {
   @Post('venue/:slug')
   @Throttle({ default: { limit: 20, ttl: 3_600_000 } })
   create(@Req() req: AuthedReq, @Param('slug') slug: string, @Body(new ZodPipe(createSchema)) b: z.infer<typeof createSchema>, @Headers('idempotency-key') key?: string) {
-    return this.boosts.create(req.userId!, slug, b, idemKey(b.idempotencyKey, key));
+    if (b.source === 'iap') return this.boosts.createIapDraft(req.userId!, slug, b, b.idempotencyKey ?? key ?? null);
+    if (b.radiusKm === undefined) throw new BadRequestException('Falta o raio (radiusKm)');
+    return this.boosts.create(req.userId!, slug, { ...b, radiusKm: b.radiusKm }, idemKey(b.idempotencyKey, key));
   }
 
   @Post(':id/stop')

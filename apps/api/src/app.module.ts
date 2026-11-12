@@ -45,6 +45,7 @@ import { SuperTxillModule } from './supertxill/supertxill.module';
 import { PaymentsModule } from './payments/payments.module';
 import { BoostsModule } from './boosts/boosts.module';
 import { FinModule } from './backoffice/fin.module';
+import { IapModule } from './iap/iap.module';
 
 @Module({})
 export class AppModule {
@@ -74,6 +75,7 @@ export class AppModule {
         PaymentsModule,
         BoostsModule,
         FinModule,
+        IapModule,
         MediaModule,
         PushModule,
         NotificationsModule,

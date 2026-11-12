@@ -117,6 +117,19 @@ export class ExportService {
         `SELECT id, package_id AS "packageId", txills, amount_minor AS "amountMinor", currency, provider, status, phone_tail AS "phoneTail", created_at AS "createdAt", paid_at AS "paidAt"
            FROM payments.orders WHERE user_id = $1 ORDER BY created_at`,
       ).catch(() => []),
+      // Compras pela loja (App Store / Google Play): a verificação paga e o Bombar, com cada compra, renovação e reembolso.
+      storePurchases: await q(
+        `SELECT ip.store, ip.product_id AS "productId", ip.kind, ip.status, ip.environment, ip.transaction_id AS "transactionId",
+                ip.original_transaction_id AS "originalTransactionId", ip.order_id AS "orderId", ip.expires_at AS "expiresAt", ip.auto_renew AS "autoRenew",
+                ip.campaign_id AS "campaignId", ip.created_at AS "createdAt", ip.updated_at AS "updatedAt",
+                coalesce((SELECT json_agg(json_build_object('type', e.type, 'amountMinor', e.amount_minor, 'currency', e.currency, 'at', e.created_at) ORDER BY e.created_at)
+                            FROM payments.iap_events e WHERE e.purchase_id = ip.id AND e.transaction_ref IS NOT NULL), '[]') AS events
+           FROM payments.iap_purchases ip WHERE ip.user_id = $1 ORDER BY ip.created_at`,
+      ).catch(() => []),
+      paidVerification: (await q(
+        `SELECT eligible_at AS "eligibleAt", applied, previous_verified AS "previousVerified", previous_tier AS "previousTier", applied_at AS "appliedAt"
+           FROM payments.paid_verification WHERE user_id = $1`,
+      ).catch(() => []))[0] ?? null,
       // TxillGroups: as minhas respostas ao plano, votos, tarefas da lista, despesas que paguei ou em que tenho parte, e o que meti nos cofres.
       groupRsvps: await q(
         `SELECT g.name AS "group", r.status, r.updated_at AS "updatedAt" FROM social.group_rsvps r JOIN social.groups g ON g.id = r.group_id WHERE r.user_id = $1 ORDER BY r.updated_at`,

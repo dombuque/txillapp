@@ -435,8 +435,10 @@ export interface VerificationStatus {
   eligible: boolean;
   verified: boolean;
   tier: 'verified' | 'official' | 'paid' | null;
-  request: { id: string; kind: string; status: 'pending' | 'approved' | 'rejected' | 'withdrawn'; reason: string | null; createdAt: string } | null;
+  request: { id: string; kind: string; status: 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'paid_eligible'; reason: string | null; createdAt: string } | null;
   retryAfter: string | null;
+  /** Aprovado pela equipa para a verificação paga (pode subscrever na loja). */
+  paidEligible?: boolean;
 }
 export type DocType = 'id_card' | 'passport' | 'driver_licence' | 'residence' | 'other';
 export interface VerificationItem {
@@ -823,7 +825,7 @@ export const api = {
   verificationRequest: (b: { kind: 'person' | 'business'; fullName: string; proof: string; docType: DocType; docMediaId: string; docBackMediaId?: string; faceMediaId: string; selfieMediaId: string }): Promise<void> => raw('/verification/request', post(b)),
   verificationWithdraw: (): Promise<void> => raw('/verification/request', { method: 'DELETE' }),
   adminVerifications: (): Promise<VerificationItem[]> => raw('/admin/verifications'),
-  verificationDecide: (id: string, action: 'approve' | 'reject', reason?: string, tier?: 'verified' | 'official' | 'paid'): Promise<void> => raw(`/admin/verifications/${id}/decide`, post({ action, reason, tier })),
+  verificationDecide: (id: string, action: 'approve' | 'reject' | 'approve_paid', reason?: string, tier?: 'verified' | 'official' | 'paid'): Promise<void> => raw(`/admin/verifications/${id}/decide`, post({ action, reason, tier })),
   adminResolve: (type: ReportType, id: string, action: 'dismiss' | 'remove' | 'suspend', note?: string): Promise<void> => raw('/admin/reports/resolve', post({ type, id, action, note })),
   boOverview: (): Promise<Record<string, number>> => raw('/admin/overview'),
   boMe: (): Promise<BoMe> => raw('/admin/me'),

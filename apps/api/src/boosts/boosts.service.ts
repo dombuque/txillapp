@@ -1,5 +1,7 @@
-import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { Pool } from 'pg';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
+import { Pool, PoolClient } from 'pg';
+import { AppConfig, CONFIG } from '../config';
+import { IAP_DRAFT_HOURS, iapBoostRadius, iapProducts } from '../iap/iap-config';
 import { uuidv7 } from '../common/uuid7';
 import { PG_POOL } from '../db/db.module';
 import { eventEnd } from '../nearby/events.service';
@@ -73,6 +75,7 @@ export class BoostsService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly wallet: WalletService,
+    @Inject(CONFIG) private readonly cfg: AppConfig,
   ) {}
 
   /* ───────────── local: opções, criar, ver, parar ───────────── */
@@ -149,29 +152,9 @@ export class BoostsService {
     if (!pkg) throw new BadRequestException('Pacote inválido');
     const radius = Math.round(b.radiusKm);
     if (!Number.isFinite(radius) || radius < BOOST_RADIUS.min || radius > BOOST_RADIUS.max) throw new BadRequestException(`O raio vai de ${BOOST_RADIUS.min} a ${BOOST_RADIUS.max} km`);
-
-    const now = Date.now();
-    const asked = b.startsAt ? new Date(b.startsAt) : new Date(now);
-    if (Number.isNaN(asked.getTime())) throw new BadRequestException('Data de início inválida');
-    if (asked.getTime() < now - 10 * 60_000) throw new BadRequestException('O início não pode ser no passado');
-    if (asked.getTime() > now + MAX_START_DAYS_AHEAD * DAY_MS) throw new BadRequestException(`Só dá para agendar até ${MAX_START_DAYS_AHEAD} dias à frente`);
-    const startsAt = new Date(Math.max(asked.getTime(), now));
-    const endsAt = new Date(startsAt.getTime() + pkg.days * DAY_MS);
-
-    if (!UUID.test(b.target.id)) throw new NotFoundException(b.target.kind === 'event' ? 'Evento não encontrado' : 'Publicação não encontrada');
-    if (b.target.kind === 'event') {
-      const e = (await this.pool.query(`SELECT e.id, e.cancelled_at, ${eventEnd('e')} AS ends FROM content.venue_events e WHERE e.id = $1 AND e.venue_id = $2`, [b.target.id, v.id])).rows[0];
-      if (!e) throw new NotFoundException('Evento não encontrado neste local');
-      if (e.cancelled_at) throw new UnprocessableEntityException('Este evento foi cancelado');
-      const ends = new Date(e.ends as string).getTime();
-      if (ends <= now || startsAt.getTime() >= ends) throw new UnprocessableEntityException('Este evento já terá acabado quando a campanha começar');
-      if (endsAt.getTime() > ends + EVENT_GRACE_HOURS * 3_600_000) throw new UnprocessableEntityException('O evento acaba antes da campanha: escolhe um pacote mais curto.');
-    } else {
-      const p = (await this.pool.query(`SELECT 1 FROM content.posts p WHERE p.id = $1 AND p.venue_id = $2 AND p.removed_at IS NULL AND p.kind = 'post'`, [b.target.id, v.id])).rowCount;
-      if (!p) throw new NotFoundException('Publicação do local não encontrada');
-    }
-
+    const { startsAt, endsAt } = await this.schedule(v.id, b, pkg.days);
     const price = boostPrice(pkg, radius);
+
     const account = await this.wallet.ensureVenueWallet(v.id);
     const idem = `boost:${v.id}:${key}`;
     const c = await this.pool.connect();
@@ -222,6 +205,135 @@ export class BoostsService {
     return { campaign: await this.campaign(id), balance, replayed };
   }
 
+  /** O início e o fim da campanha, e se o alvo (evento ou publicação do local) ainda serve para essas datas. */
+  private async schedule(venueId: string, b: { target: { kind: 'event' | 'post'; id: string }; startsAt?: string }, days: number) {
+    const now = Date.now();
+    const asked = b.startsAt ? new Date(b.startsAt) : new Date(now);
+    if (Number.isNaN(asked.getTime())) throw new BadRequestException('Data de início inválida');
+    if (asked.getTime() < now - 10 * 60_000) throw new BadRequestException('O início não pode ser no passado');
+    if (asked.getTime() > now + MAX_START_DAYS_AHEAD * DAY_MS) throw new BadRequestException(`Só dá para agendar até ${MAX_START_DAYS_AHEAD} dias à frente`);
+    const startsAt = new Date(Math.max(asked.getTime(), now));
+    const endsAt = new Date(startsAt.getTime() + days * DAY_MS);
+
+    if (!UUID.test(b.target.id)) throw new NotFoundException(b.target.kind === 'event' ? 'Evento não encontrado' : 'Publicação não encontrada');
+    if (b.target.kind === 'event') {
+      const e = (await this.pool.query(`SELECT e.id, e.cancelled_at, ${eventEnd('e')} AS ends FROM content.venue_events e WHERE e.id = $1 AND e.venue_id = $2`, [b.target.id, venueId])).rows[0];
+      if (!e) throw new NotFoundException('Evento não encontrado neste local');
+      if (e.cancelled_at) throw new UnprocessableEntityException('Este evento foi cancelado');
+      const ends = new Date(e.ends as string).getTime();
+      if (ends <= now || startsAt.getTime() >= ends) throw new UnprocessableEntityException('Este evento já terá acabado quando a campanha começar');
+      if (endsAt.getTime() > ends + EVENT_GRACE_HOURS * 3_600_000) throw new UnprocessableEntityException('O evento acaba antes da campanha: escolhe um pacote mais curto.');
+    } else {
+      const p = (await this.pool.query(`SELECT 1 FROM content.posts p WHERE p.id = $1 AND p.venue_id = $2 AND p.removed_at IS NULL AND p.kind = 'post'`, [b.target.id, venueId])).rowCount;
+      if (!p) throw new NotFoundException('Publicação do local não encontrada');
+    }
+    return { startsAt, endsAt };
+  }
+
+  /* ───────────── Bombar pago na loja (App Store / Google Play) ───────────── */
+
+  /**
+   * Compra pela loja, passo 1: a campanha fica em rascunho ('draft'), sem custar Txills e sem aparecer a ninguém. O raio
+   * é o fixo do pacote (IAP_BOOST_RADIUS_KM). Com a mesma chave, devolve o mesmo rascunho.
+   * Passo 2: a app compra o produto do pacote na loja e manda a compra a POST /iap/…/verify com o `campaignId`.
+   * Só com as compras pela loja ligadas (IAP_ENABLED). `pack`, se vier, tem de ser o produto da loja deste pacote. Os
+   * rascunhos por pagar apagam-se passadas IAP_DRAFT_HOURS (24 h) e nunca aparecem no feed nem no mapa.
+   */
+  async createIapDraft(userId: string, slug: string, b: Omit<BoostCreateInput, 'radiusKm' | 'payment'> & { pack?: string }, key: string | null) {
+    if (!this.cfg.IAP_ENABLED) throw new ServiceUnavailableException('As compras pela loja não estão disponíveis');
+    const v = await this.managed(userId, slug);
+    const why = this.blocker(v);
+    if (why) throw new UnprocessableEntityException(why);
+    const pkg = boostPackage(b.package);
+    if (!pkg) throw new BadRequestException('Pacote inválido');
+    if (b.pack !== undefined && iapProducts(this.cfg).boost.find((p) => p.package === pkg.id)?.id !== b.pack) throw new UnprocessableEntityException('O produto da loja não é o deste pacote');
+    if (key !== null && (key.length < 8 || key.length > 100)) throw new BadRequestException('A chave de idempotência tem 8 a 100 caracteres');
+    await this.expireIapDrafts();
+    const radius = iapBoostRadius(this.cfg)[pkg.id];
+    if (key) {
+      const dup = (await this.pool.query(`SELECT id FROM content.boost_campaigns WHERE venue_id = $1 AND created_by = $2 AND draft_key = $3`, [v.id, userId, key])).rows[0];
+      if (dup) return { campaign: await this.campaign(dup.id as string), balance: Number(v.balance ?? 0), replayed: true };
+    }
+    const { startsAt, endsAt } = await this.schedule(v.id, b, pkg.days);
+    const id = uuidv7();
+    const target = { kind: b.target.kind, id: b.target.id };
+    const ins = await this.pool.query(
+      `INSERT INTO content.boost_campaigns (id, venue_id, target_kind, event_id, post_id, package, days, radius_km, starts_at, ends_at, payment, price, status, review, created_by, draft_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'iap', 0, 'draft', 'auto', $11, $12)
+       ON CONFLICT (venue_id, created_by, draft_key) WHERE draft_key IS NOT NULL DO NOTHING RETURNING id`,
+      [id, v.id, target.kind, target.kind === 'event' ? target.id : null, target.kind === 'post' ? target.id : null, pkg.id, pkg.days, radius, startsAt, endsAt, userId, key],
+    );
+    if (!ins.rowCount) {
+      const won = (await this.pool.query(`SELECT id FROM content.boost_campaigns WHERE venue_id = $1 AND created_by = $2 AND draft_key = $3`, [v.id, userId, key])).rows[0];
+      return { campaign: await this.campaign(won.id as string), balance: Number(v.balance ?? 0), replayed: true };
+    }
+    await this.pool.query('INSERT INTO audit.audit_log (id, actor_id, action, target, metadata) VALUES ($1, $2, $3, $4, $5)', [
+      uuidv7(), userId, 'boost.draft_created', `boost:${id}`, { venueId: v.id, slug: v.slug, target, package: pkg.id, radiusKm: radius, payment: 'iap' },
+    ]);
+    return { campaign: await this.campaign(id), balance: Number(v.balance ?? 0), replayed: false };
+  }
+
+  /**
+   * Compra pela loja, verificada: liga a campanha em rascunho e ativa-a já (começa agora, ou na data agendada se ainda
+   * não passou). Corre na transação de quem regista a compra. Só o dono ou um administrador do local, e só um rascunho
+   * do mesmo pacote que se comprou.
+   */
+  async activateIap(c: PoolClient, campaignId: string, userId: string, pkg: BoostPackageId, purchase: { id: string; store: string; productId: string }) {
+    if (!UUID.test(campaignId)) throw new NotFoundException('Campanha não encontrada');
+    const r = (await c.query('SELECT * FROM content.boost_campaigns WHERE id = $1 FOR UPDATE', [campaignId])).rows[0];
+    if (!r) throw new NotFoundException('Campanha não encontrada');
+    const role = (await c.query(
+      `SELECT CASE WHEN v.owner_id = $2 THEN 'owner' ELSE (SELECT m.role FROM content.venue_managers m WHERE m.venue_id = v.id AND m.user_id = $2 AND m.status = 'active') END AS role
+         FROM content.venues v WHERE v.id = $1`,
+      [r.venue_id, userId],
+    )).rows[0]?.role as string | undefined;
+    if (role !== 'owner' && role !== 'admin') throw new ForbiddenException('Só o dono e os administradores podem bombar este local');
+    if (r.status !== 'draft' || r.payment !== 'iap') throw new ConflictException('Esta campanha já não está à espera de pagamento');
+    if (r.package !== pkg) throw new UnprocessableEntityException('O pacote comprado não é o desta campanha');
+    const now = Date.now();
+    const starts = new Date(Math.max(now, new Date(r.starts_at as string).getTime()));
+    const ends = new Date(starts.getTime() + Number(r.days) * DAY_MS);
+    await c.query(`UPDATE content.boost_campaigns SET status = 'active', starts_at = $2, ends_at = $3, draft_key = NULL WHERE id = $1`, [campaignId, starts, ends]);
+    await c.query('INSERT INTO audit.audit_log (id, actor_id, action, target, metadata) VALUES ($1, $2, $3, $4, $5)', [
+      uuidv7(), userId, 'boost.created', `boost:${campaignId}`,
+      { venueId: r.venue_id, package: pkg, radiusKm: Number(r.radius_km), price: 0, payment: 'iap', store: purchase.store, productId: purchase.productId, purchaseId: purchase.id, review: 'auto', startsAt: starts.toISOString(), endsAt: ends.toISOString() },
+    ]);
+  }
+
+  /** A compra da campanha foi reembolsada (ou revogada) na loja: a campanha é suspensa (sem Txills a devolver: não os gastou). */
+  async suspendIap(c: PoolClient, campaignId: string, reason: 'refunded' | 'revoked') {
+    const r = (await c.query(
+      `UPDATE content.boost_campaigns SET status = 'suspended', stopped_at = now(), status_note = $2
+        WHERE id = $1 AND payment = 'iap' AND status IN ('draft', 'pending', 'active') RETURNING venue_id`,
+      [campaignId, reason === 'refunded' ? 'Compra reembolsada na loja' : 'Compra revogada na loja'],
+    )).rows[0];
+    if (!r) return false;
+    await c.query('INSERT INTO audit.audit_log (id, actor_id, action, target, metadata) VALUES ($1, $2, $3, $4, $5)', [
+      uuidv7(), null, 'boost.iap_suspended', `boost:${campaignId}`, { venueId: r.venue_id, reason },
+    ]);
+    return true;
+  }
+
+  /** Apaga os rascunhos por pagar com mais de IAP_DRAFT_HOURS (nenhuma compra lhes ficou ligada). Devolve quantos. */
+  async expireIapDrafts(): Promise<number> {
+    const r = await this.pool.query(
+      `DELETE FROM content.boost_campaigns c WHERE c.status = 'draft' AND c.payment = 'iap' AND c.created_at < now() - make_interval(hours => $1)
+          AND NOT EXISTS (SELECT 1 FROM payments.iap_purchases ip WHERE ip.campaign_id = c.id)`,
+      [IAP_DRAFT_HOURS],
+    );
+    return r.rowCount ?? 0;
+  }
+
+  /** A campanha existe (para saber se um rascunho já expirou)? */
+  async campaignExists(id: string) {
+    return UUID.test(id) && !!(await this.pool.query('SELECT 1 FROM content.boost_campaigns WHERE id = $1', [id])).rowCount;
+  }
+
+  /** O estado de uma campanha, para a resposta das compras. */
+  async campaignState(id: string) {
+    return (await this.campaign(id)).state;
+  }
+
   /** As campanhas do local, com o relatório de cada uma: as ativas (e agendadas) e as passadas. */
   async list(userId: string, slug: string) {
     const v = await this.managed(userId, slug);
@@ -262,7 +374,8 @@ export class BoostsService {
       if (r.status !== 'active' && r.status !== 'pending') throw new ConflictException('Esta campanha já não está a decorrer');
       const now = new Date();
       if (now.getTime() >= new Date(r.ends_at as string).getTime()) throw new ConflictException('Esta campanha já terminou');
-      amount = refund ? boostRefund({ price: Number(r.price), days: Number(r.days), startsAt: new Date(r.starts_at as string), endsAt: new Date(r.ends_at as string) }, now) : 0;
+      // Pago na loja: não há Txills a devolver (o reembolso, se houver, é da loja).
+      amount = refund && r.payment !== 'iap' ? boostRefund({ price: Number(r.price), days: Number(r.days), startsAt: new Date(r.starts_at as string), endsAt: new Date(r.ends_at as string) }, now) : 0;
       let refundTx: string | null = null;
       if (amount > 0) {
         const account = (await c.query('SELECT id FROM ledger.accounts WHERE venue_id = $1 FOR UPDATE', [r.venue_id])).rows[0]?.id as string | undefined;
@@ -295,7 +408,7 @@ export class BoostsService {
   /** Para a equipa: as campanhas a decorrer (ou todas), as mais recentes primeiro. */
   async adminList(filter: 'live' | 'all') {
     const { rows } = await this.pool.query(
-      `${this.CAMPAIGN_SELECT} WHERE ($1 = 'all' OR (c.status IN ('active', 'pending') AND c.ends_at > now())) ORDER BY c.created_at DESC LIMIT 200`,
+      `${this.CAMPAIGN_SELECT} WHERE ($1 = 'all' AND c.status <> 'draft' OR (c.status IN ('active', 'pending') AND c.ends_at > now())) ORDER BY c.created_at DESC LIMIT 200`,
       [filter],
     );
     return rows.map((r) => ({ ...this.dto(r), venue: { slug: r.venue_slug as string, name: r.venue_name as string } }));
@@ -310,7 +423,8 @@ export class BoostsService {
   async reinstate(actorId: string, id: string) {
     const r = await this.pool.query(
       `UPDATE content.boost_campaigns SET status = 'active', stopped_at = NULL, stopped_by = NULL, status_note = NULL
-        WHERE id = $1 AND status = 'suspended' AND refunded = 0 AND ends_at > now() RETURNING venue_id`,
+        WHERE id = $1 AND status = 'suspended' AND refunded = 0 AND ends_at > now()
+          AND NOT EXISTS (SELECT 1 FROM payments.iap_purchases ip WHERE ip.campaign_id = $1 AND ip.status IN ('refunded', 'revoked')) RETURNING venue_id`,
       [id],
     );
     if (!r.rowCount) throw new ConflictException('Só se repõe uma campanha suspensa, sem devolução e que ainda não acabou');
@@ -489,12 +603,13 @@ export class BoostsService {
       r.status === 'stopped' ? 'stopped'
         : r.status === 'suspended' ? 'suspended'
           : r.status === 'pending' ? 'pending'
+            : r.status === 'draft' ? 'draft'
             : now < starts.getTime() ? 'scheduled'
               : now >= ends.getTime() ? 'ended' : 'active';
     return {
       id: r.id as string,
-      /** 'scheduled' (ainda não começou), 'active', 'ended', 'stopped' (parada pelo local), 'suspended' (pela equipa), 'pending'. */
-      state: state as 'scheduled' | 'active' | 'ended' | 'stopped' | 'suspended' | 'pending',
+      /** 'scheduled' (ainda não começou), 'active', 'ended', 'stopped' (parada pelo local), 'suspended' (pela equipa), 'pending', 'draft' (à espera da compra na loja). */
+      state: state as 'scheduled' | 'active' | 'ended' | 'stopped' | 'suspended' | 'pending' | 'draft',
       target: r.target_kind === 'event'
         ? { kind: 'event' as const, id: r.event_id as string, title: (r.event_title as string | null) ?? 'Evento' }
         : { kind: 'post' as const, id: r.post_id as string, code: (r.post_code as string | null) ?? null, title: ((r.post_body as string | null) || 'Publicação do local') },
@@ -504,7 +619,7 @@ export class BoostsService {
       startsAt: starts.toISOString(),
       endsAt: ends.toISOString(),
       stoppedAt: r.stopped_at ? new Date(r.stopped_at as string).toISOString() : null,
-      payment: r.payment as BoostPayment,
+      payment: r.payment as BoostPayment | 'iap',
       price: Number(r.price),
       refunded: Number(r.refunded),
       review: r.review as 'auto' | 'staff',

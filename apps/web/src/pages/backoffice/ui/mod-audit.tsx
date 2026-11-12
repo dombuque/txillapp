@@ -18,7 +18,11 @@ export const ACTION_LABEL: Record<string, string> = {
   'moderation.batch': 'Decidiu queixas em lote', 'moderation.content_remove': 'Removeu conteúdo', 'moderation.content_restore': 'Repôs conteúdo', 'moderation.view_media': 'Abriu uma foto assinalada',
   'moderation.venue_approved': 'Aprovou um local', 'moderation.venue_rejected': 'Recusou um local', 'moderation.venue_verified': 'Verificou um local', 'moderation.venue_unverified': 'Tirou a verificação de um local',
   'moderation.boost_suspended': 'Suspendeu um Bombar', 'moderation.boost_reinstated': 'Repôs um Bombar',
-  'boost.created': 'Criou um Bombar', 'boost.stopped': 'Parou um Bombar',
+  'boost.created': 'Criou um Bombar', 'boost.stopped': 'Parou um Bombar', 'boost.draft_created': 'Criou um Bombar por pagar (loja)', 'boost.iap_suspended': 'Bombar suspenso (compra reembolsada)',
+  'verification.approve_paid': 'Aprovou a identidade para a verificação paga',
+  'iap.purchase': 'Compra na loja', 'iap.renewal': 'Renovação na loja', 'iap.purchase_recorded': 'Compra na loja registada', 'iap.status_changed': 'Compra na loja mudou de estado',
+  'iap.refunded': 'Compra na loja reembolsada', 'iap.revoked': 'Compra na loja revogada', 'iap.boost_linked': 'Compra na loja ligada a um Bombar', 'iap.wrong_user': 'Compra de outra conta recusada',
+  'iap.verification_applied': 'Selo pago aplicado', 'iap.verification_removed': 'Selo pago retirado', 'iap.restore': 'Restaurou compras', 'iap.notification': 'Aviso da loja (só registo)',
   'catalog.approve': 'Aprovou um item da Geleira', 'catalog.reject': 'Rejeitou um item da Geleira', 'catalog.edit': 'Editou um item da Geleira', 'catalog.create': 'Criou um item da Geleira',
 };
 export const actionLabel = (a: string) => ACTION_LABEL[a] ?? a;
@@ -32,9 +36,10 @@ export const GROUPS: { prefix: string; label: string }[] = [
   { prefix: 'auth.', label: 'Entradas e senhas' },
   { prefix: 'account.', label: 'Contas (utilizador)' },
   { prefix: 'boost.', label: 'Bombar' },
+  { prefix: 'iap.', label: 'Compras na loja' },
 ];
 
-const TARGET_KIND: Record<string, string> = { user: 'Conta', post: 'Publicação', comment: 'Comentário', story: 'Mimo', message: 'Mensagem', media: 'Foto', venue: 'Local', taste_item: 'Item da Geleira', reports: 'Queixas', staff: 'Equipa', audit: 'Auditoria' };
+const TARGET_KIND: Record<string, string> = { user: 'Conta', post: 'Publicação', comment: 'Comentário', story: 'Mimo', message: 'Mensagem', media: 'Foto', venue: 'Local', taste_item: 'Item da Geleira', reports: 'Queixas', staff: 'Equipa', audit: 'Auditoria', iap: 'Compra na loja' };
 
 /** «Publicação 01a1…» ou «Conta @ana». */
 export function targetText(r: AuditRow): string {
