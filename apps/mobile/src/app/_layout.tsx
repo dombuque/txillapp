@@ -19,6 +19,7 @@ import { isStandaloneWeb } from '@/components/Landing';
 import { useDesktop } from '@/lib/desktop';
 import { installWebAlert } from '@/lib/alertHost';
 import { installWebBack } from '@/lib/webBack';
+import { installDeskScroll } from '@/lib/deskScroll';
 import { accounts } from '@/lib/accounts';
 import { syncPush } from '@/lib/push';
 import { installCallRing } from '@/lib/callRing';
@@ -108,6 +109,8 @@ function Gate() {
   useEffect(() => {
     if (!loading) void SplashScreen.hideAsync();
   }, [loading]);
+  // Computador (rato): a roda rola o ecrã também por cima das margens e da barra lateral, e a barra de deslocamento vê-se.
+  useEffect(() => (Platform.OS === 'web' ? installDeskScroll() : undefined), []);
 
   useEffect(() => {
     if (loading || offline) return;
@@ -196,7 +199,7 @@ function Gate() {
     </Stack>
   );
   return (
-    <View style={shell ? styles.desk : styles.column}>
+    <View style={shell ? styles.desk : styles.column} nativeID={shell ? undefined : 'tx-main'}>
       <ChatLive />
       <AnalyticsLive userId={user?.id ?? null} ready />
       <AppUpdate />
