@@ -39,3 +39,10 @@ test('as duas conversas usam o ChatScreen e a margem sem teclado na barra de esc
   assert.match(screen, /<KeyboardAvoidingView style=\{style\} behavior="padding">/);
   assert.match(screen, /position: 'absolute', left: 0, right: 0, top: vv\.top, height: vv\.height/);
 });
+
+test('imagem colada: a legenda só ganha o cursor sozinha no computador (no iPhone o teclado tapava o Enviar)', () => {
+  const s = read('src/components/PastedImageSheet.tsx');
+  assert.match(s, /const FOCUS_CAPTION = Platform\.OS === 'web' && typeof window !== 'undefined' && !!window\.matchMedia\?\.\('\(pointer: fine\)'\)\.matches;/);
+  assert.match(s, /autoFocus=\{FOCUS_CAPTION\}/);
+  assert.doesNotMatch(s, /\n\s+autoFocus\n/);
+});

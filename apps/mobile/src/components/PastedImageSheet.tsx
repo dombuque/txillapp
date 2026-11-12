@@ -1,8 +1,14 @@
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 import { Sheet } from './Sheet';
+
+/**
+ * A legenda só ganha o cursor sozinha no computador (rato). No iPhone o teclado abria logo por cima da folha e tapava
+ * o Cancelar e o Enviar (o Safari não sobe a folha): lá, toca-se na legenda para escrever.
+ */
+const FOCUS_CAPTION = Platform.OS === 'web' && typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: fine)').matches;
 
 /**
  * A imagem colada ou arrastada para a caixa de mensagem (site), antes de ir: a pré-visualização com "Cancelar" e
@@ -33,7 +39,7 @@ export function PastedImageSheet({ uri, caption, once, onCancel, onSend }: {
           placeholderTextColor={colors.zinc500}
           maxLength={2000}
           multiline
-          autoFocus
+          autoFocus={FOCUS_CAPTION}
           blurOnSubmit
           onSubmitEditing={send}
           style={st.caption}
