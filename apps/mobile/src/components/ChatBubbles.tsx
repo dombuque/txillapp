@@ -28,6 +28,7 @@ import { canSwipeReply } from '@/lib/replySwipe';
 import { liveShareEnded } from '@/lib/sendLocation';
 import { colors } from '@/lib/theme';
 import { chatSegments, type ChatSeg } from '@/lib/chatLinks';
+import { storyHref } from '@/lib/storyLink';
 
 /**
  * O texto das bolhas só é selecionável no computador (rato). No telemóvel (app e site) segurar a bolha abre o menu da
@@ -663,7 +664,7 @@ export function Bubble({
           uri={sized(m.storyUrl, 320) ?? null}
           mine={mine}
           label="Ver o mimo"
-          onPress={() => { const o = mine ? peerHandle : meHandle; if (o) router.push(`/stories/${o}` as never); }}
+          onPress={() => { const o = mine ? peerHandle : meHandle; if (o) router.push(storyHref(o, m.storyUrl) as never); }}
         />
       ) : null}
       <View style={[st.row, { justifyContent: mine ? 'flex-end' : 'flex-start' }]} onLayout={swipe ? (e) => place({ y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height }) : undefined}>

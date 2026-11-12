@@ -26,6 +26,7 @@ import { saveToGallery } from '@/lib/saveToGallery';
 import { StickerLayer } from '@/components/Stickers';
 import { isGone } from '@/lib/postCache';
 import { storyPaused } from '@/lib/storyPlayback';
+import { startIndex } from '@/lib/storyLink';
 
 /** Quanto tempo fica à vista um mimo de foto (os de vídeo duram o vídeo, até 30 s). */
 const IMAGE_MS = 30_000;
@@ -102,7 +103,7 @@ function StoryMusic({ track, paused }: { track: NonNullable<Story['music']>; pau
 
 /** Ver os stories de uma pessoa: barras, toca à direita/esquerda, segura para pausar, arrasta para baixo para sair e para cima para responder (ou ver a atividade, nos teus). */
 export default function StoryViewer() {
-  const { username = '' } = useLocalSearchParams<{ username: string }>();
+  const { username = '', m: wantedMedia } = useLocalSearchParams<{ username: string; m?: string }>();
   const router = useRouter();
   const qc = useQueryClient();
   const { user: me } = useAuth();
@@ -209,7 +210,8 @@ export default function StoryViewer() {
     if (!q.data || started.current === username) return;
     started.current = username;
     // Os meus: o `seen` vem do servidor (guardado na conta, vale em todos os aparelhos), reforçado pelo que este aparelho guardou.
-    setI(firstToWatch(stories, mine, ownSeen));
+    // Vindo de uma resposta no chat (`?m=`): abre nesse mimo, se ainda existir.
+    setI(startIndex(stories, wantedMedia, firstToWatch(stories, mine, ownSeen)));
     setReady(true);
   }, [q.isSuccess, q.isFetching, username]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
