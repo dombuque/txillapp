@@ -1,36 +1,33 @@
 import type { Track } from './api.music';
+import type { Sound as ApiSound } from './api.sounds';
 
 /**
- * Um «som» do Txillapp (contrato comum com a equipa dos sons: `GET /sounds/:id`): o áudio original de uma tcheka, uma
- * faixa do catálogo ou de um artista de Moçambique. `/som/[id]` é a página dele; `/tcheka/nova?som=<id>` abre o estúdio com ele.
+ * Um «som» do Txillapp como o estúdio o usa: o contrato é o de `GET /sounds/:id` (lib/api.sounds.ts, docs/sons.md), o áudio
+ * original de uma tcheka, uma faixa do catálogo ou de um artista de Moçambique. `/som/[id]` é a página dele;
+ * `/tcheka/nova?som=<id>` abre o estúdio com ele. `bpm` é opcional (o servidor ainda não o manda; sem ele, 120 BPM).
  */
-export interface Sound {
-  id: string;
-  kind: 'original' | 'catalog' | 'local';
-  title: string;
-  author?: string | null;
-  cover?: string | null;
-  durationMs?: number | null;
-  previewUrl: string;
-  uses?: number;
+export type Sound = Pick<ApiSound, 'id' | 'kind' | 'title'> & Partial<Pick<ApiSound, 'author' | 'artist' | 'cover' | 'durationMs' | 'uses'>> & {
+  previewUrl: string | null;
   /** Nos sons do catálogo e dos artistas: a faixa (para o post levar a música como sempre). */
   music?: Track | null;
   /** Andamento, se a faixa o tiver (no nativo, a montagem ao ritmo usa-o; sem ele, 120 BPM). */
   bpm?: number | null;
-}
+};
 
 /**
  * O som como faixa para o estúdio e para o seletor: toca do `previewUrl`. Um som original vai como `kind: 'sound'`
- * (o estúdio começa com o som original dos vídeos calado, como para dobrar).
+ * (o estúdio começa com o som original dos vídeos calado, como para dobrar). Nunca segue para o servidor como música:
+ * `soundForPost` manda só o `soundId`.
  */
 export function soundTrack(s: Sound): Track & { bpm?: number } {
   const base = s.music ?? null;
+  const credit = s.kind === 'original' ? s.author?.displayName : s.artist || s.author?.displayName;
   return {
     ...(base ?? {}),
     kind: base?.kind ?? (s.kind === 'original' ? 'sound' : 'music'),
     id: base?.id ?? `sound:${s.id}`,
     title: s.title || base?.title || 'Som original',
-    artist: s.author ?? base?.artist ?? '',
+    artist: credit ?? base?.artist ?? '',
     url: s.previewUrl || base?.url || '',
     landing: base?.landing ?? null,
     license: base?.license ?? '',

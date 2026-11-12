@@ -30,9 +30,10 @@ import { TchekaStudio } from '@/components/TchekaStudio';
 import { PhotoViewer } from '@/components/PhotoViewer';
 import { composeApi, type PhotoTag } from '@/lib/api.compose';
 import { type Track } from '@/lib/api.music';
-import { api, raw } from '@/lib/api';
+import { api } from '@/lib/api';
 import { abs } from '@/lib/config';
 import { soundForPost, soundTrack, type Sound } from '@/lib/soundTrack';
+import { soundsApi } from '@/lib/api.sounds';
 import { checkTcheka, finalMs } from '@/lib/tchekaRules';
 import { clearDraft, listDrafts, loadDraft, newDraftKey, saveDraft, type DraftItem } from '@/lib/drafts';
 import { useAuth } from '@/lib/auth';
@@ -216,7 +217,7 @@ export default function Compose() {
   useEffect(() => {
     if (kindParam === 'tcheka' || somParam || duetoParam) { setKindSel('tcheka'); setStep('choose'); }
     if (somParam) {
-      void (raw(`/sounds/${encodeURIComponent(String(somParam))}`) as Promise<Sound>).then((s) => { setSound(s); setMusic(soundTrack(s)); }).catch(() => setErr('Não consegui abrir este som'));
+      void soundsApi.get(String(somParam)).then((s) => { setSound(s); setMusic(soundTrack(s)); }).catch(() => setErr('Não consegui abrir este som'));
     }
     if (duetoParam) {
       void api.getPost(String(duetoParam)).then((p) => { const v = p.media.find((m) => m.kind === 'video'); if (v) setDuet({ uri: abs(v.url) ?? v.url }); }).catch(() => undefined);

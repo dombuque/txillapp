@@ -171,9 +171,10 @@ test('corte dos clipes e tempo do texto', () => {
 
 test('som de outra tcheka: vira a faixa do estúdio e a publicação leva o soundId', async () => {
   const s = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'soundTrack.ts')).href);
-  const original = { id: 'abc', kind: 'original', title: 'Som original · @ana', author: 'ana', cover: null, durationMs: 12000, previewUrl: '/api/v1/sounds/abc/audio', uses: 4 };
+  const original = { id: 'abc', kind: 'original', title: 'Som original · @ana', author: { username: 'ana', displayName: 'Ana', verified: false }, mine: false, canUse: true, cover: null, durationMs: 12000, previewUrl: '/api/v1/sounds/abc/audio', uses: 4 };
   const t = s.soundTrack(original);
   assert.equal(t.url, '/api/v1/sounds/abc/audio');
+  assert.equal(t.artist, 'Ana', 'o crédito é o nome do autor (author vem como objeto de GET /sounds/:id)');
   assert.equal(t.kind, 'sound', 'um som original começa com o som dos vídeos calado no estúdio');
   assert.deepEqual(s.soundForPost(original, t), { soundId: 'abc', music: null }, 'um som original não é uma faixa: só vai o soundId');
   const other = { id: 'x', title: 'Outra', artist: '', url: '/o.mp3', landing: null, license: '', licenseUrl: null, durationMs: null, cover: null };
@@ -203,7 +204,7 @@ test('ligação: estúdio, câmara, criar e /tcheka/nova', () => {
   assert.match(cam, /musicRateWhileRecording\(/, 'o som acompanha a velocidade');
   assert.match(cam, /recordRef\.current\(\)/, 'o temporizador começa a gravar');
   const nw = read('app', '(tabs)', 'new.tsx');
-  assert.match(nw, /\/sounds\/\$\{/, 'o som vem de GET /sounds/:id');
+  assert.match(nw, /soundsApi\.get\(/, 'o som vem de GET /sounds/:id (lib/api.sounds.ts)');
   assert.match(nw, /soundForPost\(sound, music\)/, 'a publicação leva o soundId');
   assert.match(nw, /segmented=\{kindSel === 'tcheka'/, 'a câmara grava por clipes num tcheka');
   assert.match(nw, /tchekaRules/, 'no telemóvel (sem estúdio) as regras ficam no Publicar');
