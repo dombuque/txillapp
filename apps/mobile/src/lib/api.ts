@@ -4,6 +4,7 @@ import { accounts } from './accounts';
 import { kvGet, kvSet } from './kv';
 import { Platform } from 'react-native';
 import { SITE_URL } from './config';
+import { friendlyFetchError } from './netError';
 import { track, trackOk, trackThrottled } from './analytics';
 import type { SponsoredSlot } from './api.boosts';
 
@@ -377,11 +378,16 @@ function deviceHeaders(): Record<string, string> {
 const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'X-Requested-With': 'txillapp', 'X-Client': isWeb ? 'txillapp-web' : 'txillapp-mobile', ...deviceHeaders() };
 
 async function call(path: string, init: RequestInit = {}, auth = true): Promise<Response> {
-  return fetch(`${SITE_URL}/api/v1${path}`, {
-    ...(isWeb ? { credentials: 'include' as const } : {}),
-    ...init,
-    headers: { ...baseHeaders, ...(isWeb && webAccountId ? { 'X-Account': webAccountId } : {}), ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(init.headers as Record<string, string> | undefined) },
-  });
+  try {
+    return await fetch(`${SITE_URL}/api/v1${path}`, {
+      ...(isWeb ? { credentials: 'include' as const } : {}),
+      ...init,
+      headers: { ...baseHeaders, ...(isWeb && webAccountId ? { 'X-Account': webAccountId } : {}), ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(init.headers as Record<string, string> | undefined) },
+    });
+  } catch (e) {
+    // Sem rede o fetch lança "Failed to fetch" / "Load failed" (em inglês), que ia parar ao ecrã (ex.: no login): passa a português.
+    throw friendlyFetchError(e);
+  }
 }
 
 async function parse(res: Response) {
