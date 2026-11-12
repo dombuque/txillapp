@@ -25,6 +25,7 @@ import { slotsByAnchor } from '@/lib/boostView';
 import { useAuth } from '@/lib/auth';
 import { useDesktop } from '@/lib/desktop';
 import { trackSeen } from '@/lib/seen';
+import { navTap } from '@/lib/tapGuard';
 import { onPostsViewable } from '@/lib/visiblePosts';
 import { isSnoozed, shouldShowSuggestions } from '@/lib/suggestPacing';
 import { cardShadow, colors } from '@/lib/theme';
@@ -36,7 +37,7 @@ function Header() {
   const count = unread.data?.count ?? 0;
   return (
     <View style={styles.header}>
-      <Pressable onPress={() => router.push('/notifications')} style={[styles.hBtn, { left: 12 }]} accessibilityRole="button" accessibilityLabel={count > 0 ? `Notificações (${count} por ler)` : 'Notificações'}>
+      <Pressable onPress={() => { if (navTap('/notifications')) router.push('/notifications'); }} style={[styles.hBtn, { left: 12 }]} accessibilityRole="button" accessibilityLabel={count > 0 ? `Notificações (${count} por ler)` : 'Notificações'}>
         <View>
           <Icon name="bell" size={26} />
           {count > 0 && (
@@ -47,7 +48,7 @@ function Header() {
         </View>
       </Pressable>
       <Wordmark height={32} />
-      <Pressable onPress={() => router.push('/search')} style={[styles.hBtn, { right: 12 }]} accessibilityRole="button" accessibilityLabel="Pesquisar">
+      <Pressable onPress={() => { if (navTap('/search')) router.push('/search'); }} style={[styles.hBtn, { right: 12 }]} accessibilityRole="button" accessibilityLabel="Pesquisar">
         <Icon name="search" size={26} />
       </Pressable>
     </View>

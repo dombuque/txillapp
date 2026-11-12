@@ -57,3 +57,12 @@ test('a página da tcheka fecha uma vez só', () => {
   assert.match(src, /const closing = useRef\(createOnce\(\)\)\.current;/);
   assert.match(src, /const close = \(\) => \{ closing\.run\(/);
 });
+
+test('a bandeja dos mimos e o topo do Início também passam pelo guarda', () => {
+  const tray = read('components', 'StoriesTray.tsx');
+  assert.match(tray, /if \(navTap\(`\/stories\/\$\{u\}`\)\) router\.push/);
+  assert.match(tray, /if \(navTap\('\/stories\/new'\)\) router\.push/);
+  const home = read('app', '(tabs)', 'index.tsx');
+  assert.match(home, /if \(navTap\('\/notifications'\)\) router\.push\('\/notifications'\)/);
+  assert.match(home, /if \(navTap\('\/search'\)\) router\.push\('\/search'\)/);
+});
