@@ -618,7 +618,8 @@ export const api = {
     await refreshStore.save(r);
     return r;
   },
-  authConfig: (): Promise<{ googleClientId: string | null }> => raw('/auth/config'),
+  /** `appleEnabled`: o servidor tem o Iniciar sessão com a Apple configurado (APPLE_CLIENT_ID). Servidores antigos não mandam. */
+  authConfig: (): Promise<{ googleClientId: string | null; appleEnabled?: boolean }> => raw('/auth/config'),
   /** Devolve a sessão, ou `needsUsername` para contas novas (a pessoa escolhe o @ a seguir). */
   async googleLogin(idToken: string): Promise<AuthResult | GoogleNeedsUsername> {
     const r = (await parse(await call('/auth/google', post({ idToken }), false))) as AuthResult | GoogleNeedsUsername;
@@ -629,6 +630,23 @@ export const api = {
   },
   async googleComplete(signupToken: string, username: string, gender: string, birthDate: string): Promise<AuthResult> {
     const r = (await parse(await call('/auth/google/complete', post({ signupToken, username, gender, birthDate, acceptTerms: true }), false))) as AuthResult;
+    accessToken = r.accessToken;
+    await refreshStore.save(r);
+    return r;
+  },
+  /**
+   * Iniciar sessão com a Apple (o botão ainda não está na app: falta o expo-apple-authentication e a conta Apple, ver
+   * docs/lojas/app-store.md). `fullName` só vem da Apple na primeira vez. Conta nova: devolve `needsUsername`, como a Google.
+   */
+  async appleLogin(identityToken: string, nonce?: string, fullName?: string): Promise<AuthResult | GoogleNeedsUsername> {
+    const r = (await parse(await call('/auth/apple', post({ identityToken, nonce, fullName }), false))) as AuthResult | GoogleNeedsUsername;
+    if ('needsUsername' in r) return r;
+    accessToken = r.accessToken;
+    await refreshStore.save(r);
+    return r;
+  },
+  async appleComplete(signupToken: string, username: string, gender: string, birthDate: string): Promise<AuthResult> {
+    const r = (await parse(await call('/auth/apple/complete', post({ signupToken, username, gender, birthDate }), false))) as AuthResult;
     accessToken = r.accessToken;
     await refreshStore.save(r);
     return r;

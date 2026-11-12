@@ -1,5 +1,7 @@
 # Txillapp na App Store: dossiê de submissão
 
+> **Revisão técnica atual e checklist:** ver [lojas/app-store.md](lojas/app-store.md) (12 nov. 2026). Este dossiê fica para a ficha, as etiquetas e os textos; a parte da «app nativa (Capacitor)» está ultrapassada: a app é Expo/React Native.
+
 Rascunho de trabalho, feito a partir das App Review Guidelines (verificar a versão em vigor no dia da submissão). Estado a 3 de novembro de 2026.
 
 ## 1. Estado resumido

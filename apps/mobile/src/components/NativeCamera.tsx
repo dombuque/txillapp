@@ -795,7 +795,7 @@ export function NativeCamera({
   const rot = { transform: [{ rotate: rotAnim.interpolate({ inputRange: [-360, 360], outputRange: ['-360deg', '360deg'] }) }] };
 
   if (!perm.hasPermission) {
-    const pv = permissionView(perm.status, refused);
+    const pv = permissionView(perm.status, refused, PLATFORM);
     return (
       <View style={[st.root, st.center, { paddingHorizontal: 32 }]}>
         <Pressable onPress={onClose} style={[st.round, { position: 'absolute', top: insets.top + 10, left: 12 }]} accessibilityRole="button" accessibilityLabel="Fechar câmara"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
