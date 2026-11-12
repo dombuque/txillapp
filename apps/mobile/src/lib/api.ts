@@ -10,7 +10,11 @@ import { track, trackOk, trackThrottled } from './analytics';
 import type { SponsoredSlot } from './api.boosts';
 
 /** Resposta de entrada: a app nativa recebe também o token de renovação (guardado no cofre do telemóvel, nunca em texto simples). */
-export interface PublicUser { id: string; username: string; displayName: string }
+export interface PublicUser {
+  id: string; username: string; displayName: string;
+  /** Conta com o selo de verificado (e qual: o azul ou o da conta oficial). Respostas antigas não o trazem. */
+  verified?: boolean; verifiedTier?: 'verified' | 'official' | null;
+}
 export interface AuthResult { accessToken: string; /** Só na app nativa; na web vai no cookie. */ refreshToken?: string; user: PublicUser }
 
 export interface PostMedia { url: string; kind?: 'image' | 'video'; posterUrl?: string; width?: number | null; height?: number | null; durationMs?: number | null; tags?: { username: string }[] }

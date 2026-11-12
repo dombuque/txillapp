@@ -74,6 +74,9 @@ export interface PublicUser {
   id: string;
   username: string;
   displayName: string;
+  /** Conta com o selo de verificado e qual (azul ou o da conta oficial): a app grava-o na assinatura das fotos. */
+  verified?: boolean;
+  verifiedTier?: 'verified' | 'official' | null;
 }
 
 export interface AuthResponse {

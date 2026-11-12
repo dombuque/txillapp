@@ -8,7 +8,10 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { useAuth } from '@/lib/auth';
 import { POST_RATIO_DEFAULT, POST_RATIO_MAX } from '@/lib/postAspect';
 import { colors } from '@/lib/theme';
-import { WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, signLayout } from '@/lib/wordmark';
+import {
+  SEAL_BLUE, SEAL_CHECK, SEAL_CHECK_WIDTH, SEAL_OFFICIAL, SEAL_PATH, WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, sealOf, signLayout,
+  type SealTier,
+} from '@/lib/wordmark';
 import { Icon } from './Icon';
 
 /**
@@ -172,7 +175,7 @@ function shrink(img: SkImage): SkImage {
 const PREVIEW_SIDE = 1600;
 
 /** Desenha a foto editada num retângulo W×H (pré-visualização ou foto final), com a assinatura. */
-function drawEdit(canvas: SkCanvas, img: SkImage, e: Edit, W: number, H: number, font: SkFont | null, username?: string | null) {
+function drawEdit(canvas: SkCanvas, img: SkImage, e: Edit, W: number, H: number, font: SkFont | null, username?: string | null, seal?: SealTier | null) {
   const { cw, ch, cx, cy } = cropOf(img, e);
   const w0 = img.width(), h0 = img.height();
   const m = matrixOf(e);
@@ -211,16 +214,22 @@ function drawEdit(canvas: SkCanvas, img: SkImage, e: Edit, W: number, H: number,
     vg.setShader(Skia.Shader.MakeRadialGradient({ x: 0, y: 0 }, 1, [Skia.Color('rgba(0,0,0,0)'), Skia.Color(`rgba(0,0,0,${(0.8 * e.adj.v).toFixed(3)})`)], [0.45, 1], TileMode.Clamp, lm));
     canvas.drawRect(Skia.XYWHRect(0, 0, W, H), vg);
   }
-  drawSign(canvas, W, H, font, username);
+  drawSign(canvas, W, H, font, username, seal);
 }
 
 /** Logótipo em caminhos Skia (feito uma vez). */
 let markPaths: ReturnType<typeof Skia.Path.MakeFromSVGString>[] | null = null;
 const marks = () => (markPaths ??= WORDMARK_PATHS.map((d) => Skia.Path.MakeFromSVGString(d)));
+/** O selo de verificado em caminhos Skia (o mesmo desenho do VerifiedBadge, na caixa de 24). */
+let sealPaths: { seal: ReturnType<typeof Skia.Path.MakeFromSVGString>; check: ReturnType<typeof Skia.Path.MakeFromSVGString> } | null = null;
+const sealMarks = () => (sealPaths ??= { seal: Skia.Path.MakeFromSVGString(SEAL_PATH), check: Skia.Path.MakeFromSVGString(SEAL_CHECK) });
 
-/** A assinatura (igual à do site): o logótipo em branco com o ponto do i a coral e sombra suave, e por baixo o @. */
-function drawSign(canvas: SkCanvas, W: number, H: number, font: SkFont | null, username?: string | null) {
-  const L = signLayout(W, H, !!username && !!font);
+/**
+ * A assinatura (igual à do site): o logótipo em branco com o ponto do i a coral e sombra suave, e por baixo o @.
+ * Conta verificada (`seal`): o selo a seguir ao @, com a mesma sombra.
+ */
+function drawSign(canvas: SkCanvas, W: number, H: number, font: SkFont | null, username?: string | null, seal?: SealTier | null) {
+  const L = signLayout(W, H, !!username && !!font, seal);
   const shadow = Skia.ImageFilter.MakeDropShadow(0, L.s * 2, L.blur / 2, L.blur / 2, Skia.Color('rgba(0,0,0,0.45)'), null);
   const stroke = Skia.Paint();
   stroke.setStyle(PaintStyle.Stroke);
@@ -245,7 +254,35 @@ function drawSign(canvas: SkCanvas, W: number, H: number, font: SkFont | null, u
     p.setColor(Skia.Color('rgba(255,255,255,0.92)'));
     p.setAntiAlias(true);
     p.setImageFilter(Skia.ImageFilter.MakeDropShadow(0, 1, L.blur / 2, L.blur / 2, Skia.Color('rgba(0,0,0,0.5)'), null));
-    canvas.drawText(t, L.right - font.getTextWidth(t), L.userBaseline, p, font);
+    canvas.drawText(t, L.textRight - font.getTextWidth(t), L.userBaseline, p, font);
+  }
+  const { seal: sp, check } = L.seal ? sealMarks() : { seal: null, check: null };
+  if (L.seal && sp && check) {
+    // O selo na caixa de 24 (escala k): a roseta com a sombra do @ (desfeita a escala, para ficar igual à do texto) e,
+    // por cima, o visto branco sem sombra.
+    const b = L.seal;
+    canvas.save();
+    canvas.translate(b.x, b.y);
+    canvas.scale(b.k, b.k);
+    const fill = Skia.Paint();
+    fill.setAntiAlias(true);
+    if (b.tier === 'official') {
+      const o = SEAL_OFFICIAL;
+      fill.setShader(Skia.Shader.MakeLinearGradient({ x: o.x0, y: o.y0 }, { x: o.x1, y: o.y1 }, [Skia.Color(o.from), Skia.Color(o.to)], [0, 1], TileMode.Clamp));
+    } else {
+      fill.setColor(Skia.Color(SEAL_BLUE));
+    }
+    fill.setImageFilter(Skia.ImageFilter.MakeDropShadow(0, 1 / b.k, L.blur / 2 / b.k, L.blur / 2 / b.k, Skia.Color('rgba(0,0,0,0.5)'), null));
+    canvas.drawPath(sp, fill);
+    const tick = Skia.Paint();
+    tick.setStyle(PaintStyle.Stroke);
+    tick.setStrokeWidth(SEAL_CHECK_WIDTH);
+    tick.setStrokeCap(StrokeCap.Round);
+    tick.setStrokeJoin(StrokeJoin.Round);
+    tick.setColor(Skia.Color('#ffffff'));
+    tick.setAntiAlias(true);
+    canvas.drawPath(check, tick);
+    canvas.restore();
   }
 }
 
@@ -349,7 +386,9 @@ function ToolSlider({ kind, value, def, label, onChange }: { kind: 'both' | 'up'
 
 export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; aspect: number; onCancel: () => void; onDone: (fileUri: string) => void }) {
   const insets = useSafeAreaInsets();
-  const username = useAuth().user?.username ?? null;
+  const { user } = useAuth();
+  const username = user?.username ?? null;
+  const seal = sealOf(user);
   /** Publicação: quem abre o editor pede 4:5 (mimo e tcheka pedem 9:16). */
   const isPost = Math.abs(aspect - POST_RATIO_DEFAULT) < 0.01;
   const [img, setImg] = useState<SkImage | null>(null);
@@ -410,9 +449,9 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
     if (!pv || !pw) return null;
     const rec = Skia.PictureRecorder();
     const c = rec.beginRecording(Skia.XYWHRect(0, 0, pw, ph));
-    drawEdit(c, pv, edit, pw, ph, previewFont, username);
+    drawEdit(c, pv, edit, pw, ph, previewFont, username, seal);
     return rec.finishRecordingAsPicture();
-  }, [pv, edit, pw, ph, previewFont, username]);
+  }, [pv, edit, pw, ph, previewFont, username, seal]);
 
   // Arrastar a foto para escolher o enquadramento (quando o recorte é mais pequeno do que a foto).
   const drag = useRef<{ ox: number; oy: number } | null>(null);
@@ -481,7 +520,7 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
     const surface = Skia.Surface.MakeOffscreen(outW, outH) ?? Skia.Surface.Make(outW, outH);
     if (!surface) return null;
     try {
-      drawEdit(surface.getCanvas(), img, edit, outW, outH, signFont(Math.round(Math.min(outW, outH) * 0.028)), username);
+      drawEdit(surface.getCanvas(), img, edit, outW, outH, signFont(Math.round(Math.min(outW, outH) * 0.028)), username, seal);
       surface.flush();
       const snap = surface.makeImageSnapshot();
       const bytes = snap.encodeToBytes(ImageFormat.JPEG, 92);

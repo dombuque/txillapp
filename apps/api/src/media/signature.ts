@@ -22,7 +22,21 @@ const PATHS = [
 ];
 const DOT = { cx: 42, cy: 3.5, r: 4.2 };
 
-function layout(W: number, H: number, withUser: boolean) {
+/**
+ * O selo de verificado (o desenho do VerifiedBadge da app, numa caixa de 24×24): a roseta azul, ou coral em degradê na
+ * conta oficial do Txillapp, e o visto branco por cima.
+ */
+export type SealTier = 'verified' | 'official';
+export const SEAL_PATH =
+  'M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91c-1.31.67-2.2 1.91-2.2 3.34s.89 2.67 2.2 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91c1.31-.67 2.19-1.91 2.19-3.34z';
+const SEAL_CHECK = 'm8 12.4 2.8 2.8L16.4 9.4';
+const SEAL_BLUE = '#1d9bf0';
+const SEAL_OFFICIAL = ['#ff6b81', '#d6334f'] as const;
+/** Como na app: 1,05 vezes a letra do @, a uma folga de 0,15 da letra, com o meio a 0,36 da letra acima da linha de base. */
+const SEAL_SCALE = 1.05, SEAL_GAP = 0.15, SEAL_LIFT = 0.36;
+
+/** A conta da posição (igual à `signLayout` de apps/mobile/src/lib/wordmark.ts, comparadas nos testes). */
+export function signLayout(W: number, H: number, withUser: boolean, seal?: SealTier | null) {
   const base = Math.min(W, H);
   const m = Math.round(base * 0.04);
   const ww = base * 0.2;
@@ -32,7 +46,12 @@ function layout(W: number, H: number, withUser: boolean) {
   const right = W - m;
   const userBaseline = H - m;
   const markBottom = withUser ? userBaseline - userSize * 1.25 : H - m;
-  return { s, x: right - ww, y: markBottom - wh, right, userSize, userBaseline, blur: Math.max(2, s * 5) };
+  const size = userSize * SEAL_SCALE;
+  const badge = withUser && seal
+    ? { tier: seal, size, k: size / 24, x: right - size, y: userBaseline - userSize * SEAL_LIFT - size / 2 }
+    : null;
+  const textRight = badge ? right - size - userSize * SEAL_GAP : right;
+  return { s, x: right - ww, y: markBottom - wh, right, userSize, userBaseline, textRight, seal: badge, blur: Math.max(2, s * 5) };
 }
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -43,42 +62,53 @@ export type Overlay = (W: number, H: number) => string;
 /**
  * SVG transparente do tamanho da imagem, com o que vai por cima (stickers) e a assinatura. Com `withSign` a false só leva
  * o que vai por cima: o ficheiro já vem assinado da câmara da app e uma segunda assinatura (com outra letra e outra sombra
- * no @) ficava por cima da primeira, desfocada, como se estivesse a dobrar.
+ * no @) ficava por cima da primeira, desfocada, como se estivesse a dobrar. Com `seal` (conta verificada) o selo vai a
+ * seguir ao @, com a mesma sombra.
  */
-export function signatureSvg(W: number, H: number, username?: string | null, extra = '', withSign = true): string {
+export function signatureSvg(W: number, H: number, username?: string | null, extra = '', withSign = true, seal?: SealTier | null): string {
   const head = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
   if (!withSign) return `${head}\n${extra}\n</svg>`;
-  const L = layout(W, H, !!username);
+  const L = signLayout(W, H, !!username, seal);
   const d = PATHS.map((p) => `<path d="${p}"/>`).join('');
   const mark = (stroke: string, fill: string, extra = '') =>
     `<g ${extra} transform="translate(${L.x - BOX.x * L.s} ${L.y - BOX.y * L.s}) scale(${L.s})" fill="none" stroke="${stroke}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">${d}<circle cx="${DOT.cx}" cy="${DOT.cy}" r="${DOT.r}" fill="${fill}" stroke="none"/></g>`;
   // O @: uma sombra desfocada por baixo e o texto nítido por cima.
-  const text = (fill: string, extra: string) => `<text ${extra} x="${L.right}" y="${L.userBaseline}" text-anchor="end" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-weight="700" font-size="${L.userSize}" fill="${fill}">@${esc(username ?? '')}</text>`;
+  const text = (fill: string, extra: string) => `<text ${extra} x="${L.textRight}" y="${L.userBaseline}" text-anchor="end" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-weight="700" font-size="${L.userSize}" fill="${fill}">@${esc(username ?? '')}</text>`;
   const user = username ? `${text('#000000', 'filter="url(#sh)" opacity="0.5" transform="translate(0 1)"')}${text('#ffffff', 'fill-opacity="0.92"')}` : '';
+  // O selo: a sombra da roseta (como a do @), a roseta e, por cima, o visto branco.
+  const b = L.seal;
+  const at = b ? `transform="translate(${b.x.toFixed(2)} ${b.y.toFixed(2)}) scale(${b.k.toFixed(4)})"` : '';
+  const badge = b
+    ? `<g filter="url(#sh)" opacity="0.5" transform="translate(0 1)"><path ${at} fill="#000000" d="${SEAL_PATH}"/></g>
+<g ${at}><path fill="${b.tier === 'official' ? 'url(#seal-off)' : SEAL_BLUE}" d="${SEAL_PATH}"/><path fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="${SEAL_CHECK}"/></g>`
+    : '';
+  const grad = b?.tier === 'official'
+    ? `<linearGradient id="seal-off" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${SEAL_OFFICIAL[0]}"/><stop offset="1" stop-color="${SEAL_OFFICIAL[1]}"/></linearGradient>`
+    : '';
   return `${head}
-<defs><filter id="sh" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="${(L.blur / 2).toFixed(2)}"/></filter></defs>
+<defs><filter id="sh" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="${(L.blur / 2).toFixed(2)}"/></filter>${grad}</defs>
 ${extra}
 <g filter="url(#sh)" transform="translate(0 ${(L.s * 2).toFixed(2)})" opacity="0.45">${mark('#000000', '#000000')}</g>
 ${mark('#ffffff', '#ff5c6c')}
-${user}
+${user}${badge}
 </svg>`;
 }
 
 /** Foto com a assinatura (JPEG). Respeita a rotação guardada na foto. `withSign` a false: só o que vai por cima (stickers). */
-export async function signImage(bytes: Buffer, username?: string | null, overlay?: Overlay, withSign = true): Promise<Buffer> {
+export async function signImage(bytes: Buffer, username?: string | null, overlay?: Overlay, withSign = true, seal?: SealTier | null): Promise<Buffer> {
   const base = sharp(bytes).rotate();
   const meta = await base.metadata();
   const W = meta.width ?? 1080, H = meta.height ?? 1080;
   const extra = overlay?.(W, H) ?? '';
   if (!withSign && !extra) return base.jpeg({ quality: 92 }).toBuffer();
   return base
-    .composite([{ input: Buffer.from(signatureSvg(W, H, username, extra, withSign)), top: 0, left: 0 }])
+    .composite([{ input: Buffer.from(signatureSvg(W, H, username, extra, withSign, seal)), top: 0, left: 0 }])
     .jpeg({ quality: 92 })
     .toBuffer();
 }
 
 /** Vídeo com a assinatura sobreposta (MP4, mesmo som). `withSign` a false: só o que vai por cima; sem nada, sai como está. */
-export async function signVideo(bytes: Buffer, username?: string | null, overlay?: Overlay, withSign = true): Promise<Buffer> {
+export async function signVideo(bytes: Buffer, username?: string | null, overlay?: Overlay, withSign = true, seal?: SealTier | null): Promise<Buffer> {
   const dir = await mkdtemp(join(tmpdir(), 'txsign-'));
   try {
     const src = join(dir, 'in.mp4'), png = join(dir, 'sign.png'), out = join(dir, 'out.mp4');
@@ -88,7 +118,7 @@ export async function signVideo(bytes: Buffer, username?: string | null, overlay
     const W = st?.width ?? 1080, H = st?.height ?? 1920;
     const extra = overlay?.(W, H) ?? '';
     if (!withSign && !extra) return bytes;
-    await sharp(Buffer.from(signatureSvg(W, H, username, extra, withSign))).png().toFile(png);
+    await sharp(Buffer.from(signatureSvg(W, H, username, extra, withSign, seal))).png().toFile(png);
     await run(FFMPEG, ['-y', '-i', src, '-i', png, '-filter_complex', '[0:v][1:v]overlay=0:0:format=auto', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-movflags', '+faststart', out], { timeout: 4 * 60_000, maxBuffer: 10 * 1024 * 1024 });
     return await readFile(out);
   } finally {
