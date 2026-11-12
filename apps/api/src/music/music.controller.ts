@@ -34,10 +34,11 @@ export class MusicController {
     return this.catalog.style(req.userId!, id);
   }
 
-  /** «Artistas de Moçambique» (a fonte local); vazio enquanto ela não existir. */
+  /** «Artistas de Moçambique» (a fonte local); vazio enquanto ela não existir. Filtros: estilo, texto (título ou artista) e @ do artista. */
   @Get('local')
-  local(@Req() req: AuthedReq, @Query('style') style?: string) {
-    return this.catalog.local(req.userId!, isStyle(style) ? style : undefined);
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  local(@Req() req: AuthedReq, @Query('style') style?: string, @Query('q') q?: string, @Query('artist') artist?: string) {
+    return this.catalog.local(req.userId!, isStyle(style) ? style : undefined, { q: typeof q === 'string' ? q.slice(0, 60) : undefined, artist: typeof artist === 'string' ? artist.replace(/^@/, '').slice(0, 40) : undefined });
   }
 
   @Get('sounds')

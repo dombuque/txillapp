@@ -3,7 +3,10 @@ import { AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-nati
 import { Icon } from '@/components/Icon';
 import { licenseLabel } from '@/lib/musicCatalog';
 import { Sheet } from '@/components/Sheet';
+import { LocalTrackLine, RightsReportSheet } from '@/components/LocalArtists';
 import type { Track } from '@/lib/api.music';
+import { artistHref, isLocalTrack } from '@/lib/artists';
+import { useRouter } from 'expo-router';
 import { playTrack, stopTrack, useMusicMuted } from '@/lib/musicPlayer';
 import { colors } from '@/lib/theme';
 
@@ -21,6 +24,9 @@ export function TrackCard({ track, autoplay = false, visible = false, playNow = 
   const [muted, toggleMute] = useMusicMuted();
   const [info, setInfo] = useState(false);
   const playing = useRef(false);
+  const router = useRouter();
+  const local = isLocalTrack(track);
+  const artistTo = artistHref(track);
 
   async function play() {
     const ok = await playTrack(me.current, track.url, { loop: true, onStop: () => { playing.current = false; setOn(false); } });
@@ -54,8 +60,18 @@ export function TrackCard({ track, autoplay = false, visible = false, playNow = 
         <Icon name="music" size={20} color="#fff" />
       </View>
       <Pressable onPress={() => track.kind !== 'clip' && setInfo(true)} style={s.text} accessibilityRole="button" accessibilityLabel="Créditos da música">
-        <Text style={s.title} numberOfLines={1}>{track.title}</Text>
-        <Text style={s.sub} numberOfLines={1}>{track.kind === 'clip' ? 'Áudio original' : track.artist || 'Autor desconhecido'}</Text>
+        {local ? (
+          // Programa de artistas: «♪ Título · Artista», com o nome a levar ao perfil do artista.
+          <>
+            <LocalTrackLine track={track} style={s.title} linkStyle={{ color: colors.brand }} onArtist={artistTo ? () => router.push(artistTo as never) : undefined} />
+            <Text style={s.sub} numberOfLines={1}>Artistas de Moçambique</Text>
+          </>
+        ) : (
+          <>
+            <Text style={s.title} numberOfLines={1}>{track.title}</Text>
+            <Text style={s.sub} numberOfLines={1}>{track.kind === 'clip' ? 'Áudio original' : track.artist || 'Autor desconhecido'}</Text>
+          </>
+        )}
       </Pressable>
       {autoplay && (
         <Pressable onPress={toggleMute} style={({ pressed }) => [s.mute, pressed && s.pressed]} accessibilityRole="button" accessibilityState={{ selected: muted }} accessibilityLabel={muted ? 'Ativar o som' : 'Silenciar'}>
@@ -74,6 +90,24 @@ const safeHref = (u: string | null | undefined) => (u && /^https:\/\//i.test(u) 
 export function TrackCredits({ track, onClose }: { track: Track; onClose: () => void }) {
   const lic = safeHref(track.licenseUrl);
   const land = safeHref(track.landing);
+  const router = useRouter();
+  const [report, setReport] = useState(false);
+  if (isLocalTrack(track)) {
+    // Faixa do programa de artistas: a licença é a do Txillapp, com a ligação ao perfil e a denúncia de direitos de autor.
+    const to = artistHref(track);
+    if (report) return <RightsReportSheet track={track} onClose={onClose} />;
+    return (
+      <Sheet title="Créditos da música" onClose={onClose}>
+        <View style={{ paddingHorizontal: 24 }}>
+          <Text style={s.cTitle}>{track.title}</Text>
+          <Text style={s.cArtist}>{track.artist}</Text>
+          <Text style={s.cLine}>Artistas de Moçambique · Licença de uso de música no Txillapp (o artista autorizou o uso em mimos e tchekas).</Text>
+          {to ? <Text style={[s.cLine, { marginTop: 8 }]}><Text style={s.link} onPress={() => { onClose(); router.push(to as never); }}>Ver o perfil do artista</Text></Text> : null}
+          <Text style={[s.cLine, { marginTop: 8 }]}><Text style={s.link} onPress={() => setReport(true)}>Denunciar por direitos de autor</Text></Text>
+        </View>
+      </Sheet>
+    );
+  }
   return (
     <Sheet title="Créditos da música" onClose={onClose}>
       <View style={{ paddingHorizontal: 24 }}>

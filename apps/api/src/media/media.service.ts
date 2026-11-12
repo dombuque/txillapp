@@ -41,6 +41,11 @@ export async function stripImageMeta(bytes: Buffer, mime: string): Promise<Buffe
 /** Áudio só para o chat (mensagens de voz): webm/ogg (Chrome, Firefox) e mp4 (Safari). */
 const AUDIO = new Set(['audio/webm', 'audio/ogg', 'audio/mp4']);
 export const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
+/** Músicas do programa de artistas ('music'): MP3, M4A e AAC, até 20 MB (o servidor confirma a duração e corta o trecho). */
+export const MUSIC_AUDIO = new Set(['audio/mpeg', 'audio/mp4', 'audio/aac']);
+export const MAX_MUSIC_BYTES = 20 * 1024 * 1024;
+/** Os nomes que os browsers e os telemóveis dão aos mesmos formatos. */
+export const normalizeMusicMime = (mime: string) => (mime === 'audio/mp3' ? 'audio/mpeg' : mime === 'audio/x-m4a' || mime === 'audio/m4a' ? 'audio/mp4' : mime === 'audio/x-aac' ? 'audio/aac' : mime);
 /** Vídeos curtos (MP4/MOV/WebM). Convertidos no servidor para MP4 H.264. */
 const VIDEO = new Set(['video/mp4', 'video/quicktime', 'video/webm']);
 const UPLOAD_TTL_S = 300;
@@ -54,6 +59,10 @@ function sniff(buf: Buffer): string | null {
   if (buf.length >= 4 && buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) return 'audio/webm';
   if (buf.length >= 4 && buf.toString('ascii', 0, 4) === 'OggS') return 'audio/ogg';
   if (buf.length >= 12 && buf.toString('ascii', 4, 8) === 'ftyp') return 'audio/mp4';
+  // MP3 com etiquetas ID3 ou a começar logo num quadro; AAC solto (ADTS: camada 00).
+  if (buf.length >= 3 && buf.toString('ascii', 0, 3) === 'ID3') return 'audio/mpeg';
+  if (buf.length >= 2 && buf[0] === 0xff && (buf[1] & 0xf6) === 0xf0) return 'audio/aac';
+  if (buf.length >= 2 && buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0 && ((buf[1] >> 1) & 3) !== 0) return 'audio/mpeg';
   return null;
 }
 
@@ -68,7 +77,7 @@ export class MediaService implements OnModuleInit {
   private readonly s3: S3Storage | null;
   private readonly making = new Map<string, Promise<void>>();
   /** Em que bucket vive cada tipo de ficheiro: conversas ficam no privado. */
-  private scopeOf = (purpose: string): Scope => (purpose === 'chat' ? 'private' : 'public');
+  private scopeOf = (purpose: string): Scope => (purpose === 'chat' || purpose === 'music' ? 'private' : 'public');
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -145,7 +154,8 @@ export class MediaService implements OnModuleInit {
     setInterval(run, 10 * 60_000).unref();
   }
 
-  async requestUpload(userId: string, mime: string, size: number, purpose: 'public' | 'chat' = 'public', signed = false) {
+  async requestUpload(userId: string, mime: string, size: number, purpose: 'public' | 'chat' | 'music' = 'public', signed = false) {
+    if (purpose === 'music') return this.requestMusicUpload(userId, normalizeMusicMime(mime), size);
     const audio = AUDIO.has(mime);
     const video = VIDEO.has(mime);
     if (!ALLOWED.has(mime) && !(audio && purpose === 'chat') && !video) throw new UnsupportedMediaTypeException('Apenas JPEG, PNG ou WebP (e vídeos MP4)');
@@ -170,6 +180,56 @@ export class MediaService implements OnModuleInit {
   }
 
   /**
+   * Música do programa de artistas: só contas com o pedido de artista aprovado, só MP3/M4A/AAC até 20 MB, no máximo 20 por dia.
+   * Fica no armazenamento privado: o original nunca é servido, só o trecho cortado no servidor (ver ArtistsService).
+   */
+  private async requestMusicUpload(userId: string, mime: string, size: number) {
+    if (!MUSIC_AUDIO.has(mime)) throw new UnsupportedMediaTypeException('Envia a música em MP3, M4A ou AAC');
+    if (!Number.isInteger(size) || size < 1 || size > MAX_MUSIC_BYTES) throw new PayloadTooLargeException(`Música até ${MAX_MUSIC_BYTES / 1024 / 1024} MB`);
+    const ok = await this.pool.query(`SELECT 1 FROM content.artist_profiles WHERE user_id = $1 AND status = 'approved'`, [userId]);
+    if (!ok.rowCount) throw new ForbiddenException('Só artistas aprovados podem carregar músicas');
+    const n = (await this.pool.query(`SELECT count(*)::int AS n FROM content.media_assets WHERE owner_id = $1 AND purpose = 'music' AND created_at > now() - interval '1 day'`, [userId])).rows[0].n as number;
+    if (n >= 20) throw new HttpException('Já carregaste muitas músicas hoje. Tenta amanhã.', HttpStatus.TOO_MANY_REQUESTS);
+    const id = uuidv7();
+    await this.pool.query(`INSERT INTO content.media_assets (id, owner_id, mime, size_bytes, storage_key, purpose) VALUES ($1, $2, $3, $4, $5, 'music')`, [id, userId, mime, size, id]);
+    if (this.s3) return { assetId: id, uploadUrl: await this.s3.presignPut(id, mime, size, UPLOAD_TTL_S, 'private') };
+    const exp = Math.floor(Date.now() / 1000) + UPLOAD_TTL_S;
+    return { assetId: id, uploadUrl: `/api/v1/media/${id}/upload?exp=${exp}&sig=${this.sign(id, exp)}` };
+  }
+
+  /** Guarda um ficheiro gerado no servidor (o trecho de uma música), já pronto. */
+  async storeDerived(ownerId: string, bytes: Buffer, mime: string, purpose: 'music', durationMs: number | null = null): Promise<string> {
+    const id = uuidv7();
+    if (this.s3) await this.s3.put(id, bytes, mime, this.scopeOf(purpose), bytes.length);
+    else await writeFile(join(this.dir, id), bytes);
+    await this.pool.query(
+      `INSERT INTO content.media_assets (id, owner_id, mime, size_bytes, storage_key, purpose, status, duration_ms) VALUES ($1, $2, $3, $4, $5, $6, 'ready', $7)`,
+      [id, ownerId, mime, bytes.length, id, purpose, durationMs],
+    );
+    return id;
+  }
+
+  /**
+   * URL assinado de uma música (o trecho). `review`: para a equipa ouvir uma faixa ainda por aprovar (ou o original).
+   * Como no chat, a validade acaba no fim da próxima hora cheia (o URL não muda dentro dela).
+   */
+  musicUrl(id: string, review = false) {
+    const exp = (Math.floor(Date.now() / 3_600_000) + 2) * 3600;
+    return `/api/v1/music/local/audio/${id}?exp=${exp}${review ? '&r=1' : ''}&sig=${this.sign(`${review ? 'music-review' : 'music'}:${id}`, exp)}`;
+  }
+
+  /** Confere a assinatura e devolve onde está o ficheiro. Quem pode ouvir (faixa aprovada, sem denúncia…) decide o ArtistsService. */
+  async locateMusic(id: string, exp: number, sig: string, review: boolean): Promise<Served> {
+    const expected = Buffer.from(this.sign(`${review ? 'music-review' : 'music'}:${id}`, exp));
+    const given = Buffer.from(sig ?? '');
+    if (expected.length !== given.length || !timingSafeEqual(expected, given) || exp < Date.now() / 1000) throw new ForbiddenException('URL expirado');
+    const { rows } = await this.pool.query(`SELECT mime FROM content.media_assets WHERE id = $1 AND status = 'ready' AND purpose = 'music'`, [id]);
+    if (!rows[0]) throw new NotFoundException();
+    if (this.s3) return { url: await this.s3.readUrl(id, { scope: 'private', ttlSeconds: 300 }) };
+    return { path: join(this.dir, id), mime: rows[0].mime as string };
+  }
+
+  /**
    * O cliente avisa que o upload acabou. No disco local o ficheiro já foi validado no próprio envio;
    * no S3 confirma-se aqui o tamanho e o tipo real (primeiros bytes) antes de o ficheiro passar a 'ready'.
    */
@@ -190,7 +250,7 @@ export class MediaService implements OnModuleInit {
     if (VIDEO.has(a.mime)) return this.completeCloudVideo(userId, id, a.purpose === 'chat' ? 'private' : 'public');
     const head = await this.s3.head(id, scope);
     if (!head) throw new NotFoundException('O ficheiro ainda não foi enviado');
-    const limit = AUDIO.has(a.mime) ? MAX_AUDIO_BYTES : MAX_IMAGE_BYTES;
+    const limit = a.purpose === 'music' ? MAX_MUSIC_BYTES : AUDIO.has(a.mime) ? MAX_AUDIO_BYTES : MAX_IMAGE_BYTES;
     if (head.size < 1 || head.size > limit) {
       await this.s3.remove(id, scope);
       throw new PayloadTooLargeException('Ficheiro demasiado grande');
@@ -276,7 +336,7 @@ export class MediaService implements OnModuleInit {
     if (expected.length !== given.length || !timingSafeEqual(expected, given) || exp < Date.now() / 1000) {
       throw new ForbiddenException('URL de upload inválido ou expirado');
     }
-    const { rows } = await this.pool.query('SELECT mime, size_bytes, status, owner_id FROM content.media_assets WHERE id = $1', [id]);
+    const { rows } = await this.pool.query('SELECT mime, size_bytes, status, owner_id, purpose FROM content.media_assets WHERE id = $1', [id]);
     const asset = rows[0];
     if (!asset || asset.status !== 'pending') throw new NotFoundException();
 
@@ -284,7 +344,7 @@ export class MediaService implements OnModuleInit {
     // Vídeos ficam primeiro como original (.src) e só passam a 'ready' depois de convertidos.
     const path = isVideo ? this.video.paths(id).src : join(this.dir, id);
     let received = 0;
-    const limit = Math.min(Number(asset.size_bytes), isVideo ? MAX_VIDEO_BYTES : AUDIO.has(asset.mime) ? MAX_AUDIO_BYTES : MAX_IMAGE_BYTES);
+    const limit = Math.min(Number(asset.size_bytes), isVideo ? MAX_VIDEO_BYTES : asset.purpose === 'music' ? MAX_MUSIC_BYTES : AUDIO.has(asset.mime) ? MAX_AUDIO_BYTES : MAX_IMAGE_BYTES);
     const guard = new Transform({
       transform(chunk, _enc, cb) {
         received += chunk.length;

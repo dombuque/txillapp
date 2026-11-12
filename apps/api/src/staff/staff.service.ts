@@ -9,6 +9,8 @@ export const PERMISSIONS = [
   'reports.read', 'reports.decide', 'content.moderate',
   'verification.decide',
   'catalog.manage',
+  // Programa de artistas: pedidos de artista, moderação das faixas e denúncias de direitos de autor (0131).
+  'music.manage',
   'wallet.view', 'invites.view', 'stats.view', 'audit.read',
   'insights.view',
   'staff.manage',
@@ -20,7 +22,7 @@ export interface TeamDef { id: string; name: string; description: string; permis
 /** As equipas e o que cada uma pode fazer. A Administração pode tudo. */
 export const TEAMS: readonly TeamDef[] = [
   { id: 'administracao', name: 'Administração', description: 'Tudo, incluindo gerir a equipa.', permissions: PERMISSIONS },
-  { id: 'moderacao', name: 'Moderação', description: 'Queixas e conteúdo; suspender contas e gerir o catálogo.', permissions: ['users.view', 'users.notes', 'users.suspend', 'reports.read', 'reports.decide', 'content.moderate', 'catalog.manage'] },
+  { id: 'moderacao', name: 'Moderação', description: 'Queixas e conteúdo; suspender contas, gerir o catálogo e a música dos artistas.', permissions: ['users.view', 'users.notes', 'users.suspend', 'reports.read', 'reports.decide', 'content.moderate', 'catalog.manage', 'music.manage'] },
   { id: 'suporte', name: 'Suporte', description: 'Ajudar utilizadores: ver contas, confirmar emails, deixar notas e terminar sessões.', permissions: ['users.view', 'users.notes', 'users.verify_email', 'users.sessions'] },
   { id: 'verificacao', name: 'Verificação', description: 'Decidir os pedidos de selo.', permissions: ['users.view', 'verification.decide'] },
   { id: 'financas', name: 'Finanças', description: 'Ver Txills, pedidos e números.', permissions: ['users.view', 'wallet.view', 'stats.view'] },

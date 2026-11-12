@@ -21,8 +21,11 @@ export interface Track {
   /** Fonte: ccmixter, archive, jamendo, freesound ou local (artistas de Moçambique). */
   source?: string;
   styles?: string[];
-  /** Só na fonte local: o @ do artista no Txillapp (sem o @). */
-  artistUsername?: string;
+  /** Só na fonte local: o @ do artista no Txillapp (sem o @), para a ligação ao perfil. */
+  artistUsername?: string | null;
+  /** Só na fonte local: o id da faixa no programa de artistas (sem o `local:`) e se a letra é explícita. */
+  trackId?: string;
+  explicit?: boolean;
   /** Vezes usada em mimos e tchekas nos últimos 7 dias (só em «Em alta»). */
   uses?: number;
   /** Destacada pela equipa. */
@@ -38,10 +41,14 @@ export interface MusicStyle { id: string; label: string; kind: 'estilo' | 'momen
 /** O início do seletor: estilos, «Em alta no Txillapp», «Artistas de Moçambique» (null sem a fonte local), se há «Sons» e as que usei há pouco. */
 export interface MusicHome { styles: MusicStyle[]; trending: Track[]; local: Track[] | null; sounds: boolean; recent: Track[] }
 
-/** O que se envia ao servidor: os campos de sempre de uma faixa (mais a fonte e o @ do artista), ou só os dados do clipe próprio. */
+/**
+ * O que se envia ao servidor: os campos de sempre de uma faixa (mais a fonte e o @ do artista), só o id de uma faixa de um
+ * artista de Moçambique (o servidor vai buscar o resto), ou só os dados do clipe próprio.
+ */
 export const musicPayload = (t: Track | null | undefined) => {
   if (!t) return undefined;
   if (t.kind === 'clip') return { kind: 'clip' as const, mediaId: t.mediaId!, durationMs: t.durationMs ?? 1000, title: t.title };
+  if (t.source === 'local') return { source: 'local' as const, id: t.id };
   const { id, title, artist, url, landing, license, licenseUrl, durationMs, cover, source, artistUsername } = t;
   return { id, title, artist, url, landing, license, licenseUrl, durationMs, cover, ...(source ? { source } : {}), ...(artistUsername ? { artistUsername } : {}) };
 };

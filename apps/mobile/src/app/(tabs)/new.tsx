@@ -745,7 +745,8 @@ export default function Compose() {
       </ScrollView>
 
       {cameraLayer}
-      {pickMusic ? <MusicPicker hint={`${body} ${place}`} onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} /> : null}
+      {/* As músicas dos artistas de Moçambique só vão em tchekas (uma publicação com um só vídeo), como diz a licença. */}
+      {pickMusic ? <MusicPicker hint={`${body} ${place}`} allowLocal={assets.length === 1 && assets[0].video} onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} /> : null}
       {placeOpen ? <PlaceSheet value={place} photoAt={photoAt} onChange={(v, g) => { setPlace(v); setPlaceGeo(g ?? null); }} onClose={() => setPlaceOpen(false)} /> : null}
       {tagging !== null && assets[tagging] ? (
         <PhotoTagger src={assets[tagging].uri} tags={assets[tagging].tags} onDone={(tags) => { setAssets((cur) => cur.map((a, n) => (n === tagging ? { ...a, tags } : a))); setTagging(null); }} />

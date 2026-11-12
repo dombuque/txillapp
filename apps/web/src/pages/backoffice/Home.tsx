@@ -4,6 +4,7 @@ import type { IconName } from '../../components/Icon';
 import { api } from '../../lib/api';
 import { Card, PageHeader, ago, useCan, useStaff } from './bo';
 import { finApi } from './ui/fin-api';
+import { musicApi } from './ui/music-api';
 import { compact, fmt, Kpi, type Tone } from './ui/fin-ui';
 
 interface Tile { key: string; show: boolean; label: string; value: number | undefined; hint?: string; icon: IconName; to: string; tone?: Tone }
@@ -17,6 +18,9 @@ export default function BackofficeHome() {
   const s = useQuery({ queryKey: ['bo-summary'], queryFn: finApi.summary, refetchInterval: 60_000 });
   const ov = useQuery({ queryKey: ['bo-overview'], queryFn: api.boOverview, refetchInterval: 60_000 });
   const alerts = useQuery({ queryKey: ['fin-alerts'], queryFn: finApi.alerts, enabled: canWallet, staleTime: 60_000 });
+  const canMusic = useCan('music.manage');
+  const music = useQuery({ queryKey: ['bo-music', 'summary'], queryFn: musicApi.summary, enabled: canMusic, refetchInterval: 60_000 });
+  const musicN = music.data ? music.data.artists + music.data.tracks + music.data.claims : undefined;
   const recent = useQuery({ queryKey: ['bo-audit-recent'], queryFn: () => api.boAudit('', ''), enabled: canAudit, staleTime: 30_000 });
   const d = s.data ?? {};
   const o = ov.data;
@@ -29,6 +33,7 @@ export default function BackofficeHome() {
     { key: 'reports', show: can('reports.read'), label: 'Queixas por tratar', value: d.reportsOpen, icon: 'flag', to: '/backoffice/reports', tone: busy(d.reportsOpen) },
     { key: 'verifications', show: can('verification.decide'), label: 'Verificações por decidir', value: d.verificationsPending, icon: 'shield', to: '/backoffice/verifications', tone: busy(d.verificationsPending) },
     { key: 'venues', show: can('catalog.manage'), label: 'Locais por aprovar', value: d.venuesPending, icon: 'map-pin', to: '/backoffice/venues', tone: busy(d.venuesPending) },
+    { key: 'music', show: canMusic, label: 'Música por decidir', value: musicN, icon: 'music', to: '/backoffice/music', tone: busy(musicN), hint: music.data ? `${music.data.artists} pedidos · ${music.data.tracks} faixas · ${music.data.claims} denúncias` : undefined },
     { key: 'alerts', show: canWallet, label: 'Alertas de Txills', value: alertN, icon: 'alert', to: '/backoffice/finance', tone: alerts.data?.items.some((x) => x.level === 'critical') ? 'bad' : busy(alertN), hint: alertN ? 'Presentes fora do normal e outros' : 'Tudo normal' },
     { key: 'suspended', show: can('users.view'), label: 'Contas suspensas', value: o?.suspended, icon: 'lock', to: '/backoffice/users?status=suspended' },
   ];
@@ -40,7 +45,7 @@ export default function BackofficeHome() {
     { key: 'txills', show: canWallet, label: 'Txills movimentados hoje', value: d.txillsToday, hint: d.movesToday !== undefined ? `${fmt(d.movesToday)} movimentos` : undefined, icon: 'wallet', to: `/backoffice/finance?tab=movimentos&from=${today}&to=${today}` },
   ];
   const tiles = (list: Tile[]) => list.filter((t) => t.show).map((t) => (
-    <Kpi key={t.key} label={t.label} value={t.key === 'txills' ? compact(t.value) : fmt(t.value)} hint={t.hint} icon={t.icon} to={t.to} tone={t.tone} loading={t.value === undefined && (s.isLoading || ov.isLoading || alerts.isLoading)} />
+    <Kpi key={t.key} label={t.label} value={t.key === 'txills' ? compact(t.value) : fmt(t.value)} hint={t.hint} icon={t.icon} to={t.to} tone={t.tone} loading={t.value === undefined && (s.isLoading || ov.isLoading || alerts.isLoading || music.isLoading)} />
   ));
   const attentionTiles = tiles(attention);
   const nowTiles = tiles(now);

@@ -50,7 +50,7 @@ export class StoriesService {
 
   async create(userId: string, mediaId: string, caption: string, audience: 'all' | 'close_friends' = 'all', musicIn: MusicInput | null = null, stickers: PlacedSticker[] = []) {
     this.filter.assertClean(caption, musicIn?.title, musicIn && 'artist' in musicIn ? musicIn.artist : undefined);
-    const music = await this.musicSvc.prepare(userId, musicIn);
+    const music = await this.musicSvc.prepare(userId, musicIn, 'story');
     const ok = await this.pool.query(
       `SELECT 1 FROM content.media_assets a
         WHERE a.id = $1 AND a.owner_id = $2 AND a.status = 'ready'

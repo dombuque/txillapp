@@ -4,7 +4,7 @@
  */
 
 /** O mínimo de uma faixa que esta lógica precisa (compatível com `Track` de api.music). */
-export interface TrackLike { id: string; kind?: string; uses?: number; featured?: boolean; artist?: string; artistUsername?: string }
+export interface TrackLike { id: string; kind?: string; source?: string; uses?: number; featured?: boolean; artist?: string; artistUsername?: string | null }
 export interface StyleLike { id: string; label: string; count: number }
 export interface HomeLike<T extends TrackLike = TrackLike> { styles: StyleLike[]; trending: T[]; local: T[] | null; sounds: boolean; recent: T[] }
 
@@ -19,10 +19,13 @@ export const licenseLabel = (l: string) =>
 /** Os separadores do seletor. `style:<id>` é uma pastilha de estilo. */
 export type PickerTab = 'trending' | 'local' | 'sounds' | 'favorites' | 'search' | `style:${string}`;
 
-/** «Em alta» sempre; «Artistas de Moçambique» só com faixas da fonte local; «Sons» só quando o servidor diz que há; «Favoritas» sempre. */
-export function pickerTabs(home: Pick<HomeLike, 'local' | 'sounds'> | null | undefined): { id: PickerTab; label: string }[] {
+/**
+ * «Em alta» sempre; «Artistas de Moçambique» só com faixas da fonte local e onde a licença deixa (`allowLocal`: mimos e tchekas);
+ * «Sons» só quando o servidor diz que há; «Favoritas» sempre.
+ */
+export function pickerTabs(home: Pick<HomeLike, 'local' | 'sounds'> | null | undefined, allowLocal = true): { id: PickerTab; label: string }[] {
   const out: { id: PickerTab; label: string }[] = [{ id: 'trending', label: 'Em alta no Txillapp' }];
-  if (hasLocal(home)) out.push({ id: 'local', label: 'Artistas de Moçambique' });
+  if (allowLocal && hasLocal(home)) out.push({ id: 'local', label: 'Artistas de Moçambique' });
   if (home?.sounds === true) out.push({ id: 'sounds', label: 'Sons' });
   out.push({ id: 'favorites', label: 'Favoritas' });
   return out;
@@ -38,6 +41,9 @@ export function styleChips<S extends StyleLike>(styles: S[] | null | undefined, 
   const i = list.findIndex((s) => s.id === suggested);
   return i <= 0 ? list : [list[i], ...list.slice(0, i), ...list.slice(i + 1)];
 }
+
+/** As faixas dos artistas de Moçambique só vão em mimos e tchekas (é o que a licença autoriza): fora disso saem de todas as listas. */
+export const onlyAllowed = <T extends TrackLike>(list: T[], allowLocal: boolean): T[] => (allowLocal ? list : list.filter((t) => t.source !== 'local'));
 
 /** Tira as faixas que marquei com «Não gosto desta». */
 export const withoutDisliked = <T extends TrackLike>(list: T[] | null | undefined, disliked: ReadonlySet<string>): T[] => (list ?? []).filter((t) => !disliked.has(t.id));

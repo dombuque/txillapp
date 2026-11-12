@@ -30,6 +30,15 @@ test('separadores: «Em alta» e «Favoritas» sempre; «Artistas de Moçambique
   assert.equal(m.hasLocal({}), false);
 });
 
+test('artistas de Moçambique só onde a licença deixa (allowLocal: mimos e tchekas)', () => {
+  const home = { local: [t('local:1', { source: 'local' })], sounds: false };
+  assert.deepEqual(m.pickerTabs(home, false).map((x) => x.id), ['trending', 'favorites']);
+  assert.deepEqual(m.pickerTabs(home, true).map((x) => x.id), ['trending', 'local', 'favorites']);
+  const mixed = [t('ccmixter:1', { source: 'ccmixter' }), t('local:2', { source: 'local' }), t('archive:3')];
+  assert.deepEqual(m.onlyAllowed(mixed, false).map((x) => x.id), ['ccmixter:1', 'archive:3']);
+  assert.equal(m.onlyAllowed(mixed, true).length, 3);
+});
+
 test('pastilhas de estilo: só as que têm faixas; o estilo sugerido vai para a frente', () => {
   const styles = [{ id: 'afrobeats', label: 'Afrobeats', count: 3 }, { id: 'pandza', label: 'Pandza', count: 0 }, { id: 'praia', label: 'Praia', count: 9 }, { id: 'gospel', label: 'Gospel', count: 1 }];
   assert.deepEqual(m.styleChips(styles).map((s) => s.id), ['afrobeats', 'praia', 'gospel']);

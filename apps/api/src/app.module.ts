@@ -16,6 +16,7 @@ import { IMAGE_CLASSIFIER, type ImageClassifier } from './moderation/image-moder
 import { ChatModule } from './chat/chat.module';
 import { CallsModule } from './calls/calls.module';
 import { MusicModule } from './music/music.module';
+import { ArtistsModule } from './artists/artists.module';
 import { GifsModule } from './gifs/gifs.module';
 import { SafetyModule } from './safety/safety.module';
 import { VerificationModule } from './verification/verification.module';
@@ -86,6 +87,7 @@ export class AppModule {
         ChatModule,
         CallsModule,
         MusicModule,
+        ArtistsModule,
         GifsModule,
         SafetyModule,
         VerificationModule,

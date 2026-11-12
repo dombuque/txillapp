@@ -66,6 +66,8 @@ export interface CatalogTrack {
   kind: TrackKind;
   /** Só na fonte `local`: o @ do artista no Txillapp (sem o @), para o crédito levar ao perfil. */
   artistUsername?: string;
+  /** Só na fonte `local`: letra explícita. Quem tem menos de 18 anos (ou não deu a data de nascimento) não a vê nem a usa. */
+  explicit?: boolean;
 }
 
 /**
@@ -77,6 +79,13 @@ export interface LocalMusicSource {
   list(opts: { style?: MusicStyleId; q?: string; limit: number }): Promise<CatalogTrack[]>;
   /** Uma faixa pelo id (`local:…`), só se continuar publicada; senão null. */
   get(id: string): Promise<CatalogTrack | null>;
+  /**
+   * Usar a faixa num mimo (`story`) ou numa tcheka (`post`): confirma que continua disponível para quem a usa (as explícitas
+   * não vão para menores), conta o uso e devolve o que fica guardado na publicação. Sem isto, as faixas locais não se usam.
+   */
+  prepareUse?(userId: string, id: string, surface: 'post' | 'story'): Promise<Record<string, unknown>>;
+  /** Ao devolver uma publicação: o que ficou guardado volta a ter o endereço do áudio (assinado e temporário). */
+  resolveStored?(stored: Record<string, unknown>): Record<string, unknown>;
 }
 
 /** O que a app recebe: a faixa do contrato com os nomes antigos (`url`, `durationMs`), para as versões antigas e para os posts. */

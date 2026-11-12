@@ -78,6 +78,8 @@ export default function AccountSettings() {
         {p && p.gender && p.gender !== 'unspecified' ? <SettingRow anchor="showGender" icon="user" title="Mostrar no perfil" description="Quem vê o teu perfil vê também isto." toggle={{ on: p.showGender, onChange: (v) => void save({ showGender: v }) }} /> : null}
         <SettingRow anchor="verification" icon={<VerifiedBadge size={22} tier={ver.data?.tier} />} title={ver.data?.verified ? 'A tua conta está verificada' : 'Pedir o selo de verificado'} to="/verification" />
         {blue ? <SettingRow icon={<VerifiedBadge size={22} tier="paid" />} title={blue.title} description={blue.description} to="/selo-azul" /> : null}
+        {/* Programa de artistas moçambicanos: o pedido, carregar e gerir as músicas. */}
+        <SettingRow anchor="artist" icon="music" title="Sou artista" description="As tuas músicas nos mimos e nas tchekas da malta" to="/artista" />
         <RegionRow />
       </SettingsSection>
 

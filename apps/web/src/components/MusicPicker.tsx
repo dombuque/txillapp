@@ -124,7 +124,8 @@ export default function MusicPicker({ onPick, onClose, hint }: { onPick: (t: Tra
       setBusy(true);
       setErr('');
       try {
-        setItems(await api.searchMusic(q));
+        // As faixas dos artistas de Moçambique só vão em mimos e tchekas (a licença): este seletor do site é o das notas e dos posts.
+        setItems((await api.searchMusic(q)).filter((x) => x.source !== 'local'));
       } catch (e) {
         setErr((e as Error).message);
         setItems([]);

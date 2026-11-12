@@ -6,7 +6,8 @@ import { api, staffSession } from '../../lib/api';
 import { Wordmark } from '../../components/ui';
 import { Kbd, StaffContext, ago } from './bo';
 
-interface Item { to: string; label: string; icon: IconName; perm?: string; end?: boolean; badge?: 'reports' | 'verifications' }
+/** `perm`: a permissão (ou uma de várias) que mostra a entrada. */
+interface Item { to: string; label: string; icon: IconName; perm?: string | string[]; end?: boolean; badge?: 'reports' | 'verifications' }
 const GROUPS: { title: string; items: Item[] }[] = [
   { title: 'Operação', items: [
     { to: '/backoffice', label: 'Resumo', icon: 'home', end: true },
@@ -15,7 +16,8 @@ const GROUPS: { title: string; items: Item[] }[] = [
     { to: '/backoffice/verifications', label: 'Pedidos de selo', icon: 'shield', perm: 'verification.decide', badge: 'verifications' },
     { to: '/backoffice/venues', label: 'Locais', icon: 'map-pin', perm: 'catalog.manage' },
     { to: '/backoffice/catalog', label: 'Catálogo da Geleira', icon: 'snowflake', perm: 'catalog.manage' },
-    { to: '/backoffice/music', label: 'Música', icon: 'music', perm: 'catalog.manage' },
+    // Uma só entrada: Catálogo (catalog.manage) e Pedidos de artista, Faixas e Direitos de autor (music.manage), em separadores.
+    { to: '/backoffice/music', label: 'Música', icon: 'music', perm: ['catalog.manage', 'music.manage'] },
   ] },
   { title: 'Pessoas', items: [
     { to: '/backoffice/users', label: 'Utilizadores', icon: 'user', perm: 'users.view' },
@@ -160,7 +162,7 @@ export default function BackofficeLayout() {
           </button>
           <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4" aria-label="Backoffice">
             {GROUPS.map((g) => {
-              const items = g.items.filter((i) => !i.perm || staff.permissions.includes(i.perm));
+              const items = g.items.filter((i) => !i.perm || [i.perm].flat().some((p) => staff.permissions.includes(p)));
               if (!items.length) return null;
               return (
                 <div key={g.title}>

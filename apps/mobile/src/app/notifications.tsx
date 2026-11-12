@@ -17,6 +17,7 @@ import { locaisApi } from '@/lib/api.locais';
 import { cheerPeople, cheerTarget, cheerVerb } from '@/lib/cheerNotice';
 import { notifGroup, notifGroupTarget } from '@/lib/groupAccess';
 import { moderationTarget, moderationVerb } from '@/lib/moderationNotice';
+import { musicReviewTarget, musicReviewVerb, type MusicReviewData } from '@/lib/artists';
 import { sized } from '@/lib/config';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
@@ -103,6 +104,8 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     case 'content_removed':
     case 'content_restored':
     case 'moderation_warning': return moderationVerb(n.kind, n.data);
+    // Programa de artistas: a equipa decidiu o meu pedido de artista ou uma faixa minha.
+    case 'music_review': return musicReviewVerb(n.data as MusicReviewData);
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
     default: return { text: 'tem novidades para ti' };
   }
@@ -134,6 +137,7 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'content_removed':
     case 'content_restored':
     case 'moderation_warning': return moderationTarget(n.kind, n.data);
+    case 'music_review': return musicReviewTarget(n.data as MusicReviewData);
     case 'group_join_request':
     case 'group_join_accepted':
     case 'group_member_joined':

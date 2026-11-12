@@ -56,8 +56,19 @@ export const clipSchema = z.object({
   title: z.string().trim().max(60).default('Áudio original'),
 });
 
-/** O que uma nota ou um post pode levar: uma faixa de licença aberta ou um clipe próprio. */
-export const musicSchema = z.union([clipSchema, trackSchema]);
+/**
+ * Faixa do programa de artistas moçambicanos (`source: 'local'`): a app só manda o id; o servidor vai buscar o resto
+ * (título, artista, trecho) e confirma que a faixa está disponível. O título e o artista que venham são ignorados.
+ */
+export const localTrackSchema = z.object({
+  source: z.literal('local'),
+  id: z.string().min(1).max(50),
+  title: z.string().max(120).optional(),
+  artist: z.string().max(120).optional(),
+});
+
+/** O que uma nota ou um post pode levar: uma faixa de licença aberta, uma faixa de um artista moçambicano ou um clipe próprio. */
+export const musicSchema = z.union([clipSchema, localTrackSchema, trackSchema]);
 export type MusicInput = z.infer<typeof musicSchema>;
 
 /**
@@ -71,7 +82,7 @@ export class MusicService {
     private readonly catalog: MusicCatalogService,
   ) {}
 
-  /** A versão do catálogo, quando a faixa é do catálogo ou da fonte local (a app não muda o título, o artista nem o áudio). */
+  /** A versão do catálogo, quando a faixa é do catálogo (a app não muda o título, o artista nem o áudio). */
   private async canonical(t: z.infer<typeof trackSchema>): Promise<Record<string, unknown>> {
     const c = await this.catalog.canonical(t.id);
     if (c.found) return storedTrack(c.track);
@@ -80,9 +91,18 @@ export class MusicService {
     return rest;
   }
 
-  /** Antes de guardar: um clipe tem de ser áudio meu, privado e já carregado (nunca de outra pessoa). */
-  async prepare(userId: string, music: MusicInput | null | undefined): Promise<Record<string, unknown> | null> {
+  /**
+   * Antes de guardar: um clipe tem de ser áudio meu, privado e já carregado (nunca de outra pessoa). Uma faixa de um artista
+   * moçambicano (`source: 'local'` ou id `local:…`) só pode ir num mimo (`where: 'story'`) ou numa tcheka (publicação com
+   * um só vídeo, `mediaIds`), como diz a licença; passa pela fonte local registada no catálogo (ver docs/musica.md).
+   */
+  async prepare(userId: string, music: MusicInput | null | undefined, where: 'post' | 'story' | 'note' = 'note', mediaIds: string[] = []): Promise<Record<string, unknown> | null> {
     if (!music) return null;
+    if (('source' in music && music.source === 'local') || (!('kind' in music) && LOCAL.test(music.id))) {
+      const tcheka = where === 'post' && mediaIds.length === 1 && !!(await this.pool.query(`SELECT 1 FROM content.media_assets WHERE id = $1 AND mime LIKE 'video/%'`, [mediaIds[0]])).rowCount;
+      if (where === 'note' || (where === 'post' && !tcheka)) throw new BadRequestException('As músicas dos artistas de Moçambique só podem ir em mimos e tchekas');
+      return this.catalog.prepareLocalUse(userId, music.id, where === 'post' ? 'post' : 'story');
+    }
     if (!('kind' in music)) {
       const t = await this.canonical(music);
       this.catalog.invalidate(); // «Em alta» conta já este uso
@@ -95,6 +115,7 @@ export class MusicService {
 
   /** Ao devolver: o clipe ganha um URL assinado e temporário (como as mensagens de voz). */
   resolve(music: Record<string, unknown> | null): Record<string, unknown> | null {
+    if (music?.source === 'local') return this.catalog.resolveLocal(music);
     if (!music || music.kind !== 'clip') return music;
     return { ...music, id: `clip:${music.mediaId as string}`, artist: '', url: this.media.chatUrl(music.mediaId as string), landing: null, license: 'own', licenseUrl: null, cover: null };
   }

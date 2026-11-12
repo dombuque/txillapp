@@ -74,7 +74,9 @@ export type ReportReason = 'spam' | 'harassment' | 'hate' | 'nudity' | 'violence
 export type ReportType = 'post' | 'comment' | 'story' | 'story_comment' | 'instant' | 'user' | 'message' | 'venue';
 export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'request_accepted' | 'gift' | 'comment' | 'reply' | 'story_reply' | 'repost' | 'mention' | 'tag' | 'verified' | 'venue_invite' | 'missed_call' | 'venue_payment' | 'venue_review' | 'group_join_request' | 'group_join_accepted' | 'group_member_joined' | 'group_admin_granted' | 'geleira_cheer' | 'cheer' | 'invite_joined'
   // Avisos da equipa do Txillapp (0121): conteúdo removido ou reposto, e aviso da moderação (data.type, data.reason).
-  | 'content_removed' | 'content_restored' | 'moderation_warning';
+  | 'content_removed' | 'content_restored' | 'moderation_warning'
+  // Programa de artistas (0131): a equipa decidiu o pedido de artista ou uma faixa (data.what, data.decision, data.title, data.reason).
+  | 'music_review';
 export interface AppNotification {
   id: string;
   kind: NotificationKind;
@@ -178,6 +180,8 @@ export interface Profile {
   id: string;
   verified?: boolean;
   verifiedTier?: 'verified' | 'official' | 'paid' | null;
+  /** Programa de artistas: a etiqueta «Artista» (não é o selo de verificado), o nome artístico, os estilos e as ligações. */
+  artist?: { stageName: string; styles: string[]; links: { kind: string; url: string }[] } | null;
   username: string;
   displayName: string;
   bio: string | null;
@@ -309,7 +313,7 @@ export interface Story {
   commentsOff?: boolean;
   /** O espectador pode responder? */
   canReply: boolean;
-  music?: { id: string; title: string; artist: string; url: string; kind?: 'clip' } | null;
+  music?: { id: string; title: string; artist: string; url: string; kind?: 'clip'; source?: string; artistUsername?: string | null } | null;
   /** Stickers por cima do mimo (centro e largura em fração do ecrã, rotação em graus). */
   stickers?: { id: string; x: number; y: number; s: number; r: number }[];
 }
@@ -594,7 +598,7 @@ export function releaseBlob(blob: Blob | null | undefined) {
  * Envia uma foto, vídeo ou áudio do chat (privado): pede o URL assinado, envia os bytes, confirma e espera que fique pronto. Devolve o id do ficheiro.
  * `signed`: o ficheiro já leva a assinatura do Txillapp (saiu da câmara da app); o servidor não a volta a pôr ao guardar um mimo.
  */
-export async function uploadMedia(uri: string, mime: string, purpose: 'public' | 'chat' = 'chat', onWait?: () => void, signed?: boolean): Promise<string> {
+export async function uploadMedia(uri: string, mime: string, purpose: 'public' | 'chat' | 'music' = 'chat', onWait?: () => void, signed?: boolean): Promise<string> {
   const blob = await readLocalBlob(uri);
   let up: { assetId: string; uploadUrl: string };
   try {

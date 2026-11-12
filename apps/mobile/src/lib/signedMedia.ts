@@ -13,7 +13,7 @@ export interface MaybeSigned { uri: string; video: boolean; mime: string; durati
 export const editedPhoto = (uri: string) => ({ uri, video: false, mime: 'image/jpeg', signed: true });
 
 /** O corpo do pedido de envio (POST /media/uploads). `signed` só vai quando é verdade (as versões antigas não o mandam). */
-export function uploadRequest(mime: string, size: number, purpose: 'public' | 'chat', signed?: boolean): { mime: string; size: number; purpose: 'public' | 'chat'; signed?: true } {
+export function uploadRequest(mime: string, size: number, purpose: 'public' | 'chat' | 'music', signed?: boolean): { mime: string; size: number; purpose: 'public' | 'chat' | 'music'; signed?: true } {
   return signed ? { mime, size, purpose, signed: true } : { mime, size, purpose };
 }
 

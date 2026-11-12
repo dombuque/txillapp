@@ -262,7 +262,7 @@ function StoryEditor({ asset, onRetake, onCamera, onClose }: { asset: Asset; onR
         )}
       </View>
       {listOpen && <CloseFriendsSheet onClose={() => setListOpen(false)} />}
-      {pickMusic && <MusicPicker hint={caption} onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
+      {pickMusic && <MusicPicker hint={caption} allowLocal onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} />}
       {pickSticker && <StickerPicker onClose={() => setPickSticker(false)} onPick={addSticker} />}
     </KeyboardAvoidingView>
   );

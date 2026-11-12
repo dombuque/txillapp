@@ -81,6 +81,7 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'gender', group: 'conta', title: 'Como me identifico', keywords: ['género', 'sexo', 'masculino', 'feminino'] },
   { id: 'showGender', group: 'conta', title: 'Mostrar no perfil', keywords: ['mostrar género', 'género no perfil'] },
   { id: 'verification', group: 'conta', title: 'Verificação', keywords: ['selo', 'verificado', 'verificar conta', 'selo vermelho', 'selo azul', 'conta oficial', 'cores do selo'] },
+  { id: 'artist', group: 'conta', title: 'Sou artista', keywords: ['artista', 'músico', 'musico', 'editora', 'carregar música', 'carregar musica', 'as minhas músicas', 'artistas de moçambique', 'direitos de autor'] },
   { id: 'region', group: 'conta', title: 'A tua região', keywords: ['país', 'rede', 'região', 'moçambique'] },
   { id: 'exportData', group: 'conta', title: 'Descarregar os meus dados', keywords: ['exportar', 'cópia', 'transferir', 'download', 'rgpd', 'os meus dados', 'backup'] },
   { id: 'deleteAccount', group: 'conta', title: 'Eliminar conta', keywords: ['apagar conta', 'apagar', 'remover conta', 'fechar conta', 'desativar', 'sair de vez', 'apagar conta pelo site', 'apagar-conta', 'sem a app'] },

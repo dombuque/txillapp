@@ -218,9 +218,20 @@ export class MusicCatalogService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * O que não se mostra a esta pessoa: as que marcou com «Não gosto desta» e, para quem tem menos de 18 anos (ou não deu a data
+   * de nascimento), as faixas explícitas da fonte local.
+   */
   private async myDislikes(userId: string): Promise<Set<string>> {
-    const { rows } = await this.pool.query('SELECT track_id FROM content.music_dislikes WHERE user_id = $1', [userId]);
-    return new Set(rows.map((r) => r.track_id as string));
+    const [{ rows }, adult] = await Promise.all([
+      this.pool.query('SELECT track_id FROM content.music_dislikes WHERE user_id = $1', [userId]),
+      this.localSource
+        ? this.pool.query(`SELECT 1 FROM identity.users WHERE id = $1 AND birth_date <= (current_date - interval '18 years')`, [userId]).then((r) => !!r.rowCount)
+        : Promise.resolve(true),
+    ]);
+    const out = new Set(rows.map((r) => r.track_id as string));
+    if (!adult) for (const t of (await this.snapshot()).local) if (t.explicit) out.add(t.id);
+    return out;
   }
 
   private downranked(s: Snapshot, id: string) {
@@ -302,10 +313,18 @@ export class MusicCatalogService implements OnModuleInit, OnModuleDestroy {
     return this.sorted(s, list).slice(0, limit).map((t) => this.pick(s, t));
   }
 
-  async local(userId: string, style?: MusicStyleId): Promise<PickerTrack[]> {
+  async local(userId: string, style?: MusicStyleId, opts: { q?: string; artist?: string } = {}): Promise<PickerTrack[]> {
     if (!this.localSource) return [];
     const [s, mine] = await Promise.all([this.snapshot(), this.myDislikes(userId)]);
-    const list = this.visible(s).filter((t) => t.source === 'local' && (!style || t.styles.includes(style)) && !mine.has(t.id));
+    const q = norm((opts.q ?? '').trim());
+    const list = this.visible(s).filter(
+      (t) =>
+        t.source === 'local' &&
+        (!style || t.styles.includes(style)) &&
+        (!opts.artist || t.artistUsername === opts.artist) &&
+        (q.length < 2 || norm(`${t.title} ${t.artist}`).includes(q)) &&
+        !mine.has(t.id),
+    );
     return this.sorted(s, list).slice(0, 60).map((t) => this.pick(s, t));
   }
 
@@ -364,6 +383,24 @@ export class MusicCatalogService implements OnModuleInit, OnModuleDestroy {
     }
     const r = (await this.pool.query('SELECT track FROM content.music_catalog WHERE id = $1', [id])).rows[0];
     return r ? { found: true, track: r.track as CatalogTrack } : { found: false };
+  }
+
+  /**
+   * Usar uma faixa da fonte local num mimo ou numa tcheka: recusa as escondidas no backoffice e passa à fonte, que confirma que
+   * a faixa está disponível para esta pessoa, conta o uso e devolve o que fica guardado (ver LocalMusicSource.prepareUse).
+   */
+  async prepareLocalUse(userId: string, id: string, surface: 'post' | 'story'): Promise<Record<string, unknown>> {
+    const fullId = id.startsWith('local:') ? id : `local:${id}`;
+    const flag = (await this.pool.query('SELECT status FROM content.music_flags WHERE track_id = $1', [fullId])).rows[0];
+    if (flag?.status === 'hidden' || !this.localSource?.prepareUse) throw new BadRequestException('Esta faixa já não está disponível');
+    const out = await this.localSource.prepareUse(userId, fullId, surface);
+    this.invalidate(); // «Em alta» conta já este uso
+    return out;
+  }
+
+  /** Uma faixa local guardada numa publicação, com o endereço do áudio outra vez válido (se a fonte souber fazê-lo). */
+  resolveLocal(stored: Record<string, unknown>): Record<string, unknown> {
+    return this.localSource?.resolveStored ? this.localSource.resolveStored(stored) : stored;
   }
 
   // ---------------------------------------------------------------- backoffice

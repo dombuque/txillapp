@@ -8,7 +8,7 @@ import { Needs, StaffGuard } from '../staff/staff.guard';
 import { MediaService, parseIdParam } from './media.service';
 
 /** `signed`: o ficheiro já traz a assinatura do Txillapp (gravada pela câmara da app); ao guardar um mimo não se volta a pôr. */
-const requestSchema = z.object({ mime: z.string().max(50), size: z.number().int().positive(), purpose: z.enum(['public', 'chat']).default('public'), signed: z.boolean().optional() });
+const requestSchema = z.object({ mime: z.string().max(50), size: z.number().int().positive(), purpose: z.enum(['public', 'chat', 'music']).default('public'), signed: z.boolean().optional() });
 
 @Controller('media')
 export class MediaController {

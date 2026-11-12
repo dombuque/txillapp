@@ -6,7 +6,7 @@ import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder } fr
 import { Icon } from '@/components/Icon';
 import { Sheet, useSheetScroll } from '@/components/Sheet';
 import { musicApi, type Track } from '@/lib/api.music';
-import { creditLine, dropFromCache, licenseLabel, mmss, pickerTabs, styleChips, usesLabel, withoutDisliked, type PickerTab } from '@/lib/musicCatalog';
+import { creditLine, dropFromCache, licenseLabel, mmss, onlyAllowed, pickerTabs, styleChips, usesLabel, withoutDisliked, type PickerTab } from '@/lib/musicCatalog';
 import { suggestMusic } from '@/lib/musicSuggest';
 import { uploadMedia } from '@/lib/api';
 import { playTrack, stopTrack } from '@/lib/musicPlayer';
@@ -139,16 +139,17 @@ function ClipRecorder({ onPick }: { onPick: (t: Track) => void }) {
 /**
  * Escolher a música de um mimo, de um tcheka ou de uma nota, do catálogo curado do servidor: «Em alta no Txillapp», estilos,
  * «Artistas de Moçambique», «Sons» e favoritas, com pesquisa. Ouve-se um pedaço e usa-se; o crédito do autor segue com a faixa.
+ * As faixas dos artistas de Moçambique só aparecem com `allowLocal` (mimos, TchekaStudio e publicação com um só vídeo).
  */
-export function MusicPicker({ onPick, onClose, hint }: { onPick: (t: Track) => void; onClose: () => void; /** O que a pessoa escreveu (texto e local): serve para sugerir o estilo. */ hint?: string }) {
+export function MusicPicker({ onPick, onClose, hint, allowLocal = false }: { onPick: (t: Track) => void; onClose: () => void; /** O que a pessoa escreveu (texto e local): serve para sugerir o estilo. */ hint?: string; /** Mostra os «Artistas de Moçambique» (só mimos e tchekas, como diz a licença). */ allowLocal?: boolean }) {
   return (
     <Sheet title="Música e sons" onClose={onClose}>
-      <PickerBody onPick={onPick} hint={hint} />
+      <PickerBody onPick={onPick} hint={hint} allowLocal={allowLocal} />
     </Sheet>
   );
 }
 
-function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: string }) {
+function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; hint?: string; allowLocal: boolean }) {
   const suggestion = useMemo(() => suggestMusic(hint), [hint]);
   const me = useRef(Symbol('picker'));
   const sheetScroll = useSheetScroll();
@@ -252,7 +253,7 @@ function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: strin
           <Text style={s.rowSub} numberOfLines={1}>{creditLine(t, mmss)}</Text>
           {uses ? <Text style={x.uses} numberOfLines={1}>{uses}</Text> : null}
         </View>
-        {t.kind !== 'clip' && (
+        {t.kind !== 'clip' && t.source !== 'local' && (
           <Pressable onPress={() => toggleFav.mutate(t)} hitSlop={6} style={s.fav} accessibilityRole="button" accessibilityState={{ selected: fav }} accessibilityLabel={fav ? 'Tirar das favoritas' : 'Marcar como favorita'}>
             <Icon name="heart" size={20} solid={fav} color={fav ? colors.brand : colors.zinc500} />
           </Pressable>
@@ -269,15 +270,15 @@ function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: strin
   const list = (q: { isLoading: boolean; data?: Track[]; error?: unknown }, empty: string, opts: { trending?: boolean } = {}) => {
     if (q.isLoading) return <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 24 }} />;
     if (q.error) return <Text style={s.err}>{(q.error as Error).message || 'Não consegui abrir a música agora'}</Text>;
-    const items = withoutDisliked(q.data, disliked);
+    const items = onlyAllowed(withoutDisliked(q.data, disliked), allowLocal);
     return items.length ? items.map((t) => row(t, opts)) : <Text style={s.empty}>{empty}</Text>;
   };
 
-  const tabs = pickerTabs(home.data);
+  const tabs = pickerTabs(home.data, allowLocal);
   const chips = styleChips(home.data?.styles, suggestion?.genre);
   const suggestedStyle = suggestion ? chips.find((c) => c.id === suggestion.genre) : undefined;
-  const favorites = withoutDisliked(favs.data, disliked);
-  const recent = withoutDisliked(home.data?.recent, disliked).filter((t) => !favIds.has(t.id)).slice(0, 5);
+  const favorites = onlyAllowed(withoutDisliked(favs.data, disliked), allowLocal);
+  const recent = onlyAllowed(withoutDisliked(home.data?.recent, disliked), allowLocal).filter((t) => !favIds.has(t.id)).slice(0, 5);
   // Se a secção que estava aberta deixou de existir (ex.: sem artistas locais), volta a «Em alta».
   useEffect(() => {
     if ((tab === 'local' || tab === 'sounds') && home.data && !tabs.some((t) => t.id === tab)) setTab('trending');

@@ -28,6 +28,7 @@ import { StickerLayer } from '@/components/Stickers';
 import { isGone } from '@/lib/postCache';
 import { storyPaused } from '@/lib/storyPlayback';
 import { freshEnough, startIndex } from '@/lib/storyLink';
+import { artistHref, isLocalTrack, trackLine } from '@/lib/artists';
 
 /** Quanto tempo fica à vista um mimo de foto (os de vídeo duram o vídeo, até 30 s). */
 const IMAGE_MS = 30_000;
@@ -82,6 +83,9 @@ function VideoStory({ url, paused, onEnd, onDuration }: { url: string; paused: b
 function StoryMusic({ track, paused }: { track: NonNullable<Story['music']>; paused: boolean }) {
   const player = useAudioPlayer(abs(track.url) ?? '');
   const [muted, setMuted] = useState(false);
+  const router = useRouter();
+  // Programa de artistas: «♪ Título · Artista», e tocar leva ao perfil do artista.
+  const artistTo = artistHref(track);
   const [bg, setBg] = useState(false);
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st2) => setBg(st2 !== 'active'));
@@ -96,7 +100,13 @@ function StoryMusic({ track, paused }: { track: NonNullable<Story['music']>; pau
   return (
     <View style={st.music}>
       <Icon name="music" size={16} color="#fff" />
-      <Text style={st.musicText} numberOfLines={1}>{track.title}{track.kind === 'clip' ? '' : ` · ${track.artist || 'Autor desconhecido'}`}</Text>
+      {isLocalTrack(track) ? (
+        <Pressable onPress={artistTo ? () => router.push(artistTo as never) : undefined} style={{ flexShrink: 1 }} accessibilityRole="link" accessibilityLabel={`${trackLine(track)}. Ver o perfil do artista`}>
+          <Text style={st.musicText} numberOfLines={1}>{trackLine(track)}</Text>
+        </Pressable>
+      ) : (
+        <Text style={st.musicText} numberOfLines={1}>{track.title}{track.kind === 'clip' ? '' : ` · ${track.artist || 'Autor desconhecido'}`}</Text>
+      )}
       <Pressable onPress={() => setMuted((m) => !m)} style={st.musicBtn} accessibilityRole="button" accessibilityLabel={muted ? 'Ativar o som' : 'Silenciar'}><Icon name={muted ? 'volume-off' : 'volume'} size={18} color="#fff" /></Pressable>
     </View>
   );

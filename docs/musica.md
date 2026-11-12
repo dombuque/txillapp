@@ -79,9 +79,17 @@ vão viver sobretudo da fonte `local`. O seletor só mostra as pastilhas dos est
    «Artistas de Moçambique» não aparece na app.
 3. Cada faixa: `id` = `local:<uuid>`, `source: 'local'`, `license: 'txillapp'` (o artista dá ao Txillapp licença para usar a
    faixa nos mimos e nas tchekas; os termos ficam do vosso lado), `licenseUrl: null` ou a página dos termos, `artistUsername`
-   preenchido, `previewUrl` **https e estável** (não expira: fica guardado nos posts), `kind: 'music'`, duração em segundos.
+   preenchido, `kind: 'music'`, duração em segundos. Na integração, o `previewUrl` é o endereço assinado do trecho
+   (`/api/v1/music/local/audio/…`, vale pelo menos 1 hora) e as explícitas vão com `explicit: true` (o catálogo não as mostra
+   a menores de 18 anos nem a quem não deu a data de nascimento).
+6. Usar a faixa (implementado pelo ArtistsService): `prepareUse(userId, id, surface)` confirma que a faixa está disponível
+   para quem a usa, conta o uso e devolve o que fica guardado na publicação (com o id do ficheiro, não o endereço);
+   `resolveStored(guardada)` devolve-a com o endereço do trecho outra vez válido. O MusicService chama-os através do
+   catálogo (`prepareLocalUse` e `resolveLocal`), por isso o MusicModule não importa o ArtistsModule (é o ArtistsModule
+   que importa o MusicModule). As faixas locais só se usam em mimos e tchekas (uma publicação com um só vídeo); em notas e
+   noutras publicações o servidor recusa, e a app só as mostra com `allowLocal`.
 4. Não precisam de tratar de «Em alta», «Não gosto desta», esconder nem destacar: o catálogo faz isso por `id`, para todas as fontes.
-5. Migrações: as nossas chamam-se `0128_musica_curadoria.sql`; usem outro nome (ex.: `0129_musica_artistas.sql`).
+5. Migrações: `0128_musica_curadoria.sql` (catálogo) e `0131_programa_artistas.sql` (artistas).
 
 ## 5. API
 
@@ -91,7 +99,7 @@ Todas com sessão (`/api/v1`).
 |---|---|
 | `GET /music/home` | `{ styles: {id,label,kind,count}[], trending: PickerTrack[], local: PickerTrack[] \| null, sounds: boolean, recent: PickerTrack[] }` |
 | `GET /music/styles/:id` | `PickerTrack[]` (até 40) |
-| `GET /music/local?style=` | `PickerTrack[]` (vazio sem fonte `local`) |
+| `GET /music/local?style=&q=&artist=` | `PickerTrack[]` (vazio sem fonte `local`); `artist` é o @ do artista |
 | `GET /music/sounds` | `PickerTrack[]` |
 | `GET /music/search?q=` | `PickerTrack[]`: catálogo e `local`, por título, artista ou estilo (como antes, 2 letras no mínimo) |
 | `PUT /music/dislikes/:id` · `DELETE /music/dislikes/:id` | `{ disliked: true \| false }` |
@@ -104,6 +112,9 @@ Todas com sessão (`/api/v1`).
   (`DISLIKE_MIN_PEOPLE` em `catalog/catalog.service.ts`). O backoffice mostra o limiar.
 
 ### Backoffice (`catalog.manage`)
+
+Backoffice › Música (`/backoffice/music`) é uma só entrada com separadores: Catálogo (`catalog.manage`) e, do programa de
+artistas (`music.manage`), Pedidos de artista, Faixas e Direitos de autor. A Moderação tem as duas permissões.
 
 | Pedido | |
 |---|---|
