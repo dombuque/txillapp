@@ -242,7 +242,7 @@ describe('Convites: código, limites, espera e abuso (integração)', () => {
       const code = (await api().get('/api/v1/invites/me').set(auth(a)).expect(200)).body.code as string;
       const html = (await api().get(`/api/v1/invites/share/${code}`).set('Host', 'txillapp.com').expect(200)).text;
       expect(html).toContain('<meta property="og:title" content="cvs Teste convidou-te para o Txillapp">');
-      expect(html).toContain(`<meta property="og:image" content="https://txillapp.com/api/v1/invites/card/${code}.png">`);
+      expect(html).toContain(`<meta property="og:image" content="https://txillapp.com/api/v1/invites/card/${code}.png?v=2">`);
       expect(html).toContain(`<meta property="og:url" content="https://txillapp.com/c/${code}">`);
       expect(html).not.toContain(a.email);
       const png = await api().get(`/api/v1/invites/card/${code}.png`).buffer(true).parse((res, cb) => {

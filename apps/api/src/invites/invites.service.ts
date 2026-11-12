@@ -21,6 +21,9 @@ export interface CardItem { name: string; kind: string; category: string; alcoho
  * Os itens da geleira que podem ir no cartão: só aprovados, e só se a geleira está à vista de todos e a conta não é privada
  * (o cartão vai para quem não tem conta). `$2` = false tira as bebidas alcoólicas (quem convida é menor, ou quem vê é desconhecido).
  */
+/** A versão do desenho do cartão (sobe quando ele muda). */
+const CARD_DESIGN = 2;
+
 const CARD_ITEMS_SQL = `SELECT i.name, i.kind, i.category, i.alcoholic, ui.favorite
    FROM identity.users u JOIN taste.user_items ui ON ui.user_id = u.id JOIN taste.items i ON i.id = ui.item_id
   WHERE u.id = $1 AND u.status = 'active' AND u.is_private = false AND u.geleira_visibility = 'everyone'
@@ -198,7 +201,8 @@ export class InvitesService implements OnModuleInit, OnModuleDestroy {
     const description = o
       ? `${PHRASES[phraseIndexOf(o.code)]} Entra com o código ${o.code} e ganha ${INVITE.REWARD} Txills.`
       : 'Fotos, vídeos, mimos, tchekas e chat em tempo real com a malta.';
-    const image = o ? `${origin}/api/v1/invites/card/${o.code}.png` : `${origin}/icon-512.png`;
+    // `?v=`: muda quando o desenho do cartão muda, para a cache (Cloudflare, WhatsApp) ir buscar o novo.
+    const image = o ? `${origin}/api/v1/invites/card/${o.code}.png?v=${CARD_DESIGN}` : `${origin}/icon-512.png`;
     const size = o ? '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:type" content="image/png">' : '';
     return (
       `<!doctype html><html lang="pt"><head><meta charset="utf-8"><title>${esc(title)}</title>` +
