@@ -1,37 +1,45 @@
 import { createElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import stickers from '../assets/stickers.json';
 import type { Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
+import { stickerById } from '@/lib/stickers';
 import {
-  beatGrid, checkTcheka, clampTrim, clipSeconds, detectBeats, editLocked, fmtS, previewClock, previewResume, rhythmDurations, SPEEDS, speedLabel, studioSignature, TCHEKA_MAX_S, textAlpha, type Trim,
+  animState, freezeSplit, fxSeconds, newSticker, newText, playbackRateAt, resolveFx, restingTime, reverseFrameIndex, sanitizeFx, sourceOffset, transitionFor,
+  type ClipFx, type Overlay, type StickerContent, type StickerOverlay, type TextOverlay,
+} from '@/lib/studio/effects';
+import { loadStudioFonts } from '@/lib/studio/renderFonts';
+import { drawClip, FxGL } from '@/lib/studio/renderGL';
+import { drawOverlays, type OverlayBox } from '@/lib/studio/renderOverlays';
+import { ReverseFrames } from '@/lib/studio/renderReverse';
+import { drawTransition, type Scratch } from '@/lib/studio/renderTransitions';
+import {
+  beatGrid, checkTcheka, clampTrim, detectBeats, editLocked, fmtS, previewClock, previewResume, rhythmDurations, SPEEDS, speedLabel, studioSignature, TCHEKA_MAX_S, type Trim,
 } from '@/lib/tchekaRules';
 import { colors } from '@/lib/theme';
 import { sealOf } from '@/lib/wordmark';
 import { Icon } from './Icon';
 import { MusicPicker } from './MusicPicker';
 import { RangeSlider } from './RangeSlider';
-import { Sticker } from './StickerPanel';
-import { GalleryPick, LOOKS, lookCss, stampTxillapp, type Shot } from './TxCamera';
+import type { FrameGrab } from './studio/FxFilterStrip';
+import { FxPanel, type FxTarget, type ReverseState } from './studio/FxPanel';
+import { FxStage } from './studio/FxStage';
+import { StickerTray } from './studio/StickerTray';
+import { TextPanel } from './studio/TextPanel';
+import { GalleryPick, stampTxillapp, type Shot } from './TxCamera';
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 const W = 1080;
 const H = 1920;
 const PHOTO_S = [2, 3, 5] as const;
 const PHOTO_BEATS = [1, 2, 4] as const;
-const TR = 0.5; // segundos de transição
-/** As personagens que se podem pôr na tcheka (o sticker de cada uma). */
-const CAST: { id: string; name: string }[] = [
-  { id: 'saude', name: 'Txilla' }, { id: 'bom-dia', name: 'Gelinho' }, { id: 'bora', name: 'Zazá' },
-  { id: 'amor', name: 'Mimo' }, { id: 'cool', name: 'Txeka' }, { id: 'estrela', name: 'Super' },
-];
-type Transition = 'none' | 'fade' | 'slide';
-type Tab = 'clipes' | 'som' | 'texto' | 'efeitos' | 'capa';
+type Tab = 'clipes' | 'som' | 'texto' | 'stickers' | 'efeitos' | 'capa';
 
 export interface Clip { uri: string; video: boolean; mime: string; durationMs?: number; /** Velocidade a que foi gravado na câmara (0,5× a 3×). */ speed?: number }
 type Item = Clip & {
+  /** Filtro, ajustes, transição de entrada, rampa, inverter e congelar (lib/studio/effects.ts, docs/estudio-efeitos.md). */
+  fx?: ClipFx;
   key: string;
   /** Fotos: segundos no modo manual. */
   seconds: number;
@@ -44,39 +52,12 @@ type Item = Clip & {
   hasAudio?: boolean;
 };
 /** Um bocado da sequência já montada: onde começa, quanto dura e de onde vem. */
-interface Seg { key: string; uri: string; video: boolean; start: number; dur: number; from: number; speed: number }
+interface Seg { key: string; uri: string; video: boolean; start: number; dur: number; from: number; speed: number; /** segundos do corte (nos vídeos) */ len: number; fx?: ClipFx }
 /** Como acabou uma volta da sequência: até ao fim ou interrompida; e o vídeo, se se gravou e ainda vale. */
 interface RunOut { finished: boolean; blob: Blob | null }
 
 const recorderType = () => ['video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((t) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) ?? '';
 
-/** Desenha `src` a cobrir o retângulo (x, y, w, h), com zoom e deslocamento horizontal. */
-function cover(g: CanvasRenderingContext2D, src: CanvasImageSource, sw: number, sh: number, zoom = 1, dx = 0, x = 0, y = 0, w = W, h = H) {
-  if (!sw || !sh) return;
-  const k = Math.max(w / sw, h / sh) * zoom;
-  const dw = sw * k, dh = sh * k;
-  g.save();
-  g.beginPath();
-  g.rect(x, y, w, h);
-  g.clip();
-  g.drawImage(src, x + (w - dw) / 2 + dx, y + (h - dh) / 2, dw, dh);
-  g.restore();
-}
-/** Quebra o texto em linhas que cabem na largura. */
-function wrap(g: CanvasRenderingContext2D, text: string, maxW: number): string[] {
-  const out: string[] = [];
-  for (const para of text.split('\n')) {
-    let line = '';
-    for (const word of para.split(' ')) {
-      const t = line ? `${line} ${word}` : word;
-      if (g.measureText(t).width > maxW && line) { out.push(line); line = word; } else line = t;
-    }
-    out.push(line);
-  }
-  return out.slice(0, 4);
-}
-const ease = (x: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
-const setFilter = (g: CanvasRenderingContext2D, f: string) => { if ('filter' in g) (g as CanvasRenderingContext2D & { filter: string }).filter = f; };
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 let itemSeq = 0;
@@ -128,8 +109,10 @@ async function filesToClips(files: File[]): Promise<Clip[]> {
  *   de outra tcheka ou o som original dos vídeos); só com fotos, a música é obrigatória; até 60 s. O botão fica desligado,
  *   com a dica por baixo.
  * - Ao ritmo: com música, as fotos mudam nas batidas (deteção por Web Audio; sem ela, 120 BPM).
- * - Edição: cortar e reordenar os clipes, velocidade, volume do original contra a música, texto com entrada e saída,
- *   filtro, sticker, transições e a capa.
+ * - Edição: cortar e reordenar os clipes, velocidade, volume do original contra a música e a capa.
+ * - Efeitos por clipe (components/studio, lib/studio): 16 filtros com intensidade e miniaturas ao vivo, ajustes (WebGL),
+ *   transições por junção, rampas de velocidade, inverter e congelar; textos e stickers (emoji, Txillapp, GIF, @, local,
+ *   hora) com animações, a mexer na pré-visualização, com zona segura e guias. O contrato está em docs/estudio-efeitos.md.
  * - Pré-visualização fiel: é o próprio canvas da montagem a tocar, com o som misturado. A primeira volta inteira fica
  *   gravada; se nada mudar, «Seguinte» já não espera pela montagem.
  * - `reference`: um vídeo de referência ao lado (dueto): fica na metade esquerda e a tcheka na direita; o som dele conta
@@ -149,11 +132,15 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   const [items, setItems] = useState<Item[]>(() => clips.map(makeItem));
   const [sel, setSel] = useState(0);
   const [tab, setTab] = useState<Tab>('clipes');
-  const [look, setLook] = useState(0);
-  const [transition, setTransition] = useState<Transition>('fade');
-  const [title, setTitle] = useState('');
-  const [titleStyle, setTitleStyle] = useState<'branco' | 'coral'>('branco');
-  const [cast, setCast] = useState<string | null>(null);
+  /** Os textos e stickers por cima (lib/studio/effects.ts, `Overlay`), cada um com início e fim. */
+  const [overlays, setOverlays] = useState<Overlay[]>([]);
+  const [selOv, setSelOv] = useState<string | null>(null);
+  const [editTick, setEditTick] = useState(0);
+  const [stageTick, setStageTick] = useState(0);
+  /** Sobe quando chega uma coisa que o desenho esperava (fontes, frames do inverso, imagens dos stickers). */
+  const [assetTick, setAssetTick] = useState(0);
+  const [revState, setRevState] = useState<Record<string, ReverseState>>({});
+  const [freezing, setFreezing] = useState(false);
   const [music, setMusic] = useState<Track | null>(initialMusic);
   const [pickMusic, setPickMusic] = useState(false);
   const [rhythm, setRhythm] = useState(true);
@@ -161,8 +148,6 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   // Com um som de outra tcheka (que costuma ser para dobrar), o original começa calado; com música, mais baixo.
   const [origVol, setOrigVol] = useState(initialMusic ? (initialMusic.kind === 'sound' ? 0 : 0.4) : 1);
   const [musicVol, setMusicVol] = useState(1);
-  const [textFrom, setTextFrom] = useState(0);
-  const [textTo, setTextTo] = useState(4);
   const [coverAt, setCoverAt] = useState(0.5);
   const [playing, setPlayingState] = useState(true);
   const [playT, setPlayT] = useState(0);
@@ -194,30 +179,47 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   const useRhythm = rhythm && !!music && items.some((i) => !i.video);
   const grid = useMemo(() => (useRhythm ? beatGrid(beatInfo?.bpm ?? null, beatInfo?.offset ?? 0, TCHEKA_MAX_S + 30) : []), [useRhythm, beatInfo]);
   const durations = useMemo(() => {
-    const base = items.map((it) => (it.video ? clipSeconds(it.trim, it.speed) : it.seconds));
+    // Os vídeos: o corte, à velocidade e com a rampa (lib/studio/effects.ts, fxSeconds).
+    const base = items.map((it) => (it.video ? fxSeconds(it.trim.end - it.trim.start, it.speed, it.fx) : it.seconds));
     return useRhythm ? rhythmDurations(items.map((it, i) => ({ video: it.video, seconds: base[i], beats: it.beats })), grid) : base;
   }, [items, useRhythm, grid]);
   const segs: Seg[] = useMemo(() => {
     let t = 0;
-    return items.map((it, i) => { const s = { key: it.key, uri: it.uri, video: it.video, start: t, dur: durations[i], from: it.video ? it.trim.start : 0, speed: it.video ? it.speed : 1 }; t += durations[i]; return s; });
+    return items.map((it, i) => {
+      const s = { key: it.key, uri: it.uri, video: it.video, start: t, dur: durations[i], from: it.video ? it.trim.start : 0, speed: it.video ? it.speed : 1, len: it.video ? Math.max(0, it.trim.end - it.trim.start) : durations[i], fx: it.fx };
+      t += durations[i];
+      return s;
+    });
   }, [items, durations]);
   const total = durations.reduce((n, d) => n + d, 0);
   const playTotal = Math.min(total, TCHEKA_MAX_S);
-  const rules = checkTcheka({ clips: items.map((it, i) => ({ video: it.video, seconds: durations[i], hasAudio: it.hasAudio })), music: !!music || !!reference, originalVolume: origVol });
+  // Um vídeo ao contrário fica com o som original calado (não conta para o som obrigatório).
+  const rules = checkTcheka({ clips: items.map((it, i) => ({ video: it.video, seconds: durations[i], hasAudio: it.fx?.reverse ? false : it.hasAudio })), music: !!music || !!reference, originalVolume: origVol });
   const cur = items[sel] ?? items[0];
 
-  // O texto aparece de 0 a 4 s por omissão; nunca para lá do fim (nem a capa).
+  // Nem os textos e stickers nem a capa passam do fim.
   useEffect(() => {
-    setTextTo((v) => Math.min(Math.max(v, Math.min(4, playTotal)), playTotal || 4));
-    setTextFrom((v) => Math.min(v, Math.max(0, playTotal - 0.5)));
     setCoverAt((v) => Math.min(v, Math.max(0, playTotal - 0.1)));
+    if (!playTotal) return;
+    setOverlays((l) => {
+      let changed = false;
+      const n = l.map((o) => {
+        if (o.end <= playTotal + 1e-3) return o;
+        changed = true;
+        const end = Math.max(Math.min(o.end, playTotal), Math.min(playTotal, o.start + 0.5));
+        return { ...o, start: Math.min(o.start, Math.max(0, end - 0.5)), end };
+      });
+      return changed ? n : l;
+    });
   }, [playTotal]);
 
   /** O que muda o tempo da sequência (obriga a recomeçar a pré-visualização). */
-  const timelineSig = studioSignature({ s: segs.map((s) => [s.uri, s.start, s.dur, s.from, s.speed]), m: music?.url ?? null, r: reference?.uri ?? null });
+  const timelineSig = studioSignature({ s: segs.map((s) => [s.uri, s.start, s.dur, s.from, s.speed, s.fx?.ramp ?? 0, s.fx?.reverse ? 1 : 0]), m: music?.url ?? null, r: reference?.uri ?? null });
   /** Tudo o que muda o vídeo final (para saber se a volta gravada ainda vale). */
-  const fullSig = studioSignature({ t: timelineSig, look, transition, title: title.trim(), titleStyle, cast, textFrom, textTo, origVol, musicVol });
-  const live = { look, transition, title: title.trim(), titleStyle, cast, textFrom, textTo, origVol, musicVol, segs, total: playTotal, fullSig };
+  const fullSig = studioSignature({ t: timelineSig, fx: items.map((it) => it.fx ?? null), ov: overlays, a: assetTick, origVol, musicVol });
+  const fxs: Record<string, ClipFx | undefined> = {};
+  for (const it of items) fxs[it.key] = it.fx;
+  const live = { overlays, fxs, origVol, musicVol, segs, total: playTotal, fullSig };
   const cfg = useRef(live);
   cfg.current = live;
 
@@ -226,8 +228,18 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   const engine = useRef<{
     ac: AudioContext | null; dest: MediaStreamAudioDestinationNode | null; speak: GainNode | null; musicGain: GainNode | null; origGain: GainNode | null;
     stream: MediaStream | null; videos: Map<string, HTMLVideoElement>; images: Map<string, HTMLImageElement>; sources: WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>;
-    music: { url: string; buf: AudioBuffer } | null; castImg: { id: string; img: HTMLImageElement } | null; last: HTMLCanvasElement | null; ref: HTMLVideoElement | null;
-  }>({ ac: null, dest: null, speak: null, musicGain: null, origGain: null, stream: null, videos: new Map(), images: new Map(), sources: new WeakMap(), music: null, castImg: null, last: null, ref: null });
+    music: { url: string; buf: AudioBuffer } | null; last: HTMLCanvasElement | null; lastKey: string | null; ref: HTMLVideoElement | null;
+    /** O WebGL dos efeitos (null: o browser não tem; undefined: ainda não se criou). */
+    gl: FxGL | null | undefined; scratch: Map<string, { c: HTMLCanvasElement; g: CanvasRenderingContext2D }>;
+    /** As imagens dos stickers do Txillapp e dos GIFs. */
+    ovImages: Map<string, { img: HTMLImageElement; w: number; h: number } | 'loading' | 'error'>;
+    /** Os frames dos vídeos ao contrário, por corte. */
+    reverse: Map<string, ReverseFrames>;
+    /** Onde ficaram os textos e stickers no último frame (para os agarrar na pré-visualização). */
+    boxes: OverlayBox[];
+  }>({ ac: null, dest: null, speak: null, musicGain: null, origGain: null, stream: null, videos: new Map(), images: new Map(), sources: new WeakMap(), music: null, last: null, lastKey: null, ref: null, gl: undefined, scratch: new Map(), ovImages: new Map(), reverse: new Map(), boxes: [] });
+  const gifBox = useRef<HTMLDivElement | null>(null);
+  const revJobs = useRef(new Map<string, Promise<ReverseFrames | null>>());
   const gen = useRef(0);
   const pausedAt = useRef(0);
   const restartFrom = useRef(0);
@@ -244,8 +256,12 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     const e = engine.current;
     e.videos.forEach((v) => { v.pause(); v.removeAttribute('src'); v.load(); });
     e.ref?.pause();
+    e.reverse.forEach((r) => r.dispose());
+    e.ovImages.forEach((x) => { if (typeof x === 'object') x.img.remove(); });
     void e.ac?.close().catch(() => undefined);
   }, []);
+  // As fontes do texto: quando chegam, o frame parado volta a desenhar-se com elas.
+  useEffect(() => { void loadStudioFonts().then(() => { if (alive.current) setAssetTick((n) => n + 1); }); }, []);
 
   function audio() {
     const e = engine.current;
@@ -321,18 +337,104 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
       routeAudio(e.ref, 'music');
     }
     if (music) await loadMusic(music).catch(() => undefined);
-    const castId = cfg.current.cast;
-    if (castId && e.castImg?.id !== castId) {
-      // Como imagem (data URL) o SVG precisa do xmlns; dentro da página não precisava.
-      const raw = (stickers.items as { id: string; svg: string }[]).find((x) => x.id === castId)?.svg;
-      const svg = raw && !/xmlns=/.test(raw) ? raw.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ') : raw;
-      if (svg) {
-        try { e.castImg = { id: castId, img: await new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('sticker')); i.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`; }) }; } catch { e.castImg = null; }
-      }
-    }
+    await Promise.all(cfg.current.overlays.map((o) => (o.kind === 'sticker' ? loadOvImage(o) : null)));
   }
-  // O sticker pode mudar a meio: carrega-se logo.
-  useEffect(() => { if (cast) void preload([]); }, [cast]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---------------------------------------------------------------- efeitos: WebGL, imagens dos stickers, inverso
+  function glFx(): FxGL | null {
+    const e = engine.current;
+    if (e.gl === undefined || e.gl?.lost) e.gl = FxGL.create(W, H);
+    return e.gl;
+  }
+  /** Canvas de trabalho (transições), guardados por nome. */
+  const scratch: Scratch = (name, w, h) => {
+    const e = engine.current;
+    let s = e.scratch.get(name);
+    if (!s) {
+      const c = document.createElement('canvas');
+      const g = c.getContext('2d');
+      if (!g) return null;
+      s = { c, g };
+      e.scratch.set(name, s);
+    }
+    if (s.c.width !== w || s.c.height !== h) { s.c.width = w; s.c.height = h; }
+    return s;
+  };
+  const ovKey = (o: StickerOverlay) => (o.sticker.type === 'txill' ? `txill:${o.sticker.id}` : o.sticker.type === 'gif' ? `gif:${o.sticker.id}` : '');
+  /**
+   * A imagem de um sticker do Txillapp (o SVG como data URL) ou de um GIF do GIPHY. Os GIFs ficam dentro da página (num
+   * cantinho invisível da pré-visualização) para o browser os animar; o canvas desenha o frame de agora. Com CORS (anonymous),
+   * para o canvas não ficar «sujo» e a gravação continuar a funcionar.
+   */
+  function loadOvImage(o: StickerOverlay): Promise<void> {
+    const e = engine.current;
+    const k = ovKey(o);
+    if (!k || e.ovImages.has(k)) return Promise.resolve();
+    e.ovImages.set(k, 'loading');
+    return new Promise<void>((res) => {
+      const img = new Image();
+      img.decoding = 'async';
+      const done = (ok: boolean, w = 1, h = 1) => {
+        e.ovImages.set(k, ok ? { img, w, h } : 'error');
+        if (alive.current && ok) setAssetTick((n) => n + 1);
+        res();
+      };
+      if (o.sticker.type === 'txill') {
+        const def = stickerById(o.sticker.id);
+        // Como imagem (data URL) o SVG precisa do xmlns; dentro da página não precisava.
+        const raw = def?.svg;
+        const svg = raw && !/xmlns=/.test(raw) ? raw.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ') : raw;
+        if (!svg) { done(false); return; }
+        img.onload = () => done(true, 1, def?.ratio ?? 1);
+        img.onerror = () => done(false);
+        img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      } else if (o.sticker.type === 'gif') {
+        img.crossOrigin = 'anonymous';
+        img.alt = '';
+        img.onload = () => done(true, img.naturalWidth || 1, img.naturalHeight || 1);
+        img.onerror = () => { img.remove(); done(false); };
+        img.src = o.sticker.url;
+        gifBox.current?.appendChild(img);
+      } else done(false);
+    });
+  }
+  const ovImage = (o: StickerOverlay) => {
+    const x = engine.current.ovImages.get(ovKey(o));
+    if (x === undefined) { void loadOvImage(o); return null; }
+    return typeof x === 'object' ? x : null;
+  };
+  /** Os frames ao contrário de um vídeo (tira-os uma vez por corte, com o progresso no painel «Tempo»). */
+  function ensureReverse(s: { key: string; uri: string; from: number; len: number }): Promise<ReverseFrames | null> {
+    const e = engine.current;
+    const k = ReverseFrames.keyOf(s.uri, s.from, s.from + s.len);
+    const have = e.reverse.get(k);
+    if (have) return Promise.resolve(have);
+    const job = revJobs.current.get(k);
+    if (job) return job;
+    const mark = (st: ReverseState) => { if (alive.current) setRevState((m) => ({ ...m, [s.key]: st })); };
+    mark({ status: 'working', progress: 0 });
+    const p = ReverseFrames.extract(s.uri, s.from, s.from + s.len, (pr) => mark({ status: 'working', progress: pr }), () => !alive.current).then((rf) => {
+      revJobs.current.delete(k);
+      if (rf) e.reverse.set(k, rf);
+      mark({ status: rf ? 'ready' : 'error', progress: 1 });
+      if (rf && alive.current) setAssetTick((n) => n + 1);
+      return rf;
+    });
+    revJobs.current.set(k, p);
+    return p;
+  }
+  const reverseFor = (s: Seg) => engine.current.reverse.get(ReverseFrames.keyOf(s.uri, s.from, s.from + s.len)) ?? null;
+  // Os vídeos que estão ao contrário preparam-se logo; os cortes que já não servem libertam a memória.
+  useEffect(() => {
+    const want = new Set<string>();
+    for (const s of segs) {
+      if (!s.video || !s.fx?.reverse) continue;
+      want.add(ReverseFrames.keyOf(s.uri, s.from, s.from + s.len));
+      void ensureReverse(s);
+    }
+    const e = engine.current;
+    for (const [k, r] of e.reverse) if (!want.has(k)) { r.dispose(); e.reverse.delete(k); }
+  }, [timelineSig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // As batidas da música: lidas do áudio (Web Audio); se não der, o BPM da faixa (se vier) ou 120.
   useEffect(() => {
@@ -374,81 +476,67 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     }
   }, [items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** O fundo de um bocado no instante `tl` (segundos dentro dele): a foto com zoom suave ou o frame do vídeo. */
-  function drawBase(g: CanvasRenderingContext2D, s: Seg, tl: number, dx: number) {
+  /** Os efeitos de agora de um clipe (lidos a cada frame: mudam sem recomeçar). */
+  const fxOf = (s: Seg): ClipFx | undefined => (s.key in cfg.current.fxs ? cfg.current.fxs[s.key] : s.fx);
+  /** Onde está o ficheiro (segundos) no instante `tl` do bocado: o corte, a velocidade, a rampa e o inverso. */
+  const srcAt = (s: Seg, tl: number) => s.from + sourceOffset(tl, s.dur, s.len, s.speed, fxOf(s));
+  /** O vídeo de referência (dueto) na metade esquerda, sem efeitos. */
+  function drawRef(g: CanvasRenderingContext2D) {
+    const r = engine.current.ref;
+    if (reference && r && r.readyState >= 2) drawClip(g, null, r, r.videoWidth || W, r.videoHeight || H, { x: 0, y: 0, w: W / 2, h: H }, 1, resolveFx(undefined));
+  }
+  /** O fundo de um bocado no instante `tl` (segundos dentro dele), com os efeitos dele: a foto com zoom suave ou o frame do vídeo. */
+  function drawBase(g: CanvasRenderingContext2D, s: Seg, tl: number) {
     const e = engine.current;
-    setFilter(g, lookCss(LOOKS[cfg.current.look]));
+    const fx = fxOf(s);
+    const p = resolveFx(fx);
     const half = !!(reference && e.ref);
-    const x = half ? W / 2 : 0, w = half ? W / 2 : W;
+    const to = { x: half ? W / 2 : 0, y: 0, w: half ? W / 2 : W, h: H };
+    const seed = Math.floor((s.start + tl) * 30);
     if (s.video) {
+      const rf = fx?.reverse ? reverseFor(s) : null;
+      const fr = rf ? rf.frame(reverseFrameIndex(srcAt(s, tl) - s.from, rf.count)) : null;
       const v = e.videos.get(s.key);
-      if (v && v.readyState >= 2) cover(g, v, v.videoWidth || W, v.videoHeight || H, 1, dx, x, 0, w, H);
+      if (rf && fr) drawClip(g, glFx(), fr, rf.w, rf.h, to, 1, p, seed);
+      else if (v && v.readyState >= 2) drawClip(g, glFx(), v, v.videoWidth || W, v.videoHeight || H, to, 1, p, seed);
     } else {
       const img = e.images.get(s.uri);
-      if (img?.naturalWidth) cover(g, img, img.naturalWidth, img.naturalHeight, 1 + 0.07 * Math.min(1, tl / Math.max(0.1, s.dur)), dx, x, 0, w, H); // zoom suave (Ken Burns)
+      // Zoom suave (Ken Burns); um frame congelado fica parado.
+      if (img?.naturalWidth) drawClip(g, glFx(), img, img.naturalWidth, img.naturalHeight, to, fx?.freeze ? 1 : 1 + 0.07 * Math.min(1, tl / Math.max(0.1, s.dur)), p, seed);
     }
-    if (half && e.ref && e.ref.readyState >= 2) { setFilter(g, 'none'); cover(g, e.ref, e.ref.videoWidth || W, e.ref.videoHeight || H, 1, 0, 0, 0, W / 2, H); }
-    setFilter(g, 'none');
+    if (half) drawRef(g);
   }
-  /** Por cima de cada frame: a transição a partir do bocado anterior, o texto (no tempo dele), a assinatura e o sticker. */
-  function overlay(g: CanvasRenderingContext2D, t: number, tl: number, idx: number) {
-    const c = cfg.current;
+  /** Por cima de cada frame: os textos e os stickers (no tempo deles, com as animações) e a assinatura. */
+  function overlay(g: CanvasRenderingContext2D, t: number) {
     const e = engine.current;
-    if (idx > 0 && e.last && c.transition !== 'none' && tl < TR) {
-      const p = ease(tl / TR);
-      g.save();
-      if (c.transition === 'fade') { g.globalAlpha = 1 - p; g.drawImage(e.last, 0, 0); } else g.drawImage(e.last, -W * p, 0);
-      g.restore();
-    }
-    const a = c.title ? textAlpha(t, c.textFrom, c.textTo) : 0;
-    if (a > 0) {
-      const inA = ease((t - c.textFrom) / 0.45);
-      g.save();
-      g.globalAlpha = a;
-      g.font = '900 74px Inter, system-ui, -apple-system, sans-serif';
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      const lines = wrap(g, c.title, W - 200);
-      const lh = 88;
-      const y0 = H * 0.62 - ((lines.length - 1) * lh) / 2 + (1 - inA) * 60;
-      lines.forEach((ln, i) => {
-        const y = y0 + i * lh;
-        if (c.titleStyle === 'coral') {
-          const tw = g.measureText(ln).width + 56;
-          g.fillStyle = '#d6334f';
-          g.beginPath();
-          (g as CanvasRenderingContext2D & { roundRect?: (x: number, y: number, w: number, h: number, r: number) => void }).roundRect?.(W / 2 - tw / 2, y - 48, tw, 96, 24);
-          g.fill();
-          g.fillStyle = '#fff';
-          g.shadowColor = 'transparent';
-        } else {
-          g.fillStyle = '#fff';
-          g.shadowColor = 'rgba(0,0,0,0.6)';
-          g.shadowBlur = 18;
-        }
-        g.fillText(ln, W / 2, y);
-      });
-      g.restore();
-    }
+    e.boxes = drawOverlays(g, cfg.current.overlays, t, { W, H, image: ovImage });
     stampTxillapp(g, W, H, username, seal);
-    const ci = c.cast && e.castImg?.id === c.cast ? e.castImg.img : null;
-    if (ci) {
-      const size = Math.round(W * 0.24);
-      const bounce = Math.abs(Math.sin(t * 2.2)) * 28;
-      const pop = ease(t / 0.5);
-      g.save();
-      g.globalAlpha = pop;
-      g.drawImage(ci, 36, H - size - 150 - bounce, size * pop, size * (129 / 132) * pop);
-      g.restore();
-    }
+  }
+  /** Um frame inteiro: o fundo (ou a transição a partir do bocado anterior) e as camadas por cima. */
+  function drawFrame(g: CanvasRenderingContext2D, list: Seg[], i: number, t: number) {
+    const s = list[i];
+    const tl = t - s.start;
+    const e = engine.current;
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, W, H);
+    const tr = transitionFor(fxOf(s), i, s.dur);
+    const cur = tr && tl < tr.dur && e.last && e.lastKey === list[i - 1]?.key ? scratch('cur', W, H) : null;
+    if (tr && cur && e.last) {
+      cur.g.fillStyle = '#000';
+      cur.g.fillRect(0, 0, W, H);
+      drawBase(cur.g, s, tl);
+      drawTransition(g, e.last, cur.c, tr.type, tl / tr.dur, W, H, scratch);
+      if (reference && e.ref) drawRef(g);
+    } else drawBase(g, s, tl);
+    overlay(g, t);
   }
   const segAt = (list: Seg[], t: number) => { const i = list.findIndex((s) => t < s.start + s.dur); return i < 0 ? list.length - 1 : i; };
-  /** Guarda o último frame (sem nada por cima) do bocado anterior, para a transição. */
+  /** Guarda o último frame (sem nada por cima, com os efeitos) do bocado anterior, para a transição. */
   function snapLast(prev: Seg) {
     const e = engine.current;
     if (!e.last) { e.last = document.createElement('canvas'); e.last.width = W; e.last.height = H; }
     const lg = e.last.getContext('2d');
-    if (lg) { lg.fillStyle = '#000'; lg.fillRect(0, 0, W, H); drawBase(lg, prev, prev.dur, 0); }
+    if (lg) { lg.fillStyle = '#000'; lg.fillRect(0, 0, W, H); drawBase(lg, prev, prev.dur); e.lastKey = prev.key; }
   }
 
   /**
@@ -507,6 +595,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     rec?.start(500);
     if (musicNode && e.music) musicNode.start(0, from % e.music.buf.duration);
     let lastUi = 0;
+    let lastDraw = 0;
     let t = from;
     try {
       while (my === gen.current && alive.current) {
@@ -521,24 +610,32 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
           active = null;
           if (s.video) {
             const v = videoFor(s.key, s.uri);
-            v.playbackRate = s.speed;
-            v.muted = false;
-            v.currentTime = s.from + tl * s.speed;
-            void v.play().catch(() => undefined);
-            active = v;
+            if (fxOf(s)?.reverse && reverseFor(s)) v.pause(); // ao contrário: os frames vêm do ReverseFrames (e o som fica calado)
+            else {
+              v.playbackRate = Math.min(16, Math.max(0.0625, playbackRateAt(tl, s.dur, s.speed, fxOf(s))));
+              v.muted = false;
+              v.currentTime = srcAt(s, tl);
+              void v.play().catch(() => undefined);
+              active = v;
+            }
           }
           // O vídeo seguinte já fica no ponto de entrada (sem esperar quando chega a vez dele).
           const nx = list[i + 1];
-          if (nx?.video) { const nv = videoFor(nx.key, nx.uri); if (nv !== active) { nv.pause(); nv.currentTime = nx.from; } }
+          if (nx?.video) { const nv = videoFor(nx.key, nx.uri); if (nv !== active) { nv.pause(); nv.currentTime = srcAt(nx, 0); } }
           idx = i;
-        } else if (active && !active.paused && !active.seeking && Math.abs(active.currentTime - (s.from + tl * s.speed)) > 0.35) {
-          active.currentTime = s.from + tl * s.speed; // apanha o atraso
+        } else if (active && fxOf(s)?.reverse && reverseFor(s)) {
+          active.pause(); // o inverso ficou pronto a meio: passa para os frames dele
+          active = null;
+        } else if (active && !active.paused && !active.seeking) {
+          // A rampa muda a velocidade ao longo do clipe; e apanha-se o atraso.
+          const rate = Math.min(16, Math.max(0.0625, playbackRateAt(tl, s.dur, s.speed, fxOf(s))));
+          if (Math.abs(active.playbackRate - rate) > 0.01) active.playbackRate = rate;
+          const want = srcAt(s, tl);
+          if (Math.abs(active.currentTime - want) > (fxOf(s)?.ramp ? 0.2 : 0.35)) active.currentTime = want;
         }
-        g.fillStyle = '#000';
-        g.fillRect(0, 0, W, H);
-        const slide = i > 0 && cfg.current.transition === 'slide' && tl < TR ? W * (1 - ease(tl / TR)) : 0;
-        drawBase(g, s, tl, slide);
-        overlay(g, t, tl, i);
+        // Desenha a 30 fps (o que a gravação apanha): metade do trabalho do GPU num ecrã de 60 Hz.
+        const nowMs = performance.now();
+        if (nowMs - lastDraw >= 30) { lastDraw = nowMs; drawFrame(g, list, i, t); }
         if (t - lastUi > 0.1) { lastUi = t; setT(t); opt.onProgress?.(Math.min(1, t / end)); }
         await nextFrame();
       }
@@ -616,12 +713,16 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   // Em pausa, o que se muda (texto, filtro, sticker, transição) vê-se logo no frame parado.
   useEffect(() => {
     if (playing || progress !== null) return;
-    // Com texto, mostra um instante em que ele já se vê inteiro (à entrada ainda está a aparecer).
+    // Com um texto ou sticker escolhido, mostra um instante em que ele já se vê inteiro (à entrada ainda está a aparecer).
     const t = pausedAt.current;
-    const at = title.trim() && textAlpha(t, textFrom, textTo) < 0.9 ? Math.min(textFrom + 0.6, Math.max(textFrom, textTo - 0.1)) : t;
+    const o = selOv ? overlays.find((x) => x.id === selOv) : null;
+    const f = o ? animState(o, t) : null;
+    const at = o && f && (f.alpha < 0.9 || f.scale < 0.9 || f.chars < 1) ? restingTime(o) : t;
     const id = setTimeout(() => void showAt(at), 120);
     return () => clearTimeout(id);
   }, [fullSig]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A arrastar um texto ou sticker em pausa: redesenha logo o frame parado (sem esperar nem ir buscar o vídeo outra vez).
+  useEffect(() => { if (!playingRef.current && progressRef.current === null) repaint(); }, [overlays]); // eslint-disable-line react-hooks/exhaustive-deps
   // O volume muda logo, sem recomeçar.
   useEffect(() => { const e = engine.current; if (e.ac) { e.musicGain!.gain.value = musicVol; e.origGain!.gain.value = origVol; } }, [musicVol, origVol]);
 
@@ -639,19 +740,40 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     const i = segAt(list, t);
     const s = list[i];
     const tl = t - s.start;
-    if (s.video) {
-      const v = videoFor(s.key, s.uri);
-      v.pause();
-      const to = s.from + tl * s.speed;
-      if (Math.abs(v.currentTime - to) > 0.02) await Promise.race([new Promise<void>((r) => { v.addEventListener('seeked', () => r(), { once: true }); v.currentTime = to; }), wait(1500)]);
+    await seekSeg(s, tl);
+    // A meio de uma transição: o último frame do clipe anterior também tem de estar pronto.
+    const tr = transitionFor(fxOf(s), i, s.dur);
+    if (tr && tl < tr.dur && list[i - 1]) {
+      const prev = list[i - 1];
+      await seekSeg(prev, Math.max(0, prev.dur - 0.04));
+      if (my !== gen.current) return;
+      snapLast(prev);
+      await seekSeg(s, tl);
     }
     if (reference && engine.current.ref) engine.current.ref.currentTime = t;
     if (my !== gen.current) return;
-    g.fillStyle = '#000';
-    g.fillRect(0, 0, W, H);
-    drawBase(g, s, tl, 0);
-    overlay(g, t, Math.max(TR, tl), i);
+    drawFrame(g, list, i, t);
     setT(t);
+    setStageTick((n) => n + 1);
+  }
+  /** Põe o vídeo (ou os frames ao contrário) de um bocado no instante `tl`, parado. */
+  async function seekSeg(s: Seg, tl: number) {
+    if (!s.video) return;
+    const v = videoFor(s.key, s.uri);
+    v.pause();
+    const rf = fxOf(s)?.reverse ? reverseFor(s) : null;
+    if (rf) { await rf.frameAsync(reverseFrameIndex(srcAt(s, tl) - s.from, rf.count)); return; }
+    const to = srcAt(s, tl);
+    if (Math.abs(v.currentTime - to) > 0.02) await Promise.race([new Promise<void>((r) => { v.addEventListener('seeked', () => r(), { once: true }); v.currentTime = to; }), wait(1500)]);
+  }
+  /** Redesenha o frame parado como está (para arrastar textos e stickers sem atraso). */
+  function repaint() {
+    const g = canvasRef.current?.getContext('2d');
+    const list = cfg.current.segs;
+    if (!g || !list.length || loading) return;
+    const t = pausedAt.current;
+    drawFrame(g, list, segAt(list, t), t);
+    setStageTick((n) => n + 1);
   }
 
   // ---------------------------------------------------------------- seguir
@@ -671,6 +793,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     setProgress(0);
     try {
       cancelled.current = false;
+      await prepareFx();
       const out = await run(0, { record: true, speakers: false, onProgress: setProgress });
       setProgress(null);
       if (!alive.current) return;
@@ -684,6 +807,132 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
       setErr('Não consegui montar a tcheka');
     }
   }
+
+  /** Antes de gravar: as fontes, os frames ao contrário e as imagens dos stickers (o vídeo sai igual à pré-visualização). */
+  async function prepareFx() {
+    const list = cfg.current.segs;
+    await Promise.race([loadStudioFonts(), wait(4000)]);
+    await Promise.all(list.filter((s) => s.video && fxOf(s)?.reverse).map((s) => ensureReverse(s)));
+    await Promise.all(cfg.current.overlays.map((o) => (o.kind === 'sticker' ? loadOvImage(o) : null)));
+  }
+
+  // ---------------------------------------------------------------- efeitos e camadas (os painéis)
+  /** Muda o fx de um clipe ou de todos; `timing` (rampa, inverter): a pré-visualização continua do início desse clipe. */
+  const setFx = (target: FxTarget, patch: (fx: ClipFx | undefined, i: number) => ClipFx | undefined, timing = false) => {
+    if (locked) return;
+    if (timing) restartFrom.current = typeof target === 'number' ? segs[target]?.start ?? 0 : nowT();
+    setItems((l) => l.map((it, k) => (target === 'all' || k === target ? { ...it, fx: patch(it.fx, k) } : it)));
+  };
+  /** Escolher um clipe no painel dos efeitos: a pré-visualização vai para dentro dele (já depois da transição). */
+  const pickFxClip = (i: number) => {
+    setSel(i);
+    const s = segs[i];
+    if (!s) return;
+    const tr = transitionFor(s.fx, i, s.dur);
+    seekTo(s.start + Math.min(s.dur * 0.5, (tr?.dur ?? 0) + 0.05));
+  };
+  /** Ver uma transição: toca a partir de um pouco antes da junção. */
+  const previewJunction = (i: number) => seekTo(Math.max(0, (segs[i]?.start ?? 0) - 0.6), { play: true });
+  /** O frame que está agora na pré-visualização, sem efeitos (para as miniaturas dos filtros). */
+  const grabFrame = (): FrameGrab | null => {
+    const e = engine.current;
+    const list = cfg.current.segs;
+    if (!list.length) return null;
+    const k = items[sel]?.key;
+    const s = list.find((x) => x.key === k) ?? list[segAt(list, nowT())];
+    if (s.video) {
+      const rf = fxOf(s)?.reverse ? reverseFor(s) : null;
+      const fr = rf?.frame(reverseFrameIndex(srcAt(s, Math.max(0, nowT() - s.start)) - s.from, rf.count));
+      if (rf && fr) return { src: fr, w: rf.w, h: rf.h };
+      const v = e.videos.get(s.key);
+      return v && v.readyState >= 2 ? { src: v, w: v.videoWidth || W, h: v.videoHeight || H } : null;
+    }
+    const img = e.images.get(s.uri);
+    return img?.naturalWidth ? { src: img, w: img.naturalWidth, h: img.naturalHeight } : null;
+  };
+  /**
+   * Congelar: o frame que está na pré-visualização vira uma foto parada. A meio de um vídeo, divide-o nesse ponto e a foto
+   * fica entre as duas partes (sem transição, como no TikTok); no princípio ou no fim, a foto entra a seguir.
+   */
+  async function freezeFrame() {
+    if (locked || freezing) return;
+    const list = cfg.current.segs;
+    const t = nowT();
+    const s = list[segAt(list, t)];
+    if (!s?.video) { setErr('Põe a pré-visualização num vídeo para congelar um frame.'); return; }
+    setErr('');
+    pause();
+    setFreezing(true);
+    try {
+      const tl = Math.max(0, Math.min(s.dur - 0.01, t - s.start));
+      const fx = fxOf(s);
+      const at = srcAt(s, tl);
+      const rf = fx?.reverse ? reverseFor(s) : null;
+      let src: CanvasImageSource | null = null, sw = 0, sh = 0;
+      if (rf) { src = await rf.frameAsync(reverseFrameIndex(at - s.from, rf.count)); sw = rf.w; sh = rf.h; }
+      if (!src) { await seekSeg(s, tl); const v = videoFor(s.key, s.uri); src = v; sw = v.videoWidth; sh = v.videoHeight; }
+      if (!src || !sw || !sh) throw new Error('frame');
+      const c = document.createElement('canvas');
+      c.width = sw;
+      c.height = sh;
+      c.getContext('2d')?.drawImage(src, 0, 0, sw, sh);
+      const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.92));
+      if (!blob) throw new Error('jpeg');
+      const photo = makeItem({ uri: URL.createObjectURL(blob), video: false, mime: 'image/jpeg' });
+      photo.seconds = 2;
+      photo.fx = sanitizeFx({ filter: fx?.filter, adjust: fx?.adjust, transition: { type: 'corte', dur: 0.5 }, freeze: { from: s.key, at } });
+      const plain = !fx?.reverse && !fx?.ramp;
+      restartFrom.current = s.start;
+      setItems((l) => {
+        const k = l.findIndex((x) => x.key === s.key);
+        if (k < 0) return l;
+        const it = l[k];
+        const split = plain ? freezeSplit(it.trim, at) : null;
+        if (!split) { setSel(k + 1); return [...l.slice(0, k + 1), photo, ...l.slice(k + 1)]; }
+        itemSeq += 1;
+        const rest: Item = { ...it, key: `${itemSeq}-${it.uri}`, trim: split.after, fx: sanitizeFx({ ...it.fx, transition: { type: 'corte', dur: 0.5 } }) };
+        setSel(k + 1);
+        return [...l.slice(0, k), { ...it, trim: split.before }, photo, rest, ...l.slice(k + 1)];
+      });
+    } catch {
+      setErr('Não consegui congelar este frame.');
+    } finally {
+      setFreezing(false);
+    }
+  }
+  const texts = overlays.filter((o): o is TextOverlay => o.kind === 'text');
+  const stickerOvs = overlays.filter((o): o is StickerOverlay => o.kind === 'sticker');
+  /** Escolher uma camada: em pausa, a pré-visualização vai para um instante em que ela se vê. */
+  const selectOverlay = (id: string | null) => {
+    const o = id ? overlays.find((x) => x.id === id) : null;
+    setSelOv(o ? o.id : null);
+    if (!o) return;
+    setTab(o.kind === 'text' ? 'texto' : 'stickers');
+    const t = nowT();
+    if (!playingRef.current && !animState(o, t).visible) void showAt(restingTime(o));
+  };
+  const changeOverlay = (o: Overlay) => { if (!locked) setOverlays((l) => l.map((x) => (x.id === o.id ? o : x))); };
+  const deleteOverlay = (id: string) => { if (locked) return; setOverlays((l) => l.filter((x) => x.id !== id)); setSelOv((s) => (s === id ? null : s)); };
+  const addText = () => {
+    if (locked) return;
+    if (playingRef.current) pause();
+    const o = newText(nowT(), playTotal);
+    setOverlays((l) => [...l, o]);
+    setSelOv(o.id);
+    setEditTick((n) => n + 1);
+  };
+  const addSticker = (c: StickerContent) => {
+    if (locked) return;
+    // Os stickers ficam a tcheka toda (muda-se no «Aparece de»). Cada tipo tem o seu sítio dentro da zona segura (os emojis
+    // e as imagens em cima, as etiquetas mais abaixo), sem se taparem uns aos outros.
+    const o = newSticker(c, 0, playTotal);
+    const pic = (t: string) => t === 'emoji' || t === 'txill' || t === 'gif';
+    const same = stickerOvs.filter((s) => pic(s.sticker.type) === pic(c.type)).length;
+    if (pic(c.type)) { o.x = 0.28 + (same % 3) * 0.2; o.y = 0.24 + Math.floor(same / 3) * 0.12; }
+    else { o.x = 0.46; o.y = Math.min(0.72, 0.5 + same * 0.115); }
+    setOverlays((l) => [...l, o]);
+    setSelOv(o.id);
+  };
 
   // ---------------------------------------------------------------- edição
   const edit = (i: number, patch: (it: Item) => Item) => { restartFrom.current = segs[i]?.start ?? 0; setItems((l) => l.map((it, k) => (k === i ? patch(it) : it))); };
@@ -717,7 +966,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   const locked = editLocked(progress);
   const prepared = readyTick > 0 && ready.current?.sig === fullSig;
   const left = Math.max(0, Math.ceil(playTotal * (1 - (progress ?? 0))));
-  const TABS: { id: Tab; label: string }[] = [{ id: 'clipes', label: 'Clipes' }, { id: 'som', label: 'Som' }, { id: 'texto', label: 'Texto' }, { id: 'efeitos', label: 'Efeitos' }, { id: 'capa', label: 'Capa' }];
+  const TABS: { id: Tab; label: string }[] = [{ id: 'clipes', label: 'Clipes' }, { id: 'som', label: 'Som' }, { id: 'texto', label: 'Texto' }, { id: 'stickers', label: 'Stickers' }, { id: 'efeitos', label: 'Efeitos' }, { id: 'capa', label: 'Capa' }];
   /** Tocar ou pausar (o botão e o toque no vídeo): no fim recomeça do princípio. */
   const togglePlay = () => { if (busy) return; if (playingRef.current) pause(); else play(pausedAt.current >= playTotal - 0.05 ? 0 : pausedAt.current); };
 
@@ -742,8 +991,13 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
       {/* A pré-visualização é o próprio canvas da montagem (o que se vê é o que sai). Tocar põe em pausa. */}
       <Pressable style={st.preview} onPress={togglePlay} accessibilityRole="button" accessibilityLabel={playing ? 'Pausa' : 'Tocar'}>
         {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { canvasRef.current = el; }, width: W, height: H, 'aria-label': 'Pré-visualização da tcheka', style: { width: '100%', height: '100%', objectFit: 'contain', display: 'block', backgroundColor: '#000' } })}
+        {/* Os GIFs dos stickers ficam aqui (quase invisíveis) para o browser os animar; o canvas desenha o frame de agora. */}
+        {dom('div', { ref: (el: HTMLDivElement | null) => { gifBox.current = el; }, 'aria-hidden': true, style: { position: 'absolute', left: 0, top: 0, width: 2, height: 2, overflow: 'hidden', opacity: 0.01, pointerEvents: 'none' } })}
+        {/* Mexer nos textos e stickers (mover, rodar, escalar), com a zona segura e as guias; fora deles, tocar pausa. */}
+        <FxStage locked={locked} overlays={overlays} selId={selOv} boxes={() => engine.current.boxes} onSelect={selectOverlay} onChange={changeOverlay} onDelete={deleteOverlay}
+          onEdit={(id) => { selectOverlay(id); setEditTick((n) => n + 1); }} showSafe={tab === 'texto' || tab === 'stickers'} tick={stageTick} />
         {loading && items.length ? <View style={st.center} pointerEvents="none"><Text style={st.loadText}>A preparar…</Text></View> : null}
-        {!playing && !busy ? <View style={st.center} pointerEvents="none"><View style={st.playBig}><Icon name="play" size={34} color="#fff" solid /></View></View> : null}
+        {!playing && !busy && !selOv ? <View style={st.center} pointerEvents="none"><View style={st.playBig}><Icon name="play" size={34} color="#fff" solid /></View></View> : null}
         <View style={st.timeline} pointerEvents="none">
           <View style={[st.timeFill, { width: `${playTotal ? Math.min(100, (playT / playTotal) * 100) : 0}%` }]} />
           {useRhythm ? segs.slice(0, -1).map((s) => <View key={s.key} style={[st.beatTick, { left: `${((s.start + s.dur) / Math.max(0.1, playTotal)) * 100}%` }]} />) : null}
@@ -782,7 +1036,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
         ))}
       </View>
 
-      <ScrollView style={{ maxHeight: 250 }} contentContainerStyle={{ paddingBottom: 8 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ maxHeight: 280 }} contentContainerStyle={{ paddingBottom: 10 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {tab === 'clipes' ? (
           <>
             {/* A sequência: toca para escolher; setas para ordenar; x tira; nas fotos o tempo (ou as batidas) muda ao tocar. */}
@@ -836,13 +1090,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
                 </View>
               </>
             ) : null}
-
-            <View style={st.rowWrap}>
-              <Text style={st.label}>Transição</Text>
-              {chip(transition === 'none', 'Seca', () => setTransition('none'))}
-              {chip(transition === 'fade', 'Fundir', () => setTransition('fade'))}
-              {chip(transition === 'slide', 'Deslizar', () => setTransition('slide'))}
-            </View>
+            {items.length > 1 ? <Text style={[st.small, { paddingHorizontal: 16, marginTop: 8 }]}>Transições, filtros e rampas de cada clipe: no separador Efeitos.</Text> : null}
           </>
         ) : null}
 
@@ -874,38 +1122,27 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
         ) : null}
 
         {tab === 'texto' ? (
-          <>
-            <View style={st.textRow}>
-              <TextInput value={title} editable={!locked} onChangeText={(v) => { if (!locked) setTitle(v.slice(0, 80)); }} placeholder="Texto por cima da tcheka" placeholderTextColor="rgba(255,255,255,0.55)" style={st.input} accessibilityLabel="Texto da tcheka" maxLength={80} />
-              {chip(titleStyle === 'branco', 'Branco', () => setTitleStyle('branco'))}
-              {chip(titleStyle === 'coral', 'Coral', () => setTitleStyle('coral'))}
-            </View>
-            <View style={st.trimBox}>
-              <Text style={st.label}>Aparece</Text>
-              <Text style={st.small}>Entra aos {fmtS(textFrom)} s</Text>
-              <RangeSlider label="O texto entra aos" value={textFrom} min={0} max={Math.max(0.5, playTotal - 0.5)} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => { setTextFrom(v); setTextTo((x) => Math.max(x, v + 0.5)); }} onCommit={(v) => void showAt(Math.min(playTotal, v + 0.5))} />
-              <Text style={st.small}>Sai aos {fmtS(textTo)} s</Text>
-              <RangeSlider label="O texto sai aos" value={textTo} min={0.5} max={Math.max(0.6, playTotal)} step={0.1} format={(v) => `${fmtS(v)} s`} onChange={(v) => { setTextTo(v); setTextFrom((x) => Math.min(x, v - 0.5)); }} onCommit={(v) => void showAt(Math.max(0, v - 0.6))} />
-            </View>
-          </>
+          <TextPanel texts={texts} selId={selOv} onSelect={selectOverlay} onAdd={addText} onChange={changeOverlay} onDelete={deleteOverlay} total={playTotal} locked={locked} focusKey={editTick} />
+        ) : null}
+
+        {tab === 'stickers' ? (
+          <StickerTray locked={locked} stickers={stickerOvs} selId={selOv} onSelect={(id) => selectOverlay(id || null)} onAdd={addSticker} onChange={changeOverlay} onDelete={deleteOverlay} total={playTotal} />
         ) : null}
 
         {tab === 'efeitos' ? (
-          <>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 6, alignItems: 'center' }} style={{ maxHeight: 40, marginTop: 10 }} accessibilityRole="tablist" accessibilityLabel="Filtros">
-              <Text style={[st.label, { paddingHorizontal: 0 }]}>Filtro</Text>
-              {LOOKS.map((l, i) => chip(look === i, l.name, () => setLook(i), l.id))}
-            </ScrollView>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, alignItems: 'center' }} style={{ maxHeight: 64, marginTop: 10 }} accessibilityLabel="Sticker">
-              <Text style={[st.label, { paddingHorizontal: 0 }]}>Sticker</Text>
-              <Pressable onPress={() => setCast(null)} style={[st.castBtn, cast === null && { borderColor: colors.brand }]} accessibilityRole="button" accessibilityLabel="Sem sticker"><Icon name="x" size={18} color="#fff" /></Pressable>
-              {CAST.map((c) => (
-                <Pressable key={c.id} onPress={() => setCast(c.id)} style={[st.castBtn, cast === c.id && { borderColor: colors.brand }]} accessibilityRole="button" accessibilityLabel={c.name} accessibilityState={{ selected: cast === c.id }}>
-                  <Sticker id={c.id} size={40} />
-                </Pressable>
-              ))}
-            </ScrollView>
-          </>
+          <FxPanel
+            clips={segs.map((s) => ({ key: s.key, video: s.video, uri: s.uri, fx: s.fx, dur: s.dur, trimLen: s.len, start: s.start }))}
+            sel={sel}
+            onSelect={pickFxClip}
+            setFx={setFx}
+            grab={grabFrame}
+            playing={playing}
+            frameKey={`${Math.round(playT * 2)}|${assetTick}`}
+            onPreviewJunction={previewJunction}
+            onFreeze={() => void freezeFrame()}
+            freezing={freezing}
+            reverseOf={(k) => revState[k] ?? { status: null, progress: 0 }}
+          />
         ) : null}
 
         {tab === 'capa' ? (
@@ -949,7 +1186,7 @@ const st = StyleSheet.create({
   track: { width: '100%', height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3, backgroundColor: colors.brand },
   tabs: { flexDirection: 'row', justifyContent: 'center', gap: 4, marginTop: 6 },
-  tabBtn: { paddingHorizontal: 10, height: 36, alignItems: 'center', justifyContent: 'center' },
+  tabBtn: { paddingHorizontal: 8, height: 36, alignItems: 'center', justifyContent: 'center' },
   tabText: { color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: '800' },
   tabOn: { color: '#fff' },
   tabDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#fff', marginTop: 3 },

@@ -39,8 +39,10 @@ test('o botão tocar/pausar está sempre na pré-visualização (fora dos separa
 });
 
 test('cada mudança vê-se logo, sem voltar ao início', () => {
-  // Filtro, transição, texto, cor e sticker: lidos a cada frame (cfg.current) e, em pausa, redesenhados no frame parado.
-  assert.match(studio, /cfg\.current\.transition/);
+  // Filtro, ajustes, transição, textos e stickers: lidos a cada frame (cfg.current) e, em pausa, redesenhados no frame parado.
+  assert.match(studio, /s\.key in cfg\.current\.fxs \? cfg\.current\.fxs\[s\.key\]/, 'os efeitos de cada clipe lidos a cada frame');
+  assert.match(studio, /drawOverlays\(g, cfg\.current\.overlays, t,/, 'os textos e stickers lidos a cada frame');
+  assert.match(studio, /const tr = transitionFor\(fxOf\(s\), i, s\.dur\);/, 'a transição de cada junção também');
   assert.match(studio, /Em pausa, o que se muda .* vê-se logo no frame parado/);
   // O volume muda sem recomeçar.
   assert.match(studio, /e\.musicGain!\.gain\.value = musicVol; e\.origGain!\.gain\.value = origVol;/);
@@ -82,7 +84,7 @@ test('com a montagem em curso, os controlos de edição estão desativados', () 
   const tabs = studio.indexOf('<View style={st.tabs}');
   const end = studio.indexOf('{pickMusic ? <MusicPicker');
   assert.ok(box > 0 && box < tabs, 'a caixa bloqueada começa antes dos separadores');
-  for (const ctl of ["setTransition('fade')", 'setLook(i)', 'setTitleStyle(', 'setCast(c.id)', 'onPress={openPicker}', 'remove(i)', 'cycle(i)', 'Início do clipe', 'Momento da capa']) {
+  for (const ctl of ['<FxPanel', '<TextPanel', '<StickerTray', 'onPress={openPicker}', 'remove(i)', 'cycle(i)', 'Início do clipe', 'Momento da capa']) {
     const at = studio.indexOf(ctl, tabs);
     assert.ok(at > box && at < end, `${ctl} está dentro da caixa bloqueada`);
   }
@@ -90,7 +92,14 @@ test('com a montagem em curso, os controlos de edição estão desativados', () 
   assert.match(studio, /locked: \{ opacity: 0\.35 \}/);
   assert.match(studio, /accessibilityState=\{\{ disabled: locked \}\}/);
   assert.match(studio, /el\.setAttribute\('inert', ''\)/, 'no browser, inert tira o foco e o teclado');
-  assert.match(studio, /<TextInput value=\{title\} editable=\{!locked\}/);
+  // Os painéis dos efeitos, do texto e dos stickers (components/studio) também: as mudanças não passam e o teclado sai.
+  assert.match(studio, /<TextPanel [^>]*locked=\{locked\}/);
+  assert.match(studio, /<StickerTray [^>]*locked=\{locked\}/);
+  assert.match(studio, /const setFx = [^\n]*\n\s+if \(locked\) return;/, 'os efeitos não mudam a meio da montagem');
+  assert.match(studio, /<FxStage [^>]*locked=\{locked\}/, 'nem se arrastam os textos na pré-visualização');
+  const tp = readFileSync(path.join(ROOT, 'src', 'components', 'studio', 'TextPanel.tsx'), 'utf8');
+  assert.match(tp, /editable=\{!locked\}/);
+  assert.match(tp, /if \(cur && !locked\) onChange/);
   assert.match(studio, /disabled=\{locked\} style=\{st\.hint\}/);
 });
 
