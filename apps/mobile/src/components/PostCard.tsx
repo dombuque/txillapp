@@ -183,7 +183,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   const giftTo = { username: post.author.username, displayName: post.author.displayName };
 
   return (
-    <Pressable onPress={goPost} disabled={detail} accessible={false} style={[styles.card, cardShadow, { marginHorizontal: margin, paddingHorizontal: pad }]}>
+    <Pressable onPress={goPost} accessible={false} style={[styles.card, cardShadow, { marginHorizontal: margin, paddingHorizontal: pad }]}>
       {sponsored ? (
         <View style={styles.sponsored} accessible accessibilityRole="text" accessibilityLabel={sponsored.a11y}>
           <Icon name="flame" size={14} color={colors.brand} />
