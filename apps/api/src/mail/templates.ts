@@ -44,3 +44,14 @@ export function resetPasswordMail(publicUrl: string, name: string, token: string
     outro: 'O link vale 1 hora e só funciona uma vez. Se não foste tu, ignora esta mensagem: a tua senha continua a mesma.',
   });
 }
+
+/** Pedido de apagar a conta feito sem sessão (txillapp.com/apagar-conta): a ligação abre a página que pede a confirmação final. */
+export function deleteAccountMail(publicUrl: string, name: string, token: string): Mail {
+  return layout(publicUrl, {
+    title: 'Confirma que queres apagar a conta',
+    intro: `Olá, ${name}! Recebemos um pedido para apagar a tua conta do Txillapp e os teus dados. Ainda não apagámos nada: carrega no botão e confirma na página que abre.`,
+    button: 'Ver e confirmar',
+    url: `${publicUrl}/apagar-conta?token=${encodeURIComponent(token)}`,
+    outro: 'O link vale 1 hora. Se não foste tu, ignora esta mensagem: a tua conta continua igual.',
+  });
+}

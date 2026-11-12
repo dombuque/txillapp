@@ -111,6 +111,7 @@ export function Landing() {
           <Link href="/help" style={st.footLink}>Ajuda</Link>
           <Link href="/terms" style={st.footLink}>Termos de Utilização</Link>
           <Link href="/privacy" style={st.footLink}>Política de Privacidade</Link>
+          <Link href={'/apagar-conta' as never} style={st.footLink}>Apagar a conta</Link>
         </View>
         <Text style={[st.footText, { marginTop: 10 }]}>
           <Text onPress={() => void Linking.openURL('mailto:suporte@txillapp.com')} accessibilityRole="link">suporte@txillapp.com</Text>

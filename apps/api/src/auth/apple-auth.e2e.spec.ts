@@ -62,7 +62,7 @@ describe('Iniciar sessão com a Apple (integração)', () => {
     expect(first.signupToken).toBeTruthy();
 
     const username = `ap${run}`.slice(0, 24);
-    const done = (await api().post('/api/v1/auth/apple/complete').send({ signupToken: first.signupToken, username, gender: 'unspecified', birthDate: '1990-06-15' }).expect(200)).body;
+    const done = (await api().post('/api/v1/auth/apple/complete').send({ signupToken: first.signupToken, username, gender: 'unspecified', birthDate: '1990-06-15', acceptTerms: true }).expect(200)).body;
     expect(done.user).toMatchObject({ username, displayName: 'Maria Apple' });
     expect(done.accessToken).toBeTruthy();
     const row = (await pool.query('SELECT apple_sub, email_verified_at FROM identity.users WHERE username = $1', [username])).rows[0];
@@ -78,7 +78,7 @@ describe('Iniciar sessão com a Apple (integração)', () => {
     const sub = `apple-${run}-2`;
     const first = (await api().post('/api/v1/auth/apple').send({ identityToken: await sign({ sub, email: `x${run}@privaterelay.appleid.com`, is_private_email: 'true' }) }).expect(200)).body;
     const username = `pr${run}`.slice(0, 24);
-    await api().post('/api/v1/auth/apple/complete').send({ signupToken: first.signupToken, username, birthDate: '1990-06-15' }).expect(200);
+    await api().post('/api/v1/auth/apple/complete').send({ signupToken: first.signupToken, username, birthDate: '1990-06-15', acceptTerms: true }).expect(200);
     expect((await pool.query('SELECT email_verified_at FROM identity.users WHERE username = $1', [username])).rows[0].email_verified_at).toBeNull();
   });
 
