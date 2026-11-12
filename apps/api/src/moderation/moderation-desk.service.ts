@@ -186,7 +186,7 @@ export class ModerationDeskService {
       : type === 'instant' && r.instant_media_id ? [{ id: r.instant_media_id as string, video: false, nsfw: r.instant_nsfw ?? null, url: `/api/v1/media/review/${r.instant_media_id}`, review: true }]
       : [];
     const removed =
-      type === 'post' ? (r.post_removed_at ? (r.post_removed_by === 'author' ? 'author' : 'moderation') : null)
+      type === 'post' ? (r.post_removed_at ? (r.post_removed_by === 'moderation' ? 'moderation' : 'author') : null)
       : type === 'story' ? (r.mod_removed_at ? 'moderation' : r.story_expires_at && new Date(r.story_expires_at) < new Date() ? 'expired' : r.story_expires_at ? null : 'gone')
       : type === 'comment' ? (r.mod_removed_at ? 'moderation' : r.comment_post_id ? null : 'gone')
       : type === 'message' ? (proof.current?.deleted ? 'gone' : null)
@@ -445,7 +445,7 @@ export class ModerationDeskService {
           nsfwFlagged: r.nsfw != null && r.nsfw >= threshold,
           textHits: textHits(r.body),
           openReports: reports.get(k) ?? 0,
-          state: r.removed_by === 'moderation' ? 'removed' : r.removed_by === 'author' ? 'deleted' : r.type === 'story' && r.expires_at && new Date(r.expires_at) <= new Date() ? 'expired' : 'visible',
+          state: r.removed_by === 'moderation' ? 'removed' : r.removed_by === 'author' || r.removed_by === 'original' ? 'deleted' : r.type === 'story' && r.expires_at && new Date(r.expires_at) <= new Date() ? 'expired' : 'visible',
           removal: removals.get(k) ?? null,
         };
       }),

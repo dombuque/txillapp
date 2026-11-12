@@ -72,6 +72,8 @@ export const normalizeMusicMime = (mime: string) => (mime === 'audio/mp3' ? 'aud
 /** Vídeos curtos (MP4/MOV/WebM). Convertidos no servidor para MP4 H.264. */
 const VIDEO = new Set(['video/mp4', 'video/quicktime', 'video/webm']);
 const UPLOAD_TTL_S = 300;
+/** A cópia privada de um vídeo de que se tirou o áudio de um som retirado pela equipa (para o repor). */
+const SOUND_COPY = '.sound';
 /** Larguras servidas (px). O pedido sobe para a mais próxima: poucas variantes, muito cache. */
 export const WIDTHS = [160, 256, 480, 720, 1080, 1600] as const;
 /** Larguras leves das fotos do chat (o visor do Zás pede uma delas com ?w=): poucas, para haver sempre cache. */
@@ -212,7 +214,7 @@ export class MediaService implements OnModuleInit {
         const id = r.id as string;
         const scope = this.scopeOf(r.purpose as string);
         // Tudo o que possa existir deste ficheiro, em ambos os buckets (variantes, capa, original por converter).
-        const jobs = [this.s3.remove(id, scope), this.s3.remove(`${id}.src`, 'private'), this.s3.remove(`${id}.poster.jpg`, 'public'), this.s3.remove(`${id}.poster.jpg`, 'private'), ...WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'public'))];
+        const jobs = [this.s3.remove(id, scope), this.s3.remove(`${id}.src`, 'private'), this.s3.remove(`${id}${SOUND_COPY}`, 'private'), this.s3.remove(`${id}.poster.jpg`, 'public'), this.s3.remove(`${id}.poster.jpg`, 'private'), ...WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'public'))];
         // As larguras leves das fotos do chat (as do Zás) ficam no privado, ao lado do original.
         if (scope === 'private') jobs.push(...CHAT_WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'private')));
         await Promise.allSettled(jobs);
@@ -221,12 +223,44 @@ export class MediaService implements OnModuleInit {
       else {
         await rm(join(this.dir, r.id as string), { force: true });
         await rm(join(this.dir, `${r.id}.src`), { force: true });
+        await rm(join(this.dir, `${r.id}${SOUND_COPY}`), { force: true });
         await rm(join(this.dir, `${r.id}.poster.jpg`), { force: true });
         for (const w of WIDTHS) await rm(join(this.dir, `${r.id}.${w}.webp`), { force: true });
       }
       await this.pool.query('UPDATE content.media_assets SET purged_at = now() WHERE id = $1', [r.id]);
     }
     return rows.length;
+  }
+
+  /**
+   * Trocar os bytes de um vídeo publicado (sons retirados: o mesmo vídeo sem a pista de áudio). A capa fica. Com `keepCopy`
+   * guarda antes, de forma privada, o vídeo como estava (para o repor); a cópia sai com o ficheiro (sweepDeleted).
+   */
+  async replaceVideo(id: string, bytes: Buffer, keepCopy: Buffer | null = null) {
+    if (keepCopy) {
+      if (this.s3) await this.s3.put(`${id}${SOUND_COPY}`, keepCopy, 'video/mp4', 'private', keepCopy.length);
+      else await writeFile(join(this.dir, `${id}${SOUND_COPY}`), keepCopy);
+    }
+    if (this.s3) await this.s3.put(id, bytes, 'video/mp4', 'public', bytes.length);
+    else {
+      await writeFile(join(this.dir, `${id}.tmp`), bytes);
+      await rename(join(this.dir, `${id}.tmp`), join(this.dir, id));
+    }
+    await this.pool.query('UPDATE content.media_assets SET size_bytes = $2 WHERE id = $1', [id, bytes.length]);
+  }
+
+  /** Repor o vídeo guardado por `replaceVideo(…, keepCopy)`. false se não houver cópia. */
+  async restoreVideoCopy(id: string): Promise<boolean> {
+    let bytes: Buffer;
+    try {
+      bytes = this.s3 ? await this.s3.read(`${id}${SOUND_COPY}`, 'private') : await readFile(join(this.dir, `${id}${SOUND_COPY}`));
+    } catch {
+      return false;
+    }
+    await this.replaceVideo(id, bytes);
+    if (this.s3) await this.s3.remove(`${id}${SOUND_COPY}`, 'private');
+    else await rm(join(this.dir, `${id}${SOUND_COPY}`), { force: true });
+    return true;
   }
 
   onModuleInit() {
