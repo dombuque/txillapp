@@ -1,4 +1,4 @@
-import { post, raw, type Badged } from '@/lib/api';
+import { ApiError, post, raw, type Badged } from '@/lib/api';
 
 /** Tipos e chamadas da Geleira e dos Zás (copiados do site; as chamadas usam a mesma sessão da app). */
 export type TasteKind = 'vibe' | 'bebida' | 'comida' | 'sitio';
@@ -20,6 +20,10 @@ export interface InstantTray {
   mine: { count: number; views: number; endsAt: string | null };
   others: ({ username: string; displayName: string; hasAvatar: boolean; count: number; latestAt: string; close: boolean; preview: string | null } & Badged)[];
 }
+/** Quem fez um Zás (no visor em pilha, cada cartão traz o seu). */
+export type InstantAuthor = { username: string; displayName: string; hasAvatar: boolean } & Badged;
+/** Um Zás da lista do visor: o Zás e quem o fez. */
+export interface FeedInstant extends InstantItem { author: InstantAuthor }
 export interface InstantViewer extends Badged { username: string; displayName: string; hasAvatar: boolean; at: string; reaction?: string | null }
 
 export const geleiraApi = {
@@ -41,6 +45,19 @@ export const geleiraApi = {
 export const instantsApi = {
   tray: (): Promise<InstantTray> => raw('/instants'),
   of: (username: string): Promise<InstantItem[]> => raw(`/instants/of/${encodeURIComponent(username)}`),
+  /**
+   * Todos os Zás por ver numa lista só (o visor em pilha passa de uma pessoa à seguinte sem ir à rede). Servidor antigo
+   * (sem /instants/feed): junta os de cada pessoa da faixa, pedidos todos ao mesmo tempo.
+   */
+  async feed(people: readonly InstantAuthor[] = []): Promise<FeedInstant[]> {
+    try {
+      return (await raw('/instants/feed')) as FeedInstant[];
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 404)) throw e;
+      const lists = await Promise.all(people.map((a) => raw(`/instants/of/${encodeURIComponent(a.username)}`).then((r) => (r as InstantItem[]).map((it) => ({ ...it, author: a }))).catch(() => [] as FeedInstant[])));
+      return lists.flat();
+    }
+  },
   create: (mediaId: string, caption: string, audience: 'friends' | 'close' = 'friends'): Promise<{ id: string; expiresAt: string }> => raw('/instants', post({ mediaId, caption, audience })),
   view: (id: string): Promise<void> => raw(`/instants/${id}/view`, post({})),
   react: (id: string, reaction: string): Promise<void> => raw(`/instants/${id}/reaction`, { method: 'PUT', body: JSON.stringify({ reaction }) }),

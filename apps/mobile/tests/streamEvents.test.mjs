@@ -38,8 +38,17 @@ test('o meu próprio "a escrever" (não devia chegar) é ignorado', () => {
   assert.deepEqual(s.planChatEvent({ type: 'typing', from: 'ana', self: true }), { notify: false, keys: [] });
 });
 
-test('sem evento (voltar a ligar, voltar à app): tudo', () => {
-  assert.deepEqual(s.refreshKeys(), [...LIST, ['chat-group'], ['chat-thread']]);
+test('sem evento (voltar a ligar, voltar à app): tudo, também a faixa dos Zás', () => {
+  assert.deepEqual(s.refreshKeys(), [...LIST, ['chat-group'], ['chat-thread'], ['instants'], ['instants-feed']]);
+});
+
+test('Zás novo ou apagado (e o eco de um meu): só a faixa e a lista do visor, sem som nem aviso nem conversas', () => {
+  const zas = { notify: false, keys: [['instants'], ['instants-feed']] };
+  assert.deepEqual(s.planChatEvent({ type: 'zas', what: 'new' }), zas);
+  assert.deepEqual(s.planChatEvent({ type: 'zas', what: 'gone' }), zas);
+  assert.deepEqual(s.planChatEvent({ type: 'zas', what: 'new', self: true }), zas);
+  // As mensagens continuam a não mexer nos Zás.
+  assert.ok(!s.planChatEvent({ type: 'message', from: 'ana' }).keys.some((k) => k[0] === 'instants'));
 });
 
 /** Relógio e intervalo falsos para o vigia. */

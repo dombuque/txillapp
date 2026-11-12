@@ -3,13 +3,14 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as SecureStore from 'expo-secure-store';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, PanResponder, PixelRatio, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { Easing, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Modal } from '@/components/Modal';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, uploadMedia } from '@/lib/api';
-import { instantsApi, type InstantItem, type InstantViewer as Viewer } from '@/lib/api.geleira';
+import { instantsApi, type FeedInstant, type InstantAuthor, type InstantItem, type InstantViewer as Viewer } from '@/lib/api.geleira';
 import { useAuth } from '@/lib/auth';
 import { claimSwipe, releaseSwipe } from '@/lib/swipeClaim';
 import { useOverlay } from '@/lib/overlays';
@@ -36,10 +37,17 @@ import { useVisibleViewport } from './zas/useVisibleViewport';
 import { WebZasStudio } from './zas/WebZasStudio';
 import { ZasNativeCamera, type ZasCamStatus } from './zas/ZasNativeCamera';
 import { zasCardSize } from './zas/zasFrame';
+import { DECK_MS, deckCount, deckHeadroom, deckSlots, prefetchTargets, swipeStep, zasPhotoUrl, zasPhotoWidth } from './zas/zasDeck';
+import { ZasDeckCard } from './zas/ZasDeckCard';
+import { zasPrefetcher } from './zas/zasPrefetch';
 import { saveZas, shareZas } from './zas/zasImage';
 
 type Audience = 'friends' | 'close';
-type Who = { username: string; displayName: string } & Badged;
+
+/** Quem fez os Zás de uma linha da faixa (para a lista do visor, quando o servidor não tem /instants/feed). */
+const authorOf = (o: { username: string; displayName: string; hasAvatar: boolean } & Badged): InstantAuthor => ({ username: o.username, displayName: o.displayName, hasAvatar: o.hasAvatar, verified: o.verified, verifiedTier: o.verifiedTier });
+/** A foto que o visor vai pedir, para um ecrã de largura `w` (a mesma conta do cartão: pré-carregar o endereço certo). */
+const viewerPhoto = (url: string, w: number) => zasPhotoUrl(abs(url) ?? url, zasPhotoWidth(Math.min(w - 56, 420), PixelRatio.get()));
 
 /** Pequena memória do aparelho (preferências do Zás): SecureStore na app, localStorage na web. Falha em silêncio. */
 async function remember(key: string, value?: string): Promise<string | null> {
@@ -90,7 +98,16 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
   // A barra de baixo flutua (58 px + espaço de baixo + 8): a pilha fica logo acima dela.
   const stackBottom = 58 + Math.max(dockInsets.bottom, 8) + 8 + 10;
   const qc = useQueryClient();
+  // A faixa põe-se em dia logo que chega um Zás (evento 'zas' no tempo real, lib/streamEvents); a volta de 60 s fica
+  // só de reserva (sem tempo real, ou se um evento se perder).
   const { data } = useQuery({ queryKey: ['instants'], queryFn: instantsApi.tray, refetchInterval: 60_000, enabled: !!user });
+  const people = useMemo(() => (data?.others ?? []).map(authorOf), [data]);
+  const pending = (data?.others ?? []).reduce((n, o) => n + o.count, 0);
+  // Com Zás por ver, a lista do visor e a primeira foto vêm já (em segundo plano): tocar na pilha abre sem esperar.
+  const feed = useQuery({ queryKey: ['instants-feed'], queryFn: () => instantsApi.feed(people), enabled: !!user && pending > 0, staleTime: 15_000 });
+  useEffect(() => {
+    if (feed.data?.length) zasPrefetcher.want(prefetchTargets(feed.data.map((x) => viewerPhoto(x.url, width)), 0, 1));
+  }, [feed.data, width]);
   // Como o atalho do Instagram: espreita a meio e sai de vez quando a lista pára de mexer.
   const [away, setAway] = useState(true);
   useEffect(() => {
@@ -145,8 +162,6 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
     }),
   ).current;
   const [mode, setMode] = useState<null | 'view' | 'cam'>(null);
-  const [queue, setQueue] = useState<Who[]>([]);
-  const [at, setAt] = useState(0);
   const [gridOpen, setGridOpen] = useState(false);
   // A câmara, o visor e a grelha do Zás tapam o ecrã: nada de lembretes por cima (lib/overlays).
   useOverlay(mode !== null || gridOpen);
@@ -157,9 +172,12 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
   }, []);
   // O Zás é só para o telemóvel: no computador (web larga, como no site: 1024 px) não aparece.
   if (!user || (Platform.OS === 'web' && width >= 1024)) return null;
-  const refresh = () => void qc.invalidateQueries({ queryKey: ['instants'] });
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ['instants'] });
+    void qc.invalidateQueries({ queryKey: ['instants-feed'] });
+  };
   const others = data?.others ?? [];
-  const total = others.reduce((n, o) => n + o.count, 0);
+  const total = pending;
 
   return (
     <>
@@ -176,23 +194,21 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
           onRestore={() => setSnooze(false)}
           onOpen={() => {
             if (total === 0) return setMode('cam');
-            setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName, verified: o.verified, verifiedTier: o.verifiedTier })));
-            setAt(0);
             setMode('view');
           }}
         />
       )}
-      {gridOpen && <MyInstants username={user.username} onClose={() => { setGridOpen(false); refresh(); }} />}
+      {gridOpen && <MyInstants username={user.username} displayName={user.displayName} hasAvatar onClose={() => { setGridOpen(false); refresh(); }} />}
       {mode === 'cam' && <InstantsHub onClose={() => { setMode(null); refresh(); }} />}
-      {mode === 'view' && queue[at] && (
+      {mode === 'view' && (
         <InstantViewer
-          key={queue[at].username}
-          who={queue[at]}
+          items={feed.data}
+          load={() => instantsApi.feed(people)}
           own={false}
           onClose={() => { setMode(null); refresh(); }}
-          onCamera={() => setMode('cam')}
-          onGrid={() => { setMode(null); setGridOpen(true); }}
-          onFinish={() => (at + 1 < queue.length ? setAt(at + 1) : setMode('cam'))}
+          onCamera={() => { setMode('cam'); refresh(); }}
+          onGrid={() => { setMode(null); setGridOpen(true); refresh(); }}
+          onFinish={() => { setMode('cam'); refresh(); }}
         />
       )}
     </>
@@ -327,9 +343,11 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
   });
   const friends = useQuery({ queryKey: ['close-friends'], queryFn: api.closeFriends });
   const tray = useQuery({ queryKey: ['instants'], queryFn: instantsApi.tray });
-  const refresh = () => void qc.invalidateQueries({ queryKey: ['instants'] });
-  const [queue, setQueue] = useState<Who[] | null>(null);
-  const [at, setAt] = useState(0);
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ['instants'] });
+    void qc.invalidateQueries({ queryKey: ['instants-feed'] });
+  };
+  const [viewing, setViewing] = useState(false);
   const others = tray.data?.others ?? [];
 
   useEffect(() => {
@@ -425,7 +443,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {others.length > 0 && !isWeb && (
                 <Pressable
-                  onPress={() => { setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName, verified: o.verified, verifiedTier: o.verifiedTier }))); setAt(0); }}
+                  onPress={() => setViewing(true)}
                   accessibilityRole="button"
                   accessibilityLabel="Ver os Zás que recebeste"
                   style={st.small}
@@ -552,14 +570,13 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
           }}
         />
       )}
-      {grid && user && <MyInstants username={user.username} onClose={() => { setGrid(false); refresh(); }} />}
-      {queue && queue[at] && (
+      {grid && user && <MyInstants username={user.username} displayName={user.displayName} hasAvatar onClose={() => { setGrid(false); refresh(); }} />}
+      {viewing && (
         <InstantViewer
-          key={queue[at].username}
-          who={queue[at]}
+          items={qc.getQueryData<FeedInstant[]>(['instants-feed'])}
+          load={() => instantsApi.feed(others.map(authorOf))}
           own={false}
-          onClose={() => { setQueue(null); refresh(); }}
-          onFinish={() => (at + 1 < queue.length ? setAt(at + 1) : (setQueue(null), refresh()))}
+          onClose={() => { setViewing(false); refresh(); }}
         />
       )}
     </Modal>
@@ -567,7 +584,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
 }
 
 /** Os meus Zás ativos em grelha de 3 (duram 24 h). Tocar abre-o; manter premido apaga. */
-function MyInstants({ username, onClose }: { username: string; onClose: () => void }) {
+function MyInstants({ username, displayName = '', hasAvatar = false, onClose }: { username: string; displayName?: string; hasAvatar?: boolean; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [items, setItems] = useState<InstantItem[] | null>(null);
@@ -623,7 +640,7 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
                     accessibilityLabel={it.caption || 'Zás'}
                     style={({ pressed }) => [{ width: cell, height: Math.round(cell / 0.75), backgroundColor: colors.zinc800, transform: [{ scale: pressed ? 0.97 : 1 }], opacity: pressed ? 0.8 : 1 }, squircle(cell), noSelect]}
                   >
-                    <Image source={{ uri: abs(it.url) }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
+                    <Image source={{ uri: zasPhotoUrl(abs(it.url) ?? it.url, 480) }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
                     <Pressable onPress={() => void showWho(it.id)} accessibilityRole="button" accessibilityLabel="Quem viu" style={[st.views, countShadow]}>
                       {top ? (
                         <>
@@ -693,7 +710,14 @@ function MyInstants({ username, onClose }: { username: string; onClose: () => vo
         )}
         {who && <WhoSheet viewers={who} onClose={() => setWho(null)} />}
       </View>
-      {open && <InstantViewer who={{ username, displayName: '' }} own startId={open} onClose={() => { setOpen(null); void load(); }} />}
+      {open && items && (
+        <InstantViewer
+          items={items.map((it) => ({ ...it, author: { username, displayName, hasAvatar } }))}
+          own
+          startId={open}
+          onClose={() => { setOpen(null); void load(); }}
+        />
+      )}
     </Modal>
   );
 }
@@ -721,15 +745,41 @@ function WhoSheet({ viewers, onClose }: { viewers: Viewer[]; onClose: () => void
   );
 }
 
+/** Reações rápidas: uma fila só (cabem as 7 num telemóvel de 360 px). Fixa: não depende do Zás de cima. */
+const ReactBar = memo(function ReactBar({ onReact }: { onReact: { current: (id: string) => void } }) {
+  return (
+    <View accessibilityRole="toolbar" accessibilityLabel="Reagir" style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, marginBottom: 12 }}>
+      {REACTIONS.map((r) => (
+        <Pressable key={r.id} onPress={() => onReact.current(r.id)} accessibilityRole="button" accessibilityLabel={r.label} style={({ pressed }) => [st.reactBtn, pressed && { transform: [{ scale: 0.9 }] }]}>
+          <ReactionArt body={r.id} size={30} />
+        </Pressable>
+      ))}
+    </View>
+  );
+});
+
+/** Zás já vistos neste aparelho (nesta sessão): a lista em cache pode ainda não saber, e cada Zás vê-se uma só vez. */
+const seenHere = new Set<string>();
+/** Tirar da lista do visor os Zás já vistos aqui. */
+const unseen = (l: FeedInstant[]) => l.filter((x) => !seenHere.has(x.id));
+/** O toque duplo (brinde): o segundo toque tem de chegar em menos disto. */
+const DOUBLE_MS = 260;
+
 /**
- * Ver os Zás de alguém: foto com cantos bem redondos, cada um abre-se uma só vez. Toca à direita para o seguinte e à esquerda para o anterior;
- * dois toques reagem com um brinde; arrastar para baixo fecha. Nos meus (`own`) mostra quem viu, as reações e deixa apagar.
+ * Ver os Zás em pilha: a foto de cima numa moldura squircle, com as seguintes a espreitar por trás (até 2), e «1 de N».
+ * Toque à direita (ou deslizar para a esquerda) passa logo à seguinte: a de cima voa para o lado e a de trás, já
+ * desenhada e com a foto em memória, sobe. Toque à esquerda (ou deslizar para a direita) volta atrás. Dois toques
+ * reagem com um brinde ao Zás que se estava a ver. Arrastar para baixo fecha.
+ * - Dos outros (`items` = todos os Zás por ver, de toda a gente, numa lista só): cada cartão traz quem o fez; passa de
+ *   uma pessoa à seguinte sem ir à rede. Marcar como visto vai em segundo plano.
+ * - Os meus (`own`): quem viu, as reações, guardar e apagar.
+ * `load`: quando ainda não há lista (por ex. a cache da faixa estava vazia), vai buscá-la.
  */
-function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId }: { who: Who; own: boolean; onClose: () => void; onFinish?: () => void; onCamera?: () => void; onGrid?: () => void; startId?: string }) {
+function InstantViewer({ items: initial, load, own, onClose, onFinish, onCamera, onGrid, startId }: { items?: FeedInstant[]; load?: () => Promise<FeedInstant[]>; own: boolean; onClose: () => void; onFinish?: () => void; onCamera?: () => void; onGrid?: () => void; startId?: string }) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const [items, setItems] = useState<InstantItem[] | null>(null);
-  const [i, setI] = useState(0);
+  const [items, setItems] = useState<FeedInstant[] | null>(() => (initial ? (own ? initial : unseen(initial)) : null));
+  const [i, setI] = useState(() => Math.max(0, startId && initial ? initial.findIndex((x) => x.id === startId) : 0));
   const [viewers, setViewers] = useState<Viewer[] | null>(null);
   const [err, setErr] = useState('');
   const [reply, setReply] = useState('');
@@ -737,9 +787,9 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
   /** O Zás de outra pessoa que se está a denunciar (e se a denúncia já foi). */
   const [reporting, setReporting] = useState<string | null>(null);
   const reportedZas = useRef(false);
-  const marked = useRef(new Set<string>());
   const noteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** O último toque numa metade: quando, e que Zás estava por cima (o toque duplo reage a esse). */
+  const lastTap = useRef<{ t: number; at: number; id: string } | null>(null);
   const drag = useRef(new Animated.Value(0)).current;
   const pop = useRef(new Animated.Value(0)).current;
   const [popId, setPopId] = useState<string | null>(null);
@@ -748,28 +798,56 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
   const ownRef = useRef(own);
   ownRef.current = own;
   const viewersRef = useRef<() => Promise<void>>(async () => undefined);
+  /** Onde está a pilha (Reanimated): o índice do de cima, contínuo no arrastar e na animação. */
+  const pos = useSharedValue(i);
 
   useEffect(() => {
-    instantsApi
-      .of(who.username)
+    if (items) {
+      if (!items.length) (onFinish ?? onClose)();
+      return;
+    }
+    if (!load) return;
+    load()
       .then((r) => {
-        if (!r.length) return (onFinish ?? onClose)();
-        setItems(r);
-        const at = startId ? r.findIndex((x) => x.id === startId) : -1;
-        if (at > 0) setI(at);
+        const list = own ? r : unseen(r);
+        if (!list.length) return (onFinish ?? onClose)();
+        const at = startId ? Math.max(0, list.findIndex((x) => x.id === startId)) : 0;
+        pos.value = at;
+        setI(at);
+        setItems(list);
       })
       .catch((e) => setErr((e as Error).message));
-    return () => {
-      clearTimeout(noteTimer.current);
-      if (tapTimer.current) clearTimeout(tapTimer.current);
-    };
-  }, [who.username]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => clearTimeout(noteTimer.current), []);
 
+  const count = items?.length ?? 0;
   const cur = items?.[i];
-  // Ao aparecer, conta como visto (e some da faixa).
+  // A pilha anda: a de cima sai e a de trás sobe (curto, para o toque parecer imediato).
   useEffect(() => {
-    if (own || !cur || marked.current.has(cur.id)) return;
-    marked.current.add(cur.id);
+    pos.value = withTiming(i, { duration: DECK_MS, easing: Easing.out(Easing.cubic) });
+  }, [i, pos]);
+
+  // Cartão: o maior que cabe, deixando lugar por cima para os de trás espreitarem e por baixo para as reações.
+  // Por baixo: quem fez e o tempo (42), as reações numa fila (56) e a resposta (56), ou, nos meus, uma fila de botões.
+  // Por cima: a barra (56) e o que os de trás espreitam (deckHeadroom ≈ 7 % da altura + 32).
+  const below = own ? 130 : 196;
+  const avail = height - Math.max(12, insets.top) - Math.max(16, insets.bottom) - 56 - below - 12;
+  const cardH0 = Math.max(240, Math.min(600, (avail - 32) / 1.07));
+  const cardW = Math.round(Math.min(cardH0 * 0.75, width - 56));
+  const cardH = Math.round(cardW / 0.75);
+  const headroom = deckHeadroom(cardH);
+  const photoW = zasPhotoWidth(cardW, PixelRatio.get());
+  const urls = useMemo(() => (items ?? []).map((x) => zasPhotoUrl(abs(x.url) ?? x.url, photoW)), [items, photoW]);
+
+  // Pré-carrega a de cima e as 3 seguintes (ao abrir e a cada avanço): quando se toca, a próxima já está em memória.
+  useEffect(() => {
+    zasPrefetcher.want(prefetchTargets(urls, i));
+  }, [urls, i]);
+
+  // Ao aparecer, conta como visto (em segundo plano: a troca de cartão nunca espera por isto).
+  useEffect(() => {
+    if (own || !cur || seenHere.has(cur.id)) return;
+    seenHere.add(cur.id);
     instantsApi.view(cur.id).catch(() => undefined);
   }, [cur, own]);
 
@@ -779,32 +857,46 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
     noteTimer.current = setTimeout(() => setNote(''), ms);
   };
 
-  function react(id: string) {
-    if (!cur) return;
+  function react(id: string, target = cur) {
+    if (!target) return;
     setPopId(id);
     pop.setValue(0);
     Animated.timing(pop, { toValue: 1, duration: 900, useNativeDriver: Platform.OS !== 'web' }).start(() => setPopId(null));
     // A reação fica só no Zás (o dono vê-a em «quem viu»); só as respostas escritas vão para o chat.
-    instantsApi.react(cur.id, id).then(() => flash('Reação enviada')).catch((e) => setErr((e as Error).message));
+    instantsApi.react(target.id, id).then(() => flash('Reação enviada')).catch((e) => setErr((e as Error).message));
   }
-  /** Toque numa metade: vai para o outro Zás; dois toques seguidos reagem com um brinde (e não mudam de Zás). */
-  function tapZone(go: () => void) {
-    if (own) return go();
-    if (tapTimer.current != null) {
-      clearTimeout(tapTimer.current);
-      tapTimer.current = null;
-      react(':brinde:');
-      return;
-    }
-    tapTimer.current = setTimeout(() => {
-      tapTimer.current = null;
-      go();
-    }, 250);
-  }
+  // A fila das reações não se redesenha a cada troca de cartão (os 7 desenhos pesam num telemóvel lento).
+  const reactRef = useRef(react);
+  reactRef.current = react;
+  const back = () => {
+    pos.value = withTiming(i, { duration: DECK_MS, easing: Easing.out(Easing.cubic) });
+  };
   function next() {
     if (!items) return;
     if (i + 1 >= items.length) (onFinish ?? onClose)();
     else setI(i + 1);
+  }
+  function prev() {
+    if (i > 0) setI(i - 1);
+    else back();
+  }
+  /**
+   * Toque numa metade: muda LOGO de Zás (sem esperar para ver se vem outro toque). Se o segundo toque chegar depressa,
+   * era um toque duplo: volta ao Zás que se estava a ver e reage-lhe com um brinde.
+   */
+  function tapZone(go: () => void) {
+    if (own || !cur) return go();
+    const now = Date.now();
+    const last = lastTap.current;
+    if (last && now - last.t < DOUBLE_MS) {
+      lastTap.current = null;
+      const target = items?.find((x) => x.id === last.id);
+      if (last.at !== i) setI(last.at);
+      react(':brinde:', target);
+      return;
+    }
+    lastTap.current = { t: now, at: i, id: cur.id };
+    go();
   }
   async function remove() {
     if (!cur) return;
@@ -829,86 +921,122 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
   viewersRef.current = showViewers;
   async function sendReply() {
     const body = reply.trim();
-    if (!body) return;
+    if (!body || !cur) return;
     setReply('');
     setErr('');
     try {
-      if (!cur) return;
-      await api.chatSend(who.username, { kind: 'zas_reply', body, instantId: cur.id });
+      await api.chatSend(cur.author.username, { kind: 'zas_reply', body, instantId: cur.id });
       flash('Enviado para as mensagens', 2000);
     } catch (e) {
       setErr((e as Error).message);
     }
   }
 
-  // Arrastar para baixo fecha (o cartão acompanha o dedo).
+  // Gestos: para o lado, a pilha segue o dedo (esquerda = seguinte, direita = anterior); para baixo fecha (o ecrã
+  // acompanha o dedo); nos meus, para cima mostra quem viu.
+  const live = useRef({ i, count, width, next, prev, back });
+  live.current = { i, count, width, next, prev, back };
+  const axis = useRef<'x' | 'y' | null>(null);
   const pan = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_e, g) => (g.dy > 12 || (ownRef.current && g.dy < -12)) && Math.abs(g.dy) > Math.abs(g.dx) * 1.5,
-      onPanResponderMove: (_e, g) => drag.setValue(Math.max(0, g.dy)),
+      onMoveShouldSetPanResponder: (_e, g) => {
+        const sideways = Math.abs(g.dx) > 10 && Math.abs(g.dx) > Math.abs(g.dy) * 1.2;
+        const vertical = (g.dy > 12 || (ownRef.current && g.dy < -12)) && Math.abs(g.dy) > Math.abs(g.dx) * 1.5;
+        axis.current = sideways ? 'x' : vertical ? 'y' : null;
+        return !!axis.current;
+      },
+      onPanResponderGrant: () => claimSwipe(),
+      onPanResponderMove: (_e, g) => {
+        if (axis.current === 'x') {
+          const { i: at, count: n, width: w } = live.current;
+          // Nas pontas (antes do primeiro, depois do último) resiste: só meio caminho.
+          const raw = -g.dx / Math.max(1, w);
+          const room = (raw < 0 && at === 0) || (raw > 0 && at >= n - 1) ? 0.25 : 1;
+          pos.value = at + Math.max(-1, Math.min(1, raw * room));
+        } else drag.setValue(Math.max(0, g.dy));
+      },
       onPanResponderRelease: (_e, g) => {
-        // Nos meus Zás, deslizar para cima mostra quem viu e as reações.
-        if (ownRef.current && g.dy < -60) void viewersRef.current();
+        releaseSwipe();
+        const L = live.current;
+        if (axis.current === 'x') {
+          const step = swipeStep(g.dx, g.vx, L.width);
+          if (step === 1) L.next();
+          else if (step === -1) L.prev();
+          else L.back();
+        } else if (ownRef.current && g.dy < -60) void viewersRef.current();
         else if (g.dy > 110) closeRef.current();
         else Animated.spring(drag, { toValue: 0, useNativeDriver: Platform.OS !== 'web', bounciness: 0 }).start();
+        axis.current = null;
+      },
+      onPanResponderTerminate: () => {
+        releaseSwipe();
+        live.current.back();
+        Animated.spring(drag, { toValue: 0, useNativeDriver: Platform.OS !== 'web', bounciness: 0 }).start();
+        axis.current = null;
       },
     }),
   ).current;
 
-  const room = height - insets.top - insets.bottom - (own ? 250 : 400);
-  const cardW = Math.min(Math.min(470, Math.max(200, room)) * 0.75, width - 72);
-  const cardH = cardW / 0.75;
-  const first = who.displayName.split(' ')[0] || who.username;
+  const who = cur?.author;
+  const first = (who?.displayName ?? '').split(' ')[0] || who?.username || '';
+  const label = deckCount(i, count);
   // Computador: ←/→ anterior e seguinte (Esc fecha: é do Modal); com rato não se arrasta o Zás.
   const mouse = finePointer();
-  useViewerKeys(!!items && !reporting && !viewers, { prev: () => setI((k) => Math.max(0, k - 1)), next });
+  useViewerKeys(!!items && !reporting && !viewers, { prev, next });
+  const slots = items ? deckSlots(count, i) : [];
 
   return (
     <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View {...(mouse ? {} : pan.panHandlers)} style={{ flex: 1, backgroundColor: '#000', paddingTop: Math.max(12, insets.top), transform: [{ translateY: drag }] }} accessibilityViewIsModal>
         <View style={st.vTop}>
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" style={st.vBtn}><Icon name="x" size={28} color="#fff" /></Pressable>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          {/* «1 de N»: discreta, ao meio, por cima da pilha. */}
+          {label ? (
+            <View accessibilityLabel={`Zás ${label}`} style={st.countPill}>
+              <Icon name="bolt" size={12} solid color={colors.brand} />
+              <Text style={st.countPillText}>{label}</Text>
+            </View>
+          ) : <View />}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 44, justifyContent: 'flex-end' }}>
             {onGrid && <Pressable onPress={onGrid} accessibilityRole="button" accessibilityLabel="Os meus Zás" style={st.vBtn}><Icon name="grid" size={25} color="#fff" /></Pressable>}
             {onCamera && <Pressable onPress={onCamera} accessibilityRole="button" accessibilityLabel="Mandar o meu Zás" style={st.vBtn}><Icon name="camera" size={26} color="#fff" /></Pressable>}
           </View>
         </View>
 
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 8 }}>
-          <View style={[{ width: cardW, height: cardH, backgroundColor: colors.zinc900 }, squircle(cardW)]}>
-            {cur ? (
-              <Image source={{ uri: abs(cur.url) }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={cur.caption || 'Zás'} />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: headroom }}>
+          <View style={{ width: cardW, height: cardH }}>
+            {slots.length ? (
+              slots.map((s) => {
+                const it = items![s.index];
+                return <ZasDeckCard key={it.id} index={s.index} pos={pos} w={cardW} h={cardH} screenW={width} uri={urls[s.index]} caption={it.caption} top={s.depth === 0} z={s.depth < 0 ? 20 : 10 - s.depth} />;
+              })
             ) : (
-              <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.zinc900, alignItems: 'center', justifyContent: 'center' }, squircle(cardW)]}>
                 {err ? <Text style={{ color: 'rgba(255,255,255,0.7)' }}>{err}</Text> : <ActivityIndicator color="#fff" />}
               </View>
             )}
-            <LinearGradient colors={['rgba(0,0,0,0.35)', 'transparent']} style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 96 }} pointerEvents="none" />
-            <LinearGradient colors={['transparent', 'rgba(0,0,0,0.6)']} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 160 }} pointerEvents="none" />
-            {/* Metades do cartão: anterior / seguinte. */}
-            <Pressable accessibilityRole="button" accessibilityLabel="Anterior" onPress={() => tapZone(() => setI((k) => Math.max(0, k - 1)))} style={{ position: 'absolute', left: 0, top: 64, bottom: 64, width: '33%' }} />
-            <Pressable accessibilityRole="button" accessibilityLabel="Seguinte" onPress={() => tapZone(next)} style={{ position: 'absolute', right: 0, top: 64, bottom: 64, width: '67%' }} />
+            {/* Metades do cartão: anterior / seguinte (por cima da pilha, fixas). */}
+            <Pressable accessibilityRole="button" accessibilityLabel="Anterior" onPress={() => tapZone(prev)} style={{ position: 'absolute', zIndex: 30, left: 0, top: 0, bottom: 0, width: '33%' }} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Seguinte" onPress={() => tapZone(next)} style={{ position: 'absolute', zIndex: 30, right: 0, top: 0, bottom: 0, width: '67%' }} />
             {popId && (
-              <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', opacity: pop.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] }), transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.25] }) }] }]}>
+              <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 31, alignItems: 'center', justifyContent: 'center', opacity: pop.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] }), transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.25] }) }] }]}>
                 <ReactionArt body={popId} size={120} />
               </Animated.View>
             )}
-            {cur?.caption ? <CurvedCaption w={cardW} h={cardH} text={cur.caption} arc="top" /> : null}
             {(err || note) && cur ? (
-              <Text accessibilityRole={err ? 'alert' : 'text'} style={[st.toast, { backgroundColor: err ? 'rgba(220,38,38,0.9)' : 'rgba(5,150,105,0.9)' }]}>{err || note}</Text>
+              <Text accessibilityRole={err ? 'alert' : 'text'} style={[st.toast, { zIndex: 32, backgroundColor: err ? 'rgba(220,38,38,0.9)' : 'rgba(5,150,105,0.9)' }]}>{err || note}</Text>
             ) : null}
           </View>
         </View>
 
         <View style={st.info}>
-          <Avatar name={who.displayName || who.username} username={who.username} size={30} />
-          <NameWithBadge name={own ? 'Os teus Zás' : who.username} who={own ? null : who} style={{ fontSize: 14, fontWeight: '600', color: '#fff' }} containerStyle={{ maxWidth: '40%' }} />
+          <Avatar name={who?.displayName || who?.username || ''} username={who?.hasAvatar ? who.username : undefined} size={30} />
+          <NameWithBadge name={own ? 'Os teus Zás' : `@${who?.username ?? ''}`} who={own ? null : who ?? null} style={{ fontSize: 14, fontWeight: '700', color: '#fff' }} containerStyle={{ maxWidth: '45%' }} />
           {cur && (
             <Text style={{ fontSize: 14, color: own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? '#fcd34d' : 'rgba(255,255,255,0.65)', fontWeight: own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? '700' : '400' }}>
               {own ? `${hm(cur.at)} · ${leftLabel(cur.expiresAt)}` : timeAgo(cur.at).replace('Há ', '')}
             </Text>
           )}
-          {items && items.length > 1 && <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>· {i + 1}/{items.length}</Text>}
           {!own && cur ? (
             <Pressable onPress={() => setReporting(cur.id)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Denunciar este Zás" style={{ marginLeft: 4, padding: 4 }}>
               <Icon name="flag" size={18} color="rgba(255,255,255,0.75)" />
@@ -944,17 +1072,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
             </View>
           ) : (
             <>
-              <View accessibilityRole="toolbar" accessibilityLabel="Reagir" style={{ alignSelf: 'center', maxWidth: 320, marginBottom: 12, gap: 8 }}>
-                {[REACTIONS.slice(0, 4), REACTIONS.slice(4)].map((row, k) => (
-                  <View key={k} style={{ flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
-                    {row.map((r) => (
-                      <Pressable key={r.id} onPress={() => react(r.id)} accessibilityRole="button" accessibilityLabel={r.label} style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' }}>
-                        <ReactionArt body={r.id} size={34} />
-                      </Pressable>
-                    ))}
-                  </View>
-                ))}
-              </View>
+              <ReactBar onReact={reactRef} />
               <View style={st.replyBar}>
                 <TextInput
                   value={reply}
@@ -1030,6 +1148,9 @@ const st = StyleSheet.create({
   fxPill: { position: 'absolute', left: 12, bottom: 12, zIndex: 6, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 10, paddingVertical: 5 },
   fxPillText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   toast: { position: 'absolute', left: 32, right: 32, top: 24, overflow: 'hidden', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8, textAlign: 'center', fontSize: 14, fontWeight: '600', color: '#fff' },
+  countPill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, borderRadius: 999, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.12)' },
+  countPillText: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.9)', fontVariant: ['tabular-nums'] },
+  reactBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
   info: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12 },
   glass: { borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.15)' },
   replyBar: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.12)', padding: 6, paddingLeft: 20 },
