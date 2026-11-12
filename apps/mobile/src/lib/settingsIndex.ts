@@ -80,7 +80,7 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'verification', group: 'conta', title: 'Verificação', keywords: ['selo', 'verificado', 'verificar conta', 'selo azul', 'conta oficial'] },
   { id: 'region', group: 'conta', title: 'A tua região', keywords: ['país', 'rede', 'região', 'moçambique'] },
   { id: 'exportData', group: 'conta', title: 'Descarregar os meus dados', keywords: ['exportar', 'cópia', 'transferir', 'download', 'rgpd', 'os meus dados', 'backup'] },
-  { id: 'deleteAccount', group: 'conta', title: 'Eliminar conta', keywords: ['apagar conta', 'apagar', 'remover conta', 'fechar conta', 'desativar', 'sair de vez'] },
+  { id: 'deleteAccount', group: 'conta', title: 'Eliminar conta', keywords: ['apagar conta', 'apagar', 'remover conta', 'fechar conta', 'desativar', 'sair de vez', 'apagar conta pelo site', 'apagar-conta', 'sem a app'] },
   // Privacidade
   { id: 'accountType', group: 'privacidade', title: 'Tipo de perfil', keywords: ['privado', 'público', 'conta privada', 'perfil privado', 'perfil público', 'fechar perfil'] },
   { id: 'connections', group: 'privacidade', title: 'Quem vê seguidores e a quem sigo', keywords: ['seguidores', 'seguindo', 'a seguir', 'listas'] },
@@ -120,7 +120,7 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'relay', group: 'mensagens', title: 'Esconder o meu IP nas chamadas', keywords: ['ip', 'endereço', 'servidor', 'relay'] },
   { id: 'callLog', group: 'mensagens', title: 'Registo de chamadas', to: '/calls', keywords: ['histórico de chamadas', 'chamadas', 'apagar chamadas'] },
   // Txills e pagamentos
-  { id: 'wallet', group: 'pagamentos', title: 'Txills e presentes', to: '/wallet', keywords: ['carteira', 'saldo', 'txills', 'moedas', 'presentes'] },
+  { id: 'wallet', group: 'pagamentos', title: 'Txills e presentes', to: '/wallet', keywords: ['carteira', 'saldo', 'txills', 'moedas', 'presentes', 'o que são txills', 'levantar', 'trocar por dinheiro'] },
   { id: 'orders', group: 'pagamentos', title: 'Pedidos e pagamentos', to: '/orders', keywords: ['recarregar', 'comprar txills', 'pagamentos', 'm-pesa', 'mpesa', 'pedidos', 'recarga'] },
   // Aparência e idioma
   { id: 'language', group: 'aparencia', title: 'Idioma e traduções', to: '/language', keywords: ['língua', 'português', 'inglês', 'english', 'traduzir', 'tradução'] },
@@ -129,8 +129,8 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'password', group: 'seguranca', title: 'Alterar senha', keywords: ['palavra-passe', 'password', 'mudar senha', 'senha', 'palavra passe'] },
   { id: 'devices', group: 'seguranca', title: 'Os teus aparelhos', keywords: ['sessões', 'dispositivos', 'telemóveis', 'computadores', 'terminar sessão noutros', 'sessão iniciada', 'aparelhos'] },
   // Ajuda e sobre
-  { id: 'help', group: 'ajuda', title: 'Ajuda', to: '/help', keywords: ['perguntas', 'suporte', 'faq', 'dúvidas', 'apoio'] },
-  { id: 'terms', group: 'ajuda', title: 'Termos de utilização', to: '/terms', keywords: ['termos', 'regras', 'condições'] },
+  { id: 'help', group: 'ajuda', title: 'Ajuda', to: '/help', keywords: ['perguntas', 'suporte', 'faq', 'dúvidas', 'apoio', 'denunciar', 'denúncia', 'reportar', 'abuso'] },
+  { id: 'terms', group: 'ajuda', title: 'Termos de utilização', to: '/terms', keywords: ['termos', 'regras', 'condições', 'tolerância zero', 'regras da malta'] },
   { id: 'privacyPolicy', group: 'ajuda', title: 'Política de privacidade', to: '/privacy', keywords: ['rgpd', 'dados pessoais', 'privacidade'] },
   { id: 'about', group: 'ajuda', title: 'Sobre', to: '/about', keywords: ['sobre o txillapp', 'informações'] },
   { id: 'version', group: 'ajuda', title: 'Versão e atualizações', keywords: ['atualizar', 'versão', 'procurar atualização', 'recarregar', 'build', 'nova versão'] },

@@ -12,11 +12,11 @@ export const DELETION_STEPS: string[] = [
 ];
 
 export const DELETION_DELETED: string[] = [
-  'O nome, o @, o email, a senha, a bio, a foto, a cidade, o site, o género e a data de nascimento.',
+  'O nome, o @, o email, a senha, a bio, a foto, a cidade, o site, o país, o género e a data de nascimento.',
   'As publicações (com as fotos, os vídeos e o texto), os mimos, as notas, os Zás e os comentários, também em publicações de outras pessoas.',
   'As conversas a dois, as mensagens que enviaste nos TxillGroups, as chamadas e as conversas com o SuperTxill.',
   'Quem segues e quem te segue, os brindes, as notificações, os guardados, a geleira e as tuas preferências.',
-  'Os aparelhos com notificações e as sessões iniciadas, as estatísticas de uso, os check-ins, tudo o que é do mapa e os pedidos de verificação.',
+  'Os aparelhos com notificações e as sessões iniciadas, as estatísticas de uso, as visitas a perfis, os check-ins, tudo o que é do mapa e os pedidos de verificação.',
   'Sais dos teus TxillGroups. As páginas de locais que criaste passam para o administrador mais antigo ou deixam de aparecer.',
 ];
 
