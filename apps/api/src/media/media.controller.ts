@@ -78,14 +78,21 @@ export class MediaController {
  * Foto de perfil por @utilizador. Sem foto responde 204 (a app mostra as iniciais).
  * `no-cache` + ETag: o browser revalida e a foto nova aparece logo, sem descarregar de novo se não mudou.
  */
+/** A largura pedida para o avatar: 256 por omissão, no máximo 1080 (nunca o original). */
+export function avatarWidth(w: string | undefined): number {
+  const n = Math.trunc(Number(w));
+  return Number.isFinite(n) && n > 256 ? Math.min(n, 1080) : 256;
+}
+
 @Controller('avatars')
 export class AvatarsController {
   constructor(private readonly media: MediaService) {}
 
   @Get(':username')
   @SkipThrottle()
-  async avatar(@Param('username') username: string, @Res() res: Response) {
-    const found = await this.media.avatarOf(username.slice(0, 40));
+  async avatar(@Param('username') username: string, @Query('w') w: string | undefined, @Res() res: Response) {
+    // `?w=1080`: a foto em grande (ao abrir a foto de perfil). Sem `w`, a pequena de 256 (as bolinhas da app).
+    const found = await this.media.avatarOf(username.slice(0, 40), avatarWidth(w));
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     if (!found) return res.status(204).setHeader('Cache-Control', 'no-cache').end();
     if ('url' in found) return res.setHeader('Cache-Control', 'no-cache').redirect(302, found.url);

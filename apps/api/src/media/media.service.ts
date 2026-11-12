@@ -414,16 +414,17 @@ export class MediaService implements OnModuleInit {
   }
 
   /** Ficheiro da foto de perfil de uma pessoa, se tiver. */
-  async avatarOf(username: string): Promise<Served | null> {
+  async avatarOf(username: string, width = 256): Promise<Served | null> {
     const { rows } = await this.pool.query(
       `SELECT m.id, m.mime FROM identity.users u JOIN content.media_assets m ON m.id = u.avatar_media_id
         WHERE u.username = $1 AND u.status = 'active' AND m.status = 'ready'`,
       [username],
     );
     if (!rows[0]) return null;
-    if (this.s3) return { url: await this.s3.readUrl(`${rows[0].id}.256.webp`, { ttlSeconds: 3600 }) };
-    // O avatar nunca precisa do original: serve-se sempre a versão pequena.
-    return this.variant({ path: join(this.dir, rows[0].id as string), mime: rows[0].mime as string }, rows[0].id as string, 256);
+    const w = WIDTHS.find((x) => x >= width) ?? 256;
+    if (this.s3) return { url: await this.s3.readUrl(`${rows[0].id}.${w}.webp`, { ttlSeconds: 3600 }) };
+    // O avatar nunca precisa do original: serve-se uma versão reduzida (256 nas bolinhas, até 1080 ao abrir a foto).
+    return this.variant({ path: join(this.dir, rows[0].id as string), mime: rows[0].mime as string }, rows[0].id as string, w);
   }
 
   private sign(id: string, exp: number) {
