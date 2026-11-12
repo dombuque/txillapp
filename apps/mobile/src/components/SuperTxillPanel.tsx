@@ -1,13 +1,15 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
 import { FollowButton } from '@/components/FollowButton';
 import { Icon } from '@/components/Icon';
+import { api } from '@/lib/api';
 import { aiApi } from '@/lib/api.ai';
 import { colors } from '@/lib/theme';
 import { FeatureIntro } from './FeatureIntro';
@@ -35,6 +37,16 @@ export function SuperTxillScreen({ onClose }: { onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const q = useQuery({ queryKey: ['supertxill-for-you'], queryFn: aiApi.forYou, staleTime: 60_000 });
   const list = q.data ?? [];
+  // Procurar malta pelo nome ou pelo @ (a mesma pesquisa da lupa), com um pequeno atraso enquanto se escreve.
+  const [text, setText] = useState('');
+  const [term, setTerm] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setTerm(text.trim().replace(/^@/, '')), 250);
+    return () => clearTimeout(t);
+  }, [text]);
+  const finding = term.length >= 2;
+  const found = useQuery({ queryKey: ['search', term], queryFn: () => api.search(term), enabled: finding, staleTime: 30_000, placeholderData: keepPreviousData });
+  const people = found.data?.people ?? [];
 
   return (
     <>
@@ -50,7 +62,55 @@ export function SuperTxillScreen({ onClose }: { onClose: () => void }) {
             </View>
           </View>
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: Math.max(24, insets.bottom + 16) }} keyboardShouldPersistTaps="handled">
+          <View style={s.findWrap}>
+            <View style={s.find}>
+              <Icon name="search" size={18} color={colors.zinc500} />
+              <TextInput
+                value={text}
+                onChangeText={setText}
+                placeholder="Procurar malta pelo nome ou @"
+                placeholderTextColor={colors.zinc500}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+                style={s.findInput}
+                accessibilityLabel="Procurar malta"
+              />
+              {text ? (
+                <Pressable onPress={() => setText('')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
+              ) : null}
+            </View>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: Math.max(24, insets.bottom + 16) }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+            {finding ? (
+              <>
+                <Text style={s.h2}>Pessoas</Text>
+                {found.isPending && <ActivityIndicator color={colors.brand} style={{ marginTop: 24 }} />}
+                {found.isError && !found.data && <Text accessibilityRole="alert" style={s.note}>Não consegui procurar agora. Tenta outra vez.</Text>}
+                {found.isSuccess && people.length === 0 && <Text style={[s.note, { color: colors.zinc600, fontSize: 15 }]}>Ninguém com esse nome por aqui.</Text>}
+                <View style={{ marginTop: 8 }}>
+                  {people.map((p) => (
+                    <View key={p.username} style={s.row}>
+                      <Pressable onPress={() => router.push(`/u/${p.username}` as never)} style={s.who} accessibilityRole="button">
+                        <Avatar name={p.displayName} username={p.username} size={48} />
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Text style={s.name} numberOfLines={1}>{p.displayName}</Text>
+                            {p.isPrivate && <Icon name="lock" size={14} color={colors.zinc500} />}
+                          </View>
+                          <Text style={s.reason} numberOfLines={1}>@{p.username}{p.followsYou ? ' · Segue-te' : ''}</Text>
+                        </View>
+                      </Pressable>
+                      <View style={{ width: 104 }}>
+                        <FollowButton username={p.username} following={p.following} requested={p.requested} isPrivate={p.isPrivate} />
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : (
+            <>
             <Text style={s.h2}>Malta para ti</Text>
             {q.isLoading && <ActivityIndicator color={colors.brand} style={{ marginTop: 24 }} />}
             {q.isError && <Text accessibilityRole="alert" style={s.note}>Não consegui ver agora. Tenta daqui a pouco.</Text>}
@@ -74,6 +134,8 @@ export function SuperTxillScreen({ onClose }: { onClose: () => void }) {
                 </View>
               ))}
             </View>
+            </>
+            )}
             <Text style={s.box}>Isto é calculado pelo Txillapp, só com dados do Txillapp: quem segues e os gostos da tua geleira. Nada sai para fora. Só aparecem pessoas que aceitam ser sugeridas. Podes desligar o uso da geleira nas Definições.</Text>
           </ScrollView>
         </View>
@@ -87,6 +149,9 @@ const s = StyleSheet.create({
   back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 18, fontWeight: '800', lineHeight: 22, color: colors.zinc900 },
   sub: { fontSize: 12, color: colors.zinc500 },
+  findWrap: { paddingHorizontal: 16, paddingTop: 12 },
+  find: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 14 },
+  findInput: { flex: 1, height: 44, fontSize: 16, color: colors.zinc900, outlineStyle: 'none' } as object,
   h2: { fontSize: 18, fontWeight: '800', color: colors.zinc900 },
   note: { marginTop: 24, textAlign: 'center', color: colors.zinc500, fontSize: 16 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },

@@ -15,3 +15,10 @@ test('o SuperTxill é um ecrã da pilha: arrastar para trás volta às Mensagens
     assert.doesNotMatch(src, /SuperTxillPanel onClose/, f);
   }
 });
+
+test('a Malta para ti tem pesquisa de pessoas (nome ou @), com os resultados da mesma pesquisa da lupa', () => {
+  const panel = readFileSync(new URL('../src/components/SuperTxillPanel.tsx', import.meta.url), 'utf8');
+  assert.match(panel, /placeholder="Procurar malta pelo nome ou @"/);
+  assert.match(panel, /queryFn: \(\) => api\.search\(term\), enabled: finding/);
+  assert.match(panel, /setTerm\(text\.trim\(\)\.replace\(\/\^@\/, ''\)\)/);
+});
