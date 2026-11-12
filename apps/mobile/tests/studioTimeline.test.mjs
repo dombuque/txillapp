@@ -145,3 +145,10 @@ test('a barra do tempo fica por baixo da imagem, com a largura dela; um só play
   assert.match(studio, /\{!playing && !busy \? <View style=\{\[st\.center, \{ bottom: BAR_H \}\]\}/);
   assert.match(studio, /\{!busy && playing \? \(/);
 });
+
+test('as velocidades cabem numa linha (compactas) na coluna de 400 px; se não couberem, passam para a seguinte', () => {
+  const actions = read('components', 'studio', 'TimelineActions.tsx');
+  assert.match(actions, /flexWrap: 'wrap'/);
+  assert.match(actions, /height: 28, padding: '0 7px'/);
+  assert.doesNotMatch(actions, /overflowX: 'auto'/);
+});

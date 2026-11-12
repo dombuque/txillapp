@@ -73,12 +73,13 @@ export function TimelineActions({ clip, duration, rhythm, locked, onSplit, onDup
       aria-pressed={on}
       disabled={locked}
       onClick={onClick}
-      style={{ height: 30, padding: '0 12px', borderRadius: 999, border: on ? 'none' : '1px solid rgba(255,255,255,0.14)', background: on ? `linear-gradient(135deg, ${hot}, ${coral})` : 'rgba(255,255,255,0.06)', color: '#fff', fontFamily: font, fontSize: 12.5, fontWeight: 800, cursor: 'pointer', flex: '0 0 auto', boxShadow: on ? '0 0 14px rgba(255,79,109,0.45)' : 'none' }}
+      style={{ height: 28, padding: '0 7px', borderRadius: 999, border: on ? 'none' : '1px solid rgba(255,255,255,0.14)', background: on ? `linear-gradient(135deg, ${hot}, ${coral})` : 'rgba(255,255,255,0.06)', color: '#fff', fontFamily: font, fontSize: 12, fontWeight: 800, fontVariantNumeric: 'tabular-nums', cursor: 'pointer', flex: '0 0 auto', boxShadow: on ? '0 0 14px rgba(255,79,109,0.45)' : 'none' }}
     >
       {label}
     </button>
   );
-  const row: CSSProperties = { display: 'flex', gap: 6, overflowX: 'auto', padding: '8px 16px 2px', scrollbarWidth: 'none', alignItems: 'center' } as CSSProperties;
+  // As velocidades cabem numa linha (compactas) na coluna de 400 px e no telemóvel; o resto passa para a linha seguinte.
+  const row: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 4, rowGap: 6, padding: '8px 16px 2px', alignItems: 'center' };
 
   return (
     <div style={{ fontFamily: font }}>
@@ -105,7 +106,7 @@ export function TimelineActions({ clip, duration, rhythm, locked, onSplit, onDup
         isVideo ? (
           <div style={row} aria-label="Velocidade do clipe">
             {STUDIO_SPEEDS.map((s) => chip(clip.speed === s, speedLabel(s), () => onSpeed(s), `Velocidade ${speedLabel(s)}`))}
-            <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, whiteSpace: 'nowrap', paddingLeft: 4 }}>fica com {fmtS(duration)} s</span>
+            <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, whiteSpace: 'nowrap', paddingLeft: 2 }}>fica com {fmtS(duration)} s</span>
           </div>
         ) : rhythm ? (
           <div style={row} aria-label="Batidas da foto">
