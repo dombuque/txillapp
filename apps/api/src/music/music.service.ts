@@ -6,6 +6,7 @@ import { MediaService } from '../media/media.service';
 import { MusicCatalogService, storedTrack } from './catalog/catalog.service';
 import { hostOk, httpsOnly } from './catalog/curation';
 import { MUSIC_SOURCES, OPEN_LICENSES, type PickerTrack } from './catalog/track';
+import { LicensedMusicService, licensedRefSchema } from './licensed-music.service';
 
 /** Licenças que deixam pôr a faixa num mimo ou num tcheka partilhado (ver catalog/track.ts): nada de NC, ND nem SA. */
 const LICENSES = new Set<string>(OPEN_LICENSES);
@@ -67,8 +68,11 @@ export const localTrackSchema = z.object({
   artist: z.string().max(120).optional(),
 });
 
-/** O que uma nota ou um post pode levar: uma faixa de licença aberta, uma faixa de um artista moçambicano ou um clipe próprio. */
-export const musicSchema = z.union([clipSchema, localTrackSchema, trackSchema]);
+/**
+ * O que uma nota ou um post pode levar: um clipe próprio, uma faixa licenciada (só a referência; ver docs/musica-licenciada.md),
+ * uma faixa de um artista moçambicano (só o id) ou uma faixa do catálogo curado.
+ */
+export const musicSchema = z.union([clipSchema, licensedRefSchema, localTrackSchema, trackSchema]);
 export type MusicInput = z.infer<typeof musicSchema>;
 
 /**
@@ -80,6 +84,7 @@ export class MusicService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly media: MediaService,
     private readonly catalog: MusicCatalogService,
+    private readonly licensed: LicensedMusicService,
   ) {}
 
   /** A versão do catálogo, quando a faixa é do catálogo (a app não muda o título, o artista nem o áudio). */
@@ -98,6 +103,8 @@ export class MusicService {
    */
   async prepare(userId: string, music: MusicInput | null | undefined, where: 'post' | 'story' | 'note' = 'note', mediaIds: string[] = []): Promise<Record<string, unknown> | null> {
     if (!music) return null;
+    // Licenciada: passa pelo fornecedor (países do contrato, contagens); desligado, recusa.
+    if ('kind' in music && music.kind === 'licensed') return this.licensed.prepare(userId, music);
     if (('source' in music && music.source === 'local') || (!('kind' in music) && LOCAL.test(music.id))) {
       const tcheka = where === 'post' && mediaIds.length === 1 && !!(await this.pool.query(`SELECT 1 FROM content.media_assets WHERE id = $1 AND mime LIKE 'video/%'`, [mediaIds[0]])).rowCount;
       if (where === 'note' || (where === 'post' && !tcheka)) throw new BadRequestException('As músicas dos artistas de Moçambique só podem ir em mimos e tchekas');
@@ -115,6 +122,8 @@ export class MusicService {
 
   /** Ao devolver: o clipe ganha um URL assinado e temporário (como as mensagens de voz). */
   resolve(music: Record<string, unknown> | null): Record<string, unknown> | null {
+    // Licenciada: com o fornecedor desligado não aparece; o excerto pede-se com POST /music/licensed/tracks/:id/listen.
+    if (music?.kind === 'licensed') return this.licensed.isOn(String(music.source)) ? music : null;
     if (music?.source === 'local') return this.catalog.resolveLocal(music);
     if (!music || music.kind !== 'clip') return music;
     return { ...music, id: `clip:${music.mediaId as string}`, artist: '', url: this.media.chatUrl(music.mediaId as string), landing: null, license: 'own', licenseUrl: null, cover: null };

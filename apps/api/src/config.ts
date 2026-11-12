@@ -172,6 +172,21 @@ const schema = z.object({
    */
   IAP_PRICES: z.preprocess(blankToUndefined, z.string().default('txillapp.verificado.mensal=29900,txillapp.verificado.anual=299000,txillapp.bombar.1d=15000,txillapp.bombar.3d=40000,txillapp.bombar.7d=80000')),
   IAP_CURRENCY: z.preprocess(blankToUndefined, z.string().trim().regex(/^[A-Z]{3}$/).default('MZN')),
+  /**
+   * Música licenciada (comercial, de editoras ou de um agregador; ver docs/musica-licenciada.md). Por omissão DESLIGADA:
+   * GET /music/licensed/status diz `enabled: false`, as outras rotas respondem 404 e faixas licenciadas já guardadas
+   * aparecem sem música. Liga-se só com contrato assinado: MUSIC_LICENSED_ENABLED=true e um adaptador real.
+   */
+  MUSIC_LICENSED_ENABLED: z.preprocess(blankToUndefined, z.enum(['true', 'false']).default('false').transform((v) => v === 'true')),
+  /** O adaptador do fornecedor: 'none' (nenhum ainda) ou 'fake' (catálogo simulado, só testes e desenvolvimento). */
+  MUSIC_LICENSED_DRIVER: z.preprocess(blankToUndefined, z.enum(['none', 'fake']).default('none')),
+  /** Credenciais do fornecedor real (ficam só no servidor; o adaptador real lê-as). */
+  MUSIC_LICENSED_API_URL: z.preprocess(blankToUndefined, z.string().url().optional()),
+  MUSIC_LICENSED_API_KEY: z.preprocess(blankToUndefined, z.string().min(8).optional()),
+  /** Os países (ISO 3166, separados por vírgula) que o contrato cobre. Quem está fora não vê a música licenciada. */
+  MUSIC_LICENSED_TERRITORIES: z.preprocess(blankToUndefined, z.string().regex(/^\s*[A-Za-z]{2}\s*(,\s*[A-Za-z]{2}\s*)*$/).default('MZ')),
+  /** A duração máxima do excerto (segundos). Os contratos de vídeo curto ficam pelos 60 s. */
+  MUSIC_LICENSED_CLIP_SECONDS: z.preprocess(blankToUndefined, z.coerce.number().int().min(5).max(60).default(60)),
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });
@@ -186,6 +201,7 @@ function validateStorage(c: AppConfig) {
   if (c.NODE_ENV === 'production') {
     const testOnly = (['IAP_APPLE_ROOT_CA', 'IAP_APPLE_API_ORIGIN', 'IAP_GOOGLE_API_ORIGIN', 'IAP_GOOGLE_OAUTH_URL'] as const).filter((k) => c[k]);
     if (testOnly.length) throw new Error(`Configuração inválida: ${testOnly.join(', ')} só existe para testes (não pode estar definido em produção)`);
+    if (c.MUSIC_LICENSED_DRIVER === 'fake') throw new Error('Configuração inválida: MUSIC_LICENSED_DRIVER=fake só existe para testes (não pode estar definido em produção)');
   }
   if (c.SEARCH_BACKEND === 'elasticsearch' && !c.ELASTICSEARCH_URL) throw new Error('Configuração inválida: SEARCH_BACKEND=elasticsearch precisa de ELASTICSEARCH_URL');
   if (c.STORAGE_DRIVER === 's3') {
