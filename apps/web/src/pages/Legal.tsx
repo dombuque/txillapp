@@ -99,7 +99,7 @@ export function Terms() {
       <section>
         <h2>6. Selo de verificado</h2>
         <ul>
-          <li>Há dois selos: o <b>azul</b>, para pessoas e negócios verificados, e o selo coral do Txillapp, só para <b>contas oficiais</b> da casa.</li>
+          <li>O selo <b>vermelho</b> é dado pelo Txillapp: a pessoas e negócios verificados (por mérito ou com o pedido de verificação aceite) e às <b>contas oficiais</b> da casa. O selo <b>azul</b> é o da verificação paga, quando existir.</li>
           <li>Para pedir o selo a conta tem de cumprir requisitos: email confirmado, foto e bio, 30 dias ou mais, 3 publicações ou mais, 10 seguidores ou mais e nenhuma sanção recente.</li>
           <li>Depois envias o teu nome, uma prova de quem és (uma ligação ou explicação), uma foto de um documento de identificação e uma selfie. A moderação revê tudo à mão.</li>
           <li>Podes ser recusado, com o motivo. Só podes voltar a pedir passados 30 dias. Podemos retirar o selo a contas que violem estes termos, mudem de identidade ou fiquem inativas.</li>

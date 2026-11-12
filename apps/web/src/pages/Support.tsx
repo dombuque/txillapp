@@ -56,7 +56,7 @@ export function About() {
         <Line icon="user" label={tr('Nome de utilizador')} value={`@${user?.username ?? ''}`} />
         <Line icon="clock" label={tr('Conta criada em')} value={since} />
         {country && <Line icon="globe" label={tr('Região')} value={country} />}
-        <Line icon="check-circle" label={tr('Verificação')} value={ver.data?.verified ? (ver.data.tier === 'official' ? 'Conta oficial do Txillapp' : 'Conta verificada') : 'Sem selo'} to="/verification" />
+        <Line icon="check-circle" label={tr('Verificação')} value={ver.data?.verified ? (ver.data.tier === 'official' ? 'Conta oficial do Txillapp' : ver.data.tier === 'paid' ? 'Verificado com subscrição' : 'Conta verificada') : 'Sem selo'} to="/verification" />
       </Group>
       <Group title={tr('Legal')}>
         <Line icon="shield" label={tr('Política de privacidade')} to="/privacy" />
@@ -81,6 +81,7 @@ const FAQ: { q: string; a: string }[] = [
   { q: tr('O que é a visualização única?'), a: tr('Fotos, voz e mensagens que só se abrem uma vez e depois desaparecem do chat.') },
   { q: tr('Como bloqueio ou denuncio alguém?'), a: tr('No perfil, toca nos três pontos e escolhe Bloquear. Para denunciar um post, comentário ou conversa, usa o menu dele e escolhe Denunciar. A moderação vê o pedido.') },
   { q: tr('Como pedir o selo de verificado?'), a: tr('Em Definições, Verificação. A conta tem de cumprir alguns requisitos e depois enviamos o pedido com um documento e uma selfie, que a moderação revê. Os documentos são apagados quando há decisão.') },
+  { q: tr('O que querem dizer as cores do selo?'), a: tr('O selo vermelho é dado pelo Txillapp: quer dizer que a conta foi verificada por mérito ou porque o pedido de verificação foi aceite. A conta oficial do Txillapp também tem o selo vermelho. O selo azul é o da verificação paga, quando existir.') },
   { q: tr('Quem vê quando estou online?'), a: tr('Só quem também mostra a presença. Em Definições, "Mostrar quando estou online" desliga isso (e também deixas de ver os outros).') },
   { q: tr('Como mudo a privacidade da conta?'), a: tr('Em Definições, Privacidade da conta: perfil público ou privado, quem comenta, quem te menciona e quem te envia mensagens.') },
   { q: tr('Esqueci-me da senha. E agora?'), a: tr('No ecrã de entrada, toca em "Esqueci-me da senha". Enviamos-te um email para criares uma nova.') },

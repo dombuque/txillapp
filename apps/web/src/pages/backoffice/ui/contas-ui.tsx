@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import Icon, { type IconName } from '../../../components/Icon';
+import VerifiedBadge from '../../../components/VerifiedBadge';
 import { Badge, btnGhost } from '../bo';
 import type { SessionState } from './contas-api';
 
@@ -95,9 +96,38 @@ export function SessionStateBadge({ state }: { state: SessionState }) {
 
 export const MinorBadge = () => <Badge tone="amber">menor de 18</Badge>;
 
-export function BadgeTier({ tier }: { tier: 'verified' | 'official' | null }) {
+export type Tier = 'verified' | 'official' | 'paid';
+/** Os níveis do selo, como a equipa os escolhe: os dois primeiros a vermelho (do Txillapp), o pago a azul. */
+export const TIERS: { id: Tier; label: string; short: string; help: string }[] = [
+  { id: 'verified', label: 'Verificado (vermelho)', short: 'verificada', help: 'Verificada pelo Txillapp, por mérito ou pedido aceite.' },
+  { id: 'official', label: 'Conta oficial do Txillapp (vermelho)', short: 'conta oficial', help: 'Só para as contas da casa.' },
+  { id: 'paid', label: 'Verificação paga (azul)', short: 'verificação paga', help: 'Para quem tem a verificação paga (ainda não se vende).' },
+];
+export const tierShort = (t: string | null | undefined) => TIERS.find((x) => x.id === t)?.short ?? (t || 'sem selo');
+
+/** O selo da conta, com a cor de cada nível (vermelho do Txillapp, azul na verificação paga). */
+export function BadgeTier({ tier }: { tier: Tier | null }) {
   if (!tier) return null;
-  return <Badge tone="blue">{tier === 'official' ? 'conta oficial' : 'selo'}</Badge>;
+  return <Badge tone={tier === 'paid' ? 'blue' : 'zinc'}><span className="mr-1 inline-flex"><VerifiedBadge size={12} tier={tier} /></span>{tierShort(tier)}</Badge>;
+}
+
+/** A escolha do nível do selo (botões de rádio), para aprovar um pedido ou mudar o selo de uma conta. */
+export function TierPicker({ value, onChange, allowNone, name }: { value: Tier | null; onChange: (t: Tier | null) => void; allowNone?: boolean; name: string }) {
+  const opts: { id: Tier | null; label: string; help: string }[] = [...TIERS, ...(allowNone ? [{ id: null, label: 'Sem selo', help: 'Tira o selo à conta.' }] : [])];
+  return (
+    <fieldset className="mt-4">
+      <legend className="text-sm font-semibold text-zinc-700">Selo</legend>
+      <div className="mt-1 space-y-1.5">
+        {opts.map((o) => (
+          <label key={o.id ?? 'none'} className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 text-sm ${value === o.id ? 'border-zinc-900 bg-zinc-50' : 'border-zinc-200'}`}>
+            <input type="radio" name={name} checked={value === o.id} onChange={() => onChange(o.id)} className="mt-0.5" />
+            {o.id ? <span className="mt-0.5 inline-flex"><VerifiedBadge size={16} tier={o.id} /></span> : <span className="mt-0.5 inline-block h-4 w-4 rounded-full border border-dashed border-zinc-400" aria-hidden />}
+            <span><span className="font-semibold">{o.label}</span><span className="block text-xs text-zinc-500">{o.help}</span></span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
 }
 
 /** Ícone do aparelho num círculo. */

@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
 import { mentionableBy } from '../notifications/notifications.service';
 import { canView, inMyNetwork } from './visibility';
-import { badge } from '../common/badge';
+import { badge, type VerifiedTier } from '../common/badge';
 
 export type MentionContext = 'post' | 'group' | 'story' | 'zas' | 'chat';
 export type MentionReason = 'conversa' | 'segues-te' | 'segue-te' | 'amigo-proximo' | 'neste-post' | 'no-grupo';
@@ -13,7 +13,7 @@ export interface MentionSuggestion {
   displayName: string;
   hasAvatar: boolean;
   verified?: boolean;
-  verifiedTier?: 'verified' | 'official' | null;
+  verifiedTier?: VerifiedTier | null;
   reason?: MentionReason;
 }
 

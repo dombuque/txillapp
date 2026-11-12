@@ -94,7 +94,7 @@ export default function Verification() {
         {s && s.verified && (
           <div className="rounded-3xl bg-sky-50 p-6 text-center">
             <VerifiedBadge size={56} tier={s.tier} />
-            <p className="mt-3 text-xl font-extrabold">{s.tier === 'official' ? tr('Conta oficial do Txillapp') : tr('A tua conta está verificada')}</p>
+            <p className="mt-3 text-xl font-extrabold">{s.tier === 'official' ? tr('Conta oficial do Txillapp') : s.tier === 'paid' ? tr('A tua conta está verificada com subscrição') : tr('A tua conta está verificada')}</p>
             <p className="mt-1 text-sm text-zinc-600">{tr('O selo aparece junto ao teu nome em todo o Txillapp.')}</p>
           </div>
         )}

@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
+import { VERIFIED_TIERS } from '../common/badge';
 import { ZodPipe } from '../common/zod.pipe';
 import { Needs, StaffGuard } from '../staff/staff.guard';
 import { VerificationService } from './verification.service';
@@ -22,7 +23,7 @@ const requestSchema = z.object({
   faceMediaId: z.string().uuid(),
   selfieMediaId: z.string().uuid(),
 });
-const decideSchema = z.object({ action: z.enum(['approve', 'reject']), reason: z.string().trim().max(300).optional(), tier: z.enum(['verified', 'official']).optional() });
+const decideSchema = z.object({ action: z.enum(['approve', 'reject']), reason: z.string().trim().max(300).optional(), tier: z.enum(VERIFIED_TIERS).optional() });
 
 @Controller()
 @UseGuards(JwtAuthGuard)

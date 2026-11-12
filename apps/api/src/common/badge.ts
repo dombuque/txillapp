@@ -1,8 +1,16 @@
 /**
- * O selo de verificado de uma pessoa, com os mesmos nomes dos posts e do perfil:
- * `verified` (u.verified) e `verifiedTier` (u.verified_tier: 'verified' azul, 'official' coral).
+ * O selo de verificado de uma pessoa, com os mesmos nomes dos posts e do perfil: `verified` (u.verified) e `verifiedTier`
+ * (u.verified_tier). Três níveis: 'verified' (verificado pelo Txillapp, por mérito ou pedido aceite) e 'official' (conta
+ * oficial do Txillapp), os dois a vermelho; e 'paid' (verificação paga), a azul.
  */
-export type Badge = { verified: boolean; verifiedTier: 'verified' | 'official' | null };
+export const VERIFIED_TIERS = ['verified', 'official', 'paid'] as const;
+export type VerifiedTier = (typeof VERIFIED_TIERS)[number];
+export type Badge = { verified: boolean; verifiedTier: VerifiedTier | null };
+
+const isTier = (t: unknown): t is VerifiedTier => typeof t === 'string' && (VERIFIED_TIERS as readonly string[]).includes(t);
+
+/** O nível do selo de uma conta: null se não é verificada; sem nível (ou um desconhecido), o 'verified' de sempre. */
+export const tierOf = (verified: unknown, tier: unknown): VerifiedTier | null => (verified === true ? (isTier(tier) ? tier : 'verified') : null);
 
 export const badge = (verified: unknown, tier: unknown): Badge => ({
   verified: verified === true,

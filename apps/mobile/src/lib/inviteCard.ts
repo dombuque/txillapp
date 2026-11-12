@@ -107,13 +107,20 @@ export interface CardText {
   maxWidth?: number;
   spacing?: number;
   /** O selo de verificado logo a seguir ao texto (quem pinta mede o texto e põe-no ao lado, centrado na letra). */
-  badge?: 'verified' | 'official';
+  badge?: CardSeal;
 }
 
-/** O selo de verificado (o mesmo desenho do componente VerifiedBadge) como SVG, para os cartões pintados no aparelho. */
-export function sealSvg(tier: 'verified' | 'official', size: number): string {
-  const fill = tier === 'official' ? 'url(#off)' : '#1d9bf0';
-  const defs = tier === 'official' ? '<defs><linearGradient id="off" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff6b81"/><stop offset="1" stop-color="#d6334f"/></linearGradient></defs>' : '';
+/** Os níveis do selo (os de lib/wordmark.ts): 'verified' e 'official' a coral, 'paid' (verificação paga) a azul. */
+export type CardSeal = 'verified' | 'official' | 'paid';
+
+/**
+ * O selo de verificado (o mesmo desenho e as mesmas cores do componente VerifiedBadge) como SVG, para os cartões pintados no
+ * aparelho: o coral em degradê do Txillapp (verificado e conta oficial), ou o azul (só a verificação paga).
+ */
+export function sealSvg(tier: CardSeal, size: number): string {
+  const blue = tier === 'paid';
+  const fill = blue ? '#1d9bf0' : 'url(#seal-coral)';
+  const defs = blue ? '' : '<defs><linearGradient id="seal-coral" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff6b81"/><stop offset="1" stop-color="#d6334f"/></linearGradient></defs>';
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">${defs}<path fill="${fill}" d="M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91c-1.31.67-2.2 1.91-2.2 3.34s.89 2.67 2.2 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91c1.31-.67 2.19-1.91 2.19-3.34z"/><path fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="m8 12.4 2.8 2.8L16.4 9.4"/></svg>`;
 }
 
@@ -141,8 +148,8 @@ export interface CardInput {
   /** A matriz do QR da ligação (lib/qr.ts), ou null para não ter QR. */
   qr: boolean[][] | null;
   hasAvatar: boolean;
-  /** Conta verificada: o selo a seguir ao nome (azul, ou coral na conta oficial). */
-  badge?: 'verified' | 'official' | null;
+  /** Conta verificada: o selo a seguir ao nome (coral; azul só na verificação paga). */
+  badge?: CardSeal | null;
 }
 
 export interface CardLayout {

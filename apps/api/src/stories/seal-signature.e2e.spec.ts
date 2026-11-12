@@ -54,7 +54,7 @@ describe('o selo de verificado na assinatura das fotos e vídeos guardados', () 
   it('a conta da posição é a mesma da app (lib/wordmark.ts), com e sem selo', () => {
     for (const [W, H] of [[1080, 1920], [1080, 1350], [600, 600], [1920, 1080], [375, 667]]) {
       for (const withUser of [true, false]) {
-        for (const seal of [null, 'verified', 'official'] as const) {
+        for (const seal of [null, 'verified', 'official', 'paid'] as const) {
           expect(signLayout(W, H, withUser, seal)).toEqual(appLayout(W, H, withUser, seal));
         }
       }
@@ -75,23 +75,33 @@ describe('o selo de verificado na assinatura das fotos e vídeos guardados', () 
     expect(signLayout(1080, 1920, false, 'verified').seal).toBeNull();
   });
 
-  it('signatureSvg: conta verificada leva o path do selo (azul); não verificada não leva', () => {
+  const CORAL_GRAD = '<linearGradient id="seal-coral" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff6b81"/><stop offset="1" stop-color="#d6334f"/></linearGradient>';
+
+  it('signatureSvg: conta verificada leva o path do selo (coral); não verificada não leva', () => {
     const on = signatureSvg(1080, 1920, 'dombuque', '', true, 'verified');
     expect(on).toContain(SEAL_PATH);
-    expect(on).toContain('fill="#1d9bf0"');
+    expect(on).toContain('fill="url(#seal-coral)"');
+    expect(on).toContain(CORAL_GRAD);
+    expect(on).not.toContain('#1d9bf0');
     expect(on).toContain('d="m8 12.4 2.8 2.8L16.4 9.4"');
-    expect(on).not.toContain('seal-off');
     // O @ acaba antes do selo.
     expect(on).toContain(`x="${signLayout(1080, 1920, true, 'verified').textRight}"`);
     const off = signatureSvg(1080, 1920, 'dombuque', '', true, null);
     expect(off).not.toContain(SEAL_PATH);
     expect(off).not.toContain('#1d9bf0');
     expect(signatureSvg(1080, 1920, 'dombuque')).toBe(off);
-    // A conta oficial: o degradê coral do VerifiedBadge.
+    // A conta oficial: o mesmo degradê coral do VerifiedBadge.
     const official = signatureSvg(1080, 1920, 'txillapp', '', true, 'official');
     expect(official).toContain(SEAL_PATH);
-    expect(official).toContain('fill="url(#seal-off)"');
-    expect(official).toMatch(/<linearGradient id="seal-off" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff6b81"\/><stop offset="1" stop-color="#d6334f"\/><\/linearGradient>/);
+    expect(official).toContain('fill="url(#seal-coral)"');
+    expect(official).toContain(CORAL_GRAD);
+    expect(official).not.toContain('#1d9bf0');
+    // A verificação paga: só esta é azul, sem degradê.
+    const paid = signatureSvg(1080, 1920, 'dombuque', '', true, 'paid');
+    expect(paid).toContain(SEAL_PATH);
+    expect(paid).toContain('fill="#1d9bf0"');
+    expect(paid).not.toContain('seal-coral');
+    expect(paid).not.toContain('#ff6b81');
     // Já assinado pela app (withSign a false): nada da assinatura, nem o selo.
     expect(signatureSvg(1080, 1920, 'dombuque', '', false, 'verified')).not.toContain(SEAL_PATH);
     // Sem @ não há selo.
@@ -111,7 +121,7 @@ describe('o selo de verificado na assinatura das fotos e vídeos guardados', () 
       const r = await api().post('/api/v1/auth/register').send({ email: `${username}@example.com`, username, displayName: `${name} Teste`, password: PASSWORD, birthDate: '1990-06-15', acceptTerms: true }).expect(201);
       return { token: r.body.accessToken, id: r.body.user.id, username };
     }
-    const badge = (x: U, tier: 'verified' | 'official' | null) =>
+    const badge = (x: U, tier: 'verified' | 'official' | 'paid' | null) =>
       pool.query('UPDATE identity.users SET verified = $2, verified_tier = $3 WHERE id = $1', [x.id, tier !== null, tier]);
     async function saved(x: U, extra: Record<string, unknown> = {}): Promise<Buffer> {
       const up = await api().post('/api/v1/media/uploads').set(auth(x)).send({ mime: 'image/jpeg', size: jpeg.length, ...extra }).expect(201);
@@ -152,9 +162,17 @@ describe('o selo de verificado na assinatura das fotos e vídeos guardados', () 
       expect(z.coral).toBeLessThan(20);
     });
 
-    it('conta verificada: o selo azul à direita do @', async () => {
-      const u = await signup('seloaz');
+    it('conta verificada (mérito ou pedido aceite): o selo coral à direita do @', async () => {
+      const u = await signup('selover');
       await badge(u, 'verified');
+      const z = await sealZone(await saved(u));
+      expect(z.coral).toBeGreaterThan(120);
+      expect(z.blue).toBeLessThan(20);
+    });
+
+    it('verificação paga: o selo azul à direita do @', async () => {
+      const u = await signup('seloaz');
+      await badge(u, 'paid');
       const z = await sealZone(await saved(u));
       expect(z.blue).toBeGreaterThan(120);
       expect(z.coral).toBeLessThan(20);
@@ -173,6 +191,7 @@ describe('o selo de verificado na assinatura das fotos e vídeos guardados', () 
       await badge(u, 'verified');
       const z = await sealZone(await saved(u, { signed: true }));
       expect(z.blue).toBeLessThan(20);
+      expect(z.coral).toBeLessThan(20);
     });
   });
 });
