@@ -124,11 +124,11 @@ export function Timeline(p: TimelineProps) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  // Enquanto não se mexer no zoom, a escala acompanha a largura (no computador a vista alarga depois de abrir).
   useEffect(() => {
     if (fitted.current || !width || total <= 0) return;
-    fitted.current = true;
     setPps(Math.min(PPS_DEFAULT * 1.5, fitPps(total, width - ADD_W - 16, PAD)));
-  }, [width, total]);
+  }, [width, total > 0]); // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const sc = scroller.current;
     if (sc && pendingScroll.current !== null) { sc.scrollLeft = pendingScroll.current; pendingScroll.current = null; setScrollX(sc.scrollLeft); }
@@ -138,7 +138,7 @@ export function Timeline(p: TimelineProps) {
   const layoutDur = trim?.edge === 'start' ? durations.map((d, i) => (i === trim.index ? trim.origDur : d)) : durations;
   const starts = useMemo(() => startsOf(layoutDur), [layoutDur]); // eslint-disable-line react-hooks/exhaustive-deps
   const layoutTotal = layoutDur.reduce((a, b) => a + b, 0);
-  const contentW = PAD + layoutTotal * pps + 10 + ADD_W + PAD + Math.max(0, width / 2 - ADD_W);
+  const contentW = Math.max(width, PAD + layoutTotal * pps + 10 + ADD_W + PAD + Math.max(0, width / 2 - ADD_W));
   const cuts = useMemo(() => cutPoints(durations), [durations]);
   const cutsRef = useRef(cuts);
   cutsRef.current = cuts;
@@ -150,6 +150,7 @@ export function Timeline(p: TimelineProps) {
   function zoomBy(factor: number, anchorX?: number) {
     const sc = scroller.current;
     if (!sc) return;
+    fitted.current = true;
     const base = pendingScroll.current ?? sc.scrollLeft;
     const t = scrubRef.current ?? live.current.time;
     const ax = anchorX ?? Math.max(0, Math.min(sc.clientWidth, xOfT(t) - base));
@@ -345,6 +346,7 @@ export function Timeline(p: TimelineProps) {
     if (cur.kind === 'pinch') {
       const [a, b] = [...pointers.current.values()];
       if (!a || !b) return;
+      fitted.current = true;
       const z = zoomAt({ pps: cur.pps0, factor: pinchDistance(a, b) / cur.d0, anchorX: cur.mid, scrollLeft: cur.scroll0, pad: PAD });
       pendingScroll.current = z.scrollLeft;
       setPps(z.pps);

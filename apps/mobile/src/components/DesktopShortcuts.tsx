@@ -1,6 +1,7 @@
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
+import { isStudioFull } from '@/lib/studio/immersive';
 import { inMessages, isTypingTarget, overlayOpen, ROUTE_OF, shortcutFor, SHORTCUTS, type ShortcutAction } from '@/lib/desktopKeys';
 import { emitTabPress, sameTabPress } from '@/lib/tabPress';
 import { colors } from '@/lib/theme';
@@ -45,7 +46,8 @@ export function DesktopShortcuts() {
       r.navigate(ROUTE_OF[a] as never);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.repeat) return;
+      // No estúdio das tchekas valem os atalhos dele (espaço, S, Delete, Ctrl+Z…), não os do site.
+      if (e.defaultPrevented || e.repeat || isStudioFull()) return;
       const typing = isTypingTarget(e.target as HTMLElement) || isTypingTarget(document.activeElement as HTMLElement | null);
       const r = shortcutFor(e, { typing, overlay: overlayOpen(), path: live.current.path }, chordAt, Date.now());
       chordAt = r.chordAt;

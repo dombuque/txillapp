@@ -10,6 +10,8 @@ import {
 } from '@/lib/tchekaRules';
 import { debounce, DRAFT_DEBOUNCE_MS, newDraftId, studioDrafts } from '@/lib/studio/drafts';
 import { canRedo, canUndo, initHistory, mapAll, pushHistory, redo as redoH, undo as undoH, type History } from '@/lib/studio/history';
+import { useDesktop } from '@/lib/desktop';
+import { setStudioFull } from '@/lib/studio/immersive';
 import { studioKey } from '@/lib/studio/keys';
 import { baseDurations, duplicateClip, makeClip, moveClip, removeClip, replaceMedia, setPhoto, setSpeed, splitAt, startsOf, trimEdge, type ProjectClip, type TrimEdge } from '@/lib/studio/project';
 import { dropThumbVideo } from '@/lib/studio/thumbs';
@@ -29,6 +31,8 @@ const dom = createElement as (tag: string, props?: Record<string, unknown>, ...k
 const W = 1080;
 const H = 1920;
 const TR = 0.5; // segundos de transição
+/** No computador: a largura da coluna dos painéis, à direita. */
+const PANEL_W = 400;
 /** As personagens que se podem pôr na tcheka (o sticker de cada uma). */
 const CAST: { id: string; name: string }[] = [
   { id: 'saude', name: 'Txilla' }, { id: 'bom-dia', name: 'Gelinho' }, { id: 'bora', name: 'Zazá' },
@@ -216,13 +220,17 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const setProgress = (p: number | null) => { progressRef.current = p; setProgressState(p); };
   const cancelled = useRef(false);
   const editBox = useRef<HTMLElement | null>(null);
+  /** A caixa da linha do tempo (fora dos painéis: no computador fica em baixo, com a largura toda): bloqueia-se igual. */
+  const timelineBox = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    const el = editBox.current as (HTMLElement & { inert?: boolean }) | null;
-    if (!el || typeof el.setAttribute !== 'function') return;
-    el.inert = progress !== null;
-    if (progress !== null) el.setAttribute('inert', ''); else el.removeAttribute('inert');
-    // Quem estava a escrever no texto sai do campo (o teclado deixa de mexer na montagem).
-    if (progress !== null && typeof document !== 'undefined' && el.contains(document.activeElement)) (document.activeElement as HTMLElement | null)?.blur?.();
+    for (const box of [editBox.current, timelineBox.current]) {
+      const el = box as (HTMLElement & { inert?: boolean }) | null;
+      if (!el || typeof el.setAttribute !== 'function') continue;
+      el.inert = progress !== null;
+      if (progress !== null) el.setAttribute('inert', ''); else el.removeAttribute('inert');
+      // Quem estava a escrever no texto sai do campo (o teclado deixa de mexer na montagem).
+      if (progress !== null && typeof document !== 'undefined' && el.contains(document.activeElement)) (document.activeElement as HTMLElement | null)?.blur?.();
+    }
   }, [progress !== null]); // eslint-disable-line react-hooks/exhaustive-deps
   const [err, setErr] = useState('');
   const [readyTick, setReadyTick] = useState(0);
@@ -894,6 +902,12 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const prepared = readyTick > 0 && ready.current?.sig === fullSig;
   const left = Math.max(0, Math.ceil(playTotal * (1 - (progress ?? 0))));
   const TABS: { id: Tab; label: string }[] = [{ id: 'clipes', label: 'Clipes' }, { id: 'som', label: 'Som' }, { id: 'texto', label: 'Texto' }, { id: 'efeitos', label: 'Efeitos' }, { id: 'capa', label: 'Capa' }];
+  // No computador (≥ 1024 px de largura) o estúdio usa a janela toda (o DesktopShell larga a coluna e a barra lateral).
+  const wide = useDesktop();
+  useEffect(() => { if (!wide) return; setStudioFull(true); return () => setStudioFull(false); }, [wide]);
+  const [stage, setStage] = useState({ y: 0, w: 0, h: 0 });
+  /** A pré-visualização 9:16 com a maior altura que cabe (com a margem de 16 de cada lado). */
+  const previewW = Math.max(220, Math.min(stage.w - PANEL_W - 24, stage.h * (9 / 16) + 32));
   /** Tocar ou pausar (o botão e o toque no vídeo): no fim recomeça do princípio. */
   const togglePlay = () => { if (busy) return; if (playingRef.current) pause(); else play(pausedAt.current >= playTotal - 0.05 ? 0 : pausedAt.current); };
 
@@ -923,6 +937,10 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         </View>
       ) : null}
 
+      {/* No computador (≥ 1024 px) o palco fica numa linha: a pré-visualização 9:16 ao centro, com a altura toda, e o espaço
+          dos painéis à direita; a linha do tempo vai para baixo, com a largura toda. No telemóvel fica tudo em coluna. */}
+      <View style={wide ? st.stageWide : st.stage} onLayout={(e) => { const l = e.nativeEvent.layout; setStage((s) => (s.y === l.y && s.w === l.width && s.h === l.height ? s : { y: l.y, w: l.width, h: l.height })); }}>
+      <View style={wide ? [st.previewSlotWide, { width: previewW }] : st.previewSlot}>
       {/* A pré-visualização é o próprio canvas da montagem (o que se vê é o que sai). Tocar põe em pausa. */}
       <Pressable style={st.preview} onPress={togglePlay} accessibilityRole="button" accessibilityLabel={playing ? 'Pausa' : 'Tocar'}>
         {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { canvasRef.current = el; }, width: W, height: H, 'aria-label': 'Pré-visualização da tcheka', style: { width: '100%', height: '100%', objectFit: 'contain', display: 'block', backgroundColor: '#000' } })}
@@ -949,15 +967,18 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
           </View>
         )}
       </Pressable>
+      </View>
+      {wide ? <View style={{ width: PANEL_W + 24 }} /> : null}
+      </View>
 
+      {/* A linha do tempo (sempre à vista, em todos os separadores): bloqueada durante a montagem, como os painéis. */}
       <View
-        ref={(el) => { editBox.current = el as unknown as HTMLElement | null; }}
+        ref={(el) => { timelineBox.current = el as unknown as HTMLElement | null; }}
         style={[{ flexShrink: 0 }, locked && st.locked]}
         pointerEvents={locked ? 'none' : 'auto'}
         accessibilityState={{ disabled: locked }}
         aria-disabled={locked}
       >
-      {/* A linha do tempo (sempre à vista, em todos os separadores): fica dentro da caixa bloqueada durante a montagem. */}
       <Timeline
         clips={items}
         durations={durations}
@@ -973,6 +994,17 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         onTrim={onTrim}
         onMove={reorderClips}
       />
+      </View>
+
+      {/* Os painéis (clipes, som, texto, efeitos, capa): por baixo no telemóvel; numa coluna à direita no computador. */}
+      <View style={wide ? [st.panelWide, { top: stage.y, height: stage.h }] : null}>
+      <View
+        ref={(el) => { editBox.current = el as unknown as HTMLElement | null; }}
+        style={[{ flexShrink: 0 }, locked && st.locked]}
+        pointerEvents={locked ? 'none' : 'auto'}
+        accessibilityState={{ disabled: locked }}
+        aria-disabled={locked}
+      >
       <View style={st.tabs} accessibilityRole="tablist">
         {TABS.map((t) => (
           <Pressable key={t.id} onPress={() => setTab(t.id)} style={st.tabBtn} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id }} accessibilityLabel={t.label}>
@@ -982,7 +1014,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         ))}
       </View>
 
-      <ScrollView style={{ maxHeight: 250 }} contentContainerStyle={{ paddingBottom: 8 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ maxHeight: wide ? Math.max(160, stage.h - 56) : 250 }} contentContainerStyle={{ paddingBottom: 8 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {tab === 'clipes' ? (
           <>
             {/* As ações do clipe escolhido na linha do tempo. */}
@@ -1106,6 +1138,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
       </ScrollView>
       </View>
+      </View>
       {pickMusic ? <MusicPicker allowLocal onClose={closePicker} onPick={pickedMusic} /> : null}
     </View>
   );
@@ -1125,6 +1158,11 @@ const st = StyleSheet.create({
   hintWrap: { alignItems: 'center', paddingHorizontal: 16, paddingBottom: 6 },
   hint: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, backgroundColor: 'rgba(214,51,79,0.92)', paddingHorizontal: 12, paddingVertical: 6, maxWidth: '100%' },
   hintText: { color: '#fff', fontWeight: '700', fontSize: 13, flexShrink: 1 },
+  stage: { flex: 1, minHeight: 0 },
+  stageWide: { flex: 1, minHeight: 0, flexDirection: 'row', paddingTop: 4, paddingBottom: 10 },
+  previewSlot: { flex: 1, minHeight: 0 },
+  previewSlotWide: { minHeight: 0, height: '100%', marginLeft: 'auto', marginRight: 'auto' },
+  panelWide: { position: 'absolute', right: 12, width: 400, borderRadius: 20, overflow: 'hidden', backgroundColor: '#0b0b11', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingTop: 4 },
   preview: { flex: 1, minHeight: 200, marginHorizontal: 16, borderRadius: 20, overflow: 'hidden', backgroundColor: '#111' },
   center: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   loadText: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '700' },

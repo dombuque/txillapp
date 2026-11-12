@@ -117,6 +117,19 @@ test('o estúdio liga a linha do tempo, os atalhos e o bloqueio da montagem', ()
   assert.match(timeline, /vibrate/);
 });
 
+test('computador (≥ 1024 px): o estúdio usa a janela toda — palco ao centro, painéis à direita, linha do tempo em baixo', () => {
+  const studio = read('components', 'TchekaStudio.tsx');
+  assert.match(studio, /const wide = useDesktop\(\);/);
+  assert.match(studio, /setStudioFull\(true\); return \(\) => setStudioFull\(false\);/);
+  assert.match(studio, /<View style=\{wide \? \[st\.panelWide, \{ top: stage\.y, height: stage\.h \}\] : null\}>/);
+  // A linha do tempo tem a caixa bloqueada dela (fora dos painéis) e o inert vale para as duas.
+  assert.match(studio, /for \(const box of \[editBox\.current, timelineBox\.current\]\)/);
+  const shell = read('components', 'DesktopShell.tsx');
+  assert.match(shell, /const studio = useStudioFull\(\) && path === '\/new';/);
+  assert.match(shell, /<View style=\{studio \? st\.hidden : st\.sideWrap\}>/);
+  assert.match(read('components', 'DesktopShortcuts.tsx'), /isStudioFull\(\)\) return;/, 'os atalhos do site calam-se no estúdio');
+});
+
 test('a pinça conta os dedos em toda a linha do tempo (também em cima do «+» e dos botões)', () => {
   const timeline = read('components', 'studio', 'Timeline.tsx');
   assert.match(timeline, /onPointerDownCapture=\{onPointerDownCapture\}/);
