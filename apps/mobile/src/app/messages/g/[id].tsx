@@ -22,9 +22,9 @@ import { GroupCover } from '@/components/groups/GroupParts';
 import { PlanPanel } from '@/components/groups/PlanPanel';
 import { GroupCtx, NewPollSheet } from '@/components/groups/PollCard';
 import { PotPanel } from '@/components/groups/PotPanel';
-import { api, type GroupSummary } from '@/lib/api';
+import { api } from '@/lib/api';
 import { gruposApi, type GroupThread } from '@/lib/api.grupos';
-import { dateRange, groupKindOf, kindInfo, type TxillGroupInfo } from '@/lib/api.groups';
+import { dateRange, groupKindOf, kindInfo, type TxillGroupInfo, type TxillGroupSummary } from '@/lib/api.groups';
 import { useDesktopSizes } from '@/lib/desktop';
 import { colors } from '@/lib/theme';
 
@@ -72,7 +72,8 @@ export default function GroupThreadScreen() {
   const [searching, setSearching] = useState(false);
   const [raised, setRaised] = useState(false);
   // Por ler ao abrir (da lista de TxillGroups, antes de a conversa as marcar como lidas): para o "Mensagens novas".
-  const unread = useMemo(() => qc.getQueryData<GroupSummary[]>(['chat-groups'])?.find((g) => g.id === id)?.unread ?? 0, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const listed = useMemo(() => qc.getQueryData<TxillGroupSummary[]>(['chat-groups'])?.find((g) => g.id === id), [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const unread = listed?.unread ?? 0;
   useEffect(() => { if (side && tab === 'plan') setTab('chat'); }, [side, tab]);
 
   // Só marca como lidas com o grupo mesmo à vista; ao voltar a ele (ecrã, app ou janela), pede outra vez para as ler.
@@ -197,8 +198,9 @@ export default function GroupThreadScreen() {
           raised={raised || tab !== 'chat'}
           onOpen={group ? () => setMembers(true) : undefined}
           openLabel={group ? `Ver os detalhes de ${group.name}` : 'TxillGroup'}
-          avatar={<GroupCover url={group?.avatarUrl ?? group?.coverUrl} kind={groupKindOf(group)} size={36} radius={18} />}
-          title={group?.name ?? ''}
+          // Enquanto carrega, o nome e a foto vêm da lista de TxillGroups (o cabeçalho não aparece vazio e depois salta).
+          avatar={<GroupCover url={group ? group.avatarUrl ?? group.coverUrl : listed?.avatarUrl ?? listed?.coverUrl} kind={groupKindOf(group ?? listed)} size={36} radius={18} />}
+          title={group?.name ?? listed?.name ?? ''}
           subtitle={group ? <HeaderStatus text={sub} /> : null}
           actions={group ? <HeaderButton label="Mais opções" onPress={() => setMore(true)}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></HeaderButton> : null}
           below={

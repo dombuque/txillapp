@@ -53,3 +53,12 @@ test('lista de Mensagens: a minha publicação partilhada diz "Partilhaste" e os
   assert.match(inbox, /m\.fromMe \? 'Partilhaste uma publicação' : 'Partilhou uma publicação'/);
   assert.match(inbox, /sBtn: \{ width: 36, height: 44,/);
 });
+
+test('a abrir uma conversa, o cabeçalho já mostra o nome e a foto da lista (não aparece vazio e depois salta)', () => {
+  const thread = read('src/app/messages/[username].tsx');
+  assert.match(thread, /const listed = useMemo\(\(\) => qc\.getQueryData<Conversation\[\]>\(\['chat-list'\]\)/);
+  assert.match(thread, /title=\{person\?\.displayName \?\? listed\?\.displayName \?\? ''\}/);
+  const group = read('src/app/messages/g/[id].tsx');
+  assert.match(group, /const listed = useMemo\(\(\) => qc\.getQueryData<TxillGroupSummary\[\]>\(\['chat-groups'\]\)/);
+  assert.match(group, /title=\{group\?\.name \?\? listed\?\.name \?\? ''\}/);
+});

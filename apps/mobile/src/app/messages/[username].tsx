@@ -58,7 +58,8 @@ export default function Thread() {
   const typing = useTyping(username);
   const typingSent = useRef(0);
   // Por ler ao abrir (da lista de conversas, antes de a conversa as marcar como lidas): para o "Mensagens novas".
-  const unread = useMemo(() => qc.getQueryData<Conversation[]>(['chat-list'])?.find((c) => c.username === username)?.unread ?? 0, [username]); // eslint-disable-line react-hooks/exhaustive-deps
+  const listed = useMemo(() => qc.getQueryData<Conversation[]>(['chat-list'])?.find((c) => c.username === username), [username]); // eslint-disable-line react-hooks/exhaustive-deps
+  const unread = listed?.unread ?? 0;
 
   // Só marca como lidas com a conversa mesmo à vista; ao voltar a ela (ecrã, app ou janela), pede outra vez para as ler.
   const visible = useChatVisible(() => void qc.invalidateQueries({ queryKey: ['chat-thread', username] }));
@@ -218,7 +219,8 @@ export default function Thread() {
         openLabel={person ? `Ver o perfil de ${person.displayName}` : 'Conversa'}
         avatar={
           <View>
-            <Avatar name={person?.displayName ?? username} username={avatarOf} size={36} />
+            {/* Enquanto carrega, o nome e a foto vêm da lista de conversas (o cabeçalho não aparece vazio e depois salta). */}
+            <Avatar name={person?.displayName ?? listed?.displayName ?? username} username={person ? avatarOf : listed?.hasAvatar ? username : undefined} size={36} />
             {online ? <OnlineDot size={36} /> : null}
             {bubble ? <NoteDot visible={!fold.open} reduceMotion={reduceMotion} /> : null}
           </View>
@@ -227,7 +229,7 @@ export default function Thread() {
         overlay={person && bubble ? (
           <PeerNoteBubble bubble={bubble} name={person.displayName} online={!!online} open={fold.open} reduceMotion={reduceMotion} onPress={() => (bubble.kind === 'bio' ? openProfile?.() : setNoteOpen(true))} />
         ) : null}
-        title={person?.displayName ?? ''}
+        title={person?.displayName ?? listed?.displayName ?? ''}
         subtitleAction={person && newPostsGo ? { label: newPostsLabel(newPosts?.count, person.displayName), onPress: () => router.push(newPostsGo as never) } : undefined}
         subtitle={
           line === 'typing' ? <HeaderStatus text="a escrever…" tone="typing" />
