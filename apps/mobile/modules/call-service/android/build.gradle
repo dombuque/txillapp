@@ -16,4 +16,11 @@ android {
 
 dependencies {
   implementation "androidx.core:core-ktx:1.17.0"
+  // TxMessagingService.kt: o serviço FCM do expo-notifications, com o «chegou» das chamadas a mais. Só para compilar
+  // (compileOnly): na app quem os traz é o próprio expo-notifications. No Expo 58 ele vem já compilado (local-maven-repo);
+  // se um dia vier como projeto (compilado a partir do código), usa-se o projeto.
+  def notifications = findProject(':expo-notifications')
+  if (notifications != null) compileOnly notifications
+  else compileOnly 'host.exp.exponent:expo.modules.notifications:+'
+  compileOnly 'com.google.firebase:firebase-messaging:25.0.1'
 }
