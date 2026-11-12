@@ -505,7 +505,7 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
     setSheet(null);
     say('Ok, vamos mostrar menos disto.', 1200);
     void feedApi.setInterest(post.id, -1).catch(() => undefined);
-    setTimeout(() => onMore?.(), 650);
+    setTimeout(() => onMore?.(), 900); // dá para ler o aviso antes de passar à seguinte
   }
   function toggleCaptions() {
     const on = !captions.on;

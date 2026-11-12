@@ -116,7 +116,7 @@ test('menu de segurar: abre ao segurar (telemóvel e browser) e cada opção faz
 
 test('«Não me interessa» ensina o feed (o mesmo do «Não interessado») e passa à seguinte', () => {
   assert.match(reels, /void feedApi\.setInterest\(post\.id, -1\)\.catch\(\(\) => undefined\);/);
-  assert.match(reels, /setTimeout\(\(\) => onMore\?\.\(\), 650\);/);
+  assert.match(reels, /setTimeout\(\(\) => onMore\?\.\(\), 900\);/);
   assert.match(read('components', 'TeachBar.tsx'), /await feedApi\.setInterest\(postId, v\);/, 'o mesmo pedido do TeachBar do feed');
 });
 
@@ -182,6 +182,10 @@ test('fluidez: sem pretos (a capa fica até à primeira imagem), a seguinte e a 
   assert.match(reels, /\{m\.posterUrl && !shown \? <Image/);
   assert.match(reels, /windowSize=\{3\}\n\s+initialNumToRender=\{2\}/);
   assert.match(reels, /player\.muted = silent \|\| !active;/, 'as que não estão em cena ficam mudas');
+  // As animações sem fim (disco, letreiro, barra) não contam como interação: senão a lista não mudava de tcheka ao deslizar.
+  const disc = read('components', 'reel', 'ReelSound.tsx');
+  assert.equal((disc.match(/useNativeDriver: nd, isInteraction: false \}/g) ?? []).length, 2);
+  assert.match(read('components', 'reel', 'SeekBar.tsx'), /useNativeDriver: false, isInteraction: false \}\)\.start\(\);/);
   // As que estão longe (sem leitor, para poupar memória) mostram a capa, não um ecrã preto.
   assert.match(reels, /: <ReelPoster post=\{item\} height=\{height\} \/>/);
   assert.match(page, /: <ReelPoster post=\{item\} height=\{height\} \/>/);

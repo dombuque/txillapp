@@ -7,6 +7,8 @@ import { sized } from '@/lib/config';
 import { marqueeMs, type SoundView } from '@/lib/reelView';
 
 const nd = Platform.OS !== 'web';
+// As voltas sem fim levam isInteraction: false. Sem isso cada volta conta como «interação» a decorrer e a lista das
+// tchekas (que espera pelo fim das interações) deixava de saber qual está em cena ao deslizar: nada mudava de vídeo.
 const SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 } as const;
 
 /**
@@ -21,7 +23,7 @@ export function SoundDisc({ sound, spinning, onPress }: { sound: SoundView; spin
     // Continua do ângulo onde parou (sem saltar para o início ao retomar).
     const from = at.current;
     turn.setValue(from);
-    const spin = Animated.timing(turn, { toValue: from + 1, duration: 5000, easing: Easing.linear, useNativeDriver: nd });
+    const spin = Animated.timing(turn, { toValue: from + 1, duration: 5000, easing: Easing.linear, useNativeDriver: nd, isInteraction: false });
     const loop = Animated.loop(spin);
     const id = turn.addListener(({ value }) => { at.current = value % 1; });
     loop.start();
@@ -59,7 +61,7 @@ export function SoundMarquee({ sound, running, onPress, width }: { sound: SoundV
   useEffect(() => {
     if (!overflow || !running) return;
     x.setValue(0);
-    const loop = Animated.loop(Animated.timing(x, { toValue: -(textW + GAP), duration: marqueeMs(textW + GAP), easing: Easing.linear, useNativeDriver: nd }));
+    const loop = Animated.loop(Animated.timing(x, { toValue: -(textW + GAP), duration: marqueeMs(textW + GAP), easing: Easing.linear, useNativeDriver: nd, isInteraction: false }));
     loop.start();
     return () => loop.stop();
   }, [overflow, running, textW, x]);

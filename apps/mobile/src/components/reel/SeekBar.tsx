@@ -29,7 +29,7 @@ export function SeekBar({ player, bottom, onScrub }: { player: VideoPlayer; bott
         w.setValue(p);
       } else {
         // Entre duas atualizações o preenchimento avança a direito, sem saltos.
-        Animated.timing(w, { toValue: p, duration: 260, easing: Easing.linear, useNativeDriver: false }).start();
+        Animated.timing(w, { toValue: p, duration: 260, easing: Easing.linear, useNativeDriver: false, isInteraction: false }).start();
       }
       last.current = p;
     });
