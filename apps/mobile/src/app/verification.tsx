@@ -7,8 +7,25 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { StackPage } from '@/components/StackPage';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { useRouter } from 'expo-router';
 import { api, uploadMedia, type DocType } from '@/lib/api';
+import { usePurchases } from '@/lib/purchases';
 import { colors } from '@/lib/theme';
+
+/** A entrada para o selo azul (a verificação paga, pela loja): só nas lojas, com as compras pela loja ligadas. */
+function BlueSealEntry({ verified }: { verified: boolean }) {
+  const router = useRouter();
+  return (
+    <Pressable onPress={() => router.push('/selo-azul' as never)} style={st.blue} accessibilityRole="button">
+      <VerifiedBadge size={28} tier="paid" />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>{verified ? 'Ativar o selo azul' : 'Selo azul'}</Text>
+        <Text style={{ fontSize: 14, color: colors.zinc600 }}>{verified ? 'A verificação com subscrição, pela loja.' : 'Depois de a verificação ser aprovada, podes ativar o selo azul com uma subscrição.'}</Text>
+      </View>
+      <Icon name="chevron-right" size={18} color={colors.zinc500} />
+    </Pressable>
+  );
+}
 
 type Pic = { uri: string; mime: string } | null;
 
@@ -61,6 +78,7 @@ function PhotoSlot({ label, hint, pic, onPick, live }: { label: string; hint: st
 export default function Verification() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['verification'], queryFn: api.verificationStatus });
+  const purchases = usePurchases();
   const [kind, setKind] = useState<'person' | 'business'>('person');
   const [fullName, setFullName] = useState('');
   const [proof, setProof] = useState('');
@@ -113,6 +131,7 @@ export default function Verification() {
             <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc600, textAlign: 'center' }}>O selo aparece junto ao teu nome em todo o Txillapp.</Text>
           </View>
         )}
+        {s && purchases.storeVerification && s.tier !== 'official' ? <BlueSealEntry verified={s.verified} /> : null}
         {s && !s.verified && (
           <>
             <Text style={{ fontSize: 15, lineHeight: 22, color: colors.zinc700 }}>O selo mostra que uma conta é de quem diz ser. Passa por duas fases: primeiro a conta tem de cumprir os requisitos, depois a moderação revê o teu documento, a tua cara e a justificação.</Text>
@@ -192,6 +211,7 @@ export default function Verification() {
 
 const st = StyleSheet.create({
   done: { borderRadius: 24, backgroundColor: '#f0f9ff', padding: 24, alignItems: 'center' },
+  blue: { marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: '#bfdbfe', backgroundColor: '#eff6ff', padding: 14 },
   list: { marginTop: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.zinc200, overflow: 'hidden' },
   item: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
   dot: { marginTop: 2, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

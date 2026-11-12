@@ -4,12 +4,15 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { PontoLoader } from '@/components/PontoLoader';
-import { boostsApi, type BoostCampaign } from '@/lib/api.boosts';
+import { boostsApi, type BoostCampaign, type BoostOptions } from '@/lib/api.boosts';
 import { newKey } from '@/lib/api.extra';
 import type { Venue } from '@/lib/api.locais';
 import { STATE_LABEL, priceFor, refundPreview, reportLines, shortWhen, txills, type BoostPackageId } from '@/lib/boostView';
 import { sized } from '@/lib/config';
-import { PURCHASES } from '@/lib/purchases';
+import { iap } from '@/lib/iap';
+import { iapMessage, type IapOutcome, type StoreProduct } from '@/lib/iap/core';
+import { boostPackLabel, boostPackageFor, storeName } from '@/lib/iap/view';
+import { IAP_PLATFORM, useIapCatalog, usePurchases } from '@/lib/purchases';
 import { eventWhen } from '@/lib/nearbyView';
 import { colors } from '@/lib/theme';
 
@@ -34,6 +37,7 @@ function confirmThen(title: string, text: string, ok: string, go: () => void) {
  */
 export function VenueBoost({ v }: { v: Venue }) {
   const qc = useQueryClient();
+  const rules = usePurchases();
   const enabled = v.canEdit;
   const opts = useQuery({ queryKey: optionsKey(v.slug), queryFn: () => boostsApi.options(v.slug), enabled, retry: false });
   const camps = useQuery({ queryKey: boostKey(v.slug), queryFn: () => boostsApi.list(v.slug), enabled, retry: false });
@@ -112,7 +116,17 @@ export function VenueBoost({ v }: { v: Venue }) {
   };
 
   const nothing = !o.targets.events.length && !o.targets.posts.length;
-  if (!PURCHASES.buyBoosts) {
+  if (!rules.buyBoosts) {
+    // Nas lojas, com as compras pela loja ligadas (IAP_READY e o catálogo do servidor): os pacotes da loja.
+    if (rules.storeBoosts) {
+      return (
+        <View style={{ paddingHorizontal: 16, gap: 12 }}>
+          <StoreBoost v={v} o={o} target={target} setTarget={setTarget} onDone={refresh} />
+          <Campaigns title="Ativas" items={camps.data?.active ?? []} onStop={stop} empty="Nenhuma campanha a bombar agora." />
+          <Campaigns title="Passadas" items={camps.data?.past ?? []} empty="Ainda não há campanhas passadas." />
+        </View>
+      );
+    }
     return (
       <View style={{ paddingHorizontal: 16, gap: 12 }}>
         <View style={st.intro}>
@@ -146,36 +160,7 @@ export function VenueBoost({ v }: { v: Venue }) {
           <Text style={st.boxTitle}>Nova campanha</Text>
 
           <Text style={st.label}>O que bombar</Text>
-          <View accessibilityRole="radiogroup" style={{ gap: 8 }}>
-            {o.targets.events.map((e) => {
-              const on = target?.kind === 'event' && target.id === e.id;
-              return (
-                <Pressable key={e.id} onPress={() => setTarget({ kind: 'event', id: e.id })} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`Evento: ${e.title}, ${eventWhen(e.startsAt, e.endsAt)}`} style={[st.option, on && st.optionOn]}>
-                  <View style={[st.thumb, { backgroundColor: colors.brand }]}><Icon name="calendar" size={18} color="#fff" /></View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={st.optTitle} numberOfLines={1}>{e.title}</Text>
-                    <Text style={st.optSub} numberOfLines={1}>Evento · {eventWhen(e.startsAt, e.endsAt)}</Text>
-                  </View>
-                  {on ? <Icon name="check-circle" size={20} color={colors.brand} /> : null}
-                </Pressable>
-              );
-            })}
-            {o.targets.posts.map((p) => {
-              const on = target?.kind === 'post' && target.id === p.id;
-              return (
-                <Pressable key={p.id} onPress={() => setTarget({ kind: 'post', id: p.id })} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`Publicação: ${p.body || 'sem texto'}`} style={[st.option, on && st.optionOn]}>
-                  <View style={st.thumb}>
-                    {p.thumbUrl ? <Image source={{ uri: sized(p.thumbUrl, 120) }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Icon name="image" size={18} color={colors.zinc500} />}
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={st.optTitle} numberOfLines={1}>{p.body || 'Publicação sem texto'}</Text>
-                    <Text style={st.optSub} numberOfLines={1}>Publicação do local · {shortWhen(p.createdAt)}</Text>
-                  </View>
-                  {on ? <Icon name="check-circle" size={20} color={colors.brand} /> : null}
-                </Pressable>
-              );
-            })}
-          </View>
+          <TargetPicker o={o} target={target} onPick={setTarget} />
 
           <Text style={st.label}>Durante quanto tempo</Text>
           <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', gap: 8 }}>
@@ -235,6 +220,150 @@ export function VenueBoost({ v }: { v: Venue }) {
       <Campaigns title="Ativas" items={camps.data?.active ?? []} onStop={stop} empty="Nenhuma campanha a bombar agora." />
       <Campaigns title="Passadas" items={camps.data?.past ?? []} empty="Ainda não há campanhas passadas." />
     </View>
+  );
+}
+
+/** O evento ou a publicação do local a bombar. */
+export function TargetPicker({ o, target, onPick }: { o: BoostOptions; target: { kind: 'event' | 'post'; id: string } | null; onPick: (t: { kind: 'event' | 'post'; id: string }) => void }) {
+  return (
+    <View accessibilityRole="radiogroup" style={{ gap: 8 }}>
+      {o.targets.events.map((e) => {
+        const on = target?.kind === 'event' && target.id === e.id;
+        return (
+          <Pressable key={e.id} onPress={() => onPick({ kind: 'event', id: e.id })} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`Evento: ${e.title}, ${eventWhen(e.startsAt, e.endsAt)}`} style={[st.option, on && st.optionOn]}>
+            <View style={[st.thumb, { backgroundColor: colors.brand }]}><Icon name="calendar" size={18} color="#fff" /></View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={st.optTitle} numberOfLines={1}>{e.title}</Text>
+              <Text style={st.optSub} numberOfLines={1}>Evento · {eventWhen(e.startsAt, e.endsAt)}</Text>
+            </View>
+            {on ? <Icon name="check-circle" size={20} color={colors.brand} /> : null}
+          </Pressable>
+        );
+      })}
+      {o.targets.posts.map((p) => {
+        const on = target?.kind === 'post' && target.id === p.id;
+        return (
+          <Pressable key={p.id} onPress={() => onPick({ kind: 'post', id: p.id })} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`Publicação: ${p.body || 'sem texto'}`} style={[st.option, on && st.optionOn]}>
+            <View style={st.thumb}>
+              {p.thumbUrl ? <Image source={{ uri: sized(p.thumbUrl, 120) }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Icon name="image" size={18} color={colors.zinc500} />}
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={st.optTitle} numberOfLines={1}>{p.body || 'Publicação sem texto'}</Text>
+              <Text style={st.optSub} numberOfLines={1}>Publicação do local · {shortWhen(p.createdAt)}</Text>
+            </View>
+            {on ? <Icon name="check-circle" size={20} color={colors.brand} /> : null}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
+ * O Bombar pago pela loja (App Store / Google Play): os pacotes do catálogo (dias e raio fixos) com o preço que a loja
+ * mostra. Cria primeiro a campanha em rascunho (`source: 'iap'` e o pacote), abre a compra e manda o verify com o
+ * `campaignId`; o servidor ativa a campanha. Se a confirmação falhar, a compra fica guardada e volta a ir ao servidor.
+ */
+function StoreBoost({ v, o, target, setTarget, onDone }: { v: Venue; o: BoostOptions; target: { kind: 'event' | 'post'; id: string } | null; setTarget: (t: { kind: 'event' | 'post'; id: string }) => void; onDone: () => Promise<unknown> }) {
+  const catalog = useIapCatalog();
+  const packs = catalog.data?.boost.products ?? [];
+  const ids = packs.map((p) => p.id).join(',');
+  const [prices, setPrices] = useState<StoreProduct[] | null>(null);
+  const [pick, setPick] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // A mesma chave até o rascunho ficar pago: tocar outra vez depois de uma falha não cria outro rascunho.
+  const key = useRef(newKey());
+
+  useEffect(() => {
+    if (!ids) return;
+    let gone = false;
+    void iap.recover().catch(() => undefined);
+    iap.products(ids.split(','), 'in-app').then(
+      (list) => {
+        if (gone) return;
+        setPrices(list);
+        setPick((p) => p ?? list[0]?.id ?? null);
+      },
+      () => !gone && setPrices([]),
+    );
+    return () => {
+      gone = true;
+    };
+  }, [ids]);
+
+  const store = storeName(IAP_PLATFORM ?? 'android');
+  const pack = packs.find((p) => p.id === pick);
+  const price = prices?.find((p) => p.id === pick)?.price;
+  const nothing = !o.targets.events.length && !o.targets.posts.length;
+
+  const show = (r: IapOutcome) => {
+    if (r.status === 'done') setMsg({ ok: true, text: 'Está a bombar! A campanha já aparece em Ativas.' });
+    else if (r.status === 'cancelled') setMsg(null);
+    else {
+      const text = iapMessage(r.status === 'error' ? r.kind : r.status);
+      setMsg(text ? { ok: r.status === 'pending', text } : null);
+    }
+  };
+
+  const buy = async () => {
+    if (!target || !pack || busy) return;
+    setBusy(true);
+    setMsg(null);
+    const r = await iap.buyBoost(pack.id, () =>
+      boostsApi
+        .create(v.slug, { target, package: boostPackageFor(pack.days), radiusKm: pack.radiusKm, source: 'iap', pack: pack.id, idempotencyKey: key.current })
+        .then((x) => x.campaign),
+    );
+    if (r.status === 'done') key.current = newKey();
+    show(r);
+    await onDone();
+    setBusy(false);
+  };
+
+  return (
+    <>
+      <View style={st.intro}>
+        <Icon name="flame" size={22} color={colors.brand} />
+        <Text style={[st.hint, { flex: 1 }]}>
+          Destaca um evento ou uma publicação do local no feed e no mapa À tua volta de quem está perto. Aparece sempre com a etiqueta “{o.label}”, só a maiores de 18 anos, e cada pessoa vê-o no máximo 3 vezes por dia. Pagas pela {store}.
+        </Text>
+      </View>
+      {!o.canBoost ? (
+        <View style={st.notice} accessibilityRole="alert">
+          <Icon name="info" size={18} color="#b45309" />
+          <Text style={st.noticeText}>{o.blocker}</Text>
+        </View>
+      ) : nothing ? (
+        <Text style={[st.hint, { textAlign: 'center', paddingVertical: 8 }]}>Para bombar, cria primeiro um evento (secção Eventos) ou publica como o local.</Text>
+      ) : (
+        <View style={st.box}>
+          <Text style={st.boxTitle}>Nova campanha</Text>
+          <Text style={st.label}>O que bombar</Text>
+          <TargetPicker o={o} target={target} onPick={setTarget} />
+          <Text style={st.label}>Pacote</Text>
+          {prices == null ? <PontoLoader size={18} /> : null}
+          {prices && !prices.length ? <Text style={st.hint}>A {store} não mostrou os pacotes agora. Tenta outra vez daqui a pouco.</Text> : null}
+          <View accessibilityRole="radiogroup" style={{ gap: 8 }}>
+            {packs.filter((p) => prices?.some((x) => x.id === p.id)).map((p) => {
+              const on = pick === p.id;
+              const pr = prices?.find((x) => x.id === p.id)?.price ?? '';
+              return (
+                <Pressable key={p.id} onPress={() => setPick(p.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${boostPackLabel(p)}, ${pr}`} style={[st.option, on && st.optionOn]}>
+                  <Text style={[st.optTitle, { flex: 1 }]}>{boostPackLabel(p)}</Text>
+                  <Text style={st.optTitle}>{pr}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Pressable onPress={() => void buy()} disabled={busy || !target || !pack || !price} style={[st.cta, (busy || !target || !pack || !price) && { opacity: 0.5 }]} accessibilityRole="button">
+            <Text style={st.ctaText}>{busy ? 'A bombar…' : price ? `Bombar por ${price}` : 'Bombar'}</Text>
+          </Pressable>
+          <Text style={st.small}>Pagas pela {store}, ao preço que ela mostra, e a campanha começa logo que a compra for confirmada. O local só vê totais, nunca quem viu.</Text>
+        </View>
+      )}
+      {msg ? <Text accessibilityRole="alert" style={{ textAlign: 'center', fontSize: 14, color: msg.ok ? colors.green700 : colors.red600 }}>{msg.text}</Text> : null}
+    </>
   );
 }
 

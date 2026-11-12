@@ -58,8 +58,8 @@ const s = (slug: string) => encodeURIComponent(slug);
 export const boostsApi = {
   options: (slug: string): Promise<BoostOptions> => raw(`/boosts/venue/${s(slug)}/options`),
   list: (slug: string): Promise<{ balance: number; active: BoostCampaign[]; past: BoostCampaign[] }> => raw(`/boosts/venue/${s(slug)}`),
-  /** A mesma `idempotencyKey` nunca cobra duas vezes. */
-  create: (slug: string, b: { target: { kind: 'event' | 'post'; id: string }; package: BoostPackageId; radiusKm: number; startsAt?: string; payment?: 'txills'; idempotencyKey: string }): Promise<{ campaign: BoostCampaign; balance: number; replayed: boolean }> =>
+  /** A mesma `idempotencyKey` nunca cobra duas vezes. Com `source: 'iap'` não cobra nada: fica em rascunho até o verify da loja. */
+  create: (slug: string, b: { target: { kind: 'event' | 'post'; id: string }; package: BoostPackageId; radiusKm: number; startsAt?: string; payment?: 'txills'; /** Pago pela loja (App Store / Google Play): cria a campanha em rascunho, ativada pelo verify. */ source?: 'iap'; /** O produto da loja do pacote. */ pack?: string; idempotencyKey: string }): Promise<{ campaign: BoostCampaign; balance: number; replayed: boolean }> =>
     raw(`/boosts/venue/${s(slug)}`, { ...post(b), headers: { 'Idempotency-Key': b.idempotencyKey } }),
   stop: (id: string): Promise<{ campaign: BoostCampaign; refunded: number }> => raw(`/boosts/${id}/stop`, post({})),
   /** Quem vê tocou no destaque (o servidor conta; nada de analytics na app). */
