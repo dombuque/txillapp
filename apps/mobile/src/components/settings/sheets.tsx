@@ -64,14 +64,34 @@ export function SwitchAccountSheet({ others, onPick, onClose }: { others: { user
   );
 }
 
-export function LogoutSheet({ onConfirm, onClose }: { onConfirm: () => void; onClose: () => void }) {
+/**
+ * Sair leva uns segundos (tirar do mapa, desligar as notificações deste telemóvel, fechar a sessão): enquanto isso o botão
+ * mostra que está a sair e não aceita outro toque (antes podia lançar várias saídas seguidas e parecia não fazer nada).
+ */
+export function LogoutSheet({ onConfirm, onClose }: { onConfirm: () => Promise<void> | void; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  async function confirm() {
+    if (busy) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await onConfirm();
+    } catch {
+      setErr('Não consegui terminar a sessão. Tenta outra vez.');
+      setBusy(false);
+    }
+  }
   return (
-    <Sheet title="Terminar sessão" onClose={onClose}>
+    <Sheet title="Terminar sessão" onClose={busy ? () => undefined : onClose}>
       <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
         <Text style={{ textAlign: 'center', fontSize: 18, paddingVertical: 8, color: colors.zinc900 }}>Já vais?</Text>
         <Text style={{ textAlign: 'center', color: colors.zinc600, marginBottom: 20, fontSize: 16 }}>Vais precisar de entrar outra vez para voltar.</Text>
-        <Pressable onPress={onConfirm} style={s.primary} accessibilityRole="button"><Text style={s.primaryText}>Sim, sair</Text></Pressable>
-        <Pressable onPress={onClose} style={s.ghost} accessibilityRole="button"><Text style={s.ghostText}>Fico por aqui</Text></Pressable>
+        {err ? <Text style={{ textAlign: 'center', color: colors.red600, marginBottom: 12, fontSize: 14 }} accessibilityLiveRegion="polite">{err}</Text> : null}
+        <Pressable onPress={() => void confirm()} disabled={busy} style={[s.primary, busy && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ disabled: busy, busy }}>
+          {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>Sim, sair</Text>}
+        </Pressable>
+        <Pressable onPress={onClose} disabled={busy} style={[s.ghost, busy && { opacity: 0.5 }]} accessibilityRole="button"><Text style={s.ghostText}>Fico por aqui</Text></Pressable>
       </View>
     </Sheet>
   );

@@ -15,7 +15,8 @@ interface AuthState {
   signUp: (b: Parameters<typeof api.register>[0]) => Promise<void>;
   /** Entra com uma sessão já obtida (ex.: depois do login com Google). */
   signInWith: (r: AuthResult) => void;
-  signOut: () => Promise<void>;
+  /** Termina a sessão desta conta. Devolve `true` se passou para outra conta guardada neste aparelho. */
+  signOut: () => Promise<boolean>;
   /** Muda para outra conta guardada neste aparelho. */
   switchTo: (username: string) => Promise<void>;
   retry: () => void;
@@ -91,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(r.user);
   }, [qc]);
 
-  const signOut = useCallback(async () => {
+  const signOut = useCallback(async (): Promise<boolean> => {
     // Ainda com sessão: deixo de aparecer à malta no mapa. Se falhar (sem rede), não prende a saída: a presença expira em 3 h.
     await leaveMapOnSignOut();
     await unregisterNativePush(); // este telemóvel deixa de receber as notificações desta conta
@@ -104,12 +105,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await accounts.setCurrent(rest[0].username);
         const r = await refreshSession();
         setUser(r.user);
-        return;
+        return true;
       } catch {
         /* a outra conta já não vale: vai para a entrada */
       }
     }
     setUser(null);
+    return false;
   }, [qc]);
 
   const value = useMemo<AuthState>(() => ({ user, loading, offline, signIn, signUp, signInWith, signOut, switchTo, retry: () => setAttempt((n) => n + 1) }), [user, loading, offline, signIn, signUp, signInWith, signOut, switchTo]);

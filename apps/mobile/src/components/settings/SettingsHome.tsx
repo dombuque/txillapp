@@ -14,6 +14,7 @@ import { SETTINGS_GROUPS, searchSettings, type SettingsGroupId, type SettingsHit
 import { colors } from '@/lib/theme';
 import { SettingRow, SettingsSection } from './SettingRow';
 import { LogoutSheet, SwitchAccountSheet } from './sheets';
+import { useLeave } from './useLeave';
 
 /** Opções que este aparelho não mostra: a pesquisa também não as propõe. */
 const HIDDEN_HERE = Platform.OS === 'web' ? [] : ['installApp', 'contacts'];
@@ -22,20 +23,23 @@ const HIDDEN_HERE = Platform.OS === 'web' ? [] : ['installApp', 'contacts'];
 function ProfileCard() {
   const { user } = useAuth();
   const [edit, setEdit] = useState(false);
-  const profile = useQuery({ queryKey: ['profile', user!.username], queryFn: () => api.profile(user!.username) });
-  const name = profile.data?.displayName ?? user!.displayName;
+  const me = user?.username ?? '';
+  const profile = useQuery({ queryKey: ['profile', me], queryFn: () => api.profile(me), enabled: !!user });
+  // A terminar sessão, o ecrã ainda se desenha uma vez já sem conta: sem cartão, em vez de rebentar.
+  if (!user) return null;
+  const name = profile.data?.displayName ?? user.displayName;
   return (
     <>
       <Pressable
         onPress={() => profile.data && setEdit(true)}
         style={({ pressed }) => [st.me, pressed && { transform: [{ scale: 0.99 }] }]}
         accessibilityRole="button"
-        accessibilityLabel={`${name}, @${user!.username}. Editar perfil`}
+        accessibilityLabel={`${name}, @${user.username}. Editar perfil`}
       >
-        <Avatar name={name} username={profile.data?.hasAvatar ? user!.username : undefined} size={60} />
+        <Avatar name={name} username={profile.data?.hasAvatar ? user.username : undefined} size={60} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={st.meName} numberOfLines={2}>{name}</Text>
-          <Text style={st.meHandle} numberOfLines={1}>@{user!.username}</Text>
+          <Text style={st.meHandle} numberOfLines={1}>@{user.username}</Text>
           <Text style={st.meEdit}>Editar perfil</Text>
         </View>
         <Icon name="chevron-right" size={18} color="#a1a1aa" />
@@ -91,7 +95,8 @@ function Results({ hits, onPick }: { hits: SettingsHit[]; onPick: (h: SettingsHi
 export function SettingsHome({ pane = false }: { pane?: boolean }) {
   const router = useRouter();
   const path = usePathname();
-  const { user, signOut, switchTo } = useAuth();
+  const { user, switchTo } = useAuth();
+  const leave = useLeave();
   const [query, setQuery] = useState('');
   const [sheet, setSheet] = useState<null | 'logout' | 'switch'>(null);
   const [others, setOthers] = useState<{ username: string; displayName: string }[]>([]);
@@ -103,7 +108,6 @@ export function SettingsHome({ pane = false }: { pane?: boolean }) {
 
   const open = (to: string) => router.push(to as never);
   const pick = (h: SettingsHit) => { setQuery(''); open(h.path); };
-  const out = () => void signOut().then(() => router.replace('/login'));
   // No computador, o grupo aberto fica assinalado (em /settings abre-se a Conta).
   const active = (id: SettingsGroupId) => pane && (path === `/settings/${id}` || (id === 'conta' && path === '/settings') || (id === 'seguranca' && path === '/settings/aparelhos'));
   const hits = query.trim() ? searchSettings(query, { hidden: HIDDEN_HERE }) : null;
@@ -140,7 +144,7 @@ export function SettingsHome({ pane = false }: { pane?: boolean }) {
         </>
       )}
       {sheet === 'switch' && <SwitchAccountSheet others={others} onPick={(u) => void switchTo(u)} onClose={() => setSheet(null)} />}
-      {sheet === 'logout' && <LogoutSheet onConfirm={out} onClose={() => setSheet(null)} />}
+      {sheet === 'logout' && <LogoutSheet onConfirm={leave} onClose={() => setSheet(null)} />}
     </View>
   );
 }

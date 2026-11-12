@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Platform, Share } from 'react-native';
 import { EditProfileSheet } from '@/components/ProfileSheets';
@@ -10,21 +9,22 @@ import { SettingRow, SettingsSection } from '@/components/settings/SettingRow';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { DeleteSheet, GenderSheet } from '@/components/settings/sheets';
 import { usePrivacy } from '@/components/settings/usePrivacy';
+import { useLeave } from '@/components/settings/useLeave';
 import { api, openActivate } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
 /** Conta: o perfil, o email e o @, como te identificas, a verificação, os teus dados e, no fundo, eliminar a conta. */
 export default function AccountSettings() {
-  const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
+  const leave = useLeave();
+  const me = user?.username ?? '';
   const { p, save } = usePrivacy();
   const [sheet, setSheet] = useState<null | 'edit' | 'gender' | 'delete'>(null);
   const [exporting, setExporting] = useState(false);
   const close = () => setSheet(null);
-  const profile = useQuery({ queryKey: ['profile', user!.username], queryFn: () => api.profile(user!.username) });
+  const profile = useQuery({ queryKey: ['profile', me], queryFn: () => api.profile(me), enabled: !!user });
   const email = useQuery({ queryKey: ['email-status'], queryFn: api.emailStatus, staleTime: 60_000 });
   const ver = useQuery({ queryKey: ['verification'], queryFn: api.verificationStatus, staleTime: 60_000 });
-  const out = () => void signOut().then(() => router.replace('/login'));
 
   async function downloadData() {
     if (exporting) return;
@@ -35,11 +35,11 @@ export default function AccountSettings() {
         const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
         const a = document.createElement('a');
         a.href = url;
-        a.download = `txillapp-dados-${user!.username}.json`;
+        a.download = `txillapp-dados-${me}.json`;
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 5000);
       } else {
-        await Share.share({ message: json, title: `txillapp-dados-${user!.username}.json` });
+        await Share.share({ message: json, title: `txillapp-dados-${me}.json` });
       }
     } catch (x) {
       Alert.alert('Os meus dados', (x as Error).message);
@@ -48,6 +48,8 @@ export default function AccountSettings() {
     }
   }
 
+  // A terminar sessão (ou depois de eliminar a conta) o ecrã ainda se desenha uma vez já sem conta: nada, em vez de rebentar.
+  if (!user) return null;
   const e = email.data;
   const unconfirmed = !!e && e.required && !e.verified;
   return (
@@ -63,7 +65,7 @@ export default function AccountSettings() {
           onPress={unconfirmed ? openActivate : undefined}
           locked={!unconfirmed}
         />
-        <SettingRow anchor="username" icon="at" title="Nome de utilizador" value={`@${user!.username}`} locked />
+        <SettingRow anchor="username" icon="at" title="Nome de utilizador" value={`@${user.username}`} locked />
       </SettingsSection>
 
       <SettingsSection title="Perfil">
@@ -83,7 +85,7 @@ export default function AccountSettings() {
 
       {sheet === 'edit' && profile.data && <EditProfileSheet profile={profile.data} onClose={close} />}
       {sheet === 'gender' && p && <GenderSheet value={p.gender} onPick={(g) => void save({ gender: g })} onClose={close} />}
-      {sheet === 'delete' && <DeleteSheet username={user!.username} onClose={close} onDeleted={out} />}
+      {sheet === 'delete' && <DeleteSheet username={user.username} onClose={close} onDeleted={() => void leave().catch(() => undefined)} />}
     </SettingsPage>
   );
 }
