@@ -2,5 +2,5 @@
   "name": "txillapp-call-service",
   "version": "1.0.0",
   "private": true,
-  "description": "Serviço em primeiro plano (microfone/câmara) das chamadas do Txillapp no Android. Ver CallService.kt."
+  "description": "Chamadas do Txillapp: serviço em primeiro plano no Android (CallService.kt) e viva-voz no Android (CallAudio.kt) e no iPhone (ios/CallServiceModule.swift)."
 }
