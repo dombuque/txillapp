@@ -11,6 +11,7 @@ import { PostCard } from '@/components/PostCard';
 import { isTcheka, type Page, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { reelMounted } from '@/lib/videoMemory';
 
 /**
  * Abre uma publicação do Explorar em ecrã inteiro (não numa folha), como no site.
@@ -94,7 +95,9 @@ export function ExploreViewer({ items, startId, onClose, title = 'Explorar' }: {
               onViewableItemsChanged={viewable}
               viewabilityConfig={viewConfig}
               renderItem={({ item, index }) => (
-                <Reel post={item} active={index === active} height={h} me={user?.id} onChange={(c) => patch(item.id, c)} onMore={reels ? () => goNext(index) : undefined} />
+                reelMounted(index, active)
+                  ? <Reel post={item} active={index === active} height={h} me={user?.id} onChange={(c) => patch(item.id, c)} onMore={reels ? () => goNext(index) : undefined} />
+                  : <View style={{ height: h, backgroundColor: '#000' }} />
               )}
             />
             <View style={[st.top, { paddingTop: Math.max(insets.top, 12) }]} pointerEvents="box-none">

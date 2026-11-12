@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { limitBuffer } from '@/lib/videoMemory';
 import { useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Modal } from '@/components/Modal';
@@ -259,7 +260,7 @@ function Body({ post, onClose }: { post: Post; onClose: () => void }) {
 
 /** O vídeo da publicação a tocar na pré-visualização (em ciclo, com som), como vai ficar no status. */
 function PreviewVideo({ url }: { url: string }) {
-  const player = useVideoPlayer(url, (p) => { p.loop = true; p.muted = false; p.play(); });
+  const player = useVideoPlayer(url, (p) => { limitBuffer(p, 'full'); p.loop = true; p.muted = false; p.play(); });
   // O Safari pode recusar tocar com som sem um toque recente: nesse caso toca sem som.
   useEffect(() => {
     const t = setTimeout(() => { try { if (!player.playing) { player.muted = true; player.play(); } } catch { /* leitor libertado */ } }, 700);

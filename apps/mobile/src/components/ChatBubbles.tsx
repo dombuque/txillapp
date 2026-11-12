@@ -27,6 +27,7 @@ import { gifLabel, gifSize, validGif, type ChatGif } from '@/lib/gifs';
 import { HOLD_MS, bubbleA11yActions, deletedText, isSent, recentlyHeld } from '@/lib/messageMenu';
 import { canSwipeReply } from '@/lib/replySwipe';
 import { liveShareEnded } from '@/lib/sendLocation';
+import { limitBuffer } from '@/lib/videoMemory';
 import { colors } from '@/lib/theme';
 import { chatSegments, type ChatSeg } from '@/lib/chatLinks';
 import { storyHref } from '@/lib/storyLink';
@@ -292,10 +293,25 @@ export function ChatVideoPlayer({ url, autoPlay = false, inModal = false }: { ur
       style: { width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#000', display: 'block' },
     });
   }
-  return <NativeChatVideo url={url} autoPlay={autoPlay} inModal={inModal} />;
+  return autoPlay ? <NativeChatVideo url={url} autoPlay inModal={inModal} /> : <LazyChatVideo url={url} inModal={inModal} />;
+}
+/**
+ * Na bolha, o leitor só se cria quando a pessoa toca no play (lib/videoMemory): um leitor criado começa logo a carregar,
+ * e uma conversa com muitos vídeos tinha um leitor (com memória e descodificador) por bolha.
+ */
+function LazyChatVideo({ url, inModal }: { url: string; inModal: boolean }) {
+  const [on, setOn] = useState(false);
+  if (on) return <NativeChatVideo url={url} autoPlay inModal={inModal} />;
+  return (
+    <Pressable onPress={() => setOn(true)} style={{ width: '100%', height: '100%', backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Ver o vídeo">
+      <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="play" size={26} color="#fff" solid />
+      </View>
+    </Pressable>
+  );
 }
 function NativeChatVideo({ url, autoPlay, inModal }: { url: string; autoPlay: boolean; inModal: boolean }) {
-  const p = useVideoPlayer(url, (x) => { x.loop = false; x.muted = false; x.volume = 1; if (autoPlay) x.play(); });
+  const p = useVideoPlayer(url, (x) => { limitBuffer(x, inModal ? 'full' : 'chat'); x.loop = false; x.muted = false; x.volume = 1; if (autoPlay) x.play(); });
   useEffect(() => () => { try { p.pause(); } catch { /* já libertado */ } }, [p]);
   // Dentro de um Modal ou de uma lista, no Android, o vídeo só aparece bem numa TextureView.
   return <VideoView player={p} style={{ width: '100%', height: '100%', backgroundColor: '#000' }} nativeControls contentFit="contain" surfaceType={inModal || Platform.OS === 'android' ? 'textureView' : undefined} />;

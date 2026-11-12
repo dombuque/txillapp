@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
+import { limitBuffer, reelMounted } from '@/lib/videoMemory';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { enterImmersive, leaveImmersive } from '@/lib/immersive';
 import { Animated, AppState, Easing, FlatList, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
@@ -258,6 +259,7 @@ export function Reel({ post, active, onScreen = true, height, onChange, me, onMo
   const teach = !mine && (post as Post & { authorFollowed?: boolean }).authorFollowed === false;
 
   const player = useVideoPlayer(abs(m.url) ?? '', (p) => {
+    limitBuffer(p, 'reel');
     p.loop = !onMore;
     p.muted = true;
     p.timeUpdateEventInterval = 0.25;
@@ -640,7 +642,9 @@ export default function Reels() {
             maxToRenderPerBatch={2}
             onScrollToIndexFailed={(info) => list.current?.scrollToOffset({ offset: info.index * height, animated: true })}
             renderItem={({ item, index }) => (
-              <Reel pauseSignal={pauseSignal} post={item} active={index === active} onScreen={focused} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={desktop ? Math.max(insets.bottom, 16) : 76 + Math.max(insets.bottom, 8)} />
+              reelMounted(index, active)
+                ? <Reel pauseSignal={pauseSignal} post={item} active={index === active} onScreen={focused} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={desktop ? Math.max(insets.bottom, 16) : 76 + Math.max(insets.bottom, 8)} />
+                : <View style={{ height, backgroundColor: '#000' }} />
             )}
             onEndReached={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }}
             onEndReachedThreshold={1}
