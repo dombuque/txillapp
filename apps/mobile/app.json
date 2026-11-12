@@ -171,6 +171,8 @@
         }
       ],
       "./plugins/withProguardRules",
+      "./plugins/withShortCxxPath",
+      "./plugins/withCompressedNativeLibs",
       "./plugins/withAndroidUploadSigning",
       "./plugins/withoutUnusedServices",
       "./plugins/withCallService"
