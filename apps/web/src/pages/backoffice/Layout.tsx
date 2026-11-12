@@ -15,6 +15,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
     { to: '/backoffice/verifications', label: 'Pedidos de selo', icon: 'shield', perm: 'verification.decide', badge: 'verifications' },
     { to: '/backoffice/venues', label: 'Locais', icon: 'map-pin', perm: 'catalog.manage' },
     { to: '/backoffice/catalog', label: 'Catálogo da Geleira', icon: 'snowflake', perm: 'catalog.manage' },
+    { to: '/backoffice/music', label: 'Música', icon: 'music', perm: 'catalog.manage' },
   ] },
   { title: 'Pessoas', items: [
     { to: '/backoffice/users', label: 'Utilizadores', icon: 'user', perm: 'users.view' },

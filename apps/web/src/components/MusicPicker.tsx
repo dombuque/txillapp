@@ -6,7 +6,7 @@ import Icon from './Icon';
 import { Sheet } from './ui';
 
 const mmss = (ms: number | null) => (ms ? `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}` : '');
-export const licenseLabel = (l: string) => (l === 'own' ? tr('Original') : l === 'cc0' ? 'CC0' : l === 'pdm' ? tr('Domínio público') : `CC ${l.toUpperCase()}`);
+export const licenseLabel = (l: string) => (l === 'own' ? tr('Original') : l === 'txillapp' ? tr('Artista no Txillapp') : l === 'cc0' ? 'CC0' : l === 'pdm' ? tr('Domínio público') : `CC ${l.toUpperCase()}`);
 
 const CLIP_MAX_MS = 30_000;
 

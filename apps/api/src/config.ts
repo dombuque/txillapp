@@ -60,6 +60,12 @@ const schema = z.object({
   GIPHY_API_KEY: z.preprocess(blankToUndefined, z.string().trim().min(10).optional()),
   /** O canal do Txillapp no GIPHY (o nome de utilizador, sem o @) para o separador "Txillapp" do painel dos GIFs. Opcional. */
   GIPHY_CHANNEL: z.preprocess((v) => blankToUndefined(typeof v === 'string' ? v.trim().replace(/^@/, '') : v), z.string().regex(/^[A-Za-z0-9_.-]{2,50}$/).optional()),
+  /**
+   * Fontes do catálogo de música (docs/musica.md). Sem elas, o catálogo usa só o ccMixter e o Internet Archive. As APIs da
+   * Jamendo e do Freesound só são grátis para uso não comercial: ligar só depois do acordo comercial com cada uma.
+   */
+  JAMENDO_CLIENT_ID: z.preprocess(blankToUndefined, z.string().trim().min(4).optional()),
+  FREESOUND_TOKEN: z.preprocess(blankToUndefined, z.string().trim().min(10).optional()),
   /** Chaves VAPID (notificações no telemóvel). Sem elas as notificações push ficam desligadas. Gera com: npx web-push generate-vapid-keys */
   VAPID_PUBLIC_KEY: z.string().min(20).optional(),
   VAPID_PRIVATE_KEY: z.string().min(20).optional(),

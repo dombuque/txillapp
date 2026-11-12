@@ -1019,6 +1019,7 @@ export const EN: Record<string, string> = {
   'Ouvir': 'Listen',
   'Autor desconhecido': 'Unknown artist',
   'Domínio público': 'Public domain',
+  'Artista no Txillapp': 'Artist on Txillapp',
   'Origem': 'Source',
   'Tirar a música': 'Remove the music',
   'Adicionar música': 'Add music',
