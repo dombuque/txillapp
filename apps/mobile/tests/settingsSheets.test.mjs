@@ -45,3 +45,8 @@ test('Eliminar conta: o @ confirma-se com espaços à volta e não há segundo p
   assert.match(del, /confirm\.trim\(\)\.replace\(\/\^@\/, ''\)/);
   assert.match(del, /if \(busy \|\| !can\) return;/);
 });
+
+test('pesquisa nas Definições: no telemóvel abrir um resultado não apaga a pesquisa (só no computador, com a lista à esquerda)', () => {
+  const home = read('components', 'settings', 'SettingsHome.tsx');
+  assert.match(home, /const pick = \(h: SettingsHit\) => \{ if \(pane\) setQuery\(''\); open\(h\.path\); \};/);
+});

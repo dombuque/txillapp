@@ -107,7 +107,10 @@ export function SettingsHome({ pane = false }: { pane?: boolean }) {
   const notifOff = showsOffBanner(device);
 
   const open = (to: string) => router.push(to as never);
-  const pick = (h: SettingsHit) => { setQuery(''); open(h.path); };
+  // No telemóvel a pesquisa fica: limpá-la aqui trocava os resultados pela lista dos grupos a meio da animação (via-se por
+  // trás do ecrã a entrar) e, ao voltar, a pessoa perdia o que procurou. No computador a lista da esquerda volta aos grupos,
+  // com o grupo aberto assinalado.
+  const pick = (h: SettingsHit) => { if (pane) setQuery(''); open(h.path); };
   // No computador, o grupo aberto fica assinalado (em /settings abre-se a Conta).
   const active = (id: SettingsGroupId) => pane && (path === `/settings/${id}` || (id === 'conta' && path === '/settings') || (id === 'seguranca' && path === '/settings/aparelhos'));
   const hits = query.trim() ? searchSettings(query, { hidden: HIDDEN_HERE }) : null;
