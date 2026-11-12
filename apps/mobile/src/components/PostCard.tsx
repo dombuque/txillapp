@@ -570,7 +570,7 @@ function Actions({ post, mine, patch, open, people, onCheer }: { post: Post; min
         <View style={styles.chips}>
           {chips.map((c) =>
             canSee(c.kind) ? (
-              <Pressable key={c.icon} onPress={() => people(c.kind)} style={({ pressed }) => [styles.chip, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={`${c.n} ${c.label}: ver quem`}>
+              <Pressable key={c.icon} onPress={() => people(c.kind)} hitSlop={8} style={({ pressed }) => [styles.chip, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={`${c.n} ${c.label}: ver quem`}>
                 <Icon name={c.icon} size={18} color={colors.zinc700} />
                 <Text style={styles.chipText}>{c.n}</Text>
               </Pressable>
@@ -583,7 +583,7 @@ function Actions({ post, mine, patch, open, people, onCheer }: { post: Post; min
           )}
         </View>
         {post.comments > 0 && (
-          <Pressable onPress={() => open('comments')} hitSlop={6}>
+          <Pressable onPress={() => open('comments')} hitSlop={12} accessibilityRole="button">
             <Text style={styles.commentsCount}>{post.comments} {post.comments === 1 ? 'Comentário' : 'Comentários'}</Text>
           </Pressable>
         )}

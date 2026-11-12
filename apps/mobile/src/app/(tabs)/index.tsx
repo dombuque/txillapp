@@ -187,7 +187,9 @@ function Feed() {
           pull.onScroll(e);
         }}
         scrollEventThrottle={16}
-        data={q.isLoading || q.isError ? [] : posts}
+        // Só fica vazia se não houver nada carregado: uma falha ao atualizar ou ao pedir mais (sem rede, no fundo do feed)
+        // punha `isError` e a lista inteira dava lugar ao "Ups, a vibe falhou", perdendo o sítio onde se ia.
+        data={posts}
         keyExtractor={(p) => p.id}
         renderItem={({ item, index }) => (
           <>
@@ -211,7 +213,8 @@ function Feed() {
           </View>
         }
         ListEmptyComponent={
-          q.isLoading ? (
+          // isPending (e não isLoading): sem rede o pedido fica em pausa e antes aparecia "Ainda ninguém brindou por aqui".
+          q.isPending ? (
             <>
               <Skeleton />
               <Skeleton />
@@ -238,7 +241,14 @@ function Feed() {
           <>
             {q.isSuccess && posts.length === 0 && (slots.get(null) ?? []).map((s) => <SponsoredCard key={s.campaignId} slot={s} me={user?.id} />)}
             {q.isSuccess && (posts.length === 0 || (posts.length === 1 && !early)) && <Suggestions />}
-            {q.isFetchingNextPage ? <ActivityIndicator color={colors.brand} style={{ marginBottom: 24 }} /> : <View style={{ height: 8 }} />}
+            {q.isFetchingNextPage ? <ActivityIndicator color={colors.brand} style={{ marginBottom: 24 }} /> : q.isFetchNextPageError ? (
+              // Falhou ao pedir mais (sem rede): o que já estava fica, e dá para tentar outra vez aqui em baixo.
+              <View style={{ alignItems: 'center', marginBottom: 24 }} accessibilityRole="alert">
+                <Pressable onPress={() => void q.fetchNextPage()} style={styles.ghost} accessibilityRole="button">
+                  <Text style={styles.ghostText}>Tentar outra vez</Text>
+                </Pressable>
+              </View>
+            ) : <View style={{ height: 8 }} />}
           </>
         }
         onEndReached={onEnd}

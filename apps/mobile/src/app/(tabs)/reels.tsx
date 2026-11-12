@@ -594,7 +594,8 @@ export default function Reels() {
     }
   }, []);
 
-  const loading = q.isLoading || (!!startId && startPost.isLoading);
+  // isPending: sem rede o pedido fica em pausa (não é "Ainda sem tchekas").
+  const loading = q.isPending || (!!startId && startPost.isPending);
   const web = isWeb ? ({ overscrollBehavior: 'contain', scrollSnapType: 'y mandatory' } as object) : null;
 
   return (

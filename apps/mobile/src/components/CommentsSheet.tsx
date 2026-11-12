@@ -314,7 +314,7 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
           </View>
         )}
         ListEmptyComponent={
-          q.isLoading ? <ActivityIndicator color={colors.brand} style={{ margin: 40 }} /> : q.isError ? (
+          q.isPending ? <ActivityIndicator color={colors.brand} style={{ margin: 40 }} /> : q.isError ? (
             <View style={{ paddingVertical: 40, alignItems: 'center' }} accessibilityRole="alert">
               <Text style={[styles.empty, { color: colors.red600, paddingVertical: 0 }]}>Ups, não consegui carregar</Text>
               <Pressable onPress={() => void q.refetch()} style={styles.retry} accessibilityRole="button"><Text style={styles.retryText}>Tentar outra vez</Text></Pressable>

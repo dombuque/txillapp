@@ -331,7 +331,7 @@ export default function Notifications() {
         }
         renderItem={({ item }) => (item.kind === 'h' ? <Text style={[styles.h, item.id === 'h-old' && { paddingTop: 16 }]}>{item.label}</Text> : <Row g={item.g} me={user?.username} />)}
         ListEmptyComponent={
-          q.isLoading ? (
+          q.isPending ? (
             <ActivityIndicator color={colors.brand} style={{ marginTop: 40 }} />
           ) : q.isError ? (
             <View style={styles.empty} accessibilityRole="alert">
