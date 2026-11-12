@@ -121,6 +121,14 @@
       ],
       "expo-router",
       [
+        "expo-iap",
+        {
+          "android": {
+            "store": "play"
+          }
+        }
+      ],
+      [
         "expo-secure-store",
         {
           "faceIDPermission": false
