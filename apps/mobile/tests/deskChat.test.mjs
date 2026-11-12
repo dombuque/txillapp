@@ -208,5 +208,6 @@ test('scroll: os resultados de «Procurar na conversa» rolam; no computador uma
   const sheet = h.slice(h.indexOf('export function ChatSearchSheet'));
   assert.match(sheet, /<ScrollView style=\{\{ marginTop: 12, maxHeight: room/);
   const s = src('components/Sheet.tsx');
-  assert.match(s, /\{desktop && !full \? <ScrollView style=\{styles\.deskScroll\}/);
+  // A variante de computador do Sheet (desktop-geral) já trata disto: fora da folha de baixo, o conteúdo rola.
+  assert.match(s, /mode !== 'bottom' && !full \? <ScrollView style=\{styles\.deskScroll\}/);
 });
