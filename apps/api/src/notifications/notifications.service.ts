@@ -38,10 +38,18 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   | 'music_review'
   // Remix das tchekas (0134): fizeram um dueto com a minha tcheka ou responderam com uma tcheka a um comentário (meu, ou na minha
   // publicação). Ator = quem fez o remix. data: { postId (o remix), originalId, remixKind: 'duet' | 'reply', role: 'post' | 'comment', commentId? }.
-  | 'remix';
+  | 'remix'
+  // Direitos dos sons (0140): o meu som original foi suspenso por uma denúncia, tirado pela equipa, reposto ou deixou de estar em
+  // análise. Em nome do Txillapp; na suspensão o ator é a própria pessoa (nunca quem denunciou). data: { soundId, decision:
+  // 'held' | 'removed' | 'cleared' | 'restored', reason?, postId? (a tcheka de onde o som saiu) }.
+  | 'sound_review'
+  // O autor da tcheka original retirou o meu dueto (0140). Ator = esse autor. data: { postId (o dueto), originalId }.
+  | 'remix_takedown';
 
 /** Avisos da equipa do Txillapp: não se desligam e mostram-se em nome do Txillapp (não da pessoa da equipa). */
-export const STAFF_KINDS = new Set<NotificationKind>(['content_removed', 'content_restored', 'moderation_warning', 'venue_review', 'music_review']);
+export const STAFF_KINDS = new Set<NotificationKind>(['content_removed', 'content_restored', 'moderation_warning', 'venue_review', 'music_review', 'sound_review']);
+/** Avisos que aparecem mesmo com um bloqueio entre as duas pessoas: dizem respeito ao que é meu e não trazem conteúdo de quem bloqueou. */
+const SHOWN_DESPITE_BLOCK = ['blocked', 'remix_takedown', 'sound_review'];
 /** O que se diz do conteúdo nos avisos da moderação. */
 export const contentNoun = (type: unknown, tcheka?: unknown) =>
   type === 'comment' ? 'o teu comentário' : type === 'story' ? 'o teu mimo' : type === 'message' ? 'a tua mensagem' : type === 'media' ? 'a tua foto'
@@ -127,6 +135,21 @@ export class NotificationsService {
     }
   }
 
+  /**
+   * Um aviso do Txillapp (só os tipos da equipa, que não se desligam). O ator é a pessoa da equipa que decidiu ou, quando não
+   * há nenhuma (um som suspenso por uma denúncia), a própria pessoa avisada. A lista mostra-o sempre como «Txillapp».
+   */
+  async notifyTxillapp(n: { userId: string; kind: NotificationKind; actorId?: string | null; data?: Record<string, unknown> }): Promise<void> {
+    if (!STAFF_KINDS.has(n.kind)) return void this.log.warn(`${n.kind} não é um aviso do Txillapp`);
+    const actorId = n.actorId || n.userId;
+    try {
+      await this.pool.query('INSERT INTO social.notifications (id, user_id, actor_id, kind, data) VALUES ($1, $2, $3, $4, $5)', [uuidv7(), n.userId, actorId, n.kind, n.data ?? {}]);
+      void this.pushFor({ userId: n.userId, actorId, kind: n.kind, data: n.data });
+    } catch (e) {
+      this.log.warn(`falha a criar notificação ${n.kind}: ${(e as Error).message}`);
+    }
+  }
+
   /** Também no telemóvel. O título é quem fez a ação (o iPhone já diz que é do Txillapp) e o texto é genérico: nunca leva o conteúdo (o ecrã de bloqueio é público). */
   private async pushFor(n: { userId: string; actorId: string; kind: NotificationKind; data?: Record<string, unknown> }) {
     if (!this.push.enabled) return;
@@ -183,6 +206,15 @@ export class NotificationsService {
           : n.data?.role === 'comment' ? 'respondeu ao teu comentário com uma tcheka' : 'respondeu com uma tcheka a um comentário na tua publicação',
         url: postId ? `/p/${postId}` : '/notifications',
       },
+      // Direitos dos sons: o motivo fica na lista (o ecrã de bloqueio é público).
+      sound_review: {
+        body: n.data?.decision === 'held' ? 'O teu som está em análise. Toca para ver o motivo e o que podes fazer.'
+          : n.data?.decision === 'removed' ? 'Retirámos o teu som. Toca para ver o motivo e o que podes fazer.'
+          : 'O teu som voltou a poder ser usado.',
+        url: '/notifications',
+      },
+      // O autor do original retirou o meu dueto: a lista explica (o dueto já não abre).
+      remix_takedown: { body: 'pediu para retirar o teu dueto', url: '/notifications' },
       venue_payment: { body: `pagou ${Number(n.data?.amount ?? 0)} Txills ${n.data?.venueName ? `em ${String(n.data.venueName)}` : 'no teu local'}`, url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}/gerir?s=txills` : '/notifications' },
     };
     const m = t[n.kind];
@@ -327,7 +359,10 @@ export class NotificationsService {
     }
   }
 
-  /** Lista paginada por cursor. O aviso de bloqueio aparece sempre; as outras de quem entretanto foi bloqueado ficam escondidas. */
+  /**
+   * Lista paginada por cursor. Os avisos de bloqueio, de dueto retirado e dos sons aparecem sempre; os outros de quem entretanto
+   * foi bloqueado ficam escondidos.
+   */
   async list(userId: string, cursor?: string, limit = 30) {
     if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
     const { rows } = await this.pool.query(
@@ -340,9 +375,9 @@ export class NotificationsService {
                 ORDER BY pm.position LIMIT 1) AS thumb
          FROM social.notifications n JOIN identity.users a ON a.id = n.actor_id
         WHERE n.user_id = $1 AND ($2::uuid IS NULL OR n.id < $2)
-          AND (n.kind = 'blocked' OR NOT ${blockedBetween('a.id', '$1')})
+          AND (n.kind = ANY($4::text[]) OR NOT ${blockedBetween('a.id', '$1')})
         ORDER BY n.id DESC LIMIT $3`,
-      [userId, cursor ?? null, limit + 1],
+      [userId, cursor ?? null, limit + 1, SHOWN_DESPITE_BLOCK],
     );
     const page = rows.slice(0, limit);
     const cheers = await this.cheersOf(userId, page.filter((r) => r.kind === 'cheer').map((r) => r.id as string));
@@ -354,7 +389,7 @@ export class NotificationsService {
         createdAt: r.created_at,
         read: r.read_at !== null,
         // Os avisos da equipa vêm em nome do Txillapp (nunca o nome nem o @ da pessoa da equipa).
-        actor: r.status === 'staff'
+        actor: r.status === 'staff' || r.kind === 'sound_review'
           ? { username: 'txillapp', displayName: 'Txillapp', isPrivate: false, following: false, requested: false, staff: true, verified: true, verifiedTier: 'official' as const }
           : { username: r.username, displayName: r.status === 'active' ? r.display_name : 'Conta eliminada', isPrivate: !!r.is_private, following: !!r.i_follow, requested: !!r.requested, ...(r.status === 'active' ? badge(r.verified, r.verified_tier) : badge(false, null)) },
         // A miniatura da publicação (a primeira foto; nos vídeos, o cartaz), como na lista de notificações do Instagram.
@@ -398,8 +433,8 @@ export class NotificationsService {
   async unreadCount(userId: string) {
     const { rows } = await this.pool.query(
       `SELECT count(*)::int AS n FROM social.notifications n JOIN identity.users a ON a.id = n.actor_id
-        WHERE n.user_id = $1 AND n.read_at IS NULL AND (n.kind = 'blocked' OR NOT ${blockedBetween('a.id', '$1')})`,
-      [userId],
+        WHERE n.user_id = $1 AND n.read_at IS NULL AND (n.kind = ANY($2::text[]) OR NOT ${blockedBetween('a.id', '$1')})`,
+      [userId, SHOWN_DESPITE_BLOCK],
     );
     return { count: rows[0].n as number };
   }

@@ -5,7 +5,7 @@ import ffprobe from 'ffprobe-static';
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import { promisify } from 'util';
 import { badge, badgeJson, type Badge } from '../common/badge';
 import { uuidv7 } from '../common/uuid7';
@@ -16,6 +16,7 @@ import { VideoService } from '../media/video.service';
 import { MusicCatalogService, storedTrack } from '../music/catalog/catalog.service';
 import { MUSIC_SOURCES, type PickerTrack } from '../music/catalog/track';
 import type { MusicInput } from '../music/music.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { canView, inMyNetwork } from '../social/visibility';
 
 const run = promisify(execFile);
@@ -120,6 +121,20 @@ export const MUSIC_SOUND_OK = (p = 'p') =>
      WHERE ms.id = ${p}.music->>'soundId' AND ms.removed_at IS NULL AND mu.status = 'active'))`;
 
 /**
+ * Uma tcheka que usava um som original que já foi tirado (FEED_SQL, `sound_removed`): 'author' (o autor retirou-o, ou eliminou a
+ * conta) ou 'rights' (a equipa tirou-o por direitos de autor). A app mostra «Som retirado pelo autor» / «… por direitos de autor»
+ * e não toca o vídeo com som. Na tcheka de onde o som saiu não aparece (o som é dela).
+ */
+export const POST_SOUND_REMOVED_SQL = (p = 'p') =>
+  `(SELECT CASE WHEN gs.removed_by = 'staff' THEN 'rights' ELSE 'author' END FROM content.sounds gs
+     WHERE ${p}.music->>'kind' = 'sound' AND gs.id = ${p}.music->>'soundId' AND gs.removed_at IS NOT NULL AND gs.source_post_id IS DISTINCT FROM ${p}.id)`;
+
+/** O motivo de uma denúncia de som, como o autor o lê no aviso. */
+export const soundReportReason = (r: string) => (r === 'copyright' ? 'Música protegida denunciada' : 'Denunciado por outro motivo');
+
+export type SoundRemovedBy = 'author' | 'staff' | 'account';
+
+/**
  * Os sons das tchekas: o som original tirado de cada tcheka com som próprio, o som de cada faixa do catálogo e dos artistas,
  * usar um som numa tcheka nova, «Sons em alta», as denúncias de direitos e a definição «Deixar usar o meu som».
  * As tchekas de um som (a grelha da página) vêm do PostsService (bySound), com as mesmas regras de visibilidade do resto.
@@ -129,6 +144,7 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger('Sounds');
   private chain: Promise<void> = Promise.resolve();
   private backfillTimer: NodeJS.Timeout | null = null;
+  private silenceTimer: NodeJS.Timeout | null = null;
   private stopped = false;
 
   constructor(
@@ -136,6 +152,7 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
     @Inject(CONFIG) private readonly config: AppConfig,
     private readonly media: MediaService,
     private readonly catalog: MusicCatalogService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   onModuleInit() {
@@ -143,11 +160,15 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
     if (this.config.NODE_ENV === 'test') return;
     this.backfillTimer = setTimeout(() => void this.backfill().catch((e) => this.log.warn(`sons antigos: ${(e as Error).message}`)), 60_000);
     this.backfillTimer.unref?.();
+    // Os sons tirados com tchekas ainda por silenciar (contas eliminadas, ou o servidor reiniciou a meio): de 10 em 10 minutos.
+    this.silenceTimer = setInterval(() => void this.queueSilence(), 10 * 60_000);
+    this.silenceTimer.unref?.();
   }
 
   onModuleDestroy() {
     this.stopped = true;
     if (this.backfillTimer) clearTimeout(this.backfillTimer);
+    if (this.silenceTimer) clearInterval(this.silenceTimer);
   }
 
   // ------------------------------------------------------------------ publicar
@@ -521,7 +542,7 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
   /** Os meus sons originais (Definições, exportação). */
   async mine(userId: string) {
     const { rows } = await this.pool.query(
-      `SELECT s.id, s.duration_ms, s.cover_media_id, s.created_at, s.hold_at, s.removed_at, sp.short_code AS code, (sp.removed_at IS NOT NULL) AS source_removed,
+      `SELECT s.id, s.duration_ms, s.cover_media_id, s.created_at, s.hold_at, s.removed_at, s.removed_by, sp.short_code AS code, (sp.removed_at IS NOT NULL) AS source_removed,
               (SELECT count(*) FROM content.posts p WHERE p.sound_id = s.id AND p.removed_at IS NULL)::int AS uses
          FROM content.sounds s LEFT JOIN content.posts sp ON sp.id = s.source_post_id
         WHERE s.owner_id = $1 AND s.kind = 'original' ORDER BY s.created_at DESC LIMIT 200`,
@@ -534,8 +555,144 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
       uses: r.uses as number,
       createdAt: new Date(r.created_at as string).toISOString(),
       status: (r.removed_at ? 'removed' : r.source_removed ? 'source_removed' : r.hold_at ? 'held' : 'active') as 'removed' | 'source_removed' | 'held' | 'active',
+      /** Num som tirado: quem o tirou ('author': eu; 'staff': a equipa, por direitos). */
+      removedBy: r.removed_at ? ((r.removed_by as SoundRemovedBy | null) ?? 'staff') : null,
       sourceCode: (r.code as string | null) ?? null,
     }));
+  }
+
+  // ------------------------------------------------------------------ retirar
+
+  /**
+   * «Retirar o som» (o próprio autor): o som deixa de existir e de tocar em todo o lado, como quando a equipa o tira por direitos
+   * (o mesmo caminho, `retireTx`), o áudio guardado à parte sai do armazenamento e as tchekas que o usavam ficam sem som
+   * (mostram «Som retirado pelo autor»; quem as fez não é avisado uma a uma). Vale também com o som em análise e depois de
+   * apagar a tcheka de onde saiu (o som continuava a tocar nas outras). As denúncias por analisar fecham. Não se desfaz.
+   */
+  async retireOwn(userId: string, id: string) {
+    const ref = parseSoundId(id);
+    if (!ref || ref.kind !== 'original') throw new NotFoundException('Som não encontrado');
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const s = (await client.query(`SELECT owner_id, removed_at FROM content.sounds WHERE id = $1 AND kind = 'original' FOR UPDATE`, [ref.id])).rows[0];
+      if (!s || s.owner_id !== userId || s.removed_at) throw new NotFoundException('Som não encontrado');
+      await this.retireTx(client, ref.id, 'author', 'Retirado pelo autor');
+      await client.query(
+        `UPDATE content.sound_reports SET status = 'upheld', decided_at = now(), decision_reason = 'O autor retirou o som' WHERE sound_id = $1 AND status = 'open'`,
+        [ref.id],
+      );
+      await client.query('INSERT INTO audit.audit_log (id, actor_id, action, target, metadata) VALUES ($1, $2, $3, $4, $5)', [uuidv7(), userId, 'sound.retire', `sound:${ref.id}`, {}]);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw e;
+    } finally {
+      client.release();
+    }
+    void this.queueSilence();
+  }
+
+  /**
+   * Tirar um som (o caminho comum do autor e da equipa): deixa de existir para todos e de tocar nas tchekas que o usavam. Quando
+   * é o autor, o áudio guardado à parte é apagado (sai do armazenamento com a limpeza dos ficheiros); quando é a equipa, fica
+   * guardado de forma privada para poder ser reposto. O silêncio dos vídeos faz-se a seguir, em segundo plano (queueSilence).
+   */
+  private async retireTx(c: PoolClient, id: string, by: Exclude<SoundRemovedBy, 'account'>, reason: string) {
+    const r = (
+      await c.query(
+        `UPDATE content.sounds SET removed_at = now(), removed_reason = $2, removed_by = $3, hold_at = NULL, silenced_at = NULL
+          WHERE id = $1 AND removed_at IS NULL RETURNING audio_media_id`,
+        [id, reason.slice(0, 300), by],
+      )
+    ).rows[0];
+    if (by === 'author' && r?.audio_media_id) {
+      await c.query('UPDATE content.sounds SET audio_media_id = NULL WHERE id = $1', [id]);
+      await c.query(`UPDATE content.media_assets SET status = 'deleted' WHERE id = $1 AND status <> 'deleted'`, [r.audio_media_id]);
+    }
+    return !!r;
+  }
+
+  /** Silenciar, em segundo plano e um de cada vez, as tchekas que usam sons já tirados. */
+  queueSilence(): Promise<void> {
+    this.chain = this.chain.then(() => this.silencePending()).then(() => undefined).catch((e) => this.log.warn(`silenciar sons: ${(e as Error).message}`));
+    return this.chain;
+  }
+
+  /**
+   * O som de uma tcheka vem gravado no vídeo dela (o estúdio e a montagem misturam-no): para deixar de tocar, tira-se a pista de
+   * áudio do vídeo (sem voltar a comprimir a imagem). Só as tchekas que usam o som (`music.kind = 'sound'`), nunca a tcheka de
+   * onde ele saiu. Quando foi a equipa a tirar o som, guarda-se antes uma cópia privada do vídeo, para o repor.
+   */
+  async silencePending(batch = 50): Promise<number> {
+    let done = 0;
+    const { rows: sounds } = await this.pool.query(
+      `SELECT id, source_post_id, removed_by FROM content.sounds WHERE kind = 'original' AND removed_at IS NOT NULL AND silenced_at IS NULL ORDER BY removed_at LIMIT 20`,
+    );
+    for (const s of sounds) {
+      if (this.stopped) break;
+      const { rows: uses } = await this.pool.query(
+        `SELECT p.id AS post_id, pm.media_id FROM content.posts p
+           JOIN content.post_media pm ON pm.post_id = p.id
+           JOIN content.media_assets ma ON ma.id = pm.media_id AND ma.status = 'ready' AND ma.purpose = 'public' AND ma.mime LIKE 'video/%'
+          WHERE p.music->>'kind' = 'sound' AND p.music->>'soundId' = $1 AND p.id IS DISTINCT FROM $2
+            AND NOT EXISTS (SELECT 1 FROM content.sound_silenced x WHERE x.media_id = pm.media_id)
+          LIMIT $3`,
+        [s.id, s.source_post_id, batch],
+      );
+      let failed = false;
+      for (const u of uses) {
+        if (this.stopped) return done;
+        // Reposto entretanto pela equipa: pára.
+        const still = await this.pool.query('SELECT 1 FROM content.sounds WHERE id = $1 AND removed_at IS NOT NULL', [s.id]);
+        if (!still.rowCount) break;
+        try {
+          await this.silenceVideo(s.id as string, u.post_id as string, u.media_id as string, s.removed_by === 'staff');
+          done++;
+        } catch (e) {
+          failed = true;
+          this.log.warn(`silenciar ${u.media_id as string}: ${(e as Error).message}`);
+        }
+      }
+      if (!failed && uses.length < batch) await this.pool.query('UPDATE content.sounds SET silenced_at = now() WHERE id = $1 AND removed_at IS NOT NULL', [s.id]);
+    }
+    return done;
+  }
+
+  private async silenceVideo(soundId: string, postId: string, mediaId: string, keepCopy: boolean) {
+    let bytes: Buffer;
+    try {
+      bytes = await this.media.rawBytes(mediaId, 'public');
+    } catch {
+      // O ficheiro já não existe: não há nada a silenciar.
+      await this.pool.query('INSERT INTO content.sound_silenced (media_id, sound_id, post_id, backup) VALUES ($1, $2, $3, false) ON CONFLICT DO NOTHING', [mediaId, soundId, postId]);
+      return;
+    }
+    const dir = await mkdtemp(join(tmpdir(), 'txill-mudo-'));
+    try {
+      const src = join(dir, 'in.mp4');
+      const out = join(dir, 'out.mp4');
+      await writeFile(src, bytes);
+      await run(FFMPEG, ['-y', ...VideoService.SAFE_INPUT, '-i', src, '-map', '0:v:0', '-c', 'copy', '-an', '-movflags', '+faststart', out], { timeout: 120_000, maxBuffer: 10 * 1024 * 1024 });
+      await this.media.replaceVideo(mediaId, await readFile(out), keepCopy ? bytes : null);
+      await this.pool.query('INSERT INTO content.sound_silenced (media_id, sound_id, post_id, backup) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING', [mediaId, soundId, postId, keepCopy]);
+    } finally {
+      await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+
+  /** A equipa repôs o som: os vídeos voltam a ter o som (das cópias privadas). */
+  private queueUnsilence(soundId: string): Promise<void> {
+    this.chain = this.chain
+      .then(async () => {
+        const { rows } = await this.pool.query('SELECT media_id, backup FROM content.sound_silenced WHERE sound_id = $1', [soundId]);
+        for (const r of rows) {
+          if (r.backup) await this.media.restoreVideoCopy(r.media_id as string).catch((e) => this.log.warn(`repor ${r.media_id as string}: ${(e as Error).message}`));
+          await this.pool.query('DELETE FROM content.sound_silenced WHERE media_id = $1', [r.media_id]);
+        }
+      })
+      .catch((e) => this.log.warn(`repor o som ${soundId}: ${(e as Error).message}`));
+    return this.chain;
   }
 
   // ------------------------------------------------------------------ áudio
@@ -564,7 +721,7 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
     if (ref.kind !== 'original') throw new BadRequestException('As músicas do catálogo e dos artistas denunciam-se na própria faixa');
     const r = (
       await this.pool.query(
-        `SELECT s.owner_id FROM content.sounds s JOIN identity.users ou ON ou.id = s.owner_id WHERE s.id = $2 AND s.kind = 'original' AND ${SOUND_VISIBLE()}`,
+        `SELECT s.owner_id, s.source_post_id FROM content.sounds s JOIN identity.users ou ON ou.id = s.owner_id WHERE s.id = $2 AND s.kind = 'original' AND ${SOUND_VISIBLE()}`,
         [userId, ref.id],
       )
     ).rows[0];
@@ -574,10 +731,19 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
       `INSERT INTO content.sound_reports (id, sound_id, reporter_id, reason, note) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (sound_id, reporter_id) DO NOTHING`,
       [uuidv7(), ref.id, userId, reason, note?.trim() || null],
     );
-    await this.pool.query(
+    const held = await this.pool.query(
       `UPDATE content.sounds SET hold_at = now() WHERE id = $1 AND hold_at IS NULL AND EXISTS (SELECT 1 FROM content.sound_reports r WHERE r.sound_id = $1 AND r.status = 'open')`,
       [ref.id],
     );
+    // O autor fica a saber que o som foi suspenso, porquê e o que pode fazer (nunca quem denunciou: o aviso é do Txillapp).
+    if (held.rowCount) await this.tell(r.owner_id as string, null, { soundId: ref.id, decision: 'held', reason: soundReportReason(reason), postId: r.source_post_id });
+  }
+
+  /** O aviso ao autor do som (docs/sons.md, secção 5), em nome do Txillapp. Não se desliga. */
+  private async tell(ownerId: string | null, actorId: string | null, data: { soundId: string; decision: 'held' | 'removed' | 'cleared' | 'restored'; reason?: string; note?: string; postId?: string | null }) {
+    if (!ownerId) return;
+    const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v != null && v !== ''));
+    await this.notifications.notifyTxillapp({ userId: ownerId, actorId, kind: 'sound_review', data: clean });
   }
 
   /** Backoffice: os sons denunciados (por analisar, decididos ou tirados), com o áudio para ouvir. */
@@ -620,20 +786,28 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
    * (repor um som tirado). Fica na auditoria.
    */
   async decide(actor: string, id: string, action: 'uphold' | 'dismiss' | 'restore', reason: string) {
-    const s = (await this.pool.query(`SELECT id, kind, hold_at, removed_at FROM content.sounds WHERE id = $1`, [id])).rows[0];
+    const s = (await this.pool.query(`SELECT id, kind, owner_id, source_post_id, hold_at, removed_at, removed_by, audio_media_id FROM content.sounds WHERE id = $1`, [id])).rows[0];
     if (!s || s.kind !== 'original') throw new NotFoundException('Som não encontrado');
+    let told: { decision: 'removed' | 'cleared' | 'restored'; reason?: string; note?: string } | null = null;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       if (action === 'uphold') {
-        await client.query(`UPDATE content.sounds SET removed_at = now(), removed_reason = $2, hold_at = NULL WHERE id = $1`, [id, reason]);
+        // O motivo que o autor lê: o da denúncia («Música protegida denunciada»); a nota da equipa vai à parte.
+        const why = (await client.query(`SELECT bool_or(reason = 'copyright') AS copyright FROM content.sound_reports WHERE sound_id = $1 AND status = 'open'`, [id])).rows[0];
+        if (await this.retireTx(client, id, 'staff', reason)) told = { decision: 'removed', reason: soundReportReason(why?.copyright === false ? 'other' : 'copyright'), note: reason };
         await client.query(`UPDATE content.sound_reports SET status = 'upheld', decided_by = $2, decided_at = now(), decision_reason = $3 WHERE sound_id = $1 AND status = 'open'`, [id, actor, reason]);
       } else if (action === 'dismiss') {
         await client.query(`UPDATE content.sounds SET hold_at = NULL WHERE id = $1`, [id]);
         await client.query(`UPDATE content.sound_reports SET status = 'dismissed', decided_by = $2, decided_at = now(), decision_reason = $3 WHERE sound_id = $1 AND status = 'open'`, [id, actor, reason]);
+        if (s.hold_at && !s.removed_at) told = { decision: 'cleared' };
       } else {
         if (!s.removed_at) throw new BadRequestException('Este som não foi tirado');
-        await client.query(`UPDATE content.sounds SET removed_at = NULL, removed_reason = NULL, hold_at = NULL WHERE id = $1`, [id]);
+        // Retirado pelo autor (ou com a conta eliminada): o áudio já não existe e a decisão não é da equipa.
+        if (s.removed_by && s.removed_by !== 'staff') throw new BadRequestException('Este som foi retirado pelo autor e não pode ser reposto');
+        if (!s.audio_media_id) throw new BadRequestException('O áudio deste som já não existe');
+        await client.query(`UPDATE content.sounds SET removed_at = NULL, removed_reason = NULL, removed_by = NULL, hold_at = NULL, silenced_at = NULL WHERE id = $1`, [id]);
+        told = { decision: 'restored' };
       }
       await client.query('INSERT INTO audit.audit_log (id, actor_id, action, target, metadata) VALUES ($1, $2, $3, $4, $5)', [
         uuidv7(), actor, { uphold: 'sound.remove', dismiss: 'sound.dismiss', restore: 'sound.restore' }[action], `sound:${id}`, { reason },
@@ -645,5 +819,8 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
     } finally {
       client.release();
     }
+    if (action === 'uphold') void this.queueSilence();
+    if (action === 'restore') void this.queueUnsilence(id);
+    if (told) await this.tell(s.owner_id as string | null, actor, { soundId: id, postId: s.source_post_id as string | null, ...told });
   }
 }

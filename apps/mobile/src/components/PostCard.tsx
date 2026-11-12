@@ -29,6 +29,7 @@ import { GiftSheet, PostMenuSheet, RepostSheet } from './PostSheets';
 import { ShareSheet } from './ShareSheet';
 import { MusicBadge, MusicCard } from './PostMusic';
 import { musicPlacement, soundHref, wavesOverMedia } from '@/lib/musicLook';
+import { soundRemovedText } from '@/lib/sounds';
 import { VerifiedBadge } from './VerifiedBadge';
 import { NameWithBadge } from './NameWithBadge';
 import { VenueLogo } from './VenueCard';
@@ -329,8 +330,10 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
       {!quote && post.media.length ? (
         // O brinde aparece no meio da foto ou do vídeo.
         <View>
-          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={!!post.music && !post.remixOf} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} overlay={post.music && !post.remixOf ? <MusicBadge track={post.music} visible={musicOn} waves={wavesOverMedia(post.media)} /> : undefined} />
+          <Carousel media={post.media} width={inner} reelId={post.code ?? post.id} inView={musicOn} mute={(!!post.music && !post.remixOf) || !!post.soundRemoved} onDouble={() => void brindar()} onOpen={(start) => setViewer({ of: post, start })} overlay={post.music && !post.remixOf ? <MusicBadge track={post.music} visible={musicOn} waves={wavesOverMedia(post.media)} /> : undefined} />
           <ReplyStickerOverlay remix={post.remixOf} />
+          {/* O som que a tcheka usava foi tirado: o vídeo fica sem som e diz porquê. */}
+          {soundRemovedText(post.soundRemoved) ? <View style={{ position: 'absolute', left: 10, bottom: 10, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 5 }} pointerEvents="none"><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>♪ {soundRemovedText(post.soundRemoved)}</Text></View> : null}
           <CheersPour n={burst} size={Math.min(220, inner * 0.6)} />
         </View>
       ) : (

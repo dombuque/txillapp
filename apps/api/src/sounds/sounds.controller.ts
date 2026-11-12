@@ -69,6 +69,14 @@ export class SoundsController {
   async report(@Req() req: AuthedReq, @Param('id') id: string, @Body(new ZodPipe(reportSchema)) b: z.infer<typeof reportSchema>) {
     await this.sounds.report(req.userId!, id, b.reason, b.note);
   }
+
+  /** «Retirar o som» (só o autor, só sons originais): deixa de tocar em todo o lado e o áudio é apagado. Não se desfaz. */
+  @Post(':id/retire')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 30, ttl: 3_600_000 } })
+  async retire(@Req() req: AuthedReq, @Param('id') id: string) {
+    await this.sounds.retireOwn(req.userId!, id);
+  }
 }
 
 /** O áudio de um som original: URL assinado e temporário (como os trechos das músicas). */

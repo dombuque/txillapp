@@ -12,6 +12,8 @@ export interface RemixOf {
   sticker: { x: number; y: number } | null;
   /** O original ainda se vê (apagado, privado ou com bloqueio: a tcheka fica, sem a ligação). */
   available: boolean;
+  /** Quem está a ver é o autor do original deste dueto: pode retirá-lo («Retirar o dueto»). */
+  canTakeDown?: boolean;
   code: string | null;
   author: RemixPerson | null;
   comment: { id: string; body: string; author: RemixPerson } | null;
@@ -113,3 +115,10 @@ export function remixVerb(d: { remixKind?: string; role?: string }): string {
 }
 /** Abre a tcheka de quem fez o remix. */
 export const remixNoticeTarget = (d: { postId?: string }) => (d.postId ? `/p/${d.postId}` : null);
+
+/** «Retirar o dueto»: o aviso antes de confirmar (só o autor da tcheka original vê esta ação, e só em duetos). */
+export const takedownTitle = 'Retirar este dueto?';
+export const takedownText = (owner: string | null | undefined) =>
+  `O teu vídeo e o teu som estão gravados neste dueto. Deixa de aparecer para todos e ${owner ? `@${owner}` : 'quem o fez'} recebe um aviso. Não dá para desfazer.`;
+/** O aviso a quem fez o dueto (kind 'remix_takedown'). */
+export const takedownVerb = () => ({ text: 'pediu para retirar o teu dueto', sub: 'O dueto deixou de aparecer: o vídeo e o som dessa pessoa estavam gravados nele.' });

@@ -118,6 +118,7 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'insights', group: 'conteudo', title: 'Estatísticas do perfil', to: '/insights', keywords: ['visitas', 'alcance', 'números', 'insights', 'estatísticas'] },
   { id: 'locais', group: 'conteudo', title: 'Tenho um local (bar, restaurante…)', to: '/locais', keywords: ['negócio', 'bar', 'restaurante', 'página', 'empresa', 'local'] },
   { id: 'soundReuse', group: 'conteudo', title: 'Deixar usar o meu som', keywords: ['som', 'sons', 'som original', 'usar este som', 'usar o meu som', 'reutilizar', 'sons em alta', 'áudio', 'música', 'direitos', 'tchekas', 'reels', 'sound'] },
+  { id: 'mySounds', group: 'conteudo', title: 'Os meus sons', to: '/settings/sons', keywords: ['som', 'sons', 'som original', 'retirar o som', 'retirar o meu som', 'apagar som', 'tirar o som', 'direitos', 'música', 'tchekas', 'sound'] },
   { id: 'invites', group: 'conteudo', title: 'Convida a tua malta', to: '/invites', keywords: ['convites', 'convidar', 'código de convite', 'amigos'] },
   { id: 'contacts', group: 'conteudo', title: 'Encontrar amigos nos contactos', keywords: ['contactos', 'amigos', 'agenda', 'procurar amigos'] },
   // Mensagens e chamadas

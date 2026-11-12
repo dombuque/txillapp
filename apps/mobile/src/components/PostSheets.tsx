@@ -16,6 +16,7 @@ import { Sheet, useSheetMode } from './Sheet';
 import type { Rect } from '@/lib/desktopKeys';
 import { useDesktop } from '@/lib/desktop';
 import { linkShare } from '@/lib/shareLink';
+import { takedownText, takedownTitle } from '@/lib/remix';
 
 const AMOUNTS = [5, 10, 50, 100];
 const OPTIONS: { value: 'silent' | 'private' | 'public'; icon: IconName; title: string; text: string }[] = [
@@ -259,6 +260,21 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
       { text: 'Apagar', style: 'destructive', onPress: async () => { await api.removePost(post.id).catch(() => undefined); onClose(); await refresh(['feed', 'profile-posts', 'post']); } },
     ]);
   }
+  // «Retirar o dueto»: só o autor da tcheka original, só em duetos (o vídeo e o som dele estão gravados no dueto).
+  function confirmTakedown() {
+    Alert.alert(takedownTitle, takedownText(post.author.username), [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Retirar', style: 'destructive', onPress: async () => {
+        try {
+          await api.takeDownDuet(post.id);
+          onClose();
+          await refresh(['feed', 'profile-posts', 'post', 'reels', 'remixes']);
+        } catch (e) {
+          Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Tenta outra vez daqui a pouco.');
+        }
+      } },
+    ]);
+  }
   async function saveEdit() {
     setSaving(true);
     setEditErr('');
@@ -299,6 +315,7 @@ export function PostMenuSheet({ post, mine, onClose, onSaved, onShare, anchor = 
         ) : (
           <>
             <MenuRow icon={<Icon name="eye-off" size={22} />} title="Não me interessa" text="Esta publicação deixa de aparecer no teu feed." onPress={() => void hide()} />
+            {post.remixOf?.kind === 'duet' && post.remixOf.canTakeDown ? <MenuRow icon={<Icon name="trash" size={22} />} title="Retirar o dueto" text="Foi feito com a tua tcheka. Deixa de aparecer para todos." onPress={confirmTakedown} /> : null}
             <MenuRow icon={<Icon name="flag" size={22} />} title="Denunciar" text="Avisa a moderação. A pessoa não sabe." onPress={() => setView('report')} />
           </>
         )}

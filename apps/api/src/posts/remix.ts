@@ -98,6 +98,8 @@ export interface RemixOf {
   available: boolean;
   code: string | null;
   author: ({ username: string; displayName: string; hasAvatar: boolean } & ReturnType<typeof badge>) | null;
+  /** Quem está a ver é o autor do original deste dueto: pode retirá-lo (POST /posts/:id/duet-takedown, 0140). */
+  canTakeDown: boolean;
   /** O comentário respondido (avatar, @ e texto), se ainda existe e se vê. */
   comment: { id: string; body: string; author: { username: string; displayName: string; hasAvatar: boolean } & ReturnType<typeof badge> } | null;
 }
@@ -140,6 +142,7 @@ export async function remixLinks(pool: Pool, viewerId: string, rows: Record<stri
       commentId: (r.rx_comment as string | null) ?? null,
       sticker: r.rx_kind === 'reply' && r.rx_x != null ? { x: Number(r.rx_x), y: Number(r.rx_y) } : null,
       available: !!o,
+      canTakeDown: r.rx_takedown === true,
       code: o ? (o.short_code as string) : null,
       author: o ? { username: o.username as string, displayName: o.display_name as string, hasAvatar: !!o.has_avatar, ...badge(o.verified, o.verified_tier) } : null,
       comment: c
