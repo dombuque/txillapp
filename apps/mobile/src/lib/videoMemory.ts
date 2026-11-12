@@ -53,3 +53,12 @@ export function limitBuffer(player: { bufferOptions?: unknown }, kind: VideoBuff
 export function feedVideoLive({ active, inView }: { active: boolean; inView: boolean }): boolean {
   return active && inView;
 }
+
+/**
+ * Nas listas de tchekas (ecrã inteiro, uma por página) só a que está em cena e as vizinhas têm o Reel montado (e o seu
+ * leitor). O FlatList não desmontava as que ficavam para trás: cada tcheka vista guardava o leitor, o buffer e o
+ * descodificador até sair do ecrã (no emulador, 7 leitores criados e nenhum libertado em 8 deslizes).
+ */
+export function reelMounted(index: number, active: number): boolean {
+  return Math.abs(index - active) <= 1;
+}

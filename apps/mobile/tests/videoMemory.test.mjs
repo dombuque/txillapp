@@ -95,3 +95,16 @@ test('carrossel no telemóvel: só a foto à vista e as vizinhas ficam montadas 
   const s = src('components/PostCard.tsx');
   assert.match(s, /getItemLayout=\{\(_, index\) => \(\{ length: width, offset: width \* index, index \}\)\}\s*\{\.\.\.carouselWindowProps\(Platform\.OS\)\}/);
 });
+
+test('tchekas: só a que está em cena e as vizinhas têm o Reel (e o leitor) montado', () => {
+  assert.equal(v.reelMounted(5, 5), true);
+  assert.equal(v.reelMounted(4, 5), true);
+  assert.equal(v.reelMounted(6, 5), true);
+  assert.equal(v.reelMounted(3, 5), false);
+  assert.equal(v.reelMounted(7, 5), false);
+  for (const f of ['app/(tabs)/reels.tsx', 'app/r/[id].tsx', 'components/ExploreViewer.tsx']) {
+    const s = src(f);
+    assert.match(s, /reelMounted\(index, active\)\s*\?\s*<Reel /, f);
+    assert.match(s, /extraData=\{`[^`]*\$\{active\}/, `${f}: a lista volta a desenhar quando muda a ativa`);
+  }
+});
