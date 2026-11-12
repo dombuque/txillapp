@@ -17,6 +17,7 @@ import { PG_POOL } from '../db/db.module';
 import { ImageModerationService } from '../moderation/image-moderation.service';
 import { MAX_VIDEO_BYTES, VideoService, sniffVideo } from './video.service';
 import { S3Storage, type Scope } from './s3.storage';
+import { stripJpegLossless } from './jpegClean';
 
 /** Onde está o ficheiro: no disco deste servidor, ou num URL (S3/CDN) para onde se redirecciona. */
 export type Served = { path: string; mime: string } | { url: string };
@@ -26,10 +27,16 @@ const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 /**
  * Tira os metadados de uma foto (GPS, aparelho, data) antes de ficar guardada: nada do EXIF chega a quem a vê.
- * JPEG: aplica a rotação e regrava; PNG e WebP (também animados) regravam-se sem metadados. Se falhar, devolve null.
+ * JPEG direito (como os da TxillCam e do editor, que saem de um canvas): tiram-se os segmentos de metadados sem voltar a
+ * comprimir (jpegClean.ts). JPEG rodado no EXIF (fotos da galeria) ou fora do comum: aplica a rotação e regrava.
+ * PNG e WebP (também animados) regravam-se sem metadados. Se falhar, devolve null.
  */
 export async function stripImageMeta(bytes: Buffer, mime: string, opts: { fast?: boolean } = {}): Promise<Buffer | null> {
   try {
+    if (mime === 'image/jpeg') {
+      const kept = await jpegWithoutMeta(bytes);
+      if (kept) return kept;
+    }
     // Fotos do chat (o Zás): o mesmo JPEG sem metadados, mas sem o mozjpeg, que numa foto de 1080×1440 leva ~0,4 a 1,3 s
     // (o libjpeg normal faz o mesmo em ~50 ms; o ficheiro fica uns 10 % maior, e quem vê recebe a largura leve em WebP).
     if (mime === 'image/jpeg') return await sharp(bytes).rotate().jpeg(opts.fast ? { quality: 90 } : { quality: 92, mozjpeg: true }).toBuffer();
@@ -39,6 +46,20 @@ export async function stripImageMeta(bytes: Buffer, mime: string, opts: { fast?:
     /* fica o original */
   }
   return null;
+}
+/**
+ * O mesmo JPEG sem os segmentos de metadados (jpegClean.stripJpegLossless), se der: tem de ler-se, estar direito (sem
+ * Orientation, ou 1: rodar obriga a recomprimir), ser RGB ou cinzento, e o resultado ter o mesmo tamanho e nenhum
+ * EXIF/XMP/IPTC. Senão null, e faz-se o reencode.
+ */
+async function jpegWithoutMeta(bytes: Buffer): Promise<Buffer | null> {
+  const meta = await sharp(bytes).metadata();
+  if (meta.format !== 'jpeg' || (meta.orientation ?? 1) !== 1 || (meta.space !== 'srgb' && meta.space !== 'b-w')) return null;
+  const out = stripJpegLossless(bytes);
+  if (!out) return null;
+  const check = await sharp(out).metadata();
+  if (check.width !== meta.width || check.height !== meta.height || check.exif || check.xmp || check.iptc) return null;
+  return out;
 }
 /** Áudio só para o chat (mensagens de voz): webm/ogg (Chrome, Firefox) e mp4 (Safari). */
 const AUDIO = new Set(['audio/webm', 'audio/ogg', 'audio/mp4']);

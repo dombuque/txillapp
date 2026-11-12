@@ -77,4 +77,24 @@ describe('fotos carregadas perdem o EXIF (GPS, aparelho) no envio real (armazena
     expect((await sharp(served.body as Buffer).metadata()).exif).toBeUndefined();
     expect((served.body as Buffer).toString('latin1')).not.toContain('TxillPhone');
   });
+
+  it('foto da TxillCam (JPEG de canvas, sem metadados): fica guardada tal e qual, sem recomprimir, e com as larguras todas', async () => {
+    // 2160×2700: a foto 4:5 que a câmara do site tira agora no iPhone.
+    const raw = Buffer.alloc(2160 * 2700 * 3);
+    for (let i = 0; i < raw.length; i++) raw[i] = ((i * 7) ^ (i >> 9)) & 255;
+    const jpeg = await sharp(raw, { raw: { width: 2160, height: 2700, channels: 3 } }).jpeg({ quality: 92 }).toBuffer();
+    const up = await api().post('/api/v1/media/uploads').set(auth()).send({ mime: 'image/jpeg', size: jpeg.length, purpose: 'public' }).expect(201);
+    await api().put(up.body.uploadUrl).set('Content-Type', 'image/jpeg').send(jpeg).expect(200);
+    const id = up.body.assetId as string;
+    const stored = readFileSync(join(MEDIA_DIR, id));
+    expect(stored.equals(jpeg)).toBe(true);
+    const row = (await pool.query('SELECT size_bytes FROM content.media_assets WHERE id = $1', [id])).rows[0];
+    expect(Number(row.size_bytes)).toBe(jpeg.length);
+    // O feed de um iPhone (DPR 3) pede 1080; o visor de fotos 1600.
+    for (const w of [1080, 1600]) {
+      const v = await api().get(`/api/v1/media/${id}?w=${w}`).set(auth()).buffer(true).parse((res, cb) => { const c: Buffer[] = []; res.on('data', (x: Buffer) => c.push(x)); res.on('end', () => cb(null, Buffer.concat(c))); }).expect(200);
+      expect(v.headers['content-type']).toMatch(/image\/webp/);
+      expect((await sharp(v.body as Buffer).metadata()).width).toBe(w);
+    }
+  }, 60_000);
 });
