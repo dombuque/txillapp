@@ -299,9 +299,27 @@ export class MediaService implements OnModuleInit {
     return `/api/v1/music/local/audio/${id}?exp=${exp}${review ? '&r=1' : ''}&sig=${this.sign(`${review ? 'music-review' : 'music'}:${id}`, exp)}`;
   }
 
+  /**
+   * URL assinado do áudio de um som original (tirado de uma tcheka; ver docs/sons.md). Como na música, vale até ao fim da
+   * próxima hora cheia. Quem pode ouvir (som não tirado pela equipa, conta ativa) decide o SoundsService.
+   */
+  soundUrl(id: string) {
+    const exp = (Math.floor(Date.now() / 3_600_000) + 2) * 3600;
+    return `/api/v1/sounds/audio/${id}?exp=${exp}&sig=${this.sign(`sound:${id}`, exp)}`;
+  }
+
+  /** Confere a assinatura do áudio de um som original e devolve onde está o ficheiro (privado, guardado como 'music'). */
+  locateSound(id: string, exp: number, sig: string): Promise<Served> {
+    return this.locateSigned(`sound:${id}`, id, exp, sig);
+  }
+
   /** Confere a assinatura e devolve onde está o ficheiro. Quem pode ouvir (faixa aprovada, sem denúncia…) decide o ArtistsService. */
-  async locateMusic(id: string, exp: number, sig: string, review: boolean): Promise<Served> {
-    const expected = Buffer.from(this.sign(`${review ? 'music-review' : 'music'}:${id}`, exp));
+  locateMusic(id: string, exp: number, sig: string, review: boolean): Promise<Served> {
+    return this.locateSigned(`${review ? 'music-review' : 'music'}:${id}`, id, exp, sig);
+  }
+
+  private async locateSigned(signed: string, id: string, exp: number, sig: string): Promise<Served> {
+    const expected = Buffer.from(this.sign(signed, exp));
     const given = Buffer.from(sig ?? '');
     if (expected.length !== given.length || !timingSafeEqual(expected, given) || exp < Date.now() / 1000) throw new ForbiddenException('URL expirado');
     const { rows } = await this.pool.query(`SELECT mime FROM content.media_assets WHERE id = $1 AND status = 'ready' AND purpose = 'music'`, [id]);

@@ -4,12 +4,13 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { LoadingBlock } from '../../components/Loading';
 import { Badge, Card, Empty, PageHeader, ReasonDialog, ago, btnDanger, btnGhost, btnPrimary, useCan, when } from './bo';
 import { MusicCatalogPanel } from './MusicCatalog';
+import { MusicSoundsPanel } from './MusicSounds';
 import {
   LINK_LABEL, RELATION_LABEL, mmss, musicApi, safeHref,
   type ArtistRequest, type ArtistStatus, type ArtistTrackItem, type ClaimStatus, type RightsClaim, type TrackStatus,
 } from './ui/music-api';
 
-type Tab = 'catalog' | 'artists' | 'tracks' | 'claims';
+type Tab = 'catalog' | 'artists' | 'tracks' | 'claims' | 'sounds';
 
 /** Pede o motivo (fica no registo) e decide. */
 type Ask = { title: string; help?: string; confirm: string; danger?: boolean; run: (reason: string) => Promise<void> };
@@ -231,7 +232,7 @@ export default function BackofficeMusic() {
   // ?tab=artists|tracks|claims|catalog (o cartão «Música por decidir» do início abre logo os pedidos).
   const [params] = useSearchParams();
   const asked = params.get('tab') as Tab | null;
-  const [tab, setTab] = useState<Tab>(asked === 'catalog' ? (canCatalog ? 'catalog' : 'artists') : asked && ['artists', 'tracks', 'claims'].includes(asked) && can ? asked : canCatalog ? 'catalog' : 'artists');
+  const [tab, setTab] = useState<Tab>(asked === 'catalog' ? (canCatalog ? 'catalog' : 'artists') : asked && ['artists', 'tracks', 'claims', 'sounds'].includes(asked) && can ? asked : canCatalog ? 'catalog' : 'artists');
   const [aStatus, setAStatus] = useState<ArtistStatus>('pending');
   const [tStatus, setTStatus] = useState<TrackStatus>('pending');
   const [cStatus, setCStatus] = useState<ClaimStatus>('open');
@@ -248,14 +249,14 @@ export default function BackofficeMusic() {
     <>
       <PageHeader
         title="Música"
-        description="O que toca nos mimos e nas tchekas. No Catálogo, o catálogo curado do seletor: esconder, destacar e ver as mais usadas e as mais rejeitadas. Nos outros separadores, o programa de artistas de Moçambique: aprova os pedidos de artista, modera as faixas antes de aparecerem e decide as denúncias de direitos de autor (uma faixa denunciada fica escondida até decidires). Todas as decisões ficam na auditoria."
+        description="O que toca nos mimos e nas tchekas. No Catálogo, o catálogo curado do seletor: esconder, destacar e ver as mais usadas e as mais rejeitadas. Nos outros separadores, o programa de artistas de Moçambique: aprova os pedidos de artista, modera as faixas antes de aparecerem e decide as denúncias de direitos de autor (uma faixa denunciada fica escondida até decidires). Em Sons originais, os sons tirados das tchekas que foram denunciados por terem música protegida. Todas as decisões ficam na auditoria."
       />
       <Filter<Tab>
         value={tab}
         onChange={setTab}
         options={[
           ...(canCatalog ? [['catalog', 'Catálogo'] as const] : []),
-          ...(can ? ([['artists', `Pedidos de artista${count(s?.artists)}`], ['tracks', `Faixas${count(s?.tracks)}`], ['claims', `Direitos de autor${count(s?.claims)}`]] as const) : []),
+          ...(can ? ([['artists', `Pedidos de artista${count(s?.artists)}`], ['tracks', `Faixas${count(s?.tracks)}`], ['claims', `Direitos de autor${count(s?.claims)}`], ['sounds', 'Sons originais']] as const) : []),
         ]}
       />
       <div className="border-t border-zinc-200 pt-4">
@@ -272,6 +273,7 @@ export default function BackofficeMusic() {
             <List q={tracks} empty="Sem faixas aqui." render={(t) => <TrackCard key={t.id} t={t} can={can} ask={setAsking} done={done} />} />
           </>
         )}
+        {tab === 'sounds' && can && <MusicSoundsPanel can={can} />}
         {tab === 'claims' && (
           <>
             <Filter<ClaimStatus> value={cStatus} onChange={setCStatus} options={[['open', 'Por decidir'], ['upheld', 'Com razão'], ['dismissed', 'Sem razão']]} />

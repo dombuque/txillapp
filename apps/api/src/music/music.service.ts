@@ -125,6 +125,11 @@ export class MusicService {
     // Licenciada: com o fornecedor desligado não aparece; o excerto pede-se com POST /music/licensed/tracks/:id/listen.
     if (music?.kind === 'licensed') return this.licensed.isOn(String(music.source)) ? music : null;
     if (music?.source === 'local') return this.catalog.resolveLocal(music);
+    // Som original de outra tcheka («Usar este som», docs/sons.md): o áudio ganha um URL assinado; o id do ficheiro não sai.
+    if (music?.kind === 'sound') {
+      const { audioMediaId, ...rest } = music;
+      return { ...rest, url: this.media.soundUrl(String(audioMediaId)), landing: null, license: 'own', licenseUrl: null };
+    }
     if (!music || music.kind !== 'clip') return music;
     return { ...music, id: `clip:${music.mediaId as string}`, artist: '', url: this.media.chatUrl(music.mediaId as string), landing: null, license: 'own', licenseUrl: null, cover: null };
   }

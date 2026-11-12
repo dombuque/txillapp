@@ -658,6 +658,13 @@ export class AuthService {
         'DELETE FROM content.artist_track_uses WHERE user_id = $1',
         'DELETE FROM content.artist_track_claims WHERE reporter_id = $1',
         `UPDATE content.artist_tracks t SET hold_at = NULL WHERE $1::uuid IS NOT NULL AND t.hold_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM content.artist_track_claims c WHERE c.track_id = t.id AND c.status = 'open')`,
+        // Sons das tchekas (0133): os meus sons originais deixam de existir e de tocar (também nas tchekas de outros que os
+        // usavam; o áudio sai do armazenamento com os outros ficheiros); as minhas tchekas deixam de estar ligadas a um som; as
+        // denúncias de sons que fiz saem (e o som volta a poder ser usado se não houver outra por analisar).
+        "UPDATE content.sounds SET removed_at = coalesce(removed_at, now()), removed_reason = coalesce(removed_reason, 'Conta eliminada'), hold_at = NULL, audio_media_id = NULL WHERE owner_id = $1 AND kind = 'original'",
+        'UPDATE content.posts SET sound_id = NULL WHERE author_id = $1 AND sound_id IS NOT NULL',
+        'DELETE FROM content.sound_reports WHERE reporter_id = $1',
+        `UPDATE content.sounds s SET hold_at = NULL WHERE $1::uuid IS NOT NULL AND s.hold_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM content.sound_reports r WHERE r.sound_id = s.id AND r.status = 'open')`,
       ]) await client.query(sql, [userId]);
       // As páginas de locais que eram suas passam para o administrador mais antigo; sem administrador, deixam de aparecer
       // (as consultas dos locais escondem páginas cujo dono foi eliminado).

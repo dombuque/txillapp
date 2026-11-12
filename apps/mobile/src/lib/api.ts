@@ -27,6 +27,8 @@ export interface Author { id: string; username: string; displayName: string; ver
 export interface Post {
   /** Música da publicação (licença aberta ou clipe próprio). */
   music?: import('./api.music').Track | null;
+  /** O som da tcheka (abre /som/:id). Só nas tchekas e quando o som existe para quem vê; servidores antigos não mandam. */
+  sound?: import('./api.sounds').PostSound | null;
   id: string;
   code: string;
   body: string;

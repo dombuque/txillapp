@@ -15,6 +15,7 @@ import { coarse, notHiddenVenuePost, postGeo } from '../nearby/geo-sql';
 const TOPIC_IDS = new Set(TOPICS.map((t) => t.id));
 import { RANKED_SQL, decodeCursor, encodeCursor, tchekaPost } from './feed';
 import { WalletService } from '../wallet/wallet.service';
+import { MUSIC_SOUND_OK, POST_SOUND_SQL, SoundsService, type PostSound } from '../sounds/sounds.service';
 
 export const MAX_PHOTOS = 10;
 
@@ -58,7 +59,8 @@ const FEED_SQL = `
          (SELECT count(*) FROM content.comments c WHERE c.post_id = p.id)::int AS comments,
          (SELECT count(*) FROM content.gifts g WHERE g.post_id = p.id)::int AS gifts,
          EXISTS (SELECT 1 FROM content.cheers c WHERE c.post_id = p.id AND c.user_id = $1) AS cheered,
-         EXISTS (SELECT 1 FROM content.saved_posts sv WHERE sv.post_id = p.id AND sv.user_id = $1) AS saved
+         EXISTS (SELECT 1 FROM content.saved_posts sv WHERE sv.post_id = p.id AND sv.user_id = $1) AS saved,
+         ${POST_SOUND_SQL('p')} AS sound, ${MUSIC_SOUND_OK('p')} AS music_ok
     FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
     LEFT JOIN identity.users gr ON gr.id = p.gift_recipient_id
     LEFT JOIN content.venues pv ON pv.id = p.venue_id`;
@@ -84,6 +86,7 @@ export class PostsService implements OnModuleInit {
     private readonly indexer: SearchIndexer,
     private readonly filter: TextFilter,
     private readonly musicSvc: MusicService,
+    private readonly sounds: SoundsService,
   ) {}
 
   onModuleInit() {
@@ -91,9 +94,25 @@ export class PostsService implements OnModuleInit {
     void this.backfillTopics().catch(() => undefined);
   }
 
-  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null, venueId: string | null = null) {
+  /**
+   * `soundId` («Usar este som», docs/sons.md): só numa tcheka; o servidor valida o som e guarda a música dele. Sem `soundId`,
+   * uma tcheka com música do catálogo ou de um artista liga-se ao som dessa faixa, e uma tcheka sem música (com o som do
+   * próprio vídeo) ganha um som original, tirado em segundo plano.
+   */
+  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null, venueId: string | null = null, soundId: string | null = null) {
     this.filter.assertClean(body, locationLabel, musicIn?.title, 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
-    const music = await this.musicSvc.prepare(userId, musicIn, 'post', mediaIds);
+    // Uma tcheka: um só vídeo, meu e já pronto (a validação completa dos ficheiros é mais abaixo).
+    const tcheka = mediaIds.length === 1 && !!(await this.pool.query(`SELECT 1 FROM content.media_assets WHERE id = $1 AND owner_id = $2 AND mime LIKE 'video/%'`, [mediaIds[0], userId])).rowCount;
+    let music: Record<string, unknown> | null;
+    let linkedSound: string | null = null;
+    if (soundId) {
+      const use = await this.sounds.prepareUse(userId, soundId, musicIn, { tcheka });
+      music = use.music;
+      linkedSound = use.soundId;
+    } else {
+      music = await this.musicSvc.prepare(userId, musicIn, 'post', mediaIds);
+      if (tcheka && music) linkedSound = await this.sounds.ensureTrackSound(music);
+    }
     // Ligada a um local no mapa: guarda-se a posição do local (pública) tal como está.
     let fromVenue = false;
     if (venueId) {
@@ -138,8 +157,8 @@ export class PostsService implements OnModuleInit {
       const adult = !!geo && !!(await client.query("SELECT 1 FROM identity.users WHERE id = $1 AND birth_date <= (current_date - interval '18 years')", [userId])).rowCount;
       if (!adult) geo = null;
       const q = (n: number) => (fromVenue ? n : coarse(n));
-      await client.query('INSERT INTO content.posts (id, author_id, body, location_label, music, location_lat, location_lng, topics, venue_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)', [
-        id, userId, body.trim(), locationLabel || null, music ? JSON.stringify(music) : null, locationLabel && geo ? q(geo.lat) : null, locationLabel && geo ? q(geo.lng) : null, classify(`${body} ${locationLabel ?? ''}`, extractHashtags(body)), venueId,
+      await client.query('INSERT INTO content.posts (id, author_id, body, location_label, music, location_lat, location_lng, topics, venue_id, sound_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)', [
+        id, userId, body.trim(), locationLabel || null, music ? JSON.stringify(music) : null, locationLabel && geo ? q(geo.lat) : null, locationLabel && geo ? q(geo.lng) : null, classify(`${body} ${locationLabel ?? ''}`, extractHashtags(body)), venueId, linkedSound,
       ]);
       for (const tag of extractHashtags(body)) {
         await client.query('INSERT INTO content.post_tags (post_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, tag]);
@@ -165,6 +184,8 @@ export class PostsService implements OnModuleInit {
       }
       await client.query('COMMIT');
       this.indexer.postChanged(id);
+      // Tcheka com o som do próprio vídeo: o som original tira-se em segundo plano (não atrasa a publicação).
+      if (tcheka && !music && !venueId) void this.sounds.queueOriginal(id);
       for (const tid of tagged) void this.notifications.notify({ userId: tid, actorId: userId, kind: 'tag', data: { postId: id } });
       void this.notifications.notifyMentions(userId, body, { postId: id, snippet: body.trim().slice(0, 80) });
       return this.getOne(userId, id);
@@ -886,6 +907,45 @@ export class PostsService implements OnModuleInit {
     };
   };
 
+  /** O título de um som original guardado na música segue o @ atual do autor (o `sound` já vem com ele). */
+  private withSoundTitle(music: Record<string, unknown> | null, sound: PostSound | null) {
+    if (music?.kind === 'sound' && sound && sound.id === music.soundId) return { ...music, title: sound.title };
+    return music;
+  }
+
+  /**
+   * As tchekas que usam um som (a grelha de /som/:id), com as regras de sempre: só o que quem vê pode ver (privacidade,
+   * bloqueios), da sua rede (como nas hashtags), sem as apagadas, as que escondeu e as que denunciou. `top`: as mais vistas
+   * primeiro (vezes que apareceram no ecrã de alguém), depois as mais recentes, com a tcheka de onde o som saiu à frente;
+   * `recent`: as mais recentes.
+   */
+  async bySound(viewerId: string, soundId: string, sort: 'top' | 'recent', cursor: string | undefined, limit: number) {
+    const where = `p.sound_id = $2 AND p.kind = 'post' AND ${canView()} AND ${inMyNetwork()}
+      AND NOT EXISTS (SELECT 1 FROM content.feed_impressions hi WHERE hi.user_id = $1 AND hi.post_id = p.id AND hi.hidden)
+      AND NOT EXISTS (SELECT 1 FROM social.reports rr WHERE rr.reporter_id = $1 AND rr.target_type = 'post' AND rr.target_id = p.id)`;
+    if (sort === 'recent') {
+      if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
+      const { rows } = await this.pool.query(`${FEED_SQL} WHERE ${where} AND ($3::uuid IS NULL OR p.id < $3) ORDER BY p.id DESC LIMIT $4`, [viewerId, soundId, cursor ?? null, limit + 1]);
+      const page = rows.slice(0, limit);
+      return { items: await this.hydrate(viewerId, page), nextCursor: rows.length > limit ? page[page.length - 1].id : null };
+    }
+    const offset = cursor && /^\d{1,5}$/.test(cursor) ? Number(cursor) : 0;
+    const { rows: ids } = await this.pool.query(
+      `SELECT p.id FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
+         LEFT JOIN content.sounds snd ON snd.id = p.sound_id
+        WHERE ${where}
+        ORDER BY (snd.source_post_id = p.id) DESC NULLS LAST, (SELECT count(*) FROM content.feed_impressions i WHERE i.post_id = p.id) DESC, p.id DESC
+        OFFSET $3 LIMIT $4`,
+      [viewerId, soundId, offset, limit + 1],
+    );
+    const page = ids.slice(0, limit).map((r) => r.id as string);
+    if (!page.length) return { items: [], nextCursor: null };
+    const { rows } = await this.pool.query(`${FEED_SQL} WHERE p.id = ANY($2)`, [viewerId, page]);
+    const order = new Map(page.map((id, i) => [id, i]));
+    rows.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+    return { items: await this.hydrate(viewerId, rows), nextCursor: ids.length > limit ? String(offset + limit) : null };
+  }
+
   private toDtoRaw = (r: Record<string, any>) => ({
     id: r.id,
     /** Código curto para links limpos (txillapp.com/p/Ab3xK9q). */
@@ -893,7 +953,10 @@ export class PostsService implements OnModuleInit {
     body: r.body,
     locationLabel: r.location_label,
     /** Faixa de licença aberta com o crédito do autor, se o post leva música. */
-    music: this.musicSvc.resolve((r.music as Record<string, unknown> | null) ?? null),
+    // Um som original tirado pela equipa (ou de uma conta eliminada) deixa de tocar também nas tchekas que o usavam.
+    music: r.music_ok === false ? null : this.musicSvc.resolve(this.withSoundTitle((r.music as Record<string, unknown> | null) ?? null, r.sound as PostSound | null)),
+    /** O som da tcheka (docs/sons.md): abre /som/:id. Só quando o som existe para quem está a ver. */
+    sound: (r.sound as PostSound | null) ?? null,
     media: (r.media as { id: string; video: boolean; durationMs: number | null; w: number | null; h: number | null; tags: PhotoTag[] }[]).map((m) => ({
       url: `/api/v1/media/${m.id}`,
       tags: m.tags,

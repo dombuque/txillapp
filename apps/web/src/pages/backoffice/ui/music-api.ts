@@ -126,3 +126,30 @@ export const LINK_LABEL: Record<string, string> = {
 export const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
 /** Só ligações https viram links (o servidor já recusa o resto). */
 export const safeHref = (u: string | null | undefined) => (u && /^https:\/\//i.test(u) ? u : null);
+
+/* ───────────── Sons das tchekas (music.manage, 0133): denúncias «Este som tem música protegida» ───────────── */
+
+export type SoundReportFilter = 'open' | 'upheld' | 'dismissed' | 'all';
+
+/** Um som original denunciado (docs/sons.md), com as denúncias. `status`: held = escondido para novos usos enquanto se decide. */
+export interface SoundReportItem {
+  id: string;
+  title: string;
+  owner: { id: string; username: string; displayName: string; status: string; isPrivate: boolean } | null;
+  durationMs: number | null;
+  cover: string | null;
+  previewUrl: string | null;
+  post: { id: string; code: string; removed: boolean } | null;
+  uses: number;
+  status: 'active' | 'held' | 'removed';
+  removedReason: string | null;
+  open: number;
+  reports: { reason: 'copyright' | 'other'; note: string | null; status: 'open' | 'upheld' | 'dismissed'; at: string; decisionReason: string | null }[];
+  lastAt: string;
+  createdAt: string;
+}
+
+export const soundsAdminApi = {
+  list: (status: SoundReportFilter): Promise<SoundReportItem[]> => boRaw(`/admin/sounds${qs({ status })}`),
+  decide: (id: string, action: 'uphold' | 'dismiss' | 'restore', reason: string): Promise<void> => boRaw(`/admin/sounds/${id}/decision`, postJson({ action, reason })),
+};
