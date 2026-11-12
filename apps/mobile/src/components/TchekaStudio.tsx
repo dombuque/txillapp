@@ -33,6 +33,8 @@ const H = 1920;
 const TR = 0.5; // segundos de transição
 /** No computador: a largura da coluna dos painéis, à direita. */
 const PANEL_W = 400;
+/** A barra do tempo por baixo da imagem. */
+const BAR_H = 36;
 /** As personagens que se podem pôr na tcheka (o sticker de cada uma). */
 const CAST: { id: string; name: string }[] = [
   { id: 'saude', name: 'Txilla' }, { id: 'bom-dia', name: 'Gelinho' }, { id: 'bora', name: 'Zazá' },
@@ -907,7 +909,11 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   useEffect(() => { if (!wide) return; setStudioFull(true); return () => setStudioFull(false); }, [wide]);
   const [stage, setStage] = useState({ y: 0, w: 0, h: 0 });
   /** A pré-visualização 9:16 com a maior altura que cabe (com a margem de 16 de cada lado). */
-  const previewW = Math.max(220, Math.min(stage.w - PANEL_W - 24, stage.h * (9 / 16) + 32));
+  const previewW = Math.max(220, Math.min(stage.w - PANEL_W - 24, (stage.h - BAR_H) * (9 / 16) + 32));
+  /** O tamanho da pré-visualização (medido) e onde fica a imagem 9:16 dentro dela (a barra do tempo tem a largura dela). */
+  const [pv, setPv] = useState({ w: 0, h: 0 });
+  const imgW = Math.max(0, Math.min(pv.w, (pv.h - BAR_H) * (9 / 16)));
+  const imgBox = { w: imgW || pv.w, left: imgW ? (pv.w - imgW) / 2 : 0 };
   /** Tocar ou pausar (o botão e o toque no vídeo): no fim recomeça do princípio. */
   const togglePlay = () => { if (busy) return; if (playingRef.current) pause(); else play(pausedAt.current >= playTotal - 0.05 ? 0 : pausedAt.current); };
 
@@ -941,23 +947,25 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
           dos painéis à direita; a linha do tempo vai para baixo, com a largura toda. No telemóvel fica tudo em coluna. */}
       <View style={wide ? st.stageWide : st.stage} onLayout={(e) => { const l = e.nativeEvent.layout; setStage((s) => (s.y === l.y && s.w === l.width && s.h === l.height ? s : { y: l.y, w: l.width, h: l.height })); }}>
       <View style={wide ? [st.previewSlotWide, { width: previewW }] : st.previewSlot}>
-      {/* A pré-visualização é o próprio canvas da montagem (o que se vê é o que sai). Tocar põe em pausa. */}
-      <Pressable style={st.preview} onPress={togglePlay} accessibilityRole="button" accessibilityLabel={playing ? 'Pausa' : 'Tocar'}>
-        {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { canvasRef.current = el; }, width: W, height: H, 'aria-label': 'Pré-visualização da tcheka', style: { width: '100%', height: '100%', objectFit: 'contain', display: 'block', backgroundColor: '#000' } })}
-        {loading && items.length ? <View style={st.center} pointerEvents="none"><Text style={st.loadText}>A preparar…</Text></View> : null}
-        {!playing && !busy ? <View style={st.center} pointerEvents="none"><View style={st.playBig}><Icon name="play" size={34} color="#fff" solid /></View></View> : null}
-        <View style={st.timeline} pointerEvents="none">
-          <View style={[st.timeFill, { width: `${playTotal ? Math.min(100, (playT / playTotal) * 100) : 0}%` }]} />
-          {useRhythm ? segs.slice(0, -1).map((s) => <View key={s.key} style={[st.beatTick, { left: `${((s.start + s.dur) / Math.max(0.1, playTotal)) * 100}%` }]} />) : null}
-        </View>
-        {!busy ? (
-          <View style={st.controls} pointerEvents="box-none">
-            <Pressable onPress={togglePlay} style={({ pressed }) => [st.playBtn, pressed && { transform: [{ scale: 0.92 }] }]} hitSlop={6} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'}>
-              <Icon name={playing ? 'pause' : 'play'} size={22} color="#fff" solid />
+      {/* A pré-visualização é o próprio canvas da montagem (o que se vê é o que sai). Tocar na imagem alterna tocar/pausa.
+          A barra do tempo fica logo por baixo da imagem, com a largura dela: não tapa o texto nem a assinatura. Um só play
+          à vista: o grande ao centro só em pausa; a tocar, o pequeno da barra é a pausa. */}
+      <Pressable style={st.preview} onPress={togglePlay} onLayout={(e) => { const l = e.nativeEvent.layout; setPv((p) => (p.w === l.width && p.h === l.height ? p : { w: l.width, h: l.height })); }} accessibilityRole="button" accessibilityLabel={playing ? 'Pausa' : 'Tocar'}>
+        {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { canvasRef.current = el; }, width: W, height: H, 'aria-label': 'Pré-visualização da tcheka', style: { position: 'absolute', left: 0, top: 0, width: '100%', height: `calc(100% - ${BAR_H}px)`, objectFit: 'contain', display: 'block', backgroundColor: '#000' } })}
+        {loading && items.length ? <View style={[st.center, { bottom: BAR_H }]} pointerEvents="none"><Text style={st.loadText}>A preparar…</Text></View> : null}
+        {!playing && !busy ? <View style={[st.center, { bottom: BAR_H }]} pointerEvents="none"><View style={st.playBig}><Icon name="play" size={34} color="#fff" solid /></View></View> : null}
+        <View style={[st.controls, { left: imgBox.left, width: imgBox.w }]} pointerEvents="box-none">
+          {!busy && playing ? (
+            <Pressable onPress={togglePlay} style={({ pressed }) => [st.playBtn, pressed && { transform: [{ scale: 0.92 }] }]} hitSlop={8} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'}>
+              <Icon name={playing ? 'pause' : 'play'} size={16} color="#fff" solid />
             </Pressable>
-            <Text style={st.clock} pointerEvents="none">{previewClock(playT, playTotal)}{prepared && rules.ok ? ' · pronto' : ''}</Text>
+          ) : null}
+          {!busy ? <Text style={st.clock} pointerEvents="none">{previewClock(playT, playTotal)}{prepared && rules.ok ? ' · pronto' : ''}</Text> : null}
+          <View style={st.timeline} pointerEvents="none">
+            <View style={[st.timeFill, { width: `${playTotal ? Math.min(100, (playT / playTotal) * 100) : 0}%` }]} />
+            {useRhythm ? segs.slice(0, -1).map((s) => <View key={s.key} style={[st.beatTick, { left: `${((s.start + s.dur) / Math.max(0.1, playTotal)) * 100}%` }]} />) : null}
           </View>
-        ) : null}
+        </View>
         {busy && (
           <View style={st.building} pointerEvents="none">
             <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>A montar a tcheka…</Text>
@@ -1163,16 +1171,16 @@ const st = StyleSheet.create({
   previewSlot: { flex: 1, minHeight: 0 },
   previewSlotWide: { minHeight: 0, height: '100%', marginLeft: 'auto', marginRight: 'auto' },
   panelWide: { position: 'absolute', right: 12, width: 400, borderRadius: 20, overflow: 'hidden', backgroundColor: '#0b0b11', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingTop: 4 },
-  preview: { flex: 1, minHeight: 200, marginHorizontal: 16, borderRadius: 20, overflow: 'hidden', backgroundColor: '#111' },
+  preview: { flex: 1, minHeight: 200, marginHorizontal: 16, borderRadius: 20, overflow: 'hidden', backgroundColor: '#000' },
   center: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   loadText: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '700' },
   playBig: { width: 68, height: 68, borderRadius: 34, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', paddingLeft: 4 },
-  timeline: { position: 'absolute', left: 10, right: 10, bottom: 8, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)' },
+  timeline: { flex: 1, minWidth: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)' },
   timeFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 2, backgroundColor: '#fff' },
   beatTick: { position: 'absolute', top: -3, width: 2, height: 10, marginLeft: -1, borderRadius: 1, backgroundColor: '#ffd60a' },
   locked: { opacity: 0.35 },
-  controls: { position: 'absolute', left: 10, right: 10, bottom: 18, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  playBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.55)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
+  controls: { position: 'absolute', bottom: 0, height: BAR_H, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 2 },
+  playBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   clock: { color: '#fff', fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'], textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 },
   building: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 32 },
   track: { width: '100%', height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },

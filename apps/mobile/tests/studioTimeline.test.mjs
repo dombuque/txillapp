@@ -136,3 +136,12 @@ test('a pinça conta os dedos em toda a linha do tempo (também em cima do «+»
   assert.match(timeline, /for \(const id of pointers\.current\.keys\(\)\) \{ try \{ w\.setPointerCapture\(id\);/);
   assert.match(timeline, /touchAction: 'none'/);
 });
+
+test('a barra do tempo fica por baixo da imagem, com a largura dela; um só play à vista', () => {
+  const studio = read('components', 'TchekaStudio.tsx');
+  assert.match(studio, /<View style=\{\[st\.controls, \{ left: imgBox\.left, width: imgBox\.w \}\]\}/);
+  assert.match(studio, /height: `calc\(100% - \$\{BAR_H\}px\)`/, 'a imagem deixa a faixa da barra livre');
+  // O play grande só em pausa; a tocar, o pequeno da barra é a pausa.
+  assert.match(studio, /\{!playing && !busy \? <View style=\{\[st\.center, \{ bottom: BAR_H \}\]\}/);
+  assert.match(studio, /\{!busy && playing \? \(/);
+});
