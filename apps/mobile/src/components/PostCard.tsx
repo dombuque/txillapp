@@ -29,6 +29,10 @@ import { VerifiedBadge } from './VerifiedBadge';
 import { VenueLogo } from './VenueCard';
 import { CheersPour } from './CheersPour';
 import { KIND_LABEL } from '@/lib/api.locais';
+import { navTap } from '@/lib/tapGuard';
+
+/** Abre um ecrã, mas só uma vez: dois toques rápidos no cartão já não empilham dois ecrãs iguais. */
+const pushOnce = (router: ReturnType<typeof useRouter>, to: string) => { if (navTap(to)) router.push(to as never); };
 
 /** Toque simples ou duplo: o duplo chama `double`; o simples só corre (com um pequeno atraso) se não vier segundo toque. */
 function useTap(double?: () => void) {
@@ -111,7 +115,7 @@ function PostCardBase({ post, me, detail, openComments, highlightComment, sponso
           <View style={{ width: col, alignItems: 'flex-end' }}>
             <Icon name="repeat" size={15} color={colors.zinc500} strokeWidth={2} />
           </View>
-          <Pressable onPress={() => router.push(profileOf(post.author, me) as never)} accessibilityRole="link" style={{ flexShrink: 1 }}>
+          <Pressable onPress={() => pushOnce(router, profileOf(post.author, me))} accessibilityRole="link" style={{ flexShrink: 1 }}>
             <Text style={styles.repostText} numberOfLines={1}>{post.author.id === me ? 'Repostaste' : `${post.author.displayName} repostou`}</Text>
           </Pressable>
         </View>
@@ -145,9 +149,9 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
   // Repost com comentário (citação): em "fio", a original em cima (ou o aviso de que já não está disponível) e quem citou por baixo.
   const quote = post.kind === 'repost' && !!post.body && !post.gift;
   const g = post.gift;
-  const goAuthor = () => router.push(profileOf(post.author, me) as never);
-  const goVenue = () => { if (!post.venue) return; sponsored?.onOpen?.(); router.push({ pathname: '/v/[slug]', params: { slug: post.venue.slug } }); };
-  const openPost = (o: Post) => router.push((isTcheka(o) ? `/r/${o.code ?? o.id}` : `/p/${o.code ?? o.id}`) as never);
+  const goAuthor = () => pushOnce(router, profileOf(post.author, me));
+  const goVenue = () => { if (!post.venue) return; sponsored?.onOpen?.(); if (navTap(`/v/${post.venue.slug}`)) router.push({ pathname: '/v/[slug]', params: { slug: post.venue.slug } }); };
+  const openPost = (o: Post) => pushOnce(router, isTcheka(o) ? `/r/${o.code ?? o.id}` : `/p/${o.code ?? o.id}`);
 
   async function toggleSave() {
     const next = !post.saved;
@@ -234,7 +238,7 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
               {post.venue ? (
                 <Text style={styles.handle} numberOfLines={1}>{KIND_LABEL[post.venue.kind] ?? 'Local'} · página</Text>
               ) : post.locationLabel ? (
-                <Pressable onPress={() => router.push(`/place/${encodeURIComponent(post.locationLabel as string)}` as never)} style={styles.locRow} accessibilityRole="link">
+                <Pressable onPress={() => pushOnce(router, `/place/${encodeURIComponent(post.locationLabel as string)}`)} style={styles.locRow} accessibilityRole="link">
                   <Icon name="map-pin" size={14} color={colors.zinc600} />
                   <Text style={styles.loc} numberOfLines={1}>{post.locationLabel}</Text>
                 </Pressable>
@@ -486,7 +490,7 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = fals
           ) : (
             <Pressable
               style={{ width, height: h }}
-              onPress={() => tap(m.kind === 'video' ? (reelId ? () => router.push(`/r/${reelId}` as never) : undefined) : () => onOpen?.(index))}
+              onPress={() => tap(m.kind === 'video' ? (reelId ? () => pushOnce(router, `/r/${reelId}`) : undefined) : () => onOpen?.(index))}
               accessibilityRole="button"
               accessibilityLabel={m.kind === 'video' ? 'Abrir a tcheka' : `Ver a foto ${index + 1} de ${media.length} em ecrã inteiro (toca duas vezes para brindar)`}
             >
@@ -566,7 +570,7 @@ function Actions({ post, mine, patch, open, people, onCheer }: { post: Post; min
         <View style={styles.chips}>
           {chips.map((c) =>
             canSee(c.kind) ? (
-              <Pressable key={c.icon} onPress={() => people(c.kind)} style={({ pressed }) => [styles.chip, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={`${c.n} ${c.label}: ver quem`}>
+              <Pressable key={c.icon} onPress={() => people(c.kind)} hitSlop={8} style={({ pressed }) => [styles.chip, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={`${c.n} ${c.label}: ver quem`}>
                 <Icon name={c.icon} size={18} color={colors.zinc700} />
                 <Text style={styles.chipText}>{c.n}</Text>
               </Pressable>
@@ -579,7 +583,7 @@ function Actions({ post, mine, patch, open, people, onCheer }: { post: Post; min
           )}
         </View>
         {post.comments > 0 && (
-          <Pressable onPress={() => open('comments')} hitSlop={6}>
+          <Pressable onPress={() => open('comments')} hitSlop={12} accessibilityRole="button">
             <Text style={styles.commentsCount}>{post.comments} {post.comments === 1 ? 'Comentário' : 'Comentários'}</Text>
           </Pressable>
         )}

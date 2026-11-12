@@ -1,5 +1,5 @@
 import { BackButton } from '@/components/BackButton';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
@@ -109,10 +109,11 @@ export default function Search() {
     getNextPageParam: (l) => l.nextCursor ?? undefined,
     staleTime: 60_000,
   });
-  const q = useQuery({ queryKey: ['search', term], queryFn: () => api.search(term), enabled: term.length >= 2, staleTime: 30_000 });
+  // Ao escrever, os resultados da pesquisa anterior ficam à vista até chegarem os novos (antes piscava: vazio, roda, resultados).
+  const q = useQuery({ queryKey: ['search', term], queryFn: () => api.search(term), enabled: term.length >= 2, staleTime: 30_000, placeholderData: keepPreviousData });
   // Menções: publicações que falam de @alguém com esse nome (o texto da publicação leva o @).
   const handle = term.replace(/^[@#]/, '');
-  const mq = useQuery({ queryKey: ['search-mentions', handle], queryFn: () => api.search(`@${handle}`), enabled: handle.length >= 2, staleTime: 30_000 });
+  const mq = useQuery({ queryKey: ['search-mentions', handle], queryFn: () => api.search(`@${handle}`), enabled: handle.length >= 2, staleTime: 30_000, placeholderData: keepPreviousData });
   const mentions = mq.data?.posts ?? [];
 
   const grid: Post[] = (() => {
@@ -261,6 +262,14 @@ export default function Search() {
             {grid.length > 0 && block(grid.slice(0, 9), 0)}
             {grid.length > 0 && <Suggestions />}
             {grid.length > 9 && block(grid.slice(9), 9)}
+            {explore.isError && grid.length === 0 && (
+              // Antes, sem rede, o Explorar ficava em branco (nem grelha, nem aviso).
+              <View style={styles.empty} accessibilityRole="alert">
+                <Icon name="image" size={36} color={colors.zinc300} />
+                <Text style={styles.emptyTitle}>Ups, o Explorar não carregou</Text>
+                <Pressable onPress={() => void explore.refetch()} style={styles.more} accessibilityRole="button"><Text style={styles.moreText}>Tentar outra vez</Text></Pressable>
+              </View>
+            )}
             {explore.isSuccess && grid.length === 0 && (
               <View style={styles.empty}>
                 <Icon name="image" size={36} color={colors.zinc300} />
@@ -286,7 +295,12 @@ export default function Search() {
               ))}
             </View>
             {q.isLoading && <ActivityIndicator color={colors.brand} style={{ margin: 40 }} />}
-            {q.isError && <Text accessibilityRole="alert" style={[styles.emptyTitle, { color: colors.red600, paddingVertical: 40 }]}>Ups, a pesquisa falhou</Text>}
+            {q.isError && (
+              <View style={{ alignItems: 'center', paddingVertical: 40 }} accessibilityRole="alert">
+                <Text style={[styles.emptyTitle, { color: colors.red600 }]}>Ups, a pesquisa falhou</Text>
+                <Pressable onPress={() => void q.refetch()} style={styles.more} accessibilityRole="button"><Text style={styles.moreText}>Tentar outra vez</Text></Pressable>
+              </View>
+            )}
 
             {q.isSuccess && tab === 'people' && (
               <View style={{ paddingHorizontal: 16 }}>

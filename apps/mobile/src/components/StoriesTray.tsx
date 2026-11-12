@@ -8,6 +8,7 @@ import { trayMine } from '@/lib/ownStorySeen';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
 import { Ring } from './StoryRing';
+import { navTap } from '@/lib/tapGuard';
 
 /** Tabuleiro de stories no topo do Início: o teu primeiro (com o "+"), depois quem segues. */
 export function StoriesTray() {
@@ -20,8 +21,9 @@ export function StoriesTray() {
   const ownSeenAt = useOwnSeen(user?.username);
   // O `seen` do servidor (vale em todos os aparelhos), reforçado pelo que este aparelho já viu.
   const mineRing = trayMine(mine, ownSeenAt);
-  const create = () => router.push('/stories/new' as never);
-  const view = (u: string) => router.push(`/stories/${u}` as never);
+  // Dois toques rápidos no anel abriam o visor duas vezes (fechar um mostrava o outro por baixo).
+  const create = () => { if (navTap('/stories/new')) router.push('/stories/new' as never); };
+  const view = (u: string) => { if (navTap(`/stories/${u}`)) router.push(`/stories/${u}` as never); };
 
   return (
     <View style={{ marginBottom: 16 }} accessibilityLabel="Mimos">

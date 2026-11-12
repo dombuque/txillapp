@@ -22,6 +22,8 @@ import { useAuth } from '@/lib/auth';
 import { timeAgo } from '@/lib/time';
 import { saveToGallery } from '@/lib/saveToGallery';
 import { StickerLayer } from '@/components/Stickers';
+import { isGone } from '@/lib/postCache';
+import { storyPaused } from '@/lib/storyPlayback';
 
 /** Quanto tempo fica à vista um mimo de foto (os de vídeo duram o vídeo, até 30 s). */
 const IMAGE_MS = 30_000;
@@ -140,7 +142,13 @@ export default function StoryViewer() {
   const mine = username === me?.username;
   const dy = useRef(new Animated.Value(0)).current;
   const dx = useRef(new Animated.Value(0)).current;
-  const paused = held || typing || panel !== null || away;
+  // A app saiu do ecrã (ou o separador do browser ficou escondido): o mimo pára onde estava e continua ao voltar.
+  const [background, setBackground] = useState(false);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => setBackground(s !== 'active'));
+    return () => sub.remove();
+  }, []);
+  const paused = storyPaused({ held, typing, panelOpen: panel !== null, away, background });
 
   useFocusEffect(useCallback(() => { setAway(false); }, []));
   useEffect(() => {
@@ -300,10 +308,13 @@ export default function StoryViewer() {
 
   if (q.isLoading) return <View style={st.center}><ActivityIndicator color="#fff" /></View>;
   if (q.isError || !cur) {
+    // Sem rede (ou o servidor falhou) não quer dizer que o mimo tenha desaparecido: deixa tentar outra vez.
+    const offline = q.isError && !isGone(q.error);
     return (
-      <View style={st.center}>
-        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>Este mimo já não está disponível</Text>
-        <Pressable onPress={close} style={st.btn}><Text style={{ color: '#fff', fontWeight: '700' }}>Fechar</Text></Pressable>
+      <View style={st.center} accessibilityRole={offline ? 'alert' : undefined}>
+        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' }}>{offline ? 'Ups, o mimo não carregou' : 'Este mimo já não está disponível'}</Text>
+        {offline && <Pressable onPress={() => void q.refetch()} style={st.btn} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700' }}>Tentar outra vez</Text></Pressable>}
+        <Pressable onPress={close} style={st.btn} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700' }}>Fechar</Text></Pressable>
       </View>
     );
   }

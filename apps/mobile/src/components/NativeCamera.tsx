@@ -25,6 +25,7 @@ import { GalleryPicker } from './GalleryPicker';
 import { Icon } from './Icon';
 import { PhotoEditor } from './PhotoEditor';
 import type { Shot } from './TxCamera';
+import { discardCopy } from '@/lib/discardGuard';
 
 const IOS = Platform.OS === 'ios';
 const PLATFORM: CamPlatform = IOS ? 'ios' : 'android';
@@ -339,7 +340,12 @@ export function NativeCamera({
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (editing || galleryOpen) return false; // o editor e a galeria tratam
-      if (review) { discard(review.uri); setReview(null); return true; }
+      if (review) {
+        // Um vídeo acabado de gravar não se perde com um toque no voltar: pergunta antes ("Repetir" continua a descartar logo).
+        const r = review, t = discardCopy('video');
+        Alert.alert(t.title, t.message, [{ text: t.keep, style: 'cancel' }, { text: t.discard, style: 'destructive', onPress: () => { discard(r.uri); setReview(null); } }]);
+        return true;
+      }
       if (recording) { stopRec(); return true; }
       onClose();
       return true;

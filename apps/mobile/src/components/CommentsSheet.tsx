@@ -95,8 +95,8 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
       },
     ]);
   }
-  if (gone) return null;
   // Segurar no comentário abre o menu (responder, editar, apagar, denunciar), como no Instagram.
+  // Fica antes do `return` do comentário apagado: um hook depois dele mudava a ordem dos hooks e o ecrã rebentava ao apagar.
   const [menu, setMenu] = useState(false);
   const openMenu = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
@@ -104,6 +104,7 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
   };
   // Um comentário que é só um sticker ou só um GIF não tem texto para editar (com texto, edita-se o texto e o GIF fica).
   const startEdit = () => { if (stickerOf(text.body) || !text.body) return; setDraft(text.body); setSel({ start: text.body.length, end: text.body.length }); setEditing(true); };
+  if (gone) return null;
 
   return (
     <Pressable onLongPress={openMenu} delayLongPress={380} style={[styles.row, highlighted && { backgroundColor: colors.rose50 }]} accessibilityHint="Segura para mais opções">
@@ -144,10 +145,10 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
         )}
         <View style={styles.links}>
           {cheer.cheers > 0 && <Text style={styles.link}>{cheer.cheers} {cheer.cheers === 1 ? 'brinde' : 'brindes'}</Text>}
-          <Pressable onPress={() => onReply(c)} hitSlop={6}><Text style={styles.link}>Responder</Text></Pressable>
+          <Pressable onPress={() => onReply(c)} hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }} accessibilityRole="button"><Text style={styles.link}>Responder</Text></Pressable>
         </View>
       </View>
-      <Pressable onPress={() => void toggle()} hitSlop={8} style={{ alignSelf: 'flex-start', paddingTop: 4 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? 'Tirar o brinde' : 'Brindar comentário'}>
+      <Pressable onPress={() => void toggle()} hitSlop={12} style={{ alignSelf: 'flex-start', paddingTop: 4 }} accessibilityRole="button" accessibilityLabel={cheer.cheered ? 'Tirar o brinde' : 'Brindar comentário'}>
         <Icon name="cheers" size={20} color={cheer.cheered ? colors.brand : '#a1a1aa'} />
       </Pressable>
       {reporting && <ReportSheet type="comment" id={c.id} onClose={() => setReporting(false)} />}
@@ -313,7 +314,12 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
           </View>
         )}
         ListEmptyComponent={
-          q.isLoading ? <ActivityIndicator color={colors.brand} style={{ margin: 40 }} /> : q.isError ? <Text style={[styles.empty, { color: colors.red600 }]}>Ups, não consegui carregar</Text> : (
+          q.isPending ? <ActivityIndicator color={colors.brand} style={{ margin: 40 }} /> : q.isError ? (
+            <View style={{ paddingVertical: 40, alignItems: 'center' }} accessibilityRole="alert">
+              <Text style={[styles.empty, { color: colors.red600, paddingVertical: 0 }]}>Ups, não consegui carregar</Text>
+              <Pressable onPress={() => void q.refetch()} style={styles.retry} accessibilityRole="button"><Text style={styles.retryText}>Tentar outra vez</Text></Pressable>
+            </View>
+          ) : (
             <View style={{ paddingVertical: 56, alignItems: 'center' }}>
               <Icon name="comment-off" size={36} color={colors.zinc300} />
               <Text style={styles.emptyTitle}>Ainda ninguém disse nada</Text>
@@ -322,7 +328,7 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
           )
         }
         onEndReached={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }}
-        ListFooterComponent={<View style={{ height: 8 }}>{q.isFetchingNextPage ? <ActivityIndicator color={colors.brand} style={{ margin: 12 }} /> : null}</View>}
+        ListFooterComponent={<View style={{ minHeight: 8 }}>{q.isFetchingNextPage ? <ActivityIndicator color={colors.brand} style={{ margin: 12 }} /> : null}</View>}
       />
       {!post.canComment && post.author.id !== user?.id ? (
         <View style={styles.off}>
@@ -403,6 +409,8 @@ const styles = StyleSheet.create({
   askBtn: { height: 32, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   askBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
   askX: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  retry: { marginTop: 16, height: 44, paddingHorizontal: 24, borderRadius: 999, borderWidth: 1, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
+  retryText: { fontSize: 15, fontWeight: '600', color: colors.zinc800 },
   empty: { fontSize: 16, color: colors.zinc500, textAlign: 'center', paddingVertical: 20 },
   emptyTitle: { marginTop: 8, fontSize: 18, fontWeight: '700', color: colors.zinc900 },
   off: { borderTopWidth: 1, borderTopColor: colors.zinc200, paddingHorizontal: 16, paddingVertical: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },

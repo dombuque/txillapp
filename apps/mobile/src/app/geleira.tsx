@@ -260,12 +260,18 @@ export default function GeleiraEditor() {
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 128 }} keyboardShouldPersistTaps="handled">
-        {!items && (
+        {!items && !cat.isError && (
           <View style={{ gap: 8 }} accessibilityLabel="A carregar">
             {[0, 1, 2, 3, 4, 5].map((n) => <View key={n} style={{ height: 68, borderRadius: 16, backgroundColor: colors.zinc100 }} />)}
           </View>
         )}
-        {cat.isError && !items && <Text style={st.none}>Não consegui abrir a geleira.</Text>}
+        {cat.isError && !items && (
+          // Antes ficavam os cartões cinzentos "a carregar" por cima do aviso, e não havia como tentar outra vez.
+          <View style={{ alignItems: 'center', paddingVertical: 40 }} accessibilityRole="alert">
+            <Text style={[st.none, { paddingVertical: 0 }]}>Não consegui abrir a geleira.</Text>
+            <Pressable onPress={() => void cat.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>Tentar outra vez</Text></Pressable>
+          </View>
+        )}
         {items &&
           sections.map((s) => (
             <View key={s.slug} style={{ marginBottom: 16 }} accessibilityLabel={s.label}>
@@ -400,6 +406,8 @@ const st = StyleSheet.create({
   plus: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   ice: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   none: { paddingVertical: 40, textAlign: 'center', fontSize: 16, color: colors.zinc600 },
+  retry: { marginTop: 16, height: 44, paddingHorizontal: 24, borderRadius: 999, borderWidth: 1, borderColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
+  retryText: { fontSize: 15, fontWeight: '600', color: colors.zinc800 },
   suggest: { marginTop: 8, borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.zinc300, padding: 16 },
   sparkle: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   pick: { height: 40, borderRadius: 999, backgroundColor: colors.zinc900, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
