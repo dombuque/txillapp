@@ -168,7 +168,7 @@ const noCover = (t: Track) => {
 };
 
 /**
- * Escolher a música de um mimo, de um tcheka ou de uma nota, do catálogo curado do servidor. Folha escura de baixo (no
+ * Escolher a música de um mimo, de uma tcheka ou de uma nota, do catálogo curado do servidor. Folha escura de baixo (no
  * computador, painel à direita) com a pesquisa e quatro separadores: «Para ti» (destaques, as pastilhas de estilo e o que
  * combina com o texto do post e com as guardadas), «Em alta», «Sons originais» e «Guardadas». Tocar numa linha ouve um
  * pedaço; «Usar» escolhe-a; manter premido (ou o «⋯» no computador) abre o resto, como «Não gosto desta». O crédito do

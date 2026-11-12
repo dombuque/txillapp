@@ -44,7 +44,7 @@ import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
 const MAX_PHOTOS = 10;
-/** Num tcheka gravam-se vários clipes (como no TikTok): o estúdio junta-os num vídeo só. */
+/** Numa tcheka gravam-se vários clipes (como no TikTok): o estúdio junta-os num vídeo só. */
 const MAX_CLIPS = 30;
 const MAX_BYTES = 8 * 1024 * 1024;
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -84,9 +84,9 @@ async function toJpeg(f: File): Promise<File | null> {
 /**
  * `ratio`: proporção (largura/altura) já conhecida da foto, quando foi cortada aqui (poupa voltar a lê-la).
  * `signed`: já leva a assinatura do Txillapp (câmara da app, editor de fotos, estúdio de tchekas); ver lib/signedMedia.
- * `clean`: a mesma foto sem a assinatura (câmara do site num tcheka): é a que entra no estúdio, que assina o vídeo inteiro.
+ * `clean`: a mesma foto sem a assinatura (câmara do site numa tcheka): é a que entra no estúdio, que assina o vídeo inteiro.
  */
-interface Asset { uri: string; video: boolean; mime: string; durationMs?: number; tags: PhotoTag[]; ratio?: number; signed?: boolean; clean?: string; /** Num tcheka: velocidade da gravação (0,5× a 3×). */ speed?: number; /** Saído do estúdio de tchekas (já cumpre as regras) e o instante da capa. */ studio?: boolean; posterMs?: number }
+interface Asset { uri: string; video: boolean; mime: string; durationMs?: number; tags: PhotoTag[]; ratio?: number; signed?: boolean; clean?: string; /** Numa tcheka: velocidade da gravação (0,5× a 3×). */ speed?: number; /** Saído do estúdio de tchekas (já cumpre as regras) e o instante da capa. */ studio?: boolean; posterMs?: number }
 
 /**
  * Carrossel como no Instagram: todas as fotos com a proporção da primeira foto da publicação (limitada entre 4:5 e 1,91:1),
@@ -239,7 +239,7 @@ export default function Compose() {
   const video = assets.find((a) => a.video);
   const photos = assets.filter((a) => !a.video);
   const hasContent = body.trim().length > 0 || assets.length > 0;
-  /** Um tcheka feito sem o estúdio (no telemóvel): as mesmas regras mínimas antes de publicar. */
+  /** Uma tcheka feita sem o estúdio (no telemóvel): as mesmas regras mínimas antes de publicar. */
   const tchekaRules = kindSel === 'tcheka' && assets.length > 0 && !assets.some((a) => a.studio)
     ? checkTcheka({ clips: assets.map((a) => ({ video: a.video, seconds: a.video ? finalMs(a.durationMs ?? 3000, a.speed ?? 1) / 1000 : 3 })), music: !!music })
     : null;
@@ -365,7 +365,7 @@ export default function Compose() {
     // a foto junta-se a ela, não vai para o editor do mimo nem fica a juntar para o estúdio da tcheka.
     const inPost = step === 'write';
     if (!inPost && routeByKind(s)) return;
-    // Na web, num tcheka juntam-se as fotos e vídeos na câmara (o estúdio monta-os); no telemóvel segue logo para a publicação.
+    // Na web, numa tcheka juntam-se as fotos e vídeos na câmara (o estúdio monta-os); no telemóvel segue logo para a publicação.
     const collect = kindSel === 'tcheka' && web && !inPost;
     const cap = collect ? MAX_CLIPS : MAX_PHOTOS;
     if (s.video) {
@@ -779,7 +779,7 @@ export default function Compose() {
           </View>
         </View>
 
-        {tchekaRules?.hint ? <Text style={styles.errLine} accessibilityRole="alert">Para publicar o tcheka: {tchekaRules.hint}</Text> : null}
+        {tchekaRules?.hint ? <Text style={styles.errLine} accessibilityRole="alert">Para publicar a tcheka: {tchekaRules.hint}</Text> : null}
         <Text style={styles.errLine} accessibilityRole="alert">{err}</Text>
         {progress ? <Text style={styles.progress} accessibilityRole="summary">{progress}</Text> : null}
       </ScrollView>

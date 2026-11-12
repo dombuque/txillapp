@@ -34,10 +34,10 @@ export const liveCameraSupported = () => Platform.OS === 'web' && typeof navigat
  * mimo, o servidor não a volta a pôr); fotos e vídeos da galeria não a levam. `clean`: a mesma foto sem a assinatura (só
  * quando se pede `keepClean`, para o estúdio de tchekas, que assina o vídeo inteiro).
  */
-export interface Shot { uri: string; video: boolean; mime: string; durationMs?: number; signed?: boolean; clean?: string; /** Num tcheka: a velocidade a que o clipe foi gravado (0,5× a 3×); o estúdio toca-o a essa velocidade. */ speed?: number; /** O instante da capa escolhido no estúdio (ms). */ posterMs?: number }
+export interface Shot { uri: string; video: boolean; mime: string; durationMs?: number; signed?: boolean; clean?: string; /** Numa tcheka: a velocidade a que o clipe foi gravado (0,5× a 3×); o estúdio toca-o a essa velocidade. */ speed?: number; /** O instante da capa escolhido no estúdio (ms). */ posterMs?: number }
 
 /**
- * Gravação ao estilo do TikTok (num tcheka): segurar grava e largar pára, em vários clipes, sem revisão entre eles; a
+ * Gravação ao estilo do TikTok (numa tcheka): segurar grava e largar pára, em vários clipes, sem revisão entre eles; a
  * barra de cima mostra os clipes até 60 s; desfazer tira o último; velocidade 0,5× a 3×; o temporizador (3 s ou 10 s)
  * começa a gravar sozinho. O som escolhido toca enquanto se grava (à velocidade certa, para bater certo no fim).
  */
@@ -520,9 +520,9 @@ export function TxCamera({
   kinds?: { id: string; label: string }[]; kind?: string; onKind?: (id: string) => void;
   /** Proporção da foto (largura/altura): 4:5 numa publicação, 9:16 num mimo ou tcheka. A moldura mostra exatamente o que sai. */
   aspect?: number;
-  /** Num tcheka: cada foto traz também a cópia sem assinatura (`clean`), que é a que entra no estúdio. */
+  /** Numa tcheka: cada foto traz também a cópia sem assinatura (`clean`), que é a que entra no estúdio. */
   keepClean?: boolean;
-  /** Num tcheka: gravação por clipes (ver SegmentedRec). */
+  /** Numa tcheka: gravação por clipes (ver SegmentedRec). */
   segmented?: SegmentedRec;
 }) {
   const insets = useSafeAreaInsets();
@@ -581,10 +581,10 @@ export function TxCamera({
   const cellCanvases = useRef<HTMLCanvasElement[]>([]);
   const [zoom, setZoom] = useState(1);
   const [recording, setRecording] = useState(false);
-  /** Velocidade da gravação por clipes (só num tcheka). */
+  /** Velocidade da gravação por clipes (só numa tcheka). */
   const [speed, setSpeed] = useState<number>(1);
   const recSpeed = useRef(1);
-  /** O som que toca enquanto se grava (num tcheka com música ou som escolhido). */
+  /** O som que toca enquanto se grava (numa tcheka com música ou som escolhido). */
   const recAudio = useRef<HTMLAudioElement | null>(null);
   useEffect(() => () => { recAudio.current?.pause(); recAudio.current = null; }, []);
   const usedFinalMs = segmented ? segmented.clipsMs.reduce((n, x) => n + x, 0) : 0;
@@ -1249,7 +1249,7 @@ export function TxCamera({
     if (recording || recorder.current?.state === 'recording') return stopRec();
     const s = stream.current;
     if (!s || !ready || typeof MediaRecorder === 'undefined') return;
-    // Num tcheka: só se grava até o vídeo final chegar aos 60 s (à velocidade escolhida).
+    // Numa tcheka: só se grava até o vídeo final chegar aos 60 s (à velocidade escolhida).
     const sp = segmented ? speed : 1;
     const limitMs = segmented ? recordableMs(usedFinalMs, sp) : MAX_VIDEO_S * 1000;
     if (limitMs < 300) return;
@@ -1293,7 +1293,7 @@ export function TxCamera({
       recAudio.current?.pause();
       const durationMs = Date.now() - startedAt.current;
       if (!blob.size) return;
-      // Num tcheka, o clipe junta-se logo (sem revisão), como no TikTok: grava-se o seguinte de seguida.
+      // Numa tcheka, o clipe junta-se logo (sem revisão), como no TikTok: grava-se o seguinte de seguida.
       if (segmented) { if (durationMs >= 250) onShot({ uri: URL.createObjectURL(blob), video: true, mime, durationMs, speed: recSpeed.current }); return; }
       setReview({ uri: URL.createObjectURL(blob), video: true, mime, durationMs });
     };
@@ -1380,7 +1380,7 @@ export function TxCamera({
   function press() {
     if (countdown !== null) { clearInterval(countTimer.current); return setCountdown(null); }
     if (recording) return stopRec();
-    // Num tcheka, o temporizador conta e começa a gravar sozinho (toca outra vez para parar).
+    // Numa tcheka, o temporizador conta e começa a gravar sozinho (toca outra vez para parar).
     const fire = segmented && delay ? () => { setHint(false); void recordRef.current(); } : () => void shootRef.current();
     if (!delay || recording) return fire();
     let n: number = delay;
@@ -1429,7 +1429,7 @@ export function TxCamera({
       // Do original (reviewSrc), nunca da cópia de 1600 px da pré-visualização.
       const jpeg = (sign: boolean) => photoJpeg(renderEdit(src, e, sign));
       const blob = await jpeg(true);
-      // Num tcheka, também a mesma foto sem a assinatura: o estúdio assina o vídeo inteiro (senão ficavam duas).
+      // Numa tcheka, também a mesma foto sem a assinatura: o estúdio assina o vídeo inteiro (senão ficavam duas).
       const plain = blob && keepClean ? await jpeg(false) : null;
       reviewSrc.current = null; previewSrc.current = null; pending.current = null;
       setReview(null); setTool(null); setFreeCrop(false);
@@ -1563,7 +1563,7 @@ export function TxCamera({
       {shotK > 0 ? dom('div', { key: `shot${shotK}`, style: { position: 'absolute', inset: 0, backgroundColor: '#fff', pointerEvents: 'none', zIndex: 12, opacity: 0, animation: 'txshot 220ms ease-out' } }) : null}
       {shotK > 0 ? dom('style', { key: 'shotk' }, '@keyframes txshot{0%{opacity:.85}100%{opacity:0}}') : null}
 
-      {/* Num tcheka: a barra dos clipes (até 60 s), como no TikTok; o clipe a gravar cresce a coral. */}
+      {/* Numa tcheka: a barra dos clipes (até 60 s), como no TikTok; o clipe a gravar cresce a coral. */}
       {segmented && (segmented.clipsMs.length > 0 || recording) ? (() => {
         const bar = segmentBar(segmented.clipsMs, recording ? finalMs(recMs, recSpeed.current) : 0);
         return (

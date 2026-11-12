@@ -206,7 +206,7 @@ test('ligação: estúdio, câmara, criar e /tcheka/nova', () => {
   const nw = read('app', '(tabs)', 'new.tsx');
   assert.match(nw, /soundsApi\.get\(/, 'o som vem de GET /sounds/:id (lib/api.sounds.ts)');
   assert.match(nw, /soundForPost\(sound, music\)/, 'a publicação leva o soundId');
-  assert.match(nw, /segmented=\{kindSel === 'tcheka'/, 'a câmara grava por clipes num tcheka');
+  assert.match(nw, /segmented=\{kindSel === 'tcheka'/, 'a câmara grava por clipes numa tcheka');
   assert.match(nw, /tchekaRules/, 'no telemóvel (sem estúdio) as regras ficam no Publicar');
   const nova = read('app', 'tcheka', 'nova.tsx');
   assert.match(nova, /kind: 'tcheka'/);

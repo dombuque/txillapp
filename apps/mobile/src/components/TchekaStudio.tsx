@@ -22,7 +22,7 @@ const H = 1920;
 const PHOTO_S = [2, 3, 5] as const;
 const PHOTO_BEATS = [1, 2, 4] as const;
 const TR = 0.5; // segundos de transição
-/** As personagens que se podem pôr no tcheka (o sticker de cada uma). */
+/** As personagens que se podem pôr na tcheka (o sticker de cada uma). */
 const CAST: { id: string; name: string }[] = [
   { id: 'saude', name: 'Txilla' }, { id: 'bom-dia', name: 'Gelinho' }, { id: 'bora', name: 'Zazá' },
   { id: 'amor', name: 'Mimo' }, { id: 'cool', name: 'Txeka' }, { id: 'estrela', name: 'Super' },
@@ -132,8 +132,8 @@ async function filesToClips(files: File[]): Promise<Clip[]> {
  *   filtro, sticker, transições e a capa.
  * - Pré-visualização fiel: é o próprio canvas da montagem a tocar, com o som misturado. A primeira volta inteira fica
  *   gravada; se nada mudar, «Seguinte» já não espera pela montagem.
- * - `reference`: um vídeo de referência ao lado (dueto): fica na metade esquerda e o tcheka na direita; o som dele conta
- *   como o som do tcheka.
+ * - `reference`: um vídeo de referência ao lado (dueto): fica na metade esquerda e a tcheka na direita; o som dele conta
+ *   como o som da tcheka.
  */
 export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }: {
   clips: Clip[];
@@ -676,12 +676,12 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
       if (!alive.current) return;
       // Cancelada no ×: volta à edição tal como estava, sem aviso de erro.
       if (cancelled.current) { cancelled.current = false; play(0); return; }
-      if (!out.blob || !out.blob.size) { setErr('Não consegui montar o tcheka. Tenta outra vez.'); play(0); return; }
+      if (!out.blob || !out.blob.size) { setErr('Não consegui montar a tcheka. Tenta outra vez.'); play(0); return; }
       finish(out.blob, out.blob.type || 'video/mp4', false);
     } catch {
       setProgress(null);
       if (cancelled.current) { cancelled.current = false; play(0); return; }
-      setErr('Não consegui montar o tcheka');
+      setErr('Não consegui montar a tcheka');
     }
   }
 
@@ -725,7 +725,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     <View style={[st.root, { paddingTop: topPad, paddingBottom: botPad }]} accessibilityViewIsModal>
       <View style={st.top}>
         <Pressable onPress={close} style={st.round} accessibilityRole="button" accessibilityLabel="Voltar"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
-        <Text style={st.title}>Novo tcheka</Text>
+        <Text style={st.title}>Nova tcheka</Text>
         <Pressable onPress={() => void build()} disabled={!rules.ok || busy} style={[st.cta, (!rules.ok || busy) && { opacity: 0.45 }]} accessibilityRole="button" accessibilityState={{ disabled: !rules.ok || busy }} accessibilityHint={rules.hint ?? undefined} accessibilityLabel={busy ? `A montar, ${Math.round((progress ?? 0) * 100)}%` : 'Seguinte'}>
           <Text style={st.ctaText}>{busy ? `${Math.round((progress ?? 0) * 100)}%` : 'Seguinte'}</Text>
         </Pressable>
@@ -741,7 +741,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
 
       {/* A pré-visualização é o próprio canvas da montagem (o que se vê é o que sai). Tocar põe em pausa. */}
       <Pressable style={st.preview} onPress={togglePlay} accessibilityRole="button" accessibilityLabel={playing ? 'Pausa' : 'Tocar'}>
-        {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { canvasRef.current = el; }, width: W, height: H, 'aria-label': 'Pré-visualização do tcheka', style: { width: '100%', height: '100%', objectFit: 'contain', display: 'block', backgroundColor: '#000' } })}
+        {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { canvasRef.current = el; }, width: W, height: H, 'aria-label': 'Pré-visualização da tcheka', style: { width: '100%', height: '100%', objectFit: 'contain', display: 'block', backgroundColor: '#000' } })}
         {loading && items.length ? <View style={st.center} pointerEvents="none"><Text style={st.loadText}>A preparar…</Text></View> : null}
         {!playing && !busy ? <View style={st.center} pointerEvents="none"><View style={st.playBig}><Icon name="play" size={34} color="#fff" solid /></View></View> : null}
         <View style={st.timeline} pointerEvents="none">
@@ -758,7 +758,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
         ) : null}
         {busy && (
           <View style={st.building} pointerEvents="none">
-            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>A montar o tcheka…</Text>
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>A montar a tcheka…</Text>
             <View style={st.track}><View style={[st.fill, { width: `${Math.round((progress ?? 0) * 100)}%` }]} /></View>
             <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, textAlign: 'center' }}>Faltam {left} s. Não feches a app.</Text>
             <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, textAlign: 'center' }}>Dica: vê a pré-visualização até ao fim e fica logo pronto.</Text>
@@ -876,7 +876,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
         {tab === 'texto' ? (
           <>
             <View style={st.textRow}>
-              <TextInput value={title} editable={!locked} onChangeText={(v) => { if (!locked) setTitle(v.slice(0, 80)); }} placeholder="Texto por cima do tcheka" placeholderTextColor="rgba(255,255,255,0.55)" style={st.input} accessibilityLabel="Texto do tcheka" maxLength={80} />
+              <TextInput value={title} editable={!locked} onChangeText={(v) => { if (!locked) setTitle(v.slice(0, 80)); }} placeholder="Texto por cima da tcheka" placeholderTextColor="rgba(255,255,255,0.55)" style={st.input} accessibilityLabel="Texto da tcheka" maxLength={80} />
               {chip(titleStyle === 'branco', 'Branco', () => setTitleStyle('branco'))}
               {chip(titleStyle === 'coral', 'Coral', () => setTitleStyle('coral'))}
             </View>

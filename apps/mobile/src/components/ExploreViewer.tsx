@@ -31,7 +31,7 @@ export function ExploreViewer({ items, startId, onClose, title = 'Explorar' }: {
   const [active, setActive] = useState(first);
   const [h, setH] = useState(winH);
   const ref = useRef<FlatList<Post>>(null);
-  // Abrir no Tcheka tocado: o initialScrollIndex não chega (no browser é ignorado e a altura muda depois do primeiro
+  // Abrir na Tcheka tocada: o initialScrollIndex não chega (no browser é ignorado e a altura muda depois do primeiro
   // layout), por isso põe-se a lista no sítio certo sempre que a altura muda, até a pessoa começar a deslizar.
   const moved = useRef(false);
   useEffect(() => {

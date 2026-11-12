@@ -3,7 +3,7 @@
 //   e o @ no ficheiro; ao «Guardar» um mimo o servidor voltava a assiná-lo, com outra letra e outra sombra, e o @ ficava
 //   desfocado, como se estivesse a dobrar. Agora esses ficheiros vão com `signed: true` no pedido de envio;
 // - fotos e vídeos da galeria não vão marcados (o servidor assina-os ao guardar, como antes);
-// - num tcheka, as fotos da câmara entram no estúdio sem assinatura (`clean`): o estúdio assina o vídeo inteiro.
+// - numa tcheka, as fotos da câmara entram no estúdio sem assinatura (`clean`): o estúdio assina o vídeo inteiro.
 // Correr em apps/mobile:  node --test tests/*.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -63,7 +63,7 @@ test('TxCamera (site): a foto aceite sai com signed: true; o vídeo gravado (sem
   assert.match(cam, /export interface Shot \{[^}]*signed\?: boolean; clean\?: string;/);
   const accept = fn(cam, 'acceptReview');
   assert.match(accept, /onShot\(blob \? \{ uri: URL\.createObjectURL\(blob\), video: false, mime: 'image\/jpeg', signed: true,/);
-  // Num tcheka (keepClean) também a cópia sem assinatura, desenhada com sign = false.
+  // Numa tcheka (keepClean) também a cópia sem assinatura, desenhada com sign = false.
   assert.match(accept, /renderEdit\(src, e, sign\)/);
   assert.match(accept, /blob && keepClean \? await jpeg\(false\) : null/);
   // O vídeo segue tal como foi gravado (`r`), sem `signed`.
@@ -96,7 +96,7 @@ test('estúdio de tchekas: o vídeo sai assinado e as fotos da câmara entram se
 test('nova publicação: a câmara passa `signed` até ao envio e ao mimo; a galeria não o põe', () => {
   const nw = read('app', '(tabs)', 'new.tsx');
   const shot = fn(nw, 'shot');
-  assert.match(shot, /signed: s\.signed, \.\.\.\(s\.speed/); // vídeo (num tcheka, com a velocidade da gravação)
+  assert.match(shot, /signed: s\.signed, \.\.\.\(s\.speed/); // vídeo (numa tcheka, com a velocidade da gravação)
   assert.match(shot, /signed: s\.signed, clean: s\.clean \}/); // foto
   assert.match(fn(nw, 'routeByKind'), /params: mimoParams\(s\)/);
   assert.match(fn(nw, 'submit'), /assets: assets\.map\(\(a\) => \(\{ uri: a\.uri, mime: a\.mime, video: a\.video, signed: a\.signed, /);

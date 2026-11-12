@@ -45,7 +45,7 @@ export interface RuleResult {
   total: number;
   photos: number;
   videoSeconds: number;
-  /** De onde vem o som do tcheka. */
+  /** De onde vem o som da tcheka. */
   sound: SoundSource;
   problem: RuleProblem | null;
   /** A dica do botão Publicar (null quando está tudo bem). */
