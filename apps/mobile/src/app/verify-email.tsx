@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { Wordmark } from '@/components/Wordmark';
@@ -15,6 +15,7 @@ export default function VerifyEmail() {
   const router = useRouter();
   const [state, setState] = useState<'working' | 'ok' | 'bad'>('working');
   const [message, setMessage] = useState('');
+  const wide = useWindowDimensions().width >= 1024;
 
   useEffect(() => {
     let alive = true;
@@ -33,7 +34,7 @@ export default function VerifyEmail() {
 
   return (
     <Screen>
-      <View style={{ paddingTop: 40 }} accessibilityRole="header"><Wordmark height={44} /></View>
+      {wide ? null : <View style={{ paddingTop: 40 }} accessibilityRole="header"><Wordmark height={44} /></View>}
       <View style={{ marginTop: 40 }}>
         {state === 'working' && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }} accessibilityRole="progressbar">

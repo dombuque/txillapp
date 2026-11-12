@@ -130,6 +130,7 @@ export default function Register() {
   }, [convite]);
 
   async function next() {
+    if (busy) return;
     if (blocked) return setError(termsMissing ? 'Tens de aceitar os Termos e a Política de Privacidade' : local ?? (check.state === 'bad' ? check.message : value ? 'Só um segundinho… ⏳' : 'Preenche este campo'));
     setError('');
     if (i < steps.length - 1) return setI(i + 1);
@@ -146,14 +147,14 @@ export default function Register() {
         inviteCode: invite?.code,
       });
       void inviteStore.clear();
-      router.replace('/');
+      // Daqui para a frente é o _layout (Gate) que leva ao Início (ou à página que se pediu antes de entrar): um só
+      // `replace`, sem dois saltos seguidos. O botão fica em "a criar" até a página mudar (sem segundo registo com dois toques).
     } catch (x) {
       const msg = (x as Error).message;
       if (x instanceof ApiError && x.status === 409) {
         setI(/email/i.test(msg) ? 2 : 1);
         setError(/email/i.test(msg) ? 'Esse email já tem conta' : 'Esse @ acabou de ser escolhido por outra pessoa');
       } else setError(msg);
-    } finally {
       setBusy(false);
     }
   }
