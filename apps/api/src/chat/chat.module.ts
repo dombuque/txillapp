@@ -12,6 +12,7 @@ import { PostsModule } from '../posts/posts.module';
 import { VenuesModule } from '../venues/venues.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { ChatController } from './chat.controller';
+import { ChatExpiryService } from './chat-expiry.service';
 import { ChatEvents } from './chat.events';
 import { ChatService } from './chat.service';
 import { GroupsService } from './groups.service';
@@ -24,7 +25,7 @@ import { PresenceController, PresenceService } from './presence.controller';
   // Os TxillGroups (plano, sondagens, lista, despesas, álbum, cofre e a porta de fora: ver, entrar e pedir) vivem em src/groups,
   // mas partilham este módulo com os grupos do chat.
   controllers: [ChatController, NotesController, PresenceController, TxillGroupsController, PublicGroupsController],
-  providers: [ChatService, GroupsService, NotesService, ChatEvents, PresenceService, GroupAccess, PlanService, PotService, PublicGroupsService],
+  providers: [ChatService, ChatExpiryService, GroupsService, NotesService, ChatEvents, PresenceService, GroupAccess, PlanService, PotService, PublicGroupsService],
   exports: [ChatService, ChatEvents],
 })
 export class ChatModule {}

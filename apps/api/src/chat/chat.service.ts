@@ -10,7 +10,7 @@ import { allowedBy, blockedBetween } from '../social/visibility';
 import { readGif, type GifInput } from '../gifs/gif';
 import { ChatEvents } from './chat.events';
 
-export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call' | 'poll' | 'gif';
+export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call' | 'poll' | 'gif' | 'system';
 
 /**
  * O texto de uma mensagem GIF (kind 'gif'): o GIF vai na coluna `gif`; o body leva só "GIF", que é o que as versões
@@ -32,6 +32,39 @@ export const STRANGER_LIMIT = 3;
  * Entra nas conversas, nos grupos, na última mensagem da lista e nas contas de por ler.
  */
 export const notHiddenFor = (m: string, me: string) => `NOT EXISTS (SELECT 1 FROM social.message_hidden h WHERE h.message_id = ${m}.id AND h.user_id = ${me})`;
+
+/**
+ * SQL: a mensagem `m` ainda não expirou (mensagens temporárias, 0123). Uma expirada nunca mais aparece: na conversa, na
+ * última mensagem da lista, nos por ler, nas citações, no álbum e na exportação. A limpeza (chat-expiry.service.ts) apaga-a depois.
+ */
+export const notExpired = (m: string) => `(${m}.expires_at IS NULL OR ${m}.expires_at > now())`;
+
+/** Mensagens temporárias: quanto dura cada mensagem (segundos): 24 horas, 7 dias ou 90 dias. `null` = desligadas. */
+export const TTL_OPTIONS = [86_400, 604_800, 7_776_000] as const;
+export type Ttl = (typeof TTL_OPTIONS)[number] | null;
+export const TTL_LABEL: Record<number, string> = { 86400: '24 horas', 604800: '7 dias', 7776000: '90 dias' };
+
+/**
+ * SQL: o `expires_at` de uma mensagem nova na conversa (`table` = 'conversations') ou no grupo ('groups') com o id `idParam`:
+ * criação + duração, se as mensagens temporárias estiverem ligadas; senão NULL.
+ */
+export const expiresFor = (table: 'conversations' | 'groups', idParam: string) =>
+  `(SELECT CASE WHEN t.ttl_seconds IS NULL THEN NULL ELSE now() + t.ttl_seconds * interval '1 second' END FROM social.${table} t WHERE t.id = ${idParam})`;
+
+/** O que um aviso de sistema (kind 'system') guarda em `system`: quem mudou (o 1.º nome, na altura) e para quanto. */
+export interface SystemInfo { type: 'ttl'; ttl: number | null; name: string }
+
+/**
+ * O texto do aviso de sistema para quem o vê: "Dom ligou as mensagens temporárias: 7 dias." ou, para quem mudou,
+ * "Desligaste as mensagens temporárias." (`mine`).
+ */
+export function systemText(s: SystemInfo | null | undefined, mine: boolean): string {
+  if (!s || s.type !== 'ttl') return '';
+  const label = s.ttl ? (TTL_LABEL[s.ttl] ?? `${Math.round(s.ttl / 86_400)} dias`) : null;
+  if (mine) return label ? `Ligaste as mensagens temporárias: ${label}.` : 'Desligaste as mensagens temporárias.';
+  const who = s.name || 'Alguém';
+  return label ? `${who} ligou as mensagens temporárias: ${label}.` : `${who} desligou as mensagens temporárias.`;
+}
 
 /** Até quando (depois de enviar) se pode editar uma mensagem de texto. A app tem o mesmo número (src/lib/messageMenu.ts). */
 export const EDIT_WINDOW_MS = 15 * 60_000;
@@ -139,8 +172,8 @@ export class ChatService {
     if (conv) {
       const r = (
         await this.pool.query(
-          `SELECT (SELECT count(*) FROM social.messages WHERE conversation_id = c.id AND sender_id = $2 AND deleted_at IS NULL)::int AS mine,
-                  (SELECT count(*) FROM social.messages WHERE conversation_id = c.id AND sender_id = $3 AND deleted_at IS NULL)::int AS theirs,
+          `SELECT (SELECT count(*) FROM social.messages WHERE conversation_id = c.id AND sender_id = $2 AND deleted_at IS NULL AND kind <> 'system')::int AS mine,
+                  (SELECT count(*) FROM social.messages WHERE conversation_id = c.id AND sender_id = $3 AND deleted_at IS NULL AND kind <> 'system')::int AS theirs,
                   c.user_a, c.accepted_a, c.accepted_b, c.hidden_a, c.hidden_b
              FROM social.conversations c WHERE c.id = $1`,
           [conv, me, otherId],
@@ -204,24 +237,81 @@ export class ChatService {
   }
 
   /**
-   * Apagar a conversa só do meu lado: as mensagens até agora deixam de aparecer para mim (a outra pessoa continua a vê-las).
-   * Se chegar uma mensagem nova, a conversa volta à lista só com o que vier dali para a frente.
+   * Apagar a conversa só do meu lado (`keep` = false, o "Apagar conversa" da lista): as mensagens até agora deixam de
+   * aparecer para mim (a outra pessoa continua a vê-las) e a conversa sai da lista; se chegar uma mensagem nova, volta só
+   * com o que vier dali para a frente.
+   * "Limpar conversa" (`keep` = true, no menu da conversa): o mesmo, mas a conversa fica na lista, vazia ("Sem mensagens"),
+   * até chegar outra. Nos dois casos os "Apagar para mim" dessas mensagens deixam de ser precisos e vão-se; só os meus
+   * outros aparelhos são avisados (eco 'deleted'); ao outro lado não chega nada.
    */
-  async clearForMe(me: string, username: string) {
+  async clearForMe(me: string, username: string, keep = false) {
     const other = await this.userByName(username);
     const conv = await this.conversation(me, other.id, false);
     if (!conv) throw new NotFoundException('Conversa não encontrada');
-    await this.pool.query(
+    const { rows } = await this.pool.query(
       `UPDATE social.conversations c SET
               cleared_a = CASE WHEN c.user_a = $2 THEN m.last ELSE c.cleared_a END, cleared_b = CASE WHEN c.user_b = $2 THEN m.last ELSE c.cleared_b END,
+              cleared_keep_a = CASE WHEN c.user_a = $2 THEN $3 ELSE c.cleared_keep_a END, cleared_keep_b = CASE WHEN c.user_b = $2 THEN $3 ELSE c.cleared_keep_b END,
               read_a = CASE WHEN c.user_a = $2 THEN m.last ELSE c.read_a END, read_b = CASE WHEN c.user_b = $2 THEN m.last ELSE c.read_b END,
               unread_mark_a = CASE WHEN c.user_a = $2 THEN false ELSE c.unread_mark_a END, unread_mark_b = CASE WHEN c.user_b = $2 THEN false ELSE c.unread_mark_b END
          FROM (SELECT max(id::text)::uuid AS last FROM social.messages WHERE conversation_id = $1) m
-        WHERE c.id = $1 AND m.last IS NOT NULL`,
-      [conv, me],
+        WHERE c.id = $1 AND m.last IS NOT NULL
+        RETURNING m.last`,
+      [conv, me, keep],
     );
+    if (rows[0]) {
+      await this.pool.query(
+        `DELETE FROM social.message_hidden h USING social.messages m WHERE h.user_id = $1 AND h.message_id = m.id AND m.conversation_id = $2 AND m.id <= $3`,
+        [me, conv, rows[0].last],
+      );
+    }
     this.events.echo(me, { type: 'deleted', from: other.username });
     return { ok: true };
+  }
+
+  /**
+   * Mensagens temporárias numa conversa a dois: qualquer um dos dois liga (24 h, 7 dias, 90 dias) ou desliga. Só entre quem
+   * já conversa (não num pedido de mensagem por aceitar, nem a quem não me segue e ainda não respondeu) e sem bloqueio.
+   * Cada mudança deixa um aviso de sistema na conversa e chega ao outro lado e aos meus outros aparelhos ('message').
+   * Pedir o que já está não muda nada (sem aviso). Devolve { ttl }.
+   */
+  async setTtl(me: string, username: string, ttl: Ttl) {
+    const other = await this.userByName(username);
+    if (other.id === me) throw new BadRequestException('Conversa inválida');
+    const ok = (
+      await this.pool.query(
+        `SELECT ${blockedBetween('u.id', '$1')} AS blocked, ${allowedBy('u', 'dms_allowed')} AS allowed,
+                EXISTS (SELECT 1 FROM social.conversations c WHERE c.user_a = LEAST($1::uuid, u.id) AND c.user_b = GREATEST($1::uuid, u.id)) AS spoke
+           FROM identity.users u WHERE u.id = $2`,
+        [me, other.id],
+      )
+    ).rows[0];
+    if (ok.blocked) throw new ForbiddenException('Não podes mudar esta conversa');
+    if (!ok.allowed && !ok.spoke) throw new ForbiddenException('Esta pessoa não aceita mensagens novas');
+    const rel = await this.relationOf(me, other.id, await this.conversation(me, other.id, false));
+    if (rel.request || rel.left !== null) throw new ForbiddenException('Só podes ligar as mensagens temporárias quando já estiverem a conversar');
+    const conv = (await this.conversation(me, other.id, true))!;
+    const upd = await this.pool.query('UPDATE social.conversations SET ttl_seconds = $2 WHERE id = $1 AND ttl_seconds IS DISTINCT FROM $2::int', [conv, ttl]);
+    if (!upd.rowCount) return { ttl };
+    const name = await this.firstNameOf(me);
+    const sys: SystemInfo = { type: 'ttl', ttl, name };
+    const id = uuidv7();
+    await this.pool.query("INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, system) VALUES ($1, $2, $3, $4, 'system', $5::jsonb)", [id, conv, me, systemText(sys, false), JSON.stringify(sys)]);
+    await this.pool.query(
+      `UPDATE social.conversations SET last_message_at = now(),
+              read_a = CASE WHEN user_a = $2 THEN $3::uuid ELSE read_a END, read_b = CASE WHEN user_b = $2 THEN $3::uuid ELSE read_b END WHERE id = $1`,
+      [conv, me, id],
+    );
+    this.events.echo(me, { type: 'message', from: other.username });
+    // Quem recusou a conversa não recebe avisos dela.
+    if (!(await this.relationOf(other.id, me, conv)).hidden) this.events.emit(other.id, { type: 'message', from: await this.usernameOf(me) });
+    return { ttl };
+  }
+
+  /** O primeiro nome de quem está a usar (para os avisos de sistema). */
+  async firstNameOf(id: string) {
+    const r = (await this.pool.query('SELECT display_name, username FROM identity.users WHERE id = $1', [id])).rows[0];
+    return ((r?.display_name as string | undefined)?.trim().split(/\s+/)[0] || (r?.username as string | undefined) || '').slice(0, 40);
   }
 
   /** Hora a que a pessoa foi vista pela última vez (ao abrir e fechar a app). */
@@ -258,22 +348,25 @@ export class ChatService {
   async list(me: string) {
     const { rows } = await this.pool.query(
       `SELECT c.id, o.id AS other_id, o.username, o.display_name, (o.avatar_media_id IS NOT NULL) AS has_avatar, o.status, o.show_presence AS o_show, o.last_seen_at,
-              lm.body AS last_body, lm.view_once AS last_once, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at,
+              lm.body AS last_body, lm.view_once AS last_once, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, lm.system AS last_system,
+              c.last_message_at, c.ttl_seconds,
               EXISTS (SELECT 1 FROM social.follows f WHERE f.follower_id = $1 AND f.followee_id = o.id) AS i_follow,
-              (SELECT count(*) FROM social.messages sm WHERE sm.conversation_id = c.id AND sm.sender_id = $1 AND sm.deleted_at IS NULL)::int AS sent_by_me,
+              (SELECT count(*) FROM social.messages sm WHERE sm.conversation_id = c.id AND sm.sender_id = $1 AND sm.deleted_at IS NULL AND sm.kind <> 'system')::int AS sent_by_me,
               (CASE WHEN c.user_a = $1 THEN c.accepted_a ELSE c.accepted_b END) AS accepted,
               (SELECT count(*) FROM social.messages m
-                WHERE m.conversation_id = c.id AND m.sender_id <> $1 AND m.deleted_at IS NULL AND ${notHiddenFor('m', '$1')}
+                WHERE m.conversation_id = c.id AND m.sender_id <> $1 AND m.deleted_at IS NULL AND m.kind <> 'system' AND ${notHiddenFor('m', '$1')} AND ${notExpired('m')}
                   AND (CASE WHEN c.user_a = $1 THEN c.read_a ELSE c.read_b END IS NULL
                        OR m.id > (CASE WHEN c.user_a = $1 THEN c.read_a ELSE c.read_b END))
                   AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR m.id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)))::int AS unread,
               (CASE WHEN c.user_a = $1 THEN c.unread_mark_a ELSE c.unread_mark_b END) AS unread_mark
          FROM social.conversations c
          JOIN identity.users o ON o.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
-         JOIN LATERAL (SELECT x.body, x.kind, x.sender_id, x.created_at, x.view_once FROM social.messages x WHERE x.conversation_id = c.id AND x.deleted_at IS NULL AND ${notHiddenFor('x', '$1')} AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR x.id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)) ORDER BY x.id DESC LIMIT 1) lm ON true
+         LEFT JOIN LATERAL (SELECT x.body, x.kind, x.sender_id, x.created_at, x.view_once, x.system FROM social.messages x WHERE x.conversation_id = c.id AND x.deleted_at IS NULL AND ${notHiddenFor('x', '$1')} AND ${notExpired('x')} AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR x.id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)) ORDER BY x.id DESC LIMIT 1) lm ON true
         WHERE (c.user_a = $1 OR c.user_b = $1) AND NOT ${blockedBetween('o.id', '$1')}
           AND NOT (CASE WHEN c.user_a = $1 THEN c.hidden_a ELSE c.hidden_b END)
-        ORDER BY lm.created_at DESC LIMIT 100`,
+          -- Sem nada para mostrar, a conversa só fica na lista se a limpei ("Limpar conversa": fica vazia até chegar outra).
+          AND (lm.created_at IS NOT NULL OR (CASE WHEN c.user_a = $1 THEN c.cleared_keep_a ELSE c.cleared_keep_b END))
+        ORDER BY COALESCE(lm.created_at, c.last_message_at) DESC LIMIT 100`,
       [me],
     );
     const iShow = (await this.pool.query('SELECT show_presence FROM identity.users WHERE id = $1', [me])).rows[0]?.show_presence !== false;
@@ -282,13 +375,19 @@ export class ChatService {
       presence: iShow && r.o_show && r.status === 'active' ? { online: this.events.isOnline(r.other_id as string), lastSeen: (r.last_seen_at as string | null) ?? null } : null,
       displayName: r.status === 'active' ? r.display_name : 'Conta eliminada',
       hasAvatar: r.has_avatar,
-      lastMessage: {
-        body: r.last_once ? '' : (r.last_body as string),
-        once: !!r.last_once,
-        kind: r.last_kind as MessageKind,
-        fromMe: r.last_sender === me,
-        at: r.last_at as string,
-      },
+      /** Mensagens temporárias: quanto dura cada mensagem nova (segundos), ou null (desligadas). */
+      ttl: (r.ttl_seconds as number | null) ?? null,
+      lastMessage: r.last_at
+        ? {
+            body: r.last_once ? '' : r.last_kind === 'system' ? systemText(r.last_system as SystemInfo, r.last_sender === me) : (r.last_body as string),
+            once: !!r.last_once,
+            kind: r.last_kind as MessageKind,
+            fromMe: r.last_sender === me,
+            at: r.last_at as string,
+            empty: false,
+          }
+        : // Limpa por mim e sem nada novo: a lista mostra "Sem mensagens".
+          { body: '', once: false, kind: 'text' as MessageKind, fromMe: false, at: r.last_message_at as string, empty: true },
       /** Pedido de mensagem: quem escreveu não é seguido por mim, eu ainda não respondi nem aceitei. */
       request: !r.i_follow && r.sent_by_me === 0 && !r.accepted && r.last_sender !== me,
       /** Marcada por mim como por ler: conta como 1 até a abrir. */
@@ -323,10 +422,10 @@ export class ChatService {
     const relation = { iFollow: rel.iFollow, theyFollow: rel.theyFollow, request: rel.request, left: rel.left };
     // "1 publicação nova" por baixo do nome (como no Instagram): o que publicou e eu ainda não vi. Só na 1.ª página.
     const newPosts = blocked || cursor ? { count: 0, latestId: null } : await this.posts.newPostsBy(me, other.id);
-    if (!conv) return { person, blocked, relation, newPosts, otherRead: null, items: [], nextCursor: null };
+    if (!conv) return { person, blocked, relation, newPosts, ttl: null, otherRead: null, items: [], nextCursor: null };
     const { rows } = await this.pool.query(
-      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.place_name, m.place_address, m.view_once, m.viewed_at, m.live_until, m.gift_amount, m.reply_to, m.created_at, m.deleted_at, m.edited_at, m.gif FROM social.messages m
-        WHERE m.conversation_id = $1 AND (m.deleted_at IS NULL OR m.deleted_notice) AND ${notHiddenFor('m', '$4')} AND ($2::uuid IS NULL OR m.id < $2)
+      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.place_name, m.place_address, m.view_once, m.viewed_at, m.live_until, m.gift_amount, m.reply_to, m.created_at, m.deleted_at, m.edited_at, m.gif, m.expires_at, m.system FROM social.messages m
+        WHERE m.conversation_id = $1 AND (m.deleted_at IS NULL OR m.deleted_notice) AND ${notHiddenFor('m', '$4')} AND ${notExpired('m')} AND ($2::uuid IS NULL OR m.id < $2)
           AND m.id > COALESCE((SELECT CASE WHEN c.user_a = $4 THEN c.cleared_a ELSE c.cleared_b END FROM social.conversations c WHERE c.id = $1), '00000000-0000-0000-0000-000000000000'::uuid)
         ORDER BY m.id DESC LIMIT $3`,
       [conv, cursor ?? null, PAGE + 1, me],
@@ -350,7 +449,7 @@ export class ChatService {
     }
     // Li noutro aparelho: os meus outros aparelhos tiram o número de "por ler" da lista.
     if (readNow || unmarked) this.events.echo(me, { type: 'read', from: other.username });
-    const reads = (await this.pool.query('SELECT user_a, read_a, read_b FROM social.conversations WHERE id = $1', [conv])).rows[0];
+    const reads = (await this.pool.query('SELECT user_a, read_a, read_b, ttl_seconds FROM social.conversations WHERE id = $1', [conv])).rows[0];
     const otherRead = (reads.user_a === me ? reads.read_b : reads.read_a) as string | null;
     return {
       person,
@@ -358,6 +457,8 @@ export class ChatService {
       relation,
       /** Publicações dela que ainda não vi (últimos 7 dias); `latestId` = a mais recente. */
       newPosts,
+      /** Mensagens temporárias: quanto dura cada mensagem nova (segundos: 86400, 604800 ou 7776000), ou null (desligadas). */
+      ttl: (reads.ttl_seconds as number | null) ?? null,
       /** Último id que a outra pessoa já leu ("Visto" nas minhas mensagens até aqui). */
       otherRead,
       items: await this.mapItems(me, page),
@@ -373,15 +474,31 @@ export class ChatService {
     const [rx, rp] = await Promise.all([
       ids.length ? this.pool.query('SELECT message_id, reaction, count(*)::int AS n, bool_or(user_id = $2) AS mine FROM social.message_reactions WHERE message_id = ANY($1::uuid[]) GROUP BY message_id, reaction', [ids, me]) : none,
       replyIds.length
-        ? this.pool.query("SELECT m.id, m.sender_id, m.body, m.kind, m.view_once, m.deleted_at, split_part(u.display_name, ' ', 1) AS name FROM social.messages m LEFT JOIN identity.users u ON u.id = m.sender_id WHERE m.id = ANY($1::uuid[])", [replyIds])
+        ? this.pool.query(`SELECT m.id, m.sender_id, m.body, m.kind, m.view_once, m.deleted_at, split_part(u.display_name, ' ', 1) AS name FROM social.messages m LEFT JOIN identity.users u ON u.id = m.sender_id WHERE m.id = ANY($1::uuid[]) AND ${notExpired('m')}`, [replyIds])
         : none,
     ]);
     const reactions = new Map<string, { reaction: string; count: number; mine: boolean }[]>();
     for (const r of rx.rows) reactions.set(r.message_id, [...(reactions.get(r.message_id) ?? []), { reaction: r.reaction, count: r.n, mine: r.mine }]);
     const quoted = new Map(rp.rows.map((r) => [r.id as string, r]));
     return Promise.all(
-      page.map(async (m) => m.deleted_at ? this.deletedItem(me, m) : this.item(me, m, reactions, quoted)),
+      page.map(async (m) => m.deleted_at ? this.deletedItem(me, m) : m.kind === 'system' ? this.systemItem(me, m) : this.item(me, m, reactions, quoted)),
     );
+  }
+
+  /**
+   * Aviso de sistema (kind 'system', ex.: "Dom ligou as mensagens temporárias: 7 dias."): só o texto, para quem o vê, e o
+   * que mudou em `system` ({ type: 'ttl', ttl }). Não tem reações, citação nem ficheiro, e nunca expira.
+   */
+  private systemItem(me: string, m: Record<string, any>) {
+    const fromMe = m.sender_id === me;
+    const sys = m.system as SystemInfo | null;
+    return {
+      ...this.deletedItem(me, m),
+      deleted: undefined,
+      body: systemText(sys, fromMe) || (m.body as string),
+      kind: 'system' as MessageKind,
+      system: sys ? { type: sys.type, ttl: sys.ttl ?? null } : null,
+    };
   }
 
   private async item(me: string, m: Record<string, any>, reactions: Map<string, { reaction: string; count: number; mine: boolean }[]>, quoted: Map<string, Record<string, any>>) {
@@ -425,6 +542,8 @@ export class ChatService {
       reactions: reactions.get(m.id as string) ?? [],
       /** Foi editada depois de enviada (a bolha mostra "editada" ao lado da hora). */
       edited: !!m.edited_at,
+      /** Mensagens temporárias: quando deixa de existir (null = fica). Passada esta hora, a app tira-a da conversa. */
+      expiresAt: (m.expires_at as string | null) ?? null,
       at: m.created_at as string,
     };
   }
@@ -454,6 +573,7 @@ export class ChatService {
       liveUntil: null,
       replyTo: null,
       reactions: [] as { reaction: string; count: number; mine: boolean }[],
+      expiresAt: (m.expires_at as string | null) ?? null,
       at: m.created_at as string,
     };
   }
@@ -582,7 +702,7 @@ export class ChatService {
       m = (
         await client.query(
           `SELECT m.group_id, m.kind, (SELECT CASE WHEN c.user_a = $2 THEN c.user_b ELSE c.user_a END FROM social.conversations c WHERE c.id = m.conversation_id) AS other
-             FROM social.messages m WHERE m.id = $1 AND m.sender_id = $2 AND m.deleted_at IS NULL FOR UPDATE`,
+             FROM social.messages m WHERE m.id = $1 AND m.sender_id = $2 AND m.deleted_at IS NULL AND m.kind <> 'system' AND ${notExpired('m')} FOR UPDATE`,
           [messageId, me],
         )
       ).rows[0];
@@ -639,7 +759,7 @@ export class ChatService {
     if (!text) throw new BadRequestException('Escreve alguma coisa');
     const m = (
       await this.pool.query(
-        `SELECT m.sender_id, m.kind, m.view_once, m.created_at, m.deleted_at, m.group_id, c.user_a, c.user_b,
+        `SELECT m.sender_id, m.kind, m.view_once, m.created_at, (m.deleted_at IS NOT NULL OR NOT ${notExpired('m')}) AS deleted_at, m.group_id, c.user_a, c.user_b,
                 EXISTS (SELECT 1 FROM social.group_members gm WHERE gm.group_id = m.group_id AND gm.user_id = $2) AS member
            FROM social.messages m LEFT JOIN social.conversations c ON c.id = m.conversation_id WHERE m.id = $1`,
         [messageId, me],
@@ -675,7 +795,7 @@ export class ChatService {
   async react(me: string, messageId: string, reaction: string | null) {
     const m = (
       await this.pool.query(
-        'SELECT m.group_id, c.user_a, c.user_b FROM social.messages m LEFT JOIN social.conversations c ON c.id = m.conversation_id WHERE m.id = $1 AND m.deleted_at IS NULL',
+        `SELECT m.group_id, c.user_a, c.user_b FROM social.messages m LEFT JOIN social.conversations c ON c.id = m.conversation_id WHERE m.id = $1 AND m.deleted_at IS NULL AND m.kind <> 'system' AND ${notExpired('m')}`,
         [messageId],
       )
     ).rows[0];
@@ -714,7 +834,7 @@ export class ChatService {
     const m = (
       await this.pool.query(
         `SELECT m.sender_id, m.group_id, c.user_a, c.user_b FROM social.messages m LEFT JOIN social.conversations c ON c.id = m.conversation_id
-          WHERE m.id = $1 AND m.deleted_at IS NULL AND m.view_once`,
+          WHERE m.id = $1 AND m.deleted_at IS NULL AND m.view_once AND ${notExpired('m')}`,
         [messageId],
       )
     ).rows[0];
@@ -816,7 +936,7 @@ export class ChatService {
     const conv = await this.conversation(callerId, calleeId, true);
     if (!conv) return;
     const id = uuidv7();
-    await this.pool.query('INSERT INTO social.messages (id, conversation_id, sender_id, body, kind) VALUES ($1, $2, $3, $4, $5)', [id, conv, callerId, JSON.stringify(info), 'call']);
+    await this.pool.query(`INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, expires_at) VALUES ($1, $2, $3, $4, $5, ${expiresFor('conversations', '$2')})`, [id, conv, callerId, JSON.stringify(info), 'call']);
     await this.pool.query(
       `UPDATE social.conversations SET last_message_at = now(),
               read_a = CASE WHEN user_a = $2 THEN $3::uuid ELSE read_a END, read_b = CASE WHEN user_b = $2 THEN $3::uuid ELSE read_b END WHERE id = $1`,
@@ -840,7 +960,8 @@ export class ChatService {
     const conv = await this.conversation(me, other, true);
     const id = uuidv7();
     await this.pool.query(
-      "INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms, waveform, lat, lng, view_once, live_until, gift_tx, gift_amount, reply_to, place_name, place_address, gif) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CASE WHEN $13::int IS NULL THEN NULL ELSE now() + ($13::int * interval '1 minute') END, $14, $15, (SELECT r.id FROM social.messages r WHERE r.id = $16::uuid AND r.conversation_id = $2 AND r.deleted_at IS NULL), $17, $18, $19::jsonb)",
+      // Mensagens temporárias ligadas: leva `expires_at` (criação + duração). Só se responde a uma que ainda existe.
+      `INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms, waveform, lat, lng, view_once, live_until, gift_tx, gift_amount, reply_to, place_name, place_address, gif, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CASE WHEN $13::int IS NULL THEN NULL ELSE now() + ($13::int * interval '1 minute') END, $14, $15, (SELECT r.id FROM social.messages r WHERE r.id = $16::uuid AND r.conversation_id = $2 AND r.deleted_at IS NULL AND r.kind <> 'system' AND ${notExpired('r')}), $17, $18, $19::jsonb, ${expiresFor('conversations', '$2')})`,
       [id, conv, me, body, kind, storyMediaId, mediaId, durationMs, waveform, place?.lat ?? null, place?.lng ?? null, !!extra.once, extra.liveMinutes ?? null, extra.giftTx ?? null, extra.giftAmount ?? null, extra.replyTo ?? null, extra.placeName ?? null, extra.placeAddress ?? null, extra.gif ? JSON.stringify(extra.gif) : null],
     );
     await this.pool.query(

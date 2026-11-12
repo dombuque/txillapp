@@ -22,6 +22,7 @@ import { api, type ChatMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { listTime, rowLabel, unreadBadge } from '@/lib/inboxRow';
+import { emptyPreview } from '@/lib/chatTemporary';
 
 import { callLabel } from '@/components/ChatBubbles';
 import { GroupCard, groupCardData } from '@/components/groups/GroupCard';
@@ -47,6 +48,8 @@ function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, g
   if (m.kind === 'sticker') return `${you}Sticker`;
   if (m.kind === 'gif') return `${you}GIF`;
   if (m.kind === 'call') return callLabel(m.body, m.fromMe).text;
+  // Aviso de sistema ("Ligaste as mensagens temporárias: 7 dias."): o servidor já manda o texto para quem o vê.
+  if (m.kind === 'system') return m.body;
   if (m.kind === 'location') return `${you}Localização`;
   if ((m.kind as string) === 'poll') return `${you}Sondagem${m.body ? `: ${m.body}` : ''}`;
   if (m.kind === 'story_reaction') return `${m.fromMe ? 'Reagiste ao mimo' : 'Reagiu ao teu mimo'}: ${REACTIONS.find((x) => x.id === m.body)?.label ?? m.body}`;
@@ -247,7 +250,7 @@ export default function Messages() {
       username: c.username,
       to: `/messages/${c.username}`,
       name: c.displayName,
-      sub: what(c.lastMessage),
+      sub: emptyPreview(c.lastMessage) ?? what(c.lastMessage),
       at: c.lastMessage.at,
       unread: c.unread,
       marked: !!c.marked,
@@ -260,7 +263,7 @@ export default function Messages() {
       key: `g:${g.id}`,
       to: `/messages/g/${g.id}`,
       name: g.name,
-      sub: g.lastMessage.empty ? `${g.members} pessoas` : `${g.lastMessage.fromMe ? '' : g.lastMessage.senderName ? `${g.lastMessage.senderName}: ` : ''}${what(g.lastMessage, true)}`,
+      sub: emptyPreview(g.lastMessage, { members: g.members }) ?? `${g.lastMessage.fromMe ? '' : g.lastMessage.senderName ? `${g.lastMessage.senderName}: ` : ''}${what(g.lastMessage, true)}`,
       at: g.lastMessage.at,
       unread: g.unread,
       names: g.preview.slice(0, 2).map((p) => ({ name: p.displayName, username: p.hasAvatar ? p.username : undefined })),

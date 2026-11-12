@@ -39,15 +39,16 @@ export class ExportService {
       commentCheers: await q(`SELECT comment_id AS "commentId", created_at AS "createdAt" FROM content.comment_cheers WHERE user_id = $1 ORDER BY created_at`).catch(() => []),
       // As mensagens que enviei, nas conversas a dois (`to` = o @ da outra pessoa) e nos TxillGroups (`group` = o nome do grupo),
       // com a hora da edição, o ponto, o nome e a morada do sítio e até quando durava a partilha em direto (o que está guardado).
+      // Mensagens temporárias: `expiresAt` diz até quando existem; as que já expiraram não entram.
       // As que recebi não entram: são dados de quem as escreveu.
       messagesSent: await q(
         `SELECT m.id, o.username AS "to", g.name AS "group", m.kind, m.body, m.created_at AS "createdAt", m.edited_at AS "editedAt",
-                m.lat, m.lng, m.place_name AS "placeName", m.place_address AS "placeAddress", m.live_until AS "liveUntil", m.gif
+                m.lat, m.lng, m.place_name AS "placeName", m.place_address AS "placeAddress", m.live_until AS "liveUntil", m.gif, m.expires_at AS "expiresAt"
            FROM social.messages m
            LEFT JOIN social.conversations c ON c.id = m.conversation_id
            LEFT JOIN identity.users o ON o.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
            LEFT JOIN social.groups g ON g.id = m.group_id
-          WHERE m.sender_id = $1 AND m.deleted_at IS NULL ORDER BY m.id`,
+          WHERE m.sender_id = $1 AND m.deleted_at IS NULL AND (m.expires_at IS NULL OR m.expires_at > now()) ORDER BY m.id`,
       ),
       // "Apagar para mim": que mensagens escondi e quando (só o id: o conteúdo das dos outros não é meu).
       messagesHiddenForMe: await q(`SELECT message_id AS id, created_at AS "hiddenAt" FROM social.message_hidden WHERE user_id = $1 ORDER BY created_at`),

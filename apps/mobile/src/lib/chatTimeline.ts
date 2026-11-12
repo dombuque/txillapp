@@ -77,7 +77,7 @@ export function activeLabel(iso: string | null | undefined, now: Date = new Date
 }
 
 /** Estas não se juntam a nada (cartões de chamada e reações soltas a mimos). */
-const LONERS = new Set(['story_reaction', 'call']);
+const LONERS = new Set(['story_reaction', 'call', 'system']);
 
 /** A mesma pessoa? Nas conversas diretas, se fui eu ou não; nos grupos conta quem enviou (sem autor conhecido, não arrisca). */
 export function sameAuthor(a: TimelineMsg, b: TimelineMsg, group = false): boolean {
@@ -101,7 +101,8 @@ export function firstUnreadId(msgs: readonly TimelineMsg[], unread: number): str
   if (!(unread > 0)) return null;
   let left = unread;
   for (let i = msgs.length - 1; i >= 0; i--) {
-    if (msgs[i].fromMe) continue;
+    // Os avisos de sistema (mensagens temporárias) não contam como por ler.
+    if (msgs[i].fromMe || msgs[i].kind === 'system') continue;
     if (--left === 0) return i > 0 ? msgs[i].id ?? null : null;
   }
   return null;

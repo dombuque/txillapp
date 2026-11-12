@@ -1,5 +1,5 @@
 import { BackButton } from '@/components/BackButton';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
@@ -11,6 +11,7 @@ import { quoteText, type Msg } from '@/components/ChatBubbles';
 import { ChatComposer } from '@/components/ChatComposer';
 import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus, OnlineDot } from '@/components/ChatHeader';
 import { ChatEditBar } from '@/components/ChatEditBar';
+import { confirmClear, TtlBadge, TtlSheet, useLiveItems } from '@/components/ChatTemporary';
 import { ChatList } from '@/components/ChatList';
 import { NoteDot, PeerNoteBubble } from '@/components/ChatPeerNote';
 import { NoteView } from '@/components/Notes';
@@ -25,6 +26,7 @@ import { useAuth } from '@/lib/auth';
 import { headerLine, newPostsLabel, newPostsTarget, newPostsText } from '@/lib/chatNewPosts';
 import { NOTE_FOLD_MS, NOTE_FOLD_START, noteFold, peerBubble, peerBubbleKey } from '@/lib/chatPeerNote';
 import { activeLabel } from '@/lib/chatTimeline';
+import { TTL_TITLE, ttlBadgeLabel } from '@/lib/chatTemporary';
 import { useTyping } from '@/lib/realtime';
 import { useChatVisible } from '@/lib/chatVisible';
 import { colors } from '@/lib/theme';
@@ -49,6 +51,7 @@ export default function Thread() {
   const [editing, setEditing] = useState<Msg | null>(null);
   const [searching, setSearching] = useState(false);
   const [more, setMore] = useState(false);
+  const [ttlOpen, setTtlOpen] = useState(false);
   const [raised, setRaised] = useState(false);
   const typing = useTyping(username);
   const typingSent = useRef(0);
@@ -74,7 +77,10 @@ export default function Thread() {
   const person = first?.person;
   const firstName = person?.displayName.split(' ')[0] ?? '';
   // O servidor manda do mais recente para o mais antigo: a lista mostra de baixo para cima (invertida).
-  const items: Msg[] = q.data?.pages.flatMap((p) => p.items) ?? [];
+  // As mensagens temporárias que expiram com a conversa aberta saem logo (lib/chatTemporary).
+  const allItems: Msg[] = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
+  const items = useLiveItems(allItems);
+  const ttl = first?.ttl ?? null;
 
   // A nota da pessoa (ou, sem nota, a bio do perfil) por baixo da foto do cabeçalho (lib/chatPeerNote): abre ao entrar e
   // encolhe ao subir nas mensagens ou ao fim de 8 s; tocar na foto volta a mostrá-la, tocar no balão abre a nota (ou o
@@ -127,7 +133,7 @@ export default function Thread() {
   }, [username]);
 
   // A minha última já enviada (a lista vem do mais recente para o mais antigo); as que estão a enviar ou falharam não contam.
-  const lastMine = items.find((m) => m.fromMe && !m.state && !m.id.startsWith('tmp-'));
+  const lastMine = items.find((m) => m.fromMe && m.kind !== 'system' && !m.state && !m.id.startsWith('tmp-'));
   const otherRead = first?.otherRead ?? null;
   const seenId = otherRead && lastMine && lastMine.id <= otherRead ? lastMine.id : null;
 
@@ -177,6 +183,21 @@ export default function Thread() {
     await stopLiveShare(m.id).catch(() => undefined);
     await q.refetch();
   }
+  /** Mensagens temporárias: muda para os dois (fica o aviso na conversa). */
+  async function pickTtl(next: number | null) {
+    await api.chatSetTtl(username, next);
+    await q.refetch();
+    void qc.invalidateQueries({ queryKey: ['chat-list'] });
+  }
+  /** Limpar a conversa só para mim: some já daqui; a conversa fica na lista, vazia. */
+  function clearChat() {
+    confirmClear(false, () => {
+      qc.setQueryData<InfiniteData<ChatThread>>(['chat-thread', username], (d) => d && { ...d, pages: d.pages.slice(0, 1).map((p) => ({ ...p, items: [], nextCursor: null })), pageParams: d.pageParams.slice(0, 1) });
+      void api.chatClearKeep(username)
+        .then(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); void qc.invalidateQueries({ queryKey: ['chat-unread'] }); })
+        .catch((e) => { setErr((e as Error).message || 'Não consegui limpar a conversa.'); void q.refetch(); });
+    });
+  }
 
   if (q.isError) {
     return (
@@ -207,11 +228,12 @@ export default function Thread() {
       <ChatHeader
         raised={raised}
         onOpen={openProfile}
-        openLabel={person ? `Ver o perfil de ${person.displayName}` : 'Conversa'}
+        openLabel={person ? `Ver o perfil de ${person.displayName}${ttl ? `. ${ttlBadgeLabel(ttl)}` : ''}` : 'Conversa'}
         avatar={
           <View>
             <Avatar name={person?.displayName ?? username} username={avatarOf} size={36} />
             {online ? <OnlineDot size={36} /> : null}
+            {ttl ? <TtlBadge size={36} /> : null}
             {bubble ? <NoteDot visible={!fold.open} reduceMotion={reduceMotion} /> : null}
           </View>
         }
@@ -318,9 +340,13 @@ export default function Thread() {
           items={[
             { icon: 'search', label: 'Procurar na conversa', onPress: () => setSearching(true) },
             ...(openProfile ? [{ icon: 'user' as const, label: 'Ver perfil', onPress: openProfile }] : []),
+            // Só entre quem já conversa (não num pedido, nem a quem ainda não respondeu) e sem bloqueio: as regras do servidor.
+            ...(person && !first?.blocked && !request && rel?.left == null ? [{ icon: 'clock' as const, label: TTL_TITLE, onPress: () => setTtlOpen(true) }] : []),
+            ...(items.length ? [{ icon: 'trash' as const, label: 'Limpar conversa', onPress: clearChat }] : []),
           ]}
         />
       )}
+      {ttlOpen && <TtlSheet ttl={ttl} canChange onPick={pickTtl} onClose={() => setTtlOpen(false)} />}
       {searching && (
         <ChatSearchSheet items={items} nameOf={(m) => (m.fromMe ? 'Tu' : person?.displayName ?? '')} hasNext={!!q.hasNextPage} fetchNext={() => void q.fetchNextPage()} onClose={() => setSearching(false)} />
       )}

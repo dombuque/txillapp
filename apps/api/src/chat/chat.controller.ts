@@ -66,6 +66,8 @@ const activeSchema = z.object({ key: z.string().regex(/^(u:[A-Za-z0-9_.]{1,40}|g
 const reactSchema = z.object({ reaction: z.string().regex(/^:[a-z]{2,12}:$/) });
 /** Editar uma mensagem de texto (o texto novo; o resto das regras está no serviço). */
 const editSchema = z.object({ body: z.string().max(2000) });
+/** Mensagens temporárias: 24 horas, 7 dias ou 90 dias (em segundos), ou null (desligadas). */
+const ttlSchema = z.object({ ttl: z.union([z.literal(86_400), z.literal(604_800), z.literal(7_776_000), z.null()]) });
 
 @Controller('chat')
 export class ChatController {
@@ -177,6 +179,22 @@ export class ChatController {
     return this.groups.setRole(req.userId!, id, username, b.role);
   }
 
+  /** Mensagens temporárias no grupo (só admins): { ttl } -> 200 { ttl }. Deixa o aviso na conversa. */
+  @Put('groups/:id/ttl')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  setGroupTtl(@Req() req: AuthedReq, @Param('id') id: string, @Body(new ZodPipe(ttlSchema)) b: z.infer<typeof ttlSchema>) {
+    return this.groups.setTtl(req.userId!, id, b.ttl);
+  }
+
+  /** Limpar a conversa do grupo só para mim: 200 { ok }. */
+  @Post('groups/:id/clear')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  clearGroup(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.groups.clear(req.userId!, id);
+  }
+
   @Delete('groups/:id/members/:username')
   @UseGuards(JwtAuthGuard)
   @HttpCode(204)
@@ -229,11 +247,27 @@ export class ChatController {
     return this.chat.markUnread(req.userId!, username);
   }
 
-  /** Apagar a conversa só do meu lado. */
+  /** Apagar a conversa só do meu lado (sai da lista até chegar outra mensagem). */
   @Delete('with/:username')
   @UseGuards(JwtAuthGuard)
   clear(@Req() req: AuthedReq, @Param('username') username: string) {
     return this.chat.clearForMe(req.userId!, username);
+  }
+
+  /** Limpar a conversa só para mim (fica na lista, vazia, até chegar outra mensagem): 200 { ok }. */
+  @Post('with/:username/clear')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  clearKeep(@Req() req: AuthedReq, @Param('username') username: string) {
+    return this.chat.clearForMe(req.userId!, username, true);
+  }
+
+  /** Mensagens temporárias na conversa (qualquer um dos dois): { ttl } -> 200 { ttl }. Deixa o aviso na conversa. */
+  @Put('with/:username/ttl')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  setTtl(@Req() req: AuthedReq, @Param('username') username: string, @Body(new ZodPipe(ttlSchema)) b: z.infer<typeof ttlSchema>) {
+    return this.chat.setTtl(req.userId!, username, b.ttl);
   }
 
   @Post('with/:username/typing')

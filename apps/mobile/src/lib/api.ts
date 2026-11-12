@@ -194,7 +194,7 @@ export interface SearchResults {
   venues?: import('./api.locais').Venue[];
 }
 export interface TrendingTag { tag: string; posts: number; rising?: boolean }
-export type MsgKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply' | 'call' | 'gif';
+export type MsgKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply' | 'call' | 'gif' | 'system';
 export interface ChatMessage {
   id: string;
   fromMe: boolean;
@@ -221,6 +221,10 @@ export interface ChatMessage {
   deleted?: boolean;
   /** Editada depois de enviada ("editada" ao lado da hora). */
   edited?: boolean;
+  /** Mensagens temporárias: quando deixa de existir (null ou ausente = fica). Passada esta hora, sai da conversa. */
+  expiresAt?: string | null;
+  /** Aviso de sistema (kind 'system'): o que mudou. O texto, já para quem o vê, vem em `body`. */
+  system?: { type: 'ttl'; ttl: number | null } | null;
   at: string;
 }
 export interface Presence { online: boolean; lastSeen: string | null }
@@ -228,7 +232,10 @@ export interface Conversation {
   username: string;
   displayName: string;
   hasAvatar: boolean;
-  lastMessage: { body: string; kind: MsgKind; fromMe: boolean; at: string };
+  /** `empty`: limpei a conversa e não chegou nada depois ("Sem mensagens"). Servidores antigos não mandam. */
+  lastMessage: { body: string; kind: MsgKind; fromMe: boolean; at: string; empty?: boolean };
+  /** Mensagens temporárias: quanto dura cada mensagem nova (segundos), ou null (desligadas). */
+  ttl?: number | null;
   presence?: Presence | null;
   request?: boolean;
   unread: number;
@@ -241,7 +248,10 @@ export interface GroupSummary {
   name: string;
   members: number;
   preview: { username: string; displayName: string; hasAvatar: boolean }[];
-  lastMessage: { body: string; kind: MsgKind; fromMe: boolean; senderName: string | null; at: string; empty: boolean };
+  /** `cleared`: está vazia porque a limpei ("Sem mensagens"); `empty` sem `cleared` = grupo novo, sem mensagens. */
+  lastMessage: { body: string; kind: MsgKind; fromMe: boolean; senderName: string | null; at: string; empty: boolean; cleared?: boolean };
+  /** Mensagens temporárias: quanto dura cada mensagem nova (segundos), ou null (desligadas). */
+  ttl?: number | null;
   unread: number;
 }
 export interface ChatThread {
@@ -250,6 +260,8 @@ export interface ChatThread {
   newPosts?: { count: number; latestId: string | null };
   person: { username: string; displayName: string; hasAvatar: boolean; canGift?: boolean; presence?: Presence | null };
   blocked: boolean;
+  /** Mensagens temporárias nesta conversa (segundos: 86400, 604800 ou 7776000), ou null. Servidores antigos não mandam. */
+  ttl?: number | null;
   otherRead: string | null;
   items: ChatMessage[];
   nextCursor: string | null;
@@ -671,6 +683,10 @@ export const api = {
   chatMarkUnread: (username: string): Promise<{ ok: true }> => raw(`/chat/with/${encodeURIComponent(username)}/unread`, post({})),
   /** Apagar a conversa só do meu lado (a outra pessoa continua a ver tudo). */
   chatClear: (username: string): Promise<{ ok: true }> => raw(`/chat/with/${encodeURIComponent(username)}`, { method: 'DELETE' }),
+  /** Limpar a conversa só para mim: as mensagens até agora desaparecem para mim; a conversa fica na lista, vazia. */
+  chatClearKeep: (username: string): Promise<{ ok: true }> => raw(`/chat/with/${encodeURIComponent(username)}/clear`, post({})),
+  /** Mensagens temporárias (qualquer um dos dois): segundos (86400, 604800, 7776000) ou null para desligar. */
+  chatSetTtl: (username: string, ttl: number | null): Promise<{ ttl: number | null }> => raw(`/chat/with/${encodeURIComponent(username)}/ttl`, { method: 'PUT', body: JSON.stringify({ ttl }) }),
   chatReact: (id: string, reaction: string): Promise<void> => raw(`/chat/messages/${id}/reaction`, { method: 'PUT', body: JSON.stringify({ reaction }) }),
   chatAccept: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/accept`, post({})),
   chatDecline: (username: string): Promise<void> => raw(`/chat/with/${encodeURIComponent(username)}/decline`, post({})),

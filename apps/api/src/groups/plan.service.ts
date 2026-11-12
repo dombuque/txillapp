@@ -526,6 +526,7 @@ export class PlanService {
       `SELECT m.id, m.kind, m.media_id, m.duration_ms, m.created_at, u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar
          FROM social.messages m LEFT JOIN identity.users u ON u.id = m.sender_id
         WHERE m.group_id = $1 AND m.kind IN ('image', 'video') AND m.media_id IS NOT NULL AND NOT m.view_once AND m.deleted_at IS NULL
+          AND (m.expires_at IS NULL OR m.expires_at > now())
           AND ($2::uuid IS NULL OR m.id < $2)
         ORDER BY m.id DESC LIMIT $3`,
       [groupId, cursor ?? null, ALBUM_PAGE + 1],
