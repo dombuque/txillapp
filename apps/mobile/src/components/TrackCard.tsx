@@ -7,26 +7,23 @@ import { LocalTrackLine, RightsReportSheet } from '@/components/LocalArtists';
 import type { Track } from '@/lib/api.music';
 import { artistHref, isLocalTrack } from '@/lib/artists';
 import { useRouter } from 'expo-router';
-import { playTrack, stopTrack, useMusicMuted } from '@/lib/musicPlayer';
+import { playTrack, sharedPlayer, stopTrack, useMusicMuted, useTrackLive } from '@/lib/musicPlayer';
+import { SoundWaves } from '@/components/SoundWaves';
 import { colors } from '@/lib/theme';
 
 export { useMusicMuted };
 
 /**
- * Cartão da música de uma publicação. Não tem play nem pausa: a música toca sozinha enquanto o post está à vista
- * (`visible`, dito pela lista) e pára quando sai do ecrã, quando se muda de ecrã ou quando a app vai para segundo plano.
- * O único controlo é o som (silenciar / ativar), que vale para toda a app. Tocar no nome mostra os créditos e a licença.
- * `playNow` toca logo ao aparecer (nota de música aberta pela pessoa). Sem `autoplay`, é só informativo (ex.: ao compor).
+ * O leitor de uma faixa que toca sozinha enquanto está à vista (cartão, selo e notas): toca um instante depois de ficar à
+ * vista (`visible`, dito pela lista, ou logo com `playNow`), pára quando sai do ecrã, quando se muda de ecrã, quando a app
+ * vai para segundo plano ou quando a pessoa a pausa (`paused`, até carregar outra vez em tocar). Devolve quem a pediu
+ * (`me`, para saber se está mesmo a tocar), se o pedido foi aceite (`on`) e `play`, para o botão (um toque da pessoa
+ * desbloqueia o som no browser).
  */
-export function TrackCard({ track, autoplay = false, visible = false, playNow = false }: { track: Track; autoplay?: boolean; visible?: boolean; playNow?: boolean }) {
+export function useAutoTrack(track: Track, { autoplay = false, visible = false, playNow = false, paused = false }: { autoplay?: boolean; visible?: boolean; playNow?: boolean; paused?: boolean }) {
   const me = useRef(Symbol('track'));
   const [on, setOn] = useState(false);
-  const [muted, toggleMute] = useMusicMuted();
-  const [info, setInfo] = useState(false);
   const playing = useRef(false);
-  const router = useRouter();
-  const local = isLocalTrack(track);
-  const artistTo = artistHref(track);
 
   async function play() {
     const ok = await playTrack(me.current, track.url, { loop: true, onStop: () => { playing.current = false; setOn(false); } });
@@ -39,7 +36,7 @@ export function TrackCard({ track, autoplay = false, visible = false, playNow = 
   useEffect(() => () => stopTrack(me.current), []);
 
   // Toca um instante depois de ficar à vista; pára quando sai ou a app vai para segundo plano.
-  const shown = autoplay && (visible || playNow);
+  const shown = autoplay && !paused && (visible || playNow);
   useEffect(() => {
     let dwell: ReturnType<typeof setTimeout> | undefined;
     if (shown) {
@@ -54,8 +51,28 @@ export function TrackCard({ track, autoplay = false, visible = false, playNow = 
     return () => { clearTimeout(dwell); sub.remove(); };
   }, [shown, playNow, track.url]);
 
+  return { me: me.current, on, play: () => void playRef.current() };
+}
+
+/**
+ * Cartão da música de uma nota ou do que se está a compor. Não tem play nem pausa: a música toca sozinha enquanto está à
+ * vista e o único controlo é o som (silenciar / ativar), que vale para toda a app. Tocar no nome mostra os créditos e a
+ * licença. `playNow` toca logo ao aparecer (nota de música aberta pela pessoa). Sem `autoplay`, é só informativo (ex.: ao
+ * compor). Nas publicações, a música aparece no MusicCard ou no MusicBadge (components/PostMusic).
+ */
+export function TrackCard({ track, autoplay = false, visible = false, playNow = false }: { track: Track; autoplay?: boolean; visible?: boolean; playNow?: boolean }) {
+  const { on, me } = useAutoTrack(track, { autoplay, visible, playNow });
+  const live = useTrackLive(me);
+  const [muted, toggleMute] = useMusicMuted();
+  const [info, setInfo] = useState(false);
+  const router = useRouter();
+  const local = isLocalTrack(track);
+  const artistTo = artistHref(track);
+
   return (
     <View style={s.card}>
+      {/* A música da nota a tocar: ondas discretas da cor da marca, por trás do texto. */}
+      {autoplay ? <SoundWaves active={live && !muted} subtle band={0.75} tint={colors.brand} player={live ? sharedPlayer() : null} /> : null}
       <View style={[s.disc, on && !muted && s.discOn]} accessibilityLabel={on ? 'A tocar' : 'Música'}>
         <Icon name="music" size={20} color="#fff" />
       </View>
@@ -124,7 +141,7 @@ export function TrackCredits({ track, onClose }: { track: Track; onClose: () => 
 }
 
 const s = StyleSheet.create({
-  card: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: '#fafafa', borderWidth: 1, borderColor: colors.zinc100, padding: 12 },
+  card: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, backgroundColor: '#fafafa', borderWidth: 1, borderColor: colors.zinc100, padding: 12, overflow: 'hidden' },
   disc: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.zinc300, alignItems: 'center', justifyContent: 'center' },
   discOn: { backgroundColor: colors.brand },
   text: { flex: 1, minWidth: 0 },

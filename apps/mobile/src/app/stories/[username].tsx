@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAudioPlayer } from 'expo-audio';
+import { useAudioPlayer, useAudioPlayerStatus, type AudioPlayer } from 'expo-audio';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -29,7 +29,11 @@ import { StickerLayer } from '@/components/Stickers';
 import { isGone } from '@/lib/postCache';
 import { storyPaused } from '@/lib/storyPlayback';
 import { freshEnough, startIndex } from '@/lib/storyLink';
-import { artistHref, isLocalTrack, trackLine } from '@/lib/artists';
+import { artistHref } from '@/lib/artists';
+import { MusicPill } from '@/components/PostMusic';
+import { SoundWaves } from '@/components/SoundWaves';
+import { trackColors } from '@/lib/musicLook';
+import { useMusicMuted } from '@/lib/musicPlayer';
 import { finePointer, overlayOpen } from '@/lib/desktopKeys';
 import { useViewerKeys } from '@/lib/desktopHooks';
 
@@ -82,10 +86,14 @@ function VideoStory({ url, paused, onEnd, onDuration }: { url: string; paused: b
   return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />;
 }
 
-/** A música do mimo: toca enquanto está à vista (pára se pausares ou se a app sair do ecrã) e tem botão para silenciar. */
-function StoryMusic({ track, paused }: { track: NonNullable<Story['music']>; paused: boolean }) {
+/**
+ * A música do mimo: toca enquanto está à vista (pára se pausares ou se a app sair do ecrã) e tem botão para silenciar (o
+ * som da app, o mesmo das publicações). Diz ao visor se está a tocar com som (`onLive`), para as ondas no meio da foto.
+ */
+function StoryMusic({ track, paused, onLive }: { track: NonNullable<Story['music']>; paused: boolean; onLive?: (live: { playing: boolean; player: AudioPlayer | null }) => void }) {
   const player = useAudioPlayer(abs(track.url) ?? '');
-  const [muted, setMuted] = useState(false);
+  const status = useAudioPlayerStatus(player);
+  const [muted, toggleMute] = useMusicMuted();
   const router = useRouter();
   // Programa de artistas: «♪ Título · Artista», e tocar leva ao perfil do artista.
   const artistTo = artistHref(track);
@@ -100,19 +108,11 @@ function StoryMusic({ track, paused }: { track: NonNullable<Story['music']>; pau
   }, [player]);
   useEffect(() => { try { if (paused || bg) player.pause(); else player.play(); } catch { /* */ } }, [paused, bg, player]);
   useEffect(() => { try { player.volume = muted ? 0 : 1; } catch { /* */ } }, [muted, player]);
-  return (
-    <View style={st.music}>
-      <Icon name="music" size={16} color="#fff" />
-      {isLocalTrack(track) ? (
-        <Pressable onPress={artistTo ? () => router.push(artistTo as never) : undefined} style={{ flexShrink: 1 }} accessibilityRole="link" accessibilityLabel={`${trackLine(track)}. Ver o perfil do artista`}>
-          <Text style={st.musicText} numberOfLines={1}>{trackLine(track)}</Text>
-        </Pressable>
-      ) : (
-        <Text style={st.musicText} numberOfLines={1}>{track.title}{track.kind === 'clip' ? '' : ` · ${track.artist || 'Autor desconhecido'}`}</Text>
-      )}
-      <Pressable onPress={() => setMuted((m) => !m)} style={st.musicBtn} accessibilityRole="button" accessibilityLabel={muted ? 'Ativar o som' : 'Silenciar'}><Icon name={muted ? 'volume-off' : 'volume'} size={18} color="#fff" /></Pressable>
-    </View>
-  );
+  const playing = !!status.playing && !paused && !bg;
+  useEffect(() => { onLive?.({ playing, player: playing ? player : null }); }, [playing, player, onLive]);
+  useEffect(() => () => onLive?.({ playing: false, player: null }), [onLive]);
+  // Vidro escuro à esquerda, com largura máxima: longe da assinatura «txillapp @…» do canto de baixo à direita.
+  return <MusicPill track={track} live={playing} muted={muted} onToggleMute={toggleMute} onArtist={artistTo ? () => router.push(artistTo as never) : undefined} />;
 }
 
 /** Ver os stories de uma pessoa: barras, toca à direita/esquerda, segura para pausar, arrasta para baixo para sair e para cima para responder (ou ver a atividade, nos teus). */
@@ -124,6 +124,9 @@ export default function StoryViewer() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const wide = width > 520;
+  // A música do mimo está a tocar (com o leitor, para as ondas medirem o som na web).
+  const [tune, setTune] = useState<{ playing: boolean; player: AudioPlayer | null }>({ playing: false, player: null });
+  const [tuneMuted] = useMusicMuted();
   const kb = useKeyboardHeight();
   // Na web (iPhone) o teclado tapa a página sem a encolher: o visor passa a ocupar só a zona visível e a página não rola.
   const vv = useVisibleViewport();
@@ -412,6 +415,8 @@ export default function StoryViewer() {
             </>
           )}
         </View>
+        {/* As ondas da música: por cima da foto, por baixo dos stickers e dos controlos, sem apanhar toques. */}
+        {cur.music ? <SoundWaves active={tune.playing && !tuneMuted && !typing} colors={trackColors(cur.music)} player={tune.player} band={0.3} /> : null}
         <StickerLayer stickers={cur.stickers} width={box.w} height={box.h} animate={!paused} />
 
         {typing && <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} pointerEvents="none" />}
@@ -452,7 +457,7 @@ export default function StoryViewer() {
         </LinearGradient>
 
         <LinearGradient colors={['transparent', 'rgba(0,0,0,0.7)']} style={[st.bottom, { paddingBottom: Math.max(insets.bottom, 20) + (kb ? kb - insets.bottom : 0) }]} pointerEvents="box-none">
-          {!typing && cur.music && <StoryMusic key={cur.id} track={cur.music} paused={paused} />}
+          {!typing && cur.music && <StoryMusic key={cur.id} track={cur.music} paused={paused} onLive={setTune} />}
           {!typing && cur.caption ? <View style={st.caption}><RichText text={cur.caption} style={{ color: '#fff', fontSize: 18, lineHeight: 24, textAlign: 'center' }} /></View> : null}
           {mine && (
             <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -521,9 +526,6 @@ const st = StyleSheet.create({
   chipText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   noReply: { borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 16, paddingVertical: 8, textAlign: 'center', fontSize: 14, color: 'rgba(255,255,255,0.9)', overflow: 'hidden' },
   seePost: { position: 'absolute', left: '50%', top: '50%', marginLeft: -80, marginTop: -22, zIndex: 10, minHeight: 44, width: 160, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, backgroundColor: 'rgba(63,63,70,0.9)' },
-  music: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.45)', paddingVertical: 4, paddingLeft: 16, paddingRight: 4 },
-  musicText: { flexShrink: 1, color: '#fff', fontSize: 14, fontWeight: '600' },
-  musicBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   menuRow: { paddingVertical: 14, alignItems: 'center' },
   menuText: { fontSize: 18, color: '#18181b' },
 });

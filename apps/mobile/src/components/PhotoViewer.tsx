@@ -9,6 +9,10 @@ import type { PhotoTag } from '@/lib/api.feed';
 import { sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { CheersPour } from './CheersPour';
+import { SoundWaves } from './SoundWaves';
+import type { Track } from '@/lib/api.music';
+import { trackColors } from '@/lib/musicLook';
+import { sharedPlayer, useMusicMuted, useUrlLive } from '@/lib/musicPlayer';
 import { Icon } from './Icon';
 import { NameWithBadge } from './NameWithBadge';
 import { RichText } from './RichText';
@@ -134,7 +138,7 @@ function Photo({ photo, w, h, index, total, onTag, active = false }: { photo: Vi
  * Foto em ecrã completo, como no X: fundo preto, deslizar entre as fotos, fechar com o X ou arrastando para baixo;
  * por baixo o autor, o texto e a barra de ações (`footer`).
  */
-export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0, onClose }: { photos: ViewerPhoto[]; start?: number; author: { displayName: string; username: string } & Badged; body?: string; footer?: ReactNode; /** Muda a cada brinde: os copos aparecem no meio da foto, como no feed. */ burst?: number; onClose: () => void }) {
+export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0, music, onClose }: { photos: ViewerPhoto[]; start?: number; author: { displayName: string; username: string } & Badged; body?: string; footer?: ReactNode; /** Muda a cada brinde: os copos aparecem no meio da foto, como no feed. */ burst?: number; /** A música da publicação: enquanto toca (com som), as ondas atravessam a foto. */ music?: Track | null; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width, height } = useWindowDimensions();
@@ -206,6 +210,7 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0
             renderItem={({ item, index }) => <Photo photo={item} w={width} h={pagerH} index={index} total={n} onTag={openTag} active={index === i} />}
             extraData={i}
           />
+          {music ? <ViewerWaves music={music} /> : null}
         </Animated.View>
         {mouse && n > 1 ? (
           <>
@@ -237,6 +242,13 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, burst = 0
       </Animated.View>
     </Modal>
   );
+}
+
+/** As ondas da música por cima da foto (por baixo dos botões e do texto), enquanto a faixa da publicação toca com som. */
+function ViewerWaves({ music }: { music: Track }) {
+  const live = useUrlLive(music.url);
+  const [muted] = useMusicMuted();
+  return <SoundWaves active={live && !muted} colors={trackColors(music)} player={live ? sharedPlayer() : null} band={0.34} />;
 }
 
 const styles = StyleSheet.create({
