@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
 import { colors } from '@/lib/theme';
+import { useDeskChat } from '@/lib/deskChat';
+import { editBarKey, type KeyLike } from '@/lib/deskChatKeys';
 
 /**
  * Editar uma mensagem (como no WhatsApp): no lugar da barra de escrever, a faixa "A editar mensagem" com o texto antigo e
@@ -21,6 +23,24 @@ export function ChatEditBar({ original, bottom, onCancel, onSave }: {
   const [err, setErr] = useState('');
   const clean = text.trim();
   const can = !busy && clean.length > 0 && clean !== original.trim();
+  // Computador: Enter grava, Shift+Enter muda de linha, Esc cancela a edição. No telemóvel o Enter muda de linha.
+  const desk = useDeskChat();
+  const onKey = desk ? (ev: { preventDefault(): void; nativeEvent: unknown }) => {
+    const k = editBarKey(ev.nativeEvent as KeyLike);
+    if (k === 'save') { ev.preventDefault(); void save(); }
+    else if (k === 'cancel') { ev.preventDefault(); onCancel(); }
+  } : undefined;
+  // Computador: o cursor fica no fim do texto (para continuar a escrever), não no início.
+  const field = useRef<React.ComponentRef<typeof TextInput>>(null);
+  useEffect(() => {
+    if (!desk) return;
+    const t = setTimeout(() => {
+      const el = field.current as unknown as { setSelectionRange?: (a: number, b: number) => void; value?: string } | null;
+      const n = el?.value?.length ?? original.length;
+      el?.setSelectionRange?.(n, n);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [desk]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function save() {
     if (!can) return;
@@ -51,6 +71,8 @@ export function ChatEditBar({ original, bottom, onCancel, onSave }: {
         <TextInput
           value={text}
           onChangeText={setText}
+          ref={field}
+          onKeyPress={onKey}
           autoFocus
           multiline
           maxLength={2000}

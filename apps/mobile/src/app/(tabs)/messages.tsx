@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
@@ -11,7 +11,14 @@ import { NameWithBadge } from '@/components/NameWithBadge';
 import { closeOpenSwipe, rowHold, SwipeRow, type SwipeAction } from '@/components/SwipeRow';
 import { InboxMenuSheet } from '@/components/InboxMenuSheet';
 import { GroupCover } from '@/components/groups/GroupParts';
-import { a11yToAction, actionIcon, inboxA11yActions, inboxMenu, inboxMenuItems, inboxSwipe, swipeLabel, type InboxAction, type InboxMenuRow } from '@/lib/inboxMenu';import { CallIcon } from '@/components/calls/CallIcons';
+import { a11yToAction, actionIcon, inboxA11yActions, inboxDeskMenuItems, inboxMenu, inboxMenuItems, inboxSwipe, swipeLabel, type InboxAction, type InboxMenuRow } from '@/lib/inboxMenu';
+import { CallIcon } from '@/components/calls/CallIcons';
+import { DeskMenu } from '@/components/DeskMenu';
+import { Sheet } from '@/components/Sheet';
+import { confirmClear, TtlSheet } from '@/components/ChatTemporary';
+import { deskZone, isMac, typingNow, useDeskChat, useDeskChatChrome } from '@/lib/deskChat';
+import { inboxShortcut, neighbourChat, openChatPath, shortcutHelp } from '@/lib/deskChatKeys';
+import { clearPending } from '@/lib/chatPending';
 import { Icon } from '@/components/Icon';
 import { NotesStrip } from '@/components/Notes';
 import { REACTIONS } from '@/components/StoryParts';
@@ -200,7 +207,25 @@ export default function Messages() {
       } },
     ]);
   }
-  const menuRow = (r: Row): InboxMenuRow => ({ group: !!r.g, unread: r.unread, username: r.username, me: user?.username });
+  /** Conversa a dois: limpar só para mim (pergunta antes; a conversa fica na lista, vazia). O mesmo que na conversa aberta. */
+  function clearChat(u: string) {
+    confirmClear(false, () => {
+      clearPending(`u:${u}`);
+      qc.removeQueries({ queryKey: ['chat-thread', u] });
+      patchDirect(u, (c) => ({ ...c, unread: 0, marked: false, lastMessage: { ...c.lastMessage, body: '', empty: true } }));
+      void api.chatClearKeep(u)
+        .then(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); refreshUnread(); })
+        .catch(() => { void qc.invalidateQueries({ queryKey: ['chat-list'] }); Alert.alert('Não consegui limpar a conversa', 'Tenta outra vez.'); });
+    });
+  }
+  /** Mensagens temporárias de uma conversa a partir da lista (computador): a mesma folha da conversa aberta. */
+  const [ttlFor, setTtlFor] = useState<{ username: string; ttl: number | null } | null>(null);
+  async function pickTtl(u: string, next: number | null) {
+    await api.chatSetTtl(u, next);
+    void qc.invalidateQueries({ queryKey: ['chat-thread', u] });
+    void qc.invalidateQueries({ queryKey: ['chat-list'] });
+  }
+  const menuRow = (r: Row): InboxMenuRow => ({ group: !!r.g, unread: r.unread, username: r.username, me: user?.username, request: r.request });
   /** Correr uma ação numa linha (do deslizar, da folha ou do leitor de ecrã). */
   function runAction(a: InboxAction, r: Row) {
     const me = user?.username;
@@ -216,8 +241,10 @@ export default function Messages() {
     else if (a === 'unread') markUnread(u);
     else if (a === 'profile') router.push(`/u/${u}` as never);
     else if (a === 'delete') deleteChat(u, r.name);
+    else if (a === 'clear') clearChat(u);
+    else if (a === 'ttl') setTtlFor({ username: u, ttl: direct.data?.find((c) => c.username === u)?.ttl ?? null });
   }
-  const SWIPE_COLOR: Record<InboxAction, string> = { read: colors.zinc600, unread: colors.brand, profile: colors.zinc600, delete: colors.red600, info: colors.zinc600, leave: colors.red600 };
+  const SWIPE_COLOR: Record<InboxAction, string> = { read: colors.zinc600, unread: colors.brand, profile: colors.zinc600, delete: colors.red600, info: colors.zinc600, leave: colors.red600, ttl: colors.zinc600, clear: colors.red600 };
   const swipeButtons = (acts: InboxAction[], r: Row): SwipeAction[] =>
     acts.map((a) => ({ label: swipeLabel(a), icon: actionIcon(a), color: SWIPE_COLOR[a], onPress: () => runAction(a, r) }));
   /** Deslizar para a direita: marcar como por ler (ou como lida, se já estiver por ler); num TxillGroup, lido. */
@@ -245,6 +272,8 @@ export default function Messages() {
     if (Platform.OS === 'ios') setTimeout(() => runAction(a, r), 350);
     else runAction(a, r);
   }
+  /** Computador: o menu de contexto da linha ("⋯" ou botão direito), no sítio pedido. */
+  const [deskMenu, setDeskMenu] = useState<{ key: string; at: { x: number; y: number } } | null>(null);
   /** O leitor de ecrã: as mesmas ações e "Mais opções", que abre a folha. */
   function a11yAction(name: string, r: Row) {
     const a = a11yToAction(name, menuRow(r));
@@ -285,6 +314,9 @@ export default function Messages() {
   const held = menuKey ? all.find((r) => r.key === menuKey) : undefined;
   const gone = !!menuKey && !held;
   useEffect(() => { if (gone) setMenuKey(null); }, [gone]);
+  const deskRow = deskMenu ? all.find((r) => r.key === deskMenu.key) : undefined;
+  const deskGone = !!deskMenu && !deskRow;
+  useEffect(() => { if (deskGone) setDeskMenu(null); }, [deskGone]);
   const counts = inboxCounts(all);
   const rows = inboxRows(all, view, term);
   // A pesquisar fora dos pedidos: resultados de conversas e TxillGroups juntos (a caixa procura em tudo).
@@ -318,16 +350,62 @@ export default function Messages() {
   const retrying = direct.isFetching || groups.isFetching;
 
   const pull = usePullToRefresh(async () => { await Promise.all([direct.refetch(), groups.refetch()]); });
+
+  // Computador (rato e teclado, lib/deskChat): atalhos, foco visível e tooltips. No telemóvel nada disto corre.
+  const desk = useDeskChat();
+  useDeskChatChrome(desk);
+  const pathname = usePathname();
+  const openPath = desk ? openChatPath(pathname) : null;
+  const [help, setHelp] = useState(false);
+  const searchRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const rootRef = useRef<React.ComponentRef<typeof View>>(null);
+  const keys = useRef({ rows, openPath });
+  keys.current = { rows, openPath };
+  useEffect(() => {
+    if (!desk || typeof window === 'undefined') return;
+    const onKey = (e: KeyboardEvent) => {
+      // No computador as Mensagens podem estar montadas duas vezes (a coluna da lista e o separador escondido): só a visível responde.
+      const el = rootRef.current as unknown as HTMLElement | null;
+      if (!el || !el.isConnected || el.offsetParent === null) return;
+      if (document.querySelector('[aria-modal="true"]')) return; // com uma folha ou um menu aberto, as teclas são deles
+      const a = inboxShortcut(e, { typing: typingNow() });
+      if (!a) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (a === 'search') { searchRef.current?.focus(); return; }
+      if (a === 'help') { setHelp(true); return; }
+      const paths = keys.current.rows.map((r) => r.to);
+      const to = neighbourChat(paths, keys.current.openPath, a === 'next' ? 1 : -1);
+      if (!to) return;
+      if (keys.current.openPath) router.replace(to as never);
+      else router.push(to as never);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [desk, router]);
   const header = (
     <View>
       <View style={styles.top}>
         <Text style={styles.handle} numberOfLines={1}>{user?.username ?? 'Mensagens'}</Text>
         <Pressable onPress={() => router.push('/calls' as never)} hitSlop={8} style={[styles.compose, { right: 48 }]} accessibilityRole="button" accessibilityLabel="Chamadas"><CallIcon name="handset" size={22} color={colors.zinc900} /></Pressable>
         <Pressable onPress={() => router.push('/messages/new' as never)} hitSlop={8} style={styles.compose} accessibilityRole="button" accessibilityLabel="Nova conversa ou TxillGroup"><Icon name="compose" size={24} /></Pressable>
+        {desk ? <Pressable onPress={() => setHelp(true)} hitSlop={8} style={[styles.compose, { right: undefined, left: 0 }]} accessibilityRole="button" accessibilityLabel="Atalhos do teclado (?)"><Icon name="info" size={22} color={colors.zinc700} /></Pressable> : null}
       </View>
       <View style={[styles.search, focus && { backgroundColor: 'rgba(228,228,231,0.7)' }]}>
         <Icon name="search" size={18} color={colors.zinc500} />
-        <TextInput value={text} onChangeText={setText} placeholder="Procurar pessoas e TxillGroups" placeholderTextColor={colors.zinc500} style={styles.input} accessibilityLabel="Procurar conversas" onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} />
+        <TextInput
+          ref={searchRef}
+          value={text}
+          onChangeText={setText}
+          placeholder={desk ? `Procurar (${isMac() ? '⌘' : 'Ctrl+'}K)` : 'Procurar pessoas e TxillGroups'}
+          placeholderTextColor={colors.zinc500}
+          style={styles.input}
+          accessibilityLabel="Procurar conversas"
+          onFocus={() => setFocus(true)}
+          onBlur={() => setFocus(false)}
+          // Computador: Esc sai da pesquisa (limpa e larga a caixa).
+          onKeyPress={desk ? (e) => { if ((e.nativeEvent as { key?: string }).key === 'Escape') { e.preventDefault(); setText(''); searchRef.current?.blur(); } } : undefined}
+        />
         {text ? <Pressable onPress={() => setText('')} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Limpar"><Icon name="x" size={16} /></Pressable> : null}
         <Pressable onPress={() => router.push('/supertxill' as never)} style={styles.sBtn} accessibilityRole="button" accessibilityLabel="Abrir o SuperTxill"><Bolt size={20} /></Pressable>
       </View>
@@ -362,7 +440,7 @@ export default function Messages() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
+    <View ref={rootRef} {...deskZone(desk)} style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
       <GestureDetector gesture={pagerPan}>
       <View style={{ flex: 1 }} collapsable={false} onTouchStartCapture={() => { notesTouch.current = false; }}>
       <PullView pull={pull}>
@@ -386,7 +464,7 @@ export default function Messages() {
           const hold = inboxMenu(menuRow(r)).length ? () => openMenu(r, true) : undefined;
           const a11y = inboxA11yActions(menuRow(r));
           return (
-          <SwipeRow left={rowLeft(r)} right={rowRight(r)} onHold={hold}>
+          <SwipeRow left={rowLeft(r)} right={rowRight(r)} onHold={hold} active={!!openPath && r.to === openPath} onDeskMenu={hold ? (at) => setDeskMenu({ key: r.key, at }) : undefined}>
           {r.g ? (
             <GroupCard {...groupCardData(r.g)} lastMessage={r.sub} onPress={() => router.push(r.to as never)} {...rowHold(hold)} accessibilityActions={a11y} onAccessibilityAction={(name) => a11yAction(name, r)} />
           ) : (
@@ -397,7 +475,7 @@ export default function Messages() {
             style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]}
             accessibilityRole="button"
             accessibilityLabel={rowLabel(r.name, r.sub, time, r.unread, r.marked)}
-            accessibilityHint={a11y.length ? 'Toca para abrir. Mantém premido para mais opções.' : undefined}
+            accessibilityHint={a11y.length ? (desk ? 'Clica para abrir. Botão direito para mais opções.' : 'Toca para abrir. Mantém premido para mais opções.') : undefined}
             accessibilityActions={a11y.length ? a11y : undefined}
             onAccessibilityAction={a11y.length ? (e) => a11yAction(e.nativeEvent.actionName, r) : undefined}
           >
@@ -486,12 +564,43 @@ export default function Messages() {
           onClose={closeMenu}
         />
       ) : null}
+      {deskMenu && deskRow ? (
+        <DeskMenu
+          at={deskMenu.at}
+          label={`Opções da conversa com ${deskRow.name}`}
+          items={inboxDeskMenuItems(menuRow(deskRow)).map((it) => ({ id: it.id, label: it.label, icon: it.icon, danger: it.danger, onPress: () => runAction(it.id as InboxAction, deskRow) }))}
+          onClose={() => setDeskMenu(null)}
+        />
+      ) : null}
+      {ttlFor ? <TtlSheet ttl={ttlFor.ttl} canChange onPick={(next) => pickTtl(ttlFor.username, next)} onClose={() => setTtlFor(null)} /> : null}
+      {help ? <ShortcutHelp onClose={() => setHelp(false)} /> : null}
       <InstantsDock />
     </View>
   );
 }
 
+/** "?" no computador: os atalhos do teclado das Mensagens (lib/deskChatKeys, shortcutHelp). */
+function ShortcutHelp({ onClose }: { onClose: () => void }) {
+  return (
+    <Sheet title="Atalhos do teclado" onClose={onClose}>
+      <View style={{ paddingHorizontal: 24, paddingBottom: 4, gap: 10 }} {...deskZone(true)}>
+        {shortcutHelp(isMac()).map((s) => (
+          <View key={s.label} style={styles.keyRow}>
+            <View style={styles.keys}>{s.keys.map((k) => <Text key={k} style={styles.kbd}>{k}</Text>)}</View>
+            <Text style={styles.keyLabel}>{s.label}</Text>
+          </View>
+        ))}
+        <Text style={[styles.keyLabel, { color: colors.zinc500, marginTop: 6 }]}>Botão direito numa conversa ou numa mensagem: o menu com todas as opções.</Text>
+      </View>
+    </Sheet>
+  );
+}
+
 const styles = StyleSheet.create({
+  keyRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  keys: { width: 128, flexDirection: 'row', gap: 6 },
+  kbd: { minWidth: 28, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: colors.zinc300, backgroundColor: colors.zinc100, fontSize: 13, fontWeight: '700', color: colors.zinc800, textAlign: 'center' },
+  keyLabel: { flex: 1, fontSize: 14, color: colors.zinc800 },
   top: { height: 48, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   zas: { position: 'absolute', left: 0, top: 2, height: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 10, paddingRight: 12, borderRadius: 999 },
   zasText: { fontSize: 15, fontWeight: '900', letterSpacing: -0.3, color: colors.brand },

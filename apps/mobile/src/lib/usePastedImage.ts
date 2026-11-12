@@ -21,6 +21,8 @@ export function usePastedImage<T>({ inputRef, onProblem, onOpen }: { inputRef?: 
   useEffect(() => { cbs.current = { onProblem, onOpen }; });
   const [gate] = useState(createPasteGate);
   const attached = useRef<{ node: unknown; off: () => void } | null>(null);
+  /** O mesmo que largar na caixa, para quem a chama de fora (a zona de largar da conversa, no computador). */
+  const dropRef = useRef<((e: Event, dt: DataTransfer | null) => void) | null>(null);
   /** A mesma imagem de `pending`, para os ouvintes e o fim (sempre posta junto com `setPending`). */
   const current = useRef<PastedImage | null>(null);
 
@@ -62,8 +64,7 @@ export function usePastedImage<T>({ inputRef, onProblem, onOpen }: { inputRef?: 
       e.preventDefault();
       if (dt) dt.dropEffect = 'copy';
     };
-    const onDrop = (e: Event) => {
-      const dt = (e as DragEvent).dataTransfer;
+    const dropped = (e: Event, dt: DataTransfer | null) => {
       if (take(e, dt, false)) return;
       // Um ficheiro que não é imagem: não o deixar abrir por cima da app.
       if (transferHasFiles(dt)) {
@@ -71,6 +72,8 @@ export function usePastedImage<T>({ inputRef, onProblem, onOpen }: { inputRef?: 
         cbs.current.onProblem('Só dá para largar aqui imagens (JPEG, PNG ou WebP).');
       }
     };
+    dropRef.current = dropped;
+    const onDrop = (e: Event) => dropped(e, (e as DragEvent).dataTransfer);
     el.addEventListener('paste', onPaste);
     el.addEventListener('beforeinput', onBeforeInput);
     el.addEventListener('dragover', onDragOver);
@@ -82,6 +85,7 @@ export function usePastedImage<T>({ inputRef, onProblem, onOpen }: { inputRef?: 
         el.removeEventListener('beforeinput', onBeforeInput);
         el.removeEventListener('dragover', onDragOver);
         el.removeEventListener('drop', onDrop);
+        if (dropRef.current === dropped) dropRef.current = null;
       },
     };
   }, [inputRef, gate, release]);
@@ -94,5 +98,8 @@ export function usePastedImage<T>({ inputRef, onProblem, onOpen }: { inputRef?: 
   /** "Enviar": fecha a pré-visualização e devolve a imagem (quem envia chama `release` no fim). */
   const take = useCallback(() => { const p = current.current; current.current = null; setPending(null); return p; }, []);
 
-  return { ref, pending, cancel, take, release };
+  /** Largar fora da caixa (a zona de largar da conversa): imagem → pré-visualização; outro ficheiro → o aviso. */
+  const drop = useCallback((e: Event, dt: DataTransfer | null) => { dropRef.current?.(e, dt); }, []);
+
+  return { ref, pending, cancel, take, release, drop };
 }

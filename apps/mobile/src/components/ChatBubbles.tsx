@@ -30,6 +30,11 @@ import { liveShareEnded } from '@/lib/sendLocation';
 import { colors } from '@/lib/theme';
 import { chatSegments, type ChatSeg } from '@/lib/chatLinks';
 import { storyHref } from '@/lib/storyLink';
+import { anchorOf, useDeskChat } from '@/lib/deskChat';
+
+/** Onde abrir o menu de contexto (coordenadas da janela) e, com 'react', só as reações. */
+export type MenuAt = { x: number; y: number };
+export type MenuMode = 'react';
 
 /**
  * O texto das bolhas só é selecionável no computador (rato). No telemóvel (app e site) segurar a bolha abre o menu da
@@ -446,7 +451,8 @@ export function Bubble({
   meHandle?: string;
   /** Avatar da outra pessoa à esquerda (na última bolha do grupo; nas outras, o espaço). */
   showAvatars?: boolean;
-  onMenu: (m: Msg) => void; onRetry: (m: Msg) => void; onOpenOnce: (m: Msg) => void;
+  /** O menu da mensagem. No computador vem com `at` (botão direito ou "⋯"): abre ali, como menu de contexto. */
+  onMenu: (m: Msg, at?: MenuAt, mode?: MenuMode) => void; onRetry: (m: Msg) => void; onOpenOnce: (m: Msg) => void;
   onJump?: (id: string) => void; onCheer?: (m: Msg) => void; onStopLive?: (m: Msg) => void; onReply?: (m: Msg) => void;
   /** Leitor de ecrã, ação "Apagar": abre logo a folha "Apagar mensagem?". */
   onDelete?: (m: Msg) => void;
@@ -458,12 +464,17 @@ export function Bubble({
   // Segurar abre o menu. Pode chegar por mais de um caminho no mesmo toque (o onLongPress de um Pressable de dentro ou da
   // bolha e, na web, o temporizador e o contextmenu do ReplySwipe): só o primeiro conta (lib/messageMenu, recentlyHeld).
   const heldAt = useRef(0);
-  const openMenu = () => {
-    if (!real || recentlyHeld(heldAt.current)) return;
+  // Computador (rato): nada de carregar e segurar nem de deslizar para responder; o botão direito e os botões que aparecem
+  // ao passar o rato (Responder, Reagir, ⋯) abrem o menu, e o texto seleciona-se com o rato para copiar.
+  const desk = useDeskChat();
+  const openMenu = (at?: MenuAt) => {
+    if (!real || (!at && recentlyHeld(heldAt.current))) return;
     heldAt.current = Date.now();
-    onMenu(m);
+    onMenu(m, at);
   };
-  const hold: BubbleHold = real ? { onLongPress: openMenu, delayLongPress: HOLD_MS } : {};
+  const hold: BubbleHold = real && !desk ? { onLongPress: openMenu, delayLongPress: HOLD_MS } : {};
+  const [hover, setHover] = useState(false);
+  const [toolsFocus, setToolsFocus] = useState(false);
   const [full, setFull] = useState(false);
   const [showTime, setShowTime] = useState(false);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -540,7 +551,7 @@ export function Bubble({
     );
   } else if (m.kind === 'location' && m.lat != null && m.lng != null) {
     // Nome e morada do sítio por cima do mapa (components/LocationBubble); o toque longo abre o menu da mensagem.
-    content = <LocationBubble m={{ ...m, lat: m.lat, lng: m.lng }} ink={ink} style={[st.shared, tone, radius, dimStyle]} map={<TileMap lat={m.lat} lng={m.lng} width={240} height={132} />} onLongPress={real ? () => onMenu(m) : undefined} />;
+    content = <LocationBubble m={{ ...m, lat: m.lat, lng: m.lng }} ink={ink} style={[st.shared, tone, radius, dimStyle]} map={<TileMap lat={m.lat} lng={m.lng} width={240} height={132} />} onLongPress={real && !desk ? () => onMenu(m) : undefined} />;
   } else if ((m.kind as string) === 'poll') {
     content = <PollBubble pollId={m.body} initial={(m as { poll?: import('@/lib/api.groups').Poll | null }).poll} />;
   } else if (m.kind === 'call') {
@@ -592,6 +603,8 @@ export function Bubble({
   // Um toque mostra/esconde a hora; dois toques seguidos brindam (só nas mensagens já enviadas e que não são de ver uma vez).
   const canCheer = real && !gone && !m.viewOnce && !!onCheer;
   const onPress = () => {
+    // Computador: acabou de selecionar texto com o rato (arrastar ou dois cliques numa palavra): não é um clique.
+    if (desk && typeof window !== 'undefined' && (window.getSelection?.()?.toString() ?? '').length > 0) return;
     if (tapTimer.current) {
       clearTimeout(tapTimer.current);
       tapTimer.current = null;
@@ -624,7 +637,7 @@ export function Bubble({
 
   return (
     <ReplySwipe
-      enabled={swipe}
+      enabled={swipe && !desk}
       onReply={reply}
       // Web: o toque longo em qualquer ponto da mensagem (e o botão direito do rato) também abre o menu.
       onMenu={real ? openMenu : undefined}
@@ -668,8 +681,13 @@ export function Bubble({
           onPress={() => { const o = mine ? peerHandle : meHandle; if (o) router.push(storyHref(o, m.storyUrl) as never); }}
         />
       ) : null}
-      <View style={[st.row, { justifyContent: mine ? 'flex-end' : 'flex-start' }]} onLayout={swipe ? (e) => place({ y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height }) : undefined}>
+      <View
+        style={[st.row, { justifyContent: mine ? 'flex-end' : 'flex-start' }]}
+        onLayout={swipe ? (e) => place({ y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height }) : undefined}
+        {...(desk && real ? { onMouseEnter: () => setHover(true), onMouseLeave: () => setHover(false) } : null)}
+      >
         {who && isLast && <View style={st.avatar}><SideAvatar who={who} /></View>}
+        {desk && real && mine ? <BubbleTools show={hover || toolsFocus} onFocus={setToolsFocus} reply={swipe && !gone ? () => onReply?.(m) : undefined} react={gone ? undefined : (at) => onMenu(m, at, 'react')} more={(at) => openMenu(at)} /> : null}
         <Pressable
           {...hold}
           onPress={onPress}
@@ -687,6 +705,7 @@ export function Bubble({
         >
           <BubbleHoldCtx.Provider value={hold}>{content}</BubbleHoldCtx.Provider>
         </Pressable>
+        {desk && real && !mine ? <BubbleTools show={hover || toolsFocus} onFocus={setToolsFocus} reply={swipe && !gone ? () => onReply?.(m) : undefined} react={gone ? undefined : (at) => onMenu(m, at, 'react')} more={(at) => openMenu(at)} /> : null}
       </View>
       {!!m.reactions?.length && (
         <Pressable {...hold} onPress={() => onMenu(m)} accessibilityRole="button" accessibilityLabel="Reações" style={[st.reactions, mine ? { marginRight: 10 } : { marginLeft: 10 }]}>
@@ -726,6 +745,33 @@ export function Bubble({
   );
 }
 
+/**
+ * Computador: os botões pequenos ao lado da bolha, ao passar o rato (ou com o foco do teclado): Responder, Reagir e ⋯
+ * (o menu da mensagem, o mesmo do botão direito). Ficam sempre no sítio (só aparecem), para a bolha não saltar.
+ */
+function BubbleTools({ show, onFocus, reply, react, more }: { show: boolean; onFocus: (f: boolean) => void; reply?: () => void; react?: (at: MenuAt) => void; more: (at: MenuAt) => void }) {
+  const btn = (icon: 'reply' | 'heart' | 'more', label: string, run: (e: unknown) => void) => (
+    <Pressable
+      key={icon}
+      onPress={run}
+      onFocus={() => onFocus(true)}
+      onBlur={() => onFocus(false)}
+      style={(s) => [st.tool, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc200 }]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <Icon name={icon} size={16} color={colors.zinc600} strokeWidth={2.2} />
+    </Pressable>
+  );
+  return (
+    <View style={[st.tools, !show && { opacity: 0 }]}>
+      {reply ? btn('reply', 'Responder', () => reply()) : null}
+      {react ? btn('heart', 'Reagir', (e) => react(anchorOf(e))) : null}
+      {btn('more', 'Mais opções da mensagem', (e) => more(anchorOf(e)))}
+    </View>
+  );
+}
+
 /** Os três pontos de "a escrever…" (com o avatar de quem escreve, se vier). */
 export function TypingBubble({ avatar }: { avatar?: { username?: string; name: string } | null } = {}) {
   // Uma onda contínua (1,2 s por volta) que corre no lado nativo: antes eram saltos a cada 400 ms com re-render do
@@ -758,6 +804,8 @@ const st = StyleSheet.create({
   bubble: { paddingHorizontal: 13, paddingVertical: 8 },
   text: { fontSize: 15, lineHeight: 21 },
   row: { alignSelf: 'stretch', flexDirection: 'row' },
+  tools: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: 2, marginHorizontal: 6 },
+  tool: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   avatar: { position: 'absolute', left: -(AVATAR + AVATAR_GAP), bottom: 0 },
   meta: { marginTop: 3, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6 },
   time: { fontSize: 11, lineHeight: 14, color: colors.zinc500 },

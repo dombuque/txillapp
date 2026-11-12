@@ -9,7 +9,9 @@ import { REACTIONS, ReactionArt } from '@/components/StoryParts';
 import { api, raw } from '@/lib/api';
 import { applyDeletionToPages, applyEditToPages, copyText, deleteChoices, messageOptions, type DeleteMode } from '@/lib/messageMenu';
 import { colors } from '@/lib/theme';
-import type { Msg } from './ChatBubbles';
+import { useDeskChat } from '@/lib/deskChat';
+import { DeskMenu, type DeskMenuItem } from './DeskMenu';
+import type { MenuAt, MenuMode, Msg } from './ChatBubbles';
 
 /** Esqueleto a pulsar (como o animate-pulse do site): opacidade 1 -> 0.5 -> 1 em 2 s. */
 export function Pulse({ children, style }: { children?: ReactNode; style?: object }) {
@@ -56,8 +58,12 @@ export async function saveEdit(qc: ReturnType<typeof useQueryClient>, cacheKey: 
  * Apagar pede sempre confirmação ("Apagar mensagem?": para todos, só nas minhas; para mim, em qualquer uma; cancelar).
  * `start="delete"` abre logo a confirmação (a ação "Apagar" do leitor de ecrã).
  */
-export function MessageMenu({ m, cacheKey, start, onClose, onReply, onEdit, onDone, onError }: {
+export function MessageMenu({ m, cacheKey, start, at, mode, onClose, onReply, onEdit, onDone, onError }: {
   m: Msg;
+  /** Computador: abre como menu de contexto neste ponto (botão direito ou "⋯") em vez da folha. */
+  at?: MenuAt;
+  /** 'react': só as reações (o botão "Reagir" que aparece ao passar o rato). */
+  mode?: MenuMode;
   /** A conversa no react-query, para apagar sem esperar pelo servidor. */
   cacheKey: ChatCacheKey;
   start?: 'delete';
@@ -71,6 +77,8 @@ export function MessageMenu({ m, cacheKey, start, onClose, onReply, onEdit, onDo
   const qc = useQueryClient();
   const [step, setStep] = useState<'menu' | 'delete' | 'report'>(start === 'delete' ? 'delete' : 'menu');
   const opts = messageOptions(m);
+  const desk = useDeskChat();
+  const keep = useRef(false);
   async function react(id: string, already: boolean) {
     onClose();
     try {
@@ -125,6 +133,40 @@ export function MessageMenu({ m, cacheKey, start, onClose, onReply, onEdit, onDo
           {btn('Cancelar', onClose, 'plain')}
         </View>
       </Sheet>
+    );
+  }
+
+  // Computador: o menu de contexto junto ao ponteiro, com as reações em cima e as mesmas opções da folha.
+  // Apagar e Denunciar continuam a pedir confirmação nas folhas de sempre.
+  if (at && desk) {
+    const items: DeskMenuItem[] = mode === 'react' ? [] : [
+      ...(opts.reply ? [{ id: 'reply', label: 'Responder', icon: 'reply' as const, onPress: () => onReply(m) }] : []),
+      ...(opts.copy ? [{ id: 'copy', label: 'Copiar', icon: 'file-text' as const, onPress: () => void copy() }] : []),
+      ...(opts.edit && onEdit ? [{ id: 'edit', label: 'Editar', icon: 'pencil' as const, onPress: () => onEdit(m) }] : []),
+      ...(opts.deleteForMe ? [{ id: 'delete', label: 'Apagar…', icon: 'trash' as const, danger: true, onPress: () => setStep('delete') }] : []),
+      ...(opts.report ? [{ id: 'report', label: 'Denunciar mensagem…', icon: 'flag' as const, onPress: () => setStep('report') }] : []),
+    ];
+    // Escolher uma opção corre-a e fecha o menu; as que levam a uma folha (apagar, denunciar) mantêm este componente vivo.
+    const close = () => { if (keep.current) { keep.current = false; return; } onClose(); };
+    return (
+      <DeskMenu
+        at={at}
+        label={mode === 'react' ? 'Reagir à mensagem' : 'Opções da mensagem'}
+        items={items.map((it) => ({ ...it, onPress: () => { if (it.id === 'delete' || it.id === 'report') keep.current = true; it.onPress(); } }))}
+        onClose={close}
+        header={opts.react ? (
+          <View style={[st.deskReacts, mode !== 'react' && st.deskReactsLine]} accessibilityRole="toolbar" accessibilityLabel="Reagir">
+            {REACTIONS.map((r) => {
+              const mine = !!m.reactions?.some((x) => x.mine && x.reaction === r.id);
+              return (
+                <Pressable key={r.id} onPress={() => void react(r.id, mine)} accessibilityRole="button" accessibilityLabel={r.label} accessibilityState={{ selected: mine }} style={(s) => [st.deskReact, ((s as { hovered?: boolean }).hovered || mine) && { backgroundColor: mine ? 'rgba(214,51,79,0.15)' : colors.zinc100 }, s.pressed && { transform: [{ scale: 0.9 }] }]}>
+                  <ReactionArt body={r.id} size={26} />
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+      />
     );
   }
 
@@ -196,6 +238,9 @@ export function DayDivider({ label }: { label: string }) {
 
 const st = StyleSheet.create({
   reacts: { flexDirection: 'row', justifyContent: 'space-between', gap: 4, paddingBottom: 8 },
+  deskReacts: { flexDirection: 'row', gap: 2, paddingHorizontal: 8, paddingVertical: 4 },
+  deskReactsLine: { borderBottomWidth: 1, borderBottomColor: colors.zinc100, marginBottom: 4, paddingBottom: 8 },
+  deskReact: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   react: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 16, borderRadius: 16, paddingHorizontal: 4, paddingVertical: 12 },
   rowIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },

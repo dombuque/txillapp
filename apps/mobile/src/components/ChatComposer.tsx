@@ -18,6 +18,7 @@ import { gifMessage } from '@/lib/gifs';
 import { pendingFrom, sendPending } from '@/lib/chatPending';
 import { usePastedImage } from '@/lib/usePastedImage';
 import { PastedImageSheet } from './PastedImageSheet';
+import { useChatDrop, useComposerKeys } from '@/lib/deskChat';
 
 const nativeDriver = Platform.OS !== 'web';
 const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
@@ -28,8 +29,10 @@ const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
  * Ao escrever, esses dão lugar a Enviar.
  */
 export function ChatComposer({
-  username, person, onSent, bottom, replyTo, onClearReply, onTyping, closeTick, onOpenChange,
+  username, person, onSent, bottom, replyTo, onClearReply, onTyping, closeTick, onOpenChange, onEditLast,
 }: {
+  /** Computador: ↑ com a caixa vazia edita a minha última mensagem (sem isto, ↑ faz o costume). */
+  onEditLast?: () => void;
   /** Avisa se os stickers ou o menu "+" estão abertos (para a conversa só pedir para fechar quando há algo aberto). */
   onOpenChange?: (open: boolean) => void;
   /** Muda quando se toca fora (na lista de mensagens): fecha os stickers e o menu "+". */
@@ -67,6 +70,19 @@ export function ChatComposer({
   // Site: colar ou arrastar uma imagem para a caixa abre a pré-visualização (Enviar ou Cancelar).
   const paste = usePastedImage({ inputRef: input, onProblem: setErr, onOpen: () => { setErr(''); setPanel(null); setMore(false); } });
   useEffect(() => () => clearInterval(timer.current), []);
+  // Computador: largar um ficheiro em qualquer sítio da conversa é o mesmo que largá-lo na caixa (components/ChatScreen).
+  useChatDrop(paste.drop);
+  // Computador: Enter envia, Shift+Enter muda de linha, Esc fecha os painéis ou cancela a resposta, ↑ edita a última.
+  const keys = useComposerKeys({
+    text,
+    send: () => void sendText(),
+    cancel: () => {
+      if (panel || more) { setPanel(null); setMore(false); return true; }
+      if (replyTo) { onClearReply?.(); return true; }
+      return false;
+    },
+    editLast: onEditLast,
+  });
   // Ao escolher "Responder" numa mensagem, o teclado abre logo para escrever a resposta.
   useEffect(() => {
     if (replyTo?.id) input.current?.focus();
@@ -254,6 +270,7 @@ export function ChatComposer({
             value={text}
             onChangeText={(v) => { setText(v); if (v) onTyping?.(); }}
             onFocus={() => setPanel(null)}
+            onKeyPress={keys}
             multiline
             numberOfLines={1}
             maxLength={2000}
