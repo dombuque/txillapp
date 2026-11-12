@@ -6,6 +6,7 @@ import { ActivityIndicator, Alert, BackHandler, PanResponder, Platform, Pressabl
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { useAuth } from '@/lib/auth';
+import { editorOutWidth } from '@/lib/photoSize';
 import { POST_RATIO_DEFAULT, POST_RATIO_MAX } from '@/lib/postAspect';
 import { colors } from '@/lib/theme';
 import {
@@ -163,7 +164,8 @@ function resized(img: SkImage, max: number): SkImage {
 
 /**
  * Fotos do telemóvel têm 12 a 50 MP: guardá-las inteiras e redesenhá-las a cada filtro esgota a memória no Android
- * (a app fecha). A foto final sai com no máximo 1920 px, por isso basta trabalhar com o lado maior a 2560 px.
+ * (a app fecha). A foto final sai com no máximo 1920 px de largura (1440 ao alto, até 2560 de altura), por isso basta
+ * trabalhar com o lado maior a 2560 px.
  */
 const MAX_SIDE = 2560;
 function shrink(img: SkImage): SkImage {
@@ -515,7 +517,8 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
   function renderFile(): string | null {
     if (!img) return null;
     const cr = cropOf(img, edit);
-    const outW = Math.round(Math.min(cr.cw, cr.a >= 1 ? 1920 : 1080));
+    // Ao alto até 1440 de largura (antes 1080: o recorte 4:5 tinha 1440 e deitava-se fora um quarto da foto).
+    const outW = editorOutWidth(cr.cw, cr.a);
     const outH = Math.round(outW / cr.a);
     const surface = Skia.Surface.MakeOffscreen(outW, outH) ?? Skia.Surface.Make(outW, outH);
     if (!surface) return null;
@@ -531,7 +534,7 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
       file.write(bytes);
       return file.uri;
     } finally {
-      surface.dispose?.(); // a superfície final (até 1920 px) sai logo da memória
+      surface.dispose?.(); // a superfície final (até 1920 × 1920 ou 1440 × 2560) sai logo da memória
     }
   }
   async function finish() {

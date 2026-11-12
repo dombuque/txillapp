@@ -4,11 +4,12 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, FlatList, Platform, Pressable, Share, StyleSheet, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Animated, FlatList, PixelRatio, Platform, Pressable, Share, StyleSheet, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { api, isTcheka, type Page, type Post } from '@/lib/api';
 import type { PeopleKind } from '@/lib/api.feed';
 import { sized } from '@/lib/config';
 import { listImageProps } from '@/lib/listImage';
+import { servedWidth } from '@/lib/photoSize';
 import { clampPostRatio } from '@/lib/postAspect';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
@@ -620,7 +621,7 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = fals
                 <CarouselVideo url={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={width} height={h} active inView={inView} mute={mute} passive />
               ) : (
                 // Na web: a foto que se vê e a seguinte carregam logo e sem fade (senão piscavam ao rolar o feed); as outras ficam lazy.
-                <Image source={{ uri: sized(m.url, 720) }} style={StyleSheet.absoluteFill} contentFit="cover" {...listImageProps(Platform.OS, 150, index <= i + 1)} accessibilityIgnoresInvertColors />
+                <Image source={{ uri: sized(m.url, servedWidth(width, PixelRatio.get())) }} style={StyleSheet.absoluteFill} contentFit="cover" {...listImageProps(Platform.OS, 150, index <= i + 1)} accessibilityIgnoresInvertColors />
               )}
             </Pressable>
           )}

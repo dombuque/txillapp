@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { createElement, useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, AppState, Easing, PanResponder, Platform, Pressable, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Alert, Animated, AppState, Easing, PanResponder, PixelRatio, Platform, Pressable, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
@@ -19,6 +19,7 @@ import { useVisibleViewport } from '@/components/zas/useVisibleViewport';
 import { sheetViewport } from '@/lib/sheetViewport';
 import { api, type Story } from '@/lib/api';
 import { SITE_URL, abs, sized } from '@/lib/config';
+import { servedWidth } from '@/lib/photoSize';
 import { useOwnSeen, writeOwnSeen } from '@/lib/ownSeen';
 import { firstToWatch, markSeen, nextOwnSeen, seenUpTo } from '@/lib/ownStorySeen';
 import { useAuth } from '@/lib/auth';
@@ -205,11 +206,11 @@ export default function StoryViewer() {
     if (nu) {
       void qc.prefetchQuery({ queryKey: ['stories', nu.username], queryFn: () => api.storiesOf(nu.username), staleTime: 30_000 }).then(() => {
         const first = qc.getQueryData<Story[]>(['stories', nu.username])?.find((x) => !x.seen) ?? qc.getQueryData<Story[]>(['stories', nu.username])?.[0];
-        if (first && first.mediaKind !== 'video') { const u = sized(first.mediaUrl, 1080); if (u) void Image.prefetch(u).catch(() => undefined); }
+        if (first && first.mediaKind !== 'video') { const u = sized(first.mediaUrl, servedWidth(width, PixelRatio.get())); if (u) void Image.prefetch(u).catch(() => undefined); }
       }).catch(() => undefined);
     }
     const nx = stories[i + 1];
-    if (nx && nx.mediaKind !== 'video') { const u = sized(nx.mediaUrl, 1080); if (u) void Image.prefetch(u).catch(() => undefined); }
+    if (nx && nx.mediaKind !== 'video') { const u = sized(nx.mediaUrl, servedWidth(width, PixelRatio.get())); if (u) void Image.prefetch(u).catch(() => undefined); }
   }, [at, i, stories.length, order.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const next = () => {
     if (i + 1 < stories.length) return setI(i + 1);
@@ -407,7 +408,7 @@ export default function StoryViewer() {
           ) : (
             <>
               <Image source={{ uri: sized(cur.mediaUrl, 160) }} style={[StyleSheet.absoluteFill, { opacity: 0.7, transform: [{ scale: 1.25 }] }]} contentFit="cover" blurRadius={40} />
-              <Image source={{ uri: sized(cur.mediaUrl, 1080) }} style={StyleSheet.absoluteFill} contentFit="contain" accessibilityLabel={cur.caption ?? `Mimo de ${cur.author.displayName}`} />
+              <Image source={{ uri: sized(cur.mediaUrl, servedWidth(width, PixelRatio.get())) }} style={StyleSheet.absoluteFill} contentFit="contain" accessibilityLabel={cur.caption ?? `Mimo de ${cur.author.displayName}`} />
             </>
           )}
         </View>
