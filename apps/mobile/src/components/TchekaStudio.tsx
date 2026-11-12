@@ -6,11 +6,15 @@ import type { Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
 import {
-  beatGrid, checkTcheka, clampTrim, clipSeconds, detectBeats, editLocked, fmtS, previewClock, previewResume, rhythmDurations, SPEEDS, speedLabel, studioSignature, TCHEKA_MAX_S, textAlpha, type Trim,
+  beatGrid, checkTcheka, clampTrim, clipSeconds, editLocked, fmtS, previewClock, previewResume, rhythmDurations, SPEEDS, speedLabel, studioSignature, TCHEKA_MAX_S, textAlpha, type Trim,
 } from '@/lib/tchekaRules';
+import { applyLive, createStudioGraph, scheduleMix, type MixSchedule, type StudioGraph } from '@/lib/studio/audioEngine';
+import { mixParts, mixTimingParts, voiceSecondsIn, type Template } from '@/lib/studio/audioMix';
+import { beatsFrom, planRhythm, type BeatState } from '@/lib/studio/audioRhythm';
 import { colors } from '@/lib/theme';
 import { sealOf } from '@/lib/wordmark';
 import { Icon } from './Icon';
+import { AudioMarks, AudioPanel, useStudioAudio, type StudioAudioCtl } from './studio/AudioPanel';
 import { MusicPicker } from './MusicPicker';
 import { RangeSlider } from './RangeSlider';
 import { Sticker } from './StickerPanel';
@@ -157,7 +161,10 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   const [music, setMusic] = useState<Track | null>(initialMusic);
   const [pickMusic, setPickMusic] = useState(false);
   const [rhythm, setRhythm] = useState(true);
-  const [beatInfo, setBeatInfo] = useState<{ url: string; bpm: number | null; offset: number; detected: boolean } | null>(null);
+  /** As batidas da música, a partir do início do trecho escolhido (`start`, ms). */
+  const [beatInfo, setBeatInfo] = useState<BeatState | null>(null);
+  /** O molde de ritmo aplicado por último (o cartão fica marcado). */
+  const [applied, setApplied] = useState<string | null>(null);
   // Com um som de outra tcheka (que costuma ser para dobrar), o original começa calado; com música, mais baixo.
   const [origVol, setOrigVol] = useState(initialMusic ? (initialMusic.kind === 'sound' ? 0 : 0.4) : 1);
   const [musicVol, setMusicVol] = useState(1);
@@ -203,7 +210,10 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   }, [items, durations]);
   const total = durations.reduce((n, d) => n + d, 0);
   const playTotal = Math.min(total, TCHEKA_MAX_S);
-  const rules = checkTcheka({ clips: items.map((it, i) => ({ video: it.video, seconds: durations[i], hasAudio: it.hasAudio })), music: !!music || !!reference, originalVolume: origVol });
+  // O som do estúdio (trecho, fades, ducking, voz-off, efeitos): components/studio/AudioPanel.
+  const studioAudio = useStudioAudio({ music, total: playTotal, load: async () => (music ? (await loadMusic(music).catch(() => null))?.buf ?? null : null), onTiming: () => { restartFrom.current = nowT(); } });
+  const mix = studioAudio.mix;
+  const rules = checkTcheka({ clips: items.map((it, i) => ({ video: it.video, seconds: durations[i], hasAudio: it.hasAudio })), music: !!music || !!reference, originalVolume: origVol, voiceSeconds: voiceSecondsIn(mix.voice, playTotal) });
   const cur = items[sel] ?? items[0];
 
   // O texto aparece de 0 a 4 s por omissão; nunca para lá do fim (nem a capa).
@@ -214,10 +224,10 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   }, [playTotal]);
 
   /** O que muda o tempo da sequência (obriga a recomeçar a pré-visualização). */
-  const timelineSig = studioSignature({ s: segs.map((s) => [s.uri, s.start, s.dur, s.from, s.speed]), m: music?.url ?? null, r: reference?.uri ?? null });
+  const timelineSig = studioSignature({ s: segs.map((s) => [s.uri, s.start, s.dur, s.from, s.speed]), m: music?.url ?? null, r: reference?.uri ?? null, a: mixTimingParts(mix) });
   /** Tudo o que muda o vídeo final (para saber se a volta gravada ainda vale). */
-  const fullSig = studioSignature({ t: timelineSig, look, transition, title: title.trim(), titleStyle, cast, textFrom, textTo, origVol, musicVol });
-  const live = { look, transition, title: title.trim(), titleStyle, cast, textFrom, textTo, origVol, musicVol, segs, total: playTotal, fullSig };
+  const fullSig = studioSignature({ t: timelineSig, look, transition, title: title.trim(), titleStyle, cast, textFrom, textTo, origVol, musicVol, mix: mixParts(mix) });
+  const live = { look, transition, title: title.trim(), titleStyle, cast, textFrom, textTo, origVol, musicVol, segs, total: playTotal, fullSig, mix };
   const cfg = useRef(live);
   cfg.current = live;
 
@@ -227,7 +237,11 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     ac: AudioContext | null; dest: MediaStreamAudioDestinationNode | null; speak: GainNode | null; musicGain: GainNode | null; origGain: GainNode | null;
     stream: MediaStream | null; videos: Map<string, HTMLVideoElement>; images: Map<string, HTMLImageElement>; sources: WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>;
     music: { url: string; buf: AudioBuffer } | null; castImg: { id: string; img: HTMLImageElement } | null; last: HTMLCanvasElement | null; ref: HTMLVideoElement | null;
-  }>({ ac: null, dest: null, speak: null, musicGain: null, origGain: null, stream: null, videos: new Map(), images: new Map(), sources: new WeakMap(), music: null, castImg: null, last: null, ref: null });
+    /** Os canais do som (lib/studio/audioEngine), a volta agendada agora e quando arrancou. */
+    graph: StudioGraph | null; sched: MixSchedule | null; started: { perf: number; from: number } | null;
+  }>({ ac: null, dest: null, speak: null, musicGain: null, origGain: null, stream: null, videos: new Map(), images: new Map(), sources: new WeakMap(), music: null, castImg: null, last: null, ref: null, graph: null, sched: null, started: null });
+  /** A gravação da voz-off: a pré-visualização não grava o vídeo, cala a voz antiga e pára no fim (`onEnd`). */
+  const voiceMode = useRef<{ on: boolean; onEnd: (() => void) | null }>({ on: false, onEnd: null });
   const gen = useRef(0);
   const pausedAt = useRef(0);
   const restartFrom = useRef(0);
@@ -263,7 +277,9 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     master.connect(dest);
     master.connect(speak);
     speak.connect(ac.destination);
-    Object.assign(e, { ac, dest, speak, musicGain, origGain });
+    const graph = createStudioGraph(ac, { origGain, musicGain, master });
+    applyLive(graph, cfg.current.mix);
+    Object.assign(e, { ac, dest, speak, musicGain, origGain, graph });
     return e;
   }
   function videoFor(key: string, uri: string): HTMLVideoElement {
@@ -295,7 +311,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   function routeAudio(el: HTMLMediaElement, to: 'orig' | 'music') {
     const e = audio();
     if (!e.ac || e.sources.has(el)) return;
-    try { const s = e.ac.createMediaElementSource(el); s.connect(to === 'orig' ? e.origGain! : e.musicGain!); e.sources.set(el, s); } catch { /* sem Web Audio para este elemento */ }
+    try { const s = e.ac.createMediaElementSource(el); s.connect(to === 'orig' ? e.graph?.origIn ?? e.origGain! : e.musicGain!); e.sources.set(el, s); } catch { /* sem Web Audio para este elemento */ }
   }
   async function loadMusic(t: Track) {
     const e = audio();
@@ -334,23 +350,24 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   // O sticker pode mudar a meio: carrega-se logo.
   useEffect(() => { if (cast) void preload([]); }, [cast]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // As batidas da música: lidas do áudio (Web Audio); se não der, o BPM da faixa (se vier) ou 120.
+  // As batidas da música, a partir do início do trecho (`musicStartMs`): lidas do áudio (Web Audio, `detectBeats` em
+  // lib/studio/audioRhythm); se não der, o BPM da faixa (se vier) ou 120.
+  const musicStartMs = mix.musicStartMs;
   useEffect(() => {
-    if (!music || beatInfo?.url === music.url) return;
+    if (!music || (beatInfo?.url === music.url && beatInfo.start === musicStartMs)) return;
     let off = false;
-    void (async () => {
+    const id = setTimeout(() => void (async () => {
       try {
         const m = await loadMusic(music);
         if (!m) throw new Error('sem web audio');
-        const n = Math.min(m.buf.length, Math.round(m.buf.sampleRate * (TCHEKA_MAX_S + 5)));
-        const info = detectBeats(m.buf.getChannelData(0).subarray(0, n), m.buf.sampleRate);
-        if (!off) setBeatInfo({ url: music.url, bpm: info.bpm, offset: info.offset, detected: !!info.bpm });
+        const info = beatsFrom(m.buf, music.url, musicStartMs);
+        if (!off) setBeatInfo(info);
       } catch {
-        if (!off) setBeatInfo({ url: music.url, bpm: (music as Track & { bpm?: number }).bpm ?? null, offset: 0, detected: false });
+        if (!off) setBeatInfo({ url: music.url, start: musicStartMs, bpm: (music as Track & { bpm?: number }).bpm ?? null, offset: 0, detected: false });
       }
-    })();
-    return () => { off = true; };
-  }, [music]); // eslint-disable-line react-hooks/exhaustive-deps
+    })(), beatInfo?.url === music.url ? 250 : 0);
+    return () => { off = true; clearTimeout(id); };
+  }, [music, musicStartMs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Se os vídeos têm som (para a regra do som obrigatório).
   useEffect(() => {
@@ -489,13 +506,15 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
         }
       }
     }
-    // A música, desde o ponto certo (em ciclo se a sequência for mais comprida).
+    // A música, desde o ponto certo do trecho escolhido (em ciclo se a sequência for mais comprida); passa pelos fades e
+    // pelo ducking (lib/studio/audioEngine) antes do volume.
     let musicNode: AudioBufferSourceNode | null = null;
+    const musicStart = cfg.current.mix.musicStartMs / 1000;
     if (music && e.ac && e.music?.url === music.url) {
       musicNode = e.ac.createBufferSource();
       musicNode.buffer = e.music.buf;
       musicNode.loop = true;
-      musicNode.connect(e.musicGain!);
+      musicNode.connect(e.graph?.musicIn ?? e.musicGain!);
     }
     if (e.ref) { e.ref.currentTime = from; void e.ref.play().catch(() => undefined); }
     let idx = -1;
@@ -505,7 +524,11 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     const recSig = cfg.current.fullSig;
     const t0 = performance.now() - from * 1000;
     rec?.start(500);
-    if (musicNode && e.music) musicNode.start(0, from % e.music.buf.duration);
+    if (musicNode && e.music) musicNode.start(0, (musicStart + from) % e.music.buf.duration);
+    // A voz-off, os efeitos sonoros e as curvas da música, no relógio do som (o mesmo instante 0 da tcheka).
+    const sched = e.graph && e.ac ? scheduleMix(e.graph, { from, total: end, t0: e.ac.currentTime - from, mix: cfg.current.mix, muteVoice: voiceMode.current.on }) : null;
+    e.sched = sched;
+    e.started = { perf: performance.now(), from };
     let lastUi = 0;
     let t = from;
     try {
@@ -546,6 +569,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
       active?.pause();
       e.ref?.pause();
       try { musicNode?.stop(); } catch { /* já parou */ }
+      sched?.stop();
+      if (e.sched === sched) e.sched = null;
       recording.current = false;
     }
     const finished = t >= end && my === gen.current && alive.current;
@@ -566,8 +591,10 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   async function loop(from: number) {
     let start = from;
     for (;;) {
-      const out = await run(start, { record: start === 0 && ready.current?.sig !== cfg.current.fullSig, speakers: true });
+      const out = await run(start, { record: start === 0 && ready.current?.sig !== cfg.current.fullSig && !voiceMode.current.on, speakers: true });
       if (!out.finished || !alive.current) return;
+      // A gravar a voz-off: no fim pára (não dá a volta) e a gravação acaba.
+      if (voiceMode.current.on) { const end = voiceMode.current.onEnd; voiceMode.current = { on: false, onEnd: null }; pausedAt.current = 0; setPlaying(false); end?.(); return; }
       start = 0;
     }
   }
@@ -624,6 +651,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   }, [fullSig]); // eslint-disable-line react-hooks/exhaustive-deps
   // O volume muda logo, sem recomeçar.
   useEffect(() => { const e = engine.current; if (e.ac) { e.musicGain!.gain.value = musicVol; e.origGain!.gain.value = origVol; } }, [musicVol, origVol]);
+  // Os efeitos de voz, os fades, o ducking e os volumes da voz-off e dos efeitos também (a volta que toca acompanha).
+  useEffect(() => { const e = engine.current; if (e.graph) applyLive(e.graph, mix); e.sched?.update(mix); }, [mix]);
 
   /** Mostra o frame de um instante (para escolher a capa ou ver um clipe), com a pré-visualização em pausa. */
   async function showAt(t: number) {
@@ -656,7 +685,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
 
   // ---------------------------------------------------------------- seguir
   async function build() {
-    if (!rules.ok || progress !== null) return;
+    if (!rules.ok || progress !== null || voiceMode.current.on) return;
     setErr('');
     const t0 = performance.now();
     const finish = (blob: Blob, mime: string, reused: boolean) => {
@@ -705,6 +734,56 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     setPickMusic(false);
   };
 
+  // ---------------------------------------------------------------- som (components/studio/AudioPanel)
+  /**
+   * «Ajustar ao ritmo» e os moldes: lê as batidas do trecho, acerta o início da música numa batida e encaixa os cortes das
+   * fotos (batidas) e dos vídeos (o fim do corte) nessas batidas. Depois toca desde o início, para se ouvir como ficou.
+   */
+  function rhythmFit(tpl?: Template | null) {
+    if (locked) return;
+    if (tpl) { setTransition(tpl.transition); setApplied(tpl.id); }
+    const m = engine.current.music;
+    if (!music || !m || m.url !== music.url) {
+      // Sem música, o molde muda só o tempo das fotos e a transição.
+      if (tpl) { restartFrom.current = nowT(); setItems((l) => l.map((it) => (it.video ? it : { ...it, seconds: tpl.photoSeconds }))); }
+      return;
+    }
+    const startMs = tpl && studioAudio.analysis && music.kind !== 'sound' ? Math.round(studioAudio.analysis.suggest(playTotal, tpl.start).start * 1000) : mix.musicStartMs;
+    const beat = beatInfo && beatInfo.url === music.url && beatInfo.start === startMs ? beatInfo : beatsFrom(m.buf, music.url, startMs);
+    const plan = planRhythm(items.map((it) => ({ video: it.video, seconds: it.video ? clipSeconds(it.trim, it.speed) : it.seconds, trim: it.trim, length: it.length, speed: it.speed })), beat, tpl);
+    setBeatInfo(plan.beat);
+    replayFrom(0);
+    setItems((l) => l.map((it, i) => (it.video ? (plan.trims[i] ? { ...it, trim: clampTrim(plan.trims[i]!, it.length) } : it) : { ...it, beats: plan.beats[i] ?? it.beats })));
+    setRhythm(true);
+    studioAudio.update((x) => ({ ...x, musicStartMs: plan.musicStartMs, musicStartAuto: false, ...(tpl ? { fadeIn: tpl.fadeIn, fadeOut: tpl.fadeOut } : {}) }));
+  }
+  /** O que o painel do som usa do estúdio (a pré-visualização, o som e a montagem). */
+  const audioCtl: StudioAudioCtl = {
+    graph: () => audio().graph,
+    nowT,
+    total: playTotal,
+    play: (from) => play(from),
+    pause: () => pause(),
+    isPlaying: () => playingRef.current,
+    voiceMode: (on, onEnd) => { voiceMode.current = { on, onEnd: on ? onEnd ?? null : null }; },
+    startedAt: () => engine.current.started,
+    musicBuffer: async () => (music ? (await loadMusic(music).catch(() => null))?.buf ?? null : null),
+    schedule: () => engine.current.sched,
+    restartAt: (at, playAfter) => { if (playAfter) replayFrom(at); else restartFrom.current = at; },
+  };
+  /**
+   * Toca a partir de `at` quando a mudança que vem a seguir chegar à pré-visualização; se não mudar nada no tempo (o mesmo
+   * trecho, os mesmos cortes), toca na mesma, um pouco depois.
+   */
+  function replayFrom(at: number) {
+    restartFrom.current = at;
+    resumeAfterPick.current = true;
+    setTimeout(() => { if (resumeAfterPick.current && alive.current && progressRef.current === null) { resumeAfterPick.current = false; restartFrom.current = 0; play(at); } }, 700);
+  }
+  const fitNote = !music
+    ? 'Escolhe uma música primeiro'
+    : `${Math.round(beatInfo?.bpm ?? 120)} BPM${beatInfo && !beatInfo.detected ? ' (fixo)' : ''}: as fotos e os cortes dos vídeos caem nas batidas do trecho`;
+
   const topPad = Math.max(insets.top, 12);
   const botPad = Math.max(insets.bottom, 12);
   const chip = (on: boolean, label: string, onPress: () => void, key?: string, a11y?: string) => (
@@ -747,6 +826,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
         <View style={st.timeline} pointerEvents="none">
           <View style={[st.timeFill, { width: `${playTotal ? Math.min(100, (playT / playTotal) * 100) : 0}%` }]} />
           {useRhythm ? segs.slice(0, -1).map((s) => <View key={s.key} style={[st.beatTick, { left: `${((s.start + s.dur) / Math.max(0.1, playTotal)) * 100}%` }]} />) : null}
+          <AudioMarks mix={mix} total={playTotal} />
         </View>
         {!busy ? (
           <View style={st.controls} pointerEvents="box-none">
@@ -782,7 +862,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
         ))}
       </View>
 
-      <ScrollView style={{ maxHeight: 250 }} contentContainerStyle={{ paddingBottom: 8 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ maxHeight: tab === 'som' ? 300 : 250 }} contentContainerStyle={{ paddingBottom: 8 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {tab === 'clipes' ? (
           <>
             {/* A sequência: toca para escolher; setas para ordenar; x tira; nas fotos o tempo (ou as batidas) muda ao tocar. */}
@@ -857,19 +937,31 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
               <Pressable onPress={openPicker} style={st.smallBtn} accessibilityRole="button"><Text style={st.smallBtnText}>{music ? 'Trocar' : 'Escolher'}</Text></Pressable>
               {music ? <Pressable onPress={() => { restartFrom.current = nowT(); setMusic(null); if (origVol === 0) setOrigVol(1); }} style={st.smallBtn} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={16} color="#fff" strokeWidth={2.4} /></Pressable> : null}
             </View>
-            {items.some((i) => i.video) ? (
-              <View style={st.trimBox}>
-                <Text style={st.label}>Som original</Text>
-                <RangeSlider label="Volume do som original" value={Math.round(origVol * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => setOrigVol(v / 100)} />
-                {items.some((i) => i.video && i.hasAudio === false) ? <Text style={st.small}>{items.every((i) => !i.video || i.hasAudio === false) ? 'Os vídeos não têm som' : 'Alguns vídeos não têm som'}</Text> : null}
-              </View>
-            ) : null}
-            {music ? (
-              <View style={st.trimBox}>
-                <Text style={st.label}>Música</Text>
-                <RangeSlider label="Volume da música" value={Math.round(musicVol * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => setMusicVol(v / 100)} />
-              </View>
-            ) : null}
+            {/* Trecho pela onda, misturador (volumes, fades, ducking), voz-off, efeitos e moldes. */}
+            <AudioPanel
+              ctl={audioCtl}
+              mix={mix}
+              update={studioAudio.update}
+              analysis={studioAudio.analysis}
+              suggestion={studioAudio.suggestion}
+              music={music}
+              duet={!!reference}
+              total={playTotal}
+              playT={playT}
+              playing={playing}
+              hasVideo={items.some((i) => i.video)}
+              origNote={items.some((i) => i.video && i.hasAudio === false) ? (items.every((i) => !i.video || i.hasAudio === false) ? 'Os vídeos não têm som' : 'Alguns vídeos não têm som') : null}
+              origVol={origVol}
+              setOrigVol={setOrigVol}
+              musicVol={musicVol}
+              setMusicVol={setMusicVol}
+              canFit={!!music && items.length > 0 && !!studioAudio.analysis}
+              fitNote={fitNote}
+              onFit={() => rhythmFit()}
+              onTemplate={(t) => rhythmFit(t)}
+              applied={applied}
+              locked={locked}
+            />
           </>
         ) : null}
 
