@@ -42,3 +42,12 @@ test('Ajuda: procura sem acentos (normalize das Definições) e a pergunta abert
   // O botão do ecrã de entrada chama-se «Esqueceste a senha?»: a Ajuda diz o mesmo.
   assert.match(src, /toca em "Esqueceste a senha\?"/);
 });
+
+test('criar evento: no Android as horas abrem o teclado numérico (o de pontuação não existe lá) e sem dois envios', () => {
+  const src = read('evento', 'novo.tsx');
+  assert.match(src, /const TIME_KEYBOARD = Platform\.OS === 'android' \? 'number-pad' : 'numbers-and-punctuation';/);
+  assert.equal((src.match(/keyboardType=\{TIME_KEYBOARD\}/g) ?? []).length, 2);
+  assert.doesNotMatch(src, /keyboardType="numbers-and-punctuation"/);
+  assert.match(src, /const submit = async \(\) => \{\s*if \(busy\) return;/);
+  assert.match(src, /21:30 \(ou 2130\)/);
+});
