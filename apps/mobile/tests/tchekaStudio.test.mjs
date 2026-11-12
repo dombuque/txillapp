@@ -193,7 +193,8 @@ test('ligação: estúdio, câmara, criar e /tcheka/nova', () => {
   assert.match(studio, /checkTcheka\(/, 'o estúdio usa as regras');
   assert.match(studio, /disabled=\{!rules\.ok \|\| busy\}/, 'o botão fica desligado até cumprir as regras');
   assert.match(studio, /rules\.hint/, 'com a dica');
-  assert.match(studio, /detectBeats\(/, 'deteção das batidas por Web Audio');
+  assert.match(studio, /beatsFrom\(/, 'deteção das batidas por Web Audio, no trecho escolhido');
+  assert.match(read('lib', 'studio', 'audioRhythm.ts'), /detectBeats\(/, 'com a detectBeats do estúdio');
   assert.match(studio, /rhythmDurations\(/, 'montagem ao ritmo');
   assert.match(studio, /ready\.current\.sig === fullSig/, 'a volta gravada na pré-visualização reaproveita-se');
   assert.match(studio, /posterMs: Math\.round\(coverAt \* 1000\)/, 'a capa escolhida vai com o vídeo');

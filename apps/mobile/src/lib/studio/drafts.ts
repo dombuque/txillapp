@@ -35,8 +35,11 @@ export interface StudioDraft {
 
 export const newDraftId = () => `st-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
-/** O rascunho de um projeto e os URLs dos ficheiros a guardar (um por `media`). */
-export function draftFromProject(o: { id: string; clips: ProjectClip[]; settings?: Record<string, unknown>; context?: Record<string, unknown>; poster?: string; seconds?: number; now?: number }): { draft: StudioDraft; uris: Map<string, string> } {
+/**
+ * O rascunho de um projeto e os URLs dos ficheiros a guardar (um por `media`). `extra` são outros ficheiros do projeto
+ * (a voz-off), guardados da mesma maneira com a chave deles.
+ */
+export function draftFromProject(o: { id: string; clips: ProjectClip[]; extra?: { key: string; uri: string; mime: string }[]; settings?: Record<string, unknown>; context?: Record<string, unknown>; poster?: string; seconds?: number; now?: number }): { draft: StudioDraft; uris: Map<string, string> } {
   const uris = new Map<string, string>();
   const media: StudioDraft['media'] = [];
   const clips: DraftClip[] = o.clips.map((c) => {
@@ -44,6 +47,7 @@ export function draftFromProject(o: { id: string; clips: ProjectClip[]; settings
     const { uri: _uri, ...rest } = c;
     return rest;
   });
+  for (const x of o.extra ?? []) if (x.uri && !uris.has(x.key)) { uris.set(x.key, x.uri); media.push({ key: x.key, mime: x.mime }); }
   return {
     draft: { id: o.id, v: DRAFT_VERSION, savedAt: o.now ?? Date.now(), clips, media, settings: o.settings ?? {}, ...(o.context ? { context: o.context } : {}), ...(o.poster ? { poster: o.poster } : {}), ...(o.seconds != null ? { seconds: o.seconds } : {}) },
     uris,
@@ -125,8 +129,8 @@ export function memoryBackend(): DraftBackend & { size(): number } {
 export interface DraftStore {
   /** Guarda o rascunho e os ficheiros novos; apaga os que já não se usam; deixa só os `MAX_DRAFTS` mais recentes. */
   save(o: Parameters<typeof draftFromProject>[0]): Promise<StudioDraft>;
-  /** O rascunho com os clipes prontos a usar (URLs novos para os ficheiros). */
-  load(id: string): Promise<{ draft: StudioDraft; clips: ProjectClip[] } | null>;
+  /** O rascunho com os clipes prontos a usar (URLs novos para os ficheiros; `media`: os de todos, também os `extra`). */
+  load(id: string): Promise<{ draft: StudioDraft; clips: ProjectClip[]; media: Record<string, string> } | null>;
   list(): Promise<StudioDraft[]>;
   remove(id: string): Promise<void>;
   /** Resolve quando as gravações pendentes acabarem (antes de libertar os URLs que elas ainda podem ler). */
@@ -173,7 +177,7 @@ export function createDraftStore(backend: DraftBackend, deps: { readMedia: (uri:
         have.set(m.key, u);
       }
       stored.set(id, have);
-      return { draft, clips: clipsFromDraft(draft, urls) };
+      return { draft, clips: clipsFromDraft(draft, urls), media: Object.fromEntries(urls) };
     },
     list: async () => sortDrafts(await backend.listDrafts()),
     remove: (id) => serial(() => removeAll(id)),

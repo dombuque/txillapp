@@ -1,3 +1,4 @@
+import { echoTaps, FX, type VoiceFxId } from './audio';
 import { lookFilter } from './looks';
 
 /**
@@ -210,6 +211,62 @@ export function textFilters(items: TextItem[], W: number, H: number, font: strin
   return { filters, files };
 }
 
+// ------------------------------------------------------------------ efeitos de voz
+
+/** A folga depois da voz-off para a cauda do eco e do reverb (o reverb dura 2,4 s). */
+export const VOICE_TAIL_S = 2.5;
+/**
+ * O ducking no servidor: a voz-off comanda um compressor na música (`sidechaincompress`). Com uma voz normal (−15 a −20 dBFS
+ * de RMS) a música desce uns 10 dB, como os −10,5 dB (ganho 0,3) do estúdio no browser; desce em 20 ms e volta em 0,4 s.
+ */
+export const DUCK_SC = 'threshold=0.03:ratio=4:attack=20:release=400:knee=2.8:makeup=1:detection=rms';
+
+const ch2 = (e: (c: string) => string) => `'${e('val(0)')}|${e('val(1)')}'`;
+
+/**
+ * Um efeito de voz em filtros do ffmpeg, com os números do estúdio (compose/audio.ts, cópia de lib/studio/audioDsp.ts):
+ * - Robô: modulação em anel (`aeval` × seno de 60 Hz) e o pente curto com realimentação (`aecho` com as repetições dela);
+ * - Esquilo e Grave: o tom sobe ou desce sem mudar a duração (`asetrate` + `aresample` + `atempo`);
+ * - Eco: `aecho` com as mesmas repetições do browser (280 ms, cada uma 0,45 da anterior);
+ * - Rádio: passa-alto 500 Hz, passa-baixo 3,2 kHz (Butterworth, como no browser), presença de +6 dB aos 1,5 kHz e a mesma
+ *   saturação `tanh` (`aeval`);
+ * - Estádio: a mesma resposta ao impulso gerada (`afir` sem ganho automático: a conta do ConvolverNode sem normalizar),
+ *   molhado a 0,6 por cima da voz seca.
+ * `inp` e `out` são as etiquetas do grafo; `ir` a da resposta ao impulso (só no Estádio); `tag` prefixa as etiquetas internas.
+ */
+export function voiceFxGraph(id: VoiceFxId, inp: string, out: string, tag: string, ir: string | null): string[] {
+  const taps = (t: { ms: number; gain: number }[]) => `aecho=1:1:${t.map((x) => n(x.ms)).join('|')}:${t.map((x) => n(x.gain, 4)).join('|')}`;
+  switch (id) {
+    case 'robo': {
+      const ring = ch2((v) => `${v}*sin(2*PI*${FX.robo.ringHz}*t)`);
+      return [`${inp}aeval=exprs=${ring}:c=same,${taps(echoTaps(FX.robo.combMs, FX.robo.combFeedback, FX.robo.combFeedback, 4))}${out}`];
+    }
+    case 'esquilo':
+    case 'grave': {
+      const r = FX[id].pitch;
+      return [`${inp}asetrate=${Math.round(RATE * r)},aresample=${RATE},${atempo(1 / r)}${out}`];
+    }
+    case 'eco':
+      return [`${inp}${taps(echoTaps(FX.eco.delayMs, FX.eco.wet, FX.eco.feedback, FX.eco.taps))}${out}`];
+    case 'radio': {
+      const shape = ch2((v) => `tanh(${FX.radio.drive}*${v})/tanh(${FX.radio.drive})`);
+      return [`${inp}highpass=f=${FX.radio.highpassHz},lowpass=f=${FX.radio.lowpassHz},equalizer=f=${FX.radio.peakHz}:t=q:w=1:g=${FX.radio.peakDb},aeval=exprs=${shape}:c=same${out}`];
+    }
+    case 'estadio': {
+      if (!ir) throw new Error('o Estádio precisa da resposta ao impulso');
+      return [
+        `${inp}asplit=2[${tag}_d][${tag}_w]`,
+        `[${tag}_w]${ir}afir=dry=1:wet=1:gtype=-1:irgain=1,volume=${n(FX.estadio.wet)}[${tag}_r]`,
+        `[${tag}_d]volume=${n(FX.estadio.dry)}[${tag}_dd]`,
+        // `longest`: com `first` o amix fecha antes do fim (o afir entrega o último bocado depois do seco acabar).
+        `[${tag}_dd][${tag}_r]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0${out}`,
+      ];
+    }
+    default:
+      return [`${inp}anull${out}`];
+  }
+}
+
 // ------------------------------------------------------------------ grafo final
 
 export interface OverlayImage { file: string; x: number; y: number; start: number | null; end: number | null }
@@ -220,9 +277,18 @@ export interface FinalJob {
   /** Lista de bocados de vídeo e de som (concat), já com o tamanho do quadro da pessoa. */
   videoList: string;
   audioList: string;
-  music: { file: string; volume: number } | null;
+  /** A música: o volume, onde começa o trecho (`startS`, segundos na faixa) e os fades (segundos). */
+  music: { file: string; volume: number; startS?: number; fadeIn?: number; fadeOut?: number } | null;
   duet: { file: string; hasAudio: boolean; volume: number } | null;
   originalVolume: number;
+  /** O efeito de voz no som original. */
+  originalFx?: VoiceFxId;
+  /** A voz-off: o ficheiro, quando entra (s), o volume, o efeito e se a música baixa por baixo dela. */
+  voice?: { file: string; startS: number; volume: number; fx: VoiceFxId; duck: boolean } | null;
+  /** Os efeitos sonoros já misturados numa faixa (WAV), com o volume deles. */
+  sfx?: { file: string; volume: number } | null;
+  /** A resposta ao impulso do Estádio (WAV estéreo), se algum canal a usar. */
+  irFile?: string | null;
   texts: string[];
   /** Por cima, pela ordem: stickers, e a assinatura no fim. */
   overlays: OverlayImage[];
@@ -238,6 +304,13 @@ export function finalArgs(j: FinalJob, graphFile: string): { args: string[]; gra
   let musicIdx = -1, duetIdx = -1;
   if (j.music) { inputs.push('-stream_loop', '-1', '-protocol_whitelist', 'file', '-format_whitelist', 'mp3,mov,mp4,m4a,aac,ogg,wav,flac,matroska,webm', '-i', j.music.file); musicIdx = idx++; }
   if (j.duet) { inputs.push('-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,matroska,webm', '-t', T, '-i', j.duet.file); duetIdx = idx++; }
+  // A voz-off (um áudio de quem monta), a faixa dos efeitos sonoros e a resposta ao impulso do Estádio (geradas aqui).
+  let voiceIdx = -1, sfxIdx = -1, origIrIdx = -1, voiceIrIdx = -1;
+  const AUDIO_IN = ['-protocol_whitelist', 'file', '-format_whitelist', 'mp3,mov,mp4,m4a,aac,ogg,wav,flac,matroska,webm'];
+  if (j.voice) { inputs.push(...AUDIO_IN, '-i', j.voice.file); voiceIdx = idx++; }
+  if (j.sfx) { inputs.push(...AUDIO_IN, '-i', j.sfx.file); sfxIdx = idx++; }
+  if ((j.originalFx ?? 'normal') === 'estadio') { if (!j.irFile) throw new Error('falta a resposta ao impulso'); inputs.push(...AUDIO_IN, '-i', j.irFile); origIrIdx = idx++; }
+  if (j.voice?.fx === 'estadio') { if (!j.irFile) throw new Error('falta a resposta ao impulso'); inputs.push(...AUDIO_IN, '-i', j.irFile); voiceIrIdx = idx++; }
   const ovIdx = j.overlays.map((o) => { inputs.push('-i', o.file); return idx++; });
 
   const g: string[] = [];
@@ -264,13 +337,38 @@ export function finalArgs(j: FinalJob, graphFile: string): { args: string[]; gra
   });
   g.push(`${v}format=yuv420p[vout]`);
 
-  // O som: o original dos clipes, a música ou o som (em ciclo, como no estúdio) e, no dueto, o som do original.
+  // O som, como os canais do estúdio (lib/studio/audioEngine no site): o original dos clipes (com o efeito de voz), a música
+  // ou o som desde o trecho escolhido (em ciclo), com os fades e o ducking por baixo da voz-off, a voz-off (com o efeito, no
+  // instante dela), os efeitos sonoros (já misturados numa faixa) e, no dueto, o som do original.
   const mix: string[] = [];
-  g.push(`[1:a]aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${n(j.originalVolume)}[ao]`);
+  const fmt = `aresample=${RATE},aformat=sample_fmts=fltp:channel_layouts=stereo`;
+  const pad = `apad,atrim=end=${T}`;
+  g.push(`[1:a]aformat=sample_fmts=fltp:channel_layouts=stereo[ao_in]`);
+  g.push(...voiceFxGraph(j.originalFx ?? 'normal', '[ao_in]', '[ao_fx]', 'ofx', origIrIdx >= 0 ? `[${origIrIdx}:a]` : null));
+  g.push(`[ao_fx]volume=${n(j.originalVolume)}[ao]`);
   mix.push('[ao]');
+  const duck = !!(j.voice && j.voice.duck && j.music);
+  if (j.voice) {
+    const delay = Math.round(j.voice.startS * 1000);
+    // Com folga no fim antes do efeito: o eco e o reverb continuam depois de a gravação acabar (como no browser).
+    g.push(`[${voiceIdx}:a]asetpts=PTS-STARTPTS,${fmt},apad=pad_dur=${n(VOICE_TAIL_S)}[av_in]`);
+    g.push(...voiceFxGraph(j.voice.fx, '[av_in]', '[av_fx]', 'vfx', voiceIrIdx >= 0 ? `[${voiceIrIdx}:a]` : null));
+    g.push(`[av_fx]adelay=delays=${delay}:all=1,${pad}${duck ? ',asplit=2[av_raw][av_sc]' : '[av_raw]'}`);
+    g.push(`[av_raw]volume=${n(j.voice.volume)}[av]`);
+    mix.push('[av]');
+  }
   if (j.music) {
-    g.push(`[${musicIdx}:a]atrim=0:${T},asetpts=PTS-STARTPTS,aresample=${RATE},aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${n(j.music.volume)}[am]`);
+    const start = Math.max(0, j.music.startS ?? 0);
+    const fi = Math.min(j.seconds, j.music.fadeIn ?? 0), fo = Math.min(j.seconds, j.music.fadeOut ?? 0);
+    const fades = `${fi > 0 ? `,afade=t=in:st=0:d=${n(fi)}` : ''}${fo > 0 ? `,afade=t=out:st=${n(j.seconds - fo)}:d=${n(fo)}` : ''}`;
+    g.push(`[${musicIdx}:a]atrim=${n(start)}:${n(start + j.seconds)},asetpts=PTS-STARTPTS,${fmt}${fades},volume=${n(j.music.volume)}${duck ? '[am_dry]' : '[am]'}`);
+    // Ducking: a voz-off comanda um compressor na música (cerca de −10 dB por baixo de uma voz normal).
+    if (duck) g.push(`[am_dry][av_sc]sidechaincompress=${DUCK_SC}[am]`);
     mix.push('[am]');
+  }
+  if (j.sfx) {
+    g.push(`[${sfxIdx}:a]asetpts=PTS-STARTPTS,${fmt},volume=${n(j.sfx.volume)},${pad}[ae]`);
+    mix.push('[ae]');
   }
   if (j.duet?.hasAudio) {
     g.push(`[${duetIdx}:a]asetpts=PTS-STARTPTS,aresample=${RATE},aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${n(j.duet.volume)}[ad]`);

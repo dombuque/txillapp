@@ -43,6 +43,10 @@ export interface ProjectClip {
   /** Vídeos: o bocado do ficheiro que entra. */
   trim: Trim;
   hasAudio?: boolean;
+  /** Vídeos: o som do próprio vídeo (`false` = calado; sem o campo fica ligado). */
+  sound?: boolean;
+  /** Vídeos: o volume do som do vídeo, de 0 a 1 (sem o campo, 1). Multiplica pelo volume do som original. */
+  volume?: number;
   /** Filtro, ajustes, transição de entrada, rampa, inverter e congelar (lib/studio/effects.ts). Trata-se como imutável. */
   fx?: ClipFx;
 }

@@ -1,6 +1,7 @@
 /**
  * As contas do estúdio de tchekas, sem React nem browser (testadas em tests/tchekaStudio.test.mjs):
- * - as regras mínimas para publicar e a dica do botão («Junta mais 2 fotos», «Escolhe uma música»);
+ * - as regras mínimas para publicar e a dica do botão («Junta mais 2 fotos», «Escolhe uma música»); uma voz-off com 3 s ou
+ *   mais também conta como o som da tcheka;
  * - a deteção das batidas de uma música (energia/onset, com Web Audio a dar as amostras) e a grelha do ritmo;
  * - a montagem ao ritmo (cada foto acaba numa batida);
  * - a gravação por clipes (barra segmentada até 60 s, velocidades 0,5× a 3×);
@@ -14,6 +15,8 @@ export const MIN_PHOTOS = 3;
 export const MIN_VIDEO_S = 3;
 /** Fotos e vídeos misturados: pelo menos 5 s no total. */
 export const MIN_TOTAL_S = 5;
+/** Uma voz-off com pelo menos 3 s (dentro da tcheka) conta como o som dela. */
+export const MIN_VOICE_S = 3;
 /** As velocidades da gravação (como no TikTok): 0,5× fica em câmara lenta, 3× fica acelerado. */
 export const SPEEDS = [0.5, 1, 2, 3] as const;
 export type Speed = (typeof SPEEDS)[number];
@@ -36,8 +39,10 @@ export interface RuleInput {
   music: boolean;
   /** Volume do som original (0 a 1). A 0, o som dos vídeos não conta. */
   originalVolume?: number;
+  /** Segundos de voz-off dentro da tcheka (0 sem voz-off). Com `MIN_VOICE_S` ou mais, conta como o som. */
+  voiceSeconds?: number;
 }
-export type SoundSource = 'music' | 'original' | null;
+export type SoundSource = 'music' | 'original' | 'voz' | null;
 export type RuleProblem = 'conteudo' | 'som' | 'longo' | 'vazio';
 export interface RuleResult {
   ok: boolean;
@@ -67,7 +72,8 @@ export function checkTcheka(input: RuleInput): RuleResult {
   const total = clips.reduce((n, c) => n + c.seconds, 0);
   const vol = input.originalVolume ?? 1;
   const originalAudio = videos.some((c) => c.hasAudio !== false) && vol > EPS;
-  const sound: SoundSource = input.music ? 'music' : originalAudio ? 'original' : null;
+  const voice = Math.max(0, input.voiceSeconds ?? 0);
+  const sound: SoundSource = input.music ? 'music' : originalAudio ? 'original' : voice >= MIN_VOICE_S - EPS ? 'voz' : null;
   const base = { total, photos, videoSeconds, sound };
   const fail = (problem: RuleProblem, hint: string): RuleResult => ({ ...base, ok: false, problem, hint });
 
@@ -81,6 +87,7 @@ export function checkTcheka(input: RuleInput): RuleResult {
     return fail('conteudo', `Junta mais ${plural(MIN_PHOTOS - photos, 'foto', 'fotos')} ou ${upS(needMix)} s de vídeo`);
   }
   if (!sound) {
+    if (voice > EPS) return fail('som', `Grava mais ${upS(MIN_VOICE_S - voice)} s de voz-off ou escolhe uma música`);
     if (!videos.length) return fail('som', 'Escolhe uma música');
     if (vol <= EPS && videos.some((c) => c.hasAudio !== false)) return fail('som', 'Sobe o som original ou escolhe uma música');
     return fail('som', 'Os vídeos não têm som: escolhe uma música ou um som');

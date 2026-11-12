@@ -497,12 +497,12 @@ export default function Compose() {
     setStudioOffer(null);
     const got = await studioDrafts().load(d.id).catch(() => null);
     const clips = got ? normalizeClips(got.clips) : [];
-    if (!got || !clips.length) { got?.clips.forEach((c) => { if (c.uri.startsWith('blob:')) URL.revokeObjectURL(c.uri); }); setErr('Não consegui abrir o rascunho'); return; }
+    if (!got || !clips.length) { Object.values(got?.media ?? {}).forEach((u) => { if (u.startsWith('blob:')) URL.revokeObjectURL(u); }); setErr('Não consegui abrir o rascunho'); return; }
     const ctx = got.draft.context ?? {};
     if (typeof ctx.soundId === 'string') void soundsApi.get(ctx.soundId).then(setSound).catch(() => undefined);
     if (typeof ctx.dueto === 'string') void api.getPost(ctx.dueto).then((p) => { const v = p.media.find((m) => m.kind === 'video'); if (v) setDuet({ uri: abs(v.url) ?? v.url }); }).catch(() => undefined);
     studioDraftId.current = d.id;
-    setStudioDraft({ id: d.id, clips, settings: got.draft.settings });
+    setStudioDraft({ id: d.id, clips, settings: got.draft.settings, media: got.media });
     setKindSel('tcheka');
     setStudio(true);
   }

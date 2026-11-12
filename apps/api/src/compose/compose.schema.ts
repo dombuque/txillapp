@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { STICKER_ART } from '../stories/sticker-art';
+import { MAX_FADE_S, MAX_SFX, SFX_IDS, VOICE_FX_IDS } from './audio';
 import { LOOK_IDS } from './looks';
 
 /** No máximo 30 clipes numa tcheka (o estúdio nativo e o servidor). */
@@ -11,6 +12,8 @@ export const PHOTO_DEFAULT_MS = 3000;
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'A cor tem de ser #rrggbb');
 const ms = (max = 600_000) => z.number().int('Os tempos vão em milissegundos inteiros').min(0).max(max);
+const fadeMs = z.number().int('Os tempos vão em milissegundos inteiros').min(0, 'O fade vai de 0 a 3 s').max(MAX_FADE_S * 1000, 'O fade vai de 0 a 3 s');
+const voiceFx = z.enum(VOICE_FX_IDS, { message: 'Efeito de voz desconhecido' });
 const literals = <T extends number>(vals: readonly T[], msg: string) => z.number().refine((v): v is T => (vals as readonly number[]).includes(v), msg);
 
 export const composeClipSchema = z.object({
@@ -38,6 +41,28 @@ export const composeSchema = z
       .optional(),
     originalVolume: z.number().min(0, 'O volume vai de 0 a 1').max(1, 'O volume vai de 0 a 1').optional(),
     musicVolume: z.number().min(0, 'O volume vai de 0 a 1').max(1, 'O volume vai de 0 a 1').optional(),
+    /** Onde começa o trecho da música (ms dentro da faixa), escolhido pela onda no estúdio. */
+    musicStartMs: ms().optional(),
+    musicFadeInMs: fadeMs.optional(),
+    musicFadeOutMs: fadeMs.optional(),
+    /** A música baixa quando há voz-off (por omissão, sim). */
+    ducking: z.boolean().optional(),
+    /** A narração gravada no estúdio: um áudio meu, enviado como os clipes de áudio (`purpose: 'chat'`, privado). */
+    voiceOver: z
+      .object({
+        mediaId: z.string().uuid('Voz-off inválida'),
+        startMs: ms(61_000).default(0),
+        volume: z.number().min(0, 'O volume vai de 0 a 1').max(1, 'O volume vai de 0 a 1').default(1),
+        effect: voiceFx.default('normal'),
+      })
+      .optional(),
+    /** O efeito de voz no som original dos vídeos. */
+    originalEffect: voiceFx.optional(),
+    soundEffects: z
+      .array(z.object({ id: z.enum(SFX_IDS, { message: 'Efeito sonoro desconhecido' }), atMs: ms(61_000) }))
+      .max(MAX_SFX, `No máximo ${MAX_SFX} efeitos sonoros`)
+      .optional(),
+    soundEffectsVolume: z.number().min(0, 'O volume vai de 0 a 1').max(1, 'O volume vai de 0 a 1').optional(),
     beats: z
       .object({
         mode: z.enum(['auto', 'manual']),

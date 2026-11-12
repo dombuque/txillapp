@@ -36,6 +36,19 @@ Código: `apps/api/src/compose/` (módulo `ComposeModule`). Migração: `0136_mo
         | { kind: 'sound', soundId: string }, // «Usar este som» (docs/sons.md): som original (uuid), 'cat:<faixa>' ou 'local:<uuid>'
   originalVolume?: 0..1,          // o som dos vídeos; por omissão 1, 0,4 com música e 0 com um som (como o estúdio)
   musicVolume?: 0..1,             // a música/o som (e, no dueto, o som do original); por omissão 1
+  musicStartMs?: number,          // onde começa o trecho da música (ms na faixa, escolhido pela onda); por omissão 0
+  musicFadeInMs?: 0..3000,        // fade-in da música (afade, a direito); por omissão 0
+  musicFadeOutMs?: 0..3000,       // fade-out da música, até ao fim da tcheka; por omissão 0
+  ducking?: boolean,              // a música baixa por baixo da voz-off (sidechaincompress); por omissão true
+  voiceOver?: {                   // a narração gravada no estúdio (secção 4-A)
+    mediaId: string,              // meu, `purpose: 'chat'` (privado), áudio, já 'ready'
+    startMs?: number,             // quando entra na tcheka; por omissão 0
+    volume?: 0..1,                // por omissão 1
+    effect?: EfeitoDeVoz,         // por omissão 'normal'
+  },
+  originalEffect?: EfeitoDeVoz,   // efeito no som original dos vídeos; por omissão 'normal'
+  soundEffects?: [{ id: 'whoosh' | 'pop' | 'palmas' | 'tambor' | 'ding' | 'riser' | 'boom' | 'vinil', atMs: number }],  // até 30
+  soundEffectsVolume?: 0..1,      // por omissão 1
   beats?: { mode: 'auto' | 'manual', perPhoto?: 1 | 2 | 4, bpm?: 40..240 },
   transition?: 'cut' | 'fade' | 'slide',   // por omissão 'cut'
   filter?: 'normal' | 'vivo' | 'quente' | 'fresco' | 'suave' | 'dourado' | 'fade' | 'txilla' | 'vintage' | 'pb',
@@ -51,11 +64,14 @@ Código: `apps/api/src/compose/` (módulo `ComposeModule`). Migração: `0136_mo
   coverMs?: number,               // a capa (por omissão 500 ms, como o estúdio)
   duet?: { postId: string, layout: 'side' },
 }
+// EfeitoDeVoz = 'normal' | 'robo' | 'esquilo' | 'grave' | 'eco' | 'radio' | 'estadio'
 ```
 
 - `beats`: só conta com som e com fotos. `auto` lê as batidas da música no servidor (a mesma `detectBeats` do estúdio, com as
-  amostras tiradas pelo ffmpeg); se a música não tiver ritmo claro, usa `bpm` (ou 120). `manual` com `bpm`: a grelha desse
-  andamento a partir de 0. `manual` sem `bpm`, ou sem `beats`: as fotos ficam com `durationMs`.
+  amostras tiradas pelo ffmpeg **a partir de `musicStartMs`**: as batidas do trecho escolhido); se a música não tiver ritmo
+  claro, usa `bpm` (ou 120). `manual` com `bpm`: a grelha desse andamento a partir de 0. `manual` sem `bpm`, ou sem `beats`:
+  as fotos ficam com `durationMs`. O «Ajustar ao ritmo» e os moldes do estúdio acertam o `musicStartMs` para uma batida cair
+  no 0 e mexem nos `trimEndMs` dos vídeos para os cortes caírem nas batidas: o servidor só recebe o resultado.
 - Os vídeos ficam sempre com a duração que têm (cortados e com a velocidade); ao ritmo, só as fotos mudam.
 
 **Respostas de erro** (`400`, `message` em português, igual às dicas do estúdio; `problem` nas regras):
@@ -73,12 +89,16 @@ Código: `apps/api/src/compose/` (módulo `ComposeModule`). Migração: `0136_mo
 | música licenciada | «A música licenciada ainda não dá para montar no servidor» |
 | dueto | `404` «Publicação não encontrada», `400` «Só dá para fazer dueto com uma tcheka», `403` «Esta pessoa não deixa fazer duetos nem responder com tchekas» |
 | som original | `404` «Este som já não está disponível», `403` «Este som está em análise…», `403` «Quem publicou este som não deixa usá-lo» |
+| voz-off de outra pessoa, que não é áudio, pública ou por enviar | «A voz-off não é tua ou ainda não está pronta. Envia-a outra vez.» |
+| voz-off curta sem outro som | «Grava mais 2 s de voz-off ou escolhe uma música» (no pedido, se já se souber a duração; senão o trabalho falha com ela) |
+| efeitos | «Efeito de voz desconhecido», «Efeito sonoro desconhecido», «No máximo 30 efeitos sonoros», «O fade vai de 0 a 3 s» |
 
 Outros: `401` sem sessão; `409` «Já tens uma tcheka a montar. Espera que acabe.» (uma de cada vez por pessoa); `429` com mais de
 20 montagens na última hora; `422` texto com ameaças ou ódio (o `TextFilter`).
 
 As regras (`apps/api/src/compose/rules.ts`) são uma **cópia fiel** de `apps/mobile/src/lib/tchekaRules.ts` (o estúdio do site):
-3 fotos, ou 3 s de vídeo, ou 5 s misturados; som obrigatório (a música, um som, o som dos vídeos ou o original do dueto); até 60 s.
+3 fotos, ou 3 s de vídeo, ou 5 s misturados; som obrigatório (a música, um som, o som dos vídeos, o original do dueto **ou uma
+voz-off com pelo menos 3 s dentro da tcheka**, `MIN_VOICE_S`); até 60 s.
 O limite de 30 clipes é só do servidor. `rules-sync.spec.ts` compara os dois ficheiros quando estão os dois no repositório.
 No pedido, as durações ao ritmo estimam-se com o `bpm` (ou 120) e os vídeos contam como tendo som; no trabalho as regras voltam
 a correr com as batidas lidas e com o som real dos vídeos (falha com a mesma dica). Se o ritmo passar um pouco dos 60 s, corta.
@@ -117,7 +137,8 @@ clipes, até 0,95 o vídeo final (o `-progress` do ffmpeg), 1 no fim. Os jobs ac
    com a entrada, a saída e a subida do estúdio), os **stickers** (PNG desenhados com a arte dos mimos, `stickersSvg`, com
    `enable` no tempo deles), a assinatura por cima de tudo e a **mistura do som** (`amix` sem normalizar e um limitador): o som dos
    clipes × `originalVolume`, a música ou o som em ciclo × `musicVolume`, e no dueto o som do original × `musicVolume`, tudo
-   cortado à duração final.
+   cortado à duração final; e, do estúdio de áudio (secção 4-A), o trecho, os fades, o ducking, a voz-off, os efeitos de voz e os
+   efeitos sonoros.
 4. **Filtros**: os mesmos ids e números de `LOOKS` (TxCamera). Não é uma aproximação: é a mesma conta de `applyLook` (brilho e
    contraste, saturação, sépia e cinzento) numa matriz `colorchannelmixer` (o termo constante vai no canal alfa). Como no
    estúdio, sem a tinta.
@@ -125,6 +146,37 @@ clipes, até 0,95 o vídeo final (o `-progress` do ffmpeg), 1 no fim. Os jobs ac
    meio da sua metade (faixas pretas por cima e por baixo). O original toca desde o início; a tcheka dura o mais curto dos dois
    (até 60 s). Permissões como no remix (`posts/remix.ts`): o original vê-se (privacidade, bloqueios), é uma publicação de uma
    pessoa e uma tcheka, e o dono deixa (`remix_allowed`, nunca numa conta privada; o próprio pode sempre).
+
+### 4-A. O som (o estúdio de áudio)
+
+No site, o estúdio mistura o som com Web Audio (`apps/mobile/src/lib/studio/audioEngine.ts`, os painéis em
+`components/studio/Audio*.tsx`) e a gravação final (MediaRecorder) leva exatamente o que se ouve. O servidor reproduz o mesmo
+com o ffmpeg (`compose/plan.ts`, `voiceFxGraph` e o fim de `finalArgs`). O que tem de soar igual nos dois lados está num ficheiro
+só, sem dependências: `apps/mobile/src/lib/studio/audioDsp.ts`, com a **cópia fiel** em `apps/api/src/compose/audio.ts`
+(`audio-sync.spec.ts` compara-os, como as regras).
+
+| | Estúdio (browser) | Servidor (ffmpeg) |
+|---|---|---|
+| Trecho (`musicStartMs`) | escolhido na onda (a sugestão: refrão ou parte mais forte, por energia); a música toca dali em ciclo | `atrim=start:start+T` depois de `-stream_loop -1`; as batidas lêem-se dali (`decodeMono` com `-ss`) |
+| Volumes | um ganho por canal (original, música, voz-off, efeitos) | `volume` em cada canal, `amix` sem normalizar e `alimiter` |
+| Fades (0 a 3 s) | rampas lineares num ganho (`fadePoints`) | `afade=t=in` / `afade=t=out` (curva `tri`, a direito); os dois multiplicam-se, como no browser |
+| Ducking | a música desce para 0,3 (−10,5 dB) onde a voz-off tem fala (`voiceActivity`), em 0,12 s, e volta em 0,45 s | `sidechaincompress` comandado pela voz-off (`DUCK_SC`: limiar 0,03, 4:1, 20/400 ms): ~−10 dB com uma voz normal |
+| Voz-off | gravada por cima da pré-visualização a tocar (contagem 3-2-1), com o atraso das colunas e do microfone descontado | o ficheiro enviado, `adelay` até `startMs`, com folga de 2,5 s para a cauda do eco e do reverb |
+| Robô | anel × seno 60 Hz + pente de 6 ms com realimentação 0,45 | `aeval` (o mesmo anel) + `aecho` com as 4 primeiras repetições do pente |
+| Esquilo / Grave | tom × 1,5 / × 0,72 sem mudar a duração (duas linhas de atraso moduladas, em tempo real) | `asetrate` + `aresample` + `atempo` |
+| Eco | 280 ms, realimentação 0,45, envio 0,6 | `aecho` com as mesmas 4 repetições (`echoTaps`) |
+| Rádio | passa-alto 500 Hz e passa-baixo 3,2 kHz (Butterworth), +6 dB aos 1,5 kHz, saturação `tanh(2,5x)/tanh(2,5)` | `highpass`, `lowpass`, `equalizer` e a mesma saturação em `aeval` |
+| Estádio | ConvolverNode **sem normalizar** com a resposta gerada (`reverbImpulse`: ruído estéreo com semente, 2,4 s, energia 1), 0,6 molhado | `afir` com a **mesma resposta** (um WAV gerado no trabalho), `gtype=-1` (sem ganho automático): a mesma convolução |
+| Efeitos sonoros | `synthSfx` (whoosh, pop, palmas, tambor, ding, riser, boom, vinil), gerados por código com semente | a mesma `synthSfx`/`renderSfxTrack` numa faixa WAV, no instante de cada um |
+
+- **A voz-off** envia-se como os clipes de áudio do chat: `POST /media/uploads { mime: 'audio/webm' | 'audio/ogg' | 'audio/mp4',
+  size, purpose: 'chat' }` (sem assinatura, `signed: false`), `PUT uploadUrl`. Fica no **armazenamento privado** (nunca se serve
+  em público, só o dono a lê) e o trabalho lê-a de lá. O vídeo final é que leva a voz, já misturada. Até 5 MB (o limite dos áudios).
+- **Regra do som**: uma voz-off com 3 s ou mais dentro da tcheka conta como o som (`MIN_VOICE_S`). No pedido, se a duração ainda
+  não se souber, conta; no trabalho volta a contar com a duração lida pelo ffprobe.
+- **Diferenças que ficam** (pequenas): o tom do Esquilo/Grave no browser é por linhas de atraso (um leve «coro»), no servidor
+  pelo `atempo` (mais limpo); o ducking no browser segue as falas detetadas, no servidor o compressor segue o nível da voz
+  (numa voz muito alta desce um pouco mais, numa muito baixa um pouco menos).
 
 ## 5. Fila e limites
 
@@ -166,6 +218,9 @@ e som, fotos, `fade`, filtro `quente`, 2 textos, 1 sticker e música (`src/compo
 - A verificação de nudez não volta a correr no vídeo final: as fotos e os vídeos já foram verificados no envio, e o resto (texto,
   stickers, assinatura) é nosso.
 - A exportação de dados da conta não inclui os jobs (são temporários e apagam-se aos 7 dias).
+- **Uma voz-off só** por tcheka (o estúdio também grava uma; regravar substitui-a). A voz-off enviada que não chegue a ir numa
+  tcheka fica como os outros áudios por usar (privada; não há limpeza dos órfãos).
+- O estúdio nativo ainda não grava a voz-off nem escolhe o trecho: o servidor já aceita tudo (secção 4-A).
 
 ## 8. Testes
 
@@ -175,5 +230,12 @@ e som, fotos, `fade`, filtro `quente`, 2 textos, 1 sticker e música (`src/compo
   estado do job (só o dono, um de cada vez, reinício); dueto (esquerda/direita, faixas pretas, permissões do remix, incluindo
   `remix_allowed`); «Usar este som» (som original, em análise, `sound_reuse` desligado, e o som `cat:` de uma faixa). Tudo com
   ficheiros gerados pelo ffmpeg (`testsrc`, `color`, `sine`, `aevalsrc`) e a música servida por um `fetcher` falso.
-- `plan.spec.ts`: as contas sem ffmpeg. `rules-sync.spec.ts`: a cópia das regras.
+- O som (os testes «som: …», por **amostras do áudio** do vídeo final, mono a 16 kHz, com Goertzel e RMS): o trecho
+  (`musicStartMs`: só se ouve a parte certa da faixa), os fades (a meio do fade-in, metade), as batidas lidas do trecho; a
+  voz-off sozinha como som, no instante dela, com volume; o ducking (a música desce mais de 6 dB a falar, volta depois; sem
+  ducking não desce); a voz-off curta («Grava mais 2 s…») e as validações; o Esquilo (1 kHz → 1,5 kHz), o Estádio (cauda), o Eco
+  (a repetição aos 280 ms), o Grave no som original (440 → 317 Hz); todos os efeitos montam no ffmpeg; os efeitos sonoros no
+  instante deles, com o mesmo envelope que o estúdio gera.
+- `plan.spec.ts`: as contas sem ffmpeg (também o grafo do som e os filtros de cada efeito). `rules-sync.spec.ts` e
+  `audio-sync.spec.ts`: as cópias das regras e do som.
 - `TEST_DATABASE_URL=postgres://txill:txill_dev@localhost:5433/t_comp1 npx jest --runInBand src/compose` (em `apps/api`).

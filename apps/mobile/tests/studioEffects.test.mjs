@@ -374,7 +374,7 @@ test('ligação: o estúdio desenha com os efeitos e grava o que se vê', () => 
   assert.match(studio, /drawOverlays\(g, cfg\.current\.overlays, t, \{ W, H, image: ovImage \}\)/, 'textos e stickers');
   assert.match(studio, /stampTxillapp\(g, W, H, username, seal\);/, 'a assinatura continua por cima');
   assert.match(studio, /fxSeconds\(it\.trim\.end - it\.trim\.start, it\.speed, it\.fx\)/, 'a rampa muda a duração');
-  assert.match(studio, /hasAudio: it\.fx\?\.reverse \? false : it\.hasAudio/, 'ao contrário, o som original não conta');
+  assert.match(studio, /hasAudio: it\.fx\?\.reverse \|\| !soundOn\(it\) \? false : it\.hasAudio/, 'ao contrário (ou com o som do vídeo desligado), o som original não conta');
   assert.match(studio, /await prepareFx\(\);\n\s+const out = await run\(0, \{ record: true/, 'a montagem espera pelas fontes, frames e imagens');
   assert.match(studio, /fullSig = studioSignature\(\{ t: timelineSig, fx: items\.map\(\(it\) => it\.fx \?\? null\), ov: overlays/, 'a volta gravada só vale com os mesmos efeitos');
   assert.match(studio, /if \(nowMs - lastDraw >= 30\)/, 'desenha a 30 fps');

@@ -56,7 +56,8 @@ test('cada mudança vê-se logo, sem voltar ao início', () => {
   assert.match(studio, /seekTo\(restartFrom\.current, resumeAfterPick\.current \? \{ play: true \} : \{\}\);/);
   // A música nova entra no ponto certo: o som começa nesse instante da faixa.
   assert.match(studio, /restartFrom\.current = pausedAt\.current;\n\s+resumeAfterPick\.current = true;/);
-  assert.match(studio, /musicNode\.start\(0, from % e\.music\.buf\.duration\)/);
+  // (a partir do início do trecho escolhido na onda: musicStartMs)
+  assert.match(studio, /musicNode\.start\(0, \(musicStart \+ from\) % e\.music\.buf\.duration\)/);
 });
 
 test('escolher um clipe na linha do tempo salta para o início dele (se o cursor não estiver já nele)', () => {
