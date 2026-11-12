@@ -8,7 +8,8 @@ export interface GroupMember { username: string; displayName: string; hasAvatar:
 export interface GroupSender { username: string; displayName: string; hasAvatar: boolean }
 export type GroupMessage = ChatMessage & { sender: GroupSender };
 export interface GroupThread {
-  group: { id: string; name: string; myRole: GroupRole; members: GroupMember[] };
+  /** `ttl`: mensagens temporárias (segundos) ou null; servidores antigos não mandam. */
+  group: { id: string; name: string; myRole: GroupRole; members: GroupMember[]; ttl?: number | null };
   items: GroupMessage[];
   nextCursor: string | null;
 }
@@ -41,4 +42,8 @@ export const gruposApi = {
   add: (id: string, members: string[]): Promise<void> => raw(`/chat/groups/${id}/members`, post({ members })),
   /** Tirar alguém do grupo; com o meu próprio username é "sair do grupo". */
   remove: (id: string, username: string): Promise<void> => raw(`/chat/groups/${id}/members/${encodeURIComponent(username)}`, { method: 'DELETE' }),
+  /** Mensagens temporárias no grupo (só quem administra): segundos ou null para desligar. */
+  setTtl: (id: string, ttl: number | null): Promise<{ ttl: number | null }> => raw(`/chat/groups/${id}/ttl`, { method: 'PUT', body: JSON.stringify({ ttl }) }),
+  /** Limpar a conversa do grupo só para mim. */
+  clear: (id: string): Promise<{ ok: true }> => raw(`/chat/groups/${id}/clear`, post({})),
 };

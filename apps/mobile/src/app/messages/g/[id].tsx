@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -10,6 +10,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { quoteText, type Msg } from '@/components/ChatBubbles';
 import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus } from '@/components/ChatHeader';
 import { ChatEditBar } from '@/components/ChatEditBar';
+import { confirmClear, TtlBadge, TtlSheet, useLiveItems } from '@/components/ChatTemporary';
+import { TTL_TITLE, ttlBadgeLabel } from '@/lib/chatTemporary';
 import { ChatList } from '@/components/ChatList';
 import { MessageMenu, saveEdit, stopLiveShare } from '@/components/ChatParts';
 import { GroupComposer } from '@/components/GroupComposer';
@@ -65,6 +67,7 @@ export default function GroupThreadScreen() {
   useEffect(() => { if (info === '1') setMembers(true); }, [info, id]);
   const [polling, setPolling] = useState(false);
   const [more, setMore] = useState(false);
+  const [ttlOpen, setTtlOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const [raised, setRaised] = useState(false);
   // Por ler ao abrir (da lista de TxillGroups, antes de a conversa as marcar como lidas): para o "Mensagens novas".
@@ -85,7 +88,10 @@ export default function GroupThreadScreen() {
   });
   const first = q.data?.pages[0];
   const group = first?.group as TxillGroupInfo | undefined;
-  const items: Msg[] = q.data?.pages.flatMap((p) => p.items) ?? [];
+  // As mensagens temporárias que expiram com o grupo aberto saem logo (lib/chatTemporary).
+  const allItems: Msg[] = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
+  const items = useLiveItems(allItems);
+  const ttl = first?.group.ttl ?? null;
   const me = user?.username ?? '';
   const admin = group?.myRole === 'admin';
   const people = (group?.members ?? []).map((m) => ({ username: m.username, displayName: m.displayName, hasAvatar: m.hasAvatar }));
@@ -120,6 +126,21 @@ export default function GroupThreadScreen() {
     } catch (e) {
       Alert.alert('Não consegui abrir', (e as Error).message);
     }
+  }
+  /** Mensagens temporárias (só quem administra; o servidor confirma): fica o aviso na conversa. */
+  async function pickTtl(next: number | null) {
+    await gruposApi.setTtl(id, next);
+    await q.refetch();
+    void qc.invalidateQueries({ queryKey: ['chat-groups'] });
+  }
+  /** Limpar a conversa do grupo só para mim: some já daqui; o grupo fica na lista com "Sem mensagens". */
+  function clearChat() {
+    confirmClear(true, () => {
+      qc.setQueryData<InfiniteData<GroupThread>>(['chat-group', id], (d) => d && { ...d, pages: d.pages.slice(0, 1).map((p) => ({ ...p, items: [], nextCursor: null })), pageParams: d.pageParams.slice(0, 1) });
+      void gruposApi.clear(id)
+        .then(() => { void qc.invalidateQueries({ queryKey: ['chat-groups'] }); void qc.invalidateQueries({ queryKey: ['chat-unread'] }); })
+        .catch((e) => { setErr((e as Error).message || 'Não consegui limpar a conversa.'); void q.refetch(); });
+    });
   }
   function left() {
     void qc.invalidateQueries({ queryKey: ['chat-groups'] });
@@ -191,8 +212,13 @@ export default function GroupThreadScreen() {
         <ChatHeader
           raised={raised || tab !== 'chat'}
           onOpen={group ? () => setMembers(true) : undefined}
-          openLabel={group ? `Ver os detalhes de ${group.name}` : 'TxillGroup'}
-          avatar={<GroupCover url={group?.avatarUrl ?? group?.coverUrl} kind={groupKindOf(group)} size={36} radius={18} />}
+          openLabel={group ? `Ver os detalhes de ${group.name}${ttl ? `. ${ttlBadgeLabel(ttl)}` : ''}` : 'TxillGroup'}
+          avatar={
+            <View>
+              <GroupCover url={group?.avatarUrl ?? group?.coverUrl} kind={groupKindOf(group)} size={36} radius={18} />
+              {ttl ? <TtlBadge size={36} /> : null}
+            </View>
+          }
           title={group?.name ?? ''}
           subtitle={group ? <HeaderStatus text={sub} /> : null}
           actions={group ? <HeaderButton label="Mais opções" onPress={() => setMore(true)}><Icon name="more" size={22} color={colors.zinc800} strokeWidth={2.4} /></HeaderButton> : null}
@@ -250,9 +276,13 @@ export default function GroupThreadScreen() {
             items={[
               { icon: 'users', label: 'Detalhes do grupo', onPress: () => setMembers(true) },
               { icon: 'search', label: 'Procurar na conversa', onPress: () => { setTab('chat'); setSearching(true); } },
+              // Todos veem como está; só quem administra muda (a folha diz porquê).
+              { icon: 'clock', label: TTL_TITLE, onPress: () => setTtlOpen(true) },
+              ...(items.length ? [{ icon: 'trash' as const, label: 'Limpar conversa', onPress: () => { setTab('chat'); clearChat(); } }] : []),
             ]}
           />
         )}
+        {ttlOpen && group && <TtlSheet ttl={ttl} group canChange={admin} onPick={pickTtl} onClose={() => setTtlOpen(false)} />}
         {searching && (
           <ChatSearchSheet items={items} nameOf={(m) => (m.fromMe ? 'Tu' : m.sender?.displayName ?? '')} hasNext={!!q.hasNextPage} fetchNext={() => void q.fetchNextPage()} onClose={() => setSearching(false)} />
         )}

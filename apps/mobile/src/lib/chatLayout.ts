@@ -51,6 +51,8 @@ export function ticksFor(items: LayoutMsg[], seenId: string | null, group: boole
   if (group) return out;
   let seen = false;
   for (const m of items) {
+    // Um aviso de sistema ("ligou as mensagens temporárias") não é resposta: não marca as minhas como vistas.
+    if (m.kind === 'system') continue;
     if (!m.fromMe) {
       seen = true;
       continue;

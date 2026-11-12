@@ -7,6 +7,7 @@ import { chatTimeline, firstUnreadId } from '@/lib/chatTimeline';
 import { colors } from '@/lib/theme';
 import { Bubble, TypingBubble, type Msg } from './ChatBubbles';
 import { Pulse } from './ChatParts';
+import { SystemNotice } from './ChatTemporary';
 
 /** Fundo da área das mensagens (cinzento muito claro; o cabeçalho e a barra de escrever ficam brancos). */
 export const CHAT_BG = '#f5f6f8';
@@ -132,7 +133,8 @@ export function ChatList({
               <View>
                 {row?.newMark ? <NewMark /> : null}
                 {row?.divider ? <TimeDivider label={row.divider} /> : null}
-                <Bubble
+                {/* Aviso de sistema (mensagens temporárias): ao centro, sem bolha nem menu. */}
+                {item.kind === 'system' ? <SystemNotice text={item.body} /> : <Bubble
                   m={item}
                   group={group}
                   flash={flashId === item.id}
@@ -151,7 +153,7 @@ export function ChatList({
                   onReply={onReply}
                   onDelete={onDelete}
                   onJump={(id) => void jumpTo(id)}
-                />
+                />}
               </View>
             );
           }}
