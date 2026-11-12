@@ -6,6 +6,7 @@ import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder } fr
 import { Icon } from '@/components/Icon';
 import { Sheet, useSheetScroll } from '@/components/Sheet';
 import { musicApi, type Track } from '@/lib/api.music';
+import { LocalArtistsSection } from '@/components/LocalArtists';
 import { suggestMusic } from '@/lib/musicSuggest';
 import { uploadMedia } from '@/lib/api';
 import { playTrack, stopTrack } from '@/lib/musicPlayer';
@@ -135,15 +136,15 @@ function ClipRecorder({ onPick }: { onPick: (t: Track) => void }) {
 }
 
 /** Escolher uma faixa de música de licença aberta (Creative Commons): pesquisa, ouve-se um pedaço e usa-se. O crédito do autor segue com a faixa. */
-export function MusicPicker({ onPick, onClose, hint }: { onPick: (t: Track) => void; onClose: () => void; /** O que a pessoa escreveu (texto e local): serve para sugerir o género. */ hint?: string }) {
+export function MusicPicker({ onPick, onClose, hint, allowLocal = false }: { onPick: (t: Track) => void; onClose: () => void; /** O que a pessoa escreveu (texto e local): serve para sugerir o género. */ hint?: string; /** Mostra os «Artistas de Moçambique» (só mimos e tchekas, como diz a licença). */ allowLocal?: boolean }) {
   return (
     <Sheet title="Música e sons" onClose={onClose}>
-      <PickerBody onPick={onPick} hint={hint} />
+      <PickerBody onPick={onPick} hint={hint} allowLocal={allowLocal} />
     </Sheet>
   );
 }
 
-function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: string }) {
+function PickerBody({ onPick, hint, allowLocal }: { onPick: (t: Track) => void; hint?: string; allowLocal: boolean }) {
   const suggestion = useMemo(() => suggestMusic(hint), [hint]);
   const base: string = suggestion?.genre ?? GENRES[0];
   const me = useRef(Symbol('picker'));
@@ -229,7 +230,7 @@ function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: strin
           <Text style={s.rowTitle} numberOfLines={1}>{t.title}</Text>
           <Text style={s.rowSub} numberOfLines={1}>{t.artist || 'Autor desconhecido'}{t.durationMs ? ` · ${mmss(t.durationMs)}` : ''}</Text>
         </View>
-        {t.kind !== 'clip' && (
+        {t.kind !== 'clip' && t.source !== 'local' && (
           <Pressable onPress={() => toggleFav.mutate(t)} hitSlop={6} style={s.fav} accessibilityRole="button" accessibilityState={{ selected: fav }} accessibilityLabel={fav ? 'Tirar das favoritas' : 'Marcar como favorita'}>
             <Icon name="heart" size={20} solid={fav} color={fav ? colors.brand : colors.zinc500} />
           </Pressable>
@@ -275,6 +276,7 @@ function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: strin
           {suggestion ? <Text style={s.sugg}>Para o teu post ({suggestion.why}): experimenta {suggestion.genre}. <Text onPress={() => setTerm(suggestion.genre)} style={{ textDecorationLine: 'underline' }}>Ver</Text></Text> : null}
           {favorites.length ? section('As tuas favoritas', favorites.slice(0, 5)) : null}
           {recent.length ? section('Usaste há pouco', recent) : null}
+          <LocalArtistsSection row={row} allow={allowLocal} />
           {sugg.isLoading ? <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 24 }} /> : section('A tocar no Txillapp', trending, 'Ainda ninguém pôs música esta semana. Sê o primeiro: pesquisa uma faixa.')}
           {!favorites.length && !recent.length && !trending.length && !sugg.isLoading ? (
             <Pressable onPress={() => setTab('search')} style={s.goSearch} accessibilityRole="button"><Text style={s.usarTxt}>Pesquisar música</Text></Pressable>
@@ -302,6 +304,7 @@ function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: strin
           </ScrollView>
           {!!err && <Text style={s.err}>{err}</Text>}
           <View style={{ marginTop: 12 }}>
+            {typed.length >= 2 ? <LocalArtistsSection q={typed} row={row} allow={allowLocal} /> : null}
             {busy && <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 24 }} />}
             {!busy && items?.length === 0 && !err && <Text style={s.empty}>Nada com esse nome</Text>}
             {!busy && items?.map(row)}

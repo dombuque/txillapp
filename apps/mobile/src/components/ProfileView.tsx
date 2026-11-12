@@ -32,6 +32,8 @@ import { Sheet } from './Sheet';
 import { usePagerPan, useWebPager } from './SwipePager';
 import { useFadeIn, useTabSlider } from './TabSlider';
 import { VerifiedBadge } from './VerifiedBadge';
+import { ArtistTag } from './ArtistUi';
+import { LINK_LABELS } from '@/lib/artists';
 import { useTabPress } from '@/lib/tabPress';
 import { goBack } from '@/lib/nav';
 
@@ -280,7 +282,28 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
             <Text style={styles.name}>{p.displayName}</Text>
             {p.verified && <VerifiedBadge size={20} tier={p.verifiedTier} />}
             {p.isPrivate && <Icon name="lock" size={14} color={colors.zinc500} />}
+            {/* Programa de artistas: a etiqueta «Artista» (não é o selo de verificado). */}
+            {p.artist ? <ArtistTag /> : null}
           </View>
+          {p.artist ? (
+            <View style={styles.meta}>
+              <View style={styles.metaItem}>
+                <Icon name="music" size={14} color={colors.zinc600} />
+                <Text style={styles.metaText} numberOfLines={1}>{p.artist.stageName}{p.artist.styles.length ? ` · ${p.artist.styles.slice(0, 3).join(', ')}` : ''}</Text>
+              </View>
+              {p.artist.links.filter((l) => /^https:\/\//i.test(l.url)).slice(0, 4).map((l) => (
+                <Pressable key={l.url} onPress={() => void Linking.openURL(l.url)} style={styles.metaItem} accessibilityRole="link">
+                  <Icon name="link" size={14} color={colors.brand} />
+                  <Text style={[styles.metaText, { color: colors.brand, fontWeight: '600' }]} numberOfLines={1}>{LINK_LABELS[l.kind] ?? 'Site'}</Text>
+                </Pressable>
+              ))}
+              {p.isMe ? (
+                <Pressable onPress={() => router.push('/artista/gerir' as never)} style={styles.metaItem} accessibilityRole="button">
+                  <Text style={[styles.metaText, { color: colors.brand, fontWeight: '600' }]}>Gerir as minhas músicas</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
           {!p.isMe && p.followsYou && !blocked && <View style={styles.followsYou}><Text style={styles.followsYouText}>Segue-te</Text></View>}
           {(p.city || p.website) && (
             <View style={styles.meta}>

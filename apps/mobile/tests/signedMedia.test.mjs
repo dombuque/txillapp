@@ -49,7 +49,8 @@ test('mimoParams / mimoFromParams: a câmara do "+" passa ao editor do mimo se a
 
 test('envio: uploadMedia e a fila de publicação mandam `signed` pelo uploadRequest', () => {
   const api = read('lib', 'api.ts');
-  assert.match(api, /export async function uploadMedia\(uri: string, mime: string, purpose: 'public' \| 'chat' = 'chat', onWait\?: \(\) => void, signed\?: boolean\)/);
+  // 'music': as músicas do programa de artistas (0128).
+  assert.match(api, /export async function uploadMedia\(uri: string, mime: string, purpose: 'public' \| 'chat' \| 'music' = 'chat', onWait\?: \(\) => void, signed\?: boolean\)/);
   assert.match(api, /post\(uploadRequest\(mime, blob\.size, purpose, signed\)\)/);
   const q = read('lib', 'publishQueue.ts');
   assert.match(q, /export interface PublishAsset \{ uri: string; mime: string; video: boolean; signed\?: boolean \}/);

@@ -357,7 +357,7 @@ export function TchekaStudio({ clips, initialMusic, onDone, onClose }: { clips: 
         </View>
         {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
       </ScrollView>
-      {pickMusic ? <MusicPicker onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} /> : null}
+      {pickMusic ? <MusicPicker allowLocal onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} /> : null}
     </View>
   );
 }
