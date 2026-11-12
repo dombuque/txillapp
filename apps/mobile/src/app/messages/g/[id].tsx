@@ -6,7 +6,10 @@ import { useChatVisible } from '@/lib/chatVisible';
 import { useAuth } from '@/lib/auth';
 import { Alert, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { quoteText, type Msg } from '@/components/ChatBubbles';
+import { quoteText, type MenuAt, type MenuMode, type Msg } from '@/components/ChatBubbles';
+import { canEdit } from '@/lib/messageMenu';
+import { lastMine } from '@/lib/deskChatKeys';
+import { useDeskChat } from '@/lib/deskChat';
 import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus } from '@/components/ChatHeader';
 import { ChatEditBar } from '@/components/ChatEditBar';
 import { confirmClear, TtlBadge, TtlSheet, useLiveItems } from '@/components/ChatTemporary';
@@ -59,7 +62,8 @@ export default function GroupThreadScreen() {
   const [tab, setTab] = useState<Tab>(TABS.some((t) => t.id === tabParam) ? (tabParam as Tab) : 'chat');
   const [err, setErr] = useState('');
   // O menu da mensagem (segurar) e, se veio da ação "Apagar" do leitor de ecrã, já na confirmação.
-  const [menuFor, setMenuFor] = useState<{ m: Msg; start?: 'delete' } | null>(null);
+  const [menuFor, setMenuFor] = useState<{ m: Msg; start?: 'delete'; at?: MenuAt; mode?: MenuMode } | null>(null);
+  const desk = useDeskChat();
   // A minha mensagem que estou a editar (a barra de escrever passa a ser a de editar).
   const [editing, setEditing] = useState<Msg | null>(null);
   const [replying, setReplying] = useState<{ id: string; text: string; who: string } | null>(null);
@@ -160,6 +164,9 @@ export default function GroupThreadScreen() {
   const sub = group ? [count, group.plan?.destination || when || kindInfo(groupKindOf(group)).label].filter(Boolean).join(' · ') : '';
   const tabs = TABS.filter((t) => !(side && t.id === 'plan'));
 
+  // Computador: ↑ com a caixa vazia edita a minha última mensagem (se ainda der: texto, até 15 minutos).
+  const mineLast = desk ? lastMine(items) : null;
+  const editLast = mineLast && canEdit(mineLast) ? mineLast : null;
   const chat = (
     <View style={{ flex: 1, minWidth: 0 }}>
       {q.isError && !group ? (
@@ -188,7 +195,7 @@ export default function GroupThreadScreen() {
           seenId={null}
           emptyText="Ainda não há mensagens. Diz olá à malta do TxillGroup 👋"
           meHandle={user?.username}
-          onMenu={(m) => setMenuFor({ m })}
+          onMenu={(m, at, mode) => setMenuFor({ m, at, mode })}
           onDelete={(m) => setMenuFor({ m, start: 'delete' })}
           onCheer={(m) => void cheer(m)}
           onOpenOnce={(m) => void openOnce(m)}
@@ -209,7 +216,7 @@ export default function GroupThreadScreen() {
           }}
         />
       ) : group && (
-        <GroupComposer pendingKey={`g:${id}`} closeTick={closeTick} onOpenChange={onComposerOpen} send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} />
+        <GroupComposer pendingKey={`g:${id}`} closeTick={closeTick} onOpenChange={onComposerOpen} send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} onEditLast={editLast ? () => { setReplying(null); setEditing(editLast); } : undefined} />
       )}
     </View>
   );
@@ -264,6 +271,8 @@ export default function GroupThreadScreen() {
           <MessageMenu
             m={menuFor.m}
             start={menuFor.start}
+            at={menuFor.at}
+            mode={menuFor.mode}
             cacheKey={['chat-group', id]}
             onClose={() => setMenuFor(null)}
             onReply={(m) => { setEditing(null); startReply(m); }}

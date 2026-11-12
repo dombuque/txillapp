@@ -57,7 +57,8 @@ for (const [name, src, what] of PARTS) {
 
 test('a bolha: o Pressable de fora segura, dá o contexto ao conteúdo e cobre cada tipo de mensagem', () => {
   const b = body(BUBBLES, 'Bubble');
-  assert.match(b, /const hold: BubbleHold = real \? \{ onLongPress: openMenu, delayLongPress: HOLD_MS \} : \{\}/);
+  // No computador (rato, lib/deskChat) não há carregar e segurar: o menu abre com o botão direito e com o "⋯".
+  assert.match(b, /const hold: BubbleHold = real && !desk \? \{ onLongPress: openMenu, delayLongPress: HOLD_MS \} : \{\}/);
   assert.match(b, /<BubbleHoldCtx\.Provider value=\{hold\}>\{content\}<\/BubbleHoldCtx\.Provider>/);
   // A web também abre o menu ao segurar em qualquer ponto da mensagem (e com o botão direito do rato).
   assert.match(b, /onMenu=\{real \? openMenu : undefined\}/);

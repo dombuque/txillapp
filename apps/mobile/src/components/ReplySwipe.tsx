@@ -29,7 +29,7 @@ type Props = {
    * Web: abrir o menu da mensagem ao segurar o dedo em qualquer ponto dela (temporizador próprio, além do onLongPress dos
    * Pressable) e com o botão direito do rato. No telemóvel quem abre é o onLongPress dos Pressable da bolha.
    */
-  onMenu?: () => void;
+  onMenu?: (at?: { x: number; y: number }) => void;
   children: ReactNode;
 };
 
@@ -318,7 +318,8 @@ function WebReplySwipe({ enabled, onReply, spot, style, innerStyle, onMenu, chil
         if (!held && !hold) on.current.onMenu();
         return;
       }
-      on.current.onMenu();
+      // Rato: o menu abre no ponteiro (no computador, como menu de contexto).
+      on.current.onMenu({ x: e.clientX, y: e.clientY });
     };
     /** Depois de deslizar, o clique que o browser ainda manda não conta como toque. */
     const swallow = (e: MouseEvent) => {

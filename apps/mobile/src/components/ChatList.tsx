@@ -6,7 +6,7 @@ import { ticksFor } from '@/lib/chatLayout';
 import { dropPending, listKey, mergePending, pendingOf, prunePending, retryPending, subscribePending, type PendingMsg } from '@/lib/chatPending';
 import { chatTimeline, firstUnreadId } from '@/lib/chatTimeline';
 import { colors } from '@/lib/theme';
-import { Bubble, TypingBubble, type Msg } from './ChatBubbles';
+import { Bubble, TypingBubble, type MenuAt, type MenuMode, type Msg } from './ChatBubbles';
 import { Pulse } from './ChatParts';
 import { SystemNotice } from './ChatTemporary';
 
@@ -43,7 +43,7 @@ export function ChatList({
   onRaised?: (raised: boolean) => void;
   /** Quanto se subiu nas mensagens (pt; 0 = no fim da conversa): a nota no cabeçalho encolhe quando se sobe. */
   onScrollY?: (y: number) => void;
-  onMenu: (m: Msg) => void; onCheer: (m: Msg) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onRetry: (m: Msg) => void;
+  onMenu: (m: Msg, at?: MenuAt, mode?: MenuMode) => void; onCheer: (m: Msg) => void; onOpenOnce: (m: Msg) => void; onStopLive: (m: Msg) => void; onRetry: (m: Msg) => void;
   /** Deslizar uma bolha para a direita responde-lhe (o mesmo que "Responder" no menu). */
   onReply?: (m: Msg) => void;
   /** Leitor de ecrã, ação "Apagar" de uma bolha: a folha "Apagar mensagem?". */

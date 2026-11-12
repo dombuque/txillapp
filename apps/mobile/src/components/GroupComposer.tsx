@@ -16,6 +16,7 @@ import { useGifsConfig } from './GifPanel';
 import { gifMessage } from '@/lib/gifs';
 import { pendingFrom, sendPending, type SentReply } from '@/lib/chatPending';
 import { usePastedImage } from '@/lib/usePastedImage';
+import { useChatDrop, useComposerKeys } from '@/lib/deskChat';
 import { PastedImageSheet } from './PastedImageSheet';
 import { markSeen, useIsNew } from '@/lib/whatsNew';
 
@@ -24,8 +25,10 @@ import { markSeen, useIsNew } from '@/lib/whatsNew';
  * câmara à esquerda, "Mensagem…" ao meio e, com o campo vazio, voz, galeria, stickers e "+" (sondagem e localização); ao escrever, Enviar.
  */
 export function GroupComposer({
-  send, onSent, bottom, replyTo, onClearReply, onPoll, closeTick, onOpenChange, pendingKey,
+  send, onSent, bottom, replyTo, onClearReply, onPoll, closeTick, onOpenChange, pendingKey, onEditLast,
 }: {
+  /** Computador: ↑ com a caixa vazia edita a minha última mensagem. */
+  onEditLast?: () => void;
   /** A conversa nas mensagens a caminho (lib/chatPending, `g:<id>`): texto, stickers e GIFs aparecem logo. */
   pendingKey?: string;
   /** Avisa se os stickers ou os anexos estão abertos. */
@@ -57,6 +60,18 @@ export function GroupComposer({
   useEffect(() => () => clearInterval(timer.current), []);
   // Site: colar ou arrastar uma imagem para a caixa abre a pré-visualização (Enviar ou Cancelar).
   const paste = usePastedImage<React.ComponentRef<typeof TextInput>>({ onProblem: setErr, onOpen: () => { setErr(''); setPanel(null); } });
+  // Computador: largar um ficheiro na conversa (components/ChatScreen) e as teclas da caixa (Enter, Shift+Enter, Esc, ↑).
+  useChatDrop(paste.drop);
+  const keys = useComposerKeys({
+    text,
+    send: () => void sendText(),
+    cancel: () => {
+      if (panel) { setPanel(null); return true; }
+      if (replyTo) { onClearReply?.(); return true; }
+      return false;
+    },
+    editLast: onEditLast,
+  });
 
   async function dispatch(msg: GroupSendBody) {
     setErr('');
@@ -231,7 +246,7 @@ export function GroupComposer({
               <Icon name="camera" size={20} color="#fff" />
             </LinearGradient>
           </Pressable>
-          <TextInput ref={paste.ref} value={text} onChangeText={setText} onFocus={() => setPanel(null)} multiline numberOfLines={1} maxLength={2000} placeholder="Mensagem…" placeholderTextColor={colors.zinc500} onContentSizeChange={grow.onContentSizeChange} style={[styles.input, grow.style]} accessibilityLabel="Mensagem" />
+          <TextInput ref={paste.ref} value={text} onChangeText={setText} onFocus={() => setPanel(null)} onKeyPress={keys} multiline numberOfLines={1} maxLength={2000} placeholder="Mensagem…" placeholderTextColor={colors.zinc500} onContentSizeChange={grow.onContentSizeChange} style={[styles.input, grow.style]} accessibilityLabel="Mensagem" />
           {hasText ? (
             <Pop key="send">
               <SendButton label="Enviar" onPress={() => void sendText()} disabled={busy} />

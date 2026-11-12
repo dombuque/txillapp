@@ -6,7 +6,9 @@ import { Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native
 import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
-import { quoteText, type Msg } from '@/components/ChatBubbles';
+import { quoteText, type MenuAt, type MenuMode, type Msg } from '@/components/ChatBubbles';
+import { canEdit } from '@/lib/messageMenu';
+import { useDeskChat } from '@/lib/deskChat';
 import { ChatComposer } from '@/components/ChatComposer';
 import { ChatHeader, ChatMenuSheet, ChatSearchSheet, HeaderButton, HeaderStatus, OnlineDot } from '@/components/ChatHeader';
 import { ChatEditBar } from '@/components/ChatEditBar';
@@ -52,7 +54,8 @@ export default function Thread() {
   const onComposerOpen = useCallback((o: boolean) => { composerOpen.current = o; }, []);
   const [viewing, setViewing] = useState<OnceContent | null>(null);
   // O menu da mensagem (segurar) e, se veio da ação "Apagar" do leitor de ecrã, já na confirmação.
-  const [menuFor, setMenuFor] = useState<{ m: Msg; start?: 'delete' } | null>(null);
+  const [menuFor, setMenuFor] = useState<{ m: Msg; start?: 'delete'; at?: MenuAt; mode?: MenuMode } | null>(null);
+  const desk = useDeskChat();
   // A minha mensagem que estou a editar (a barra de escrever passa a ser a de editar).
   const [editing, setEditing] = useState<Msg | null>(null);
   const [searching, setSearching] = useState(false);
@@ -142,6 +145,8 @@ export default function Thread() {
   const lastMine = items.find((m) => m.fromMe && m.kind !== 'system' && !m.state && !m.id.startsWith('tmp-'));
   const otherRead = first?.otherRead ?? null;
   const seenId = otherRead && lastMine && lastMine.id <= otherRead ? lastMine.id : null;
+  // Computador: ↑ com a caixa vazia edita a minha última mensagem (se ainda der: texto, até 15 minutos).
+  const editLast = desk && lastMine && canEdit(lastMine) ? lastMine : null;
 
   function onTyping() {
     if (Date.now() - typingSent.current > 3000) {
@@ -298,7 +303,7 @@ export default function Thread() {
         peerAvatar={avatarOf}
         meHandle={user?.username}
         top={!request && rel && !rel.theyFollow && person ? <NotFollowingNote name={firstName} left={rel.left} /> : null}
-        onMenu={(m) => setMenuFor({ m })}
+        onMenu={(m, at, mode) => setMenuFor({ m, at, mode })}
         onDelete={(m) => setMenuFor({ m, start: 'delete' })}
         onCheer={(m) => void cheer(m)}
         onOpenOnce={(m) => void openOnce(m)}
@@ -325,7 +330,7 @@ export default function Thread() {
           }}
         />
       ) : (
-        <ChatComposer closeTick={closeTick} onOpenChange={onComposerOpen} username={username} person={person} onSent={() => { void q.refetch(); remindPush('sent', firstName || person?.displayName); }} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onTyping={onTyping} />
+        <ChatComposer closeTick={closeTick} onOpenChange={onComposerOpen} username={username} person={person} onSent={() => { void q.refetch(); remindPush('sent', firstName || person?.displayName); }} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onTyping={onTyping} onEditLast={editLast ? () => { setReplying(null); setEditing(editLast); } : undefined} />
       )}
       {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
 
@@ -333,6 +338,8 @@ export default function Thread() {
         <MessageMenu
           m={menuFor.m}
           start={menuFor.start}
+          at={menuFor.at}
+          mode={menuFor.mode}
           cacheKey={['chat-thread', username]}
           onClose={() => setMenuFor(null)}
           onReply={(m) => { setEditing(null); startReply(m); }}

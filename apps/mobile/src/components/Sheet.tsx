@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Dimensions, Keyboard, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Dimensions, Keyboard, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Modal, iosWeb } from '@/components/Modal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
@@ -93,7 +93,9 @@ export function Sheet({ title, onClose, children, full = false, plain = false }:
                 <Text style={styles.title}>{title}</Text>
               </View>
             ) : null}
-            {children}
+            {/* Computador: o que não cabe na janela (ecrãs baixos, listas compridas) rola com a roda e a barra, em vez de ficar
+                cortado por baixo. No telemóvel fica como estava (lá arrastar para baixo fecha a folha). */}
+            {desktop && !full ? <ScrollView style={styles.deskScroll} keyboardShouldPersistTaps="handled">{children}</ScrollView> : children}
           </ScrollCtx.Provider>
         </Animated.View>
       </View>
@@ -107,4 +109,5 @@ const styles = StyleSheet.create({
   handle: { alignSelf: 'center', width: 40, height: 6, borderRadius: 3, backgroundColor: colors.zinc300, marginBottom: 12 },
   head: { paddingHorizontal: 24, marginBottom: 16 },
   title: { fontSize: 20, fontWeight: '700', color: colors.zinc900 },
+  deskScroll: { flexGrow: 0, flexShrink: 1, minHeight: 0 },
 });

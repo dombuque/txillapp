@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { BackButton } from '@/components/BackButton';
 import { Icon, type IconName } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
@@ -169,18 +169,22 @@ export function ChatSearchSheet({ items, nameOf, hasNext, fetchNext, onClose }: 
   const [needle, setNeedle] = useState('');
   const n = norm(needle.trim());
   const hits = n.length < 2 ? [] : items.filter((m) => !m.id.startsWith('tmp-') && !m.viewOnce && m.body && (m.kind === 'text' || m.kind === 'story_reply' || m.kind === 'zas_reply') && norm(m.body).includes(n)).slice(0, 40);
+  // Até 40 resultados não cabem na folha: rolam aqui dentro (a caixa de procurar fica sempre à vista). Sem isto os de baixo
+  // ficavam fora do ecrã, sem scroll (no telemóvel e no computador).
+  const { height } = useWindowDimensions();
+  const room = Math.max(160, Math.round(height * 0.85) - 190);
   return (
     <Sheet title="Procurar na conversa" onClose={onClose}>
       <View style={{ paddingHorizontal: 20 }}>
         <TextInput autoFocus value={needle} onChangeText={setNeedle} placeholder="Escreve uma palavra…" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar na conversa" style={st.needle} />
-        <View style={{ marginTop: 12, gap: 4 }}>
+        <ScrollView style={{ marginTop: 12, maxHeight: room, flexGrow: 0 }} contentContainerStyle={{ gap: 4 }} keyboardShouldPersistTaps="handled">
           {hits.map((m) => (
             <Pressable key={m.id} onPress={onClose} style={({ pressed }) => [{ borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 }, pressed && { backgroundColor: colors.zinc100 }]}>
               <Text style={{ fontSize: 12, fontWeight: '600', color: colors.zinc500 }}>{nameOf(m)} · {dayLabel(m.at)}</Text>
               <Text style={{ fontSize: 15, color: colors.zinc800 }} numberOfLines={2}>{m.body}</Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
         {n.length >= 2 && hits.length === 0 && <Text style={{ paddingVertical: 24, textAlign: 'center', color: colors.zinc600 }}>Nada encontrado nas mensagens carregadas.</Text>}
         {hasNext && (
           <Pressable onPress={fetchNext} style={st.more} accessibilityRole="button"><Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc700 }}>Carregar mensagens mais antigas</Text></Pressable>

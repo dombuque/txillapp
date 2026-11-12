@@ -4,7 +4,7 @@ import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { Easing, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming, interpolate, Extrapolation, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { Icon, type IconName } from '@/components/Icon';
-import { useDesktop } from '@/lib/desktop';
+import { anchorOf, useDeskChat } from '@/lib/deskChat';
 import { contextMenuOpens } from '@/lib/inboxMenu';
 import { HOLD_MS, holdStill } from '@/lib/messageMenu';
 import { claimSwipe, decideSwipe, innerPager, navSwipeThreshold, releaseSwipe, releaseSwipeSoon } from '@/lib/swipeClaim';
@@ -358,34 +358,46 @@ function WebSwipeRow({ left, right, onHold, children }: RowProps) {
 /**
  * Uma linha de lista com ações escondidas, como no WhatsApp:
  * - telemóvel: deslizar para a direita mostra `left`, para a esquerda mostra `right`;
- * - computador: as mesmas ações aparecem como botões pequenos ao passar o rato.
+ * - computador (browser largo com rato, lib/deskChat): nada de deslizar. A linha fica realçada ao passar o rato e mostra um
+ *   "⋯" que abre o menu de contexto (`onDeskMenu`, no sítio do botão); o botão direito do rato abre o mesmo menu, no ponteiro.
  * Tocar numa ação fecha a linha antes de a correr.
  * `onHold`: segurar a linha (ou o botão direito do rato, na web) fecha a linha aberta e corre-o (a folha com as mesmas
  * ações, em app/(tabs)/messages). No telemóvel, o Pressable de dentro também espalha `{...rowHold(onHold)}`.
+ * `active`: no computador, a conversa aberta na coluna da direita (fica marcada na lista).
  */
-export function SwipeRow({ left = [], right = [], onHold, children }: { left?: SwipeAction[]; right?: SwipeAction[]; onHold?: () => void; children: ReactNode }) {
-  const desktop = useDesktop();
+export function SwipeRow({ left = [], right = [], onHold, onDeskMenu, active = false, children }: {
+  left?: SwipeAction[]; right?: SwipeAction[]; onHold?: () => void;
+  /** Computador: o menu de contexto da linha, aberto em `at` (coordenadas da janela). Sem ele, o botão direito corre `onHold`. */
+  onDeskMenu?: (at: { x: number; y: number }) => void;
+  active?: boolean;
+  children: ReactNode;
+}) {
+  const desk = useDeskChat();
   const [hover, setHover] = useState(false);
+  const [focus, setFocus] = useState(false);
 
-  if (desktop && Platform.OS === 'web') {
-    const all = [...left, ...right];
+  if (desk) {
+    const menu = onDeskMenu ?? (onHold ? () => onHold() : undefined);
     return (
       <View
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
-        {...(onHold ? { onContextMenu: (e: { preventDefault(): void }) => { e.preventDefault(); onHold(); } } : {})}
-        style={{ position: 'relative' }}
+        {...(menu ? { onContextMenu: (e: { preventDefault(): void; clientX: number; clientY: number }) => { e.preventDefault(); menu({ x: e.clientX, y: e.clientY }); } } : {})}
+        style={[st.desk, active ? st.deskActive : hover && st.deskHover]}
       >
         {children}
-        {hover && all.length ? (
-          <View style={st.hoverBar}>
-            {all.map((a) => (
-              <Pressable key={a.label} onPress={a.onPress} style={({ pressed }) => [st.hoverBtn, pressed && { backgroundColor: colors.zinc200 }]} accessibilityRole="button" accessibilityLabel={a.label}>
-                <Icon name={a.icon} size={18} color={a.color === colors.red600 ? colors.red600 : colors.zinc800} />
-                <Text style={[st.hoverText, a.color === colors.red600 && { color: colors.red600 }]}>{a.label}</Text>
-              </Pressable>
-            ))}
-          </View>
+        {menu ? (
+          <Pressable
+            onPress={(e) => menu(anchorOf(e))}
+            onFocus={() => setFocus(true)}
+            onBlur={() => setFocus(false)}
+            style={(s) => [st.more, !(hover || focus) && st.moreHidden, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc200 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Mais opções"
+            aria-haspopup="menu"
+          >
+            <Icon name="more" size={18} color={colors.zinc800} strokeWidth={2.4} />
+          </Pressable>
         ) : null}
       </View>
     );
@@ -523,7 +535,9 @@ const st = StyleSheet.create({
   native: { overflow: 'hidden' },
   nativePane: { position: 'absolute', top: 0, bottom: 0, flexDirection: 'row' },
   pane: { position: 'absolute', top: 0, bottom: 0, flexDirection: 'row', opacity: 0 },
-  hoverBar: { position: 'absolute', right: 72, top: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  hoverBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, paddingHorizontal: 12, borderRadius: 17, backgroundColor: colors.zinc100, boxShadow: '0 1px 4px rgba(0,0,0,0.12)' } as object,
-  hoverText: { fontSize: 13, fontWeight: '600', color: colors.zinc800 },
+  desk: { position: 'relative', borderRadius: 16 },
+  deskHover: { backgroundColor: '#fafafa' },
+  deskActive: { backgroundColor: colors.zinc100 },
+  more: { position: 'absolute', right: 8, top: '50%', marginTop: -16, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white, boxShadow: '0 1px 4px rgba(24,24,27,0.16)' } as object,
+  moreHidden: { opacity: 0 },
 });

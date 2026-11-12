@@ -9,7 +9,7 @@
  * Silenciar e afixar conversas ainda não existem na API (apps/api/src/chat): quando existirem, entram aqui.
  */
 
-export type InboxAction = 'read' | 'unread' | 'profile' | 'delete' | 'info' | 'leave';
+export type InboxAction = 'read' | 'unread' | 'profile' | 'delete' | 'info' | 'leave' | 'ttl' | 'clear';
 
 /** O que a linha precisa de saber para escolher as ações. */
 export interface InboxMenuRow {
@@ -21,13 +21,15 @@ export interface InboxMenuRow {
   username?: string;
   /** O meu @ (sem sessão não se sai de um TxillGroup). */
   me?: string | null;
+  /** Conversa a dois que ainda é um pedido de mensagem (aí não se mudam as mensagens temporárias). */
+  request?: boolean;
 }
 
 export interface InboxMenuItem {
   id: InboxAction | 'cancel';
   label: string;
   /** Nome de um ícone de components/Icon. */
-  icon: 'check' | 'mail' | 'user' | 'trash' | 'info' | 'logout' | 'x';
+  icon: 'check' | 'mail' | 'user' | 'trash' | 'info' | 'logout' | 'x' | 'clock' | 'comment-off';
   /** Vermelho: apaga ou sai (pergunta antes). */
   danger: boolean;
 }
@@ -35,11 +37,11 @@ export interface InboxMenuItem {
 /** A ação do leitor de ecrã que abre a folha. `longpress` é a ação padrão do Android (manter premido). */
 export const MORE_ACTION = 'longpress';
 
-const ICON: Record<InboxAction, InboxMenuItem['icon']> = { read: 'check', unread: 'mail', profile: 'user', delete: 'trash', info: 'info', leave: 'logout' };
-const DANGER: Record<InboxAction, boolean> = { read: false, unread: false, profile: false, delete: true, info: false, leave: true };
+const ICON: Record<InboxAction, InboxMenuItem['icon']> = { read: 'check', unread: 'mail', profile: 'user', delete: 'trash', info: 'info', leave: 'logout', ttl: 'clock', clear: 'comment-off' };
+const DANGER: Record<InboxAction, boolean> = { read: false, unread: false, profile: false, delete: true, info: false, leave: true, ttl: false, clear: true };
 
 /** O texto curto do botão que aparece ao deslizar (cabe em 84 px). */
-const SWIPE_LABEL: Record<InboxAction, string> = { read: 'Lida', unread: 'Por ler', profile: 'Perfil', delete: 'Apagar', info: 'Info', leave: 'Sair' };
+const SWIPE_LABEL: Record<InboxAction, string> = { read: 'Lida', unread: 'Por ler', profile: 'Perfil', delete: 'Apagar', info: 'Info', leave: 'Sair', ttl: 'Temporárias', clear: 'Limpar' };
 
 /** O texto inteiro (folha e leitor de ecrã). "Lida" de uma conversa, "lido" de um grupo. */
 export function actionLabel(a: InboxAction, group: boolean): string {
@@ -50,6 +52,8 @@ export function actionLabel(a: InboxAction, group: boolean): string {
     case 'delete': return 'Apagar conversa';
     case 'info': return 'Info do grupo';
     case 'leave': return 'Sair do grupo';
+    case 'ttl': return 'Mensagens temporárias';
+    case 'clear': return 'Limpar conversa';
   }
 }
 
@@ -81,6 +85,23 @@ export function inboxMenuItems(r: InboxMenuRow): InboxMenuItem[] {
     ...inboxMenu(r).map((a): InboxMenuItem => ({ id: a, label: actionLabel(a, r.group), icon: ICON[a], danger: DANGER[a] })),
     { id: 'cancel', label: 'Cancelar', icon: 'x', danger: false },
   ];
+}
+
+/**
+ * Computador (o "⋯" ao passar o rato e o botão direito): o menu de contexto, sem deslizar. As ações da folha e, numa
+ * conversa a dois, também as da conversa aberta que fazem sentido na lista: Mensagens temporárias (não num pedido) e
+ * Limpar conversa. "Apagar conversa" fica no fim, a vermelho. Fixar e Silenciar ainda não existem na API.
+ */
+export function inboxDeskMenu(r: InboxMenuRow): InboxAction[] {
+  const base = inboxMenu(r);
+  if (r.group || !base.length) return base;
+  const s = inboxSwipe(r);
+  return [...s.left, 'profile', ...(r.request ? [] : (['ttl'] as const)), 'clear', ...s.right];
+}
+
+/** O menu de contexto com os textos (sem "Cancelar": clicar fora ou Esc fecham). */
+export function inboxDeskMenuItems(r: InboxMenuRow): InboxMenuItem[] {
+  return inboxDeskMenu(r).map((a) => ({ id: a, label: actionLabel(a, r.group), icon: ICON[a], danger: DANGER[a] }));
 }
 
 /** O leitor de ecrã: as mesmas ações da folha e "Mais opções", que a abre. Nomes livres, não são `accessibilityRole`. */
