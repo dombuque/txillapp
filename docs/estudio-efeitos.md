@@ -153,10 +153,10 @@ igual à web.
 | --- | --- | --- | --- |
 | `corte` | Corte | sem transição | (concat) |
 | `fundido` | Fundido | o anterior desaparece por cima do novo | `fade` |
-| `deslizar-esquerda` | Para a esquerda | os dois andam para a esquerda (empurra) | `slideleft` |
-| `deslizar-direita` | Para a direita | idem, para a direita | `slideright` |
-| `deslizar-cima` | Para cima | idem, para cima | `slideup` |
-| `deslizar-baixo` | Para baixo | idem, para baixo | `slidedown` |
+| `deslizar-esquerda` | Esquerda | os dois andam para a esquerda (empurra) | `slideleft` |
+| `deslizar-direita` | Direita | idem, para a direita | `slideright` |
+| `deslizar-cima` | Cima | idem, para cima | `slideup` |
+| `deslizar-baixo` | Baixo | idem, para baixo | `slidedown` |
 | `zoom` | Zoom | o anterior amplia (1→2,2) e desaparece; o novo assenta de 1,4 para 1 | `zoomin` |
 | `desfoque` | Desfoque | desfoca até ao meio, troca e volta a focar | `hblur` |
 | `girar` | Girar | meia volta (0→90°, −90°→0), ampliada para não haver cantos vazios | `radial` |

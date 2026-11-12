@@ -129,7 +129,7 @@ export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, 
                 return (
                   <Pressable key={t.id} onPress={() => { put(i, (f) => ({ ...f, transition: { type: t.id, dur: (f.transition ?? DEFAULT_TRANSITION).dur } })); if (t.id !== 'corte') onPreviewJunction(i); }}
                     style={({ pressed }) => [{ width: 66, height: 66, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: fxc.glass, borderWidth: 1, borderColor: fxc.line }, on && ({ borderColor: fxc.coralHot, backgroundColor: fxc.glassOn, boxShadow: fxc.glow } as object), pressed && { transform: [{ scale: 0.95 }] }]}
-                    accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`Transição ${t.name}`}>
+                    accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`Transição ${t.id.startsWith('deslizar') ? `deslizar: ${t.name}` : t.name}`}>
                     <Text style={{ color: on ? '#fff' : 'rgba(255,255,255,0.85)', fontSize: 22, fontWeight: '700' }}>{TR_GLYPH[t.id]}</Text>
                     <Text style={{ color: on ? '#fff' : fxc.muted, fontSize: 10, fontWeight: '800' }} numberOfLines={1}>{t.name}</Text>
                   </Pressable>

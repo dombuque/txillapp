@@ -243,13 +243,18 @@ export function drawFx2D(g: CanvasRenderingContext2D, src: CanvasImageSource, cr
 
 /**
  * Desenha `src` a cobrir `to` (com zoom) e com os efeitos: WebGL quando houver efeitos e der; sem efeitos, o drawImage
- * simples (o mais rápido).
+ * simples (o mais rápido). Uma fonte que já não se pode desenhar (um frame libertado, um vídeo sem dados) não pára a
+ * montagem: esse frame fica como estava.
  */
 export function drawClip(g: CanvasRenderingContext2D, gl: FxGL | null, src: TexImageSource & CanvasImageSource, sw: number, sh: number, to: Rect, zoom: number, p: FxParams, seed = 0): void {
   if (!sw || !sh) return;
   const crop = coverCrop(sw, sh, to.w, to.h, zoom);
-  if (fxIsNone(p)) { g.drawImage(src, crop.x, crop.y, crop.w, crop.h, to.x, to.y, to.w, to.h); return; }
-  const out = gl?.render(src, sw, sh, crop, p, Math.round(to.w), Math.round(to.h), seed);
-  if (out) g.drawImage(out, to.x, to.y, to.w, to.h);
-  else drawFx2D(g, src, crop, to, p, seed);
+  try {
+    if (fxIsNone(p)) { g.drawImage(src, crop.x, crop.y, crop.w, crop.h, to.x, to.y, to.w, to.h); return; }
+    const out = gl?.render(src, sw, sh, crop, p, Math.round(to.w), Math.round(to.h), seed);
+    if (out) g.drawImage(out, to.x, to.y, to.w, to.h);
+    else drawFx2D(g, src, crop, to, p, seed);
+  } catch {
+    /* fonte indisponível neste frame */
+  }
 }
