@@ -27,7 +27,7 @@ import { saveToGallery } from '@/lib/saveToGallery';
 import { StickerLayer } from '@/components/Stickers';
 import { isGone } from '@/lib/postCache';
 import { storyPaused } from '@/lib/storyPlayback';
-import { startIndex } from '@/lib/storyLink';
+import { freshEnough, startIndex } from '@/lib/storyLink';
 
 /** Quanto tempo fica à vista um mimo de foto (os de vídeo duram o vídeo, até 30 s). */
 const IMAGE_MS = 30_000;
@@ -207,14 +207,18 @@ export default function StoryViewer() {
 
   // Abre no primeiro story ainda não visto dessa pessoa (ou no primeiro, se já viu todos).
   const started = useRef<string | null>(null);
+  /** Quando o visor abriu: a lista que já estava em memória pode ser de antes (com mimos vistos marcados como novos). */
+  const openedAt = useRef(Date.now());
   useEffect(() => {
     if (!q.data || started.current === username) return;
+    // Espera pela lista acabada de pedir ao servidor (o `seen` certo), em vez de decidir pela que estava guardada.
+    if (!freshEnough(q.dataUpdatedAt, openedAt.current, q.isFetching)) return;
     started.current = username;
     // Os meus: o `seen` vem do servidor (guardado na conta, vale em todos os aparelhos), reforçado pelo que este aparelho guardou.
     // Vindo de uma resposta no chat (`?m=`): abre nesse mimo, se ainda existir.
     setI(startIndex(stories, wantedMedia, firstToWatch(stories, mine, ownSeen)));
     setReady(true);
-  }, [q.isSuccess, q.isFetching, username]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [q.isSuccess, q.isFetching, q.dataUpdatedAt, username]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (q.isSuccess && stories.length === 0) next();
   }, [q.isSuccess, stories.length]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -24,3 +24,12 @@ test('a bolha e o visor usam o mimo pedido', () => {
   const viewer = readFileSync(new URL('../src/app/stories/[username].tsx', import.meta.url), 'utf8');
   assert.match(viewer, /setI\(startIndex\(stories, wantedMedia, firstToWatch\(stories, mine, ownSeen\)\)\)/);
 });
+
+test('o visor dos mimos escolhe onde começar só com a lista fresca do servidor', async () => {
+  const { freshEnough } = await import('../src/lib/storyLink.ts');
+  assert.equal(freshEnough(100, 200, true), false); // lista antiga e há pedido a correr: espera
+  assert.equal(freshEnough(250, 200, true), true); // lista nova
+  assert.equal(freshEnough(100, 200, false), true); // sem pedido (sem rede): usa a que houver
+  const viewer = readFileSync(new URL('../src/app/stories/[username].tsx', import.meta.url), 'utf8');
+  assert.match(viewer, /if \(!freshEnough\(q\.dataUpdatedAt, openedAt\.current, q\.isFetching\)\) return;/);
+});
