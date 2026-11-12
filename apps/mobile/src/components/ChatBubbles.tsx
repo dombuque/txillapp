@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { createElement, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
+import { Animated, Easing, Linking, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
@@ -26,6 +26,7 @@ import { HOLD_MS, bubbleA11yActions, deletedText, isSent, recentlyHeld } from '@
 import { canSwipeReply } from '@/lib/replySwipe';
 import { liveShareEnded } from '@/lib/sendLocation';
 import { colors } from '@/lib/theme';
+import { chatSegments, type ChatSeg } from '@/lib/chatLinks';
 
 /**
  * O texto das bolhas só é selecionável no computador (rato). No telemóvel (app e site) segurar a bolha abre o menu da
@@ -377,6 +378,34 @@ function SideAvatar({ who }: { who: Who }) {
 }
 
 /**
+ * O texto de uma bolha (ou a legenda de uma foto) com as ligações e as @menções a funcionar (lib/chatLinks): as do
+ * Txillapp abrem dentro da app, as outras no browser, @username abre o perfil. Nas minhas (fundo da marca) a branco
+ * sublinhado; nas da outra pessoa na cor da marca. Segurar uma ligação abre o menu da mensagem, como no resto da bolha.
+ */
+function ChatText({ text, mine, style, onLongPress }: { text: string; mine: boolean; style: StyleProp<TextStyle>; onLongPress?: () => void }) {
+  const router = useRouter();
+  const segs = useMemo(() => chatSegments(text), [text]);
+  if (segs.length === 1 && segs[0].t === 'text') return <Text selectable={SELECTABLE} style={style}>{text}</Text>;
+  const link: TextStyle = mine ? { color: '#fff', textDecorationLine: 'underline', fontWeight: '600' } : { color: colors.brand, textDecorationLine: 'underline', fontWeight: '600' };
+  const open = (s: ChatSeg) => {
+    if (s.t === 'mention') router.push(`/u/${s.username}` as never);
+    else if (s.t === 'url') {
+      if (s.path) router.push(s.path as never);
+      else void Linking.openURL(s.href).catch(() => undefined);
+    }
+  };
+  return (
+    <Text selectable={SELECTABLE} style={style}>
+      {segs.map((s, i) => (s.t === 'text' ? s.s : (
+        <Text key={i} onPress={() => open(s)} onLongPress={onLongPress} style={s.t === 'mention' ? { fontWeight: '700', color: mine ? '#fff' : colors.brand } : link} accessibilityRole="link">
+          {s.s}
+        </Text>
+      )))}
+    </Text>
+  );
+}
+
+/**
  * GIF do GIPHY numa bolha: a imagem animada (expo-image aceita GIF e WebP animados) no tamanho certo pela proporção, com os
  * cantos da bolha. Sem Pressable próprio: tocar e segurar são os da bolha (menu da mensagem, hora, brindar).
  * "Reduzir movimento": mostra a primeira imagem, parada.
@@ -532,7 +561,7 @@ export function Bubble({
             </View>
           </Pressable>
         )}
-        {m.kind === 'image' && m.body ? <Text style={[st.text, { paddingHorizontal: 13, paddingVertical: 8, color: ink }]}>{m.body}</Text> : null}
+        {m.kind === 'image' && m.body ? <ChatText text={m.body} mine={mine} style={[st.text, { paddingHorizontal: 13, paddingVertical: 8, color: ink }]} onLongPress={hold.onLongPress} /> : null}
         {full && <MediaFull url={url} video={m.kind === 'video'} onClose={() => setFull(false)} />}
       </View>
     );
@@ -552,7 +581,7 @@ export function Bubble({
             </View>
           </View>
         )}
-        <View style={[st.bubble, tone, radius, dimStyle]}><Text selectable={SELECTABLE} style={[st.text, { color: ink }]}>{shown}</Text></View>
+        <View style={[st.bubble, tone, radius, dimStyle]}><ChatText text={shown} mine={mine} style={[st.text, { color: ink }]} onLongPress={hold.onLongPress} /></View>
       </View>
     );
   }
