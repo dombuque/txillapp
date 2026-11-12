@@ -85,3 +85,13 @@ test('cada useVideoPlayer da app põe um teto de memória logo no setup', () => 
   }
   assert.ok(n >= 8, `encontrou ${n} leitores`);
 });
+
+test('carrossel no telemóvel: só a foto à vista e as vizinhas ficam montadas (bitmaps no heap nativo)', async () => {
+  const li = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'listImage.ts')).href);
+  const w = li.carouselWindowProps('android');
+  assert.ok(w.windowSize <= 3 && w.initialNumToRender <= 2 && w.maxToRenderPerBatch <= 2);
+  assert.deepEqual(li.carouselWindowProps('ios'), w);
+  assert.deepEqual(li.carouselWindowProps('web'), {}, 'na web fica como estava');
+  const s = src('components/PostCard.tsx');
+  assert.match(s, /getItemLayout=\{\(_, index\) => \(\{ length: width, offset: width \* index, index \}\)\}\s*\{\.\.\.carouselWindowProps\(Platform\.OS\)\}/);
+});
