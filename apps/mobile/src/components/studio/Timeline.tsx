@@ -277,27 +277,40 @@ export function Timeline(p: TimelineProps) {
     }
   }
 
+  /**
+   * Todos os dedos que tocam na linha do tempo contam (também em cima do «+», dos botões do zoom, das pegas ou do cursor):
+   * o segundo começa a pinça, que fica com os dois dedos (o botão debaixo do primeiro já não carrega).
+   */
+  const onPointerDownCapture = (e: RPointerEvent<HTMLDivElement>) => {
+    if (locked) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size !== 2) return;
+    const sc = scroller.current;
+    const w = wrap.current;
+    if (!sc || !w) return;
+    e.stopPropagation();
+    e.preventDefault();
+    // Pinça: o que estava a meio fica sem efeito (um corte acaba onde estava).
+    endGesture(false);
+    for (const id of pointers.current.keys()) { try { w.setPointerCapture(id); } catch { /* sem captura */ } }
+    mom.current = 0;
+    const [a, b] = [...pointers.current.values()];
+    g.current = { kind: 'pinch', d0: Math.max(10, pinchDistance(a, b)), pps0: ppsRef.current, scroll0: sc.scrollLeft, mid: Math.max(0, Math.min(sc.clientWidth, relX((a.x + b.x) / 2))) };
+  };
+
   const onPointerDown = (e: RPointerEvent<HTMLDivElement>) => {
     if (locked) return;
     const sc = scroller.current;
     if (!sc) return;
+    if (pointers.current.size !== 1 || !pointers.current.has(e.pointerId)) return;
     const el = (e.target as HTMLElement).closest('[data-tl]') as HTMLElement | null;
     const role = el?.dataset.tl ?? 'empty';
     if (role === 'add' || role === 'ui') return; // o botão de juntar (input de ficheiro) e os botões tratam do toque
     const mouse = e.pointerType === 'mouse';
-    if (mouse && e.button !== 0) return;
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try { sc.setPointerCapture(e.pointerId); } catch { /* sem captura */ }
     mom.current = 0;
     lastX.current = e.clientX;
-    if (pointers.current.size === 2) {
-      // Pinça: o que estava a meio fica sem efeito (um corte acaba onde estava).
-      endGesture(false);
-      const [a, b] = [...pointers.current.values()];
-      g.current = { kind: 'pinch', d0: Math.max(10, pinchDistance(a, b)), pps0: ppsRef.current, scroll0: sc.scrollLeft, mid: relX((a.x + b.x) / 2) };
-      return;
-    }
-    if (pointers.current.size > 2) return;
     const key = el?.dataset.key ?? '';
     if (role === 'h-start' || role === 'h-end') {
       const index = live.current.clips.findIndex((c) => c.key === key);
@@ -508,7 +521,7 @@ export function Timeline(p: TimelineProps) {
   );
 
   return (
-    <div ref={wrap} aria-label="Linha do tempo" style={{ position: 'relative', background: `linear-gradient(180deg, ${C.bg}, #0b0b12)`, borderTop: `1px solid ${C.line}`, userSelect: 'none', WebkitUserSelect: 'none', fontFamily: font }}>
+    <div ref={wrap} aria-label="Linha do tempo" onPointerDownCapture={onPointerDownCapture} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} style={{ position: 'relative', touchAction: 'none', background: `linear-gradient(180deg, ${C.bg}, #0b0b12)`, borderTop: `1px solid ${C.line}`, userSelect: 'none', WebkitUserSelect: 'none', fontFamily: font }}>
       <div style={{ height: HEAD_H, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px' }}>
         <span style={{ color: '#fff', fontSize: 13, fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: 0.3 }}>
           <span ref={clockEl}>{preciseClock(showT)}</span>
@@ -525,9 +538,6 @@ export function Timeline(p: TimelineProps) {
       <div
         ref={scroller}
         onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
         onScroll={(e) => { const x = (e.target as HTMLDivElement).scrollLeft; if (Math.abs(x - scrollX) > vw / 3) setScrollX(x); }}
         style={{ position: 'relative', overflowX: 'auto', overflowY: 'hidden', touchAction: 'none', overscrollBehavior: 'contain', scrollbarWidth: 'none', paddingBottom: 10 } as CSSProperties}
       >

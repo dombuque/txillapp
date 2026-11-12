@@ -116,3 +116,10 @@ test('o estúdio liga a linha do tempo, os atalhos e o bloqueio da montagem', ()
   // Toque leve ao chegar ao mínimo.
   assert.match(timeline, /vibrate/);
 });
+
+test('a pinça conta os dedos em toda a linha do tempo (também em cima do «+» e dos botões)', () => {
+  const timeline = read('components', 'studio', 'Timeline.tsx');
+  assert.match(timeline, /onPointerDownCapture=\{onPointerDownCapture\}/);
+  assert.match(timeline, /for \(const id of pointers\.current\.keys\(\)\) \{ try \{ w\.setPointerCapture\(id\);/);
+  assert.match(timeline, /touchAction: 'none'/);
+});
