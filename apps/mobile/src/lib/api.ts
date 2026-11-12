@@ -646,8 +646,9 @@ export const api = {
     await refreshStore.save(r);
     return r;
   },
+  /** Como a Google: a data de nascimento e a aceitação dos termos são obrigatórias no servidor (quem chama já mostrou os termos). */
   async appleComplete(signupToken: string, username: string, gender: string, birthDate: string): Promise<AuthResult> {
-    const r = (await parse(await call('/auth/apple/complete', post({ signupToken, username, gender, birthDate }), false))) as AuthResult;
+    const r = (await parse(await call('/auth/apple/complete', post({ signupToken, username, gender, birthDate, acceptTerms: true }), false))) as AuthResult;
     accessToken = r.accessToken;
     await refreshStore.save(r);
     return r;
