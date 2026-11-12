@@ -55,6 +55,7 @@ describe('"A malta brindou-te": avisos de brindes agrupados e push com travão (
     await app.init();
     jest.spyOn(app.get(PushService), 'send').mockImplementation(async (userId: string, p: PushPayload) => {
       sent.push({ userId, p });
+      return 1;
     });
     for (const n of ['bra', 'brb', 'brc', 'brd', 'bre', 'brf', 'brg']) u[n] = await signup(n);
   }, 60_000);

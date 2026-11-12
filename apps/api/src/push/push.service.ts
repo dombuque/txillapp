@@ -8,7 +8,9 @@ import { ApnsSender, apnsOptionsFromEnv, nativeRoute } from './apns';
 import { FcmSender, type FcmPush } from './fcm';
 
 /** O que a pessoa pode ligar ou desligar nas notificações. */
-export const NOTIFY_CATEGORIES = ['messages', 'follows', 'comments', 'mentions', 'reposts', 'gifts', 'reactions', 'invites', 'calls', 'venues'] as const;
+// `comeback`: os lembretes quando a pessoa não passa por cá (push e e-mail, ver src/reminders/comeback-reminder.service.ts);
+// esses não entram na lista de notificações.
+export const NOTIFY_CATEGORIES = ['messages', 'follows', 'comments', 'mentions', 'reposts', 'gifts', 'reactions', 'invites', 'calls', 'venues', 'comeback'] as const;
 export type NotifyCategory = (typeof NOTIFY_CATEGORIES)[number];
 
 export interface PushPayload extends FcmPush {
@@ -109,11 +111,15 @@ export class PushService implements OnModuleDestroy {
     await this.pool.query('DELETE FROM social.push_subscriptions WHERE user_id = $1 AND endpoint = $2', [userId, endpoint]);
   }
 
-  /** Envia para todos os aparelhos da pessoa. Nunca falha a acção principal; subscrições mortas são removidas. */
-  async send(userId: string, payload: PushPayload): Promise<void> {
-    if (!this.enabled) return;
+  /**
+   * Envia para todos os aparelhos da pessoa. Nunca falha a acção principal; subscrições mortas são removidas.
+   * Devolve a quantos aparelhos chegou (0 = nenhum push válido: os lembretes de regresso passam então ao e-mail).
+   */
+  async send(userId: string, payload: PushPayload): Promise<number> {
+    if (!this.enabled) return 0;
+    let delivered = 0;
     try {
-      if (payload.category && (await this.off(userId)).includes(payload.category)) return;
+      if (payload.category && (await this.off(userId)).includes(payload.category)) return 0;
       if ((this.fcm.enabled || this.apns.enabled) && !payload.webOnly) {
         const devices = (await this.pool.query('SELECT token, platform FROM social.push_devices WHERE user_id = $1', [userId])).rows;
         await Promise.all(
@@ -127,18 +133,20 @@ export class PushService implements OnModuleDestroy {
               const r = route === 'apns' ? await this.apns.send(token, payload) : await this.fcm.send(token, payload, platform);
               if (r === 'dead') await this.pool.query('DELETE FROM social.push_devices WHERE token = $1', [token]);
               else if (r === 'error' && route === 'fcm') this.log.warn('falha no push nativo');
+              else if (r === 'ok') delivered++;
             } catch (e) {
               this.log.warn(`falha no push nativo: ${(e as Error).message}`);
             }
           }),
         );
       }
-      if (!this.web) return;
+      if (!this.web) return delivered;
       const { rows } = await this.pool.query('SELECT endpoint, p256dh, auth FROM social.push_subscriptions WHERE user_id = $1', [userId]);
       await Promise.all(
         rows.map(async (r) => {
           try {
             await webpush.sendNotification({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }, webPushBody(payload), { TTL: payload.ttlSeconds ?? 86_400, urgency: 'high' });
+            delivered++;
           } catch (e) {
             const status = (e as { statusCode?: number }).statusCode;
             if (status === 404 || status === 410) await this.pool.query('DELETE FROM social.push_subscriptions WHERE endpoint = $1', [r.endpoint]);
@@ -149,5 +157,6 @@ export class PushService implements OnModuleDestroy {
     } catch (e) {
       this.log.warn(`falha no push: ${(e as Error).message}`);
     }
+    return delivered;
   }
 }

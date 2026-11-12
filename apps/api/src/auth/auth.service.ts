@@ -618,6 +618,8 @@ export class AuthService {
         'DELETE FROM social.ai_messages WHERE user_id = $1',
         'DELETE FROM social.bot_usage WHERE user_id = $1',
         'DELETE FROM social.notification_prefs WHERE user_id = $1',
+        // Lembretes de regresso: o registo de quando e por onde foram (0129).
+        'DELETE FROM social.comeback_reminders WHERE user_id = $1',
         'DELETE FROM social.profile_views WHERE profile_id = $1 OR viewer_id = $1',
         'DELETE FROM social.explore_prefs WHERE user_id = $1',
         'DELETE FROM social.explore_people WHERE user_id = $1 OR person_id = $1',
