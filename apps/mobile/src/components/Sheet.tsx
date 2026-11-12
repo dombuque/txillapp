@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Dimensions, Keyboard, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Dimensions, Keyboard, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, iosWeb } from '@/components/Modal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/lib/theme';
 import { useDesktop } from '@/lib/desktop';
@@ -59,8 +60,9 @@ export function Sheet({ title, onClose, children, full = false, plain = false }:
 
   const backdrop = y.interpolate({ inputRange: [0, h], outputRange: [0.4, 0], extrapolate: 'clamp' });
 
+  // «Voltar» do browser fecha a folha (no iPhone sem animar: o arrastar para trás já mostrou o ecrã de baixo).
   return (
-    <Modal transparent visible animationType="none" onRequestClose={close} statusBarTranslucent>
+    <Modal transparent visible animationType="none" onRequestClose={close} onWebBack={iosWeb ? onClose : close} statusBarTranslucent>
       <View style={[styles.root, desktop && { justifyContent: 'center', padding: 24 }]}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: backdrop }]} />
         <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Fechar" />

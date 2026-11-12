@@ -1,4 +1,5 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal } from '@/components/Modal';
 import { closeAlert, useAlertRequest } from '@/lib/alertHost';
 import { useOverlay } from '@/lib/overlays';
 import { colors } from '@/lib/theme';

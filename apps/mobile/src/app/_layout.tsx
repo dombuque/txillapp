@@ -18,6 +18,7 @@ import { DesktopShell } from '@/components/DesktopShell';
 import { isStandaloneWeb } from '@/components/Landing';
 import { useDesktop } from '@/lib/desktop';
 import { installWebAlert } from '@/lib/alertHost';
+import { installWebBack } from '@/lib/webBack';
 import { accounts } from '@/lib/accounts';
 import { syncPush } from '@/lib/push';
 import { installCallRing } from '@/lib/callRing';
@@ -27,6 +28,9 @@ import { AnalyticsLive, reportRenderError, startAnalytics } from '@/lib/analytic
 
 void SplashScreen.preventAutoHideAsync();
 installWebAlert();
+// Web: o «voltar» do browser (e arrastar para trás no PWA do iPhone) fecha a folha ou o visor aberto, em vez de sair do ecrã.
+// Tem de ficar aqui, antes de o expo-router começar a ouvir o histórico.
+installWebBack();
 // Estatísticas de uso (só nossas; respeitam Definições → "Ajudar a melhorar o Txillapp"): aberturas, ecrãs, desempenho e erros.
 startAnalytics();
 
