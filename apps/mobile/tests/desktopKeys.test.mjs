@@ -10,7 +10,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const k = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'desktopKeys.ts')).href);
 const pol = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'deskPolish.ts')).href);
-const read = (p) => readFileSync(path.join(ROOT, 'src', p), 'utf8');
+// Sem os \r do Windows (autocrlf): as regras abaixo procuram quebras de linha.
+const read = (p) => readFileSync(path.join(ROOT, 'src', p), 'utf8').replace(/\r\n/g, '\n');
 
 const ctx = (o = {}) => ({ typing: false, overlay: false, path: '/', ...o });
 const key = (keyName, o = {}) => ({ key: keyName, ...o });
