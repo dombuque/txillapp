@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
+import { InlineBadge } from '@/components/NameWithBadge';
 import { FollowButton } from '@/components/FollowButton';
 import { Icon } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
@@ -154,7 +155,7 @@ function Faces({ actors }: { actors: AppNotification['actor'][] }) {
 
 /** `total`: quantas pessoas são ao todo, quando só vêm as primeiras (os brindes: o servidor manda a contagem e os dois últimos). */
 function Names({ actors, total = actors.length }: { actors: AppNotification['actor'][]; total?: number }) {
-  const b = (a: AppNotification['actor']) => <Text key={a.username} style={{ fontWeight: '700' }}>{a.username}</Text>;
+  const b = (a: AppNotification['actor']) => <Text key={a.username} style={{ fontWeight: '700' }}>{a.username}<InlineBadge who={a} fontSize={styles.line.fontSize} /></Text>;
   const rest = Math.max(total, actors.length) - 2;
   if (actors.length === 1) return b(actors[0]);
   if (rest <= 0) return <>{b(actors[0])} e {b(actors[1])}</>;

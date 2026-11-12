@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { Empty } from '@/components/Empty';
 import { Icon } from '@/components/Icon';
 import { PlaceField, type PlaceFieldHandle } from '@/components/PlaceField';
@@ -270,7 +271,7 @@ function Managers({ v }: { v: Venue }) {
           <View key={m.username} style={st.mRow}>
             <Pressable onPress={() => router.push(`/u/${m.username}` as never)} accessibilityRole="link"><Avatar name={m.displayName} username={m.hasAvatar ? m.username : undefined} size={44} /></Pressable>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }} numberOfLines={1}>{m.displayName}{self ? ' (tu)' : ''}</Text>
+              <NameWithBadge name={m.displayName} who={m} style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>{self ? <Text style={{ flexShrink: 0, fontSize: 15, fontWeight: '700', color: colors.zinc900 }}>(tu)</Text> : null}</NameWithBadge>
               <Text style={{ fontSize: 13, color: colors.zinc500 }} numberOfLines={1}>@{m.username} · {ROLE_LABEL[m.role]}{m.status === 'pending' ? ' · convite por aceitar' : ''}</Text>
             </View>
             {m.role !== 'owner' && (v.canEdit || self) ? (

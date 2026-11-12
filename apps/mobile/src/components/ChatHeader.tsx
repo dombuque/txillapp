@@ -4,7 +4,9 @@ import { BackButton } from '@/components/BackButton';
 import { Icon, type IconName } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 import { colors } from '@/lib/theme';
+import type { Badged } from '@/lib/api';
 import { dayLabel, type Msg } from './ChatBubbles';
+import { NameWithBadge } from './NameWithBadge';
 
 /**
  * Cabeçalho das conversas (1:1 e TxillGroups): ‹, a foto e o nome com o estado por baixo (um só botão que abre o
@@ -14,9 +16,11 @@ import { dayLabel, type Msg } from './ChatBubbles';
  * muda a altura do cabeçalho, e só apanha toques onde tem conteúdo.
  */
 export function ChatHeader({
-  raised, avatar, title, subtitle, subtitleAction, avatarAction, onOpen, openLabel, actions, below, overlay,
+  raised, avatar, title, titleWho, subtitle, subtitleAction, avatarAction, onOpen, openLabel, actions, below, overlay,
 }: {
   raised: boolean; avatar: ReactNode; title: string; subtitle?: ReactNode;
+  /** Conversa 1:1: o selo de verificado a seguir ao nome. */
+  titleWho?: Badged | null;
   /** O estado por baixo do nome é ele próprio um botão ("1 publicação nova"); o resto continua a abrir o perfil. */
   subtitleAction?: { label: string; onPress: () => void };
   /** A foto é ela própria um botão (mostrar a nota encolhida); o resto continua a abrir o perfil. */
@@ -55,7 +59,7 @@ export function ChatHeader({
             )}
             <View style={{ flex: 1, minWidth: 0 }} pointerEvents="box-none">
               <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                <Text style={st.name} numberOfLines={1}>{title}</Text>
+                <NameWithBadge name={title} who={titleWho} style={st.name} />
               </View>
               {subtitleAction ? (
                 <Pressable
@@ -82,7 +86,7 @@ export function ChatHeader({
           >
             {avatar}
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={st.name} numberOfLines={1}>{title}</Text>
+              <NameWithBadge name={title} who={titleWho} style={st.name} />
               {subtitle}
             </View>
           </Pressable>

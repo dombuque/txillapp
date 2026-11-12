@@ -58,6 +58,7 @@ export default function Invites() {
         stickerSvg: stickerById(PHRASE_STICKERS[ph])?.svg ?? null,
         qr: qrMatrix(d.link),
         hasAvatar: !!c?.hasAvatar,
+        badge: c?.verified ? (c.verifiedTier ?? 'verified') : null,
       },
       c?.hasAvatar && c.username ? `${SITE_URL}/api/v1/avatars/${encodeURIComponent(c.username)}` : null,
     )

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Platform, Pressable, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Avatar } from '@/components/Avatar';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
 import { QrSvg, downloadQrSvg, origin } from '@/components/VenueQr';
 import { locaisApi, type Venue, type VenuePayment } from '@/lib/api.locais';
@@ -111,7 +112,9 @@ function PaymentRow({ p, first }: { p: VenuePayment; first: boolean }) {
     >
       {person ? <Avatar name={person.displayName} username={person.username} size={40} /> : <View style={st.groupIcon}><Icon name="users" size={20} color={colors.zinc800} /></View>}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }} numberOfLines={1}>{person ? `Recebido de @${person.username}` : `Do cofre de ${group!.name}`}</Text>
+        {person
+          ? <NameWithBadge name={`Recebido de @${person.username}`} who={person} style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }} />
+          : <Text style={{ fontSize: 15, fontWeight: '700', color: colors.zinc900 }} numberOfLines={1}>{`Do cofre de ${group!.name}`}</Text>}
         <Text style={{ fontSize: 13, color: colors.zinc500 }} numberOfLines={1}>{person ? `${person.displayName} · ` : ''}{timeAgo(p.at)}</Text>
         {p.note ? <Text style={{ marginTop: 2, fontSize: 14, color: colors.zinc700 }} numberOfLines={2}>{p.note}</Text> : null}
       </View>

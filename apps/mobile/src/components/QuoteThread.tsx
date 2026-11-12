@@ -9,6 +9,7 @@ import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
 import { VerifiedBadge } from './VerifiedBadge';
+import { NameWithBadge } from './NameWithBadge';
 import { VenueLogo } from './VenueCard';
 
 /** Tamanho do avatar no fio (a original em cima e quem citou por baixo) e o espaço até ao texto. */
@@ -128,9 +129,14 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
         {g ? (
           <View style={styles.gift}>
             <Icon name="gift" size={15} color={colors.brand} />
-            <Text style={styles.giftText} numberOfLines={1}>
-              Presenteou <Text style={{ fontWeight: '700' }}>{g.recipient.displayName}</Text> com {g.amount.toLocaleString('pt-PT')} Txills
-            </Text>
+            <NameWithBadge
+              name={<>Presenteou <Text style={{ fontWeight: '700' }}>{g.recipient.displayName}</Text></>}
+              who={g.recipient}
+              style={styles.giftText}
+              containerStyle={{ flexShrink: 1 }}
+            >
+              <Text style={[styles.giftText, { flexShrink: 0 }]}>com {g.amount.toLocaleString('pt-PT')} Txills</Text>
+            </NameWithBadge>
           </View>
         ) : null}
         <View style={side ? styles.sideRow : undefined}>

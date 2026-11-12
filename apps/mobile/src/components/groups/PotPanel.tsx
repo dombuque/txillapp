@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Sheet } from '@/components/Sheet';
@@ -98,7 +99,7 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
           {ranking.map((m) => (
             <View key={m.username} style={st.row}>
               <Avatar name={m.displayName} username={m.username} size={36} />
-              <Text style={st.rowName} numberOfLines={1}>{m.username === me ? 'Tu' : m.displayName}</Text>
+              <NameWithBadge name={m.username === me ? 'Tu' : m.displayName} who={m.username === me ? null : m} style={[st.rowName, { flex: undefined }]} containerStyle={{ flex: 1 }} />
               <Text style={st.amount}>{txills(m.amount)}</Text>
             </View>
           ))}
@@ -127,7 +128,7 @@ export function PotPanel({ groupId, me, admin: isAdmin }: { groupId: string; me:
           <View key={`${c.at}-${c.username}-${i}`} style={st.row}>
             <Avatar name={c.displayName} username={c.username} size={32} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={st.rowName} numberOfLines={1}>{c.username === me ? 'Tu' : c.displayName}</Text>
+              <NameWithBadge name={c.username === me ? 'Tu' : c.displayName} who={c.username === me ? null : c} style={[st.rowName, { flex: undefined }]} />
               <Text style={st.muted}>{timeAgo(c.at)}</Text>
             </View>
             <Text style={st.amount}>+{c.amount.toLocaleString('pt-PT')}</Text>

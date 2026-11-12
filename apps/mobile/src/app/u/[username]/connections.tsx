@@ -8,6 +8,7 @@ import { Avatar } from '@/components/Avatar';
 import { Empty } from '@/components/Empty';
 import { FollowButton } from '@/components/FollowButton';
 import { Icon } from '@/components/Icon';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { StackPage } from '@/components/StackPage';
 import { ApiError, api, type Person } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -78,7 +79,7 @@ function ConnectionList({ username, kind, me, width }: { username: string; kind:
             <Pressable onPress={() => router.push(x.username === me ? '/profile' : (`/u/${x.username}` as never))} style={st.who} accessibilityRole="link">
               <Avatar name={x.displayName} username={x.username} size={48} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={st.name} numberOfLines={1}>{x.displayName}</Text>
+                <NameWithBadge name={x.displayName} who={x} style={st.name} />
                 <Text style={st.user} numberOfLines={1}>@{x.username}{x.followsYou && x.username !== me ? ' · segue-te' : ''}</Text>
               </View>
             </Pressable>

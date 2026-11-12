@@ -11,6 +11,7 @@ import { applyCheer, canCheer, canListCheers, cheerA11yLabel, cheerButtonText, c
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
+import { NameWithBadge } from './NameWithBadge';
 import { CheersPour } from './CheersPour';
 import { FridgeArt, LEVEL_LABEL, geleiraLevel, geleiraPoints, nextLevelHint } from './FridgeArt';
 import { Icon, type IconName } from './Icon';
@@ -99,7 +100,7 @@ function CheerersSheet({ username, name, isMe, onClose }: { username: string; na
           >
             <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={44} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={st.name} numberOfLines={1}>{p.displayName}</Text>
+              <NameWithBadge name={p.displayName} who={p} style={st.name} />
               <Text style={st.handle} numberOfLines={1}>@{p.username}</Text>
             </View>
             <Text style={st.handle}>{timeAgo(p.at)}</Text>

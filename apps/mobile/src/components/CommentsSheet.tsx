@@ -17,7 +17,7 @@ import { Sheet } from './Sheet';
 import { Sticker, StickerPanel } from './StickerPanel';
 import { GifView, useGifsConfig } from './GifPanel';
 import { gifPayload, validGif } from '@/lib/gifs';
-import { VerifiedBadge } from './VerifiedBadge';
+import { InlineBadge, NameWithBadge } from './NameWithBadge';
 
 // Reações rápidas desenhadas com a mascote do Txillapp; ao tocar, escrevem o emoji no comentário (conteúdo do utilizador).
 // As mesmas reações rápidas do site (vão para o texto do comentário).
@@ -112,11 +112,9 @@ function Row({ c, mine, canDelete, isReply, onReply, onRemoved, onGift, highligh
         <Avatar name={c.author.displayName} username={c.author.username} size={isReply ? 28 : 36} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <View style={styles.who}>
-          <Text style={styles.user}>{c.author.username}</Text>
-          {c.author.verified && <VerifiedBadge size={13} tier={c.author.verifiedTier} />}
-          <Text style={styles.ago}>{timeAgo(c.createdAt)}{text.editedAt ? ' · editado' : ''}</Text>
-        </View>
+        <NameWithBadge name={c.author.username} who={c.author} style={styles.user} gap={4}>
+          <Text style={[styles.ago, { flexShrink: 0 }]}>{timeAgo(c.createdAt)}{text.editedAt ? ' · editado' : ''}</Text>
+        </NameWithBadge>
         {editing ? (
           <View style={{ marginTop: 4 }}>
             <TextInput value={draft} onChangeText={setDraft} selection={sel} onSelectionChange={() => setSel(undefined)} maxLength={1000} multiline autoFocus style={styles.edit} accessibilityLabel="Editar comentário" />
@@ -339,7 +337,7 @@ export function CommentsSheet({ post, onClose, onDelta, onGift, highlight }: { p
         <KeyboardAvoidingView behavior="padding" style={styles.bar}>
           {replyTo && (
             <View style={styles.replying}>
-              <Text style={styles.replyingText}>A responder a <Text style={{ fontWeight: '700' }}>{replyTo.author.displayName}</Text></Text>
+              <Text style={styles.replyingText}>A responder a <Text style={{ fontWeight: '700' }}>{replyTo.author.displayName}</Text><InlineBadge who={replyTo.author} fontSize={14} /></Text>
               <Pressable onPress={() => { setReplyTo(null); setText(''); }} hitSlop={8} accessibilityLabel="Cancelar resposta"><Text style={{ fontSize: 18, color: colors.zinc600, paddingHorizontal: 8 }}>×</Text></Pressable>
             </View>
           )}

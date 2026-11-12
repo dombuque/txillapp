@@ -2,7 +2,7 @@ import { useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-que
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { AccessibilityInfo, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, type Badged } from '@/lib/api';
 import { gruposApi, type GroupMember, type GroupThread } from '@/lib/api.grupos';
 import { groupKindOf, groupsApi, kindInfo, type TxillGroupInfo } from '@/lib/api.groups';
 import { GroupDetailsForm, GroupEditSheet, draftError, emptyDraft, type GroupDraft } from './groups/GroupDetails';
@@ -14,9 +14,10 @@ import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
+import { NameWithBadge } from './NameWithBadge';
 import { Sheet } from './Sheet';
 
-interface Person { username: string; displayName: string; hasAvatar: boolean }
+interface Person extends Badged { username: string; displayName: string; hasAvatar: boolean }
 
 /**
  * Nova conversa (igual ao NewChat do site): procura uma pessoa e conversa, ou cria um TxillGroup. O TxillGroup tem nome, tipo,
@@ -40,7 +41,7 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
   const search = useQuery({ queryKey: ['mentionable', term], queryFn: () => api.mentionable(term), enabled: term.length >= 1, staleTime: 30_000 });
   const have = new Set((addTo?.have ?? []).map((u) => u.toLowerCase()));
 
-  const rows: Person[] = (term ? search.data ?? [] : (recent.data ?? []).map((c) => ({ username: c.username, displayName: c.displayName, hasAvatar: c.hasAvatar }))).filter((p) => !have.has(p.username.toLowerCase()));
+  const rows: Person[] = (term ? search.data ?? [] : (recent.data ?? []).map((c) => ({ username: c.username, displayName: c.displayName, hasAvatar: c.hasAvatar, verified: c.verified, verifiedTier: c.verifiedTier }))).filter((p) => !have.has(p.username.toLowerCase()));
   const isPicked = (u: string) => picked.some((p) => p.username === u);
   const toggle = (p: Person) => setPicked((l) => (isPicked(p.username) ? l.filter((x) => x.username !== p.username) : [...l, p]));
 
@@ -124,7 +125,7 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
               {picked.map((p) => (
                 <View key={p.username} style={{ width: 64, alignItems: 'center', gap: 4 }}>
                   <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={44} />
-                  <Text style={styles.chipName} numberOfLines={1}>{p.displayName.split(' ')[0]}</Text>
+                  <NameWithBadge name={p.displayName.split(' ')[0]} who={p} center gap={2} style={[styles.chipName, { width: undefined }]} />
                 </View>
               ))}
             </View>
@@ -155,7 +156,7 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
                       <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={52} />
                       <View style={styles.remove}><Icon name="x" size={12} strokeWidth={3} color="#fff" /></View>
                     </View>
-                    <Text style={styles.chipName} numberOfLines={1}>{p.displayName.split(' ')[0]}</Text>
+                    <NameWithBadge name={p.displayName.split(' ')[0]} who={p} center gap={2} style={[styles.chipName, { width: undefined }]} />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -174,7 +175,7 @@ export function NewChatSheet({ onClose, addTo, startGroup = false }: { onClose: 
                 <Pressable onPress={() => toggle(p)} accessibilityState={{ selected: on }} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.zinc100 }]}>
                   <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={46} />
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.rowName} numberOfLines={1}>{p.displayName}</Text>
+                    <NameWithBadge name={p.displayName} who={p} style={styles.rowName} />
                     <Text style={styles.rowSub} numberOfLines={1}>@{p.username}</Text>
                   </View>
                   <View style={[styles.check, on && { borderColor: colors.brand, backgroundColor: colors.brand }]}>{on && <Icon name="check" size={14} strokeWidth={3} color="#fff" />}</View>
@@ -320,7 +321,7 @@ export function GroupInfoSheet({ group, onClose, onChanged, onLeft }: { group: T
                 <Pressable onPress={() => { onClose(); router.push(`/u/${m.username}` as never); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }} accessibilityRole="link" accessibilityLabel={`${m.displayName}${mine ? ' (tu)' : ''}, @${m.username}${badge ? `, ${badge}` : ''}`}>
                   <Avatar name={m.displayName} username={m.hasAvatar ? m.username : undefined} size={44} />
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.rowName} numberOfLines={1}>{m.displayName}{mine ? ' (tu)' : ''}</Text>
+                    <NameWithBadge name={m.displayName} who={m} style={styles.rowName}>{mine ? <Text style={[styles.rowName, { flexShrink: 0 }]}>(tu)</Text> : null}</NameWithBadge>
                     <Text style={styles.rowSub} numberOfLines={1}>@{m.username}</Text>
                   </View>
                 </Pressable>

@@ -5,7 +5,8 @@ import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-nati
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { GoogleButton } from '@/components/GoogleButton';
 import { Icon } from '@/components/Icon';
-import { ApiError, api, inviteStore } from '@/lib/api';
+import { InlineBadge } from '@/components/NameWithBadge';
+import { ApiError, api, inviteStore, type Badged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
 import { colors } from '@/lib/theme';
@@ -101,7 +102,7 @@ export default function Register() {
   const [data, setData] = useState<Partial<Record<Key, string>> & { acceptTerms?: boolean }>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [invite, setInvite] = useState<{ code: string; displayName: string } | null>(null);
+  const [invite, setInvite] = useState<({ code: string; displayName: string } & Badged) | null>(null);
   const step = steps[i];
   const value = String(data[step.key] ?? '');
   const kind = step.key === 'username' || step.key === 'email' ? step.key : null;
@@ -122,7 +123,7 @@ export default function Register() {
       if (!code) return;
       try {
         const p = await api.invitePreview(code);
-        if (alive) setInvite({ code, displayName: p.displayName });
+        if (alive) setInvite({ code, displayName: p.displayName, verified: p.verified, verifiedTier: p.verifiedTier });
       } catch {
         await inviteStore.clear();
       }
@@ -183,7 +184,7 @@ export default function Register() {
       </View>
 
       <View style={{ marginTop: 40 }}>
-        {invite && i === 0 && <Text style={st.invite}>Convite de {invite.displayName}: os dois ganham Txills quando entrares a sério.</Text>}
+        {invite && i === 0 && <Text style={st.invite}>Convite de {invite.displayName}<InlineBadge who={invite} fontSize={15} />: os dois ganham Txills quando entrares a sério.</Text>}
         <Text style={st.title}>{step.title}</Text>
         <Text style={st.sub}>{step.sub}</Text>
 

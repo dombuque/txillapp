@@ -4,10 +4,12 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, FlatList, PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Modal } from '@/components/Modal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { Badged } from '@/lib/api';
 import type { PhotoTag } from '@/lib/api.feed';
 import { sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
+import { NameWithBadge } from './NameWithBadge';
 import { RichText } from './RichText';
 
 export interface ViewerPhoto { url: string; width?: number | null; height?: number | null; tags?: PhotoTag[] }
@@ -40,7 +42,7 @@ function Photo({ photo, w, h, index, total, onTag }: { photo: ViewerPhoto; w: nu
           return (
             <View key={`${t.username}-${i}`} pointerEvents="box-none" style={[styles.tagBox, { top: y * bh + 10 }, align]}>
               <Pressable onPress={() => onTag(t.username)} style={styles.tag} accessibilityRole="link" accessibilityLabel={`Perfil de ${t.displayName ?? t.username}`}>
-                <Text style={styles.tagText} numberOfLines={1}>{t.displayName ?? t.username}</Text>
+                <NameWithBadge name={t.displayName ?? t.username} who={t} style={styles.tagText} />
               </Pressable>
             </View>
           );
@@ -54,7 +56,7 @@ function Photo({ photo, w, h, index, total, onTag }: { photo: ViewerPhoto; w: nu
  * Foto em ecrã completo, como no X: fundo preto, deslizar entre as fotos, fechar com o X ou arrastando para baixo;
  * por baixo o autor, o texto e a barra de ações (`footer`).
  */
-export function PhotoViewer({ photos, start = 0, author, body, footer, onClose }: { photos: ViewerPhoto[]; start?: number; author: { displayName: string; username: string }; body?: string; footer?: ReactNode; onClose: () => void }) {
+export function PhotoViewer({ photos, start = 0, author, body, footer, onClose }: { photos: ViewerPhoto[]; start?: number; author: { displayName: string; username: string } & Badged; body?: string; footer?: ReactNode; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width, height } = useWindowDimensions();
@@ -120,9 +122,9 @@ export function PhotoViewer({ photos, start = 0, author, body, footer, onClose }
 
         {footer ? <View style={[styles.rail, { bottom: footH + 12 }]} pointerEvents="box-none">{footer}</View> : null}
         <View style={[styles.foot, { paddingBottom: Math.max(insets.bottom, 8) + 56 }]} onLayout={(e) => setFootH(Math.round(e.nativeEvent.layout.height))}>
-          <Text style={styles.who}>
-            {author.displayName} <Text style={styles.handle}>@{author.username}</Text>
-          </Text>
+          <NameWithBadge name={author.displayName} who={author} style={styles.who} gap={4}>
+            <Text style={[styles.who, styles.handle, { flexShrink: 1 }]} numberOfLines={1}>@{author.username}</Text>
+          </NameWithBadge>
           {body ? (
             <Text numberOfLines={5} style={styles.body}>
               <RichText text={body} style={{ color: '#f4f4f5', fontSize: 14 }} />

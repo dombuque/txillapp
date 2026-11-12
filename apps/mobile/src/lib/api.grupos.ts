@@ -1,11 +1,11 @@
 /** API dos grupos de chat (copiada do site, apps/web/src/lib/api.ts). Só usa o que a app já exporta em '@/lib/api'. */
-import { post, raw, threadQuery, type ChatMessage, type GroupSummary, type MsgKind } from '@/lib/api';
+import { post, raw, threadQuery, type Badged, type ChatMessage, type GroupSummary, type MsgKind } from '@/lib/api';
 import { track, trackOk } from '@/lib/analytics';
 
 export type { GroupSummary };
 export type GroupRole = 'admin' | 'member';
-export interface GroupMember { username: string; displayName: string; hasAvatar: boolean; role: GroupRole }
-export interface GroupSender { username: string; displayName: string; hasAvatar: boolean }
+export interface GroupMember extends Badged { username: string; displayName: string; hasAvatar: boolean; role: GroupRole }
+export interface GroupSender extends Badged { username: string; displayName: string; hasAvatar: boolean }
 export type GroupMessage = ChatMessage & { sender: GroupSender };
 export interface GroupThread {
   /** `ttl`: mensagens temporárias (segundos) ou null; servidores antigos não mandam. */

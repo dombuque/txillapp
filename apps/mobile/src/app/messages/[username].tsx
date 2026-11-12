@@ -226,7 +226,7 @@ export default function Thread() {
   const request = first?.relation?.request;
   const online = person?.presence?.online;
   const rel = first?.relation;
-  const call = (video: boolean) => person && void startCall({ username: person.username, displayName: person.displayName, hasAvatar: person.hasAvatar }, video);
+  const call = (video: boolean) => person && void startCall({ username: person.username, displayName: person.displayName, hasAvatar: person.hasAvatar, verified: person.verified, verifiedTier: person.verifiedTier }, video);
   const openProfile = person ? () => router.push(`/u/${person.username}` as never) : undefined;
   const avatarOf = person?.hasAvatar ? person.username : undefined;
   // Por baixo do nome: "a escrever…" ganha; depois "1 publicação nova" (toca para abrir); depois Online / Ativo há….
@@ -254,6 +254,7 @@ export default function Thread() {
           <PeerNoteBubble bubble={bubble} name={person.displayName} online={!!online} open={fold.open} reduceMotion={reduceMotion} onPress={() => (bubble.kind === 'bio' ? openProfile?.() : setNoteOpen(true))} />
         ) : null}
         title={person?.displayName ?? listed?.displayName ?? ''}
+        titleWho={person ?? listed}
         subtitleAction={person && newPostsGo ? { label: newPostsLabel(newPosts?.count, person.displayName), onPress: () => router.push(newPostsGo as never) } : undefined}
         subtitle={
           line === 'typing' ? <HeaderStatus text="a escrever…" tone="typing" />

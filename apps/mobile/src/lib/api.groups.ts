@@ -2,7 +2,7 @@
  * TxillGroups: os grupos de chat com nome, tipo, capa, Plano (viagem, festa, fim de semana), álbum e vaquinha de Txills.
  * Só usa `raw`/`post` de '@/lib/api'. As conversas e os membros continuam em '@/lib/api.grupos'.
  */
-import { post, raw, type GroupSummary } from '@/lib/api';
+import { post, raw, type Badged, type GroupSummary } from '@/lib/api';
 import { newKey } from '@/lib/api.extra';
 import type { GroupThread } from '@/lib/api.grupos';
 import type { IconName } from '@/components/Icon';
@@ -60,10 +60,10 @@ export interface Who { username: string; displayName: string; hasAvatar?: boolea
 export interface ChecklistItem { id: string; text: string; done: boolean; assignee: Who | null; createdBy?: string | null; at?: string }
 /** Despesas em meticais (até 2 casas decimais, ex.: 1250.5). Não mexem em Txills: são só contas. */
 export interface Expense { id: string; description: string; amountMzn: number; paidBy: Who; splitAmong: string[]; createdBy: string | null; at: string; canDelete?: boolean }
-export interface Balance { username: string; displayName: string; net: number }
+export interface Balance extends Badged { username: string; displayName: string; net: number }
 export interface Settlement { from: string; to: string; amount: number }
 
-export interface PotContribution { username: string; displayName: string; amount: number; at: string }
+export interface PotContribution extends Badged { username: string; displayName: string; amount: number; at: string }
 export interface PotPayment { venue: { slug: string; name: string } | null; amount: number; note: string | null; at: string; by?: Who | null }
 export interface PotView {
   balance: number;
@@ -71,7 +71,7 @@ export interface PotView {
   venue: (VenueRef & { acceptsTxills?: boolean }) | null;
   contributions: PotContribution[];
   /** O que cada um pôs desde a última devolução (a base da devolução). */
-  totalByMember: { username: string; displayName: string; amount: number }[];
+  totalByMember: ({ username: string; displayName: string; amount: number } & Badged)[];
   payments: PotPayment[];
   refunds?: { amount: number; at: string; by?: Who | null }[];
   /** Sou admin: posso mudar a meta, pagar e devolver. */
@@ -126,7 +126,7 @@ export interface PublicGroup {
   /** Onde o grupo aparece no mapa ("Costa do Sol", ou o nome do local do Plano). */
   placeLabel?: string | null;
 }
-export interface JoinRequest { username: string; displayName: string; avatarUrl: string | null; createdAt: string }
+export interface JoinRequest extends Badged { username: string; displayName: string; avatarUrl: string | null; createdAt: string }
 
 const g = (id: string) => `/chat/groups/${encodeURIComponent(id)}`;
 const patch = (b: unknown): RequestInit => ({ method: 'PATCH', body: JSON.stringify(b) });

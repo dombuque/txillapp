@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon, type IconName } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Sheet } from '@/components/Sheet';
@@ -337,7 +338,7 @@ function Expenses({ groupId, plan, me, admin, members, name, onChanged }: { grou
           <Text style={st.sub}>Saldos</Text>
           {balances.filter((b) => b.net !== 0).map((b) => (
             <View key={b.username} style={st.bal}>
-              <Text style={st.balName} numberOfLines={1}>{b.username === me ? 'Tu' : b.displayName}</Text>
+              <NameWithBadge name={b.username === me ? 'Tu' : b.displayName} who={b.username === me ? null : b} style={[st.balName, { flex: undefined }]} containerStyle={{ flex: 1 }} />
               <Text style={[st.balNet, { color: b.net > 0 ? colors.green700 : colors.red600 }]}>{b.net > 0 ? `recebe ${mzn(b.net)}` : `deve ${mzn(-b.net)}`}</Text>
             </View>
           ))}

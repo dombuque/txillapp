@@ -8,10 +8,11 @@ import { Avatar } from '@/components/Avatar';
 import { Empty } from '@/components/Empty';
 import { GeleiraShelf } from '@/components/GeleiraShelf';
 import { Icon, type IconName } from '@/components/Icon';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { GiftSheet } from '@/components/PostSheets';
 import { Sheet } from '@/components/Sheet';
 import { StackPage } from '@/components/StackPage';
-import { api, type WalletView } from '@/lib/api';
+import { api, type Badged, type WalletView } from '@/lib/api';
 import { aoLocal, type WalletTxExtra } from '@/lib/api.locais';
 import { useAuth } from '@/lib/auth';
 import { cardShadow, colors } from '@/lib/theme';
@@ -22,15 +23,15 @@ const icons: Record<string, IconName> = { welcome_bonus: 'party', transfer: 'gif
 
 type Mov = WalletView['history'][number] & WalletTxExtra;
 
-/** O texto de um movimento e para onde leva tocar nele (o local, o grupo ou a pessoa). */
-function describe(h: Mov): { label: string; to: string | null } {
+/** O texto de um movimento, para onde leva tocar nele (o local, o grupo ou a pessoa) e, quando nomeia uma pessoa, o selo dela. */
+function describe(h: Mov): { label: string; to: string | null; who?: Badged | null } {
   const who = h.counterparty;
   const venueTo = h.venue?.slug ? `/v/${h.venue.slug}` : null;
   switch (h.type) {
     case 'venue_payment': {
       // Positivo: eu recebi em nome de um local (lado do local); negativo: paguei a um local.
       const payer = h.from ?? who;
-      if (h.amount > 0) return { label: payer ? `Recebido de @${payer.username}` : 'Pagamento recebido', to: venueTo ?? (payer ? `/u/${payer.username}` : null) };
+      if (h.amount > 0) return { label: payer ? `Recebido de @${payer.username}` : 'Pagamento recebido', to: venueTo ?? (payer ? `/u/${payer.username}` : null), who: payer };
       return { label: h.venue ? `Pagaste ${aoLocal(h.venue.kind)} ${h.venue.name}` : 'Pagamento a um local', to: venueTo };
     }
     case 'group_contribution':
@@ -38,7 +39,7 @@ function describe(h: Mov): { label: string; to: string | null } {
     case 'group_refund':
       return { label: h.group ? `Devolução do cofre de ${h.group.name}` : 'Devolução de um cofre', to: h.group ? `/messages/g/${h.group.id}` : null };
     default:
-      return { label: labels[h.type] ? `${labels[h.type]}${who ? ` · ${who.displayName}` : ''}` : (h.label ?? 'Movimento'), to: null };
+      return { label: labels[h.type] ? `${labels[h.type]}${who ? ` · ${who.displayName}` : ''}` : (h.label ?? 'Movimento'), to: null, who: labels[h.type] ? who : null };
   }
 }
 
@@ -71,7 +72,7 @@ function PickPerson({ me, onPick, onClose }: { me: string; onPick: (p: { usernam
           <Pressable key={x.username} onPress={() => onPick(x)} style={st.pick} accessibilityRole="button">
             <Avatar name={x.displayName} username={x.username} size={44} />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} numberOfLines={1}>{x.displayName}</Text>
+              <NameWithBadge name={x.displayName} who={x} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} />
               <Text style={{ fontSize: 14, color: colors.zinc600 }} numberOfLines={1}>@{x.username}</Text>
             </View>
           </Pressable>
@@ -123,12 +124,12 @@ export default function Wallet() {
               <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 8, color: colors.zinc900 }}>Movimentos</Text>
               {data.history.length === 0 && <Text style={{ color: colors.zinc600, fontSize: 16 }}>Ainda sem movimentos. Que tal brindar alguém?</Text>}
               {(data.history as Mov[]).map((h, i) => {
-                const { label, to } = describe(h);
+                const { label, to, who } = describe(h);
                 return (
                   <Pressable key={h.id} onPress={to ? () => router.push(to as never) : undefined} disabled={!to} accessibilityRole={to ? 'link' : undefined} style={({ pressed }) => [st.mov, i > 0 && { borderTopWidth: 1, borderTopColor: colors.zinc100 }, pressed && to && { opacity: 0.6 }]}>
                     <View style={st.movIcon}><Icon name={icons[h.type] ?? 'wallet'} size={18} color={colors.zinc800} /></View>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={{ fontSize: 16, fontWeight: '500', color: colors.zinc900 }} numberOfLines={2}>{label}</Text>
+                      <NameWithBadge name={label} who={who} style={{ fontSize: 16, fontWeight: '500', color: colors.zinc900 }} numberOfLines={2} />
                       <Text style={{ fontSize: 14, color: colors.zinc500 }} numberOfLines={1}>{timeAgo(h.createdAt)}</Text>
                       {h.note ? <Text style={{ marginTop: 2, fontSize: 14, color: colors.zinc700 }} numberOfLines={2}>{h.note}</Text> : null}
                     </View>

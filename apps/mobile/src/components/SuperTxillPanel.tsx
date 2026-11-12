@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
 import { FollowButton } from '@/components/FollowButton';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
 import { api } from '@/lib/api';
 import { aiApi } from '@/lib/api.ai';
@@ -95,10 +96,9 @@ export function SuperTxillScreen({ onClose }: { onClose: () => void }) {
                       <Pressable onPress={() => router.push(`/u/${p.username}` as never)} style={s.who} accessibilityRole="button">
                         <Avatar name={p.displayName} username={p.username} size={48} />
                         <View style={{ flex: 1, minWidth: 0 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                            <Text style={s.name} numberOfLines={1}>{p.displayName}</Text>
+                          <NameWithBadge name={p.displayName} who={p} style={s.name} gap={4}>
                             {p.isPrivate && <Icon name="lock" size={14} color={colors.zinc500} />}
-                          </View>
+                          </NameWithBadge>
                           <Text style={s.reason} numberOfLines={1}>@{p.username}{p.followsYou ? ' · Segue-te' : ''}</Text>
                         </View>
                       </Pressable>
@@ -121,10 +121,9 @@ export function SuperTxillScreen({ onClose }: { onClose: () => void }) {
                   <Pressable onPress={() => router.push(`/u/${p.username}` as never)} style={s.who} accessibilityRole="button">
                     <Avatar name={p.displayName} username={p.username} size={48} />
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Text style={s.name} numberOfLines={1}>{p.displayName}</Text>
+                      <NameWithBadge name={p.displayName} who={p} style={s.name} gap={4}>
                         {p.isPrivate && <Icon name="lock" size={14} color={colors.zinc500} />}
-                      </View>
+                      </NameWithBadge>
                       <Text style={s.reason} numberOfLines={1}>{p.reason}</Text>
                     </View>
                   </Pressable>

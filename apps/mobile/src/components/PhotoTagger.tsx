@@ -6,6 +6,7 @@ import { Modal } from '@/components/Modal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { composeApi, type PhotoTag } from '@/lib/api.compose';
 import { colors } from '@/lib/theme';
 
@@ -34,9 +35,9 @@ export function PhotoTagger({ src, tags, onDone }: { src: string; tags: PhotoTag
   const left = (area.w - fit.w) / 2;
   const top = (area.h - fit.h) / 2;
 
-  function choose(p: { username: string; displayName: string }) {
+  function choose(p: Omit<PhotoTag, 'x' | 'y'>) {
     if (!pending) return;
-    setList([...list, { username: p.username, displayName: p.displayName, x: pending.x, y: pending.y }]);
+    setList([...list, { username: p.username, displayName: p.displayName, verified: p.verified, verifiedTier: p.verifiedTier, x: pending.x, y: pending.y }]);
     setPending(null);
     setQ('');
   }
@@ -66,7 +67,7 @@ export function PhotoTagger({ src, tags, onDone }: { src: string; tags: PhotoTag
               {pending ? <View pointerEvents="none" style={[styles.dot, { left: `${pending.x * 100}%`, top: `${pending.y * 100}%` }]} /> : null}
               {list.map((t, i) => (
                 <View key={`${t.username}-${i}`} style={[styles.tag, { left: `${t.x * 100}%`, top: `${t.y * 100}%` }, t.x < 0.22 ? null : t.x > 0.78 ? { transform: [{ translateX: -120 }, { translateY: 10 }] } : { transform: [{ translateX: -50 }, { translateY: 10 }] }]}>
-                  <Text style={styles.tagText} numberOfLines={1}>{t.username}</Text>
+                  <NameWithBadge name={t.username} who={t} style={styles.tagText} containerStyle={{ flexShrink: 1 }} />
                   <Pressable onPress={() => setList(list.filter((_, n) => n !== i))} hitSlop={8} accessibilityLabel={`Tirar a identificação de ${t.username}`}><Icon name="x" size={12} color="#fff" /></Pressable>
                 </View>
               ))}
@@ -89,7 +90,7 @@ export function PhotoTagger({ src, tags, onDone }: { src: string; tags: PhotoTag
                 <Pressable key={p.username} onPress={() => choose(p)} style={({ pressed }) => [styles.person, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
                   <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={40} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.pName} numberOfLines={1}>{p.displayName}</Text>
+                    <NameWithBadge name={p.displayName} who={p} style={styles.pName} />
                     <Text style={styles.pUser} numberOfLines={1}>@{p.username}</Text>
                   </View>
                 </Pressable>

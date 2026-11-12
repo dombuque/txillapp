@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextInput, type TextInputKeyPressEvent, type TextInputSelectionChangeEvent, type ViewStyle } from 'react-native';
 import { Avatar } from '@/components/Avatar';
-import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { api, type MentionSuggestContext, type MentionSuggestion } from '@/lib/api';
 import { activeMention, applyMention, moveHighlight, reasonLabel } from '@/lib/mentions';
 import { colors } from '@/lib/theme';
@@ -161,10 +161,7 @@ export function MentionSuggest({ mention, style }: { mention: MentionSuggestStat
             >
               <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={36} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Text style={st.name} numberOfLines={1}>{p.displayName}</Text>
-                  {p.verified ? <VerifiedBadge size={14} /> : null}
-                </View>
+                <NameWithBadge name={p.displayName} who={p} style={st.name} gap={4} />
                 <Text style={st.handle} numberOfLines={1}>@{p.username}</Text>
               </View>
               {why ? <Text style={st.why} numberOfLines={1}>{why}</Text> : null}

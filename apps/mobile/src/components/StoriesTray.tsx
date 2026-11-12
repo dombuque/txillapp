@@ -8,6 +8,7 @@ import { trayMine } from '@/lib/ownStorySeen';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
 import { Ring } from './StoryRing';
+import { NameWithBadge } from './NameWithBadge';
 import { navTap } from '@/lib/tapGuard';
 
 /** Tabuleiro de stories no topo do Início: o teu primeiro (com o "+"), depois quem segues. */
@@ -47,7 +48,7 @@ export function StoriesTray() {
                 <Avatar name={u.displayName} username={u.username} size={56} />
               </Ring>
             </View>
-            <Text style={[styles.label, u.seen ? { color: colors.zinc500, fontWeight: '400' } : { color: colors.zinc900, fontWeight: '700' }]} numberOfLines={1}>{u.username}</Text>
+            <NameWithBadge name={u.username} who={u} center gap={2} style={[styles.label, styles.name, u.seen ? { color: colors.zinc500, fontWeight: '400' } : { color: colors.zinc900, fontWeight: '700' }]} size={11} />
           </Pressable>
         ))}
         {others.length === 0 && <Text style={styles.empty}>Segue pessoas para ver os mimos delas</Text>}
@@ -60,6 +61,8 @@ const styles = StyleSheet.create({
   row: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4, gap: 12 },
   bubble: { width: 76, alignItems: 'center', gap: 6 },
   label: { width: '100%', textAlign: 'center', fontSize: 12, lineHeight: 16 },
+  /** Na linha com o selo, o @ não ocupa a largura toda (o selo pequeno fica a seguir, centrado com ele). */
+  name: { width: undefined },
   plus: { position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.white, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   plusText: { color: '#fff', fontSize: 16, fontWeight: '700', lineHeight: 18, marginTop: -1 },
   empty: { alignSelf: 'center', paddingRight: 16, fontSize: 14, color: colors.zinc500 },

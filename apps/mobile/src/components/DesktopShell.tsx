@@ -14,7 +14,7 @@ import { Avatar } from './Avatar';
 import { FollowButton } from './FollowButton';
 import { NewBadge } from './WhatsNew';
 import { Icon, type IconName } from './Icon';
-import { VerifiedBadge } from './VerifiedBadge';
+import { NameWithBadge } from './NameWithBadge';
 import { Wordmark } from './Wordmark';
 
 const badge = (n: number) => (n > 9 ? '9+' : String(n));
@@ -149,10 +149,7 @@ function RightRail() {
               <Pressable onPress={() => router.push(`/u/${p.username}` as never)} style={st.personLink} accessibilityRole="link" accessibilityLabel={`Perfil de ${p.displayName}`}>
                 <Avatar name={p.displayName} username={p.username} size={40} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Text style={st.pName} numberOfLines={1}>{p.displayName}</Text>
-                    {(p as { verified?: boolean }).verified ? <VerifiedBadge size={14} /> : null}
-                  </View>
+                  <NameWithBadge name={p.displayName} who={p} style={st.pName} gap={4} />
                   <Text style={st.pReason} numberOfLines={1}>{p.reason || `@${p.username}`}</Text>
                 </View>
               </Pressable>

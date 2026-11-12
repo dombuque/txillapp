@@ -12,12 +12,12 @@ import { FillView } from '@/components/FillView';
 import { Icon, type IconName } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Sheet } from '@/components/Sheet';
-import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { AccessBadge, JoinButton, usePublicGroup } from '@/components/groups/GroupJoin';
 import { GroupCover } from '@/components/groups/GroupParts';
 import { NearbyMap } from '@/components/nearby/NearbyMap';
 import type { MapMarker, MapMarkerKind } from '@/components/nearby/types';
-import { ApiError, api } from '@/lib/api';
+import { ApiError, api, type Badged } from '@/lib/api';
 import { boostsApi } from '@/lib/api.boosts';
 import type { GroupKind } from '@/lib/api.groups';
 import { KIND_LABEL } from '@/lib/api.locais';
@@ -111,7 +111,8 @@ interface Item {
   lat: number;
   lng: number;
   date?: string;
-  verified?: boolean;
+  /** O selo de verificado (do local, da pessoa ou de quem publicou quando o título é o nome dela). */
+  who?: Badged;
   username?: string;
   group?: NearbyGroup;
   to?: string;
@@ -135,7 +136,7 @@ function toItems(d: NearbyResult | undefined): Item[] {
   const out: Item[] = [];
   for (const v of d.venues ?? [])
     out.push({
-      key: `v:${v.slug}`, kind: 'venue', title: v.name, image: sized(v.avatarUrl, 120) ?? null, distanceKm: v.distanceKm, lat: v.lat, lng: v.lng, verified: v.verified, to: `/v/${v.slug}`, boost: v.boosted ?? null,
+      key: `v:${v.slug}`, kind: 'venue', title: v.name, image: sized(v.avatarUrl, 120) ?? null, distanceKm: v.distanceKm, lat: v.lat, lng: v.lng, who: { verified: v.verified }, to: `/v/${v.slug}`, boost: v.boosted ?? null,
       sub: [KIND_LABEL[v.kind] ?? 'Local', v.checkinsToday ? `${v.checkinsToday} check-in${v.checkinsToday === 1 ? '' : 's'} hoje` : null, v.acceptsTxills ? 'aceita Txills' : null].filter(Boolean).join(' · '),
     });
   for (const e of d.events ?? [])
@@ -145,7 +146,7 @@ function toItems(d: NearbyResult | undefined): Item[] {
     });
   for (const p of d.posts ?? [])
     out.push({
-      key: `p:${p.id}`, kind: 'post', title: p.locationLabel || p.author.displayName, image: sized(p.thumbUrl, 160) ?? null, distanceKm: p.distanceKm, lat: p.lat, lng: p.lng, to: `/p/${p.code}`,
+      key: `p:${p.id}`, kind: 'post', title: p.locationLabel || p.author.displayName, who: p.locationLabel ? undefined : p.author, image: sized(p.thumbUrl, 160) ?? null, distanceKm: p.distanceKm, lat: p.lat, lng: p.lng, to: `/p/${p.code}`,
       sub: [`@${p.author.username}`, p.kind === 'video' ? 'vídeo' : 'foto', agoText(p.createdAt)].join(' · '),
     });
   for (const g of d.groups ?? [])
@@ -155,7 +156,7 @@ function toItems(d: NearbyResult | undefined): Item[] {
     });
   for (const u of d.people ?? [])
     out.push({
-      key: `u:${u.username}`, kind: 'person', title: u.displayName, username: u.username, image: u.hasAvatar ? `${SITE_URL}/api/v1/avatars/${encodeURIComponent(u.username)}` : null,
+      key: `u:${u.username}`, kind: 'person', title: u.displayName, who: u, username: u.username, image: u.hasAvatar ? `${SITE_URL}/api/v1/avatars/${encodeURIComponent(u.username)}` : null,
       distanceKm: u.approxKm, lat: u.lat, lng: u.lng, to: `/u/${u.username}`, sub: `perto de ti · ${agoText(u.ago)}`,
     });
   out.sort((a, b) => a.distanceKm - b.distanceKm);
@@ -694,10 +695,7 @@ function Row({ item, selected, onPress, onOpen, onHover }: { item: Item; selecte
         </View>
       )}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Text style={st.rowTitle} numberOfLines={1}>{item.title}</Text>
-          {item.verified ? <VerifiedBadge size={14} /> : null}
-        </View>
+        <NameWithBadge name={item.title} who={item.who} style={st.rowTitle} gap={4} />
         <Text style={st.rowSub} numberOfLines={1}>{item.sub}</Text>
         {item.boost ? (
           <View style={st.boostTag}>

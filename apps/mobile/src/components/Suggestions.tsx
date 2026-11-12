@@ -7,6 +7,7 @@ import { cardShadow, colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
 import { FollowButton } from './FollowButton';
 import { Icon } from './Icon';
+import { NameWithBadge } from './NameWithBadge';
 
 /** "Bora conhecer malta nova?": amigos em comum primeiro; dá para dispensar com o X. */
 export function Suggestions() {
@@ -32,10 +33,9 @@ export function Suggestions() {
             </Pressable>
             <Pressable onPress={() => router.push(`/u/${p.username}` as never)} style={{ width: '100%', alignItems: 'center' }} accessibilityRole="link">
               <Avatar name={p.displayName} username={p.username} size={64} />
-              <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
-                <Text style={st.name} numberOfLines={1}>{p.displayName}</Text>
+              <NameWithBadge name={p.displayName} who={p} style={st.name} gap={4} containerStyle={{ marginTop: 12, maxWidth: '100%' }}>
                 {p.isPrivate ? <Icon name="lock" size={14} color={colors.zinc500} /> : null}
-              </View>
+              </NameWithBadge>
               <Text style={st.handle} numberOfLines={1}>@{p.username}</Text>
               <Text style={st.reason} numberOfLines={2}>{p.reason}</Text>
             </Pressable>

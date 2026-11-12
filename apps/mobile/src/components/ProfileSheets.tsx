@@ -12,6 +12,7 @@ import { settingsApi } from '@/lib/api.settings';
 import { colors } from '@/lib/theme';
 import { Avatar, bumpAvatars } from './Avatar';
 import { Icon, type IconName } from './Icon';
+import { NameWithBadge } from './NameWithBadge';
 import { Sheet } from './Sheet';
 
 /** Editar foto, nome, bio, cidade, link e tipo de perfil (público ou privado). */
@@ -224,7 +225,7 @@ export function RequestsSheet({ username, onClose }: { username: string; onClose
           <View key={r.username} style={st.req}>
             <Avatar name={r.displayName} username={r.username} size={44} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} numberOfLines={1}>{r.displayName}</Text>
+              <NameWithBadge name={r.displayName} who={r} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} />
               <Text style={{ fontSize: 14, color: colors.zinc600 }} numberOfLines={1}>@{r.username}</Text>
             </View>
             <Pressable onPress={() => void answer(r.username, true)} style={st.accept} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Aceitar</Text></Pressable>

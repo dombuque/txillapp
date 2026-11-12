@@ -1,7 +1,7 @@
-import { post, raw } from '@/lib/api';
+import { post, raw, type Badged } from '@/lib/api';
 
 /** Pessoa sugerida pelo SuperTxill (o mesmo formato das sugestões, sem os amigos em comum). */
-export interface AiSuggestion {
+export interface AiSuggestion extends Badged {
   username: string;
   displayName: string;
   isPrivate: boolean;

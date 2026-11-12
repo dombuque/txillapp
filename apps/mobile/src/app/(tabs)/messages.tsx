@@ -7,6 +7,7 @@ import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { closeOpenSwipe, rowHold, SwipeRow, type SwipeAction } from '@/components/SwipeRow';
 import { InboxMenuSheet } from '@/components/InboxMenuSheet';
 import { GroupCover } from '@/components/groups/GroupParts';
@@ -18,7 +19,7 @@ import { Pulse } from '@/components/ChatParts';
 import { Bolt } from '@/components/SuperTxillPanel';
 import { InstantsDock, openZasCamera, zasListScrolling } from '@/components/Instants';
 import { PullView, usePullToRefresh } from '@/components/PullToRefresh';
-import { api, type ChatMessage } from '@/lib/api';
+import { api, type Badged, type ChatMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { listTime, rowLabel, unreadBadge } from '@/lib/inboxRow';
@@ -72,6 +73,8 @@ interface Row {
   /** Por ler só porque foi marcada à mão (sem mensagens novas): mostra um ponto e não um número. */
   marked?: boolean;
   names: { name: string; username?: string }[];
+  /** Conversa direta: o selo de verificado do outro lado. */
+  who?: Badged;
   online: boolean;
   group: boolean;
   /** Conversa direta que ainda é um pedido de mensagem (vai para "Pedidos"). */
@@ -260,6 +263,7 @@ export default function Messages() {
       unread: c.unread,
       marked: !!c.marked,
       names: [{ name: c.displayName, username: c.hasAvatar ? c.username : undefined }],
+      who: c,
       online: !!c.presence?.online,
       group: false,
       request: !!c.request,
@@ -410,7 +414,7 @@ export default function Messages() {
             {/* Linha 1: nome e, à direita, a hora. Linha 2: a mensagem e, à direita, quantas por ler. */}
             <View style={styles.text}>
               <View style={styles.line}>
-                <Text style={[styles.name, styles.grow, { fontWeight: hot ? '800' : '700' }]} numberOfLines={1}>{r.name}</Text>
+                <NameWithBadge name={r.name} who={r.who} style={[styles.name, { fontWeight: hot ? '800' : '700' }]} containerStyle={styles.grow} />
                 {time ? <Text style={[styles.time, hot && styles.timeHot]} numberOfLines={1}>{time}</Text> : null}
               </View>
               <View style={styles.line}>
@@ -457,7 +461,7 @@ export default function Messages() {
                 <Pressable key={p.username} onPress={() => router.push(`/messages/${p.username}` as never)} accessibilityRole="button" accessibilityLabel={`Conversar com ${p.displayName}`} style={({ pressed }) => [styles.row, { paddingVertical: 10 }, pressed && { backgroundColor: colors.zinc100 }]}>
                   <Avatar name={p.displayName} username={p.hasAvatar ? p.username : undefined} size={46} />
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.name, { fontSize: 16 }]} numberOfLines={1}>{p.displayName}</Text>
+                    <NameWithBadge name={p.displayName} who={p} style={[styles.name, { fontSize: 16 }]} />
                     <Text style={[styles.sub, { fontSize: 14 }]} numberOfLines={1}>@{p.username}</Text>
                   </View>
                   <View style={styles.chat}><Text style={styles.chatText}>Conversar</Text></View>

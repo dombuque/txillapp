@@ -16,6 +16,8 @@ import { useOverlay } from '@/lib/overlays';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
+import { NameWithBadge } from './NameWithBadge';
+import type { Badged } from '@/lib/api';
 import { Icon } from './Icon';
 import { abs } from '@/lib/config';
 import { enqueueTask } from '@/lib/publishQueue';
@@ -35,7 +37,7 @@ import { zasCardSize } from './zas/zasFrame';
 import { saveZas, shareZas } from './zas/zasImage';
 
 type Audience = 'friends' | 'close';
-type Who = { username: string; displayName: string };
+type Who = { username: string; displayName: string } & Badged;
 
 /** Pequena memória do aparelho (preferências do Zás): SecureStore na app, localStorage na web. Falha em silêncio. */
 async function remember(key: string, value?: string): Promise<string | null> {
@@ -172,7 +174,7 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
           onRestore={() => setSnooze(false)}
           onOpen={() => {
             if (total === 0) return setMode('cam');
-            setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName })));
+            setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName, verified: o.verified, verifiedTier: o.verifiedTier })));
             setAt(0);
             setMode('view');
           }}
@@ -195,7 +197,7 @@ export function InstantsDock({ collapsed = false }: { collapsed?: boolean }) {
   );
 }
 
-type TrayOther = { username: string; displayName: string; hasAvatar: boolean; count: number; preview: string | null };
+type TrayOther = { username: string; displayName: string; hasAvatar: boolean; count: number; preview: string | null } & Badged;
 
 /** Miniatura squircle com moldura branca: a foto do Zás mais recente, nítida, com a bolinha do perfil de quem mandou por cima. */
 function StackThumb({ o, w, h, avatar = true }: { o: TrayOther; w: number; h: number; avatar?: boolean }) {
@@ -421,7 +423,7 @@ export function InstantsHub({ onClose }: { onClose: () => void }) {
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {others.length > 0 && !isWeb && (
                 <Pressable
-                  onPress={() => { setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName }))); setAt(0); }}
+                  onPress={() => { setQueue(others.map((o) => ({ username: o.username, displayName: o.displayName, verified: o.verified, verifiedTier: o.verifiedTier }))); setAt(0); }}
                   accessibilityRole="button"
                   accessibilityLabel="Ver os Zás que recebeste"
                   style={st.small}
@@ -703,7 +705,7 @@ function WhoSheet({ viewers, onClose }: { viewers: Viewer[]; onClose: () => void
             <View key={v.username} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 }}>
               <Avatar name={v.displayName} username={v.hasAvatar ? v.username : undefined} size={40} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }}>{v.displayName}</Text>
+                <NameWithBadge name={v.displayName} who={v} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} />
                 <Text style={{ fontSize: 14, color: colors.zinc500 }}>@{v.username} · {hm(v.at)}</Text>
               </View>
               {v.reaction ? <ReactionArt body={v.reaction} size={30} /> : null}
@@ -893,7 +895,7 @@ function InstantViewer({ who, own, onClose, onFinish, onCamera, onGrid, startId 
 
         <View style={st.info}>
           <Avatar name={who.displayName || who.username} username={who.username} size={30} />
-          <Text numberOfLines={1} style={{ maxWidth: '40%', fontSize: 14, fontWeight: '600', color: '#fff' }}>{own ? 'Os teus Zás' : who.username}</Text>
+          <NameWithBadge name={own ? 'Os teus Zás' : who.username} who={own ? null : who} style={{ fontSize: 14, fontWeight: '600', color: '#fff' }} containerStyle={{ maxWidth: '40%' }} />
           {cur && (
             <Text style={{ fontSize: 14, color: own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? '#fcd34d' : 'rgba(255,255,255,0.65)', fontWeight: own && new Date(cur.expiresAt).getTime() - Date.now() < 3 * 3_600_000 ? '700' : '400' }}>
               {own ? `${hm(cur.at)} · ${leftLabel(cur.expiresAt)}` : timeAgo(cur.at).replace('Há ', '')}

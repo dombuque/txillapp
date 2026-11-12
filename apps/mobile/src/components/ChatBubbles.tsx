@@ -18,7 +18,8 @@ import { Sticker } from '@/components/StickerPanel';
 import { ReactionArt } from '@/components/StoryParts';
 import { PollBubble } from '@/components/groups/PollCard';
 import { TILE_URL } from '@/components/nearby/mapRuntime';
-import { type ChatMessage } from '@/lib/api';
+import { type Badged, type ChatMessage } from '@/lib/api';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { AVATAR, AVATAR_GAP, GAP_IN, GAP_OUT, corners, type Ticks } from '@/lib/chatLayout';
 import { timeLabel } from '@/lib/chatTimeline';
 import { abs, sized } from '@/lib/config';
@@ -49,7 +50,7 @@ const QUOTE_BAR_MINE = 'rgba(214,51,79,0.45)';
  * agrupam-se (cantos interiores mais pequenos) e o avatar dela vai na última do grupo. O agrupamento vem de lib/chatTimeline; os cantos e os vistos, de lib/chatLayout.
  * Nos grupos, o nome de quem envia por cima da primeira bolha do grupo.
  */
-export type Msg = ChatMessage & { state?: 'sending' | 'failed'; realId?: string; live?: boolean; liveUntil?: string | null; sender?: { username: string; displayName: string; hasAvatar: boolean } };
+export type Msg = ChatMessage & { state?: 'sending' | 'failed'; realId?: string; live?: boolean; liveUntil?: string | null; sender?: { username: string; displayName: string; hasAvatar: boolean } & Badged };
 
 /** Cada pessoa tem a sua cor nos grupos (a mesma do site, apps/web/src/lib/senderColor.ts). */
 const PALETTE = ['#d6334f', '#ea580c', '#b45309', '#15803d', '#0f766e', '#9f1239', '#3f3f46', '#4d7c0f'];
@@ -632,7 +633,7 @@ export function Bubble({
       style={{ marginTop: isFirst || m.replyTo ? GAP_OUT : GAP_IN }}
       innerStyle={[{ alignItems: mine ? 'flex-end' : 'flex-start', borderRadius: 24 }, indent && { paddingLeft: AVATAR + AVATAR_GAP }, flash && { backgroundColor: 'rgba(214,51,79,0.15)' }]}
     >
-      {group && !mine && isFirst && m.sender && <Text style={{ marginBottom: 2, paddingHorizontal: 14, fontSize: 12, fontWeight: '700', color: senderColor(m.sender.username) }}>{m.sender.displayName.split(' ')[0]}</Text>}
+      {group && !mine && isFirst && m.sender && <NameWithBadge name={m.sender.displayName.split(' ')[0]} who={m.sender} style={{ fontSize: 12, fontWeight: '700', color: senderColor(m.sender.username) }} containerStyle={{ marginBottom: 2, paddingHorizontal: 14, maxWidth: '100%' }} />}
       {m.replyTo && (
         <Pressable
           {...hold}

@@ -2,6 +2,7 @@ import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/r
 import { useRouter } from 'expo-router';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { CallIcon } from '@/components/calls/CallIcons';
 import { Empty } from '@/components/Empty';
 import { Icon } from '@/components/Icon';
@@ -99,7 +100,7 @@ export default function Calls() {
             <Pressable onPress={() => router.push(`/messages/${c.peer.username}` as never)} style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
               <Avatar name={c.peer.displayName} username={c.peer.hasAvatar ? c.peer.username : undefined} size={48} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[st.name, missed && { color: colors.red600 }]} numberOfLines={1}>{c.peer.displayName}</Text>
+                <NameWithBadge name={c.peer.displayName} who={c.peer} style={[st.name, missed && { color: colors.red600 }]} />
                 <View style={st.subRow}>
                   <CallIcon name={missed ? 'missed' : c.direction === 'out' ? 'outgoing' : 'incoming'} size={14} color={missed ? colors.red600 : colors.zinc500} />
                   <Text style={[st.sub, missed && { color: colors.red600 }]} numberOfLines={1}>{subtitle(c)}</Text>

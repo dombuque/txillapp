@@ -13,6 +13,7 @@ import { track } from '@/lib/analytics';
 import { SITE_URL, abs, sized } from '@/lib/config';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
+import { NameWithBadge } from './NameWithBadge';
 import { Icon, type IconName } from './Icon';
 import { Sheet, useSheetScroll } from './Sheet';
 import { StickerCanvas, StickerPicker, StickerToolbar } from './Stickers';
@@ -302,7 +303,7 @@ function StoryPreview({ post, audience, setAudience, caption, setCaption, sticke
           {m?.kind === 'video' && abs(m.url) ? <PreviewVideo url={abs(m.url)!} /> : null}
           <View style={st.phoneTop}>
             <Avatar name={post.author.displayName} username={post.author.username} size={30} />
-            <Text style={{ flexShrink: 1, fontSize: 13, fontWeight: '600', color: '#fff' }} numberOfLines={1}>@{post.author.username}</Text>
+            <NameWithBadge name={`@${post.author.username}`} who={post.author} style={{ fontSize: 13, fontWeight: '600', color: '#fff' }} containerStyle={{ flexShrink: 1 }} />
           </View>
           {caption.trim() ? <Text style={st.phoneCaption}>{caption}</Text> : null}
           <StickerCanvas stickers={stickers} onChange={setStickers} width={pw} height={Math.round(pw * 16 / 9)} selected={sel} onSelect={setSel} />

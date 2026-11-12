@@ -2,10 +2,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
+import { NameWithBadge } from '@/components/NameWithBadge';
 import { Icon } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Sheet } from '@/components/Sheet';
-import { ApiError, api, type Gender } from '@/lib/api';
+import { ApiError, api, type Badged, type Gender } from '@/lib/api';
 import { colors } from '@/lib/theme';
 import { GENDERS } from './options';
 import { settingsStyles as s } from './SettingRow';
@@ -13,7 +14,7 @@ import { settingsStyles as s } from './SettingRow';
 /** As folhas das Definições (as mesmas do ecrã único de antes, agora partilhadas pelos ecrãs de cada grupo). */
 
 /** Uma pessoa com um botão (Mostrar, Desbloquear): um toque só enquanto trata e, se falhar, diz porquê. */
-export function PersonRow({ username, displayName, action, onAction }: { username: string; displayName: string; action: string; onAction: () => Promise<unknown> | void }) {
+export function PersonRow({ username, displayName, who, action, onAction }: { username: string; displayName: string; /** O selo de verificado da pessoa. */ who?: Badged; action: string; onAction: () => Promise<unknown> | void }) {
   const [busy, setBusy] = useState(false);
   async function run() {
     if (busy) return;
@@ -30,7 +31,7 @@ export function PersonRow({ username, displayName, action, onAction }: { usernam
     <View style={s.person}>
       <Avatar name={displayName} username={username} size={44} />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} numberOfLines={1}>{displayName}</Text>
+        <NameWithBadge name={displayName} who={who} style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} />
         <Text style={{ fontSize: 14, color: colors.zinc600 }} numberOfLines={1}>@{username}</Text>
       </View>
       <Pressable onPress={() => void run()} disabled={busy} style={[s.outline, busy && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`${action} @${username}`} accessibilityState={{ disabled: busy, busy }}><Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc900 }}>{action}</Text></Pressable>
@@ -137,7 +138,7 @@ export function HiddenSheet({ onClose }: { onClose: () => void }) {
         </View>
         <Text style={{ minHeight: 20, paddingTop: 4, fontSize: 14, color: colors.red600 }}>{err}</Text>
         {q.data?.hidden.length === 0 && <Text style={s.none}>Ninguém escondido</Text>}
-        {q.data?.hidden.map((h) => <PersonRow key={h.username} username={h.username} displayName={h.displayName} action="Mostrar" onAction={async () => qc.setQueryData(['story-settings'], await api.unhideStoryFrom(h.username))} />)}
+        {q.data?.hidden.map((h) => <PersonRow key={h.username} username={h.username} displayName={h.displayName} who={h} action="Mostrar" onAction={async () => qc.setQueryData(['story-settings'], await api.unhideStoryFrom(h.username))} />)}
       </ScrollView>
     </Sheet>
   );
@@ -151,7 +152,7 @@ export function BlockedSheet({ onClose }: { onClose: () => void }) {
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
         <Text style={{ marginBottom: 12, fontSize: 14, color: colors.zinc600 }}>Quem bloqueias não vê o teu conteúdo, não te pode seguir nem interagir contigo. Também deixam de ver, no mapa ou de fora, os TxillGroups onde o outro está, e não podem pedir nem entrar neles. A pessoa é avisada de que foi bloqueada.</Text>
         {q.data?.length === 0 && <Text style={s.none}>Não bloqueaste ninguém</Text>}
-        {q.data?.map((b) => <PersonRow key={b.username} username={b.username} displayName={b.displayName} action="Desbloquear" onAction={async () => { qc.setQueryData(['blocked'], await api.unblock(b.username)); void qc.invalidateQueries({ queryKey: ['profile'] }); }} />)}
+        {q.data?.map((b) => <PersonRow key={b.username} username={b.username} displayName={b.displayName} who={b} action="Desbloquear" onAction={async () => { qc.setQueryData(['blocked'], await api.unblock(b.username)); void qc.invalidateQueries({ queryKey: ['profile'] }); }} />)}
       </ScrollView>
     </Sheet>
   );
