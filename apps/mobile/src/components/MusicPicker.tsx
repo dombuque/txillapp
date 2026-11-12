@@ -6,16 +6,17 @@ import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder } fr
 import { Icon } from '@/components/Icon';
 import { Sheet, useSheetScroll } from '@/components/Sheet';
 import { musicApi, type Track } from '@/lib/api.music';
+import { creditLine, dropFromCache, licenseLabel, mmss, pickerTabs, styleChips, usesLabel, withoutDisliked, type PickerTab } from '@/lib/musicCatalog';
 import { suggestMusic } from '@/lib/musicSuggest';
 import { uploadMedia } from '@/lib/api';
 import { playTrack, stopTrack } from '@/lib/musicPlayer';
 import { colors } from '@/lib/theme';
 
-const mmss = (ms: number | null) => (ms ? `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}` : '');
-export const licenseLabel = (l: string) => (l === 'own' ? 'Original' : l === 'cc0' ? 'CC0' : l === 'pdm' ? 'Domínio público' : `CC ${l.toUpperCase()}`);
+export { licenseLabel };
 
 const CLIP_MAX_MS = 30_000;
-const GENRES = ['chill', 'dance', 'afro', 'pop', 'rock', 'hip hop', 'jazz', 'piano', 'acoustic'];
+/** As listas do catálogo guardadas em cache (todas perdem logo a faixa marcada com «Não gosto desta»). */
+const LIST_KEYS = [['music-home'], ['music-style'], ['music-local'], ['music-sounds'], ['music-search']] as const;
 
 /** Gravar um clipe de áudio (até 30 s) com o microfone: grava, ouve-se e usa-se. Fica privado e só é servido com URL assinado. */
 function ClipRecorder({ onPick }: { onPick: (t: Track) => void }) {
@@ -134,8 +135,12 @@ function ClipRecorder({ onPick }: { onPick: (t: Track) => void }) {
   );
 }
 
-/** Escolher uma faixa de música de licença aberta (Creative Commons): pesquisa, ouve-se um pedaço e usa-se. O crédito do autor segue com a faixa. */
-export function MusicPicker({ onPick, onClose, hint }: { onPick: (t: Track) => void; onClose: () => void; /** O que a pessoa escreveu (texto e local): serve para sugerir o género. */ hint?: string }) {
+
+/**
+ * Escolher a música de um mimo, de um tcheka ou de uma nota, do catálogo curado do servidor: «Em alta no Txillapp», estilos,
+ * «Artistas de Moçambique», «Sons» e favoritas, com pesquisa. Ouve-se um pedaço e usa-se; o crédito do autor segue com a faixa.
+ */
+export function MusicPicker({ onPick, onClose, hint }: { onPick: (t: Track) => void; onClose: () => void; /** O que a pessoa escreveu (texto e local): serve para sugerir o estilo. */ hint?: string }) {
   return (
     <Sheet title="Música e sons" onClose={onClose}>
       <PickerBody onPick={onPick} hint={hint} />
@@ -145,19 +150,26 @@ export function MusicPicker({ onPick, onClose, hint }: { onPick: (t: Track) => v
 
 function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: string }) {
   const suggestion = useMemo(() => suggestMusic(hint), [hint]);
-  const base: string = suggestion?.genre ?? GENRES[0];
   const me = useRef(Symbol('picker'));
   const sheetScroll = useSheetScroll();
+  const qc = useQueryClient();
   const [term, setTerm] = useState('');
-  const [items, setItems] = useState<Track[] | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState('');
   const [err, setErr] = useState('');
   const [playing, setPlaying] = useState<string | null>(null);
-  // Para ti: favoritas, as que usaste há pouco e as que a malta mais está a pôr. Guardadas em memória enquanto a app está aberta.
-  const [tab, setTab] = useState<'forYou' | 'favorites' | 'search'>('forYou');
+  const [tab, setTab] = useState<PickerTab>('trending');
+  // As que marquei com «Não gosto desta» enquanto o seletor está aberto (o servidor já não as manda da próxima vez).
+  const [disliked, setDisliked] = useState<ReadonlySet<string>>(() => new Set());
+  const [undo, setUndo] = useState<Track | null>(null);
+
+  const home = useQuery({ queryKey: ['music-home'], queryFn: musicApi.home, staleTime: 5 * 60_000, retry: false });
   const favs = useQuery({ queryKey: ['music-favorites'], queryFn: musicApi.favorites, staleTime: 60_000, retry: false });
-  const sugg = useQuery({ queryKey: ['music-suggested'], queryFn: musicApi.suggested, staleTime: 5 * 60_000, retry: false });
-  const qc = useQueryClient();
+  const styleId = tab.startsWith('style:') ? tab.slice(6) : null;
+  const styleList = useQuery({ queryKey: ['music-style', styleId], queryFn: () => musicApi.style(styleId!), enabled: !!styleId, staleTime: 10 * 60_000, retry: false });
+  const localList = useQuery({ queryKey: ['music-local'], queryFn: () => musicApi.local(), enabled: tab === 'local', staleTime: 10 * 60_000, retry: false });
+  const soundList = useQuery({ queryKey: ['music-sounds'], queryFn: musicApi.sounds, enabled: tab === 'sounds', staleTime: 10 * 60_000, retry: false });
+  const found = useQuery({ queryKey: ['music-search', query], queryFn: () => musicApi.search(query), enabled: query.length >= 2, staleTime: 5 * 60_000, retry: false });
+
   const favIds = useMemo(() => new Set((favs.data ?? []).map((t) => t.id)), [favs.data]);
   const toggleFav = useMutation({
     mutationFn: (t: Track): Promise<{ favorite: boolean }> => (favIds.has(t.id) ? musicApi.removeFavorite(t.id) : musicApi.addFavorite(t)),
@@ -168,30 +180,39 @@ function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: strin
     onError: () => void qc.invalidateQueries({ queryKey: ['music-favorites'] }),
   });
 
-  // Procura meio segundo depois de parares de escrever. Sem pesquisa, mostra já uma lista (o primeiro género).
+  const refetchLists = () => { for (const k of LIST_KEYS) void qc.invalidateQueries({ queryKey: [...k] }); };
+  const dislike = useMutation({
+    mutationFn: (t: Track) => musicApi.dislike(t.id),
+    onMutate: (t) => {
+      // Sai logo de todas as listas do seletor; o servidor guarda e, quando muita gente marca, baixa-a para todos.
+      if (playing === t.id) stopTrack(me.current);
+      setDisliked((old) => new Set(old).add(t.id));
+      setUndo(t);
+      for (const k of LIST_KEYS) qc.setQueriesData({ queryKey: [...k] }, (data: unknown) => (data ? dropFromCache(data, t.id) : data));
+    },
+    onError: (e, t) => {
+      setDisliked((old) => { const n = new Set(old); n.delete(t.id); return n; });
+      setUndo(null);
+      setErr((e as Error).message || 'Não consegui tirar a faixa');
+      refetchLists();
+    },
+  });
+  const undislike = useMutation({
+    mutationFn: (t: Track) => musicApi.undislike(t.id),
+    onMutate: (t) => {
+      setDisliked((old) => { const n = new Set(old); n.delete(t.id); return n; });
+      setUndo(null);
+    },
+    onSettled: () => refetchLists(),
+  });
+
+  // Procura meio segundo depois de parares de escrever.
   useEffect(() => {
     const typed = term.trim();
-    const q = typed.length >= 2 ? typed : base;
-    let alive = true;
-    const t = setTimeout(async () => {
-      setBusy(true);
-      setErr('');
-      try {
-        const r = await musicApi.search(q);
-        if (alive) setItems(r);
-      } catch (e) {
-        if (alive) {
-          setErr((e as Error).message);
-          setItems([]);
-        }
-      }
-      if (alive) setBusy(false);
-    }, typed.length >= 2 ? 500 : 0);
-    return () => {
-      alive = false;
-      clearTimeout(t);
-    };
-  }, [term, base]);
+    const t = setTimeout(() => setQuery(typed.length >= 2 ? typed : ''), typed.length >= 2 ? 500 : 0);
+    return () => clearTimeout(t);
+  }, [term]);
+  const searching = query.length >= 2;
 
   // Pára o som ao sair.
   useEffect(() => () => stopTrack(me.current), []);
@@ -201,6 +222,7 @@ function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: strin
       stopTrack(me.current);
       return;
     }
+    setErr('');
     setPlaying(t.id);
     const ok = await playTrack(me.current, t.url, { loop: false, onStop: () => setPlaying(null) });
     if (!ok) {
@@ -213,40 +235,53 @@ function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: strin
     onPick(t);
   }
 
-  const typed = term.trim();
-  // Escrever na pesquisa passa logo para o separador Pesquisar.
-  useEffect(() => { if (typed.length >= 2) setTab('search'); }, [typed]);
-
-  /** Uma faixa na lista: ouvir, favorita (coração) e Usar. */
-  const row = (t: Track) => {
+  /** Uma faixa na lista: ouvir, favorita (coração), «Não gosto desta» e Usar. Em «Em alta», o destaque e as vezes que foi usada. */
+  const row = (t: Track, opts: { trending?: boolean } = {}) => {
     const fav = favIds.has(t.id);
+    const uses = opts.trending ? usesLabel(t.uses) : '';
     return (
       <View key={t.id} style={s.row}>
         <Pressable onPress={() => toggle(t)} style={({ pressed }) => [s.play, pressed && s.pressed]} accessibilityRole="button" accessibilityLabel={playing === t.id ? 'Parar' : 'Ouvir'}>
           <Icon name={playing === t.id ? 'pause' : 'play'} size={18} solid color="#fff" />
         </Pressable>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={s.rowTitle} numberOfLines={1}>{t.title}</Text>
-          <Text style={s.rowSub} numberOfLines={1}>{t.artist || 'Autor desconhecido'}{t.durationMs ? ` · ${mmss(t.durationMs)}` : ''}</Text>
+          <View style={x.titleRow}>
+            {opts.trending && t.featured ? <Text style={x.badge}>Destaque</Text> : null}
+            <Text style={[s.rowTitle, { flexShrink: 1 }]} numberOfLines={1}>{t.title}</Text>
+          </View>
+          <Text style={s.rowSub} numberOfLines={1}>{creditLine(t, mmss)}</Text>
+          {uses ? <Text style={x.uses} numberOfLines={1}>{uses}</Text> : null}
         </View>
         {t.kind !== 'clip' && (
           <Pressable onPress={() => toggleFav.mutate(t)} hitSlop={6} style={s.fav} accessibilityRole="button" accessibilityState={{ selected: fav }} accessibilityLabel={fav ? 'Tirar das favoritas' : 'Marcar como favorita'}>
             <Icon name="heart" size={20} solid={fav} color={fav ? colors.brand : colors.zinc500} />
           </Pressable>
         )}
+        {t.kind !== 'clip' && (
+          <Pressable onPress={() => dislike.mutate(t)} hitSlop={6} style={x.nope} accessibilityRole="button" accessibilityLabel="Não gosto desta">
+            <Icon name="x" size={18} color={colors.zinc500} />
+          </Pressable>
+        )}
         <Pressable onPress={() => pick(t)} style={({ pressed }) => [s.usar, pressed && s.pressed]} accessibilityRole="button"><Text style={s.usarTxt}>Usar</Text></Pressable>
       </View>
     );
   };
-  const section = (title: string, list: Track[] | undefined, empty?: string) => (
-    <View style={{ marginTop: 14 }}>
-      <Text style={s.h}>{title}</Text>
-      {list?.length ? list.map(row) : empty ? <Text style={s.emptySmall}>{empty}</Text> : null}
-    </View>
-  );
-  const favorites = favs.data ?? [];
-  const recent = (sugg.data?.recent ?? []).filter((t) => !favIds.has(t.id)).slice(0, 5);
-  const trending = (sugg.data?.trending ?? []).slice(0, 10);
+  const list = (q: { isLoading: boolean; data?: Track[]; error?: unknown }, empty: string, opts: { trending?: boolean } = {}) => {
+    if (q.isLoading) return <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 24 }} />;
+    if (q.error) return <Text style={s.err}>{(q.error as Error).message || 'Não consegui abrir a música agora'}</Text>;
+    const items = withoutDisliked(q.data, disliked);
+    return items.length ? items.map((t) => row(t, opts)) : <Text style={s.empty}>{empty}</Text>;
+  };
+
+  const tabs = pickerTabs(home.data);
+  const chips = styleChips(home.data?.styles, suggestion?.genre);
+  const suggestedStyle = suggestion ? chips.find((c) => c.id === suggestion.genre) : undefined;
+  const favorites = withoutDisliked(favs.data, disliked);
+  const recent = withoutDisliked(home.data?.recent, disliked).filter((t) => !favIds.has(t.id)).slice(0, 5);
+  // Se a secção que estava aberta deixou de existir (ex.: sem artistas locais), volta a «Em alta».
+  useEffect(() => {
+    if ((tab === 'local' || tab === 'sounds') && home.data && !tabs.some((t) => t.id === tab)) setTab('trending');
+  }, [tab, home.data, tabs]);
 
   return (
     <ScrollView
@@ -260,58 +295,96 @@ function PickerBody({ onPick, hint }: { onPick: (t: Track) => void; hint?: strin
     >
       <View style={s.search}>
         <Icon name="search" size={18} color={colors.zinc500} />
-        <TextInput value={term} onChangeText={setTerm} onFocus={() => setTab('search')} placeholder="Procurar música ou sons" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar música ou sons" autoCorrect={false} style={s.input} />
-      </View>
-      <View style={s.tabs} accessibilityRole="tablist">
-        {([['forYou', 'Para ti'], ['favorites', `Favoritas${favorites.length ? ` (${favorites.length})` : ''}`], ['search', 'Pesquisar']] as const).map(([id, label]) => (
-          <Pressable key={id} onPress={() => setTab(id)} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} style={[s.tab, tab === id && s.tabOn]}>
-            <Text style={[s.tabTxt, tab === id && { color: '#fff' }]}>{label}</Text>
+        <TextInput value={term} onChangeText={setTerm} placeholder="Procurar música, artista ou estilo" placeholderTextColor={colors.zinc500} accessibilityLabel="Procurar música, artista ou estilo" autoCorrect={false} style={s.input} />
+        {term ? (
+          <Pressable onPress={() => setTerm('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Limpar a pesquisa">
+            <Icon name="x" size={16} color={colors.zinc500} />
           </Pressable>
-        ))}
+        ) : null}
       </View>
 
-      {tab === 'forYou' && (
-        <>
-          {suggestion ? <Text style={s.sugg}>Para o teu post ({suggestion.why}): experimenta {suggestion.genre}. <Text onPress={() => setTerm(suggestion.genre)} style={{ textDecorationLine: 'underline' }}>Ver</Text></Text> : null}
-          {favorites.length ? section('As tuas favoritas', favorites.slice(0, 5)) : null}
-          {recent.length ? section('Usaste há pouco', recent) : null}
-          {sugg.isLoading ? <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 24 }} /> : section('A tocar no Txillapp', trending, 'Ainda ninguém pôs música esta semana. Sê o primeiro: pesquisa uma faixa.')}
-          {!favorites.length && !recent.length && !trending.length && !sugg.isLoading ? (
-            <Pressable onPress={() => setTab('search')} style={s.goSearch} accessibilityRole="button"><Text style={s.usarTxt}>Pesquisar música</Text></Pressable>
-          ) : null}
-        </>
-      )}
-
-      {tab === 'favorites' && (
-        <View style={{ marginTop: 8 }}>
-          {favs.isLoading ? <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 24 }} /> : favorites.length ? favorites.map(row) : <Text style={s.empty}>Ainda não tens favoritas. Toca no coração de uma faixa para a guardares aqui.</Text>}
+      {undo ? (
+        <View style={x.undo} accessibilityLiveRegion="polite">
+          <Text style={x.undoTxt} numberOfLines={1}>Tirada: {undo.title}.</Text>
+          <Pressable onPress={() => undislike.mutate(undo)} hitSlop={6} accessibilityRole="button"><Text style={x.undoBtn}>Desfazer</Text></Pressable>
         </View>
-      )}
+      ) : null}
+      {!!err && <Text style={s.err}>{err}</Text>}
 
-      {tab === 'search' && (
+      {searching ? (
+        <View style={{ marginTop: 12 }}>{list(found, 'Nada com esse nome')}</View>
+      ) : (
         <>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.chips} contentContainerStyle={{ gap: 6 }}>
-            {GENRES.map((g) => {
-              const on = typed === g || (!typed && g === base);
-              return (
-                <Pressable key={g} onPress={() => setTerm(g)} style={[s.chip, on && { backgroundColor: colors.brand }]} accessibilityRole="button">
-                  <Text style={[s.chipTxt, on && { color: '#fff' }]}>{g}</Text>
-                </Pressable>
-              );
-            })}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.chips} contentContainerStyle={{ gap: 6 }} accessibilityRole="tablist">
+            {tabs.map(({ id, label }) => (
+              <Pressable key={id} onPress={() => setTab(id)} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} style={[s.tab, tab === id && s.tabOn]}>
+                <Text style={[s.tabTxt, tab === id && { color: '#fff' }]}>{id === 'favorites' && favorites.length ? `${label} (${favorites.length})` : label}</Text>
+              </Pressable>
+            ))}
           </ScrollView>
-          {!!err && <Text style={s.err}>{err}</Text>}
-          <View style={{ marginTop: 12 }}>
-            {busy && <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 24 }} />}
-            {!busy && items?.length === 0 && !err && <Text style={s.empty}>Nada com esse nome</Text>}
-            {!busy && items?.map(row)}
-          </View>
+          {chips.length ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.chips} contentContainerStyle={{ gap: 6 }}>
+              {chips.map((c) => {
+                const on = tab === `style:${c.id}`;
+                return (
+                  <Pressable key={c.id} onPress={() => setTab(on ? 'trending' : `style:${c.id}`)} style={[s.chip, on && { backgroundColor: colors.brand }]} accessibilityRole="button" accessibilityState={{ selected: on }}>
+                    <Text style={[s.chipTxt, on && { color: '#fff' }]}>{c.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : null}
+          {suggestedStyle && tab === 'trending' ? (
+            <Text style={s.sugg}>
+              Para o teu post ({suggestion!.why}): experimenta {suggestedStyle.label}.{' '}
+              <Text onPress={() => setTab(`style:${suggestedStyle.id}`)} style={{ textDecorationLine: 'underline' }}>Ver</Text>
+            </Text>
+          ) : null}
+
+          {tab === 'trending' && (
+            <>
+              {recent.length ? (
+                <View style={{ marginTop: 14 }}>
+                  <Text style={s.h}>Usaste há pouco</Text>
+                  {recent.map((t) => row(t))}
+                </View>
+              ) : null}
+              <View style={{ marginTop: 14 }}>
+                <Text style={s.h}>Em alta no Txillapp</Text>
+                {list({ isLoading: home.isLoading, data: home.data?.trending, error: home.error }, 'Ainda não há músicas em alta. Escolhe um estilo ou pesquisa.', { trending: true })}
+              </View>
+            </>
+          )}
+          {styleId ? <View style={{ marginTop: 12 }}>{list(styleList, 'Ainda não há músicas deste estilo.')}</View> : null}
+          {tab === 'local' && (
+            <View style={{ marginTop: 14 }}>
+              <Text style={s.h}>Artistas de Moçambique</Text>
+              {list(localList, 'Ainda não há músicas de artistas de Moçambique.')}
+            </View>
+          )}
+          {tab === 'sounds' && <View style={{ marginTop: 12 }}>{list(soundList, 'Ainda não há sons.')}</View>}
+          {tab === 'favorites' && (
+            <View style={{ marginTop: 8 }}>
+              {favs.isLoading ? <ActivityIndicator color={colors.zinc500} style={{ paddingVertical: 24 }} /> : favorites.length ? favorites.map((t) => row(t)) : <Text style={s.empty}>Ainda não tens favoritas. Toca no coração de uma faixa para a guardares aqui.</Text>}
+            </View>
+          )}
         </>
       )}
-      <Text style={s.note}>Só músicas e sons de licença aberta (Creative Commons), com o crédito de quem os fez. Para a música do momento, ainda não há licença.</Text>
+      <Text style={s.note}>Só músicas que se podem pôr em vídeos partilhados: licença aberta (CC0, domínio público ou CC BY, com o crédito de quem as fez) e artistas de Moçambique que deram autorização ao Txillapp. Toca no X («Não gosto desta») para deixares de ver uma faixa.</Text>
     </ScrollView>
   );
 }
+
+const x = StyleSheet.create({
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+  badge: { fontSize: 11, fontWeight: '800', color: '#fff', backgroundColor: colors.brand, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
+  uses: { fontSize: 12, color: colors.zinc500 },
+  nope: { width: 32, height: 36, alignItems: 'center', justifyContent: 'center' },
+  undo: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, backgroundColor: colors.zinc100, paddingHorizontal: 12, paddingVertical: 8 },
+  undoTxt: { flex: 1, minWidth: 0, fontSize: 14, color: colors.zinc700 },
+  undoBtn: { fontSize: 14, fontWeight: '700', color: colors.brand },
+});
+
 
 const s = StyleSheet.create({
   sugg: { marginTop: 8, fontSize: 13, fontWeight: '600', color: colors.brand },

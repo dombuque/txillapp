@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
-import { licenseLabel } from '@/components/MusicPicker';
+import { licenseLabel } from '@/lib/musicCatalog';
 import { Sheet } from '@/components/Sheet';
 import type { Track } from '@/lib/api.music';
 import { playTrack, stopTrack, useMusicMuted } from '@/lib/musicPlayer';
