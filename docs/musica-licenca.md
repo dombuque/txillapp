@@ -1,6 +1,6 @@
 # Programa de artistas moçambicanos: licença e privacidade (rascunho)
 
-Rascunho para o guardião das políticas integrar nos Termos de Utilização e na Política de Privacidade (`apps/mobile/src/lib/legalText.ts` não foi mexido). O texto da licença que a app mostra, e que fica registado ao aceitar, está em `apps/api/src/artists/license.ts` (versão `2026-11-12`). **Se o texto mudar, muda também a versão**: a app envia a versão que a pessoa leu, e o servidor recusa uma versão antiga (409).
+Já integrado nos Termos de Uso (ponto 12, «Música dos artistas de Moçambique», com a licença palavra por palavra) e na Política de Privacidade, em `apps/mobile/src/lib/legalText.ts` (e no `Legal.tsx` do site antigo, gerado por `apps/web/scripts/make-legal.mjs`). O texto da licença que a app mostra, e que fica registado ao aceitar, está em `apps/api/src/artists/license.ts` (versão `2026-11-12`). **Se o texto mudar, muda também a versão**: a app envia a versão que a pessoa leu, e o servidor recusa uma versão antiga (409).
 
 ## Como funciona (resumo)
 
@@ -28,17 +28,17 @@ Rascunho para o guardião das políticas integrar nos Termos de Utilização e n
 > Para os Termos de Utilização, numa secção nova «Música dos artistas». O texto é o mesmo que a app mostra (`MUSIC_LICENSE_TEXT`).
 
 1. **Quem dá a licença.** Ao publicar esta faixa, confirmas que és o titular dos direitos de autor e dos direitos conexos da gravação e da composição (ou que a editora ou os titulares te autorizaram a dar esta licença) e que a faixa não infringe direitos de ninguém.
-2. **O que autorizas.** Dás à Txillapp uma autorização não exclusiva, gratuita, mundial e revogável para novos usos, para:
+2. **O que autorizas.** Dás ao Txillapp uma autorização não exclusiva, gratuita, mundial e revogável para novos usos, para:
    - (a) guardar a faixa, cortar o trecho que escolheste e disponibilizá-lo no seletor de música do Txillapp;
    - (b) deixar que as pessoas usem esse trecho nos seus mimos e tchekas dentro do Txillapp;
    - (c) incluir o trecho nas cópias desses mimos e tchekas que as pessoas guardam ou partilham com a assinatura do Txillapp;
    - (d) mostrar o título, o teu nome artístico, a capa e uma ligação ao teu perfil.
 3. **Não exclusiva.** Continuas dono da tua música e podes licenciá-la a quem quiseres, noutros sítios e nas condições que quiseres.
 4. **Gratuita.** Não há pagamento por esta licença nem pelos usos. Em troca, a faixa ganha destaque na secção «Artistas de Moçambique» e cada uso mostra «♪ Título · Artista» com ligação ao teu perfil.
-5. **Retirar a faixa.** Podes retirar a faixa quando quiseres, no Gerir do teu perfil. A partir daí deixa de estar disponível para novos usos. Os mimos e as tchekas já publicados com ela, e as cópias já guardadas, continuam como estão.
+5. **Retirar a faixa.** Podes retirar a faixa quando quiseres, em «As minhas músicas» (no teu perfil). A partir daí deixa de estar disponível para novos usos. Os mimos e as tchekas já publicados com ela, e as cópias já guardadas, continuam como estão.
 6. **O que não autorizas.** Não autorizas a venda da faixa, o descarregamento da faixa completa, nem o uso fora do Txillapp (salvo nas cópias com assinatura referidas no ponto 2).
 7. **Moderação e denúncias.** A equipa do Txillapp revê a faixa antes de aparecer e pode recusá-la ou tirá-la (por exemplo, por denúncia de direitos de autor, conteúdo ilegal ou contrário às regras). Uma faixa denunciada fica escondida enquanto a equipa analisa.
-8. **Responsabilidade.** Se a informação do ponto 1 não for verdadeira, respondes perante os verdadeiros titulares e perante a Txillapp pelos prejuízos que daí resultem.
+8. **Responsabilidade.** Se a informação do ponto 1 não for verdadeira, respondes perante os verdadeiros titulares e perante o Txillapp pelos prejuízos que daí resultem.
 9. **Lei aplicável.** Esta licença rege-se pela lei de Moçambique, incluindo a Lei dos Direitos de Autor e Direitos Conexos, e faz parte dos Termos de Utilização do Txillapp.
 
 ### A juntar aos Termos (fora da licença)
