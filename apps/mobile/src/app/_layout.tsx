@@ -198,6 +198,8 @@ function Gate() {
       <Stack.Screen name="wallet" />
       <Stack.Screen name="invites" />
       <Stack.Screen name="t/[tag]" />
+      {/* A página de um som das tchekas (docs/sons.md). */}
+      <Stack.Screen name="som/[id]" />
       <Stack.Screen name="u/[username]/connections" />
       {/* Nos mimos deslizar para os lados muda de pessoa e para baixo fecha: o gesto de voltar do iPhone baralhava-os. */}
       <Stack.Screen name="stories/[username]" options={{ animation: 'fade', gestureEnabled: false }} />

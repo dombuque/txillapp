@@ -13,6 +13,7 @@ import { ExploreViewer } from '@/components/ExploreViewer';
 import { FollowButton } from '@/components/FollowButton';
 import { Icon } from '@/components/Icon';
 import { Suggestions } from '@/components/Suggestions';
+import { TrendingSounds } from '@/components/TrendingSounds';
 import { Bolt } from '@/components/SuperTxillPanel';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { api, isTcheka, type Post } from '@/lib/api';
@@ -240,6 +241,9 @@ export default function Search() {
                 ))}
               </ScrollView>
             )}
+
+            {/* Sons em alta: os sons com mais tchekas na última semana (docs/sons.md). */}
+            <TrendingSounds />
 
             {/* À tua volta: o mapa do que há perto (locais, eventos, malta). */}
             <Pressable onPress={() => router.push('/perto' as never)} style={styles.perto} accessibilityRole="link" accessibilityLabel="À tua volta: o que há perto de ti">

@@ -1,13 +1,31 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { BookmarkIcon } from '@/components/BookmarkIcon';
 import { FindContacts } from '@/components/FindContacts';
 import { SettingRow, SettingsSection } from '@/components/settings/SettingRow';
 import { SettingsPage } from '@/components/settings/SettingsPage';
+import { ApiError } from '@/lib/api';
+import { soundsApi } from '@/lib/api.sounds';
+import { reuseSetting } from '@/lib/sounds';
 
-/** Conteúdo e o teu algoritmo: o que vês, o que guardas, a geleira, as estatísticas, o teu local e os convites. */
+/** Conteúdo e o teu algoritmo: o que vês, o que guardas, a geleira, as estatísticas, o teu local, os teus sons e os convites. */
 export default function ContentSettings() {
   const [contacts, setContacts] = useState(false);
+  const qc = useQueryClient();
+  // «Deixar usar o meu som» (docs/sons.md): ligado por omissão; numa conta privada (ou de menor) fica desligado.
+  const sounds = useQuery({ queryKey: ['sounds', 'settings'], queryFn: soundsApi.settings, retry: false });
+  const reuse = reuseSetting(sounds.data);
+  async function setReuse(on: boolean) {
+    const before = sounds.data;
+    if (before) qc.setQueryData(['sounds', 'settings'], { ...before, reuse: on, effective: on });
+    try {
+      qc.setQueryData(['sounds', 'settings'], await soundsApi.setSettings(on));
+    } catch (e) {
+      qc.setQueryData(['sounds', 'settings'], before);
+      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
+    }
+  }
   return (
     <SettingsPage title="Conteúdo e o teu algoritmo">
       <SettingsSection title="O que vês">
@@ -19,6 +37,11 @@ export default function ContentSettings() {
         <SettingRow anchor="insights" icon="trending" title="Estatísticas do perfil" to="/insights" />
         <SettingRow anchor="locais" icon="map-pin" title="Tenho um local (bar, restaurante…)" to="/locais" />
       </SettingsSection>
+      {sounds.data ? (
+        <SettingsSection title="Os teus sons">
+          <SettingRow anchor="soundReuse" icon="music" title="Deixar usar o meu som" description={reuse.description} toggle={{ on: reuse.on, disabled: reuse.disabled, onChange: (v) => void setReuse(v) }} />
+        </SettingsSection>
+      ) : null}
       <SettingsSection title="Amigos">
         <SettingRow anchor="invites" icon="user-plus" title="Convida a tua malta" to="/invites" />
         {Platform.OS === 'web' ? <SettingRow anchor="contacts" icon="users" title="Encontrar amigos nos contactos" onPress={() => setContacts(true)} /> : null}
