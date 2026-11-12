@@ -14,6 +14,7 @@ import {
   freshVideoFor, nextVideo, viewTransform, encodePhoto, fitLong, PHOTO_BASE, PHOTO_MAX_LONG, PHOTO_SAFE, upgradeTooSlow,
 } from '@/lib/webCamera';
 import { useAuth } from '@/lib/auth';
+import { finalMs, musicRateWhileRecording, recordableMs, segmentBar, SPEEDS, speedLabel, TCHEKA_MAX_S } from '@/lib/tchekaRules';
 import { POST_RATIO_DEFAULT, POST_RATIO_MAX, POST_RATIO_MIN } from '@/lib/postAspect';
 import {
   SEAL_BLUE, SEAL_CHECK, SEAL_CHECK_WIDTH, SEAL_CORAL, SEAL_PATH, WORDMARK_BOX, WORDMARK_DOT, WORDMARK_PATHS, WORDMARK_STROKE, sealOf, sealPaint, signLayout,
@@ -33,7 +34,21 @@ export const liveCameraSupported = () => Platform.OS === 'web' && typeof navigat
  * mimo, o servidor não a volta a pôr); fotos e vídeos da galeria não a levam. `clean`: a mesma foto sem a assinatura (só
  * quando se pede `keepClean`, para o estúdio de tchekas, que assina o vídeo inteiro).
  */
-export interface Shot { uri: string; video: boolean; mime: string; durationMs?: number; signed?: boolean; clean?: string }
+export interface Shot { uri: string; video: boolean; mime: string; durationMs?: number; signed?: boolean; clean?: string; /** Num tcheka: a velocidade a que o clipe foi gravado (0,5× a 3×); o estúdio toca-o a essa velocidade. */ speed?: number; /** O instante da capa escolhido no estúdio (ms). */ posterMs?: number }
+
+/**
+ * Gravação ao estilo do TikTok (num tcheka): segurar grava e largar pára, em vários clipes, sem revisão entre eles; a
+ * barra de cima mostra os clipes até 60 s; desfazer tira o último; velocidade 0,5× a 3×; o temporizador (3 s ou 10 s)
+ * começa a gravar sozinho. O som escolhido toca enquanto se grava (à velocidade certa, para bater certo no fim).
+ */
+export interface SegmentedRec {
+  /** Os clipes já feitos, em ms no vídeo final (os vídeos à velocidade deles; as fotos com a duração que levam). */
+  clipsMs: number[];
+  onUndo: () => void;
+  musicUrl?: string | null;
+  musicTitle?: string | null;
+  onMusic?: () => void;
+}
 export type CamMode = 'photo' | 'video' | 'text';
 type Problem = null | CamProblem | 'unsupported';
 const MAX_VIDEO_S = 60;
@@ -496,7 +511,7 @@ function TopTool({ on, label, onPress, children }: { on?: boolean; label: string
 }
 
 export function TxCamera({
-  count, max, modes = ['photo', 'video', 'text'], onShot, onGallery, onClose, onDone, onText, doneLabel = 'Feito', thumbs, kinds, kind, onKind, aspect = 9 / 16, keepClean = false,
+  count, max, modes = ['photo', 'video', 'text'], onShot, onGallery, onClose, onDone, onText, doneLabel = 'Feito', thumbs, kinds, kind, onKind, aspect = 9 / 16, keepClean = false, segmented,
 }: {
   count: number; max: number; modes?: CamMode[]; onShot: (s: Shot) => void; onGallery: (files: File[]) => void; onClose: () => void; onDone?: () => void; onText?: () => void; doneLabel?: string;
   /** Miniaturas do que já foi escolhido (a fila de "recentes", como no Instagram). */
@@ -507,6 +522,8 @@ export function TxCamera({
   aspect?: number;
   /** Num tcheka: cada foto traz também a cópia sem assinatura (`clean`), que é a que entra no estúdio. */
   keepClean?: boolean;
+  /** Num tcheka: gravação por clipes (ver SegmentedRec). */
+  segmented?: SegmentedRec;
 }) {
   const insets = useSafeAreaInsets();
   const video = useRef<HTMLVideoElement | null>(null);
@@ -564,6 +581,13 @@ export function TxCamera({
   const cellCanvases = useRef<HTMLCanvasElement[]>([]);
   const [zoom, setZoom] = useState(1);
   const [recording, setRecording] = useState(false);
+  /** Velocidade da gravação por clipes (só num tcheka). */
+  const [speed, setSpeed] = useState<number>(1);
+  const recSpeed = useRef(1);
+  /** O som que toca enquanto se grava (num tcheka com música ou som escolhido). */
+  const recAudio = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => () => { recAudio.current?.pause(); recAudio.current = null; }, []);
+  const usedFinalMs = segmented ? segmented.clipsMs.reduce((n, x) => n + x, 0) : 0;
   /** Milissegundos de gravação (o anel do obturador enche até aos 60 s). */
   const [recMs, setRecMs] = useState(0);
   /** Onde se tocou para focar (círculo que aparece e some). */
@@ -1225,6 +1249,11 @@ export function TxCamera({
     if (recording || recorder.current?.state === 'recording') return stopRec();
     const s = stream.current;
     if (!s || !ready || typeof MediaRecorder === 'undefined') return;
+    // Num tcheka: só se grava até o vídeo final chegar aos 60 s (à velocidade escolhida).
+    const sp = segmented ? speed : 1;
+    const limitMs = segmented ? recordableMs(usedFinalMs, sp) : MAX_VIDEO_S * 1000;
+    if (limitMs < 300) return;
+    recSpeed.current = sp;
     recWanted.current = true;
     // O som: se o microfone caiu (chamada, outra app, voltar de segundo plano), pede-se outra vez; sem ele grava-se sem som, com aviso.
     if (!s.getAudioTracks().some((x) => x.readyState === 'live')) {
@@ -1261,7 +1290,12 @@ export function TxCamera({
       const mime = recorderFile(r.mimeType || type).type;
       const blob = new Blob(chunks.current, { type: mime });
       chunks.current = [];
-      if (blob.size) setReview({ uri: URL.createObjectURL(blob), video: true, mime, durationMs: Date.now() - startedAt.current });
+      recAudio.current?.pause();
+      const durationMs = Date.now() - startedAt.current;
+      if (!blob.size) return;
+      // Num tcheka, o clipe junta-se logo (sem revisão), como no TikTok: grava-se o seguinte de seguida.
+      if (segmented) { if (durationMs >= 250) onShot({ uri: URL.createObjectURL(blob), video: true, mime, durationMs, speed: recSpeed.current }); return; }
+      setReview({ uri: URL.createObjectURL(blob), video: true, mime, durationMs });
     };
     recorder.current = r;
     try { r.start(1000); } catch { recorder.current = null; return; }
@@ -1269,11 +1303,23 @@ export function TxCamera({
     setMute(!hasAudio);
     setRecording(true);
     buzz(10);
+    // O som escolhido toca a partir de onde o vídeo final vai (a 3× ouve-se devagar; no fim fica a tempo).
+    if (segmented?.musicUrl) {
+      try {
+        const a = recAudio.current ?? new Audio(segmented.musicUrl);
+        if (a.src !== new URL(segmented.musicUrl, location.href).href) a.src = segmented.musicUrl;
+        recAudio.current = a;
+        a.playbackRate = musicRateWhileRecording(sp);
+        const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : 0;
+        a.currentTime = d ? (usedFinalMs / 1000) % d : usedFinalMs / 1000;
+        void a.play().catch(() => undefined);
+      } catch { /* sem som a acompanhar */ }
+    }
     timer.current = setInterval(() => {
       const ms = Date.now() - startedAt.current;
       setSeconds(Math.floor(ms / 1000));
       setRecMs(ms);
-      if (ms >= MAX_VIDEO_S * 1000 && r.state === 'recording') r.stop();
+      if (ms >= limitMs && r.state === 'recording') r.stop();
     }, 100);
   }
 
@@ -1292,6 +1338,8 @@ export function TxCamera({
   }, [vkey]);
   const shootRef = useRef(shoot);
   shootRef.current = shoot;
+  const recordRef = useRef(record);
+  recordRef.current = record;
   /** Toque = foto; manter premido = vídeo (começa aos 350 ms e pára ao largar). Com temporizador, o toque faz a contagem; tocar outra vez cancela. */
   const holdT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const holding = useRef(false);
@@ -1332,7 +1380,8 @@ export function TxCamera({
   function press() {
     if (countdown !== null) { clearInterval(countTimer.current); return setCountdown(null); }
     if (recording) return stopRec();
-    const fire = () => void shootRef.current();
+    // Num tcheka, o temporizador conta e começa a gravar sozinho (toca outra vez para parar).
+    const fire = segmented && delay ? () => { setHint(false); void recordRef.current(); } : () => void shootRef.current();
     if (!delay || recording) return fire();
     let n: number = delay;
     setCountdown(n);
@@ -1514,6 +1563,25 @@ export function TxCamera({
       {shotK > 0 ? dom('div', { key: `shot${shotK}`, style: { position: 'absolute', inset: 0, backgroundColor: '#fff', pointerEvents: 'none', zIndex: 12, opacity: 0, animation: 'txshot 220ms ease-out' } }) : null}
       {shotK > 0 ? dom('style', { key: 'shotk' }, '@keyframes txshot{0%{opacity:.85}100%{opacity:0}}') : null}
 
+      {/* Num tcheka: a barra dos clipes (até 60 s), como no TikTok; o clipe a gravar cresce a coral. */}
+      {segmented && (segmented.clipsMs.length > 0 || recording) ? (() => {
+        const bar = segmentBar(segmented.clipsMs, recording ? finalMs(recMs, recSpeed.current) : 0);
+        return (
+          <View style={[st.segBar, { top: topPad }]} pointerEvents="none" accessibilityRole="progressbar" accessibilityLabel={`${Math.round(bar.used * TCHEKA_MAX_S)} de ${TCHEKA_MAX_S} segundos`}>
+            {bar.segments.map((g, i) => <View key={i} style={[st.segPart, { left: `${g.start * 100}%`, width: `${g.width * 100}%` }]} />)}
+            {bar.live ? <View style={[st.segPart, st.segLive, { left: `${bar.live.start * 100}%`, width: `${bar.live.width * 100}%` }]} /> : null}
+          </View>
+        );
+      })() : null}
+      {segmented && !recording && segmented.onMusic && ready && !review ? (
+        <View style={[st.segMusicWrap, { top: topPad + 62 }]} pointerEvents="box-none">
+          <Pressable onPress={segmented.onMusic} style={st.segMusic} accessibilityRole="button" accessibilityLabel={segmented.musicTitle ? `Som: ${segmented.musicTitle}. Trocar` : 'Escolher um som'}>
+            <Icon name="music" size={15} color="#fff" />
+            <Text style={st.segMusicText} numberOfLines={1}>{segmented.musicTitle || 'Escolher som'}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       {/* Em cima, só o essencial: fechar à esquerda; à direita o Feito, o flash e as opções. */}
       <View style={[st.top, { paddingTop: topPad + 6 }]}>
         <Pressable onPress={onClose} style={st.round} accessibilityRole="button" accessibilityLabel="Fechar câmara"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
@@ -1521,7 +1589,7 @@ export function TxCamera({
           <View style={{ alignItems: 'center', gap: 6 }}>
             <View style={[st.rec, left <= 5 && { backgroundColor: 'rgba(239,68,68,0.85)' }]} accessibilityRole="timer" accessibilityLabel={`A gravar: ${seconds} de ${MAX_VIDEO_S} segundos`}>
               <View style={[st.recDot, left <= 5 && { backgroundColor: '#fff' }]} />
-              <Text style={st.recText}>{clock(seconds)}<Text style={{ color: 'rgba(255,255,255,0.6)' }}> / {clock(MAX_VIDEO_S)}</Text></Text>
+              <Text style={st.recText}>{segmented ? clock(Math.floor((usedFinalMs + finalMs(recMs, recSpeed.current)) / 1000)) : clock(seconds)}<Text style={{ color: 'rgba(255,255,255,0.6)' }}> / {clock(MAX_VIDEO_S)}</Text></Text>
             </View>
             {mute ? <Text style={st.recNote}>Sem som: o microfone não está disponível</Text> : null}
           </View>
@@ -1631,7 +1699,7 @@ export function TxCamera({
             ))}
           </ScrollView>
         ) : null}
-        {thumbs && thumbs.length > 0 && !recording ? (
+        {thumbs && thumbs.length > 0 && !recording && !segmented ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 6, alignItems: 'center' }} style={{ maxHeight: 54, marginBottom: 10, alignSelf: 'stretch' }} accessibilityLabel="Escolhidas">
             {thumbs.map((u, i) => (
               <View key={`${u}-${i}`} style={st.thumb}>{dom('img', { src: u, alt: '', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } })}</View>
@@ -1641,6 +1709,15 @@ export function TxCamera({
           <Text style={st.hint} pointerEvents="none">Toca para foto · mantém para vídeo</Text>
         ) : null}
         {full ? <Text style={st.full} accessibilityRole="alert">Máximo de {max} fotos</Text> : null}
+        {segmented && !recording && ready && layout === null ? (
+          <View style={st.speedRow} accessibilityRole="radiogroup" accessibilityLabel="Velocidade">
+            {SPEEDS.map((s) => (
+              <Pressable key={s} onPress={() => setSpeed(s)} style={[st.speedBtn, speed === s && st.speedOn]} accessibilityRole="radio" accessibilityState={{ selected: speed === s }} accessibilityLabel={`Velocidade ${speedLabel(s)}`}>
+                <Text style={[st.speedText, speed === s && { color: colors.zinc900 }]}>{speedLabel(s)}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 }}>
           {layout !== null && !recording ? (
             <View style={st.layoutPill}>
@@ -1700,13 +1777,16 @@ export function TxCamera({
             {recording ? (
               <Svg width={84} height={84} style={StyleSheet.absoluteFill} pointerEvents="none">
                 <Circle cx={42} cy={42} r={40} stroke={colors.brand} strokeWidth={4} fill="none" strokeLinecap="round"
-                  strokeDasharray={`${2 * Math.PI * 40}`} strokeDashoffset={2 * Math.PI * 40 * (1 - Math.min(1, recMs / (MAX_VIDEO_S * 1000)))}
+                  strokeDasharray={`${2 * Math.PI * 40}`} strokeDashoffset={2 * Math.PI * 40 * (1 - Math.min(1, (segmented ? usedFinalMs + finalMs(recMs, recSpeed.current) : recMs) / (MAX_VIDEO_S * 1000)))}
                   transform="rotate(-90 42 42)" />
               </Svg>
             ) : null}
             <View style={[st.shutterIn, recording && st.shutterRec]} />
           </Pressable>
-          <View style={[st.side, { alignItems: 'flex-end' }]}>
+          <View style={[st.side, { alignItems: 'flex-end' }, segmented ? { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, width: 104, marginLeft: -40 } : null]}>
+            {segmented && segmented.clipsMs.length > 0 && !recording ? (
+              <Pressable onPress={segmented.onUndo} style={st.flipBtn} accessibilityRole="button" accessibilityLabel="Desfazer o último clipe"><Icon name="undo" size={22} color="#fff" strokeWidth={2.2} /></Pressable>
+            ) : null}
             {canFlip && ready && !recording ? (
               <Pressable onPress={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} style={st.flipBtn} accessibilityRole="button" accessibilityLabel="Virar câmara"><Icon name="flip-camera" size={24} color="#fff" /></Pressable>
             ) : null}
@@ -1902,6 +1982,16 @@ const st = StyleSheet.create({
   kindChip: { height: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', gap: 4 },
   kindDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.brand },
   galleryThumb: { width: 48, height: 48, borderRadius: 24, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.38)' },
+  segBar: { position: 'absolute', left: 10, right: 10, height: 5, zIndex: 7, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.28)', overflow: 'hidden' },
+  segPart: { position: 'absolute', top: 0, bottom: 0, backgroundColor: '#fff', borderRightWidth: 2, borderRightColor: 'rgba(0,0,0,0.55)' },
+  segLive: { backgroundColor: colors.brand, borderRightWidth: 0 },
+  segMusicWrap: { position: 'absolute', left: 0, right: 0, zIndex: 6, alignItems: 'center' },
+  segMusic: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 240, height: 34, paddingHorizontal: 14, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.45)' },
+  segMusicText: { color: '#fff', fontSize: 13, fontWeight: '700', flexShrink: 1 },
+  speedRow: { flexDirection: 'row', gap: 4, padding: 3, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.42)', marginBottom: 10 },
+  speedBtn: { minWidth: 46, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  speedOn: { backgroundColor: '#fff' },
+  speedText: { color: '#fff', fontWeight: '800', fontSize: 13 },
   flipBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.38)', alignItems: 'center', justifyContent: 'center' },
   cropOk: { height: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.brand, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   cropIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },

@@ -16,7 +16,7 @@ export const composeApi = {
   /** A morada e a cidade de um ponto (o pino arrastado no mapa ou a minha posição). */
   reversePlace: (lat: number, lng: number): Promise<PlaceReverse> => raw(`/places/reverse?lat=${lat}&lng=${lng}`),
   mentionable: (q: string): Promise<({ username: string; displayName: string; hasAvatar: boolean; following: boolean } & Badged)[]> => raw(`/mentionable?q=${encodeURIComponent(q)}`),
-  createPost: (b: { body: string; music?: Track | null; locationLabel?: string; locationLat?: number; locationLng?: number; locationCoarse?: boolean; mediaIds: string[]; tags?: { index: number; username: string; x: number; y: number }[]; /** Publicar como um local que giro. */ venueId?: string | null }) =>
+  createPost: (b: { body: string; music?: Track | null; locationLabel?: string; locationLat?: number; locationLng?: number; locationCoarse?: boolean; mediaIds: string[]; tags?: { index: number; username: string; x: number; y: number }[]; /** Publicar como um local que giro. */ venueId?: string | null; /** Tcheka feita com um som de outra (`/tcheka/nova?som=`). */ soundId?: string }) =>
     // Estatísticas: só o feitio da publicação (quantas fotos, com música, como local), nunca o texto nem o sítio.
-    trackOk(raw('/posts', post({ ...b, music: musicPayload(b.music) })), 'post_create', { media: b.mediaIds.length, music: !!b.music, tags: !!b.tags?.length, venue: !!b.venueId }),
+    trackOk(raw('/posts', post({ ...b, music: musicPayload(b.music) })), 'post_create', { media: b.mediaIds.length, music: !!b.music, tags: !!b.tags?.length, venue: !!b.venueId, sound: !!b.soundId }),
 };

@@ -29,12 +29,15 @@ export class MediaController {
     return this.media.receive(parseIdParam(id), Number(exp), sig, req);
   }
 
-  /** Chamado pelo cliente depois de enviar o ficheiro (no S3 valida o tipo e o tamanho reais). */
+  /**
+   * Chamado pelo cliente depois de enviar o ficheiro (no S3 valida o tipo e o tamanho reais). Num vídeo pode levar
+   * `{ posterMs }`: o instante da capa escolhido no estúdio de tchekas (0 a 60 000 ms; fora disso ignora-se).
+   */
   @Post(':id/complete')
   @UseGuards(JwtAuthGuard)
   @HttpCode(200)
-  complete(@Req() req: Request & { userId?: string }, @Param('id') id: string) {
-    return this.media.complete(req.userId!, parseIdParam(id));
+  complete(@Req() req: Request & { userId?: string }, @Param('id') id: string, @Body() body?: { posterMs?: unknown }) {
+    return this.media.complete(req.userId!, parseIdParam(id), posterMsOf(body?.posterMs));
   }
 
   /** Estado do ficheiro (vídeos demoram a converter). */
@@ -79,6 +82,12 @@ export class MediaController {
  * `no-cache` + ETag: o browser revalida e a foto nova aparece logo, sem descarregar de novo se não mudou.
  */
 /** A largura pedida para o avatar: 256 por omissão, no máximo 1080 (nunca o original). */
+/** O instante da capa pedido pelo cliente, se for um número válido (0 a 60 s); senão, nada. */
+export function posterMsOf(v: unknown): number | undefined {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
+  return Number.isFinite(n) && n >= 0 && n <= 60_000 ? Math.round(n) : undefined;
+}
+
 export function avatarWidth(w: string | undefined): number {
   const n = Math.trunc(Number(w));
   return Number.isFinite(n) && n > 256 ? Math.min(n, 1080) : 256;

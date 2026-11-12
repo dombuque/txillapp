@@ -30,6 +30,16 @@ export interface VideoStorageHooks {
   cleanup(): Promise<void>;
 }
 
+/**
+ * Onde se tira a capa (segundos): no instante escolhido no estúdio de tchekas (`posterMs`), dentro do vídeo; sem escolha,
+ * aos 0,5 s (ou a meio, nos vídeos mais curtos), como sempre.
+ */
+export function posterSeek(seconds: number, posterMs?: number | null): number {
+  const len = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+  if (typeof posterMs === 'number' && Number.isFinite(posterMs) && posterMs >= 0) return Math.round(Math.min(posterMs / 1000, Math.max(0, len - 0.1)) * 1000) / 1000;
+  return Math.min(0.5, len / 2);
+}
+
 export type VideoSniff = 'video/mp4' | 'video/webm' | null;
 /** MP4/MOV ("ftyp" nos bytes 4 a 8) e WebM (cabeçalho EBML). O conteúdo real é que conta, não o Content-Type. */
 export function sniffVideo(head: Buffer): VideoSniff {
@@ -69,8 +79,9 @@ export class VideoService {
    */
   static readonly SAFE_INPUT = ['-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,matroska,webm'];
 
-  enqueue(id: string, owner: string, hooks?: VideoStorageHooks) {
-    this.chain = this.chain.then(() => this.process(id, owner, hooks)).catch(() => undefined);
+  /** `posterMs`: o instante da capa escolhido no estúdio de tchekas (sem ele, a capa é aos 0,5 s). */
+  enqueue(id: string, owner: string, hooks?: VideoStorageHooks, posterMs?: number) {
+    this.chain = this.chain.then(() => this.process(id, owner, hooks, posterMs)).catch(() => undefined);
     return this.chain;
   }
 
@@ -83,7 +94,7 @@ export class VideoService {
     return { seconds, width: v.width, height: v.height };
   }
 
-  private async process(id: string, owner: string, hooks?: VideoStorageHooks) {
+  private async process(id: string, owner: string, hooks?: VideoStorageHooks, posterMs?: number) {
     const f = this.paths(id);
     try {
       if (hooks) await hooks.fetchSource(f.src);
@@ -106,8 +117,8 @@ export class VideoService {
       await rename(tmp, f.out);
       const final = await this.probe(f.out);
 
-      // Capa e 3 imagens para a verificação (10%, 50% e 90%).
-      await run(FFMPEG, ['-y', ...VideoService.SAFE_INPUT, '-ss', String(Math.min(0.5, final.seconds / 2)), '-i', f.out, '-frames:v', '1', '-q:v', '4', f.poster], { timeout: 60_000 });
+      // Capa (no instante escolhido, se houver) e 3 imagens para a verificação (10%, 50% e 90%).
+      await run(FFMPEG, ['-y', ...VideoService.SAFE_INPUT, '-ss', String(posterSeek(final.seconds, posterMs)), '-i', f.out, '-frames:v', '1', '-q:v', '4', f.poster], { timeout: 60_000 });
       const verdict = await this.screenFrames(f.out, final.seconds, id, owner);
       if (verdict === 'reject') throw new VideoRejected('Este vídeo parece ter nudez ou conteúdo sexual e não pode ser publicado.');
 
