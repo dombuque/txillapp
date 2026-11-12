@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { z } from 'zod';
 import { PG_POOL } from '../db/db.module';
 import { MediaService } from '../media/media.service';
+import { LicensedMusicService, licensedRefSchema } from './licensed-music.service';
 
 /** Onde as faixas de licença aberta estão alojadas (o Openverse junta estes e outros). Só se tocam faixas destes sítios. */
 const ALLOWED_HOSTS = [
@@ -75,8 +76,8 @@ export const clipSchema = z.object({
   title: z.string().trim().max(60).default('Áudio original'),
 });
 
-/** O que uma nota ou um post pode levar: uma faixa de licença aberta ou um clipe próprio. */
-export const musicSchema = z.union([clipSchema, trackSchema]);
+/** O que uma nota ou um post pode levar: uma faixa de licença aberta, um clipe próprio ou uma faixa licenciada (só a referência). */
+export const musicSchema = z.union([clipSchema, licensedRefSchema, trackSchema]);
 export type MusicInput = z.infer<typeof musicSchema>;
 
 interface OpenverseAudio {
@@ -105,12 +106,14 @@ export class MusicService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly media: MediaService,
+    private readonly licensed: LicensedMusicService,
   ) {}
 
   /** Antes de guardar: um clipe tem de ser áudio meu, privado e já carregado (nunca de outra pessoa). */
   async prepare(userId: string, music: MusicInput | null | undefined): Promise<Record<string, unknown> | null> {
     if (!music) return null;
     if (!('kind' in music)) return music as unknown as Record<string, unknown>;
+    if (music.kind === 'licensed') return this.licensed.prepare(userId, music);
     const r = await this.pool.query(`SELECT 1 FROM content.media_assets WHERE id = $1 AND owner_id = $2 AND purpose = 'chat' AND status = 'ready' AND mime LIKE 'audio/%'`, [music.mediaId, userId]);
     if (!r.rowCount) throw new BadRequestException('Áudio inválido ou ainda não carregado');
     return { kind: 'clip', mediaId: music.mediaId, durationMs: music.durationMs, title: music.title };
@@ -118,6 +121,8 @@ export class MusicService {
 
   /** Ao devolver: o clipe ganha um URL assinado e temporário (como as mensagens de voz). */
   resolve(music: Record<string, unknown> | null): Record<string, unknown> | null {
+    // Licenciada: com o fornecedor desligado não aparece; o excerto pede-se com POST /music/licensed/tracks/:id/listen.
+    if (music?.kind === 'licensed') return this.licensed.isOn(String(music.source)) ? music : null;
     if (!music || music.kind !== 'clip') return music;
     return { ...music, id: `clip:${music.mediaId as string}`, artist: '', url: this.media.chatUrl(music.mediaId as string), landing: null, license: 'own', licenseUrl: null, cover: null };
   }
