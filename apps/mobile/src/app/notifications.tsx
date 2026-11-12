@@ -20,6 +20,7 @@ import { sized } from '@/lib/config';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
+import { pastVerb } from '@/lib/notifVerb';
 
 type Filter = 'all' | 'following' | 'comments' | 'follows' | 'gifts';
 const FILTERS: [Filter, string][] = [['all', 'Todas'], ['following', 'Quem sigo'], ['comments', 'Comentários'], ['follows', 'Seguidores'], ['gifts', 'Presentes']];
@@ -61,22 +62,22 @@ function groupAll(items: AppNotification[], fresh: Set<string> | null): Group[] 
 /** O verbo de cada tipo; `many` quando a linha junta várias pessoas. */
 function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: string } {
   const quote = !many && n.data.snippet ? `“${n.data.snippet}”` : undefined;
-  const s = many ? 'ram' : 'u';
+  const v = (stem: string) => pastVerb(stem, many);
   switch (n.kind) {
     case 'blocked': return { text: 'bloqueou-te', sub: 'Já não podes seguir esta conta nem ver as publicações e mimos dela.' };
     case 'follow': return { text: many ? 'começaram a seguir-te' : 'começou a seguir-te' };
     case 'follow_request': return { text: 'pediu para te seguir' };
-    case 'request_accepted': return { text: `aceito${s} o teu pedido para seguir` };
+    case 'request_accepted': return { text: `${v('aceit')} o teu pedido para seguir` };
     case 'gift': return { text: <>presenteou-te com <Text style={{ fontWeight: '700' }}>{(n.data.amount ?? 0).toLocaleString('pt-PT')} Txills</Text></>, sub: n.data.note || undefined };
-    case 'comment': return { text: `comento${s} a tua publicação`, sub: quote };
+    case 'comment': return { text: `${v('coment')} a tua publicação`, sub: quote };
     case 'reply': return { text: 'respondeu ao teu comentário', sub: quote };
     case 'story_reply':
       if (n.data.replyKind === 'comment') return { text: 'comentou o teu mimo', sub: quote };
       if (n.data.replyKind === 'reaction') return { text: many ? 'reagiram ao teu mimo' : <>reagiu ao teu mimo <ReactionArt body={n.data.snippet ?? ''} size={24} /></> };
       return { text: 'respondeu ao teu mimo', sub: quote };
-    case 'repost': return { text: `reposto${s} a tua publicação` };
-    case 'tag': return { text: `identifico${s}-te numa foto` };
-    case 'mention': return { text: `menciono${s}-te`, sub: quote };
+    case 'repost': return { text: `${v('repost')} a tua publicação` };
+    case 'tag': return { text: `${v('identific')}-te numa foto` };
+    case 'mention': return { text: `${v('mencion')}-te`, sub: quote };
     case 'verified': return { text: many ? 'agora têm o selo de conta verificada' : 'agora tem o selo de conta verificada' };
     case 'venue_invite': return { text: <>convidou-te para gerir <Text style={{ fontWeight: '700' }}>{n.data.venueName ?? 'um local'}</Text> como {n.data.role === 'admin' ? 'administrador' : 'editor'}</> };
     // Para os gestores: alguém pagou ao local com Txills.
