@@ -1,8 +1,10 @@
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, FlatList, Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, FlatList, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { inAppGalleryFor, shotsFromPicker } from '@/lib/mediaAccess';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 import type { Shot } from './TxCamera';
@@ -18,11 +20,7 @@ const mimeOf = (name: string, video: boolean) => {
 
 type Item = MediaLibrary.Asset | 'camera';
 
-/**
- * Galeria dentro do Txillapp (como no Instagram): grelha de 3 com a câmara no primeiro quadrado, os vídeos com a duração,
- * "Recentes" para trocar de álbum e "Selecionar" para escolher várias. Devolve as fotos e vídeos escolhidos.
- */
-export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera, onClose, preview = false, kinds, kind, onKind }: {
+interface GalleryProps {
   title: string;
   /** Modo publicação (como "Nova publicação" no Instagram): a foto escolhida aparece em grande em cima; "Seguinte" avança. */
   preview?: boolean;
@@ -36,7 +34,53 @@ export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera
   /** O primeiro quadrado: volta à câmara. */
   onCamera: () => void;
   onClose: () => void;
-}) {
+}
+
+/**
+ * Escolher fotos e vídeos do telemóvel. No iPhone é a galeria dentro do Txillapp; no Android é o seletor de fotos do
+ * sistema (sem licença de ler a galeria: ver src/lib/mediaAccess.ts).
+ */
+export function GalleryPicker(props: GalleryProps) {
+  return inAppGalleryFor(Platform.OS) ? <InAppGallery {...props} /> : <SystemGallery {...props} />;
+}
+
+/**
+ * Android: abre logo o seletor de fotos do sistema (Photo Picker) com as mesmas regras (várias ou uma, até `max`,
+ * vídeos até 60 s). Cancelar fecha, como o X da galeria da app.
+ */
+function SystemGallery({ multi = false, max = 10, onPick, onClose }: GalleryProps) {
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current) return;
+    opened.current = true;
+    void (async () => {
+      try {
+        const r = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images', 'videos'],
+          allowsMultipleSelection: multi,
+          selectionLimit: multi ? Math.max(1, max) : 1,
+          quality: 1,
+          videoMaxDuration: 60,
+        });
+        if (r.canceled || !r.assets?.length) return onClose();
+        const { shots, tooLong } = shotsFromPicker(r.assets);
+        if (tooLong) Alert.alert('Vídeo longo demais', 'Os vídeos têm de ter até 60 segundos. Deixei de fora os mais longos.');
+        if (!shots.length) return onClose();
+        onPick(shots);
+      } catch (e) {
+        Alert.alert('Não consegui abrir a galeria', (e as Error).message || 'Tenta outra vez.');
+        onClose();
+      }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return <View style={[StyleSheet.absoluteFill, st.root, st.center]}><ActivityIndicator color="#fff" size="large" /></View>;
+}
+
+/**
+ * Galeria dentro do Txillapp (como no Instagram): grelha de 3 com a câmara no primeiro quadrado, os vídeos com a duração,
+ * "Recentes" para trocar de álbum e "Selecionar" para escolher várias. Devolve as fotos e vídeos escolhidos.
+ */
+function InAppGallery({ title, multi = false, max = 10, onPick, onCamera, onClose, preview = false, kinds, kind, onKind }: GalleryProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [perm, askPerm] = MediaLibrary.usePermissions({ granularPermissions: ['photo', 'video'] });

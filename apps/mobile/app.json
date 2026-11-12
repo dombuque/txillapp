@@ -48,6 +48,24 @@
         "CHANGE_NETWORK_STATE",
         "WAKE_LOCK"
       ],
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.REQUEST_INSTALL_PACKAGES",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.USE_FULL_SCREEN_INTENT",
+        "android.permission.QUERY_ALL_PACKAGES",
+        "android.permission.READ_CONTACTS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
+      ],
       "googleServicesFile": "./google-services.json"
     },
     "web": {
@@ -77,17 +95,19 @@
           "imageWidth": 200
         }
       ],
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": false
+        }
+      ],
       [
         "expo-media-library",
         {
           "photosPermission": "O Txillapp mostra as tuas fotos e vídeos para os escolheres numa publicação, mimo ou tcheka.",
           "savePhotosPermission": "O Txillapp guarda fotos e vídeos na tua galeria quando pedes.",
           "isAccessMediaLocationEnabled": false,
-          "granularPermissions": [
-            "photo",
-            "video"
-          ]
+          "granularPermissions": []
         }
       ],
       [
@@ -100,7 +120,9 @@
           ]
         }
       ],
-      "./plugins/withProguardRules"
+      "./plugins/withProguardRules",
+      "./plugins/withAndroidUploadSigning",
+      "./plugins/withoutUnusedServices"
     ],
     "experiments": {
       "typedRoutes": true,

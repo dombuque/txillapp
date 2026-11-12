@@ -7,6 +7,7 @@ import { AppState, Modal, Platform, Pressable, StyleSheet, Text, View } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
 import { kvGet, kvSet } from '@/lib/kv';
+import { inAppGalleryFor } from '@/lib/mediaAccess';
 import { askNotifications, onNotificationOpen, registerNativePush } from '@/lib/nativePush';
 import { useOverlay } from '@/lib/overlays';
 import { colors } from '@/lib/theme';
@@ -18,7 +19,7 @@ const DONE_KEY = 'tx_perms_v1';
 export const permissionsOnboardingDone = async (): Promise<boolean> => !!(await kvGet(DONE_KEY));
 
 interface Step { id: string; icon: IconName; title: string; text: string; ask: () => Promise<unknown> }
-const STEPS: Step[] = [
+const ALL_STEPS: Step[] = [
   { id: 'notif', icon: 'bell', title: 'Notificações', text: 'Para saberes logo quando a malta te escreve, brinda, comenta ou te segue.', ask: askNotifications },
   {
     id: 'camera', icon: 'camera', title: 'Câmara e microfone', text: 'Para tirares fotos, gravares vídeos, mimos, tchekas e Zás aqui mesmo.',
@@ -27,6 +28,8 @@ const STEPS: Step[] = [
   { id: 'photos', icon: 'images', title: 'Fotos e vídeos', text: 'Para escolheres da tua galeria o que queres publicar.', ask: () => MediaLibrary.requestPermissionsAsync(false, ['photo', 'video']) },
   { id: 'location', icon: 'map-pin', title: 'Localização', text: 'Opcional: para te sugerirmos sítios perto e marcares onde estás. Nunca mostramos onde vives.', ask: () => Location.requestForegroundPermissionsAsync() },
 ];
+/** No Android não se pede a galeria: escolhe-se com o seletor de fotos do sistema, que não precisa de licença (lib/mediaAccess). */
+const STEPS = ALL_STEPS.filter((s) => s.id !== 'photos' || inAppGalleryFor(Platform.OS));
 
 /**
  * App nativa: depois de entrar pela primeira vez, um passo a passo explica cada permissão antes de o sistema a pedir
