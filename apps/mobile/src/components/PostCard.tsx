@@ -15,6 +15,7 @@ import { timeAgo } from '@/lib/time';
 import { useIsPostVisible } from '@/lib/visiblePosts';
 import { Avatar } from './Avatar';
 import { BookmarkIcon } from './BookmarkIcon';
+import { mergePost } from '@/lib/postPatch';
 import { CarouselVideo } from './CarouselVideo';
 import { CommentsSheet } from './CommentsSheet';
 import { Icon } from './Icon';
@@ -107,11 +108,13 @@ const profileOf = (a: { id?: string; username: string }, me?: string) => (a.id &
 function usePatch(id: string) {
   const qc = useQueryClient();
   return (p: Partial<Post>) => {
-    const merge = (i: Post): Post => (i.id === id ? { ...i, ...p } : i.repostOf?.id === id ? { ...i, repostOf: { ...i.repostOf, ...p } } : i);
-    for (const key of ['feed', 'profile-posts']) {
-      qc.setQueriesData<InfiniteData<Page<Post>>>({ queryKey: [key] }, (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map(merge) })) });
+    // Todas as listas em memória que tenham esta publicação (ver lib/postPatch).
+    for (const q of qc.getQueryCache().getAll()) {
+      const d = q.state.data;
+      if (d === undefined) continue;
+      const next = mergePost(d, id, p as Record<string, unknown>);
+      if (next !== d) qc.setQueryData(q.queryKey, next);
     }
-    qc.setQueriesData<Post>({ queryKey: ['post'] }, (d) => (d ? merge(d) : d));
   };
 }
 
