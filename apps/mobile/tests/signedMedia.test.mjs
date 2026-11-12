@@ -53,13 +53,14 @@ test('envio: uploadMedia e a fila de publicação mandam `signed` pelo uploadReq
   assert.match(api, /export async function uploadMedia\(uri: string, mime: string, purpose: 'public' \| 'chat' \| 'music' = 'chat', onWait\?: \(\) => void, signed\?: boolean\)/);
   assert.match(api, /post\(uploadRequest\(mime, blob\.size, purpose, signed\)\)/);
   const q = read('lib', 'publishQueue.ts');
-  assert.match(q, /export interface PublishAsset \{ uri: string; mime: string; video: boolean; signed\?: boolean \}/);
+  // (+ posterMs: o instante da capa escolhido no estúdio de tchekas)
+  assert.match(q, /export interface PublishAsset \{ uri: string; mime: string; video: boolean; signed\?: boolean; posterMs\?: number \}/);
   assert.match(q, /JSON\.stringify\(uploadRequest\(mime, blob\.size, 'public', a\.signed\)\)/);
 });
 
 test('TxCamera (site): a foto aceite sai com signed: true; o vídeo gravado (sem assinatura) não', () => {
   const cam = read('components', 'TxCamera.tsx');
-  assert.match(cam, /export interface Shot \{[^}]*signed\?: boolean; clean\?: string \}/);
+  assert.match(cam, /export interface Shot \{[^}]*signed\?: boolean; clean\?: string;/);
   const accept = fn(cam, 'acceptReview');
   assert.match(accept, /onShot\(blob \? \{ uri: URL\.createObjectURL\(blob\), video: false, mime: 'image\/jpeg', signed: true,/);
   // Num tcheka (keepClean) também a cópia sem assinatura, desenhada com sign = false.
@@ -84,20 +85,21 @@ test('telemóvel: as fotos do editor (PhotoEditor) vão assinadas; os vídeos e 
 test('estúdio de tchekas: o vídeo sai assinado e as fotos da câmara entram sem a assinatura delas', () => {
   const studio = read('components', 'TchekaStudio.tsx');
   assert.match(studio, /stampTxillapp\(g, W, H, username, seal\);/);
-  assert.match(studio, /onDone\(\{ uri: URL\.createObjectURL\(blob\), video: true, mime: blob\.type \|\| 'video\/mp4', durationMs: [^}]*, signed: true \}, music\)/);
+  // A montagem (ou a volta já gravada na pré-visualização) sai assinada, com o instante da capa.
+  assert.match(studio, /onDone\(\{ uri: URL\.createObjectURL\(blob\), video: true, mime, durationMs: [^}]*, signed: true, posterMs: [^}]*\}, music\)/);
   const nw = read('app', '(tabs)', 'new.tsx');
   assert.match(nw, /clips=\{assets\.map\(\(a\) => \(\{ uri: a\.clean \?\? a\.uri,/);
   assert.match(nw, /keepClean=\{kindSel === 'tcheka'\}/);
-  assert.match(nw, /onDone=\{\(s, m\) => \{ setAssets\(\[\{ uri: s\.uri, video: true, mime: s\.mime, durationMs: s\.durationMs, tags: \[\], signed: s\.signed \}\]\)/);
+  assert.match(nw, /onDone=\{\(s, m\) => \{ setAssets\(\[\{ uri: s\.uri, video: true, mime: s\.mime, durationMs: s\.durationMs, tags: \[\], signed: s\.signed, studio: true, posterMs: s\.posterMs \}\]\)/);
 });
 
 test('nova publicação: a câmara passa `signed` até ao envio e ao mimo; a galeria não o põe', () => {
   const nw = read('app', '(tabs)', 'new.tsx');
   const shot = fn(nw, 'shot');
-  assert.match(shot, /signed: s\.signed \}/); // vídeo
+  assert.match(shot, /signed: s\.signed, \.\.\.\(s\.speed/); // vídeo (num tcheka, com a velocidade da gravação)
   assert.match(shot, /signed: s\.signed, clean: s\.clean \}/); // foto
   assert.match(fn(nw, 'routeByKind'), /params: mimoParams\(s\)/);
-  assert.match(fn(nw, 'submit'), /assets: assets\.map\(\(a\) => \(\{ uri: a\.uri, mime: a\.mime, video: a\.video, signed: a\.signed \}\)\)/);
+  assert.match(fn(nw, 'submit'), /assets: assets\.map\(\(a\) => \(\{ uri: a\.uri, mime: a\.mime, video: a\.video, signed: a\.signed, /);
   assert.match(nw, /shot\(editedPhoto\(file\)\)/);
   for (const name of ['addFiles', 'pickMany', 'add']) assert.doesNotMatch(fn(nw, name), /signed/, `${name} é da galeria`);
   // Cortada para o carrossel, deixa de contar como assinada.

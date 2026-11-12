@@ -11,7 +11,8 @@ import { uploadRequest } from './signedMedia';
  * mostrar o progresso. Se falhar, a faixa deixa tentar outra vez ou descartar. Vive enquanto a app estiver aberta.
  */
 /** `signed`: já leva a assinatura do Txillapp (câmara da app); o servidor não a volta a pôr (ver lib/signedMedia). */
-export interface PublishAsset { uri: string; mime: string; video: boolean; signed?: boolean }
+/** `posterMs`: num vídeo do estúdio de tchekas, o instante da capa escolhido (vai no /complete). */
+export interface PublishAsset { uri: string; mime: string; video: boolean; signed?: boolean; posterMs?: number }
 export interface PublishJob {
   assets: PublishAsset[];
   post: Parameters<typeof composeApi.createPost>[0] extends infer P ? Omit<P, 'mediaIds'> : never;
@@ -61,7 +62,7 @@ async function uploadWithProgress(a: PublishAsset, onProgress: (p: number) => vo
   } finally {
     releaseBlob(blob); // cada foto sai da memória antes de a seguinte ser lida
   }
-  const state = (await raw(`/media/${up.assetId}/complete`, { method: 'POST' })) as MediaState;
+  const state = (await raw(`/media/${up.assetId}/complete`, a.video && a.posterMs != null ? { method: 'POST', body: JSON.stringify({ posterMs: a.posterMs }) } : { method: 'POST' })) as MediaState;
   return { assetId: up.assetId, state };
 }
 

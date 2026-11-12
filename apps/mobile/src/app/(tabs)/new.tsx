@@ -30,6 +30,10 @@ import { TchekaStudio } from '@/components/TchekaStudio';
 import { PhotoViewer } from '@/components/PhotoViewer';
 import { composeApi, type PhotoTag } from '@/lib/api.compose';
 import { type Track } from '@/lib/api.music';
+import { api, raw } from '@/lib/api';
+import { abs } from '@/lib/config';
+import { soundForPost, soundTrack, type Sound } from '@/lib/soundTrack';
+import { checkTcheka, finalMs } from '@/lib/tchekaRules';
 import { clearDraft, listDrafts, loadDraft, newDraftKey, saveDraft, type DraftItem } from '@/lib/drafts';
 import { useAuth } from '@/lib/auth';
 import { cropToRatio, imageRatio } from '@/lib/cropToRatio';
@@ -39,6 +43,8 @@ import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
 const MAX_PHOTOS = 10;
+/** Num tcheka gravam-se vários clipes (como no TikTok): o estúdio junta-os num vídeo só. */
+const MAX_CLIPS = 30;
 const MAX_BYTES = 8 * 1024 * 1024;
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
@@ -79,7 +85,7 @@ async function toJpeg(f: File): Promise<File | null> {
  * `signed`: já leva a assinatura do Txillapp (câmara da app, editor de fotos, estúdio de tchekas); ver lib/signedMedia.
  * `clean`: a mesma foto sem a assinatura (câmara do site num tcheka): é a que entra no estúdio, que assina o vídeo inteiro.
  */
-interface Asset { uri: string; video: boolean; mime: string; durationMs?: number; tags: PhotoTag[]; ratio?: number; signed?: boolean; clean?: string }
+interface Asset { uri: string; video: boolean; mime: string; durationMs?: number; tags: PhotoTag[]; ratio?: number; signed?: boolean; clean?: string; /** Num tcheka: velocidade da gravação (0,5× a 3×). */ speed?: number; /** Saído do estúdio de tchekas (já cumpre as regras) e o instante da capa. */ studio?: boolean; posterMs?: number }
 
 /**
  * Carrossel como no Instagram: todas as fotos com a proporção da primeira foto da publicação (limitada entre 4:5 e 1,91:1),
@@ -202,7 +208,20 @@ export default function Compose() {
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
   const [draftsOpen, setDraftsOpen] = useState(false);
   const [restored, setRestored] = useState(false);
-  const { draft, kind: kindParam, t: kindNonce, as: asParam } = useLocalSearchParams<{ draft?: string; kind?: string; t?: string; as?: string }>();
+  const { draft, kind: kindParam, t: kindNonce, as: asParam, som: somParam, dueto: duetoParam } = useLocalSearchParams<{ draft?: string; kind?: string; t?: string; as?: string; som?: string; dueto?: string }>();
+  /** Um som de outra tcheka (`/tcheka/nova?som=<id>`): entra como a música do estúdio e a publicação leva o `soundId`. */
+  const [sound, setSound] = useState<Sound | null>(null);
+  /** Dueto (`/tcheka/nova?dueto=<postId>`): o vídeo de referência que fica ao lado no estúdio (a montagem é da equipa do remix). */
+  const [duet, setDuet] = useState<{ uri: string } | null>(null);
+  useEffect(() => {
+    if (kindParam === 'tcheka' || somParam || duetoParam) { setKindSel('tcheka'); setStep('choose'); }
+    if (somParam) {
+      void (raw(`/sounds/${encodeURIComponent(String(somParam))}`) as Promise<Sound>).then((s) => { setSound(s); setMusic(soundTrack(s)); }).catch(() => setErr('Não consegui abrir este som'));
+    }
+    if (duetoParam) {
+      void api.getPost(String(duetoParam)).then((p) => { const v = p.media.find((m) => m.kind === 'video'); if (v) setDuet({ uri: abs(v.url) ?? v.url }); }).catch(() => undefined);
+    }
+  }, [kindParam, somParam, duetoParam, kindNonce]); // eslint-disable-line react-hooks/exhaustive-deps
   // Publicar como um local que giro (página): a lista das minhas páginas e a escolhida (`?as=slug` vem da própria página).
   const myPages = useQuery({ queryKey: ['venues-mine'], queryFn: locaisApi.myVenues, staleTime: 60_000, retry: false });
   const [asVenue, setAsVenue] = useState<string | null>(null);
@@ -219,7 +238,11 @@ export default function Compose() {
   const video = assets.find((a) => a.video);
   const photos = assets.filter((a) => !a.video);
   const hasContent = body.trim().length > 0 || assets.length > 0;
-  const canPost = !busy && preparing === 0 && hasContent;
+  /** Um tcheka feito sem o estúdio (no telemóvel): as mesmas regras mínimas antes de publicar. */
+  const tchekaRules = kindSel === 'tcheka' && assets.length > 0 && !assets.some((a) => a.studio)
+    ? checkTcheka({ clips: assets.map((a) => ({ video: a.video, seconds: a.video ? finalMs(a.durationMs ?? 3000, a.speed ?? 1) / 1000 : 3 })), music: !!music })
+    : null;
+  const canPost = !busy && preparing === 0 && hasContent && (!tchekaRules || tchekaRules.ok);
   const left = 2000 - body.length;
 
   const refreshDrafts = () => {
@@ -259,6 +282,8 @@ export default function Compose() {
     setPlaceGeo(null);
     setPhotoAt(null);
     setMusic(null);
+    setSound(null);
+    setDuet(null);
     setRestored(false);
     setStep('choose');
     draftKey.current = newDraftKey(user?.username ?? 'eu');
@@ -341,13 +366,14 @@ export default function Compose() {
     if (!inPost && routeByKind(s)) return;
     // Na web, num tcheka juntam-se as fotos e vídeos na câmara (o estúdio monta-os); no telemóvel segue logo para a publicação.
     const collect = kindSel === 'tcheka' && web && !inPost;
+    const cap = collect ? MAX_CLIPS : MAX_PHOTOS;
     if (s.video) {
-      const v: Asset = { uri: s.uri, video: true, mime: videoMime(s.mime), durationMs: s.durationMs, tags: [], signed: s.signed };
-      setAssets((cur) => [...cur, v].slice(0, MAX_PHOTOS));
+      const v: Asset = { uri: s.uri, video: true, mime: videoMime(s.mime), durationMs: s.durationMs, tags: [], signed: s.signed, ...(s.speed && s.speed !== 1 ? { speed: s.speed } : {}) };
+      setAssets((cur) => [...cur, v].slice(0, cap));
       if (!collect) { bumpKind(kindSel); setCameraOpen(false); setStep('write'); }
     } else {
       // Numa publicação a foto junta-se às outras (fotos e vídeos) e vai-se logo para a publicação.
-      setAssets((cur) => [...cur, { uri: s.uri, video: false, mime: s.mime, tags: [], signed: s.signed, clean: s.clean }].slice(0, MAX_PHOTOS));
+      setAssets((cur) => [...cur, { uri: s.uri, video: false, mime: s.mime, tags: [], signed: s.signed, clean: s.clean }].slice(0, cap));
       if (!collect) { bumpKind(kindSel); setCameraOpen(false); setStep('write'); }
     }
   }
@@ -425,11 +451,14 @@ export default function Compose() {
     if (!canPost || busy) return;
     setBusy(true);
     setErr('');
+    // Com um som de outra tcheka vai o soundId (e a faixa, se o som for de uma); com música do seletor, só a música.
+    const sp = soundForPost(sound, music);
     enqueuePublish({
-      assets: assets.map((a) => ({ uri: a.uri, mime: a.mime, video: a.video, signed: a.signed })),
+      assets: assets.map((a) => ({ uri: a.uri, mime: a.mime, video: a.video, signed: a.signed, ...(a.posterMs != null ? { posterMs: a.posterMs } : {}) })),
       post: {
         body,
-        music,
+        music: sp.music,
+        ...(sp.soundId ? { soundId: sp.soundId } : {}),
         locationLabel: place || undefined,
         ...(place && placeGeo ? { locationLat: placeGeo.lat, locationLng: placeGeo.lng, locationCoarse: placeGeo.coarse } : {}),
         ...(pageSel ? { venueId: pageSel.id } : {}),
@@ -478,10 +507,11 @@ export default function Compose() {
       return (
         <View style={{ flex: 1, backgroundColor: '#000' }}>
           <TchekaStudio
-            clips={assets.map((a) => ({ uri: a.clean ?? a.uri, video: a.video, mime: a.mime, durationMs: a.durationMs }))}
+            clips={assets.map((a) => ({ uri: a.clean ?? a.uri, video: a.video, mime: a.mime, durationMs: a.durationMs, speed: a.speed }))}
             initialMusic={music}
+            reference={duet}
             onClose={() => setStudio(false)}
-            onDone={(s, m) => { setAssets([{ uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [], signed: s.signed }]); setMusic(m); setStudio(false); setStep('write'); }}
+            onDone={(s, m) => { setAssets([{ uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [], signed: s.signed, studio: true, posterMs: s.posterMs }]); setMusic(m); setStudio(false); setStep('write'); }}
           />
         </View>
       );
@@ -490,7 +520,7 @@ export default function Compose() {
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <LiveCamera
           count={assets.length}
-          max={MAX_PHOTOS}
+          max={kindSel === 'tcheka' ? MAX_CLIPS : MAX_PHOTOS}
           onShot={shot}
           onGallery={(f) => {
             const first = f[0];
@@ -503,6 +533,13 @@ export default function Compose() {
           doneLabel={kindSel === 'tcheka' ? 'Montar' : 'Seguinte'}
           aspect={kindSel === 'post' ? 4 / 5 : 9 / 16}
           keepClean={kindSel === 'tcheka'}
+          segmented={kindSel === 'tcheka' ? {
+            clipsMs: assets.map((a) => (a.video ? finalMs(a.durationMs ?? 0, a.speed ?? 1) : 3000)),
+            onUndo: () => setAssets((cur) => cur.slice(0, -1)),
+            musicUrl: music ? abs(music.url) ?? music.url : null,
+            musicTitle: music?.title ?? null,
+            onMusic: () => setPickMusic(true),
+          } : undefined}
           thumbs={assets.map((a) => a.uri)}
           kinds={kinds}
           kind={kindSel}
@@ -510,6 +547,7 @@ export default function Compose() {
         />
 
         {err ? <Text style={[styles.err, { position: 'absolute', top: insets.top + 72, left: 0, right: 0, color: '#fff' }]} accessibilityRole="alert">{err}</Text> : null}
+        {pickMusic ? <MusicPicker allowLocal onClose={() => setPickMusic(false)} onPick={(t) => { setMusic(t); setPickMusic(false); }} /> : null}
       </View>
     );
   }
@@ -740,6 +778,7 @@ export default function Compose() {
           </View>
         </View>
 
+        {tchekaRules?.hint ? <Text style={styles.errLine} accessibilityRole="alert">Para publicar o tcheka: {tchekaRules.hint}</Text> : null}
         <Text style={styles.errLine} accessibilityRole="alert">{err}</Text>
         {progress ? <Text style={styles.progress} accessibilityRole="summary">{progress}</Text> : null}
       </ScrollView>
