@@ -68,16 +68,18 @@ export function paintCloth(g: Ctx, spec: CapulanaSpec, box: Box, tile: number, s
     // As dobras do pano: riscas largas e suaves de sombra e de luz, que andam com ele.
     const span = tile * 2.2;
     const x0 = box.x - span + (((shift[0] * 0.6) % span) + span) % span;
-    for (let x = x0; x < box.x + box.w; x += span) {
-      const gr = g.createLinearGradient(x, 0, x + span, 0);
-      gr.addColorStop(0, `rgba(0,0,0,${0.2 * folds})`);
-      gr.addColorStop(0.3, 'rgba(0,0,0,0)');
-      gr.addColorStop(0.55, `rgba(255,255,255,${0.09 * folds})`);
-      gr.addColorStop(0.75, 'rgba(0,0,0,0)');
-      gr.addColorStop(1, `rgba(0,0,0,${0.2 * folds})`);
-      g.fillStyle = gr;
-      g.fillRect(x, box.y, span + 1, box.h);
+    const n = Math.max(1, Math.ceil((box.x + box.w - x0) / span));
+    // Um só gradiente para a largura toda (sem costuras entre dobras).
+    const gr = g.createLinearGradient(x0, 0, x0 + n * span, 0);
+    for (let i = 0; i < n; i++) {
+      gr.addColorStop(i / n, `rgba(0,0,0,${0.2 * folds})`);
+      gr.addColorStop((i + 0.3) / n, 'rgba(0,0,0,0)');
+      gr.addColorStop((i + 0.55) / n, `rgba(255,255,255,${0.09 * folds})`);
+      gr.addColorStop((i + 0.75) / n, 'rgba(0,0,0,0)');
     }
+    gr.addColorStop(1, `rgba(0,0,0,${0.2 * folds})`);
+    g.fillStyle = gr;
+    g.fillRect(box.x, box.y, box.w, box.h);
   }
 }
 
@@ -127,8 +129,8 @@ export function drawCapulanaTransition(g: Ctx, prev: Src, cur: Src, type: Capula
   for (const r of s.rolls) {
     // O rolo: o pano apertado (o desenho encolhido na vertical) e o brilho de um cilindro.
     g.save();
-    g.fillStyle = 'rgba(0,0,0,0.28)';
-    g.fillRect(r.x, r.y + r.h * 0.55, r.w, r.h * 0.8);
+    g.fillStyle = 'rgba(0,0,0,0.3)';
+    g.fillRect(r.x, r.y + r.h * 0.6, r.w, r.h * 0.7);
     g.beginPath();
     g.rect(r.x, r.y, r.w, r.h);
     g.clip();
@@ -137,10 +139,10 @@ export function drawCapulanaTransition(g: Ctx, prev: Src, cur: Src, type: Capula
     paintCloth(g, spec, { x: r.x, y: 0, w: r.w, h: r.h / 0.4 }, clothTile(W), [0, p * H * 3]);
     g.restore();
     const gr = g.createLinearGradient(0, r.y, 0, r.y + r.h);
-    gr.addColorStop(0, 'rgba(0,0,0,0.5)');
-    gr.addColorStop(0.32, 'rgba(255,255,255,0.28)');
-    gr.addColorStop(0.55, 'rgba(0,0,0,0)');
-    gr.addColorStop(1, 'rgba(0,0,0,0.6)');
+    gr.addColorStop(0, 'rgba(0,0,0,0.62)');
+    gr.addColorStop(0.3, 'rgba(255,255,255,0.34)');
+    gr.addColorStop(0.55, 'rgba(0,0,0,0.05)');
+    gr.addColorStop(1, 'rgba(0,0,0,0.72)');
     g.fillStyle = gr;
     g.fillRect(r.x, r.y, r.w, r.h);
   }
@@ -182,9 +184,10 @@ export function drawCapulanaFrame(g: Ctx, img: Src, iw: number, ih: number, W: n
   drawCapulanaBackdrop(g, spec, W, H);
   g.save();
   const outer = grow(ph, lay.border);
-  for (let i = 4; i >= 1; i--) {
-    g.fillStyle = `rgba(0,0,0,${0.09})`;
-    roundRect(g, { ...grow(outer, i * W * 0.008), y: outer.y - i * W * 0.004 + W * 0.014 }, lay.radius + i * W * 0.008);
+  // A sombra da moldura: oito camadas finas, cada vez mais largas (suave, sem `shadowBlur`).
+  for (let i = 8; i >= 1; i--) {
+    g.fillStyle = 'rgba(0,0,0,0.055)';
+    roundRect(g, { ...grow(outer, i * W * 0.005), y: outer.y - i * W * 0.003 + W * 0.016 }, lay.radius + i * W * 0.005);
     g.fill();
   }
   g.fillStyle = pal[0];

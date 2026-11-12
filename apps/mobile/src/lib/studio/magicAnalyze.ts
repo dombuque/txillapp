@@ -68,7 +68,7 @@ function loadImage(uri: string, timeoutMs: number): Promise<HTMLImageElement | n
 async function analyzePhoto(s: MagicSource): Promise<MagicItem> {
   const img = await loadImage(s.uri, 4000);
   const px = img ? pixels(img, img.naturalWidth, img.naturalHeight, false) : null;
-  if (!img || !px) return photoItem(s.key, 9 / 16, { luma: 0.5, sharp: 0.05, sat: 0.3, rgb: [0.5, 0.5, 0.5] }, { x: 0.5, y: 0.45, box: { x0: 0.3, y0: 0.25, x1: 0.7, y1: 0.65 }, face: false, strength: 0.3 });
+  if (!img || !px) return neutral(s);
   const { w, h } = ANALYSIS;
   return photoItem(s.key, img.naturalWidth / img.naturalHeight, frameStats(px, w, h), photoFocus(px, w, h));
 }
@@ -97,7 +97,7 @@ async function videoAudio(uri: string, deadline: number): Promise<number[] | nul
     const res = await fetch(uri);
     const blob = await res.blob();
     // Vídeos grandes não se descodificam para ouvir (memória e tempo): ficam só com a imagem.
-    if (blob.size > 48 * 1024 * 1024 || now() > deadline) return null;
+    if (blob.size > 24 * 1024 * 1024 || now() > deadline) return null;
     const buf = await decodeMono(await blob.arrayBuffer());
     return buf ? energyBlocks(buf.mono, buf.rate) : null;
   } catch { return null; }
@@ -156,6 +156,8 @@ async function analyzeVideo(s: MagicSource, budgetMs: number, signal?: { cancell
  * `MagicItem` pela ordem das fontes.
  */
 export async function analyzeSources(sources: MagicSource[], opts: AnalyzeOptions = {}): Promise<MagicItem[]> {
+  // Sem browser (no nativo, por agora): não há como ver os ficheiros; a montagem faz-se com valores neutros (ver o doc).
+  if (typeof document === 'undefined') return sources.map(neutral);
   const budget = opts.budgetMs ?? 5000;
   const videos = sources.filter((s) => s.video && !itemCache.has(s.uri));
   const photos = sources.filter((s) => !s.video && !itemCache.has(s.uri));
@@ -174,7 +176,14 @@ export async function analyzeSources(sources: MagicSource[], opts: AnalyzeOption
     itemCache.set(s.uri, await analyzePhoto(s));
   }
   opts.onPhase?.('fotos', 'done');
-  return sources.map((s) => ({ ...(itemCache.get(s.uri) ?? photoItem(s.key, 9 / 16, { luma: 0.5, sharp: 0.05, sat: 0.3, rgb: [0.5, 0.5, 0.5] }, { x: 0.5, y: 0.45, box: { x0: 0.3, y0: 0.25, x1: 0.7, y1: 0.65 }, face: false, strength: 0.3 })), key: s.key, video: s.video }));
+  return sources.map((s) => ({ ...(itemCache.get(s.uri) ?? neutral(s)), key: s.key, video: s.video }));
+}
+
+const FLAT_LOOK = { luma: 0.5, sharp: 0.05, sat: 0.3, rgb: [0.5, 0.5, 0.5] as [number, number, number] };
+const FLAT_FOCUS = { x: 0.5, y: 0.45, box: { x0: 0.3, y0: 0.25, x1: 0.7, y1: 0.65 }, face: false, strength: 0.3 };
+/** Um ficheiro que não se conseguiu ver: valores neutros (entra na montagem pela ordem em que veio, do início). */
+export function neutral(s: MagicSource): MagicItem {
+  return s.video ? videoItem(s.key, 9 / 16, { duration: Math.max(0.5, (s.durationMs ?? 5000) / 1000), samples: [] }, FLAT_LOOK) : photoItem(s.key, 9 / 16, FLAT_LOOK, FLAT_FOCUS);
 }
 
 type AC = typeof OfflineAudioContext;
@@ -201,7 +210,7 @@ export async function analyzeMusic(url: string | null | undefined, wave: WaveId,
   opts.onPhase?.('ritmo', 'start');
   let out: MusicInfo | null = null;
   try {
-    if (url) {
+    if (url && typeof fetch === 'function') {
       let m = musicCache.get(url);
       if (!m) {
         const res = await fetch(url);

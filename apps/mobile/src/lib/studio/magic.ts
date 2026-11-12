@@ -219,7 +219,7 @@ export function isSkin(r: number, g: number, b: number): boolean {
 
 /**
  * O ponto de interesse de uma foto reduzida: saliência barata (quanto a cor foge da cor média, mais o contorno, mais a
- * pele), com preferência pelo centro. Com pele que chegue (2 % a 60 % da foto), o ponto e a caixa são os da pele.
+ * pele), com preferência pelo centro. Com pele que chegue (2 % a 35 % da foto, sem ser a foto quase toda), o ponto e a caixa são os da pele.
  */
 export function photoFocus(rgba: ArrayLike<number>, w: number, h: number): Focus {
   const n = w * h;
@@ -249,14 +249,19 @@ export function photoFocus(rgba: ArrayLike<number>, w: number, h: number): Focus
     }
   }
   const strength = r4(clamp((total / n) * 5, 0, 1));
-  const face = kn / n >= 0.02 && kn / n <= 0.6;
+  // Pele a mais (mais de 35 %) é areia, madeira ou uma parede: não é uma cara.
+  const skinPart = kn / n;
   const pick = (W: number, X: number, Y: number, XX: number, YY: number, spread: number) => {
     if (!(W > 0)) return { x: 0.5, y: 0.45, box: { x0: 0.25, y0: 0.2, x1: 0.75, y1: 0.7 } };
     const cx = X / W, cy = Y / W;
     const dx = Math.sqrt(Math.max(0, XX / W - cx * cx)) * spread + 0.04, dy = Math.sqrt(Math.max(0, YY / W - cy * cy)) * spread + 0.04;
     return { x: r4(cx), y: r4(cy), box: { x0: r4(clamp(cx - dx, 0, 1)), y0: r4(clamp(cy - dy, 0, 1)), x1: r4(clamp(cx + dx, 0, 1)), y1: r4(clamp(cy + dy, 0, 1)) } };
   };
-  const f = face ? pick(kw, kx, ky, kxx, kyy, 1.7) : pick(sw, sx, sy, sxx, syy, 1.2);
+  const skinBox = pick(kw, kx, ky, kxx, kyy, 1.7);
+  // E a pele de uma cara está junta: pontos quentes espalhados (janelas acesas, reflexos do pôr do sol) enchem pouco a caixa.
+  const boxArea = (skinBox.box.x1 - skinBox.box.x0) * (skinBox.box.y1 - skinBox.box.y0);
+  const face = skinPart >= 0.02 && skinPart <= 0.35 && boxArea <= 0.5 && skinPart / Math.max(boxArea, 1e-6) >= 0.4;
+  const f = face ? skinBox : pick(sw, sx, sy, sxx, syy, 1.2);
   return { ...f, face, strength };
 }
 
@@ -894,7 +899,7 @@ export function buildMontage(input: MagicInput): MagicResult {
         const fr = framingFor(it.focus, it.aspect, { zoom: wave.zoom, out: rnd() < 0.3, frames: !!input.capulana });
         fx.focus = { x: fr.x, y: fr.y, from: fr.from, to: fr.to, ...(fr.keep ? { keep: fr.keep } : {}) };
         if (fr.mode === 'frame' && input.capulana) fx.moldura = pano;
-        clip = { key: so.key, media: so.media ?? so.key, uri: so.uri, video: false, mime: so.mime, ...(so.durationMs != null ? { durationMs: so.durationMs } : {}), seconds: r3(s.out), beats: s.beats, speed: 1, length: 0, trim: { start: 0, end: 0 }, fx };
+        clip = { key: so.key, media: so.media ?? so.key, uri: so.uri, video: false, mime: so.mime, durationMs: so.durationMs, seconds: r3(s.out), beats: s.beats, speed: 1, length: 0, trim: { start: 0, end: 0 }, fx };
       }
     }
     clips.push(clip);
@@ -914,12 +919,16 @@ export function buildMontage(input: MagicInput): MagicResult {
   const overlays: MagicText[] = [];
   const title = input.title ?? wave.openers[Math.floor(rnd() * wave.openers.length) % wave.openers.length];
   if (title.trim() && total >= 2) {
-    const f0 = clips.length ? by.get(clips[0].key)?.focus : undefined;
+    const first = clips[0], i0 = first ? by.get(first.key) : undefined;
+    const f0 = i0?.focus;
+    // Com moldura, o texto vai para cima da foto (o cimo dela: 0,46 − metade da altura; ver `frameLayout`); senão foge da cara.
+    const frameTop = first?.fx?.moldura && i0 ? 0.46 - Math.min(0.62, (0.86 * FRAME_ASPECT) / (i0.aspect > 0 ? i0.aspect : 1)) / 2 - 0.02 : null;
+    const y = frameTop != null ? r3(Math.max(0.14, (0.1 + frameTop) / 2)) : f0 && f0.y < 0.48 ? 0.66 : 0.3;
     const end = r3(Math.min(total - 0.1, Math.max(2.2, Math.min(3.6, durations[0] ?? 3))));
     overlays.push({
-      id: `magica-${input.seed}`, kind: 'text', text: title.trim().slice(0, 80), start: 0.2, end, x: 0.44, y: f0 && f0.y < 0.48 ? 0.66 : 0.3, scale: 1, rot: 0,
+      id: `magica-${input.seed}`, kind: 'text', text: title.trim().slice(0, 80), start: 0.2, end, x: frameTop != null ? 0.5 : 0.44, y, scale: 1, rot: 0,
       anim: { in: wave.textAnim, out: 'aparecer', loop: 'nenhuma', inDur: 0.5, outDur: 0.4 },
-      font: wave.font, size: title.length > 18 ? 84 : 104, color: wave.textColor, align: 'center', bg: 'nenhum', outline: false, shadow: true, neon: wave.neon,
+      font: wave.font, size: frameTop != null ? 76 : title.length > 18 ? 84 : 104, color: wave.textColor, align: 'center', bg: 'nenhum', outline: false, shadow: true, neon: wave.neon,
       ...(input.capulana && (wave.id === 'marrabenta' || wave.id === 'malta') ? { pano } : {}),
     });
   }

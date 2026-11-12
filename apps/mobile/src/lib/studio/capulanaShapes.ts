@@ -60,7 +60,7 @@ export function panoShape(type: CapulanaTransitionId, p: number, W: number, H: n
   const t = clamp01(p);
   switch (type) {
     case 'capulana-desenrolar': {
-      const roll = H * 0.035;
+      const roll = H * 0.05;
       const y1 = -roll + (H + 2 * roll) * ease(t / 0.62);
       const y0 = -roll + (H + 2 * roll) * ease((t - 0.38) / 0.62);
       return {

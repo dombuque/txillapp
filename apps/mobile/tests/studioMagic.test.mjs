@@ -135,6 +135,13 @@ test('fotos: caras que não cabem vão para a moldura; sem cara aponta ao contra
   assert.equal(m.framingFor(plain, 3 / 4, { frames: true }).mode, 'cover');
   const out = m.framingFor(plain, 9 / 16, { zoom: 0.1, out: true });
   assert.deepEqual([out.from, out.to], [1.1, 1], 'zoom para fora');
+  // Areia, madeira ou uma parede têm cor de pele: muita «pele» não é uma cara (não manda a foto para a moldura).
+  const beach = m.photoFocus(frame((x, y) => (y > 30 ? [246, 226, 180] : Math.hypot(x - 10, y - 22) < 5 ? SKIN : [90, 170, 230])), W, H);
+  assert.ok(!beach.face, 'a areia não é uma cara');
+  assert.equal(m.framingFor(beach, 3 / 4, { frames: true }).mode, 'cover');
+  // Luzes quentes espalhadas (janelas acesas à noite) também não: a pele de uma cara está junta.
+  const city = m.photoFocus(frame((x, y) => (y > 28 && x % 4 === 0 && y % 4 === 0 ? [255, 214, 140] : [18, 14, 52])), W, H);
+  assert.ok(!city.face, 'janelas acesas não são caras');
   // Uma foto lisa não rebenta.
   const flat = m.photoFocus(frame(() => [128, 128, 128]), W, H);
   assert.ok(Number.isFinite(flat.x) && Number.isFinite(flat.y) && !flat.face);
@@ -250,6 +257,7 @@ test('montagem: um projeto válido, com todos os ficheiros, dentro das regras', 
     assert.equal(r.overlays.length, 1);
     assert.ok(wave.openers.includes(r.overlays[0].text));
     assert.ok(r.overlays[0].start >= 0 && r.overlays[0].end <= r.total);
+    assert.ok(r.overlays[0].y >= 0.14 && r.overlays[0].y <= 0.7 && r.overlays[0].x >= 0.4 && r.overlays[0].x <= 0.5, 'o texto fica na zona segura');
     assert.equal(r.music.startMs, 12000);
     for (const s of r.sfx) assert.ok(s.at >= 0 && s.at <= r.total, `efeito sonoro dentro da tcheka: ${JSON.stringify(s)}`);
   }
