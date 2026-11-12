@@ -34,3 +34,9 @@ test('cartão: contadores com área de toque folgada', () => {
   assert.match(src, /onPress=\{\(\) => open\('comments'\)\} hitSlop=\{12\}/);
   assert.match(src, /onPress=\{\(\) => people\(c\.kind\)\} hitSlop=\{8\}/);
 });
+
+test('geleira: o erro não fica por baixo dos cartões "a carregar" e deixa tentar outra vez', () => {
+  const src = read('app', 'geleira.tsx');
+  assert.match(src, /\{!items && !cat\.isError && \(/);
+  assert.match(src, /onPress=\{\(\) => void cat\.refetch\(\)\}/);
+});
