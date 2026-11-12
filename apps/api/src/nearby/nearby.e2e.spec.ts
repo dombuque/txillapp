@@ -88,7 +88,7 @@ describe('À tua volta: locais, eventos, publicações, TxillGroups e a malta (i
 
   beforeEach(() => resetThrottle());
 
-  it('locais por ordem de distância e só dentro do raio; o raio vai de 5 a 30 km', async () => {
+  it('locais por ordem de distância e só dentro do raio; o raio vai de 1 a 50 km, em km inteiros', async () => {
     const r10 = (await nearby(cliente, 'radiusKm=10&kinds=venues').expect(200)).body;
     expect(r10.center).toEqual(C);
     expect(r10.radiusKm).toBe(10);
@@ -112,8 +112,21 @@ describe('À tua volta: locais, eventos, publicações, TxillGroups e a malta (i
     expect(again.radiusKm).toBe(10); // por omissão
     expect(again.venues.find((x: { slug: string }) => x.slug === venues.perto).checkinsToday).toBe(1);
 
-    await nearby(cliente, 'radiusKm=4').expect(400);
-    await nearby(cliente, 'radiusKm=31').expect(400);
+    // A barra da app vai de 1 a 50 km, de 1 em 1: os extremos servem, o resto não.
+    const r1 = (await nearby(cliente, 'radiusKm=1&kinds=venues').expect(200)).body;
+    expect(r1.radiusKm).toBe(1);
+    expect(mine(r1.venues)).toEqual([]); // o mais perto está a ~1,1 km
+    const r2 = (await nearby(cliente, 'radiusKm=2&kinds=venues').expect(200)).body;
+    expect(mine(r2.venues)).toEqual([venues.perto]);
+    const r12 = (await nearby(cliente, 'radiusKm=12&kinds=venues').expect(200)).body;
+    expect(r12.radiusKm).toBe(12);
+    const r50 = (await nearby(cliente, 'radiusKm=50&kinds=venues').expect(200)).body;
+    expect(r50.radiusKm).toBe(50);
+    expect(mine(r50.venues)).toEqual(expect.arrayContaining([venues.perto, venues.meio, venues.longe]));
+    await nearby(cliente, 'radiusKm=0').expect(400);
+    await nearby(cliente, 'radiusKm=51').expect(400);
+    await nearby(cliente, 'radiusKm=12.5').expect(400);
+    await nearby(cliente, 'radiusKm=abc').expect(400);
     await nearby(cliente, 'kinds=venues,pizzas').expect(400);
     await nearby(cliente, 'when=amanha').expect(400);
     await api().get('/api/v1/nearby?lat=91&lng=0').set(auth(cliente)).expect(400);
