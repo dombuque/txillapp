@@ -6,6 +6,7 @@ import { SITE_URL } from '@/lib/config';
 import { qrMatrix } from '@/lib/qr';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
+import { Wordmark } from './Wordmark';
 import { Sheet } from './Sheet';
 import { linkShare } from '@/lib/shareLink';
 
@@ -87,10 +88,8 @@ export function ProfileQrSheet({ username, displayName, onClose }: { username: s
             <QrCode value={url} size={238} />
           </View>
           <Text style={st.user} numberOfLines={1}>@{username}</Text>
-          <View style={st.brand}>
-            <View style={st.dot} />
-            <Text style={{ fontSize: 18, fontWeight: '800', letterSpacing: -0.4, color: colors.zinc900 }}>txillapp</Text>
-          </View>
+          {/* O logótipo oficial (o mesmo do cartão do convite e da entrada), não o nome escrito à mão. */}
+          <View style={st.brand} accessible accessibilityRole="image" accessibilityLabel="Txillapp"><Wordmark height={22} /></View>
         </View>
         <Text style={st.hint}>Aponta a câmara ao QR para abrir o perfil.</Text>
         <View style={{ marginTop: 16, flexDirection: 'row', gap: 8 }}>
@@ -112,8 +111,7 @@ export function ProfileQrSheet({ username, displayName, onClose }: { username: s
 const st = StyleSheet.create({
   card: { alignSelf: 'center', width: '100%', maxWidth: 300, alignItems: 'center', borderRadius: 24, backgroundColor: '#fff', padding: 20, borderWidth: 1, borderColor: colors.zinc100, boxShadow: '0 2px 16px rgba(0,0,0,0.12)' },
   user: { marginTop: 12, fontSize: 20, lineHeight: 28, fontWeight: '800', color: colors.zinc900 },
-  brand: { marginTop: 2, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand },
+  brand: { marginTop: 6, alignItems: 'center' },
   hint: { marginTop: 12, textAlign: 'center', fontSize: 14, lineHeight: 20, color: colors.zinc600 },
   btn: { flex: 1, height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 12 },
   btnText: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },

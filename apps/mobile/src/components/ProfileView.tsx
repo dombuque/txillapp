@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Animated, FlatList, Linking, Platform, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, Animated, FlatList, Linking, Platform, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import Reanimated from 'react-native-reanimated';
 import { ActivityIndicator } from '@/components/PontoLoader';
@@ -48,6 +48,9 @@ const EMPTY: Record<Exclude<ProfileTab, 'all'>, { me: string; other: string }> =
   gifts: { me: 'Os presentes que deres ou receberes e publicares aparecem aqui.', other: 'Ainda sem presentes publicados.' },
   saved: { me: 'Toca no marcador de uma publicação para a guardares aqui. Só tu vês isto.', other: '' },
 };
+
+/** Os botões da fila do perfil têm 36 de altura: com 4 em cima e em baixo o toque chega aos 44. */
+const ROW_SLOP = { top: 4, bottom: 4 };
 
 function QrGlyph() {
   return (
@@ -114,6 +117,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   const [tab, setTab] = useState<ProfileTab>('all');
   const [sheet, setSheet] = useState<null | 'menu' | 'gift' | 'report' | 'edit' | 'requests' | 'qr' | 'block'>(null);
   const [geleiraOpen, setGeleiraOpen] = useState(false);
+  /** A bloquear ou desbloquear: um toque só (e o botão diz que está a tratar). */
+  const [acting, setActing] = useState(false);
   const [rowW, setRowW] = useState(0);
   const [gridW, setGridW] = useState(0);
   // No computador o perfil é largo (grelha de 935): o cabeçalho fica numa coluna mais estreita, ao centro.
@@ -177,21 +182,33 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
     arrived.current = posts.isSuccess;
   }, [posts.isSuccess, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (q.isError) {
+  // Voltar sem histórico (ligação aberta diretamente): vai para o Início em vez de não fazer nada.
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/' as never));
+  if (q.isError && !p) {
     const missing = q.error instanceof ApiError && q.error.status === 404;
     return (
       <View style={[styles.center, { paddingTop: insets.top + 64 }]}>
         <Icon name={missing ? 'search' : 'alert'} size={44} color={colors.zinc300} />
         <Text style={styles.errTitle}>{missing ? 'Essa pessoa não existe' : 'Não consegui abrir este perfil'}</Text>
-        <Pressable onPress={() => router.back()} style={styles.ghost}><Text style={styles.ghostText}>Voltar</Text></Pressable>
+        {missing ? null : <Text style={styles.errText}>Verifica a internet e tenta outra vez.</Text>}
+        {missing ? null : <Pressable onPress={() => void q.refetch()} style={styles.ghost} accessibilityRole="button"><Text style={styles.ghostText}>Tentar outra vez</Text></Pressable>}
+        {isMine ? null : <Pressable onPress={goBack} style={[styles.ghost, !missing && { marginTop: 12 }]} accessibilityRole="button"><Text style={styles.ghostText}>Voltar</Text></Pressable>}
       </View>
     );
   }
-  if (!p) return <View style={{ flex: 1, paddingTop: insets.top + 24 }}><View style={[styles.skel, cardShadow]} /></View>;
+  if (!p) {
+    // A carregar o perfil de outra pessoa: o "voltar" já está à mão (antes só havia o cartão cinzento).
+    return (
+      <View style={{ flex: 1, paddingTop: insets.top }}>
+        {isMine ? <View style={{ height: 24 }} /> : <View style={[styles.topOther, deskCol]}><BackButton /><Text style={[styles.handleTop, { flex: 1 }]} numberOfLines={1}>@{username}</Text></View>}
+        <View style={[styles.skel, cardShadow]} accessibilityLabel="A carregar o perfil" />
+      </View>
+    );
+  }
 
   const blocked = p.blockedByMe || p.blockedMe;
   const stat = (n: number, label: string, go?: () => void) => (
-    <Pressable onPress={go} disabled={!go} style={styles.stat}>
+    <Pressable onPress={go} disabled={!go} style={styles.stat} accessibilityRole={go ? 'button' : 'text'} accessibilityLabel={`${n.toLocaleString('pt-PT')} ${label}`} accessibilityHint={go ? 'Abre a lista' : undefined}>
       <Text style={styles.statN}>{n.toLocaleString('pt-PT')}</Text>
       <Text style={styles.statL}>{label}</Text>
     </Pressable>
@@ -205,13 +222,30 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
     }
   }
   async function unblock() {
-    await api.unblock(p!.username);
-    await qc.invalidateQueries({ queryKey: ['profile'] });
+    if (acting) return;
+    setActing(true);
+    try {
+      await api.unblock(p!.username);
+      await qc.invalidateQueries({ queryKey: ['profile'] });
+      void qc.invalidateQueries({ queryKey: ['blocked'] });
+    } catch (e) {
+      Alert.alert('Não deu', (e as Error).message || 'Não consegui desbloquear agora. Tenta outra vez.');
+    } finally {
+      setActing(false);
+    }
   }
   async function block() {
-    await api.block(p!.username);
-    for (const k of ['profile', 'feed', 'stories', 'suggestions', 'blocked']) void qc.invalidateQueries({ queryKey: [k] });
-    setSheet(null);
+    if (acting) return;
+    setActing(true);
+    try {
+      await api.block(p!.username);
+      for (const k of ['profile', 'feed', 'stories', 'suggestions', 'blocked']) void qc.invalidateQueries({ queryKey: [k] });
+      setSheet(null);
+    } catch (e) {
+      Alert.alert('Não deu', (e as Error).message || 'Não consegui bloquear agora. Tenta outra vez.');
+    } finally {
+      setActing(false);
+    }
   }
   const openPost = (post: Post) => router.push(`/p/${post.code ?? post.id}` as never);
 
@@ -278,7 +312,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           <View style={styles.notice}>
             <Text style={styles.noticeTitle}>Bloqueaste @{p.username}</Text>
             <Text style={styles.noticeText}>A pessoa não vê o teu conteúdo nem te pode seguir.</Text>
-            <Pressable onPress={() => void unblock()} style={[styles.ghost, { marginTop: 12, height: 40 }]}><Text style={styles.ghostText}>Desbloquear</Text></Pressable>
+            <Pressable onPress={() => void unblock()} disabled={acting} style={[styles.ghost, { marginTop: 12 }, acting && { opacity: 0.5 }]} accessibilityRole="button"><Text style={styles.ghostText}>{acting ? 'A desbloquear…' : 'Desbloquear'}</Text></Pressable>
           </View>
         )}
 
@@ -286,23 +320,23 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
           <View style={styles.btnRow} onLayout={(e) => setRowW(e.nativeEvent.layout.width)}>
             {p.isMe ? (
               <>
-                <Pressable onPress={() => setSheet('edit')} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Editar perfil"><Icon name="pencil" size={20} /></Pressable>
-                <Pressable onPress={() => setSheet('qr')} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="O meu QR e partilhar perfil"><QrGlyph /></Pressable>
-                <Pressable onPress={() => void inviteCrew()} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Convidar a malta"><Icon name="user-plus" size={20} /></Pressable>
-                <Pressable onPress={() => router.push('/wallet' as never)} style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Carteira de Txills"><Icon name="wallet" size={20} /></Pressable>
+                <Pressable onPress={() => setSheet('edit')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Editar perfil"><Icon name="pencil" size={20} /></Pressable>
+                <Pressable onPress={() => setSheet('qr')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="O meu QR e partilhar perfil"><QrGlyph /></Pressable>
+                <Pressable onPress={() => void inviteCrew()} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Convidar a malta"><Icon name="user-plus" size={20} /></Pressable>
+                <Pressable onPress={() => router.push('/wallet' as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { flex: 1, paddingHorizontal: 0 }]} accessibilityLabel="Carteira de Txills"><Icon name="wallet" size={20} /></Pressable>
                 <GeleiraToggle username={p.username} isMe open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon grow />
               </>
             ) : (
               <>
                 <FollowButton username={p.username} following={p.following} requested={p.requested} isPrivate={p.isPrivate} />
                 {p.following && (
-                  <Pressable onPress={() => setSheet('gift')} style={[styles.small, { flex: 1, flexDirection: 'row', gap: 5, paddingHorizontal: 8 }]} accessibilityRole="button" accessibilityLabel="Presentear">
+                  <Pressable onPress={() => setSheet('gift')} hitSlop={ROW_SLOP} style={[styles.small, { flex: 1, flexDirection: 'row', gap: 5, paddingHorizontal: 8 }]} accessibilityRole="button" accessibilityLabel="Presentear">
                     {/* Numa linha só (com cinco botões na fila, partia-se em "Presente / ar"). */}
                     <Icon name="gift" size={18} /><Text style={[styles.smallText, { flexShrink: 1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Presentear</Text>
                   </Pressable>
                 )}
-                <Pressable onPress={() => router.push(`/messages/${p.username}` as never)} style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel="Enviar mensagem"><Icon name="send" size={18} /></Pressable>
-                <Pressable onPress={() => setSheet('qr')} style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel="Partilhar perfil"><Icon name="share" size={18} /></Pressable>
+                <Pressable onPress={() => router.push(`/messages/${p.username}` as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel="Enviar mensagem"><Icon name="send" size={18} /></Pressable>
+                <Pressable onPress={() => setSheet('qr')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel="Partilhar perfil"><Icon name="share" size={18} /></Pressable>
                 {p.canView && <GeleiraToggle username={p.username} isMe={false} open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon />}
               </>
             )}
@@ -397,7 +431,9 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
             {[`${p.displayName} deixa de ver as tuas publicações e mimos.`, 'Não te pode seguir nem interagir contigo.', 'Deixam de se seguir um ao outro.', 'Ela é avisada de que foi bloqueada.'].map((t) => (
               <View key={t} style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}><Text style={styles.bullet}>{'\u2022'}</Text><Text style={[styles.bullet, { flex: 1 }]}>{t}</Text></View>
             ))}
-            <Pressable onPress={() => void block()} style={styles.blockBtn} accessibilityRole="button"><Text style={styles.blockBtnText}>Bloquear</Text></Pressable>
+            <Pressable onPress={() => void block()} disabled={acting} style={[styles.blockBtn, acting && { opacity: 0.6 }]} accessibilityRole="button" accessibilityState={{ disabled: acting, busy: acting }}>
+              {acting ? <ActivityIndicator color="#fff" /> : <Text style={styles.blockBtnText}>Bloquear</Text>}
+            </Pressable>
             <Pressable onPress={() => setSheet(null)} style={[styles.ghost, { marginTop: 12, alignSelf: 'stretch' }]}><Text style={styles.ghostText}>Cancelar</Text></Pressable>
           </View>
         </Sheet>
@@ -411,6 +447,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', marginHorizontal: 24 },
   errTitle: { marginTop: 12, fontSize: 20, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
+  errText: { marginTop: 4, fontSize: 15, color: colors.zinc600, textAlign: 'center' },
   skel: { marginHorizontal: 16, height: 256, borderRadius: 28, backgroundColor: colors.zinc100 },
   topMe: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 },
   topOther: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingTop: 20, paddingBottom: 8 },
