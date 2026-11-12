@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type PrivacySettings } from '@/lib/api';
+import { Alert } from 'react-native';
+import { ApiError, api, type PrivacySettings } from '@/lib/api';
 
 /**
  * As definições de privacidade (a mesma consulta `['privacy']` que o resto da app usa, ex.: as estatísticas de uso).
@@ -15,8 +16,10 @@ export function usePrivacy() {
     try {
       qc.setQueryData(['privacy'], await api.setPrivacy(patch));
       for (const key of ['profile', 'feed', 'suggestions']) void qc.invalidateQueries({ queryKey: [key] });
-    } catch {
+    } catch (e) {
+      // Volta atrás e diz porquê (antes o interruptor voltava sozinho, sem uma palavra).
       qc.setQueryData(['privacy'], prev);
+      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : (e as Error)?.message || 'Não consegui mudar isto agora. Tenta outra vez.');
     }
   }
   return { p, save };
