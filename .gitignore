@@ -14,3 +14,4 @@ img/
 
 # Chaves e segredos locais (nunca para o git)
 secrets/
+apps/mobile/modules/*/android/build/
