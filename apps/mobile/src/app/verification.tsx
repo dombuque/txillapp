@@ -9,18 +9,19 @@ import { StackPage } from '@/components/StackPage';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { useRouter } from 'expo-router';
 import { api, uploadMedia, type DocType } from '@/lib/api';
+import { approvedForBlue, blueSealEntry } from '@/lib/iap/view';
 import { usePurchases } from '@/lib/purchases';
 import { colors } from '@/lib/theme';
 
 /** A entrada para o selo azul (a verificação paga, pela loja): só nas lojas, com as compras pela loja ligadas. */
-function BlueSealEntry({ verified }: { verified: boolean }) {
+function BlueSealEntry({ title, description }: { title: string; description: string }) {
   const router = useRouter();
   return (
     <Pressable onPress={() => router.push('/selo-azul' as never)} style={st.blue} accessibilityRole="button">
       <VerifiedBadge size={28} tier="paid" />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>{verified ? 'Ativar o selo azul' : 'Selo azul'}</Text>
-        <Text style={{ fontSize: 14, color: colors.zinc600 }}>{verified ? 'A verificação com subscrição, pela loja.' : 'Depois de a verificação ser aprovada, podes ativar o selo azul com uma subscrição.'}</Text>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: colors.zinc900 }}>{title}</Text>
+        <Text style={{ fontSize: 14, color: colors.zinc600 }}>{description}</Text>
       </View>
       <Icon name="chevron-right" size={18} color={colors.zinc500} />
     </Pressable>
@@ -90,6 +91,9 @@ export default function Verification() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const s = q.data;
+  // Aprovado pela moderação para o selo azul (verificação paga): já não se pede outra vez, ativa-se com a subscrição.
+  const blueOk = !!s && !s.verified && approvedForBlue(s);
+  const entry = s && purchases.storeVerification ? blueSealEntry(s) : null;
 
   async function submit() {
     if (!doc || !face || !selfie || (twoSides && !docBack)) return setErr('Faltam fotos: documento, cara e selfie com o documento');
@@ -131,7 +135,7 @@ export default function Verification() {
             <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc600, textAlign: 'center' }}>O selo aparece junto ao teu nome em todo o Txillapp.</Text>
           </View>
         )}
-        {s && purchases.storeVerification && s.tier !== 'official' ? <BlueSealEntry verified={s.verified} /> : null}
+        {entry ? <BlueSealEntry title={entry.title} description={entry.description} /> : null}
         {s && !s.verified && (
           <>
             <Text style={{ fontSize: 15, lineHeight: 22, color: colors.zinc700 }}>O selo mostra que uma conta é de quem diz ser. Passa por duas fases: primeiro a conta tem de cumprir os requisitos, depois a moderação revê o teu documento, a tua cara e a justificação.</Text>
@@ -154,6 +158,16 @@ export default function Verification() {
                 <Pressable onPress={() => void withdraw()} disabled={busy} style={st.ghost} accessibilityRole="button"><Text style={st.ghostText}>Retirar pedido</Text></Pressable>
               </View>
             )}
+            {blueOk && (
+              <View style={[st.box, { backgroundColor: '#eff6ff' }]}>
+                <Text style={{ fontWeight: '700', fontSize: 16, color: colors.zinc900 }}>Aprovado para o selo azul</Text>
+                <Text style={{ marginTop: 4, fontSize: 14, color: colors.zinc700 }}>
+                  {purchases.storeVerification
+                    ? 'A moderação confirmou a tua identidade. O selo azul aparece quando ativares a subscrição, pela loja.'
+                    : 'A moderação confirmou a tua identidade. O selo azul ativa-se com uma subscrição na app do Txillapp da App Store ou do Google Play, quando estiver disponível.'}
+                </Text>
+              </View>
+            )}
             {s.request?.status === 'rejected' && (
               <View style={[st.box, { backgroundColor: '#fef2f2' }]}>
                 <Text style={{ fontWeight: '700', fontSize: 16, color: colors.zinc900 }}>O último pedido foi recusado</Text>
@@ -162,7 +176,7 @@ export default function Verification() {
               </View>
             )}
 
-            {s.eligible && s.request?.status !== 'pending' && !s.retryAfter && (
+            {s.eligible && !blueOk && s.request?.status !== 'pending' && !s.retryAfter && (
               <View style={{ marginTop: 24, gap: 16 }}>
                 <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup">
                   {([['person', 'Pessoa'], ['business', 'Negócio ou marca']] as const).map(([v, label]) => (
@@ -201,7 +215,7 @@ export default function Verification() {
                 <Text style={{ textAlign: 'center', fontSize: 12, color: colors.zinc500 }}>Só a moderação vê as fotos, e são apagadas quando decidirmos.</Text>
               </View>
             )}
-            {!s.eligible && <Text style={{ marginTop: 16, textAlign: 'center', fontSize: 14, color: colors.zinc500 }}>Quando cumprires todos os pontos, o pedido abre aqui.</Text>}
+            {!s.eligible && !blueOk && <Text style={{ marginTop: 16, textAlign: 'center', fontSize: 14, color: colors.zinc500 }}>Quando cumprires todos os pontos, o pedido abre aqui.</Text>}
           </>
         )}
       </ScrollView>

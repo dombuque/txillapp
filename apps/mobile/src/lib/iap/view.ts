@@ -54,6 +54,24 @@ export function blueScreenState(channel: IapChannel, catalog: IapCatalog | null 
   return 'offer';
 }
 
+/** A identidade foi aprovada para o selo azul (o pedido em 'paid_eligible', ou `paidEligible` em GET /verification/me). */
+export function approvedForBlue(v: { paidEligible?: boolean; request?: { status: string } | null }): boolean {
+  return !!v.paidEligible || v.request?.status === 'paid_eligible';
+}
+
+/**
+ * A entrada para o ecrã do selo azul (em Verificação e em Definições, Conta), quando há compras pela loja. null: não se
+ * mostra. A conta oficial nunca; quem tem o selo vermelho sem aprovação para o selo azul também não (o ecrã diria para
+ * pedir a verificação, que já tem). Usa a mesma fonte que o `eligible` do catálogo (payments.paid_verification).
+ */
+export function blueSealEntry(v: { verified: boolean; tier: 'verified' | 'official' | 'paid' | null; paidEligible?: boolean; request?: { status: string } | null }): { title: string; description: string } | null {
+  if (v.tier === 'official') return null;
+  if (v.tier === 'paid') return { title: 'Selo azul', description: 'A tua subscrição, pela loja.' };
+  if (approvedForBlue(v)) return { title: 'Ativar o selo azul', description: 'A tua identidade foi aprovada: ativa o selo azul com uma subscrição, pela loja.' };
+  if (v.verified) return null;
+  return { title: 'Selo azul', description: 'Depois de a verificação ser aprovada, podes ativar o selo azul com uma subscrição.' };
+}
+
 /** O pacote do Bombar na API ('1d', '3d', '7d') a partir dos dias do produto da loja. */
 export function boostPackageFor(days: number): '1d' | '3d' | '7d' {
   return days >= 7 ? '7d' : days >= 3 ? '3d' : '1d';

@@ -33,8 +33,49 @@ export interface IapCatalog {
   boost: { products: { id: string; days: number; radiusKm: number }[] };
 }
 
-/** O que o servidor deu (a subscrição ou a campanha). A app só precisa de saber que ficou confirmado. */
-export type IapEntitlement = Record<string, unknown> | null;
+/** O estado da compra no servidor (payments.iap_purchases.status). */
+export type IapPurchaseStatus = 'active' | 'expired' | 'refunded' | 'revoked' | 'consumed';
+
+/**
+ * O que o servidor deu (o `entitlement` do verify e do restore; IapService.entitlement na API):
+ *  • a verificação paga: a subscrição (ativa até `expiresAt`, renova ou não) e o selo da conta depois de a aplicar;
+ *  • um Bombar: a campanha ligada à compra (`campaignId` null se a compra ficou guardada sem campanha) e o estado dela.
+ */
+export type IapEntitlement =
+  | {
+      kind: 'verification';
+      productId: string;
+      status: IapPurchaseStatus;
+      active: boolean;
+      expiresAt: string | null;
+      autoRenew: boolean;
+      verified: boolean;
+      tier: 'verified' | 'official' | 'paid' | null;
+    }
+  | {
+      kind: 'boost';
+      productId: string;
+      status: IapPurchaseStatus;
+      campaignId: string | null;
+      /** O estado da campanha como em GET /boosts/venue/:slug (BoostState em lib/boostView.ts). */
+      campaignState: 'scheduled' | 'active' | 'ended' | 'stopped' | 'suspended' | 'pending' | 'draft' | null;
+    }
+  | null;
+
+/**
+ * O texto de uma compra confirmada (`done`), conforme o que o servidor deu. `ok`: o texto de sucesso de cada ecrã. Uma
+ * subscrição que já não está ativa (expirou, reembolsada) ou um Bombar que não ficou ligado a uma campanha diz-se.
+ */
+export function doneMessage(e: IapEntitlement | undefined, ok: string): { ok: boolean; text: string } {
+  if (e?.kind === 'verification' && e.active === false) {
+    return { ok: false, text: e.status === 'refunded' || e.status === 'revoked' ? 'Esta subscrição foi reembolsada ou cancelada pela loja: o selo azul não fica ativo.' : 'A compra foi confirmada, mas a subscrição já terminou. Para voltar a ter o selo azul, subscreve outra vez.' };
+  }
+  if (e?.kind === 'boost' && !e.campaignId) {
+    return { ok: false, text: 'A compra foi confirmada, mas não ficou ligada a nenhuma campanha (o rascunho já tinha expirado). Escreve-nos para suporte@txillapp.com antes de voltares a comprar.' };
+  }
+  if (e?.kind === 'boost' && e.campaignState === 'scheduled') return { ok: true, text: 'Pago! A campanha começa na data marcada e já aparece em Ativas.' };
+  return { ok: true, text: ok };
+}
 
 export interface IapApi {
   catalog(platform: IapPlatform): Promise<IapCatalog>;
@@ -134,6 +175,34 @@ export function iapMessage(kind: IapErrorKind | 'verify-failed' | 'retry'): stri
   }
 }
 
+/** O erro da API (ApiError em lib/api.ts): o código HTTP e a mensagem do servidor (já escrita para a pessoa). */
+export function httpFailure(e: unknown): { code: number; message?: string } | null {
+  const code = Number((e as { status?: unknown } | null)?.status);
+  if (!Number.isInteger(code) || code < 400) return null;
+  const m = (e as { message?: unknown } | null)?.message;
+  return { code, message: typeof m === 'string' && m.trim() ? m.trim() : undefined };
+}
+
+/**
+ * O texto de uma confirmação recusada pelo servidor (POST /iap/…/verify), pelo código HTTP:
+ *  • 403: a identidade ainda não foi aprovada para a verificação paga (a compra fica guardada) ou a compra é de outra conta;
+ *  • 409: a compra já pagou outra campanha, a campanha já foi paga, ou a compra ainda está a ser processada;
+ *  • 422: a compra foi feita para outra campanha, ou o produto não é o do pacote;
+ *  • 502: a loja não respondeu ao servidor (tenta-se outra vez sozinho);
+ *  • 503: as compras pela loja estão desligadas no servidor (tenta-se outra vez quando voltarem).
+ * Nos 403, 409 e 422 vale a mensagem do servidor, que diz o caso exato. Os outros: o texto de `verify-failed`.
+ */
+export function verifyFailedMessage(code?: number, message?: string): string {
+  switch (code) {
+    case 403: return message ?? 'Esta compra não ficou ligada à tua conta. Se a tua identidade ainda não foi aprovada para o selo azul, a compra ficou guardada e o selo aparece quando for aprovada.';
+    case 409: return message ?? 'Esta compra já foi usada. Não voltes a comprar.';
+    case 422: return message ?? 'Esta compra não corresponde a esta campanha. Não voltes a comprar.';
+    case 502: return 'A loja não respondeu. A compra ficou guardada e confirmamos sozinhos daqui a pouco. Não voltes a comprar.';
+    case 503: return 'As compras pela loja estão em pausa. A compra ficou guardada e confirmamos quando voltarem. Não voltes a comprar.';
+    default: return iapMessage('verify-failed')!;
+  }
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // O serviço
 // ---------------------------------------------------------------------------------------------------------------------
@@ -143,9 +212,28 @@ export type IapOutcome =
   | { status: 'done'; kind: 'verification' | 'boost'; productId: string; campaignId?: string; entitlement: IapEntitlement }
   | { status: 'pending'; productId: string }
   | { status: 'retry'; productId: string }
-  | { status: 'verify-failed'; productId: string }
+  /** O servidor recusou (ou não conseguiu fazer) a confirmação: `code` é o HTTP e `message` o que ele disse. */
+  | { status: 'verify-failed'; productId: string; code?: number; message?: string }
   | { status: 'cancelled'; productId?: string }
-  | { status: 'error'; kind: IapErrorKind; productId?: string };
+  | { status: 'error'; kind: IapErrorKind; productId?: string; code?: number; message?: string };
+
+/** O texto de um resultado para o ecrã (null: nada a mostrar). O `done` diz-se em cada ecrã, com o que se comprou. */
+export function outcomeMessage(o: IapOutcome): string | null {
+  switch (o.status) {
+    case 'done':
+    case 'cancelled':
+      return null;
+    case 'verify-failed':
+      return verifyFailedMessage(o.code, o.message);
+    case 'error':
+      // O rascunho do Bombar recusado: 503 (compras desligadas) ou a razão do servidor (local bloqueado, pacote…).
+      if (o.code === 503) return 'As compras pela loja estão em pausa. Tenta outra vez mais tarde.';
+      if (o.code && o.code !== 401 && o.code < 500 && o.message) return o.message;
+      return iapMessage(o.kind);
+    default:
+      return iapMessage(o.status);
+  }
+}
 
 export interface IapDeps {
   platform: IapPlatform | null;
@@ -188,7 +276,7 @@ export interface Iap {
   /** Bombar: cria o rascunho (`draft`, com `source: 'iap'`), compra o pacote e confirma com o `campaignId`. */
   buyBoost(productId: string, draft: () => Promise<{ id: string }>): Promise<IapOutcome>;
   /** Restaurar compras: manda ao servidor o que a loja diz que esta conta da loja tem, e reenvia as por acabar. */
-  restore(): Promise<{ ok: boolean; kind?: IapErrorKind }>;
+  restore(): Promise<{ ok: boolean; kind?: IapErrorKind; code?: number; message?: string }>;
   /** Reenvia ao servidor as compras por acabar (no arranque e ao abrir os ecrãs de compra). */
   recover(): Promise<IapOutcome[]>;
   manage(productId?: string): Promise<void>;
@@ -256,7 +344,11 @@ export function createIap(deps: IapDeps): Iap {
           ? await api.appleVerify(verifyBody('ios', p, campaignId) as { signedTransaction: string; campaignId?: string })
           : await api.googleVerify(verifyBody('android', p, campaignId) as { productId: string; purchaseToken: string; campaignId?: string });
       } catch (e) {
-        return classifyIapError(e) === 'network' ? { status: 'retry', productId: p.productId } : { status: 'verify-failed', productId: p.productId };
+        if (classifyIapError(e) === 'network') return { status: 'retry', productId: p.productId };
+        const http = httpFailure(e);
+        // A Google ainda não cobrou (409 «pagamento pendente»): é o pendente da loja, não uma falha. Fica por acabar.
+        if (http?.code === 409 && /pendente/i.test(http.message ?? '')) return { status: 'pending', productId: p.productId };
+        return http ? { status: 'verify-failed', productId: p.productId, code: http.code, message: http.message } : { status: 'verify-failed', productId: p.productId };
       }
       if (!r?.ok) return { status: 'verify-failed', productId: p.productId };
       // Só agora: o servidor já deu a subscrição ou ativou a campanha.
@@ -362,7 +454,9 @@ export function createIap(deps: IapDeps): Iap {
       try {
         campaignId = (await draft()).id;
       } catch (e) {
-        return { status: 'error', kind: classifyIapError(e) === 'network' ? 'network' : 'failed', productId };
+        // O rascunho recusado (503 com as compras desligadas, 422 com o local bloqueado…): o ecrã diz o porquê.
+        const http = httpFailure(e);
+        return { status: 'error', kind: classifyIapError(e) === 'network' ? 'network' : 'failed', productId, ...(http ? { code: http.code, message: http.message } : {}) };
       }
       await setIntent(productId, campaignId);
       return purchase(productId, 'in-app', platform === 'android' ? campaignId : undefined);
@@ -376,7 +470,8 @@ export function createIap(deps: IapDeps): Iap {
         await recover();
         return { ok: true };
       } catch (e) {
-        return { ok: false, kind: classifyIapError(e) };
+        const http = httpFailure(e);
+        return { ok: false, kind: classifyIapError(e), ...(http ? { code: http.code, message: http.message } : {}) };
       }
     },
     recover,

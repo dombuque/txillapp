@@ -142,8 +142,8 @@ Depois de mudar o `.env`: `docker compose up -d api` (em `/opt/txillapp/infra/pr
    `.p8` (só se descarrega uma vez), o **Key ID** e o **Issuer ID** → `IAP_APPLE_KEY_P8`, `IAP_APPLE_KEY_ID`,
    `IAP_APPLE_ISSUER_ID`. (Não é a chave de APNs.)
 5. **Avisos V2**: App → App Information → **App Store Server Notifications** → Version 2, nos dois campos:
-   - Production Server URL: `https://api.txillapp.com/api/v1/iap/apple/notifications`
-   - Sandbox Server URL: `https://api.txillapp.com/api/v1/iap/apple/notifications`
+   - Production Server URL: `https://txillapp.com/api/v1/iap/apple/notifications`
+   - Sandbox Server URL: `https://txillapp.com/api/v1/iap/apple/notifications`
    Depois «Request a Test Notification» (fica registada como `notification:TEST` em `payments.iap_events`).
 6. **App Review**: na ficha, ligações para os Termos e para a Política de Privacidade; nas notas, explicar que a
    verificação paga só aparece a contas aprovadas e dar uma conta de teste já aprovada como «elegível».
@@ -165,7 +165,7 @@ Depois de mudar o `.env`: `docker compose up -d api` (em `/opt/txillapp/infra/pr
    - No Google Cloud → Pub/Sub: criar o tópico (ex.: `play-rtdn`) e dar a
      `google-play-developer-notifications@system.gserviceaccount.com` o papel **Pub/Sub Publisher** no tópico.
    - Criar uma subscrição **Push** no tópico com o endpoint
-     `https://api.txillapp.com/api/v1/iap/google/rtdn?token=<IAP_GOOGLE_RTDN_TOKEN>` (sem autenticação OIDC: a
+     `https://txillapp.com/api/v1/iap/google/rtdn?token=<IAP_GOOGLE_RTDN_TOKEN>` (sem autenticação OIDC: a
      autenticação é o segredo no URL, comparado em tempo constante; guarda-o como um segredo).
    - Na Play Console → Monetization setup → Real-time developer notifications: o nome completo do tópico
      (`projects/<projeto>/topics/play-rtdn`) e «Send test notification» (fica registada como `notification:test`).

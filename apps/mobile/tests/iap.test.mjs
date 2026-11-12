@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { INTENTS_KEY, classifyIapError, createIap, iapMessage, iapPlatformFor, restoreBody, verifyBody } from '../src/lib/iap/core.ts';
-import { PRIVACY_URL, TERMS_URL, activeText, blueScreenState, boostPackLabel, boostPackageFor, periodLabel, storeName, subscriptionTerms } from '../src/lib/iap/view.ts';
+import { INTENTS_KEY, classifyIapError, createIap, doneMessage, iapMessage, iapPlatformFor, outcomeMessage, restoreBody, verifyBody, verifyFailedMessage } from '../src/lib/iap/core.ts';
+import { PRIVACY_URL, TERMS_URL, activeText, approvedForBlue, blueScreenState, blueSealEntry, boostPackLabel, boostPackageFor, periodLabel, storeName, subscriptionTerms } from '../src/lib/iap/view.ts';
 import { IAP_READY, askStoreCatalog, helpFaqFor, purchaseRulesFor, storePurchasesOn } from '../src/lib/storeRules.ts';
 import { nativeStore as webStore } from '../src/lib/iap/store.web.ts';
 
@@ -408,8 +408,15 @@ test('o ecrã do selo azul mostra o preço e o período da loja, as condições 
   // As condições ficam no ecrã antes de se subscrever (não atrás de uma ligação).
   assert.ok(s.indexOf('>Subscrever<') < s.indexOf('subscriptionTerms(platform)'));
   // A entrada: Definições → Conta e o ecrã da verificação, só com as compras pela loja ligadas.
-  assert.match(read('app', 'settings', 'conta.tsx'), /\{purchases\.storeVerification && ver\.data\?\.tier !== 'official' \? <SettingRow [^\n]*to="\/selo-azul"/);
-  assert.match(read('app', 'verification.tsx'), /purchases\.storeVerification && s\.tier !== 'official' \? <BlueSealEntry/);
+  const conta = read('app', 'settings', 'conta.tsx');
+  assert.match(conta, /const blue = purchases\.storeVerification && ver\.data \? blueSealEntry\(ver\.data\) : null;/);
+  assert.match(conta, /\{blue \? <SettingRow [^\n]*to="\/selo-azul"/);
+  const ver = read('app', 'verification.tsx');
+  assert.match(ver, /const entry = s && purchases\.storeVerification \? blueSealEntry\(s\) : null;/);
+  assert.match(ver, /\{entry \? <BlueSealEntry/);
+  // Aprovado para o selo azul (paid_eligible): diz-se, e o formulário do pedido já não aparece (o servidor dava 409).
+  assert.ok(ver.includes('>Aprovado para o selo azul<'));
+  assert.match(ver, /s\.eligible && !blueOk && s\.request\?\.status !== 'pending'/);
   // A camada nativa identifica sempre quem compra e leva o plano base no Android.
   const n = read('lib', 'iap', 'store.ts');
   assert.match(n, /appAccountToken: accountId/);
@@ -431,4 +438,61 @@ test('a Ajuda explica como cancelar a subscrição só quando o selo azul está 
   const help = read('app', 'help.tsx');
   assert.match(help, /q: 'Como cancelo a subscrição do selo azul\?'/);
   assert.match(help, /e paga com os Txills da carteira do local\. Se parares, voltam à carteira/);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Integração com a API (o que o servidor devolve em /iap e /verification/me)
+// ---------------------------------------------------------------------------------------------------------------------
+
+test('a confirmação recusada pelo servidor diz o porquê (403, 409, 422, 502, 503) e a compra fica por acabar', async () => {
+  const cases = [
+    [403, 'A tua identidade ainda não foi aprovada para a verificação paga. A compra ficou guardada e o selo é aplicado quando for aprovada.', /ainda não foi aprovada/],
+    [409, 'Esta compra já pagou outra campanha', /já pagou outra campanha/],
+    [422, 'Esta compra foi feita para outra campanha', /outra campanha/],
+    [502, 'A loja não respondeu. Tenta outra vez daqui a pouco.', /loja não respondeu.*Não voltes a comprar/],
+    [503, 'As compras no Google Play não estão disponíveis', /em pausa.*ficou guardada/],
+  ];
+  for (const [status, message, re] of cases) {
+    const store = fakeStore({ unfinished: [purchase('txill.selo.mensal', `gp-${status}`)] });
+    const i = createIap({ platform: 'android', store, api: fakeApi({ verify: async () => { throw Object.assign(new Error(message), { status }); } }), storage: memStorage(), userId: () => USER });
+    const [o] = await i.recover();
+    assert.equal(o.status, 'verify-failed', String(status));
+    assert.equal(o.code, status);
+    assert.match(outcomeMessage(o), re, String(status));
+    assert.equal(store.log.some((l) => l[0] === 'finish'), false, String(status));
+  }
+  // Sem código (ok: false ou erro desconhecido): o texto de sempre.
+  assert.equal(verifyFailedMessage(undefined), iapMessage('verify-failed'));
+  // 409 «pagamento pendente» da Google: é pendente, não uma falha.
+  const sp = fakeStore({ unfinished: [purchase('txill.selo.mensal', 'gp-pend')] });
+  const ip = createIap({ platform: 'android', store: sp, api: fakeApi({ verify: async () => { throw Object.assign(new Error('O pagamento ainda está pendente na Google'), { status: 409 }); } }), storage: memStorage(), userId: () => USER });
+  assert.deepEqual((await ip.recover()).map((o) => o.status), ['pending']);
+  // O rascunho do Bombar recusado: 503 em pausa; 422 com a razão do servidor.
+  assert.match(outcomeMessage({ status: 'error', kind: 'failed', code: 503, message: 'x' }), /em pausa/);
+  assert.equal(outcomeMessage({ status: 'error', kind: 'failed', code: 422, message: 'Este local está suspenso' }), 'Este local está suspenso');
+  assert.equal(outcomeMessage({ status: 'cancelled' }), null);
+});
+
+test('o entitlement do verify: subscrição terminada ou Bombar sem campanha dizem-se, o resto é sucesso', () => {
+  const ok = 'Feito!';
+  assert.deepEqual(doneMessage({ kind: 'verification', productId: 'a', status: 'active', active: true, expiresAt: '2027-01-01T00:00:00Z', autoRenew: true, verified: true, tier: 'paid' }, ok), { ok: true, text: ok });
+  assert.equal(doneMessage({ kind: 'verification', productId: 'a', status: 'expired', active: false, expiresAt: null, autoRenew: false, verified: false, tier: null }, ok).ok, false);
+  assert.match(doneMessage({ kind: 'verification', productId: 'a', status: 'refunded', active: false, expiresAt: null, autoRenew: false, verified: false, tier: null }, ok).text, /reembolsada/);
+  assert.equal(doneMessage({ kind: 'boost', productId: 'b', status: 'consumed', campaignId: null, campaignState: null }, ok).ok, false);
+  assert.match(doneMessage({ kind: 'boost', productId: 'b', status: 'consumed', campaignId: 'c', campaignState: 'scheduled' }, ok).text, /data marcada/);
+  assert.deepEqual(doneMessage({ kind: 'boost', productId: 'b', status: 'consumed', campaignId: 'c', campaignState: 'active' }, ok), { ok: true, text: ok });
+  // Servidores antigos ou respostas sem entitlement: sucesso.
+  assert.deepEqual(doneMessage(null, ok), { ok: true, text: ok });
+});
+
+test('selo azul: paidEligible (verification/me) e o pedido paid_eligible abrem a mesma entrada', () => {
+  assert.equal(approvedForBlue({ paidEligible: true, request: null }), true);
+  assert.equal(approvedForBlue({ request: { status: 'paid_eligible' } }), true);
+  assert.equal(approvedForBlue({ paidEligible: false, request: { status: 'approved' } }), false);
+  assert.equal(blueSealEntry({ verified: true, tier: 'official', paidEligible: true }), null);
+  assert.equal(blueSealEntry({ verified: true, tier: 'paid', paidEligible: true }).title, 'Selo azul');
+  assert.equal(blueSealEntry({ verified: false, tier: null, paidEligible: true }).title, 'Ativar o selo azul');
+  // Selo vermelho sem aprovação para o selo azul: não se mostra (o ecrã mandaria pedir a verificação que já tem).
+  assert.equal(blueSealEntry({ verified: true, tier: 'verified', paidEligible: false }), null);
+  assert.match(blueSealEntry({ verified: false, tier: null, paidEligible: false, request: null }).description, /Depois de a verificação ser aprovada/);
 });

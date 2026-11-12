@@ -10,7 +10,7 @@ import type { Venue } from '@/lib/api.locais';
 import { STATE_LABEL, priceFor, refundPreview, reportLines, shortWhen, txills, type BoostPackageId } from '@/lib/boostView';
 import { sized } from '@/lib/config';
 import { iap } from '@/lib/iap';
-import { iapMessage, type IapOutcome, type StoreProduct } from '@/lib/iap/core';
+import { doneMessage, outcomeMessage, type IapOutcome, type StoreProduct } from '@/lib/iap/core';
 import { boostPackLabel, boostPackageFor, storeName } from '@/lib/iap/view';
 import { IAP_PLATFORM, useIapCatalog, usePurchases } from '@/lib/purchases';
 import { eventWhen } from '@/lib/nearbyView';
@@ -98,10 +98,10 @@ export function VenueBoost({ v }: { v: Venue }) {
   };
 
   const stop = (c: BoostCampaign) => {
-    const back = refundPreview(c);
+    const back = c.payment === 'iap' ? 0 : refundPreview(c);
     confirmThen(
       'Parar a campanha?',
-      back > 0 ? `Voltam ${txills(back)} para a carteira do local (os dias inteiros que faltam).` : 'Já não há dias inteiros por usar: não há devolução. O destaque deixa de aparecer logo.',
+      c.payment === 'iap' ? 'Foi paga pela loja: parar não devolve nada (os reembolsos pedem-se à Apple ou à Google). O destaque deixa de aparecer logo.' : back > 0 ? `Voltam ${txills(back)} para a carteira do local (os dias inteiros que faltam).` : 'Já não há dias inteiros por usar: não há devolução. O destaque deixa de aparecer logo.',
       'Parar',
       () => void (async () => {
         try {
@@ -298,10 +298,9 @@ function StoreBoost({ v, o, target, setTarget, onDone }: { v: Venue; o: BoostOpt
   const nothing = !o.targets.events.length && !o.targets.posts.length;
 
   const show = (r: IapOutcome) => {
-    if (r.status === 'done') setMsg({ ok: true, text: 'Está a bombar! A campanha já aparece em Ativas.' });
-    else if (r.status === 'cancelled') setMsg(null);
+    if (r.status === 'done') setMsg(doneMessage(r.entitlement, 'Está a bombar! A campanha já aparece em Ativas.'));
     else {
-      const text = iapMessage(r.status === 'error' ? r.kind : r.status);
+      const text = outcomeMessage(r);
       setMsg(text ? { ok: r.status === 'pending', text } : null);
     }
   };
@@ -388,7 +387,7 @@ function CampaignCard({ c, onStop }: { c: BoostCampaign; onStop?: (c: BoostCampa
         </View>
       </View>
       <Text style={st.optSub}>
-        {shortWhen(c.startsAt)} → {shortWhen(c.stoppedAt ?? c.endsAt)} · {c.radiusKm} km · {txills(c.price)}{c.refunded ? ` (devolvidos ${txills(c.refunded)})` : ''}
+        {shortWhen(c.startsAt)} → {shortWhen(c.stoppedAt ?? c.endsAt)} · {c.radiusKm} km · {c.payment === 'iap' ? 'paga na loja' : txills(c.price)}{c.refunded ? ` (devolvidos ${txills(c.refunded)})` : ''}
       </Text>
       {c.note ? <Text style={[st.optSub, { color: '#b45309' }]}>Nota da equipa: {c.note}</Text> : null}
       <View style={st.stats}>

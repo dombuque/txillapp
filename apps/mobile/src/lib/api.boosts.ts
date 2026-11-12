@@ -32,7 +32,8 @@ export interface BoostCampaign {
   startsAt: string;
   endsAt: string;
   stoppedAt: string | null;
-  payment: 'txills' | 'mzn';
+  /** 'iap': paga na App Store ou no Google Play (o preço em Txills fica a 0 e parar não devolve nada). */
+  payment: 'txills' | 'mzn' | 'iap';
   price: number;
   refunded: number;
   review: 'auto' | 'staff';

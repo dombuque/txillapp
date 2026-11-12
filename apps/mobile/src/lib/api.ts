@@ -158,8 +158,11 @@ export interface VerificationStatus {
   eligible: boolean;
   verified: boolean;
   tier: 'verified' | 'official' | 'paid' | null;
-  request: { id: string; kind: string; status: 'pending' | 'approved' | 'rejected' | 'withdrawn'; reason: string | null; createdAt: string } | null;
+  /** 'paid_eligible': a moderação confirmou a identidade para a verificação paga (o selo azul vem com a subscrição). */
+  request: { id: string; kind: string; status: 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'paid_eligible'; reason: string | null; createdAt: string } | null;
   retryAfter: string | null;
+  /** Aprovado para a verificação paga (o mesmo que `verification.eligible` em GET /iap/catalog). Só nos servidores novos. */
+  paidEligible?: boolean;
 }
 export interface FeedSettings {
   following: 'less' | 'balanced' | 'more';

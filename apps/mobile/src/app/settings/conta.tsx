@@ -12,6 +12,7 @@ import { usePrivacy } from '@/components/settings/usePrivacy';
 import { useLeave } from '@/components/settings/useLeave';
 import { api, openActivate } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { blueSealEntry } from '@/lib/iap/view';
 import { usePurchases } from '@/lib/purchases';
 
 /** Conta: o perfil, o email e o @, como te identificas, a verificação, os teus dados e, no fundo, eliminar a conta. */
@@ -27,6 +28,8 @@ export default function AccountSettings() {
   const email = useQuery({ queryKey: ['email-status'], queryFn: api.emailStatus, staleTime: 60_000 });
   const ver = useQuery({ queryKey: ['verification'], queryFn: api.verificationStatus, staleTime: 60_000 });
   const purchases = usePurchases();
+  // A mesma regra da Verificação: a entrada do selo azul só com as compras pela loja e conforme a aprovação.
+  const blue = purchases.storeVerification && ver.data ? blueSealEntry(ver.data) : null;
 
   async function downloadData() {
     if (exporting) return;
@@ -74,7 +77,7 @@ export default function AccountSettings() {
         <SettingRow anchor="gender" icon="user-circle" title="Como me identifico" value={p ? (p.gender ? genderLabel(p.gender) : 'Por escolher') : '…'} onPress={p && !p.gender ? () => setSheet('gender') : undefined} locked={!!p?.gender} />
         {p && p.gender && p.gender !== 'unspecified' ? <SettingRow anchor="showGender" icon="user" title="Mostrar no perfil" description="Quem vê o teu perfil vê também isto." toggle={{ on: p.showGender, onChange: (v) => void save({ showGender: v }) }} /> : null}
         <SettingRow anchor="verification" icon={<VerifiedBadge size={22} tier={ver.data?.tier} />} title={ver.data?.verified ? 'A tua conta está verificada' : 'Pedir o selo de verificado'} to="/verification" />
-        {purchases.storeVerification && ver.data?.tier !== 'official' ? <SettingRow icon={<VerifiedBadge size={22} tier="paid" />} title="Selo azul" description={ver.data?.tier === 'paid' ? 'A tua subscrição' : 'A verificação com subscrição, pela loja'} to="/selo-azul" /> : null}
+        {blue ? <SettingRow icon={<VerifiedBadge size={22} tier="paid" />} title={blue.title} description={blue.description} to="/selo-azul" /> : null}
         <RegionRow />
       </SettingsSection>
 

@@ -9,7 +9,7 @@ import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { iapCatalogKey } from '@/lib/api.iap';
 import { CHANNEL } from '@/lib/distribution';
 import { iap } from '@/lib/iap';
-import { iapMessage, type IapOutcome, type StoreProduct } from '@/lib/iap/core';
+import { doneMessage, iapMessage, outcomeMessage, type IapOutcome, type StoreProduct } from '@/lib/iap/core';
 import { BLUE_BENEFITS, PRIVACY_URL, TERMS_URL, activeText, blueScreenState, periodLabel, periodTitle, storeName, subscriptionTerms } from '@/lib/iap/view';
 import { ASK_IAP, IAP_PLATFORM, useIapCatalog } from '@/lib/purchases';
 import { colors } from '@/lib/theme';
@@ -57,10 +57,9 @@ export default function BlueSeal() {
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: iapCatalogKey(platform) }), qc.invalidateQueries({ queryKey: ['verification'] })]);
 
   const show = (o: IapOutcome) => {
-    if (o.status === 'done') setMsg({ ok: true, text: 'Feito! O teu selo azul já está ativo.' });
-    else if (o.status === 'cancelled') setMsg(null);
+    if (o.status === 'done') setMsg(doneMessage(o.entitlement, 'Feito! O teu selo azul já está ativo.'));
     else {
-      const text = iapMessage(o.status === 'error' ? o.kind : o.status);
+      const text = outcomeMessage(o);
       setMsg(text ? { ok: o.status === 'pending', text } : null);
     }
   };
@@ -82,7 +81,7 @@ export default function BlueSeal() {
     if (r.ok) {
       await refresh();
       setMsg({ ok: true, text: 'Compras restauradas. Se tinhas uma subscrição ativa nesta conta da loja, o selo azul volta.' });
-    } else setMsg({ ok: false, text: iapMessage(r.kind ?? 'failed') ?? 'Não deu para restaurar agora.' });
+    } else setMsg({ ok: false, text: r.code === 503 ? 'As compras pela loja estão em pausa. Tenta outra vez mais tarde.' : r.code === 502 ? 'A loja não respondeu. Tenta outra vez daqui a pouco.' : (r.kind === 'failed' ? null : iapMessage(r.kind ?? 'failed')) ?? 'Não deu para restaurar agora. Tenta outra vez.' });
     setBusy(null);
   };
   const manage = () => void iap.manage(c?.verification.active?.productId ?? pick ?? undefined).catch(() => setMsg({ ok: false, text: iapMessage('unavailable')! }));
