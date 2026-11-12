@@ -1,13 +1,17 @@
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
+import { SignJWT } from 'jose';
+import sharp from 'sharp';
 import request from 'supertest';
 import { Pool } from 'pg';
+import { ChatEvents, type StreamEvent } from '../chat/chat.events';
 import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
+const SECRET = 'e'.repeat(40);
 const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
 
 interface U { token: string; id: string; username: string }
@@ -25,18 +29,33 @@ describe('Instants: fotos de 24 h, vistas uma só vez, só para amigos próximos
     const r = await api().post('/api/v1/auth/register').send({ email: `${username}@example.com`, username, displayName: `${name} Teste`, password: PASSWORD, birthDate: '1990-06-15', acceptTerms: true }).expect(201);
     return { token: r.body.accessToken, id: r.body.user.id, username };
   }
+  /** Conta feita direto na base, com o token assinado aqui (o registo tem limite de pedidos por minuto). */
+  async function quick(name: string): Promise<U> {
+    const username = `${name}${run}`.slice(0, 28);
+    const id = (await pool.query(`INSERT INTO identity.users (id, email, username, display_name) VALUES (gen_random_uuid(), $1, $2, $3) RETURNING id`, [`${username}@example.com`, username, `${name} Teste`])).rows[0].id as string;
+    const token = await new SignJWT({}).setProtectedHeader({ alg: 'HS256' }).setSubject(id).setIssuer('txillapp').setAudience('access').setIssuedAt().setExpirationTime('1h').sign(new TextEncoder().encode(SECRET));
+    return { token, id, username };
+  }
   const follow = (a: U, b: U) => pool.query('INSERT INTO social.follows (follower_id, followee_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [a.id, b.id]);
-  async function photo(a: U) {
-    const up = await api().post('/api/v1/media/uploads').set(auth(a)).send({ mime: 'image/png', size: PNG.length, purpose: 'chat' }).expect(201);
-    await api().put(up.body.uploadUrl).set('Content-Type', 'image/png').send(PNG).expect(200);
+  /** `jpeg`: uma foto verdadeira (o PNG mínimo não se deixa reduzir: serve para tudo menos as larguras leves). */
+  async function photo(a: U, jpeg = false) {
+    const [bytes, mime] = jpeg ? [await sharp({ create: { width: 90, height: 120, channels: 3, background: '#d6334f' } }).jpeg().toBuffer(), 'image/jpeg'] : [PNG, 'image/png'];
+    const up = await api().post('/api/v1/media/uploads').set(auth(a)).send({ mime, size: bytes.length, purpose: 'chat' }).expect(201);
+    await api().put(up.body.uploadUrl).set('Content-Type', mime).send(bytes).expect(200);
     await api().post(`/api/v1/media/${up.body.assetId}/complete`).set(auth(a)).send({}).expect(200);
     return up.body.assetId as string;
+  }
+
+  /** Um Zás novo (a foto sobe primeiro: um pedido feito antes dela ficaria sem servidor, no supertest). */
+  async function makeZas(a: U, body: Record<string, unknown> = {}, jpeg = false) {
+    const mediaId = await photo(a, jpeg);
+    return (await api().post('/api/v1/instants').set(auth(a)).send({ mediaId, ...body }).expect(201)).body as { id: string; expiresAt: string };
   }
 
   beforeAll(async () => {
     await migrate(DB);
     pool = new Pool({ connectionString: DB });
-    app = await createApp(loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'e'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test' }));
+    app = await createApp(loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: SECRET, NODE_ENV: 'test', MEDIA_DIR: './uploads-test' }));
     await app.init();
     for (const n of ['ina', 'inb', 'inc', 'ind', 'ine']) u[n] = await signup(n);
   }, 60_000);
@@ -125,5 +144,87 @@ describe('Instants: fotos de 24 h, vistas uma só vez, só para amigos próximos
     await pool.query("UPDATE social.instants SET expires_at = now() - interval '1 minute' WHERE id = $1", [made.id]);
     expect(await names(inb)).not.toContain(inc.username);
     await api().delete(`/api/v1/instants/${made.id}`).set(auth(inc)).expect(204);
+  });
+
+  it('tempo real: o Zás novo chega logo a quem o pode ver (amigos mútuos, próximos) e nunca a bloqueados nem a quem não é amigo', async () => {
+    const zz: Record<string, U> = {};
+    for (const n of ['zea', 'zeb', 'zec', 'zed', 'zee', 'zef', 'zeg']) zz[n] = await quick(n);
+    const { zea, zeb, zec, zed, zee, zef, zeg } = zz;
+    await follow(zea, zeb); await follow(zeb, zea); // mútuos: vê
+    await follow(zec, zea); // só segue: não vê
+    await pool.query('INSERT INTO social.close_friends (owner_id, friend_id) VALUES ($1, $2)', [zea.id, zed.id]); // próximo: vê
+    await follow(zea, zee); await follow(zee, zea); // mútuos, mas o autor bloqueou-o: não vê
+    await pool.query('INSERT INTO social.blocks (blocker_id, blocked_id) VALUES ($1, $2)', [zea.id, zee.id]);
+    await follow(zea, zef); await follow(zef, zea); // mútuos, mas ele bloqueou o autor: não vê
+    await pool.query('INSERT INTO social.close_friends (owner_id, friend_id) VALUES ($1, $2)', [zea.id, zef.id]); // nem como próximo
+    await pool.query('INSERT INTO social.blocks (blocker_id, blocked_id) VALUES ($1, $2)', [zef.id, zea.id]);
+    // zeg: sem ligação nenhuma.
+
+    const events = app.get(ChatEvents);
+    const got: Record<string, StreamEvent[]> = {};
+    const subs = Object.values(zz).map((x) => {
+      got[x.username] = [];
+      return events.forUser(x.id).subscribe((e) => got[x.username].push(e));
+    });
+    const zasOf = (x: U) => got[x.username].filter((e) => e.type === 'zas');
+    const clear = () => Object.values(got).forEach((l) => l.splice(0));
+    try {
+      const made = await makeZas(zea, { caption: 'acabadinho' }, true);
+      // O evento sai antes de a resposta chegar a quem o fez: já cá está.
+      expect(zasOf(zeb)).toEqual([{ type: 'zas', what: 'new' }]);
+      expect(zasOf(zed)).toEqual([{ type: 'zas', what: 'new' }]);
+      for (const x of [zec, zee, zef, zeg]) expect(zasOf(x)).toEqual([]);
+      expect(zasOf(zea)).toEqual([{ type: 'zas', what: 'new', self: true }]); // eco para os meus outros aparelhos
+      // Quem recebeu o aviso encontra-o de facto (a faixa e a lista do visor); os outros não.
+      const feed = async (x: U) => (await api().get('/api/v1/instants/feed').set(auth(x)).expect(200)).body as { id: string; url: string; caption: string; author: { username: string; displayName: string; hasAvatar: boolean } }[];
+      const fb = await feed(zeb);
+      expect(fb.map((f) => f.id)).toContain(made.id);
+      expect(fb.find((f) => f.id === made.id)).toMatchObject({ caption: 'acabadinho', author: { username: zea.username, displayName: 'zea Teste', hasAvatar: false } });
+      expect((await feed(zed)).map((f) => f.id)).toContain(made.id);
+      for (const x of [zec, zee, zef, zeg]) expect((await feed(x)).map((f) => f.id)).not.toContain(made.id);
+
+      // A foto na largura leve (?w=): WebP, com o mesmo URL assinado.
+      const url = fb.find((f) => f.id === made.id)!.url;
+      const path = url.startsWith('http') ? new URL(url).pathname + new URL(url).search : url;
+      const small = await api().get(`${path}&w=720`).expect(200);
+      expect(small.headers['content-type']).toMatch(/image\/webp/);
+      await api().get(path.replace(/sig=[^&]+/, 'sig=errada') + '&w=720').expect(403); // a largura não abre portas
+
+      // Visto: sai da lista de quem o viu.
+      await api().post(`/api/v1/instants/${made.id}/view`).set(auth(zeb)).expect(204);
+      expect((await feed(zeb)).map((f) => f.id)).not.toContain(made.id);
+
+      // "Só próximos": o mútuo já não recebe; o próximo sim.
+      clear();
+      await makeZas(zea, { audience: 'close' });
+      expect(zasOf(zed)).toEqual([{ type: 'zas', what: 'new' }]);
+      for (const x of [zeb, zec, zee, zef, zeg]) expect(zasOf(x)).toEqual([]);
+
+      // Apagado: avisa quem o podia ver (a faixa tira-o logo).
+      clear();
+      await api().delete(`/api/v1/instants/${made.id}`).set(auth(zea)).expect(204);
+      expect(zasOf(zeb)).toEqual([{ type: 'zas', what: 'gone' }]);
+      expect(zasOf(zed)).toEqual([{ type: 'zas', what: 'gone' }]);
+      for (const x of [zec, zee, zef, zeg]) expect(zasOf(x)).toEqual([]);
+      // Nada disto mexe nas conversas de ninguém.
+      for (const l of Object.values(got)) expect(l.filter((e) => e.type !== 'zas')).toEqual([]);
+    } finally {
+      subs.forEach((s) => s.unsubscribe());
+    }
+  });
+
+  it('lista do visor: todos os Zás por ver numa lista só, os próximos primeiro e os de cada pessoa por ordem', async () => {
+    const zz: Record<string, U> = {};
+    for (const n of ['zfa', 'zfb', 'zfc']) zz[n] = await quick(n);
+    const { zfa, zfb, zfc } = zz;
+    await follow(zfa, zfc); await follow(zfc, zfa);
+    await follow(zfb, zfc); await follow(zfc, zfb);
+    await pool.query('INSERT INTO social.close_friends (owner_id, friend_id) VALUES ($1, $2)', [zfb.id, zfc.id]); // zfb tem zfc nos próximos
+    const b1 = (await makeZas(zfb, { caption: 'b1' })).id;
+    const a1 = (await makeZas(zfa, { caption: 'a1' })).id;
+    const a2 = (await makeZas(zfa, { caption: 'a2' })).id;
+    const ids = ((await api().get('/api/v1/instants/feed').set(auth(zfc)).expect(200)).body as { id: string }[]).map((f) => f.id).filter((id) => [a1, a2, b1].includes(id));
+    // zfc é próximo de zfb: o dele vem primeiro, mesmo sendo o mais antigo; os de zfa do mais antigo para o mais recente.
+    expect(ids).toEqual([b1, a1, a2]);
   });
 });

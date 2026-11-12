@@ -28,9 +28,11 @@ const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
  * Tira os metadados de uma foto (GPS, aparelho, data) antes de ficar guardada: nada do EXIF chega a quem a vê.
  * JPEG: aplica a rotação e regrava; PNG e WebP (também animados) regravam-se sem metadados. Se falhar, devolve null.
  */
-export async function stripImageMeta(bytes: Buffer, mime: string): Promise<Buffer | null> {
+export async function stripImageMeta(bytes: Buffer, mime: string, opts: { fast?: boolean } = {}): Promise<Buffer | null> {
   try {
-    if (mime === 'image/jpeg') return await sharp(bytes).rotate().jpeg({ quality: 92, mozjpeg: true }).toBuffer();
+    // Fotos do chat (o Zás): o mesmo JPEG sem metadados, mas sem o mozjpeg, que numa foto de 1080×1440 leva ~0,4 a 1,3 s
+    // (o libjpeg normal faz o mesmo em ~50 ms; o ficheiro fica uns 10 % maior, e quem vê recebe a largura leve em WebP).
+    if (mime === 'image/jpeg') return await sharp(bytes).rotate().jpeg(opts.fast ? { quality: 90 } : { quality: 92, mozjpeg: true }).toBuffer();
     if (mime === 'image/png') return await sharp(bytes).png({ compressionLevel: 9 }).toBuffer();
     if (mime === 'image/webp') return await sharp(bytes, { animated: true }).webp({ quality: 92 }).toBuffer();
   } catch {
@@ -51,6 +53,10 @@ const VIDEO = new Set(['video/mp4', 'video/quicktime', 'video/webm']);
 const UPLOAD_TTL_S = 300;
 /** Larguras servidas (px). O pedido sobe para a mais próxima: poucas variantes, muito cache. */
 export const WIDTHS = [160, 256, 480, 720, 1080, 1600] as const;
+/** Larguras leves das fotos do chat (o visor do Zás pede uma delas com ?w=): poucas, para haver sempre cache. */
+export const CHAT_WIDTHS = [480, 720, 1080] as const;
+/** A largura do chat que serve um pedido (sobe para a mais próxima; acima de 1080 fica a de 1080). */
+export const chatWidth = (w: number) => CHAT_WIDTHS.find((x) => x >= w) ?? CHAT_WIDTHS[CHAT_WIDTHS.length - 1];
 
 function sniff(buf: Buffer): string | null {
   if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
@@ -116,8 +122,59 @@ export class MediaService implements OnModuleInit {
   /** Apaga do armazenamento os ficheiros de contas eliminadas. Corre ao arrancar e de tempos a tempos. */
   /** Bytes de um ficheiro de conversa (privado), para o servidor tratar (por exemplo, miniaturas). */
   async chatBytes(id: string): Promise<Buffer> {
+    const kept = this.fresh.get(id);
+    if (kept) return kept;
     if (this.s3) return this.s3.read(id, 'private');
     return readFile(join(this.dir, id));
+  }
+
+  /**
+   * Fotos do chat acabadas de chegar, em memória (poucas e pequenas): a miniatura e as larguras leves do Zás, feitas logo a
+   * seguir, não voltam a descarregar o original do armazenamento.
+   */
+  private readonly fresh = new Map<string, Buffer>();
+  private keepFresh(id: string, bytes: Buffer) {
+    if (bytes.length > 3 * 1024 * 1024) return;
+    this.fresh.delete(id);
+    this.fresh.set(id, bytes);
+    while (this.fresh.size > 24) this.fresh.delete(this.fresh.keys().next().value as string);
+  }
+
+  /** Larguras leves do chat que já se sabe existirem na nuvem (poupa a pergunta ao armazenamento). */
+  private readonly chatVariantsMade = new Set<string>();
+
+  /**
+   * Garante a largura leve (WebP) de uma foto do chat: no disco, ao lado do original; na nuvem, no bucket privado.
+   * Devolve false se não deu (a foto que o sharp não consegue reduzir serve-se original).
+   */
+  private async ensureChatVariant(id: string, w: number): Promise<boolean> {
+    const key = `${id}.${w}.webp`;
+    if (!this.s3) return (await this.variant({ path: join(this.dir, id), mime: 'image/jpeg' }, id, w)).mime === 'image/webp';
+    if (this.chatVariantsMade.has(key)) return true;
+    let job = this.making.get(key);
+    if (!job) {
+      const s3 = this.s3;
+      job = (async () => {
+        if (!(await s3.head(key, 'private'))) {
+          const out = await sharp(await this.chatBytes(id)).rotate().resize({ width: w, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
+          await s3.put(key, out, 'image/webp', 'private');
+        }
+        if (this.chatVariantsMade.size > 20_000) this.chatVariantsMade.clear();
+        this.chatVariantsMade.add(key);
+      })().finally(() => this.making.delete(key));
+      this.making.set(key, job);
+    }
+    try {
+      await job;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Prepara já as larguras leves de uma foto do chat (o Zás, ao ser criado): quem o abrir recebe-as logo. Em segundo plano. */
+  async prepareChatVariants(id: string, widths: readonly number[] = [720, 1080]) {
+    for (const w of widths) await this.ensureChatVariant(id, chatWidth(w));
   }
 
   /** Dá um prazo ao ficheiro (depois dele é apagado). Usado nas mensagens de "ver uma vez". */
@@ -135,7 +192,10 @@ export class MediaService implements OnModuleInit {
         const scope = this.scopeOf(r.purpose as string);
         // Tudo o que possa existir deste ficheiro, em ambos os buckets (variantes, capa, original por converter).
         const jobs = [this.s3.remove(id, scope), this.s3.remove(`${id}.src`, 'private'), this.s3.remove(`${id}.poster.jpg`, 'public'), this.s3.remove(`${id}.poster.jpg`, 'private'), ...WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'public'))];
+        // As larguras leves das fotos do chat (as do Zás) ficam no privado, ao lado do original.
+        if (scope === 'private') jobs.push(...CHAT_WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'private')));
         await Promise.allSettled(jobs);
+        this.fresh.delete(id);
       }
       else {
         await rm(join(this.dir, r.id as string), { force: true });
@@ -255,16 +315,17 @@ export class MediaService implements OnModuleInit {
       await this.s3.remove(id, scope);
       throw new PayloadTooLargeException('Ficheiro demasiado grande');
     }
-    if (sniff(await this.s3.firstBytes(id, scope)) !== a.mime) {
+    let bytes: Buffer | null = null;
+    const read = async () => (bytes ??= await this.s3!.read(id, scope));
+    // Fotos (até 8 MB): lê-se o ficheiro todo de uma vez e confere-se o tipo nele (menos uma ida ao armazenamento).
+    if (sniff(a.mime.startsWith('image/') ? (await read()).subarray(0, 12) : await this.s3.firstBytes(id, scope)) !== a.mime) {
       await this.s3.remove(id, scope);
       throw new UnsupportedMediaTypeException('Conteúdo não corresponde ao tipo declarado');
     }
-    let bytes: Buffer | null = null;
-    const read = async () => (bytes ??= await this.s3!.read(id, scope));
     await this.screen(id, userId, a.mime, read);
     let size = head.size;
     if (a.mime.startsWith('image/')) {
-      const clean = await stripImageMeta(await read(), a.mime);
+      const clean = await stripImageMeta(await read(), a.mime, { fast: a.purpose === 'chat' });
       if (clean) {
         await this.s3.put(id, clean, a.mime, scope, clean.length);
         bytes = clean;
@@ -273,6 +334,8 @@ export class MediaService implements OnModuleInit {
     }
     // Fotos públicas: gera já as versões leves (o telemóvel descarrega dezenas de KB, não vários MB).
     if (a.mime.startsWith('image/') && a.purpose === 'public') await this.publishVariants(id, await read());
+    // Fotos do chat (o Zás): ficam uns instantes em memória para a miniatura e as larguras leves.
+    if (a.mime.startsWith('image/') && a.purpose === 'chat') this.keepFresh(id, await read());
     await this.pool.query(`UPDATE content.media_assets SET status = 'ready', size_bytes = $2 WHERE id = $1`, [id, size]);
     return { status: 'ready' };
   }
@@ -365,10 +428,11 @@ export class MediaService implements OnModuleInit {
         if (sniff(head) !== asset.mime) throw new UnsupportedMediaTypeException('Conteúdo não corresponde ao tipo declarado');
         await this.screen(id, asset.owner_id, asset.mime, () => readFile(path));
         if (asset.mime.startsWith('image/')) {
-          const clean = await stripImageMeta(await readFile(path), asset.mime);
+          const clean = await stripImageMeta(await readFile(path), asset.mime, { fast: asset.purpose === 'chat' });
           if (clean) {
             await writeFile(path, clean);
             received = clean.length;
+            if (asset.purpose === 'chat') this.keepFresh(id, clean);
           }
         }
       }
@@ -441,7 +505,11 @@ export class MediaService implements OnModuleInit {
     return `/api/v1/chat/media/${id}?exp=${exp}&sig=${this.sign(`chat:${id}`, exp)}`;
   }
 
-  async locateChat(id: string, exp: number, sig: string): Promise<Served> {
+  /**
+   * `width` (opcional, ?w= no URL): uma foto pede a largura leve (WebP 480/720/1080), como no visor do Zás. A assinatura
+   * continua a ser a do ficheiro: a largura é só outra forma de o servir.
+   */
+  async locateChat(id: string, exp: number, sig: string, width?: number): Promise<Served> {
     const expected = Buffer.from(this.sign(`chat:${id}`, exp));
     const given = Buffer.from(sig ?? '');
     if (expected.length !== given.length || !timingSafeEqual(expected, given) || exp < Date.now() / 1000) throw new ForbiddenException('URL expirado');
@@ -452,8 +520,13 @@ export class MediaService implements OnModuleInit {
       [id],
     );
     if (!rows[0]) throw new NotFoundException();
-    if (this.s3) return { url: await this.s3.readUrl(id, { scope: 'private', ttlSeconds: 300 }) };
-    return { path: join(this.dir, id), mime: rows[0].mime as string };
+    const w = width && Number.isFinite(width) && width > 0 && (rows[0].mime as string).startsWith('image/') ? chatWidth(width) : null;
+    if (this.s3) {
+      const key = w && (await this.ensureChatVariant(id, w)) ? `${id}.${w}.webp` : id;
+      return { url: await this.s3.readUrl(key, { scope: 'private', ttlSeconds: 300 }) };
+    }
+    const original = { path: join(this.dir, id), mime: rows[0].mime as string };
+    return w ? this.variant(original, id, w) : original;
   }
 
   /**

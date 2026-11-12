@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, Logger, NotFoundException, OnM
 import { Pool } from 'pg';
 import sharp from 'sharp';
 import { uuidv7 } from '../common/uuid7';
+import { ChatEvents } from '../chat/chat.events';
 import { PG_POOL } from '../db/db.module';
 import { MediaService } from '../media/media.service';
 import { PushService } from '../push/push.service';
@@ -25,7 +26,32 @@ export class InstantsService implements OnModuleInit {
     private readonly media: MediaService,
     private readonly filter: TextFilter,
     private readonly push: PushService,
+    private readonly events: ChatEvents,
   ) {}
+
+  /**
+   * Quem pode ver este Zás agora (as mesmas regras de `instantVisible`): os amigos próximos de quem o fez e, se for para
+   * "amigos", quem o segue e é seguido de volta; nunca quem tem um bloqueio com ele. Sem o próprio autor.
+   */
+  private async audience(instantId: string): Promise<string[]> {
+    const { rows } = await this.pool.query(
+      `SELECT DISTINCT c.uid FROM social.instants i
+         CROSS JOIN LATERAL (
+           SELECT cf.friend_id AS uid FROM social.close_friends cf WHERE cf.owner_id = i.author_id
+           UNION
+           SELECT f.follower_id FROM social.follows f WHERE f.followee_id = i.author_id AND i.audience = 'friends'
+         ) c
+        WHERE i.id = $1 AND c.uid <> i.author_id AND ${instantVisible('i', 'c.uid')}`,
+      [instantId],
+    );
+    return rows.map((r) => r.uid as string);
+  }
+
+  /** Avisa em tempo real quem pode ver (a faixa dos Zás põe-se logo em dia) e os outros aparelhos de quem o fez. */
+  private announce(author: string, to: string[], what: 'new' | 'gone') {
+    for (const uid of to) this.events.emit(uid, { type: 'zas', what });
+    this.events.emit(author, { type: 'zas', what, self: true });
+  }
 
   /** Miniatura do atalho: 96×128, nítida (a foto em tamanho real só chega a quem abre o Zás). */
   private async thumb(mediaId: string): Promise<string | null> {
@@ -67,6 +93,13 @@ export class InstantsService implements OnModuleInit {
     const preview = await this.thumb(mediaId);
     const id = uuidv7();
     const r = await this.pool.query('INSERT INTO social.instants (id, author_id, media_id, caption, audience, preview) VALUES ($1, $2, $3, $4, $5, $6) RETURNING expires_at', [id, me, mediaId, caption, audience, preview]);
+    // Chega logo aos amigos (antes só o viam na volta seguinte da faixa, até 60 s depois) e já com a largura leve a fazer-se.
+    try {
+      this.announce(me, await this.audience(id), 'new');
+    } catch (e) {
+      this.log.warn(`não consegui avisar do Zás ${id}: ${(e as Error).message}`);
+    }
+    void this.media.prepareChatVariants(mediaId).catch(() => undefined);
     return { id, expiresAt: r.rows[0].expires_at as string };
   }
 
@@ -92,6 +125,36 @@ export class InstantsService implements OnModuleInit {
       )
     ).rows[0];
     return { mine, others };
+  }
+
+  /**
+   * Todos os Zás por ver, de toda a gente, numa lista só e pela ordem da faixa (amigos próximos primeiro, depois quem
+   * mandou há menos tempo; os de cada pessoa do mais antigo para o mais recente). O visor abre-os em pilha e passa de
+   * uma pessoa à seguinte sem ir à rede.
+   */
+  async feed(me: string) {
+    const { rows } = await this.pool.query(
+      `SELECT i.id, i.media_id, i.caption, i.created_at, i.expires_at,
+              u.username, u.display_name, (u.avatar_media_id IS NOT NULL) AS has_avatar, u.verified, u.verified_tier,
+              EXISTS (SELECT 1 FROM social.close_friends cf WHERE cf.owner_id = u.id AND cf.friend_id = $1) AS close,
+              max(i.created_at) OVER (PARTITION BY i.author_id) AS latest
+         FROM social.instants i
+         JOIN identity.users u ON u.id = i.author_id
+        WHERE i.expires_at > now() AND i.author_id <> $1 AND ${instantVisible('i')} AND ${notReportedBy('instant', 'i.id')}
+          AND NOT EXISTS (SELECT 1 FROM social.instant_views v WHERE v.instant_id = i.id AND v.viewer_id = $1)
+          AND EXISTS (SELECT 1 FROM content.media_assets a WHERE a.id = i.media_id AND a.status = 'ready')
+        ORDER BY close DESC, latest DESC, u.id, i.created_at
+        LIMIT 200`,
+      [me],
+    );
+    return rows.map((r) => ({
+      id: r.id as string,
+      url: this.media.chatUrl(r.media_id as string),
+      caption: r.caption as string,
+      at: r.created_at as string,
+      expiresAt: r.expires_at as string,
+      author: { username: r.username as string, displayName: r.display_name as string, hasAvatar: r.has_avatar as boolean, verified: r.verified as boolean, verifiedTier: r.verified_tier as string | null },
+    }));
   }
 
   /** Os Zás de uma pessoa: os dela todos, os dos outros só os que ainda não vi. */
@@ -157,7 +220,11 @@ export class InstantsService implements OnModuleInit {
   }
 
   async remove(me: string, id: string) {
+    const own = await this.pool.query('SELECT 1 FROM social.instants WHERE id = $1 AND author_id = $2', [id, me]);
+    if (!own.rowCount) throw new NotFoundException('Zás não encontrado');
+    const to = await this.audience(id).catch(() => [] as string[]);
     const r = await this.pool.query('DELETE FROM social.instants WHERE id = $1 AND author_id = $2', [id, me]);
     if (!r.rowCount) throw new NotFoundException('Zás não encontrado');
+    this.announce(me, to, 'gone');
   }
 }
