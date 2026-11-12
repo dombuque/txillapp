@@ -77,3 +77,12 @@ function flush(id: string) {
   for (const f of waiting.get(id) ?? []) f(url);
   waiting.delete(id);
 }
+
+/** O ficheiro saiu (URL libertado): larga o <video> escondido dele. As miniaturas já tiradas ficam (são data URLs). */
+export function dropThumbVideo(uri: string) {
+  const v = videos.get(uri);
+  if (!v) return;
+  v.removeAttribute('src');
+  v.load();
+  videos.delete(uri);
+}

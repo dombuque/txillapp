@@ -497,7 +497,7 @@ export default function Compose() {
     setStudioOffer(null);
     const got = await studioDrafts().load(d.id).catch(() => null);
     const clips = got ? normalizeClips(got.clips) : [];
-    if (!got || !clips.length) { setErr('Não consegui abrir o rascunho'); return; }
+    if (!got || !clips.length) { got?.clips.forEach((c) => { if (c.uri.startsWith('blob:')) URL.revokeObjectURL(c.uri); }); setErr('Não consegui abrir o rascunho'); return; }
     const ctx = got.draft.context ?? {};
     if (typeof ctx.soundId === 'string') void soundsApi.get(ctx.soundId).then(setSound).catch(() => undefined);
     if (typeof ctx.dueto === 'string') void api.getPost(ctx.dueto).then((p) => { const v = p.media.find((m) => m.kind === 'video'); if (v) setDuet({ uri: abs(v.url) ?? v.url }); }).catch(() => undefined);
@@ -505,6 +505,17 @@ export default function Compose() {
     setStudioDraft({ id: d.id, clips, settings: got.draft.settings });
     setKindSel('tcheka');
     setStudio(true);
+  }
+  /**
+   * Os clipes da câmara já montados pelo estúdio deixam de fazer falta (o vídeo que sai é outro): os URLs deles libertam-se,
+   * depois de o rascunho do estúdio acabar de guardar (pode ainda estar a ler algum).
+   */
+  function releaseClipUrls(list: Asset[], keep: string) {
+    setTimeout(() => {
+      void studioDrafts().idle().then(() => {
+        for (const a of list) for (const u of [a.uri, a.clean]) if (u && u !== keep && u.startsWith('blob:')) { try { URL.revokeObjectURL(u); } catch { /* já livre */ } }
+      });
+    }, 1500);
   }
   async function dropStudioDraft(id: string) {
     await studioDrafts().remove(id).catch(() => undefined);
@@ -552,7 +563,7 @@ export default function Compose() {
             draftId={studioDraftId.current}
             draftContext={{ ...(sound ? { soundId: sound.id } : {}), ...(duetoParam ? { dueto: String(duetoParam) } : {}) }}
             onClose={() => { setStudio(false); if (studioDraft) { setStudioDraft(null); studioDraftId.current = newDraftId(); } }}
-            onDone={(s, m) => { setAssets([{ uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [], signed: s.signed, studio: true, posterMs: s.posterMs }]); setMusic(m); setStudio(false); setStep('write'); }}
+            onDone={(s, m) => { setAssets([{ uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [], signed: s.signed, studio: true, posterMs: s.posterMs }]); setMusic(m); setStudio(false); setStep('write'); releaseClipUrls(assets, s.uri); }}
           />
         </View>
       );
@@ -569,7 +580,7 @@ export default function Compose() {
             void addFiles(f);
           }}
           onClose={() => router.replace('/')}
-          onDone={() => { bumpKind(kindSel); if (kindSel === 'tcheka') setStudio(true); else setStep('write'); }}
+          onDone={() => { bumpKind(kindSel); if (kindSel === 'tcheka') { if (assets.some((a) => a.studio)) studioDraftId.current = newDraftId(); setStudio(true); } else setStep('write'); }}
           onText={() => setStep('write')}
           doneLabel={kindSel === 'tcheka' ? 'Montar' : 'Seguinte'}
           aspect={kindSel === 'post' ? 4 / 5 : 9 / 16}

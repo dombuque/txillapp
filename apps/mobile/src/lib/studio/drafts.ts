@@ -129,6 +129,8 @@ export interface DraftStore {
   load(id: string): Promise<{ draft: StudioDraft; clips: ProjectClip[] } | null>;
   list(): Promise<StudioDraft[]>;
   remove(id: string): Promise<void>;
+  /** Resolve quando as gravações pendentes acabarem (antes de libertar os URLs que elas ainda podem ler). */
+  idle(): Promise<void>;
 }
 
 /**
@@ -175,6 +177,7 @@ export function createDraftStore(backend: DraftBackend, deps: { readMedia: (uri:
     },
     list: async () => sortDrafts(await backend.listDrafts()),
     remove: (id) => serial(() => removeAll(id)),
+    idle: () => chain.then(() => undefined, () => undefined),
   };
   async function removeAll(id: string) {
     for (const k of await backend.mediaKeys(id)) await backend.deleteMedia(id, k);

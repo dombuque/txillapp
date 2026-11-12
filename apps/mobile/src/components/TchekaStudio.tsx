@@ -12,7 +12,9 @@ import { debounce, DRAFT_DEBOUNCE_MS, newDraftId, studioDrafts } from '@/lib/stu
 import { canRedo, canUndo, initHistory, mapAll, pushHistory, redo as redoH, undo as undoH, type History } from '@/lib/studio/history';
 import { studioKey } from '@/lib/studio/keys';
 import { baseDurations, duplicateClip, makeClip, moveClip, removeClip, replaceMedia, setPhoto, setSpeed, splitAt, startsOf, trimEdge, type ProjectClip, type TrimEdge } from '@/lib/studio/project';
+import { dropThumbVideo } from '@/lib/studio/thumbs';
 import { stepFrame } from '@/lib/studio/timeline';
+import { createUrlKeeper, urlsInUse, type UrlKeeper } from '@/lib/studio/urls';
 import { colors } from '@/lib/theme';
 import { sealOf } from '@/lib/wordmark';
 import { Icon } from './Icon';
@@ -723,7 +725,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
 
   // ---------------------------------------------------------------- edição
   const edit = (i: number, patch: (it: Item) => Item) => { restartFrom.current = segs[i]?.start ?? 0; setItems((l) => l.map((it, k) => (k === i ? patch(it) : it)), { coalesce: `edit:${items[i]?.key ?? i}` }); };
-  const addFiles = async (files: File[]) => { const more = await filesToClips(files); if (alive.current && more.length) { restartFrom.current = total; setItems((l) => [...l, ...more.map(makeItem)]); } };
+  const addFiles = async (files: File[]) => { const more = await filesToClips(files); more.forEach((c) => urls.current?.own(c.uri)); if (!alive.current) urls.current?.releaseAll(); if (alive.current && more.length) { restartFrom.current = total; setItems((l) => [...l, ...more.map(makeItem)]); } };
   /** A duração de uma batida (ao ritmo), para cortar as fotos nas batidas. */
   const beatPeriod = useRhythm && grid.length > 1 ? grid[1] - grid[0] : undefined;
   const indexOf = (key: string) => items.findIndex((it) => it.key === key);
@@ -762,7 +764,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   };
   const replace = async (key: string, f: File) => {
     const [c] = await filesToClips([f]);
-    if (!c || !alive.current) return;
+    urls.current?.own(c?.uri);
+    if (!c || !alive.current) { if (c) try { URL.revokeObjectURL(c.uri); } catch { /* já livre */ } return; }
     restartFrom.current = segs[indexOf(key)]?.start ?? 0;
     setItems((l) => replaceMedia(l, key, c, { durations }));
   };
@@ -852,6 +855,20 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     saver({ clips: items, settings: settingsNow, seconds: Math.round(playTotal * 100) / 100, context: draftContext });
   }, [items, settingsSig, progress !== null]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => saver.flush(), [saver]);
+
+  // Os object URLs do estúdio (rascunho reaberto, ficheiros juntados ou substituídos): saem quando nenhum passo do
+  // histórico os usa e todos ao sair — sempre depois das gravações do rascunho que ainda os possam ler.
+  const urls = useRef<UrlKeeper | null>(null);
+  if (!urls.current) {
+    urls.current = createUrlKeeper((u) => { dropThumbVideo(u); try { URL.revokeObjectURL(u); } catch { /* já livre */ } });
+    for (const c of draft?.clips ?? []) urls.current.own(c.uri);
+  }
+  const histRef = useRef(hist);
+  histRef.current = hist;
+  useEffect(() => {
+    void studioDrafts().idle().then(() => { const h = histRef.current; if (alive.current) urls.current?.sweep(urlsInUse([...h.past, h.present, ...h.future])); });
+  }, [hist]);
+  useEffect(() => () => { saver.flush(); const k = urls.current; void studioDrafts().idle().then(() => k?.releaseAll()); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const pickedMusic = (t: Track) => {
     // A música nova entra no ponto onde a pré-visualização estava (o som começa nesse instante da faixa).
     restartFrom.current = pausedAt.current;

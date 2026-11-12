@@ -145,3 +145,40 @@ test('ligação: o estúdio guarda a cada mudança; criar oferece «Continuar o 
   const sheet = read('components', 'studio', 'StudioDrafts.tsx');
   assert.match(sheet, /Apagar o rascunho/);
 });
+
+test('object URLs: saem quando nenhum passo do histórico os usa, todos ao sair, e só os do estúdio', async () => {
+  const u = await import(pathToFileURL(path.join(ROOT, 'src', 'lib', 'studio', 'urls.ts')).href);
+  const gone = [];
+  const k = u.createUrlKeeper((x) => gone.push(x));
+  k.own('blob:a'); k.own('blob:b'); k.own('blob:c'); k.own('https://site/x.mp4'); k.own(null);
+  assert.deepEqual(k.owned().sort(), ['blob:a', 'blob:b', 'blob:c'], 'só os blob:');
+  // Substituir o b: o passo anterior ainda o usa (desfazer traz de volta) — fica.
+  const past = [{ uri: 'blob:a' }, { uri: 'blob:b' }], now = [{ uri: 'blob:a' }, { uri: 'blob:c' }];
+  assert.deepEqual(k.sweep(u.urlsInUse([past, now])), []);
+  // O histórico esqueceu o passo antigo: o b sai.
+  assert.deepEqual(k.sweep(u.urlsInUse([now])), ['blob:b']);
+  assert.deepEqual(gone, ['blob:b']);
+  assert.deepEqual(k.releaseAll().sort(), ['blob:a', 'blob:c'], 'ao sair, todos');
+  assert.deepEqual(k.owned(), []);
+  assert.equal(gone.includes('blob:camera'), false);
+});
+
+test('o armazenamento diz quando as gravações acabaram (antes de libertar os URLs)', async () => {
+  const { clips } = project();
+  const { s } = store();
+  let done = false;
+  const p = s.save({ id: 'r1', clips }).then(() => { done = true; });
+  await s.idle();
+  assert.equal(done, true);
+  await p;
+});
+
+test('ligação: o estúdio liberta os URLs (histórico e ao sair), o ecrã de criar os da câmara já montados', () => {
+  const studio = read('components', 'TchekaStudio.tsx');
+  assert.match(studio, /urls\.current\?\.sweep\(urlsInUse\(\[\.\.\.h\.past, h\.present, \.\.\.h\.future\]\)\)/);
+  assert.match(studio, /saver\.flush\(\); const k = urls\.current; void studioDrafts\(\)\.idle\(\)\.then\(\(\) => k\?\.releaseAll\(\)\);/);
+  assert.match(studio, /more\.forEach\(\(c\) => urls\.current\?\.own\(c\.uri\)\)/);
+  assert.match(studio, /urls\.current\?\.own\(c\?\.uri\)/, 'substituir');
+  const nw = read('app', '(tabs)', 'new.tsx');
+  assert.match(nw, /releaseClipUrls\(assets, s\.uri\)/);
+});
