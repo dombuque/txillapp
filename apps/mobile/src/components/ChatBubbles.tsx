@@ -14,6 +14,7 @@ import { ReplySwipe, type ReplySpot } from '@/components/ReplySwipe';
 import { Icon } from '@/components/Icon';
 import { LocationBubble } from '@/components/LocationBubble';
 import { CallIcon } from '@/components/calls/CallIcons';
+import { PhoneSheet } from '@/components/PhoneSheet';
 import { Sticker } from '@/components/StickerPanel';
 import { ReactionArt } from '@/components/StoryParts';
 import { PollBubble } from '@/components/groups/PollCard';
@@ -418,23 +419,28 @@ function SideAvatar({ who }: { who: Who }) {
 function ChatText({ text, mine, style, onLongPress }: { text: string; mine: boolean; style: StyleProp<TextStyle>; onLongPress?: () => void }) {
   const router = useRouter();
   const segs = useMemo(() => chatSegments(text), [text]);
+  const [phone, setPhone] = useState<{ shown: string; tel: string } | null>(null);
   if (segs.length === 1 && segs[0].t === 'text') return <Text selectable={SELECTABLE} style={style}>{text}</Text>;
   const link: TextStyle = mine ? { color: '#fff', textDecorationLine: 'underline', fontWeight: '600' } : { color: colors.brand, textDecorationLine: 'underline', fontWeight: '600' };
   const open = (s: ChatSeg) => {
     if (s.t === 'mention') router.push(`/u/${s.username}` as never);
+    else if (s.t === 'phone') setPhone({ shown: s.s, tel: s.tel });
     else if (s.t === 'url') {
       if (s.path) router.push(s.path as never);
       else void Linking.openURL(s.href).catch(() => undefined);
     }
   };
   return (
-    <Text selectable={SELECTABLE} style={style}>
-      {segs.map((s, i) => (s.t === 'text' ? s.s : (
-        <Text key={i} onPress={() => open(s)} onLongPress={onLongPress} style={s.t === 'mention' ? { fontWeight: '700', color: mine ? '#fff' : colors.brand } : link} accessibilityRole="link">
-          {s.s}
-        </Text>
-      )))}
-    </Text>
+    <>
+      <Text selectable={SELECTABLE} style={style}>
+        {segs.map((s, i) => (s.t === 'text' ? s.s : (
+          <Text key={i} onPress={() => open(s)} onLongPress={onLongPress} style={s.t === 'mention' ? { fontWeight: '700', color: mine ? '#fff' : colors.brand } : link} accessibilityRole="link" accessibilityLabel={s.t === 'phone' ? `Número de telefone ${s.s}` : undefined}>
+            {s.s}
+          </Text>
+        )))}
+      </Text>
+      {phone ? <PhoneSheet shown={phone.shown} tel={phone.tel} onClose={() => setPhone(null)} /> : null}
+    </>
   );
 }
 
