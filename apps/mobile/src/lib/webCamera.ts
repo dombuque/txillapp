@@ -34,15 +34,61 @@ export function fallbackConstraints(facing: Facing, ratio: SensorRatio): (MediaT
 }
 
 /**
- * Foto numa publicação (3:4): se o sensor dá mais do que os 1080×1440 do pedido normal, sobe para 1440×1920
- * (fica 1440×1800 em 4:5). Não vai mais acima: o visor e a gravação no iPhone ficavam pesados. `null` = não mexer.
+ * O teto da foto do site (lado maior, em píxeis). O Safari do iPhone não tem ImageCapture: a foto é um frame do vídeo,
+ * por isso a resolução do stream é a da foto. 2160×2880 (6,2 MP, menos píxeis do que um vídeo 4K) é o equilíbrio:
+ * - o iPhone mostra e grava 4K no hardware, e o H.264 (nível 5.1) ainda aceita este tamanho se se gravar neste modo;
+ * - o JPEG a 92 % fica em ~2–4 MB (o servidor aceita até 8 MB) e a edição (um canvas de 25 MB) não aperta a memória;
+ * - dá folga ao zoom digital (a 2× ainda sai 1080×1350) e o servidor reduz a partir de mais píxeis (fica mais nítido).
+ * Acima disto (4032×3024, 12 MP) não se via diferença no ecrã (o servidor serve até 1600 de largura), o H.264 já não
+ * o aceita e o visor pesava. Se mesmo assim o visor ficar lento (menos de 15 imagens/s), `upgradeTooSlow` manda voltar a 1440×1920.
  */
-export function photoUpgrade(caps: { width?: Partial<Range>; height?: Partial<Range> } | null | undefined, current: { width?: number; height?: number } | null | undefined, ratio: SensorRatio): MediaTrackConstraints | null {
+export const PHOTO_MAX_LONG = 2880;
+/** Os tamanhos 3:4 (ao alto) que se tentam, do maior ao mais pequeno: fica o maior que a câmara diz ter. */
+const PHOTO_LADDER: readonly [number, number][] = [[2160, 2880], [1920, 2560], [1728, 2304], [1440, 1920]];
+/** O tamanho de antes (1440×1920): é para aqui que se volta se o visor não aguentar o maior. */
+export const PHOTO_SAFE: MediaTrackConstraints = { width: { ideal: 1440 }, height: { ideal: 1920 }, aspectRatio: { ideal: 3 / 4 } };
+/** O que a sessão partilhada da câmara pede em 3:4 (o Zás usa-a): é para aqui que se volta ao sair da TxCamera. */
+export const PHOTO_BASE: MediaTrackConstraints = { width: { ideal: 1080 }, height: { ideal: 1440 }, aspectRatio: { ideal: 3 / 4 } };
+
+/**
+ * Foto numa publicação (3:4): sobe o stream para o maior tamanho da escada que o sensor dá (lido das getCapabilities()),
+ * até `maxLong`. Antes ficava sempre em 1440×1920 (a foto saía 1440×1800 em 4:5). `null` = não mexer (já lá está, o
+ * sensor não dá mais do que o pedido normal, ou é o 16:9 do vídeo).
+ */
+export function photoUpgrade(caps: { width?: Partial<Range>; height?: Partial<Range> } | null | undefined, current: { width?: number; height?: number } | null | undefined, ratio: SensorRatio, maxLong = PHOTO_MAX_LONG): MediaTrackConstraints | null {
   if (ratio !== '3:4' || !caps?.width?.max || !caps?.height?.max) return null;
   const long = Math.max(caps.width.max, caps.height.max), short = Math.min(caps.width.max, caps.height.max);
   const curLong = Math.max(current?.width ?? 0, current?.height ?? 0);
-  if (long < 1920 || short < 1440 || curLong >= 1900) return null;
-  return { width: { ideal: 1440 }, height: { ideal: 1920 }, aspectRatio: { ideal: 3 / 4 } };
+  const pick = PHOTO_LADDER.find(([w, h]) => h <= maxLong && h <= long && w <= short);
+  if (!pick || curLong >= pick[1] - 20) return null;
+  return { width: { ideal: pick[0] }, height: { ideal: pick[1] }, aspectRatio: { ideal: 3 / 4 } };
+}
+
+/**
+ * Depois de subir a resolução confere-se o visor: se passou a dar menos de `minFps` imagens por segundo (um aparelho que
+ * não aguenta), volta-se a PHOTO_SAFE. `frames` contados em `ms` milissegundos; com menos de 0,5 s não se decide nada.
+ * 15 e não 24–30: com pouca luz muitos Android descem sozinhos para ~20 fps, e isso não é a câmara a travar.
+ */
+export function upgradeTooSlow(frames: number, ms: number, minFps = 15): boolean {
+  if (!(ms >= 500) || !(frames >= 0)) return false;
+  return (frames * 1000) / ms < minFps;
+}
+
+/** O tamanho final da foto: o lado maior nunca passa de `maxLong` (reduz-se mantendo a forma; nunca se aumenta). */
+export function fitLong(w: number, h: number, maxLong = PHOTO_MAX_LONG): { w: number; h: number; k: number } {
+  const k = Math.min(1, maxLong / Math.max(w, h, 1));
+  return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)), k };
+}
+
+/** A qualidade do JPEG da foto: 92 %; acima de PHOTO_MAX_BYTES (o servidor recusa mais de 8 MB) volta-se a gravar a 85 %. */
+export const JPEG_QUALITY = 0.92;
+export const JPEG_QUALITY_BIG = 0.85;
+export const PHOTO_MAX_BYTES = 7 * 1024 * 1024;
+/** Grava o JPEG (`encode` é o toBlob do canvas) e, se ficar grande demais para o servidor, grava outra vez mais leve. */
+export async function encodePhoto(encode: (q: number) => Promise<Blob | null>): Promise<Blob | null> {
+  const first = await encode(JPEG_QUALITY);
+  if (!first || first.size <= PHOTO_MAX_BYTES) return first;
+  return (await encode(JPEG_QUALITY_BIG)) ?? first;
 }
 
 // ----- Erros e permissões -----
