@@ -44,6 +44,7 @@ import Wallet from './pages/Wallet';
 
 const BoStats = lazy(() => import('./pages/backoffice/Stats'));
 const BoVerifications = lazy(() => import('./pages/backoffice/Verifications'));
+const BoMusic = lazy(() => import('./pages/backoffice/Music'));
 const Verification = lazy(() => import('./pages/Verification'));
 const PublicPost = lazy(() => import('./pages/PublicPost'));
 const PlacePage = lazy(() => import('./pages/PlacePage'));
@@ -217,6 +218,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="venues" element={<Suspense fallback={null}><BoVenues /></Suspense>} />
                   <Route path="stats" element={<Suspense fallback={null}><BoStats /></Suspense>} />
                   <Route path="verifications" element={<Suspense fallback={null}><BoVerifications /></Suspense>} />
+                  <Route path="music" element={<Suspense fallback={null}><BoMusic /></Suspense>} />
                   <Route path="finance" element={<Suspense fallback={null}><BoFinance /></Suspense>} />
                   <Route path="bombar" element={<Suspense fallback={null}><BoBombar /></Suspense>} />
                   <Route path="growth" element={<Suspense fallback={null}><BoGrowth /></Suspense>} />
