@@ -512,7 +512,7 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
     try { player.subtitleTrack = on ? (player.availableSubtitleTracks[0] ?? null) : null; } catch { /* sem legendas */ }
     setCaptions((s) => ({ ...s, on }));
   }
-  const goSound = () => { if (sound) router.push(sound.href as never); };
+  const goSound = () => { if (sound?.href) router.push(sound.href as never); };
 
   // Posições: a barra de progresso fica logo acima da barra de baixo (que flutua por cima das tchekas); o texto e as
   // ações do lado por cima dela.

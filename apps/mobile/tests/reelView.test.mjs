@@ -29,9 +29,15 @@ test('som: «Som original · @x» ou «Título · Artista», e o toque abre /som
 });
 
 test('som: sem `sound` da API mostra a música da publicação; sem nada, não há letreiro nem disco', () => {
-  assert.deepEqual(v.reelSound({ author, music: { id: 'm1', title: 'Txilla', artist: 'Banda', cover: '/m.jpg' } }), { label: 'Txilla · Banda', cover: '/m.jpg', originalBy: null, href: '/som/m1' });
+  assert.deepEqual(v.reelSound({ author, music: { id: 'm1', title: 'Txilla', artist: 'Banda', cover: '/m.jpg' } }), { label: 'Txilla · Banda', cover: '/m.jpg', originalBy: null, href: '/som/cat%3Am1' });
   assert.equal(v.reelSound({ author, music: { id: 'm2', title: 'gravação', artist: '', kind: 'clip' } }).label, 'Som original · @ana');
   assert.equal(v.reelSound({ author, music: { id: 'm3', title: 'Sem artista', artist: null } }).label, 'Sem artista');
+  // Os ids seguem o contrato dos sons (docs/sons.md): catálogo cat:<id>, artistas local:<uuid>; clipes e sons originais sem página.
+  assert.equal(v.reelSound({ author, music: { id: 'local:0b1f2a3c-1111-4222-8333-444455556666', title: 'Marrabenta', artist: 'DJ', source: 'local' } }).href, '/som/local%3A0b1f2a3c-1111-4222-8333-444455556666');
+  assert.equal(v.reelSound({ author, music: { id: 'm2', title: 'gravação', artist: '', kind: 'clip' } }).href, null);
+  assert.deepEqual(v.reelSound({ author, music: { id: 'sound:abc', title: 'Som original · @rui', artist: 'Rui', kind: 'sound', soundId: 'abc' } }), { label: 'Som original · @rui', cover: null, originalBy: null, href: null }, 'som que já não existe para quem vê: o letreiro fica, sem página');
+  // O `sound` da API: o crédito vem em `artist` e a capa da faixa vem da música da publicação.
+  assert.deepEqual(v.reelSound({ author, sound: { id: 'cat:cc:1', title: 'Xitimela', kind: 'catalog', artist: 'Ghorwane' }, music: { id: 'cc:1', title: 'Xitimela', artist: 'Ghorwane', cover: '/x.jpg' } }), { label: 'Xitimela · Ghorwane', cover: '/x.jpg', originalBy: null, href: '/som/cat%3Acc%3A1' });
   assert.equal(v.reelSound({ author }), null);
   assert.equal(v.reelSound({ author, sound: null, music: null }), null);
   // O `sound` ganha à música.
@@ -40,7 +46,7 @@ test('som: sem `sound` da API mostra a música da publicação; sem nada, não h
 
 test('ecrã: o disco e o letreiro abrem a página do som; sem som ficam escondidos', () => {
   assert.match(reels, /const sound = reelSound\(post\);/);
-  assert.match(reels, /const goSound = \(\) => \{ if \(sound\) router\.push\(sound\.href as never\); \};/);
+  assert.match(reels, /const goSound = \(\) => \{ if \(sound\?\.href\) router\.push\(sound\.href as never\); \};/);
   assert.match(reels, /\{sound && <SoundDisc sound=\{sound\} spinning=\{shouldPlay\} onPress=\{goSound\} \/>\}/);
   assert.match(reels, /\{sound && <SoundMarquee sound=\{sound\} running=\{shouldPlay\} onPress=\{goSound\}/);
   const disc = read('components', 'reel', 'ReelSound.tsx');

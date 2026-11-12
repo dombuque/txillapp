@@ -3,13 +3,17 @@
  * da barra de progresso, o menu de segurar, a velocidade e os separadores «Para ti» / «A seguir».
  */
 
-/** O som de uma tcheka, como a API o manda (equipa dos sons). `author` pode vir como texto (artista) ou como pessoa. */
+/**
+ * O som de uma tcheka, como a API o manda (`post.sound`, docs/sons.md): `{ id, title, kind, author?, artist? }`. O id é o
+ * uuid do som original, `cat:<faixa>` ou `local:<uuid>`. `author` é a pessoa (o autor do som original ou a conta do artista);
+ * `artist` é o crédito das faixas. Aceita-se também `author` como texto e `cover` (versões antigas da app e testes).
+ */
 export interface ReelSound {
   id: string;
   title: string;
   kind: 'original' | 'catalog' | 'local';
   author?: string | { username?: string | null; displayName?: string | null; name?: string | null } | null;
-  /** Capa do som (se a API a mandar). */
+  artist?: string | null;
   cover?: string | null;
 }
 
@@ -20,6 +24,9 @@ export interface ReelMusic {
   artist?: string | null;
   cover?: string | null;
   kind?: 'clip' | 'music' | 'sound';
+  /** Fonte da faixa (`local`: artistas de Moçambique) e, num som original guardado na música, o id do som. */
+  source?: string | null;
+  soundId?: string | null;
 }
 
 export interface ReelSoundSource {
@@ -36,8 +43,8 @@ export interface SoundView {
   cover: string | null;
   /** O @ de quem fez o som original (para o avatar no disco). */
   originalBy: string | null;
-  /** `/som/<id>`: a página do som. */
-  href: string;
+  /** `/som/<id>`: a página do som; null quando não há página (clipe próprio, som que já não existe para quem vê). */
+  href: string | null;
 }
 
 const clean = (s: string | null | undefined) => (s ?? '').trim();
@@ -50,28 +57,45 @@ function authorOf(a: ReelSound['author']): { username: string; name: string } {
 }
 
 /**
- * O som a mostrar numa tcheka. Primeiro o `sound` (da equipa dos sons); se a API ainda não o mandar, a música da
- * publicação (`music`). Sem nenhum dos dois devolve null: não há letreiro nem disco.
+ * O id do som de uma faixa guardada na publicação, com as regras de `soundIdOfTrack` (lib/sounds.ts): catálogo
+ * `cat:<id>`, artistas `local:<uuid>`. Clipes próprios e sons originais (sem `sound` na publicação, ou seja, que já não
+ * existem para quem vê) não têm página. Repetido aqui para o ficheiro não ter imports (testes em node).
+ */
+export function musicSoundId(m: ReelMusic | null | undefined): string | null {
+  if (!m || !m.id || m.kind === 'clip' || m.kind === 'sound') return null;
+  const id = m.source === 'local' && !m.id.startsWith('local:') ? `local:${m.id}` : m.id;
+  const out = id.startsWith('local:') ? id : `cat:${id}`;
+  if (out.length > 90 || out.startsWith('cat:local:')) return null;
+  return /^local:[0-9a-f-]{36}$/.test(out) || /^cat:[\w.:-]{1,80}$/.test(out) ? out : null;
+}
+
+/**
+ * O som a mostrar numa tcheka. Primeiro o `sound` (da equipa dos sons); se a API não o mandar (tchekas antigas, ou o
+ * som já não existe para quem vê), a música da publicação (`music`). Sem nenhum dos dois devolve null: não há letreiro nem
+ * disco.
  */
 export function reelSound(p: ReelSoundSource): SoundView | null {
   const s = p.sound;
+  const m = p.music;
   if (s && s.id) {
     const by = authorOf(s.author);
     if (s.kind === 'original') {
       const who = by.username || p.author.username;
       return { label: `Som original · @${who}`, cover: s.cover ?? null, originalBy: who, href: soundHref(s.id) };
     }
-    const artist = by.name || (by.username ? `@${by.username}` : '');
+    const artist = clean(s.artist) || by.name || (by.username ? `@${by.username}` : '');
     const title = clean(s.title) || 'Som';
-    return { label: artist ? `${title} · ${artist}` : title, cover: s.cover ?? null, originalBy: null, href: soundHref(s.id) };
+    // A capa da faixa vem na música da publicação (o `sound` não a traz).
+    return { label: artist ? `${title} · ${artist}` : title, cover: s.cover ?? m?.cover ?? null, originalBy: null, href: soundHref(s.id) };
   }
-  const m = p.music;
   if (m && m.id) {
     // Um clipe próprio (a pessoa gravou o som) é o som original de quem publicou.
-    if (m.kind === 'clip') return { label: `Som original · @${p.author.username}`, cover: m.cover ?? null, originalBy: p.author.username, href: soundHref(m.id) };
+    if (m.kind === 'clip') return { label: `Som original · @${p.author.username}`, cover: m.cover ?? null, originalBy: p.author.username, href: null };
+    if (m.kind === 'sound') return { label: clean(m.title) || 'Som original', cover: m.cover ?? null, originalBy: null, href: null };
+    const id = musicSoundId(m);
     const title = clean(m.title) || 'Música';
     const artist = clean(m.artist);
-    return { label: artist ? `${title} · ${artist}` : title, cover: m.cover ?? null, originalBy: null, href: soundHref(m.id) };
+    return { label: artist ? `${title} · ${artist}` : title, cover: m.cover ?? null, originalBy: null, href: id ? soundHref(id) : null };
   }
   return null;
 }
