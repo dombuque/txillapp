@@ -322,15 +322,16 @@ export type PermView = { title: string; body: string; action: 'request' | 'setti
 /**
  * O ecrã sem licença da câmara. `refusedNow`: a pessoa acabou de recusar (no Android o estado continua
  * "not-determined" depois da primeira recusa, por isso mostra-se logo o caminho das definições também).
+ * No iPhone o botão que leva ao pedido do sistema diz «Continuar» (regra da App Store: não «Permitir»).
  */
-export function permissionView(status: PermStatus, refusedNow = false): PermView {
+export function permissionView(status: PermStatus, refusedNow = false, platform: CamPlatform = 'android'): PermView {
   if (status === 'restricted') {
     return { title: 'Câmara bloqueada', body: 'O acesso à câmara está bloqueado por restrições deste telemóvel (controlo parental ou do trabalho).', action: 'none', label: '' };
   }
   if (status === 'denied' || refusedNow) {
     return { title: 'Sem acesso à câmara', body: 'Recusaste o acesso à câmara. Para tirar fotos e gravar vídeos aqui, ativa a Câmara nas definições do Txillapp.', action: 'settings', label: 'Abrir definições' };
   }
-  return { title: 'A câmara do Txillapp', body: 'Dá acesso à câmara para tirar fotos e gravar vídeos aqui mesmo.', action: 'request', label: 'Permitir a câmara' };
+  return { title: 'A câmara do Txillapp', body: 'Dá acesso à câmara para tirar fotos e gravar vídeos aqui mesmo.', action: 'request', label: platform === 'ios' ? 'Continuar' : 'Permitir a câmara' };
 }
 
 export type CamProblem = { title: string; body: string; retry: boolean };

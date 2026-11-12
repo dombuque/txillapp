@@ -4,6 +4,8 @@ import { createElement, useEffect, useRef } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { ApiError, api, type GoogleNeedsUsername } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { CHANNEL } from '@/lib/distribution';
+import { googleSignInAllowed } from '@/lib/storeRules';
 import { colors } from '@/lib/theme';
 
 /** Dados do passo "escolher o @" depois do Google (não são sensíveis). Passam em memória entre ecrãs. */
@@ -34,9 +36,12 @@ function loadGoogleScript() {
   }));
 }
 
-/** Botão oficial "Continuar com Google". Só na web e só se o servidor tiver o login com Google configurado. */
+/**
+ * Botão oficial "Continuar com Google". Só na web e só se o servidor tiver o login com Google configurado.
+ * Nunca na versão da App Store (regra 4.8: precisava do Iniciar sessão com a Apple ao lado; ver lib/storeRules).
+ */
 export function GoogleButton(props: { mode: 'login' | 'register'; onError: (m: string) => void }) {
-  if (Platform.OS !== 'web') return null;
+  if (!googleSignInAllowed(Platform.OS, CHANNEL)) return null;
   return <WebGoogleButton {...props} />;
 }
 

@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, FlatList, Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, BackHandler, FlatList, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { askButtonLabel } from '@/lib/storeRules';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 import type { Shot } from './TxCamera';
@@ -159,7 +160,7 @@ export function GalleryPicker({ title, multi = false, max = 10, onPick, onCamera
         <Text style={st.pTitle}>As tuas fotos e vídeos</Text>
         <Text style={st.pSub}>{perm.canAskAgain ? 'Dá acesso à galeria para escolheres fotos e vídeos aqui mesmo.' : 'O acesso à galeria está bloqueado. Ativa-o nas definições do telemóvel.'}</Text>
         <Pressable onPress={() => void (perm.canAskAgain ? askPerm() : Linking.openSettings())} style={st.cta} accessibilityRole="button">
-          <Text style={st.ctaText}>{perm.canAskAgain ? 'Permitir a galeria' : 'Abrir as definições'}</Text>
+          <Text style={st.ctaText}>{perm.canAskAgain ? askButtonLabel(Platform.OS, 'Permitir a galeria') : 'Abrir as definições'}</Text>
         </Pressable>
       </View>
     );

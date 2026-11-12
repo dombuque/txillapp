@@ -6,9 +6,11 @@ import { useEffect, useState } from 'react';
 import { AppState, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
+import { CHANNEL } from '@/lib/distribution';
 import { kvGet, kvSet } from '@/lib/kv';
 import { askNotifications, onNotificationOpen, registerNativePush } from '@/lib/nativePush';
 import { useOverlay } from '@/lib/overlays';
+import { onboardingSteps, prePromptButtons, type OnboardingStep } from '@/lib/storeRules';
 import { colors } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
 
@@ -17,8 +19,8 @@ const DONE_KEY = 'tx_perms_v1';
 /** Já passou pelo passo a passo das permissões neste telemóvel (até lá, nada de lembretes das notificações). */
 export const permissionsOnboardingDone = async (): Promise<boolean> => !!(await kvGet(DONE_KEY));
 
-interface Step { id: string; icon: IconName; title: string; text: string; ask: () => Promise<unknown> }
-const STEPS: Step[] = [
+interface Step { id: OnboardingStep; icon: IconName; title: string; text: string; ask: () => Promise<unknown> }
+const ALL_STEPS: Step[] = [
   { id: 'notif', icon: 'bell', title: 'Notificações', text: 'Para saberes logo quando a malta te escreve, brinda, comenta ou te segue.', ask: askNotifications },
   {
     id: 'camera', icon: 'camera', title: 'Câmara e microfone', text: 'Para tirares fotos, gravares vídeos, mimos, tchekas e Zás aqui mesmo.',
@@ -27,10 +29,14 @@ const STEPS: Step[] = [
   { id: 'photos', icon: 'images', title: 'Fotos e vídeos', text: 'Para escolheres da tua galeria o que queres publicar.', ask: () => MediaLibrary.requestPermissionsAsync(false, ['photo', 'video']) },
   { id: 'location', icon: 'map-pin', title: 'Localização', text: 'Opcional: para te sugerirmos sítios perto e marcares onde estás. Nunca mostramos onde vives.', ask: () => Location.requestForegroundPermissionsAsync() },
 ];
+/** Na App Store só as notificações: o resto pede-se quando se usa (ver lib/storeRules). */
+const STEPS = ALL_STEPS.filter((s) => onboardingSteps(CHANNEL).includes(s.id));
+const BUTTONS = prePromptButtons(CHANNEL);
 
 /**
  * App nativa: depois de entrar pela primeira vez, um passo a passo explica cada permissão antes de o sistema a pedir
- * (notificações, câmara e microfone, fotos, localização). Cada uma pode ficar para depois. Também regista o telemóvel
+ * (notificações, câmara e microfone, fotos, localização; na App Store só as notificações, com «Continuar» e sem «Agora não»).
+ * Fora da App Store cada uma pode ficar para depois. Também regista o telemóvel
  * para as notificações a cada arranque e abre o que uma notificação traz quando se toca nela.
  */
 export function PermissionsOnboarding() {
@@ -76,18 +82,20 @@ export function PermissionsOnboarding() {
     <Modal visible animationType="fade" statusBarTranslucent onRequestClose={next}>
       <View style={[st.root, { paddingTop: insets.top + 24, paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
         <Text style={st.kicker}>Prepara o Txillapp</Text>
-        <View style={st.dots}>
-          {STEPS.map((x, i) => <View key={x.id} style={[st.dot, i === step && st.dotOn, i < step && { backgroundColor: colors.zinc300 }]} />)}
-        </View>
+        {STEPS.length > 1 ? (
+          <View style={st.dots}>
+            {STEPS.map((x, i) => <View key={x.id} style={[st.dot, i === step && st.dotOn, i < step && { backgroundColor: colors.zinc300 }]} />)}
+          </View>
+        ) : null}
         <View style={st.body}>
           <View style={st.icon}><Icon name={s.icon} size={44} color="#fff" /></View>
           <Text style={st.title}>{s.title}</Text>
           <Text style={st.text}>{s.text}</Text>
         </View>
         <Pressable onPress={() => void allow()} disabled={busy} style={[st.primary, busy && { opacity: 0.6 }]} accessibilityRole="button">
-          <Text style={st.primaryText}>Permitir</Text>
+          <Text style={st.primaryText}>{BUTTONS.primary}</Text>
         </Pressable>
-        <Pressable onPress={next} style={st.later} accessibilityRole="button"><Text style={st.laterText}>Agora não</Text></Pressable>
+        {BUTTONS.later ? <Pressable onPress={next} style={st.later} accessibilityRole="button"><Text style={st.laterText}>{BUTTONS.later}</Text></Pressable> : null}
       </View>
     </Modal>
   );

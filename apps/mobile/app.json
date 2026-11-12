@@ -11,18 +11,51 @@
       "bundleIdentifier": "com.txillapp.app",
       "supportsTablet": false,
       "infoPlist": {
-        "NSCameraUsageDescription": "O Txillapp usa a câmara para tirares fotos e gravares vídeos para publicar, mimos, mensagens e videochamadas.",
-        "NSMicrophoneUsageDescription": "O Txillapp usa o microfone para gravares vídeos, mensagens de voz e para falares nas chamadas.",
-        "NSPhotoLibraryUsageDescription": "O Txillapp acede às tuas fotos para escolheres o que publicar ou enviar.",
-        "NSPhotoLibraryAddUsageDescription": "O Txillapp guarda fotos e vídeos na tua galeria quando pedes.",
-        "NSLocationWhenInUseUsageDescription": "O Txillapp usa a tua localização para sugerir sítios perto de ti e para partilhares a tua localização numa conversa.",
+        "NSLocationWhenInUseUsageDescription": "O Txillapp usa a tua localização, com a app aberta e quando pedes, para sugerir sítios e locais perto de ti, mostrar o que há por perto e partilhares a tua localização numa conversa.",
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "audio"
-        ]
+        ],
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": true
+        }
       },
       "entitlements": {
         "com.apple.developer.usernotifications.time-sensitive": true
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "C617.1",
+              "0A2A.1",
+              "3B52.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "35F9.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "E174.1",
+              "85F4.1"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -62,13 +95,18 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "O Txillapp usa a câmara para tirares fotos, vídeos, Zás e para videochamadas.",
-          "microphonePermission": "O Txillapp usa o microfone para gravares vídeos, notas de voz e para as chamadas.",
+          "cameraPermission": "O Txillapp usa a câmara para tirares fotos e gravares vídeos para as publicações, mimos, tchekas, Zás e mensagens, para as videochamadas e para a selfie da verificação da conta.",
+          "microphonePermission": "O Txillapp usa o microfone para gravares o som dos vídeos, as notas de voz e os teus clipes de música, e para falares nas chamadas.",
           "recordAudioAndroid": true
         }
       ],
       "expo-router",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -81,13 +119,24 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "O Txillapp mostra as tuas fotos e vídeos para os escolheres numa publicação, mimo ou tcheka.",
+          "photosPermission": "O Txillapp mostra as tuas fotos e vídeos para escolheres o que publicar ou enviar numa publicação, mimo, tcheka ou conversa.",
           "savePhotosPermission": "O Txillapp guarda fotos e vídeos na tua galeria quando pedes.",
           "isAccessMediaLocationEnabled": false,
           "granularPermissions": [
             "photo",
             "video"
           ]
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "O Txillapp usa a tua localização, com a app aberta e quando pedes, para sugerir sítios e locais perto de ti, mostrar o que há por perto e partilhares a tua localização numa conversa.",
+          "locationAlwaysAndWhenInUsePermission": "O Txillapp só usa a tua localização com a app aberta: para sugerir sítios perto de ti e para partilhares a tua localização numa conversa.",
+          "locationAlwaysPermission": "O Txillapp só usa a tua localização com a app aberta: para sugerir sítios perto de ti e para partilhares a tua localização numa conversa.",
+          "locationFullAccuracyPermission": "O Txillapp precisa da localização exata para mostrar onde estás no mapa e enviar o ponto certo numa conversa.",
+          "motionUsagePermission": false,
+          "isIosBackgroundLocationEnabled": false
         }
       ],
       [
