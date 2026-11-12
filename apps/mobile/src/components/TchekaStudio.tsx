@@ -569,7 +569,10 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   // Em pausa, o que se muda (texto, filtro, sticker, transição) vê-se logo no frame parado.
   useEffect(() => {
     if (playing || progress !== null) return;
-    const id = setTimeout(() => void showAt(pausedAt.current), 120);
+    // Com texto, mostra um instante em que ele já se vê inteiro (à entrada ainda está a aparecer).
+    const t = pausedAt.current;
+    const at = title.trim() && textAlpha(t, textFrom, textTo) < 0.9 ? Math.min(textFrom + 0.6, Math.max(textFrom, textTo - 0.1)) : t;
+    const id = setTimeout(() => void showAt(at), 120);
     return () => clearTimeout(id);
   }, [fullSig]); // eslint-disable-line react-hooks/exhaustive-deps
   // O volume muda logo, sem recomeçar.
