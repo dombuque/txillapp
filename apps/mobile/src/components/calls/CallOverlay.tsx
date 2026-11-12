@@ -12,6 +12,7 @@ import {
   VideoView, type AudioOutput, type CallPeer, type CallState,
 } from '@/lib/calls';
 import { installCallService } from '@/lib/calls/callServiceNative';
+import { outgoingLabel, unreachableText } from '@/lib/calls/outgoing';
 import { SITE_URL } from '@/lib/config';
 import { useAuth } from '@/lib/auth';
 import { useDesktop } from '@/lib/desktop';
@@ -312,7 +313,9 @@ function Outgoing({ c }: { c: CallState }) {
       <View style={[st.center, { paddingTop: pad.top + 40 }]}>
         <PulseAvatar peer={c.peer} size={116} pulse />
         <NameWithBadge name={c.peer?.displayName ?? ''} who={c.peer} style={[st.name, { marginTop: 0 }]} numberOfLines={2} center containerStyle={{ marginTop: 14 }} gap={6} />
-        <Kind video={c.video} text={c.callId ? 'A chamar…' : 'A ligar…'} />
+        {/* «A chamar…» até um aparelho do outro lado dizer que a chamada chegou; depois «A tocar…» (lib/calls/outgoing). */}
+        <View accessibilityLiveRegion="polite"><Kind video={c.video} text={outgoingLabel(c)} /></View>
+        {unreachableText(c) ? <Text style={st.reach} numberOfLines={2}>{unreachableText(c)}</Text> : null}
       </View>
       <View style={[st.bar, { paddingBottom: pad.bottom }]}>
         <View style={{ marginTop: 7 }}><Ctrl label={c.micOn ? 'Desligar o microfone' : 'Ligar o microfone'} off={!c.micOn} onPress={toggleMic}>{(col) => c.micOn ? <Icon name="mic" size={24} color={col} /> : <CallIcon name="mic-off" size={24} color={col} />}</Ctrl></View>
@@ -525,7 +528,7 @@ function Ended({ c }: { c: CallState }) {
 function MiniCall({ c }: { c: CallState }) {
   const insets = useSafeAreaInsets();
   const t = useElapsed(c.startedAt);
-  const label = c.phase === 'incoming' ? 'A tocar' : c.phase === 'outgoing' ? 'A chamar…' : c.phase === 'active' ? fmtDuration(t) : 'A ligar…';
+  const label = c.phase === 'incoming' ? 'A tocar' : c.phase === 'outgoing' ? outgoingLabel(c) : c.phase === 'active' ? fmtDuration(t) : 'A ligar…';
   return (
     <View style={[st.miniWrap, { top: Math.max(insets.top, 8) + 4 }]} pointerEvents="box-none">
       <Pressable onPress={expandCall} style={({ pressed }) => [st.mini, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel="Voltar à chamada">
@@ -547,6 +550,7 @@ const st = StyleSheet.create({
   kind: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   kindText: { fontSize: 15, fontWeight: '600', color: 'rgba(255,255,255,0.9)' },
   timer: { fontSize: 16, fontWeight: '600', color: 'rgba(255,255,255,0.88)', fontVariant: ['tabular-nums'] },
+  reach: { marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.62)', textAlign: 'center', paddingHorizontal: 24 },
   endMsg: { marginTop: 6, fontSize: 15, color: 'rgba(255,255,255,0.8)', textAlign: 'center', fontStyle: 'italic' },
   btnLabel: { fontSize: 13, fontWeight: '600', color: '#fff' },
   answerRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', width: '100%', maxWidth: 360, paddingHorizontal: 28 },

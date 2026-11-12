@@ -167,7 +167,27 @@ export function handleCallResponse(r: Notifications.NotificationResponse, go: (u
 /** Com a app à frente, as chamadas não mostram a notificação do sistema (o ecrã da app já toca). */
 export const isForegroundCall = (n: Notifications.Notification) => !!callFromData(n.request.content.data);
 
-/** No browser é o service worker que trata os botões; na app nativa não há nada a ligar aqui. */
+/**
+ * «A chamada chegou a este aparelho» (quem liga passa a ver «A tocar…»), com a sessão. Repetir não faz mal: o servidor
+ * só guarda a primeira. No Android com a app fechada quem confirma é o TxMessagingService (modules/call-service).
+ */
+export async function confirmCallDelivered(callId: string): Promise<void> {
+  try {
+    await raw(`/calls/${encodeURIComponent(callId)}/ringing`, post({}));
+  } catch {
+    /* já não toca, ou sem rede */
+  }
+}
+
+/**
+ * Os botões das chamadas tratam-se em handleCallResponse. Aqui só: quando o aviso de uma chamada chega com o JS a correr
+ * (app à frente, ou no Android em segundo plano com a app viva), confirma logo a entrega.
+ */
 export function installCallRing(_go?: (url: string) => void): () => void {
-  return () => undefined;
+  if (Platform.OS === 'web') return () => undefined;
+  const sub = Notifications.addNotificationReceivedListener((n) => {
+    const c = callFromData(n.request.content.data);
+    if (c) void confirmCallDelivered(c.callId);
+  });
+  return () => sub.remove();
 }

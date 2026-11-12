@@ -1,6 +1,6 @@
 import { buildFcmMessage } from '../push/fcm';
 import { webPushBody } from '../push/push.service';
-import { checkDeclineToken, declineToken, endPush, ringPush, ringRepeatDelays } from './call-push';
+import { ackToken, checkAckToken, checkDeclineToken, declineToken, endPush, ringPush, ringRepeatDelays } from './call-push';
 
 const SECRET = 'k'.repeat(40);
 const caller = { username: 'ana', displayName: 'Ana' };
@@ -24,6 +24,31 @@ describe('avisos push de uma chamada', () => {
     expect(checkDeclineToken('z'.repeat(40), 'call-1', 'user-b', t)).toBe(false);
     expect(checkDeclineToken(SECRET, 'call-1', 'user-b', '')).toBe(false);
     expect(checkDeclineToken(SECRET, 'call-1', 'user-b', undefined as unknown as string)).toBe(false);
+  });
+
+  it('código «chegou»: só esta chamada, só quem a recebe, e só até ao prazo', () => {
+    const exp = 1_800_000_000;
+    const t = ackToken(SECRET, 'call-1', 'user-b', exp);
+    expect(t).toMatch(/^1800000000\.[A-Za-z0-9_-]{43}$/);
+    expect(checkAckToken(SECRET, 'call-1', 'user-b', t, exp - 10)).toBe(true);
+    expect(checkAckToken(SECRET, 'call-1', 'user-b', t, exp)).toBe(true);
+    expect(checkAckToken(SECRET, 'call-1', 'user-b', t, exp + 1)).toBe(false); // expirou
+    expect(checkAckToken(SECRET, 'call-2', 'user-b', t, exp - 10)).toBe(false);
+    expect(checkAckToken(SECRET, 'call-1', 'user-a', t, exp - 10)).toBe(false);
+    expect(checkAckToken('z'.repeat(40), 'call-1', 'user-b', t, exp - 10)).toBe(false);
+    expect(checkAckToken(SECRET, 'call-1', 'user-b', t.replace('1800000000', '1900000000'), exp - 10)).toBe(false); // prazo mexido
+    expect(checkAckToken(SECRET, 'call-1', 'user-b', declineToken(SECRET, 'call-1', 'user-b'), exp - 10)).toBe(false); // o de recusar não serve
+    expect(checkAckToken(SECRET, 'call-1', 'user-b', '', exp - 10)).toBe(false);
+    expect(checkAckToken(SECRET, 'call-1', 'user-b', undefined as unknown as string, exp - 10)).toBe(false);
+  });
+
+  it('o aviso a tocar leva o código «chegou» e o endereço para todos (browser, Android e iPhone)', () => {
+    const url = 'https://txillapp.com/api/v1/calls/abc/ringing?ack=1.x';
+    const p = ringPush({ id: 'abc', video: false, caller, ttlSeconds: 45, ackToken: '1.x', ackUrl: url });
+    expect(p.data).toEqual({ kind: 'call', callId: 'abc', from: 'ana', video: '0', ackToken: '1.x', ackUrl: url });
+    expect(JSON.parse(webPushBody(p))).toMatchObject({ ackToken: '1.x', ackUrl: url });
+    const fcm = buildFcmMessage('t', p, 'android') as { data: Record<string, string> };
+    expect(fcm.data).toMatchObject({ ackToken: '1.x', ackUrl: url, caller: 'ana' });
   });
 
   it('o aviso a tocar: o código e o reenvio vão só no Web Push; a mensagem da app nativa fica igual', () => {

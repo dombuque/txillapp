@@ -41,6 +41,31 @@ export function checkDeclineToken(secret: string, callId: string, calleeId: stri
   return got.length === want.length && timingSafeEqual(got, want);
 }
 
+const ackKey = (secret: string) => createHmac('sha256', secret).update('txillapp:call-ack').digest();
+const ackSig = (secret: string, callId: string, calleeId: string, exp: number) => createHmac('sha256', ackKey(secret)).update(`${callId}:${calleeId}:${exp}`).digest('base64url');
+
+/** Folga do código «chegou» além do tempo de toque (reenvios atrasados e relógios um pouco desacertados). */
+export const ACK_GRACE_S = 30;
+
+/**
+ * Código «a chamada chegou a este aparelho» (POST /calls/:id/ringing?ack=…, sem sessão). Vai no aviso push da chamada
+ * para o service worker do browser e para o serviço de mensagens da app Android, que não têm a sessão. Só serve para
+ * marcar ESTA chamada como entregue, por quem a recebe, e só até `exp` (segundos desde 1970). Formato: `<exp>.<assinatura>`.
+ */
+export function ackToken(secret: string, callId: string, calleeId: string, exp: number): string {
+  return `${exp}.${ackSig(secret, callId, calleeId, exp)}`;
+}
+
+/** O código confere com esta chamada e esta pessoa e ainda não passou do prazo. */
+export function checkAckToken(secret: string, callId: string, calleeId: string, token: string, nowS = Math.floor(Date.now() / 1000)): boolean {
+  const m = /^(\d{1,12})\.([A-Za-z0-9_-]{43})$/.exec(String(token ?? ''));
+  if (!m) return false;
+  const exp = Number(m[1]);
+  const want = Buffer.from(ackSig(secret, callId, calleeId, exp));
+  const got = Buffer.from(m[2]);
+  return got.length === want.length && timingSafeEqual(got, want) && nowS <= exp;
+}
+
 export interface RingInfo {
   id: string;
   video: boolean;
@@ -50,6 +75,9 @@ export interface RingInfo {
   declineToken?: string;
   /** Reenvio (só Web Push). */
   repeat?: boolean;
+  /** O código «chegou» (ver ackToken) e o endereço completo para o usar (a app Android não sabe sozinha onde está a API). */
+  ackToken?: string;
+  ackUrl?: string;
 }
 
 /** O aviso de chamada a tocar. O que vai para a app nativa (FCM) é sempre o mesmo; o resto só vai no Web Push. */
@@ -59,7 +87,7 @@ export function ringPush(r: RingInfo): PushPayload {
     body: r.video ? 'Videochamada' : 'Está a ligar-te',
     url: `/call/${r.id}?from=${encodeURIComponent(r.caller.username)}&video=${r.video ? 1 : 0}`,
     tag: `call-${r.id}`,
-    data: { kind: 'call', callId: r.id, from: r.caller.username, video: r.video ? '1' : '0' },
+    data: { kind: 'call', callId: r.id, from: r.caller.username, video: r.video ? '1' : '0', ...(r.ackToken ? { ackToken: r.ackToken } : {}), ...(r.ackUrl ? { ackUrl: r.ackUrl } : {}) },
     ...(r.declineToken || r.repeat ? { webData: { ...(r.declineToken ? { declineToken: r.declineToken } : {}), ...(r.repeat ? { repeat: '1' } : {}) } } : {}),
     ...(r.repeat ? { webOnly: true } : {}),
     dataOnly: true,

@@ -234,3 +234,64 @@ test('mensagem com o chat à vista: o Android não mostra; o iPhone mostra sem s
   assert.equal(api.txMessageMode({ inChat: true }), 'skip');
   assert.equal(api.txMessageMode({ inChat: true, apple: true }), 'quiet');
 });
+
+// «A tocar…»: cada aviso de chamada diz ao servidor que chegou, sem sessão e sem atrasar a notificação.
+const ACK = '1800000000.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ';
+
+test('«chegou»: o aviso da chamada confirma ao servidor com o código, sem sessão, e mostra a notificação na mesma', async () => {
+  const sw = load();
+  await sw.push(ring({ ackToken: ACK }));
+  assert.equal(sw.open().length, 1);
+  assert.equal(sw.fetched.length, 1);
+  assert.equal(sw.fetched[0].url, `/api/v1/calls/c1/ringing?ack=${encodeURIComponent(ACK)}`);
+  assert.equal(sw.fetched[0].init.method, 'POST');
+  assert.equal(sw.fetched[0].init.credentials, 'omit');
+  assert.equal(sw.fetched[0].init.body, undefined);
+  // Os reenvios do mesmo toque já não voltam a pedir.
+  await sw.push(ring({ ackToken: ACK, repeat: '1' }));
+  assert.equal(sw.fetched.length, 1);
+  // Sem código (servidor antigo) não pede nada.
+  const old = load();
+  await old.push(ring());
+  assert.equal(old.fetched.length, 0);
+  assert.equal(old.open().length, 1);
+});
+
+test('«chegou» no iPhone e com a app à vista: confirma também, e a notificação continua a aparecer (regra do Safari)', async () => {
+  const sw = load({ ua: IPHONE, windows: ['visible'] });
+  await sw.push(ring({ ackToken: ACK }));
+  assert.equal(sw.shown.length, 1);
+  assert.equal(sw.fetched.length, 1);
+  assert.match(sw.fetched[0].url, /\/ringing\?ack=/);
+});
+
+test('«chegou» sem rede: a notificação aparece, nada rebenta, e o reenvio tenta outra vez', async () => {
+  let fail = true;
+  const sw = load({ fetchImpl: async () => { if (fail) throw new TypeError('Failed to fetch'); return { ok: true, status: 200 }; } });
+  await sw.push(ring({ ackToken: ACK }));
+  assert.equal(sw.open().length, 1);
+  assert.equal(sw.fetched.length, 1);
+  fail = false;
+  await sw.push(ring({ ackToken: ACK, repeat: '1' }));
+  assert.equal(sw.fetched.length, 2);
+  await sw.push(ring({ ackToken: ACK, repeat: '1' }));
+  assert.equal(sw.fetched.length, 2); // já confirmou
+});
+
+test('«chegou» que fica pendurado não atrasa a notificação', async () => {
+  const sw = load({ fetchImpl: () => new Promise(() => undefined) });
+  void sw.push(ring({ ackToken: ACK }));
+  for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+  assert.equal(sw.open().length, 1);
+  assert.equal(sw.fetched.length, 1);
+});
+
+test('«chegou»: 404 (código fora de prazo) ou 409 (já não toca) não se repetem', async () => {
+  const sw = load({ fetchImpl: async () => ({ ok: false, status: 409 }) });
+  await sw.push(ring({ ackToken: ACK }));
+  await sw.push(ring({ ackToken: ACK, repeat: '1' }));
+  assert.equal(sw.fetched.length, 1);
+  assert.equal(sw.api.txCallInfo(ring({ ackToken: ACK })).ackToken, ACK);
+  assert.equal(sw.api.txCallInfo({ kind: 'call', callId: 'c2', data: { ackToken: 'x.y' } }).ackToken, '');
+  assert.equal(sw.api.txCallInfo({ kind: 'call', data: { callId: 'c2', ackToken: 'x.y' } }, { callId: 'c2', ackToken: 'x.y' }).ackToken, 'x.y');
+});

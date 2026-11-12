@@ -1,7 +1,8 @@
 /**
  * Gestor da chamada 1:1 (voz e vídeo). Uma chamada de cada vez.
  *
- * Estados: idle → outgoing (liguei, a chamar) ou incoming (a tocar) → connecting (atendida, a ligar o WebRTC) → active → ended
+ * Estados: idle → outgoing (liguei: «A chamar…» e, quando um aparelho do outro lado diz que a chamada chegou, `delivered` e
+ * «A tocar…»; ver ./outgoing.ts) ou incoming (a tocar; diz logo ao servidor que chegou, POST /calls/:id/ringing) → connecting (atendida, a ligar o WebRTC) → active → ended
  * (ecrã final por instantes) → idle.
  *
  * Sinalização: ofertas, respostas e candidatos ICE vão por POST /calls/:id/signal e chegam ao outro lado no stream do chat
@@ -15,6 +16,7 @@ import { useSyncExternalStore } from 'react';
 import { ApiError } from '@/lib/api';
 import { holdStream, onCallEvent } from '@/lib/realtime';
 import { callsApi } from './api';
+import { afterDelivered, afterUnreachable, UNREACHABLE_MS } from './outgoing';
 import type { DataChannelLike, IceEventLike, PeerLike, SdpLike, TrackEventLike } from './peer';
 import { startRingback, startRinging, stopSounds } from './sounds';
 import { initialSpeaker, speakerAfterRoute, speakerLit, type Headset } from './speaker';
@@ -22,7 +24,7 @@ import type { CallEvent, CallPeer, CallState, EndReason, IceServer } from './typ
 import * as rtc from './webrtc';
 
 const IDLE: CallState = {
-  phase: 'idle', callId: null, peer: null, outgoing: false, video: false, micOn: true, camOn: false, front: true, speaker: false, audioRoute: null, canFlip: false,
+  phase: 'idle', callId: null, peer: null, outgoing: false, delivered: false, unreachable: false, video: false, micOn: true, camOn: false, front: true, speaker: false, audioRoute: null, canFlip: false,
   local: null, remote: null, remoteMic: null, remoteCam: null, startedAt: null, endedAt: null, endReason: null, minimised: false, message: null, error: null,
 };
 
@@ -70,7 +72,9 @@ let headset: Headset | undefined;
 const done = new Set<string>();
 /** Cada chamada tem um número; o que chega atrasado de uma chamada antiga é ignorado. */
 let gen = 0;
-const timers: Record<'ring' | 'connect' | 'drop' | 'close', ReturnType<typeof setTimeout> | null> = { ring: null, connect: null, drop: null, close: null };
+const timers: Record<'ring' | 'reach' | 'connect' | 'drop' | 'close', ReturnType<typeof setTimeout> | null> = { ring: null, reach: null, connect: null, drop: null, close: null };
+/** «Chegou» de chamadas minhas que ainda não sei o id (o `ringing` pode vir antes da resposta do POST /calls). */
+const earlyDelivered = new Set<string>();
 
 const RING_OUT_MS = 45_000; // ninguém atende: "Sem resposta"
 const RING_IN_MS = 60_000; // segurança, se o "ended" do servidor não chegar
@@ -317,6 +321,22 @@ function onEvent(raw: unknown) {
     case 'ring':
       if (e.from) openIncomingCall({ callId: e.callId, from: e.from, video: !!e.video });
       return;
+    case 'ringing': {
+      // A chamada que fiz já chegou a um aparelho do outro lado: «A chamar…» passa a «A tocar…».
+      if (!mine) {
+        if (state.phase === 'outgoing' && state.outgoing && !state.callId) {
+          earlyDelivered.add(e.callId);
+          if (earlyDelivered.size > 20) earlyDelivered.delete(earlyDelivered.values().next().value!);
+        }
+        return;
+      }
+      const patch = afterDelivered(state, e.callId);
+      if (patch) {
+        clear('reach');
+        set(patch);
+      }
+      return;
+    }
     case 'accepted':
       if (!mine) return;
       if (state.outgoing && state.phase === 'outgoing') void onAccepted();
@@ -348,6 +368,7 @@ async function onAccepted() {
   const g = gen;
   stopSounds();
   clear('ring');
+  clear('reach');
   set({ phase: 'connecting' });
   polite = false;
   try {
@@ -406,8 +427,17 @@ async function dial(g: number, hint: CallPeer, video: boolean): Promise<void> {
     if (g !== gen) return;
     iceServers = await loadIce(r.iceServers, r.relayOnly);
     if (g !== gen) return;
-    set({ callId: r.id, peer: r.peer ?? hint, video: r.video ?? video });
+    const delivered = earlyDelivered.delete(r.id);
+    set({ callId: r.id, peer: r.peer ?? hint, video: r.video ?? video, delivered, unreachable: false });
     startRingback();
+    // Nenhum aparelho do outro lado disse que a chamada chegou: uma linha discreta (continua a chamar até ao fim).
+    if (!delivered) {
+      after('reach', UNREACHABLE_MS, () => {
+        if (g !== gen) return;
+        const patch = afterUnreachable(state);
+        if (patch) set(patch);
+      });
+    }
     after('ring', RING_OUT_MS, () => {
       if (g !== gen || state.phase !== 'outgoing') return;
       void callsApi.end(r.id).catch(() => undefined);
@@ -445,6 +475,8 @@ export function openIncomingCall({ callId, from: who, video }: { callId: string;
   set({ ...IDLE, phase: 'incoming', outgoing: false, callId, peer: from, video, camOn: video, speaker: initialSpeaker(video) });
   holdStream(true);
   startRinging();
+  // Diz ao servidor que a chamada chegou aqui (quem liga passa a ver «A tocar…»). Pelo stream, ou ao abrir pela notificação.
+  void callsApi.ringing(callId).catch(() => undefined);
   after('ring', RING_IN_MS, () => g === gen && state.phase === 'incoming' && finish('missed'));
   // Videochamada: a minha câmara da frente fica de fundo enquanto toca.
   if (video && rtc.rtcSupported()) {
