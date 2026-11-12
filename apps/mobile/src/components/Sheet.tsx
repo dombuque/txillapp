@@ -38,7 +38,7 @@ export function Sheet({ title, onClose, children, full = false, plain = false }:
   // Web (iPhone): o teclado tapa a página sem a encolher. Com ele aberto, a folha vive só na zona visível e a página não rola
   // (como o visor dos mimos e o Zás). No nativo `vv` é null: lá vale o `kb` de cima (o Keyboard da web não dá eventos).
   const vv = useVisibleViewport();
-  const box = Platform.OS === 'web' && typeof window !== 'undefined' ? sheetViewport(vv, window.innerHeight) : null;
+  const box = Platform.OS === 'web' && typeof window !== 'undefined' ? sheetViewport(vv, window.innerHeight, window.innerWidth) : null;
   const heights = sheetHeights(h, box);
   useEffect(() => {
     if (!box || typeof window === 'undefined') return;
