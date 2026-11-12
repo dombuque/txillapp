@@ -29,7 +29,7 @@ test('o tempo por baixo do botão: «0:07 / 0:20»', () => {
 
 test('o botão tocar/pausar está sempre na pré-visualização (fora dos separadores) e o toque no vídeo também pausa', () => {
   const preview = studio.indexOf('<Pressable style={[st.preview, !wide && st.previewPhone]} onPress={togglePlay}');
-  const tabs = studio.indexOf('<View style={st.tabs}');
+  const tabs = studio.indexOf('<View style={[st.tabs');
   assert.ok(preview > 0 && tabs > preview, 'a pré-visualização vem antes dos separadores e é comum a todos');
   const btn = studio.indexOf("accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'}");
   assert.ok(btn > preview && btn < tabs, 'o botão está dentro da pré-visualização');
@@ -83,7 +83,7 @@ test('com a montagem em curso, os controlos de edição estão desativados', () 
   // A caixa com os separadores e todos os controlos (transição, filtro, texto, cor, stickers, música, clipes, durações,
   // cortes e capa): esbatida, sem toques e sem teclado.
   const box = studio.indexOf("pointerEvents={locked ? 'none' : 'auto'}");
-  const tabs = studio.indexOf('<View style={st.tabs}');
+  const tabs = studio.indexOf('<View style={[st.tabs');
   const end = studio.indexOf('{pickMusic ? <MusicPicker');
   assert.ok(box > 0 && box < tabs, 'a caixa bloqueada começa antes dos separadores');
   for (const ctl of ['<FxPanel', '<TextPanel', '<StickerTray', 'onPress={openPicker}', '<TimelineActions', 'onDelete=', 'onPhoto=', 'onReplace=', 'Início do clipe', 'Momento da capa']) {

@@ -80,13 +80,13 @@ const LAYER_COLORS: Record<TimelineLayer['kind'], [string, string]> = {
 };
 
 /** As faixas em linhas: as que não se tocam partilham a linha (no máximo `LAYER_ROWS`; as que sobram vão para a última). */
-function packLayers(list: TimelineLayer[]): { rows: number; row: Map<string, number> } {
+function packLayers(list: TimelineLayer[], max = LAYER_ROWS): { rows: number; row: Map<string, number> } {
   const ends: number[] = [];
   const row = new Map<string, number>();
   const order = [...list].sort((a, b) => a.start - b.start);
   for (const l of order) {
     let r = ends.findIndex((e) => e <= l.start + 1e-6);
-    if (r < 0) { r = ends.length < LAYER_ROWS ? ends.length : LAYER_ROWS - 1; if (r === ends.length) ends.push(0); }
+    if (r < 0) { r = ends.length < max ? ends.length : max - 1; if (r === ends.length) ends.push(0); }
     ends[r] = Math.max(ends[r], l.point ? l.start + 0.4 : l.end);
     row.set(l.id, r);
   }
@@ -186,7 +186,8 @@ export function Timeline(p: TimelineProps) {
   const contentW = Math.max(width, PAD + layoutTotal * pps + 10 + ADD_W + PAD + Math.max(0, width / 2 - ADD_W));
   const cuts = useMemo(() => cutPoints(durations), [durations]);
   const layers = p.layers ?? [];
-  const packed = useMemo(() => packLayers(layers), [layers]); // eslint-disable-line react-hooks/exhaustive-deps
+  // No telemóvel, duas linhas de faixas no máximo (a imagem precisa do espaço).
+  const packed = useMemo(() => packLayers(layers, p.compact ? 2 : LAYER_ROWS), [layers, p.compact]); // eslint-disable-line react-hooks/exhaustive-deps
   const layersH = packed.rows ? packed.rows * (LAYER_H + LAYER_GAP) + 4 : 0;
   /** Onde começa a pista dos clipes (por baixo da régua e das faixas). */
   const trackTop = RULER_H + 4 + layersH;
