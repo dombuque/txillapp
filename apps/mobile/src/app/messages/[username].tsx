@@ -27,6 +27,7 @@ import { NOTE_FOLD_MS, NOTE_FOLD_START, noteFold, peerBubble, peerBubbleKey } fr
 import { activeLabel } from '@/lib/chatTimeline';
 import { useTyping } from '@/lib/realtime';
 import { useChatVisible } from '@/lib/chatVisible';
+import { blockingError, threadErrorText } from '@/lib/chatErrors';
 import { colors } from '@/lib/theme';
 
 /** Conversa com uma pessoa, igual à do site: tempo real, "a escrever…", "Visto", citações, reações, apagar, pedidos de mensagem. */
@@ -69,7 +70,6 @@ export default function Thread() {
     retryDelay: (n) => Math.min(400 * 2 ** n, 3000),
     staleTime: 15_000,
   });
-  const qs = { isError: q.isError as boolean, isFetching: q.isFetching as boolean, refetch: () => q.refetch() };
   const first = q.data?.pages[0];
   const person = first?.person;
   const firstName = person?.displayName.split(' ')[0] ?? '';
@@ -178,14 +178,18 @@ export default function Thread() {
     await q.refetch();
   }
 
-  if (q.isError) {
+  // Com a conversa já carregada, uma falha ao pô-la em dia não a tapa (lib/chatErrors).
+  if (blockingError(q.isError, !!first)) {
+    const status = (q.error as { status?: number } | null)?.status;
     return (
       <View style={{ flex: 1, backgroundColor: colors.white, paddingTop: insets.top }}>
         <View style={st.header}><BackButton fallback="/messages" style={{ width: 44, height: 44, borderRadius: 22 }} /></View>
         <View style={{ marginHorizontal: 24, marginTop: 64, alignItems: 'center' }}>
           <Icon name="alert" size={44} color={colors.zinc300} />
           <Text style={{ marginTop: 12, fontSize: 20, fontWeight: '700', color: colors.zinc900, textAlign: 'center' }}>Não consegui abrir esta conversa</Text>
-          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/messages' as never))} style={{ marginTop: 16, minHeight: 44, justifyContent: 'center' }}><Text style={{ fontWeight: '600', color: colors.brand, fontSize: 16 }}>Voltar</Text></Pressable>
+          <Text style={st.failText}>{threadErrorText(status)}</Text>
+          {status !== 404 && status !== 403 ? <Pressable onPress={() => void q.refetch()} disabled={q.isFetching} style={[st.failBtn, q.isFetching && { opacity: 0.6 }]} accessibilityRole="button"><Text style={st.failBtnText}>{q.isFetching ? 'A tentar…' : 'Tentar outra vez'}</Text></Pressable> : null}
+          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/messages' as never))} style={{ marginTop: 8, minHeight: 44, justifyContent: 'center' }}><Text style={{ fontWeight: '600', color: colors.brand, fontSize: 16 }}>Voltar</Text></Pressable>
         </View>
       </View>
     );
@@ -241,19 +245,12 @@ export default function Thread() {
         }
       />
 
-      {qs.isError && items.length === 0 ? (
-        <View style={st.failBox}>
-          <Text style={st.failTitle}>Não consegui abrir esta conversa</Text>
-          <Text style={st.failText}>Verifica a internet e tenta outra vez.</Text>
-          <Pressable onPress={() => void qs.refetch()} style={st.failBtn} accessibilityRole="button"><Text style={st.failBtnText}>Tentar outra vez</Text></Pressable>
-        </View>
-      ) : null}
       <ChatList
         key={username}
         pendingKey={`u:${username}`}
         onTouch={() => { if (composerOpen.current) setCloseTick((t) => t + 1); }}
         items={items}
-        loading={q.isLoading || (qs.isError && items.length === 0 && qs.isFetching)}
+        loading={q.isLoading}
         hasNext={!!q.hasNextPage}
         fetchNext={() => q.fetchNextPage()}
         fetchingNext={q.isFetchingNextPage}
@@ -343,8 +340,6 @@ export default function Thread() {
 }
 
 const st = StyleSheet.create({
-  failBox: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 24 },
-  failTitle: { fontSize: 18, fontWeight: '700', color: colors.zinc900, textAlign: 'center' },
   failText: { marginTop: 4, fontSize: 15, color: colors.zinc600, textAlign: 'center' },
   failBtn: { marginTop: 14, height: 44, borderRadius: 999, backgroundColor: colors.brand, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center' },
   failBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
