@@ -6,6 +6,7 @@ import { PushOffBanner, showsOffBanner, useDeviceNotifications } from '@/compone
 import { api } from '@/lib/api';
 import { pushApi } from '@/lib/api.settings';
 import { buildId, checkForUpdate, disablePush, enablePush, hardReload, installApp, installState, pushState } from '@/lib/push';
+import { CHANNEL, channelLabel } from '@/lib/distribution';
 import { NOTIFY_LABELS, notifyEntryId } from '@/lib/settingsIndex';
 import { SettingRow, SettingsSection } from './SettingRow';
 
@@ -115,9 +116,10 @@ export function VersionRows() {
   }
   const busy = state === 'checking' || state === 'updating';
   const version = `${Constants.expoConfig?.version ?? '?'}${buildId() ? ` (build ${buildId()!.slice(0, 8)})` : ''}`;
+  const channel = channelLabel(CHANNEL);
   return (
     <SettingsSection title="Versão">
-      <SettingRow anchor="version" icon="info" title="Txillapp" value={`versão ${version}`} />
+      <SettingRow anchor="version" icon="info" title="Txillapp" value={`versão ${version}${channel ? ` · ${channel}` : ''}`} />
       {Platform.OS === 'web' ? (
         <SettingRow
           icon="download"

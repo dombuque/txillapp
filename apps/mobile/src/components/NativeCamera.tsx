@@ -20,6 +20,7 @@ import {
   pinchZoom, previewPoint, quiet, recordingNotice, recTime, slideZoom, sunOffset, torchFor, zoomA11y, zoomAnimationArg, zoomBounds, zoomStops,
   type CamPlatform, type CamProblem, type ExposureRange, type FlashChoice, type LensInfo, type ValueStore,
 } from '@/lib/cameraControls';
+import { inAppGalleryFor } from '@/lib/mediaAccess';
 import { colors } from '@/lib/theme';
 import { GalleryPicker } from './GalleryPicker';
 import { Icon } from './Icon';
@@ -212,6 +213,8 @@ export function NativeCamera({
   /** Lê a última foto ou vídeo da galeria para a miniatura (sem pedir licença: isso fica para quando se abre a galeria). */
   async function refreshThumb() {
     try {
+      // No Android não se lê a galeria (sem READ_MEDIA_*: ver lib/mediaAccess); o botão mostra só o ícone.
+      if (!inAppGalleryFor(Platform.OS)) { setLastThumb(null); return; }
       const p = await MediaLibrary.getPermissionsAsync(false, ['photo', 'video']);
       if (!p.granted) { setLastThumb(null); return; }
       const page = await MediaLibrary.getAssetsAsync({

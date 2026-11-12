@@ -57,9 +57,9 @@ test('2.1/2.2: nas lojas não há «em breve» no ecrã do idioma', () => {
   assert.match(src, /\{SOON \? <Line icon="globe" label="English"/);
 });
 
-test('2.3.10: o aviso de nova versão (APK) só corre no Android', () => {
+test('2.3.10: o aviso de nova versão (APK) só corre no Android (e só no APK beta: ver tests/googlePlay.test.mjs)', () => {
   const src = read('src/components/AppUpdate.tsx');
-  assert.match(src, /if \(Platform\.OS !== 'android'\) return;/);
+  assert.match(src, /if \(Platform\.OS !== 'android' \|\| !canSelfUpdate\) return;/);
 });
 
 test('Info.plist: textos de permissão em português, sem os textos ingleses do Expo nem permissões que a app não usa', () => {

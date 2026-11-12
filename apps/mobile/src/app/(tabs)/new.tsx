@@ -13,6 +13,7 @@ import { VenueLogo } from '@/components/VenueCard';
 import { locaisApi } from '@/lib/api.locais';
 import { VideoPreview } from '@/components/CarouselVideo';
 import { GalleryPicker } from '@/components/GalleryPicker';
+import { inAppGalleryFor } from '@/lib/mediaAccess';
 import { NativeCamera } from '@/components/NativeCamera';
 import { PhotoEditor } from '@/components/PhotoEditor';
 import { Icon, type IconName } from '@/components/Icon';
@@ -518,7 +519,8 @@ export default function Compose() {
     const changeKind = (k: string) => { setKindSel(k); setPostCam(false); if (k === 'zas' && !zasCounted.current) { zasCounted.current = true; bumpKind('zas'); } };
     if (kindSel === 'zas') return <View style={{ flex: 1, backgroundColor: '#000' }}><InstantsHub onClose={() => setKindSel('mimo')} /></View>;
     // Publicação: a galeria com a primeira foto em grande (como "Nova publicação" no Instagram); uma foto vai ao editor.
-    if (kindSel === 'post' && !postCam) {
+    // No Android não há galeria dentro da app (Photo Picker do sistema, ver lib/mediaAccess): começa na câmara, que tem o botão da galeria.
+    if (kindSel === 'post' && !postCam && inAppGalleryFor(Platform.OS)) {
       return (
         <View style={{ flex: 1, backgroundColor: '#000' }}>
           <GalleryPicker

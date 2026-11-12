@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { useEffect, useState } from 'react';
 import { AppState, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { canSelfUpdate } from '@/lib/distribution';
 import { kvGet, kvSet } from '@/lib/kv';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
@@ -37,13 +38,15 @@ export function compareVersions(a: string, b: string): number {
  * App Android (fora da Play Store): ao abrir e ao voltar à app, pergunta ao servidor qual é a versão mais recente do APK.
  * Se houver nova, mostra o aviso com Atualizar (descarrega o APK; o Android pede para confirmar a instalação).
  * "Agora não" esconde o aviso durante 24 horas, a não ser que a atualização seja obrigatória.
+ * Só no APK beta (canal 'beta'). Numa app do Google Play não se pergunta nada ao servidor nem aparece aviso nenhum: a
+ * política do Play (Device and Network Abuse) proíbe atualizar ou sugerir um APK por fora da loja; quem atualiza é o Play.
  */
 export function AppUpdate() {
   const [latest, setLatest] = useState<Latest | null>(null);
   const mine = Constants.expoConfig?.version ?? '0.0.0';
 
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
+    if (Platform.OS !== 'android' || !canSelfUpdate) return;
     let last = 0;
     async function check() {
       if (Date.now() - last < 5 * 60 * 1000) return; // no máximo de 5 em 5 minutos
@@ -67,7 +70,7 @@ export function AppUpdate() {
     return () => sub.remove();
   }, [mine]);
 
-  if (!latest) return null;
+  if (!latest || !canSelfUpdate) return null;
   const forced = !!latest.min && compareVersions(mine, latest.min) < 0;
   const later = () => { void kvSet(SNOOZE_KEY, String(Date.now())); setLatest(null); };
   const update = () => { void Linking.openURL(latest.url); if (!forced) setLatest(null); };

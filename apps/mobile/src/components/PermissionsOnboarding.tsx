@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
 import { CHANNEL } from '@/lib/distribution';
 import { kvGet, kvSet } from '@/lib/kv';
+import { inAppGalleryFor } from '@/lib/mediaAccess';
 import { askNotifications, onNotificationOpen, registerNativePush } from '@/lib/nativePush';
 import { useOverlay } from '@/lib/overlays';
 import { onboardingSteps, prePromptButtons, type OnboardingStep } from '@/lib/storeRules';
@@ -29,8 +30,13 @@ const ALL_STEPS: Step[] = [
   { id: 'photos', icon: 'images', title: 'Fotos e vídeos', text: 'Para escolheres da tua galeria o que queres publicar.', ask: () => MediaLibrary.requestPermissionsAsync(false, ['photo', 'video']) },
   { id: 'location', icon: 'map-pin', title: 'Localização', text: 'Opcional: para te sugerirmos sítios perto e marcares onde estás. Nunca mostramos onde vives.', ask: () => Location.requestForegroundPermissionsAsync() },
 ];
-/** Na App Store só as notificações: o resto pede-se quando se usa (ver lib/storeRules). */
-const STEPS = ALL_STEPS.filter((s) => onboardingSteps(CHANNEL).includes(s.id));
+/**
+ * Na App Store só as notificações: o resto pede-se quando se usa (ver lib/storeRules). No Android não se pede a galeria:
+ * escolhe-se com o seletor de fotos do sistema, que não precisa de licença (lib/mediaAccess).
+ */
+const STEPS = ALL_STEPS
+  .filter((s) => onboardingSteps(CHANNEL).includes(s.id))
+  .filter((s) => s.id !== 'photos' || inAppGalleryFor(Platform.OS));
 const BUTTONS = prePromptButtons(CHANNEL);
 
 /**
