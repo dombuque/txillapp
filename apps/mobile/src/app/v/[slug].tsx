@@ -14,6 +14,7 @@ import { VenuePaySheet } from '@/components/VenuePaySheet';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { directionsUrl, eventWhen, nearbyApi } from '@/lib/api.nearby';
 import { KIND_LABEL, ROLE_LABEL, locaisApi, type Venue } from '@/lib/api.locais';
+import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { sized } from '@/lib/config';
 import { directionsByAddress, formatAddress, showsOnMap, validPoint } from '@/lib/placeField';
@@ -140,7 +141,8 @@ export default function VenueScreen() {
           <Text style={st.small}><Text style={st.num}>{v.checkins}</Text> check-ins</Text>
           <Text style={st.small}><Text style={st.num}>{v.checkinsToday}</Text> hoje</Text>
         </View>
-        {v.about ? <Text style={st.about} numberOfLines={tab === 'about' ? undefined : 3}>{v.about}</Text> : null}
+        {/* No separador Sobre o texto aparece inteiro lá em baixo: aqui não se repete. */}
+        {v.about && tab !== 'about' ? <Text style={st.about} numberOfLines={3}>{v.about}</Text> : null}
 
         <View style={{ marginTop: 14, flexDirection: 'row', gap: 8 }}>
           <View style={{ flex: 1 }}><FollowVenueButton venue={v} /></View>
@@ -172,7 +174,8 @@ export default function VenueScreen() {
             </View>
           </View>
         ) : null}
-        {!v.verified && v.mine && <Text style={st.review}>Em análise: a equipa do Txillapp vai verificar o local e dar-lhe o selo.</Text>}
+        {/* Com a página ainda em análise (ou recusada) o aviso lá de cima já diz tudo: este só depois de aprovada. */}
+        {!v.verified && v.mine && (!v.reviewStatus || v.reviewStatus === 'approved') && <Text style={st.review}>Em análise: a equipa do Txillapp vai verificar o local e dar-lhe o selo.</Text>}
 
         {token && !v.checkedIn && (
           <Pressable onPress={() => void checkin()} disabled={busy} style={[st.cta, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]} accessibilityRole="button">
@@ -229,7 +232,15 @@ export default function VenueScreen() {
       {q.isLoading ? (
         <View style={{ alignItems: 'center', paddingVertical: 64 }}><PontoLoader size={20} /></View>
       ) : q.isError ? (
-        <Empty icon="map-pin" title="Este local não existe" />
+        q.error instanceof ApiError && q.error.status === 404 ? (
+          <Empty icon="map-pin" title="Este local não existe" />
+        ) : (
+          // Sem rede ou o servidor em baixo: não dizer que o local não existe; deixar tentar outra vez.
+          <View style={{ alignItems: 'center' }}>
+            <Empty icon="alert" title="Não consegui abrir este local" text="Verifica a internet e tenta outra vez." />
+            <Pressable onPress={() => void q.refetch()} style={[st.manage, { marginTop: 20, height: 44 }]} accessibilityRole="button"><Text style={st.manageText}>Tentar outra vez</Text></Pressable>
+          </View>
+        )
       ) : (
         <FlatList
           data={items}
