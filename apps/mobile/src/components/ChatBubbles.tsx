@@ -18,7 +18,7 @@ import { Sticker } from '@/components/StickerPanel';
 import { ReactionArt } from '@/components/StoryParts';
 import { PollBubble } from '@/components/groups/PollCard';
 import { TILE_URL } from '@/components/nearby/mapRuntime';
-import { type Badged, type ChatMessage } from '@/lib/api';
+import { isTcheka, type Badged, type ChatMessage } from '@/lib/api';
 import { NameWithBadge } from '@/components/NameWithBadge';
 import { AVATAR, AVATAR_GAP, GAP_IN, GAP_OUT, corners, type Ticks } from '@/lib/chatLayout';
 import { timeLabel } from '@/lib/chatTimeline';
@@ -216,6 +216,12 @@ function VoiceMessage({ m, dim }: { m: Msg; dim: boolean }) {
   );
 }
 
+/** Para onde leva uma publicação partilhada no chat: a página da tcheka (um só vídeo) ou a da publicação. */
+export function sharedPostHref(p: { id: string; code?: string | null; media: { kind?: string }[] }): string {
+  const key = p.code ?? p.id;
+  return isTcheka(p) ? `/r/${key}` : `/p/${key}`;
+}
+
 /** Publicação ou reel partilhado numa conversa: miniatura, autor e texto. Tocar abre o post (ou o reel). */
 function SharedPost({ post, radius, tone, ink }: { post: ChatMessage['post']; radius: object; tone: object; ink: string }) {
   const router = useRouter();
@@ -231,13 +237,16 @@ function SharedPost({ post, radius, tone, ink }: { post: ChatMessage['post']; ra
   const shown = post.kind === 'repost' && post.repostOf ? post.repostOf : post;
   const m = shown.media[0];
   const video = m?.kind === 'video';
+  // Só é tcheka uma publicação com um único vídeo. Um carrossel que começa num vídeo continua a ser uma publicação.
+  const tcheka = isTcheka(shown);
   const thumb = m ? (video ? m.posterUrl : sized(m.url, 480)) : null;
-  const go = () => router.push((video ? `/reels?start=${shown.id}` : `/p/${shown.code ?? shown.id}`) as never);
+  // Abre exatamente o que foi partilhado: a página da tcheka ou a da publicação (antes ia para a lista das tchekas).
+  const go = () => router.push(sharedPostHref(shown) as never);
   return (
     <Pressable {...hold} onPress={go} style={[st.shared, tone, radius, { overflow: 'hidden' }]} accessibilityRole="link">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingTop: 10 }}>
-        <Icon name={video ? 'film' : 'image'} size={14} color={ink} />
-        <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: ink, opacity: 0.9 }} numberOfLines={1}>{video ? 'TCHEKA' : 'Publicação'} de {shown.author.displayName}</Text>
+        <Icon name={tcheka ? 'film' : 'image'} size={14} color={ink} />
+        <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: ink, opacity: 0.9 }} numberOfLines={1}>{tcheka ? 'TCHEKA' : 'Publicação'} de {shown.author.displayName}</Text>
       </View>
       {thumb ? (
         <View style={{ marginTop: 8, height: 170, width: '100%', backgroundColor: colors.zinc200 }}>
