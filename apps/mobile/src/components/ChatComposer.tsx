@@ -107,11 +107,12 @@ export function ChatComposer({
     }
   }
   /** Envia uma foto ou vídeo (da galeria, da câmara ou colado), com o texto escrito como legenda e "Ver uma vez". */
-  async function sendMedia(uri: string, mime: string, video: boolean) {
+  /** `caption`: a legenda escrita na pré-visualização (sem ela, vai o texto da caixa). */
+  async function sendMedia(uri: string, mime: string, video: boolean, caption?: string) {
     setBusy(true);
     try {
       const mediaId = await uploadChatMedia(uri, mime);
-      await dispatch({ kind: video ? 'video' : 'image', mediaId, body: text.trim() || undefined, once });
+      await dispatch({ kind: video ? 'video' : 'image', mediaId, body: (caption ?? text).trim() || undefined, once });
       setText('');
       grow.reset();
       setOnce(false);
@@ -120,11 +121,11 @@ export function ChatComposer({
     }
   }
   /** "Enviar" na pré-visualização da imagem colada ou arrastada: o mesmo caminho da galeria. */
-  async function sendPasted() {
+  async function sendPasted(caption: string) {
     const p = paste.take();
     if (!p) return;
     try {
-      await sendMedia(p.uri, p.type, false);
+      await sendMedia(p.uri, p.type, false, caption);
     } catch (e) {
       setErr((e as Error).message || 'Não consegui enviar');
     } finally {
@@ -294,7 +295,7 @@ export function ChatComposer({
       )}
       {gift && person && <GiftSheet recipient={person} onClose={() => { setGift(false); onSent(); }} />}
       {place && <SendLocationSheet allowLive who={firstName} onSend={sendLocation} onClose={() => setPlace(false)} />}
-      {paste.pending && <PastedImageSheet uri={paste.pending.uri} caption={text.trim()} once={once} onCancel={paste.cancel} onSend={() => void sendPasted()} />}
+      {paste.pending && <PastedImageSheet uri={paste.pending.uri} caption={text.trim()} once={once} onCancel={paste.cancel} onSend={(c) => void sendPasted(c)} />}
     </View>
   );
 }

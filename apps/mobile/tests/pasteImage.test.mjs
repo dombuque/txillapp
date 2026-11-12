@@ -136,7 +136,9 @@ test('as duas caixas de mensagem usam o colar e a pré-visualização; nada se e
     const src = readFileSync(path.join(ROOT, 'src', 'components', f), 'utf8');
     assert.match(src, /usePastedImage(<[^(]*>)?\(\{/, f);
     assert.match(src, /ref=\{paste\.ref\}/, f);
-    assert.match(src, /<PastedImageSheet[^>]*onSend=\{\(\) => void sendPasted\(\)\}/, f);
+    assert.match(src, /<PastedImageSheet[^>]*onSend=\{\(c\) => void sendPasted\(c\)\}/, f);
+    // A legenda escrita na pré-visualização é a que vai com a imagem.
+    assert.match(src, /body: \(caption \?\? text\)\.trim\(\) \|\| undefined/, f);
     // O mesmo caminho da galeria: pick e sendPasted passam por sendMedia.
     assert.equal((src.match(/await sendMedia\(/g) ?? []).length, 2, f);
   }
@@ -144,4 +146,7 @@ test('as duas caixas de mensagem usam o colar e a pré-visualização; nada se e
   for (const ev of ['paste', 'beforeinput', 'dragover', 'drop']) assert.match(hook, new RegExp(`addEventListener\\('${ev}'`));
   assert.match(hook, /insertFromPaste/);
   assert.doesNotMatch(hook, /uploadChatMedia|chatSend/);
+  const sheet = readFileSync(path.join(ROOT, 'src', 'components', 'PastedImageSheet.tsx'), 'utf8');
+  assert.match(sheet, /useState\(caption \?\? ''\)/);
+  assert.match(sheet, /placeholder="Adicionar uma legenda…"/);
 });

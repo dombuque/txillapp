@@ -90,11 +90,12 @@ export function GroupComposer({
     }
   }
   /** Envia uma foto ou vídeo (da galeria, da câmara ou colado), com o texto escrito como legenda. */
-  async function sendMedia(uri: string, mime: string, video: boolean) {
+  /** `caption`: a legenda escrita na pré-visualização (sem ela, vai o texto da caixa). */
+  async function sendMedia(uri: string, mime: string, video: boolean, caption?: string) {
     setBusy(true);
     try {
       const mediaId = await uploadChatMedia(uri, mime);
-      await dispatch({ kind: video ? 'video' : 'image', mediaId, body: text.trim() || undefined });
+      await dispatch({ kind: video ? 'video' : 'image', mediaId, body: (caption ?? text).trim() || undefined });
       setText('');
       grow.reset();
     } finally {
@@ -102,11 +103,11 @@ export function GroupComposer({
     }
   }
   /** "Enviar" na pré-visualização da imagem colada ou arrastada: o mesmo caminho da galeria. */
-  async function sendPasted() {
+  async function sendPasted(caption: string) {
     const p = paste.take();
     if (!p) return;
     try {
-      await sendMedia(p.uri, p.type, false);
+      await sendMedia(p.uri, p.type, false, caption);
     } catch (e) {
       setErr((e as Error).message || 'Não consegui enviar');
     } finally {
@@ -219,7 +220,7 @@ export function GroupComposer({
         </View>
       </View>
       {place && <SendLocationSheet allowLive={false} onSend={sendLocation} onClose={() => setPlace(false)} />}
-      {paste.pending && <PastedImageSheet uri={paste.pending.uri} caption={text.trim()} onCancel={paste.cancel} onSend={() => void sendPasted()} />}
+      {paste.pending && <PastedImageSheet uri={paste.pending.uri} caption={text.trim()} onCancel={paste.cancel} onSend={(c) => void sendPasted(c)} />}
     </View>
   );
 }
