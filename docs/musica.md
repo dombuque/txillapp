@@ -27,7 +27,12 @@ Definida em `apps/api/src/music/catalog/track.ts` (`CatalogTrack`). Todas as fon
 | `artistUsername?` | string | só na `local`: o @ do artista no Txillapp, sem o @ |
 
 A app recebe `PickerTrack`: a mesma faixa mais `url` (= `previewUrl`) e `durationMs` (= `duration × 1000`), os nomes antigos que
-as versões antigas da app e os posts já usam, e, em «Em alta», `uses` (vezes usada nos últimos 7 dias) e `featured`.
+as versões antigas da app e os posts já usam, e, em «Em alta», `uses` (vezes usada nos últimos 7 dias) e `featured`. Em todas as
+listas vem também `usesTotal` (vezes usada desde sempre, o «1,2 mil usos» das linhas; contado de 10 em 10 minutos) e, quando a
+faixa tem capa, `coverColors: [cor1, cor2]` (`#rrggbb`), o gradiente do cartão de destaque. As cores calculam-se com sharp depois
+de cada atualização do catálogo (`catalog/tint.ts`: a cor que domina a capa, escurecida para o texto branco se ler) e ficam em
+`content.music_catalog.cover_tint` (migração `0132_cores_das_capas.sql`); a capa só se vai buscar por https a anfitriões
+permitidos, também nos redireccionamentos. Sem cores, a app usa o gradiente da marca. Nada disto fica guardado nos posts.
 
 O que fica guardado num post, story ou nota é a faixa no formato antigo (`id, title, artist, url, landing, license, licenseUrl,
 durationMs, cover`, mais `source` e `artistUsername` quando os há). Quando o `id` existe no catálogo (ou na fonte `local`), o
@@ -104,6 +109,22 @@ Todas com sessão (`/api/v1`).
 | `GET /music/search?q=` | `PickerTrack[]`: catálogo e `local`, por título, artista ou estilo (como antes, 2 letras no mínimo) |
 | `PUT /music/dislikes/:id` · `DELETE /music/dislikes/:id` | `{ disliked: true \| false }` |
 | `GET /music/suggested` | versões antigas da app: `{ trending, recent }` |
+| `GET /music/favorites` · `PUT /music/favorites` · `DELETE /music/favorites/:id` | as guardadas: guarda-se a faixa no formato antigo, mas a lista vem com o que o catálogo sabe agora (estilos, `usesTotal`, `coverColors`) |
+
+### O seletor na app (`apps/mobile/src/components/MusicPicker.tsx`)
+
+Folha escura de baixo (no computador, painel à direita), com a pesquisa e quatro separadores (`lib/musicCatalog.ts`):
+
+| Separador | O que mostra |
+|---|---|
+| «Para ti» | os destaques (cartão largo com o gradiente da capa, desliza entre eles: destacadas pela equipa, até duas dos artistas de Moçambique, e as primeiras de «Em alta» se faltarem), as pastilhas pequenas («Artistas de Moçambique» e os estilos) e a lista: o estilo sugerido pelo texto do post (ou o mais guardado), «Em alta» dos estilos guardados, as usadas há pouco e o resto de «Em alta» |
+| «Em alta» | `trending` |
+| «Sons originais» | `GET /music/sounds` |
+| «Guardadas» | as favoritas (o marcador de cada linha) |
+
+Cada linha: capa de 56 px, título, «Artista · 1,2 mil usos · 2:53» e o marcador. Tocar ouve um pedaço (a linha fica realçada, com o
+indicador de som, e aparece «Usar»); manter premido (ou «⋯» e o botão direito no computador) abre «Usar», «Ouvir», «Guardar» e
+«Não gosto desta». As faixas locais e os clipes não se guardam.
 
 - `trending` («Em alta no Txillapp»): primeiro as destacadas, depois pelo número de vezes que a faixa foi usada em mimos (stories)
   e tchekas/posts nos **últimos 7 dias** (só contagens; nada de quem usou), e completa com as de melhor qualidade.

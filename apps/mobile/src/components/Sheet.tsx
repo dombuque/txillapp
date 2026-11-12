@@ -37,8 +37,9 @@ export const PANEL_W = 460;
  * Folha de baixo igual à do site: cantos de 28, pega de arrastar, título e ×. Puxar para baixo fecha-a
  * (a página por trás não se mexe). `full` ocupa 78% do ecrã (comentários); sem ele ajusta-se ao conteúdo.
  * No computador muda de forma (`variant`, ver SheetVariant), não se arrasta e fecha com Esc, com um clique fora ou no ×.
+ * `dark`: a folha escura (fundo #1c1c1e, como o seletor de música por cima do mimo ou do vídeo).
  */
-export function Sheet({ title, onClose, children, full = false, plain = false, variant = 'dialog', anchor = null }: { title?: string; onClose: () => void; children: ReactNode; full?: boolean; plain?: boolean; variant?: SheetVariant; anchor?: Rect | null }) {
+export function Sheet({ title, onClose, children, full = false, plain = false, variant = 'dialog', anchor = null, dark = false }: { title?: string; onClose: () => void; children: ReactNode; full?: boolean; plain?: boolean; variant?: SheetVariant; anchor?: Rect | null; dark?: boolean }) {
   const insets = useSafeAreaInsets();
   const h = Dimensions.get('window').height;
   const y = useRef(new Animated.Value(h)).current;
@@ -102,10 +103,10 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
 
   const head = title && !plain ? (
     <View style={[styles.head, mode !== 'bottom' && styles.deskHead, mode === 'menu' && styles.menuHead]}>
-      <Text style={[styles.title, mode === 'menu' && styles.menuTitle]} numberOfLines={1}>{title}</Text>
+      <Text style={[styles.title, mode === 'menu' && styles.menuTitle, dark && { color: '#fff' }]} numberOfLines={1}>{title}</Text>
       {mode === 'dialog' || mode === 'panel' ? (
-        <Pressable onPress={close} style={(s) => [styles.x, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Fechar" {...({ dataSet: { tip: 'Fechar (Esc)' } } as object)}>
-          <Icon name="x" size={20} color={colors.zinc700} strokeWidth={2.2} />
+        <Pressable onPress={close} style={(s) => [styles.x, (s as { hovered?: boolean }).hovered && { backgroundColor: dark ? DARK.hover : colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Fechar" {...({ dataSet: { tip: 'Fechar (Esc)' } } as object)}>
+          <Icon name="x" size={20} color={dark ? DARK.icon : colors.zinc700} strokeWidth={2.2} />
         </Pressable>
       ) : null}
     </View>
@@ -127,7 +128,7 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
               const { width, height } = e.nativeEvent.layout;
               if (!menuSize || Math.abs(menuSize.h - height) > 1 || Math.abs(menuSize.w - width) > 1) setMenuSize({ w: width, h: height });
             }}
-            style={[styles.menu, { left: pos.left, top: pos.top, maxHeight: win.height - 16, opacity: y.interpolate({ inputRange: [0, h * 0.4], outputRange: [1, 0], extrapolate: 'clamp' }) }]}
+            style={[styles.menu, dark && { backgroundColor: DARK.bg, borderColor: DARK.hover }, { left: pos.left, top: pos.top, maxHeight: win.height - 16, opacity: y.interpolate({ inputRange: [0, h * 0.4], outputRange: [1, 0], extrapolate: 'clamp' }) }]}
             accessibilityViewIsModal
             role="menu"
           >
@@ -149,14 +150,14 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
         <View style={StyleSheet.absoluteFill}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: y.interpolate({ inputRange: [0, h], outputRange: [0.25, 0], extrapolate: 'clamp' }) }]} />
           <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Fechar" />
-          <Animated.View style={[styles.panel, { width: w, transform: [{ translateX: y.interpolate({ inputRange: [0, h], outputRange: [0, w], extrapolate: 'clamp' }) }] }]} accessibilityViewIsModal>
+          <Animated.View style={[styles.panel, dark && { backgroundColor: DARK.bg }, { width: w, transform: [{ translateX: y.interpolate({ inputRange: [0, h], outputRange: [0, w], extrapolate: 'clamp' }) }] }]} accessibilityViewIsModal>
             <ListReset><ModeCtx.Provider value={mode}><ScrollCtx.Provider value={{ top: atTop }}>
               {head}
               <View style={{ flex: 1, minHeight: 0 }}>{children}</View>
               {head ? null : (
                 // Folha «plain» (desenha o seu título): o × fica no canto do painel.
-                <Pressable onPress={close} style={(s) => [styles.x, styles.panelX, (s as { hovered?: boolean }).hovered && { backgroundColor: colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Fechar" {...({ dataSet: { tip: 'Fechar (Esc)' } } as object)}>
-                  <Icon name="x" size={20} color={colors.zinc700} strokeWidth={2.2} />
+                <Pressable onPress={close} style={(s) => [styles.x, styles.panelX, (s as { hovered?: boolean }).hovered && { backgroundColor: dark ? DARK.hover : colors.zinc100 }]} accessibilityRole="button" accessibilityLabel="Fechar" {...({ dataSet: { tip: 'Fechar (Esc)' } } as object)}>
+                  <Icon name="x" size={20} color={dark ? DARK.icon : colors.zinc700} strokeWidth={2.2} />
                 </Pressable>
               )}
             </ScrollCtx.Provider></ModeCtx.Provider></ListReset>
@@ -174,11 +175,11 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
         <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Fechar" />
         <Animated.View
           {...(desktop ? {} : pan.panHandlers)}
-          style={[styles.sheet, full ? { height: heights.full } : { maxHeight: heights.max }, { paddingBottom: box ? 12 : Math.max(insets.bottom, 16) + (kb ? kb - insets.bottom : 0), transform: [{ translateY: y }] }, desktop && { maxWidth: 540, borderRadius: 24, paddingBottom: 20, transform: [{ translateY: Animated.multiply(y, 0.15) }] }]}
+          style={[styles.sheet, dark && { backgroundColor: DARK.bg }, full ? { height: heights.full } : { maxHeight: heights.max }, { paddingBottom: box ? 12 : Math.max(insets.bottom, 16) + (kb ? kb - insets.bottom : 0), transform: [{ translateY: y }] }, desktop && { maxWidth: 540, borderRadius: 24, paddingBottom: 20, transform: [{ translateY: Animated.multiply(y, 0.15) }] }]}
           accessibilityViewIsModal
         >
           <ListReset><ModeCtx.Provider value={mode}><ScrollCtx.Provider value={{ top: atTop }}>
-            {desktop ? <View style={{ height: 8 }} /> : <View style={styles.handle} />}
+            {desktop ? <View style={{ height: 8 }} /> : <View style={[styles.handle, dark && { backgroundColor: DARK.handle }]} />}
             {head}
             {body}
           </ScrollCtx.Provider></ModeCtx.Provider></ListReset>
@@ -187,6 +188,9 @@ export function Sheet({ title, onClose, children, full = false, plain = false, v
     </Modal>
   );
 }
+
+/** As cores da folha escura. */
+export const DARK = { bg: '#1c1c1e', hover: '#2c2c2e', handle: '#5a5a5e', icon: '#e5e5ea' } as const;
 
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: 'flex-end', alignItems: 'center' },

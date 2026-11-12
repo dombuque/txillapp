@@ -99,11 +99,13 @@ test('o seletor só mostra os «Artistas de Moçambique» em mimos e tchekas (o 
   assert.doesNotMatch(read('components', 'Notes.tsx'), /allowLocal/);
   const picker = read('components', 'MusicPicker.tsx');
   assert.match(picker, /allowLocal = false/);
-  // No seletor do catálogo curado: o separador e as listas ficam sem faixas locais fora dos mimos e das tchekas.
-  assert.match(picker, /pickerTabs\(home\.data, allowLocal\)/);
+  // No seletor do catálogo curado: a pastilha, os destaques e as listas ficam sem faixas locais fora dos mimos e das tchekas.
+  assert.match(picker, /forYouChips\(home\.data, allowLocal, suggestion\?\.genre\)/);
+  assert.match(picker, /highlights\(home\.data, allowLocal\)/);
   assert.match(picker, /onlyAllowed\(withoutDisliked\(q\.data, disliked\), allowLocal\)/);
-  // As faixas dos artistas não vão para as favoritas (o servidor só guarda faixas do catálogo aberto).
-  assert.match(picker, /t\.kind !== 'clip' && t\.source !== 'local'/);
+  // As faixas dos artistas não vão para as guardadas (o servidor só guarda faixas do catálogo aberto).
+  assert.match(picker, /\{canSave\(t\) \? \(/);
+  assert.match(read('lib', 'musicCatalog.ts'), /export const canSave = \(t: TrackLike\) => t\.kind !== 'clip' && t\.source !== 'local';/);
 });
 
 test('ecrãs: Sou artista nas Definições e na pesquisa, o perfil com a etiqueta «Artista» (sem o selo de verificado)', () => {

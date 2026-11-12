@@ -7,7 +7,9 @@ import { migrate } from '../../db/migrate';
 import { createApp } from '../../main';
 import { staffLogin } from '../../staff/staff-test';
 import { MusicService } from '../music.service';
+import sharp from 'sharp';
 import { MusicCatalogService } from './catalog.service';
+import { coverHostOk, luminance, tintFromPixels } from './tint';
 import type { CatalogTrack, LocalMusicSource } from './track';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
@@ -90,6 +92,8 @@ describe('música: catálogo curado, Em alta, «Não gosto desta», fonte local 
   const api = () => request(app.getHttpServer());
   const auth = (x: { token: string }) => ({ Authorization: `Bearer ${x.token}` });
   const u: Record<string, U> = {};
+  const covers = { red: Buffer.alloc(0), blue: Buffer.alloc(0) };
+  const png = (b: Buffer) => new Response(new Uint8Array(b), { status: 200, headers: { 'Content-Type': 'image/png', 'Content-Length': String(b.length) } });
 
   async function signup(name: string): Promise<U> {
     const username = `${name}${run}`.slice(0, 28);
@@ -117,6 +121,9 @@ describe('música: catálogo curado, Em alta, «Não gosto desta», fonte local 
     await pool.query("UPDATE content.posts SET music = NULL WHERE music->>'source' IN ('ccmixter', 'archive', 'jamendo', 'freesound', 'local')");
     for (const n of ['mca', 'mcb']) u[n] = await signup(n);
 
+    const solid = (r: number, g: number, b: number) => sharp({ create: { width: 40, height: 40, channels: 3, background: { r, g, b } } }).png().toBuffer();
+    covers.red = await solid(230, 40, 60);
+    covers.blue = await solid(40, 90, 230);
     const real = global.fetch;
     fetchSpy = jest.spyOn(global, 'fetch').mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
@@ -142,6 +149,10 @@ describe('música: catálogo curado, Em alta, «Não gosto desta», fonte local 
         return json(t.includes('afrobeat') || t.includes('dance') ? JAMENDO_AFRO : { headers: { status: 'success' }, results: [] });
       }
       if (host === 'freesound.org') return json(FREESOUND);
+      // Capas: a do Jamendo é vermelha; a do Archive redirecciona para um espelho permitido, onde é azul.
+      if (host === 'usercontent.jamendo.com') return png(covers.red);
+      if (host === 'archive.org' && url.includes('/services/img/')) return new Response(null, { status: 302, headers: { Location: 'https://ia800000.us.archive.org/9/items/netlabel-gospel/capa.jpg' } });
+      if (host === 'ia800000.us.archive.org') return png(covers.blue);
       blocked.push(url);
       throw new Error(`pedido real bloqueado no teste: ${url}`);
     });
@@ -237,6 +248,79 @@ describe('música: catálogo curado, Em alta, «Não gosto desta», fonte local 
     // As versões antigas da app (/music/suggested) também recebem o catálogo.
     const old = (await api().get('/api/v1/music/suggested').set(auth(u.mca)).expect(200)).body;
     expect(ids(old.trending).slice(0, 2)).toEqual(['ccmixter:2001', 'jamendo:555']);
+  });
+
+  it('cores das capas (o gradiente do destaque) e usos desde sempre; as favoritas vêm com o que o catálogo sabe', async () => {
+    // As cores leem-se das capas com sharp: só música com capa (o ccMixter não dá capas; os sons ficam de fora).
+    expect(await catalog.tintCovers()).toBe(2);
+    expect(await catalog.tintCovers()).toBe(0); // já lidas: não se vai outra vez às capas
+    const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+    catalog.invalidate();
+    let h = await home(u.mcb);
+    const afro = h.trending.find((t: { id: string }) => t.id === 'jamendo:555');
+    expect(afro.coverColors).toHaveLength(2);
+    for (const c of afro.coverColors) expect(c).toMatch(/^#[0-9a-f]{6}$/);
+    const [r, g, b] = rgb(afro.coverColors[0]);
+    expect(r).toBeGreaterThan(g * 2); // vermelha, como a capa
+    expect(r).toBeGreaterThan(b * 2);
+    expect(luminance(rgb(afro.coverColors[0]))).toBeLessThanOrEqual(0.22); // o título a branco lê-se
+    const gospel = h.trending.find((t: { source: string }) => t.source === 'archive');
+    const [gr, , gb] = rgb(gospel.coverColors[0]);
+    expect(gb).toBeGreaterThan(gr * 2); // azul (seguiu o redireccionamento para o espelho)
+    expect(h.trending.find((t: { id: string }) => t.id === 'ccmixter:2001')).not.toHaveProperty('coverColors');
+
+    // A capa muda: lê-se outra vez. Uma capa num sítio não permitido fica sem cores, sem pedido nenhum.
+    const setCover = (url: string) => pool.query(`UPDATE content.music_catalog SET track = jsonb_set(track, '{cover}', to_jsonb($1::text)) WHERE id = 'jamendo:555'`, [url]);
+    await setCover('https://evil.example.com/capa.png');
+    expect(await catalog.tintCovers()).toBe(1);
+    catalog.invalidate();
+    expect((await home(u.mcb)).trending.find((t: { id: string }) => t.id === 'jamendo:555')).not.toHaveProperty('coverColors');
+    await setCover('https://usercontent.jamendo.com/?type=album&id=1');
+    expect(await catalog.tintCovers()).toBe(1);
+
+    // Usos desde sempre: o 1001 foi usado 4 vezes; uma delas há 60 dias (fora dos 30) continua a contar.
+    await pool.query(`UPDATE content.posts SET created_at = now() - interval '60 days' WHERE id = (SELECT id FROM content.posts WHERE music->>'id' = 'ccmixter:1001' ORDER BY id LIMIT 1)`);
+    catalog['totals'] = null;
+    catalog.invalidate();
+    h = await home(u.mcb);
+    expect(h.trending.find((t: { id: string }) => t.id === 'ccmixter:1001')).toMatchObject({ uses: 0, usesTotal: 4 });
+    expect(h.trending.find((t: { id: string }) => t.id === 'ccmixter:2001')).toMatchObject({ uses: 2, usesTotal: 2 });
+    expect((await api().get('/api/v1/music/styles/hiphop').set(auth(u.mcb)).expect(200)).body[0]).toMatchObject({ id: 'ccmixter:1001', usesTotal: 4 });
+    expect(JSON.stringify(h.trending)).not.toContain(u.mca.id); // só números
+
+    // «Guardadas»: guarda-se o formato de sempre, mas a lista vem com estilos, usos e cores (o catálogo de agora).
+    const stored = { ...(await track('jamendo:555'))!, url: 'https://prod-1.storage.jamendo.com/?trackid=555&format=mp31', durationMs: 1000, landing: null, licenseUrl: null };
+    await api().put('/api/v1/music/favorites').set(auth(u.mcb)).send(stored).expect(200);
+    const saved = (await pool.query(`SELECT track FROM content.music_favorites WHERE user_id = $1 AND track_id = 'jamendo:555'`, [u.mcb.id])).rows[0].track;
+    expect(saved).not.toHaveProperty('coverColors');
+    expect(saved).not.toHaveProperty('usesTotal');
+    const favs = (await api().get('/api/v1/music/favorites').set(auth(u.mcb)).expect(200)).body;
+    expect(favs[0]).toMatchObject({ id: 'jamendo:555', title: 'Maputo Sunset', usesTotal: 1, styles: expect.arrayContaining(['afrobeats']) });
+    expect(favs[0].coverColors).toHaveLength(2);
+    // Uma favorita antiga que o catálogo já não tem fica como foi guardada.
+    const old = { id: 'openverse:velha', title: 'Velha', artist: 'A', url: 'https://ccmixter.org/content/a/v.mp3', landing: null, license: 'by', licenseUrl: null, durationMs: 1000, cover: null };
+    await pool.query(`INSERT INTO content.music_favorites (user_id, track_id, track) VALUES ($1, $2, $3)`, [u.mcb.id, old.id, JSON.stringify(old)]);
+    const again = (await api().get('/api/v1/music/favorites').set(auth(u.mcb)).expect(200)).body;
+    expect(again.find((t: { id: string }) => t.id === old.id)).toEqual(old);
+    await api().delete('/api/v1/music/favorites/jamendo:555').set(auth(u.mcb)).expect(200);
+    await api().delete(`/api/v1/music/favorites/${old.id}`).set(auth(u.mcb)).expect(200);
+  });
+
+  it('cores: a cor que domina a capa, escurecida para o texto branco; só capas https de anfitriões permitidos', () => {
+    const fill = (c: number[], n = 100) => Uint8Array.from(Array.from({ length: n }, () => c).flat());
+    const hexRgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+    const [c1, c2] = tintFromPixels(fill([250, 200, 40]))!;
+    expect(luminance(hexRgb(c1))).toBeLessThanOrEqual(0.22);
+    expect(luminance(hexRgb(c2))).toBeLessThan(luminance(hexRgb(c1))); // a segunda, mais escura
+    // Mais branco do que vermelho, mas é o vermelho que dá a cor.
+    const [m] = tintFromPixels(Uint8Array.from([...fill([255, 255, 255], 70), ...fill([220, 30, 40], 30)]))!;
+    expect(hexRgb(m)[0]).toBeGreaterThan(hexRgb(m)[1] * 2);
+    expect(tintFromPixels(new Uint8Array(0))).toBeNull();
+    expect(coverHostOk('https://usercontent.jamendo.com/?type=album&id=1')).toBe(true);
+    expect(coverHostOk('https://archive.org/services/img/x')).toBe(true);
+    expect(coverHostOk('http://archive.org/services/img/x')).toBe(false);
+    expect(coverHostOk('https://evil.example.com/x.png')).toBe(false);
+    expect(coverHostOk('https://archive.org.evil.com/x.png')).toBe(false);
   });
 
   it('«Não gosto desta»: sai logo para mim; com muitas pessoas (limiar) desce para todos', async () => {

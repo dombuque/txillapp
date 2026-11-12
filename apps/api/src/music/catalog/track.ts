@@ -96,14 +96,20 @@ export interface PickerTrack extends CatalogTrack {
   uses?: number;
   /** Destacada pela equipa no backoffice. */
   featured?: boolean;
+  /** Vezes que foi usada em mimos e tchekas desde sempre (o «1,2 mil usos» das linhas do seletor). */
+  usesTotal?: number;
+  /** As duas cores do gradiente do destaque, tiradas da capa (sem capa, ou sem as conseguir ler, não vem). */
+  coverColors?: [string, string];
 }
 
-export const toPicker = (t: CatalogTrack, extra: { uses?: number; featured?: boolean } = {}): PickerTrack => ({
+export const toPicker = (t: CatalogTrack, extra: { uses?: number; featured?: boolean; usesTotal?: number; coverColors?: [string, string] | null } = {}): PickerTrack => ({
   ...t,
   url: t.previewUrl,
   durationMs: t.duration * 1000,
   ...(extra.uses !== undefined ? { uses: extra.uses } : {}),
   ...(extra.featured ? { featured: true } : {}),
+  ...(extra.usesTotal !== undefined ? { usesTotal: extra.usesTotal } : {}),
+  ...(extra.coverColors ? { coverColors: extra.coverColors } : {}),
 });
 
 /** Limites de duração: fora disto não serve para um mimo ou um tcheka. */

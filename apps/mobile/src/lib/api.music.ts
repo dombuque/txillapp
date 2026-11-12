@@ -33,6 +33,10 @@ export interface Track {
   /** Duração em segundos e endereço do áudio, com os nomes do contrato novo (iguais a `durationMs` e `url`). */
   duration?: number;
   previewUrl?: string;
+  /** Vezes usada em mimos e tchekas desde sempre (o «1,2 mil usos» das linhas do seletor). */
+  usesTotal?: number;
+  /** As duas cores do fundo do destaque, tiradas da capa no servidor (sem elas, o gradiente da marca). */
+  coverColors?: [string, string];
 }
 
 /** Um estilo ou momento do catálogo (o servidor só manda os que têm faixas). */
