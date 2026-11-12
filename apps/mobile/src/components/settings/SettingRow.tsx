@@ -80,7 +80,7 @@ export function SettingRow({ icon, title, description, value, to, onPress, toggl
         ref={ref}
         onPress={press}
         disabled={toggle.disabled}
-        style={({ pressed }) => [style, pressed && st.pressed]}
+        style={(s) => [style, (s.pressed || (s as { hovered?: boolean }).hovered) && st.pressed]}
         accessibilityRole="switch"
         accessibilityState={{ checked: toggle.on, disabled: !!toggle.disabled }}
         // Na web (react-native-web) o estado só chega ao leitor de ecrã pelos aria-*.
@@ -97,7 +97,7 @@ export function SettingRow({ icon, title, description, value, to, onPress, toggl
     <Pressable
       ref={ref}
       onPress={press}
-      style={({ pressed }) => [style, pressed && st.pressed]}
+      style={(s) => [style, (s.pressed || (s as { hovered?: boolean }).hovered) && st.pressed]}
       accessibilityRole={to ? 'link' : 'button'}
       accessibilityLabel={[title, value].filter(Boolean).join(', ')}
       accessibilityHint={hint ?? description}
