@@ -45,7 +45,7 @@ export default function ContentSettings() {
             title="Deixar fazer duetos e respostas com as minhas tchekas"
             description={p.isPrivate
               ? 'A tua conta é privada: ninguém faz duetos com as tuas tchekas nem responde com tcheka aos teus comentários.'
-              : 'Outras pessoas podem gravar ao lado das tuas tchekas (dueto) e responder com uma tcheka aos teus comentários. Desligado, os que já existem ficam.'}
+              : 'Outras pessoas podem pôr as tuas tchekas ao lado do vídeo delas (dueto), com o teu vídeo e o teu som, e responder com uma tcheka aos teus comentários. Desligado, os que já existem ficam.'}
             toggle={{ on: remixOn, disabled: p.isPrivate, onChange: (v) => void save({ remixAllowed: v }) }}
           />
         ) : null}
