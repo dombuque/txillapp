@@ -307,7 +307,14 @@ export interface Conversation {
   unread: number;
 }
 export type NoteAudience = 'mutual' | 'close_friends';
-export interface Track { kind?: 'clip'; mediaId?: string; id: string; title: string; artist: string; url: string; landing: string | null; license: string; licenseUrl: string | null; durationMs: number | null; cover: string | null }
+/**
+ * Faixa de música (catálogo curado, fonte `local` dos artistas ou clipe próprio `kind: 'clip'`). Os campos novos do catálogo
+ * (`source`, `styles`, `artistUsername`, `previewUrl`, `duration` em segundos) são opcionais: os posts antigos não os têm. Ver docs/musica.md.
+ */
+export interface Track {
+  kind?: 'clip' | 'music' | 'sound'; mediaId?: string; id: string; title: string; artist: string; url: string; landing: string | null; license: string; licenseUrl: string | null; durationMs: number | null; cover: string | null;
+  source?: string; styles?: string[]; artistUsername?: string; previewUrl?: string; duration?: number;
+}
 /** O que se envia ao servidor: uma faixa de licença aberta inteira, ou só os dados do clipe próprio. */
 export const musicPayload = (t: Track | null | undefined) => (!t ? undefined : t.kind === 'clip' ? { kind: 'clip' as const, mediaId: t.mediaId!, durationMs: t.durationMs ?? 1000, title: t.title } : t);
 export interface InvitesInfo {

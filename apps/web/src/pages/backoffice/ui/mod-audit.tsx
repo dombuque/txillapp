@@ -24,12 +24,14 @@ export const ACTION_LABEL: Record<string, string> = {
   'iap.refunded': 'Compra na loja reembolsada', 'iap.revoked': 'Compra na loja revogada', 'iap.boost_linked': 'Compra na loja ligada a um Bombar', 'iap.wrong_user': 'Compra de outra conta recusada',
   'iap.verification_applied': 'Selo pago aplicado', 'iap.verification_removed': 'Selo pago retirado', 'iap.restore': 'Restaurou compras', 'iap.notification': 'Aviso da loja (só registo)',
   'catalog.approve': 'Aprovou um item da Geleira', 'catalog.reject': 'Rejeitou um item da Geleira', 'catalog.edit': 'Editou um item da Geleira', 'catalog.create': 'Criou um item da Geleira',
+  'music.hide': 'Escondeu uma faixa de música', 'music.feature': 'Destacou uma faixa de música', 'music.restore': 'Repôs uma faixa de música', 'music.refresh': 'Atualizou o catálogo de música',
 };
 export const actionLabel = (a: string) => ACTION_LABEL[a] ?? a;
 
 export const GROUPS: { prefix: string; label: string }[] = [
   { prefix: 'moderation.', label: 'Moderação' },
   { prefix: 'catalog.', label: 'Catálogo da Geleira' },
+  { prefix: 'music.', label: 'Música' },
   { prefix: 'backoffice.', label: 'Contas (backoffice)' },
   { prefix: 'verification.', label: 'Selos de verificado' },
   { prefix: 'staff.', label: 'Equipa' },
