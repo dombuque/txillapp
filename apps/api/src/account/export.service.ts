@@ -18,7 +18,7 @@ export class ExportService {
       await q(
         `SELECT comments_allowed AS "commentsAllowed", gifts_allowed AS "giftsAllowed", mentions_allowed AS "mentionsAllowed", dms_allowed AS "dmsAllowed", calls_allowed AS "callsAllowed",
                 reposts_visible AS "repostsVisible", cheers_visible AS "cheersVisible", gifts_visible AS "giftsVisible",
-                show_connections AS "showConnections", suggestable, story_replies AS "storyReplies"
+                show_connections AS "showConnections", suggestable, story_replies AS "storyReplies", remix_allowed AS "remixAllowed"
            FROM identity.users WHERE id = $1`,
       )
     )[0];
@@ -29,7 +29,8 @@ export class ExportService {
       settings,
       posts: await q(
         `SELECT p.id, p.kind, p.body, p.location_label AS "locationLabel", p.music, (SELECT v.slug FROM content.venues v WHERE v.id = p.venue_id) AS "postedAsVenue", p.created_at AS "createdAt", p.removed_at AS "removedAt",
-                (SELECT COALESCE(json_agg('/api/v1/media/' || pm.media_id ORDER BY pm.position), '[]'::json) FROM content.post_media pm WHERE pm.post_id = p.id) AS photos
+                (SELECT COALESCE(json_agg('/api/v1/media/' || pm.media_id ORDER BY pm.position), '[]'::json) FROM content.post_media pm WHERE pm.post_id = p.id) AS photos,
+                (SELECT json_build_object('postId', rx.original_id, 'kind', rx.kind, 'commentId', rx.comment_id) FROM content.post_remixes rx WHERE rx.post_id = p.id) AS "remixOf"
            FROM content.posts p WHERE p.author_id = $1 ORDER BY p.id`,
       ),
       comments: await q(`SELECT c.id, c.post_id AS "postId", c.body, c.gif, c.created_at AS "createdAt" FROM content.comments c WHERE c.author_id = $1 ORDER BY c.id`),

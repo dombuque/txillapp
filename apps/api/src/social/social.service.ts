@@ -350,7 +350,7 @@ export class SocialService {
 
   async privacy(userId: string) {
     const { rows } = await this.pool.query(
-      'SELECT is_private, comments_allowed, gifts_allowed, mentions_allowed, dms_allowed, calls_allowed, calls_relay_only, reposts_visible, cheers_visible, gifts_visible, show_connections, suggestable, gender, show_gender, (birth_date IS NOT NULL) AS birth_set, (terms_version = $2) AS terms_ok, is_admin, share_analytics, show_presence, find_by_contacts, (welcomed_at IS NOT NULL) AS welcomed FROM identity.users WHERE id = $1',
+      'SELECT is_private, comments_allowed, gifts_allowed, mentions_allowed, dms_allowed, calls_allowed, calls_relay_only, reposts_visible, cheers_visible, gifts_visible, show_connections, suggestable, gender, show_gender, (birth_date IS NOT NULL) AS birth_set, (terms_version = $2) AS terms_ok, is_admin, share_analytics, show_presence, find_by_contacts, remix_allowed, (welcomed_at IS NOT NULL) AS welcomed FROM identity.users WHERE id = $1',
       [userId, TERMS_VERSION],
     );
     const r = rows[0];
@@ -366,6 +366,8 @@ export class SocialService {
       showPresence: r.show_presence as boolean,
       /** Deixar que quem tem o meu email nos contactos me encontre. */
       findByContacts: r.find_by_contacts as boolean,
+      /** Deixar fazer duetos e respostas com as minhas tchekas (a escolha guardada; numa conta privada não vale, ver posts/remix.ts). */
+      remixAllowed: r.remix_allowed !== false,
       /** null = ainda não escolheu (a app pede-o uma vez). */
       gender: r.gender as Gender | null,
       showGender: r.show_gender as boolean,
@@ -388,7 +390,7 @@ export class SocialService {
 
   async setPrivacy(
     userId: string,
-    p: { isPrivate?: boolean; commentsAllowed?: Who; giftsAllowed?: Who; mentionsAllowed?: Who; dmsAllowed?: Who; callsAllowed?: CallsWho; callsRelayOnly?: boolean; shareAnalytics?: boolean; repostsVisible?: Viewers; cheersVisible?: Viewers; giftsVisible?: Viewers; showConnections?: Connections; suggestable?: boolean; gender?: Gender; showGender?: boolean; showPresence?: boolean; findByContacts?: boolean },
+    p: { isPrivate?: boolean; commentsAllowed?: Who; giftsAllowed?: Who; mentionsAllowed?: Who; dmsAllowed?: Who; callsAllowed?: CallsWho; callsRelayOnly?: boolean; shareAnalytics?: boolean; repostsVisible?: Viewers; cheersVisible?: Viewers; giftsVisible?: Viewers; showConnections?: Connections; suggestable?: boolean; gender?: Gender; showGender?: boolean; showPresence?: boolean; findByContacts?: boolean; remixAllowed?: boolean },
   ) {
     // O género escolhe-se ao criar a conta e não se altera. Só contas antigas, sem género, o definem (uma vez).
     if (p.gender !== undefined) {
@@ -413,9 +415,10 @@ export class SocialService {
           show_presence = COALESCE($14, show_presence),
           find_by_contacts = COALESCE($15, find_by_contacts),
           calls_allowed = COALESCE($16, calls_allowed),
-          calls_relay_only = COALESCE($17, calls_relay_only)
+          calls_relay_only = COALESCE($17, calls_relay_only),
+          remix_allowed = COALESCE($18, remix_allowed)
         WHERE id = $1`,
-      [userId, p.commentsAllowed ?? null, p.giftsAllowed ?? null, p.showConnections ?? null, p.suggestable ?? null, p.gender ?? null, p.showGender ?? null, p.mentionsAllowed ?? null, p.repostsVisible ?? null, p.cheersVisible ?? null, p.giftsVisible ?? null, p.dmsAllowed ?? null, p.shareAnalytics ?? null, p.showPresence ?? null, p.findByContacts ?? null, p.callsAllowed ?? null, p.callsRelayOnly ?? null],
+      [userId, p.commentsAllowed ?? null, p.giftsAllowed ?? null, p.showConnections ?? null, p.suggestable ?? null, p.gender ?? null, p.showGender ?? null, p.mentionsAllowed ?? null, p.repostsVisible ?? null, p.cheersVisible ?? null, p.giftsVisible ?? null, p.dmsAllowed ?? null, p.shareAnalytics ?? null, p.showPresence ?? null, p.findByContacts ?? null, p.callsAllowed ?? null, p.callsRelayOnly ?? null, p.remixAllowed ?? null],
     );
     return this.privacy(userId);
   }

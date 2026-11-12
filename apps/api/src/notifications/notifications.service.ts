@@ -35,7 +35,10 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   | 'content_removed' | 'content_restored' | 'moderation_warning'
   // Programa de artistas (0131): a equipa decidiu o meu pedido de artista ou uma faixa minha.
   // data: { what: 'artist' | 'track', decision: 'approved' | 'rejected' | 'revoked' | 'removed' | 'restored', title?, reason? }.
-  | 'music_review';
+  | 'music_review'
+  // Remix das tchekas (0134): fizeram um dueto com a minha tcheka ou responderam com uma tcheka a um comentário (meu, ou na minha
+  // publicação). Ator = quem fez o remix. data: { postId (o remix), originalId, remixKind: 'duet' | 'reply', role: 'post' | 'comment', commentId? }.
+  | 'remix';
 
 /** Avisos da equipa do Txillapp: não se desligam e mostram-se em nome do Txillapp (não da pessoa da equipa). */
 export const STAFF_KINDS = new Set<NotificationKind>(['content_removed', 'content_restored', 'moderation_warning', 'venue_review', 'music_review']);
@@ -53,6 +56,7 @@ export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   group_join_request: 'messages', group_join_accepted: 'messages', group_member_joined: 'messages', group_admin_granted: 'messages',
   geleira_cheer: 'reactions', cheer: 'reactions',
   invite_joined: 'invites',
+  remix: 'remixes',
 };
 
 /** O que se brindou: uma publicação (ou tcheka) ou um comentário. */
@@ -172,6 +176,12 @@ export class NotificationsService {
           ? n.data?.decision === 'approved' ? 'A tua conta já é de artista. Já podes carregar as tuas músicas.' : 'Há novidades sobre o teu pedido de artista. Toca para ver.'
           : n.data?.decision === 'approved' ? `«${String(n.data?.title ?? 'A tua música')}» já está no Txillapp.` : `Há novidades sobre «${String(n.data?.title ?? 'a tua música')}». Toca para ver.`,
         url: '/artista/gerir',
+      },
+      // Remix: abre a tcheka de quem fez o dueto ou a resposta.
+      remix: {
+        body: n.data?.remixKind === 'duet' ? 'fez um dueto com a tua tcheka'
+          : n.data?.role === 'comment' ? 'respondeu ao teu comentário com uma tcheka' : 'respondeu com uma tcheka a um comentário na tua publicação',
+        url: postId ? `/p/${postId}` : '/notifications',
       },
       venue_payment: { body: `pagou ${Number(n.data?.amount ?? 0)} Txills ${n.data?.venueName ? `em ${String(n.data.venueName)}` : 'no teu local'}`, url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}/gerir?s=txills` : '/notifications' },
     };

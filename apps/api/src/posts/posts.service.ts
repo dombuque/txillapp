@@ -15,6 +15,7 @@ import { coarse, notHiddenVenuePost, postGeo } from '../nearby/geo-sql';
 const TOPIC_IDS = new Set(TOPICS.map((t) => t.id));
 import { RANKED_SQL, decodeCursor, encodeCursor, tchekaPost } from './feed';
 import { WalletService } from '../wallet/wallet.service';
+import { checkRemix, remixAllowed, remixLinks, saveRemix, type CheckedRemix, type RemixInput, type RemixKind } from './remix';
 
 export const MAX_PHOTOS = 10;
 
@@ -58,10 +59,15 @@ const FEED_SQL = `
          (SELECT count(*) FROM content.comments c WHERE c.post_id = p.id)::int AS comments,
          (SELECT count(*) FROM content.gifts g WHERE g.post_id = p.id)::int AS gifts,
          EXISTS (SELECT 1 FROM content.cheers c WHERE c.post_id = p.id AND c.user_id = $1) AS cheered,
-         EXISTS (SELECT 1 FROM content.saved_posts sv WHERE sv.post_id = p.id AND sv.user_id = $1) AS saved
+         EXISTS (SELECT 1 FROM content.saved_posts sv WHERE sv.post_id = p.id AND sv.user_id = $1) AS saved,
+         -- Remix (0134): de que é dueto ou resposta, se o dono deixa fazer remix e quantos duetos e respostas tem.
+         rx.original_id AS rx_original, rx.kind AS rx_kind, rx.comment_id AS rx_comment, rx.sticker_x AS rx_x, rx.sticker_y AS rx_y,
+         (p.kind = 'post' AND p.venue_id IS NULL AND ${remixAllowed()}) AS remix_ok,
+         (SELECT count(*) FROM content.post_remixes rr JOIN content.posts rrp ON rrp.id = rr.post_id AND rrp.removed_at IS NULL WHERE rr.original_id = p.id)::int AS remixes
     FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
     LEFT JOIN identity.users gr ON gr.id = p.gift_recipient_id
-    LEFT JOIN content.venues pv ON pv.id = p.venue_id`;
+    LEFT JOIN content.venues pv ON pv.id = p.venue_id
+    LEFT JOIN content.post_remixes rx ON rx.post_id = p.id`;
 
 export interface PhotoTag {
   username: string;
@@ -91,9 +97,17 @@ export class PostsService implements OnModuleInit {
     void this.backfillTopics().catch(() => undefined);
   }
 
-  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null, venueId: string | null = null) {
+  async create(userId: string, body: string, locationLabel?: string, mediaIds: string[] = [], tags: { index: number; username: string; x: number; y: number }[] = [], musicIn: MusicInput | null = null, geo: { lat: number; lng: number; coarse?: boolean } | null = null, venueId: string | null = null, remixIn: RemixInput | null = null, musicGiven = true) {
     this.filter.assertClean(body, locationLabel, musicIn?.title, 'artist' in (musicIn ?? {}) ? (musicIn as { artist?: string }).artist : undefined);
-    const music = await this.musicSvc.prepare(userId, musicIn, 'post', mediaIds);
+    // Dueto ou resposta com tcheka: valida antes de tudo (o original, o comentário e quem deixa). Um remix não se publica como um local.
+    let remix: CheckedRemix | null = null;
+    if (remixIn) {
+      if (venueId) throw new BadRequestException('Um dueto ou uma resposta não se publica como um local');
+      remix = await checkRemix(this.pool, userId, remixIn, mediaIds);
+    }
+    let music = await this.musicSvc.prepare(userId, musicIn, 'post', mediaIds);
+    // O dueto fica com o som do original quando não se escolheu outro (o clipe de áudio próprio do autor e as licenciadas não passam).
+    if (remix?.input.kind === 'duet' && !musicGiven && !music) music = await this.inheritedMusic(userId, remix.originalMusic, mediaIds);
     // Ligada a um local no mapa: guarda-se a posição do local (pública) tal como está.
     let fromVenue = false;
     if (venueId) {
@@ -163,8 +177,10 @@ export class PostsService implements OnModuleInit {
         );
         if (ins.rowCount && !tagged.includes(who.rows[0].id)) tagged.push(who.rows[0].id);
       }
+      if (remix) await saveRemix(client, id, remix);
       await client.query('COMMIT');
       this.indexer.postChanged(id);
+      if (remix) await this.notifyRemix(userId, id, remix);
       for (const tid of tagged) void this.notifications.notify({ userId: tid, actorId: userId, kind: 'tag', data: { postId: id } });
       void this.notifications.notifyMentions(userId, body, { postId: id, snippet: body.trim().slice(0, 80) });
       return this.getOne(userId, id);
@@ -198,6 +214,46 @@ export class PostsService implements OnModuleInit {
       [viewerId, postId],
     );
     return rows.map((r) => ({ username: r.username, displayName: r.display_name, hasAvatar: r.has_avatar, verified: r.verified, verifiedTier: (r.verified_tier as string | null) ?? null, at: r.at }));
+  }
+
+  /**
+   * «Duetos e respostas» de uma publicação: as tchekas que a remisturam, as mais recentes primeiro, só as que este espectador
+   * pode ver. `kind` filtra só duetos ou só respostas. O original tem de estar visível.
+   */
+  async remixes(viewerId: string, postId: string, kind: RemixKind | null, cursor: string | undefined, limit: number) {
+    if (cursor && !/^[0-9a-f-]{36}$/.test(cursor)) throw new BadRequestException('cursor inválido');
+    await this.assertPost(viewerId, postId);
+    const { rows } = await this.pool.query(
+      `${FEED_SQL} WHERE rx.original_id = $2 AND ($3::text IS NULL OR rx.kind = $3) AND ($4::uuid IS NULL OR p.id < $4) AND ${canView()}
+        ORDER BY p.id DESC LIMIT $5`,
+      [viewerId, postId, kind, cursor ?? null, limit + 1],
+    );
+    const page = rows.slice(0, limit);
+    return { items: await this.hydrate(viewerId, page), nextCursor: rows.length > limit ? page[page.length - 1].id : null };
+  }
+
+  /** O som do original no dueto: volta a passar pela validação da música (as faixas locais contam o uso); se falhar, fica sem. */
+  private async inheritedMusic(userId: string, m: Record<string, unknown> | null, mediaIds: string[]) {
+    if (!m || m.kind === 'clip' || m.kind === 'licensed') return null;
+    try {
+      return await this.musicSvc.prepare(userId, m as MusicInput, 'post', mediaIds);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Avisa quem foi remisturado (categoria «Duetos e respostas»): no dueto, o autor da tcheka; na resposta, quem escreveu o
+   * comentário e, se for outra pessoa, o dono da publicação. Nunca a própria pessoa (ver NotificationsService.notify).
+   */
+  private async notifyRemix(userId: string, postId: string, c: CheckedRemix) {
+    const base = { postId, originalId: c.input.postId, remixKind: c.input.kind, tcheka: true };
+    if (c.input.kind === 'duet') {
+      await this.notifications.notify({ userId: c.originalAuthorId, actorId: userId, kind: 'remix', data: { ...base, role: 'post' } });
+      return;
+    }
+    if (c.commentAuthorId) await this.notifications.notify({ userId: c.commentAuthorId, actorId: userId, kind: 'remix', data: { ...base, role: 'comment', commentId: c.input.commentId } });
+    if (c.originalAuthorId !== c.commentAuthorId) await this.notifications.notify({ userId: c.originalAuthorId, actorId: userId, kind: 'remix', data: { ...base, role: 'post', commentId: c.input.commentId } });
   }
 
   /** Apagar a própria publicação: fica escondida para todos (reposts dela também deixam de aparecer). */
@@ -332,6 +388,9 @@ export class PostsService implements OnModuleInit {
     // Até dois níveis: um repost simples de uma citação mostra a citação e, dentro, o original.
     const first = await load(rows.map((r) => r.repost_of));
     const second = await load([...first.values()].map((r) => r.repost_of));
+    // Duetos e respostas: o original e o comentário (só o que este espectador vê), numa vez para a página toda.
+    const links = await remixLinks(this.pool, viewerId, [...rows, ...first.values(), ...second.values()]);
+    const dto = (r: Record<string, any>) => ({ ...this.toDto(r), remixOf: links.get(r.id as string) ?? null });
     return rows
       .filter((r) => {
         if (!r.repost_of) return true;
@@ -340,8 +399,8 @@ export class PostsService implements OnModuleInit {
       })
       .map((r) => {
         const l1 = r.repost_of ? first.get(r.repost_of)! : null;
-        const inner = l1?.repost_of ? { ...this.toDto(second.get(l1.repost_of)!), repostOf: null } : null;
-        return { ...this.toDto(r), repostOf: l1 ? { ...this.toDto(l1), repostOf: inner } : null };
+        const inner = l1?.repost_of ? { ...dto(second.get(l1.repost_of)!), repostOf: null } : null;
+        return { ...dto(r), repostOf: l1 ? { ...dto(l1), repostOf: inner } : null };
       });
   }
 
@@ -924,6 +983,10 @@ export class PostsService implements OnModuleInit {
     /** O dono deixa este espectador ver QUEM repostou / brindou / presenteou? (os números são sempre públicos) */
     lists: { reposts: r.reposts_list as boolean, cheers: r.cheers_list as boolean, gifts: r.gifts_list as boolean },
     kind: r.kind as 'post' | 'gift' | 'repost',
+    /** O dono deixa este espectador fazer dueto (tchekas) ou responder com tcheka aos comentários (ver posts/remix.ts). */
+    canRemix: r.remix_ok === true,
+    /** Quantos duetos e respostas com tcheka tem (GET /posts/:id/remixes). */
+    remixes: (r.remixes as number | undefined) ?? 0,
     reposts: r.reposts as number,
     reposted: r.reposted as boolean,
     gift:

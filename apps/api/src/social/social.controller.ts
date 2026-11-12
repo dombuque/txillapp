@@ -50,6 +50,8 @@ const privacySchema = z.object({
   showGender: z.boolean().optional(),
   showPresence: z.boolean().optional(),
   findByContacts: z.boolean().optional(),
+  /** «Deixar fazer duetos e respostas com as minhas tchekas» (numa conta privada não vale). */
+  remixAllowed: z.boolean().optional(),
 });
 
 /** Sugestões de @menções: o que se escreveu depois do @ e onde se está a escrever (para subir quem lá está). */
