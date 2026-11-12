@@ -16,5 +16,5 @@ test('landing no computador: duas colunas a partir de 1024, até 1200 px, rodap�
   // A raiz deixa a landing e as páginas de entrar ocupar a janela no computador (antes ficavam presas na coluna de 576).
   const layout = read('app/_layout.tsx');
   assert.match(layout, /const wideOut = desktop && !user && \(pathname === '\/'/);
-  assert.match(layout, /shell \|\| wideOut \? styles\.desk : styles\.column/);
+  assert.match(layout, /shell \|\| wideOut \|\| site \? styles\.desk : styles\.column/);
 });

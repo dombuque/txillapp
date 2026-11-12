@@ -15,6 +15,7 @@ import { CallOverlay } from '@/components/calls/CallOverlay';
 import { PermissionsOnboarding } from '@/components/PermissionsOnboarding';
 import { PushReminderHost } from '@/components/PushReminder';
 import { DesktopShell } from '@/components/DesktopShell';
+import { SiteFrame, isSitePage } from '@/components/SiteFrame';
 import { isStandaloneWeb } from '@/components/Landing';
 import { useDesktop } from '@/lib/desktop';
 import { installWebAlert } from '@/lib/alertHost';
@@ -173,6 +174,8 @@ function Gate() {
   // Sem sessão no computador, a apresentação (endereço principal) e as páginas de entrar ocupam a janela (têm o seu layout
   // de duas colunas); as páginas de texto (termos, privacidade, ajuda) ficam na coluna de leitura.
   const wideOut = desktop && !user && (pathname === '/' || ['login', 'register', 'forgot-password', 'google-username'].includes(segments[0] ?? ''));
+  // No computador, as páginas de texto públicas (termos, privacidade, ajuda, apagar a conta) abrem como página do site.
+  const site = desktop && !shell && isSitePage(segments[0]);
   const stack = (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.white } }}>
       <Stack.Screen name="(tabs)" />
@@ -205,14 +208,14 @@ function Gate() {
     </Stack>
   );
   return (
-    <View style={shell || wideOut ? styles.desk : styles.column} nativeID={shell ? undefined : 'tx-main'}>
+    <View style={shell || wideOut || site ? styles.desk : styles.column} nativeID={shell ? undefined : 'tx-main'}>
       <ChatLive />
       <AnalyticsLive userId={user?.id ?? null} ready />
       <AppUpdate />
       <PermissionsOnboarding />
       {/* "As tuas notificações estão desligadas": de tempos a tempos, nos momentos certos. */}
       {user ? <PushReminderHost /> : null}
-      {shell ? <DesktopShell>{stack}</DesktopShell> : stack}
+      {shell ? <DesktopShell>{stack}</DesktopShell> : site ? <SiteFrame segment={segments[0]}>{stack}</SiteFrame> : stack}
       {/* Chamadas de voz e vídeo: o ecrã da chamada aparece por cima de qualquer ecrã (só com sessão). */}
       {user ? <CallOverlay /> : null}
     </View>

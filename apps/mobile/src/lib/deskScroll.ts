@@ -54,7 +54,15 @@ export function nativeHandles(target: ScrollNode | null, dy: number, style: Styl
 const CSS = `[data-tx-scroll]{scrollbar-width:thin!important;scrollbar-color:rgba(24,24,27,.28) transparent}
 [data-tx-scroll]::-webkit-scrollbar{display:block!important;width:10px}
 [data-tx-scroll]::-webkit-scrollbar-thumb{background:rgba(24,24,27,.24);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
-[data-tx-scroll]::-webkit-scrollbar-thumb:hover{background-color:rgba(24,24,27,.4)}`;
+[data-tx-scroll]::-webkit-scrollbar-thumb:hover{background-color:rgba(24,24,27,.4)}
+*{scrollbar-width:thin;scrollbar-color:rgba(24,24,27,.22) transparent}
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-button{display:none;width:0;height:0}
+*::-webkit-scrollbar-thumb{background:rgba(24,24,27,.2);border-radius:8px}
+*::-webkit-scrollbar-thumb:hover{background:rgba(24,24,27,.38)}`;
+/* As outras barras (a lista das Mensagens, os painéis…) também ficam finas e discretas, sem as setas do Windows. As que
+   o react-native-web esconde (showsVerticalScrollIndicator={false}) continuam escondidas: a regra dele é mais específica. */
 
 export const finePointer = () =>
   typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
