@@ -226,7 +226,7 @@ export function ChatComposer({
       )}
       {panel === 'stickers' && <StickerPanel onPick={(id) => { setPanel(null); void dispatch({ kind: 'sticker', body: id }); }} onGif={(g) => { setPanel(null); void dispatch(gifMessage(g)); }} />}
       <View style={pad}>
-        {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
+        {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : busy ? <Text style={st.busy} accessibilityLiveRegion="polite">A enviar…</Text> : null}
         {replyTo && (
           <View style={st.reply}>
             <View style={st.replyBar} />
@@ -372,6 +372,8 @@ const st = StyleSheet.create({
   onceChip: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 32, marginBottom: 4, marginLeft: 4, borderRadius: 16, paddingHorizontal: 10, backgroundColor: 'rgba(214,51,79,0.12)' },
   onceText: { fontSize: 13, fontWeight: '700', color: colors.brand },
   err: { textAlign: 'center', fontSize: 14, color: colors.red600, paddingBottom: 6 },
+  // A foto, o vídeo ou a voz a subir (pode demorar com rede fraca): sem isto nada dizia que estava a enviar.
+  busy: { textAlign: 'center', fontSize: 13, color: colors.zinc500, paddingBottom: 6 },
   help: { marginHorizontal: 10, marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, backgroundColor: colors.zinc900, paddingHorizontal: 14, paddingVertical: 10 },
   helpText: { flex: 1, color: '#fff', fontSize: 13, lineHeight: 18, fontWeight: '600' },
   reply: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6, marginHorizontal: 4, borderRadius: 14, backgroundColor: '#fafafa', borderWidth: 1, borderColor: colors.zinc100, paddingVertical: 6, paddingLeft: 10, paddingRight: 2 },
