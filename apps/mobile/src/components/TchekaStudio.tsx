@@ -6,7 +6,7 @@ import type { Track } from '@/lib/api.music';
 import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
 import {
-  beatGrid, checkTcheka, clampTrim, clipSeconds, detectBeats, fmtS, rhythmDurations, SPEEDS, speedLabel, studioSignature, TCHEKA_MAX_S, textAlpha, type Trim,
+  beatGrid, checkTcheka, clampTrim, clipSeconds, detectBeats, fmtS, previewClock, previewResume, rhythmDurations, SPEEDS, speedLabel, studioSignature, TCHEKA_MAX_S, textAlpha, type Trim,
 } from '@/lib/tchekaRules';
 import { colors } from '@/lib/theme';
 import { sealOf } from '@/lib/wordmark';
@@ -164,8 +164,13 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   const [textFrom, setTextFrom] = useState(0);
   const [textTo, setTextTo] = useState(4);
   const [coverAt, setCoverAt] = useState(0.5);
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlayingState] = useState(true);
   const [playT, setPlayT] = useState(0);
+  // O estado da pré-visualização também em refs: os temporizadores e o ciclo leem sempre o valor de agora.
+  const playingRef = useRef(true);
+  const tRef = useRef(0);
+  const setPlaying = (on: boolean) => { playingRef.current = on; setPlayingState(on); };
+  const setT = (t: number) => { tRef.current = t; setPlayT(t); };
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState<number | null>(null);
   const [err, setErr] = useState('');
@@ -521,7 +526,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
         const slide = i > 0 && cfg.current.transition === 'slide' && tl < TR ? W * (1 - ease(tl / TR)) : 0;
         drawBase(g, s, tl, slide);
         overlay(g, t, tl, i);
-        if (t - lastUi > 0.1) { lastUi = t; setPlayT(t); opt.onProgress?.(Math.min(1, t / end)); }
+        if (t - lastUi > 0.1) { lastUi = t; setT(t); opt.onProgress?.(Math.min(1, t / end)); }
         await nextFrame();
       }
     } finally {
@@ -531,7 +536,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
       recording.current = false;
     }
     const finished = t >= end && my === gen.current && alive.current;
-    if (finished) { setPlayT(end); opt.onProgress?.(1); }
+    if (finished) { setT(end); opt.onProgress?.(1); }
     if (!rec || !done) return { finished, blob: null };
     await nextFrame();
     rec.stop();
@@ -554,14 +559,31 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     }
   }
   function play(from = 0) { pausedAt.current = from; setPlaying(true); void loop(from); }
-  function pause() { gen.current += 1; pausedAt.current = playT; setPlaying(false); }
+  function pause() { gen.current += 1; pausedAt.current = tRef.current; setPlaying(false); }
+  /** O instante em que a pré-visualização está agora (a tocar ou parada). */
+  const nowT = () => (playingRef.current ? tRef.current : pausedAt.current);
+  /** Salta para `t` sem mudar o estado: a tocar continua a tocar dali; em pausa mostra esse frame. */
+  function seekTo(t: number, opts: { play?: boolean } = {}) {
+    const r = previewResume({ playing: opts.play ?? playingRef.current, at: t, total: cfg.current.total });
+    if (r.action === 'play') play(r.at); else void showAt(r.at);
+  }
+  /** Depois de escolher música no seletor a pré-visualização volta a tocar (com a música nova, do ponto onde estava). */
+  const resumeAfterPick = useRef(false);
+  const pickerWasPlaying = useRef(false);
+  /** Abrir o seletor de música pára a pré-visualização (não se ouvem duas músicas); fechar sem escolher retoma. */
+  function openPicker() { pickerWasPlaying.current = playingRef.current; if (playingRef.current) pause(); setPickMusic(true); }
+  function closePicker() { setPickMusic(false); if (pickerWasPlaying.current && !resumeAfterPick.current) play(pausedAt.current); pickerWasPlaying.current = false; }
+  /** Sair do estúdio pára logo a pré-visualização (o resto liberta-se ao desmontar). */
+  function close() { if (playingRef.current) pause(); onClose(); }
 
   // Recomeça a pré-visualização quando a sequência muda (um pouco depois, para não recomeçar a cada toque).
   useEffect(() => {
     if (progress !== null) return;
     const id = setTimeout(() => {
       if (!cfg.current.segs.length) { gen.current += 1; return; }
-      play(Math.min(restartFrom.current, Math.max(0, cfg.current.total - 0.2)));
+      // Continua do ponto da mudança (não volta ao início); em pausa fica parada, a mostrar esse frame.
+      seekTo(restartFrom.current, resumeAfterPick.current ? { play: true } : {});
+      resumeAfterPick.current = false;
       restartFrom.current = 0;
     }, 350);
     return () => clearTimeout(id);
@@ -604,7 +626,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     g.fillRect(0, 0, W, H);
     drawBase(g, s, tl, 0);
     overlay(g, t, Math.max(TR, tl), i);
-    setPlayT(t);
+    setT(t);
   }
 
   // ---------------------------------------------------------------- seguir
@@ -643,7 +665,11 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
     : { ...it, seconds: PHOTO_S[(PHOTO_S.indexOf(it.seconds as 2 | 3 | 5) + 1) % PHOTO_S.length] }));
   const addFiles = async (files: File[]) => { const more = await filesToClips(files); if (alive.current) setItems((l) => [...l, ...more.map(makeItem)]); };
   const pickedMusic = (t: Track) => {
-    restartFrom.current = 0;
+    // A música nova entra no ponto onde a pré-visualização estava (o som começa nesse instante da faixa).
+    restartFrom.current = pausedAt.current;
+    resumeAfterPick.current = true;
+    pickerWasPlaying.current = false;
+    if (t.url === music?.url) { resumeAfterPick.current = false; play(pausedAt.current); }
     setMusic(t);
     setRhythm(true);
     if (origVol === 1 && items.some((i) => i.video)) setOrigVol(0.4);
@@ -661,12 +687,13 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
   const prepared = readyTick > 0 && ready.current?.sig === fullSig;
   const left = Math.max(0, Math.ceil(playTotal * (1 - (progress ?? 0))));
   const TABS: { id: Tab; label: string }[] = [{ id: 'clipes', label: 'Clipes' }, { id: 'som', label: 'Som' }, { id: 'texto', label: 'Texto' }, { id: 'efeitos', label: 'Efeitos' }, { id: 'capa', label: 'Capa' }];
-  const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  /** Tocar ou pausar (o botão e o toque no vídeo): no fim recomeça do princípio. */
+  const togglePlay = () => { if (busy) return; if (playingRef.current) pause(); else play(pausedAt.current >= playTotal - 0.05 ? 0 : pausedAt.current); };
 
   return (
     <View style={[st.root, { paddingTop: topPad, paddingBottom: botPad }]} accessibilityViewIsModal>
       <View style={st.top}>
-        <Pressable onPress={onClose} style={st.round} accessibilityRole="button" accessibilityLabel="Voltar"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
+        <Pressable onPress={close} style={st.round} accessibilityRole="button" accessibilityLabel="Voltar"><Icon name="x" size={24} color="#fff" strokeWidth={2.2} /></Pressable>
         <Text style={st.title}>Novo tcheka</Text>
         <Pressable onPress={() => void build()} disabled={!rules.ok || busy} style={[st.cta, (!rules.ok || busy) && { opacity: 0.45 }]} accessibilityRole="button" accessibilityState={{ disabled: !rules.ok || busy }} accessibilityHint={rules.hint ?? undefined} accessibilityLabel={busy ? `A montar, ${Math.round((progress ?? 0) * 100)}%` : 'Seguinte'}>
           <Text style={st.ctaText}>{busy ? `${Math.round((progress ?? 0) * 100)}%` : 'Seguinte'}</Text>
@@ -682,7 +709,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
       ) : null}
 
       {/* A pré-visualização é o próprio canvas da montagem (o que se vê é o que sai). Tocar põe em pausa. */}
-      <Pressable style={st.preview} onPress={() => { if (busy) return; if (playing) pause(); else play(pausedAt.current >= playTotal - 0.05 ? 0 : pausedAt.current); }} accessibilityRole="button" accessibilityLabel={playing ? 'Pausa' : 'Tocar'}>
+      <Pressable style={st.preview} onPress={togglePlay} accessibilityRole="button" accessibilityLabel={playing ? 'Pausa' : 'Tocar'}>
         {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { canvasRef.current = el; }, width: W, height: H, 'aria-label': 'Pré-visualização do tcheka', style: { width: '100%', height: '100%', objectFit: 'contain', display: 'block', backgroundColor: '#000' } })}
         {loading && items.length ? <View style={st.center} pointerEvents="none"><Text style={st.loadText}>A preparar…</Text></View> : null}
         {!playing && !busy ? <View style={st.center} pointerEvents="none"><View style={st.playBig}><Icon name="play" size={34} color="#fff" solid /></View></View> : null}
@@ -690,7 +717,14 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
           <View style={[st.timeFill, { width: `${playTotal ? Math.min(100, (playT / playTotal) * 100) : 0}%` }]} />
           {useRhythm ? segs.slice(0, -1).map((s) => <View key={s.key} style={[st.beatTick, { left: `${((s.start + s.dur) / Math.max(0.1, playTotal)) * 100}%` }]} />) : null}
         </View>
-        <Text style={st.clock} pointerEvents="none">{mmss(playT)} / {mmss(playTotal)}{prepared && rules.ok ? ' · pronto' : ''}</Text>
+        {!busy ? (
+          <View style={st.controls} pointerEvents="box-none">
+            <Pressable onPress={togglePlay} style={({ pressed }) => [st.playBtn, pressed && { transform: [{ scale: 0.92 }] }]} hitSlop={6} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'}>
+              <Icon name={playing ? 'pause' : 'play'} size={22} color="#fff" solid />
+            </Pressable>
+            <Text style={st.clock} pointerEvents="none">{previewClock(playT, playTotal)}{prepared && rules.ok ? ' · pronto' : ''}</Text>
+          </View>
+        ) : null}
         {busy && (
           <View style={st.building} pointerEvents="none">
             <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>A montar o tcheka…</Text>
@@ -717,7 +751,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10, alignItems: 'flex-start' }} style={{ maxHeight: 112, marginTop: 8 }}>
               {items.map((it, i) => (
                 <View key={it.key} style={{ alignItems: 'center', gap: 4 }}>
-                  <Pressable onPress={() => { setSel(i); void showAt(segs[i]?.start ?? 0); }} style={[st.thumb, i === sel && { borderColor: colors.brand }]} accessibilityRole="button" accessibilityLabel={`Clipe ${i + 1}${it.video ? ', vídeo' : ', foto'}`}>
+                  <Pressable onPress={() => { setSel(i); seekTo(segs[i]?.start ?? 0); }} style={[st.thumb, i === sel && { borderColor: colors.brand }]} accessibilityRole="button" accessibilityLabel={`Clipe ${i + 1}${it.video ? ', vídeo' : ', foto'}`}>
                     {it.video
                       ? dom('video', { src: it.uri, muted: true, playsInline: true, preload: 'metadata', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } })
                       : dom('img', { src: it.uri, alt: '', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } })}
@@ -740,8 +774,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
             {music && items.some((i) => !i.video) ? (
               <View style={st.rowWrap}>
                 <Text style={st.label}>Fotos</Text>
-                {chip(useRhythm, 'Ao ritmo', () => { restartFrom.current = 0; setRhythm(true); })}
-                {chip(!useRhythm, 'Manual', () => { restartFrom.current = 0; setRhythm(false); })}
+                {chip(useRhythm, 'Ao ritmo', () => { restartFrom.current = nowT(); setRhythm(true); })}
+                {chip(!useRhythm, 'Manual', () => { restartFrom.current = nowT(); setRhythm(false); })}
                 <Text style={st.small}>{useRhythm ? `${beatInfo ? `${Math.round(beatInfo.bpm ?? 120)} BPM${beatInfo.detected ? '' : ' (fixo)'}` : 'a ouvir a música…'} · toca no tempo de uma foto: 1, 2 ou 4 batidas` : 'toca no tempo de uma foto: 2, 3 ou 5 s'}</Text>
               </View>
             ) : null}
@@ -782,8 +816,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }} numberOfLines={1}>{music ? music.title : reference ? 'Som do dueto' : 'Sem música'}</Text>
                 <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }} numberOfLines={1}>{music ? music.artist || 'Toca em ciclo' : photosOnly ? 'Só com fotos, escolhe uma música' : 'Fica o som dos vídeos'}</Text>
               </View>
-              <Pressable onPress={() => setPickMusic(true)} style={st.smallBtn} accessibilityRole="button"><Text style={st.smallBtnText}>{music ? 'Trocar' : 'Escolher'}</Text></Pressable>
-              {music ? <Pressable onPress={() => { restartFrom.current = 0; setMusic(null); if (origVol === 0) setOrigVol(1); }} style={st.smallBtn} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={16} color="#fff" strokeWidth={2.4} /></Pressable> : null}
+              <Pressable onPress={openPicker} style={st.smallBtn} accessibilityRole="button"><Text style={st.smallBtnText}>{music ? 'Trocar' : 'Escolher'}</Text></Pressable>
+              {music ? <Pressable onPress={() => { restartFrom.current = nowT(); setMusic(null); if (origVol === 0) setOrigVol(1); }} style={st.smallBtn} accessibilityRole="button" accessibilityLabel="Tirar a música"><Icon name="x" size={16} color="#fff" strokeWidth={2.4} /></Pressable> : null}
             </View>
             {items.some((i) => i.video) ? (
               <View style={st.trimBox}>
@@ -846,7 +880,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose }
         ) : null}
         {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
       </ScrollView>
-      {pickMusic ? <MusicPicker allowLocal onClose={() => setPickMusic(false)} onPick={pickedMusic} /> : null}
+      {pickMusic ? <MusicPicker allowLocal onClose={closePicker} onPick={pickedMusic} /> : null}
     </View>
   );
 }
@@ -868,7 +902,9 @@ const st = StyleSheet.create({
   timeline: { position: 'absolute', left: 10, right: 10, bottom: 8, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)' },
   timeFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 2, backgroundColor: '#fff' },
   beatTick: { position: 'absolute', top: -3, width: 2, height: 10, marginLeft: -1, borderRadius: 1, backgroundColor: '#ffd60a' },
-  clock: { position: 'absolute', left: 12, top: 10, color: '#fff', fontSize: 12, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 },
+  controls: { position: 'absolute', left: 10, right: 10, bottom: 18, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  playBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.55)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
+  clock: { color: '#fff', fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'], textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 },
   building: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 32 },
   track: { width: '100%', height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3, backgroundColor: colors.brand },

@@ -284,3 +284,22 @@ export function studioSignature(parts: unknown): string {
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
   return (h >>> 0).toString(36) + ':' + s.length;
 }
+
+/**
+ * A pré-visualização do estúdio depois de uma mudança (corte, duração de uma foto, música, ritmo, escolher um clipe): continua
+ * do ponto `at` (nunca volta ao início), a tocar se estava a tocar e parada no frame se estava em pausa. Perto do fim (ou depois
+ * dele, se a sequência encolheu) recomeça do princípio.
+ */
+export function previewResume(o: { playing: boolean; at: number; total: number }): { action: 'play' | 'show'; at: number } {
+  const total = Number.isFinite(o.total) && o.total > 0 ? o.total : 0;
+  let at = Number.isFinite(o.at) && o.at > 0 ? o.at : 0;
+  if (at >= total - 0.2) at = 0;
+  return { action: o.playing ? 'play' : 'show', at };
+}
+
+/** «0:07 / 0:20»: o tempo da pré-visualização por baixo do botão de tocar. */
+export function previewClock(t: number, total: number): string {
+  const f = (s: number) => { const v = Number.isFinite(s) && s > 0 ? Math.floor(s) : 0; return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`; };
+  return `${f(Math.min(t, total))} / ${f(total)}`;
+}
+
