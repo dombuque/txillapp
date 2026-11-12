@@ -4,12 +4,15 @@
  *   a velocidade e a ordem (a da lista).
  * - As operações são puras (devolvem uma lista nova, ou a mesma se nada mudou): cortar pelas pontas, dividir no cursor,
  *   duplicar, apagar, mover, mudar a velocidade ou a duração e substituir o ficheiro.
- * - `fx` é dos efeitos (outra equipa): opaco aqui, passa tal e qual em todas as operações (dividir e duplicar copiam-no).
+ * - `fx` são os efeitos do clipe (`ClipFx`, lib/studio/effects.ts): passa tal e qual em todas as operações (dividir e
+ *   duplicar copiam-no). Com rampa, o clipe dura `fxSeconds(corte, velocidade, fx)`: o estúdio passa sempre as durações
+ *   (`durations`) e, ao cortar, a taxa (`rate`, segundos do ficheiro por segundo da sequência).
  * - O total valida-se contra as regras (lib/tchekaRules, máximo de 60 s): cortar e duplicar não deixam passar dos 60 s.
  *
  * Só importa tipos (o node corre este ficheiro direto, sem resolver caminhos sem extensão).
  */
 import type { RuleClip, Trim } from '../tchekaRules';
+import type { ClipFx } from './effects';
 
 /** O máximo de uma tcheka (o mesmo que `TCHEKA_MAX_S`; um teste confirma). */
 export const PROJECT_MAX_S = 60;
@@ -40,8 +43,8 @@ export interface ProjectClip {
   /** Vídeos: o bocado do ficheiro que entra. */
   trim: Trim;
   hasAudio?: boolean;
-  /** Efeitos, filtros, texto e stickers do clipe (da equipa dos efeitos). Opaco aqui: trata-se como imutável. */
-  fx?: unknown;
+  /** Filtro, ajustes, transição de entrada, rampa, inverter e congelar (lib/studio/effects.ts). Trata-se como imutável. */
+  fx?: ClipFx;
 }
 
 /** O que chega da câmara ou da galeria. */
@@ -96,7 +99,7 @@ export interface TrimResult { clips: ProjectClip[]; /** Bateu no mínimo (o clip
  * no início do gesto. Os vídeos mexem no bocado do ficheiro (à velocidade); as fotos na duração (ao ritmo, nas batidas,
  * se vier `beatPeriod`). Nunca abaixo de `MIN_CLIP_S`, nem para lá do ficheiro, nem a passar dos `maxTotal` segundos.
  */
-export function trimEdge(clips: ProjectClip[], key: string, edge: TrimEdge, delta: number, opts: { maxTotal?: number; durations?: number[]; beatPeriod?: number } = {}): TrimResult {
+export function trimEdge(clips: ProjectClip[], key: string, edge: TrimEdge, delta: number, opts: { maxTotal?: number; durations?: number[]; beatPeriod?: number; /** Vídeos: segundos do ficheiro por segundo da sequência (a velocidade vezes a média da rampa); sem ela, a velocidade. */ rate?: number } = {}): TrimResult {
   const i = at(clips, key);
   if (i < 0 || !Number.isFinite(delta)) return { clips, hit: null };
   const c = clips[i];
@@ -105,7 +108,7 @@ export function trimEdge(clips: ProjectClip[], key: string, edge: TrimEdge, delt
   const room = Math.max(0, (opts.maxTotal ?? PROJECT_MAX_S) - (totalOf(durs) - dur));
   let hit: TrimResult['hit'] = null;
   if (c.video) {
-    const sp = c.speed > 0 ? c.speed : 1;
+    const sp = opts.rate && opts.rate > 0 && Number.isFinite(opts.rate) ? opts.rate : c.speed > 0 ? c.speed : 1;
     const minSrc = Math.min(MIN_CLIP_S * sp, c.length);
     const maxSrc = Math.max(minSrc, room * sp);
     let { start, end } = c.trim;

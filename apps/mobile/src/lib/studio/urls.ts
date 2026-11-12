@@ -30,9 +30,16 @@ export function createUrlKeeper(revoke: (uri: string) => void = (u) => { try { U
   };
 }
 
-/** Todos os URLs que algum passo do histórico usa. */
-export function urlsInUse(states: { uri: string }[][]): Set<string> {
+/**
+ * Todos os URLs que algum passo do histórico usa. Cada passo é a lista dos clipes ou o projeto inteiro (os clipes e os
+ * outros ficheiros dele, como a voz-off, em `uris`).
+ */
+export function urlsInUse(states: ({ uri: string }[] | { clips: { uri: string }[]; uris?: string[] })[]): Set<string> {
   const s = new Set<string>();
-  for (const l of states) for (const c of l) s.add(c.uri);
+  for (const st of states) {
+    const list = Array.isArray(st) ? st : st.clips;
+    for (const c of list) s.add(c.uri);
+    if (!Array.isArray(st)) for (const u of st.uris ?? []) s.add(u);
+  }
   return s;
 }

@@ -31,6 +31,14 @@ export function redo<T>(h: History<T>): History<T> {
   return { past: [...h.past, h.present], present: next, future: rest };
 }
 
+/**
+ * Troca só o estado de agora, sem passo nem perder o refazer (o que o estúdio acerta sozinho, como o trecho sugerido da
+ * música quando a duração muda).
+ */
+export function replacePresent<T>(h: History<T>, next: T): History<T> {
+  return Object.is(next, h.present) ? h : { ...h, present: next };
+}
+
 export const canUndo = (h: History<unknown>) => h.past.length > 0;
 export const canRedo = (h: History<unknown>) => h.future.length > 0;
 

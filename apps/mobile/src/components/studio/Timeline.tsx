@@ -13,8 +13,21 @@ import { fmtS, speedLabel, TCHEKA_MAX_S } from '@/lib/tchekaRules';
  * - no clipe escolhido, pegas nas pontas para cortar a arrastar (toque leve ao chegar ao mínimo ou ao fim do ficheiro);
  * - toque longo (ou, com o rato, agarrar e arrastar) para reordenar: os clipes ficam em quadrados e o arrastado segue o dedo;
  * - com um dedo desliza (com inércia); a roda do rato também.
+ * - por cima dos clipes, as faixas das camadas (textos e stickers) e do som (voz-off e efeitos sonoros): tocar escolhe;
+ *   arrastar muda o sítio (ao toque, depois de um toque longo); na escolhida, as pontas mudam o início e o fim.
  * Bloqueada (`locked`, durante a montagem) não responde a nada.
  */
+export interface TimelineLayer {
+  id: string;
+  kind: 'text' | 'sticker' | 'voice' | 'sfx';
+  label: string;
+  start: number;
+  end: number;
+  /** As pontas mudam o início e o fim (os textos e os stickers); sem isto só se mexe no sítio. */
+  trim?: boolean;
+  /** Um instante só (efeito sonoro): desenha-se como um losango. */
+  point?: boolean;
+}
 export interface TimelineProps {
   clips: ProjectClip[];
   /** Quanto cada clipe dura na sequência (ao ritmo, se for o caso). */
@@ -34,6 +47,12 @@ export interface TimelineProps {
   /** Cortar pela ponta: `delta` em segundos desde o início do gesto. Devolve se bateu no mínimo ou no máximo. */
   onTrim: (key: string, edge: TrimEdge, delta: number, phase: 'start' | 'move' | 'end') => 'min' | 'max' | null;
   onMove: (from: number, to: number) => void;
+  /** As faixas por cima dos clipes. */
+  layers?: TimelineLayer[];
+  selectedLayer?: string | null;
+  onSelectLayer?: (id: string | null) => void;
+  /** Mexer numa faixa: o início e o fim novos (segundos da tcheka), desde o início do gesto. */
+  onLayer?: (id: string, start: number, end: number, phase: 'start' | 'move' | 'end') => void;
 }
 
 const C = {
@@ -50,6 +69,27 @@ const TILE = 52;
 const SLOT = 58;
 const ADD_W = 54;
 const TW = Math.round((TRACK_H * 9) / 16);
+const LAYER_H = 18;
+const LAYER_GAP = 3;
+const LAYER_ROWS = 4;
+const LAYER_MIN_S = 0.5;
+const LAYER_COLORS: Record<TimelineLayer['kind'], [string, string]> = {
+  text: ['#7a5cff', '#a48bff'], sticker: ['#ff8a5c', '#ffb08f'], voice: ['#2ec5ff', '#7fdcff'], sfx: ['#ffd60a', '#ffe766'],
+};
+
+/** As faixas em linhas: as que não se tocam partilham a linha (no máximo `LAYER_ROWS`; as que sobram vão para a última). */
+function packLayers(list: TimelineLayer[]): { rows: number; row: Map<string, number> } {
+  const ends: number[] = [];
+  const row = new Map<string, number>();
+  const order = [...list].sort((a, b) => a.start - b.start);
+  for (const l of order) {
+    let r = ends.findIndex((e) => e <= l.start + 1e-6);
+    if (r < 0) { r = ends.length < LAYER_ROWS ? ends.length : LAYER_ROWS - 1; if (r === ends.length) ends.push(0); }
+    ends[r] = Math.max(ends[r], l.point ? l.start + 0.4 : l.end);
+    row.set(l.id, r);
+  }
+  return { rows: ends.length, row };
+}
 const font = 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
 
 type Gesture =
@@ -59,6 +99,8 @@ type Gesture =
   | { kind: 'scrub'; id: number }
   | { kind: 'trim'; id: number; key: string; edge: TrimEdge; x0: number; scroll0: number; hit: 'min' | 'max' | null; delta: number }
   | { kind: 'reorder'; id: number }
+  | { kind: 'layer-pending'; id: number; x0: number; y0: number; layer: string; mouse: boolean; timer: ReturnType<typeof setTimeout> | null }
+  | { kind: 'layer'; id: number; layer: string; edge: 'move' | 'start' | 'end'; x0: number; scroll0: number; s0: number; e0: number; moved: boolean }
   | { kind: 'pinch'; d0: number; pps0: number; scroll0: number; mid: number };
 
 const buzz = (ms: number) => { try { (navigator as Navigator & { vibrate?: (n: number) => boolean }).vibrate?.(ms); } catch { /* sem vibração */ } };
@@ -140,6 +182,11 @@ export function Timeline(p: TimelineProps) {
   const layoutTotal = layoutDur.reduce((a, b) => a + b, 0);
   const contentW = Math.max(width, PAD + layoutTotal * pps + 10 + ADD_W + PAD + Math.max(0, width / 2 - ADD_W));
   const cuts = useMemo(() => cutPoints(durations), [durations]);
+  const layers = p.layers ?? [];
+  const packed = useMemo(() => packLayers(layers), [layers]); // eslint-disable-line react-hooks/exhaustive-deps
+  const layersH = packed.rows ? packed.rows * (LAYER_H + LAYER_GAP) + 4 : 0;
+  /** Onde começa a pista dos clipes (por baixo da régua e das faixas). */
+  const trackTop = RULER_H + 4 + layersH;
   const cutsRef = useRef(cuts);
   cutsRef.current = cuts;
 
@@ -193,7 +240,7 @@ export function Timeline(p: TimelineProps) {
       }
       // Arrastar perto das pontas faz deslizar (a procurar, a cortar ou a reordenar).
       const gk = g.current?.kind;
-      if (lastX.current !== null && (gk === 'scrub' || gk === 'trim' || gk === 'reorder')) {
+      if (lastX.current !== null && (gk === 'scrub' || gk === 'trim' || gk === 'reorder' || gk === 'layer')) {
         const rx = relX(lastX.current);
         const w = sc.clientWidth;
         const sp = rx < 36 ? -(36 - rx) / 3 : rx > w - 36 ? (rx - (w - 36)) / 3 : 0;
@@ -254,10 +301,35 @@ export function Timeline(p: TimelineProps) {
     g.current = { kind: 'reorder', id };
     setReorder({ from: index, to: index, x, rowLeft });
   }
+  function beginLayer(l: TimelineLayer, edge: 'move' | 'start' | 'end', clientX: number, id: number) {
+    const sc = scroller.current;
+    if (!sc) return;
+    g.current = { kind: 'layer', id, layer: l.id, edge, x0: clientX, scroll0: sc.scrollLeft, s0: l.start, e0: l.end, moved: false };
+    live.current.onSelectLayer?.(l.id);
+    live.current.onLayer?.(l.id, l.start, l.end, 'start');
+  }
+  /** O início e o fim de uma faixa depois de arrastar `d` segundos (dentro da tcheka; pelo menos meio segundo). */
+  function layerSpan(cur: Extract<Gesture, { kind: 'layer' }>, d: number): [number, number] {
+    const T = Math.max(LAYER_MIN_S, live.current.total);
+    const r = (v: number) => Math.round(v * 100) / 100;
+    if (cur.edge === 'start') return [r(Math.max(0, Math.min(cur.e0 - LAYER_MIN_S, cur.s0 + d))), cur.e0];
+    if (cur.edge === 'end') return [cur.s0, r(Math.min(T, Math.max(cur.s0 + LAYER_MIN_S, cur.e0 + d)))];
+    const len = cur.e0 - cur.s0;
+    const s0 = Math.max(0, Math.min(Math.max(0, T - Math.min(len, T)), cur.s0 + d));
+    return [r(s0), r(s0 + len)];
+  }
   function moveGesture(clientX: number) {
     const cur = g.current;
     const sc = scroller.current;
     if (!cur || !sc) return;
+    if (cur.kind === 'layer') {
+      const d = (clientX - cur.x0 + (sc.scrollLeft - cur.scroll0)) / ppsRef.current;
+      if (!cur.moved && Math.abs(d * ppsRef.current) < 3) return;
+      cur.moved = true;
+      const [a, b] = layerSpan(cur, d);
+      live.current.onLayer?.(cur.layer, a, b, 'move');
+      return;
+    }
     if (cur.kind === 'scrub') {
       const t = snapTime(tAt(clientX), cutsRef.current, ppsRef.current);
       scrubRef.current = t;
@@ -322,6 +394,16 @@ export function Timeline(p: TimelineProps) {
       live.current.onTrim(key, edge, 0, 'start');
       return;
     }
+    if (role === 'layer' || role === 'l-start' || role === 'l-end') {
+      const id = el?.dataset.id ?? '';
+      const l = (live.current.layers ?? []).find((x) => x.id === id);
+      if (!l) return;
+      if (role !== 'layer') { beginLayer(l, role === 'l-start' ? 'start' : 'end', e.clientX, e.pointerId); return; }
+      const pending: Gesture = { kind: 'layer-pending', id: e.pointerId, x0: e.clientX, y0: e.clientY, layer: id, mouse, timer: null };
+      if (!mouse) pending.timer = setTimeout(() => { if (g.current === pending) { buzz(12); beginLayer(l, 'move', lastX.current ?? e.clientX, e.pointerId); } }, 320);
+      g.current = pending;
+      return;
+    }
     if (role === 'ruler' || role === 'playhead' || (role === 'empty' && mouse)) {
       if (role === 'empty') g.current = { kind: 'empty', id: e.pointerId, x0: e.clientX, mouse };
       else beginScrub(e.clientX, e.pointerId);
@@ -363,6 +445,16 @@ export function Timeline(p: TimelineProps) {
       }
       return;
     }
+    if (cur.kind === 'layer-pending') {
+      const d = Math.hypot(e.clientX - cur.x0, e.clientY - cur.y0);
+      if (d > (cur.mouse ? 4 : 9)) {
+        if (cur.timer) clearTimeout(cur.timer);
+        const l = (live.current.layers ?? []).find((x) => x.id === cur.layer);
+        if (cur.mouse && l) { beginLayer(l, 'move', cur.x0, cur.id); moveGesture(e.clientX); }
+        else g.current = { kind: 'pan', id: cur.id, x: e.clientX, vx: 0, at: performance.now() };
+      }
+      return;
+    }
     if (cur.kind === 'empty') {
       if (Math.abs(e.clientX - cur.x0) > (cur.mouse ? 3 : 9)) {
         if (cur.mouse) beginScrub(e.clientX, cur.id);
@@ -394,6 +486,14 @@ export function Timeline(p: TimelineProps) {
     if (cur.kind === 'pending') {
       if (cur.timer) clearTimeout(cur.timer);
       if (commit) L.onSelect(cur.key);
+    } else if (cur.kind === 'layer-pending') {
+      if (cur.timer) clearTimeout(cur.timer);
+      if (commit) L.onSelectLayer?.(cur.layer);
+    } else if (cur.kind === 'layer') {
+      const sc = scroller.current;
+      const d = cur.moved && sc && clientX != null ? (clientX - cur.x0 + (sc.scrollLeft - cur.scroll0)) / ppsRef.current : 0;
+      const [a, b] = cur.moved && commit ? layerSpan(cur, d) : [cur.s0, cur.e0];
+      L.onLayer?.(cur.layer, a, b, 'end');
     } else if (cur.kind === 'empty') {
       if (commit) {
         L.onSelect(null);
@@ -455,7 +555,9 @@ export function Timeline(p: TimelineProps) {
       const n = Math.ceil(w / TW);
       const from = Math.max(0, Math.floor((visL - left) / TW)), to = Math.min(n, Math.ceil((visR - left) / TW));
       for (let k = from; k < to; k++) {
-        const st = c.trim.start + (((k + 0.5) * TW) / pps) * c.speed;
+        const rate = d > 0 ? (c.trim.end - c.trim.start) / d : c.speed;
+        const off = (((k + 0.5) * TW) / pps) * rate;
+        const st = c.fx?.reverse ? c.trim.end - off : c.trim.start + off;
         const tq = Math.min(Math.max(0, c.length - 0.05), Math.round(st / q) * q);
         tiles.push(<Frame key={`${k}@${tq}`} uri={c.uri} t={tq} w={TW} h={TRACK_H} style={{ position: 'absolute', left: k * TW, top: 0 }} />);
       }
@@ -508,6 +610,39 @@ export function Timeline(p: TimelineProps) {
     );
   });
 
+  const selLayer = p.selectedLayer ?? null;
+  const layerEls = layers.map((l) => {
+    const r = packed.row.get(l.id) ?? 0;
+    const top = RULER_H + 4 + r * (LAYER_H + LAYER_GAP);
+    const left = PAD + l.start * pps;
+    const on = l.id === selLayer;
+    const [c1, c2] = LAYER_COLORS[l.kind];
+    if (l.point) {
+      return (
+        <div key={l.id} data-tl="layer" data-id={l.id} role="button" aria-pressed={on} aria-label={`${l.label}, aos ${fmtS(l.start)} s`}
+          style={{ position: 'absolute', left: left - LAYER_H / 2, top, width: LAYER_H, height: LAYER_H, zIndex: on ? 3 : 2, cursor: locked ? 'default' : 'grab', touchAction: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 11, height: 11, transform: 'rotate(45deg)', borderRadius: 2, background: c1, boxShadow: on ? `0 0 0 2px #fff, 0 0 10px ${c1}` : '0 0 0 1px rgba(0,0,0,0.5)' }} />
+        </div>
+      );
+    }
+    const w = Math.max(6, (l.end - l.start) * pps);
+    const edge = (side: 'start' | 'end') => (
+      <div data-tl={side === 'start' ? 'l-start' : 'l-end'} data-id={l.id} aria-label={side === 'start' ? 'Mudar o início (arrasta)' : 'Mudar o fim (arrasta)'}
+        style={{ position: 'absolute', top: -1, bottom: -1, width: 12, [side === 'start' ? 'left' : 'right']: -6, zIndex: 3, cursor: 'ew-resize', touchAction: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 4, height: LAYER_H - 4, borderRadius: 2, background: '#fff', boxShadow: `0 0 6px ${c1}` }} />
+      </div>
+    );
+    return (
+      <div key={l.id} data-tl="layer" data-id={l.id} role="button" aria-pressed={on} aria-label={`${l.label}, de ${fmtS(l.start)} a ${fmtS(l.end)} s`}
+        style={{ position: 'absolute', left, top, width: w, height: LAYER_H, borderRadius: 6, zIndex: on ? 3 : 2, cursor: locked ? 'default' : 'grab', touchAction: 'none',
+          background: `linear-gradient(90deg, ${c1}, ${c2})`, opacity: on ? 1 : 0.82, boxShadow: on ? `inset 0 0 0 1.5px #fff, 0 0 10px ${c1}` : 'inset 0 0 0 1px rgba(0,0,0,0.25)' }}>
+        <span style={{ position: 'absolute', left: 6, right: 6, top: 0, lineHeight: `${LAYER_H}px`, fontSize: 10, fontWeight: 800, color: '#0b0b0f', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none' }}>{w > 26 ? l.label : ''}</span>
+        {on && l.trim && !locked ? edge('start') : null}
+        {on && l.trim && !locked ? edge('end') : null}
+      </div>
+    );
+  });
+
   const zoomBtn = (label: string, aria: string, onClick: () => void, wide = false) => (
     <button
       type="button"
@@ -543,7 +678,7 @@ export function Timeline(p: TimelineProps) {
         onScroll={(e) => { const x = (e.target as HTMLDivElement).scrollLeft; if (Math.abs(x - scrollX) > vw / 3) setScrollX(x); }}
         style={{ position: 'relative', overflowX: 'auto', overflowY: 'hidden', touchAction: 'none', overscrollBehavior: 'contain', scrollbarWidth: 'none', paddingBottom: 10 } as CSSProperties}
       >
-        <div style={{ position: 'relative', width: contentW, height: RULER_H + TRACK_H + 12 }}>
+        <div style={{ position: 'relative', width: contentW, height: trackTop + TRACK_H + 8 }}>
           {/* A régua */}
           <div data-tl="ruler" style={{ position: 'absolute', left: 0, top: 0, width: contentW, height: RULER_H, cursor: locked ? 'default' : 'col-resize' }}>
             {ticks.map((tk) => (
@@ -552,8 +687,10 @@ export function Timeline(p: TimelineProps) {
               </div>
             ))}
           </div>
+          {/* As faixas das camadas e do som */}
+          {layerEls}
           {/* A pista dos clipes */}
-          <div style={{ position: 'absolute', left: 0, top: RULER_H + 4, width: contentW, height: TRACK_H }}>
+          <div style={{ position: 'absolute', left: 0, top: trackTop, width: contentW, height: TRACK_H }}>
             <div style={{ position: 'absolute', left: PAD - 4, right: PAD, top: -3, bottom: -3, borderRadius: 12, background: C.lane, boxShadow: `inset 0 0 0 1px ${C.line}` }} />
             {blocks}
             {over ? (
@@ -567,7 +704,7 @@ export function Timeline(p: TimelineProps) {
             {p.addButton ? <div data-tl="add" style={{ position: 'absolute', left: PAD + layoutTotal * pps + 10, top: 0, width: ADD_W - 6, height: TRACK_H, opacity: reorder ? 0 : 1 }}>{p.addButton}</div> : null}
           </div>
           {/* O cursor */}
-          <div ref={playheadEl} style={{ position: 'absolute', left: -1, top: 0, width: 2, height: RULER_H + TRACK_H + 10, zIndex: 6, transform: `translateX(${PAD + showT * pps}px)`, pointerEvents: 'none', willChange: 'transform', opacity: reorder ? 0 : 1 }}>
+          <div ref={playheadEl} style={{ position: 'absolute', left: -1, top: 0, width: 2, height: trackTop + TRACK_H + 6, zIndex: 6, transform: `translateX(${PAD + showT * pps}px)`, pointerEvents: 'none', willChange: 'transform', opacity: reorder ? 0 : 1 }}>
             <div style={{ position: 'absolute', left: 0, top: RULER_H - 6, bottom: 0, width: 2, borderRadius: 1, background: '#fff', boxShadow: '0 0 10px rgba(255,255,255,0.7)' }} />
             <div data-tl="playhead" style={{ position: 'absolute', left: -11, top: -2, width: 24, height: RULER_H + 2, pointerEvents: locked ? 'none' : 'auto', cursor: 'grab', display: 'flex', justifyContent: 'center', touchAction: 'none' }}>
               <div style={{ width: 12, height: 16, marginTop: 3, borderRadius: '4px 4px 7px 7px', background: '#fff', boxShadow: `0 0 0 2px ${C.coral}, 0 0 12px ${C.glow}` }} />
@@ -577,7 +714,7 @@ export function Timeline(p: TimelineProps) {
       </div>
       {/* A reordenar: quadrados iguais, o arrastado segue o dedo. */}
       {reorder ? (
-        <div aria-live="polite" style={{ position: 'absolute', left: 0, right: 0, top: HEAD_H + RULER_H + 4, height: TRACK_H, pointerEvents: 'none', zIndex: 8 }}>
+        <div aria-live="polite" style={{ position: 'absolute', left: 0, right: 0, top: HEAD_H + trackTop, height: TRACK_H, pointerEvents: 'none', zIndex: 8 }}>
           <div style={{ position: 'absolute', left: 8, right: 8, top: -3, bottom: -3, borderRadius: 12, background: 'rgba(255,79,109,0.06)', boxShadow: 'inset 0 0 0 1px rgba(255,79,109,0.35)' }} />
           {(() => {
             const order = clips.map((_, i) => i).filter((i) => i !== reorder.from);
