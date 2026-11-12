@@ -62,7 +62,7 @@ test('relatório: só totais, com interesse para eventos e brindes para publica�
   assert.ok(ev.includes('"Tenho interesse"') && !ev.includes('Brindes'));
   const po = b.reportLines({ ...base, interested: null, cheers: 5 }).map((l) => l.label);
   assert.ok(po.includes('Brindes') && !po.includes('"Tenho interesse"'));
-  assert.deepEqual(Object.keys(b.STATE_LABEL).sort(), ['active', 'ended', 'pending', 'scheduled', 'stopped', 'suspended']);
+  assert.deepEqual(Object.keys(b.STATE_LABEL).sort(), ['active', 'draft', 'ended', 'pending', 'scheduled', 'stopped', 'suspended']);
 });
 
 test('no mapa, os destaques vão para o topo e o resto fica por distância', () => {

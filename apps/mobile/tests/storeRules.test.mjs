@@ -20,11 +20,11 @@ function files(dir) {
 test('nas lojas não se recarregam Txills nem se paga o Bombar; no site e no APK beta fica tudo', () => {
   for (const c of ['play', 'appstore']) {
     assert.equal(isStoreChannel(c), true);
-    assert.deepEqual(purchaseRulesFor(c), { buyTxills: false, buyBoosts: false }, c);
+    assert.deepEqual(purchaseRulesFor(c), { buyTxills: false, buyBoosts: false, storeBoosts: false, storeVerification: false }, c);
   }
   for (const c of ['beta', 'web']) {
     assert.equal(isStoreChannel(c), false);
-    assert.deepEqual(purchaseRulesFor(c), { buyTxills: true, buyBoosts: true }, c);
+    assert.deepEqual(purchaseRulesFor(c), { buyTxills: true, buyBoosts: true, storeBoosts: false, storeVerification: false }, c);
   }
 });
 
@@ -35,14 +35,14 @@ test('a recarga nas lojas só com os dois interruptores: esta versão pronta (ST
   assert.equal(purchaseRulesFor('play', { storeTopup: true }).buyTxills, false);
   // Numa versão pronta, liga e desliga pelo servidor; sem resposta fica desligada. O Bombar nunca se paga nas lojas.
   for (const c of ['play', 'appstore']) {
-    assert.deepEqual(purchaseRulesFor(c, { storeTopup: true }, true), { buyTxills: true, buyBoosts: false }, c);
-    assert.deepEqual(purchaseRulesFor(c, { storeTopup: false }, true), { buyTxills: false, buyBoosts: false }, c);
-    assert.deepEqual(purchaseRulesFor(c, null, true), { buyTxills: false, buyBoosts: false }, c);
-    assert.deepEqual(purchaseRulesFor(c, {}, true), { buyTxills: false, buyBoosts: false }, c);
+    assert.deepEqual(purchaseRulesFor(c, { storeTopup: true }, true), { buyTxills: true, buyBoosts: false, storeBoosts: false, storeVerification: false }, c);
+    assert.deepEqual(purchaseRulesFor(c, { storeTopup: false }, true), { buyTxills: false, buyBoosts: false, storeBoosts: false, storeVerification: false }, c);
+    assert.deepEqual(purchaseRulesFor(c, null, true), { buyTxills: false, buyBoosts: false, storeBoosts: false, storeVerification: false }, c);
+    assert.deepEqual(purchaseRulesFor(c, {}, true), { buyTxills: false, buyBoosts: false, storeBoosts: false, storeVerification: false }, c);
   }
   // No site e no APK beta o interruptor não conta.
-  assert.deepEqual(purchaseRulesFor('web', { storeTopup: false }, true), { buyTxills: true, buyBoosts: true });
-  assert.deepEqual(purchaseRulesFor('beta', null, false), { buyTxills: true, buyBoosts: true });
+  assert.deepEqual(purchaseRulesFor('web', { storeTopup: false }, true), { buyTxills: true, buyBoosts: true, storeBoosts: false, storeVerification: false });
+  assert.deepEqual(purchaseRulesFor('beta', null, false), { buyTxills: true, buyBoosts: true, storeBoosts: false, storeVerification: false });
   // A app só pergunta ao servidor quando a versão está pronta, e enquanto espera não mostra a recarga.
   const p = read('lib', 'purchases.ts');
   assert.match(p, /const ASK = isStoreChannel\(CHANNEL\) && STORE_TOPUP_READY;/);
@@ -85,10 +85,11 @@ test('os ecrãs de compra não aparecem nas lojas: /orders vai para a carteira, 
   assert.match(home, /hiddenSettingsFor\(purchases\)/);
   assert.match(home, /paymentsSubtitleFor\(purchases, g\.subtitle\)/);
   assert.match(read('components', 'groups', 'PotPanel.tsx'), /purchases\.buyTxills \? 'Não tens Txills suficientes\. Carrega a carteira primeiro\.' : 'Não tens Txills suficientes\.'/);
-  // O Bombar nas lojas: sem campanha nova (só ver e parar as que existem).
+  // O Bombar nas lojas: sem campanha nova paga com Txills (só ver e parar as que existem). Pela loja, só com as compras
+  // pela loja ligadas (IAP_READY e o catálogo do servidor), num componente à parte: ver tests/iap.test.mjs.
   const boost = read('components', 'boost', 'VenueBoost.tsx');
-  assert.match(boost, /if \(!PURCHASES\.buyBoosts\) \{/);
-  const gated = boost.slice(boost.indexOf('if (!PURCHASES.buyBoosts) {'), boost.indexOf('return (\n    <View style={{ paddingHorizontal: 16, gap: 12 }}>\n      <View style={st.intro}>'));
+  assert.match(boost, /if \(!rules\.buyBoosts\) \{\n\s+\/\/ [^\n]+\n\s+if \(rules\.storeBoosts\) \{\n\s+return \(\n\s+<View style=\{\{ paddingHorizontal: 16, gap: 12 \}\}>\n\s+<StoreBoost /);
+  const gated = boost.slice(boost.indexOf('if (!rules.buyBoosts) {'), boost.indexOf('return (\n    <View style={{ paddingHorizontal: 16, gap: 12 }}>\n      <View style={st.intro}>'));
   assert.doesNotMatch(gated, /boostsApi\.create|Nova campanha|Brevemente/);
   // Ninguém mais leva a /orders (a única ligação é a das Definições, já condicionada).
   const links = files(path.join(ROOT, 'src')).filter((f) => /['"`]\/orders['"`?]/.test(readFileSync(f, 'utf8')));

@@ -23,6 +23,7 @@ import { accounts } from '@/lib/accounts';
 import { syncPush } from '@/lib/push';
 import { installCallRing } from '@/lib/callRing';
 import { useChatStream } from '@/lib/realtime';
+import { useIapRuntime } from '@/lib/iap';
 import { colors } from '@/lib/theme';
 import { isPublicSegment } from '@/lib/publicRoutes';
 import { AnalyticsLive, reportRenderError, startAnalytics } from '@/lib/analyticsRuntime';
@@ -90,6 +91,8 @@ function ChatLive() {
   }, [user]);
   // Web: o botão Recusar da notificação de chamada pede a esta janela que recuse (só ela tem a sessão).
   useEffect(() => (user ? installCallRing() : undefined), [user]);
+  // Compras pela loja (só nas lojas, com IAP_READY e o catálogo ligado): reenvia ao servidor as que ficaram por acabar.
+  useIapRuntime(user?.id ?? null);
   return null;
 }
 

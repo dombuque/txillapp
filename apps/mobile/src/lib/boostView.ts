@@ -2,7 +2,8 @@
 // a posição que vai para o servidor, preços, estados e o relatório). Sem dependências: tests/boostView.test.mjs.
 
 export type BoostPackageId = '1d' | '3d' | '7d';
-export type BoostState = 'scheduled' | 'active' | 'ended' | 'stopped' | 'suspended' | 'pending';
+/** 'draft': pago pela loja, à espera da confirmação da compra (o verify). */
+export type BoostState = 'scheduled' | 'active' | 'ended' | 'stopped' | 'suspended' | 'pending' | 'draft';
 
 /** A etiqueta obrigatória (publicidade identificada). O servidor manda a mesma em cada destaque. */
 export const SPONSORED_LABEL = 'Bombado · Patrocinado';
@@ -71,6 +72,7 @@ export const STATE_LABEL: Record<BoostState, string> = {
   stopped: 'Parada',
   suspended: 'Suspensa pela equipa',
   pending: 'À espera da equipa',
+  draft: 'À espera do pagamento',
 };
 
 /** O texto do que se devolve ao parar (a mesma regra do servidor: os dias inteiros que faltam; tudo se ainda não começou). */
