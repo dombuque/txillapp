@@ -25,6 +25,7 @@ import { api, isTcheka, post as postInit, raw, type Page, type Post } from '@/li
 import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
 import { colors } from '@/lib/theme';
+import { reelResets, reelShouldPlay } from '@/lib/reelPlayback';
 
 type SheetName = null | 'comments' | 'repost' | 'gift' | 'menu' | 'share';
 type PeopleKind = 'cheers' | 'reposts';
@@ -236,7 +237,7 @@ function ReelEnd({ post, mine, replay, more, bottomInset }: { post: Post; mine: 
  * Um vídeo em ecrã inteiro com os botões à direita. `height` é a altura medida do contentor (onLayout), nunca a da janela.
  * `bottomInset`: espaço seguro de baixo quando não há barra de baixo por cima (ex.: página do reel).
  */
-export function Reel({ post, active, height, onChange, me, onMore, bottomInset = 0 }: { post: Post; active: boolean; height: number; onChange: (p: Partial<Post>) => void; me?: string; onMore?: () => void; bottomInset?: number }) {
+export function Reel({ post, active, onScreen = true, height, onChange, me, onMore, bottomInset = 0 }: { post: Post; /** É a tcheka em cena na lista. */ active: boolean; /** O ecrã está à frente (fora dele só pára; ao voltar continua). */ onScreen?: boolean; height: number; onChange: (p: Partial<Post>) => void; me?: string; onMore?: () => void; bottomInset?: number }) {
   const router = useRouter();
   const [sheet, setSheet] = useState<SheetName>(null);
   const [people, setPeople] = useState<PeopleKind | null>(null);
@@ -278,17 +279,18 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
     return () => { a.remove(); b.remove(); c.remove(); };
   }, [player, onMore]);
 
-  // Fora de cena: volta ao início, sem a pausa nem o fim anteriores.
+  // Fora de cena (deslizaste para outra): volta ao início, sem a pausa nem o fim anteriores. Com o ecrã por trás (outro
+  // separador, o perfil do autor por cima) só pára: ao voltar continua de onde estava.
   useEffect(() => {
-    if (active) return;
+    if (!reelResets({ active, onScreen })) return;
     setUserPaused(false);
     setEnded(false);
     loops.current = 0;
     try { player.currentTime = 0; } catch { /* leitor ainda a carregar */ }
-  }, [active, player]);
+  }, [active, onScreen, player]);
 
   // Com a partilha aberta (pré-visualização do status) o vídeo de fundo pára: é a pré-visualização que toca.
-  const shouldPlay = active && visible && !userPaused && !ended && sheet !== 'share';
+  const shouldPlay = reelShouldPlay({ active, onScreen, appVisible: visible, userPaused, ended, sharing: sheet === 'share' });
   useEffect(() => {
     try { player.muted = silent; } catch { /* leitor libertado */ }
   }, [silent, player]);
@@ -309,10 +311,10 @@ export function Reel({ post, active, height, onChange, me, onMore, bottomInset =
 
   // Conta como "visto" depois de 1 s em cena.
   useEffect(() => {
-    if (!active) return;
+    if (!active || !onScreen) return;
     const t = setTimeout(() => void api.markSeen([post.id]).catch(() => undefined), 1000);
     return () => clearTimeout(t);
-  }, [active, post.id]);
+  }, [active, onScreen, post.id]);
 
   // Toque simples (pausa/retoma) ou duplo (brinda): o simples espera um instante para ver se vem o segundo.
   const lastTap = useRef(0);
@@ -620,13 +622,18 @@ export default function Reels() {
             maxToRenderPerBatch={2}
             onScrollToIndexFailed={(info) => list.current?.scrollToOffset({ offset: info.index * height, animated: true })}
             renderItem={({ item, index }) => (
-              <Reel post={item} active={focused && index === active} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={desktop ? Math.max(insets.bottom, 16) : 76 + Math.max(insets.bottom, 8)} />
+              <Reel post={item} active={index === active} onScreen={focused} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={desktop ? Math.max(insets.bottom, 16) : 76 + Math.max(insets.bottom, 8)} />
             )}
             onEndReached={() => { if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage(); }}
             onEndReachedThreshold={1}
             ListEmptyComponent={
               loading ? <View style={[st.center, { height }]}><ActivityIndicator color="#fff" /></View> : q.isError ? (
-                <View style={[st.center, { height }]}><Text accessibilityRole="alert" style={{ color: 'rgba(255,255,255,0.8)' }}>Ups, falhou</Text></View>
+                <View style={[st.center, { height, paddingHorizontal: 32 }]} accessibilityRole="alert">
+                  <Icon name="film" size={52} color="rgba(255,255,255,0.7)" />
+                  <Text style={st.emptyTitle}>Ups, as tchekas não carregaram</Text>
+                  <Text style={st.emptySub}>Verifica a ligação e tenta outra vez.</Text>
+                  <Pressable onPress={() => void q.refetch()} style={({ pressed }) => [st.cta, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button"><Text style={st.ctaText}>Tentar outra vez</Text></Pressable>
+                </View>
               ) : (
                 <View style={[st.center, { height, paddingHorizontal: 32 }]}>
                   <Icon name="film" size={52} color="rgba(255,255,255,0.7)" />

@@ -10,6 +10,8 @@ import { useDesktop } from '@/lib/desktop';
 import { api, isTcheka, type Page, type Post } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { enterImmersive, leaveImmersive } from '@/lib/immersive';
+import { isGone } from '@/lib/postCache';
+import { createOnce } from '@/lib/tapGuard';
 import { Reel } from '../(tabs)/reels';
 
 const isWeb = Platform.OS === 'web';
@@ -52,7 +54,10 @@ export default function ReelPage() {
     if (opened && pid === opened.id) qc.setQueryData(['post', id], (d: Post | undefined) => (d ? { ...d, ...c } : d));
     qc.setQueryData<InfiniteData<Page<Post>>>(['reels'], (d) => d && { ...d, pages: d.pages.map((pg) => ({ ...pg, items: pg.items.map((i) => (i.id === pid ? { ...i, ...c } : i)) })) });
   };
-  const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  // Fecha uma vez só: puxar para baixo no iPhone dá vários eventos de scroll seguidos já depois do limite, e cada um
+  // fazia router.back() — tirava também o ecrã de trás (a publicação, o perfil…).
+  const closing = useRef(createOnce()).current;
+  const close = () => { closing.run(() => (router.canGoBack() ? router.back() : router.replace('/'))); };
 
   // Uma publicação que não é tcheka (fotos, texto, ou fotos e vídeos juntos) abre como publicação normal.
   useEffect(() => {
@@ -113,12 +118,21 @@ export default function ReelPage() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       {q.isLoading && <View style={st.center}><ActivityIndicator color="#fff" /></View>}
-      {q.isError && (
+      {q.isError && isGone(q.error) && (
         <View style={st.center}>
           <Icon name="film" size={48} color="rgba(255,255,255,0.7)" />
           <Text style={st.title}>Esta tcheka já não está disponível</Text>
           <Text style={{ marginTop: 4, color: 'rgba(255,255,255,0.75)', textAlign: 'center' }}>Pode ter sido apagada, ou a conta passou a privada.</Text>
-          <Pressable onPress={() => router.replace('/reels' as never)} style={st.cta}><Text style={{ color: '#fff', fontWeight: '700' }}>Ver outras tchekas</Text></Pressable>
+          <Pressable onPress={() => router.replace('/reels' as never)} style={st.cta} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700' }}>Ver outras tchekas</Text></Pressable>
+        </View>
+      )}
+      {q.isError && !isGone(q.error) && (
+        // Sem rede (ou o servidor falhou): a tcheka pode estar lá; deixa tentar outra vez.
+        <View style={st.center} accessibilityRole="alert">
+          <Icon name="film" size={48} color="rgba(255,255,255,0.7)" />
+          <Text style={st.title}>Ups, a tcheka não carregou</Text>
+          <Text style={{ marginTop: 4, color: 'rgba(255,255,255,0.75)', textAlign: 'center' }}>Verifica a ligação e tenta outra vez.</Text>
+          <Pressable onPress={() => void q.refetch()} style={st.cta} accessibilityRole="button"><Text style={{ color: '#fff', fontWeight: '700' }}>Tentar outra vez</Text></Pressable>
         </View>
       )}
       {items.length > 0 && (
@@ -147,7 +161,7 @@ export default function ReelPage() {
               maxToRenderPerBatch={2}
               onScrollToIndexFailed={(info) => list.current?.scrollToOffset({ offset: info.index * height, animated: true })}
               renderItem={({ item, index }) => (
-                <Reel post={item} active={focused && index === active} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={insets.bottom} />
+                <Reel post={item} active={index === active} onScreen={focused} height={height} onChange={(c) => patch(item.id, c)} me={user?.id} onMore={() => goNext(index)} bottomInset={insets.bottom} />
               )}
               onEndReached={() => { if (more.hasNextPage && !more.isFetchingNextPage) void more.fetchNextPage(); }}
               onEndReachedThreshold={1}
