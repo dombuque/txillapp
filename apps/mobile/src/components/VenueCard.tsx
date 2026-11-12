@@ -1,9 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KIND_LABEL, locaisApi, type Venue } from '@/lib/api.locais';
 import { sized } from '@/lib/config';
+import { listImageProps } from '@/lib/listImage';
 import { colors } from '@/lib/theme';
 import { Icon } from './Icon';
 import { VerifiedBadge } from './VerifiedBadge';
@@ -11,7 +12,7 @@ import { VerifiedBadge } from './VerifiedBadge';
 /** O logótipo de um local (ou o pin, se ainda não tiver). */
 export function VenueLogo({ venue, size = 48 }: { venue: Pick<Venue, 'avatarUrl' | 'name'>; size?: number }) {
   const r = Math.round(size * 0.28);
-  if (venue.avatarUrl) return <Image source={{ uri: sized(venue.avatarUrl, size * 3) }} style={{ width: size, height: size, borderRadius: r, backgroundColor: colors.zinc100 }} contentFit="cover" accessibilityLabel={venue.name} />;
+  if (venue.avatarUrl) return <Image source={{ uri: sized(venue.avatarUrl, size * 3) }} style={{ width: size, height: size, borderRadius: r, backgroundColor: colors.zinc100 }} contentFit="cover" {...listImageProps(Platform.OS, 0)} accessibilityLabel={venue.name} />;
   return (
     <View style={{ width: size, height: size, borderRadius: r, backgroundColor: colors.zinc900, alignItems: 'center', justifyContent: 'center' }} accessibilityLabel={venue.name}>
       <Icon name="map-pin" size={Math.round(size * 0.46)} color="#fff" />

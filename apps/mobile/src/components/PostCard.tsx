@@ -4,10 +4,11 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, FlatList, Pressable, Share, StyleSheet, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Animated, FlatList, Platform, Pressable, Share, StyleSheet, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { api, isTcheka, type Page, type Post } from '@/lib/api';
 import type { PeopleKind } from '@/lib/api.feed';
 import { sized } from '@/lib/config';
+import { listImageProps } from '@/lib/listImage';
 import { clampPostRatio } from '@/lib/postAspect';
 import { cardShadow, colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
@@ -458,7 +459,7 @@ function GiftedPost({ original, onOpen }: { original: Post; onOpen?: (p: Post) =
       {original.body ? <Text style={styles.quoteBody} numberOfLines={3}>{original.body}</Text> : null}
       {thumb ? (
         <View style={[styles.quoteMedia, { height: 224, backgroundColor: colors.zinc200 }]}>
-          <Image source={{ uri: thumb }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} accessibilityIgnoresInvertColors />
+          <Image source={{ uri: thumb }} style={StyleSheet.absoluteFill} contentFit="cover" {...listImageProps(Platform.OS, 150)} accessibilityIgnoresInvertColors />
           {video && (
             <View style={styles.playWrap} pointerEvents="none">
               <View style={[styles.play, { width: 48, height: 48, borderRadius: 24 }]}><Icon name="play" size={24} color="#fff" solid /></View>
@@ -531,7 +532,8 @@ function Carousel({ media, width: guess, reelId, onDouble, onOpen, inView = fals
                 // Tcheka no feed: corre sozinha sem som enquanto está à vista; um toque abre-a no ecrã da Tcheka (com som).
                 <CarouselVideo url={m.url} poster={m.posterUrl} durationMs={m.durationMs} width={width} height={h} active inView={inView} mute={mute} passive />
               ) : (
-                <Image source={{ uri: sized(m.url, 720) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} accessibilityIgnoresInvertColors />
+                // Na web: a foto que se vê e a seguinte carregam logo e sem fade (senão piscavam ao rolar o feed); as outras ficam lazy.
+                <Image source={{ uri: sized(m.url, 720) }} style={StyleSheet.absoluteFill} contentFit="cover" {...listImageProps(Platform.OS, 150, index <= i + 1)} accessibilityIgnoresInvertColors />
               )}
             </Pressable>
           )}

@@ -1,9 +1,10 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Post } from '@/lib/api';
 import { sized } from '@/lib/config';
+import { listImageProps } from '@/lib/listImage';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 import { Avatar } from './Avatar';
@@ -90,7 +91,7 @@ export function QuotedOriginal({ original, me, onOpen, onPhoto, onDouble }: { or
       accessibilityRole="button"
       accessibilityLabel={video ? 'Ver o vídeo' : 'Ver a foto em ecrã inteiro'}
     >
-      {thumb ? <Image source={{ uri: thumb }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} accessibilityIgnoresInvertColors /> : null}
+      {thumb ? <Image source={{ uri: thumb }} style={StyleSheet.absoluteFill} contentFit="cover" {...listImageProps(Platform.OS, 150)} accessibilityIgnoresInvertColors /> : null}
       {video ? (
         <View style={styles.playWrap} pointerEvents="none">
           <View style={[styles.play, side && { width: 30, height: 30, borderRadius: 15 }]}><Icon name="play" size={side ? 14 : 22} color="#fff" solid /></View>
