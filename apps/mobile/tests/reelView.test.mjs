@@ -207,3 +207,9 @@ test('computador: ↑/↓ e a roda mudam de tcheka, espaço pausa, ←/→ recua
   assert.match(page, /seekSignal=\{desk\.seekSignal\}/);
   assert.match(reels, /player\.currentTime = stepTime\(player\.currentTime, player\.duration, seekSignal\.by\);/);
 });
+
+test('som tirado (docs/sons.md): o letreiro diz porquê, sem página', () => {
+  assert.deepEqual(v.reelSound({ author: { username: 'ana' }, soundRemoved: 'author' }), { label: 'Som retirado pelo autor', cover: null, originalBy: null, href: null });
+  assert.equal(v.reelSound({ author: { username: 'ana' }, soundRemoved: 'rights' })?.label, 'Som retirado por direitos de autor');
+  assert.equal(v.reelSound({ author: { username: 'ana' }, soundRemoved: null }), null);
+});

@@ -153,3 +153,15 @@ test('os ecrãs ligam o remix: rota do estúdio, lista, botões, etiqueta, autoc
   // A publicação leva o remix e, num dueto sem som, music: null.
   assert.match(read('lib', 'api.compose.ts'), /remixOf\?: RemixInput/);
 });
+
+test('«Retirar o dueto» (0140): só o autor do original, só em duetos, com aviso a quem o fez', () => {
+  assert.equal(r.takedownTitle, 'Retirar este dueto?');
+  assert.match(r.takedownText('ana'), /@ana recebe um aviso/);
+  assert.match(r.takedownText('ana'), /Não dá para desfazer/);
+  assert.match(r.takedownText(null), /quem o fez/);
+  assert.equal(r.takedownVerb().text, 'pediu para retirar o teu dueto');
+  const menu = read('components', 'PostSheets.tsx').replace(/\r\n/g, '\n');
+  assert.match(menu, /post\.remixOf\?\.kind === 'duet' && post\.remixOf\.canTakeDown \? <MenuRow[^\n]*title="Retirar o dueto"/);
+  assert.match(menu, /api\.takeDownDuet\(post\.id\)/);
+  assert.match(read('lib', 'api.ts'), /\/duet-takedown`, post\(\{\}\)\)/);
+});

@@ -314,7 +314,9 @@ export function Reel({ post: rawPost, active, onScreen = true, height, onChange,
   const flashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const loops = useRef(0);
-  const { chosen, silent } = useSound();
+  const { chosen, silent: soundOff } = useSound();
+  // O som que a tcheka usava foi tirado («Som retirado pelo autor»): o vídeo não toca com som, mesmo com o som ligado.
+  const silent = soundOff || !!post.soundRemoved;
   const visible = useAppVisible();
   const m = post.media[0];
   const mine = post.author.id === me;

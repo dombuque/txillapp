@@ -199,7 +199,7 @@ test('quem abre as Definições aponta para ecrãs e âncoras que existem', () =
       const where = `${path.relative(ROOT, f)}: ${x[0]}`;
       assert.ok(!h, `sem âncoras # (${where})`);
       const g = p.split('/')[2];
-      if (g) assert.ok(groups.has(g) || g === 'aparelhos', `grupo que existe (${where})`);
+      if (g) assert.ok(groups.has(g) || g === 'aparelhos' || g === 'sons', `grupo que existe (${where})`);
       if (q) {
         const o = new URLSearchParams(q.slice(1)).get('o');
         assert.ok(o && m.settingsEntry(o), `?o= de uma opção que existe (${where})`);
