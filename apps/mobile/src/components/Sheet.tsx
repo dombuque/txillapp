@@ -6,6 +6,7 @@ import { colors } from '@/lib/theme';
 import { useDesktop } from '@/lib/desktop';
 import { useOverlay } from '@/lib/overlays';
 import { sheetHeights, sheetViewport } from '@/lib/sheetViewport';
+import { ListReset } from './ListReset';
 import { useVisibleViewport } from './zas/useVisibleViewport';
 
 /** Os conteúdos rolantes avisam a folha de onde estão (só se fecha a arrastar quando estão no topo). */
@@ -86,6 +87,8 @@ export function Sheet({ title, onClose, children, full = false, plain = false }:
           style={[styles.sheet, full ? { height: heights.full } : { maxHeight: heights.max }, { paddingBottom: box ? 12 : Math.max(insets.bottom, 16) + (kb ? kb - insets.bottom : 0), transform: [{ translateY: y }] }, desktop && { maxWidth: 540, borderRadius: 24, paddingBottom: 20, transform: [{ translateY: Animated.multiply(y, 0.15) }] }]}
           accessibilityViewIsModal
         >
+          {/* Recomeça o contexto das listas: a FlatList dos comentários, aberta a partir do feed, ficava sem scroll na web. */}
+          <ListReset>
           <ScrollCtx.Provider value={{ top: atTop }}>
             {desktop ? <View style={{ height: 8 }} /> : <View style={styles.handle} />}
             {title && !plain ? (
@@ -95,6 +98,7 @@ export function Sheet({ title, onClose, children, full = false, plain = false }:
             ) : null}
             {children}
           </ScrollCtx.Provider>
+          </ListReset>
         </Animated.View>
       </View>
     </Modal>
