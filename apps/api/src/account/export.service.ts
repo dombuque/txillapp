@@ -10,8 +10,8 @@ export class ExportService {
   async build(userId: string) {
     const q = async (sql: string) => (await this.pool.query(sql, [userId])).rows;
     const [profile] = await q(
-      `SELECT username, display_name AS "displayName", email, bio, gender, show_gender AS "showGender", birth_date AS "birthDate", is_private AS "isPrivate",
-              created_at AS "joinedAt", terms_version AS "termsVersion", terms_accepted_at AS "termsAcceptedAt"
+      `SELECT username, display_name AS "displayName", email, bio, city, website, gender, show_gender AS "showGender", birth_date AS "birthDate", is_private AS "isPrivate",
+              country, created_at AS "joinedAt", terms_version AS "termsVersion", terms_accepted_at AS "termsAcceptedAt"
          FROM identity.users WHERE id = $1`,
     );
     const settings = (
@@ -102,6 +102,11 @@ export class ExportService {
       // Estatísticas de uso ("Ajudar a melhorar o Txillapp"): as 10 000 mais recentes.
       usageStats: await q(
         `SELECT name, props, platform, app_version AS "appVersion", session_id AS "sessionId", at FROM analytics.events WHERE user_id = $1 ORDER BY at DESC LIMIT 10000`,
+      ).catch(() => []),
+      // Os perfis que visitei (um registo por perfil e por dia, para as estatísticas do perfil de cada um). Quem visitou o meu
+      // perfil não entra: são dados de outras pessoas, e nas estatísticas só aparecem totais.
+      profileVisits: await q(
+        `SELECT u.username, v.day FROM social.profile_views v JOIN identity.users u ON u.id = v.profile_id WHERE v.viewer_id = $1 ORDER BY v.day DESC LIMIT 10000`,
       ).catch(() => []),
       // Como afinei o algoritmo do Explorar e das Tchekas.
       feedSettings: (await q(`SELECT following, freshness, media, variety, hide_seen AS "hideSeen", calm FROM social.feed_settings WHERE user_id = $1`).catch(() => []))[0] ?? null,
