@@ -110,7 +110,12 @@ export class GroupAccess {
   /** Mensagem feita pelo servidor em nome de alguém (ex.: a sondagem nova aparece na conversa). */
   async postMessage(groupId: string, senderId: string, kind: 'poll', body: string, pushText: string) {
     const id = uuidv7();
-    await this.pool.query('INSERT INTO social.messages (id, group_id, sender_id, body, kind) VALUES ($1, $2, $3, $4, $5)', [id, groupId, senderId, body, kind]);
+    // Com as mensagens temporárias ligadas no grupo, também esta expira (como em chat/chat.service.ts expiresFor).
+    await this.pool.query(
+      `INSERT INTO social.messages (id, group_id, sender_id, body, kind, expires_at)
+       VALUES ($1, $2, $3, $4, $5, (SELECT CASE WHEN g.ttl_seconds IS NULL THEN NULL ELSE now() + g.ttl_seconds * interval '1 second' END FROM social.groups g WHERE g.id = $2))`,
+      [id, groupId, senderId, body, kind],
+    );
     await this.fanOut(groupId, senderId, id, pushText);
     return id;
   }

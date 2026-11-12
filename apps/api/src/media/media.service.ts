@@ -385,7 +385,12 @@ export class MediaService implements OnModuleInit {
     const expected = Buffer.from(this.sign(`chat:${id}`, exp));
     const given = Buffer.from(sig ?? '');
     if (expected.length !== given.length || !timingSafeEqual(expected, given) || exp < Date.now() / 1000) throw new ForbiddenException('URL expirado');
-    const { rows } = await this.pool.query(`SELECT mime FROM content.media_assets WHERE id = $1 AND status = 'ready' AND purpose = 'chat'`, [id]);
+    // A mensagem temporária deste ficheiro já expirou: deixa de se servir logo (a limpeza do chat apaga-o pouco depois).
+    const { rows } = await this.pool.query(
+      `SELECT a.mime FROM content.media_assets a WHERE a.id = $1 AND a.status = 'ready' AND a.purpose = 'chat'
+          AND NOT EXISTS (SELECT 1 FROM social.messages m WHERE m.expires_at IS NOT NULL AND m.expires_at <= now() AND m.media_id = a.id)`,
+      [id],
+    );
     if (!rows[0]) throw new NotFoundException();
     if (this.s3) return { url: await this.s3.readUrl(id, { scope: 'private', ttlSeconds: 300 }) };
     return { path: join(this.dir, id), mime: rows[0].mime as string };

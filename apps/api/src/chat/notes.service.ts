@@ -39,7 +39,7 @@ export class NotesService {
       `SELECT o.username, o.display_name, (o.avatar_media_id IS NOT NULL) AS has_avatar, lm.created_at AS last_at
          FROM social.conversations c
          JOIN identity.users o ON o.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END AND o.status = 'active' AND o.id <> $1
-         JOIN LATERAL (SELECT created_at FROM social.messages WHERE conversation_id = c.id AND deleted_at IS NULL AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)) ORDER BY id DESC LIMIT 1) lm ON true
+         JOIN LATERAL (SELECT created_at FROM social.messages WHERE conversation_id = c.id AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now()) AND ((CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END) IS NULL OR id > (CASE WHEN c.user_a = $1 THEN c.cleared_a ELSE c.cleared_b END)) ORDER BY id DESC LIMIT 1) lm ON true
         WHERE (c.user_a = $1 OR c.user_b = $1)
           AND NOT (CASE WHEN c.user_a = $1 THEN c.hidden_a ELSE c.hidden_b END)
           AND NOT ${blockedBetween('o.id', '$1')}

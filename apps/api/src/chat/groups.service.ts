@@ -6,7 +6,7 @@ import { PG_POOL } from '../db/db.module';
 import { PushService } from '../push/push.service';
 import { allowedBy, blockedBetween } from '../social/visibility';
 import { ChatEvents } from './chat.events';
-import { ChatService, Outgoing, notHiddenFor, type MessageKind } from './chat.service';
+import { ChatService, Outgoing, expiresFor, notExpired, notHiddenFor, systemText, type MessageKind, type SystemInfo, type Ttl } from './chat.service';
 import { GroupAccess, NO_MAP_PLACE, venueOnMap } from '../groups/group-access';
 import { roundPlace } from '../nearby/geo-sql';
 import { PlanService } from '../groups/plan.service';
@@ -165,19 +165,19 @@ export class GroupsService {
   /** Os grupos de que faço parte, com a última mensagem e quantas por ler (para a lista de conversas). */
   async list(me: string) {
     const { rows } = await this.pool.query(
-      `SELECT g.id, g.name, g.last_message_at,
+      `SELECT g.id, g.name, g.last_message_at, g.ttl_seconds, gm.cleared_id,
               (SELECT count(*) FROM social.group_members x WHERE x.group_id = g.id)::int AS members,
               (SELECT json_agg(t) FROM (SELECT u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar"
                   FROM social.group_members x JOIN identity.users u ON u.id = x.user_id WHERE x.group_id = g.id AND x.user_id <> $1 ORDER BY x.joined_at LIMIT 3) t) AS preview,
-              CASE WHEN lm.view_once THEN '' WHEN lm.kind = 'poll' THEN (SELECT p.question FROM social.group_polls p WHERE p.id::text = lm.body) ELSE lm.body END AS last_body, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, su.display_name AS last_name,
-              (SELECT count(*) FROM social.messages m WHERE m.group_id = g.id AND m.sender_id <> $1 AND m.deleted_at IS NULL AND ${notHiddenFor('m', '$1')}
-                  AND (gm.read_id IS NULL OR m.id > gm.read_id))::int AS unread
+              CASE WHEN lm.view_once THEN '' WHEN lm.kind = 'poll' THEN (SELECT p.question FROM social.group_polls p WHERE p.id::text = lm.body) ELSE lm.body END AS last_body, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at, lm.system AS last_system, su.display_name AS last_name,
+              (SELECT count(*) FROM social.messages m WHERE m.group_id = g.id AND m.sender_id <> $1 AND m.deleted_at IS NULL AND m.kind <> 'system' AND ${notHiddenFor('m', '$1')} AND ${notExpired('m')}
+                  AND (gm.read_id IS NULL OR m.id > gm.read_id) AND (gm.cleared_id IS NULL OR m.id > gm.cleared_id))::int AS unread
          FROM social.group_members gm
          JOIN social.groups g ON g.id = gm.group_id
-         LEFT JOIN LATERAL (SELECT x.body, x.kind, x.sender_id, x.created_at, x.view_once FROM social.messages x WHERE x.group_id = g.id AND x.deleted_at IS NULL AND ${notHiddenFor('x', '$1')} ORDER BY x.id DESC LIMIT 1) lm ON true
+         LEFT JOIN LATERAL (SELECT x.body, x.kind, x.sender_id, x.created_at, x.view_once, x.system FROM social.messages x WHERE x.group_id = g.id AND x.deleted_at IS NULL AND ${notHiddenFor('x', '$1')} AND ${notExpired('x')} AND (gm.cleared_id IS NULL OR x.id > gm.cleared_id) ORDER BY x.id DESC LIMIT 1) lm ON true
          LEFT JOIN identity.users su ON su.id = lm.sender_id
         WHERE gm.user_id = $1
-        ORDER BY COALESCE(lm.created_at, g.created_at) DESC LIMIT 100`,
+        ORDER BY COALESCE(lm.created_at, g.last_message_at) DESC LIMIT 100`,
       [me],
     );
     const sums = await this.plan.summaries(me, rows.map((r) => r.id as string));
@@ -189,13 +189,18 @@ export class GroupsService {
       ...(({ kind: _k, ...rest }) => rest)(sums.get(r.id as string)!),
       members: r.members as number,
       preview: (r.preview ?? []) as { username: string; displayName: string; hasAvatar: boolean }[],
+      /** Mensagens temporárias: quanto dura cada mensagem nova (segundos), ou null (desligadas). */
+      ttl: (r.ttl_seconds as number | null) ?? null,
       lastMessage: {
-        body: (r.last_body as string | null) ?? '',
+        body: r.last_kind === 'system' ? systemText(r.last_system as SystemInfo, r.last_sender === me) : ((r.last_body as string | null) ?? ''),
         kind: ((r.last_kind as MessageKind | null) ?? 'text') as MessageKind,
         fromMe: r.last_sender === me,
-        senderName: r.last_sender === me ? null : ((r.last_name as string | null)?.split(' ')[0] ?? null),
+        // Num aviso de sistema o nome já vai no texto.
+        senderName: r.last_sender === me || r.last_kind === 'system' ? null : ((r.last_name as string | null)?.split(' ')[0] ?? null),
         at: (r.last_at as string | null) ?? (r.last_message_at as string),
         empty: !r.last_at,
+        /** Vazia porque a limpei ("Limpar conversa"): a lista mostra "Sem mensagens". */
+        cleared: !r.last_at && !!r.cleared_id,
       },
       unread: r.unread as number,
     }));
@@ -205,7 +210,7 @@ export class GroupsService {
   async thread(me: string, groupId: string, cursor?: string, markRead = true) {
     const myRole = await this.needMember(groupId, me);
     if (cursor && !UUID.test(cursor)) throw new BadRequestException('cursor inválido');
-    const g = (await this.pool.query('SELECT id, name FROM social.groups WHERE id = $1', [groupId])).rows[0];
+    const g = (await this.pool.query('SELECT g.id, g.name, g.ttl_seconds, gm.cleared_id FROM social.groups g JOIN social.group_members gm ON gm.group_id = g.id AND gm.user_id = $2 WHERE g.id = $1', [groupId, me])).rows[0];
     const members = (
       await this.pool.query(
         `SELECT u.id, u.username, u.display_name AS "displayName", (u.avatar_media_id IS NOT NULL) AS "hasAvatar", x.role
@@ -214,10 +219,11 @@ export class GroupsService {
       )
     ).rows as { id: string; username: string; displayName: string; hasAvatar: boolean; role: 'admin' | 'member' }[];
     const { rows } = await this.pool.query(
-      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.place_name, m.place_address, m.reply_to, m.created_at, m.view_once, m.deleted_at, m.edited_at, m.gif,
+      `SELECT m.id, m.sender_id, m.body, m.kind, m.story_media_id, m.media_id, m.duration_ms, m.waveform, m.lat, m.lng, m.place_name, m.place_address, m.reply_to, m.created_at, m.view_once, m.deleted_at, m.edited_at, m.gif, m.expires_at, m.system,
               CASE WHEN m.sender_id = $4 THEN EXISTS (SELECT 1 FROM social.message_views v WHERE v.message_id = m.id) ELSE EXISTS (SELECT 1 FROM social.message_views v WHERE v.message_id = m.id AND v.user_id = $4) END AS viewed_at
-         FROM social.messages m WHERE m.group_id = $1 AND (m.deleted_at IS NULL OR m.deleted_notice) AND ${notHiddenFor('m', '$4')} AND ($2::uuid IS NULL OR m.id < $2) ORDER BY m.id DESC LIMIT $3`,
-      [groupId, cursor ?? null, PAGE + 1, me],
+         FROM social.messages m WHERE m.group_id = $1 AND (m.deleted_at IS NULL OR m.deleted_notice) AND ${notHiddenFor('m', '$4')} AND ${notExpired('m')}
+          AND ($5::uuid IS NULL OR m.id > $5) AND ($2::uuid IS NULL OR m.id < $2) ORDER BY m.id DESC LIMIT $3`,
+      [groupId, cursor ?? null, PAGE + 1, me, (g?.cleared_id as string | null) ?? null],
     );
     const page = rows.slice(0, PAGE);
     if (!cursor && markRead && page[0]) {
@@ -239,7 +245,8 @@ export class GroupsService {
     });
     const sum = (await this.plan.summaries(me, [groupId])).get(groupId)!;
     return {
-      group: { id: g.id as string, name: g.name as string, ...sum, groupKind: sum.kind, myRole, members: members.map(({ id: _id, ...m }) => m) },
+      // `ttl`: mensagens temporárias (segundos, ou null); só quem administra muda (PUT /chat/groups/:id/ttl).
+      group: { id: g.id as string, name: g.name as string, ...sum, groupKind: sum.kind, myRole, ttl: (g.ttl_seconds as number | null) ?? null, members: members.map(({ id: _id, ...m }) => m) },
       items,
       nextCursor: rows.length > PAGE ? page[page.length - 1].id : null,
     };
@@ -252,11 +259,58 @@ export class GroupsService {
     const id = uuidv7();
     const spot = this.chat.placeFields(msg);
     await this.pool.query(
-      'INSERT INTO social.messages (id, group_id, sender_id, body, kind, media_id, duration_ms, waveform, lat, lng, view_once, reply_to, place_name, place_address, gif) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $12, (SELECT r.id FROM social.messages r WHERE r.id = $11::uuid AND r.group_id = $2 AND r.deleted_at IS NULL), $13, $14, $15::jsonb)',
+      // Mensagens temporárias ligadas no grupo: leva `expires_at` (criação + duração). Só se responde a uma que ainda existe.
+      `INSERT INTO social.messages (id, group_id, sender_id, body, kind, media_id, duration_ms, waveform, lat, lng, view_once, reply_to, place_name, place_address, gif, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $12, (SELECT r.id FROM social.messages r WHERE r.id = $11::uuid AND r.group_id = $2 AND r.deleted_at IS NULL AND r.kind <> 'system' AND ${notExpired('r')}), $13, $14, $15::jsonb, ${expiresFor('groups', '$2')})`,
       [id, groupId, me, spot.body, msg.kind, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place?.lat ?? null, place?.lng ?? null, msg.replyTo ?? null, !!msg.once && (msg.kind === 'text' || msg.kind === 'image' || msg.kind === 'voice' || msg.kind === 'video'), spot.name, spot.address, msg.kind === 'gif' && msg.gif ? JSON.stringify(msg.gif) : null],
     );
     await this.access.fanOut(groupId, me, id, msg.kind === 'text' ? 'enviou uma mensagem' : msg.kind === 'image' ? 'enviou uma foto' : msg.kind === 'video' ? 'enviou um vídeo' : msg.kind === 'voice' ? 'enviou uma mensagem de voz' : msg.kind === 'sticker' ? 'enviou um sticker' : msg.kind === 'gif' ? 'enviou um GIF' : msg.kind === 'location' ? 'partilhou a localização' : 'partilhou uma publicação');
     return { id, kind: msg.kind };
+  }
+
+  /**
+   * Mensagens temporárias no grupo (só quem administra): 24 h, 7 dias, 90 dias ou desligadas (`null`). Deixa o aviso de
+   * sistema na conversa ("Dom ligou as mensagens temporárias: 7 dias.") e avisa todos em tempo real ('message', sem
+   * notificação no telemóvel). Pedir o que já está não muda nada. Devolve { ttl }.
+   */
+  async setTtl(me: string, groupId: string, ttl: Ttl) {
+    if ((await this.needMember(groupId, me)) !== 'admin') throw new ForbiddenException('Só quem administra muda as mensagens temporárias');
+    const upd = await this.pool.query('UPDATE social.groups SET ttl_seconds = $2 WHERE id = $1 AND ttl_seconds IS DISTINCT FROM $2::int', [groupId, ttl]);
+    if (!upd.rowCount) return { ttl };
+    const sys: SystemInfo = { type: 'ttl', ttl, name: await this.chat.firstNameOf(me) };
+    const id = uuidv7();
+    await this.pool.query("INSERT INTO social.messages (id, group_id, sender_id, body, kind, system) VALUES ($1, $2, $3, $4, 'system', $5::jsonb)", [id, groupId, me, systemText(sys, false), JSON.stringify(sys)]);
+    await this.pool.query('UPDATE social.group_members SET read_id = $3 WHERE group_id = $1 AND user_id = $2', [groupId, me, id]);
+    await this.pool.query('UPDATE social.groups SET last_message_at = now() WHERE id = $1', [groupId]);
+    const rows = (await this.pool.query('SELECT user_id FROM social.group_members WHERE group_id = $1', [groupId])).rows;
+    for (const r of rows) {
+      if (r.user_id === me) this.events.echo(me, { type: 'message', group: groupId });
+      else this.events.emit(r.user_id as string, { type: 'message', group: groupId });
+    }
+    return { ttl };
+  }
+
+  /**
+   * Limpar a conversa do grupo só para mim: as mensagens até agora deixam de me aparecer (os outros continuam a vê-las) e
+   * o grupo fica na lista, vazio ("Sem mensagens"), até chegar outra. Os "Apagar para mim" dessas mensagens já não são
+   * precisos e vão-se. Só os meus outros aparelhos são avisados (eco 'deleted').
+   */
+  async clear(me: string, groupId: string) {
+    await this.needMember(groupId, me);
+    const { rows } = await this.pool.query(
+      `UPDATE social.group_members gm SET cleared_id = m.last, read_id = m.last
+         FROM (SELECT max(id::text)::uuid AS last FROM social.messages WHERE group_id = $1) m
+        WHERE gm.group_id = $1 AND gm.user_id = $2 AND m.last IS NOT NULL
+        RETURNING m.last`,
+      [groupId, me],
+    );
+    if (rows[0]) {
+      await this.pool.query(
+        'DELETE FROM social.message_hidden h USING social.messages m WHERE h.user_id = $1 AND h.message_id = m.id AND m.group_id = $2 AND m.id <= $3',
+        [me, groupId, rows[0].last],
+      );
+    }
+    this.events.echo(me, { type: 'deleted', group: groupId });
+    return { ok: true };
   }
 
   /** Mudar o nome, o tipo, a descrição, a capa, a foto, a visibilidade ou o mapa (só quem administra; campos presentes, `null` limpa). */
