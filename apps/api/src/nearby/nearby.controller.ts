@@ -10,12 +10,15 @@ import { NEARBY_KINDS, NEARBY_VISIBILITY, NEARBY_WHEN, NearbyKind, NearbyService
 
 type AuthedReq = Request & { userId?: string };
 
+/** O raio da procura: a app ajusta-o numa barra, de 1 em 1 km (antes só 5, 10, 20 ou 30). */
+export const NEARBY_RADIUS = { min: 1, max: 50, default: 10 } as const;
+
 const lat = z.coerce.number().min(-90).max(90);
 const lng = z.coerce.number().min(-180).max(180);
 const nearbyQuery = z.object({
   lat,
   lng,
-  radiusKm: z.coerce.number().min(5).max(30).default(10),
+  radiusKm: z.coerce.number().int().min(NEARBY_RADIUS.min).max(NEARBY_RADIUS.max).default(NEARBY_RADIUS.default),
   kinds: z
     .string()
     .optional()

@@ -9,7 +9,7 @@ import { Empty } from '@/components/Empty';
 import { FollowButton } from '@/components/FollowButton';
 import { Icon } from '@/components/Icon';
 import { StackPage } from '@/components/StackPage';
-import { api, type Person } from '@/lib/api';
+import { ApiError, api, type Person } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 
@@ -71,7 +71,7 @@ function ConnectionList({ username, kind, me, width }: { username: string; kind:
         }}
       >
         {q.isLoading ? <ActivityIndicator style={{ marginTop: 32 }} color={colors.brand} /> : q.isError ? <Text style={st.err}>Ups, não consegui carregar</Text> : null}
-        {q.isSuccess && people.length === 0 ? <Empty icon={term ? 'search' : kind === 'followers' ? 'sprout' : 'eye'} title={term ? 'Ninguém com esse nome' : kind === 'followers' ? 'Ainda sem seguidores' : 'Ainda não segue ninguém'} /> : null}
+        {q.isSuccess && people.length === 0 ? <Empty icon={term ? 'search' : kind === 'followers' ? 'sprout' : 'eye'} title={term ? 'Ninguém com esse nome' : kind === 'followers' ? 'Ainda sem seguidores' : username === me ? 'Ainda não segues ninguém' : 'Ainda não segue ninguém'} /> : null}
         {people.map((x) => (
           <View key={x.username} style={st.row}>
             <Pressable onPress={() => router.push(x.username === me ? '/profile' : (`/u/${x.username}` as never))} style={st.who} accessibilityRole="link">
@@ -175,7 +175,7 @@ export default function Connections() {
     pager.current?.scrollTo({ x: k === 'followers' ? 0 : width, animated: true });
   };
   const tabBtn = (k: Kind, label: string, n: number) => (
-    <Pressable onPress={() => go(k)} style={st.tab} accessibilityRole="tab" accessibilityState={{ selected: cur === k }}>
+    <Pressable onPress={() => go(k)} style={st.tab} accessibilityRole="tab" accessibilityState={{ selected: cur === k }} aria-selected={cur === k}>
       <Text style={[st.tabText, cur === k ? { fontWeight: '700', color: colors.zinc900 } : { color: colors.zinc600 }]}>{n.toLocaleString('pt-PT')} {label}</Text>
       <View style={[st.bar, { opacity: cur === k ? 1 : 0 }]} />
     </Pressable>
@@ -183,10 +183,18 @@ export default function Connections() {
 
   return (
     <StackPage title={`@${username}`}>
-      {profile.isError && (
+      {profile.isLoading ? <ActivityIndicator style={{ marginTop: 48 }} color={colors.brand} /> : null}
+      {profile.isError && !p && (
         <View>
-          <Empty icon="search" title="Essa pessoa não existe" />
-          <Pressable onPress={() => router.back()} style={{ alignSelf: 'center', marginTop: 24 }}><Text style={{ textDecorationLine: 'underline', fontSize: 16 }}>Voltar</Text></Pressable>
+          {profile.error instanceof ApiError && profile.error.status === 404 ? (
+            <Empty icon="search" title="Essa pessoa não existe" />
+          ) : (
+            <>
+              <Empty icon="alert" title="Não consegui abrir as listas" text="Verifica a internet e tenta outra vez." />
+              <Pressable onPress={() => void profile.refetch()} style={st.retry} accessibilityRole="button"><Text style={st.retryText}>Tentar outra vez</Text></Pressable>
+            </>
+          )}
+          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/' as never))} style={st.back} accessibilityRole="button"><Text style={{ textDecorationLine: 'underline', fontSize: 16, color: colors.zinc800 }}>Voltar</Text></Pressable>
         </View>
       )}
       {p && !p.canSeeConnections && <Empty icon="lock" title="Estas listas são privadas" text={`${p.displayName} escolheu quem as pode ver.`} />}
@@ -200,14 +208,14 @@ export default function Connections() {
             // Na web (iPhone/Safari) a lista dentro de um pager horizontal não rola com o dedo: mostra-se só o separador ativo.
             <View style={{ flex: 1, overflow: 'hidden' }} onLayout={(e) => setMeasured(e.nativeEvent.layout.width)}>
               <Animated.View style={{ flex: 1, flexDirection: 'row', width: width * 2, transform: [{ translateX: slide }] }}>
-                <ConnectionList username={username} kind="followers" me={user!.username} width={width} />
-                <ConnectionList username={username} kind="following" me={user!.username} width={width} />
+                <ConnectionList username={username} kind="followers" me={user?.username ?? ''} width={width} />
+                <ConnectionList username={username} kind="following" me={user?.username ?? ''} width={width} />
               </Animated.View>
             </View>
           ) : (
             <ScrollView ref={pager} onLayout={(e) => setMeasured(e.nativeEvent.layout.width)} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(e) => setCur(Math.round(e.nativeEvent.contentOffset.x / width) === 0 ? 'followers' : 'following')} style={{ flex: 1 }}>
-              <ConnectionList username={username} kind="followers" me={user!.username} width={width} />
-              <ConnectionList username={username} kind="following" me={user!.username} width={width} />
+              <ConnectionList username={username} kind="followers" me={user?.username ?? ''} width={width} />
+              <ConnectionList username={username} kind="following" me={user?.username ?? ''} width={width} />
             </ScrollView>
           )}
         </>
@@ -229,4 +237,7 @@ const st = StyleSheet.create({
   name: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },
   user: { fontSize: 14, color: colors.zinc600 },
   err: { textAlign: 'center', color: colors.red600, paddingVertical: 40 },
+  retry: { alignSelf: 'center', marginTop: 20, minHeight: 44, paddingHorizontal: 20, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
+  retryText: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
+  back: { alignSelf: 'center', marginTop: 12, minHeight: 44, paddingHorizontal: 16, justifyContent: 'center' },
 });

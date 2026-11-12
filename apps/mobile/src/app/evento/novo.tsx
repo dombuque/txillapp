@@ -19,6 +19,12 @@ const WD = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 const MO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const DAYS = 45;
 /** "21:30" → [21, 30]; aceita "2130" e "21h30". */
+/**
+ * O teclado das horas: no iPhone o que tem números e os dois pontos; no Android o "numbers-and-punctuation" não existe
+ * (abria o teclado de letras), por isso vai o numérico e a hora escreve-se só com algarismos ("2130" dá 21:30).
+ */
+const TIME_KEYBOARD = Platform.OS === 'android' ? 'number-pad' : 'numbers-and-punctuation';
+
 function parseTime(s: string): [number, number] | null {
   const m = s.trim().replace(/h/i, ':').match(/^(\d{1,2})(?::?(\d{2}))?$/);
   if (!m) return null;
@@ -61,13 +67,14 @@ export default function NovoEvento() {
   };
 
   const submit = async () => {
+    if (busy) return;
     setErr(null);
     if (!slug) return setErr('Falta o local.');
     if (title.trim().length < 3) return setErr('Dá um nome ao evento (pelo menos 3 letras).');
     const s = parseTime(start);
-    if (!s) return setErr('A hora de início não está certa. Escreve assim: 21:30.');
+    if (!s) return setErr('A hora de início não está certa. Escreve assim: 21:30 (ou 2130).');
     const e = end.trim() ? parseTime(end) : null;
-    if (end.trim() && !e) return setErr('A hora do fim não está certa. Escreve assim: 02:00.');
+    if (end.trim() && !e) return setErr('A hora do fim não está certa. Escreve assim: 02:00 (ou 0200).');
     const d = days[day];
     const startsAt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), s[0], s[1]);
     if (startsAt.getTime() < Date.now() - 5 * 60_000) return setErr('Essa hora já passou. Escolhe outra.');
@@ -154,7 +161,7 @@ export default function NovoEvento() {
 
           <View style={{ gap: 6 }}>
             <Text style={st.label}>Nome do evento</Text>
-            <TextInput value={title} onChangeText={setTitle} placeholder="Ex.: Noite de marrabenta" placeholderTextColor={colors.zinc500} style={st.input} maxLength={80} />
+            <TextInput value={title} onChangeText={setTitle} placeholder="Ex.: Noite de marrabenta" placeholderTextColor={colors.zinc500} style={st.input} maxLength={80} accessibilityLabel="Nome do evento" />
           </View>
 
           <View style={{ gap: 6 }}>
@@ -176,11 +183,11 @@ export default function NovoEvento() {
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1, gap: 6 }}>
               <Text style={st.label}>Começa às</Text>
-              <TextInput value={start} onChangeText={setStart} placeholder="21:00" placeholderTextColor={colors.zinc500} style={st.input} keyboardType="numbers-and-punctuation" maxLength={5} />
+              <TextInput value={start} onChangeText={setStart} placeholder="21:00" placeholderTextColor={colors.zinc500} style={st.input} keyboardType={TIME_KEYBOARD} maxLength={5} accessibilityLabel="Começa às" />
             </View>
             <View style={{ flex: 1, gap: 6 }}>
               <Text style={st.label}>Acaba às (opcional)</Text>
-              <TextInput value={end} onChangeText={setEnd} placeholder="02:00" placeholderTextColor={colors.zinc500} style={st.input} keyboardType="numbers-and-punctuation" maxLength={5} />
+              <TextInput value={end} onChangeText={setEnd} placeholder="02:00" placeholderTextColor={colors.zinc500} style={st.input} keyboardType={TIME_KEYBOARD} maxLength={5} accessibilityLabel="Acaba às (opcional)" />
             </View>
           </View>
 

@@ -117,7 +117,7 @@ export default function Wallet() {
               <Text style={{ fontWeight: '600', fontSize: 16, color: colors.zinc800 }}>Ver os meus convites</Text>
             </Pressable>
 
-            <GeleiraShelf username={user!.username} isMe flush />
+            {user ? <GeleiraShelf username={user.username} isMe flush /> : null}
 
             <View style={[st.card, cardShadow]}>
               <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 8, color: colors.zinc900 }}>Movimentos</Text>

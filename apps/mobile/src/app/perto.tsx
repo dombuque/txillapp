@@ -27,8 +27,10 @@ import { SITE_URL, sized } from '@/lib/config';
 import { useDesktop } from '@/lib/desktop';
 import { kvGet, kvSet } from '@/lib/kv';
 import { emptyHint, kindsToFetch, loadErrorText, locateProblemText, shownKinds, whenToFetch, type LocateProblem, type NearbyFilter } from '@/lib/nearbyView';
+import { RADIUS, RADIUS_MARKS, RADIUS_STEPS } from '@/lib/radius';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
+import { RangeSlider } from '@/components/RangeSlider';
 
 /** Cidades para quem não quer dar a localização (coordenadas do centro, já arredondadas). */
 const CITIES: { name: string; lat: number; lng: number }[] = [
@@ -44,7 +46,8 @@ const CITIES: { name: string; lat: number; lng: number }[] = [
   { name: 'Tete', lat: -16.16, lng: 33.59 },
 ];
 const PLACE_KEY = 'txill.perto.place';
-const RADII = [5, 10, 20, 30] as const;
+/** O pedido à API espera que a barra pare uns instantes (ou que se largue): não sai um pedido por cada km. */
+const RADIUS_SETTLE_MS = 300;
 type Filter = NearbyFilter;
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'Tudo' },
@@ -167,7 +170,15 @@ export default function Perto() {
   const qc = useQueryClient();
   const [place, setPlace] = useState<Place | null>(null);
   const [ask, setAsk] = useState<'checking' | 'explain' | 'cities' | 'locating' | null>('checking');
-  const [radius, setRadius] = useState<number>(10);
+  // A distância: `liveRadius` segue o dedo na barra (o círculo do mapa e o texto do botão), `radius` é a do pedido.
+  const [radius, setRadius] = useState<number>(RADIUS.default);
+  const [liveRadius, setLiveRadius] = useState<number>(RADIUS.default);
+  const pickRadius = useCallback((r: number) => { setLiveRadius(r); setRadius(r); }, []);
+  useEffect(() => {
+    if (liveRadius === radius) return;
+    const t = setTimeout(() => setRadius(liveRadius), RADIUS_SETTLE_MS);
+    return () => clearTimeout(t);
+  }, [liveRadius, radius]);
   const [filter, setFilter] = useState<Filter>('all');
   const [when, setWhen] = useState<NearbyWhen>('today');
   const [selected, setSelected] = useState<string | null>(null);
@@ -377,14 +388,14 @@ export default function Perto() {
 
   // ----- Filtros: uma só fila (zona e distância num chip que abre a folha "Onde procurar", depois o que mostrar) -----
   // À procura do GPS (pedido na folha "Onde procurar"): o chip diz, para o toque não parecer perdido.
-  const zoneLabel = place ? (ask === 'locating' ? 'A ver onde estás…' : `${place.label} · ${radius} km`) : '';
+  const zoneLabel = place ? (ask === 'locating' ? 'A ver onde estás…' : `${place.label} · ${liveRadius} km`) : '';
   const zonePill = place ? (
     <Pressable
       onPress={() => setPlaceSheet(true)}
       style={({ pressed }) => [st.zone, pressed && { backgroundColor: colors.zinc100 }]}
       hitSlop={{ top: 4, bottom: 4 }}
       accessibilityRole="button"
-      accessibilityLabel={`Zona: ${place.label}, até ${radius} km. Mudar o sítio ou a distância`}
+      accessibilityLabel={`Zona: ${place.label}, até ${liveRadius} km. Mudar o sítio ou a distância`}
     >
       <Icon name={place.gps ? 'locate' : 'map-pin'} size={16} color={colors.brand} />
       <Text style={st.zoneText} numberOfLines={1}>{zoneLabel}</Text>
@@ -427,7 +438,7 @@ export default function Perto() {
     ) : null;
 
   // Vazio: a razão certa para cada filtro (a malta só com visibilidade, eventos de hoje vs. da semana…) e o botão que resolve.
-  const hint = emptyHint({ filter, when: fetchWhen, radius, radii: RADII, canEnable });
+  const hint = emptyHint({ filter, when: fetchWhen, radius, radii: RADIUS_STEPS, canEnable });
   const listEmpty = q.isLoading ? (
     <View style={st.center}><ActivityIndicator /></View>
   ) : q.isError ? (
@@ -446,7 +457,7 @@ export default function Perto() {
         <Pressable
           onPress={() => {
             const a = hint.action!;
-            if (a.radius) setRadius(a.radius);
+            if (a.radius) pickRadius(a.radius);
             if (a.when) setWhen(a.when);
           }}
           style={st.retry}
@@ -509,14 +520,22 @@ export default function Perto() {
       {placeSheet ? (
         <Sheet title="Onde procurar" onClose={() => setPlaceSheet(false)}>
           <View style={{ paddingHorizontal: 16, paddingBottom: 20, gap: 12 }}>
-            <Text style={st.sheetLabel}>Distância</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel="Distância">
-              {RADII.map((r) => (
-                <View key={r} style={{ flex: 1 }}>
-                  <Chip label={`${r} km`} on={radius === r} onPress={() => setRadius(r)} dark />
-                </View>
-              ))}
+            <View style={st.distHead}>
+              <Text style={st.sheetLabel}>Distância</Text>
+              <Text style={st.distValue} accessibilityElementsHidden importantForAccessibility="no">até {liveRadius} km</Text>
             </View>
+            {/* Barra de 1 a 50 km (de 1 em 1): o círculo do mapa segue o dedo e o pedido sai ao largar (ou ao parar). */}
+            <RangeSlider
+              value={liveRadius}
+              min={RADIUS.min}
+              max={RADIUS.max}
+              step={RADIUS.step}
+              marks={RADIUS_MARKS}
+              onChange={setLiveRadius}
+              onCommit={setRadius}
+              label="Distância"
+              format={(v) => `até ${v} km`}
+            />
             <Text style={[st.sheetLabel, { marginTop: 6 }]}>Sítio</Text>
             <Pressable onPress={() => void goMine()} style={st.mineRow} accessibilityRole="button" accessibilityState={{ selected: place.gps }}>
               <Icon name="locate" size={20} color={colors.brand} />
@@ -560,7 +579,7 @@ export default function Perto() {
         <View style={{ paddingHorizontal: 12, paddingTop: 12 }}>{chips}</View>
         <View style={{ flex: 1, flexDirection: 'row', gap: 16, paddingHorizontal: 24, paddingBottom: 24 }}>
           <View style={{ flex: 1, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: colors.zinc200 }}>
-            <NearbyMap center={center} radiusKm={radius} markers={markers} selectedId={selected} onMarkerPress={setSelected} showMe={place.gps} zoomControl />
+            <NearbyMap center={center} radiusKm={liveRadius} markers={markers} selectedId={selected} onMarkerPress={setSelected} showMe={place.gps} zoomControl />
           </View>
           <View style={st.deskList}>
             <ListHead items={items} {...listState} />
@@ -585,7 +604,7 @@ export default function Perto() {
         render={row}
         refreshing={pulling}
         onRefresh={() => void pullRefresh()}
-        map={(cover) => <NearbyMap center={center} radiusKm={radius} markers={markers} selectedId={selected} onMarkerPress={setSelected} showMe={place.gps} coverBottom={cover} />}
+        map={(cover) => <NearbyMap center={center} radiusKm={liveRadius} markers={markers} selectedId={selected} onMarkerPress={setSelected} showMe={place.gps} coverBottom={cover} />}
       />
       {sheets}
     </PertoPage>
@@ -1051,6 +1070,8 @@ const st = StyleSheet.create({
   zoneText: { fontSize: 14, fontWeight: '700', color: colors.zinc900, flexShrink: 1 },
   zoneCaret: { transform: [{ rotate: '90deg' }], marginLeft: -1 },
   sheetLabel: { fontSize: 13, fontWeight: '700', color: colors.zinc500 },
+  distHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  distValue: { fontSize: 17, fontWeight: '800', color: colors.zinc900, fontVariant: ['tabular-nums'] },
   eye: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.zinc100 },
   eyeText: { fontSize: 13, fontWeight: '700', color: colors.zinc700 },
   mineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.rose50 },

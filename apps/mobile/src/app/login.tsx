@@ -143,7 +143,7 @@ export default function Login() {
 
   async function submit() {
     if (busy) return;
-    if (!identifier.trim() || !password) return setError('Por favor preencha as suas credenciais');
+    if (!identifier.trim() || !password) return setError('Escreve o teu @ (ou email) e a senha');
     setBusy(true);
     setError('');
     try {
@@ -182,6 +182,7 @@ export default function Login() {
           keyboardType="email-address"
           returnKeyType="next"
           onSubmitEditing={() => pass.current?.focus()}
+          submitBehavior="submit"
           accessibilityLabel="Utilizador ou email"
         />
         <Field
@@ -224,7 +225,8 @@ const styles = StyleSheet.create({
   ctaWrap: { borderRadius: 999, boxShadow: '0 10px 24px rgba(214,51,79,0.35)' },
   cta: { borderRadius: 999, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   ctaText: { color: '#fff', fontSize: 18, lineHeight: 28, fontWeight: '600' },
-  forgot: { paddingTop: 4, textAlign: 'center', fontSize: 15, fontWeight: '600', color: colors.zinc600, textDecorationLine: 'underline' },
+  // 12 em cima e em baixo: a ligação tem o toque de 44 px, não só a altura da letra.
+  forgot: { alignSelf: 'center', paddingVertical: 12, paddingHorizontal: 12, textAlign: 'center', fontSize: 15, lineHeight: 20, fontWeight: '600', color: colors.zinc600, textDecorationLine: 'underline' },
   footer: { borderTopWidth: 1, borderTopColor: colors.zinc200, backgroundColor: 'rgba(255,255,255,0.7)', paddingTop: 20, alignItems: 'center' },
   footerText: { fontSize: 18, lineHeight: 28, color: colors.zinc800, textAlign: 'center' },
 });

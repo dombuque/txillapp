@@ -35,6 +35,14 @@ export default function PrivacySettingsScreen() {
     }
   }
 
+  async function saveStoryReplies(v: Parameters<typeof api.setStoryReplies>[0]) {
+    try {
+      qc.setQueryData(['story-settings'], await api.setStoryReplies(v));
+    } catch (e) {
+      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
+    }
+  }
+
   return (
     <SettingsPage title="Privacidade">
       <SettingsSection title="O teu perfil">
@@ -84,7 +92,7 @@ export default function PrivacySettingsScreen() {
       {sheet === 'nearby' && nearby.data && <ChoiceSheet title="Aparecer em À tua volta" intro="Quem te pode ver no mapa. Só aparece a zona aproximada (cerca de 1,5 km), nunca o sítio exato, e só enquanto tens o mapa aberto com a localização do telemóvel (com uma cidade escolhida, não apareces). Some ao fim de 3 horas, ou logo que escolhes uma cidade, terminas a sessão ou desligas isto." options={NEARBY} value={nearby.data.visibility} onPick={(v) => void saveNearby(v)} onClose={close} />}
       {sheet === 'gifts' && p && <ChoiceSheet title="Quem pode presentear-me" options={WHO} value={p.giftsAllowed} onPick={(v) => void save({ giftsAllowed: v })} onClose={close} />}
       {sheet === 'connections' && p && <ChoiceSheet title="Quem vê seguidores e a quem sigo" intro="Os números continuam visíveis; muda só quem pode ver as listas." options={CONNECTIONS} value={p.showConnections} onPick={(v) => void save({ showConnections: v })} onClose={close} />}
-      {sheet === 'storyReplies' && stories.data && <ChoiceSheet title="Respostas aos mimos" intro="Quem pode responder ou reagir aos teus mimos." options={WHO} value={stories.data.replies} onPick={async (v) => qc.setQueryData(['story-settings'], await api.setStoryReplies(v))} onClose={close} />}
+      {sheet === 'storyReplies' && stories.data && <ChoiceSheet title="Respostas aos mimos" intro="Quem pode responder ou reagir aos teus mimos." options={WHO} value={stories.data.replies} onPick={(v) => void saveStoryReplies(v)} onClose={close} />}
       {sheet === 'closeFriends' && <CloseFriendsSheet onClose={close} />}
       {sheet === 'hidden' && <HiddenSheet onClose={close} />}
       {sheet === 'blocked' && <BlockedSheet onClose={close} />}

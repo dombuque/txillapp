@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
@@ -12,7 +12,20 @@ import { settingsStyles as s } from './SettingRow';
 
 /** As folhas das Definições (as mesmas do ecrã único de antes, agora partilhadas pelos ecrãs de cada grupo). */
 
-export function PersonRow({ username, displayName, action, onAction }: { username: string; displayName: string; action: string; onAction: () => void }) {
+/** Uma pessoa com um botão (Mostrar, Desbloquear): um toque só enquanto trata e, se falhar, diz porquê. */
+export function PersonRow({ username, displayName, action, onAction }: { username: string; displayName: string; action: string; onAction: () => Promise<unknown> | void }) {
+  const [busy, setBusy] = useState(false);
+  async function run() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await onAction();
+    } catch (e) {
+      Alert.alert('Não deu', (e as Error).message || 'Tenta outra vez.');
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <View style={s.person}>
       <Avatar name={displayName} username={username} size={44} />
@@ -20,7 +33,7 @@ export function PersonRow({ username, displayName, action, onAction }: { usernam
         <Text style={{ fontSize: 16, fontWeight: '600', color: colors.zinc900 }} numberOfLines={1}>{displayName}</Text>
         <Text style={{ fontSize: 14, color: colors.zinc600 }} numberOfLines={1}>@{username}</Text>
       </View>
-      <Pressable onPress={onAction} style={s.outline} accessibilityRole="button" accessibilityLabel={`${action} @${username}`}><Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc900 }}>{action}</Text></Pressable>
+      <Pressable onPress={() => void run()} disabled={busy} style={[s.outline, busy && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`${action} @${username}`} accessibilityState={{ disabled: busy, busy }}><Text style={{ fontSize: 14, fontWeight: '600', color: colors.zinc900 }}>{action}</Text></Pressable>
     </View>
   );
 }
@@ -64,14 +77,34 @@ export function SwitchAccountSheet({ others, onPick, onClose }: { others: { user
   );
 }
 
-export function LogoutSheet({ onConfirm, onClose }: { onConfirm: () => void; onClose: () => void }) {
+/**
+ * Sair leva uns segundos (tirar do mapa, desligar as notificações deste telemóvel, fechar a sessão): enquanto isso o botão
+ * mostra que está a sair e não aceita outro toque (antes podia lançar várias saídas seguidas e parecia não fazer nada).
+ */
+export function LogoutSheet({ onConfirm, onClose }: { onConfirm: () => Promise<void> | void; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  async function confirm() {
+    if (busy) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await onConfirm();
+    } catch {
+      setErr('Não consegui terminar a sessão. Tenta outra vez.');
+      setBusy(false);
+    }
+  }
   return (
-    <Sheet title="Terminar sessão" onClose={onClose}>
+    <Sheet title="Terminar sessão" onClose={busy ? () => undefined : onClose}>
       <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
         <Text style={{ textAlign: 'center', fontSize: 18, paddingVertical: 8, color: colors.zinc900 }}>Já vais?</Text>
         <Text style={{ textAlign: 'center', color: colors.zinc600, marginBottom: 20, fontSize: 16 }}>Vais precisar de entrar outra vez para voltar.</Text>
-        <Pressable onPress={onConfirm} style={s.primary} accessibilityRole="button"><Text style={s.primaryText}>Sim, sair</Text></Pressable>
-        <Pressable onPress={onClose} style={s.ghost} accessibilityRole="button"><Text style={s.ghostText}>Fico por aqui</Text></Pressable>
+        {err ? <Text style={{ textAlign: 'center', color: colors.red600, marginBottom: 12, fontSize: 14 }} accessibilityLiveRegion="polite">{err}</Text> : null}
+        <Pressable onPress={() => void confirm()} disabled={busy} style={[s.primary, busy && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ disabled: busy, busy }}>
+          {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>Sim, sair</Text>}
+        </Pressable>
+        <Pressable onPress={onClose} disabled={busy} style={[s.ghost, busy && { opacity: 0.5 }]} accessibilityRole="button"><Text style={s.ghostText}>Fico por aqui</Text></Pressable>
       </View>
     </Sheet>
   );
@@ -131,7 +164,10 @@ export function PasswordSheet({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState(false);
+  const nextRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const againRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   async function submit() {
+    if (busy || !cur || !next) return;
     if (next.length < 10) return setErr('A nova senha precisa de pelo menos 10 caracteres');
     if (next !== again) return setErr('As duas senhas novas não são iguais');
     setBusy(true);
@@ -158,9 +194,10 @@ export function PasswordSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet title="Alterar senha" onClose={onClose}>
       <View style={{ paddingHorizontal: 20, gap: 12 }}>
-        <TextInput value={cur} onChangeText={setCur} placeholder="Senha atual" placeholderTextColor={colors.zinc500} secureTextEntry autoComplete="current-password" style={s.input} accessibilityLabel="Senha atual" />
-        <TextInput value={next} onChangeText={setNext} placeholder="Nova senha (mínimo 10 caracteres)" placeholderTextColor={colors.zinc500} secureTextEntry autoComplete="new-password" style={s.input} accessibilityLabel="Nova senha" />
-        <TextInput value={again} onChangeText={setAgain} placeholder="Repete a nova senha" placeholderTextColor={colors.zinc500} secureTextEntry autoComplete="new-password" style={s.input} accessibilityLabel="Repete a nova senha" />
+        {/* O "seguinte" do teclado passa de campo em campo; no último, "ir" muda a senha. */}
+        <TextInput value={cur} onChangeText={(t) => { setCur(t); setErr(''); }} placeholder="Senha atual" placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="current-password" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => nextRef.current?.focus()} style={s.input} accessibilityLabel="Senha atual" />
+        <TextInput ref={nextRef} value={next} onChangeText={(t) => { setNext(t); setErr(''); }} placeholder="Nova senha (mínimo 10 caracteres)" placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="new-password" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => againRef.current?.focus()} style={s.input} accessibilityLabel="Nova senha" />
+        <TextInput ref={againRef} value={again} onChangeText={(t) => { setAgain(t); setErr(''); }} placeholder="Repete a nova senha" placeholderTextColor={colors.zinc500} secureTextEntry autoCapitalize="none" autoComplete="new-password" returnKeyType="go" onSubmitEditing={() => void submit()} style={s.input} accessibilityLabel="Repete a nova senha" />
         <Text style={{ minHeight: 20, textAlign: 'center', fontSize: 14, color: colors.red600 }} accessibilityLiveRegion="polite">{err}</Text>
         <Pressable onPress={() => void submit()} disabled={busy || !cur || !next} style={[s.primary, (busy || !cur || !next) && { opacity: 0.5 }]} accessibilityRole="button">
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>Alterar senha</Text>}
@@ -175,12 +212,13 @@ export function DeleteSheet({ username, onClose, onDeleted }: { username: string
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const can = confirm.replace(/^@/, '').toLowerCase() === username.toLowerCase();
+  const can = confirm.trim().replace(/^@/, '').toLowerCase() === username.toLowerCase();
   async function submit() {
+    if (busy || !can) return;
     setBusy(true);
     setErr('');
     try {
-      await api.deleteAccount(confirm, password || undefined);
+      await api.deleteAccount(confirm.trim(), password || undefined);
       onDeleted();
     } catch (x) {
       setErr((x as Error).message);

@@ -21,6 +21,8 @@ import { KINDS, KIND_LABEL, ROLE_LABEL, locaisApi, type ManagerRole, type Venue,
 import { useAuth } from '@/lib/auth';
 import { sized } from '@/lib/config';
 import { canSetShowOnMap, formatAddress, needsMapPin, showsOnMap, venuePlace, venuePlaceBody, type PlaceValue } from '@/lib/placeField';
+import { ApiError } from '@/lib/api';
+import { resyncDraft } from '@/lib/draftSync';
 import { colors } from '@/lib/theme';
 
 type Section = 'perfil' | 'gestores' | 'eventos' | 'qr' | 'txills' | 'bombar' | 'painel';
@@ -45,6 +47,12 @@ export default function ManageVenue() {
     <StackPage title={v ? `Gerir ${v.name}` : 'Gerir o local'}>
       {q.isLoading ? (
         <View style={{ alignItems: 'center', paddingVertical: 64 }}><PontoLoader size={20} /></View>
+      ) : !v && q.isError && !(q.error instanceof ApiError && (q.error.status === 404 || q.error.status === 403)) ? (
+        // Sem rede ou o servidor em baixo: não é "só os gestores", é tentar outra vez.
+        <View style={{ alignItems: 'center' }}>
+          <Empty icon="alert" title="Não consegui abrir o local" text="Verifica a internet e tenta outra vez." />
+          <Pressable onPress={() => void q.refetch()} style={[st.secondary, { marginTop: 20 }]} accessibilityRole="button"><Text style={st.secondaryText}>Tentar outra vez</Text></Pressable>
+        </View>
       ) : !v || !v.mine ? (
         <Empty icon="lock" title="Só os gestores entram aqui" />
       ) : (
@@ -86,9 +94,12 @@ export default function ManageVenue() {
 }
 
 /** O perfil da página: logótipo, capa e os campos; só o dono e os administradores editam. */
+/** Os campos do formulário do perfil, tal como vêm do servidor. */
+const formOf = (v: Venue) => ({ name: v.name, kind: v.kind as VenueKind, about: v.about ?? '', hours: v.hours ?? '', phone: v.phone ?? '', whatsapp: v.whatsapp ?? '', website: v.website ?? '' });
+
 function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n: number } | null }) {
   const qc = useQueryClient();
-  const [f, setF] = useState({ name: v.name, kind: v.kind as VenueKind, about: v.about ?? '', hours: v.hours ?? '', phone: v.phone ?? '', whatsapp: v.whatsapp ?? '', website: v.website ?? '' });
+  const [f, setF] = useState(() => formOf(v));
   // O sítio (ponto, morada e cidade) e se aparece no mapa do À tua volta.
   const [place, setPlace] = useState<PlaceValue | null>(() => venuePlace(v));
   const [showOnMap, setShowOnMap] = useState(showsOnMap(v));
@@ -96,10 +107,16 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
   const [uploading, setUploading] = useState<'avatar' | 'cover' | null>(null);
   const [msg, setMsg] = useState('');
   const placeRef = useRef<PlaceFieldHandle>(null);
+  // Chegou o local outra vez (puxar para atualizar, voltar à app, guardar o logótipo…): o que a pessoa já escreveu e
+  // ainda não guardou fica; só os campos em que não mexeu passam para a versão nova (antes apagava tudo o que escrevera).
+  const base = useRef({ f: formOf(v), place: venuePlace(v), map: showsOnMap(v) });
   useEffect(() => {
-    setF({ name: v.name, kind: v.kind, about: v.about ?? '', hours: v.hours ?? '', phone: v.phone ?? '', whatsapp: v.whatsapp ?? '', website: v.website ?? '' });
-    setPlace(venuePlace(v));
-    setShowOnMap(showsOnMap(v));
+    const prev = base.current;
+    const next = { f: formOf(v), place: venuePlace(v), map: showsOnMap(v) };
+    base.current = next;
+    setF((cur) => resyncDraft(cur, prev.f, next.f));
+    setPlace((cur) => resyncDraft(cur, prev.place, next.place));
+    setShowOnMap((cur) => resyncDraft(cur, prev.map, next.map));
   }, [v]);
   useEffect(() => {
     if (!pinAsk) return;
@@ -123,6 +140,12 @@ function Profile({ v, pinAsk }: { v: Venue; pinAsk: { what: 'map' | 'search'; n:
         hours: f.hours.trim() || null, phone: f.phone.trim() || null, whatsapp: f.whatsapp.trim() || null, website: f.website.trim() || null,
       };
       const nv = await locaisApi.updateVenue(v.slug, body);
+      // Guardou o formulário todo: passa a mostrar o que ficou no servidor (o logótipo e a capa não mexem nos campos).
+      if (!patch) {
+        setF(formOf(nv));
+        setPlace(venuePlace(nv));
+        setShowOnMap(showsOnMap(nv));
+      }
       qc.setQueryData(['venue', v.slug], nv);
       void qc.invalidateQueries({ queryKey: ['venues-mine'] });
       setMsg('Guardado.');
@@ -216,13 +239,17 @@ function Managers({ v }: { v: Venue }) {
   const [msg, setMsg] = useState('');
   const refresh = (data?: unknown) => { if (Array.isArray(data)) qc.setQueryData(['venue-managers', v.slug], data); else void qc.invalidateQueries({ queryKey: ['venue-managers', v.slug] }); };
 
-  async function run(fn: () => Promise<unknown>, ok: string) {
+  /** Corre a ação e diz se deu (para só limpar o @ do convite quando o convite foi mesmo enviado). */
+  async function run(fn: () => Promise<unknown>, ok: string): Promise<boolean> {
+    if (busy) return false;
     setBusy(true);
     setMsg('');
-    try { refresh(await fn()); setMsg(ok); } catch (e) { setMsg((e as Error).message); }
+    let done = false;
+    try { refresh(await fn()); setMsg(ok); done = true; } catch (e) { setMsg((e as Error).message); }
     setBusy(false);
+    return done;
   }
-  const invite = () => run(() => locaisApi.invite(v.slug, username.trim(), role), 'Convite enviado. A pessoa recebe uma notificação para aceitar.').then(() => setUsername(''));
+  const invite = () => run(() => locaisApi.invite(v.slug, username.trim().replace(/^@/, ''), role), 'Convite enviado. A pessoa recebe uma notificação para aceitar.').then((sent) => { if (sent) setUsername(''); });
   const remove = (u: string, self: boolean) => {
     const go = () => run(async () => {
       const r = await locaisApi.removeManager(v.slug, u);
@@ -320,6 +347,14 @@ function Events({ v }: { v: Venue }) {
 function Insights({ v }: { v: Venue }) {
   const q = useQuery({ queryKey: ['venue-insights', v.slug], queryFn: () => locaisApi.insights(v.slug), retry: false });
   const d = q.data;
+  if (!d && q.isError) {
+    return (
+      <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 16, gap: 12 }}>
+        <Text style={[st.hint, { textAlign: 'center' }]}>Não consegui carregar o painel.</Text>
+        <Pressable onPress={() => void q.refetch()} style={st.secondary} accessibilityRole="button"><Text style={st.secondaryText}>Tentar outra vez</Text></Pressable>
+      </View>
+    );
+  }
   if (!d) return <View style={{ alignItems: 'center', paddingVertical: 40 }}><PontoLoader size={20} /></View>;
   const max = Math.max(1, ...d.days.map((x) => x.checkins));
   const stat = (n: number, label: string, sub?: string) => (

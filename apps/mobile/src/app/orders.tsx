@@ -64,7 +64,7 @@ export default function Orders() {
   }, [current, qc]);
 
   async function pay() {
-    if (!chosen || !chosenPkg) return;
+    if (busy || !chosen || !chosenPkg) return;
     setBusy(true);
     setErr('');
     try {
@@ -140,7 +140,7 @@ export default function Orders() {
                 {chosen?.needsPhone ? (
                   <View>
                     <Text style={{ marginBottom: 6, fontSize: 14, fontWeight: '600', color: colors.zinc900 }}>O teu número {chosen.label}</Text>
-                    <TextInput value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" placeholder="84 123 4567" placeholderTextColor={colors.zinc500} style={st.phone} />
+                    <TextInput value={phone} onChangeText={(t) => { setPhone(t); setErr(''); }} keyboardType="phone-pad" autoComplete="tel" textContentType="telephoneNumber" maxLength={20} placeholder="84 123 4567" placeholderTextColor={colors.zinc500} style={st.phone} accessibilityLabel={`O teu número ${chosen.label}`} />
                   </View>
                 ) : null}
                 {err ? <Text style={{ textAlign: 'center', fontSize: 14, color: colors.red600 }}>{err}</Text> : null}
@@ -181,6 +181,13 @@ export default function Orders() {
         )}
 
         <Group title="Pedidos">
+          {orders.isLoading ? <ActivityIndicator style={{ margin: 24 }} color={colors.brand} /> : null}
+          {orders.isError && !orders.data ? (
+            <Pressable onPress={() => void orders.refetch()} accessibilityRole="button" style={st.order}>
+              <Text style={{ flex: 1, fontSize: 15, color: colors.zinc700 }}>Não consegui carregar os pedidos.</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.brand }}>Tentar outra vez</Text>
+            </Pressable>
+          ) : null}
           {orders.data && orders.data.length === 0 ? <Line icon="file-text" label="Histórico de pedidos" value="Ainda não tens pedidos" /> : null}
           {orders.data?.map((o) => (
             <View key={o.id} style={st.order}>

@@ -54,7 +54,10 @@ export default function Evento() {
         <View style={st.center}>
           <Icon name="calendar" size={36} color={colors.zinc300} />
           <Text style={st.emptyTitle}>{q.error instanceof ApiError && q.error.status === 404 ? 'Este evento já não existe' : 'Não consegui abrir o evento'}</Text>
-          <Pressable onPress={() => void q.refetch()} style={st.ghost}><Text style={st.ghostText}>Tentar outra vez</Text></Pressable>
+          {/* Um evento apagado não volta por tentar outra vez: o botão é só para quando falhou a rede. */}
+          {q.error instanceof ApiError && q.error.status === 404 ? null : (
+            <Pressable onPress={() => void q.refetch()} style={st.ghost} accessibilityRole="button"><Text style={st.ghostText}>Tentar outra vez</Text></Pressable>
+          )}
         </View>
       </StackPage>
     );
