@@ -95,6 +95,8 @@ describe('sons das tchekas: som original, usar um som, em alta, visibilidade, de
   }, 120_000);
 
   afterAll(async () => {
+    // A faixa de teste sai do catálogo: a base é partilhada e a pesquisa «marrabenta» dos testes da música só conta com a dela.
+    await pool.query('DELETE FROM content.music_catalog WHERE id = $1', [catId]).catch(() => undefined);
     await app.close();
     await pool.end();
   });
