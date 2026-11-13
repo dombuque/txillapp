@@ -3,9 +3,8 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
 
 /**
- * Onde vivem os contadores e os bloqueios da segurança. Hoje é o PostgreSQL (partilhado por todas as réplicas da API); a
- * equipa da escala pode ligar aqui o Redis (INCR + PEXPIRE para os contadores, SET com PX para os bloqueios) com uma classe
- * que cumpra esta interface e um `{ provide: RATE_STORE, useClass: RedisRateStore }` no SecurityModule. As regras não mudam.
+ * Onde vivem os contadores e os bloqueios da segurança: no Redis com REDIS_URL (RedisRateStore, redis-rate-store.ts) e
+ * no PostgreSQL sem ele (PgRateStore, que é também a reserva quando o Redis falha). Ver security.module.ts.
  */
 export interface RateStore {
   /** Soma 1 ao contador da chave (janela fixa de `windowMs`, que começa no primeiro toque) e devolve o total. */

@@ -1,4 +1,4 @@
-import { ForbiddenException, HttpException, HttpStatus, Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { ForbiddenException, HttpException, HttpStatus, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { Request } from 'express';
 import { Pool, PoolClient } from 'pg';
 import { createHash } from 'node:crypto';
@@ -6,6 +6,7 @@ import { describeDevice, sessionUserAgent } from '../common/device';
 import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
+import { Scheduler } from '../realtime/scheduler';
 import { HashGate } from './hash-gate';
 import { securityEvents } from './metrics';
 import { fingerprint, netPrints } from './net';
@@ -54,10 +55,9 @@ const sha = (s: string) => createHash('sha256').update(s).digest('hex').slice(0,
  * + métricas do Prometheus), a prova de humano, os travões do login, do registo e dos emails, e a limpeza dos prazos.
  */
 @Injectable()
-export class SecurityService implements OnModuleInit, OnModuleDestroy {
+export class SecurityService implements OnModuleInit {
   private readonly log = new Logger('Segurança');
   private readonly salt: string;
-  private timer?: NodeJS.Timeout;
   readonly hashGate: HashGate;
 
   constructor(
@@ -65,19 +65,16 @@ export class SecurityService implements OnModuleInit, OnModuleDestroy {
     @Inject(CONFIG) private readonly config: AppConfig,
     @Inject(RATE_STORE) readonly store: RateStore,
     readonly turnstile: TurnstileService,
+    private readonly scheduler: Scheduler,
   ) {
     // O mesmo segredo do servidor, noutro uso: as impressões não servem fora daqui.
     this.salt = sha(`security|${config.JWT_ACCESS_SECRET}`);
     this.hashGate = new HashGate(config.ARGON2_CONCURRENCY, config.ARGON2_QUEUE, 10_000);
   }
 
+  /** A limpeza dos prazos: de 10 em 10 minutos, só no worker (ou sem ROLE), pelo Scheduler da escala. */
   onModuleInit() {
-    if (this.config.NODE_ENV === 'test') return;
-    this.timer = setInterval(() => void this.purge().catch((e) => this.log.warn(`limpeza: ${(e as Error).message}`)), 10 * 60_000);
-    this.timer.unref();
-  }
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
+    this.scheduler.every('security.purge', 10 * 60_000, () => this.purge());
   }
 
   /** A impressão de um valor qualquer (um identificador de login, um email). */
@@ -257,7 +254,7 @@ export class SecurityService implements OnModuleInit, OnModuleDestroy {
 
   /* ───── prazos ───── */
 
-  /** Apaga o que passou do prazo (ver a migração 0148). Corre de 10 em 10 minutos. */
+  /** Apaga o que passou do prazo (ver a migração 0149). Corre de 10 em 10 minutos. */
   async purge() {
     const days = String(SECURITY_RETENTION_DAYS);
     const c = await this.pool.query('DELETE FROM security.counters WHERE expires_at < now()');

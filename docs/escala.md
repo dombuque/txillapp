@@ -36,7 +36,7 @@ a infraestrutura em `infra/prod/` (compose, nginx, Prometheus).
 - **`api` (ROLE=web)**: N réplicas iguais (`deploy.replicas`, `API_REPLICAS`, 3 por omissão). Só servem pedidos: REST, o
   canal em tempo real (SSE) e a verificação das fotos (fica inline: o envio espera por ela, ver abaixo). Não correm
   tarefas periódicas nem filas.
-- **`worker` (ROLE=worker)**: um processo, a mesma imagem. Corre as 25 tarefas periódicas e de arranque (lista em
+- **`worker` (ROLE=worker)**: um processo, a mesma imagem. Corre as 26 tarefas periódicas e de arranque (lista em
   «Tarefas periódicas»), a fila da montagem das tchekas, a conversão dos vídeos e o silenciar/repor/tirar o som das
   tchekas. Escuta na porta 3000 só para o healthcheck e para o Prometheus.
 - **Sem ROLE** (desenvolvimento e testes): um processo faz tudo, como antes.
@@ -97,13 +97,13 @@ seguidos que caiam em réplicas diferentes fazem o trabalho duas vezes (o segund
 
 Todas passam pelo `Scheduler` (`realtime/scheduler.ts`): só correm no worker (ou sem ROLE); nas réplicas web ficam
 registadas mas paradas. Uma tarefa não se sobrepõe a ela própria. No arranque o worker escreve nos registos a lista
-(`papel worker: 25 tarefas de fundo (…)`); as réplicas escrevem `papel web: sem tarefas de fundo`.
+(`papel worker: 26 tarefas de fundo (…)`); as réplicas escrevem `papel web: sem tarefas de fundo`.
 
 `analytics.user_days`, `search.purge`, `chat.expiry`, `gelada.friday`, `geleira.level`, `invites.sweep`, `media.unused`,
 `media.deleted`, `moderation.evidence`, `music.catalog`, `music.catalog.stale`, `music.licensed` (só com fornecedor),
 `iap.sweep` (só com IAP_ENABLED), `nearby.presence`, `reminders.comeback`, `reminders.verify`, `sounds.backfill`,
 `sounds.silence`, `calls.sweep`, `calls.purge`, `instants.thumbs`, `posts.topics`, `compose.sweep`, `compose.poll`,
-`compose.stale`, `video.poll`, `video.stale`.
+`compose.stale`, `video.poll`, `video.stale`, `security.purge`.
 
 ### Inventário do estado em memória
 
@@ -117,11 +117,12 @@ Passou a ser partilhado (Redis ou base de dados):
 | `chat/presence.controller.ts` | `typing` («a escrever» nos posts) | `rt:ptyp:<post>`, TTL 6 s |
 | `analytics/search-stats.service.ts` | `pending` (termo à espera) e `seen` (uma vez por dia) | `rt:ss:p:<id>` e `rt:ss:seen:<hash>` |
 | `ThrottlerModule` | contagens dos limites | Redis (`th:…`) |
+| `security/rate-store.ts` | travões da segurança (logins falhados, bloqueios, registos por rede, emails) | Redis (`sec:c:…`, `sec:l:…`, `sec:s:…`); sem Redis ou se ele falhar, `security.counters` e `security.locks` (`security_rate_redis_fallback_total`) |
 | `compose/compose.service.ts` | `queue` (fila em memória) | `content.compose_jobs` + `FOR UPDATE SKIP LOCKED` |
 | `media/video.service.ts` | `chain` (fila em memória) | `content.video_jobs` |
 | `sounds/sounds.service.ts` | `chain` (silenciar, repor, tirar o som de tchekas novas) pedido nas web | sinais `sounds.*` para o worker; a volta de 10 min e a de 30 min apanham o que se perder |
 | `music/catalog/catalog.service.ts` | `snap` (cache do catálogo) | continua por instância (2 min), mas esquecer a cache esquece-a em todas (`music.catalog.invalidate`) |
-| 25 `setInterval`/`setTimeout` de arranque | tarefas periódicas | Scheduler, só no worker |
+| 26 `setInterval`/`setTimeout` de arranque | tarefas periódicas | Scheduler, só no worker |
 
 Fica na memória de cada instância, de propósito:
 
@@ -130,6 +131,7 @@ Fica na memória de cada instância, de propósito:
 | `calls/calls.service.ts`: `timers`, `repeats` (fim do toque, reenvios do Web Push) | o estado está na base de dados e cada mudança é `UPDATE … WHERE status = 'ringing'`: atender noutra réplica faz o temporizador desta não fazer nada; uma réplica que reinicia é apanhada pela varredura do worker (15 s) |
 | `calls/calls.service.ts`: `offlineSince` | só a varredura o usa e ela só corre no worker; quem está ligado vem do Redis |
 | `analytics/analyses.service.ts` `cache`, `search/search.service.ts` `trendingCache`, `gifs` `cache`, `places` (3 caches), `invites` `ogCache`, `compose/analyze.service.ts` `cache`, `music/catalog` `totals`, `nearby/schema-probe.ts` | caches com validade curta; cada réplica tem a sua (no pior caso, a mesma conta feita 3 vezes) |
+| `security/hash-gate.ts` (vagas do argon2), `security/risk.service.ts` `unscored` | as vagas são do CPU de cada processo; `unscored` só guarda contas antigas sem pontuação (a das novas nasce na transação do registo) |
 | `auth/auth.service.ts` `countrySeen` | só evita um UPDATE repetido; noutra réplica faz-se o UPDATE (que não muda nada) |
 | `media/media.service.ts` `making`, `fresh`, `chatVariantsMade` | juntam pedidos iguais em curso e guardam bytes acabados de chegar; noutra réplica só se repete trabalho |
 | `compose/voice-preview.service.ts` `inflight`, a vaga do ffmpeg | ver «pré-visualizações de voz» acima |
@@ -253,7 +255,7 @@ Com o perfil de monitorização: `docker compose --profile monitoring up -d prom
 
 ```bash
 cd /opt/txillapp/infra/prod
-# Papéis: as réplicas sem tarefas, o worker com as 25, todos ligados ao Redis
+# Papéis: as réplicas sem tarefas, o worker com as 26, todos ligados ao Redis
 docker compose logs api    | grep -E 'papel web|tempo real e limites partilhados'      # 3 de cada
 docker compose logs worker | grep -E 'papel worker|tempo real e limites partilhados'
 curl -s https://txillapp.com/api/v1/health/ready                                       # {"status":"ready","db":"up","redis":"up"}
