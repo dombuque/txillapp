@@ -84,7 +84,8 @@ export class ImageModerationService {
       this.log.error(`falha ao analisar a foto: ${(e as Error).message}`);
       throw new ServiceUnavailableException('Não consegui verificar a foto agora. Tenta daqui a pouco.');
     }
-    if (score >= this.config.NSFW_REJECT_THRESHOLD) return { verdict: 'reject', score };
+    // O classificador sozinho só recusa com NSFW_AUTO_REJECT ligado (ver config): senão, a foto passa e vai para a moderação.
+    if (score >= this.config.NSFW_REJECT_THRESHOLD) return { verdict: this.config.NSFW_AUTO_REJECT ? 'reject' : 'review', score };
     if (score >= this.config.NSFW_REVIEW_THRESHOLD) return { verdict: 'review', score };
     return { verdict: 'ok', score };
   }

@@ -47,7 +47,7 @@ describe('verificação automática de fotos (nudez / conteúdo sexual)', () => 
     await migrate(DB);
     pool = new Pool({ connectionString: DB });
     app = await createApp(
-      loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'i'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test', IMAGE_MODERATION: 'local' }),
+      loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'i'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test', IMAGE_MODERATION: 'local', NSFW_AUTO_REJECT: 'true' }),
       { imageClassifier: fake },
     );
     await app.init();

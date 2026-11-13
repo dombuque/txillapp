@@ -34,6 +34,12 @@ const schema = z.object({
   MODEL_CACHE_DIR: z.string().default('./.models'),
   /** A partir daqui a foto é recusada. */
   NSFW_REJECT_THRESHOLD: z.coerce.number().min(0).max(1).default(0.85),
+  /**
+   * Recusar automaticamente com o classificador sozinho? Desligado: o classificador olha para a imagem inteira e erra em
+   * selfies, roupa justa e peles escuras (recusava fotos sem nudez nenhuma). Desligado, uma pontuação acima de
+   * NSFW_REJECT_THRESHOLD passa e vai para a fila da moderação com prioridade, como a zona duvidosa.
+   */
+  NSFW_AUTO_REJECT: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   /** A partir daqui a foto passa mas fica na fila da moderação. */
   NSFW_REVIEW_THRESHOLD: z.coerce.number().min(0).max(1).default(0.5),
   /**
