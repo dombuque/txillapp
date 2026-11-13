@@ -15,6 +15,7 @@ export interface MediaColumnRef { table: string; column: string; where?: string;
 export const MEDIA_COLUMN_REFS: MediaColumnRef[] = [
   { table: 'content.post_media', column: 'media_id', why: 'fotos e vídeos das publicações (também as removidas ou apagadas)' },
   { table: 'content.photo_tags', column: 'media_id', why: 'pessoas identificadas numa foto' },
+  { table: 'taste.gelada_debts', column: 'paid_media_id', why: 'foto do «Já paguei» no livro das geladas' },
   { table: 'content.stories', column: 'media_id', why: 'mimos (também os expirados e os partilhados de uma publicação)' },
   { table: 'identity.users', column: 'avatar_media_id', why: 'foto de perfil' },
   { table: 'social.messages', column: 'media_id', why: 'fotos, vídeos e áudios das mensagens' },
@@ -68,6 +69,7 @@ export const JSON_WITHOUT_MEDIA: Record<string, string> = {
   'social.notifications.data': 'avisos (ids de publicações, nunca de ficheiros)',
   'analytics.events.props': 'estatísticas de uso',
   'social.reports.evidence': 'cópia do texto de uma mensagem denunciada (sem ficheiros)',
+  'content.posts.gelada': 'pedido «Paga-me uma» publicado (a bebida e quantas pessoas; sem ficheiros)',
   'content.posts.geleira': 'retrato da geleira partilhada (nomes, slugs e notas dos gostos; os desenhos vêm do catálogo, sem ficheiros)',
   'social.messages.gif': 'GIF do GIPHY (endereço externo)',
   'social.messages.system': 'avisos de sistema na conversa',
