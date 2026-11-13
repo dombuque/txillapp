@@ -10,8 +10,9 @@ import { allowedBy, blockedBetween } from '../social/visibility';
 import { readGif, type GifInput } from '../gifs/gif';
 import { ChatEvents } from './chat.events';
 import { badge } from '../common/badge';
+import { requestCards, roundCards } from '../gelada/gelada-cards';
 
-export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call' | 'poll' | 'gif' | 'system';
+export type MessageKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'sticker' | 'location' | 'post' | 'gift' | 'video' | 'zas_reply' | 'call' | 'poll' | 'gif' | 'system' | 'gelada' | 'rodada';
 
 /**
  * O texto de uma mensagem GIF (kind 'gif'): o GIF vai na coluna `gif`; o body leva só "GIF", que é o que as versões
@@ -93,6 +94,8 @@ export async function wipeMessage(db: Pick<Pool, 'query'>, messageId: string, no
       WHERE m.id = $1 AND m.kind = 'poll' AND m.group_id = p.group_id AND p.id::text = m.body`,
     [messageId],
   );
+  // Uma rodada ainda aberta (kind 'rodada', 0145) sai com o cartão; as fechadas ficam no histórico de quem pagou.
+  await db.query(`DELETE FROM taste.gelada_rounds r USING social.messages m WHERE m.id = $1 AND m.kind = 'rodada' AND r.message_id = m.id AND r.status = 'open'`, [messageId]);
   await db.query(`UPDATE content.media_assets SET status = 'deleted' WHERE id = (SELECT media_id FROM social.messages WHERE id = $1)`, [messageId]);
   await db.query('DELETE FROM social.message_reactions WHERE message_id = $1', [messageId]);
   await db.query('DELETE FROM social.message_views WHERE message_id = $1', [messageId]);
@@ -482,8 +485,25 @@ export class ChatService {
     const reactions = new Map<string, { reaction: string; count: number; mine: boolean }[]>();
     for (const r of rx.rows) reactions.set(r.message_id, [...(reactions.get(r.message_id) ?? []), { reaction: r.reaction, count: r.n, mine: r.mine }]);
     const quoted = new Map(rp.rows.map((r) => [r.id as string, r]));
+    // «Paga-me uma» (0145): o cartão do pedido (kind 'gelada') e da rodada (kind 'rodada'), vistos por mim. Sem cartão (a conta
+    // de uma das partes foi eliminada), `gelada`/`rodada` vem null e a app diz «Conta eliminada».
+    const live = page.filter((m) => !m.deleted_at);
+    const geladaMsgs = live.filter((m) => m.kind === 'gelada').map((m) => m.id as string);
+    const rodadaMsgs = live.filter((m) => m.kind === 'rodada').map((m) => m.id as string);
+    const [gq, rq] = await Promise.all([
+      geladaMsgs.length ? this.pool.query('SELECT id, message_id FROM taste.gelada_requests WHERE message_id = ANY($1::uuid[])', [geladaMsgs]).then(async (r) => {
+        const cards = new Map((await requestCards(this.pool, me, { ids: r.rows.map((x) => x.id as string) })).map((c) => [c.id, c]));
+        return new Map(r.rows.map((x) => [x.message_id as string, cards.get(x.id as string) ?? null]));
+      }) : new Map(),
+      rodadaMsgs.length ? this.pool.query('SELECT id, message_id FROM taste.gelada_rounds WHERE message_id = ANY($1::uuid[])', [rodadaMsgs]).then(async (r) => {
+        const cards = new Map((await roundCards(this.pool, me, { ids: r.rows.map((x) => x.id as string) })).map((c) => [c.id, c]));
+        return new Map(r.rows.map((x) => [x.message_id as string, cards.get(x.id as string) ?? null]));
+      }) : new Map(),
+    ]);
+    const cards = (m: Record<string, any>) =>
+      m.kind === 'gelada' ? { gelada: gq.get(m.id as string) ?? null } : m.kind === 'rodada' ? { rodada: rq.get(m.id as string) ?? null } : {};
     return Promise.all(
-      page.map(async (m) => m.deleted_at ? this.deletedItem(me, m) : m.kind === 'system' ? this.systemItem(me, m) : this.item(me, m, reactions, quoted)),
+      page.map(async (m) => m.deleted_at ? this.deletedItem(me, m) : m.kind === 'system' ? this.systemItem(me, m) : { ...(await this.item(me, m, reactions, quoted)), ...cards(m) }),
     );
   }
 
@@ -681,6 +701,47 @@ export class ChatService {
     const live = msg.kind === 'location' && msg.liveMinutes && [15, 60, 480].includes(msg.liveMinutes) ? msg.liveMinutes : null;
     const spot = this.placeFields(msg);
     return this.insert(me, other.id, spot.body, msg.kind, null, msg.mediaId ?? null, msg.durationMs ?? null, msg.kind === 'voice' ? (msg.waveform ?? null) : null, place, { once, liveMinutes: live, replyTo: msg.replyTo, placeName: spot.name, placeAddress: spot.address, gif: msg.kind === 'gif' ? msg.gif : undefined });
+  }
+
+  /**
+   * Posso escrever a esta pessoa numa conversa a dois? As regras de uma mensagem normal: sem bloqueio, a pessoa aceita
+   * mensagens (`dms_allowed`) ou já há conversa, e o limite a quem não me segue e ainda não respondeu. Devolve o motivo
+   * (para mostrar) ou null.
+   */
+  async cannotMessage(me: string, otherId: string): Promise<string | null> {
+    if (otherId === me) return 'Não podes enviar mensagens a ti próprio';
+    const r = (
+      await this.pool.query(
+        `SELECT u.status, ${blockedBetween('u.id', '$1')} AS blocked, ${allowedBy('u', 'dms_allowed')} AS allowed,
+                EXISTS (SELECT 1 FROM social.conversations c WHERE c.user_a = LEAST($1::uuid, u.id) AND c.user_b = GREATEST($1::uuid, u.id)) AS spoke
+           FROM identity.users u WHERE u.id = $2`,
+        [me, otherId],
+      )
+    ).rows[0];
+    if (!r || r.status !== 'active') return 'Pessoa não encontrada';
+    if (r.blocked) return 'Não podes enviar mensagens a esta pessoa';
+    if (!r.allowed && !r.spoke) return 'Esta pessoa não aceita mensagens novas';
+    const rel = await this.relationOf(me, otherId, await this.conversation(me, otherId, false));
+    if (rel.left === 0) return 'Esta pessoa não te segue e ainda não respondeu. Podes escrever outra vez quando ela responder, aceitar ou te seguir.';
+    return null;
+  }
+
+  /**
+   * Um cartão feito pelo servidor numa conversa a dois («Paga-me uma», kind 'gelada', 0145). Quem chama já confirmou
+   * `cannotMessage`. O texto (`body`) é o que a lista de conversas e as versões antigas da app mostram; `pushText` vai no
+   * telemóvel (sem álcool para menores). Devolve { id }.
+   */
+  async sendCard(me: string, otherId: string, kind: 'gelada', body: string, pushText: string, id?: string) {
+    const why = await this.cannotMessage(me, otherId);
+    if (why) throw new ForbiddenException(why);
+    return this.insert(me, otherId, body, kind, null, null, null, null, null, { pushText, id });
+  }
+
+  /** O cartão mudou (alguém respondeu): as duas partes voltam a pedir a conversa, sem som nem aviso (evento 'edited'). */
+  async cardChanged(a: string, b: string) {
+    const [na, nb] = await Promise.all([this.usernameOf(a), this.usernameOf(b)]);
+    this.events.emit(b, { type: 'edited', from: na });
+    this.events.echo(a, { type: 'edited', from: nb });
   }
 
   /** Resposta/reacção a um story: já foi autorizada pela definição de respostas do autor. */
@@ -958,9 +1019,9 @@ export class ChatService {
     this.events.emit(other.id, { type: 'typing', from: await this.usernameOf(me) });
   }
 
-  private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null, waveform: string | null, place: { lat: number; lng: number } | null, extra: { once?: boolean; liveMinutes?: number | null; giftTx?: string; giftAmount?: number; replyTo?: string; placeName?: string | null; placeAddress?: string | null; gif?: GifInput } = {}) {
+  private async insert(me: string, other: string, body: string, kind: MessageKind, storyMediaId: string | null, mediaId: string | null, durationMs: number | null, waveform: string | null, place: { lat: number; lng: number } | null, extra: { once?: boolean; liveMinutes?: number | null; giftTx?: string; giftAmount?: number; replyTo?: string; placeName?: string | null; placeAddress?: string | null; gif?: GifInput; pushText?: string; id?: string } = {}) {
     const conv = await this.conversation(me, other, true);
-    const id = uuidv7();
+    const id = extra.id ?? uuidv7();
     const ins = await this.pool.query(
       // Mensagens temporárias ligadas: leva `expires_at` (criação + duração). Só se responde a uma que ainda existe.
       `INSERT INTO social.messages (id, conversation_id, sender_id, body, kind, story_media_id, media_id, duration_ms, waveform, lat, lng, view_once, live_until, gift_tx, gift_amount, reply_to, place_name, place_address, gif, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CASE WHEN $13::int IS NULL THEN NULL ELSE now() + ($13::int * interval '1 minute') END, $14, $15, (SELECT r.id FROM social.messages r WHERE r.id = $16::uuid AND r.conversation_id = $2 AND r.deleted_at IS NULL AND r.kind <> 'system' AND ${notExpired('r')}), $17, $18, $19::jsonb, ${expiresFor('conversations', '$2')}) RETURNING expires_at`,
@@ -990,7 +1051,7 @@ export class ChatService {
     // Também no telemóvel, sem o texto da mensagem.
     const sender = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0].display_name as string;
     const what: Partial<Record<MessageKind, string>> = { story_reply: 'respondeu ao teu mimo', story_reaction: 'reagiu ao teu mimo', image: 'enviou-te uma foto', video: 'enviou-te um vídeo', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', gif: 'enviou-te um GIF', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo', gift: 'enviou-te um presente' };
-    if (!this.events.isActive(other, `u:${from}`)) void this.push.send(other, { title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : extra.once ? 'enviou-te uma mensagem de visualização única' : extra.liveMinutes ? 'está a partilhar a localização em direto' : (what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' });
+    if (!this.events.isActive(other, `u:${from}`)) void this.push.send(other, { title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : extra.once ? 'enviou-te uma mensagem de visualização única' : extra.liveMinutes ? 'está a partilhar a localização em direto' : (extra.pushText ?? what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' });
     return { id, kind, expiresAt };
   }
 }

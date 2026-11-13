@@ -8,6 +8,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { blockedBetween, canView } from '../social/visibility';
 import { badge } from '../common/badge';
 import { itemCheers, levelOf, readSnapshot } from './geleira-post';
+import { geladaPoints } from '../gelada/gelada-cards';
 
 export const KINDS = ['vibe', 'bebida', 'comida', 'sitio'] as const;
 export type Kind = (typeof KINDS)[number];
@@ -244,14 +245,17 @@ export class GeleiraService {
       [o.id],
     );
     // Os dois níveis de cima pedem substância: variedade (grupos diferentes) e gostos avaliados (a mesma conta do retrato dos posts).
-    const { points, byPoints, level, steps } = levelOf(rows[0] as { n: number; fav: number; rated: number; cats: number });
+    // As geladas pagas e confirmadas (0145) valem um pouco, com teto semanal; os pedidos sozinhos não contam.
+    const gelada = await geladaPoints(this.pool, o.id);
+    const { points, byPoints, level, steps } = levelOf(rows[0] as { n: number; fav: number; rated: number; cats: number }, gelada);
     const held = level < byPoints;
     const age = o.birth_date ? Math.floor((Date.now() - new Date(o.birth_date).getTime()) / 31_557_600_000) : null;
     const top = age !== null && age >= 45 ? 'Madala da paulada' : age !== null && age >= 30 ? 'Mestre da paulada' : 'Lenda da paulada';
     const titles = ['Geleira seca', 'A txilar', 'Maningue abastecida', 'Paulada garantida', top];
     return {
       points,
-      tasteContribution: points,
+      tasteContribution: points - gelada,
+      geladaContribution: gelada,
       txillContribution: 0,
       level,
       title: titles[level],
@@ -365,15 +369,21 @@ export class GeleiraService {
   }
 
   async settings(userId: string) {
-    const { rows } = await this.pool.query('SELECT geleira_matching, geleira_visibility, geleira_cheers_public FROM identity.users WHERE id = $1', [userId]);
-    return { matching: rows[0].geleira_matching as boolean, visibility: rows[0].geleira_visibility as Visibility, cheersPublic: rows[0].geleira_cheers_public as boolean };
+    const { rows } = await this.pool.query('SELECT geleira_matching, geleira_visibility, geleira_cheers_public, gelada_book_public FROM identity.users WHERE id = $1', [userId]);
+    return {
+      matching: rows[0].geleira_matching as boolean,
+      visibility: rows[0].geleira_visibility as Visibility,
+      cheersPublic: rows[0].geleira_cheers_public as boolean,
+      // «Mostrar o livro das geladas a quem vê a geleira» (0145; desligado por omissão).
+      bookPublic: rows[0].gelada_book_public as boolean,
+    };
   }
   /** `cheersPublic`: quem pode ver a minha geleira vê também quem a brindou (desligado por omissão). */
-  async setSettings(userId: string, b: { matching?: boolean; visibility?: Visibility; cheersPublic?: boolean }) {
+  async setSettings(userId: string, b: { matching?: boolean; visibility?: Visibility; cheersPublic?: boolean; bookPublic?: boolean }) {
     await this.pool.query(
       `UPDATE identity.users SET geleira_matching = COALESCE($2, geleira_matching), geleira_visibility = COALESCE($3, geleira_visibility),
-              geleira_cheers_public = COALESCE($4, geleira_cheers_public) WHERE id = $1`,
-      [userId, b.matching ?? null, b.visibility ?? null, b.cheersPublic ?? null],
+              geleira_cheers_public = COALESCE($4, geleira_cheers_public), gelada_book_public = COALESCE($5, gelada_book_public) WHERE id = $1`,
+      [userId, b.matching ?? null, b.visibility ?? null, b.cheersPublic ?? null, b.bookPublic ?? null],
     );
     return this.settings(userId);
   }

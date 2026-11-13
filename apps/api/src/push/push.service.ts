@@ -10,7 +10,8 @@ import { FcmSender, type FcmPush } from './fcm';
 /** O que a pessoa pode ligar ou desligar nas notificações. */
 // `comeback`: os lembretes quando a pessoa não passa por cá (push e e-mail, ver src/reminders/comeback-reminder.service.ts);
 // esses não entram na lista de notificações.
-export const NOTIFY_CATEGORIES = ['messages', 'follows', 'comments', 'mentions', 'reposts', 'gifts', 'reactions', 'invites', 'calls', 'venues', 'comeback', 'remixes'] as const;
+// `gelada`: a «Sexta da gelada», o aviso de sexta à tarde (ver src/gelada/gelada-friday.service.ts); também não entra na lista.
+export const NOTIFY_CATEGORIES = ['messages', 'follows', 'comments', 'mentions', 'reposts', 'gifts', 'reactions', 'invites', 'calls', 'venues', 'comeback', 'remixes', 'gelada'] as const;
 export type NotifyCategory = (typeof NOTIFY_CATEGORIES)[number];
 
 export interface PushPayload extends FcmPush {

@@ -562,6 +562,15 @@ export class AuthService {
       await client.query('DELETE FROM taste.geleira_cheer_notices WHERE owner_id = $1 OR user_id = $1', [userId]);
       // Brindes aos itens da geleira (no perfil ou nos posts da geleira, 0143), dados e recebidos.
       await client.query('DELETE FROM taste.geleira_item_cheers WHERE owner_id = $1 OR user_id = $1', [userId]);
+      // «Paga-me uma» (0145): os pedidos (feitos e recebidos), as dívidas (dos dois lados), as rodadas que abriu, as entradas nas
+      // rodadas dos outros e o registo dos avisos de sexta. As rodadas que pagou ficam no histórico do grupo, sem quem pagou.
+      // Os cartões do chat do outro lado ficam «Conta eliminada» (o pedido já não existe).
+      await client.query('DELETE FROM taste.gelada_debts WHERE debtor_id = $1 OR creditor_id = $1', [userId]);
+      await client.query('DELETE FROM taste.gelada_requests WHERE requester_id = $1 OR recipient_id = $1', [userId]);
+      await client.query('DELETE FROM taste.gelada_round_entries WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM taste.gelada_rounds WHERE opened_by = $1', [userId]);
+      await client.query('UPDATE taste.gelada_rounds SET payer_id = NULL WHERE payer_id = $1', [userId]);
+      await client.query('DELETE FROM taste.gelada_fridays WHERE user_id = $1', [userId]);
       await client.query(`UPDATE taste.items SET created_by = NULL WHERE created_by = $1 AND status = 'pending'`, [userId]);
       await client.query('DELETE FROM social.blocks WHERE blocker_id = $1 OR blocked_id = $1', [userId]);
       await client.query('DELETE FROM social.notifications WHERE user_id = $1 OR actor_id = $1', [userId]);

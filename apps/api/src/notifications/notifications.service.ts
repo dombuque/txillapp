@@ -44,7 +44,12 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   // 'held' | 'removed' | 'cleared' | 'restored', reason?, postId? (a tcheka de onde o som saiu) }.
   | 'sound_review'
   // O autor da tcheka original retirou o meu dueto (0140). Ator = esse autor. data: { postId (o dueto), originalId }.
-  | 'remix_takedown';
+  | 'remix_takedown'
+  // «Paga-me uma» (0145). Ator = a outra pessoa; `soft`: refresco (o texto nunca fala de álcool).
+  // gelada_tag: pediram-me uma gelada numa publicação (fico identificado). data: { requestId, postId, soft }.
+  // gelada_answer: a quem pedi numa publicação respondeu. data: { requestId, postId, answer: 'accept' | 'decline' | 'owe', soft }.
+  // gelada_paid: disseram que me pagaram (para eu confirmar) ou confirmaram o que paguei. data: { debtId, step: 'claimed' | 'confirmed', soft }.
+  | 'gelada_tag' | 'gelada_answer' | 'gelada_paid';
 
 /** Avisos da equipa do Txillapp: não se desligam e mostram-se em nome do Txillapp (não da pessoa da equipa). */
 export const STAFF_KINDS = new Set<NotificationKind>(['content_removed', 'content_restored', 'moderation_warning', 'venue_review', 'music_review', 'sound_review']);
@@ -65,6 +70,8 @@ export const CATEGORY_OF: Partial<Record<NotificationKind, NotifyCategory>> = {
   geleira_cheer: 'reactions', cheer: 'reactions',
   invite_joined: 'invites',
   remix: 'remixes',
+  // O pedido publicado é uma identificação: desliga-se com as menções. «Já paguei» vai com as mensagens (é entre os dois).
+  gelada_tag: 'mentions', gelada_answer: 'mentions', gelada_paid: 'messages',
 };
 
 /** O que se brindou: uma publicação (ou tcheka) ou um comentário. */
@@ -215,6 +222,13 @@ export class NotificationsService {
       },
       // O autor do original retirou o meu dueto: a lista explica (o dueto já não abre).
       remix_takedown: { body: 'pediu para retirar o teu dueto', url: '/notifications' },
+      // «Paga-me uma» (0145): sem álcool no texto quando é refresco (menores).
+      gelada_tag: { body: n.data?.soft ? 'pede-te um refresco numa publicação 🥤' : 'pede-te uma gelada numa publicação 🍻', url: postId ? `/p/${postId}` : '/notifications' },
+      gelada_answer: {
+        body: n.data?.answer === 'accept' ? 'disse «Bora!» ao teu pedido' : n.data?.answer === 'owe' ? 'ficou a dever-te uma' : 'disse «Hoje não» ao teu pedido',
+        url: postId ? `/p/${postId}` : '/geladas',
+      },
+      gelada_paid: { body: n.data?.step === 'claimed' ? 'diz que já te pagou. Confirmas?' : 'confirmou que pagaste 🙌', url: '/geladas' },
       venue_payment: { body: `pagou ${Number(n.data?.amount ?? 0)} Txills ${n.data?.venueName ? `em ${String(n.data.venueName)}` : 'no teu local'}`, url: n.data?.venueSlug ? `/v/${String(n.data.venueSlug)}/gerir?s=txills` : '/notifications' },
     };
     const m = t[n.kind];
