@@ -116,7 +116,14 @@ describe('vídeos curtos (conversão, verificação e publicação)', () => {
     // aparece nos Reels de outra pessoa
     const other = `vio${run}`.slice(0, 28);
     const r = await api().post('/api/v1/auth/register').send({ email: `${other}@example.com`, username: other, displayName: 'Outro', password: PASSWORD, birthDate: '1990-06-15', acceptTerms: true }).expect(201);
-    const reels = (await api().get('/api/v1/feed/reels?limit=15').set({ Authorization: `Bearer ${r.body.accessToken}` }).expect(200)).body.items as { id: string; media: { kind: string }[] }[];
+    // Todas as páginas (até 10): numa base de dados com as tchekas dos outros testes (com brindes e vistas), a nova, sem
+    // nenhuma, nem sempre fica nas primeiras 15 do algoritmo.
+    const reels: { id: string; media: { kind: string }[] }[] = [];
+    for (let page = 0, cursor: string | null = ''; page < 10 && cursor !== null; page++) {
+      const body = (await api().get(`/api/v1/feed/reels?limit=15${cursor ? `&cursor=${cursor}` : ''}`).set({ Authorization: `Bearer ${r.body.accessToken}` }).expect(200)).body as { items: typeof reels; nextCursor: string | null };
+      reels.push(...body.items);
+      cursor = body.items.some((x) => x.id === post.id) ? null : body.nextCursor;
+    }
     expect(reels.length).toBeGreaterThan(0);
     expect(reels.every((x) => x.media.length === 1 && x.media[0]?.kind === 'video')).toBe(true); // só tchekas (um vídeo)
     expect(reels.map((x) => x.id)).toContain(post.id);
