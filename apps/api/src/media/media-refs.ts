@@ -65,6 +65,8 @@ export const MEDIA_JSON_REFS: MediaJsonRef[] = [
  */
 export const JSON_WITHOUT_MEDIA: Record<string, string> = {
   'audit.audit_log.metadata': 'registo de auditoria (o alvo vai em texto)',
+  'security.events.metadata': 'eventos de segurança (contagens, motivos e datas)',
+  'security.account_risk.signals': 'sinais da pontuação de risco (nome do sinal e pontos)',
   'ledger.transactions.metadata': 'movimentos de Txills',
   'social.notifications.data': 'avisos (ids de publicações, nunca de ficheiros)',
   'analytics.events.props': 'estatísticas de uso',
