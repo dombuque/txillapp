@@ -105,7 +105,8 @@ describe('MVP: carteira, ledger, feed, media (integração)', () => {
 
     // Assinatura adulterada → 403.
     const up = await api().post('/api/v1/media/uploads').set(auth(bruno)).send({ mime: 'image/png', size: PNG.length }).expect(201);
-    await api().put(up.body.uploadUrl.replace(/sig=./, 'sig=X')).send(PNG).expect(403);
+    // (Muda o 1.º carácter da assinatura para OUTRO: trocar sempre por «X» não muda nada quando já era «X», 1 vez em 64.)
+    await api().put(up.body.uploadUrl.replace(/sig=(.)/, (_: string, c: string) => `sig=${c === 'X' ? 'Y' : 'X'}`)).send(PNG).expect(403);
     await api().put(up.body.uploadUrl).set('Content-Type', 'image/png').send(PNG).expect(200);
     await api().post('/api/v1/media/uploads').set(auth(bruno)).send({ mime: 'application/pdf', size: 10 }).expect(415);
 
