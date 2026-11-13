@@ -18,21 +18,22 @@ export class ShareController {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   /**
-   * A imagem do cartão de um post da geleira (og:image): só de publicações públicas e ativas, e nunca com bebidas alcoólicas.
-   * Qualquer outra coisa dá 404.
+   * A imagem do cartão de um post da geleira (og:image), de publicações ativas e nunca com bebidas alcoólicas. Numa conta
+   * privada o cartão vai fechado: só o nome e o frigorífico, sem os gostos (quem não segue não os pode ver). Outra coisa dá 404.
    */
   @Get('card/geleira/:code')
   @SkipThrottle()
   async geleiraCard(@Param('code') code: string, @Res() res: Response) {
     if (!/^[A-Za-z0-9-]{6,36}$/.test(code)) throw new NotFoundException();
     const { rows } = await this.pool.query(
-      `SELECT p.geleira, u.display_name FROM content.posts p JOIN identity.users u ON u.id = p.author_id
-        WHERE (p.short_code = $1 OR p.id::text = $1) AND p.removed_at IS NULL AND u.status = 'active' AND u.is_private = false AND p.geleira IS NOT NULL`,
+      `SELECT p.geleira, u.display_name, u.is_private FROM content.posts p JOIN identity.users u ON u.id = p.author_id
+        WHERE (p.short_code = $1 OR p.id::text = $1) AND p.removed_at IS NULL AND u.status = 'active' AND p.geleira IS NOT NULL`,
       [code],
     );
     const snap = readSnapshot(rows[0]?.geleira);
     if (!snap) throw new NotFoundException();
-    const png = await geleiraCardPng({ name: rows[0].display_name as string, total: snap.totalSoft, level: snap.level, items: publicItems(snap) });
+    const closed = !!rows[0].is_private;
+    const png = await geleiraCardPng({ name: rows[0].display_name as string, total: closed ? 0 : snap.totalSoft, level: snap.level, items: closed ? [] : publicItems(snap) });
     res.set('Cache-Control', 'public, max-age=600').type('png').send(png);
   }
 
@@ -49,16 +50,22 @@ export class ShareController {
 
     if (/^[A-Za-z0-9-]{6,36}$/.test(code)) {
       const { rows } = await this.pool.query(
-        `SELECT p.body, p.kind, p.geleira, u.display_name,
+        `SELECT p.body, p.kind, p.geleira, u.display_name, u.is_private,
                 (SELECT json_build_object('id', a.id, 'video', a.mime LIKE 'video/%')
                    FROM content.post_media pm JOIN content.media_assets a ON a.id = pm.media_id
                   WHERE pm.post_id = p.id ORDER BY pm.position LIMIT 1) AS media
            FROM content.posts p JOIN identity.users u ON u.id = p.author_id
-          WHERE (p.short_code = $1 OR p.id::text = $1) AND p.removed_at IS NULL AND u.status = 'active' AND u.is_private = false AND p.kind IN ('post', 'repost')`,
+          WHERE (p.short_code = $1 OR p.id::text = $1) AND p.removed_at IS NULL AND u.status = 'active' AND p.kind IN ('post', 'repost')`,
         [code],
       );
       const r = rows[0];
-      if (r) {
+      // Conta privada: só o post da geleira tem pré-visualização, e fechada (o nome e o frigorífico, sem a legenda nem os gostos).
+      if (r?.is_private && readSnapshot(r.geleira) && !r.media) {
+        title = `A geleira de ${r.display_name} no Txillapp`;
+        description = 'Conta privada: entra no Txillapp para ver a geleira e brindar.';
+        image = `${origin}/api/v1/share/card/geleira/${encodeURIComponent(code)}`;
+        type = 'article';
+      } else if (r && !r.is_private) {
         const snippet = String(r.body ?? '').replace(/\s+/g, ' ').trim();
         title = `${r.display_name} no Txillapp`;
         description = snippet ? (snippet.length > 160 ? `${snippet.slice(0, 160).trimEnd()}…` : snippet) : 'Vê esta publicação no Txillapp.';

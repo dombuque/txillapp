@@ -194,9 +194,13 @@ describe('partilhar a geleira como publicação e brindes que contam no perfil (
     await pool.query('UPDATE identity.users SET is_private = true WHERE id = $1', [gsana.id]);
     await getPost(gsrui, post.id).expect(404);
     await cheerOnPost(gsrui, post.id, matapa).expect(404);
-    // O cartão do link e a pré-visualização pública também deixam de existir.
-    await api().get(`/api/v1/share/card/geleira/${post.code}`).expect(404);
+    // A pré-visualização pública deixa de existir; o link no WhatsApp continua a ter cartão, mas fechado (sem os gostos nem a legenda).
     await api().get(`/api/v1/public/posts/${post.code}`).expect(404);
+    const closedPage = await api().get(`/api/v1/share/p/${post.code}`).expect(200);
+    expect(closedPage.text).toContain(`/api/v1/share/card/geleira/${post.code}`);
+    expect(closedPage.text).toContain('Conta privada');
+    expect(closedPage.text).not.toContain('Matapa');
+    await api().get(`/api/v1/share/card/geleira/${post.code}`).expect(200);
     // Quem segue continua a ver.
     await pool.query('INSERT INTO social.follows (follower_id, followee_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [gsbia.id, gsana.id]);
     await getPost(gsbia, post.id).expect(200);
