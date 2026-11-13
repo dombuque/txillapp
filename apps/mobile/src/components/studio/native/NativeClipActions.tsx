@@ -48,6 +48,8 @@ export function NativeClipActions({ clip, duration, rhythm, locked, onSplit, onD
   const off = locked || !clip;
   if (!clip) return <Text style={st.hint}>Toca num clipe da linha do tempo para o cortar, dividir ou mudar.</Text>;
   const soundOn = clip.sound !== false;
+  // Um vídeo sem som não tem «Som do vídeo» para ligar ou calar.
+  const mute = clip.video && clip.hasAudio === false;
   return (
     <View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.row} keyboardShouldPersistTaps="handled">
@@ -59,7 +61,7 @@ export function NativeClipActions({ clip, duration, rhythm, locked, onSplit, onD
           <Btn label={`Duração ${fmtS(duration)} s`} icon={<Timer size={20} color="#fff" />} onPress={() => setOpen((o) => (o === 'tempo' ? null : 'tempo'))} on={open === 'tempo'} disabled={off} />
         )}
         {clip.video ? (
-          <Btn label={soundOn ? 'Som do vídeo' : 'Sem som'} icon={soundOn ? <Volume2 size={20} color="#fff" /> : <VolumeX size={20} color="#fff" />} onPress={() => setOpen((o) => (o === 'som' ? null : 'som'))} on={open === 'som'} disabled={off} />
+          <Btn label={mute ? 'Sem som' : soundOn ? 'Som do vídeo' : 'Calado'} icon={soundOn && !mute ? <Volume2 size={20} color="#fff" /> : <VolumeX size={20} color="#fff" />} onPress={() => setOpen((o) => (o === 'som' ? null : 'som'))} on={open === 'som' && !mute} disabled={off || mute} />
         ) : null}
         <Btn label="Substituir" icon={<Replace size={20} color="#fff" />} onPress={onReplace} disabled={off} />
         <Btn label="Apagar" icon={<Trash2 size={20} color="#fecaca" />} onPress={onDelete} disabled={off} danger />
@@ -78,7 +80,7 @@ export function NativeClipActions({ clip, duration, rhythm, locked, onSplit, onD
           )}
         </View>
       ) : null}
-      {open === 'som' && clip.video ? (
+      {open === 'som' && clip.video && !mute ? (
         <View style={[st.panel, { flexDirection: 'column', alignItems: 'stretch' }]}>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
             <Chip label="Ligado" on={soundOn} onPress={() => onSound({ on: true })} />

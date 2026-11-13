@@ -27,9 +27,11 @@ import {
 } from '@/lib/studio/effects';
 import { canRedo, canUndo, initHistory, pushHistory, redo as redoH, replacePresent, undo as undoH, type History } from '@/lib/studio/history';
 import type { MagicResult, MagicSource } from '@/lib/studio/magic';
-import { analyzeMusicNativeMagic, analyzeSourcesNative, clearNativeMagicCache } from '@/lib/studio/magicAnalyzeNative';
+import { clearNativeMagicCache } from '@/lib/studio/magicAnalyzeNative';
+import { cancelMagicUploads, settleMagicUploads } from '@/lib/studio/magicUploads';
 import { analyzeMusicNative, type MusicAnalysis } from '@/lib/studio/nativeAudio';
 import { loadNativeStudioFonts } from '@/lib/studio/nativeFonts';
+import { probeVideoAudio } from '@/lib/studio/nativeVideoAudio';
 import { duplicateClip, makeClip, moveClip, normalizeClips, removeClip, replaceMedia, setPhoto, setSpeed, splitAt, startsOf, trimEdge, type ProjectClip, type TrimEdge } from '@/lib/studio/project';
 import { clearJobRecord, loadJobRecord, saveJobRecord, studioStore } from '@/lib/studio/studioStore';
 import { beatGrid, checkTcheka, clampTrim, editLocked, FALLBACK_BPM, fmtS, previewClock, rhythmDurations, speedLabel, TCHEKA_MAX_S } from '@/lib/tchekaRules';
@@ -39,7 +41,6 @@ import { RangeSlider } from './RangeSlider';
 import { CapulanaPanel } from './studio/CapulanaPanel';
 import type { FxTarget, ReverseState } from './studio/FxPanel';
 import { MagicButton } from './studio/MagicButton';
-import { MagicMontage } from './studio/MagicMontage';
 import { StickerTray } from './studio/StickerTray';
 import { TextPanel } from './studio/TextPanel';
 import type { TimelineLayer } from './studio/Timeline';
@@ -49,6 +50,7 @@ import { fitStage, GRAB_H, studioLayout, TABS_H, TOP_H } from '@/lib/studio/nati
 import { NativeClipActions } from './studio/native/NativeClipActions';
 import { NativeComposeOverlay } from './studio/native/NativeComposeOverlay';
 import { NativeFxPanel } from './studio/native/NativeFxPanel';
+import { NativeMagic } from './studio/native/NativeMagic';
 import { NativeOverlays } from './studio/native/NativeOverlays';
 import { NativeSoundPanel, type ClipSound } from './studio/native/NativeSoundPanel';
 import { LookNote, NativeStage, type StageSeg } from './studio/native/NativeStage';
@@ -544,6 +546,18 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     return items.filter((c) => !seen.has(c.media) && !!seen.add(c.media) && !c.fx?.freeze).map((c) => ({ key: c.key, media: c.media, uri: c.uri, video: c.video, mime: c.mime, durationMs: c.durationMs, speed: c.speed }));
   }, [items]);
   const openMagic = () => { if (locked) return; clock.pause(); setMagic(true); };
+  /** «Tem som?» de um vídeo (pela chave `media`): a regra do som obrigatório e o «Som do vídeo» contam com isto (fora do desfazer). */
+  const markAudio = (media: string, has: boolean) => fixPresent((p) => (p.clips.some((c) => c.video && c.media === media && c.hasAudio !== has) ? { ...p, clips: p.clips.map((c) => (c.video && c.media === media ? { ...c, hasAudio: has } : c)) } : p));
+  // Se os vídeos têm pista de áudio (como o site faz): no Android o leitor diz; no iPhone fica para o servidor (Montagem mágica).
+  const probing = useRef(new Set<string>());
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    for (const it of items) {
+      if (!it.video || it.hasAudio !== undefined || probing.current.has(it.media)) continue;
+      probing.current.add(it.media);
+      void probeVideoAudio(it.uri).then((r) => { if (r.hasAudio === false) markAudio(it.media, false); });
+    }
+  }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
   function applyMagic(r: MagicResult) {
     const before = new Map(items.map((c) => [c.key, c]));
     const list = normalizeClips(r.clips.map((c) => ({ ...before.get(c.key), ...c, fx: sanitizeFx(c.fx) }))).map((c) => withFx(c, sanitizeFx(c.fx)));
@@ -575,6 +589,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     saver({ clips: items, extra: voiceFile, settings: settingsNow, seconds: Math.round(playTotal * 100) / 100, context: draftContext });
   }, [items, settingsSig, !!run]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => saver.flush(), [saver]);
+  // Fechar o estúdio pára os envios da Montagem mágica que estejam a meio.
+  useEffect(() => () => cancelMagicUploads(draftKey.current), []);
 
   // ---------------------------------------------------------------- «Seguinte»: enviar, montar no servidor, mostrar
   const useSound = !!soundId && !!music && (!soundTrackId || music.id === soundTrackId);
@@ -613,6 +629,9 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     setResultNote(null);
     const s: Signal = { cancelled: false };
     signal.current = s;
+    // Os vídeos que a Montagem mágica já está a enviar: espera-se por eles (com o progresso à vista) e não vão outra vez.
+    await settleMagicUploads(draftKey.current, setRun);
+    if (s.cancelled) return;
     let rec: JobRecord = (await loadJobRecord(draftKey.current)) ?? emptyRecord(draftKey.current);
     try {
       saver.flush();
@@ -956,11 +975,11 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
       {pickMusic ? <MusicPicker allowLocal onClose={() => setPickMusic(false)} onPick={pickedMusic} /> : null}
       {magic ? (
         <View style={[StyleSheet.absoluteFill, { zIndex: 90, backgroundColor: '#000' }]}>
-          <MagicMontage
+          <NativeMagic
             sources={magicSources}
+            draftId={draftKey.current}
             music={musicUrl && music ? { url: musicUrl, title: music.title } : null}
-            capulana
-            analyzers={{ sources: analyzeSourcesNative, music: analyzeMusicNativeMagic }}
+            onHasAudio={markAudio}
             onApply={(r) => { applyMagic(r); setMagic(false); }}
             onClose={() => setMagic(false)}
             topInset={insets.top}

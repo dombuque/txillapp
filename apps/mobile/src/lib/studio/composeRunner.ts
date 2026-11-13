@@ -21,7 +21,7 @@ const sleep = (ms: number, signal?: Signal) => new Promise<void>((resolve, rejec
 const statusOf = (e: unknown) => (e instanceof ApiError ? e.status : (e as { status?: number } | null)?.status);
 
 /** Um ficheiro: pedir o URL, enviar os bytes, confirmar e (nos vídeos e áudios) esperar que fique pronto. */
-async function uploadOne(f: UploadFile, onPart: (p: number) => void, onWait: () => void): Promise<string> {
+async function uploadOne(f: UploadFile, onPart: (p: number) => void, onWait: () => void, onSent?: (mediaId: string) => void, waitReady = true): Promise<string> {
   const src = f.kind === 'photo' ? await shrinkPhoto(f.uri, POST_MAX_SIDE, POST_MAX_SIDE).catch(() => f.uri) : f.uri;
   const mime = f.kind === 'photo' ? (src === f.uri ? f.mime : 'image/jpeg') : f.mime;
   const purpose = f.kind === 'voice' ? 'chat' : 'public';
@@ -36,7 +36,9 @@ async function uploadOne(f: UploadFile, onPart: (p: number) => void, onWait: () 
     releaseBlob(blob);
   }
   const first = (await raw(`/media/${up.assetId}/complete`, { method: 'POST' })) as MediaState;
-  await waitMediaReady(up.assetId, first, onWait);
+  // Os bytes já chegaram: quem precisa do ficheiro antes de estar convertido (o som da Montagem mágica) já o pode pedir.
+  onSent?.(up.assetId);
+  if (waitReady) await waitMediaReady(up.assetId, first, onWait);
   return up.assetId;
 }
 
@@ -56,8 +58,11 @@ async function stillThere(mediaId: string, onWait: () => void): Promise<boolean>
 /**
  * Envia o que falta (os já enviados não voltam a ir). A cada ficheiro guarda o registo (`onRecord`), para uma tentativa
  * seguinte (ou a app aberta outra vez) continuar dali. Uma falha de rede tenta outra vez sozinha, até `UPLOAD_RETRIES`.
+ * `onSent`: cada ficheiro logo que os bytes chegam ao servidor (antes de convertido), ou já enviado de uma vez anterior.
+ * `waitReady: false` (os envios da Montagem mágica): não espera pela conversão de cada vídeo antes de enviar o seguinte; quem
+ * usar os ficheiros depois confirma-os (o «Seguinte» espera por eles em `stillThere`).
  */
-export async function uploadAll(files: UploadFile[], rec: JobRecord, o: { signal: Signal; onState: (s: RunState) => void; onRecord: (r: JobRecord) => void }): Promise<{ ids: Record<string, string>; rec: JobRecord }> {
+export async function uploadAll(files: UploadFile[], rec: JobRecord, o: { signal: Signal; onState: (s: RunState) => void; onRecord: (r: JobRecord) => void; onSent?: (key: string, mediaId: string) => void; waitReady?: boolean }): Promise<{ ids: Record<string, string>; rec: JobRecord }> {
   let cur = rec;
   const { ready } = uploadPlan(files, cur);
   const ids: Record<string, string> = {};
@@ -69,9 +74,11 @@ export async function uploadAll(files: UploadFile[], rec: JobRecord, o: { signal
       try {
         o.onState(uploadState(i, files.length, 0, f.kind, attempt));
         const known = ready[f.key];
+        if (known && attempt === 0) o.onSent?.(f.key, known);
+        if (known && attempt === 0 && o.waitReady === false) { ids[f.key] = known; break; }
         if (known && attempt === 0 && (await stillThere(known, () => o.onState(preparingState())))) { ids[f.key] = known; break; }
         if (known) { cur = withoutSent(cur, f.key); delete ready[f.key]; }
-        const id = await uploadOne(f, (p) => o.onState(uploadState(i, files.length, p, f.kind, attempt)), () => o.onState(preparingState()));
+        const id = await uploadOne(f, (p) => o.onState(uploadState(i, files.length, p, f.kind, attempt)), () => o.onState(preparingState()), (m) => o.onSent?.(f.key, m), o.waitReady !== false);
         ids[f.key] = id;
         cur = withSent(cur, f.key, { uri: f.uri, mediaId: id });
         o.onRecord(cur);

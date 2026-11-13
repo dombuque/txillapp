@@ -8,9 +8,11 @@
  */
 import { detectBeats } from '@/lib/tchekaRules';
 import {
-  ANALYSIS, MAGIC_MAX_S, energyBlocks, frameMotion, frameStats, grayOf, photoFocus, photoItem, pickMusicStart, videoItem, waveById,
-  type FrameStats, type MagicItem, type MagicPhase, type MagicSource, type MomentTrack, type MusicInfo, type VideoSample, type WaveId,
+  ANALYSIS, MAGIC_MAX_S, coarseToFine, energyBlocks, frameStats, neutralItem, photoFocus, photoItem, pickMusicStart, videoFrame, videoItem,
+  videoItemFromFrames, waveById, type MagicItem, type MagicPhase, type MagicSource, type MusicInfo, type VideoFrame, type WaveId,
 } from './magic';
+
+export { coarseToFine };
 
 export interface AnalyzeOptions {
   /** O tempo todo para ver os ficheiros (ms). Por omissão 5 s; cada vídeo fica com a parte dele. */
@@ -73,13 +75,6 @@ async function analyzePhoto(s: MagicSource): Promise<MagicItem> {
   return photoItem(s.key, img.naturalWidth / img.naturalHeight, frameStats(px, w, h), photoFocus(px, w, h));
 }
 
-/** A ordem do geral para o pormenor: 1/2, 1/4, 3/4, 1/8, 3/8… (frações de 0 a 1). */
-export function coarseToFine(n: number): number[] {
-  const out: number[] = [];
-  for (let den = 2; out.length < n; den *= 2) for (let k = 1; k < den && out.length < n; k += 2) out.push(k / den);
-  return out;
-}
-
 function seek(v: HTMLVideoElement, t: number, timeoutMs: number): Promise<boolean> {
   return new Promise((resolve) => {
     let done = false;
@@ -123,32 +118,22 @@ async function analyzeVideo(s: MagicSource, budgetMs: number, signal?: { cancell
   const dur = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : fallbackDur;
   const audioP = videoAudio(s.uri, deadline);
   const want = Math.max(6, Math.min(28, Math.round(dur * 2.5)));
-  const { w, h } = ANALYSIS;
-  const got: { t: number; gray: Float32Array; st: FrameStats }[] = [];
+  const got: VideoFrame[] = [];
   for (const f of coarseToFine(want)) {
     if (signal?.cancelled || (got.length >= 5 && now() > deadline)) break;
     const t = Math.min(dur - 0.05, Math.max(0, f * dur));
     if (!(await seek(v, t, 700))) continue;
     const px = pixels(v, v.videoWidth, v.videoHeight, true);
     if (!px) continue;
-    const gray = grayOf(px, w, h);
-    got.push({ t, gray, st: frameStats(px, w, h, gray) });
+    got.push(videoFrame(t, px));
   }
   const aspect = v.videoWidth / v.videoHeight;
   free();
   if (!got.length) return flat(dur, aspect);
-  got.sort((a, b) => a.t - b.t);
   const audio = await Promise.race([audioP, new Promise<null>((r) => setTimeout(() => r(null), Math.max(200, deadline - now() + 600)))]);
-  const samples: VideoSample[] = got.map((x, i) => {
-    const m = i > 0 ? frameMotion(got[i - 1].gray, x.gray, w, h) : got.length > 1 ? frameMotion(x.gray, got[1].gray, w, h) : { motion: 0, spread: 0 };
-    const a = audio ? Math.max(audio[Math.floor(x.t * 10)] ?? 0, audio[Math.floor(x.t * 10) + 1] ?? 0, audio[Math.max(0, Math.floor(x.t * 10) - 1)] ?? 0) : undefined;
-    return { t: Math.round(x.t * 1000) / 1000, luma: x.st.luma, sharp: x.st.sharp, motion: m.motion, spread: m.spread, ...(a != null ? { audio: a } : {}) };
-  });
-  const track: MomentTrack = { duration: dur, samples };
-  const avg = (f: (s: FrameStats) => number) => got.reduce((n, x) => n + f(x.st), 0) / got.length;
-  const look = { luma: avg((x) => x.luma), sat: avg((x) => x.sat), rgb: [avg((x) => x.rgb[0]), avg((x) => x.rgb[1]), avg((x) => x.rgb[2])] as [number, number, number] };
+  // As contas dos frames e do som são as do magic.ts (as mesmas da app), com o som em blocos de 0,1 s.
   const silent = audio ? audio.every((e) => e === 0) : undefined;
-  return videoItem(s.key, aspect, track, look, audio ? !silent : undefined);
+  return videoItemFromFrames(s.key, aspect, dur, got, audio ? { energy: audio, rate: 10 } : null, audio ? !silent : undefined);
 }
 
 /**
@@ -179,12 +164,8 @@ export async function analyzeSources(sources: MagicSource[], opts: AnalyzeOption
   return sources.map((s) => ({ ...(itemCache.get(s.uri) ?? neutral(s)), key: s.key, video: s.video }));
 }
 
-const FLAT_LOOK = { luma: 0.5, sharp: 0.05, sat: 0.3, rgb: [0.5, 0.5, 0.5] as [number, number, number] };
-const FLAT_FOCUS = { x: 0.5, y: 0.45, box: { x0: 0.3, y0: 0.25, x1: 0.7, y1: 0.65 }, face: false, strength: 0.3 };
 /** Um ficheiro que não se conseguiu ver: valores neutros (entra na montagem pela ordem em que veio, do início). */
-export function neutral(s: MagicSource): MagicItem {
-  return s.video ? videoItem(s.key, 9 / 16, { duration: Math.max(0.5, (s.durationMs ?? 5000) / 1000), samples: [] }, FLAT_LOOK) : photoItem(s.key, 9 / 16, FLAT_LOOK, FLAT_FOCUS);
-}
+export const neutral = neutralItem;
 
 type AC = typeof OfflineAudioContext;
 /** Descodifica para mono a ~11 kHz (chega para a energia e para as batidas, e ocupa pouca memória). */

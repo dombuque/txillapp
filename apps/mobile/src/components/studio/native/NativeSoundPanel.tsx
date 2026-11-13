@@ -181,9 +181,9 @@ export function NativeSoundPanel(p: {
             <View key={c.key} style={st.clipSound}>
               <View style={st.sliderHead}>
                 <Text style={st.label}>{c.label}{c.hasAudio === false ? ' · sem som' : ''}</Text>
-                <Chip label={c.on ? 'Ligado' : 'Calado'} on={c.on} onPress={() => p.onClipSound(c.key, { on: !c.on })} disabled={locked} />
+                <Chip label={c.on ? 'Ligado' : 'Calado'} on={c.on && c.hasAudio !== false} onPress={() => p.onClipSound(c.key, { on: !c.on })} disabled={locked || c.hasAudio === false} />
               </View>
-              {c.on ? <RangeSlider label={`Volume: ${c.label}`} value={Math.round(c.volume * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => p.onClipSound(c.key, { volume: v / 100 })} /> : null}
+              {c.on && c.hasAudio !== false ? <RangeSlider label={`Volume: ${c.label}`} value={Math.round(c.volume * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => p.onClipSound(c.key, { volume: v / 100 })} /> : null}
             </View>
           ))}
           {p.music || p.duet ? <Slider label={p.duet && !p.music ? 'Som do original' : 'Música'} value={Math.round(p.musicVol * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => p.setMusicVol(v / 100)} /> : null}

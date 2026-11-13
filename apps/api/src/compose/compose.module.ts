@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { MediaModule } from '../media/media.module';
 import { MusicModule } from '../music/music.module';
+import { ComposeAnalyzeService } from './analyze.service';
 import { ComposeController } from './compose.controller';
 import { ComposeService } from './compose.service';
 import { VoicePreviewService } from './voice-preview.service';
@@ -10,7 +11,7 @@ import { VoicePreviewService } from './voice-preview.service';
 @Module({
   imports: [AuthModule, MediaModule, MusicModule],
   controllers: [ComposeController],
-  providers: [ComposeService, VoicePreviewService],
+  providers: [ComposeService, VoicePreviewService, ComposeAnalyzeService],
   exports: [ComposeService],
 })
 export class ComposeModule {}
