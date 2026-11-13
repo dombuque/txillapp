@@ -4,9 +4,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { ApiError, api } from '@/lib/api';
+import { api } from '@/lib/api';
 import { geladaApi, geladaKeys, type GeladaAnswer, type GeladaDrink, type GeladaRequest } from '@/lib/api.gelada';
-import { ANSWERS, cardTitle, drinkLabel, handleOf, statusLine } from '@/lib/gelada';
+import { ANSWERS, cardTitle, drinkLabel, handleOf, statusLine, geladaErrorText } from '@/lib/gelada';
 import type { LocationMessage } from '@/lib/sendLocation';
 import { colors } from '@/lib/theme';
 import { CheersPour } from '../CheersPour';
@@ -77,7 +77,7 @@ export function useAnswerGelada(onDone?: (r: GeladaRequest) => void) {
       void qc.invalidateQueries({ queryKey: geladaKeys.book() });
       return r.request;
     } catch (e) {
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui responder agora. Tenta outra vez.');
+      Alert.alert('Não deu', geladaErrorText(e, 'Não consegui responder agora. Tenta outra vez.'));
       return null;
     } finally {
       setBusy(null);

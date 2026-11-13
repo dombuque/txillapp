@@ -113,3 +113,61 @@ test('avisos da gelada na lista: sem álcool no texto quando é refresco, e para
   assert.equal(g.geladaNoticeTarget('gelada_tag', { postId: 'abc' }), '/p/abc');
   assert.equal(g.geladaNoticeTarget('gelada_paid', {}), '/geladas');
 });
+
+test('«Já paguei» no local: distância, etiqueta «no Bar X», o raio de 150 m e a ordem dos locais', () => {
+  assert.equal(g.NEAR_M, 150);
+  const at = { lat: -25.9692, lng: 32.5732 };
+  const m = g.metersBetween(at, { lat: at.lat + 0.00045, lng: at.lng });
+  assert.ok(m > 45 && m < 55, `~50 m, deu ${m}`);
+  assert.equal(g.distanceLabel(4), 'a 10 m');
+  assert.equal(g.distanceLabel(84), 'a 80 m');
+  assert.equal(g.distanceLabel(1234), 'a 1,2 km');
+  assert.equal(g.distanceLabel(15_400), 'a 15 km');
+  assert.equal(g.venueTag({ name: 'Bar Costa', kind: 'bar' }), 'no Bar Costa');
+  assert.equal(g.venueTag({ name: 'Coconuts', kind: 'discoteca' }), 'na Coconuts');
+  assert.equal(g.venueTag({ name: 'Sem tipo' }), 'no Sem tipo');
+  const list = [
+    { slug: 'longe', lat: at.lat + 0.05, lng: at.lng },
+    { slug: 'sem-mapa', lat: null, lng: null },
+    { slug: 'aqui', lat: at.lat + 0.0004, lng: at.lng },
+    { slug: 'aqui', lat: at.lat + 0.0004, lng: at.lng }, // repetido (perto e na pesquisa)
+    { slug: 'perto', lat: at.lat + 0.003, lng: at.lng },
+  ];
+  const r = g.venuesByDistance(list, at);
+  assert.deepEqual(r.map((v) => v.slug), ['aqui', 'perto', 'longe', 'sem-mapa']);
+  assert.deepEqual(r.map((v) => v.near), [true, false, false, false]);
+  assert.equal(r[3].meters, null);
+  // Sem posição: a ordem que veio, ninguém «aqui».
+  assert.deepEqual(g.venuesByDistance(list, null).map((v) => [v.slug, v.near]), [['longe', false], ['sem-mapa', false], ['aqui', false], ['perto', false]]);
+  // O aviso a quem recebe diz onde foi.
+  assert.equal(g.geladaNoticeText('gelada_paid', { step: 'claimed', venue: 'Bar Costa', venueKind: 'bar' }), 'diz que já te pagou no Bar Costa. Confirmas?');
+  assert.equal(g.geladaNoticeText('gelada_paid', { step: 'confirmed', venue: 'Bar Costa' }), 'confirmou que pagaste 🙌');
+  // O ecrã do livro usa a folha nova e manda o local com a posição.
+  const book = read('app', 'geladas.tsx');
+  assert.match(book, /<PaidSheet debt=\{claiming\}/);
+  assert.match(book, /venueSlug: place\.slug/);
+  assert.match(book, /✓ estiveram lá/);
+  assert.match(book, /place: d\.venue\?\.name/, '«Publicar o momento» leva o local');
+  const sheet = read('components', 'gelada', 'PaidSheet.tsx');
+  assert.match(sheet, /locaisApi\.discover\(coarse\)/, 'perto: só a posição arredondada vai ao servidor');
+  assert.match(sheet, /locaisApi\.searchVenues\(term\)/);
+});
+
+test('erros da gelada: a frase do servidor (com o @) passa; as genéricas e em inglês não', () => {
+  const f = 'Não consegui agora. Tenta outra vez.';
+  const limit = 'Já pediste 3 geladas ao @ana hoje. Amanhã há mais 🍻';
+  assert.equal(g.geladaErrorText({ status: 429, message: limit }, f), limit);
+  assert.equal(g.geladaErrorText({ status: 403, message: 'O @rui não aceita pedidos públicos: manda-lhe no chat.' }, f), 'O @rui não aceita pedidos públicos: manda-lhe no chat.');
+  assert.match(g.geladaErrorText({ status: 429, message: 'ThrottlerException: Too Many Requests' }, f), /^Foram muitos pedidos seguidos/);
+  for (const message of ['Erro inesperado', 'Forbidden', 'Internal server error', 'Dados inválidos', 'Bad Request', '']) assert.equal(g.geladaErrorText({ status: 500, message }, f), f);
+  assert.match(g.geladaErrorText(new TypeError('Failed to fetch'), f), /sem rede/);
+  assert.equal(g.geladaErrorText(new Error('Não consegui carregar a foto.'), f), 'Não consegui carregar a foto.');
+  assert.equal(g.geladaErrorText(null, f), f);
+  assert.equal(g.geladaErrorText(undefined, f), f);
+  // Todos os caminhos (chat, post, rodada, livro) mostram a frase do servidor por aqui, nunca um erro genérico.
+  for (const file of [['components', 'gelada', 'AskSheet.tsx'], ['components', 'gelada', 'GeladaCard.tsx'], ['components', 'gelada', 'GeladaPostCard.tsx'], ['components', 'gelada', 'RoundCard.tsx'], ['app', 'geladas.tsx'], ['app', 'messages', 'g', '[id].tsx']]) {
+    const src = read(...file);
+    assert.match(src, /geladaErrorText\(e, '/, file.join('/'));
+    assert.doesNotMatch(src, /e instanceof ApiError && e\.message \? e\.message/, file.join('/'));
+  }
+});

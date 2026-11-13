@@ -30,6 +30,7 @@ import { GroupCtx, NewPollSheet } from '@/components/groups/PollCard';
 import { PotPanel } from '@/components/groups/PotPanel';
 import { api } from '@/lib/api';
 import { geladaApi } from '@/lib/api.gelada';
+import { geladaErrorText } from '@/lib/gelada';
 import { gruposApi, type GroupThread } from '@/lib/api.grupos';
 import { dateRange, groupKindOf, kindInfo, type TxillGroupInfo, type TxillGroupSummary } from '@/lib/api.groups';
 import { useDesktopSizes } from '@/lib/desktop';
@@ -105,7 +106,7 @@ export default function GroupThreadScreen() {
       await geladaApi.openRound(id);
       void q.refetch();
     } catch (e) {
-      Alert.alert('Rodada', (e as Error).message || 'Não consegui abrir a rodada. Tenta outra vez.');
+      Alert.alert('Rodada', geladaErrorText(e, 'Não consegui abrir a rodada. Tenta outra vez.'));
     }
   }
   // As mensagens temporárias que expiram com o grupo aberto saem logo (lib/chatTemporary).

@@ -3,10 +3,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ApiError, api } from '@/lib/api';
+import { api } from '@/lib/api';
 import { geladaApi, geladaKeys, type DrinkChoice, type GeladaChannel } from '@/lib/api.gelada';
 import { useAuth } from '@/lib/auth';
-import { drinkEmoji, drinkPhrase, pickable } from '@/lib/gelada';
+import { drinkEmoji, drinkPhrase, pickable, geladaErrorText } from '@/lib/gelada';
 import { colors } from '@/lib/theme';
 import { Avatar } from '../Avatar';
 import { Icon } from '../Icon';
@@ -84,7 +84,7 @@ export function AskSheet({ to, itemId, lockTo = false, defaultChannel = 'chat', 
         doneTimer.current = setTimeout(onClose, 1400);
       }
     } catch (e) {
-      setErr(e instanceof ApiError && e.message ? e.message : 'Não consegui mandar o pedido. Tenta outra vez.');
+      setErr(geladaErrorText(e, 'Não consegui mandar o pedido. Tenta outra vez.'));
       setBusy(false);
     }
   }
