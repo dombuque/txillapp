@@ -70,7 +70,7 @@ const lerp = (a: number, b: number, t: number) => {
  * ATENÇÃO (worklet): nada de valores por omissão que usem constantes de fora (`behind = DECK_BEHIND`). No telemóvel o
  * worklet só recebe as variáveis de fora (o `__closure`) já DENTRO do corpo; o valor por omissão corre antes e dá
  * «ReferenceError: Property 'DECK_BEHIND' doesn't exist» na thread da UI, o que fecha a app sem aviso (APK 1.47.1).
- * O teste tests/zasDeck.test.mjs corre os worklets como no telemóvel e apanha isto.
+ * O teste tests/worklets.test.mjs corre os worklets como no telemóvel e apanha isto.
  */
 export function deckPose(d: number, w: number, h: number, behind?: number): DeckPose {
   'worklet';
