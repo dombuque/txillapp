@@ -66,3 +66,10 @@ test('ownerCheersText: "🥂 12 brindes à tua geleira"; sem brindes, nada', () 
   assert.equal(c.ownerCheersText(0), '');
   assert.equal(c.ownerCheersText(-2), '');
 });
+
+test('duplo toque no meio do post da geleira brinda o post (como nas fotos)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/components/PostCard.tsx', import.meta.url), 'utf8');
+  assert.match(src, /<DoubleTapArea onDouble=\{\(\) => void brindar\(\)\}[^>]*>\s*<GeleiraPostCard/);
+  assert.match(src, /function DoubleTapArea[\s\S]*useTap\(onDouble\)[\s\S]*dblclick/);
+});

@@ -87,6 +87,26 @@ function useTap(double?: () => void) {
   return run;
 }
 
+/**
+ * Uma zona que brinda com o duplo toque (o cartão da geleira partilhada): no telemóvel dois toques seguidos, no computador o
+ * duplo clique. Os toques nos gostos lá dentro continuam a ser deles (brindar esse gosto); o duplo toque no resto brinda o post.
+ */
+function DoubleTapArea({ onDouble, label, children }: { onDouble: () => void; label: string; children: ReactNode }) {
+  const tap = useTap(onDouble);
+  const tapRef = useRef(tap);
+  tapRef.current = tap;
+  const dblRef = useCallback((node: unknown) => {
+    const el = node as HTMLElement | null;
+    if (!el || typeof el.addEventListener !== 'function') return;
+    el.addEventListener('dblclick', (e) => { e.preventDefault(); tapRef.current.dbl(); });
+  }, []);
+  return (
+    <Pressable ref={Platform.OS === 'web' ? (dblRef as never) : undefined} onPress={() => tap()} accessibilityLabel={label} accessibilityHint="Toca duas vezes para brindar">
+      {children}
+    </Pressable>
+  );
+}
+
 /** Duplo toque: brinda (só põe, nunca tira) e dá o sinal para a animação do copo. */
 function useBrindar(post: Post, patch: (p: Partial<Post>) => void) {
   const [burst, setBurst] = useState(0);
@@ -330,10 +350,10 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
       {post.music && musicPlacement(post) === 'card' ? <MusicCard track={post.music} visible={musicOn} soundTo={soundHref(post as { sound?: unknown })} /> : null}
       {/* A geleira partilhada (0143): o frigorífico com os gostos; tocar num gosto brinda-o, o botão Brindar brinda o post todo. */}
       {!quote && post.geleira ? (
-        <View>
+        <DoubleTapArea onDouble={() => void brindar()} label="Geleira (toca duas vezes para brindar)">
           <GeleiraPostCard post={post} me={me} detail={detail} onOpen={goPost} />
           <CheersPour n={burst} size={Math.min(200, inner * 0.55)} />
-        </View>
+        </DoubleTapArea>
       ) : !quote && post.media.length ? (
         // O brinde aparece no meio da foto ou do vídeo.
         <View>
