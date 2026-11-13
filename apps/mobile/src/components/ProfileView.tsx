@@ -24,6 +24,7 @@ import { FollowButton } from './FollowButton';
 import { GeleiraShelf, GeleiraToggle } from './GeleiraShelf';
 import { AskSheet } from './gelada/AskSheet';
 import { GeleiraGridTile } from './GeleiraPostCard';
+import { GeladaGridTile } from './gelada/GeladaPostCard';
 import { ProfileQrSheet } from './ProfileQrSheet';
 import { ProfileStoryAvatar } from './ProfileStoryAvatar';
 import { GiftSheet } from './PostSheets';
@@ -91,6 +92,9 @@ function Grid({ posts, onOpen, width }: { posts: Post[]; onOpen: (p: Post) => vo
                 <Text style={styles.giftAmount}>{post.gift.amount.toLocaleString('pt-PT')}</Text>
                 <Text style={styles.giftLabel}>TXILLS</Text>
               </LinearGradient>
+            ) : shown.gelada ? (
+              // O «Paga-me uma» publicado: a garrafa e quem já pagou, como no post.
+              <GeladaGridTile gelada={shown.gelada} size={size} />
             ) : shown.geleira ? (
               // A geleira partilhada: o frigorífico aberto e quantos gostos.
               <GeleiraGridTile geleira={shown.geleira} size={size} />

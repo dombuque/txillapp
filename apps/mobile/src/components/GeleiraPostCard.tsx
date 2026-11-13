@@ -242,12 +242,32 @@ export function GeleiraMini({ geleira, name, ink = colors.zinc900 }: { geleira: 
 }
 
 /** O quadrado da grelha do perfil: o frigorífico aberto e quantos gostos. */
+/**
+ * A geleira partilhada na grelha do perfil: o mesmo frigorífico do post, em pequeno (a moldura azul, as prateleiras e os
+ * primeiros gostos), para a grelha mostrar o que o post mostra.
+ */
 export function GeleiraGridTile({ geleira, size }: { geleira: PostGeleira; size: number }) {
+  const cols = 3;
+  const bubble = Math.max(18, Math.floor((size - 34) / cols) - 6);
+  const shelves = [geleira.items.slice(0, cols), geleira.items.slice(cols, cols * 2)].filter((r) => r.length);
+  const more = Math.max(0, geleira.total - shelves.flat().length);
   return (
-    <LinearGradient colors={['#e0f2fe', '#fdf2f8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', gap: 2 }]}>
-      <FridgeArt count={geleira.items.length} level={geleira.level} open size={Math.round(size * 0.4)} />
-      <Text style={{ fontSize: 12, fontWeight: '800', color: colors.zinc900 }}>Geleira</Text>
-      <Text style={{ fontSize: 11, fontWeight: '600', color: SKY700 }}>{tastesCount(geleira.total)}</Text>
+    <LinearGradient colors={['#f0f9ff', '#ffffff', '#fdf2f8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[StyleSheet.absoluteFill, { padding: 7 }]}>
+      <Text style={[st.over, { fontSize: 9, letterSpacing: 1 }]} numberOfLines={1}>GELEIRA</Text>
+      <View style={[st.body, { flex: 1, marginTop: 4, borderWidth: 2, borderRadius: 12, padding: 3, borderColor: '#7cc7e8' }]}>
+        <LinearGradient colors={['#fffbeb', '#f0f9ff']} style={[st.inside, { flex: 1, borderRadius: 8, borderWidth: 1, borderColor: '#bae6fd', paddingTop: 8, paddingHorizontal: 3, paddingBottom: 3, justifyContent: 'space-evenly' }]}>
+          <View style={[st.light, { width: 6, height: 6, top: 2 }]} />
+          {shelves.length ? shelves.map((row, i) => (
+            <View key={i}>
+              <View style={[st.row, { justifyContent: 'space-around' }]}>
+                {row.map((it) => <TasteBubble key={it.id} item={it} size={bubble} />)}
+              </View>
+              <View style={[st.board, { height: 3, marginTop: 2, marginBottom: 0 }]} />
+            </View>
+          )) : <FridgeArt count={0} level={geleira.level} open size={Math.round(size * 0.3)} />}
+        </LinearGradient>
+      </View>
+      <Text style={{ marginTop: 3, fontSize: 10, fontWeight: '700', color: SKY700, textAlign: 'center' }} numberOfLines={1}>{more ? `${tastesCount(geleira.total)} · +${more}` : tastesCount(geleira.total)}</Text>
     </LinearGradient>
   );
 }

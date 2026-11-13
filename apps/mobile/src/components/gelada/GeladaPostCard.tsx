@@ -152,3 +152,25 @@ const st = StyleSheet.create({
   untag: { marginTop: 6, alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center' },
   untagText: { fontSize: 13, fontWeight: '600', color: colors.zinc600, textDecorationLine: 'underline' },
 });
+
+/**
+ * O «Paga-me uma» na grelha do perfil: o mesmo do post em pequeno (a garrafa no fundo amarelo, «PAGA-ME UMA», a bebida e
+ * quantos já pagaram), para a grelha mostrar o que o post mostra.
+ */
+export function GeladaGridTile({ gelada, size }: { gelada: PostGelada; size: number }) {
+  const soft = !(gelada.drink.alcoholic && !gelada.drink.masked);
+  const paid = gelada.requests.filter((r) => r.status === 'accepted').length;
+  const total = gelada.requests.length;
+  return (
+    <LinearGradient colors={['#fffbeb', '#ffffff', '#fff1f2']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[StyleSheet.absoluteFill, { padding: 7, alignItems: 'center' }]}>
+      <Text style={[st.kicker, { fontSize: 9, letterSpacing: 0.8 }]} numberOfLines={1}>{soft ? 'PAGA-ME UM REFRESCO' : 'PAGA-ME UMA'}</Text>
+      <LinearGradient colors={soft ? ['#f0f9ff', '#bae6fd'] : ['#fff7e6', '#fde68a']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[st.hero, { flex: 1, width: '100%', height: undefined, marginTop: 4, borderRadius: 12, paddingBottom: 4 }]}>
+        <View style={[st.glow, { width: size * 0.6, height: size * 0.6, borderRadius: size * 0.3, top: -size * 0.1 }]} />
+        <View style={{ zIndex: 1 }}><DrinkArt slug={gelada.drink.slug} category={gelada.drink.category} size={Math.round(size * 0.42)} /></View>
+        <View style={[st.shelf, { width: '70%' }]} />
+      </LinearGradient>
+      <Text style={{ marginTop: 3, fontSize: 11, fontWeight: '800', color: colors.zinc900 }} numberOfLines={1}>{drinkLabel(gelada.drink)}</Text>
+      <Text style={{ fontSize: 10, fontWeight: '700', color: paid ? '#15803d' : colors.zinc500 }} numberOfLines={1}>{paid ? `${paid} de ${total} ${paid === 1 ? 'pagou' : 'pagaram'} 🍻` : `${total} ${total === 1 ? 'pedido' : 'pedidos'}`}</Text>
+    </LinearGradient>
+  );
+}
