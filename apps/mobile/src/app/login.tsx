@@ -6,11 +6,13 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { GoogleButton } from '@/components/GoogleButton';
+import { useHumanCheck } from '@/components/HumanCheck';
 import { Icon } from '@/components/Icon';
 import { Wordmark } from '@/components/Wordmark';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
+import { needsHumanCheck, securityErrorText } from '@/lib/humanCheck';
 import { colors } from '@/lib/theme';
 
 const open = (path: string) => void Linking.openURL(`${SITE_URL || 'https://txillapp.com'}${path}`);
@@ -133,6 +135,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const pass = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const human = useHumanCheck();
   // Ligação de convite (/login?convite=CODIGO): quem chega assim é novo, vai direto para criar conta.
   const { convite, entrar } = useLocalSearchParams<{ convite?: string; entrar?: string }>();
   const wide = useWindowDimensions().width >= 1024;
@@ -146,15 +149,23 @@ export default function Login() {
     if (!identifier.trim() || !password) return setError('Escreve o teu @ (ou email) e a senha');
     setBusy(true);
     setError('');
+    const who = identifier.trim().replace(/^@/, '');
     try {
-      await signIn(identifier.trim().replace(/^@/, ''), password);
+      try {
+        await signIn(who, password);
+      } catch (x) {
+        // Depois de várias falhas o servidor pede a prova de humano: faz-se (quase sempre sem tocar em nada) e tenta-se uma vez.
+        if (!(x instanceof ApiError) || !needsHumanCheck(x)) throw x;
+        await signIn(who, password, await human.getToken());
+      }
     } catch (x) {
-      setError(x instanceof ApiError && x.status === 401 ? 'Hmm, essas credenciais não batem' : (x as Error).message);
+      setError(x instanceof ApiError ? securityErrorText(x, 'login') : (x as Error).message);
       setBusy(false);
     }
   }
 
   return (
+    <>
     <Screen
       footer={
         <Text style={styles.footerText}>
@@ -211,6 +222,8 @@ export default function Login() {
       <GoogleButton mode="login" onError={setError} />
       <View style={{ height: 24 }} />
     </Screen>
+    {human.node}
+    </>
   );
 }
 

@@ -13,8 +13,9 @@ interface AuthState {
   loading: boolean;
   /** Sem rede ao abrir: a app tenta outra vez em vez de pedir login. */
   offline: boolean;
-  signIn: (identifier: string, password: string) => Promise<void>;
-  signUp: (b: Parameters<typeof api.register>[0]) => Promise<void>;
+  /** `turnstileToken`: a prova de humano (ver lib/humanCheck), quando há. */
+  signIn: (identifier: string, password: string, turnstileToken?: string) => Promise<void>;
+  signUp: (b: Parameters<typeof api.register>[0], turnstileToken?: string) => Promise<void>;
   /** Entra com uma sessão já obtida (ex.: depois do login com Google). */
   signInWith: (r: AuthResult) => void;
   /** Termina a sessão desta conta. Devolve `true` se passou para outra conta guardada neste aparelho. */
@@ -71,15 +72,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [attempt]);
 
-  const signIn = useCallback(async (identifier: string, password: string) => {
-    const r = await api.login(identifier, password);
+  const signIn = useCallback(async (identifier: string, password: string, turnstileToken?: string) => {
+    const r = await api.login(identifier, password, turnstileToken);
     accounts.endAdd();
     qc.clear();
     setUser(r.user);
   }, [qc]);
 
-  const signUp = useCallback(async (b: Parameters<typeof api.register>[0]) => {
-    const r = await api.register(b);
+  const signUp = useCallback(async (b: Parameters<typeof api.register>[0], turnstileToken?: string) => {
+    const r = await api.register(b, turnstileToken);
     accounts.endAdd();
     qc.clear();
     setUser(r.user);

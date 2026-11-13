@@ -60,6 +60,7 @@ const BoHome = lazy(() => import('./pages/backoffice/Home'));
 const BoReports = lazy(() => import('./pages/backoffice/Reports'));
 const BoUsers = lazy(() => import('./pages/backoffice/Users'));
 const BoUser = lazy(() => import('./pages/backoffice/UserSheet'));
+const BoSuspects = lazy(() => import('./pages/backoffice/Suspects'));
 const BoAudit = lazy(() => import('./pages/backoffice/Audit'));
 const BoTeam = lazy(() => import('./pages/backoffice/Team'));
 const BoVenues = lazy(() => import('./pages/backoffice/Venues'));
@@ -213,6 +214,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="reports" element={<Suspense fallback={null}><BoReports /></Suspense>} />
                   <Route path="users" element={<Suspense fallback={null}><BoUsers /></Suspense>} />
                   <Route path="users/:id" element={<Suspense fallback={null}><BoUser /></Suspense>} />
+                  <Route path="suspeitas" element={<Suspense fallback={null}><BoSuspects /></Suspense>} />
                   <Route path="audit" element={<Suspense fallback={null}><BoAudit /></Suspense>} />
                   <Route path="team" element={<Suspense fallback={null}><BoTeam /></Suspense>} />
                   <Route path="venues" element={<Suspense fallback={null}><BoVenues /></Suspense>} />

@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
-import { api, type FollowState } from '@/lib/api';
+import { Alert, Pressable, StyleSheet, Text } from 'react-native';
+import { ApiError, api, type FollowState } from '@/lib/api';
 import { colors } from '@/lib/theme';
 
 /** Seguir / A seguir / Pedido enviado (perfis privados). Responde já e volta atrás se falhar. */
@@ -24,8 +24,10 @@ export function FollowButton({ username, following, requested, isPrivate }: { us
       }
       for (const key of ['stories', 'suggestions', 'feed', 'profile']) void qc.invalidateQueries({ queryKey: [key] });
       void qc.invalidateQueries({ queryKey: ['profile-posts', username] });
-    } catch {
+    } catch (x) {
       setS(prev);
+      // Conta nova em revisão (risk_limited) ou demasiados «seguir» de seguida: o servidor diz porquê.
+      if (x instanceof ApiError && (x.code === 'risk_limited' || x.status === 429)) Alert.alert('Agora não', x.code === 'risk_limited' ? x.message : 'Estás a seguir muita gente de seguida. Espera um bocado e tenta outra vez.');
     } finally {
       setBusy(false);
     }

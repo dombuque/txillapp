@@ -21,6 +21,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
   ] },
   { title: 'Pessoas', items: [
     { to: '/backoffice/users', label: 'Utilizadores', icon: 'user', perm: 'users.view' },
+    { to: '/backoffice/suspeitas', label: 'Contas suspeitas', icon: 'alert', perm: 'users.view' },
     { to: '/backoffice/team', label: 'Equipa', icon: 'users', perm: 'staff.manage' },
   ] },
   { title: 'Negócio', items: [
