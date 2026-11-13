@@ -17,6 +17,13 @@ import { encodeWav, renderSfxTrack, reverbImpulse, VOICE_FX_IDS } from './audio'
 import { ComposeService, RESTART_ERROR } from './compose.service';
 import { probe } from './ffmpeg';
 import { voiceFxGraph } from './plan';
+import { createCanvas } from '@napi-rs/canvas';
+import { applyFxPixel, fxSeconds, resolveFx, sanitizeOverlay, type Overlay } from './effects';
+import { drawCapulanaFrame, drawCapulanaTransition } from './capulanaRender';
+import { frameLayout } from './capulanaShapes';
+import { drawOverlays } from './renderOverlays';
+import { drawTransition, type Scratch } from './renderTransitions';
+import { ensureStudioFonts } from './studio-canvas';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
@@ -538,6 +545,342 @@ describe('montagem das tchekas no servidor (POST /tchekas/compose)', () => {
     for (let k = 0; k < ex.length; k++) { xy += (ex[k] - mx) * (er[k] - mr); xx += (ex[k] - mx) ** 2; yy += (er[k] - mr) ** 2; }
     expect(xy / Math.sqrt(xx * yy)).toBeGreaterThan(0.9);
   }, 240_000);
+
+  // ------------------------------------------------------------------ os efeitos do estúdio (docs/estudio-efeitos.md)
+
+  /** O frame `k` do vídeo (RGB, W×H inteiro). */
+  function frameAt(file: string, k: number): Buffer {
+    return execFileSync(FF, ['-v', 'error', '-i', file, '-vf', `select='eq(n\\,${k})',format=rgb24`, '-frames:v', '1', '-fps_mode', 'passthrough', '-f', 'rawvideo', '-'], { maxBuffer: 64 * 1024 * 1024 });
+  }
+  const FW = 1080, FH = 1920;
+  /** A média RGB de um quadrado de um frame já lido. */
+  const meanAt = (f: Buffer, x: number, y: number, s = 16, w = FW): [number, number, number] => {
+    const m = [0, 0, 0];
+    for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) for (let c = 0; c < 3; c++) m[c] += f[((y + j) * w + x + i) * 3 + c];
+    return m.map((v) => v / (s * s)) as [number, number, number];
+  };
+  const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  function deltaE(a: readonly number[], b: readonly number[]): number {
+    const lab = (rgb: readonly number[]) => {
+      const [R, G, B] = rgb.map((v) => lin(Math.min(255, Math.max(0, v)) / 255));
+      const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116);
+      const x = f((0.4124 * R + 0.3576 * G + 0.1805 * B) / 0.95047), y = f(0.2126 * R + 0.7152 * G + 0.0722 * B), z = f((0.0193 * R + 0.1192 * G + 0.9505 * B) / 1.08883);
+      return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+    };
+    const A = lab(a), B = lab(b);
+    return Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]);
+  }
+  /** O canvas do Node com o desenho do site (as mesmas funções que a montagem usa) → RGB por cima de um fundo. */
+  function canvasRgb(draw: (g: CanvasRenderingContext2D) => void, bg = '#000'): Buffer {
+    ensureStudioFonts();
+    const c = createCanvas(FW, FH);
+    const g = c.getContext('2d');
+    g.fillStyle = bg;
+    g.fillRect(0, 0, FW, FH);
+    draw(g as unknown as CanvasRenderingContext2D);
+    const d = g.getImageData(0, 0, FW, FH).data;
+    const out = Buffer.alloc(FW * FH * 3);
+    for (let i = 0; i < FW * FH; i++) { out[i * 3] = d[i * 4]; out[i * 3 + 1] = d[i * 4 + 1]; out[i * 3 + 2] = d[i * 4 + 2]; }
+    return out;
+  }
+  /** A diferença média (0–255) entre dois frames numa caixa, e quantos píxeis claros cada um tem lá. */
+  function compare(a: Buffer, b: Buffer, box: { x: number; y: number; w: number; h: number }) {
+    let diff = 0, n = 0, ba = 0, bb = 0;
+    for (let y = box.y; y < box.y + box.h; y += 2) for (let x = box.x; x < box.x + box.w; x += 2) {
+      const i = (y * FW + x) * 3;
+      let la = 0, lb = 0;
+      for (let c = 0; c < 3; c++) { diff += Math.abs(a[i + c] - b[i + c]); la += a[i + c]; lb += b[i + c]; }
+      if (la > 300) ba++;
+      if (lb > 300) bb++;
+      n += 3;
+    }
+    return { diff: diff / n, bright: ba, brightRef: bb };
+  }
+  const GIF_URL = 'https://media.giphy.com/media/Txill42gif/giphy.gif';
+
+  it('efeitos: o filtro (ΔE à fórmula do site) e um ajuste (brilho e vinheta) no vídeo final', async () => {
+    // Retalhos de cor grandes (a compressão e o 4:2:0 não mexem no meio deles) e um cinzento liso para o ajuste.
+    const colors = ['0xc0392b', '0x2e86c1', '0xf1c40f', '0x27ae60', '0x8e44ad', '0xe67e22', '0xecf0f1', '0x34495e'];
+    const boxes = colors.map((c, i) => `drawbox=x=${(i % 2) * 180}:y=${Math.floor(i / 2) * 160}:w=180:h=160:c=${c}:t=fill`).join(',');
+    const patches = make('retalhos.mp4', ['-f', 'lavfi', '-i', `color=c=gray:size=360x640:rate=30:duration=3,${boxes}`, '-f', 'lavfi', '-i', 'sine=frequency=440:duration=3', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '10', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest']);
+    const gray = make('cinza.mp4', ['-f', 'lavfi', '-i', 'color=c=0x808080:size=360x640:rate=30:duration=3', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=3', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '10', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest']);
+    const u = await register('fxcor'); // uma conta por teste: o envio de vídeos tem um limite por hora
+    const v1 = await calmVideo(u, patches), v2 = await calmVideo(u, gray);
+    const filterFx = { filter: { id: 'limpopo', amount: 1 } };
+    const adjustFx = { transition: { type: 'corte' as const, dur: 0.5 }, adjust: { brightness: 0.4, vignette: 0.8 } };
+    const f = await done(u, { clips: [{ mediaId: v1, kind: 'video', trimEndMs: 3000, fx: filterFx }, { mediaId: v2, kind: 'video', trimEndMs: 3000, fx: adjustFx }] });
+    const p = await probe(f);
+    expect(p).toMatchObject({ width: 1080, height: 1920, hasAudio: true });
+    expect(Math.abs(p.seconds - 6)).toBeLessThan(0.1);
+
+    // O filtro: cada retalho do vídeo final contra applyFxPixel(o mesmo píxel da fonte), com a vinheta no sítio dele.
+    const src = execFileSync(FF, ['-v', 'error', '-ss', '1', '-i', join(work, 'retalhos.mp4'), '-frames:v', '1', '-vf', 'format=rgb24', '-f', 'rawvideo', '-']);
+    const got = frameAt(f, 30);
+    const fx = resolveFx(filterFx);
+    const dE = colors.map((_, i) => {
+      const sx = (i % 2) * 180 + 82, sy = Math.floor(i / 2) * 160 + 72; // o meio do retalho na fonte (360×640)
+      const s = meanAt(src, sx, sy, 16, 360);
+      const ox = sx * 3, oy = sy * 3; // no quadro de 1080×1920 (×3)
+      const want = applyFxPixel(fx, s.map((v) => v / 255) as [number, number, number], (ox + 24) / FW, (oy + 24) / FH).map((v) => v * 255);
+      return deltaE(meanAt(got, ox, oy, 48), want);
+    });
+    const mean = dE.reduce((x, y) => x + y, 0) / dE.length;
+    console.log(`ΔE76 do filtro Limpopo no vídeo final (8 retalhos): média ${mean.toFixed(2)}, máximo ${Math.max(...dE).toFixed(2)}`);
+    expect(mean).toBeLessThan(2.5);
+    expect(Math.max(...dE)).toBeLessThan(5);
+
+    // O ajuste: o cinzento fica mais claro no meio (brilho 1 + 0,45·0,4) e escurece nos cantos pela vinheta (cos⁴).
+    const g2 = frameAt(f, 120);
+    const adj = resolveFx(adjustFx);
+    const g0 = meanAt(execFileSync(FF, ['-v', 'error', '-ss', '1', '-i', join(work, 'cinza.mp4'), '-frames:v', '1', '-vf', 'format=rgb24', '-f', 'rawvideo', '-']), 170, 310, 16, 360)[0] / 255;
+    for (const [x, y] of [[532, 952], [100, 100], [60, 1400], [900, 300]]) {
+      const want = applyFxPixel(adj, [g0, g0, g0], (x + 8) / FW, (y + 8) / FH)[0] * 255;
+      expect(Math.abs(meanAt(g2, x, y)[0] - want)).toBeLessThan(6); // ±2 %: o H.264 num cinzento liso
+    }
+    expect(meanAt(g2, 532, 952)[0] - meanAt(g2, 20, 20)[0]).toBeGreaterThan(60); // a vinheta vê-se
+  }, 300_000);
+
+  it('efeitos: a rampa muda a duração como no estúdio e inverter toca do fim para o início, calado', async () => {
+    // Vermelho no 1.º segundo, azul no 2.º: invertido, começa azul e acaba vermelho.
+    const rb = make('vermelho-azul.mp4', ['-f', 'lavfi', '-i', 'color=c=red:size=360x640:rate=30:duration=1', '-f', 'lavfi', '-i', 'color=c=blue:size=360x640:rate=30:duration=1', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=2', '-filter_complex', '[0:v][1:v]concat=n=2:v=1[v]', '-map', '[v]', '-map', '2:a', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest']);
+    const u = await register('fxtempo');
+    const v1 = await calmVideo(u, video('rampa', 4));
+    const v2 = await calmVideo(u, rb);
+    const f = await done(u, {
+      clips: [
+        { mediaId: v1, kind: 'video', trimEndMs: 4000, fx: { ramp: 'heroi' } },
+        { mediaId: v2, kind: 'video', trimEndMs: 2000, fx: { reverse: true, transition: { type: 'corte', dur: 0.5 } } },
+      ],
+      originalVolume: 1,
+    });
+    const p = await probe(f);
+    const ramp = fxSeconds(4, 1, { ramp: 'heroi' }); // 4 s / 0,7 = 5,71 s
+    expect(Math.abs(p.seconds - (Math.round(ramp * 30) / 30 + 2))).toBeLessThan(0.05);
+    // Ao contrário: azul no início do clipe, vermelho no fim.
+    const k0 = Math.round(ramp * 30);
+    const [r1, , b1] = meanAt(frameAt(f, k0 + 8), 500, 400);
+    const [r2, , b2] = meanAt(frameAt(f, k0 + 52), 500, 400);
+    expect(b1).toBeGreaterThan(150);
+    expect(r1).toBeLessThan(80);
+    expect(r2).toBeGreaterThan(150);
+    expect(b2).toBeLessThan(80);
+    // O som do clipe invertido fica calado (o apito de 440 Hz só toca na rampa).
+    const x = pcm(f);
+    expect(tone(x, 440, 0.5, ramp - 0.5)).toBeGreaterThan(0.02);
+    expect(rms(x, ramp + 0.2, ramp + 1.8)).toBeLessThan(0.003);
+  }, 300_000);
+
+  it('efeitos: as transições (fundido, deslizar e glitch) iguais ao desenho do site, sem mudar o ritmo dos cortes', async () => {
+    const cols = ['red', 'blue', 'lime', 'yellow'];
+    const u = await register('fxtrans');
+    const ids: string[] = [];
+    for (const c of cols) ids.push(await calmVideo(u, video(`cor-${c}`, 2, c)));
+    const trs = [{ type: 'fundido', dur: 1 }, { type: 'deslizar-esquerda', dur: 1 }, { type: 'glitch', dur: 0.8 }] as const;
+    const f = await done(u, { clips: ids.map((id, i) => ({ mediaId: id, kind: 'video', trimEndMs: 2000, ...(i ? { fx: { transition: trs[i - 1] } } : {}) })) });
+    const p = await probe(f);
+    expect(Math.abs(p.seconds - 8)).toBeLessThan(0.05); // 4 × 2 s: as transições não mudam a duração
+    const scratch: Scratch = (() => { const m = new Map<string, { c: HTMLCanvasElement; g: CanvasRenderingContext2D }>(); return (n: string, w: number, h: number) => { let s = m.get(n); if (!s || s.c.width !== w || s.c.height !== h) { const c = createCanvas(w, h) as unknown as HTMLCanvasElement; s = { c, g: (c as unknown as { getContext: (k: '2d') => CanvasRenderingContext2D }).getContext('2d') }; m.set(n, s); } return s; }; })();
+    const solid = (rgb: number[]) => { const c = createCanvas(FW, FH); const g = c.getContext('2d'); g.fillStyle = `rgb(${rgb.map(Math.round).join(',')})`; g.fillRect(0, 0, FW, FH); return c as unknown as CanvasImageSource; };
+    const area = { x: 0, y: 0, w: FW, h: 1500 }; // fora da assinatura (em baixo)
+    const report: string[] = [];
+    for (let i = 1; i < 4; i++) {
+      const start = 60 * i;
+      // As cores tal como saíram (antes e depois da transição), como o site usa o último frame do anterior e o frame de agora.
+      const prev = solid(meanAt(frameAt(f, start - 1), 500, 500));
+      const cur = solid(meanAt(frameAt(f, start + 40), 500, 500));
+      for (const k of [start + 3, start + Math.round(trs[i - 1].dur * 15), start + Math.round(trs[i - 1].dur * 30) - 3]) {
+        const want = canvasRgb((g) => drawTransition(g, prev, cur, trs[i - 1].type, (k - start) / 30 / trs[i - 1].dur, FW, FH, scratch));
+        const c = compare(frameAt(f, k), want, area);
+        report.push(`${trs[i - 1].type} p=${((k - start) / 30 / trs[i - 1].dur).toFixed(2)}: ${c.diff.toFixed(2)}`);
+        expect(c.diff).toBeLessThan(trs[i - 1].type === 'glitch' ? 6 : 3);
+      }
+    }
+    console.log(`Transições (diferença média 0–255 ao desenho do site):\n  ${report.join('\n  ')}`);
+    // A curva do site (easeInOutCubic) e não a linear do xfade: a 7/30 do deslizar, o anterior (azul) ainda vai até
+    // x = W·(1 − 0,051) ≈ 1025 px; a direito ficava em 828 px e em x = 900 já se via o verde.
+    const q = frameAt(f, 120 + 7);
+    expect(meanAt(q, 900, 500)[2]).toBeGreaterThan(150);
+    expect(meanAt(q, 900, 500)[1]).toBeLessThan(80);
+  }, 300_000);
+
+  it('efeitos: um texto néon a entrar, um emoji e um GIF do GIPHY (com o fetcher falso) iguais ao site', async () => {
+    // Um GIF de 2 frames (vermelho e verde, 0,5 s cada), servido como se viesse da CDN do GIPHY.
+    const gif = make('anim.gif', ['-f', 'lavfi', '-i', 'color=c=red:size=120x120:rate=2:duration=0.5', '-f', 'lavfi', '-i', 'color=c=lime:size=120x120:rate=2:duration=0.5', '-filter_complex', '[0:v][1:v]concat=n=2:v=1,split[a][b];[a]palettegen[p];[b][p]paletteuse', '-loop', '0']);
+    servedMusic.set(GIF_URL, gif);
+    const text = { id: 't1', kind: 'text', start: 1, end: 5, x: 0.5, y: 0.35, text: 'Bom dia, Maputo!', font: 'futuro', size: 96, color: '#ff4fd8', neon: true, anim: { in: 'pop', out: 'aparecer', loop: 'nenhuma', inDur: 0.45, outDur: 0.35 } };
+    const emoji = { id: 's1', kind: 'sticker', start: 0, end: 6, x: 0.3, y: 0.62, rot: 0, sticker: { type: 'emoji', emoji: '🔥' }, anim: { in: 'nenhuma', out: 'nenhuma', loop: 'nenhuma' } };
+    const gifOv = { id: 'g1', kind: 'sticker', start: 0.5, end: 5.5, x: 0.72, y: 0.62, scale: 0.5, rot: 10, sticker: { type: 'gif', id: 'Txill42gif', url: GIF_URL, w: 120, h: 120 }, anim: { in: 'nenhuma', out: 'nenhuma', loop: 'nenhuma' } };
+    const f = await done(a, { clips: black.map((id) => ({ mediaId: id, kind: 'photo', durationMs: 2000 })), sound: { kind: 'music', music }, overlays: [text, emoji, gifOv] });
+    expect(fetched).toContain(GIF_URL);
+    const ovs = [text, emoji, gifOv].map((o) => sanitizeOverlay(o) as Overlay);
+    const ref = (t: number, list: Overlay[]) => canvasRgb((g) => drawOverlays(g, list, t, { W: FW, H: FH, image: () => null }));
+    const textBox = { x: 40, y: 520, w: 1000, h: 300 };
+    // Antes: nada; a entrar (pop a meio): igual ao site; depois, parado: igual ao site.
+    expect(compare(frameAt(f, 27), ref(0.9, []), textBox).bright).toBe(0);
+    for (const k of [36, 75]) {
+      const c = compare(frameAt(f, k), ref(k / 30, [ovs[0]]), textBox);
+      console.log(`Texto néon no frame ${k}: diferença média ${c.diff.toFixed(2)}, píxeis claros ${c.bright} (site ${c.brightRef})`);
+      expect(c.brightRef).toBeGreaterThan(500);
+      expect(c.diff).toBeLessThan(4);
+      expect(Math.abs(c.bright - c.brightRef) / c.brightRef).toBeLessThan(0.15);
+    }
+    // O emoji: igual ao desenho do site (a mesma fonte de emojis) e com as cores dele.
+    const eb = { x: 170, y: 1040, w: 300, h: 300 };
+    const ce = compare(frameAt(f, 90), ref(3, [ovs[1]]), eb);
+    expect(ce.brightRef).toBeGreaterThan(1000);
+    expect(ce.diff).toBeLessThan(6);
+    const [er, eg, ebl] = meanAt(frameAt(f, 90), 312, 1180, 24);
+    expect(er - ebl).toBeGreaterThan(60); // laranja/vermelho, não cinzento
+    expect(er).toBeGreaterThan(eg);
+    // O GIF mexe-se: vermelho no 1.º meio segundo da vida dele, verde no seguinte, vermelho outra vez (em ciclo).
+    const at = (k: number) => meanAt(frameAt(f, k), Math.round(0.72 * FW) - 8, Math.round(0.62 * FH) - 8);
+    const [c1, c2, c3] = [at(15 + 7), at(15 + 22), at(15 + 37)];
+    expect(c1[0]).toBeGreaterThan(180);
+    expect(c1[1]).toBeLessThan(80);
+    expect(c2[1]).toBeGreaterThan(180);
+    expect(c2[0]).toBeLessThan(80);
+    expect(c3[0]).toBeGreaterThan(180);
+    expect(meanAt(frameAt(f, 8), Math.round(0.72 * FW) - 8, Math.round(0.62 * FH) - 8)[0]).toBeLessThan(30); // antes de entrar
+  }, 300_000);
+
+  it('efeitos: as validações (400 com a dica) e o filtro de texto nas camadas', async () => {
+    const u = await register('fxval');
+    const v = await calmVideo(u, video('val', 3));
+    const long = await calmVideo(u, video('longo', 16));
+    const badU = async (body: unknown) => { const r = await calm(() => compose(u, body)); expect(r.status).toBe(400); return r.body.message as string; };
+    expect(await badU({ clips: [{ mediaId: long, kind: 'video', trimEndMs: 16000, fx: { reverse: true } }] })).toBe('Para inverter, o clipe pode ter até 15 s');
+    expect(await badU({ sound: { kind: 'music', music }, clips: [{ mediaId: v, kind: 'video', fx: { freeze: { from: 'x', at: 1 } } }] })).toBe('Um frame congelado vai como uma foto');
+    const ok = { clips: three(), sound: { kind: 'music', music } };
+    expect(await bad({ ...ok, clips: [{ ...three()[0], fx: { ramp: 'heroi' } }, ...three().slice(1)] })).toBe('A rampa e o inverter são só para vídeos');
+    expect(await bad({ ...ok, clips: three().map((c) => ({ ...c, fx: { transition: { type: 'explosao', dur: 0.5 } } })) })).toBe('Transição desconhecida');
+    expect(await bad({ ...ok, clips: three().map((c) => ({ ...c, fx: { transition: { type: 'zoom', dur: 3 } } })) })).toBe('A transição dura de 0,15 a 1,5 s');
+    expect(await bad({ ...ok, clips: three().map((c) => ({ ...c, fx: { filter: { id: 'instagram', amount: 1 } } })) })).toBe('Filtro desconhecido');
+    expect(await bad({ ...ok, clips: three().map((c) => ({ ...c, fx: { adjust: { contrast: 2 } } })) })).toBe('O ajuste Contraste vai de -1 a 1');
+    expect(await bad({ ...ok, filter: 'pb', clips: three().map((c) => ({ ...c, fx: {} })) })).toBe('Com os efeitos do estúdio (fx), a transição e o filtro vão em cada clipe');
+    const t = (o: object) => ({ id: 't', kind: 'text', start: 0, end: 2, x: 0.5, y: 0.5, text: 'Olá', ...o });
+    expect(await bad({ ...ok, overlays: [t({ end: 0 })] })).toBe('A camada tem de sair depois de entrar');
+    expect(await bad({ ...ok, overlays: [t({ font: 'comic' })] })).toBe('Fonte desconhecida');
+    expect(await bad({ ...ok, overlays: Array.from({ length: 21 }, (_, i) => t({ id: `t${i}` })) })).toBe('No máximo 20 textos e stickers');
+    const s = (sticker: object) => ({ id: 's', kind: 'sticker', start: 0, end: 2, x: 0.5, y: 0.5, sticker });
+    expect(await bad({ ...ok, overlays: [s({ type: 'gif', id: 'abcd1234', url: 'https://example.com/media/abcd1234/giphy.gif', w: 200, h: 200 })] })).toBe('O GIF tem de vir do GIPHY');
+    expect(await bad({ ...ok, overlays: [s({ type: 'gif', id: 'abcd1234', url: 'http://media.giphy.com/media/abcd1234/giphy.gif', w: 200, h: 200 })] })).toBe('O GIF tem de vir do GIPHY');
+    expect(await bad({ ...ok, overlays: [s({ type: 'emoji', emoji: 'olá' })] })).toBe('O sticker de emoji só leva emojis');
+    expect(await bad({ ...ok, overlays: [s({ type: 'txill', id: 'nao-existe' })] })).toBe('Sticker desconhecido');
+    const r = await calm(() => compose(a, { ...ok, overlays: [t({ text: 'vou te matar' })] }));
+    expect(r.status).toBe(422);
+    const r2 = await calm(() => compose(a, { ...ok, overlays: [s({ type: 'location', name: 'preto de merda' })] }));
+    expect(r2.status).toBe(422);
+  }, 300_000);
+
+  // ------------------------------------------------------------------ capulana, enquadramento e som por clipe
+
+  const PANO = { pattern: 'ziguezague', palette: 'indico', seed: 7 } as const;
+  const nodeScratch: Scratch = (() => { const m = new Map<string, { c: HTMLCanvasElement; g: CanvasRenderingContext2D }>(); return (n: string, w: number, h: number) => { let s = m.get(n); if (!s || s.c.width !== w || s.c.height !== h) { const c = createCanvas(w, h) as unknown as HTMLCanvasElement; s = { c, g: (c as unknown as { getContext: (k: '2d') => CanvasRenderingContext2D }).getContext('2d') }; m.set(n, s); } return s; }; })();
+
+  it('capulana: um pano a meio da transição, igual ao desenho do site, com o pano do clipe ou o da tcheka', async () => {
+    const u = await register('fxpano');
+    const ids: string[] = [];
+    for (const c of ['red', 'blue', 'lime']) ids.push(await calmVideo(u, video(`pano-${c}`, 2, c)));
+    const trs = [{ type: 'capulana-deslizar', dur: 1, pano: PANO }, { type: 'capulana-losango', dur: 1 }] as const;
+    const f = await done(u, { pano: { pattern: 'sol', palette: 'neon', seed: 3 }, clips: ids.map((id, i) => ({ mediaId: id, kind: 'video', trimEndMs: 2000, ...(i ? { fx: { transition: trs[i - 1] } } : {}) })) });
+    expect(Math.abs((await probe(f)).seconds - 6)).toBeLessThan(0.05);
+    const solid = (rgb: number[]) => { const c = createCanvas(FW, FH); const g = c.getContext('2d'); g.fillStyle = `rgb(${rgb.map(Math.round).join(',')})`; g.fillRect(0, 0, FW, FH); return c as unknown as CanvasImageSource; };
+    const report: string[] = [];
+    for (let i = 1; i < 3; i++) {
+      const start = 60 * i;
+      const prev = solid(meanAt(frameAt(f, start - 1), 500, 500)), cur = solid(meanAt(frameAt(f, start + 40), 500, 500));
+      const pano = i === 1 ? PANO : { pattern: 'sol', palette: 'neon', seed: 3 } as const; // o 2.º não traz pano: é o da tcheka
+      for (const k of [start + 8, start + 15, start + 23]) {
+        const got = frameAt(f, k);
+        const want = canvasRgb((g) => drawCapulanaTransition(g, prev, cur, trs[i - 1].type, (k - start) / 30, FW, FH, pano));
+        const c = compare(got, want, { x: 0, y: 0, w: FW, h: 1500 });
+        report.push(`${trs[i - 1].type} p=${((k - start) / 30).toFixed(2)}: ${c.diff.toFixed(2)}`);
+        expect(c.diff).toBeLessThan(8); // o pano tem muito detalhe fino (4:2:0 e H.264): com outro pano ou noutro ponto daria dezenas
+      }
+      // A meio há mesmo pano no ecrã: muitas cores que não são nenhuma das duas dos clipes.
+      const mid = frameAt(f, start + 15);
+      const [pr, cr] = [meanAt(frameAt(f, start - 1), 500, 500), meanAt(frameAt(f, start + 40), 500, 500)];
+      let cloth = 0;
+      for (let y = 100; y < 1500; y += 20) for (let x = 20; x < FW; x += 20) { const px = meanAt(mid, x, y, 2); if (deltaE(px, pr) > 25 && deltaE(px, cr) > 25) cloth++; }
+      expect(cloth).toBeGreaterThan(300);
+    }
+    console.log(`Panos de capulana (diferença média 0–255 ao desenho do site):\n  ${report.join('\n  ')}`);
+  }, 300_000);
+
+  it('capulana: a moldura de uma foto, o texto com letras de pano, a faixa e o sticker, iguais ao site; e o enquadramento (focus)', async () => {
+    // Uma foto deitada (4:3) com 4 quadrantes de cor: na moldura vê-se inteira; com o enquadramento, o canto escolhido.
+    const quad = make('quad.png', ['-f', 'lavfi', '-i', 'color=c=red:size=1200x900,drawbox=x=600:y=0:w=600:h=450:c=blue:t=fill,drawbox=x=0:y=450:w=600:h=450:c=lime:t=fill,drawbox=x=600:y=450:w=600:h=450:c=yellow:t=fill', '-frames:v', '1']);
+    const q = await upload(a, quad, 'image/png');
+    const letters = { id: 't1', kind: 'text', start: 0, end: 6, x: 0.5, y: 0.2, text: 'CAPULANA', font: 'grito', size: 150, pano: PANO, anim: { in: 'nenhuma', out: 'nenhuma', loop: 'nenhuma' } };
+    const band = { id: 't2', kind: 'text', start: 0, end: 6, x: 0.5, y: 0.82, text: 'Bom dia, Maputo!', font: 'classica', size: 70, bg: 'pano', pano: PANO, anim: { in: 'nenhuma', out: 'nenhuma', loop: 'nenhuma' } };
+    const stick = { id: 's1', kind: 'sticker', start: 0, end: 6, x: 0.25, y: 0.68, scale: 0.6, rot: 0, sticker: { type: 'capulana', shape: 'estrela', pano: PANO }, anim: { in: 'nenhuma', out: 'nenhuma', loop: 'nenhuma' } };
+    const f = await done(a, {
+      clips: [
+        { mediaId: q, kind: 'photo', durationMs: 2000, fx: { moldura: PANO } },
+        { mediaId: q, kind: 'photo', durationMs: 2000, fx: { transition: { type: 'corte', dur: 0.5 }, focus: { x: 1, y: 1, from: 1, to: 1 } } },
+        { mediaId: black[0], kind: 'photo', durationMs: 2000, fx: { transition: { type: 'corte', dur: 0.5 } } },
+      ],
+      sound: { kind: 'music', music },
+      overlays: [letters, band, stick],
+    });
+    // A moldura: a foto como o servidor a prepara (PNG, até 1440 px), desenhada pelo drawCapulanaFrame do site no mesmo instante.
+    const { loadImage } = await import('@napi-rs/canvas');
+    const img = await loadImage(quad);
+    const k = 30; // 1 s: u = 0,5 → zoom 1,02
+    const wantFrame = canvasRgb((g) => drawCapulanaFrame(g, img as unknown as CanvasImageSource, img.width, img.height, FW, FH, PANO, 1 + 0.04 * (k / 60)));
+    const got = frameAt(f, k);
+    const mid = compare(got, wantFrame, { x: 0, y: 560, w: FW, h: 590 }); // a foto na moldura e o pano à volta, longe das camadas
+    console.log(`Moldura de capulana: diferença média ${mid.diff.toFixed(2)}`);
+    expect(mid.diff).toBeLessThan(8);
+    // A foto vai inteira (os 4 quadrantes dentro da moldura) e há pano por cima e por baixo dela.
+    const lay = frameLayout(img.width, img.height, FW, FH).photo;
+    const at = (fx: number, fy: number) => meanAt(got, Math.round(lay.x + lay.w * fx), Math.round(lay.y + lay.h * fy), 8);
+    expect(at(0.25, 0.25)[0]).toBeGreaterThan(180);
+    expect(at(0.75, 0.25)[2]).toBeGreaterThan(180);
+    expect(at(0.25, 0.75)[1]).toBeGreaterThan(180);
+    expect(at(0.75, 0.75)[0] + at(0.75, 0.75)[1]).toBeGreaterThan(380);
+    // O enquadramento: apontado ao canto de baixo à direita, o quadro 9:16 mostra o lado direito da foto (azul em cima, amarelo em baixo).
+    const fo = frameAt(f, 90);
+    expect(meanAt(fo, 200, 500)[2]).toBeGreaterThan(180);
+    expect(meanAt(fo, 200, 500)[0]).toBeLessThan(80);
+    expect(meanAt(fo, 800, 1250)[0] + meanAt(fo, 800, 1250)[1]).toBeGreaterThan(380); // (fora do sticker)
+    // As camadas de pano por cima da foto preta: as letras, a faixa e o sticker contra o drawOverlays do site.
+    const ovs = [letters, band, stick].map((o) => sanitizeOverlay(o) as Overlay);
+    expect(ovs.every(Boolean)).toBe(true);
+    const want = canvasRgb((g) => drawOverlays(g, ovs, 5, { W: FW, H: FH, image: () => null, scratch: nodeScratch as never }));
+    const g3 = frameAt(f, 150);
+    const boxes = { letras: { x: 100, y: 260, w: 880, h: 260 }, faixa: { x: 0, y: 1470, w: 1080, h: 200 }, sticker: { x: 130, y: 1160, w: 280, h: 280 } };
+    for (const [name, box] of Object.entries(boxes)) {
+      const c = compare(g3, want, box);
+      console.log(`Capulana, ${name}: diferença média ${c.diff.toFixed(2)}, píxeis claros ${c.bright} (site ${c.brightRef})`);
+      expect(c.brightRef).toBeGreaterThan(200);
+      expect(c.diff).toBeLessThan(10);
+    }
+    expect(await bad({ clips: three(), sound: { kind: 'music', music }, overlays: [{ ...band, pano: undefined }] })).toBe('A faixa de pano precisa do pano');
+    expect(await bad({ clips: three().map((c) => ({ ...c, fx: { moldura: { pattern: 'xadrez', palette: 'coral', seed: 1 } } })), sound: { kind: 'music', music } })).toBe('Pano desconhecido');
+  }, 300_000);
+
+  it('som por clipe: um vídeo calado não se ouve nem conta como som, o volume do clipe baixa-o, e a música fica a 70 % por omissão', async () => {
+    const u = await register('fxsom');
+    const v1 = await calmVideo(u, video('som-a', 3)), v2 = await calmVideo(u, video('som-b', 3)); // os dois com um apito de 440 Hz
+    const badU = async (body: unknown) => { const r = await calm(() => compose(u, body)); expect(r.status).toBe(400); return r.body.message as string; };
+    const clip = (id: string, o: object = {}) => ({ mediaId: id, kind: 'video', trimEndMs: 3000, ...o });
+    // Todos calados e sem música: falta o som (a mesma dica do estúdio).
+    expect(await badU({ clips: [clip(v1, { sound: false }), clip(v2, { volume: 0 })] })).toBe('Os vídeos não têm som: escolhe uma música ou um som');
+    expect(await bad({ clips: three().map((c) => ({ ...c, sound: false })), sound: { kind: 'music', music } })).toBe('O som e o volume são só para vídeos');
+    // O 1.º a metade, o 2.º calado.
+    const x = pcm(await done(u, { clips: [clip(v1, { volume: 0.5 }), clip(v2, { sound: false })] }));
+    const full = pcm(await done(u, { clips: [clip(v1), clip(v2)] }));
+    expect(tone(x, 440, 0.5, 2.5) / tone(full, 440, 0.5, 2.5)).toBeGreaterThan(0.42);
+    expect(tone(x, 440, 0.5, 2.5) / tone(full, 440, 0.5, 2.5)).toBeLessThan(0.58);
+    expect(rms(x, 3.3, 5.7)).toBeLessThan(0.003);
+    expect(tone(full, 440, 3.5, 5.5)).toBeGreaterThan(0.02);
+    // Com música e sem volumes no pedido: o som dos vídeos a 100 % e a música a 70 % (como o estúdio integrado).
+    const job = (await calm(() => compose(u, { clips: [clip(v1), clip(v2)], sound: { kind: 'music', music } }))).body.jobId as string;
+    await waitCalm(u, job);
+    const spec = (await pool.query('SELECT spec FROM content.compose_jobs WHERE id = $1', [job])).rows[0].spec as { originalVolume: number; musicVolume: number };
+    expect([spec.originalVolume, spec.musicVolume]).toEqual([1, 0.7]);
+  }, 300_000);
 
   it('os temporários e os ficheiros: nada fica para trás', () => {
     expect(readdirSync(tmpdir()).filter((f) => f.startsWith('txcompose-'))).toEqual([]);
