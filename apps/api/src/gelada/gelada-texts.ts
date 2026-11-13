@@ -21,12 +21,12 @@ export const geladaTexts = {
       case 'gone': return geladaTexts.notFound(name);
       case 'blocked': return `Não dá para mandar pedidos ao @${name}.`;
       case 'closed': return `O @${name} não aceita mensagens novas, por isso o pedido não lhe chega no chat.`;
-      case 'waiting': return `O @${name} ainda não te segue nem respondeu às tuas mensagens. Quando responder ou te seguir, já lhe podes pedir 🍻`;
+      case 'waiting': return `O @${name} ainda não te segue nem respondeu às tuas mensagens. Quando responder ou te seguir, já lhe podes pedir 🙌`;
     }
   },
   /** Publicado: só a seguidores mútuos, que aceitam menções e me podem ver. */
   postBlocked: (name: string) => `Não dá para pedir ao @${name}.`,
-  postNotMutual: (name: string) => `Em público só pedes a quem te segue e tu segues de volta. Manda ao @${name} no chat 🍻`,
+  postNotMutual: (name: string) => `Em público só pedes a quem te segue e tu segues de volta. Manda ao @${name} no chat 🙌`,
   postNoMentions: (name: string) => `O @${name} não aceita pedidos públicos: manda-lhe no chat.`,
   postCantSee: (name: string) => `O @${name} não consegue ver as tuas publicações: manda-lhe no chat.`,
   /** «Fico a dever-te uma». */

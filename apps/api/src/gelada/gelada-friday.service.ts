@@ -89,7 +89,11 @@ export class GeladaFridayService implements OnModuleInit, OnModuleDestroy {
               (SELECT json_build_object('username', du.username, 'gender', CASE WHEN du.show_gender THEN du.gender END)
                  FROM taste.gelada_debts d JOIN identity.users du ON du.id = d.debtor_id
                 WHERE d.creditor_id = u.id AND d.status = 'open' AND du.status = 'active' AND NOT ${blockedBetween('du.id', 'u.id')}
-                ORDER BY d.created_at LIMIT 1) AS debtor,
+                -- A mais antiga. As de uma rodada nascem todas no mesmo instante: aí, quem entrou primeiro na rodada.
+                ORDER BY d.created_at,
+                         (SELECT e.created_at FROM taste.gelada_round_entries e WHERE e.round_id = d.round_id AND e.user_id = d.debtor_id) NULLS LAST,
+                         du.username
+                LIMIT 1) AS debtor,
               EXISTS (SELECT 1 FROM social.follows a JOIN social.follows b ON b.follower_id = a.followee_id AND b.followee_id = a.follower_id
                         JOIN identity.users fu ON fu.id = a.followee_id
                        WHERE a.follower_id = u.id AND fu.status = 'active' AND fu.last_seen_at > $1::timestamptz - make_interval(days => $4)) AS friends

@@ -464,7 +464,7 @@ describe('«Paga-me uma»: pedidos, livro das geladas, rodadas e sexta (integra�
 
   it('publicado: só a seguidores mútuos, que aceitam menções; com bloqueio não; os limites contam juntos', async () => {
     const { ana, olho, eva, zeca } = u;
-    expect((await ask(ana, [olho], B2M, 'post').expect(403)).body.message).toBe(`Em público só pedes a quem te segue e tu segues de volta. Manda ao @${olho.username} no chat 🍻`);
+    expect((await ask(ana, [olho], B2M, 'post').expect(403)).body.message).toBe(`Em público só pedes a quem te segue e tu segues de volta. Manda ao @${olho.username} no chat 🙌`);
     await mutual(eva, ana);
     await api().put(`/api/v1/blocks/${ana.username}`).set(auth(eva)).expect(200);
     expect((await ask(ana, [eva], B2M, 'post').expect(403)).body.message).toBe(`Não dá para pedir ao @${eva.username}.`);
