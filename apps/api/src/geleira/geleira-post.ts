@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { blockedBetween } from '../social/visibility';
+import { geleiraLevel } from './geleira-level';
 
 /**
  * A geleira partilhada como publicação (0143). O post leva um retrato (`content.posts.geleira`) dos gostos no momento da
@@ -38,19 +39,9 @@ export interface GeleiraPostDto {
   items: (Omit<SnapshotItem, 'alcoholic'> & { alcoholic: boolean; cheers: number; cheered: boolean })[];
 }
 
-/** O nível da geleira pelos números (a mesma conta de GeleiraService.level): quantidade, variedade e gostos avaliados. */
-/** `bonus`: pontos de fora dos gostos (as geladas pagas e confirmadas, 0145; ver gelada/gelada-cards.ts geladaPoints). */
-export function levelOf(s: { n: number; fav: number; rated: number; cats: number }, bonus = 0) {
-  const points = s.n + s.fav + Math.floor(s.rated / 2) + s.cats + bonus;
-  const steps = [1, 12, 30, 60];
-  const byPoints = points <= 0 ? 0 : points >= steps[3] ? 4 : points >= steps[2] ? 3 : points >= steps[1] ? 2 : 1;
-  const gate = s.cats >= 6 && s.rated >= 10 ? 4 : s.cats >= 4 && s.rated >= 5 ? 3 : 2;
-  return { points, byPoints, level: Math.min(byPoints, gate), steps };
-}
-
 /**
  * O retrato da minha geleira agora: o que o perfil mostra (bebidas e comidas aprovadas), pela mesma ordem. Sem nada para
- * mostrar, não se partilha (400, com a explicação).
+ * mostrar, não se partilha (400, com a explicação). O nível é o do perfil (a mesma cache: geleira-level.ts).
  */
 export async function buildSnapshot(db: Pool | PoolClient, userId: string): Promise<GeleiraSnapshot> {
   const { rows } = await db.query(
@@ -62,12 +53,7 @@ export async function buildSnapshot(db: Pool | PoolClient, userId: string): Prom
   );
   if (!rows.length) throw new BadRequestException('A tua geleira está vazia. Junta bebidas ou comidas antes de a partilhar.');
   const all = rows as SnapshotItem[];
-  const { level } = levelOf({
-    n: all.length,
-    fav: all.filter((i) => i.favorite).length,
-    rated: all.filter((i) => i.rating != null).length,
-    cats: new Set(all.map((i) => i.category)).size,
-  });
+  const { level } = await geleiraLevel(db, userId);
   return {
     v: 1,
     level,

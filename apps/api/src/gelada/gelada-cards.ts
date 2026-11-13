@@ -268,19 +268,5 @@ export async function payerHint(db: Db, groupId: string, roundId?: string): Prom
   return { last: last ? person(last, 'u') : null, next: next ? person(next, 'u') : null };
 }
 
-/** Quantas geladas pagas e confirmadas contam por semana para o nível da geleira (de quem pagou e de quem recebeu). */
-export const WEEKLY_GELADA_POINTS = 3;
 
-/**
- * Pontos de geladas no nível da geleira: 1 por cada gelada paga e CONFIRMADA (sou quem pagou ou quem recebeu), no máximo
- * WEEKLY_GELADA_POINTS por semana (semanas de Maputo). Os pedidos sozinhos não contam.
- */
-export async function geladaPoints(db: Db, userId: string): Promise<number> {
-  const { rows } = await db.query(
-    `SELECT COALESCE(sum(least(n, $2)), 0)::int AS p FROM (
-       SELECT date_trunc('week', d.closed_at AT TIME ZONE 'Africa/Maputo') AS w, count(*)::int AS n
-         FROM taste.gelada_debts d WHERE d.status = 'paid' AND (d.debtor_id = $1 OR d.creditor_id = $1) GROUP BY 1) x`,
-    [userId, WEEKLY_GELADA_POINTS],
-  );
-  return (rows[0]?.p as number) ?? 0;
-}
+// Os pontos das geladas no nível da geleira estão em geleira/geleira-level.ts (0146): 3 a quem pagou, 2 a quem recebeu.

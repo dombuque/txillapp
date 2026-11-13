@@ -562,6 +562,8 @@ export class AuthService {
       await client.query('DELETE FROM taste.geleira_cheer_notices WHERE owner_id = $1 OR user_id = $1', [userId]);
       // Brindes aos itens da geleira (no perfil ou nos posts da geleira, 0143), dados e recebidos.
       await client.query('DELETE FROM taste.geleira_item_cheers WHERE owner_id = $1 OR user_id = $1', [userId]);
+      // O nível da geleira guardado (0146), com o detalhe dos pontos.
+      await client.query('DELETE FROM taste.geleira_levels WHERE user_id = $1', [userId]);
       // «Paga-me uma» (0145): os pedidos (feitos e recebidos), as dívidas (dos dois lados), as rodadas que abriu, as entradas nas
       // rodadas dos outros e o registo dos avisos de sexta. As rodadas que pagou ficam no histórico do grupo, sem quem pagou.
       // Os cartões do chat do outro lado ficam «Conta eliminada» (o pedido já não existe).

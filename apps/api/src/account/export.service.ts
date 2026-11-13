@@ -145,6 +145,8 @@ export class ExportService {
            FROM taste.gelada_rounds r LEFT JOIN taste.gelada_round_entries e ON e.round_id = r.id AND e.user_id = $1
           WHERE r.opened_by = $1 OR r.payer_id = $1 OR e.user_id IS NOT NULL ORDER BY r.created_at`,
       ).catch(() => []),
+      // O nível da geleira (0146): o último cálculo, com o detalhe de onde vêm os pontos (geladas, brindes, sítios, rodadas, gostos).
+      geleiraLevel: (await q(`SELECT points, level, breakdown, computed_at AS "computedAt" FROM taste.geleira_levels WHERE user_id = $1`).catch(() => []))[0] ?? null,
       geladaFridays: await q(`SELECT friday, kind, sent_at AS "sentAt" FROM taste.gelada_fridays WHERE user_id = $1 ORDER BY friday`).catch(() => []),
       // Chamadas feitas e recebidas (só o registo: o som e a imagem nunca passam pelo servidor).
       calls: await q(

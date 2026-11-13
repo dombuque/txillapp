@@ -174,7 +174,7 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
     expect((await api().get('/api/v1/settings/privacy').set(auth(u.gc))).body.welcomed).toBe(true);
   });
 
-  it('nível da geleira: premeia variedade e gostos avaliados (não o álcool nem os Txills); título do topo respeita a idade; quem não pode ver não vê', async () => {
+  it('nível da geleira: os gostos sozinhos não passam de «A txilar» (nem o álcool pesa); título do topo respeita a idade; quem não pode ver não vê', async () => {
     const { ga, gb } = u;
     const level = (viewer: U, of: U) => api().get(`/api/v1/users/${of.username}/geleira/level`).set(auth(viewer));
     await api().put('/api/v1/geleira/me/settings').set(auth(ga)).send({ visibility: 'everyone' }).expect(200);
@@ -183,24 +183,32 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
     expect(mine.level).toBe(0);
     expect(mine.title).toBe('Geleira seca');
 
-    // Duas bebidas e duas comidas: começa a txilar, mas está longe de "abastecida".
+    // Duas bebidas com álcool e duas comidas: começa a txilar.
     const pick = async (kind: string, alc: boolean, n: number) =>
       (await pool.query(`SELECT id FROM taste.items WHERE status = 'curated' AND kind = $1 AND alcoholic = $2 ORDER BY category, name LIMIT $3`, [kind, alc, n])).rows.map((r) => r.id as string);
     const four = [...(await pick('bebida', true, 2)), ...(await pick('comida', false, 2))];
-    for (const id of four) await pool.query('INSERT INTO taste.user_items (user_id, item_id) VALUES ($1, $2)', [ga.id, id]);
+    for (const id of four) await pool.query('INSERT INTO taste.user_items (user_id, item_id, rating) VALUES ($1, $2, 4)', [ga.id, id]);
     const small = (await level(gb, ga).expect(200)).body;
-    expect(small).toMatchObject({ level: 1, title: 'A txilar', txillContribution: 0 });
-    expect(small.points).toBeLessThan(12);
-    // O álcool não pesa mais do que o resto: quatro sem álcool dão os mesmos pontos.
+    expect(small).toMatchObject({ level: 1, title: 'A txilar' });
+    // O álcool não pesa: quatro sem álcool (com os mesmos grupos diferentes e notas) dão os mesmos pontos.
+    const groups = async () => (await pool.query('SELECT count(DISTINCT i.category)::int AS n FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id WHERE ui.user_id = $1', [ga.id])).rows[0].n as number;
+    const g1 = await groups();
     await pool.query('DELETE FROM taste.user_items WHERE user_id = $1', [ga.id]);
-    for (const id of [...(await pick('bebida', false, 2)), ...(await pick('comida', false, 2))]) await pool.query('INSERT INTO taste.user_items (user_id, item_id) VALUES ($1, $2)', [ga.id, id]);
+    for (const id of [...(await pick('bebida', false, 2)), ...(await pick('comida', false, 2))]) await pool.query('INSERT INTO taste.user_items (user_id, item_id, rating) VALUES ($1, $2, 4)', [ga.id, id]);
+    if ((await groups()) === g1) expect((await level(gb, ga).expect(200)).body.points).toBe(small.points);
     expect((await level(gb, ga).expect(200)).body.level).toBe(1);
 
-    // Muita coisa, mas sem gostos avaliados: o topo não é alcançado (fica no nível 2).
-    await pool.query(`INSERT INTO taste.user_items (user_id, item_id) SELECT $1, i.id FROM taste.items i WHERE i.status = 'curated' AND i.kind IN ('bebida', 'comida') ON CONFLICT DO NOTHING`, [ga.id]);
-    expect((await level(gb, ga).expect(200)).body.level).toBe(2);
-    await pool.query(`UPDATE taste.user_items SET rating = 4, favorite = true WHERE user_id = $1`, [ga.id]);
+    // A geleira inteira, toda avaliada: os gostos valem no máximo 8 pontos e não passam de «A txilar».
+    await pool.query(`INSERT INTO taste.user_items (user_id, item_id, rating, favorite) SELECT $1, i.id, 4, true FROM taste.items i WHERE i.status = 'curated' AND i.kind IN ('bebida', 'comida') ON CONFLICT DO NOTHING`, [ga.id]);
+    const full = (await level(ga, ga).expect(200)).body;
+    expect(full).toMatchObject({ level: 1, points: 8, detail: { gostos: { points: 8 } } });
 
+    // O título do topo (o nível 4 posto na cache, como se a pessoa o tivesse) depende da idade, sem nunca mostrar a data.
+    await pool.query(
+      `UPDATE taste.geleira_levels SET level = 4, points = 250, stale = false, computed_at = now(),
+              breakdown = breakdown || '{"raw": 4, "people": 12, "weeks": 12}'::jsonb WHERE user_id = $1`,
+      [ga.id],
+    );
     // O título do topo depende da idade (sem nunca mostrar a data): 20 anos, 35 e 60.
     const top = async (birth: string) => {
       await pool.query('UPDATE identity.users SET birth_date = $2 WHERE id = $1', [ga.id, birth]);
@@ -208,7 +216,7 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
     };
     const year = new Date().getUTCFullYear();
     const young = await top(`${year - 20}-01-01`);
-    expect(young).toMatchObject({ level: 4, title: 'Lenda da paulada', toNext: null });
+    expect(young).toMatchObject({ level: 4, title: 'Lenda da paulada', toNext: null, progress: 1 });
     expect((await top(`${year - 35}-01-01`)).title).toBe('Mestre da paulada');
     expect((await top(`${year - 60}-01-01`)).title).toBe('Madala da paulada');
     expect(JSON.stringify(young)).not.toMatch(/birth|19\d\d-|20\d\d-/);
