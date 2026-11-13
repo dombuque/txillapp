@@ -7,8 +7,8 @@ import { uuidv7 } from '../common/uuid7';
 import { NotificationsService } from '../notifications/notifications.service';
 import { blockedBetween, canView } from '../social/visibility';
 import { badge } from '../common/badge';
-import { itemCheers, levelOf, readSnapshot } from './geleira-post';
-import { geladaPoints } from '../gelada/gelada-cards';
+import { itemCheers, readSnapshot } from './geleira-post';
+import { geleiraLevel, needs, progressOf, STEPS, tipFor, WINDOW_DAYS } from './geleira-level';
 
 export const KINDS = ['vibe', 'bebida', 'comida', 'sitio'] as const;
 export type Kind = (typeof KINDS)[number];
@@ -227,43 +227,55 @@ export class GeleiraService {
   }
 
   /**
-   * Nível da geleira de alguém: pontos (álcool e vibes de festa valem mais) e título em calão da malta. O título do topo
-   * respeita a idade (madala só a partir dos 45), sem nunca devolver a data de nascimento. Só para quem pode ver a geleira.
+   * Nível da geleira de alguém (0146): o que a pessoa vive com a malta nos últimos 90 dias (geladas pagas e confirmadas,
+   * brindes de seguidores mútuos, check-ins, rodadas e um pouco dos gostos; nunca o álcool nem os Txills; ver geleira-level.ts).
+   * Vem da cache taste.geleira_levels, a mesma do retrato dos posts da geleira. O título do topo respeita a idade (madala só a
+   * partir dos 45), sem nunca devolver a data de nascimento. Só para quem pode ver a geleira.
+   * Quem visita recebe o título e a barra (`progress`); o detalhe (`detail`: de onde vêm os pontos) e a dica (`tip`) só o dono.
    * Traz também os brindes à geleira (`cheers`), se eu brindei (`cheered`) e se posso ver quem brindou (`cheersListable`:
    * o dono sempre; os outros se o dono mostra a lista).
    */
   async level(viewerId: string, username: string) {
     const o = await this.visibleOwner(viewerId, username);
-    // O nível premeia quantidade, variedade e gostos avaliados (nunca o álcool nem os Txills). Só contam bebidas e comidas, que é o que a geleira mostra.
-    const { rows } = await this.pool.query(
-      `SELECT count(*)::int AS n,
-              count(*) FILTER (WHERE ui.favorite)::int AS fav,
-              count(*) FILTER (WHERE ui.rating IS NOT NULL)::int AS rated,
-              count(DISTINCT i.category)::int AS cats
-         FROM taste.user_items ui JOIN taste.items i ON i.id = ui.item_id
-        WHERE ui.user_id = $1 AND i.status = 'curated' AND i.kind IN ('bebida', 'comida')`,
-      [o.id],
-    );
-    // Os dois níveis de cima pedem substância: variedade (grupos diferentes) e gostos avaliados (a mesma conta do retrato dos posts).
-    // As geladas pagas e confirmadas (0145) valem um pouco, com teto semanal; os pedidos sozinhos não contam.
-    const gelada = await geladaPoints(this.pool, o.id);
-    const { points, byPoints, level, steps } = levelOf(rows[0] as { n: number; fav: number; rated: number; cats: number }, gelada);
-    const held = level < byPoints;
+    const row = await geleiraLevel(this.pool, o.id);
+    const isOwner = o.id === viewerId;
     const age = o.birth_date ? Math.floor((Date.now() - new Date(o.birth_date).getTime()) / 31_557_600_000) : null;
     const top = age !== null && age >= 45 ? 'Madala da paulada' : age !== null && age >= 30 ? 'Mestre da paulada' : 'Lenda da paulada';
     const titles = ['Geleira seca', 'A txilar', 'Maningue abastecida', 'Paulada garantida', top];
+    const level = row.level;
+    const nextTitle = level >= 4 ? null : titles[level + 1];
+    const need = needs(row);
+    const b = row.breakdown;
     return {
-      points,
-      tasteContribution: points - gelada,
-      geladaContribution: gelada,
-      txillContribution: 0,
+      points: row.points,
       level,
       title: titles[level],
-      toNext: level >= 4 ? null : held ? null : steps[level] - points,
-      hint: held ? (level >= 2 ? `Para subir: mais variedade (${level === 2 ? 4 : 6} grupos diferentes) e gostos avaliados (${level === 2 ? 5 : 10})` : null) : null,
-      nextTitle: level >= 4 ? null : level === 3 ? top : titles[level + 1],
+      nextTitle,
+      /** Pontos que faltam para o nível seguinte (0 se só faltam pessoas ou semanas); null no topo. */
+      toNext: need ? need.points : null,
+      /** Os pontos de cada nível, de 0 ao topo. */
+      steps: [...STEPS],
+      /** A barra (0 a 1): o requisito mais atrasado para o nível seguinte. */
+      progress: progressOf(row),
+      ...(isOwner
+        ? {
+            detail: {
+              days: WINDOW_DAYS,
+              geladas: b.geladas,
+              brindes: b.brindes,
+              sitios: b.sitios,
+              rodadas: b.rodadas,
+              gostos: b.gostos,
+              people: b.people,
+              weeks: b.weeks,
+              needs: need,
+              falling: b.raw < level,
+            },
+            tip: tipFor(row, nextTitle),
+          }
+        : {}),
       ...(await this.cheersOf(o.id, viewerId)),
-      cheersListable: o.id === viewerId || !!o.cheers_public,
+      cheersListable: isOwner || !!o.cheers_public,
     };
   }
 

@@ -3,10 +3,11 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ApiError } from '@/lib/api';
 import { geleiraApi, type GeleiraLevel, type MyTaste, type TasteItem, type TheirTaste } from '@/lib/api.geleira';
 import { ICE, KINDS, KIND_ICON, KIND_LABEL } from '@/lib/geleira';
+import { LEVEL_RULES, levelBar, levelRows, needsText, stepNeeds, type LevelIcon } from '@/lib/geleiraLevel';
 import { applyCheer, canCheer, canListCheers, cheerA11yLabel, cheerButtonText, cheerersTitle, cheersBadge, cheersCount, geleiraToggleLabel, ownerCheersA11yLabel, ownerCheersText, toggleCheer } from '@/lib/geleiraCheers';
 import { itemA11yLabel, shareBlockReason } from '@/lib/geleiraPost';
 import { colors } from '@/lib/theme';
@@ -38,9 +39,12 @@ function Frost({ rating }: { rating: number | null }) {
   );
 }
 
-/** Como funciona a geleira: os flocos, o coração e os níveis. Abre ao tocar no nível. */
-function HowSheet({ onClose, level, points, toNext, nextTitle }: { onClose: () => void; level: number; points: number; toNext: number | null; nextTitle: string | null }) {
-  const steps = [0, 1, 12, 30, 60];
+/**
+ * Como funciona a geleira: os flocos, o coração e os níveis (o que cada um pede). Abre ao tocar no nível. `top`: o nome do
+ * nível do topo (depende da idade do dono). `onHowUp`: só para o dono, abre o «Como subo?».
+ */
+function HowSheet({ onClose, level, top, steps, onHowUp }: { onClose: () => void; level: number; top: string; steps?: readonly number[]; onHowUp?: () => void }) {
+  const labels = [...LEVEL_LABEL.slice(0, 4), top];
   return (
     <Sheet title="Como funciona a geleira" onClose={onClose}>
       <View style={{ paddingHorizontal: 20, paddingBottom: 24, gap: 18 }}>
@@ -60,17 +64,94 @@ function HowSheet({ onClose, level, points, toNext, nextTitle }: { onClose: () =
         </View>
         <View style={{ gap: 8 }}>
           <Text style={st.howTitle}>O nível da geleira</Text>
-          <Text style={st.howText}>Ganhas pontos por cada gosto, por cada favorito, por variedade (grupos diferentes) e por dares notas.</Text>
-          {LEVEL_LABEL.map((l, n) => (
-            <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text style={st.howText}>Mede o que se vive com a malta nos últimos 90 dias: geladas pagas, brindes de amigos, check-ins em sítios e rodadas. Os gostos contam pouco (no máximo 8 pontos). O álcool e os Txills não contam.</Text>
+          {labels.map((l, n) => (
+            <View key={n} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={[st.lvDot, n === level && { backgroundColor: colors.brand }]}>{n === level && <Icon name="check" size={10} strokeWidth={3} color="#fff" />}</View>
-              <Text style={[st.howText, n === level && { fontWeight: '800', color: colors.zinc900 }]}>{l}</Text>
-              <Text style={[st.howText, { marginLeft: 'auto', color: colors.zinc500 }]}>{n === 0 ? '0 pontos' : `${steps[n]}+ pontos`}</Text>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[st.howText, n === level && { fontWeight: '800', color: colors.zinc900 }]}>{l}</Text>
+                <Text style={[st.howText, { fontSize: 12, lineHeight: 16, color: colors.zinc500 }]}>{stepNeeds(n, steps)}</Text>
+              </View>
             </View>
           ))}
-          <Text style={[st.howText, { color: colors.zinc500 }]}>{toNext === null ? `Estás no máximo com ${points} pontos.` : `Tens ${points} ${points === 1 ? 'ponto' : 'pontos'}. ${toNext === 1 ? 'Falta 1' : `Faltam ${toNext}`} para ${(nextTitle ?? '').toLowerCase()}.`}</Text>
+          {onHowUp ? (
+            <Pressable onPress={onHowUp} style={({ pressed }) => [st.cheerBtn, st.share, pressed && { opacity: 0.8 }]} accessibilityRole="button">
+              <Icon name="trending" size={20} color={colors.white} />
+              <Text style={[st.cheerText, { color: colors.white }]}>Como subo?</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
+    </Sheet>
+  );
+}
+
+/** As cores de cada origem de pontos no «Como subo?» (fundo do círculo e ícone). */
+const ROW_TINT: Record<LevelIcon, { bg: string; fg: string }> = {
+  soda: { bg: colors.rose50, fg: colors.brand },
+  cheers: { bg: '#fef3c7', fg: colors.amber600 },
+  'map-pin': { bg: '#e0f2fe', fg: '#0369a1' },
+  users: { bg: '#dcfce7', fg: colors.green700 },
+  snowflake: { bg: '#f0f9ff', fg: SKY },
+};
+
+/**
+ * «Como subo?» (só o dono): o nível e a barra, a dica do que falta e de onde vêm os pontos dos últimos 90 dias (geladas,
+ * brindes, sítios, rodadas e gostos), com a regra no fim. Quem visita nunca vê isto: só o título e a barra.
+ */
+function HowUpSheet({ lv, onClose }: { lv: GeleiraLevel; onClose: () => void }) {
+  const { height } = useWindowDimensions();
+  const d = lv.detail;
+  const bar = levelBar(lv);
+  const missing = d ? needsText(d.needs) : null;
+  return (
+    <Sheet title="Como subo?" onClose={onClose}>
+      <ScrollView style={{ maxHeight: Math.round(height * 0.78) }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24, gap: 16 }}>
+        <View style={st.upHead}>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+            <Text style={st.upTitle} numberOfLines={1}>{lv.title}</Text>
+            <Text style={st.upPoints}>{lv.points} {lv.points === 1 ? 'ponto' : 'pontos'}</Text>
+          </View>
+          <View
+            style={st.upTrack}
+            accessible
+            accessibilityRole="progressbar"
+            accessibilityLabel={lv.nextTitle ? `A caminho de ${lv.nextTitle}` : 'Nível máximo'}
+            accessibilityValue={{ min: 0, max: 100, now: Math.round(bar * 100) }}
+          >
+            <View style={[st.upFill, { width: `${Math.round(bar * 100)}%` }]} />
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+            <Text style={[st.upSmall, { flexShrink: 1 }]}>{d?.falling ? 'A descer devagar' : missing ?? (lv.nextTitle ? 'Quase lá' : 'Estás no topo')}</Text>
+            {lv.nextTitle ? <Text style={[st.upSmall, { fontWeight: '700', color: colors.zinc700 }]} numberOfLines={1}>{lv.nextTitle}</Text> : null}
+          </View>
+        </View>
+        {lv.tip ? (
+          <View style={st.tipBox}>
+            <Icon name="sparkles" size={18} color={colors.brand} />
+            <Text style={st.tipText}>{lv.tip}</Text>
+          </View>
+        ) : null}
+        {d ? (
+          <View>
+            <Text style={st.howTitle}>De onde vêm os teus pontos</Text>
+            <Text style={[st.upSmall, { marginTop: 2, marginBottom: 6 }]}>
+              Últimos {d.days} dias · {d.people} {d.people === 1 ? 'pessoa diferente' : 'pessoas diferentes'} · {d.weeks} {d.weeks === 1 ? 'semana' : 'semanas'} com atividade
+            </Text>
+            {levelRows(d).map((r) => (
+              <View key={r.key} style={st.upRow} accessible accessibilityLabel={`${r.label}: ${r.points} ${r.points === 1 ? 'ponto' : 'pontos'}. ${r.note}`}>
+                <View style={[st.upIcon, { backgroundColor: ROW_TINT[r.icon].bg }]}><Icon name={r.icon} size={18} strokeWidth={2} color={ROW_TINT[r.icon].fg} /></View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={st.upLabel}>{r.label}</Text>
+                  <Text style={st.upSmall} numberOfLines={2}>{r.note}</Text>
+                </View>
+                <Text style={[st.upPts, r.points === 0 && { color: colors.zinc500 }]}>{r.points > 0 ? `+${r.points}` : '0'}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+        <Text style={st.upRules}>{LEVEL_RULES} Só tu vês este detalhe: quem visita vê o nome do nível e a barra.</Text>
+      </ScrollView>
     </Sheet>
   );
 }
@@ -270,7 +351,7 @@ export function GeleiraToggle({ username, isMe, open, onToggle, icon = false, gr
       accessibilityLabel={geleiraToggleLabel(open, n)}
       style={[st.toggle, { backgroundColor: open ? colors.zinc900 : colors.zinc100 }, icon ? (grow ? { flex: 1 } : { width: 44, paddingHorizontal: 0 }) : { flex: 1 }]}
     >
-      <FridgeArt count={shown.length} level={geleiraLevel(geleiraPoints(shown.filter((i) => !i.pending)))} open={open} size={24} />
+      <FridgeArt count={shown.length} level={lv.data?.level ?? geleiraLevel(geleiraPoints(shown.filter((i) => !i.pending)))} open={open} size={24} />
       {!icon && <Text style={{ fontSize: 14, fontWeight: '700', color: fg }}>Geleira</Text>}
       {inline && (
         <View style={st.inlineCheers}>
@@ -296,6 +377,7 @@ export function GeleiraToggle({ username, isMe, open, onToggle, icon = false, gr
 export function GeleiraShelf({ username, name, isMe, flush = false, compact = false, pointed = false, arrowRight = 11 }: { username: string; name?: string; isMe: boolean; flush?: boolean; compact?: boolean; pointed?: boolean; arrowRight?: number }) {
   const [open, setOpen] = useState(!compact);
   const [how, setHow] = useState(false);
+  const [howUp, setHowUp] = useState(false);
   const [cheerers, setCheerers] = useState(false);
   const [burst, setBurst] = useState(0); // muda a cada brinde: dispara os copos
   // «Paga-me uma» (0145): a bebida tocada (abre as ações) e o pedido aberto (com a bebida e, nas visitas, o dono).
@@ -349,17 +431,13 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
   const points = geleiraPoints(items);
   const level = lv.data?.level ?? geleiraLevel(points);
   const title = lv.data ? lv.data.title : LEVEL_LABEL[level];
-  // Frase de progresso: não aparece no cartão do site, mas serve de legenda ao nível (como no site, vem do servidor).
-  const hint = lv.data
-    ? lv.data.toNext === null
-      ? `Nível máximo: ${lv.data.title.toLowerCase()}!`
-      : `${lv.data.toNext === 1 ? 'Falta 1 ponto' : `Faltam ${lv.data.toNext} pontos`} para ${(lv.data.nextTitle ?? '').toLowerCase()}. Bebidas com álcool e vibes de festa valem mais.`
-    : nextLevelHint(points);
+  // A frase por baixo da barra (só o dono): a dica do servidor (o que falta, em coisas concretas).
+  const hint = lv.data ? (lv.data.tip ?? (lv.data.toNext === null ? `Nível máximo: ${lv.data.title.toLowerCase()}!` : null)) : nextLevelHint(points);
   const folded = compact && !open;
-  // Progresso dentro do nível atual (0–1), para a barrinha.
-  const stepsAll = [0, 1, 12, 30, 60];
-  const lo = stepsAll[level], hi = level >= 4 ? null : stepsAll[level + 1];
-  const progress = hi === null ? 1 : Math.max(0, Math.min(1, (points - lo) / (hi - lo)));
+  // A barra (0–1): a do servidor; sem ela, pelos pontos. Quem visita também a vê (sem o detalhe).
+  const progress = levelBar(lv.data ?? { level, points });
+  const showLevel = total > 0 || isMe || (lv.data?.level ?? 0) > 0;
+  const top = lv.data ? (lv.data.level >= 4 ? lv.data.title : lv.data.level === 3 && lv.data.nextTitle ? lv.data.nextTitle : 'Lenda da paulada') : 'Lenda da paulada';
 
   const head = (
       <View style={st.head}>
@@ -375,18 +453,33 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
           <Text style={{ fontSize: 12, lineHeight: 16, color: colors.zinc600 }}>
             {items.length === 0 ? 'Ainda vazia' : `${total} ${total === 1 ? 'gosto' : 'gostos'}${favorites.length ? ` · ${favorites.length} ${favorites.length === 1 ? 'favorito' : 'favoritos'}` : ''}`}
           </Text>
-          {total > 0 && (
+          {showLevel && (
             <View style={st.tags}>
-              <Pressable onPress={() => setHow(true)} style={st.level} accessibilityRole="button" accessibilityLabel={`Nível: ${title}`} accessibilityHint={hint}>
+              <Pressable onPress={() => setHow(true)} style={st.level} accessibilityRole="button" accessibilityLabel={`Nível: ${title}`} accessibilityHint="Abre como funciona a geleira">
                 <Text style={{ fontSize: 11, fontWeight: '700', color: colors.brand }}>{title}</Text>
                 <Icon name="info" size={12} strokeWidth={2.4} color={colors.brand} />
               </Pressable>
             </View>
           )}
-          {total > 0 && isMe && (
-            <View style={{ marginTop: 6, gap: 3 }} pointerEvents="none">
-              <View style={st.barTrack}><View style={[st.barFill, { width: `${Math.round(progress * 100)}%` }]} /></View>
-              <Text style={{ fontSize: 11, lineHeight: 14, color: colors.zinc500 }} numberOfLines={2}>{hint}</Text>
+          {showLevel && (
+            <View style={{ marginTop: 6, gap: 3 }}>
+              <View
+                style={st.barTrack}
+                accessible
+                accessibilityRole="progressbar"
+                accessibilityLabel={lv.data?.nextTitle ? `A caminho de ${lv.data.nextTitle}` : `Nível: ${title}`}
+                accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
+              >
+                <View style={[st.barFill, { width: `${Math.round(progress * 100)}%` }]} />
+              </View>
+              {isMe && hint ? <Text style={{ fontSize: 11, lineHeight: 14, color: colors.zinc500 }} numberOfLines={3}>{hint}</Text> : null}
+              {isMe && lv.data?.detail ? (
+                <Pressable onPress={() => setHowUp(true)} hitSlop={8} style={({ pressed }) => [st.howUp, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityHint="Mostra de onde vêm os teus pontos e o que falta">
+                  <Icon name="trending" size={13} strokeWidth={2.2} color={colors.brand} />
+                  <Text style={st.howUpText}>Como subo?</Text>
+                  <Icon name="chevron-right" size={13} strokeWidth={2.2} color={colors.brand} />
+                </Pressable>
+              ) : null}
             </View>
           )}
         </View>
@@ -401,7 +494,16 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
   );
   const rest = (
     <>
-      {how && <HowSheet onClose={() => setHow(false)} level={level} points={lv.data?.points ?? points} toNext={lv.data ? lv.data.toNext : level >= 4 ? null : stepsAll[level + 1] - points} nextTitle={lv.data ? lv.data.nextTitle : level >= 4 ? null : LEVEL_LABEL[level + 1]} />}
+      {how && (
+        <HowSheet
+          onClose={() => setHow(false)}
+          level={level}
+          top={top}
+          steps={lv.data?.steps}
+          onHowUp={isMe && lv.data?.detail ? () => { setHow(false); setHowUp(true); } : undefined}
+        />
+      )}
+      {howUp && lv.data && <HowUpSheet lv={lv.data} onClose={() => setHowUp(false)} />}
       {items.length === 0 && (!compact || open) ? (
         <View style={st.empty}>
           <Text style={{ fontSize: 18, fontWeight: '800', color: colors.zinc900 }}>Geleira vazia!</Text>
@@ -414,7 +516,7 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
         items.length > 0 &&
         KINDS.map((k) => {
           const list = items.filter((i) => i.kind === k).sort((a, b) => Number(b.favorite) - Number(a.favorite)); // os favoritos primeiro
-          const canCheerHere = !isMe && typeof list[0]?.cheers === 'number';
+          const canCheerHere = !isMe && typeof list[0]?.cheers === 'number'; // sem itens deste tipo, a lista vem vazia
           // Bebidas: tocar abre as ações (brindar e «Paga-me uma»); comidas: tocar brinda (nas visitas).
           if (k === 'bebida') return list.length ? <Shelf key={k} title={KIND_LABEL[k]} icon={KIND_ICON[k]} items={list} onTap={(i) => setDrinkAct(i)} hint={isMe ? 'Abre «Paga-me uma»' : 'Abre brindar e «Paga-me uma»'} /> : null;
           return list.length ? <Shelf key={k} title={KIND_LABEL[k]} icon={KIND_ICON[k]} items={list} onTap={canCheerHere ? (i) => void cheerItem(i) : undefined} /> : null;
@@ -522,6 +624,21 @@ const st = StyleSheet.create({
   barFill: { height: 4, borderRadius: 2, backgroundColor: colors.brand },
   howTitle: { fontSize: 15, fontWeight: '800', color: colors.zinc900 },
   howText: { fontSize: 14, lineHeight: 19, color: colors.zinc700 },
+  howUp: { marginTop: 2, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 3, minHeight: 24 },
+  howUpText: { fontSize: 12, fontWeight: '700', color: colors.brand },
+  upHead: { gap: 8, borderRadius: 16, borderWidth: 1, borderColor: colors.zinc200, padding: 14, backgroundColor: '#fff' },
+  upTitle: { flexShrink: 1, fontSize: 18, fontWeight: '800', color: colors.zinc900 },
+  upPoints: { fontSize: 13, fontWeight: '700', color: colors.zinc600 },
+  upTrack: { height: 10, borderRadius: 5, backgroundColor: colors.zinc100, overflow: 'hidden' },
+  upFill: { height: 10, borderRadius: 5, backgroundColor: colors.brand },
+  upSmall: { fontSize: 12, lineHeight: 16, color: colors.zinc500 },
+  tipBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: 16, padding: 14, backgroundColor: colors.rose50 },
+  tipText: { flex: 1, fontSize: 15, lineHeight: 21, fontWeight: '600', color: colors.zinc900 },
+  upRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.zinc200 },
+  upIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  upLabel: { fontSize: 15, fontWeight: '700', color: colors.zinc900 },
+  upPts: { fontSize: 16, fontWeight: '800', color: colors.zinc900, minWidth: 36, textAlign: 'right' },
+  upRules: { fontSize: 13, lineHeight: 18, color: colors.zinc500 },
   lvDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: colors.zinc200, alignItems: 'center', justifyContent: 'center' },
   tile: { width: 58, alignItems: 'center' },
   tileRing: { borderRadius: 25, borderWidth: 2, borderColor: 'transparent' },

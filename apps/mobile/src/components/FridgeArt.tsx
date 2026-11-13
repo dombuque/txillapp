@@ -5,28 +5,27 @@ import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Re
 const tr = <T extends string>(s: T, vars?: Record<string, string | number>): string => (vars ? s.replace(/\{(\w+)\}/g, (_m, k: string) => String(vars[k] ?? '')) : s);
 
 /**
- * Pontuação da geleira: quantidade, variedade (grupos diferentes) e gostos avaliados. Não premeia álcool: serve para toda a malta.
- * É a mesma conta do servidor (que manda quando carrega); aqui só serve enquanto o nível não chega.
+ * Os pontos dos gostos (a parte da geleira no nível, 0146): 1 por grupo diferente (até 4) e 1 por cada 2 gostos avaliados
+ * (até 4), no máximo 8. O álcool não conta mais. O resto do nível (geladas, brindes, sítios, rodadas) só o servidor sabe:
+ * aqui só serve enquanto o nível não chega.
  */
 export function geleiraPoints(items: { kind: string; category: string; alcoholic?: boolean; favorite?: boolean; rating?: number | null; pending?: boolean }[]): number {
   const list = items.filter((i) => !i.pending && (i.kind === 'bebida' || i.kind === 'comida'));
-  const fav = list.filter((i) => i.favorite).length;
   const rated = list.filter((i) => i.rating != null).length;
-  const cats = new Set(list.map((i) => `${i.kind}:${i.category}`)).size;
-  return list.length + fav + Math.floor(rated / 2) + cats;
+  const groups = new Set(list.map((i) => i.category)).size;
+  return Math.min(8, Math.min(4, groups) + Math.min(4, Math.floor(rated / 2)));
 }
 
-/** Nível da geleira pelos pontos, em calão da malta (txilar, maningue, paulada, madala). */
-const STEPS = [1, 12, 30, 60] as const;
+/** Nível da geleira pelos pontos (os mesmos degraus do servidor), em calão da malta (txilar, maningue, paulada, madala). */
+const STEPS = [1, 40, 100, 180] as const;
 export const geleiraLevel = (points: number) => (points <= 0 ? 0 : points >= STEPS[3] ? 4 : points >= STEPS[2] ? 3 : points >= STEPS[1] ? 2 : 1);
 export const LEVEL_LABEL = [tr('Geleira seca'), tr('A txilar'), tr('Maningue abastecida'), tr('Paulada garantida'), tr('Madala da paulada')];
-/** Quanto falta para o nível seguinte, numa frase. */
+/** Enquanto o nível não chega do servidor: uma frase que não promete nada que não conte. */
 export function nextLevelHint(points: number): string {
   const l = geleiraLevel(points);
   if (l === 4) return tr('Nível máximo: madala da paulada!');
-  if (l === 0) return tr('Põe o primeiro gosto para começar a txilar.');
-  const falta = STEPS[l] - points;
-  return tr(falta === 1 ? 'Falta {n} ponto para {next}. Variedade e gostos avaliados valem mais.' : 'Faltam {n} pontos para {next}. Variedade e gostos avaliados valem mais.', { n: falta, next: LEVEL_LABEL[l + 1] });
+  if (l === 0) return tr('Paga uma gelada ou dá nota aos teus gostos para começares a txilar.');
+  return tr('O nível sobe com o que vives com a malta: geladas, brindes, sítios e rodadas.');
 }
 
 const ITEM_COLORS = ['#fb7185', '#fbbf24', '#34d399', '#60a5fa', '#c084fc', '#fb923c', '#f472b6', '#2dd4bf'];

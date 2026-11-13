@@ -1,4 +1,5 @@
 import { ApiError, post, raw, type Badged } from '@/lib/api';
+import type { LevelDetail } from '@/lib/geleiraLevel';
 
 /** Tipos e chamadas da Geleira e dos Zás (copiados do site; as chamadas usam a mesma sessão da app). */
 export type TasteKind = 'vibe' | 'bebida' | 'comida' | 'sitio';
@@ -12,7 +13,11 @@ export interface TheirTaste extends TasteItem { rating: number | null; favorite:
  * `cheers`/`cheered`: os brindes à geleira (servidor antigo não manda → sem botão de brindar). `cheersListable`: posso ver
  * quem brindou (o dono sempre; os outros se o dono mostra a lista nas definições).
  */
-export interface GeleiraLevel { points: number; level: number; title: string; toNext: number | null; nextTitle: string | null; cheers?: number; cheered?: boolean; cheersListable?: boolean }
+/**
+ * O nível (0146): o que a pessoa vive com a malta nos últimos 90 dias. `progress`: a barra (0 a 1). `detail` (de onde vêm os
+ * pontos) e `tip` (o que falta, em coisas concretas) só vêm para o dono. Servidor antigo: sem `progress`, `steps`, `detail`.
+ */
+export interface GeleiraLevel { points: number; level: number; title: string; toNext: number | null; nextTitle: string | null; steps?: number[]; progress?: number; detail?: LevelDetail; tip?: string; cheers?: number; cheered?: boolean; cheersListable?: boolean }
 export interface GeleiraCheer { cheered: boolean; cheers: number }
 /** `post`: o brinde veio do post da geleira (só o dono vê; sem post quando foi apagado). */
 export interface GeleiraCheerer extends Badged { username: string; displayName: string; hasAvatar: boolean; at: string; post?: { code: string } }

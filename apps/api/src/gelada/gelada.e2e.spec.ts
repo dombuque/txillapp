@@ -193,9 +193,12 @@ describe('«Paga-me uma»: pedidos, livro das geladas, rodadas e sexta (integra�
     await api().post(`/api/v1/gelada/debts/${ruiOwesZeca}/confirm`).set(auth(rui)).expect(409); // o devedor não confirma
     await api().post(`/api/v1/gelada/debts/${ruiOwesZeca}/confirm`).set(auth(ana)).expect(404); // nem um terceiro
     expect((await pool.query(`SELECT count(*)::int AS n FROM social.notifications WHERE user_id = $1 AND kind = 'gelada_paid'`, [zeca.id])).rows[0].n).toBe(1);
+    const geladas = async (x: U) => (await api().get(`/api/v1/users/${x.username}/geleira/level`).set(auth(x)).expect(200)).body.detail.geladas.points as number;
+    const before = [await geladas(rui), await geladas(zeca)];
     const ok = await api().post(`/api/v1/gelada/debts/${ruiOwesZeca}/confirm`).set(auth(zeca)).expect(200);
     expect(ok.body).toMatchObject({ status: 'paid', claimed: false });
-    for (const x of [rui, zeca]) expect((await api().get(`/api/v1/users/${x.username}/geleira/level`).set(auth(x)).expect(200)).body.geladaContribution).toBe(1);
+    // Nível da geleira (0146): 3 a quem pagou, 2 a quem recebeu.
+    expect([await geladas(rui), await geladas(zeca)]).toEqual([before[0] + 3, before[1] + 2]);
 
     // À mão: «Fico a dever-te uma». Diz que pagou, quem recebe diz «Ainda não».
     const m = await api().post('/api/v1/gelada/debts').set(auth(zeca)).send({ to: ana.username, itemId: B2M }).expect(201);
@@ -204,17 +207,17 @@ describe('«Paga-me uma»: pedidos, livro das geladas, rodadas e sexta (integra�
     expect((await api().post(`/api/v1/gelada/debts/${m.body.id}/reject`).set(auth(ana)).expect(200)).body).toMatchObject({ claimed: false, status: 'open', canConfirm: false });
   });
 
-  it('o teto semanal: as geladas pagas valem no máximo 3 pontos por semana; os pedidos sozinhos não valem nada', async () => {
+  it('o teto semanal: a mesma pessoa vale no máximo 6 pontos por semana para o nível; os pedidos sozinhos não valem nada', async () => {
     const p1 = await signup('ptsa');
     const p2 = await signup('ptsb');
     await mutual(p1, p2);
-    expect((await api().get(`/api/v1/users/${p1.username}/geleira/level`).set(auth(p1)).expect(200)).body.geladaContribution).toBe(0);
+    expect((await api().get(`/api/v1/users/${p1.username}/geleira/level`).set(auth(p1)).expect(200)).body.detail.geladas.points).toBe(0);
     for (let i = 0; i < 4; i++) {
       const d = (await api().post('/api/v1/gelada/debts').set(auth(p1)).send({ to: p2.username, itemId: FANTA }).expect(201)).body.id;
       await api().post(`/api/v1/gelada/debts/${d}/paid`).set(auth(p1)).send({}).expect(200);
       await api().post(`/api/v1/gelada/debts/${d}/confirm`).set(auth(p2)).expect(200);
     }
-    expect((await api().get(`/api/v1/users/${p1.username}/geleira/level`).set(auth(p1)).expect(200)).body.geladaContribution).toBe(3);
+    expect((await api().get(`/api/v1/users/${p1.username}/geleira/level`).set(auth(p1)).expect(200)).body.detail.geladas).toEqual({ points: 6, paid: 2, received: 0 });
   });
 
   it('perdoar: só quem recebia fecha a dívida', async () => {

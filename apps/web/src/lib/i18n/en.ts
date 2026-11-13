@@ -809,8 +809,8 @@ export const EN: Record<string, string> = {
   'Nível máximo: madala da paulada!': 'Max level: party elder!',
   'Nível máximo: {t}!': 'Max level: {t}!',
   'Põe o primeiro gosto para começar a txilar.': 'Add your first taste to start chilling.',
-  'Falta {n} ponto para {next}. Bebidas com álcool e vibes de festa valem mais.': '{n} point to go for {next}. Alcoholic drinks and party vibes are worth more.',
-  'Faltam {n} pontos para {next}. Bebidas com álcool e vibes de festa valem mais.': '{n} points to go for {next}. Alcoholic drinks and party vibes are worth more.',
+  'Falta {n} ponto para {next}. Contam as geladas, os brindes, os sítios e as rodadas.': '{n} point to go for {next}. Paid drinks, cheers, check-ins and rounds count.',
+  'Faltam {n} pontos para {next}. Contam as geladas, os brindes, os sítios e as rodadas.': '{n} points to go for {next}. Paid drinks, cheers, check-ins and rounds count.',
 
   // Mensagens e estados (quarta passagem)
   ' · Visto': ' · Seen',
@@ -1287,8 +1287,6 @@ export const EN: Record<string, string> = {
   'A enviar… {v0}%': 'Uploading… {v0}%',
   'O vídeo do story pode ter até 30 segundos': 'A story video can be up to 30 seconds',
   'Esse ficheiro não serve. Usa uma foto (JPEG, PNG, WebP) ou um vídeo (MP4, MOV)': 'That file does not work. Use a photo (JPEG, PNG, WebP) or a video (MP4, MOV)',
-  'Faltam {n} pontos para {next}. Variedade e gostos avaliados valem mais.': 'You need {n} more points for {next}. Variety and rated tastes count more.',
-  'Falta {n} ponto para {next}. Variedade e gostos avaliados valem mais.': 'You need {n} more point for {next}. Variety and rated tastes count more.',
   'Encher a geleira (3 gostos)': 'Fill your geleira (3 tastes)',
   'Seguir 3 pessoas': 'Follow 3 people',
   'Fazer o primeiro post': 'Make your first post',
