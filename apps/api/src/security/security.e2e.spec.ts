@@ -110,7 +110,7 @@ describe('segurança das contas: força bruta, registo em massa, contas falsas, 
     expect(warn.text).toContain('Android · app Txillapp 1.46');
     expect(warn.text).toContain('https://txillapp.com/forgot-password');
     await waitFor(async () => (await events('login_locked', u.id)).length === 1, 'o evento do bloqueio');
-    expect((await events('login_failed', u.id)).length).toBe(LOGIN.ACCOUNT_LOCK_AFTER);
+    await waitFor(async () => (await events('login_failed', u.id)).length === LOGIN.ACCOUNT_LOCK_AFTER, 'as falhas nos eventos');
     expect((await events('login_failed', u.id))[0].ip_hash).toMatch(/^[0-9a-f]{32}$/); // impressão, nunca o IP
     expect(JSON.stringify(await events('login_failed', u.id))).not.toContain('2001:db8');
     await waitFor(async () => (await pool.query("SELECT 1 FROM audit.audit_log WHERE action = 'auth.login_locked' AND actor_id = $1", [u.id])).rowCount === 1, 'a auditoria');
@@ -182,7 +182,7 @@ describe('segurança das contas: força bruta, registo em massa, contas falsas, 
     expect(r.body.code).toBe('login_ip_locked');
     expect(r.body.retryAfter).toBeGreaterThan(0);
     await login(victim.username, PASSWORD, freshIp()).expect(200);
-    expect((await events('ip_locked')).length).toBeGreaterThanOrEqual(1);
+    await waitFor(async () => (await events('ip_locked')).length >= 1, 'o evento do IP bloqueado');
   });
 
   it('registo em massa: limites por IP (hora) e por rede (dia); os IP internos não contam', async () => {
@@ -215,7 +215,8 @@ describe('segurança das contas: força bruta, registo em massa, contas falsas, 
     }
     expect(hashes).not.toHaveBeenCalled();
     hashes.mockRestore();
-    expect((await events('register_disposable')).length).toBeGreaterThanOrEqual(2);
+    // O evento é escrito em segundo plano (nunca atrasa a resposta).
+    await waitFor(async () => (await events('register_disposable')).length >= 2, 'os eventos do email temporário');
   });
 
   it('«Este email já tem conta?» e «Esqueci-me da senha» não servem para varrer emails nem para encher a caixa de alguém', async () => {
