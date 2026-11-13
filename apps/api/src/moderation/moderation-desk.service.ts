@@ -17,6 +17,12 @@ const WEIGHT_SQL = `max(CASE r.reason ${Object.entries(REASON_WEIGHT).map(([k, v
 /** Gravidade: o motivo mais grave, mais 3 pontos por cada pessoa a mais que denunciou (até +30). */
 const SEVERITY_SQL = `(${WEIGHT_SQL} + least(count(*) - 1, 10) * 3)`;
 
+/**
+ * Página «Conteúdo»: fotos «assinaladas» a partir desta pontuação do classificador (só para a equipa procurar; não muda
+ * nada para quem publica). Mais baixo do que NSFW_REVIEW_THRESHOLD, que decide o que vai sozinho para a fila.
+ */
+export const NSFW_FLAGGED = 0.5;
+
 export const DESK_ACTIONS = ['dismiss', 'remove', 'warn', 'suspend'] as const;
 export type DeskAction = (typeof DESK_ACTIONS)[number];
 export const QUEUE_SORTS = ['severity', 'oldest', 'newest', 'reports'] as const;
@@ -333,7 +339,7 @@ export class ModerationDeskService {
     let authorId: string | null = null;
     if (f.author?.trim()) {
       authorId = (await this.pool.query('SELECT id FROM identity.users WHERE lower(username) = lower($1)', [f.author.trim().replace(/^@/, '')])).rows[0]?.id ?? null;
-      if (!authorId) return { items: [], nextCursor: null, rules: TEXT_RULES.map((r) => ({ id: r.id, label: r.label })), nsfwThreshold: this.config.NSFW_REVIEW_THRESHOLD };
+      if (!authorId) return { items: [], nextCursor: null, rules: TEXT_RULES.map((r) => ({ id: r.id, label: r.label })), nsfwThreshold: NSFW_FLAGGED };
     }
     const author = authorId ? p(authorId) : null;
     const tag = f.tag?.trim() ? f.tag.trim().replace(/^#/, '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9_]/g, '') : '';
@@ -342,7 +348,7 @@ export class ModerationDeskService {
     const from = f.from ? p(f.from) : null;
     const to = f.to ? p(f.to) : null;
     const cursor = f.cursor ? p(f.cursor) : null;
-    const nsfw = f.flag === 'nsfw' ? p(this.config.NSFW_REVIEW_THRESHOLD) : null;
+    const nsfw = f.flag === 'nsfw' ? p(NSFW_FLAGGED) : null;
     const textRe = f.flag === 'text' ? p(TEXT_FILTER_PATTERN) : null;
     const lim = p(limit + 1);
 
@@ -398,7 +404,7 @@ export class ModerationDeskService {
                       ${where([`mr.target_type = 'comment'`, 'mr.restored_at IS NULL', ...common('mr.body', created, 'mr.author_id'), tagRe ? `${folded('mr.body')} ~ ${tagRe}` : null])}`);
       }
     }
-    if (!parts.length) return { items: [], nextCursor: null, rules: TEXT_RULES.map((r) => ({ id: r.id, label: r.label })), nsfwThreshold: this.config.NSFW_REVIEW_THRESHOLD };
+    if (!parts.length) return { items: [], nextCursor: null, rules: TEXT_RULES.map((r) => ({ id: r.id, label: r.label })), nsfwThreshold: NSFW_FLAGGED };
     const { rows } = await this.pool.query(`SELECT * FROM (${parts.join('\n UNION ALL \n')}) x ORDER BY created_at DESC, id DESC LIMIT ${lim}`, params);
     const page = rows.slice(0, limit);
 
@@ -425,7 +431,7 @@ export class ModerationDeskService {
         [keys],
       )).rows) removals.set(r.k, { reason: r.reason, at: r.removed_at, by: r.username ?? null });
     }
-    const threshold = this.config.NSFW_REVIEW_THRESHOLD;
+    const threshold = NSFW_FLAGGED;
     return {
       items: page.map((r) => {
         const k = `${r.type}:${r.id}`;

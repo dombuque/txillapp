@@ -12,7 +12,7 @@ import { APPLE_JWKS } from './auth/apple.service';
 import { GOOGLE_JWKS } from './auth/google.service';
 import { Client } from '@elastic/elasticsearch';
 import { ES_CLIENT, SearchIndexModule } from './search/search-index';
-import { IMAGE_CLASSIFIER, type ImageClassifier } from './moderation/image-moderation.service';
+import { BODY_DETECTOR, IMAGE_CLASSIFIER, type BodyPartDetector, type ImageClassifier } from './moderation/image-moderation.service';
 import { ChatModule } from './chat/chat.module';
 import { CallsModule } from './calls/calls.module';
 import { MusicModule } from './music/music.module';
@@ -52,7 +52,7 @@ import { ComposeModule } from './compose/compose.module';
 @Module({})
 export class AppModule {
   /** `googleJwks`: chaves públicas para validar tokens da Google; só os testes as substituem. */
-  static register(config: AppConfig, opts: { googleJwks?: JWTVerifyGetKey; appleJwks?: JWTVerifyGetKey; imageClassifier?: ImageClassifier; esClient?: Client } = {}): DynamicModule {
+  static register(config: AppConfig, opts: { googleJwks?: JWTVerifyGetKey; appleJwks?: JWTVerifyGetKey; imageClassifier?: ImageClassifier; bodyDetector?: BodyPartDetector; esClient?: Client } = {}): DynamicModule {
     return {
       module: AppModule,
       global: true,
@@ -105,6 +105,7 @@ export class AppModule {
         { provide: GOOGLE_JWKS, useValue: opts.googleJwks ?? null },
         { provide: APPLE_JWKS, useValue: opts.appleJwks ?? null },
         { provide: IMAGE_CLASSIFIER, useValue: opts.imageClassifier ?? null },
+        { provide: BODY_DETECTOR, useValue: opts.bodyDetector ?? null },
         {
           provide: ES_CLIENT,
           useValue:
@@ -115,7 +116,7 @@ export class AppModule {
         },
         { provide: APP_GUARD, useClass: ThrottlerGuard },
       ],
-      exports: [CONFIG, GOOGLE_JWKS, APPLE_JWKS, IMAGE_CLASSIFIER, ES_CLIENT],
+      exports: [CONFIG, GOOGLE_JWKS, APPLE_JWKS, IMAGE_CLASSIFIER, BODY_DETECTOR, ES_CLIENT],
     };
   }
 }

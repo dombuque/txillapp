@@ -126,18 +126,18 @@ export class MediaService implements OnModuleInit {
    */
   private async screen(id: string, owner: string, mime: string, bytes: () => Promise<Buffer>) {
     if (!mime.startsWith('image/') || !this.imageModeration.enabled) return;
-    const { verdict, score } = await this.imageModeration.check(await bytes(), mime);
+    const { verdict, score, reason } = await this.imageModeration.check(await bytes(), mime);
     await this.pool.query('UPDATE content.media_assets SET nsfw_score = $2 WHERE id = $1', [id, score]);
     if (verdict === 'reject') {
-      await this.pool.query(`UPDATE content.media_assets SET status = 'deleted' WHERE id = $1`, [id]);
+      await this.pool.query(`UPDATE content.media_assets SET status = 'deleted', processing_error = $2 WHERE id = $1`, [id, reason]);
       void this.sweepDeleted();
-      throw new UnprocessableEntityException('Esta foto parece ter nudez ou conteúdo sexual e não pode ser publicada.');
+      throw new UnprocessableEntityException('Esta foto parece mostrar nudez e não pode ser publicada.');
     }
     if (verdict === 'review') {
       await this.pool.query(
         `INSERT INTO social.reports (id, reporter_id, target_type, target_id, target_user_id, reason, note)
          VALUES ($1, NULL, 'media', $2, $3, 'nudity', $4) ON CONFLICT DO NOTHING`,
-        [uuidv7(), id, owner, `Verificação automática: ${(score! * 100).toFixed(0)}% de probabilidade`],
+        [uuidv7(), id, owner, `Verificação automática: ${reason ?? `classificador ${Math.round(score! * 100)}%`}`],
       );
     }
   }

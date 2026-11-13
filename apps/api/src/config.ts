@@ -30,18 +30,39 @@ const schema = z.object({
    * (nada sai daqui); 'off' desliga (só desenvolvimento). Ver a secção "Fotos" do README.
    */
   IMAGE_MODERATION: z.enum(['off', 'local']).default('off'),
+  /** O classificador da imagem inteira (dá a pontuação de 0 a 1). Sozinho nunca recusa. */
   NSFW_MODEL: z.string().default('AdamCodd/vit-base-nsfw-detector'),
+  /** Onde ficam os modelos descarregados (o classificador e o detetor). Não vão dentro da imagem Docker. */
   MODEL_CACHE_DIR: z.string().default('./.models'),
-  /** A partir daqui a foto é recusada. */
-  NSFW_REJECT_THRESHOLD: z.coerce.number().min(0).max(1).default(0.85),
   /**
-   * Recusar automaticamente com o classificador sozinho? Desligado: o classificador olha para a imagem inteira e erra em
-   * selfies, roupa justa e peles escuras (recusava fotos sem nudez nenhuma). Desligado, uma pontuação acima de
-   * NSFW_REJECT_THRESHOLD passa e vai para a fila da moderação com prioridade, como a zona duvidosa.
+   * O detetor de partes do corpo expostas: NudeNet v3.4 (AGPL-3.0, pesos oficiais sem alterações, descarregados na
+   * 1.ª vez para MODEL_CACHE_DIR/nudenet). '640m' (100 MB, ~0,2 a 0,5 s por foto, mais certeiro), '320n' (12 MB, ~20 ms)
+   * ou 'off' (sem detetor: nenhuma foto é recusada).
    */
-  NSFW_AUTO_REJECT: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
-  /** A partir daqui a foto passa mas fica na fila da moderação. */
-  NSFW_REVIEW_THRESHOLD: z.coerce.number().min(0).max(1).default(0.5),
+  NUDE_DETECTOR: z.enum(['640m', '320n', 'off']).default('640m'),
+  /** O detetor só corre quando o classificador dá pelo menos isto (abaixo, a foto passa logo e poupa-se o CPU). */
+  NSFW_DETECT_THRESHOLD: z.coerce.number().min(0).max(1).default(0.3),
+  /**
+   * Recusar automaticamente? Só com prova: o detetor encontrou genitais, ânus ou mamilos femininos expostos com
+   * confiança ≥ NUDE_REJECT_CONFIDENCE. O classificador sozinho nunca recusa (olha para a imagem inteira e erra em
+   * selfies, roupa justa e peles escuras). Desligado ('false'), essas fotos passam e vão para a fila da moderação.
+   */
+  NSFW_AUTO_REJECT: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  /**
+   * Confiança do detetor para recusar (genitais, ânus, mamilos femininos expostos). Nas 245 fotos vestidas do teste de
+   * justiça (todos os tons de pele, praia, ginásio, capulanas), a parte «proibida» mais forte que o detetor viu foi 0.53
+   * (o peito de um homem): 0.6 deixa margem, e abaixo disto a foto ainda vai para a moderação.
+   */
+  NUDE_REJECT_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.6),
+  /** Confiança do detetor para mandar para a moderação (essas partes com menos confiança, ou nádegas expostas). */
+  NUDE_REVIEW_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.4),
+  /** Para recusar, o classificador também tem de dar pelo menos isto (dupla prova; 0: basta o detetor). */
+  NUDE_REJECT_MIN_NSFW: z.coerce.number().min(0).max(1).default(0.5),
+  /**
+   * O classificador sozinho, sem o detetor confirmar, manda a foto para a moderação a partir daqui (passa na mesma).
+   * Muito alto de propósito: no teste de justiça, 12 % das fotos vestidas (praia, ginásio) passavam de 0.85; de 0.98, 4 %.
+   */
+  NSFW_REVIEW_THRESHOLD: z.coerce.number().min(0).max(1).default(0.98),
   /**
    * Pesquisa: 'postgres' (texto completo + nomes aproximados, por omissão) ou 'elasticsearch' (índice próprio, mais
    * relevância e tolerância a erros). O Elasticsearch só ordena; a privacidade continua a ser decidida pelo PostgreSQL.

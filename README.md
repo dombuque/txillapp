@@ -75,14 +75,27 @@ Todos os direitos reservados © Erasmo Buque (dombuque), até ser definida uma l
 
 ## Fotos: verificação automática
 
-Todas as fotos passam por um modelo local (ViT `AdamCodd/vit-base-nsfw-detector`, Apache-2.0) antes de ficarem visíveis. Nada sai do servidor.
+Todas as fotos (e 3 imagens de cada vídeo) passam por dois modelos locais antes de ficarem visíveis. Nada sai do servidor.
 
-- `IMAGE_MODERATION=local` liga; `off` desliga (só desenvolvimento).
-- ≥ `NSFW_REJECT_THRESHOLD` (0.85): a foto é recusada. Entre `NSFW_REVIEW_THRESHOLD` (0.5) e 0.85: passa e vai para a fila de moderação (`/admin`).
-- Se o modelo falhar, a foto é recusada (falha fechada).
-- O modelo (~89 MB) descarrega-se na primeira análise para `.models/`. Para o testar com as tuas imagens:
-  `cd apps/api && npx ts-node scripts/check-nsfw.ts foto1.jpg foto2.png`
-  e, ponta a ponta com a API: `npx ts-node scripts/e2e-real-nsfw.ts foto.jpg`.
+1. Um classificador da imagem inteira (ViT `AdamCodd/vit-base-nsfw-detector`, Apache-2.0) dá uma pontuação. Sozinho nunca recusa:
+   erra em selfies, roupa justa, praia, ginásio e peles escuras.
+2. A partir de `NSFW_DETECT_THRESHOLD` (0.3) corre o detetor de partes do corpo expostas, o NudeNet v3.4 `640m`
+   (YOLOv8, [notAI-tech/NudeNet](https://github.com/notAI-tech/NudeNet), AGPL-3.0; os pesos oficiais, sem alterações,
+   descarregam-se uma vez para `MODEL_CACHE_DIR/nudenet` e são conferidos pelo SHA-256).
+3. Decisão (`apps/api/src/moderation/image-moderation.service.ts`, `decide()`):
+   - **recusa** só com prova: genitais, ânus ou mamilos femininos expostos com confiança ≥ `NUDE_REJECT_CONFIDENCE` (0.6)
+     e o classificador ≥ `NUDE_REJECT_MIN_NSFW` (0.5) — `NSFW_AUTO_REJECT=true` por omissão;
+   - **moderação** (passa e vai para a fila, com o motivo «Detetado: … (78%)»): essas partes com menos confiança, nádegas
+     expostas (≥ 0.5), ou o classificador ≥ `NSFW_REVIEW_THRESHOLD` (0.98) sem o detetor confirmar;
+   - **passa** no resto. O peito de um homem confundido com mamilos femininos (só rosto masculino) nunca recusa.
+- `IMAGE_MODERATION=local` liga; `off` desliga (só desenvolvimento). `NUDE_DETECTOR=320n` usa o modelo pequeno (mais rápido,
+  mas com muito mais falsos alarmes); `off` tira o detetor (nada é recusado).
+- Se o classificador falhar, a foto é recusada (falha fechada). Se só o detetor falhar, nunca se recusa.
+- No máximo 2 análises ao mesmo tempo. Tempos em `image_moderation_seconds` (Prometheus).
+- Teste de justiça com fotos reais vestidas (fora do git; nunca fotos com nudez):
+  `cd apps/api && npx ts-node --transpile-only scripts/bench-nudez.ts pasta-com-subpastas 640m > resultados.tsv`.
+  Para testar uma foto: `npx ts-node scripts/check-nsfw.ts foto.jpg` (só o classificador) ou, ponta a ponta com a API,
+  `npx ts-node scripts/e2e-real-nsfw.ts foto.jpg`.
 - Nenhum detetor é perfeito: mantém-se a moderação humana e as denúncias.
 
 Contas de moderação: `UPDATE identity.users SET is_admin = true WHERE username = '...';`

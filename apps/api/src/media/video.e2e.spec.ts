@@ -10,7 +10,8 @@ import { Pool } from 'pg';
 import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
-import { ImageClassifier } from '../moderation/image-moderation.service';
+import type { BodyPartDetector, ImageClassifier } from '../moderation/image-moderation.service';
+import type { Detection } from '../moderation/nudenet';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
@@ -26,6 +27,8 @@ function makeVideo(seconds: number, name: string, ext = 'mp4') {
 
 let score = 0.05; // o que o classificador de mentira devolve para qualquer imagem
 const fake: ImageClassifier = { nsfwScore: async () => score };
+let parts: Detection[] = []; // o que o detetor de mentira encontra
+const detector: BodyPartDetector = { detect: async () => parts };
 
 interface U { token: string; id: string; username: string }
 
@@ -42,7 +45,7 @@ describe('vídeos curtos (conversão, verificação e publicação)', () => {
     pool = new Pool({ connectionString: DB });
     app = await createApp(
       loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'v'.repeat(40), NODE_ENV: 'test', MEDIA_DIR: './uploads-test', IMAGE_MODERATION: 'local', NSFW_AUTO_REJECT: 'true' }),
-      { imageClassifier: fake },
+      { imageClassifier: fake, bodyDetector: detector },
     );
     await app.init();
     const username = `vid${run}`.slice(0, 28);
@@ -145,22 +148,26 @@ describe('vídeos curtos (conversão, verificação e publicação)', () => {
     await api().post('/api/v1/media/uploads').set(auth()).send({ mime: 'video/x-flv', size: 1000 }).expect(415);
     await api().post('/api/v1/media/uploads').set(auth()).send({ mime: 'video/mp4', size: 200 * 1024 * 1024 }).expect(413);
 
-    // o detetor assinala as imagens do vídeo: recusado, e nada fica no disco
+    // o detetor encontra nudez nas imagens do vídeo: recusado, e nada fica no disco
     score = 0.97;
+    parts = [{ label: 'FEMALE_GENITALIA_EXPOSED', score: 0.9, box: [10, 10, 20, 20] }];
     const bad = await upload(makeVideo(2, 'mau'));
     const sb = await convert(bad);
     expect(sb.status).toBe('deleted');
-    expect(sb.error).toMatch(/nudez|sexual/i);
+    expect(sb.error).toMatch(/nudez/i);
     expect(existsSync(`./uploads-test/${bad}`)).toBe(false);
     expect(existsSync(`./uploads-test/${bad}.poster.jpg`)).toBe(false);
 
-    // zona duvidosa: passa e vai para a fila da moderação
+    // zona duvidosa (nádegas expostas): passa e vai para a fila da moderação, com o motivo
     score = 0.65;
+    parts = [{ label: 'BUTTOCKS_EXPOSED', score: 0.7, box: [10, 10, 20, 20] }];
     const maybe = await upload(makeVideo(2, 'talvez'));
     expect((await convert(maybe)).status).toBe('ready');
     const rep = await pool.query(`SELECT note FROM social.reports WHERE target_type = 'media' AND target_id = $1`, [maybe]);
     expect(rep.rows[0].note).toMatch(/vídeo/);
+    expect(rep.rows[0].note).toContain('Detetado: nádegas expostas (70%)');
     score = 0.05;
+    parts = [];
   }, 180_000);
 
   it('partilhar um reel no meu status: aparece aos meus seguidores como vídeo, com a origem; some se o original for apagado', async () => {

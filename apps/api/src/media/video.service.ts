@@ -120,7 +120,7 @@ export class VideoService {
       // Capa (no instante escolhido, se houver) e 3 imagens para a verificação (10%, 50% e 90%).
       await run(FFMPEG, ['-y', ...VideoService.SAFE_INPUT, '-ss', String(posterSeek(final.seconds, posterMs)), '-i', f.out, '-frames:v', '1', '-q:v', '4', f.poster], { timeout: 60_000 });
       const verdict = await this.screenFrames(f.out, final.seconds, id, owner);
-      if (verdict === 'reject') throw new VideoRejected('Este vídeo parece ter nudez ou conteúdo sexual e não pode ser publicado.');
+      if (verdict === 'reject') throw new VideoRejected('Este vídeo parece mostrar nudez e não pode ser publicado.');
 
       const size = (await stat(f.out)).size;
       if (hooks) await hooks.publish(f.out, f.poster);
@@ -145,14 +145,20 @@ export class VideoService {
     if (!this.imageModeration.enabled) return 'ok';
     let worst: 'ok' | 'review' | 'reject' = 'ok';
     let top: number | null = null;
+    let why: string | null = null;
     for (const at of [0.1, 0.5, 0.9]) {
       const frame = join(this.dir, `${id}.frame.jpg`);
       await run(FFMPEG, ['-y', ...VideoService.SAFE_INPUT, '-ss', String(seconds * at), '-i', video, '-frames:v', '1', '-q:v', '4', frame], { timeout: 60_000 });
-      const { verdict, score } = await this.imageModeration.check(await readFile(frame), 'image/jpeg');
+      const { verdict, score, reason } = await this.imageModeration.check(await readFile(frame), 'image/jpeg');
       await rm(frame, { force: true });
       if (score !== null && (top === null || score > top)) top = score;
-      if (verdict === 'reject') worst = 'reject';
-      else if (verdict === 'review' && worst === 'ok') worst = 'review';
+      if (verdict === 'reject') {
+        worst = 'reject';
+        why = reason;
+      } else if (verdict === 'review' && worst === 'ok') {
+        worst = 'review';
+        why = reason;
+      }
       if (worst === 'reject') break;
     }
     await this.pool.query('UPDATE content.media_assets SET nsfw_score = $2 WHERE id = $1', [id, top]);
@@ -160,7 +166,7 @@ export class VideoService {
       await this.pool.query(
         `INSERT INTO social.reports (id, reporter_id, target_type, target_id, target_user_id, reason, note)
          VALUES ($1, NULL, 'media', $2, $3, 'nudity', $4) ON CONFLICT DO NOTHING`,
-        [uuidv7(), id, owner, `Verificação automática (vídeo): ${((top ?? 0) * 100).toFixed(0)}% de probabilidade`],
+        [uuidv7(), id, owner, `Verificação automática (vídeo): ${why ?? `classificador ${Math.round((top ?? 0) * 100)}%`}`],
       );
     }
     return worst;
