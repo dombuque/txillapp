@@ -118,6 +118,19 @@ a correr com as batidas lidas e com o som real dos vídeos (falha com a mesma di
 `404` para um job que não existe ou de outra pessoa. `progress`: 0–0,08 a preparar (descarregar, ler as batidas), até 0,45 os
 clipes, até 0,95 o vídeo final (o `-progress` do ffmpeg), 1 no fim. Os jobs acabados apagam-se ao fim de 7 dias.
 
+### 3-A. `POST /tchekas/compose/analyze` (com sessão, só o dono): o som de um clipe
+
+Para a Montagem mágica da app (docs/estudio-nativo.md, 3.1). Corpo `{ mediaId }` de um vídeo meu, público, a converter ou
+pronto (ouve-se o original enquanto converte). Resposta `200`:
+
+```ts
+{ hasAudio: boolean, energy: number[] /* 0..1, 4 por segundo; vazio sem som */, rate: 4, loudestMs: number | null, durationMs: number }
+```
+
+Uma pista só com silêncio (RMS abaixo de 0,002) dá `hasAudio: false`. `404` de outra pessoa ou apagado, `400` se não for vídeo,
+`409` antes de `complete`, `503` com a fila cheia ou se o ffmpeg falhar. Cache em memória por ficheiro, 2 de cada vez, 20 s de
+prazo, 60 por minuto. Código: `compose/analyze.ts` (as contas) e `compose/analyze.service.ts`.
+
 ## 4. O vídeo final
 
 - **1080×1920 (9:16), H.264 (high 4.1, CRF 21, até 6 Mbit/s) + AAC 160 kbit/s, 30 fps, `faststart`**, sem metadados.
