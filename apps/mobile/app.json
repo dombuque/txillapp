@@ -2,7 +2,7 @@
   "expo": {
     "name": "Txillapp",
     "slug": "txillapp",
-    "version": "1.39.1",
+    "version": "1.40.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "txillapp",
@@ -60,7 +60,7 @@
     },
     "android": {
       "package": "com.txillapp.app",
-      "versionCode": 75,
+      "versionCode": 76,
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -181,6 +181,7 @@
       "./plugins/withProguardRules",
       "./plugins/withShortCxxPath",
       "./plugins/withCompressedNativeLibs",
+      "./plugins/withMinSdk26",
       "./plugins/withAndroidUploadSigning",
       "./plugins/withoutUnusedServices",
       "./plugins/withCallService"
