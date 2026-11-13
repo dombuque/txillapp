@@ -207,10 +207,10 @@ export default function Invites() {
             <Text style={st.h2} accessibilityRole="header">Como funciona</Text>
             <View style={{ gap: 8 }}>
               {li('check-circle', '#059669', 'A pessoa entra pela tua ligação ou com o teu código. Ficas logo a saber que ela entrou.')}
-              {li('check-circle', '#059669', `Ela ganha logo ${d.rules.reward} Txills ao entrar (se a tua conta já puder convidar com prémio; senão, quando ela ficar ativa).`)}
-              {li('check-circle', '#059669', `Tu ganhas ${d.rules.reward} Txills quando ela ficar ativa (confirma o email e publica algo, ou segue 3 pessoas) e continuar por cá ${d.rules.holdDays} dias.`)}
+              {li('check-circle', '#059669', `Ela ganha ${d.rules.reward} Txills quando a conta ficar ativa: confirma o email, publica algo ou segue 3 pessoas, e volta ao Txillapp noutro dia.`)}
+              {li('check-circle', '#059669', `Tu ganhas ${d.rules.reward} Txills quando ela continuar por cá mais ${d.rules.holdDays} dias.`)}
               {li('info', colors.zinc500, `Até ${d.rules.perDay} convites premiados por dia e ${d.rules.maxPaid} no total. Depois disso o convite continua a funcionar, mas sem Txills.`)}
-              {li('info', colors.zinc500, 'Contas repetidas, emails temporários e registos em massa não contam. Os Txills são pontos da app.')}
+              {li('info', colors.zinc500, 'Contas repetidas (no mesmo aparelho ou com o mesmo email), contas automáticas, emails temporários e registos em massa não contam. Os Txills são pontos da app.')}
               {li('info', colors.zinc500, 'O cartão é feito no teu aparelho. Leva o teu nome, a tua foto e, se a tua Geleira estiver à vista de todos, alguns itens dela.')}
             </View>
           </>
