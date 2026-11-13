@@ -13,6 +13,7 @@ import {
 import { StyleSheet, View } from 'react-native';
 import type { TasteItem } from '@/lib/api.geleira';
 import { DrinkArt } from './DrinkArt';
+import { Mango } from './MangoIcon';
 
 /** Um ícone por item do catálogo (nada de prateleiras com tudo igual). */
 const BY_SLUG: Record<string, LucideIcon> = {
@@ -24,7 +25,7 @@ const BY_SLUG: Record<string, LucideIcon> = {
   'vibe-ginasio': Dumbbell, 'vibe-corrida': Footprints, 'vibe-madrugador': Sunrise, 'vibe-noctambulo': MoonStar,
   // bebidas sem álcool
   'beb-coca-cola': CupSoda, 'beb-fanta': Candy, 'beb-sprite': Leaf, 'beb-tonica': Zap, 'beb-sumol': Cherry, 'beb-cappy': Apple,
-  'beb-maracuja': Flower, 'beb-manga': Sun, 'beb-laranja': Citrus, 'beb-ananas': Crown, 'beb-agua-coco': TreePalm, 'beb-cafe': Coffee,
+  'beb-maracuja': Flower, 'beb-manga': Mango, 'beb-laranja': Citrus, 'beb-ananas': Crown, 'beb-agua-coco': TreePalm, 'beb-cafe': Coffee,
   'beb-cha-limao': Sprout, 'beb-cha-gengibre': Carrot, 'beb-cappuccino': Milk, 'beb-energetica': Rocket, 'beb-agua': GlassWater, 'beb-batido': Banana,
   // bebidas com álcool
   'beb-laurentina': Beer, 'beb-2m': Trophy, 'beb-manica': Mountain, 'beb-castle': Star, 'beb-heineken': Anchor, 'beb-cerveja-milho': Wheat,
@@ -37,7 +38,7 @@ const BY_SLUG: Record<string, LucideIcon> = {
   'com-arroz-coco': TreePalm, 'com-badjias': Cookie, 'com-samosas': Croissant, 'com-chamussas': Croissant, 'com-rissois': Egg,
   'com-pao-chourico': Ham, 'com-pao-frango': Sandwich, 'com-prego': Sandwich, 'com-hamburguer': Beef, 'com-pizza': Pizza, 'com-batata-frita': Zap,
   'com-kebab': Utensils, 'com-sushi': Fish, 'com-massa': UtensilsCrossed, 'com-salada': Salad, 'com-vegetariano': Leaf, 'com-bolinhos': Cookie,
-  'com-pasteis-nata': Dessert, 'com-gelado': IceCreamCone, 'com-bolo': Cake, 'com-chocolate': CakeSlice, 'com-manga-verde': Banana,
+  'com-pasteis-nata': Dessert, 'com-gelado': IceCreamCone, 'com-bolo': Cake, 'com-chocolate': CakeSlice, 'com-manga-verde': Mango,
   'com-pipocas': Popcorn, 'com-amendoim': Nut, 'com-castanha-caju': Nut, 'com-pequeno-almoco': Coffee,
   // sítios
   'sit-bar': Beer, 'sit-discoteca': Disc3, 'sit-lounge': Armchair, 'sit-karaoke': Mic, 'sit-esplanada': Umbrella, 'sit-restaurante': Utensils,

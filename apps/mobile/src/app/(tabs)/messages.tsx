@@ -467,7 +467,7 @@ export default function Messages() {
           const hold = inboxMenu(menuRow(r)).length ? () => openMenu(r, true) : undefined;
           const a11y = inboxA11yActions(menuRow(r));
           return (
-          <SwipeRow left={rowLeft(r)} right={rowRight(r)} onHold={hold} active={!!openPath && r.to === openPath} onDeskMenu={hold ? (at) => setDeskMenu({ key: r.key, at }) : undefined}>
+          <SwipeRow left={[]} right={[]} onHold={hold} active={!!openPath && r.to === openPath} onDeskMenu={hold ? (at) => setDeskMenu({ key: r.key, at }) : undefined}>
           {r.g ? (
             <GroupCard {...groupCardData(r.g)} lastMessage={r.sub} onPress={() => router.push(r.to as never)} {...rowHold(hold)} accessibilityActions={a11y} onAccessibilityAction={(name) => a11yAction(name, r)} />
           ) : (

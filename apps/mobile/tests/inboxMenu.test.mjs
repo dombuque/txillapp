@@ -19,20 +19,20 @@ const labels = (items) => items.map((i) => i.label);
 test('conversa lida: deslizar mostra "Por ler" e "Apagar"; a folha marca como por ler, vê o perfil, apaga e cancela', () => {
   assert.deepEqual(m.inboxSwipe(chat()), { left: ['unread'], right: ['delete'] });
   assert.deepEqual(m.inboxMenu(chat()), ['unread', 'profile', 'delete']);
-  assert.deepEqual(labels(m.inboxMenuItems(chat())), ['Marcar como por ler', 'Ver perfil', 'Apagar conversa', 'Cancelar']);
+  assert.deepEqual(labels(m.inboxMenuItems(chat())), ['Marcar como por ler', 'Ver perfil', 'Mensagens temporárias', 'Limpar conversa', 'Apagar conversa', 'Cancelar']);
   assert.equal(m.swipeLabel('unread'), 'Por ler');
   assert.equal(m.swipeLabel('delete'), 'Apagar');
 });
 
 test('conversa por ler (mensagens novas ou marcada à mão): "Marcar como lida" em vez de "por ler"', () => {
   assert.deepEqual(m.inboxSwipe(chat({ unread: 3 })).left, ['read']);
-  assert.deepEqual(labels(m.inboxMenuItems(chat({ unread: 1 }))), ['Marcar como lida', 'Ver perfil', 'Apagar conversa', 'Cancelar']);
+  assert.deepEqual(labels(m.inboxMenuItems(chat({ unread: 1 }))), ['Marcar como lida', 'Ver perfil', 'Mensagens temporárias', 'Limpar conversa', 'Apagar conversa', 'Cancelar']);
   assert.equal(m.swipeLabel('read'), 'Lida');
 });
 
-test('só "Apagar conversa" é vermelho na conversa; "Cancelar" está sempre no fim', () => {
+test('segurar a conversa: todas as opções do computador; limpar e apagar a vermelho; "Cancelar" sempre no fim', () => {
   const items = m.inboxMenuItems(chat());
-  assert.deepEqual(items.filter((i) => i.danger).map((i) => i.id), ['delete']);
+  assert.deepEqual(items.filter((i) => i.danger).map((i) => i.id), ['clear', 'delete']);
   assert.equal(items.at(-1).id, 'cancel');
   assert.equal(items.at(-1).danger, false);
 });
@@ -134,4 +134,13 @@ test('SwipeRow: segurar não choca com deslizar (web: desiste ao mexer, fecha a 
   // Telemóvel: o onLongPress só no telemóvel; com a linha aberta, segurar fecha-a primeiro.
   assert.match(s, /onHold && Platform\.OS !== 'web' \? \{ onLongPress: onHold, delayLongPress: HOLD_MS \}/);
   assert.match(s, /rowHold\(onHold \? \(\) => \{ me\.close\(\); onHold\(\); \}/);
+});
+
+test('a lista das conversas e das chamadas não tem ações de deslizar (o deslize fica para mudar de ecrã)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const inbox = readFileSync(new URL('../src/app/(tabs)/messages.tsx', import.meta.url), 'utf8');
+  assert.ok(inbox.includes('<SwipeRow left={[]} right={[]} onHold={hold}'), 'a lista das conversas sem ações de deslizar');
+  const calls = readFileSync(new URL('../src/app/calls.tsx', import.meta.url), 'utf8');
+  assert.ok(!calls.includes('SwipeRow'), 'as chamadas sem SwipeRow');
+  assert.ok(calls.includes('onLongPress={() => setHeld(c)}'), 'segurar uma chamada abre as opções');
 });

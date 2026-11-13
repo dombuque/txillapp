@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { NameWithBadge } from '@/components/NameWithBadge';
@@ -8,7 +9,8 @@ import { Empty } from '@/components/Empty';
 import { Icon } from '@/components/Icon';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { StackPage } from '@/components/StackPage';
-import { closeOpenSwipe, SwipeRow } from '@/components/SwipeRow';
+import { Sheet } from '@/components/Sheet';
+import { HOLD_MS } from '@/lib/messageMenu';
 import { callsApi, fmtDuration, startCall, type CallLogItem } from '@/lib/calls';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
@@ -38,6 +40,8 @@ export default function Calls() {
     retry: 1,
   });
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
+  /** Segurar uma chamada: todas as opções numa folha (sem deslizes: o deslize fica para mudar de ecrã). */
+  const [held, setHeld] = useState<CallLogItem | null>(null);
 
   const qc = useQueryClient();
   type Pages = InfiniteData<{ items: CallLogItem[]; nextCursor: string | null }>;
@@ -68,7 +72,6 @@ export default function Calls() {
       ) : undefined}
     >
       <FlatList
-        onScrollBeginDrag={closeOpenSwipe}
         data={items}
         keyExtractor={(c) => c.id}
         onEndReached={() => q.hasNextPage && !q.isFetchingNextPage && void q.fetchNextPage()}
@@ -83,21 +86,8 @@ export default function Calls() {
         ListFooterComponent={q.isFetchingNextPage ? <ActivityIndicator style={{ marginVertical: 16 }} color={colors.brand} /> : undefined}
         renderItem={({ item: c }) => {
           const missed = isMissed(c);
-          const live = c.status === 'ringing' || c.status === 'active';
           return (
-            <SwipeRow
-              left={[
-                { label: 'Mensagem', icon: 'comment', color: colors.brand, onPress: () => router.push(`/messages/${c.peer.username}` as never) },
-                c.video
-                  ? { label: 'Voz', icon: 'phone', color: colors.zinc700, onPress: () => callBack({ ...c, video: false }) }
-                  : { label: 'Vídeo', icon: 'video', color: colors.zinc700, onPress: () => callBack({ ...c, video: true }) },
-              ]}
-              right={live ? [] : [
-                { label: 'Perfil', icon: 'user', color: colors.zinc500, onPress: () => router.push(`/u/${c.peer.username}` as never) },
-                { label: 'Apagar', icon: 'trash', color: colors.red600, onPress: () => remove(c) },
-              ]}
-            >
-            <Pressable onPress={() => router.push(`/messages/${c.peer.username}` as never)} style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
+            <Pressable onPress={() => router.push(`/messages/${c.peer.username}` as never)} onLongPress={() => setHeld(c)} delayLongPress={HOLD_MS} accessibilityHint="Segura para mais opções" accessibilityActions={[{ name: 'more', label: 'Mais opções' }]} onAccessibilityAction={() => setHeld(c)} style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
               <Avatar name={c.peer.displayName} username={c.peer.hasAvatar ? c.peer.username : undefined} size={48} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <NameWithBadge name={c.peer.displayName} who={c.peer} style={[st.name, missed && { color: colors.red600 }]} />
@@ -110,16 +100,37 @@ export default function Calls() {
                 {c.video ? <Icon name="video" size={22} color={colors.zinc800} /> : <CallIcon name="handset" size={21} color={colors.zinc800} />}
               </Pressable>
             </Pressable>
-            </SwipeRow>
           );
         }}
       />
+      {held ? (
+        <Sheet onClose={() => setHeld(null)}>
+          <View style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
+            <Text style={st.sheetName} numberOfLines={1} accessibilityRole="header">{held.peer.displayName}</Text>
+            {[
+              { label: 'Mensagem', icon: 'comment', run: () => router.push(`/messages/${held.peer.username}` as never) },
+              { label: 'Chamada de voz', icon: 'phone', run: () => callBack({ ...held, video: false }) },
+              { label: 'Videochamada', icon: 'video', run: () => callBack({ ...held, video: true }) },
+              { label: 'Ver perfil', icon: 'user', run: () => router.push(`/u/${held.peer.username}` as never) },
+              ...(held.status === 'ringing' || held.status === 'active' ? [] : [{ label: 'Apagar do registo', icon: 'trash', run: () => remove(held), danger: true }]),
+            ].map((o) => (
+              <Pressable key={o.label} onPress={() => { const c = o.run; setHeld(null); c(); }} style={({ pressed }) => [st.sheetRow, pressed && { backgroundColor: colors.zinc100 }]} accessibilityRole="button">
+                <Icon name={o.icon as never} size={22} color={'danger' in o && o.danger ? colors.red600 : colors.zinc800} />
+                <Text style={[st.sheetLabel, 'danger' in o && o.danger && { color: colors.red600 }]}>{o.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </Sheet>
+      ) : null}
     </StackPage>
   );
 }
 
 const st = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
+  sheetName: { fontSize: 17, fontWeight: '800', color: colors.zinc900, textAlign: 'center', paddingVertical: 12 },
+  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 52, paddingHorizontal: 14, borderRadius: 14 },
+  sheetLabel: { fontSize: 16, fontWeight: '600', color: colors.zinc900 },
   name: { fontSize: 16, fontWeight: '700', color: colors.zinc900 },
   subRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
   sub: { fontSize: 14, color: colors.zinc500, flexShrink: 1 },

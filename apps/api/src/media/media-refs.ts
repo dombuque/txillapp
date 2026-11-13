@@ -70,6 +70,8 @@ export const JSON_WITHOUT_MEDIA: Record<string, string> = {
   'analytics.events.props': 'estatísticas de uso',
   'social.reports.evidence': 'cópia do texto de uma mensagem denunciada (sem ficheiros)',
   'content.posts.gelada': 'pedido «Paga-me uma» publicado (a bebida e quantas pessoas; sem ficheiros)',
+  'taste.geleira_levels.breakdown': 'detalhe dos pontos do nível da geleira (números, sem ficheiros)',
+  'taste.geleira_levels.r': 'não é coluna: a variável jsonb da função do gatilho da 0146 (o leitor das migrações apanha-a)',
   'content.posts.geleira': 'retrato da geleira partilhada (nomes, slugs e notas dos gostos; os desenhos vêm do catálogo, sem ficheiros)',
   'social.messages.gif': 'GIF do GIPHY (endereço externo)',
   'social.messages.system': 'avisos de sistema na conversa',

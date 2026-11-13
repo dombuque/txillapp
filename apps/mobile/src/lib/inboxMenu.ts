@@ -79,10 +79,13 @@ export function inboxMenu(r: InboxMenuRow): InboxAction[] {
   return [...s.left, 'profile', ...s.right];
 }
 
-/** A folha inteira: as ações e o "Cancelar" no fim. */
+/**
+ * A folha inteira (segurar a linha): todas as opções, as mesmas do menu do computador, e o "Cancelar" no fim. Desde a
+ * 1.44 a lista não tem ações de deslizar (o deslize fica para mudar de ecrã): tudo o que havia nos deslizes está aqui.
+ */
 export function inboxMenuItems(r: InboxMenuRow): InboxMenuItem[] {
   return [
-    ...inboxMenu(r).map((a): InboxMenuItem => ({ id: a, label: actionLabel(a, r.group), icon: ICON[a], danger: DANGER[a] })),
+    ...inboxDeskMenu(r).map((a): InboxMenuItem => ({ id: a, label: actionLabel(a, r.group), icon: ICON[a], danger: DANGER[a] })),
     { id: 'cancel', label: 'Cancelar', icon: 'x', danger: false },
   ];
 }
