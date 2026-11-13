@@ -52,6 +52,7 @@ export default function ContentSettings() {
         {sounds.data ? (
           <SettingRow anchor="soundReuse" icon="music" title="Deixar usar o meu som" description={reuse.description} toggle={{ on: reuse.on, disabled: reuse.disabled, onChange: (v) => void setReuse(v) }} />
         ) : null}
+        <SettingRow anchor="mySounds" icon="music" title="Os meus sons" description="Os sons das tuas tchekas e «Retirar o som», que o tira de todo o lado." to="/settings/sons" />
       </SettingsSection>
       <SettingsSection title="O teu perfil">
         <SettingRow anchor="insights" icon="trending" title="Estatísticas do perfil" to="/insights" />

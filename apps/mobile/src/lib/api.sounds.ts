@@ -60,4 +60,21 @@ export const soundsApi = {
   report: (id: string, reason: 'copyright' | 'other', note?: string): Promise<void> => raw(`${path(id)}/report`, post({ reason, ...(note ? { note } : {}) })),
   settings: (): Promise<SoundSettings> => raw('/sounds/me/settings'),
   setSettings: (reuse: boolean): Promise<SoundSettings> => raw('/sounds/me/settings', { method: 'PUT', body: JSON.stringify({ reuse }) }),
+  /** Os meus sons originais (Definições → Conteúdo → «Os meus sons»). */
+  mine: (): Promise<MySound[]> => raw('/sounds/me'),
+  /** «Retirar o som»: deixa de tocar em todo o lado (as tchekas que o usam ficam sem som) e o áudio é apagado. Não se desfaz. */
+  retire: (id: string): Promise<void> => raw(`${path(id)}/retire`, post({})),
 };
+
+/** Cada som meu (GET /sounds/me). */
+export interface MySound {
+  id: string;
+  cover: string | null;
+  durationMs: number | null;
+  uses: number;
+  createdAt: string;
+  status: 'active' | 'held' | 'source_removed' | 'removed';
+  /** Num som tirado: 'author' (retirei-o eu) ou 'staff' (a equipa, por direitos). */
+  removedBy?: 'author' | 'staff' | 'account' | null;
+  sourceCode: string | null;
+}

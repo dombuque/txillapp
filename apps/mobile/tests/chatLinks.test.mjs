@@ -48,3 +48,18 @@ test('as bolhas de texto e as legendas usam isto', () => {
   assert.match(src, /<ChatText text=\{shown\}/);
   assert.match(src, /<ChatText text=\{m\.body\}/);
 });
+
+test('números de telefone: detetados, prontos a marcar, sem confundir valores, datas e códigos', () => {
+  const phones = (t) => l.chatSegments(t).filter((s) => s.t === 'phone').map((s) => `${s.s}=${s.tel}`);
+  assert.deepEqual(phones('liga 84 123 4567 já'), ['84 123 4567=+258841234567']);
+  assert.deepEqual(phones('+258 84-123-4567.'), ['+258 84-123-4567=+258841234567']);
+  assert.deepEqual(phones('00258841234567'), ['00258841234567=+258841234567']);
+  assert.deepEqual(phones('(+351) 912 345 678'), ['(+351) 912 345 678=+351912345678']);
+  assert.deepEqual(phones('@joao 871234567'), ['871234567=+258871234567']);
+  for (const no of ['custa 1 500 000 mt', 'dia 2026-11-13 10:00', 'nasci a 13.11.2026', 'código 1234567890123456', '12,345,678.90', '111111111', 'a@b.com 12345678', 'https://x.com/841234567'])
+    assert.deepEqual(phones(no), [], no);
+  const src = readFileSync(path.join(ROOT, 'src/components/ChatBubbles.tsx'), 'utf8');
+  assert.match(src, /<PhoneSheet /);
+  const sheet = readFileSync(path.join(ROOT, 'src/components/PhoneSheet.tsx'), 'utf8');
+  for (const s of ['tel:', 'sms:', 'wa.me/', 'Copiar número']) assert.ok(sheet.includes(s), s);
+});
