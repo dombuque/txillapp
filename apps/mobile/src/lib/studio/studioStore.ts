@@ -12,3 +12,5 @@ export async function saveJobRecord(_rec: JobRecord): Promise<void> { /* só no 
 export async function clearJobRecord(_draftId: string): Promise<void> { /* só no telemóvel */ }
 /** O último registo de montagem guardado (para retomar ao abrir a app); no site não há. */
 export async function latestJobRecord(): Promise<JobRecord | null> { return null; }
+/** Sair da conta apaga os rascunhos do estúdio deste aparelho (no site, os do IndexedDB). */
+export { clearStudioDrafts } from './drafts';

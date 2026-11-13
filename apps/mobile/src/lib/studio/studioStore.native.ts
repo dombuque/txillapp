@@ -56,3 +56,11 @@ export async function latestJobRecord(): Promise<JobRecord | null> {
   }
   return best;
 }
+/** Sair da conta apaga os rascunhos do estúdio deste telemóvel: a pasta toda (os ficheiros copiados e os registos das montagens). */
+export async function clearStudioDrafts(): Promise<void> {
+  try {
+    await studioStore().idle();
+    await nativeFs.remove(ROOT);
+    shared = null;
+  } catch { /* sem rascunhos: nada a apagar */ }
+}

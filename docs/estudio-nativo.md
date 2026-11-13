@@ -93,7 +93,7 @@ Testes: `tests/studioCompose`, `studioComposeJob`, `studioPreviewClock`, `studio
 9. **Texto**: Texto → «+ Texto» → escrever (a folha sobe com o teclado, o campo continua à vista) → mudar a fonte (as 10 têm de
    ser diferentes) → arrastar o texto na imagem, rodar e escalar com dois dedos (cola às guias amarelas). A faixa do texto
    aparece na linha do tempo e as pontas mudam quando entra e sai.
-10. **Stickers**: emoji, Txill, GIF (a pesquisa do GIPHY), @, local, hora; o GIF mexe-se.
+10. **Stickers**: emoji, Txill, @, local, hora. **Não** há separador GIF (as regras do GIPHY proíbem gravar o GIF no vídeo: `STUDIO_GIFS = false` em `StickerTray.tsx`, o mesmo do site).
 11. **Efeitos**: numa foto, os filtros têm a miniatura com a cor certa e a imagem muda logo; num vídeo, muda aproximado e aparece o
     aviso; transição «Zoom» entre dois clipes → «Ver»; rampa «Herói»; «Inverter»; «Congelar este frame» junta uma foto parada.
 12. **Capulana**: Efeitos → Capulana → escolher um pano → «Transição de pano» no clipe 2 → uma faixa de pano passa na junção.

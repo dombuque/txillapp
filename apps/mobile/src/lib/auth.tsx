@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { clearStudioDrafts } from '@/lib/studio/drafts';
+import { clearStudioDrafts } from '@/lib/studio/studioStore';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ApiError, api, migrateWebAccounts, refreshSession, refreshStore, setSessionExpiredHandler, type AuthResult, type PublicUser } from './api';
 import { accounts } from './accounts';
