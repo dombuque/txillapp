@@ -226,7 +226,7 @@ export default function GroupThreadScreen() {
           }}
         />
       ) : group && (
-        <GroupComposer pendingKey={`g:${id}`} closeTick={closeTick} onOpenChange={onComposerOpen} send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} onRound={() => void openRound()} onEditLast={editLast ? () => { setReplying(null); setEditing(editLast); } : undefined} />
+        <GroupComposer groupId={id} pendingKey={`g:${id}`} closeTick={closeTick} onOpenChange={onComposerOpen} send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} onRound={() => void openRound()} onEditLast={editLast ? () => { setReplying(null); setEditing(editLast); } : undefined} />
       )}
     </View>
   );

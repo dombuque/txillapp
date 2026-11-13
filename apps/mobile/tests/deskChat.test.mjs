@@ -187,7 +187,8 @@ test('caixas de escrever: as teclas do computador nas duas barras e na de editar
   for (const f of ['components/ChatComposer.tsx', 'components/GroupComposer.tsx']) {
     const s = src(f);
     assert.match(s, /useComposerKeys\(\{/, f);
-    assert.match(s, /onKeyPress=\{keys\}/, f);
+    // As teclas do @ (↑/↓/Enter/Esc na lista das menções) vêm primeiro; as da caixa só se o @ não as usou.
+    assert.ok(s.includes('mention.inputProps.onKeyPress(e); if (!e.defaultPrevented) keys?.(e);'), f);
     assert.match(s, /useChatDrop\(paste\.drop\)/, f);
   }
   const e = src('components/ChatEditBar.tsx');

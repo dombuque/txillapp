@@ -167,5 +167,5 @@ test('as barras de escrever e a lista usam as mensagens a caminho', () => {
   assert.match(list, /mergePending\(serverItems, pending\)/);
   assert.match(read('src/app/messages/[username].tsx'), /pendingKey=\{`u:\$\{username\}`\}/);
   assert.match(read('src/app/messages/g/[id].tsx'), /<ChatList[\s\S]*pendingKey=\{`g:\$\{id\}`\}/);
-  assert.match(read('src/app/messages/g/[id].tsx'), /<GroupComposer pendingKey=\{`g:\$\{id\}`\}/);
+  assert.match(read('src/app/messages/g/[id].tsx'), /<GroupComposer groupId=\{id\} pendingKey=\{`g:\$\{id\}`\}/);
 });

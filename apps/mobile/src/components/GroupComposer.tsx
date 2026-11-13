@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
+import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
 import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { uploadChatMedia } from '@/lib/api';
 import { type GroupSendBody } from '@/lib/api.grupos';
@@ -25,8 +26,10 @@ import { markSeen, useIsNew } from '@/lib/whatsNew';
  * câmara à esquerda, "Mensagem…" ao meio e, com o campo vazio, voz, galeria, stickers e "+" (sondagem e localização); ao escrever, Enviar.
  */
 export function GroupComposer({
-  send, onSent, bottom, replyTo, onClearReply, onPoll, onRound, closeTick, onOpenChange, pendingKey, onEditLast,
+  send, onSent, bottom, replyTo, onClearReply, onPoll, onRound, closeTick, onOpenChange, pendingKey, onEditLast, groupId,
 }: {
+  /** O TxillGroup: o @ sugere primeiro os membros dele. */
+  groupId?: string;
   /** Computador: ↑ com a caixa vazia edita a minha última mensagem. */
   onEditLast?: () => void;
   /** A conversa nas mensagens a caminho (lib/chatPending, `g:<id>`): texto, stickers e GIFs aparecem logo. */
@@ -61,7 +64,10 @@ export function GroupComposer({
   const timer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   useEffect(() => () => clearInterval(timer.current), []);
   // Site: colar ou arrastar uma imagem para a caixa abre a pré-visualização (Enviar ou Cancelar).
-  const paste = usePastedImage<React.ComponentRef<typeof TextInput>>({ onProblem: setErr, onOpen: () => { setErr(''); setPanel(null); } });
+  const input = useRef<React.ComponentRef<typeof TextInput>>(null);
+  // @: sugere primeiro os membros do grupo (quem escreve mais aqui), depois as pessoas mais próximas.
+  const mention = useMentionSuggest({ text, setText, inputRef: input, context: groupId ? 'group' : undefined, id: groupId });
+  const paste = usePastedImage<React.ComponentRef<typeof TextInput>>({ inputRef: input, onProblem: setErr, onOpen: () => { setErr(''); setPanel(null); } });
   // Computador: largar um ficheiro na conversa (components/ChatScreen) e as teclas da caixa (Enter, Shift+Enter, Esc, ↑).
   useChatDrop(paste.drop);
   const keys = useComposerKeys({
@@ -248,13 +254,14 @@ export function GroupComposer({
             <Pressable onPress={onClearReply} hitSlop={6} style={styles.replyX} accessibilityRole="button" accessibilityLabel="Cancelar resposta"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
           </View>
         )}
+        <MentionSuggest mention={mention} style={{ marginBottom: 8 }} />
         <View style={styles.pill}>
           <Pressable onPress={() => void pick('camera')} disabled={busy} hitSlop={SLOP} style={busy && { opacity: 0.5 }} accessibilityRole="button" accessibilityLabel="Abrir a câmara" accessibilityState={{ disabled: busy }}>
             <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.camera}>
               <Icon name="camera" size={20} color="#fff" />
             </LinearGradient>
           </Pressable>
-          <TextInput ref={paste.ref} value={text} onChangeText={setText} onFocus={() => setPanel(null)} onKeyPress={keys} multiline numberOfLines={1} maxLength={2000} placeholder="Mensagem…" placeholderTextColor={colors.zinc500} onContentSizeChange={grow.onContentSizeChange} style={[styles.input, grow.style]} accessibilityLabel="Mensagem" />
+          <TextInput ref={paste.ref} value={text} onChangeText={setText} selection={mention.inputProps.selection} onSelectionChange={mention.inputProps.onSelectionChange} onFocus={() => { setPanel(null); mention.inputProps.onFocus(); }} onBlur={mention.inputProps.onBlur} onKeyPress={(e) => { mention.inputProps.onKeyPress(e); if (!e.defaultPrevented) keys?.(e); }} multiline numberOfLines={1} maxLength={2000} placeholder="Mensagem…" placeholderTextColor={colors.zinc500} onContentSizeChange={grow.onContentSizeChange} style={[styles.input, grow.style]} accessibilityLabel="Mensagem" />
           {hasText ? (
             <Pop key="send">
               <SendButton label="Enviar" onPress={() => void sendText()} disabled={busy} />

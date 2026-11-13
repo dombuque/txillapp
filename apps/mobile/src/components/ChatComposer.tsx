@@ -20,6 +20,7 @@ import { pendingFrom, sendPending } from '@/lib/chatPending';
 import { usePastedImage } from '@/lib/usePastedImage';
 import { PastedImageSheet } from './PastedImageSheet';
 import { useChatDrop, useComposerKeys } from '@/lib/deskChat';
+import { MentionSuggest, useMentionSuggest } from './MentionSuggest';
 
 const nativeDriver = Platform.OS !== 'web';
 const SLOP = { top: 4, bottom: 4, left: 2, right: 2 };
@@ -85,6 +86,8 @@ export function ChatComposer({
     },
     editLast: onEditLast,
   });
+  // @: sugere primeiro a pessoa desta conversa, depois as mais próximas (como nos comentários).
+  const mention = useMentionSuggest({ text, setText, inputRef: input, context: 'chat', id: username });
   // Ao escolher "Responder" numa mensagem, o teclado abre logo para escrever a resposta.
   useEffect(() => {
     if (replyTo?.id) input.current?.focus();
@@ -255,6 +258,7 @@ export function ChatComposer({
             <Pressable onPress={onClearReply} hitSlop={6} style={st.replyX} accessibilityRole="button" accessibilityLabel="Cancelar resposta"><Icon name="x" size={18} color={colors.zinc500} /></Pressable>
           </View>
         )}
+        <MentionSuggest mention={mention} style={{ marginBottom: 8 }} />
         <View ref={pill} collapsable={false} style={[st.pill, once && st.pillOnce]}>
           <Pressable onPress={() => void pick('camera')} disabled={busy} hitSlop={SLOP} style={busy && { opacity: 0.5 }} accessibilityRole="button" accessibilityLabel="Abrir a câmara" accessibilityState={{ disabled: busy }}>
             <LinearGradient colors={[colors.brand, colors.brandLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.camera}>
@@ -271,8 +275,11 @@ export function ChatComposer({
             ref={paste.ref}
             value={text}
             onChangeText={(v) => { setText(v); if (v) onTyping?.(); }}
-            onFocus={() => setPanel(null)}
-            onKeyPress={keys}
+            selection={mention.inputProps.selection}
+            onSelectionChange={mention.inputProps.onSelectionChange}
+            onFocus={() => { setPanel(null); mention.inputProps.onFocus(); }}
+            onBlur={mention.inputProps.onBlur}
+            onKeyPress={(e) => { mention.inputProps.onKeyPress(e); if (!e.defaultPrevented) keys?.(e); }}
             multiline
             numberOfLines={1}
             maxLength={2000}

@@ -85,3 +85,14 @@ test('as razões discretas', () => {
   assert.equal(m.reasonLabel('neste-post'), 'Neste post');
   assert.equal(m.reasonLabel(undefined), null);
 });
+
+test('o @ também sugere pessoas no chat a dois (a pessoa da conversa primeiro) e nos grupos (os membros primeiro)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const read = (p) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
+  const chat = read('components/ChatComposer.tsx');
+  assert.ok(chat.includes("useMentionSuggest({ text, setText, inputRef: input, context: 'chat', id: username })"));
+  assert.ok(chat.includes('<MentionSuggest mention={mention}'));
+  const group = read('components/GroupComposer.tsx');
+  assert.ok(group.includes("context: groupId ? 'group' : undefined, id: groupId"));
+  assert.ok(group.includes('<MentionSuggest mention={mention}'));
+});
