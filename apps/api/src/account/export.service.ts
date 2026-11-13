@@ -1,11 +1,51 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
+import { referencedAmong } from '../media/media-refs';
+import { MediaService } from '../media/media.service';
+import { UNUSED_MEDIA_HOURS } from '../media/unused-media.service';
 
 /** Os dados da própria pessoa, num ficheiro JSON legível (portabilidade). Nunca inclui senhas nem dados de terceiros além do @. */
 @Injectable()
 export class ExportService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly media: MediaService,
+  ) {}
+
+  /**
+   * «Envios por publicar»: os ficheiros que enviei e que ainda não estão em uso em lado nenhum (media-refs.ts), como os
+   * clipes e o vídeo de uma montagem que não publiquei ou a foto de uma publicação que não chegou a sair. Apagam-se
+   * sozinhos UNUSED_MEDIA_HOURS depois do envio (UnusedMediaService); até lá, vão aqui com um endereço para os descarregar
+   * (as fotos e os vídeos públicos pelo endereço normal, os do chat por um endereço assinado e temporário).
+   */
+  async pendingUploads(userId: string) {
+    const { rows } = await this.pool.query(
+      `SELECT id, mime, purpose, status, size_bytes, duration_ms, created_at FROM content.media_assets
+        WHERE owner_id = $1 AND status <> 'deleted' ORDER BY created_at`,
+      [userId],
+    );
+    const used = new Set<string>();
+    for (let i = 0; i < rows.length; i += 1000) for (const id of await referencedAmong(this.pool, rows.slice(i, i + 1000).map((r) => r.id as string))) used.add(id);
+    return rows
+      .filter((r) => !used.has(r.id as string))
+      .map((r) => {
+        const mime = r.mime as string;
+        const ready = r.status === 'ready';
+        const url = !ready ? null : r.purpose === 'public' ? `/api/v1/media/${r.id as string}` : r.purpose === 'chat' ? this.media.chatUrl(r.id as string) : null;
+        return {
+          id: r.id as string,
+          kind: mime.startsWith('image/') ? 'photo' : mime.startsWith('video/') ? 'video' : 'audio',
+          mime,
+          status: r.status as string,
+          sizeBytes: Number(r.size_bytes),
+          durationMs: (r.duration_ms as number | null) ?? null,
+          uploadedAt: new Date(r.created_at as string).toISOString(),
+          deletedAfter: new Date(new Date(r.created_at as string).getTime() + UNUSED_MEDIA_HOURS * 3_600_000).toISOString(),
+          url,
+        };
+      });
+  }
 
   async build(userId: string) {
     const q = async (sql: string) => (await this.pool.query(sql, [userId])).rows;
@@ -226,6 +266,8 @@ export class ExportService {
            FROM content.venue_event_interest i JOIN content.venue_events e ON e.id = i.event_id JOIN content.venues v ON v.id = e.venue_id
           WHERE i.user_id = $1 ORDER BY i.created_at`,
       ).catch(() => []),
+      // Envios por publicar: fotos, vídeos e áudios que enviei e ainda não estão em uso; apagam-se sozinhos 48 horas depois.
+      pendingUploads: await this.pendingUploads(userId),
       reportsFiled: await q(`SELECT target_type AS "type", reason, status, created_at AS "createdAt" FROM social.reports WHERE reporter_id = $1 ORDER BY created_at`),
       // O que a moderação removeu do que publiquei (0121): o tipo, o texto, o motivo e se foi reposto. Nunca quem da equipa o fez.
       moderationRemovals: await q(

@@ -210,26 +210,30 @@ export class MediaService implements OnModuleInit {
     await this.pool.query(`UPDATE content.media_assets SET status = 'deleted' WHERE expires_at IS NOT NULL AND expires_at < now() AND status <> 'deleted'`);
     const { rows } = await this.pool.query(`SELECT id, purpose FROM content.media_assets WHERE status = 'deleted' AND purged_at IS NULL LIMIT $1`, [limit]);
     for (const r of rows) {
-      if (this.s3) {
-        const id = r.id as string;
-        const scope = this.scopeOf(r.purpose as string);
-        // Tudo o que possa existir deste ficheiro, em ambos os buckets (variantes, capa, original por converter).
-        const jobs = [this.s3.remove(id, scope), this.s3.remove(`${id}.src`, 'private'), this.s3.remove(`${id}${SOUND_COPY}`, 'private'), this.s3.remove(`${id}.poster.jpg`, 'public'), this.s3.remove(`${id}.poster.jpg`, 'private'), ...WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'public'))];
-        // As larguras leves das fotos do chat (as do Zás) ficam no privado, ao lado do original.
-        if (scope === 'private') jobs.push(...CHAT_WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'private')));
-        await Promise.allSettled(jobs);
-        this.fresh.delete(id);
-      }
-      else {
-        await rm(join(this.dir, r.id as string), { force: true });
-        await rm(join(this.dir, `${r.id}.src`), { force: true });
-        await rm(join(this.dir, `${r.id}${SOUND_COPY}`), { force: true });
-        await rm(join(this.dir, `${r.id}.poster.jpg`), { force: true });
-        for (const w of WIDTHS) await rm(join(this.dir, `${r.id}.${w}.webp`), { force: true });
-      }
+      await this.purgeFiles(r.id as string, r.purpose as string);
       await this.pool.query('UPDATE content.media_assets SET purged_at = now() WHERE id = $1', [r.id]);
     }
     return rows.length;
+  }
+
+  /** Tira do armazenamento tudo o que possa existir de um ficheiro (o original, o original por converter, as larguras, a capa e a cópia do som). */
+  async purgeFiles(id: string, purpose: string) {
+    if (this.s3) {
+      const scope = this.scopeOf(purpose);
+      // Em ambos os buckets (variantes, capa, original por converter).
+      const jobs = [this.s3.remove(id, scope), this.s3.remove(`${id}.src`, 'private'), this.s3.remove(`${id}${SOUND_COPY}`, 'private'), this.s3.remove(`${id}.poster.jpg`, 'public'), this.s3.remove(`${id}.poster.jpg`, 'private'), ...WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'public'))];
+      // As larguras leves das fotos do chat (as do Zás) ficam no privado, ao lado do original.
+      if (scope === 'private') jobs.push(...CHAT_WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'private')));
+      await Promise.allSettled(jobs);
+      this.fresh.delete(id);
+      return;
+    }
+    await rm(join(this.dir, id), { force: true });
+    await rm(join(this.dir, `${id}.src`), { force: true });
+    await rm(join(this.dir, `${id}${SOUND_COPY}`), { force: true });
+    await rm(join(this.dir, `${id}.poster.jpg`), { force: true });
+    for (const w of WIDTHS) await rm(join(this.dir, `${id}.${w}.webp`), { force: true });
+    this.fresh.delete(id);
   }
 
   /**
