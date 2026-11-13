@@ -1,4 +1,6 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Scheduler } from '../../realtime/scheduler';
+import { RealtimeBus } from '../../realtime/realtime-bus';
 import { Pool } from 'pg';
 import { uuidv7 } from '../../common/uuid7';
 import { AppConfig, CONFIG } from '../../config';
@@ -19,6 +21,8 @@ const REFRESH_EVERY_MS = 12 * 3_600_000;
 const STALE_DAYS = 30;
 /** Cache em memória do catálogo, das contagens e das marcas (o seletor abre muitas vezes). */
 const SNAPSHOT_TTL_MS = 2 * 60_000;
+/** O sinal entre instâncias para esquecer a cache do catálogo. */
+const INVALIDATE = 'music.catalog.invalidate';
 /** Os usos desde sempre (o «1,2 mil usos») contam-se de 10 em 10 minutos: percorrem todas as publicações com música. */
 const TOTALS_TTL_MS = 10 * 60_000;
 /** Quantas capas se leem de cada vez (depois de cada atualização), e quantas ao mesmo tempo. */
@@ -70,22 +74,27 @@ export class MusicCatalogService implements OnModuleInit, OnModuleDestroy {
   private tinting: Promise<number> | null = null;
   private totals: { at: number; map: Map<string, number> } | null = null;
   private lastRun: RefreshResult | null = null;
-  private timer?: NodeJS.Timeout;
+  private offSignal?: () => void;
   /** Para os testes: as fontes externas podem ser trocadas (o fetch é simulado de qualquer forma). */
   fetcher: typeof fetch = (...a) => fetch(...a);
 
-  constructor(@Inject(PG_POOL) private readonly pool: Pool, @Inject(CONFIG) private readonly config: AppConfig) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    @Inject(CONFIG) private readonly config: AppConfig,
+    private readonly scheduler: Scheduler,
+    private readonly bus: RealtimeBus,
+  ) {}
 
   onModuleInit() {
-    if (this.config.NODE_ENV === 'test') return;
-    const run = () => void this.refreshIfStale().catch((e) => this.log.warn(`falha a atualizar o catálogo de música: ${(e as Error).message}`));
-    this.timer = setInterval(() => void this.refresh().catch((e) => this.log.warn(`falha a atualizar o catálogo de música: ${(e as Error).message}`)), REFRESH_EVERY_MS);
-    this.timer.unref();
-    setTimeout(run, 120_000).unref();
+    // Uma cache esquecida numa instância (marca, decisão do backoffice, atualização no worker) esquece-se em todas.
+    this.offSignal = this.bus.onSignal(INVALIDATE, () => (this.snap = null));
+    // A atualização vai às fontes de fora: só no worker (de 12 em 12 horas e, 2 minutos depois do arranque, se estiver velha).
+    this.scheduler.every('music.catalog', REFRESH_EVERY_MS, () => this.refresh());
+    this.scheduler.once('music.catalog.stale', 120_000, () => this.refreshIfStale());
   }
 
   onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
+    this.offSignal?.();
   }
 
   /** A equipa dos artistas regista aqui a fonte `local` (no onModuleInit do serviço dela). */
@@ -101,6 +110,7 @@ export class MusicCatalogService implements OnModuleInit, OnModuleDestroy {
   /** Esquece a cache (depois de uma marca, de uma decisão do backoffice ou de uma atualização). */
   invalidate() {
     this.snap = null;
+    this.bus.signal(INVALIDATE);
   }
 
   sources(): ExternalSource[] {

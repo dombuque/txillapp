@@ -10,6 +10,9 @@ import { Pool } from 'pg';
 import { loadImage, type Canvas, type Image } from '@napi-rs/canvas';
 import sharp from 'sharp';
 import { tierOf } from '../common/badge';
+import { newInstanceId, runsBackground } from '../common/role';
+import { RealtimeBus } from '../realtime/realtime-bus';
+import { Scheduler } from '../realtime/scheduler';
 import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
@@ -59,6 +62,13 @@ export class ComposeRejected extends Error {}
 
 export type JobStatus = 'queued' | 'working' | 'done' | 'failed';
 export const RESTART_ERROR = 'O servidor reiniciou a meio da montagem. Tenta outra vez.';
+/** O toque ao worker quando entra um trabalho (RealtimeBus). */
+export const COMPOSE_KICK = 'compose.kick';
+const KICK = COMPOSE_KICK;
+/** De quanto em quanto tempo o worker olha para a fila (se o toque se perder), o sinal de vida e quando um trabalho «a montar» é de um processo caído. */
+const POLL_MS = 2_000;
+const HEARTBEAT_MS = 15_000;
+export const STALE_S = 120;
 
 /** De onde vem o som escolhido: um endereço https do catálogo, ou um ficheiro do nosso armazenamento. */
 type AudioSrc = { from: 'url'; url: string } | { from: 'storage'; id: string; scope: 'public' | 'private' };
@@ -106,20 +116,31 @@ export interface ComposeMix {
 /**
  * A montagem das tchekas no servidor (docs/montagem.md), para a app nativa (no telemóvel não há como montar: o ffmpeg-kit
  * foi descontinuado). POST /tchekas/compose valida o pedido com as mesmas regras do estúdio (rules.ts), resolve de onde vêm
- * os clipes e o som, guarda o trabalho e põe-no na fila; a fila, em memória, corre 1 (ou 2) de cada vez, com prioridade
- * baixa e um prazo; o vídeo final fica como um ficheiro público pronto e assinado, para publicar com POST /posts.
+ * os clipes e o som, guarda o trabalho e põe-no na fila; o worker (ROLE=worker, ou o próprio processo sem ROLE) corre
+ * 1 (ou 2) de cada vez, com prioridade baixa e um prazo; o vídeo final fica como um ficheiro público pronto e assinado, para
+ * publicar com POST /posts.
+ *
+ * A fila é a própria tabela content.compose_jobs (docs/escala.md): cada processo que corre a fila apanha o trabalho mais
+ * antigo com `FOR UPDATE SKIP LOCKED` (dois workers nunca apanham o mesmo), guarda quem o apanhou (`worker_id`) e renova
+ * `heartbeat_at` enquanto monta. As instâncias web só guardam o trabalho e dão um toque ao worker (um sinal do
+ * RealtimeBus); o worker também olha para a fila de 2 em 2 segundos, para o caso de o toque se perder.
  */
 @Injectable()
 export class ComposeService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger('Compose');
   private readonly dir: string;
   private readonly s3: S3Storage | null;
-  private readonly queue: string[] = [];
   private readonly aborts = new Map<string, AbortController>();
   private readonly lastWrite = new Map<string, number>();
   private running = 0;
   private stopped = false;
-  private sweeper?: NodeJS.Timeout;
+  private pumping = false;
+  private pumpAgain = false;
+  private offKick?: () => void;
+  /** Este processo corre a fila? (ROLE=worker, ou sem ROLE). */
+  readonly runsQueue: boolean;
+  /** Quem sou eu na coluna worker_id (cada app tem o seu, também nos testes com dois workers). */
+  readonly workerId = newInstanceId();
   /** Quem descarrega a música (os testes trocam-no por um que não sai da máquina). */
   fetcher: typeof fetch = (input, init) => fetch(input, init);
 
@@ -129,34 +150,48 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     private readonly media: MediaService,
     private readonly catalog: MusicCatalogService,
     private readonly filter: TextFilter,
+    private readonly scheduler: Scheduler,
+    private readonly bus: RealtimeBus,
   ) {
     this.dir = resolve(config.MEDIA_DIR);
     this.s3 = config.STORAGE_DRIVER === 's3' ? new S3Storage(config) : null;
+    this.runsQueue = runsBackground(config);
   }
 
   async onModuleInit() {
+    // Os trabalhos acabados há mais de 7 dias saem (no arranque e de 6 em 6 horas; também nos testes, como sempre).
+    this.scheduler.every('compose.sweep', 6 * 3600_000, () => this.pool.query(`DELETE FROM content.compose_jobs WHERE status IN ('done', 'failed') AND created_at < now() - interval '7 days'`), { firstAfterMs: 0, inTests: true });
+    if (!this.runsQueue) return;
+    this.offKick = this.bus.onSignal(KICK, () => void this.pump());
     await this.recover().catch((e) => this.log.error(`não consegui retomar as montagens: ${(e as Error).message}`));
     void this.sweepTemp();
-    const sweep = () => void this.pool.query(`DELETE FROM content.compose_jobs WHERE status IN ('done', 'failed') AND created_at < now() - interval '7 days'`).catch(() => undefined);
-    sweep();
-    this.sweeper = setInterval(sweep, 6 * 3600_000);
-    this.sweeper.unref();
+    this.scheduler.every('compose.poll', POLL_MS, () => this.pump());
+    this.scheduler.every('compose.stale', 60_000, () => this.failStale());
   }
 
   onModuleDestroy() {
     this.stopped = true;
-    if (this.sweeper) clearInterval(this.sweeper);
+    this.offKick?.();
     for (const a of this.aborts.values()) a.abort();
   }
 
   /**
-   * Depois de um reinício: o que estava a meio passa a `failed` («Tenta outra vez»); o que ainda estava na fila volta a ela.
-   * (Público para os testes simularem o reinício.)
+   * Depois de um reinício: o que estava a meio passa a `failed` («Tenta outra vez»): os trabalhos deste processo, os de
+   * antes das filas partilhadas (sem worker_id) e os de um processo que deixou de dar sinal de vida. O que ainda estava na
+   * fila corre a seguir. (Público para os testes simularem o reinício.)
    */
   async recover() {
-    await this.pool.query(`UPDATE content.compose_jobs SET status = 'failed', error = $1, finished_at = now() WHERE status = 'working'`, [RESTART_ERROR]);
-    const { rows } = await this.pool.query(`SELECT id FROM content.compose_jobs WHERE status = 'queued' ORDER BY created_at`);
-    for (const r of rows) if (!this.queue.includes(r.id as string)) this.enqueue(r.id as string);
+    await this.failStale(true);
+    void this.pump();
+  }
+
+  /** Os trabalhos «a montar» de um processo que caiu (sem sinal de vida há mais de STALE_S) passam a falhados. */
+  private async failStale(includeMine = false) {
+    await this.pool.query(
+      `UPDATE content.compose_jobs SET status = 'failed', error = $1, finished_at = now()
+        WHERE status = 'working' AND (worker_id IS NULL OR heartbeat_at IS NULL OR heartbeat_at < now() - make_interval(secs => $3) OR ($4 AND worker_id = $2))`,
+      [RESTART_ERROR, this.workerId, STALE_S, includeMine],
+    );
   }
 
   /** Os diretórios temporários que um processo anterior deixou (caiu a meio de uma montagem), com mais de 1 hora. */
@@ -187,7 +222,8 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
       if ((e as { code?: string }).code === '23505') throw new ConflictException('Já tens uma tcheka a montar. Espera que acabe.');
       throw e;
     }
-    this.enqueue(id);
+    // Um toque a quem corre a fila (este processo, sem ROLE; o worker, com ROLE=web).
+    this.bus.signal(KICK);
     return { jobId: id };
   }
 
@@ -416,42 +452,72 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
 
   // ------------------------------------------------------------------ fila
 
-  private enqueue(id: string) {
-    this.queue.push(id);
-    this.pump();
+  /**
+   * Apanha o trabalho mais antigo da fila para este processo (ou null). Atómico: com `FOR UPDATE SKIP LOCKED`, dois
+   * processos ao mesmo tempo apanham trabalhos diferentes, e um trabalho nunca é apanhado duas vezes.
+   */
+  async claim(): Promise<{ id: string; owner_id: string; spec: ComposeSpec } | null> {
+    const { rows } = await this.pool.query(
+      `UPDATE content.compose_jobs j SET status = 'working', started_at = now(), progress = 0.01, worker_id = $1, heartbeat_at = now()
+        WHERE j.id = (SELECT id FROM content.compose_jobs WHERE status = 'queued' ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
+          AND j.status = 'queued'
+        RETURNING j.id, j.owner_id, j.spec`,
+      [this.workerId],
+    );
+    return (rows[0] as { id: string; owner_id: string; spec: ComposeSpec } | undefined) ?? null;
   }
 
-  private pump() {
-    while (!this.stopped && this.running < this.config.COMPOSE_CONCURRENCY && this.queue.length) {
-      const id = this.queue.shift()!;
-      this.running += 1;
-      void this.work(id).finally(() => {
-        this.running -= 1;
-        this.pump();
-      });
+  /** Corre trabalhos da fila até COMPOSE_CONCURRENCY ao mesmo tempo (o toque, a volta de 2 s e o fim de cada trabalho chamam-no). */
+  async pump(): Promise<void> {
+    if (!this.runsQueue || this.stopped) return;
+    if (this.pumping) {
+      this.pumpAgain = true;
+      return;
+    }
+    this.pumping = true;
+    try {
+      do {
+        this.pumpAgain = false;
+        while (!this.stopped && this.running < this.config.COMPOSE_CONCURRENCY) {
+          const job = await this.claim().catch((e) => {
+            if (!this.stopped) this.log.warn(`não consegui ler a fila: ${(e as Error).message}`);
+            return null;
+          });
+          if (!job) break;
+          this.running += 1;
+          void this.work(job).finally(() => {
+            this.running -= 1;
+            void this.pump();
+          });
+        }
+      } while (this.pumpAgain && !this.stopped);
+    } finally {
+      this.pumping = false;
     }
   }
 
-  /** O progresso vai para a base de dados no máximo duas vezes por segundo. */
+  /** O progresso vai para a base de dados no máximo duas vezes por segundo (e conta como sinal de vida). */
   private progress(id: string, p: number) {
     const now = Date.now();
     if (now - (this.lastWrite.get(id) ?? 0) < 500) return;
     this.lastWrite.set(id, now);
-    void this.pool.query(`UPDATE content.compose_jobs SET progress = GREATEST(progress, $2) WHERE id = $1 AND status = 'working'`, [id, Math.max(0, Math.min(0.99, p))]).catch(() => undefined);
+    void this.pool.query(`UPDATE content.compose_jobs SET progress = GREATEST(progress, $2), heartbeat_at = now() WHERE id = $1 AND status = 'working'`, [id, Math.max(0, Math.min(0.99, p))]).catch(() => undefined);
   }
 
-  private async work(id: string) {
-    const row = (await this.pool.query(`UPDATE content.compose_jobs SET status = 'working', started_at = now(), progress = 0.01 WHERE id = $1 AND status = 'queued' RETURNING owner_id, spec`, [id]).catch(() => ({ rows: [] }))).rows[0];
-    if (!row) return;
+  private async work(row: { id: string; owner_id: string; spec: ComposeSpec }) {
+    const id = row.id;
     const ac = new AbortController();
     this.aborts.set(id, ac);
     const timer = setTimeout(() => ac.abort(), this.config.COMPOSE_TIMEOUT_S * 1000);
+    // Sinal de vida enquanto monta (mesmo sem progresso: um clipe longo no ffmpeg), para não parecer um processo caído.
+    const beat = setInterval(() => void this.pool.query(`UPDATE content.compose_jobs SET heartbeat_at = now() WHERE id = $1 AND worker_id = $2`, [id, this.workerId]).catch(() => undefined), HEARTBEAT_MS);
+    beat.unref();
     let tmp: string | null = null;
     const t0 = Date.now();
     try {
       tmp = await mkdtemp(join(tmpdir(), 'txcompose-'));
-      const out = await this.render(row.spec as ComposeSpec, tmp, ac.signal, (p) => this.progress(id, p));
-      const mediaId = await this.store(row.owner_id as string, out);
+      const out = await this.render(row.spec, tmp, ac.signal, (p) => this.progress(id, p));
+      const mediaId = await this.store(row.owner_id, out);
       await this.pool.query(`UPDATE content.compose_jobs SET status = 'done', progress = 1, media_id = $2, duration_ms = $3, finished_at = now() WHERE id = $1`, [id, mediaId, Math.round(out.seconds * 1000)]);
       const s = (ms: number) => (ms / 1000).toFixed(1);
       const fx = out.timings.layers || out.timings.transitions || out.timings.reverse ? `; estúdio: camadas ${s(out.timings.layers)}, transições ${s(out.timings.transitions)}, inverter ${s(out.timings.reverse)}` : '';
@@ -466,6 +532,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
       await this.pool.query(`UPDATE content.compose_jobs SET status = 'failed', error = $2, finished_at = now() WHERE id = $1`, [id, message.slice(0, 300)]).catch(() => undefined);
     } finally {
       clearTimeout(timer);
+      clearInterval(beat);
       this.aborts.delete(id);
       this.lastWrite.delete(id);
       if (tmp) await rm(tmp, { recursive: true, force: true }).catch(() => undefined);

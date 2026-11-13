@@ -5,13 +5,15 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
-import { metricsMiddleware } from './observability/metrics';
+import { metricsMiddleware, registry } from './observability/metrics';
 import helmet from 'helmet';
 import type { JWTVerifyGetKey } from 'jose';
 import { AppModule } from './app.module';
 import { loadConfig } from './config';
 
 export async function createApp(config = loadConfig(), opts: { googleJwks?: JWTVerifyGetKey; appleJwks?: JWTVerifyGetKey; imageClassifier?: import('./moderation/image-moderation.service').ImageClassifier; bodyDetector?: import('./moderation/image-moderation.service').BodyPartDetector; esClient?: import('@elastic/elasticsearch').Client } = {}) {
+  // Cada série das métricas leva o papel do processo (web, worker ou api); o Prometheus junta a instância (docs/escala.md).
+  registry.setDefaultLabels({ role: config.ROLE ?? 'api' });
   const app = await NestFactory.create<NestExpressApplication>(AppModule.register(config, opts));
   app.set('trust proxy', 1);
   app.use(helmet());
@@ -33,5 +35,6 @@ export async function createApp(config = loadConfig(), opts: { googleJwks?: JWTV
 
 if (require.main === module) {
   const config = loadConfig();
+  // Também o worker escuta (só /health e /metrics lhe interessam: o nginx não lhe manda pedidos).
   createApp(config).then((app) => app.listen(config.PORT));
 }

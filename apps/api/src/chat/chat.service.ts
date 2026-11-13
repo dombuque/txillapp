@@ -341,7 +341,7 @@ export class ChatService {
     );
     const r = rows[0];
     if (!r || !r.o_show || !r.m_show) return null;
-    return { online: this.events.isOnline(otherId), lastSeen: (r.last_seen_at as string | null) ?? null };
+    return { online: await this.events.isOnline(otherId), lastSeen: (r.last_seen_at as string | null) ?? null };
   }
 
   private async usernameOf(id: string) {
@@ -384,9 +384,10 @@ export class ChatService {
       [me],
     );
     const iShow = (await this.pool.query('SELECT show_presence FROM identity.users WHERE id = $1', [me])).rows[0]?.show_presence !== false;
+    const online = iShow ? await this.events.onlineAmong(rows.filter((r) => r.o_show && r.status === 'active').map((r) => r.other_id as string)) : new Set<string>();
     return rows.map((r) => ({
       username: r.username,
-      presence: iShow && r.o_show && r.status === 'active' ? { online: this.events.isOnline(r.other_id as string), lastSeen: (r.last_seen_at as string | null) ?? null } : null,
+      presence: iShow && r.o_show && r.status === 'active' ? { online: online.has(r.other_id as string), lastSeen: (r.last_seen_at as string | null) ?? null } : null,
       displayName: r.status === 'active' ? r.display_name : 'Conta eliminada',
       ...(r.status === 'active' ? badge(r.verified, r.verified_tier) : badge(false, null)),
       hasAvatar: r.has_avatar,
@@ -1071,7 +1072,7 @@ export class ChatService {
     // Também no telemóvel, sem o texto da mensagem.
     const sender = (await this.pool.query('SELECT display_name FROM identity.users WHERE id = $1', [me])).rows[0].display_name as string;
     const what: Partial<Record<MessageKind, string>> = { story_reply: 'respondeu ao teu mimo', story_reaction: 'reagiu ao teu mimo', image: 'enviou-te uma foto', video: 'enviou-te um vídeo', voice: 'enviou-te uma mensagem de voz', sticker: 'enviou-te um sticker', gif: 'enviou-te um GIF', location: 'partilhou a localização contigo', post: 'partilhou uma publicação contigo', gift: 'enviou-te um presente' };
-    if (!this.events.isActive(other, `u:${from}`)) void this.push.send(other, { title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : extra.once ? 'enviou-te uma mensagem de visualização única' : extra.liveMinutes ? 'está a partilhar a localização em direto' : (extra.pushText ?? what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' });
+    if (!(await this.events.isActive(other, `u:${from}`))) void this.push.send(other, { title: sender, body: theirs.request ? 'quer enviar-te uma mensagem' : extra.once ? 'enviou-te uma mensagem de visualização única' : extra.liveMinutes ? 'está a partilhar a localização em direto' : (extra.pushText ?? what[kind] ?? 'enviou-te uma mensagem'), url: `/messages/${from}`, tag: `chat:${me}`, category: 'messages' });
     return { id, kind, expiresAt };
   }
 }

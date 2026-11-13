@@ -54,6 +54,7 @@
  * ──────────────────────────────────────────────────────────────────────────────────────
  */
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Scheduler } from '../realtime/scheduler';
 import { createHmac } from 'node:crypto';
 import { Pool } from 'pg';
 import { ChatEvents, type CallEvent } from '../chat/chat.events';
@@ -93,9 +94,12 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
   private readonly timers = new Map<string, NodeJS.Timeout>();
   /** Reenvios do aviso Web Push enquanto a chamada toca (ver call-push.ts). */
   private readonly repeats = new Map<string, NodeJS.Timeout[]>();
-  private sweeper?: NodeJS.Timeout;
-  private purger?: NodeJS.Timeout;
-  /** Desde quando cada chamada em curso tem os dois lados sem ligação ao canal. */
+  /**
+   * Desde quando cada chamada em curso tem os dois lados sem ligação ao canal. Só a varredura o usa, e a varredura só corre
+   * num processo (o worker), por isso pode ficar na memória; quem está ligado vem do RealtimeBus (todas as instâncias).
+   * Os temporizadores acima ficam na instância que atendeu o pedido: o estado da chamada está na base de dados e cada
+   * mudança é um UPDATE … WHERE status = 'ringing', por isso uma chamada atendida noutra instância não é dada por perdida.
+   */
   private readonly offlineSince = new Map<string, number>();
 
   constructor(
@@ -105,6 +109,7 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     private readonly chat: ChatService,
     private readonly push: PushService,
     private readonly notifications: NotificationsService,
+    private readonly scheduler: Scheduler,
   ) {}
 
   get ringSeconds() {
@@ -112,18 +117,12 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
-    if (this.config.NODE_ENV === 'test') return;
-    this.sweeper = setInterval(() => void this.sweep().catch((e) => this.log.warn(`falha na varredura: ${(e as Error).message}`)), 15_000);
-    this.sweeper.unref();
+    this.scheduler.every('calls.sweep', 15_000, () => this.sweep());
     // Uma vez por dia (e logo no arranque): apaga as chamadas com mais de 12 meses.
-    void this.purgeOld().catch(() => undefined);
-    this.purger = setInterval(() => void this.purgeOld().catch((e) => this.log.warn(`falha a limpar chamadas antigas: ${(e as Error).message}`)), 24 * 3_600_000);
-    this.purger.unref();
+    this.scheduler.every('calls.purge', 24 * 3_600_000, () => this.purgeOld(), { firstAfterMs: 0 });
   }
 
   onModuleDestroy() {
-    if (this.sweeper) clearInterval(this.sweeper);
-    if (this.purger) clearInterval(this.purger);
     for (const t of this.timers.values()) clearTimeout(t);
     this.timers.clear();
     for (const l of this.repeats.values()) for (const t of l) clearTimeout(t);
@@ -446,7 +445,8 @@ export class CallsService implements OnModuleInit, OnModuleDestroy {
     const lost: string[] = [];
     for (const r of live) {
       const startedMs = new Date(r.started_at as string).getTime();
-      const bothOff = !this.events.isOnline(r.caller_id) && !this.events.isOnline(r.callee_id);
+      const on = await this.events.onlineAmong([r.caller_id, r.callee_id]);
+      const bothOff = !on.has(r.caller_id) && !on.has(r.callee_id);
       if (!bothOff) this.offlineSince.delete(r.id);
       else if (!this.offlineSince.has(r.id)) this.offlineSince.set(r.id, now);
       const offFor = bothOff ? now - this.offlineSince.get(r.id)! : 0;

@@ -218,6 +218,25 @@ const schema = z.object({
   COMPOSE_CONCURRENCY: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).max(2).default(1)),
   COMPOSE_TIMEOUT_S: z.preprocess(blankToUndefined, z.coerce.number().int().min(30).max(1800).default(480)),
   COMPOSE_THREADS: z.preprocess(blankToUndefined, z.coerce.number().int().min(0).max(16).default(0)),
+  /**
+   * Escala (docs/escala.md). REDIS_URL liga o tempo real partilhado entre instâncias (eventos do SSE, quem está ligado,
+   * «a escrever», a conversa à vista) e os limites de pedidos contados no Redis. Sem ele (desenvolvimento e testes), tudo
+   * fica em memória, como numa instância só. REDIS_PASSWORD, se vier, vale mais do que a senha do URL (evita codificar
+   * caracteres especiais no URL).
+   */
+  REDIS_URL: z.preprocess(blankToUndefined, z.string().regex(/^rediss?:\/\//, 'REDIS_URL tem de começar por redis:// ou rediss://').optional()),
+  REDIS_PASSWORD: z.preprocess(blankToUndefined, z.string().optional()),
+  /**
+   * O papel do processo: 'web' só serve pedidos (sem tarefas periódicas nem filas); 'worker' corre as tarefas periódicas,
+   * a fila da montagem das tchekas e a conversão dos vídeos (e responde a /health e /metrics). Sem ROLE, faz tudo.
+   */
+  ROLE: z.preprocess(blankToUndefined, z.enum(['web', 'worker']).optional()),
+  /** Ligações ao PostgreSQL por processo, o tempo máximo de cada consulta e de uma transação parada (ms; 0 = sem limite). */
+  PG_POOL_MAX: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).max(200).default(20)),
+  PG_STATEMENT_TIMEOUT_MS: z.preprocess(blankToUndefined, z.coerce.number().int().min(0).default(30_000)),
+  PG_IDLE_TX_TIMEOUT_MS: z.preprocess(blankToUndefined, z.coerce.number().int().min(0).default(60_000)),
+  /** Conversões de vídeo ao mesmo tempo em cada processo que corre a fila (o worker). */
+  VIDEO_CONCURRENCY: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).max(4).default(1)),
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });

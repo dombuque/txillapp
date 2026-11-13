@@ -272,12 +272,12 @@ describe('mensagens directas e respostas a stories no chat (integração)', () =
     await api().put('/api/v1/chat/active').set(auth(b)).send({ key: `u:${a.username}` }).expect(204);
     await api().put('/api/v1/chat/active').set(auth(b)).send({ key: 'qualquer coisa' }).expect(400);
     const ev = app.get(ChatEvents);
-    expect(ev.isActive(b.id, `u:${a.username.toUpperCase()}`)).toBe(true); // sem distinguir maiúsculas
-    expect(ev.isActive(b.id, 'u:outra')).toBe(false);
-    expect(ev.isActive(a.id, `u:${a.username}`)).toBe(false); // é por pessoa
-    expect(ev.isActive(b.id, `u:${a.username}`, Date.now() + 46_000)).toBe(false); // expira
+    expect(await ev.isActive(b.id, `u:${a.username.toUpperCase()}`)).toBe(true); // sem distinguir maiúsculas
+    expect(await ev.isActive(b.id, 'u:outra')).toBe(false);
+    expect(await ev.isActive(a.id, `u:${a.username}`)).toBe(false); // é por pessoa
+    expect(await ev.isActive(b.id, `u:${a.username}`, Date.now() + 46_000)).toBe(false); // expira
     await api().put('/api/v1/chat/active').set(auth(b)).send({ key: null }).expect(204);
-    expect(ev.isActive(b.id, `u:${a.username}`)).toBe(false);
+    expect(await ev.isActive(b.id, `u:${a.username}`)).toBe(false);
   });
 
   it('vídeos no chat: aceita o envio, mas só entra na conversa depois de convertido e pronto', async () => {

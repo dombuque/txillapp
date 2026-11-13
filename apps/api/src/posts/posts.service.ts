@@ -1,4 +1,5 @@
 import { OnModuleInit, BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { Scheduler } from '../realtime/scheduler';
 import { MusicService, type MusicInput } from '../music/music.service';
 import { TextFilter } from '../safety/text-filter.service';
 import { Pool, PoolClient } from 'pg';
@@ -101,11 +102,12 @@ export class PostsService implements OnModuleInit {
     private readonly filter: TextFilter,
     private readonly musicSvc: MusicService,
     private readonly sounds: SoundsService,
+    private readonly scheduler: Scheduler,
   ) {}
 
   onModuleInit() {
-    // Em segundo plano: não atrasa o arranque.
-    void this.backfillTopics().catch(() => undefined);
+    // Em segundo plano: não atrasa o arranque (só no worker, ou sem ROLE; também nos testes, como sempre).
+    this.scheduler.once('posts.topics', 0, () => this.backfillTopics().catch(() => undefined), { inTests: true });
   }
 
   /**

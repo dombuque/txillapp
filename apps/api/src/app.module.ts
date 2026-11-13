@@ -49,6 +49,10 @@ import { BoostsModule } from './boosts/boosts.module';
 import { FinModule } from './backoffice/fin.module';
 import { IapModule } from './iap/iap.module';
 import { ComposeModule } from './compose/compose.module';
+import type Redis from 'ioredis';
+import { RealtimeModule } from './realtime/realtime.module';
+import { REDIS } from './realtime/redis';
+import { SharedThrottlerStorage } from './realtime/throttler-storage';
 
 @Module({})
 export class AppModule {
@@ -58,8 +62,13 @@ export class AppModule {
       module: AppModule,
       global: true,
       imports: [
-        // TODO(fase 3): storage em Redis para limites partilhados entre instâncias.
-        ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+        RealtimeModule,
+        // O limite geral (120 pedidos por minuto) e os @Throttle: contados no Redis, iguais em todas as instâncias
+        // (sem REDIS_URL, na memória do processo, como antes). Ver realtime/throttler-storage.ts.
+        ThrottlerModule.forRootAsync({
+          inject: [REDIS],
+          useFactory: (redis: Redis | null) => ({ throttlers: [{ ttl: 60_000, limit: 120 }], ...(redis ? { storage: new SharedThrottlerStorage(redis) } : {}) }),
+        }),
         DbModule,
         MailModule,
         AuthModule,

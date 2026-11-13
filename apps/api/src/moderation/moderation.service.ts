@@ -1,4 +1,5 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Scheduler } from '../realtime/scheduler';
 import { ModuleRef } from '@nestjs/core';
 import { Pool, type PoolClient } from 'pg';
 import { AppConfig, CONFIG } from '../config';
@@ -67,9 +68,8 @@ export function messageProof(r: Record<string, any>) {
 }
 
 @Injectable()
-export class ModerationService implements OnModuleInit, OnModuleDestroy {
+export class ModerationService implements OnModuleInit {
   private readonly log = new Logger('Moderação');
-  private purger?: NodeJS.Timeout;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -77,19 +77,12 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
     @Inject(CONFIG) private readonly config: AppConfig,
     private readonly moduleRef: ModuleRef,
     private readonly notifications: NotificationsService,
+    private readonly scheduler: Scheduler,
   ) {}
 
-  /** No arranque e de 24 em 24 horas (fora dos testes): apaga as provas das denúncias decididas há mais de REPORT_EVIDENCE_DAYS. */
+  /** No arranque e de 24 em 24 horas (só no worker, fora dos testes): apaga as provas das denúncias decididas há mais de REPORT_EVIDENCE_DAYS. */
   onModuleInit() {
-    if (this.config.NODE_ENV === 'test') return;
-    const run = () => void this.purgeEvidence().catch((e) => this.log.warn(`falha a limpar provas de denúncias: ${(e as Error).message}`));
-    run();
-    this.purger = setInterval(run, 24 * 3_600_000);
-    this.purger.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.purger) clearInterval(this.purger);
+    this.scheduler.every('moderation.evidence', 24 * 3_600_000, () => this.purgeEvidence(), { firstAfterMs: 0 });
   }
 
   /**

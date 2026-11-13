@@ -1,5 +1,6 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
+import { Scheduler } from '../realtime/scheduler';
 import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
@@ -51,24 +52,16 @@ const n = (v: unknown) => Number(v ?? 0);
 export interface Filters { days: AnalysisDays; country: string | null }
 
 @Injectable()
-export class AnalysesService implements OnModuleInit, OnModuleDestroy {
+export class AnalysesService implements OnModuleInit {
   private readonly log = new Logger('Analyses');
   private cache = new Map<string, { at: number; value: unknown }>();
-  private refresher?: NodeJS.Timeout;
   private refreshing: Promise<void> | null = null;
 
-  constructor(@Inject(PG_POOL) private readonly pool: Pool, @Inject(CONFIG) private readonly config: AppConfig) {}
+  constructor(@Inject(PG_POOL) private readonly pool: Pool, @Inject(CONFIG) private readonly config: AppConfig, private readonly scheduler: Scheduler) {}
 
+  /** A vista dos dias com atividade: de 30 em 30 minutos, só no worker (Scheduler). */
   onModuleInit() {
-    if (this.config.NODE_ENV === 'test') return;
-    const run = () => void this.refresh().catch((e) => this.log.warn(`falha a atualizar analytics.user_days: ${(e as Error).message}`));
-    this.refresher = setInterval(run, REFRESH_MS);
-    this.refresher.unref();
-    setTimeout(run, 90_000).unref();
-  }
-
-  onModuleDestroy() {
-    if (this.refresher) clearInterval(this.refresher);
+    this.scheduler.every('analytics.user_days', REFRESH_MS, () => this.refresh(), { firstAfterMs: 90_000 });
   }
 
   /** Atualiza a vista dos dias com atividade (sem bloquear quem lê). */

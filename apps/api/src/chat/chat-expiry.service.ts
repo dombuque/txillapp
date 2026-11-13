@@ -1,5 +1,6 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
+import { Scheduler } from '../realtime/scheduler';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
 import { ChatEvents } from './chat.events';
@@ -18,25 +19,18 @@ export const EXPIRY_EVERY_MS = 5 * 60_000;
  * Corre de 5 em 5 minutos; nos testes não arranca sozinha (chama-se `run()`).
  */
 @Injectable()
-export class ChatExpiryService implements OnModuleInit, OnModuleDestroy {
+export class ChatExpiryService implements OnModuleInit {
   private readonly log = new Logger('MensagensTemporarias');
-  private timer?: NodeJS.Timeout;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(CONFIG) private readonly config: AppConfig,
     private readonly events: ChatEvents,
+    private readonly scheduler: Scheduler,
   ) {}
 
   onModuleInit() {
-    if (this.config.NODE_ENV === 'test') return;
-    const tick = () => void this.run().catch((e) => this.log.warn(`falha na limpeza: ${(e as Error).message}`));
-    this.timer = setInterval(tick, EXPIRY_EVERY_MS);
-    this.timer.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
+    this.scheduler.every('chat.expiry', EXPIRY_EVERY_MS, () => this.run());
   }
 
   /** Apaga até `limit` mensagens expiradas. Devolve quantas apagou. */

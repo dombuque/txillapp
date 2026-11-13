@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Scheduler } from '../realtime/scheduler';
 import { readFile } from 'node:fs/promises';
 import { Pool } from 'pg';
 import { ageOf } from '@txillapp/shared';
@@ -49,9 +50,8 @@ export const cleanCode = (raw: string) => raw.trim().toUpperCase().replace(/[^A-
  * ganha Txills na hora e o prémio de quem convidou fica em espera uns dias. Tudo passa pelo livro de movimentos, de forma idempotente.
  */
 @Injectable()
-export class InvitesService implements OnModuleInit, OnModuleDestroy {
+export class InvitesService implements OnModuleInit {
   private readonly log = new Logger('Convites');
-  private timer?: NodeJS.Timeout;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -60,18 +60,14 @@ export class InvitesService implements OnModuleInit, OnModuleDestroy {
     private readonly push: PushService,
     private readonly notifications: NotificationsService,
     private readonly media: MediaService,
+    private readonly scheduler: Scheduler,
   ) {}
 
   /** Cartões já desenhados para a pré-visualização (pouco tempo, para uma foto ou uma geleira nova aparecerem depressa). */
   private readonly ogCache = new Map<string, { at: number; png: Buffer }>();
 
   onModuleInit() {
-    if (this.config.NODE_ENV === 'test') return;
-    this.timer = setInterval(() => void this.sweep().catch((e) => this.log.warn(`falha: ${(e as Error).message}`)), 5 * 60_000);
-    this.timer.unref();
-  }
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
+    this.scheduler.every('invites.sweep', 5 * 60_000, () => this.sweep());
   }
 
   private origin() {

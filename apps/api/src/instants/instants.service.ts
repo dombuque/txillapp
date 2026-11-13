@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Scheduler } from '../realtime/scheduler';
 import { Pool } from 'pg';
 import sharp from 'sharp';
 import { uuidv7 } from '../common/uuid7';
@@ -27,6 +28,7 @@ export class InstantsService implements OnModuleInit {
     private readonly filter: TextFilter,
     private readonly push: PushService,
     private readonly events: ChatEvents,
+    private readonly scheduler: Scheduler,
   ) {}
 
   /**
@@ -64,8 +66,9 @@ export class InstantsService implements OnModuleInit {
   }
 
   /** Os Zás ativos feitos com a miniatura antiga (minúscula e desfocada) ganham a nova, para o atalho se ver bem. */
-  async onModuleInit() {
-    void (async () => {
+  /** No arranque (só no worker, ou sem ROLE; também nos testes, como sempre). */
+  onModuleInit() {
+    this.scheduler.once('instants.thumbs', 0, async () => {
       try {
         const { rows } = await this.pool.query("SELECT id, media_id FROM social.instants WHERE expires_at > now() AND (preview IS NULL OR length(preview) < 6000) LIMIT 200");
         for (const r of rows) {
@@ -76,7 +79,7 @@ export class InstantsService implements OnModuleInit {
       } catch (e) {
         this.log.warn(`não consegui atualizar as miniaturas: ${(e as Error).message}`);
       }
-    })();
+    }, { inTests: true });
   }
 
   async create(me: string, mediaId: string, caption: string, audience: 'friends' | 'close' = 'friends') {

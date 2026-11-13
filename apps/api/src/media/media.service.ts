@@ -1,4 +1,5 @@
 import { Logger, OnModuleInit } from '@nestjs/common';
+import { Scheduler } from '../realtime/scheduler';
 import {
   BadRequestException, HttpException, HttpStatus, Inject, Injectable, NotFoundException, PayloadTooLargeException,
   UnsupportedMediaTypeException, ForbiddenException, UnprocessableEntityException, ConflictException, GoneException,
@@ -124,6 +125,7 @@ export class MediaService implements OnModuleInit {
     private readonly imageModeration: ImageModerationService,
     private readonly video: VideoService,
     private readonly moduleRef: ModuleRef,
+    private readonly scheduler: Scheduler,
   ) {
     this.dir = resolve(config.MEDIA_DIR);
     this.secret = config.JWT_ACCESS_SECRET;
@@ -412,9 +414,8 @@ export class MediaService implements OnModuleInit {
   }
 
   onModuleInit() {
-    const run = () => this.sweepDeleted().catch(() => undefined);
-    void run();
-    setInterval(run, 10 * 60_000).unref();
+    // Também nos testes (como sempre); com várias instâncias, só no worker.
+    this.scheduler.every('media.deleted', 10 * 60_000, () => this.sweepDeleted(), { firstAfterMs: 0, inTests: true });
   }
 
   async requestUpload(userId: string, mime: string, size: number, purpose: 'public' | 'chat' | 'music' = 'public', signed = false) {
@@ -522,8 +523,9 @@ export class MediaService implements OnModuleInit {
     if (a.status === 'rejected') throw this.rejectedError(id);
     if (VIDEO.has(a.mime) && a.status === 'uploaded') {
       // O vídeo foi recebido: converte-se em segundo plano; a app pergunta pelo estado.
-      await this.pool.query(`UPDATE content.media_assets SET status = 'processing' WHERE id = $1 AND status = 'uploaded'`, [id]);
-      void this.video.enqueue(id, userId, undefined, posterMs);
+      // A conversão corre no worker (fila content.video_jobs), ou aqui sem ROLE.
+      const upd = await this.pool.query(`UPDATE content.media_assets SET status = 'processing' WHERE id = $1 AND status = 'uploaded'`, [id]);
+      if (upd.rowCount) await this.video.enqueue(id, userId, null, posterMs);
       return { status: 'processing' };
     }
     if (a.status === 'ready' || a.status === 'processing') return { status: a.status };
@@ -586,8 +588,10 @@ export class MediaService implements OnModuleInit {
     }
   }
 
-  /** Vídeo na nuvem: valida o original (bucket privado), converte aqui e publica o resultado no bucket público. */
-  /** `scope`: onde fica o vídeo pronto (público nas publicações; privado nas conversas). */
+  /**
+   * Vídeo na nuvem: valida o original (bucket privado) e põe-no na fila de conversão (o worker publica o resultado).
+   * `scope`: onde fica o vídeo pronto (público nas publicações; privado nas conversas).
+   */
   private async completeCloudVideo(userId: string, id: string, scope: 'public' | 'private' = 'public', posterMs?: number): Promise<{ status: string }> {
     const s3 = this.s3!;
     const src = `${id}.src`;
@@ -601,16 +605,8 @@ export class MediaService implements OnModuleInit {
       await s3.remove(src, 'private');
       throw new UnsupportedMediaTypeException('Conteúdo não corresponde a um vídeo');
     }
-    await this.pool.query(`UPDATE content.media_assets SET status = 'processing' WHERE id = $1 AND status = 'pending'`, [id]);
-    void this.video.enqueue(id, userId, {
-      fetchSource: async (dest) => writeFile(dest, await s3.read(src, 'private')),
-      publish: async (video, poster) => {
-        await s3.put(id, createReadStream(video), 'video/mp4', scope, (await stat(video)).size);
-        await s3.put(`${id}.poster.jpg`, await readFile(poster), 'image/jpeg', scope);
-        await s3.remove(src, 'private'); // o original não publicado deixa de existir
-      },
-      cleanup: async () => void (await Promise.allSettled([s3.remove(src, 'private'), s3.remove(id, scope), s3.remove(`${id}.poster.jpg`, scope)])),
-    }, posterMs);
+    const upd = await this.pool.query(`UPDATE content.media_assets SET status = 'processing' WHERE id = $1 AND status = 'pending'`, [id]);
+    if (upd.rowCount) await this.video.enqueue(id, userId, scope, posterMs);
     return { status: 'processing' };
   }
 
