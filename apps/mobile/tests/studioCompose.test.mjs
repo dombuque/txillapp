@@ -114,6 +114,7 @@ test('os ficheiros que faltam enviar e o que impede a montagem', () => {
   assert.equal(c.composeBlocker(clips), null);
   assert.match(c.composeBlocker([{ ...clips[0], speed: 1.5 }]), /0,5×, 1×, 2× ou 3×/);
   assert.match(c.composeBlocker(Array.from({ length: 31 }, () => clips[1])), /No máximo 30/);
+  assert.match(c.composeBlocker([{ ...clips[1], seconds: 12 }]), /no máximo 10 s/);
 });
 
 test('para um servidor mais antigo: sem panos, sem enquadramento, sem som por clipe (todos calados = som original a 0)', () => {

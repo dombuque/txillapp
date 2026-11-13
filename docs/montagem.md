@@ -220,7 +220,7 @@ e som, fotos, `fade`, filtro `quente`, 2 textos, 1 sticker e música (`src/compo
 - A exportação de dados da conta não inclui os jobs (são temporários e apagam-se aos 7 dias).
 - **Uma voz-off só** por tcheka (o estúdio também grava uma; regravar substitui-a). A voz-off enviada que não chegue a ir numa
   tcheka fica como os outros áudios por usar (privada; não há limpeza dos órfãos).
-- O estúdio nativo ainda não grava a voz-off nem escolhe o trecho: o servidor já aceita tudo (secção 4-A).
+- O estúdio nativo (`TchekaStudio.native.tsx`) manda o pedido completo, com o som, os efeitos e as camadas: ver docs/estudio-nativo.md.
 
 ## 8. Testes
 

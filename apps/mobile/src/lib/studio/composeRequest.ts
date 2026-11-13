@@ -186,6 +186,7 @@ export function composeBlocker(clips: ProjectClip[]): string | null {
   if (clips.length > COMPOSE_MAX_CLIPS) return `No máximo ${COMPOSE_MAX_CLIPS} clipes numa tcheka`;
   const odd = clips.find((c) => c.video && !(COMPOSE_SPEEDS as readonly number[]).includes(c.speed));
   if (odd) return 'A velocidade de um vídeo tem de ser 0,5×, 1×, 2× ou 3×';
+  if (clips.some((c) => !c.video && c.seconds > PHOTO_MAX_MS / 1000 + 1e-6)) return `Uma foto fica no máximo ${PHOTO_MAX_MS / 1000} s`;
   return null;
 }
 

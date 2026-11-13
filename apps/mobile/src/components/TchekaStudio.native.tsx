@@ -717,7 +717,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     else { setTab(id); openSheet('media'); }
   };
   const handlePan = usePanGesture({
-    runOnJS: true, minDistance: 8,
+    runOnJS: true, activeOffsetY: [-12, 12], failOffsetX: [-14, 14],
     onDeactivate: (e) => {
       if (e.translationY < -30) setSheet((s) => (s === 'baixa' ? 'media' : 'alta'));
       else if (e.translationY > 30) { Keyboard.dismiss(); setSheet((s) => (s === 'alta' ? 'media' : 'baixa')); }
@@ -727,6 +727,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
 
   // ---------------------------------------------------------------- medidas
   const [area, setArea] = useState({ w: 0, h: 0 });
+  /** Um toque numa camada não conta também como tocar na imagem (pausa). */
+  const ovTouch = useRef(0);
   const [bottomH, setBottomH] = useState(150);
   const top = Math.max(insets.top, 8);
   const bottom = Math.max(insets.bottom, 6);
@@ -770,9 +772,9 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
       {/* A imagem grande: o palco 9:16 com a altura que sobra. Tocar fora das camadas alterna tocar/pausa. */}
       <View style={st.stageArea} onLayout={(e) => { const l = e.nativeEvent.layout; setArea((a) => (Math.abs(a.w - l.width) < 1 && Math.abs(a.h - l.height) < 1 ? a : { w: l.width, h: l.height })); }}>
         {stageW > 0 ? (
-          <Pressable onPress={() => { if (!busy) { if (selOv) setSelOv(null); else clock.toggle(); } }} style={[st.stage, { width: stageW, height: realH }]} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'}>
+          <Pressable onPress={() => { if (busy || Date.now() - ovTouch.current < 400) return; if (selOv) setSelOv(null); else clock.toggle(); }} style={[st.stage, { width: stageW, height: realH }]} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'}>
             <NativeStage segs={segs} clock={clock} W={stageW} H={realH} origVol={origVol} pano={pano} reference={reference} refVolume={musicVol} />
-            <NativeOverlays overlays={overlays} clock={clock} W={stageW} H={realH} selId={selOv} locked={locked} showSafe={tab === 'texto' || tab === 'stickers'} onSelect={selectOverlay} onEdit={(id) => { selectOverlay(id); setEditTick((n) => n + 1); setSheet('alta'); }} onChange={changeOverlay} />
+            <NativeOverlays overlays={overlays} clock={clock} W={stageW} H={realH} selId={selOv} locked={locked} showSafe={tab === 'texto' || tab === 'stickers'} onSelect={(id) => { ovTouch.current = Date.now(); selectOverlay(id); }} onEdit={(id) => { ovTouch.current = Date.now(); selectOverlay(id); setEditTick((n) => n + 1); setSheet('alta'); }} onChange={(o) => { ovTouch.current = Date.now(); changeOverlay(o); }} />
             {!playing && !busy && !selOv ? <View style={st.center} pointerEvents="none"><View style={st.playBig}><Play size={32} color="#fff" fill="#fff" /></View></View> : null}
           </Pressable>
         ) : null}
