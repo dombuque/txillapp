@@ -47,7 +47,8 @@ export interface GeladaDebt {
   claimed: boolean;
   claimedAt: string | null;
   photoUrl: string | null;
-  venue: { slug: string; name: string } | null;
+  /** Onde foi («no Bar X»), só para as duas pessoas. `there`: «✓ estiveram lá» (GPS no raio ou check-in com o QR na mesma hora). */
+  venue: { slug: string; name: string; kind?: string; there?: boolean } | null;
   iOwe: boolean;
   owedToMe: boolean;
   canClaim: boolean;
@@ -90,7 +91,8 @@ export const geladaApi = {
   myBook: (): Promise<GeladaBook> => raw('/gelada/book'),
   book: (username: string): Promise<GeladaBook> => raw(`/users/${encodeURIComponent(username)}/gelada/book`),
   owe: (to: string, itemId: string): Promise<GeladaDebt> => raw('/gelada/debts', post({ to, itemId })),
-  paid: (id: string, proof: { mediaId?: string; venueSlug?: string } = {}): Promise<GeladaDebt> => raw(`/gelada/debts/${id}/paid`, post(proof)),
+  /** «Já paguei», com uma foto e/ou o local. Com o local, `lat`/`lng` (a posição agora) dão o selo «✓ estiveram lá»; não se guardam. */
+  paid: (id: string, proof: { mediaId?: string; venueSlug?: string; lat?: number; lng?: number } = {}): Promise<GeladaDebt> => raw(`/gelada/debts/${id}/paid`, post(proof)),
   confirm: (id: string): Promise<GeladaDebt> => raw(`/gelada/debts/${id}/confirm`, post({})),
   reject: (id: string): Promise<GeladaDebt> => raw(`/gelada/debts/${id}/reject`, post({})),
   forgive: (id: string): Promise<GeladaDebt> => raw(`/gelada/debts/${id}/forgive`, post({})),

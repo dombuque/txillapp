@@ -41,6 +41,22 @@ describe('Backoffice: Finanças, Bombar, Crescimento e Resumo (integração)', (
   const gift = (from: U, to: U, amount: number, type: 'gift' | 'transfer' = 'gift') =>
     wallet.transfer({ actorId: from.id, fromUserId: from.id, toUserId: to.id, amount, type, idempotencyKey: `t-${run}-${n++}` });
   const byType = (o: Body, t: string) => (o.byType as Body[]).find((x) => x.type === t)!;
+  /** O dia de hoje em UTC (o das séries). Se a meia-noite passar a meio de um teste, as contas «de hoje» não se comparam. */
+  const utcDay = () => new Date().toISOString().slice(0, 10);
+  /** O valor de um dia numa série (0 se o dia não está lá). */
+  const onDay = (o: Body, day: string, k: string) => Number(((o.series as Body[]).find((x) => x.day === day) ?? {})[k] ?? 0);
+  /**
+   * O registo com convite liga o convite DEPOIS de responder (auth.service: `void this.attachReferral(...)`, para nunca
+   * atrasar nem estragar o registo). Antes de contar, espera que os convites destas pessoas estejam gravados.
+   */
+  async function referralsOf(ids: string[]) {
+    for (let i = 0; i < 100; i++) {
+      const c = (await pool.query('SELECT count(*)::int AS n FROM social.referrals WHERE invitee_id = ANY($1::uuid[])', [ids])).rows[0].n as number;
+      if (c >= ids.length) return;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    throw new Error('os convites não ficaram gravados');
+  }
 
   beforeAll(async () => {
     await migrate(DB);
@@ -92,6 +108,7 @@ describe('Backoffice: Finanças, Bombar, Crescimento e Resumo (integração)', (
   });
 
   it('Txills em circulação: somas por tipo, emitidos, resgatados pelo Bombar, livro com filtros, páginas e detalhe', async () => {
+    const day0 = utcDay();
     const before = await get('/admin/fin/overview?days=7');
     const todayBefore = (await get('/admin/summary')).txillsToday as number;
     const [a, b, c] = [await signup('fma'), await signup('fmb'), await signup('fmc')];
@@ -128,9 +145,13 @@ describe('Backoffice: Finanças, Bombar, Crescimento e Resumo (integração)', (
     expect(after.circulation.total).toBe(after.circulation.issuedEver - after.circulation.redeemedEver);
     expect(after.circulation.balanced).toBe(true);
     expect(after.series).toHaveLength(7);
-    const today = after.series[6];
-    expect(today.issued - before.series[6].issued).toBe(2600);
-    expect((await get('/admin/summary')).txillsToday - todayBefore).toBe(1500 + 120 + 30 + 1000 + 300 + 100 + 25);
+    // «Hoje» só se compara se a meia-noite (UTC) não passou entre o antes e o depois.
+    const todayAfter = (await get('/admin/summary')).txillsToday as number;
+    if (utcDay() === day0) {
+      expect(after.series[6].day).toBe(day0);
+      expect(onDay(after, day0, 'issued') - onDay(before, day0, 'issued')).toBe(2600);
+      expect(todayAfter - todayBefore).toBe(1500 + 120 + 30 + 1000 + 300 + 100 + 25);
+    }
 
     // Carteiras dos locais.
     const w = (await get('/admin/fin/venues?days=7')).items.find((x: Body) => x.venue?.slug === v.slug);
@@ -164,10 +185,13 @@ describe('Backoffice: Finanças, Bombar, Crescimento e Resumo (integração)', (
     expect(p2.items).toHaveLength(1);
     expect(p2.nextCursor).toBeNull();
     expect(new Set([...p1.items, ...p2.items].map((x: Body) => x.id)).size).toBe(4);
-    // Sem filtros: a soma da página bate com as linhas.
+    // Sem filtros: a página tem 5 linhas e o total conta o livro todo. Este teste só conta com os 9 movimentos que criou
+    // (3 bónus, o presente, a transferência e os 4 do local): os dos outros testes dependem da ordem em que correm.
     const all = await get('/admin/fin/ledger?limit=5');
-    expect(all.items.length).toBeLessThanOrEqual(5);
-    expect(all.totals.count).toBeGreaterThanOrEqual(10);
+    expect(all.items).toHaveLength(5);
+    expect(all.nextCursor).toBeTruthy();
+    expect(all.totals.count).toBeGreaterThanOrEqual(9);
+    expect(all.totals.count).toBe((await pool.query('SELECT count(*)::int AS n FROM ledger.transactions')).rows[0].n);
 
     // Detalhe.
     const det = await get(`/admin/fin/ledger/${g.transactionId}`);
@@ -236,7 +260,15 @@ describe('Backoffice: Finanças, Bombar, Crescimento e Resumo (integração)', (
     expect(t('spent')).toBe(camp.price);
     expect(t('impressions')).toBe(2);
     expect(t('taps')).toBe(1);
-    expect(after.topVenues.find((x: Body) => x.slug === v.slug)).toMatchObject({ campaigns: 1, spent: camp.price, impressions: 2, taps: 1 });
+    // Os locais que mais gastam são só 10: com os dos outros testes, este pode não caber. Se não está, os 10 gastaram pelo
+    // menos o mesmo que ele.
+    const top = after.topVenues as Body[];
+    const mineTop = top.find((x) => x.slug === v.slug);
+    if (mineTop) expect(mineTop).toMatchObject({ campaigns: 1, spent: camp.price, impressions: 2, taps: 1 });
+    else {
+      expect(top).toHaveLength(10);
+      for (const x of top) expect(x.spent).toBeGreaterThanOrEqual(camp.price);
+    }
     expect(after.campaigns.find((x: Body) => x.id === camp.id)).toMatchObject({ venue: { slug: v.slug }, report: { impressions: 2, taps: 1 } });
     // O Bombar resgata Txills: aparece no livro como 'boost'.
     expect((await get(`/admin/fin/ledger?account=${v.slug}&type=boost`)).totals).toMatchObject({ count: 1, out: camp.price });
@@ -251,25 +283,41 @@ describe('Backoffice: Finanças, Bombar, Crescimento e Resumo (integração)', (
   });
 
   it('Crescimento: convites (entraram, bloqueados), quem mais convida, orçamento, série, funil e fontes', async () => {
+    const day0 = utcDay();
     const before = await get('/admin/growth?days=7', growth);
     const host = await signup('fgh');
     const code = (await api().get('/api/v1/invites/me').set(bearer(host.token)).expect(200)).body.code as string;
-    await signup('fgi', { inviteCode: code });
-    await signup('fgj', { inviteCode: code });
-    await signup('fgk', { inviteCode: code, email: `fgk${run}@mailinator.com` }); // email temporário: bloqueado pela antifraude
+    const invited = [
+      await signup('fgi', { inviteCode: code }),
+      await signup('fgj', { inviteCode: code }),
+      await signup('fgk', { inviteCode: code, email: `fgk${run}@mailinator.com` }), // email temporário: bloqueado pela antifraude
+    ];
+    await referralsOf(invited.map((x) => x.id));
     const after = await get('/admin/growth?days=7', growth);
     expect(after.invites.joined - before.invites.joined).toBe(3);
     expect(after.invites.blocked - before.invites.blocked).toBe(1);
     expect(after.invites.blockedBy.find((x: Body) => x.reason === 'email temporário').count).toBeGreaterThanOrEqual(1);
-    expect(after.top.find((x: Body) => x.username === host.username)).toMatchObject({ joined: 3, blocked: 1, paid: 0 });
+    // Quem mais convida: só os 15 primeiros. Se este não cabe, os 15 convidaram pelo menos tantos como ele.
+    const top = after.top as Body[];
+    const mineTop = top.find((x) => x.username === host.username);
+    if (mineTop) expect(mineTop).toMatchObject({ joined: 3, blocked: 1, paid: 0 });
+    else {
+      expect(top).toHaveLength(15);
+      for (const x of top) expect(x.joined).toBeGreaterThanOrEqual(3);
+    }
+    expect((await pool.query('SELECT status, reason FROM social.referrals WHERE inviter_id = $1 ORDER BY status, invitee_id', [host.id])).rows).toEqual([
+      { status: 'blocked', reason: 'email temporário' }, { status: 'registered', reason: null }, { status: 'registered', reason: null },
+    ]);
     expect(after.sources.invite - before.sources.invite).toBe(3);
     expect(after.sources.total - before.sources.total).toBe(4);
     expect(after.sources.direct + after.sources.invite).toBe(after.sources.total);
     expect(after.sources.methods.reduce((s: number, m: Body) => s + m.count, 0)).toBe(after.sources.total);
     expect(after.funnel.signed - before.funnel.signed).toBe(4);
     expect(after.series).toHaveLength(7);
-    expect(after.series[6].joined - before.series[6].joined).toBe(3);
-    expect(after.series[6].blocked - before.series[6].blocked).toBe(1);
+    if (utcDay() === day0) {
+      expect(onDay(after, day0, 'joined') - onDay(before, day0, 'joined')).toBe(3);
+      expect(onDay(after, day0, 'blocked') - onDay(before, day0, 'blocked')).toBe(1);
+    }
     // Orçamento do mês: o mesmo que o livro diz (prémios de convite creditados este mês).
     const used = Number((await pool.query(
       `SELECT coalesce(sum(e.amount), 0)::bigint AS n FROM ledger.transactions t JOIN ledger.entries e ON e.transaction_id = t.id

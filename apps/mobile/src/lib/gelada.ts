@@ -107,7 +107,7 @@ export function pickable<T extends { mutual: boolean }>(list: T[], channel: 'cha
  * As linhas da lista de notificações (0145). Com `soft` (refresco, quem tem menos de 18 anos) nunca se fala de álcool.
  * gelada_tag: pediram-me numa publicação; gelada_answer: responderam ao meu pedido publicado; gelada_paid: «Já paguei».
  */
-export function geladaNoticeText(kind: string, d: { soft?: boolean; answer?: string; step?: string }): string {
+export function geladaNoticeText(kind: string, d: { soft?: boolean; answer?: string; step?: string; venue?: string; venueKind?: string }): string {
   const cheers = d.soft ? '🥤' : '🍻';
   if (kind === 'gelada_tag') return d.soft ? 'pede-te um refresco numa publicação 🥤' : 'pede-te uma gelada numa publicação 🍻';
   if (kind === 'gelada_answer') {
@@ -115,7 +115,10 @@ export function geladaNoticeText(kind: string, d: { soft?: boolean; answer?: str
     if (d.answer === 'owe') return d.soft ? 'ficou a dever-te um refresco' : 'ficou a dever-te uma';
     return 'disse «Hoje não» ao teu pedido';
   }
-  if (kind === 'gelada_paid') return d.step === 'claimed' ? 'diz que já te pagou. Confirmas?' : 'confirmou que pagaste 🙌';
+  if (kind === 'gelada_paid') {
+    if (d.step !== 'claimed') return 'confirmou que pagaste 🙌';
+    return d.venue ? `diz que já te pagou ${venueTag({ name: d.venue, kind: d.venueKind })}. Confirmas?` : 'diz que já te pagou. Confirmas?';
+  }
   return 'tem novidades para ti';
 }
 
@@ -123,4 +126,64 @@ export function geladaNoticeText(kind: string, d: { soft?: boolean; answer?: str
 export function geladaNoticeTarget(kind: string, d: { postId?: string }): string {
   if ((kind === 'gelada_tag' || kind === 'gelada_answer') && d.postId) return `/p/${d.postId}`;
   return '/geladas';
+}
+
+/* ───────────── o local no «Já paguei» ───────────── */
+
+/** «✓ estiveram lá»: até 150 m do local (o mesmo raio do servidor, GELADA_NEAR_M em apps/api/src/gelada/gelada.service.ts). */
+export const NEAR_M = 150;
+
+export interface LatLngLike { lat: number; lng: number }
+
+/** Distância em metros entre dois pontos (haversine). */
+export function metersBetween(a: LatLngLike, b: LatLngLike): number {
+  const rad = (x: number) => (x * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6_371_000 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** «a 80 m» / «a 1,2 km» / «a 12 km». */
+export function distanceLabel(m: number): string {
+  if (m < 1000) return `a ${Math.max(10, Math.round(m / 10) * 10)} m`;
+  const km = m / 1000;
+  return `a ${km < 10 ? km.toFixed(1).replace('.', ',') : Math.round(km)} km`;
+}
+
+/** A etiqueta do local: «no Bar Costa» (a discoteca é «na»). */
+export const venueTag = (v: { name: string; kind?: string | null }) => `${v.kind === 'discoteca' ? 'na' : 'no'} ${v.name}`;
+
+/**
+ * Os locais para escolher no «Já paguei», do mais perto para o mais longe (os sem ponto no mapa vão no fim, pela ordem que
+ * vieram). `near`: estou dentro do raio (vai ter o selo «✓ estiveram lá»).
+ */
+export function venuesByDistance<T extends { slug: string; lat: number | null; lng: number | null }>(list: T[], at: LatLngLike | null): (T & { meters: number | null; near: boolean })[] {
+  const seen = new Set<string>();
+  const out = list
+    .filter((v) => (seen.has(v.slug) ? false : (seen.add(v.slug), true)))
+    .map((v, i) => {
+      const meters = at && v.lat != null && v.lng != null ? metersBetween(at, { lat: v.lat, lng: v.lng }) : null;
+      return { ...v, meters, near: meters != null && meters <= NEAR_M, i };
+    });
+  out.sort((a, b) => (a.meters ?? Infinity) - (b.meters ?? Infinity) || a.i - b.i);
+  return out.map(({ i: _i, ...v }) => v as T & { meters: number | null; near: boolean });
+}
+
+/* ───────────── erros ───────────── */
+
+/** Mensagens que não servem para mostrar (genéricas ou em inglês): no lugar delas vai a frase do ecrã. */
+const GENERIC = /^(Erro inesperado|Dados inválidos|Forbidden|Bad Request|Not Found|Unauthorized|Conflict|Internal server error|Too Many Requests|ThrottlerException.*)$/i;
+
+/**
+ * O texto do erro de um pedido da gelada: a frase do servidor (já em português, com o @ da pessoa, p.ex. «Já pediste 3
+ * geladas ao @ana hoje. Amanhã há mais 🍻»), menos quando é genérica ou em inglês. `fallback`: a frase do ecrã.
+ */
+export function geladaErrorText(e: unknown, fallback: string): string {
+  const err = (e ?? {}) as { status?: number; message?: unknown };
+  const msg = typeof err.message === 'string' ? err.message.trim() : '';
+  if (err.status === 429 && (!msg || /throttler|too many/i.test(msg))) return 'Foram muitos pedidos seguidos. Espera um bocadinho e tenta outra vez 🙏';
+  if (!err.status && /failed to fetch|network|timeout|load failed/i.test(msg)) return 'Parece que estás sem rede. Tenta outra vez quando tiveres ligação.';
+  if (!msg || GENERIC.test(msg) || /^[A-Z][a-z]+ ?Exception/.test(msg)) return fallback;
+  return msg;
 }

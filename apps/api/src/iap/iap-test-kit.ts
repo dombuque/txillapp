@@ -41,6 +41,12 @@ export const APPLE_INTERMEDIATE_OID = '1.2.840.113635.100.6.2.1';
 
 export interface TestCert { der: Buffer; key: KeyObject; pub: KeyObject; cn: string }
 
+/**
+ * O número de série: 8 bytes ao acaso, positivo e sem zero à frente. Um DER com 0x00 inicial seguido de um byte < 0x80 não é
+ * mínimo e o OpenSSL recusa o certificado (acontecia 1 vez em ~500 certificados e o teste falhava de vez em quando).
+ */
+const serial = () => { const b = randomBytes(8); b[0] = (b[0] & 0x7f) | 0x01; return b; };
+
 /** Um certificado X.509 v3 (ECDSA P-256 / SHA-256) assinado por `issuer` (ou por si próprio). */
 export function makeCert(o: { cn: string; issuer?: TestCert; ca: boolean; ext?: string[]; notBefore?: Date; notAfter?: Date }): TestCert {
   const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
@@ -50,7 +56,7 @@ export function makeCert(o: { cn: string; issuer?: TestCert; ca: boolean; ext?: 
   ];
   const tbs = seq(
     explicit(0, int(Buffer.from([2]))),
-    int(randomBytes(8)),
+    int(serial()),
     ECDSA_SHA256,
     name(o.issuer?.cn ?? o.cn),
     seq(utc(o.notBefore ?? new Date(Date.now() - 86_400_000)), utc(o.notAfter ?? new Date(Date.now() + 365 * 86_400_000))),

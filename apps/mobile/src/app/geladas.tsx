@@ -13,12 +13,13 @@ import { StackPage } from '@/components/StackPage';
 import { TasteBubble } from '@/components/TasteBubble';
 import { AskSheet } from '@/components/gelada/AskSheet';
 import { DrinkSheet } from '@/components/gelada/DrinkSheet';
-import { ApiError, api, uploadMedia } from '@/lib/api';
+import { PaidSheet, type PaidChoice } from '@/components/gelada/PaidSheet';
+import { api, uploadMedia } from '@/lib/api';
 import { geladaApi, geladaKeys, type GeladaBook, type GeladaDebt } from '@/lib/api.gelada';
 import { useAuth } from '@/lib/auth';
 import { abs } from '@/lib/config';
 import { newDraftKey, saveDraft } from '@/lib/drafts';
-import { bookSummary, debtLine, debtState, momentText } from '@/lib/gelada';
+import { bookSummary, debtLine, debtState, geladaErrorText, momentText, venueTag } from '@/lib/gelada';
 import { colors } from '@/lib/theme';
 import { timeAgo } from '@/lib/time';
 
@@ -28,7 +29,8 @@ const AMBER_INK = '#92400e';
  * O livro das geladas: quem me deve e a quem devo (fase 1, sem dinheiro). Destino dos avisos «Já paguei» e da sexta da gelada
  * (`/geladas?pedir=1` abre logo «Paga-me uma»). Com `?u=ana`, o livro da Ana como eu o posso ver (o dela, se o mostra; senão só
  * o que há entre nós).
- * - Quem deve: «Já paguei» (com uma foto, se quiser). Só conta como paga quando a outra pessoa confirma.
+ * - Quem deve: «Já paguei» (com uma foto e/ou o local onde foi, se quiser: components/gelada/PaidSheet). Só conta como paga
+ *   quando a outra pessoa confirma, que vê o local («no Bar X», com «✓ estiveram lá» se a pessoa estava mesmo lá).
  * - Quem recebe: «Confirmar» (os copos batem e aparece «Publicar o momento»), «Ainda não» ou «Perdoar».
  */
 export default function GeladasScreen() {
@@ -60,12 +62,12 @@ export default function GeladasScreen() {
       after?.(r);
       refresh();
     } catch (e) {
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui agora. Tenta outra vez.');
+      Alert.alert('Não deu', geladaErrorText(e, 'Não consegui agora. Tenta outra vez.'));
     } finally {
       setBusy(null);
     }
   }
-  async function claim(d: GeladaDebt, photo: boolean) {
+  async function claim(d: GeladaDebt, { photo, place, at }: PaidChoice) {
     setClaiming(null);
     let mediaId: string | undefined;
     if (photo) {
@@ -79,11 +81,12 @@ export default function GeladasScreen() {
         mediaId = await uploadMedia(a.uri, a.mimeType ?? 'image/jpeg', 'public');
       } catch (e) {
         setBusy(null);
-        return Alert.alert('Não deu', (e as Error).message || 'Não consegui carregar a foto.');
+        return Alert.alert('Não deu', geladaErrorText(e, 'Não consegui carregar a foto.'));
       }
       setBusy(null);
     }
-    await act(d, () => geladaApi.paid(d.id, mediaId ? { mediaId } : {}));
+    // O local (se o escolheu) e a posição de agora, para o selo «✓ estiveram lá» (o servidor não a guarda).
+    await act(d, () => geladaApi.paid(d.id, { ...(mediaId ? { mediaId } : {}), ...(place ? { venueSlug: place.slug, ...(at ? { lat: at.lat, lng: at.lng } : {}) } : {}) }));
   }
   async function publishMoment(d: GeladaDebt) {
     setMoment(null);
@@ -145,19 +148,12 @@ export default function GeladasScreen() {
         <Text style={st.fine}>Não há dinheiro nem Txills no livro: é palavra entre amigos. Bebe com moderação 🙌</Text>
       </ScrollView>
       <CheersPour n={burst} size={220} />
-      {claiming && (
-        <Sheet title="Já pagaste?" onClose={() => setClaiming(null)}>
-          <View style={{ paddingHorizontal: 20, paddingBottom: 20, gap: 10 }}>
-            <Text style={st.sheetText}>{debtLine(claiming)}. Fica como paga quando {claiming.creditor.username ? `@${claiming.creditor.username}` : 'a outra pessoa'} confirmar.</Text>
-            <Pill icon="check" label="Já paguei" onPress={() => void claim(claiming, false)} primary wide />
-            <Pill icon="camera" label="Já paguei, com uma foto" onPress={() => void claim(claiming, true)} wide />
-          </View>
-        </Sheet>
-      )}
+      {claiming && <PaidSheet debt={claiming} onClose={() => setClaiming(null)} onClaim={(c) => void claim(claiming, c)} />}
       {moment && (
         <Sheet title="Gelada paga 🙌" onClose={() => setMoment(null)}>
           <View style={{ paddingHorizontal: 20, paddingBottom: 20, gap: 10 }}>
             <Text style={st.sheetText}>{momentText(moment)}</Text>
+            {moment.venue ? <VenueLine v={moment.venue} /> : null}
             <Pill icon="compose" label="Publicar o momento" onPress={() => void publishMoment(moment)} primary wide />
             <Pill icon="x" label="Agora não" onPress={() => setMoment(null)} wide />
           </View>
@@ -196,7 +192,7 @@ function DebtCard({ d, busy, onClaim, onConfirm, onReject, onForgive, onMoment }
       {photo || d.venue ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {photo ? <Image source={{ uri: photo }} style={st.photo} contentFit="cover" accessibilityLabel="A foto do pagamento" /> : null}
-          {d.venue ? <Text style={st.meta}>📍 {d.venue.name}</Text> : null}
+          {d.venue ? <VenueLine v={d.venue} /> : null}
         </View>
       ) : null}
       {busy ? <ActivityIndicator color={colors.brand} /> : (
@@ -208,6 +204,16 @@ function DebtCard({ d, busy, onClaim, onConfirm, onReject, onForgive, onMoment }
           {d.status === 'paid' && (d.iOwe || d.owedToMe) && <Small label="Publicar o momento" onPress={onMoment} />}
         </View>
       )}
+    </View>
+  );
+}
+
+/** O local da gelada: «📍 no Bar X» e, se estiveram mesmo lá, o selo «✓ estiveram lá». Só as duas pessoas o recebem. */
+function VenueLine({ v }: { v: NonNullable<GeladaDebt['venue']> }) {
+  return (
+    <View style={st.venue} accessibilityLabel={`${venueTag(v)}${v.there ? ', estiveram lá' : ''}`}>
+      <Text style={st.venueText} numberOfLines={1}>📍 {venueTag(v)}</Text>
+      {v.there ? <View style={st.thereBadge}><Text style={st.thereText}>✓ estiveram lá</Text></View> : null}
     </View>
   );
 }
@@ -236,7 +242,7 @@ function OweFlow({ onClose, onDone }: { onClose: () => void; onDone: () => void 
             await geladaApi.owe(who, d.id);
             onDone();
           } catch (e) {
-            Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui agora. Tenta outra vez.');
+            Alert.alert('Não deu', geladaErrorText(e, 'Não consegui agora. Tenta outra vez.'));
           }
         }}
         onClose={onClose}
@@ -285,6 +291,10 @@ const st = StyleSheet.create({
   badge: { borderRadius: 999, backgroundColor: colors.zinc100, paddingHorizontal: 10, paddingVertical: 4 },
   badgeText: { fontSize: 12, fontWeight: '700', color: colors.zinc700 },
   photo: { width: 72, height: 72, borderRadius: 12, backgroundColor: colors.zinc100 },
+  venue: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
+  venueText: { flexShrink: 1, fontSize: 13, fontWeight: '600', color: colors.zinc700 },
+  thereBadge: { borderRadius: 999, backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 2 },
+  thereText: { fontSize: 12, fontWeight: '700', color: colors.green700 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   small: { minHeight: 40, minWidth: 44, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.zinc100, alignItems: 'center', justifyContent: 'center' },
   smallText: { fontSize: 14, fontWeight: '700', color: colors.zinc800 },

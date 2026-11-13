@@ -3,9 +3,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { ApiError, type Post } from '@/lib/api';
+import { type Post } from '@/lib/api';
 import { geladaApi, type GeladaRequest, type PostGelada } from '@/lib/api.gelada';
-import { drinkLabel, drinkPhrase, handleOf, postTitle, statusLine } from '@/lib/gelada';
+import { drinkLabel, drinkPhrase, handleOf, postTitle, statusLine, geladaErrorText } from '@/lib/gelada';
 import { mergePost } from '@/lib/postPatch';
 import { colors } from '@/lib/theme';
 import { Avatar } from '../Avatar';
@@ -96,7 +96,7 @@ export function GeladaPostCard({ post, onOpen }: { post: Pick<Post, 'id' | 'gela
       setG(p.gelada ?? null);
       patch({ gelada: p.gelada ?? null });
     } catch (e) {
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui tirar a identificação. Tenta outra vez.');
+      Alert.alert('Não deu', geladaErrorText(e, 'Não consegui tirar a identificação. Tenta outra vez.'));
     } finally {
       busy.current = false;
       setUntagging(false);

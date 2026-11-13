@@ -451,7 +451,12 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     expect(v.mine).toBe(true);
     expect(v.verified).toBe(false);
     expect(v.qrToken).toHaveLength(24);
-    // Os outros veem a página, mas nunca o código do QR.
+    // Um local novo fica à espera da equipa (0099): até ser aprovado só o dono o vê, e não há check-in.
+    await api().get(`/api/v1/venues/${v.slug}`).set(auth(fan)).expect(404);
+    await api().post(`/api/v1/venues/${v.slug}/checkin`).set(auth(fan)).send({ token: v.qrToken }).expect(404);
+    const st = { Authorization: `Bearer ${(await staffLogin(app, 'selo')).token}` };
+    await api().put(`/api/v1/venues/${v.slug}/review`).set(st).send({ decision: 'approved' }).expect(200);
+    // Aprovado: os outros veem a página, mas nunca o código do QR.
     const seen = (await api().get(`/api/v1/venues/${v.slug}`).set(auth(fan)).expect(200)).body as { qrToken?: string; mine: boolean; name: string };
     expect(seen).toMatchObject({ mine: false, name });
     expect(seen.qrToken).toBeUndefined();
@@ -467,7 +472,6 @@ describe('SuperTxill: a IA na barra de pesquisa, em segundo plano, com limites (
     await api().post(`/api/v1/venues/${v.slug}/qr/rotate`).set(auth(fan)).expect(403); // só o dono e os administradores
     // Selo: só a equipa.
     await api().put(`/api/v1/venues/${v.slug}/verified`).set(auth(fan)).send({ verified: true }).expect(401);
-    const st = { Authorization: `Bearer ${(await staffLogin(app, 'selo')).token}` };
     await api().put(`/api/v1/venues/${v.slug}/verified`).set(st).send({ verified: true }).expect(200);
     expect(((await api().get(`/api/v1/venues/${v.slug}`).set(auth(fan)).expect(200)).body as { verified: boolean }).verified).toBe(true);
     const pending = (await api().get('/api/v1/venues/admin/list').set(auth(fan)).expect(401));

@@ -3,9 +3,8 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import { ApiError } from '@/lib/api';
 import { geladaApi, geladaKeys, type GeladaPerson, type GeladaRound } from '@/lib/api.gelada';
-import { drinkLabel, handleOf, suggestLine } from '@/lib/gelada';
+import { drinkLabel, handleOf, suggestLine, geladaErrorText } from '@/lib/gelada';
 import { colors } from '@/lib/theme';
 import { Avatar } from '../Avatar';
 import { CheersPour } from '../CheersPour';
@@ -60,7 +59,7 @@ export function RoundCard({ r: initial }: { r: GeladaRound | null | undefined })
       void qc.invalidateQueries({ queryKey: ['chat-group', round.groupId] });
       void qc.invalidateQueries({ queryKey: geladaKeys.round(round.id) });
     } catch (e) {
-      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar a rodada. Tenta outra vez.');
+      Alert.alert('Não deu', geladaErrorText(e, 'Não consegui mudar a rodada. Tenta outra vez.'));
     } finally {
       setBusy(false);
     }

@@ -13,6 +13,7 @@ import { PostsService } from '../posts/posts.service';
 import { TextFilter } from '../safety/text-filter.service';
 import { SearchIndexer } from '../search/search-index';
 import { blockedBetween, canView } from '../social/visibility';
+import { geladaTexts } from './gelada-texts';
 import { adultSql, maskFor, requestCards, requestText, roundCards, type Drink, type Person, type RequestDto } from './gelada-cards';
 
 /**
@@ -40,6 +41,17 @@ export const DAY_MAX = 10;
 export const FRIEND_DAY_MAX = 3;
 /** Quantas dívidas à mão («Fico a dever-te uma») por dia. */
 const MANUAL_DAY_MAX = 10;
+/** «✓ estiveram lá»: quem pagou estava a até 150 m do local no «Já paguei», ou houve check-in com o QR até 60 min antes ou depois. */
+export const GELADA_NEAR_M = 150;
+const CHECKIN_WINDOW_MIN = 60;
+/** Distância em metros entre dois pontos (haversine). */
+export function metersBetween(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = (x: number) => (x * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6_371_000 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
 /** O refresco de recurso quando um pedido passa a sem álcool e não tenho nenhum na geleira. */
 const FALLBACK_SOFT = 'beb-coca-cola';
 
@@ -69,7 +81,11 @@ export interface DebtDto {
   claimedAt: string | null;
   /** A prova, se a deixou: a foto e/ou o local. */
   photoUrl: string | null;
-  venue: { slug: string; name: string } | null;
+  /**
+   * Onde foi a gelada («no Bar X»), só para as duas pessoas. Não é um check-in oficial. `there`: «✓ estiveram lá» (quem pagou
+   * estava dentro do raio do local no «Já paguei», ou um dos dois fez check-in com o QR do local na mesma hora).
+   */
+  venue: { slug: string; name: string; kind: string; there: boolean } | null;
   /** Eu devo / devem-me. */
   iOwe: boolean;
   owedToMe: boolean;
@@ -109,7 +125,7 @@ export class GeladaService {
   private async userByName(username: string) {
     const name = username.trim().replace(/^@/, '');
     const { rows } = await this.pool.query(`SELECT u.id, u.username, u.status, ${adultSql('u')} AS adult FROM identity.users u WHERE lower(u.username) = lower($1)`, [name]);
-    if (!rows[0] || rows[0].status !== 'active') throw new NotFoundException(`@${name} não existe`);
+    if (!rows[0] || rows[0].status !== 'active') throw new NotFoundException(geladaTexts.notFound(name));
     return rows[0] as { id: string; username: string; adult: boolean };
   }
 
@@ -181,25 +197,25 @@ export class GeladaService {
     const people = [];
     for (const n of names) {
       const u = await this.userByName(n);
-      if (u.id === me) throw new BadRequestException('Não podes pedir uma a ti próprio');
+      if (u.id === me) throw new BadRequestException(geladaTexts.self);
       people.push(u);
     }
 
     // Limites do dia: 10 no total e 3 ao mesmo amigo (chat e publicação juntos).
     const used = (await this.pool.query(`SELECT count(*)::int AS n FROM taste.gelada_requests WHERE requester_id = $1 AND created_at >= ${TODAY}`, [me])).rows[0].n as number;
     if (used + people.length > DAY_MAX) {
-      throw new HttpException(used >= DAY_MAX ? `Já fizeste ${DAY_MAX} pedidos hoje. Amanhã há mais 🙌` : `Hoje só podes pedir a mais ${DAY_MAX - used}.`, HttpStatus.TOO_MANY_REQUESTS);
+      throw new HttpException(used >= DAY_MAX ? geladaTexts.dayFull(DAY_MAX) : geladaTexts.dayLeft(DAY_MAX - used), HttpStatus.TOO_MANY_REQUESTS);
     }
     for (const p of people) {
       const n = (await this.pool.query(`SELECT count(*)::int AS n FROM taste.gelada_requests WHERE requester_id = $1 AND recipient_id = $2 AND created_at >= ${TODAY}`, [me, p.id])).rows[0].n as number;
-      if (n >= FRIEND_DAY_MAX) throw new HttpException(`Já pediste ${FRIEND_DAY_MAX} hoje a @${p.username}. Dá-lhe um descanso 😅`, HttpStatus.TOO_MANY_REQUESTS);
+      if (n >= FRIEND_DAY_MAX) throw new HttpException(geladaTexts.friendFull(FRIEND_DAY_MAX, p.username, !iAmAdult || !p.adult), HttpStatus.TOO_MANY_REQUESTS);
     }
 
     // Quem pode receber.
     for (const p of people) {
       if (b.channel === 'chat') {
-        const why = await this.chat.cannotMessage(me, p.id);
-        if (why) throw new ForbiddenException(`@${p.username}: ${why}`);
+        const why = await this.chat.messageBlock(me, p.id);
+        if (why) throw new ForbiddenException(geladaTexts.chat(why, p.username));
       } else {
         const ok = (
           await this.pool.query(
@@ -211,10 +227,10 @@ export class GeladaService {
             [me, p.id],
           )
         ).rows[0];
-        if (ok.blocked) throw new ForbiddenException(`Não podes pedir a @${p.username}`);
-        if (!ok.mutual) throw new ForbiddenException(`Em público só pedes a quem te segue e tu segues de volta. Manda no chat a @${p.username}.`);
-        if (!ok.mentionable) throw new ForbiddenException(`@${p.username} não deixa ser mencionado. Manda-lhe no chat.`);
-        if (!ok.sees_me) throw new ForbiddenException(`@${p.username} não consegue ver as tuas publicações. Manda-lhe no chat.`);
+        if (ok.blocked) throw new ForbiddenException(geladaTexts.postBlocked(p.username));
+        if (!ok.mutual) throw new ForbiddenException(geladaTexts.postNotMutual(p.username));
+        if (!ok.mentionable) throw new ForbiddenException(geladaTexts.postNoMentions(p.username));
+        if (!ok.sees_me) throw new ForbiddenException(geladaTexts.postCantSee(p.username));
       }
     }
 
@@ -350,7 +366,11 @@ export class GeladaService {
   private async debts(viewer: string, where: string, params: unknown[]): Promise<DebtDto[]> {
     const { rows } = await this.pool.query(
       `SELECT d.*, ${personCols('db', 'db')}, ${personCols('cr', 'cr')}, ${adultSql('vw')} AS viewer_adult,
-              v.slug AS venue_slug, v.name AS venue_name
+              v.slug AS venue_slug, v.name AS venue_name, v.kind AS venue_kind,
+              (d.paid_venue_near OR EXISTS (
+                 SELECT 1 FROM content.checkins c
+                  WHERE c.venue_id = d.paid_venue_id AND c.user_id IN (d.debtor_id, d.creditor_id)
+                    AND c.created_at BETWEEN d.paid_claimed_at - interval '${CHECKIN_WINDOW_MIN} minutes' AND d.paid_claimed_at + interval '${CHECKIN_WINDOW_MIN} minutes')) AS venue_there
          FROM taste.gelada_debts d
          JOIN identity.users db ON db.id = d.debtor_id
          JOIN identity.users cr ON cr.id = d.creditor_id
@@ -377,7 +397,7 @@ export class GeladaService {
         claimed: open && claimed,
         claimedAt: r.paid_claimed_at ? new Date(r.paid_claimed_at as string).toISOString() : null,
         photoUrl: party && r.paid_media_id ? `/api/v1/media/${r.paid_media_id as string}` : null,
-        venue: party && r.venue_slug ? { slug: r.venue_slug as string, name: r.venue_name as string } : null,
+        venue: party && r.venue_slug ? { slug: r.venue_slug as string, name: r.venue_name as string, kind: r.venue_kind as string, there: !!r.venue_there } : null,
         iOwe,
         owedToMe,
         canClaim: iOwe && open && !claimed,
@@ -443,7 +463,7 @@ export class GeladaService {
   /** «Fico a dever-te uma» (à mão): só o próprio devedor cria. A quem sigo ou me segue, sem bloqueio. */
   async oweManual(me: string, to: string, itemId: string) {
     const p = await this.userByName(to);
-    if (p.id === me) throw new BadRequestException('Não podes ficar a dever a ti próprio');
+    if (p.id === me) throw new BadRequestException(geladaTexts.oweSelf);
     const ok = (
       await this.pool.query(
         `SELECT ${blockedBetween('$1::uuid', '$2::uuid')} AS blocked,
@@ -451,10 +471,10 @@ export class GeladaService {
         [me, p.id],
       )
     ).rows[0];
-    if (ok.blocked) throw new ForbiddenException('Não podes ficar a dever a esta pessoa');
-    if (!ok.linked) throw new ForbiddenException('Só podes ficar a dever a quem segues ou te segue');
+    if (ok.blocked) throw new ForbiddenException(geladaTexts.oweBlocked(p.username));
+    if (!ok.linked) throw new ForbiddenException(geladaTexts.oweNotLinked(p.username));
     const n = (await this.pool.query(`SELECT count(*)::int AS n FROM taste.gelada_debts WHERE debtor_id = $1 AND source = 'manual' AND created_at >= ${TODAY}`, [me])).rows[0].n as number;
-    if (n >= MANUAL_DAY_MAX) throw new HttpException('Por hoje já chega de dívidas 😅', HttpStatus.TOO_MANY_REQUESTS);
+    if (n >= MANUAL_DAY_MAX) throw new HttpException(geladaTexts.oweDayFull(MANUAL_DAY_MAX), HttpStatus.TOO_MANY_REQUESTS);
     const iAmAdult = await this.adult(me);
     let d: DrinkRow = await this.drinkOf(me, itemId, iAmAdult);
     if (d.alcoholic && !p.adult) d = await this.softFor(me);
@@ -466,25 +486,34 @@ export class GeladaService {
     return this.debt(me, id);
   }
 
-  /** O devedor diz «Já paguei», com uma foto (minha, já carregada) e/ou o local, se quiser. Fica à espera da confirmação. */
-  async claimPaid(me: string, id: string, proof: { mediaId?: string; venueSlug?: string }) {
-    let venueId: string | null = null;
+  /**
+   * O devedor diz «Já paguei», com uma foto (minha, já carregada) e/ou o local, se quiser. Fica à espera da confirmação.
+   * O local não é um check-in oficial (esse é só com o QR): é a etiqueta «no Bar X». Com `at` (a posição do telemóvel agora),
+   * vê-se se quem pagou está dentro do raio do local (`paid_venue_near`, o selo «✓ estiveram lá»); a posição não se guarda.
+   */
+  async claimPaid(me: string, id: string, proof: { mediaId?: string; venueSlug?: string; at?: { lat: number; lng: number } }) {
+    let venue: { id: string; name: string; kind: string; near: boolean } | null = null;
     if (proof.mediaId) {
       const ok = await this.pool.query(`SELECT 1 FROM content.media_assets WHERE id = $1 AND owner_id = $2 AND status = 'ready' AND mime LIKE 'image/%'`, [proof.mediaId, me]);
       if (!ok.rowCount) throw new BadRequestException('Foto inválida ou ainda não carregada');
     }
     if (proof.venueSlug) {
-      const v = await this.pool.query(`SELECT id FROM content.venues WHERE slug = $1 AND review_status = 'approved'`, [proof.venueSlug]);
-      if (!v.rows[0]) throw new NotFoundException('Esse local não existe');
-      venueId = v.rows[0].id as string;
+      const v = (await this.pool.query(`SELECT id, name, kind, lat, lng FROM content.venues WHERE slug = $1 AND review_status = 'approved'`, [proof.venueSlug.toLowerCase()])).rows[0];
+      if (!v) throw new NotFoundException('Esse local não existe');
+      const near = !!proof.at && v.lat != null && v.lng != null && metersBetween(proof.at, { lat: Number(v.lat), lng: Number(v.lng) }) <= GELADA_NEAR_M;
+      venue = { id: v.id as string, name: v.name as string, kind: v.kind as string, near };
     }
     const r = await this.pool.query(
-      `UPDATE taste.gelada_debts SET paid_claimed_at = now(), paid_media_id = $3, paid_venue_id = $4
+      `UPDATE taste.gelada_debts SET paid_claimed_at = now(), paid_media_id = $3, paid_venue_id = $4, paid_venue_near = $5
         WHERE id = $1 AND debtor_id = $2 AND status = 'open' AND paid_claimed_at IS NULL RETURNING creditor_id, alcoholic`,
-      [id, me, proof.mediaId ?? null, venueId],
+      [id, me, proof.mediaId ?? null, venue?.id ?? null, venue?.near ?? false],
     );
     if (!r.rows[0]) await this.cannot(me, id, 'Esta dívida já não está por pagar');
-    await this.notifications.notify({ userId: r.rows[0].creditor_id as string, actorId: me, kind: 'gelada_paid', data: { debtId: id, step: 'claimed', soft: !r.rows[0].alcoholic } });
+    // O aviso a quem recebe leva o nome do local (só essa pessoa o vê): «diz que já te pagou no Bar X».
+    await this.notifications.notify({
+      userId: r.rows[0].creditor_id as string, actorId: me, kind: 'gelada_paid',
+      data: { debtId: id, step: 'claimed', soft: !r.rows[0].alcoholic, ...(venue ? { venue: venue.name, venueKind: venue.kind } : {}) },
+    });
     return this.debt(me, id);
   }
 
@@ -502,7 +531,7 @@ export class GeladaService {
   /** Quem recebia diz que afinal não pagou: o «Já paguei» sai (a foto e o local também). */
   async rejectPaid(me: string, id: string) {
     const r = await this.pool.query(
-      `UPDATE taste.gelada_debts SET paid_claimed_at = NULL, paid_media_id = NULL, paid_venue_id = NULL WHERE id = $1 AND creditor_id = $2 AND status = 'open' AND paid_claimed_at IS NOT NULL`,
+      `UPDATE taste.gelada_debts SET paid_claimed_at = NULL, paid_media_id = NULL, paid_venue_id = NULL, paid_venue_near = false WHERE id = $1 AND creditor_id = $2 AND status = 'open' AND paid_claimed_at IS NOT NULL`,
       [id, me],
     );
     if (!r.rowCount) await this.cannot(me, id, 'Não há nada para recusar');

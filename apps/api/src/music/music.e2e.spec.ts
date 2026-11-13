@@ -55,8 +55,10 @@ describe('música nas notas: catálogo de licenças abertas e crédito (integra�
 
   it('pesquisa no catálogo curado: precisa de sessão e de 2 letras', async () => {
     const r = (await api().get('/api/v1/music/search?q=marrabenta').set(auth(u.mua)).expect(200)).body as { id: string; license: string }[];
-    expect(r.map((t) => t.id)).toEqual(['ov-1']);
-    expect(r[0]).toMatchObject({ title: 'Marrabenta de teste', artist: 'Artista Livre', license: 'by' });
+    // Só conta a faixa deste teste: outros testes (p.ex. stories/stickers) juntam faixas de marrabenta ao mesmo catálogo.
+    const mine = r.filter((t) => t.id === 'ov-1');
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ title: 'Marrabenta de teste', artist: 'Artista Livre', license: 'by' });
     await api().get('/api/v1/music/search?q=a').set(auth(u.mua)).expect(400);
     await api().get('/api/v1/music/search?q=marrabenta').expect(401);
   });

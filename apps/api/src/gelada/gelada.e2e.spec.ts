@@ -128,7 +128,7 @@ describe('«Paga-me uma»: pedidos, livro das geladas, rodadas e sexta (integra�
     const l2 = await signup('limb');
     await mutual(l1, l2);
     for (let i = 0; i < 3; i++) await ask(l1, [l2], FANTA).expect(201);
-    expect((await ask(l1, [l2], FANTA).expect(429)).body.message).toMatch(/Já pediste 3 hoje/);
+    expect((await ask(l1, [l2], FANTA).expect(429)).body.message).toBe(`Já pediste 3 geladas ao @${l2.username} hoje. Amanhã há mais 🍻`);
     // Mais 5 pedidos de hoje a outras pessoas (direto na base): 8 no total.
     for (let i = 0; i < 5; i++) {
       await pool.query(`INSERT INTO taste.gelada_requests (id, requester_id, recipient_id, drink_slug, drink_name, drink_category, channel) VALUES (gen_random_uuid(), $1, $2, 'beb-fanta', 'Fanta', 'refrigerante', 'chat')`, [l1.id, u.olho.id]);
@@ -137,9 +137,9 @@ describe('«Paga-me uma»: pedidos, livro das geladas, rodadas e sexta (integra�
     const l4 = await signup('limd');
     const l5 = await signup('lime');
     for (const x of [l3, l4, l5]) await mutual(l1, x);
-    expect((await ask(l1, [l3, l4, l5], FANTA).expect(429)).body.message).toBe('Hoje só podes pedir a mais 2.');
+    expect((await ask(l1, [l3, l4, l5], FANTA).expect(429)).body.message).toBe('Hoje só podes pedir a mais 2 amigos. Tira alguém da lista e manda outra vez.');
     await ask(l1, [l3, l4], FANTA).expect(201);
-    expect((await ask(l1, [l5], FANTA).expect(429)).body.message).toMatch(/Já fizeste 10 pedidos hoje/);
+    expect((await ask(l1, [l5], FANTA).expect(429)).body.message).toBe('Já fizeste 10 pedidos hoje. Amanhã há mais 🍻');
     expect((await api().get('/api/v1/gelada/drinks').set(auth(l1)).expect(200)).body).toMatchObject({ left: 0, max: 10 });
     // Um pedido é uma bebida: o contrato nem aceita quantidades.
     await api().post('/api/v1/gelada/requests').set(auth(l3)).send({ to: [l1.username], itemId: FANTA, channel: 'chat', quantity: 5 }).expect(201);
@@ -148,11 +148,11 @@ describe('«Paga-me uma»: pedidos, livro das geladas, rodadas e sexta (integra�
   it('bloqueios e quem pode mandar mensagem (dms_allowed) valem para o pedido no chat', async () => {
     const { ana, eva } = u;
     await api().put(`/api/v1/blocks/${ana.username}`).set(auth(eva)).expect(200);
-    expect((await ask(ana, [eva], FANTA).expect(403)).body.message).toMatch(/Não podes enviar mensagens/);
+    expect((await ask(ana, [eva], FANTA).expect(403)).body.message).toBe(`Não dá para mandar pedidos ao @${eva.username}.`);
     await api().delete(`/api/v1/blocks/${ana.username}`).set(auth(eva)).expect(200);
     const shy = await signup('shy');
     await api().patch('/api/v1/settings/privacy').set(auth(shy)).send({ dmsAllowed: 'off' }).expect(200);
-    expect((await ask(ana, [shy], FANTA).expect(403)).body.message).toMatch(/não aceita mensagens novas/);
+    expect((await ask(ana, [shy], FANTA).expect(403)).body.message).toBe(`O @${shy.username} não aceita mensagens novas, por isso o pedido não lhe chega no chat.`);
     expect(await pool.query('SELECT 1 FROM taste.gelada_requests WHERE recipient_id = ANY($1)', [[eva.id, shy.id]]).then((r) => r.rowCount)).toBe(0);
   });
 
@@ -206,6 +206,104 @@ describe('«Paga-me uma»: pedidos, livro das geladas, rodadas e sexta (integra�
     await api().post(`/api/v1/gelada/debts/${m.body.id}/paid`).set(auth(zeca)).send({}).expect(200);
     expect((await api().post(`/api/v1/gelada/debts/${m.body.id}/reject`).set(auth(ana)).expect(200)).body).toMatchObject({ claimed: false, status: 'open', canConfirm: false });
   });
+
+  it('as recusas chegam em português, simpáticas e com o @ da pessoa (pedido e «Fico a dever»)', async () => {
+    const { ana, rui, mia } = u;
+    // Quem não existe, a mim próprio.
+    expect((await ask(ana, [{ ...ana, username: `ninguem${run}` }], FANTA).expect(404)).body.message).toBe(`Não encontrei o @ninguem${run}. Vê se o nome está bem escrito.`);
+    expect((await ask(ana, [ana], FANTA).expect(400)).body.message).toBe('Não podes pedir uma a ti próprio 😅');
+    // Com um menor, o limite fala de refrescos (nunca de geladas).
+    const m1 = await signup('msga');
+    await mutual(m1, mia);
+    for (let i = 0; i < 3; i++) await ask(m1, [mia], FANTA).expect(201);
+    expect((await ask(m1, [mia], FANTA).expect(429)).body.message).toBe(`Já pediste 3 refrescos ao @${mia.username} hoje. Amanhã há mais 🥤`);
+    // «Fico a dever-te uma».
+    expect((await api().post('/api/v1/gelada/debts').set(auth(ana)).send({ to: ana.username, itemId: FANTA }).expect(400)).body.message).toBe('Não podes ficar a dever a ti próprio 😅');
+    const stranger = await signup('msgd');
+    expect((await api().post('/api/v1/gelada/debts').set(auth(stranger)).send({ to: rui.username, itemId: FANTA }).expect(403)).body.message)
+      .toBe(`Só ficas a dever a quem segues ou te segue. Segue o @${rui.username} primeiro.`);
+    await follow(stranger, rui);
+    await api().put(`/api/v1/blocks/${stranger.username}`).set(auth(rui)).expect(200);
+    expect((await api().post('/api/v1/gelada/debts').set(auth(stranger)).send({ to: rui.username, itemId: FANTA }).expect(403)).body.message)
+      .toBe(`Não dá para ficares a dever ao @${rui.username}.`);
+    await api().delete(`/api/v1/blocks/${stranger.username}`).set(auth(rui)).expect(200);
+    await follow(stranger, rui); // o bloqueio desfez o seguir
+    for (let i = 0; i < 10; i++) await api().post('/api/v1/gelada/debts').set(auth(stranger)).send({ to: rui.username, itemId: FANTA }).expect(201);
+    expect((await api().post('/api/v1/gelada/debts').set(auth(stranger)).send({ to: rui.username, itemId: FANTA }).expect(429)).body.message)
+      .toBe('Por hoje já chega: registaste 10 dívidas. Volta amanhã 😅');
+  });
+
+  it('«Já paguei» no local: a etiqueta «no Bar X», o selo «✓ estiveram lá» (GPS no raio ou check-in com o QR na mesma hora) e só os dois a veem', async () => {
+    const p1 = await signup('loca'); // deve
+    const p2 = await signup('locb'); // recebe
+    const p3 = await signup('locc'); // vê o livro do p2
+    await mutual(p1, p2);
+    await follow(p3, p2);
+    const owner = await signup('locd');
+    const token = (slug: string) => `qr-${slug}`.padEnd(24, 'x').slice(0, 24);
+    const venue = async (name: string, lat: number | null, lng: number | null, status = 'approved') => {
+      const slug = `${name.replace(/ /g, '-')}-${run}`.toLowerCase();
+      await pool.query(
+        `INSERT INTO content.venues (id, slug, name, kind, lat, lng, owner_id, check_token, review_status) VALUES (gen_random_uuid(), $1, $2, 'bar', $3, $4, $5, $6, $7)`,
+        [slug, `${name} ${run}`, lat, lng, owner.id, token(slug), status],
+      );
+      return slug;
+    };
+    const AT = { lat: -25.9692, lng: 32.5732 };
+    const bar = await venue('Bar Costa', AT.lat, AT.lng);
+    const longe = await venue('Bar Longe', AT.lat + 0.05, AT.lng);
+    const semMapa = await venue('Bar Sem Mapa', null, null);
+    const porAprovar = await venue('Bar Novo', AT.lat, AT.lng, 'pending');
+    const owe = async () => (await api().post('/api/v1/gelada/debts').set(auth(p1)).send({ to: p2.username, itemId: B2M }).expect(201)).body.id as string;
+    const paid = (id: string, b: object) => api().post(`/api/v1/gelada/debts/${id}/paid`).set(auth(p1)).send(b);
+    const mine = async (x: U, id: string) => (await book(x)).items.find((d: { id: string }) => d.id === id);
+
+    // Local que não existe ou ainda não aprovado: 404. Latitude sem longitude: 400.
+    const d1 = await owe();
+    expect((await paid(d1, { venueSlug: `nada-${run}` }).expect(404)).body.message).toBe('Esse local não existe');
+    await paid(d1, { venueSlug: porAprovar }).expect(404);
+    await paid(d1, { venueSlug: bar, lat: AT.lat }).expect(400);
+
+    // No local (a 50 m): «✓ estiveram lá». A posição não fica guardada (só o sim/não).
+    const here = { lat: AT.lat + 0.00045, lng: AT.lng };
+    const c1 = (await paid(d1, { venueSlug: bar, ...here }).expect(200)).body;
+    expect(c1).toMatchObject({ claimed: true, venue: { slug: bar, name: `Bar Costa ${run}`, there: true } });
+    const row = (await pool.query('SELECT * FROM taste.gelada_debts WHERE id = $1', [d1])).rows[0];
+    expect(row.paid_venue_near).toBe(true);
+    expect(JSON.stringify(row)).not.toContain(String(here.lat));
+    // Quem recebe vê o local antes de confirmar, no livro e no aviso.
+    expect(await mine(p2, d1)).toMatchObject({ canConfirm: true, venue: { slug: bar, there: true } });
+    const note = (await pool.query(`SELECT data FROM social.notifications WHERE user_id = $1 AND kind = 'gelada_paid' ORDER BY created_at DESC LIMIT 1`, [p2.id])).rows[0].data;
+    expect(note).toMatchObject({ debtId: d1, step: 'claimed', venue: `Bar Costa ${run}`, venueKind: 'bar' });
+    expect((await api().post(`/api/v1/gelada/debts/${d1}/confirm`).set(auth(p2)).expect(200)).body).toMatchObject({ status: 'paid', venue: { slug: bar, there: true } });
+    // Um terceiro que vê o livro (público) vê a dívida paga, mas não o local nem a foto.
+    await api().put('/api/v1/geleira/me/settings').set(auth(p2)).send({ bookPublic: true }).expect(200);
+    const third = (await book(p3, p2)).items.find((d: { id: string }) => d.id === d1);
+    expect(third).toMatchObject({ status: 'paid', venue: null, photoUrl: null });
+    await api().put('/api/v1/geleira/me/settings').set(auth(p2)).send({ bookPublic: false }).expect(200);
+
+    // Longe do local (5 km): fica a etiqueta, sem o selo…
+    const d2 = await owe();
+    expect((await paid(d2, { venueSlug: longe, lat: AT.lat, lng: AT.lng }).expect(200)).body.venue).toEqual({ slug: longe, name: `Bar Longe ${run}`, kind: 'bar', there: false });
+    // …até um dos dois fazer check-in com o QR do local na mesma hora (aqui, quem recebe).
+    await api().post(`/api/v1/venues/${longe}/checkin`).set(auth(p2)).send({ token: token(longe) }).expect(201);
+    expect((await mine(p1, d2)).venue).toMatchObject({ slug: longe, there: true });
+    // Um check-in de há mais de uma hora não conta.
+    await pool.query("UPDATE content.checkins SET created_at = now() - interval '3 hours' WHERE user_id = $1", [p2.id]);
+    expect((await mine(p1, d2)).venue.there).toBe(false);
+
+    // Um local sem ponto no mapa, ou sem posição: a etiqueta, sem selo. «Ainda não» tira tudo.
+    const d3 = await owe();
+    expect((await paid(d3, { venueSlug: semMapa, lat: AT.lat, lng: AT.lng }).expect(200)).body.venue).toMatchObject({ slug: semMapa, there: false });
+    expect((await api().post(`/api/v1/gelada/debts/${d3}/reject`).set(auth(p2)).expect(200)).body).toMatchObject({ claimed: false, venue: null });
+    expect((await pool.query('SELECT paid_venue_id, paid_venue_near FROM taste.gelada_debts WHERE id = $1', [d3])).rows[0]).toEqual({ paid_venue_id: null, paid_venue_near: false });
+    expect((await paid(d3, { venueSlug: bar }).expect(200)).body.venue).toMatchObject({ slug: bar, there: false });
+    // A exportação traz o local e o sim/não do raio (nunca a posição).
+    const r = await api().get('/api/v1/me/export').set(auth(p1)).expect(200);
+    const exp = typeof r.body === 'object' && Object.keys(r.body).length ? r.body : JSON.parse(r.text);
+    expect(exp.geladaBook.find((d: { id: string }) => d.id === d1)).toMatchObject({ proofVenue: bar, proofVenueNear: true });
+  });
+
 
   it('o teto semanal: a mesma pessoa vale no máximo 6 pontos por semana para o nível; os pedidos sozinhos não valem nada', async () => {
     const p1 = await signup('ptsa');
@@ -369,15 +467,15 @@ describe('«Paga-me uma»: pedidos, livro das geladas, rodadas e sexta (integra�
 
   it('publicado: só a seguidores mútuos, que aceitam menções; com bloqueio não; os limites contam juntos', async () => {
     const { ana, olho, eva, zeca } = u;
-    expect((await ask(ana, [olho], B2M, 'post').expect(403)).body.message).toMatch(/Em público só pedes a quem te segue e tu segues de volta/);
+    expect((await ask(ana, [olho], B2M, 'post').expect(403)).body.message).toBe(`Em público só pedes a quem te segue e tu segues de volta. Manda ao @${olho.username} no chat 🙌`);
     await mutual(eva, ana);
     await api().put(`/api/v1/blocks/${ana.username}`).set(auth(eva)).expect(200);
-    expect((await ask(ana, [eva], B2M, 'post').expect(403)).body.message).toBe(`Não podes pedir a @${eva.username}`);
+    expect((await ask(ana, [eva], B2M, 'post').expect(403)).body.message).toBe(`Não dá para pedir ao @${eva.username}.`);
     await api().patch('/api/v1/settings/privacy').set(auth(zeca)).send({ mentionsAllowed: 'off' }).expect(200);
-    expect((await ask(ana, [zeca], B2M, 'post').expect(403)).body.message).toMatch(/não deixa ser mencionado/);
+    expect((await ask(ana, [zeca], B2M, 'post').expect(403)).body.message).toBe(`O @${zeca.username} não aceita pedidos públicos: manda-lhe no chat.`);
     // No chat continua a dar (as regras de mensagens). É o 3.º pedido de hoje da ana à zeca (chat, post e este): o 4.º já não.
     await ask(ana, [zeca], FANTA, 'chat').expect(201);
-    expect((await ask(ana, [zeca], FANTA, 'chat').expect(429)).body.message).toMatch(/Já pediste 3 hoje/);
+    expect((await ask(ana, [zeca], FANTA, 'chat').expect(429)).body.message).toBe(`Já pediste 3 geladas ao @${zeca.username} hoje. Amanhã há mais 🍻`);
     await api().patch('/api/v1/settings/privacy').set(auth(zeca)).send({ mentionsAllowed: 'everyone' }).expect(200);
   });
 
