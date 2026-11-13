@@ -573,6 +573,7 @@ export class AuthService {
       // Tudo o resto que é da pessoa: chamadas, músicas favoritas, aparelhos, check-ins, locais que seguia e páginas que geria.
       await client.query('DELETE FROM social.calls WHERE caller_id = $1 OR callee_id = $1', [userId]);
       await client.query('DELETE FROM content.music_favorites WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM content.compose_jobs WHERE owner_id = $1', [userId]); // os pedidos de montagem guardam os textos do projeto
       // «Não gosto desta» (0128): as marcas são da pessoa (as contagens para o limiar descem com elas).
       await client.query('DELETE FROM content.music_dislikes WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM social.push_devices WHERE user_id = $1', [userId]);
