@@ -61,6 +61,9 @@ function what(m: { body: string; kind: ChatMessage['kind']; fromMe: boolean }, g
   // Aviso de sistema ("Ligaste as mensagens temporárias: 7 dias."): o servidor já manda o texto para quem o vê.
   if (m.kind === 'system') return m.body;
   if (m.kind === 'location') return `${you}Localização`;
+  // «Paga-me uma» e rodadas (0145): o servidor já manda um texto legível ("Paga-me uma 2M 🍺"); sem ele, um genérico.
+  if (m.kind === 'gelada') return `${you}${m.body || 'Paga-me uma 🍻'}`;
+  if (m.kind === 'rodada') return `${you}${m.body || 'Abriu uma rodada'}`;
   if ((m.kind as string) === 'poll') return `${you}Sondagem${m.body ? `: ${m.body}` : ''}`;
   if (m.kind === 'story_reaction') return `${m.fromMe ? 'Reagiste ao mimo' : 'Reagiu ao teu mimo'}: ${REACTIONS.find((x) => x.id === m.body)?.label ?? m.body}`;
   if (m.kind === 'story_reply') return `${m.fromMe ? 'Respondeste ao mimo' : 'Respondeu ao teu mimo'}: ${m.body}`;

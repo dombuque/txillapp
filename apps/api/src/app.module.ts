@@ -23,6 +23,7 @@ import { VerificationModule } from './verification/verification.module';
 import { CommentsModule } from './comments/comments.module';
 import { DbModule } from './db/db.module';
 import { GeleiraModule } from './geleira/geleira.module';
+import { GeladaModule } from './gelada/gelada.module';
 import { HealthController } from './health/health.controller';
 import { MediaModule } from './media/media.module';
 import { ModerationModule } from './moderation/moderation.module';
@@ -83,6 +84,7 @@ export class AppModule {
         NotificationsModule,
         PlacesModule,
         GeleiraModule,
+        GeladaModule,
         PostsModule,
         CommentsModule,
         ChatModule,

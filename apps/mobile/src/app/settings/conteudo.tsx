@@ -8,6 +8,7 @@ import { SettingsPage } from '@/components/settings/SettingsPage';
 import { usePrivacy } from '@/components/settings/usePrivacy';
 import { ApiError } from '@/lib/api';
 import { soundsApi } from '@/lib/api.sounds';
+import { settingsApi, type GeleiraSettings } from '@/lib/api.settings';
 import { reuseSetting } from '@/lib/sounds';
 
 /** Conteúdo e o teu algoritmo: o que vês, o que guardas, a geleira, as tchekas (duetos e o teu som), as estatísticas, o teu local e os convites. */
@@ -30,12 +31,34 @@ export default function ContentSettings() {
       Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
     }
   }
+  // «Mostrar o livro das geladas a quem vê a geleira» (0145): desligado por omissão; servidor antigo não manda (sem linha).
+  const gel = useQuery({ queryKey: ['geleira', 'settings'], queryFn: settingsApi.geleiraSettings, retry: false });
+  async function setBook(on: boolean) {
+    const before = gel.data;
+    if (before) qc.setQueryData<GeleiraSettings>(['geleira', 'settings'], { ...before, bookPublic: on });
+    try {
+      qc.setQueryData(['geleira', 'settings'], await settingsApi.setGeleiraSettings({ bookPublic: on }));
+      void qc.invalidateQueries({ queryKey: ['gelada-book'] });
+    } catch (e) {
+      qc.setQueryData(['geleira', 'settings'], before);
+      Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Não consegui mudar isto agora. Tenta outra vez.');
+    }
+  }
   return (
     <SettingsPage title="Conteúdo e o teu algoritmo">
       <SettingsSection title="O que vês">
         <SettingRow anchor="algorithm" icon="sliders" title="O teu algoritmo" description="Ver mais ou menos de cada tema nas Tchekas" to="/reels/filtros" />
         <SettingRow anchor="saved" icon={<BookmarkIcon on={false} size={22} />} title="Guardados" to="/saved" />
         <SettingRow anchor="geleira" icon="snowflake" title="A minha geleira" to="/geleira" />
+        {typeof gel.data?.bookPublic === 'boolean' ? (
+          <SettingRow
+            anchor="geladaBook"
+            icon="cheers"
+            title="Mostrar o livro das geladas a quem vê a geleira"
+            description={gel.data.bookPublic ? 'Quem pode ver a tua geleira vê quem te deve e a quem deves.' : 'Desligado: cada pessoa só vê o que há entre vocês os dois.'}
+            toggle={{ on: gel.data.bookPublic, onChange: (v) => void setBook(v) }}
+          />
+        ) : null}
       </SettingsSection>
       <SettingsSection title="As tuas tchekas">
         {p ? (

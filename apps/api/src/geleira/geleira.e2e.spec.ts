@@ -159,7 +159,7 @@ describe('Geleira: gostos, privacidade, menores e boas-vindas (integração)', (
   });
 
   it('definições, exportação e eliminar conta cobrem a geleira', async () => {
-    expect((await api().put('/api/v1/geleira/me/settings').set(auth(u.gb)).send({ matching: false }).expect(200)).body).toEqual({ matching: false, visibility: 'everyone', cheersPublic: false });
+    expect((await api().put('/api/v1/geleira/me/settings').set(auth(u.gb)).send({ matching: false }).expect(200)).body).toEqual({ matching: false, visibility: 'everyone', cheersPublic: false, bookPublic: false });
     const exp = (await api().get('/api/v1/me/export').set(auth(u.gb))).body;
     expect(JSON.stringify(exp)).toContain('Laurentina');
     await api().post('/api/v1/auth/delete-account').set(auth(u.gb)).send({ confirmUsername: u.gb.username, password: PASSWORD }).expect(204);

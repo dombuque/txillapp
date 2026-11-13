@@ -35,6 +35,7 @@ import { NameWithBadge } from './NameWithBadge';
 import { VenueLogo } from './VenueCard';
 import { CheersPour } from './CheersPour';
 import { GeleiraPostCard } from './GeleiraPostCard';
+import { GeladaPostCard } from './gelada/GeladaPostCard';
 import { RemixesLink, RemixTag, ReplyStickerOverlay } from './remix/RemixParts';
 import { KIND_LABEL } from '@/lib/api.locais';
 import { navTap } from '@/lib/tapGuard';
@@ -349,7 +350,13 @@ function PostBody({ post, me, detail, openComments, highlightComment, musicOn = 
       {/* A música: o cartão completo nas publicações só com texto; com fotos ou vídeo, o selo por cima da imagem. */}
       {post.music && musicPlacement(post) === 'card' ? <MusicCard track={post.music} visible={musicOn} soundTo={soundHref(post as { sound?: unknown })} /> : null}
       {/* A geleira partilhada (0143): o frigorífico com os gostos; tocar num gosto brinda-o, o botão Brindar brinda o post todo. */}
-      {!quote && post.geleira ? (
+      {/* «Paga-me uma» publicado (0145): a bebida, quem foi identificado e o estado de cada um; os botões só para quem foi identificado. */}
+      {!quote && post.gelada ? (
+        <DoubleTapArea onDouble={() => void brindar()} label="Pedido de gelada (toca duas vezes para brindar)">
+          <GeladaPostCard post={post} onOpen={detail ? undefined : goPost} />
+          <CheersPour n={burst} size={Math.min(200, inner * 0.55)} />
+        </DoubleTapArea>
+      ) : !quote && post.geleira ? (
         <DoubleTapArea onDouble={() => void brindar()} label="Geleira (toca duas vezes para brindar)">
           <GeleiraPostCard post={post} me={me} detail={detail} onOpen={goPost} />
           <CheersPour n={burst} size={Math.min(200, inner * 0.55)} />

@@ -13,6 +13,9 @@ import { StackPage } from '@/components/StackPage';
 import { ReactionArt } from '@/components/StoryParts';
 import { ApiError, api, type AppNotification } from '@/lib/api';
 import { groupsApi } from '@/lib/api.groups';
+import { geladaApi } from '@/lib/api.gelada';
+import { AnswerButtons, useAnswerGelada } from '@/components/gelada/GeladaCard';
+import { geladaNoticeTarget, geladaNoticeText, statusLine } from '@/lib/gelada';
 import { locaisApi } from '@/lib/api.locais';
 import { cheerPeople, cheerTarget, cheerVerb } from '@/lib/cheerNotice';
 import { notifGroup, notifGroupTarget } from '@/lib/groupAccess';
@@ -116,6 +119,10 @@ function verb(n: AppNotification, many: boolean): { text: ReactNode; sub?: strin
     // Direitos: o Txillapp suspendeu, retirou ou repôs um som meu (com o motivo e como contestar); retiraram um dueto meu.
     case 'sound_review': return soundReviewVerb(n.data as SoundReviewData);
     case 'remix_takedown': return takedownVerb();
+    // «Paga-me uma» (0145): sem álcool no texto quando é refresco (data.soft).
+    case 'gelada_tag':
+    case 'gelada_answer':
+    case 'gelada_paid': return { text: geladaNoticeText(n.kind, n.data) };
     // Um tipo novo que esta versão ainda não conhece não pode partir a lista.
     default: return { text: 'tem novidades para ti' };
   }
@@ -151,6 +158,9 @@ function targetOf(n: AppNotification, me?: string): string | null {
     case 'remix': return remixNoticeTarget(n.data as { postId?: string });
     case 'sound_review': return soundReviewTarget(n.data as SoundReviewData);
     case 'remix_takedown': return null;
+    case 'gelada_tag':
+    case 'gelada_answer':
+    case 'gelada_paid': return geladaNoticeTarget(n.kind, n.data);
     case 'group_join_request':
     case 'group_join_accepted':
     case 'group_member_joined':
@@ -196,6 +206,13 @@ function Row({ g, me }: { g: Group; me?: string }) {
   const pending = useQuery({ queryKey: ['requests'], queryFn: api.followRequests, enabled: n.kind === 'follow_request', staleTime: 10_000 });
   const stillPending = n.kind === 'follow_request' && (!pending.isSuccess || pending.data.some((r: { username: string }) => r.username === n.actor.username));
   const thumb = n.thumb ?? g.items.find((x) => x.thumb)?.thumb ?? null;
+  // «Paga-me uma» publicado (0145): os botões só enquanto o pedido está à minha espera (pergunta ao servidor como está).
+  const geladaId = n.kind === 'gelada_tag' ? n.data.requestId : undefined;
+  const gelada = useQuery({ queryKey: ['gelada-request', geladaId], queryFn: () => geladaApi.request(geladaId!), enabled: !!geladaId, staleTime: 10_000, retry: false });
+  const geladaAnswer = useAnswerGelada((r) => {
+    qc.setQueryData(['gelada-request', r.id], r);
+    void qc.invalidateQueries({ queryKey: ['feed'] });
+  });
   // "Seguir de volta": quem te seguiu (ou aceitou) e tu ainda não segues.
   const followBack = !many && n.kind === 'follow' && n.actor.following === false && !n.actor.requested;
 
@@ -276,6 +293,13 @@ function Row({ g, me }: { g: Group; me?: string }) {
             <Pressable disabled={busy} onPress={() => void respond(false)} style={styles.decline} accessibilityRole="button" accessibilityLabel={`Recusar ${n.actor.username}`}><Text style={styles.declineText}>Recusar</Text></Pressable>
           </View>
         )}
+        {geladaId && gelada.data?.canAnswer ? (
+          <View style={{ marginTop: 8, maxWidth: 320 }}>
+            <AnswerButtons busy={geladaAnswer.busy} name={n.actor.username} onAnswer={(a) => void geladaAnswer.answer(geladaId, a)} />
+          </View>
+        ) : geladaId && gelada.data && gelada.data.status !== 'pending' ? (
+          <Text style={styles.answer}>{statusLine(gelada.data.status, '', true)}</Text>
+        ) : null}
         {n.kind === 'follow_request' && !answer && stillPending && (
           <View style={styles.btns}>
             <Pressable disabled={busy} onPress={() => void respond(true)} style={styles.accept}><Text style={styles.acceptText}>Aceitar</Text></Pressable>

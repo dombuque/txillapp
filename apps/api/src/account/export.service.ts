@@ -58,7 +58,8 @@ export class ExportService {
       await q(
         `SELECT comments_allowed AS "commentsAllowed", gifts_allowed AS "giftsAllowed", mentions_allowed AS "mentionsAllowed", dms_allowed AS "dmsAllowed", calls_allowed AS "callsAllowed",
                 reposts_visible AS "repostsVisible", cheers_visible AS "cheersVisible", gifts_visible AS "giftsVisible",
-                show_connections AS "showConnections", suggestable, story_replies AS "storyReplies", remix_allowed AS "remixAllowed"
+                show_connections AS "showConnections", suggestable, story_replies AS "storyReplies", remix_allowed AS "remixAllowed",
+                geleira_visibility AS "geleiraVisibility", geleira_cheers_public AS "geleiraCheersPublic", gelada_book_public AS "geladaBookPublic"
            FROM identity.users WHERE id = $1`,
       )
     )[0];
@@ -122,6 +123,29 @@ export class ExportService {
         `SELECT u.username AS "from", i.name AS item, c.source_post_id AS "fromPostId", c.created_at AS "createdAt"
            FROM taste.geleira_item_cheers c JOIN identity.users u ON u.id = c.user_id JOIN taste.items i ON i.id = c.item_id WHERE c.owner_id = $1 ORDER BY c.created_at`,
       ).catch(() => []),
+      // «Paga-me uma» (0145): os pedidos que fiz e que recebi (a bebida, por onde, o estado), o livro das geladas (o que devo e
+      // o que me devem, com a prova do «Já paguei»), as rodadas que abri, em que entrei ou que paguei, e os avisos de sexta.
+      geladaRequestsSent: await q(
+        `SELECT r.id, o.username AS "to", r.drink_name AS drink, r.alcoholic, r.channel, r.post_id AS "postId", r.status, r.created_at AS "createdAt", r.answered_at AS "answeredAt"
+           FROM taste.gelada_requests r JOIN identity.users o ON o.id = r.recipient_id WHERE r.requester_id = $1 ORDER BY r.created_at`,
+      ).catch(() => []),
+      geladaRequestsReceived: await q(
+        `SELECT r.id, o.username AS "from", r.drink_name AS drink, r.alcoholic, r.channel, r.post_id AS "postId", r.status, r.created_at AS "createdAt", r.answered_at AS "answeredAt"
+           FROM taste.gelada_requests r JOIN identity.users o ON o.id = r.requester_id WHERE r.recipient_id = $1 ORDER BY r.created_at`,
+      ).catch(() => []),
+      geladaBook: await q(
+        `SELECT d.id, (d.debtor_id = $1) AS "iOwe", o.username AS "with", d.drink_name AS drink, d.alcoholic, d.source, d.status,
+                d.paid_claimed_at AS "paidClaimedAt", d.paid_media_id AS "proofPhotoId", v.slug AS "proofVenue", d.created_at AS "createdAt", d.closed_at AS "closedAt"
+           FROM taste.gelada_debts d JOIN identity.users o ON o.id = CASE WHEN d.debtor_id = $1 THEN d.creditor_id ELSE d.debtor_id END
+           LEFT JOIN content.venues v ON v.id = d.paid_venue_id
+          WHERE d.debtor_id = $1 OR d.creditor_id = $1 ORDER BY d.created_at`,
+      ).catch(() => []),
+      geladaRounds: await q(
+        `SELECT r.id, r.group_id AS "groupId", (r.opened_by = $1) AS "openedByMe", (r.payer_id = $1) AS "iPaid", e.drink_name AS "myDrink", r.status, r.created_at AS "createdAt", r.closed_at AS "closedAt"
+           FROM taste.gelada_rounds r LEFT JOIN taste.gelada_round_entries e ON e.round_id = r.id AND e.user_id = $1
+          WHERE r.opened_by = $1 OR r.payer_id = $1 OR e.user_id IS NOT NULL ORDER BY r.created_at`,
+      ).catch(() => []),
+      geladaFridays: await q(`SELECT friday, kind, sent_at AS "sentAt" FROM taste.gelada_fridays WHERE user_id = $1 ORDER BY friday`).catch(() => []),
       // Chamadas feitas e recebidas (só o registo: o som e a imagem nunca passam pelo servidor).
       calls: await q(
         `SELECT c.id, (c.caller_id = $1) AS outgoing, o.username AS "with", c.video, c.status, c.created_at AS "createdAt", c.started_at AS "startedAt", c.ended_at AS "endedAt"

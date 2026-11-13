@@ -29,6 +29,7 @@ import { PlanPanel } from '@/components/groups/PlanPanel';
 import { GroupCtx, NewPollSheet } from '@/components/groups/PollCard';
 import { PotPanel } from '@/components/groups/PotPanel';
 import { api } from '@/lib/api';
+import { geladaApi } from '@/lib/api.gelada';
 import { gruposApi, type GroupThread } from '@/lib/api.grupos';
 import { dateRange, groupKindOf, kindInfo, type TxillGroupInfo, type TxillGroupSummary } from '@/lib/api.groups';
 import { useDesktopSizes } from '@/lib/desktop';
@@ -98,6 +99,15 @@ export default function GroupThreadScreen() {
   });
   const first = q.data?.pages[0];
   const group = first?.group as TxillGroupInfo | undefined;
+  /** «Abrir rodada» (0145): o cartão aparece na conversa; já há uma aberta (409): diz porquê. */
+  async function openRound() {
+    try {
+      await geladaApi.openRound(id);
+      void q.refetch();
+    } catch (e) {
+      Alert.alert('Rodada', (e as Error).message || 'Não consegui abrir a rodada. Tenta outra vez.');
+    }
+  }
   // As mensagens temporárias que expiram com o grupo aberto saem logo (lib/chatTemporary).
   const allItems: Msg[] = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
   const items = useLiveItems(allItems);
@@ -216,7 +226,7 @@ export default function GroupThreadScreen() {
           }}
         />
       ) : group && (
-        <GroupComposer pendingKey={`g:${id}`} closeTick={closeTick} onOpenChange={onComposerOpen} send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} onEditLast={editLast ? () => { setReplying(null); setEditing(editLast); } : undefined} />
+        <GroupComposer pendingKey={`g:${id}`} closeTick={closeTick} onOpenChange={onComposerOpen} send={(msg) => gruposApi.send(id, msg)} onSent={() => void q.refetch()} bottom={composerBottom} replyTo={replying} onClearReply={() => setReplying(null)} onPoll={() => setPolling(true)} onRound={() => void openRound()} onEditLast={editLast ? () => { setReplying(null); setEditing(editLast); } : undefined} />
       )}
     </View>
   );

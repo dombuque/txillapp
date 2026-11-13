@@ -22,6 +22,7 @@ import { BookmarkIcon } from './BookmarkIcon';
 import { Icon, type IconName } from './Icon';
 import { FollowButton } from './FollowButton';
 import { GeleiraShelf, GeleiraToggle } from './GeleiraShelf';
+import { AskSheet } from './gelada/AskSheet';
 import { GeleiraGridTile } from './GeleiraPostCard';
 import { ProfileQrSheet } from './ProfileQrSheet';
 import { ProfileStoryAvatar } from './ProfileStoryAvatar';
@@ -126,7 +127,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [tab, setTab] = useState<ProfileTab>('all');
-  const [sheet, setSheet] = useState<null | 'menu' | 'gift' | 'report' | 'edit' | 'requests' | 'qr' | 'block'>(null);
+  const [sheet, setSheet] = useState<null | 'menu' | 'gift' | 'report' | 'edit' | 'requests' | 'qr' | 'block' | 'gelada'>(null);
   // `?geleira=1` (o «Ver a geleira de @x» de um post da geleira): o perfil abre já com a geleira aberta.
   const { geleira: geleiraParam } = useLocalSearchParams<{ geleira?: string }>();
   const [geleiraOpen, setGeleiraOpen] = useState(geleiraParam === '1');
@@ -366,6 +367,8 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
                   </Pressable>
                 )}
                 <Pressable onPress={() => router.push(`/messages/${p.username}` as never)} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel="Enviar mensagem"><Icon name="send" size={18} /></Pressable>
+                {/* «Pede uma gelada» (0145): pede a esta pessoa que te pague uma (vem a tua bebida favorita; muda-se na folha). */}
+                <Pressable onPress={() => setSheet('gelada')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel={`Pede uma gelada a ${p.displayName}`}><Icon name="cheers" size={19} /></Pressable>
                 <Pressable onPress={() => setSheet('qr')} hitSlop={ROW_SLOP} accessibilityRole="button" style={[styles.small, { width: 44, paddingHorizontal: 0 }]} accessibilityLabel="Partilhar perfil"><Icon name="share" size={18} /></Pressable>
                 {p.canView && <GeleiraToggle username={p.username} isMe={false} open={geleiraOpen} onToggle={() => setGeleiraOpen((v) => !v)} icon />}
               </>
@@ -439,6 +442,7 @@ export function ProfileView({ username }: { username: string; isMe?: boolean }) 
       <FlatList ref={listRef} data={[] as never[]} renderItem={() => null} ListHeaderComponent={header} ListFooterComponent={<View style={{ height: 32 }} />} showsVerticalScrollIndicator={false} />
       {sheet === 'qr' && <ProfileQrSheet username={p.username} displayName={p.displayName} invite={p.isMe} onClose={() => setSheet(null)} />}
       {sheet === 'edit' && <EditProfileSheet profile={p} onClose={() => setSheet(null)} />}
+      {sheet === 'gelada' && <AskSheet to={[p.username]} lockTo onClose={() => setSheet(null)} />}
       {sheet === 'requests' && <RequestsSheet username={p.username} onClose={() => setSheet(null)} />}
       {sheet === 'menu' && (
         <Sheet title={`@${p.username}`} onClose={() => setSheet(null)} variant="menu" anchor={desktop ? menuAt : null}>

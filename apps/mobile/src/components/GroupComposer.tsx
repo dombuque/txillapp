@@ -25,7 +25,7 @@ import { markSeen, useIsNew } from '@/lib/whatsNew';
  * câmara à esquerda, "Mensagem…" ao meio e, com o campo vazio, voz, galeria, stickers e "+" (sondagem e localização); ao escrever, Enviar.
  */
 export function GroupComposer({
-  send, onSent, bottom, replyTo, onClearReply, onPoll, closeTick, onOpenChange, pendingKey, onEditLast,
+  send, onSent, bottom, replyTo, onClearReply, onPoll, onRound, closeTick, onOpenChange, pendingKey, onEditLast,
 }: {
   /** Computador: ↑ com a caixa vazia edita a minha última mensagem. */
   onEditLast?: () => void;
@@ -42,6 +42,8 @@ export function GroupComposer({
   onClearReply?: () => void;
   /** TxillGroup: abre a folha de nova sondagem (no "mais"). */
   onPoll?: () => void;
+  /** TxillGroup: «Abrir rodada» (0145; no "mais"). */
+  onRound?: () => void;
 }) {
   const grow = useGrowInput();
   const gifs = useGifsConfig();
@@ -219,6 +221,12 @@ export function GroupComposer({
             <Pressable onPress={() => { setPanel(null); onPoll(); }} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Sondagem: perguntar à malta">
               <View style={styles.attachIcon}><Icon name="trending" size={22} color={colors.zinc800} /></View>
               <Text style={styles.attachLabel}>Sondagem</Text>
+            </Pressable>
+          )}
+          {onRound && (
+            <Pressable onPress={() => { setPanel(null); onRound(); }} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Abrir rodada: quem entra e quem paga">
+              <View style={styles.attachIcon}><Icon name="cheers" size={22} color={colors.zinc800} /></View>
+              <Text style={styles.attachLabel}>Rodada</Text>
             </Pressable>
           )}
           <Pressable onPress={openPlace} style={({ pressed }) => [styles.attachItem, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Localização: escolher o que enviar">

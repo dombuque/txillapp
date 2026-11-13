@@ -9,6 +9,7 @@ import { colors } from '@/lib/theme';
 import type { LocationMessage } from '@/lib/sendLocation';
 import { markSeen, useIsNew } from '@/lib/whatsNew';
 import { ChatAttachMenu } from './ChatAttachSheet';
+import { AskSheet } from './gelada/AskSheet';
 import { Icon, type IconName } from './Icon';
 import { GiftSheet } from './PostSheets';
 import { SendLocationSheet } from './SendLocationSheet';
@@ -58,6 +59,7 @@ export function ChatComposer({
   useEffect(() => { if (closeTick) { setPanel(null); setMore(false); } }, [closeTick]);
   useEffect(() => { onOpenChange?.(panel !== null || more); }, [panel, more, onOpenChange]);
   const [gift, setGift] = useState(false);
+  const [gelada, setGelada] = useState(false);
   const [place, setPlace] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -317,8 +319,10 @@ export function ChatComposer({
           onPlace={openPlace}
           onGift={() => setGift(true)}
           onToggleOnce={toggleOnce}
+          onGelada={() => setGelada(true)}
         />
       )}
+      {gelada && <AskSheet to={[username]} lockTo defaultChannel="chat" onClose={() => { setGelada(false); onSent(); }} />}
       {gift && person && <GiftSheet recipient={person} onClose={() => { setGift(false); onSent(); }} />}
       {place && <SendLocationSheet allowLive who={firstName} onSend={sendLocation} onClose={() => setPlace(false)} />}
       {paste.pending && <PastedImageSheet uri={paste.pending.uri} caption={text.trim()} once={once} onCancel={paste.cancel} onSend={(c) => void sendPasted(c)} />}

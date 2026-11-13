@@ -18,6 +18,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { MUSIC_SOUND_OK, POST_SOUND_REMOVED_SQL, POST_SOUND_SQL, SoundsService, type PostSound } from '../sounds/sounds.service';
 import { checkRemix, remixAllowed, remixLinks, saveRemix, type CheckedRemix, type RemixInput, type RemixKind } from './remix';
 import { buildSnapshot, geleiraDto, itemCheers, readSnapshot, type GeleiraPostDto } from '../geleira/geleira-post';
+import { postGeladas } from '../gelada/gelada-cards';
 
 export const MAX_PHOTOS = 10;
 
@@ -70,6 +71,8 @@ const FEED_SQL = `
          (p.kind = 'post' AND p.venue_id IS NULL AND ${remixAllowed()}) AS remix_ok,
          -- A geleira partilhada (0143): o retrato e se quem vê tem 18 anos (sem isso, as bebidas alcoólicas não saem).
          p.geleira, CASE WHEN p.geleira IS NULL THEN NULL ELSE EXISTS (SELECT 1 FROM identity.users va WHERE va.id = $1 AND va.birth_date <= (current_date - interval '18 years')) END AS viewer_adult,
+         -- «Paga-me uma» publicado (0145): a bebida e quantas pessoas foram identificadas (cada uma em taste.gelada_requests).
+         p.gelada,
          (SELECT count(*) FROM content.post_remixes rr JOIN content.posts rrp ON rrp.id = rr.post_id AND rrp.removed_at IS NULL WHERE rr.original_id = p.id)::int AS remixes
     FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
     LEFT JOIN identity.users gr ON gr.id = p.gift_recipient_id
@@ -338,7 +341,7 @@ export class PostsService implements OnModuleInit {
   /** Apagar a própria publicação: fica escondida para todos (reposts dela também deixam de aparecer). */
   /** O autor edita o texto e/ou liga/desliga os comentários. Só as publicações dele; o texto passa pelo mesmo filtro. */
   async update(userId: string, postId: string, b: { body?: string; commentsOff?: boolean; clearLocation?: boolean }) {
-    const cur = (await this.pool.query('SELECT body, kind, (geleira IS NOT NULL) AS geleira, (SELECT count(*) FROM content.post_media m WHERE m.post_id = p.id)::int AS media FROM content.posts p WHERE id = $1 AND author_id = $2 AND removed_at IS NULL', [postId, userId])).rows[0];
+    const cur = (await this.pool.query('SELECT body, kind, (geleira IS NOT NULL OR gelada IS NOT NULL) AS geleira, (SELECT count(*) FROM content.post_media m WHERE m.post_id = p.id)::int AS media FROM content.posts p WHERE id = $1 AND author_id = $2 AND removed_at IS NULL', [postId, userId])).rows[0];
     if (!cur) throw new NotFoundException('Publicação não encontrada');
     if (b.body !== undefined) {
       const body = b.body.trim();
@@ -373,6 +376,12 @@ export class PostsService implements OnModuleInit {
   /** Quem foi identificado pode tirar a sua identificação de uma publicação. */
   async untagMe(userId: string, postId: string) {
     await this.pool.query('DELETE FROM content.photo_tags WHERE post_id = $1 AND tagged_id = $2', [postId, userId]);
+    // «Paga-me uma» publicado (0145): sair da identificação fecha o pedido para mim (uma dívida já criada fica no livro).
+    const untagged = await this.pool.query(
+      `UPDATE taste.gelada_requests SET status = 'untagged', answered_at = COALESCE(answered_at, now()) WHERE post_id = $1 AND recipient_id = $2 AND status <> 'untagged'`,
+      [postId, userId],
+    );
+    if (untagged.rowCount) await this.pool.query(`DELETE FROM social.notifications WHERE user_id = $1 AND kind = 'gelada_tag' AND data->>'postId' = $2`, [userId, postId]);
     return this.getOne(userId, postId);
   }
 
@@ -473,7 +482,9 @@ export class PostsService implements OnModuleInit {
     // Duetos e respostas: o original e o comentário (só o que este espectador vê), numa vez para a página toda.
     const links = await remixLinks(this.pool, viewerId, [...rows, ...first.values(), ...second.values()]);
     const geleiras = await this.geleiraOf(viewerId, [...rows, ...first.values(), ...second.values()]);
-    const dto = (r: Record<string, any>) => ({ ...this.toDto(r), remixOf: links.get(r.id as string) ?? null, geleira: geleiras.get(r.id as string) ?? null });
+    // «Paga-me uma» publicado (0145): o cartão com a bebida e o estado de cada pessoa identificada, como quem vê o pode ver.
+    const geladas = await postGeladas(this.pool, viewerId, [...rows, ...first.values(), ...second.values()].map((r) => ({ id: r.id as string, gelada: r.gelada })));
+    const dto = (r: Record<string, any>) => ({ ...this.toDto(r), remixOf: links.get(r.id as string) ?? null, geleira: geleiras.get(r.id as string) ?? null, gelada: geladas.get(r.id as string) ?? null });
     return rows
       .filter((r) => {
         if (!r.repost_of) return true;
@@ -565,7 +576,9 @@ export class PostsService implements OnModuleInit {
       reels: `u.username = $2 AND p.kind = 'post' AND ${hasVideo}`,
       reposts: `u.username = $2 AND p.kind = 'repost'`,
       gifts: `p.kind = 'gift' AND (u.username = $2 OR gr.username = $2)`,
-      tagged: `EXISTS (SELECT 1 FROM content.photo_tags pt JOIN identity.users tu ON tu.id = pt.tagged_id WHERE pt.post_id = p.id AND tu.username = $2)`,
+      // As identificações em fotos e os pedidos «Paga-me uma» publicados em que a pessoa foi identificada (e não saiu).
+      tagged: `(EXISTS (SELECT 1 FROM content.photo_tags pt JOIN identity.users tu ON tu.id = pt.tagged_id WHERE pt.post_id = p.id AND tu.username = $2)
+               OR EXISTS (SELECT 1 FROM taste.gelada_requests gq JOIN identity.users gu ON gu.id = gq.recipient_id WHERE gq.post_id = p.id AND gq.status <> 'untagged' AND gu.username = $2))`,
     };
     const { rows } = await this.pool.query(
       // O que foi publicado como um local fica na página do local, não no perfil de quem o escreveu (senão denunciava o gestor).

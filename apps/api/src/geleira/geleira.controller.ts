@@ -25,6 +25,8 @@ const settingsSchema = z.object({
   visibility: z.enum(['everyone', 'followers', 'close_friends', 'me']).optional(),
   // Mostrar quem brindou a minha geleira a quem a pode ver.
   cheersPublic: z.boolean().optional(),
+  // Mostrar o livro das geladas (quem deve a quem, 0145) a quem pode ver a minha geleira.
+  bookPublic: z.boolean().optional(),
 });
 const decideSchema = z.object({ approve: z.boolean() });
 

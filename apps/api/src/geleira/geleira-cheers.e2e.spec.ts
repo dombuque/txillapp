@@ -150,14 +150,14 @@ describe('brindar a geleira: contagem no perfil, quem brindou e aviso só da pri
 
   it('definição "mostrar quem brindou": desligada por omissão; GET/PUT com cheersPublic, que só aceita sim/não', async () => {
     const { gca, gcb } = u;
-    expect((await api().get('/api/v1/geleira/me/settings').set(auth(gcb)).expect(200)).body).toEqual({ matching: true, visibility: 'everyone', cheersPublic: false });
+    expect((await api().get('/api/v1/geleira/me/settings').set(auth(gcb)).expect(200)).body).toEqual({ matching: true, visibility: 'everyone', cheersPublic: false, bookPublic: false });
     await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ cheersPublic: 'sim' }).expect(400);
     await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ cheersPublic: 1 }).expect(400);
-    expect((await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ cheersPublic: true }).expect(200)).body).toEqual({ matching: true, visibility: 'everyone', cheersPublic: true });
+    expect((await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ cheersPublic: true }).expect(200)).body).toEqual({ matching: true, visibility: 'everyone', cheersPublic: true, bookPublic: false });
     // Mudar outra coisa não mexe nesta.
-    expect((await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ visibility: 'followers' }).expect(200)).body).toEqual({ matching: true, visibility: 'followers', cheersPublic: true });
-    expect((await api().get('/api/v1/geleira/me/settings').set(auth(gca)).expect(200)).body).toEqual({ matching: true, visibility: 'followers', cheersPublic: true });
-    expect((await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ visibility: 'everyone', cheersPublic: false }).expect(200)).body).toEqual({ matching: true, visibility: 'everyone', cheersPublic: false });
+    expect((await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ visibility: 'followers' }).expect(200)).body).toEqual({ matching: true, visibility: 'followers', cheersPublic: true, bookPublic: false });
+    expect((await api().get('/api/v1/geleira/me/settings').set(auth(gca)).expect(200)).body).toEqual({ matching: true, visibility: 'followers', cheersPublic: true, bookPublic: false });
+    expect((await api().put('/api/v1/geleira/me/settings').set(auth(gca)).send({ visibility: 'everyone', cheersPublic: false }).expect(200)).body).toEqual({ matching: true, visibility: 'everyone', cheersPublic: false, bookPublic: false });
   });
 
   it('com a lista pública, quem vê a geleira vê quem brindou (sem quem tem bloqueio com ele); quem não a vê continua 404', async () => {

@@ -19,6 +19,8 @@ import { Icon, type IconName } from './Icon';
 import { ActivityIndicator } from './PontoLoader';
 import { Sheet } from './Sheet';
 import { TasteBubble } from './TasteBubble';
+import { AskSheet } from './gelada/AskSheet';
+import { GeladaSection } from './gelada/GeladaSection';
 
 type Shown = TasteItem & { rating: number | null; favorite: boolean; cheers?: number; cheered?: boolean };
 
@@ -185,12 +187,12 @@ function CheerBar({ username, name, isMe, level, onBurst, onOpenList }: { userna
 }
 
 /** Um gosto: bolinha de vidro com o ícone, o nome e a nota. O favorito leva um coração. */
-function Tile({ item, onPress }: { item: Shown; /** Visitante: tocar brinda este gosto (o mesmo brinde que no post da geleira). */ onPress?: () => void }) {
+function Tile({ item, onPress, hint }: { item: Shown; /** Visitante: tocar brinda este gosto (o mesmo brinde que no post da geleira); numa bebida abre as ações. */ onPress?: () => void; hint?: string }) {
   const label = `${item.name}${item.rating ? `, ${ICE[item.rating]}` : ''}${item.favorite ? ', favorito' : ''}`;
   const n = item.cheers ?? 0;
   const Box = onPress ? Pressable : View;
   const a11y = onPress
-    ? { accessibilityRole: 'button' as const, accessibilityState: { selected: !!item.cheered }, accessibilityLabel: itemA11yLabel({ ...item, name: label }, false) }
+    ? { accessibilityRole: 'button' as const, accessibilityState: { selected: !!item.cheered }, accessibilityLabel: itemA11yLabel({ ...item, name: label }, false), accessibilityHint: hint }
     : { accessible: true, accessibilityRole: 'image' as const, accessibilityLabel: n ? `${label}, ${cheersCount(n)}` : label };
   return (
     <Box style={st.tile} onPress={onPress} {...a11y}>
@@ -215,7 +217,7 @@ function Tile({ item, onPress }: { item: Shown; /** Visitante: tocar brinda este
 }
 
 /** Prateleira: os gostos em fila e, por baixo, a tábua de vidro. */
-function Shelf({ title, icon, items, onTap }: { title: string; icon: IconName; items: Shown[]; onTap?: (i: Shown) => void }) {
+function Shelf({ title, icon, items, onTap, hint }: { title: string; icon: IconName; items: Shown[]; onTap?: (i: Shown) => void; hint?: string }) {
   return (
     <View style={{ marginTop: 12 }}>
       <View style={st.shelfHead}>
@@ -224,7 +226,7 @@ function Shelf({ title, icon, items, onTap }: { title: string; icon: IconName; i
         <Text style={[st.shelfTitle, { color: 'rgba(39,39,42,0.45)', fontWeight: '600' }]}>{items.length}</Text>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 4, paddingTop: 4, paddingBottom: 8 }} style={{ marginHorizontal: -4 }}>
-        {items.map((i) => <Tile key={i.id} item={i} onPress={onTap && !i.pending ? () => onTap(i) : undefined} />)}
+        {items.map((i) => <Tile key={i.id} item={i} hint={hint} onPress={onTap && !i.pending ? () => onTap(i) : undefined} />)}
       </ScrollView>
       <LinearGradient colors={['rgba(228,228,231,0.7)', '#fff', 'rgba(228,228,231,0.7)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={st.board} />
     </View>
@@ -296,6 +298,9 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
   const [how, setHow] = useState(false);
   const [cheerers, setCheerers] = useState(false);
   const [burst, setBurst] = useState(0); // muda a cada brinde: dispara os copos
+  // «Paga-me uma» (0145): a bebida tocada (abre as ações) e o pedido aberto (com a bebida e, nas visitas, o dono).
+  const [drinkAct, setDrinkAct] = useState<Shown | null>(null);
+  const [asking, setAsking] = useState<{ itemId: string } | null>(null);
   const q = useTastes(username, isMe);
   const items = (q.data ?? []).filter((i) => i.kind === 'bebida' || i.kind === 'comida');
   const lv = useLevel(username);
@@ -409,10 +414,21 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
         items.length > 0 &&
         KINDS.map((k) => {
           const list = items.filter((i) => i.kind === k).sort((a, b) => Number(b.favorite) - Number(a.favorite)); // os favoritos primeiro
-          return list.length ? <Shelf key={k} title={KIND_LABEL[k]} icon={KIND_ICON[k]} items={list} onTap={!isMe && typeof list[0].cheers === 'number' ? (i) => void cheerItem(i) : undefined} /> : null;
+          const canCheerHere = !isMe && typeof list[0].cheers === 'number';
+          // Bebidas: tocar abre as ações (brindar e «Paga-me uma»); comidas: tocar brinda (nas visitas).
+          if (k === 'bebida') return list.length ? <Shelf key={k} title={KIND_LABEL[k]} icon={KIND_ICON[k]} items={list} onTap={(i) => setDrinkAct(i)} hint={isMe ? 'Abre «Paga-me uma»' : 'Abre brindar e «Paga-me uma»'} /> : null;
+          return list.length ? <Shelf key={k} title={KIND_LABEL[k]} icon={KIND_ICON[k]} items={list} onTap={canCheerHere ? (i) => void cheerItem(i) : undefined} /> : null;
         })
       )}
-      {!folded && !isMe && items.length > 0 && typeof items[0].cheers === 'number' ? <Text style={st.tapHint}>Toca num gosto para lhe brindar.</Text> : null}
+      {!folded && items.length > 0 ? (
+        <Text style={st.tapHint}>
+          {isMe
+            ? items.some((i) => i.kind === 'bebida') ? 'Toca numa bebida para pedir à malta «Paga-me uma».' : null
+            : typeof items[0].cheers === 'number' ? 'Toca numa bebida para brindar ou pedir «Paga-me uma»; numa comida, brindas.' : 'Toca numa bebida para pedir «Paga-me uma».'}
+        </Text>
+      ) : null}
+      {/* O livro das geladas (0145): «Deves 2 · Devem-te 3». Nas visitas só aparece se houver o que mostrar. */}
+      {!folded ? <GeladaSection username={username} isMe={isMe} /> : null}
       {/* Partilhar a minha geleira: abre o ecrã de publicar já com o cartão da geleira. */}
       {isMe && !folded ? (
         <Pressable onPress={shareMine} style={({ pressed }) => [st.cheerBtn, st.share, pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] }]} accessibilityRole="button" accessibilityHint="Abre o ecrã de publicar com o cartão da geleira">
@@ -442,7 +458,54 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
       {cheer}
       {rest}
       <CheersPour n={burst} size={170} />
+      {drinkAct && (
+        <DrinkActions
+          item={drinkAct}
+          isMe={isMe}
+          owner={name ?? `@${username}`}
+          canCheer={!isMe && typeof drinkAct.cheers === 'number'}
+          onCheer={() => {
+            const i = drinkAct;
+            setDrinkAct(null);
+            void cheerItem(i);
+          }}
+          onAsk={() => {
+            const i = drinkAct;
+            setDrinkAct(null);
+            setAsking({ itemId: i.id });
+          }}
+          onClose={() => setDrinkAct(null)}
+        />
+      )}
+      {asking && <AskSheet itemId={asking.itemId} to={isMe ? undefined : [username]} lockTo={!isMe} onClose={() => setAsking(null)} />}
     </View>
+  );
+}
+
+/**
+ * Tocar numa bebida da geleira: nas visitas, brindar (ou tirar o brinde) e «Paga-me uma» ao dono; na minha, «Paga-me uma»
+ * (escolho os amigos a seguir).
+ */
+function DrinkActions({ item, isMe, owner, canCheer: cheerable, onCheer, onAsk, onClose }: { item: Shown; isMe: boolean; owner: string; canCheer: boolean; onCheer: () => void; onAsk: () => void; onClose: () => void }) {
+  return (
+    <Sheet title={item.name} onClose={onClose}>
+      <View style={{ paddingHorizontal: 20, paddingBottom: 20, gap: 10 }}>
+        <View style={{ alignItems: 'center', paddingBottom: 6 }}>
+          <TasteBubble item={item} size={84} />
+          {typeof item.cheers === 'number' && item.cheers > 0 ? <Text style={[st.handle, { marginTop: 8 }]}>{cheersCount(item.cheers)}</Text> : null}
+        </View>
+        <Pressable onPress={onAsk} style={({ pressed }) => [st.cheerBtn, st.share, { marginTop: 0 }, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityHint={isMe ? 'Escolhes a quem pedir' : `Pede a ${owner}`}>
+          <Icon name="cheers" size={20} color={colors.white} />
+          <Text style={[st.cheerText, { color: colors.white }]} numberOfLines={1}>{isMe ? 'Paga-me uma' : `Paga-me uma · a ${owner.split(' ')[0]}`}</Text>
+        </Pressable>
+        {cheerable && (
+          <Pressable onPress={onCheer} style={({ pressed }) => [st.cheerBtn, item.cheered && st.cheerOn, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityState={{ selected: !!item.cheered }}>
+            <Icon name="cheers" size={20} color={item.cheered ? colors.amber600 : colors.zinc800} />
+            <Text style={[st.cheerText, { color: item.cheered ? AMBER_INK : colors.zinc800 }]}>{item.cheered ? 'Tirar o brinde' : 'Brindar'}</Text>
+          </Pressable>
+        )}
+      </View>
+    </Sheet>
   );
 }
 

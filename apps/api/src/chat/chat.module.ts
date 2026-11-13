@@ -26,6 +26,6 @@ import { PresenceController, PresenceService } from './presence.controller';
   // mas partilham este módulo com os grupos do chat.
   controllers: [ChatController, NotesController, PresenceController, TxillGroupsController, PublicGroupsController],
   providers: [ChatService, ChatExpiryService, GroupsService, NotesService, ChatEvents, PresenceService, GroupAccess, PlanService, PotService, PublicGroupsService],
-  exports: [ChatService, ChatEvents],
+  exports: [ChatService, ChatEvents, GroupAccess],
 })
 export class ChatModule {}

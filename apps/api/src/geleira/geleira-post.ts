@@ -39,8 +39,9 @@ export interface GeleiraPostDto {
 }
 
 /** O nível da geleira pelos números (a mesma conta de GeleiraService.level): quantidade, variedade e gostos avaliados. */
-export function levelOf(s: { n: number; fav: number; rated: number; cats: number }) {
-  const points = s.n + s.fav + Math.floor(s.rated / 2) + s.cats;
+/** `bonus`: pontos de fora dos gostos (as geladas pagas e confirmadas, 0145; ver gelada/gelada-cards.ts geladaPoints). */
+export function levelOf(s: { n: number; fav: number; rated: number; cats: number }, bonus = 0) {
+  const points = s.n + s.fav + Math.floor(s.rated / 2) + s.cats + bonus;
   const steps = [1, 12, 30, 60];
   const byPoints = points <= 0 ? 0 : points >= steps[3] ? 4 : points >= steps[2] ? 3 : points >= steps[1] ? 2 : 1;
   const gate = s.cats >= 6 && s.rated >= 10 ? 4 : s.cats >= 4 && s.rated >= 5 ? 3 : 2;
