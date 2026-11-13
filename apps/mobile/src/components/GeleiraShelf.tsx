@@ -414,7 +414,7 @@ export function GeleiraShelf({ username, name, isMe, flush = false, compact = fa
         items.length > 0 &&
         KINDS.map((k) => {
           const list = items.filter((i) => i.kind === k).sort((a, b) => Number(b.favorite) - Number(a.favorite)); // os favoritos primeiro
-          const canCheerHere = !isMe && typeof list[0].cheers === 'number';
+          const canCheerHere = !isMe && typeof list[0]?.cheers === 'number';
           // Bebidas: tocar abre as ações (brindar e «Paga-me uma»); comidas: tocar brinda (nas visitas).
           if (k === 'bebida') return list.length ? <Shelf key={k} title={KIND_LABEL[k]} icon={KIND_ICON[k]} items={list} onTap={(i) => setDrinkAct(i)} hint={isMe ? 'Abre «Paga-me uma»' : 'Abre brindar e «Paga-me uma»'} /> : null;
           return list.length ? <Shelf key={k} title={KIND_LABEL[k]} icon={KIND_ICON[k]} items={list} onTap={canCheerHere ? (i) => void cheerItem(i) : undefined} /> : null;
