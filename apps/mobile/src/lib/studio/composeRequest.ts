@@ -58,6 +58,8 @@ export interface ComposeRequest {
   overlays?: Overlay[];
   coverMs?: number;
   duet?: { postId: string; layout: 'side' };
+  /** O pano de capulana da tcheka (o das transições de pano que não tragam o delas). */
+  pano?: { pattern: string; palette: string; seed: number };
 }
 
 export interface ComposeInput {
@@ -85,6 +87,8 @@ export interface ComposeInput {
   coverAt: number;
   /** Dueto: a publicação ao lado. */
   duetPostId?: string | null;
+  /** O pano da tcheka. */
+  pano?: { pattern: string; palette: string; seed: number } | null;
 }
 
 const ms = (s: number) => Math.max(0, Math.round((Number.isFinite(s) ? s : 0) * 1000));
@@ -166,6 +170,7 @@ export function buildComposeRequest(i: ComposeInput): ComposeRequest {
   if (overlays.length) req.overlays = overlays;
   req.coverMs = Math.min(ms(i.coverAt), Math.max(0, ms(i.total) - 100));
   if (i.duetPostId) req.duet = { postId: i.duetPostId, layout: 'side' };
+  if (i.pano) req.pano = { ...i.pano };
   return req;
 }
 
@@ -213,6 +218,7 @@ export function compatRequest(r: ComposeRequest): { request: ComposeRequest; cha
     return [{ ...text, bg: text.bg === 'pano' ? 'cheio' : text.bg }];
   });
   const request: ComposeRequest = { ...r, clips };
+  if (request.pano) { delete request.pano; changed.add('o pano da tcheka'); }
   if (r.overlays) { if (overlays.length) request.overlays = overlays; else delete request.overlays; }
   // Todos os vídeos calados: o som original sai inteiro (o que o servidor antigo sabe fazer).
   if (allMuted && changed.has('o som de cada vídeo')) request.originalVolume = 0;

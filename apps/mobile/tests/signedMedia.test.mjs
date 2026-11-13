@@ -54,7 +54,7 @@ test('envio: uploadMedia e a fila de publicação mandam `signed` pelo uploadReq
   assert.match(api, /post\(uploadRequest\(mime, blob\.size, purpose, signed\)\)/);
   const q = read('lib', 'publishQueue.ts');
   // (+ posterMs: o instante da capa escolhido no estúdio de tchekas)
-  assert.match(q, /export interface PublishAsset \{ uri: string; mime: string; video: boolean; signed\?: boolean; posterMs\?: number \}/);
+  assert.match(q, /export interface PublishAsset \{ uri: string; mime: string; video: boolean; signed\?: boolean; posterMs\?: number; mediaId\?: string \}/);
   assert.match(q, /JSON\.stringify\(uploadRequest\(mime, blob\.size, 'public', a\.signed\)\)/);
 });
 
@@ -72,7 +72,9 @@ test('TxCamera (site): a foto aceite sai com signed: true; o vídeo gravado (sem
 
 test('telemóvel: as fotos do editor (PhotoEditor) vão assinadas; os vídeos e a galeria não', () => {
   const nc = read('components', 'NativeCamera.tsx');
-  const edited = nc.match(/onShot\(editedPhoto\(file\)\)/g) ?? [];
+  // Numa tcheka («unsigned») a foto vai sem a assinatura: o estúdio assina o vídeo montado.
+  const edited = nc.match(/onShot\(unsigned \? \{ \.\.\.editedPhoto\(file\), signed: undefined \} : editedPhoto\(file\)\)/g) ?? [];
+  assert.equal((nc.match(/sign=\{!unsigned\}/g) ?? []).length, 2);
   assert.equal(edited.length, 2, 'os dois editores da câmara nativa');
   assert.doesNotMatch(nc, /onShot\(\{ uri: file, video: false, mime: 'image\/jpeg' \}\)/);
   assert.match(fn(nc, 'picked'), /if \(s\.video\) onShot\(s\);/);
@@ -90,7 +92,7 @@ test('estúdio de tchekas: o vídeo sai assinado e as fotos da câmara entram se
   const nw = read('app', '(tabs)', 'new.tsx');
   assert.match(nw, /clips=\{assets\.map\(\(a\) => \(\{ uri: a\.clean \?\? a\.uri,/);
   assert.match(nw, /keepClean=\{kindSel === 'tcheka'\}/);
-  assert.match(nw, /onDone=\{\(s, m\) => \{ setAssets\(\[\{ uri: s\.uri, video: true, mime: s\.mime, durationMs: s\.durationMs, tags: \[\], signed: s\.signed, studio: true, posterMs: s\.posterMs \}\]\)/);
+  assert.match(nw, /onDone=\{\(s, m\) => \{ setAssets\(\[\{ uri: s\.uri, video: true, mime: s\.mime, durationMs: s\.durationMs, tags: \[\], signed: s\.signed, studio: true, posterMs: s\.posterMs, \.\.\.\(s\.mediaId \? \{ mediaId: s\.mediaId \} : \{\}\) \}\]\)/);
 });
 
 test('nova publicação: a câmara passa `signed` até ao envio e ao mimo; a galeria não o põe', () => {

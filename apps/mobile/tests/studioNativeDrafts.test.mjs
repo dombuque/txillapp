@@ -76,3 +76,15 @@ test('no máximo 10 rascunhos (os mais antigos saem) e os nomes dos ficheiros s�
   assert.equal(n.extOf('file:///a/b.MOV'), 'mov');
   assert.equal(n.extOf('content://media/123', 'video/mp4'), 'mp4');
 });
+
+test('um ficheiro que não se deixa copiar fica pelo caminho de fora (e não se apaga com o rascunho)', async () => {
+  const fs = n.memoryFs({ 'content://x/1': 'A' });
+  fs.copy = async () => { throw new Error('não deixa'); };
+  const s = store(fs);
+  const c = p.makeClip({ uri: 'content://x/1', video: false, mime: 'image/jpeg' }, ids());
+  await s.save({ id: 'e', clips: [c] });
+  const back = await s.load('e');
+  assert.equal(back.clips[0].uri, 'content://x/1');
+  await s.remove('e');
+  assert.equal(fs.files.get('content://x/1'), 'A');
+});

@@ -1,5 +1,6 @@
+import { Image } from 'expo-image';
 import { createElement, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { api, type MentionSuggestion } from '@/lib/api';
 import { gifsApi } from '@/lib/api.gifs';
 import type { GifItem } from '@/lib/gifs';
@@ -152,7 +153,9 @@ function GifGrid({ onPick }: { onPick: (g: GifItem) => void }) {
         {items.map((g) => (
           <Pressable key={g.id} onPress={() => onPick(g)} style={{ width: '25%', padding: 3 }} accessibilityRole="button" accessibilityLabel={g.title ? `GIF ${g.title}` : 'GIF'}>
             <View style={{ width: '100%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', backgroundColor: '#1c1c24' }}>
-              {dom('img', { src: g.preview, alt: '', loading: 'lazy', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } })}
+              {Platform.OS === 'web'
+                ? dom('img', { src: g.preview, alt: '', loading: 'lazy', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } })
+                : <Image source={{ uri: g.preview }} style={{ width: '100%', height: '100%' }} contentFit="cover" autoplay recyclingKey={g.id} accessibilityIgnoresInvertColors />}
             </View>
           </Pressable>
         ))}

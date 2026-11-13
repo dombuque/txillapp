@@ -55,7 +55,9 @@ export function fileDraftBackend(fs: DraftFs, root: string): DraftBackend {
     if (d.poster) return d;
     const f = await files(d.id);
     const photo = (d.media ?? []).find((m) => m.mime.startsWith('image/') && f[m.key]);
-    return photo ? { ...d, poster: join(dir(d.id), f[photo.key]) } : d;
+    if (!photo) return d;
+    const name = f[photo.key];
+    return { ...d, poster: name.startsWith('ext:') ? name.slice(4) : join(dir(d.id), name) };
   };
   const valid = (d: StudioDraft | null): d is StudioDraft => !!d && typeof d.id === 'string' && Array.isArray(d.clips);
 
@@ -86,14 +88,17 @@ export function fileDraftBackend(fs: DraftFs, root: string): DraftBackend {
       const f = await files(id);
       const name = `m-${safeName(key)}.${extOf(v)}`;
       const to = join(dir(id), name);
-      // Um rascunho reaberto já tem os ficheiros cá dentro: não se copiam para cima deles próprios.
-      if (v !== to) await fs.copy(v, to);
-      f[key] = name;
+      // Um rascunho reaberto já tem os ficheiros cá dentro: não se copiam para cima deles próprios. Se não se conseguir
+      // copiar (um content:// do Android que não deixa), fica o caminho de fora (`ext:`): vale enquanto o ficheiro lá estiver.
+      let stored = name;
+      if (v !== to) { try { await fs.copy(v, to); } catch { stored = `ext:${v}`; } }
+      f[key] = stored;
       await saveFiles(id, f);
     },
     async getMedia(id, key) {
       const name = (await files(id))[key];
       if (!name) return null;
+      if (name.startsWith('ext:')) return name.slice(4);
       const path = join(dir(id), name);
       return (await fs.exists(path)) ? path : null;
     },
@@ -102,7 +107,7 @@ export function fileDraftBackend(fs: DraftFs, root: string): DraftBackend {
       const f = await files(id);
       const name = f[key];
       if (!name) return;
-      await fs.remove(join(dir(id), name));
+      if (!name.startsWith('ext:')) await fs.remove(join(dir(id), name));
       delete f[key];
       if (await fs.exists(dir(id))) await saveFiles(id, f);
     },

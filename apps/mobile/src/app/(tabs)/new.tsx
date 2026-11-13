@@ -29,7 +29,8 @@ import { InstantsHub } from '@/components/Instants';
 import { TchekaStudio, type StudioDraftIn } from '@/components/TchekaStudio';
 import { StudioDrafts } from '@/components/studio/StudioDrafts';
 import { MagicButton } from '@/components/studio/MagicButton';
-import { newDraftId, studioDrafts, type StudioDraft } from '@/lib/studio/drafts';
+import { newDraftId, type StudioDraft } from '@/lib/studio/drafts';
+import { studioStore as studioDrafts } from '@/lib/studio/studioStore';
 import { normalizeClips } from '@/lib/studio/project';
 import { PhotoViewer } from '@/components/PhotoViewer';
 import { composeApi, type PhotoTag } from '@/lib/api.compose';
@@ -90,7 +91,7 @@ async function toJpeg(f: File): Promise<File | null> {
  * `signed`: já leva a assinatura do Txillapp (câmara da app, editor de fotos, estúdio de tchekas); ver lib/signedMedia.
  * `clean`: a mesma foto sem a assinatura (câmara do site numa tcheka): é a que entra no estúdio, que assina o vídeo inteiro.
  */
-interface Asset { uri: string; video: boolean; mime: string; durationMs?: number; tags: PhotoTag[]; ratio?: number; signed?: boolean; clean?: string; /** Numa tcheka: velocidade da gravação (0,5× a 3×). */ speed?: number; /** Saído do estúdio de tchekas (já cumpre as regras) e o instante da capa. */ studio?: boolean; posterMs?: number }
+interface Asset { uri: string; video: boolean; mime: string; durationMs?: number; tags: PhotoTag[]; ratio?: number; signed?: boolean; clean?: string; /** Numa tcheka: velocidade da gravação (0,5× a 3×). */ speed?: number; /** Saído do estúdio de tchekas (já cumpre as regras) e o instante da capa. */ studio?: boolean; posterMs?: number; /** Já no servidor (a montagem do estúdio nativo): não se envia outra vez. */ mediaId?: string }
 
 /**
  * Carrossel como no Instagram: todas as fotos com a proporção da primeira foto da publicação (limitada entre 4:5 e 1,91:1),
@@ -379,7 +380,7 @@ export default function Compose() {
     const inPost = step === 'write';
     if (!inPost && routeByKind(s)) return;
     // Na web, numa tcheka juntam-se as fotos e vídeos na câmara (o estúdio monta-os); no telemóvel segue logo para a publicação.
-    const collect = kindSel === 'tcheka' && web && !inPost;
+    const collect = kindSel === 'tcheka' && !inPost;
     const cap = collect ? MAX_CLIPS : MAX_PHOTOS;
     if (s.video) {
       const v: Asset = { uri: s.uri, video: true, mime: videoMime(s.mime), durationMs: s.durationMs, tags: [], signed: s.signed, ...(s.speed && s.speed !== 1 ? { speed: s.speed } : {}) };
@@ -395,6 +396,15 @@ export default function Compose() {
   /** Várias fotos e vídeos escolhidos de uma vez na galeria da app: juntam-se à publicação (fotos na proporção da primeira). */
   function pickMany(list: Shot[]) {
     const ok = list.filter((x) => !x.video || !x.durationMs || x.durationMs <= 60_500);
+    // Numa tcheka (no telemóvel), a galeria entrega os ficheiros ao estúdio.
+    if (kindSel === 'tcheka' && step !== 'write') {
+      setAssets((cur) => [...cur, ...ok.map((x): Asset => ({ uri: x.uri, video: x.video, mime: x.video ? videoMime(x.mime) : x.mime, durationMs: x.durationMs, tags: [] }))].slice(0, MAX_CLIPS));
+      bumpKind('tcheka');
+      setCameraOpen(false);
+      if (assets.some((a) => a.studio)) studioDraftId.current = newDraftId();
+      setStudio(true);
+      return;
+    }
     void appendAssets(ok.map((x): Asset => ({ uri: x.uri, video: x.video, mime: x.video ? videoMime(x.mime) : x.mime, durationMs: x.durationMs, tags: [] })), postFlow());
     bumpKind(kindSel);
     setCameraOpen(false);
@@ -468,7 +478,7 @@ export default function Compose() {
     // Com um som de outra tcheka vai o soundId (e a faixa, se o som for de uma); com música do seletor, só a música.
     const sp = soundForPost(sound, music);
     enqueuePublish({
-      assets: assets.map((a) => ({ uri: a.uri, mime: a.mime, video: a.video, signed: a.signed, ...(a.posterMs != null ? { posterMs: a.posterMs } : {}) })),
+      assets: assets.map((a) => ({ uri: a.uri, mime: a.mime, video: a.video, signed: a.signed, ...(a.posterMs != null ? { posterMs: a.posterMs } : {}), ...(a.mediaId ? { mediaId: a.mediaId } : {}) })),
       post: {
         body,
         music: sp.music,
@@ -491,7 +501,7 @@ export default function Compose() {
 
   // Ao entrar em Tcheka (na câmara do site, ainda sem clipes): se houver rascunhos do estúdio, pergunta se continua.
   useEffect(() => {
-    if (!web || step !== 'choose' || kindSel !== 'tcheka' || studio || assets.length || studioOffered.current) return;
+    if (step !== 'choose' || kindSel !== 'tcheka' || studio || assets.length || studioOffered.current) return;
     studioOffered.current = true;
     void studioDrafts().list().then((l) => { if (l.length) setStudioOffer(l); }).catch(() => undefined);
   }, [kindSel, step, studio, assets.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -551,27 +561,31 @@ export default function Compose() {
   // Noutro separador: nada de câmara ligada.
   if (step === 'choose' && !focused) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
 
+  /** O estúdio das tchekas (no site é o TchekaStudio.tsx; no telemóvel, o TchekaStudio.native.tsx, com a montagem no servidor). */
+  const studioView = (
+          <View style={{ flex: 1, backgroundColor: '#000' }}>
+            <TchekaStudio
+              clips={assets.map((a) => ({ uri: a.clean ?? a.uri, video: a.video, mime: a.mime, durationMs: a.durationMs, speed: a.speed }))}
+              initialMusic={music}
+              reference={duet}
+              draft={studioDraft}
+              startMagic={studioMagic}
+              draftId={studioDraftId.current}
+              soundId={sound?.id ?? null}
+              soundTrackId={sound ? soundTrack(sound).id : null}
+              duetPostId={duetoParam ? String(duetoParam) : null}
+              draftContext={{ ...(sound ? { soundId: sound.id } : {}), ...(duetoParam ? { dueto: String(duetoParam) } : {}) }}
+              onClose={() => { setStudio(false); setStudioMagic(false); if (studioDraft) { setStudioDraft(null); studioDraftId.current = newDraftId(); } }}
+              onDone={(s, m) => { setAssets([{ uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [], signed: s.signed, studio: true, posterMs: s.posterMs, ...(s.mediaId ? { mediaId: s.mediaId } : {}) }]); setMusic(m); setStudio(false); setStep('write'); releaseClipUrls(assets, s.uri); setStudioMagic(false); }}
+            />
+          </View>
+  );
+
   // Primeiro passo na web: a câmara ao vivo ocupa o ecrã, com a galeria lá dentro.
   if (step === 'choose' && web && liveCameraSupported()) {
     // Zás: o ecrã do Zás entra no lugar da câmara (fechar volta à câmara em Publicação).
     if (kindSel === 'zas') return <View style={{ flex: 1, backgroundColor: '#000' }}><InstantsHub onClose={() => setKindSel(kinds.find((k) => k.id !== 'zas')!.id)} /></View>;
-    if (studio) {
-      return (
-        <View style={{ flex: 1, backgroundColor: '#000' }}>
-          <TchekaStudio
-            clips={assets.map((a) => ({ uri: a.clean ?? a.uri, video: a.video, mime: a.mime, durationMs: a.durationMs, speed: a.speed }))}
-            initialMusic={music}
-            reference={duet}
-            draft={studioDraft}
-            startMagic={studioMagic}
-            draftId={studioDraftId.current}
-            draftContext={{ ...(sound ? { soundId: sound.id } : {}), ...(duetoParam ? { dueto: String(duetoParam) } : {}) }}
-            onClose={() => { setStudio(false); setStudioMagic(false); if (studioDraft) { setStudioDraft(null); studioDraftId.current = newDraftId(); } }}
-            onDone={(s, m) => { setAssets([{ uri: s.uri, video: true, mime: s.mime, durationMs: s.durationMs, tags: [], signed: s.signed, studio: true, posterMs: s.posterMs }]); setMusic(m); setStudio(false); setStep('write'); releaseClipUrls(assets, s.uri); setStudioMagic(false); }}
-          />
-        </View>
-      );
-    }
+    if (studio) return studioView;
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <LiveCamera
@@ -624,6 +638,7 @@ export default function Compose() {
   if (step === 'choose' && !web) {
     const changeKind = (k: string) => { setKindSel(k); setPostCam(false); if (k === 'zas' && !zasCounted.current) { zasCounted.current = true; bumpKind('zas'); } };
     if (kindSel === 'zas') return <View style={{ flex: 1, backgroundColor: '#000' }}><InstantsHub onClose={() => setKindSel('mimo')} /></View>;
+    if (studio) return studioView;
     // Publicação: a galeria com a primeira foto em grande (como "Nova publicação" no Instagram); uma foto vai ao editor.
     // No Android não há galeria dentro da app (Photo Picker do sistema, ver lib/mediaAccess): começa na câmara, que tem o botão da galeria.
     if (kindSel === 'post' && !postCam && inAppGalleryFor(Platform.OS)) {
@@ -652,7 +667,7 @@ export default function Compose() {
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <NativeCamera
           onShot={shot}
-          multi={kindSel === 'post'}
+          multi={kindSel === 'post' || kindSel === 'tcheka'}
           onPickMany={pickMany}
           galleryTitle={kindSel === 'mimo' ? 'Adicionar ao mimo' : kindSel === 'tcheka' ? 'Nova tcheka' : 'Nova publicação'}
           onClose={() => router.replace('/')}
@@ -661,7 +676,22 @@ export default function Compose() {
           kinds={kinds}
           kind={kindSel}
           onKind={changeKind}
+          // Numa tcheka: os clipes juntam-se (fotos sem a assinatura: o estúdio assina o vídeo) e «Montar» abre o estúdio.
+          unsigned={kindSel === 'tcheka'}
+          count={kindSel === 'tcheka' ? assets.length : 0}
+          doneLabel="Montar"
+          onDone={kindSel === 'tcheka' ? () => { bumpKind('tcheka'); if (assets.some((a) => a.studio)) studioDraftId.current = newDraftId(); setStudio(true); } : undefined}
         />
+        {kindSel === 'tcheka' && assets.length >= 2 && !assets.some((a) => a.studio) ? (
+          <View style={{ position: 'absolute', left: 16, right: 16, top: insets.top + 124, alignItems: 'center' }} pointerEvents="box-none">
+            <MagicButton onPress={() => { bumpKind('tcheka'); setStudioMagic(true); setStudio(true); }} />
+          </View>
+        ) : null}
+        {studioOffer && kindSel === 'tcheka' ? (
+          <Sheet title="Continuar o rascunho?" dark onClose={() => setStudioOffer(null)}>
+            <StudioDrafts drafts={studioOffer} onContinue={(d) => void continueStudioDraft(d)} onDelete={(id) => void dropStudioDraft(id)} onNew={() => setStudioOffer(null)} />
+          </Sheet>
+        ) : null}
         {err ? <Text style={[styles.err, { position: 'absolute', top: insets.top + 72, left: 0, right: 0, color: '#fff' }]} accessibilityRole="alert">{err}</Text> : null}
       </View>
     );

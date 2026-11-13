@@ -177,7 +177,7 @@ function shrink(img: SkImage): SkImage {
 const PREVIEW_SIDE = 1600;
 
 /** Desenha a foto editada num retângulo W×H (pré-visualização ou foto final), com a assinatura. */
-function drawEdit(canvas: SkCanvas, img: SkImage, e: Edit, W: number, H: number, font: SkFont | null, username?: string | null, seal?: SealTier | null) {
+function drawEdit(canvas: SkCanvas, img: SkImage, e: Edit, W: number, H: number, font: SkFont | null, username?: string | null, seal?: SealTier | null, sign = true) {
   const { cw, ch, cx, cy } = cropOf(img, e);
   const w0 = img.width(), h0 = img.height();
   const m = matrixOf(e);
@@ -216,7 +216,7 @@ function drawEdit(canvas: SkCanvas, img: SkImage, e: Edit, W: number, H: number,
     vg.setShader(Skia.Shader.MakeRadialGradient({ x: 0, y: 0 }, 1, [Skia.Color('rgba(0,0,0,0)'), Skia.Color(`rgba(0,0,0,${(0.8 * e.adj.v).toFixed(3)})`)], [0.45, 1], TileMode.Clamp, lm));
     canvas.drawRect(Skia.XYWHRect(0, 0, W, H), vg);
   }
-  drawSign(canvas, W, H, font, username, seal);
+  if (sign) drawSign(canvas, W, H, font, username, seal);
 }
 
 /** Logótipo em caminhos Skia (feito uma vez). */
@@ -386,7 +386,7 @@ function ToolSlider({ kind, value, def, label, onChange }: { kind: 'both' | 'up'
   );
 }
 
-export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; aspect: number; onCancel: () => void; onDone: (fileUri: string) => void }) {
+export function PhotoEditor({ uri, aspect, onCancel, onDone, sign = true }: { uri: string; aspect: number; onCancel: () => void; onDone: (fileUri: string) => void; /** false: sem a assinatura (uma foto que vai para o estúdio das tchekas, que assina o vídeo inteiro). */ sign?: boolean }) {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const username = user?.username ?? null;
@@ -451,9 +451,9 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
     if (!pv || !pw) return null;
     const rec = Skia.PictureRecorder();
     const c = rec.beginRecording(Skia.XYWHRect(0, 0, pw, ph));
-    drawEdit(c, pv, edit, pw, ph, previewFont, username, seal);
+    drawEdit(c, pv, edit, pw, ph, previewFont, username, seal, sign);
     return rec.finishRecordingAsPicture();
-  }, [pv, edit, pw, ph, previewFont, username, seal]);
+  }, [pv, edit, pw, ph, previewFont, username, seal, sign]);
 
   // Arrastar a foto para escolher o enquadramento (quando o recorte é mais pequeno do que a foto).
   const drag = useRef<{ ox: number; oy: number } | null>(null);
@@ -523,7 +523,7 @@ export function PhotoEditor({ uri, aspect, onCancel, onDone }: { uri: string; as
     const surface = Skia.Surface.MakeOffscreen(outW, outH) ?? Skia.Surface.Make(outW, outH);
     if (!surface) return null;
     try {
-      drawEdit(surface.getCanvas(), img, edit, outW, outH, signFont(Math.round(Math.min(outW, outH) * 0.028)), username, seal);
+      drawEdit(surface.getCanvas(), img, edit, outW, outH, signFont(Math.round(Math.min(outW, outH) * 0.028)), username, seal, sign);
       surface.flush();
       const snap = surface.makeImageSnapshot();
       const bytes = snap.encodeToBytes(ImageFormat.JPEG, 92);

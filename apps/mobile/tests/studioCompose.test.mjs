@@ -99,7 +99,9 @@ test('as camadas: as que entram depois do fim saem, as que passam do fim cortam-
   const t1 = fx.newText(1, 14, 'Olá');
   const t2 = { ...fx.newText(1, 14, 'Tarde'), start: 13.98, end: 16 };
   const t3 = { ...fx.newText(1, 14, 'Longo'), start: 10, end: 20 };
-  const r = c.buildComposeRequest(base({ overlays: [t1, t2, t3], coverAt: 30, duetPostId: '00000000-0000-0000-0000-000000000001' }));
+  const r = c.buildComposeRequest(base({ overlays: [t1, t2, t3], coverAt: 30, duetPostId: '00000000-0000-0000-0000-000000000001', pano: { pattern: 'sol', palette: 'neon', seed: 4 } }));
+  assert.deepEqual(r.pano, { pattern: 'sol', palette: 'neon', seed: 4 });
+  assert.equal(c.compatRequest(r).request.pano, undefined);
   assert.deepEqual(r.overlays.map((o) => o.text), ['Olá', 'Longo']);
   assert.equal(r.overlays[1].end, 14);
   assert.equal(r.coverMs, 13900);

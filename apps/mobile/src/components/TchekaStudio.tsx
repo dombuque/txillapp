@@ -224,6 +224,10 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   draftContext?: Record<string, unknown>;
   /** Abre logo a «Montagem mágica» (o botão do ecrã de escolher os ficheiros). */
   startMagic?: boolean;
+  /** Só no telemóvel (TchekaStudio.native.tsx, a montagem no servidor): o som de outra tcheka, a faixa dele e o dueto. */
+  soundId?: string | null;
+  soundTrackId?: string | null;
+  duetPostId?: string | null;
 }) {
   const { user } = useAuth();
   const username = user?.username;

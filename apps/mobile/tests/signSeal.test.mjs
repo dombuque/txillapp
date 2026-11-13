@@ -156,9 +156,9 @@ test('estúdio de tchekas: o vídeo leva o selo de quem tem a sessão', () => {
 test('editor do telemóvel (Skia): o selo vai na pré-visualização e na foto final', () => {
   const pe = read('components', 'PhotoEditor.tsx');
   assert.match(pe, /const seal = sealOf\(user\);/);
-  assert.match(pe, /drawEdit\(c, pv, edit, pw, ph, previewFont, username, seal\);/);
-  assert.match(pe, /\}, \[pv, edit, pw, ph, previewFont, username, seal\]\);/);
-  assert.match(pe, /drawEdit\(surface\.getCanvas\(\), img, edit, outW, outH, signFont\(.*\), username, seal\);/);
+  assert.match(pe, /drawEdit\(c, pv, edit, pw, ph, previewFont, username, seal, sign\);/);
+  assert.match(pe, /\}, \[pv, edit, pw, ph, previewFont, username, seal, sign\]\);/);
+  assert.match(pe, /drawEdit\(surface\.getCanvas\(\), img, edit, outW, outH, signFont\(.*\), username, seal, sign\);/);
   assert.match(pe, /const L = signLayout\(W, H, !!username && !!font, seal\);/);
   assert.match(pe, /L\.textRight - font\.getTextWidth\(t\)/);
   assert.match(pe, /Skia\.Path\.MakeFromSVGString\(SEAL_PATH\)/);

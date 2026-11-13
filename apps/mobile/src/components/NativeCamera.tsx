@@ -79,7 +79,7 @@ let gridPref = false;
  * Por baixo está a react-native-vision-camera (v5).
  */
 export function NativeCamera({
-  onShot, onPickMany, multi = false, galleryTitle = 'Galeria', onClose, onDone, onText, doneLabel = 'Seguinte', count = 0, kinds, kind, onKind, aspect = 9 / 16,
+  onShot, onPickMany, multi = false, galleryTitle = 'Galeria', onClose, onDone, onText, doneLabel = 'Seguinte', count = 0, kinds, kind, onKind, aspect = 9 / 16, unsigned = false,
 }: {
   onShot: (s: Shot) => void;
   /** Várias fotos e vídeos escolhidos de uma vez na galeria (só com `multi`). */
@@ -97,6 +97,8 @@ export function NativeCamera({
   onKind?: (id: string) => void;
   /** Proporção da foto final (4:5 numa publicação, 9:16 nos outros); o editor começa recortado nela. */
   aspect?: number;
+  /** As fotos saem sem a assinatura (numa tcheka: o estúdio assina o vídeo montado). */
+  unsigned?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const cam = useRef<CameraRef | null>(null);
@@ -826,7 +828,7 @@ export function NativeCamera({
         <Pressable onPress={() => setGalleryOpen(true)} style={{ marginTop: 6, padding: 12 }} accessibilityRole="button"><Text style={st.linkText}>Escolher da galeria</Text></Pressable>
         {galleryOpen ? <GalleryPicker title={galleryTitle} multi={multi} onPick={picked} onCamera={() => setGalleryOpen(false)} onClose={() => setGalleryOpen(false)} /> : null}
         {editing ? (
-          <PhotoEditor uri={editing} aspect={aspect} onCancel={() => setEditing(null)} onDone={(file) => { setEditing(null); onShot(editedPhoto(file)); }} />
+          <PhotoEditor uri={editing} aspect={aspect} sign={!unsigned} onCancel={() => setEditing(null)} onDone={(file) => { setEditing(null); onShot(unsigned ? { ...editedPhoto(file), signed: undefined } : editedPhoto(file)); }} />
         ) : null}
       </View>
     );
@@ -1093,9 +1095,10 @@ export function NativeCamera({
         <PhotoEditor
           uri={editing}
           aspect={aspect}
+          sign={!unsigned}
           onCancel={() => { discard(editing); setEditing(null); }}
           // O editor grava sempre um ficheiro novo: o original da câmara já não faz falta.
-          onDone={(file) => { discard(editing); setEditing(null); onShot(editedPhoto(file)); }}
+          onDone={(file) => { discard(editing); setEditing(null); onShot(unsigned ? { ...editedPhoto(file), signed: undefined } : editedPhoto(file)); }}
         />
       ) : null}
       {galleryOpen ? <GalleryPicker title={galleryTitle} multi={multi} onPick={picked} onCamera={() => setGalleryOpen(false)} onClose={() => setGalleryOpen(false)} /> : null}

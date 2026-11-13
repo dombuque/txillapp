@@ -12,7 +12,8 @@ import { uploadRequest } from './signedMedia';
  */
 /** `signed`: já leva a assinatura do Txillapp (câmara da app); o servidor não a volta a pôr (ver lib/signedMedia). */
 /** `posterMs`: num vídeo do estúdio de tchekas, o instante da capa escolhido (vai no /complete). */
-export interface PublishAsset { uri: string; mime: string; video: boolean; signed?: boolean; posterMs?: number }
+/** `mediaId`: já está no servidor (o vídeo montado pelo estúdio nativo): não se envia, só se espera que esteja pronto. */
+export interface PublishAsset { uri: string; mime: string; video: boolean; signed?: boolean; posterMs?: number; mediaId?: string }
 export interface PublishJob {
   assets: PublishAsset[];
   post: Parameters<typeof composeApi.createPost>[0] extends infer P ? Omit<P, 'mediaIds'> : never;
@@ -123,7 +124,8 @@ async function run(id: string, qc: QueryClient) {
 export function enqueuePublish(job: PublishJob, qc: QueryClient): string {
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const first = job.assets[0];
-  tasks = [...tasks, { id, kind: 'post', thumb: first && !first.video ? first.uri : null, video: !!first?.video, status: 'uploading', stage: 'upload', progress: 0, error: null, job, sent: [] }];
+  const thumb = first && !first.video ? first.uri : first?.mediaId ? `${SITE_URL}/api/v1/media/${first.mediaId}?poster=1` : null;
+  tasks = [...tasks, { id, kind: 'post', thumb, video: !!first?.video, status: 'uploading', stage: 'upload', progress: 0, error: null, job, sent: job.assets.map((a) => a.mediaId) }];
   emit();
   void run(id, qc);
   return id;

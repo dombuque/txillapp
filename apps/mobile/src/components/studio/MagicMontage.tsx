@@ -23,13 +23,16 @@ export interface MagicMontageProps {
   onClose: () => void;
   topInset?: number;
   bottomInset?: number;
+  /** Outra maneira de olhar para os ficheiros e para a música (no telemóvel: lib/studio/magicAnalyzeNative.ts). */
+  analyzers?: { sources: typeof analyzeSources; music: typeof analyzeMusic };
 }
 
 /**
  * O fluxo todo da «Montagem mágica», em ecrã inteiro: as ondas → «a montar» (a análise corre no aparelho) → o resultado,
  * com «Outra versão» e «Afinar». Quem o mostra decide onde (por cima do estúdio, num modal…).
  */
-export function MagicMontage({ sources, music, capulana, initialWave, onApply, onClose, topInset, bottomInset }: MagicMontageProps) {
+export function MagicMontage({ sources, music, capulana, initialWave, onApply, onClose, topInset, bottomInset, analyzers }: MagicMontageProps) {
+  const look = analyzers ?? { sources: analyzeSources, music: analyzeMusic };
   const [step, setStep] = useState<'ondas' | 'a-montar' | 'resultado'>('ondas');
   const [wave, setWave] = useState<WaveId>(initialWave ?? 'malta');
   const [active, setActive] = useState<MagicPhase | null>(null);
@@ -61,12 +64,12 @@ export function MagicMontage({ sources, music, capulana, initialWave, onApply, o
     };
     try {
       const videos = sources.filter((s) => s.video), photos = sources.filter((s) => !s.video);
-      const iv = await stage('ver', () => analyzeSources(videos, { signal }));
-      const ip = await stage('fotos', () => analyzeSources(photos, { signal }));
+      const iv = await stage('ver', () => look.sources(videos, { signal }));
+      const ip = await stage('fotos', () => look.sources(photos, { signal }));
       const items = [...iv, ...ip];
       // Uma primeira conta sem música só para saber quanto tempo a tcheka vai ter (é o tamanho do trecho a escolher).
       const rough = buildMontage({ sources, items, music: null, wave, seed: seed.current, capulana }).total;
-      const info = await stage('ritmo', () => analyzeMusic(music?.url, wave, rough + 4, { signal }));
+      const info = await stage('ritmo', () => look.music(music?.url, wave, rough + 4, { signal }));
       data.current = { items, music: info };
       const res = await stage('historia', () => buildMontage({ sources, items, music: info, wave, seed: seed.current, capulana }));
       await stage('onda', () => sleep(120));
@@ -77,7 +80,7 @@ export function MagicMontage({ sources, music, capulana, initialWave, onApply, o
     } catch {
       if (!signal.cancelled) setStep('ondas');
     }
-  }, [sources, music?.url, wave, capulana]);
+  }, [sources, music?.url, wave, capulana]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const another = useCallback(async () => {
     if (!data.current || !result) return;

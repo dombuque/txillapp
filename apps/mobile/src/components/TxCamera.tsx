@@ -34,7 +34,7 @@ export const liveCameraSupported = () => Platform.OS === 'web' && typeof navigat
  * mimo, o servidor não a volta a pôr); fotos e vídeos da galeria não a levam. `clean`: a mesma foto sem a assinatura (só
  * quando se pede `keepClean`, para o estúdio de tchekas, que assina o vídeo inteiro).
  */
-export interface Shot { uri: string; video: boolean; mime: string; durationMs?: number; signed?: boolean; clean?: string; /** Numa tcheka: a velocidade a que o clipe foi gravado (0,5× a 3×); o estúdio toca-o a essa velocidade. */ speed?: number; /** O instante da capa escolhido no estúdio (ms). */ posterMs?: number }
+export interface Shot { uri: string; video: boolean; mime: string; durationMs?: number; signed?: boolean; clean?: string; /** Numa tcheka: a velocidade a que o clipe foi gravado (0,5× a 3×); o estúdio toca-o a essa velocidade. */ speed?: number; /** O instante da capa escolhido no estúdio (ms). */ posterMs?: number; /** Já está no servidor (o vídeo montado pelo estúdio nativo): publica-se sem enviar. */ mediaId?: string }
 
 /**
  * Gravação ao estilo do TikTok (numa tcheka): segurar grava e largar pára, em vários clipes, sem revisão entre eles; a

@@ -1,5 +1,8 @@
 import { createElement, useEffect, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+// Só no site (o estúdio nativo grava com components/studio/native/NativeVoice.tsx): o react-dom lê-se sem os tipos dele
+// (os @types/react-dom podem não estar instalados) e este ficheiro nunca entra no bundle do telemóvel.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { createPortal } = require('react-dom') as { createPortal: (children: ReactNode, container: Element) => ReactNode };
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { RangeSlider } from '@/components/RangeSlider';
@@ -269,7 +272,7 @@ export function AudioVoice({ ctl, take, onTake, onVolume, onDelete, locked }: {
         )}
         {box ? <Text style={[st.hudSub, { textAlign: 'center' }]}>Usa auscultadores: assim a música não entra na voz</Text> : null}
       </View>,
-    )) as Parameters<typeof createPortal>[0],
+    )) as ReactNode,
     document.body,
   ) : null;
 
