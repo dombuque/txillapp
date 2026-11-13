@@ -218,6 +218,28 @@ const schema = z.object({
   COMPOSE_CONCURRENCY: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).max(2).default(1)),
   COMPOSE_TIMEOUT_S: z.preprocess(blankToUndefined, z.coerce.number().int().min(30).max(1800).default(480)),
   COMPOSE_THREADS: z.preprocess(blankToUndefined, z.coerce.number().int().min(0).max(16).default(0)),
+  /**
+   * Prova de humano invisível (Cloudflare Turnstile) no registo, no «Esqueci-me da senha» e no login depois de algumas
+   * falhas (ver src/security). Sem a chave secreta fica DESLIGADA. A chave do site (pública) vai na app como
+   * EXPO_PUBLIC_TURNSTILE_SITEKEY. Chaves de teste oficiais da Cloudflare: 1x0000000000000000000000000000000AA (passa
+   * sempre), 2x0000000000000000000000000000000AA (falha sempre).
+   */
+  TURNSTILE_SECRET: z.preprocess(blankToUndefined, z.string().trim().min(20).optional()),
+  /**
+   * A chave do site (pública), para o GET /auth/config a dar à app quando ela não a traz da compilação
+   * (EXPO_PUBLIC_TURNSTILE_SITEKEY): assim o site e as APKs já instaladas ligam a prova sem compilar outra vez.
+   */
+  TURNSTILE_SITEKEY: z.preprocess(blankToUndefined, z.string().trim().regex(/^[A-Za-z0-9_-]{10,100}$/).optional()),
+  /** Só para testes: outro endereço de verificação. */
+  TURNSTILE_VERIFY_URL: z.preprocess(blankToUndefined, z.string().url().default('https://challenges.cloudflare.com/turnstile/v0/siteverify')),
+  /**
+   * Na app nativa: 'optional' (por omissão; as versões antigas, sem a prova, entram na mesma com limites mais apertados e
+   * mais pontos de risco) ou 'required' (quando todas as versões em uso já a mandam). No browser é sempre obrigatória.
+   */
+  TURNSTILE_NATIVE: z.preprocess(blankToUndefined, z.enum(['optional', 'required']).default('optional')),
+  /** Hashes de senha (argon2) ao mesmo tempo e à espera; os seguintes recebem 503 sem gastar CPU. */
+  ARGON2_CONCURRENCY: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).max(16).default(2)),
+  ARGON2_QUEUE: z.preprocess(blankToUndefined, z.coerce.number().int().min(0).max(1000).default(40)),
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });

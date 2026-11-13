@@ -68,6 +68,44 @@ export function deleteAccountMail(publicUrl: string, name: string, token: string
   });
 }
 
+/* ───── avisos de segurança (sem ligações com códigos: só para a app e para o «Esqueci-me da senha») ───── */
+
+const when = (d: Date) =>
+  d.toLocaleString('pt-PT', { timeZone: 'Africa/Maputo', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + ' (hora de Maputo)';
+
+/** Várias senhas erradas seguidas: a conta ficou bloqueada um bocado. */
+export function loginLockedMail(publicUrl: string, name: string, o: { until: Date; device: string }): Mail {
+  return layout(publicUrl, {
+    title: 'Alguém tentou entrar na tua conta',
+    intro: `Olá, ${name}! Houve várias tentativas seguidas de entrar na tua conta do Txillapp com a senha errada (a última num aparelho «${o.device}»). Para te proteger, bloqueámos as entradas com senha até ${when(o.until)}.`,
+    button: 'Mudar a senha',
+    url: `${publicUrl}/forgot-password`,
+    outro: 'Se foste tu, espera e tenta outra vez, ou recupera a senha (isso também desbloqueia a conta). Se não foste tu, a tua senha continua segura: escolhe uma senha que não uses noutros sítios. Nunca te pedimos a senha por mensagem.',
+  });
+}
+
+/** Entrou-se na conta num aparelho novo. */
+export function newLoginMail(publicUrl: string, name: string, o: { at: Date; device: string; how: string }): Mail {
+  return layout(publicUrl, {
+    title: 'Novo início de sessão no Txillapp',
+    intro: `Olá, ${name}! Alguém entrou na tua conta ${o.how} num aparelho novo: «${o.device}», a ${when(o.at)}.`,
+    button: 'Ver os meus aparelhos',
+    url: `${publicUrl}/settings/aparelhos`,
+    outro: 'Se foste tu, não precisas de fazer nada. Se não foste tu, muda já a senha (em «Esqueci-me da senha») e termina as outras sessões em Definições → Segurança → «Os teus aparelhos».',
+  });
+}
+
+/** Um token de sessão antigo foi usado outra vez (sinal de cópia): a sessão desse aparelho terminou. */
+export function sessionReuseMail(publicUrl: string, name: string, o: { at: Date; device: string }): Mail {
+  return layout(publicUrl, {
+    title: 'Terminámos uma sessão por segurança',
+    intro: `Olá, ${name}! A sessão do aparelho «${o.device}» foi usada de uma forma estranha a ${when(o.at)} (como se tivesse sido copiada), por isso terminámo-la. Nesse aparelho é preciso entrar outra vez.`,
+    button: 'Ver os meus aparelhos',
+    url: `${publicUrl}/settings/aparelhos`,
+    outro: 'Às vezes isto acontece com uma rede fraca. Se não reconheces o aparelho, muda a senha e termina as outras sessões em Definições → Segurança → «Os teus aparelhos».',
+  });
+}
+
 /**
  * Lembrete de regresso por e-mail (só quando não há push que chegue): o mesmo texto do aviso, um botão para o sítio certo
  * e, no rodapé, "Deixar de receber estes lembretes" (um clique, sem entrar na conta). `unsubscribeUrl` também vai no

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { WalletService } from './wallet.service';
+import { RiskCheck } from '../security/risk.guard';
 
 const transferSchema = z.object({
   toUsername: z.string().min(1).max(30),
@@ -28,6 +29,7 @@ export class WalletController {
     return this.wallet.getWallet(req.userId!);
   }
 
+  @RiskCheck('transfer')
   @Post('transfers')
   @HttpCode(201)
   transfer(

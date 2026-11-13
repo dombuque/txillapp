@@ -7,6 +7,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { MetricsController } from './observability/metrics';
 import { AccountModule } from './account/account.module';
 import { MailModule } from './mail/mail.module';
+import { SecurityModule } from './security/security.module';
 import { AuthModule } from './auth/auth.module';
 import { APPLE_JWKS } from './auth/apple.service';
 import { GOOGLE_JWKS } from './auth/google.service';
@@ -62,6 +63,7 @@ export class AppModule {
         ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
         DbModule,
         MailModule,
+        SecurityModule,
         AuthModule,
         SearchIndexModule,
         AccountModule,

@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { requireIdempotencyKey } from '../wallet/wallet.controller';
 import { PostsService } from './posts.service';
+import { RiskCheck } from '../security/risk.guard';
 
 /** discreto = só o presente · private = mensagem só para o destinatário · public = post no feed */
 export const visibilitySchema = z.enum(['silent', 'private', 'public']).default('silent');
@@ -24,6 +25,7 @@ export class GiftsController {
   constructor(private readonly posts: PostsService) {}
 
   /** Presentear alguém com Txills (demonstração), de onde quer que seja. */
+  @RiskCheck('gift')
   @NeedsVerifiedEmail()
   @Post()
   @HttpCode(201)

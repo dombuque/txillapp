@@ -39,6 +39,8 @@ describe('Convites: código, limites, espera e abuso (integração)', () => {
   const post = (x: U) => api().post('/api/v1/posts').set(auth(x)).send({ body: 'olá malta', mediaIds: [] }).expect(201);
   const status = async (x: U) => (await pool.query('SELECT status, reason FROM social.referrals WHERE invitee_id = $1', [x.id])).rows[0] as { status: string; reason: string | null } | undefined;
   const settle = () => pool.query("UPDATE social.referrals SET release_at = now() - interval '1 minute' WHERE status = 'qualified'");
+  /** A pessoa «voltou» ao Txillapp mais de 12 horas depois do registo (a sessão do registo passa a contar como regresso). */
+  const returned = (x: U) => pool.query("UPDATE identity.users SET created_at = now() - interval '13 hours' WHERE id = $1", [x.id]);
 
   beforeAll(async () => {
     await migrate(DB);
@@ -71,8 +73,8 @@ describe('Convites: código, limites, espera e abuso (integração)', () => {
     const b = await signup('cvb', { code: me.code });
     await new Promise((r) => setTimeout(r, 200));
     expect((await status(b))?.status).toBe('registered');
-    // Recompensa imediata: quem entra recebe já os Txills do convite (além do bónus de boas-vindas)…
-    expect(await balance(b)).toBe(WELCOME_BONUS + INVITE.REWARD);
+    // Desde a 0148, ninguém ganha nada só por se registar: só o bónus de boas-vindas, para já…
+    expect(await balance(b)).toBe(WELCOME_BONUS);
     // …e quem convidou é avisado logo («entrou com o teu convite»), mas o prémio dele ainda não chegou.
     const notes = (await api().get('/api/v1/notifications').set(auth(a)).expect(200)).body.items as { kind: string; actor: { username: string } }[];
     expect(notes.filter((x) => x.kind === 'invite_joined').map((x) => x.actor.username)).toEqual([b.username]);
@@ -80,8 +82,14 @@ describe('Convites: código, limites, espera e abuso (integração)', () => {
     // Ainda não fez nada: nada mais acontece.
     await svc.sweep();
     expect((await status(b))?.status).toBe('registered');
-    // Publica: fica ativa. Os Txills dela já tinham chegado (não recebe duas vezes); o convite fica em espera.
+    // Publica, mas ainda não voltou ao Txillapp noutra altura: ainda não é uma conta real.
     await post(b);
+    await svc.sweep();
+    expect((await status(b))?.status).toBe('registered');
+    expect(await balance(b)).toBe(WELCOME_BONUS);
+    // Voltou mais de 12 horas depois: conta real. Os Txills dela chegam agora (uma só vez); o convite fica em espera.
+    await returned(b);
+    await svc.sweep();
     await svc.sweep();
     expect(await balance(b)).toBe(WELCOME_BONUS + INVITE.REWARD);
     expect((await status(b))?.status).toBe('qualified');
@@ -107,11 +115,10 @@ describe('Convites: código, limites, espera e abuso (integração)', () => {
     await new Promise((r) => setTimeout(r, 150));
     await svc.sweep();
     expect((await status(nv))?.status).toBe('registered'); // continua à espera
-    const tmp = await signup('cve', { code, email: `x${run}${n}@mailinator.com` });
-    await new Promise((r) => setTimeout(r, 150));
-    expect(await status(tmp)).toMatchObject({ status: 'blocked', reason: 'email temporário' });
-    // O convite marcado pela antifraude não dá os Txills do convite nem avisa quem convidou.
-    expect(await balance(tmp)).toBe(WELCOME_BONUS);
+    // Email temporário: desde a 0148 nem sequer regista (e o convite não avisa quem convidou).
+    const tmp = await api().post('/api/v1/auth/register').set('X-Forwarded-For', `10.7.250.${n % 250}`)
+      .send({ email: `x${run}${n}@mailinator.com`, username: `cve${run}${n++}`.slice(0, 28), displayName: 'cve Teste', password: 'password-bem-longa-1', birthDate: '1990-06-15', acceptTerms: true, inviteCode: code }).expect(400);
+    expect(tmp.body.code).toBe('disposable_email');
     const notes = (await api().get('/api/v1/notifications').set(auth(a)).expect(200)).body.items as { kind: string; actor: { username: string } }[];
     expect(notes.filter((x) => x.kind === 'invite_joined').map((x) => x.actor.username)).toEqual([nv.username]);
     // Código desconhecido: ignorado, o registo não falha.
@@ -126,7 +133,7 @@ describe('Convites: código, limites, espera e abuso (integração)', () => {
     const b = await signup('cvp', { code });
     await new Promise((r) => setTimeout(r, 200));
     expect((await status(b))?.status).toBe('registered');
-    expect(await balance(b)).toBe(WELCOME_BONUS + INVITE.REWARD);
+    expect(await balance(b)).toBe(WELCOME_BONUS);
     const notes = (await api().get('/api/v1/notifications').set(auth(a)).expect(200)).body.items as { kind: string }[];
     expect(notes.filter((x) => x.kind === 'invite_joined')).toHaveLength(0);
   });
@@ -149,7 +156,9 @@ describe('Convites: código, limites, espera e abuso (integração)', () => {
     const old = await signup('cvi', { old: true });
     const oc = (await api().get('/api/v1/invites/me').set(auth(old)).expect(200)).body.code as string;
     const rows: U[] = [];
-    for (let i = 0; i < INVITE.SAME_NET_MAX + 1; i++) rows.push(await signup(`cvn${i}`, { code: oc, ip: `203.0.113.${run.length}` }));
+    // Um IP público só desta corrida (os limites de registo por IP guardam-se na base de dados durante 24 h).
+    const sameIp = `198.18.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250) + 1}`;
+    for (let i = 0; i < INVITE.SAME_NET_MAX + 1; i++) rows.push(await signup(`cvn${i}`, { code: oc, ip: sameIp }));
     await new Promise((r) => setTimeout(r, 300));
     const statuses = await Promise.all(rows.map(status));
     expect(statuses.filter((s) => s?.reason === 'mesma rede').length).toBe(1);
@@ -165,6 +174,7 @@ describe('Convites: código, limites, espera e abuso (integração)', () => {
     }
     const late = await signup('cvk', { code });
     await post(late);
+    await returned(late);
     await new Promise((r) => setTimeout(r, 150));
     await svc.sweep();
     expect((await status(late))?.status).toBe('registered'); // fica para amanhã
@@ -188,6 +198,7 @@ describe('Convites: código, limites, espera e abuso (integração)', () => {
     );
     const over = await signup('cvm', { code: bcode });
     await post(over);
+    await returned(over);
     await new Promise((r) => setTimeout(r, 150));
     await svc.sweep();
     expect(await status(over)).toMatchObject({ status: 'blocked', reason: 'limite total' });

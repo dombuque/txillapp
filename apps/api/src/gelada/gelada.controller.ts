@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/auth.controller';
 import { ZodPipe } from '../common/zod.pipe';
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
+import { RiskCheck } from '../security/risk.guard';
 import { GeladaService } from './gelada.service';
 
 type AuthedReq = Request & { userId?: string };
@@ -68,6 +69,7 @@ export class GeladaController {
   }
 
   // Como mandar mensagens: só com o email confirmado.
+  @RiskCheck('gelada')
   @NeedsVerifiedEmail()
   @Post('gelada/requests')
   @Throttle({ default: { limit: 30, ttl: 3_600_000 } })

@@ -12,6 +12,7 @@ import { ZodPipe } from '../common/zod.pipe';
 import { countryOf } from '../common/geo';
 import { sessionUserAgent } from '../common/device';
 import { AuthService, REFRESH_TTL_MS, Tokens } from './auth.service';
+import { SecurityService } from '../security/security.service';
 
 const COOKIE = 'txill_rt';
 const COOKIE_PATH = '/api/v1/auth';
@@ -94,7 +95,7 @@ const googleCompleteSchema = z.object({ signupToken: z.string().min(20).max(4096
 @Controller('auth')
 @Throttle({ default: { limit: 10, ttl: 60_000 } })
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(private readonly auth: AuthService, private readonly security: SecurityService) {}
 
   @Post('register')
   async register(
@@ -102,7 +103,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    const { tokens, user } = await this.auth.register(body, sessionUserAgent(req.headers), req.ip);
+    const { tokens, user } = await this.auth.register(body, sessionUserAgent(req.headers), req.ip, this.security.context(req));
     return this.respond(res, tokens, user);
   }
 
@@ -113,7 +114,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    const { tokens, user } = await this.auth.login(body, sessionUserAgent(req.headers));
+    const { tokens, user } = await this.auth.login(body, sessionUserAgent(req.headers), this.security.context(req));
     return this.respond(res, tokens, user);
   }
 
@@ -126,7 +127,7 @@ export class AuthController {
     const token = refreshTokenOf(req);
     if (!token) throw new UnauthorizedException();
     try {
-      const { tokens, user } = await this.auth.refresh(token, sessionUserAgent(req.headers));
+      const { tokens, user } = await this.auth.refresh(token, sessionUserAgent(req.headers), this.security.context(req));
       return this.respond(res, tokens, user);
     } catch (e) {
       // Só se apaga o cookie quando o token é mesmo inválido; um erro temporário não pode deslogar ninguém.
@@ -135,11 +136,15 @@ export class AuthController {
     }
   }
 
-  /** Configuração pública para o cliente (o ID de cliente da Google não é segredo). */
+  /**
+   * Configuração pública para o cliente (o ID de cliente da Google não é segredo). `humanCheck`: o servidor tem a prova de
+   * humano (Turnstile) ligada; a chave do site vai na própria app (EXPO_PUBLIC_TURNSTILE_SITEKEY).
+   */
   @Get('config')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   config() {
-    return { googleClientId: this.auth.googleClientId, appleEnabled: !!this.auth.appleClientId };
+    const humanCheck = this.security.turnstile.enabled;
+    return { googleClientId: this.auth.googleClientId, appleEnabled: !!this.auth.appleClientId, humanCheck, turnstileSiteKey: humanCheck ? this.security.turnstile.siteKey : null };
   }
 
   /** Verificação ao escrever o @ no registo. Limitada para dificultar a enumeração de utilizadores. */
@@ -149,9 +154,11 @@ export class AuthController {
     return this.auth.usernameAvailable(username.slice(0, 60));
   }
 
+  /** O email é dado pessoal: além do limite por minuto, um limite por IP e por hora partilhado por todas as réplicas. */
   @Get('email-available')
   @Throttle({ default: { limit: 40, ttl: 60_000 } })
-  emailAvailable(@Query('email') email = '') {
+  async emailAvailable(@Req() req: Request, @Query('email') email = '') {
+    await this.security.emailCheckGate(this.security.context(req));
     return this.auth.emailAvailable(email.slice(0, 254));
   }
 
@@ -163,7 +170,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const r = await this.auth.googleLogin(body.idToken, sessionUserAgent(req.headers));
+    const r = await this.auth.googleLogin(body.idToken, sessionUserAgent(req.headers), this.security.context(req));
     if (r.kind === 'session') return this.respond(res, r.tokens, r.user);
     return { needsUsername: true as const, signupToken: r.signupToken, displayName: r.displayName, suggestedUsername: r.suggestedUsername };
   }
@@ -176,7 +183,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const r = await this.auth.appleLogin(body.identityToken, body.nonce, body.fullName, sessionUserAgent(req.headers));
+    const r = await this.auth.appleLogin(body.identityToken, body.nonce, body.fullName, sessionUserAgent(req.headers), this.security.context(req));
     if (r.kind === 'session') return this.respond(res, r.tokens, r.user);
     return { needsUsername: true as const, signupToken: r.signupToken, displayName: r.displayName, suggestedUsername: r.suggestedUsername };
   }
@@ -189,7 +196,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    const { tokens, user } = await this.auth.appleComplete(body.signupToken, body.username, sessionUserAgent(req.headers), body.gender, body.birthDate);
+    const { tokens, user } = await this.auth.appleComplete(body.signupToken, body.username, sessionUserAgent(req.headers), body.gender, body.birthDate, this.security.context(req));
     return this.respond(res, tokens, user);
   }
 
@@ -201,7 +208,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    const { tokens, user } = await this.auth.googleComplete(body.signupToken, body.username, sessionUserAgent(req.headers), body.gender, body.birthDate);
+    const { tokens, user } = await this.auth.googleComplete(body.signupToken, body.username, sessionUserAgent(req.headers), body.gender, body.birthDate, this.security.context(req));
     return this.respond(res, tokens, user);
   }
 
@@ -266,8 +273,8 @@ export class AuthController {
   @Post('delete-account/request')
   @HttpCode(200)
   @Throttle({ default: { limit: 5, ttl: 3600_000 } })
-  requestDeletion(@Body(new ZodPipe(deletionRequestSchema)) b: z.infer<typeof deletionRequestSchema>) {
-    return this.auth.requestAccountDeletion(b.email);
+  requestDeletion(@Req() req: Request, @Body(new ZodPipe(deletionRequestSchema)) b: z.infer<typeof deletionRequestSchema>) {
+    return this.auth.requestAccountDeletion(b.email, this.security.context(req));
   }
 
   /** A ligação do email: de que conta se trata, antes de confirmar. */
@@ -324,8 +331,8 @@ export class AuthController {
   @Post('password/forgot')
   @HttpCode(200)
   @Throttle({ default: { limit: 5, ttl: 3600_000 } })
-  forgot(@Body(new ZodPipe(forgotSchema)) b: z.infer<typeof forgotSchema>) {
-    return this.auth.forgotPassword(b.email);
+  forgot(@Req() req: Request, @Body(new ZodPipe(forgotSchema)) b: z.infer<typeof forgotSchema>) {
+    return this.auth.forgotPassword(b.email, this.security.context(req));
   }
 
   @Post('password/reset')

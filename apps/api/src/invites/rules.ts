@@ -1,4 +1,5 @@
 import { createHash, randomInt } from 'node:crypto';
+import { isDisposableEmail } from '../security/disposable';
 
 /** As regras dos convites num só sítio. Valores propostos e aprovados: ver a conversa de 4 de novembro de 2026. */
 export const INVITE = {
@@ -18,14 +19,17 @@ export const INVITE = {
   SAME_NET_MAX: 3,
   /** Para ficar «ativa»: publicou algo ou segue pelo menos N pessoas. */
   ACTIVE_FOLLOWS: 3,
+  /**
+   * Conta real (desde a 0148): além do email confirmado e da atividade, voltou ao Txillapp pelo menos N horas depois do
+   * registo (uma sessão nova ou renovada nessa altura) e não está marcada como suspeita. Só então há prémio para alguém.
+   */
+  RETURN_HOURS: 12,
+  /** Contas novas com o mesmo código numa hora a partir das quais cada uma leva pontos de risco («rajada de convites»). */
+  BURST_PER_HOUR: 5,
 } as const;
 
-/** Domínios de email temporário (não dão prémio). */
-const DISPOSABLE = new Set([
-  'mailinator.com', 'guerrillamail.com', 'guerrillamail.net', 'sharklasers.com', '10minutemail.com', '10minutemail.net', 'tempmail.com', 'temp-mail.org',
-  'yopmail.com', 'trashmail.com', 'getnada.com', 'dispostable.com', 'throwawaymail.com', 'maildrop.cc', 'fakeinbox.com', 'mintemail.com', 'tempail.com', 'mohmal.com',
-]);
-export const isDisposable = (email: string) => DISPOSABLE.has((email.split('@')[1] ?? '').toLowerCase());
+/** Domínios de email temporário (não dão prémio; desde a 0148 também não registam). A lista é a da segurança. */
+export const isDisposable = (email: string) => isDisposableEmail(email);
 
 /** Impressão da rede (não guarda o IP): só serve para ver se muitos registos vêm do mesmo sítio. */
 export const hashNet = (ip: string, salt: string) => createHash('sha256').update(`${salt}|${ip}`).digest('hex').slice(0, 32);
