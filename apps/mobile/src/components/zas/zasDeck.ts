@@ -66,17 +66,23 @@ const lerp = (a: number, b: number, t: number) => {
  * Pose de um cartão a `d` lugares do de cima (contínuo). d ∈ [0, 2]: entre os lugares da pilha; d > 2: o seguinte a
  * aparecer por trás (vai ganhando opacidade); d ∈ [-1, 0): a sair para a esquerda (roda e desvanece). `w` é a largura do
  * ecrã, `h` a altura do cartão. Corre no worklet do Reanimated (no telemóvel) e no JS (na web e nos testes).
+ *
+ * ATENÇÃO (worklet): nada de valores por omissão que usem constantes de fora (`behind = DECK_BEHIND`). No telemóvel o
+ * worklet só recebe as variáveis de fora (o `__closure`) já DENTRO do corpo; o valor por omissão corre antes e dá
+ * «ReferenceError: Property 'DECK_BEHIND' doesn't exist» na thread da UI, o que fecha a app sem aviso (APK 1.47.1).
+ * O teste tests/zasDeck.test.mjs corre os worklets como no telemóvel e apanha isto.
  */
-export function deckPose(d: number, w: number, h: number, behind = DECK_BEHIND): DeckPose {
+export function deckPose(d: number, w: number, h: number, behind?: number): DeckPose {
   'worklet';
+  const back = behind ?? DECK_BEHIND;
   if (d < 0) {
     const t = Math.min(1, -d);
     // Opaco até sair de todo (meio transparente, via-se o de trás através dele enquanto se arrasta).
     return { translateX: -t * w * 1.05, translateY: t * h * 0.04, scale: 1, rotate: -12 * t, opacity: t >= 1 ? 0 : 1, shade: 0 };
   }
-  if (d > behind) {
-    const last = restPose(behind, h);
-    return { ...last, opacity: Math.max(0, 1 - (d - behind)) };
+  if (d > back) {
+    const last = restPose(back, h);
+    return { ...last, opacity: Math.max(0, 1 - (d - back)) };
   }
   const k = Math.floor(d);
   const t = d - k;
