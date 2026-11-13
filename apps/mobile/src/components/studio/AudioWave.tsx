@@ -168,7 +168,7 @@ export function AudioWave({ analysis, startMs, windowS, playT, suggestion, onScr
   return (
     <View style={st.wrap} onLayout={(e: LayoutChangeEvent) => setW(Math.round(e.nativeEvent.layout.width))}>
       <View style={st.head}>
-        <Text style={st.range}>{mmss(start)} – {mmss(start + win)}</Text>
+        <Text style={st.range}>{mmss(start)} a {mmss(start + win)}</Text>
         <Text style={st.hint}>{drag !== null ? 'A ouvir daqui…' : 'Arrasta a onda para escolher o trecho'}</Text>
       </View>
       {dom('div', {

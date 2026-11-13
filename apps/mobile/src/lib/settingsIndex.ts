@@ -139,7 +139,9 @@ export const SETTINGS_ENTRIES: SettingsEntry[] = [
   { id: 'password', group: 'seguranca', title: 'Alterar senha', keywords: ['palavra-passe', 'password', 'mudar senha', 'senha', 'palavra passe'] },
   { id: 'devices', group: 'seguranca', title: 'Os teus aparelhos', keywords: ['sessões', 'dispositivos', 'telemóveis', 'computadores', 'terminar sessão noutros', 'sessão iniciada', 'aparelhos'] },
   // Ajuda e sobre
-  { id: 'help', group: 'ajuda', title: 'Ajuda', to: '/help', keywords: ['perguntas', 'suporte', 'faq', 'dúvidas', 'apoio', 'denunciar', 'denúncia', 'reportar', 'abuso'] },
+  { id: 'help', group: 'ajuda', title: 'Ajuda', to: '/help', keywords: ['perguntas', 'suporte', 'faq', 'dúvidas', 'apoio', 'denunciar', 'denúncia', 'reportar', 'abuso',
+    // O estúdio das tchekas não tem opções nas Definições: quem o procura aqui vai dar às perguntas dele na Ajuda.
+    'estúdio', 'estúdio das tchekas', 'editar tcheka', 'voz-off', 'narração', 'microfone', 'montagem mágica', 'rascunhos', 'linha do tempo', 'cortar clipe', 'capulana'] },
   { id: 'terms', group: 'ajuda', title: 'Termos de utilização', to: '/terms', keywords: ['termos', 'regras', 'condições', 'tolerância zero', 'regras da malta'] },
   { id: 'privacyPolicy', group: 'ajuda', title: 'Política de privacidade', to: '/privacy', keywords: ['rgpd', 'dados pessoais', 'privacidade'] },
   { id: 'about', group: 'ajuda', title: 'Sobre', to: '/about', keywords: ['sobre o txillapp', 'informações'] },
