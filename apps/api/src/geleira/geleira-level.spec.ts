@@ -48,8 +48,9 @@ describe('nível da geleira: as contas sem base de dados', () => {
 
   it('a dica diz o que falta, em coisas concretas', () => {
     expect(tipFor({ points: 94, level: 2, breakdown: bd({ people: 6, weeks: 9, raw: 2 }) }, 'Paulada garantida')).toBe('Paga 2 geladas ou recebe brindes de 6 amigos para chegares a Paulada garantida.');
+    expect(tipFor({ points: 90, level: 2, breakdown: bd({ people: 6, weeks: 9, raw: 2 }) }, 'Paulada garantida')).toBe('Paga 4 geladas ou faz 5 check-ins em sítios diferentes para chegares a Paulada garantida.');
     expect(tipFor({ points: 70, level: 2, breakdown: bd({ people: 3, weeks: 9, raw: 2 }) }, 'Paulada garantida')).toBe(
-      'Paga 10 geladas ou faz 15 check-ins em sítios diferentes e txila com mais 2 pessoas diferentes para chegares a Paulada garantida.',
+      'Paga 2 geladas e faz 2 check-ins por semana durante umas 3 semanas e txila com mais 2 pessoas diferentes para chegares a Paulada garantida.',
     );
     expect(tipFor({ points: 120, level: 2, breakdown: bd({ people: 5, weeks: 5, raw: 2 }) }, 'Paulada garantida')).toBe('Sai com a malta em mais 1 semana para chegares a Paulada garantida.');
     expect(tipFor({ points: 0, level: 0, breakdown: bd() }, 'A txilar')).toMatch(/começares a txilar/);

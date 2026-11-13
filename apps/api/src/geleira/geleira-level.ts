@@ -123,11 +123,10 @@ export function tipFor(row: { points: number; level: number; breakdown: LevelBre
   const parts: string[] = [];
   if (n.points > 0) {
     const g = Math.ceil(n.points / POINTS.paid);
-    parts.push(
-      n.points <= PERSON_WEEK_MAX
-        ? `paga ${plural(g, 'gelada', 'geladas')} ou recebe brindes de ${plural(n.points, 'amigo', 'amigos')}`
-        : `paga ${plural(g, 'gelada', 'geladas')} ou faz ${plural(Math.ceil(n.points / POINTS.checkin), 'check-in', 'check-ins')} em sítios diferentes`,
-    );
+    // Pouco: uma ou duas coisas. Muito: o ritmo de quem sai (2 geladas pagas e 2 check-ins por semana, ~10 pontos).
+    if (n.points <= PERSON_WEEK_MAX) parts.push(`paga ${plural(g, 'gelada', 'geladas')} ou recebe brindes de ${plural(n.points, 'amigo', 'amigos')}`);
+    else if (n.points <= 2 * PERSON_WEEK_MAX) parts.push(`paga ${plural(g, 'gelada', 'geladas')} ou faz ${plural(Math.ceil(n.points / POINTS.checkin), 'check-in', 'check-ins')} em sítios diferentes`);
+    else parts.push(`paga 2 geladas e faz 2 check-ins por semana durante umas ${Math.ceil(n.points / (2 * POINTS.paid + 2 * POINTS.checkin))} semanas`);
   }
   if (n.people > 0) parts.push(`txila com mais ${plural(n.people, 'pessoa diferente', 'pessoas diferentes')}`);
   if (n.weeks > 0) parts.push(`sai com a malta em mais ${plural(n.weeks, 'semana', 'semanas')}`);
