@@ -53,6 +53,13 @@ export interface TimelineProps {
   onSelectLayer?: (id: string | null) => void;
   /** No telemóvel: sem a linha de cima (o tempo está na pré-visualização e o zoom faz-se com a pinça); os avisos ficam por cima da régua. */
   compact?: boolean;
+  /**
+   * Densa (no telemóvel, com a folha dos painéis aberta): a régua com 16 px, os clipes com 48 px e as faixas em linhas finas
+   * coloridas por cima dos clipes, sem legendas nem pegas (arrastam-se com a folha fechada).
+   */
+  dense?: boolean;
+  /** À esquerda da régua, fora do que desliza: o tocar/pausar e o tempo. */
+  lead?: ReactNode;
   /** Mexer numa faixa: o início e o fim novos (segundos da tcheka), desde o início do gesto. */
   onLayer?: (id: string, start: number, end: number, phase: 'start' | 'move' | 'end') => void;
 }
@@ -63,14 +70,16 @@ const C = {
 };
 const PAD = 28;
 const HEAD_H = 48;
-const RULER_H = 22;
-const TRACK_H = 58;
+const RULER_H0 = 22;
+const TRACK_H0 = 58;
+/** A largura da coluna do tocar/pausar e do tempo, à esquerda da régua (linha do tempo densa). */
+const LEAD_W = 58;
 const HANDLE_W = 22;
 const GAP = 2;
 const TILE = 52;
 const SLOT = 58;
 const ADD_W = 54;
-const TW = Math.round((TRACK_H * 9) / 16);
+const TW0 = Math.round((TRACK_H0 * 9) / 16);
 const LAYER_H = 22;
 const LAYER_GAP = 3;
 const LAYER_ROWS = 4;
@@ -120,17 +129,24 @@ function Frame({ uri, t, w, h, style }: { uri: string; t: number; w: number; h: 
 }
 
 /** Passo dos frames do filme: mais fino quanto mais perto. */
-const frameStep = (pps: number, speed: number) => { const s = (TW / pps) * speed; return [0.1, 0.25, 0.5, 1, 2, 4].find((q) => q >= s * 0.75) ?? 4; };
+const frameStep = (pps: number, speed: number) => { const s = (TW0 / pps) * speed; return [0.1, 0.25, 0.5, 1, 2, 4].find((q) => q >= s * 0.75) ?? 4; };
 
 export function Timeline(p: TimelineProps) {
   const { clips, durations, locked, selected } = p;
   const headH = p.compact ? 0 : HEAD_H;
+  const dense = !!p.dense;
+  const RULER_H = dense ? 16 : RULER_H0;
+  const TRACK_H = dense ? 48 : TRACK_H0;
+  const TW = Math.round((TRACK_H * 9) / 16);
+  const LH = dense ? 6 : LAYER_H, LG = dense ? 2 : LAYER_GAP;
+  const leadW = p.lead ? LEAD_W : 0;
   const total = durations.reduce((a, b) => a + b, 0);
   const wrap = useRef<HTMLDivElement | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
   const playheadEl = useRef<HTMLDivElement | null>(null);
   const clockEl = useRef<HTMLSpanElement | null>(null);
-  const [width, setWidth] = useState(0);
+  const [rawWidth, setWidth] = useState(0);
+  const width = Math.max(0, rawWidth - leadW);
   const [pps, setPpsState] = useState(PPS_DEFAULT);
   const ppsRef = useRef(pps);
   const setPps = (v: number) => { ppsRef.current = v; setPpsState(v); };
@@ -188,7 +204,7 @@ export function Timeline(p: TimelineProps) {
   const layers = p.layers ?? [];
   // No telemóvel, duas linhas de faixas no máximo (a imagem precisa do espaço).
   const packed = useMemo(() => packLayers(layers, p.compact ? 2 : LAYER_ROWS), [layers, p.compact]); // eslint-disable-line react-hooks/exhaustive-deps
-  const layersH = packed.rows ? packed.rows * (LAYER_H + LAYER_GAP) + 4 : 0;
+  const layersH = packed.rows ? packed.rows * (LH + LG) + (dense ? 1 : 4) : 0;
   /** Onde começa a pista dos clipes (por baixo da régua e das faixas). */
   const trackTop = RULER_H + 4 + layersH;
   const cutsRef = useRef(cuts);
@@ -617,7 +633,12 @@ export function Timeline(p: TimelineProps) {
   const selLayer = p.selectedLayer ?? null;
   const layerEls = layers.map((l) => {
     const r = packed.row.get(l.id) ?? 0;
-    const top = RULER_H + 4 + r * (LAYER_H + LAYER_GAP);
+    const top = RULER_H + 4 + r * (LH + LG);
+    // Densa: uma linha fina na cor da faixa (um ponto nos efeitos sonoros), só para se ver onde está.
+    if (dense) {
+      const [d1] = LAYER_COLORS[l.kind];
+      return <div key={l.id} aria-hidden style={{ position: 'absolute', left: l.point ? PAD + l.start * pps - 3 : PAD + l.start * pps, top, width: l.point ? 6 : Math.max(4, (l.end - l.start) * pps), height: LH, borderRadius: 3, background: d1, opacity: l.id === (p.selectedLayer ?? null) ? 1 : 0.85, pointerEvents: 'none' }} />;
+    }
     const left = PAD + l.start * pps;
     const on = l.id === selLayer;
     const [c1, c2] = LAYER_COLORS[l.kind];
@@ -678,18 +699,19 @@ export function Timeline(p: TimelineProps) {
         {zoomBtn('+', 'Aproximar', () => zoomBy(1.6))}
       </div>
       )}
+      {p.lead ? <div data-tl="ui" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: LEAD_W, zIndex: 7, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, background: C.bg, borderRight: `1px solid ${C.line}` }}>{p.lead}</div> : null}
       <div
         ref={scroller}
         onPointerDown={onPointerDown}
         onScroll={(e) => { const x = (e.target as HTMLDivElement).scrollLeft; if (Math.abs(x - scrollX) > vw / 3) setScrollX(x); }}
-        style={{ position: 'relative', overflowX: 'auto', overflowY: 'hidden', touchAction: 'none', overscrollBehavior: 'contain', scrollbarWidth: 'none', paddingBottom: 10 } as CSSProperties}
+        style={{ position: 'relative', overflowX: 'auto', overflowY: 'hidden', touchAction: 'none', overscrollBehavior: 'contain', scrollbarWidth: 'none', paddingBottom: dense ? 4 : 10, marginLeft: leadW } as CSSProperties}
       >
         <div style={{ position: 'relative', width: contentW, height: trackTop + TRACK_H + 8 }}>
           {/* A régua */}
           <div data-tl="ruler" style={{ position: 'absolute', left: 0, top: 0, width: contentW, height: RULER_H, cursor: locked ? 'default' : 'col-resize' }}>
             {ticks.map((tk) => (
               <div key={tk.t} style={{ position: 'absolute', left: PAD + tk.t * pps, bottom: 2, width: 1, height: tk.major ? 7 : 3, background: tk.major ? C.dim : C.faint }}>
-                {tk.label ? <span style={{ position: 'absolute', left: 3, bottom: 5, fontSize: 12, fontWeight: 700, color: C.dim, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{tk.label}</span> : null}
+                {tk.label ? <span style={{ position: 'absolute', left: 3, bottom: dense ? 2 : 5, fontSize: dense ? 11 : 12, fontWeight: 700, color: C.dim, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{tk.label}</span> : null}
               </div>
             ))}
           </div>
@@ -720,7 +742,7 @@ export function Timeline(p: TimelineProps) {
       </div>
       {/* A reordenar: quadrados iguais, o arrastado segue o dedo. */}
       {reorder ? (
-        <div aria-live="polite" style={{ position: 'absolute', left: 0, right: 0, top: headH + trackTop, height: TRACK_H, pointerEvents: 'none', zIndex: 8 }}>
+        <div aria-live="polite" style={{ position: 'absolute', left: leadW, right: 0, top: headH + trackTop, height: TRACK_H, pointerEvents: 'none', zIndex: 8 }}>
           <div style={{ position: 'absolute', left: 8, right: 8, top: -3, bottom: -3, borderRadius: 12, background: 'rgba(255,79,109,0.06)', boxShadow: 'inset 0 0 0 1px rgba(255,79,109,0.35)' }} />
           {(() => {
             const order = clips.map((_, i) => i).filter((i) => i !== reorder.from);

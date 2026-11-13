@@ -17,7 +17,7 @@ export type FxTarget = number | 'all';
 export interface ReverseState { status: 'ready' | 'working' | 'too-long' | 'error' | null; progress: number }
 
 type Sub = 'filtros' | 'ajustes' | 'transicoes' | 'tempo';
-const SUBS: { id: Sub; label: string }[] = [{ id: 'filtros', label: 'Filtros' }, { id: 'ajustes', label: 'Ajustes' }, { id: 'transicoes', label: 'Transições' }, { id: 'tempo', label: 'Tempo' }];
+const SUBS: { id: Sub; label: string }[] = [{ id: 'filtros', label: 'Filtros' }, { id: 'ajustes', label: 'Ajustes' }, { id: 'transicoes', label: 'Transição' }, { id: 'tempo', label: 'Tempo' }];
 const ADJ_ICON: Record<AdjustKey, IconName> = { brightness: 'sun', contrast: 'moon', saturation: 'water', temperature: 'flame', hue: 'sparkles', sharpen: 'bolt', vignette: 'eye', grain: 'grid' };
 const TR_GLYPH: Partial<Record<TransitionId, string>> = {
   corte: '✂', fundido: '◐', 'deslizar-esquerda': '←', 'deslizar-direita': '→', 'deslizar-cima': '↑', 'deslizar-baixo': '↓',
