@@ -13,7 +13,7 @@ import type { FxClip, FxTarget, ReverseState } from '../FxPanel';
 
 
 type Sub = 'filtros' | 'ajustes' | 'transicoes' | 'tempo';
-const SUBS: { id: Sub; label: string }[] = [{ id: 'filtros', label: 'Filtros' }, { id: 'ajustes', label: 'Ajustes' }, { id: 'transicoes', label: 'Transições' }, { id: 'tempo', label: 'Tempo' }];
+const SUBS: { id: Sub; label: string }[] = [{ id: 'filtros', label: 'Filtros' }, { id: 'ajustes', label: 'Ajustes' }, { id: 'transicoes', label: 'Transição' }, { id: 'tempo', label: 'Tempo' }];
 const ADJ_ICON: Record<AdjustKey, IconName> = { brightness: 'sun', contrast: 'moon', saturation: 'water', temperature: 'flame', hue: 'sparkles', sharpen: 'bolt', vignette: 'eye', grain: 'grid' };
 const TR_GLYPH: Partial<Record<TransitionId, string>> = {
   corte: '✂', fundido: '◐', 'deslizar-esquerda': '←', 'deslizar-direita': '→', 'deslizar-cima': '↑', 'deslizar-baixo': '↓',
@@ -48,26 +48,11 @@ export function NativeFxPanel({ clips, sel, onSelect, setFx, thumbOf, onPreviewJ
   const amount = fxNow?.filter?.amount ?? 1;
   const put = (target: FxTarget, change: (f: ClipFx) => ClipFx, timing = false) => setFx(target, (f) => sanitizeFx(change({ ...(f ?? {}) })), timing);
 
-  const clipBar = (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, alignItems: 'center' }} style={{ marginTop: 8, flexGrow: 0 }}>
-      {clips.map((c, k) => {
-        const on = k === i;
-        const has = !!(c.fx && (c.fx.filter || c.fx.adjust || c.fx.ramp || c.fx.reverse));
-        return (
-          <Pressable key={c.key} onPress={() => onSelect(k)} style={[{ width: 44, height: 56, borderRadius: 10, overflow: 'hidden', borderWidth: 2, borderColor: on ? fxc.coralHot : 'rgba(255,255,255,0.14)', backgroundColor: '#1a1a22' }, on && ({ boxShadow: fxc.glow } as object)]} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`Clipe ${k + 1}${c.video ? ', vídeo' : ', foto'}`}>
-            {thumbOf(c.key) ? <Image source={thumbOf(c.key) as never} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : null}
-            <View pointerEvents="none" style={{ position: 'absolute', left: 3, top: 2 }}><Text style={{ color: '#fff', fontSize: 14, fontWeight: '900', textShadowColor: '#000', textShadowRadius: 3 }}>{k + 1}</Text></View>
-            {has ? <View pointerEvents="none" style={{ position: 'absolute', right: 3, top: 3, width: 7, height: 7, borderRadius: 4, backgroundColor: fxc.coralHot }} /> : null}
-          </Pressable>
-        );
-      })}
-    </ScrollView>
-  );
 
   return (
     <View>
       <FxSegment items={SUBS} value={sub} onChange={setSub} />
-      {clips.length > 1 ? clipBar : null}
+      {/* O clipe escolhe-se na linha do tempo (como no site, no telemóvel não se repete a fila dos clipes aqui). */}
 
       {sub === 'filtros' ? (
         <>

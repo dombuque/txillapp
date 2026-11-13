@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { ChevronDown, ChevronUp, Pause, Play, Redo2, Undo2, X } from 'lucide-react-native';
+import { Pause, Play, Redo2, Undo2, X } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, BackHandler, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
@@ -45,6 +45,7 @@ import { TextPanel } from './studio/TextPanel';
 import type { TimelineLayer } from './studio/Timeline';
 import { AudioMarks } from './studio/native/AudioMarks';
 import { createClockStore } from './studio/native/clockStore';
+import { fitStage, GRAB_H, studioLayout, TABS_H, TOP_H } from '@/lib/studio/nativeLayout';
 import { NativeClipActions } from './studio/native/NativeClipActions';
 import { NativeComposeOverlay } from './studio/native/NativeComposeOverlay';
 import { NativeFxPanel } from './studio/native/NativeFxPanel';
@@ -69,7 +70,6 @@ export interface StudioDraftIn { id: string; clips: ProjectClip[]; settings: Par
 const DEFAULT_PANO: CapulanaSpec = { pattern: 'losangos', palette: 'coral', seed: 1 };
 const TEMPLATE_TRANSITION: Record<Template['transition'], TransitionId> = { none: 'corte', fade: 'fundido', slide: 'deslizar-esquerda' };
 const TABS: { id: Tab; label: string }[] = [{ id: 'clipes', label: 'Clipes' }, { id: 'som', label: 'Som' }, { id: 'texto', label: 'Texto' }, { id: 'stickers', label: 'Stickers' }, { id: 'efeitos', label: 'Efeitos' }, { id: 'capa', label: 'Capa' }];
-const TABS_H = 50;
 const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const clipDur = (it: Item) => (it.video ? fxSeconds(it.trim.end - it.trim.start, it.speed, it.fx) : it.seconds);
 const withFx = (it: Item, fx: ClipFx | undefined): Item => { if (fx) return { ...it, fx }; if (!('fx' in it)) return it; const { fx: _fx, ...rest } = it; return rest; };
@@ -167,7 +167,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const say = (s: string) => { setNote(s); if (noteTimer.current) clearTimeout(noteTimer.current); noteTimer.current = setTimeout(() => setNote(null), 2400); };
   const [tab, setTab] = useState<Tab>('clipes');
-  const [sheet, setSheet] = useState<SheetH>('baixa');
+  const [sheet, setSheet] = useState<SheetH>('media');
   const [selOv, setSelOv] = useState<string | null>(null);
   const [selSound, setSelSound] = useState<string | null>(null);
   const [editTick, setEditTick] = useState(0);
@@ -342,6 +342,9 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     if (!key) return;
     setSelOv(null);
     setSelSound(null);
+    // As ações do clipe estão no separador Clipes (nos Efeitos, o clipe escolhido é o que se edita).
+    if (tab !== 'efeitos') setTab('clipes');
+    setSheet((h) => (h === 'baixa' ? 'media' : h));
     const s = segs[indexOf(key)];
     const t = nowT();
     if (s && (t < s.start || t >= s.start + s.dur)) clock.seek(s.start + 0.01);
@@ -458,7 +461,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     return out;
   }, [overlays, mix.voice, mix.sfx, playTotal]);
   const selectLayer = (id: string | null) => {
-    if (id === 'voice' || id?.startsWith('sfx:')) { setSelSound(id); setSelOv(null); setTab('som'); return; }
+    if (id === 'voice' || id?.startsWith('sfx:')) { setSelSound(id); setSelOv(null); setTab('som'); setSheet((h) => (h === 'baixa' ? 'media' : h)); return; }
     setSelSound(null);
     selectOverlay(id);
   };
@@ -703,7 +706,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const baseH = useRef(win.height);
   useEffect(() => {
     const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
-      // No Android a janela às vezes encolhe sozinha com o teclado: aí não é preciso subir a folha.
+      // No Android a janela às vezes encolhe sozinha com o teclado: aí não é preciso guardar o espaço dele.
       const shrunk = Platform.OS === 'android' && baseH.current - win.height > 80;
       setKb(shrunk ? 0 : Math.max(0, e.endCoordinates.height - insets.bottom));
       setSheet('alta');
@@ -712,31 +715,49 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
     return () => { show.remove(); hide.remove(); };
   }, [win.height, insets.bottom]);
   useEffect(() => { if (kb === 0) baseH.current = win.height; }, [win.height, kb]);
+
+  // ---------------------------------------------------------------- medidas (como no site: topo → imagem → linha do tempo → folha)
+  const top = Math.max(insets.top, 6);
+  const bottom = Math.max(insets.bottom, 4);
+  const [tlH, setTlH] = useState(80);
+  const lay = studioLayout({ winH: win.height, winW: win.width, top, bottom, kb, timelineH: tlH, sheet });
+  const [dragH, setDragH] = useState<number | null>(null);
+  const sheetH = dragH ?? lay.sheetH;
+  /** Com a folha aberta, a linha do tempo fica densa (com o tocar/pausar e o tempo à esquerda) e a barra do tempo sai. */
+  const dense = sheetH > 0;
   const pickTab = (id: Tab) => {
     if (id === tab) setSheet((s) => (s === 'baixa' ? 'media' : 'baixa'));
     else { setTab(id); openSheet('media'); }
   };
+  const dragBase = useRef(0);
   const handlePan = usePanGesture({
-    runOnJS: true, activeOffsetY: [-12, 12], failOffsetX: [-14, 14],
-    onDeactivate: (e) => {
-      if (e.translationY < -30) setSheet((s) => (s === 'baixa' ? 'media' : 'alta'));
-      else if (e.translationY > 30) { Keyboard.dismiss(); setSheet((s) => (s === 'alta' ? 'media' : 'baixa')); }
+    runOnJS: true, activeOffsetY: [-8, 8], failOffsetX: [-14, 14],
+    onBegin: () => { dragBase.current = sheetH; },
+    onUpdate: (e) => setDragH(Math.max(0, Math.min(lay.highH, dragBase.current - e.translationY))),
+    onFinalize: () => {
+      setDragH((h) => {
+        if (h !== null) {
+          // Larga na altura mais próxima.
+          const next: SheetH = h < lay.midH / 2 ? 'baixa' : h < (lay.midH + lay.highH) / 2 ? 'media' : 'alta';
+          if (next !== 'alta') Keyboard.dismiss();
+          setSheet(next);
+        }
+        return null;
+      });
     },
   });
-  const handleTap = useTapGesture({ runOnJS: true, onActivate: () => setSheet((s) => (s === 'baixa' ? 'media' : s === 'media' ? 'alta' : 'baixa')) });
+  // Um toque na pega passa à altura seguinte (baixa → média → alta → média), como no site.
+  const handleTap = useTapGesture({ runOnJS: true, onActivate: () => setSheet((s) => (s === 'baixa' ? 'media' : s === 'media' ? 'alta' : 'media')) });
 
-  // ---------------------------------------------------------------- medidas
   const [area, setArea] = useState({ w: 0, h: 0 });
   /** Um toque numa camada não conta também como tocar na imagem (pausa). */
   const ovTouch = useRef(0);
-  const [bottomH, setBottomH] = useState(150);
-  const top = Math.max(insets.top, 8);
-  const bottom = Math.max(insets.bottom, 6);
-  const stageH = Math.max(120, area.h);
-  const stageW = Math.min(area.w - 24, stageH * (9 / 16));
-  const realH = stageW * (16 / 9);
-  // A folha média tapa a linha do tempo e a barra do clipe (medidas) e fica com pelo menos 240; a alta, 62 % do ecrã.
-  const sheetHeight = sheet === 'baixa' ? TABS_H : sheet === 'media' ? Math.max(bottomH + TABS_H, 240) : Math.max(Math.round(win.height * 0.62), bottomH + TABS_H + 60);
+  /** A imagem 9:16 com a maior altura que cabe no espaço que sobra (nunca por trás da folha); sem espaço, recolhe. */
+  const fit = fitStage(area.w, area.h);
+  const lastFit = useRef(fit);
+  if (fit.shown) lastFit.current = fit;
+  const stageW = fit.shown ? fit.w : lastFit.current.w || 1;
+  const realH = fit.shown ? fit.h : lastFit.current.h || 1;
   const timelineW = win.width;
   const videoFiltered = items.some((it) => it.video && (it.fx?.filter || it.fx?.adjust));
   const thumbOf = (key: string) => { const it = items.find((x) => x.key === key); return !it ? null : it.video ? cachedVideoThumb(it.uri, it.length, it.trim.start) : it.uri; };
@@ -744,6 +765,13 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const selFx = cur?.fx;
   const capTransition = selFx?.transition && isCapulanaTransition(selFx.transition.type) ? (selFx.transition.type as CapulanaTransitionId) : null;
   const busy = !!run;
+  /** «Seguinte» com a regra por cumprir: diz o que falta e abre o sítio certo (a música, se é ela que falta). */
+  const showHint = () => {
+    if (!rules.hint) return;
+    say(rules.hint);
+    if (rules.problem === 'som') { setTab('som'); openSheet('media'); if (!music && /música/i.test(rules.hint)) { clock.pause(); setPickMusic(true); } }
+    else { setTab('clipes'); openSheet('media'); }
+  };
 
   const chip = (on: boolean, label: string, onPress: () => void, key?: string) => (
     <Pressable key={key ?? label} onPress={onPress} disabled={locked} style={[st.chip, on && st.chipOn]} accessibilityRole="button" accessibilityState={{ selected: on }}>
@@ -752,96 +780,99 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   );
 
   return (
-    <View style={[st.root, { paddingTop: top }]} accessibilityViewIsModal>
-      {/* Em cima: fechar, o nome e «Seguinte». */}
+    <View style={[st.root, { paddingTop: top, paddingBottom: bottom + kb }]} accessibilityViewIsModal>
+      {/* Em cima: fechar, o que falta (no lugar do nome), desfazer/refazer e «Seguinte». */}
       <View style={st.top}>
         <Pressable onPress={close} style={st.round} accessibilityRole="button" accessibilityLabel="Voltar"><X size={24} color="#fff" strokeWidth={2.2} /></Pressable>
-        <Text style={[st.title, win.width < 380 && { fontSize: 16 }]} numberOfLines={1}>Nova tcheka</Text>
-        <Pressable onPress={() => void build()} disabled={!rules.ok || busy} style={[st.cta, (!rules.ok || busy) && { opacity: 0.45 }]} accessibilityRole="button" accessibilityState={{ disabled: !rules.ok || busy }} accessibilityHint={rules.hint ?? undefined} accessibilityLabel="Seguinte">
+        {rules.hint ? (
+          <Pressable onPress={showHint} disabled={locked} style={st.titleBox} accessibilityRole="button" accessibilityLabel={`Para seguir: ${rules.hint}`}>
+            <Text style={st.hintText} numberOfLines={2} accessibilityLiveRegion="polite">{rules.hint}</Text>
+          </Pressable>
+        ) : (
+          <View style={st.titleBox}><Text style={st.title} numberOfLines={1}>{win.width < 380 ? '' : 'Nova tcheka'}</Text></View>
+        )}
+        <View style={st.history}>
+          <Pressable onPress={undo} disabled={locked || !canUndo(hist)} style={[st.histBtn, (locked || !canUndo(hist)) && { opacity: 0.32 }]} accessibilityRole="button" accessibilityLabel="Desfazer"><Undo2 size={20} color="#fff" /></Pressable>
+          <Pressable onPress={redo} disabled={locked || !canRedo(hist)} style={[st.histBtn, (locked || !canRedo(hist)) && { opacity: 0.32 }]} accessibilityRole="button" accessibilityLabel="Refazer"><Redo2 size={20} color="#fff" /></Pressable>
+        </View>
+        <Pressable onPress={() => (rules.ok ? void build() : showHint())} disabled={busy} style={[st.cta, (!rules.ok || busy) && { opacity: 0.45 }]} accessibilityRole="button" accessibilityState={{ disabled: !rules.ok || busy }} accessibilityHint={rules.hint ?? undefined} accessibilityLabel="Seguinte">
           <Text style={st.ctaText}>Seguinte</Text>
         </Pressable>
       </View>
-      {rules.hint ? (
-        <View style={st.hintWrap}>
-          <Pressable onPress={() => { setTab(rules.problem === 'som' ? 'som' : 'clipes'); openSheet('media'); }} disabled={locked} style={st.hint} accessibilityRole="button" accessibilityLabel={`Para seguir: ${rules.hint}`}>
-            <Text style={st.hintText} accessibilityLiveRegion="polite">{rules.hint}</Text>
-          </Pressable>
-        </View>
-      ) : null}
 
       {/* A imagem grande: o palco 9:16 com a altura que sobra. Tocar fora das camadas alterna tocar/pausa. */}
       <View style={st.stageArea} onLayout={(e) => { const l = e.nativeEvent.layout; setArea((a) => (Math.abs(a.w - l.width) < 1 && Math.abs(a.h - l.height) < 1 ? a : { w: l.width, h: l.height })); }}>
-        {stageW > 0 ? (
+        {/* Recolhida (folha alta), a imagem fica montada mas sem altura: os vídeos e o som continuam no sítio. */}
+        <View style={fit.shown ? null : { height: 0, overflow: 'hidden', opacity: 0 }}>
           <Pressable onPress={() => { if (busy || Date.now() - ovTouch.current < 400) return; if (selOv) setSelOv(null); else clock.toggle(); }} style={[st.stage, { width: stageW, height: realH }]} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'}>
             <NativeStage segs={segs} clock={clock} W={stageW} H={realH} origVol={origVol} pano={pano} reference={reference} refVolume={musicVol} />
             <NativeOverlays overlays={overlays} clock={clock} W={stageW} H={realH} selId={selOv} locked={locked} showSafe={tab === 'texto' || tab === 'stickers'} onSelect={(id) => { ovTouch.current = Date.now(); selectOverlay(id); }} onEdit={(id) => { ovTouch.current = Date.now(); selectOverlay(id); setEditTick((n) => n + 1); setSheet('alta'); }} onChange={(o) => { ovTouch.current = Date.now(); changeOverlay(o); }} />
-            {!playing && !busy && !selOv ? <View style={st.center} pointerEvents="none"><View style={st.playBig}><Play size={32} color="#fff" fill="#fff" /></View></View> : null}
+            {!playing && !busy && !selOv ? <View style={st.center} pointerEvents="none"><View style={[st.playBig, stageW < 170 && { width: 48, height: 48 }]}><Play size={stageW < 170 ? 22 : 32} color="#fff" fill="#fff" /></View></View> : null}
           </Pressable>
-        ) : null}
-      </View>
-      <LookNote show={videoFiltered && tab === 'efeitos'} />
-
-      {/* Tocar/pausa, o tempo e desfazer/refazer. */}
-      <View style={st.controls}>
-        <Pressable onPress={() => !busy && clock.toggle()} style={st.ctrlBtn} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar' : 'Tocar'}>
-          {playing ? <Pause size={20} color="#fff" fill="#fff" /> : <Play size={20} color="#fff" fill="#fff" />}
-        </Pressable>
-        <Text style={st.clock} numberOfLines={1}>{previewClock(playT, playTotal)}</Text>
-        <View style={st.timeBar}>
-          <View style={[st.timeFill, { width: `${playTotal ? Math.min(100, (playT / playTotal) * 100) : 0}%` }]} />
-          <AudioMarks mix={mix} total={playTotal} />
         </View>
-        <Pressable onPress={undo} disabled={locked || !canUndo(hist)} style={[st.ctrlBtn, (locked || !canUndo(hist)) && { opacity: 0.32 }]} accessibilityRole="button" accessibilityLabel="Desfazer"><Undo2 size={20} color="#fff" /></Pressable>
-        <Pressable onPress={redo} disabled={locked || !canRedo(hist)} style={[st.ctrlBtn, (locked || !canRedo(hist)) && { opacity: 0.32 }]} accessibilityRole="button" accessibilityLabel="Refazer"><Redo2 size={20} color="#fff" /></Pressable>
+        {note ? <Text style={st.note} accessibilityLiveRegion="polite">{note}</Text> : null}
+        {fit.shown && videoFiltered && tab === 'efeitos' && sheetH > 0 ? <View style={st.lookNote} pointerEvents="none"><LookNote show /></View> : null}
       </View>
 
-      {/* A linha do tempo e a barra do clipe escolhido (a folha baixa deixa-as à vista). */}
-      <View style={[locked && { opacity: 0.4 }]} pointerEvents={locked ? 'none' : 'auto'} onLayout={(e) => { const h = Math.round(e.nativeEvent.layout.height); setBottomH((o) => (Math.abs(o - h) < 2 ? o : h)); }}>
-        {note ? <Text style={st.note} accessibilityLiveRegion="polite">{note}</Text> : null}
+      {/* Folha fechada: tocar/pausa e a barra do tempo por baixo da imagem. Aberta, o tocar e o tempo vão para a linha do tempo. */}
+      {dense ? null : (
+        <View style={st.controls}>
+          <Pressable onPress={() => !busy && clock.toggle()} style={st.ctrlBtn} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar' : 'Tocar'}>
+            {playing ? <Pause size={20} color="#fff" fill="#fff" /> : <Play size={20} color="#fff" fill="#fff" />}
+          </Pressable>
+          <Text style={st.clock} numberOfLines={1}>{previewClock(playT, playTotal)}</Text>
+          <View style={st.timeBar}>
+            <View style={[st.timeFill, { width: `${playTotal ? Math.min(100, (playT / playTotal) * 100) : 0}%` }]} />
+            <AudioMarks mix={mix} total={playTotal} />
+          </View>
+        </View>
+      )}
+
+      {/* A linha do tempo: sempre à vista (densa com a folha aberta). */}
+      <View style={[st.timelineBox, locked && { opacity: 0.4 }]} pointerEvents={locked ? 'none' : 'auto'}>
         <NativeTimeline
           clips={items} durations={durations} total={playTotal} clock={clock} selected={cur?.key ?? null} locked={locked} beats={useRhythm ? grid : undefined}
-          layers={layers} selectedLayer={selOv ?? selSound} width={timelineW}
+          layers={layers} selectedLayer={selOv ?? selSound} width={timelineW} dense={dense} playing={playing} onTogglePlay={() => !busy && clock.toggle()}
+          onHeight={(h) => setTlH((o) => (o === h ? o : h))}
           onSelect={onSelectClip} onSeek={onSeek} onTrim={onTrim} onMove={reorderClips} onSelectLayer={selectLayer} onLayer={onLayer} onAdd={() => void addFiles()}
         />
-        {selSound ? (
-          <View style={st.soundBar}>
-            <Text style={st.chipText}>{selSound === 'voice' ? 'Voz-off escolhida' : 'Efeito sonoro escolhido'} · arrasta na linha do tempo</Text>
-            <Pressable onPress={() => deleteSound(selSound)} style={[st.chip, { backgroundColor: 'rgba(220,38,38,0.25)' }]} accessibilityRole="button"><Text style={st.chipText}>Apagar</Text></Pressable>
-          </View>
-        ) : (
-          <NativeClipActions
-            clip={cur ?? null} duration={sel >= 0 ? durations[sel] ?? 0 : 0} rhythm={useRhythm} locked={locked}
-            onSplit={splitHere} onDuplicate={() => { if (cur) duplicate(cur.key); }} onSpeed={(sp) => { if (cur) changeSpeed(cur.key, sp); }}
-            onPhoto={(v) => { if (cur) changePhoto(cur.key, v); }} onSound={(v) => { if (cur) setClipSound(cur.key, v); }}
-            onReplace={() => { if (cur) void replace(cur.key); }} onDelete={() => { if (cur) remove(cur.key); }}
-          />
-        )}
       </View>
-      <View style={{ height: TABS_H + bottom }} />
 
-      {/* A folha dos separadores, com três alturas. */}
-      <View style={[st.sheet, { height: sheetHeight + bottom, bottom: kb, paddingBottom: bottom }]} pointerEvents="box-none">
+      {/* A folha dos separadores (no fim da coluna): a pega, os separadores e o painel com a altura da posição. */}
+      <View style={st.sheet}>
         <GestureDetector gesture={handlePan}>
-          <View style={st.tabs} accessibilityRole="tablist">
+          <View>
             <GestureDetector gesture={handleTap}>
-              <View style={st.handleZone} accessibilityRole="button" accessibilityLabel={sheet === 'alta' ? 'Baixar o painel' : 'Subir o painel'}>
-                {sheet === 'alta' ? <ChevronDown size={18} color="rgba(255,255,255,0.7)" /> : <ChevronUp size={18} color="rgba(255,255,255,0.7)" />}
+              <View style={st.grabZone} accessibilityRole="adjustable" accessibilityLabel="Altura dos painéis" accessibilityValue={{ text: sheet === 'baixa' ? 'fechada' : sheet === 'media' ? 'média' : 'alta' }}>
+                <View style={st.grab} />
               </View>
             </GestureDetector>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.tabsRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.tabsRow} style={{ height: TABS_H }}>
               {TABS.map((t) => (
                 <Pressable key={t.id} onPress={() => pickTab(t.id)} style={st.tabBtn} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id, expanded: sheet !== 'baixa' }} accessibilityLabel={t.label}>
                   <Text style={[st.tabText, tab === t.id && st.tabOn]}>{t.label}</Text>
-                  <View style={[st.tabDot, (tab !== t.id || sheet === 'baixa') && { opacity: 0 }]} />
+                  <View style={[st.tabDot, (tab !== t.id || sheetH === 0) && { opacity: 0 }]} />
                 </Pressable>
               ))}
             </ScrollView>
           </View>
         </GestureDetector>
-        {sheet !== 'baixa' ? (
-          <ScrollView style={[{ flex: 1 }, locked && { opacity: 0.4 }]} pointerEvents={locked ? 'none' : 'auto'} contentContainerStyle={{ paddingBottom: 16 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        {sheetH > 0 ? (
+          <ScrollView style={[{ height: sheetH }, locked && { opacity: 0.4 }]} pointerEvents={locked ? 'none' : 'auto'} contentContainerStyle={{ paddingBottom: 16 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            {selSound ? (
+              <View style={st.soundBar}>
+                <Text style={[st.chipText, { flex: 1 }]}>{selSound === 'voice' ? 'Voz-off escolhida' : 'Efeito sonoro escolhido'} · arrasta na linha do tempo</Text>
+                <Pressable onPress={() => deleteSound(selSound)} style={[st.chip, { backgroundColor: 'rgba(220,38,38,0.25)' }]} accessibilityRole="button"><Text style={st.chipText}>Apagar</Text></Pressable>
+              </View>
+            ) : null}
             {tab === 'clipes' ? (
               <>
+                <NativeClipActions
+                  clip={cur ?? null} duration={sel >= 0 ? durations[sel] ?? 0 : 0} rhythm={useRhythm} locked={locked}
+                  onSplit={splitHere} onDuplicate={() => { if (cur) duplicate(cur.key); }} onSpeed={(sp) => { if (cur) changeSpeed(cur.key, sp); }}
+                  onPhoto={(v) => { if (cur) changePhoto(cur.key, v); }} onSound={(v) => { if (cur) setClipSound(cur.key, v); }}
+                  onReplace={() => { if (cur) void replace(cur.key); }} onDelete={() => { if (cur) remove(cur.key); }}
+                />
                 <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
                   <MagicButton onPress={openMagic} disabled={magicSources.length < 2 || locked} hint={magicSources.length < 2 ? 'Junta pelo menos 2 fotos ou vídeos' : undefined} />
                 </View>
@@ -943,15 +974,18 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
 
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
-  top: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingBottom: 4, minHeight: 52 },
+  top: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, height: TOP_H },
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
-  title: { flex: 1, minWidth: 0, color: '#fff', fontSize: 17, fontWeight: '800' },
-  cta: { height: 44, minWidth: 104, paddingHorizontal: 18, borderRadius: 22, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  titleBox: { flex: 1, minWidth: 0, minHeight: 44, justifyContent: 'center' },
+  title: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  history: { flexDirection: 'row', alignItems: 'center', borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.08)' },
+  histBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  cta: { height: 44, minWidth: 92, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   ctaText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  hintWrap: { alignItems: 'center', paddingHorizontal: 16, paddingBottom: 4 },
-  hint: { borderRadius: 999, backgroundColor: 'rgba(214,51,79,0.92)', paddingHorizontal: 14, minHeight: 34, justifyContent: 'center', maxWidth: '100%' },
-  hintText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  stageArea: { flex: 1, minHeight: 140, alignItems: 'center', justifyContent: 'center' },
+  hintText: { color: '#ff8fa0', fontWeight: '800', fontSize: 14, lineHeight: 17 },
+  stageArea: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center' },
+  lookNote: { position: 'absolute', left: 0, right: 0, bottom: 2 },
+  timelineBox: { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' },
   stage: { borderRadius: 16, overflow: 'hidden', backgroundColor: '#000' },
   center: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   playBig: { width: 68, height: 68, borderRadius: 34, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', paddingLeft: 4 },
@@ -960,12 +994,12 @@ const st = StyleSheet.create({
   clock: { color: '#fff', fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums'], minWidth: 84 },
   timeBar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)' },
   timeFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 2, backgroundColor: '#fff' },
-  note: { position: 'absolute', top: -26, alignSelf: 'center', zIndex: 5, color: '#fff', fontSize: 14, fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.75)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4, overflow: 'hidden' },
+  note: { position: 'absolute', bottom: 6, alignSelf: 'center', zIndex: 5, color: '#fff', fontSize: 14, fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.75)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4, overflow: 'hidden' },
   soundBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 12, paddingTop: 6 },
-  sheet: { position: 'absolute', left: 0, right: 0, backgroundColor: '#0b0b11', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.08)', zIndex: 20 },
-  tabs: { height: TABS_H, flexDirection: 'row', alignItems: 'center' },
-  handleZone: { width: 44, height: TABS_H, alignItems: 'center', justifyContent: 'center' },
-  tabsRow: { flexGrow: 1, justifyContent: 'space-around', paddingRight: 8 },
+  sheet: { backgroundColor: '#0b0b11', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  grabZone: { height: GRAB_H, alignItems: 'center', justifyContent: 'center' },
+  grab: { width: 44, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.32)' },
+  tabsRow: { flexGrow: 1, justifyContent: 'space-around', paddingHorizontal: 6 },
   tabBtn: { paddingHorizontal: 9, minHeight: 44, minWidth: 48, alignItems: 'center', justifyContent: 'center' },
   tabText: { color: 'rgba(255,255,255,0.62)', fontSize: 14, fontWeight: '800' },
   tabOn: { color: '#fff' },
