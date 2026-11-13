@@ -66,6 +66,7 @@ export const JSON_WITHOUT_MEDIA: Record<string, string> = {
   'social.notifications.data': 'avisos (ids de publicações, nunca de ficheiros)',
   'analytics.events.props': 'estatísticas de uso',
   'social.reports.evidence': 'cópia do texto de uma mensagem denunciada (sem ficheiros)',
+  'content.posts.geleira': 'retrato da geleira partilhada (nomes, slugs e notas dos gostos; os desenhos vêm do catálogo, sem ficheiros)',
   'social.messages.gif': 'GIF do GIPHY (endereço externo)',
   'social.messages.system': 'avisos de sistema na conversa',
   'content.comments.gif': 'GIF do GIPHY (endereço externo)',
