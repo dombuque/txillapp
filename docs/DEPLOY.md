@@ -105,10 +105,10 @@ git add apps/mobile/app.json apps/mobile/package.json && git commit -m "v$(node 
 # 2) No servidor:
 cd /opt/txillapp && git pull && cd infra/prod && docker compose up -d --build && docker image prune -f
 # Só o site (a maior parte das alterações): docker compose up -d --build nginx
-# Só a API: docker compose up -d --build api
+# Só a API (as réplicas e o worker): docker compose build api && docker compose up -d api worker
 ```
 
-As migrações correm sozinhas (`migrate`) antes de a API arrancar. Cada build web tem uma versão (hash dos chunks, posta no `sw.js`, no HTML e em `/version.json` pelo `post-export-web.mjs`): a PWA procura versão nova sempre que volta a estar à vista e recarrega uma vez quando o service worker novo toma conta. A versão aparece em Definições e em Sobre ("versão 1.0.0 · a1b2c3d4e5f6"); compara com `curl -s https://txillapp.com/version.json`. Para reverter: `git checkout <commit-anterior>` e repetir (as migrações só avançam; escreve migrações compatíveis com a versão anterior).
+A API corre em várias réplicas (`api`, ROLE=web) e num `worker` (tarefas periódicas, montagem, vídeos), com o tempo real e os limites no Redis: ver [`docs/escala.md`](escala.md), também para a primeira publicação com réplicas e o rollback. As migrações correm sozinhas (`migrate`), uma vez, antes de a API arrancar. Cada build web tem uma versão (hash dos chunks, posta no `sw.js`, no HTML e em `/version.json` pelo `post-export-web.mjs`): a PWA procura versão nova sempre que volta a estar à vista e recarrega uma vez quando o service worker novo toma conta. A versão aparece em Definições e em Sobre ("versão 1.0.0 · a1b2c3d4e5f6"); compara com `curl -s https://txillapp.com/version.json`. Para reverter: `git checkout <commit-anterior>` e repetir (as migrações só avançam; escreve migrações compatíveis com a versão anterior).
 
 ## 6.1 Chamadas: servidor TURN (opcional, recomendado)
 

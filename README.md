@@ -66,7 +66,7 @@ docs           Arquitectura
 ## Limitações conhecidas do MVP
 
 - Media guardada em disco local (interface preparada para S3/R2).
-- Feed global (sem seguidores/privacidade ainda); rate limit em memória (Redis na fase seguinte).
+- Feed global (sem seguidores/privacidade ainda); limites de pedidos e tempo real no Redis com `REDIS_URL` (em memória sem ele; ver `docs/escala.md`).
 - Sem MFA, mensagens, mimos, descoberta e comerciantes — ver as fases em `docs/ARCHITECTURE.md`.
 
 ## Licença
