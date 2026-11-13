@@ -87,6 +87,11 @@ const stickerContentSchema = z.discriminatedUnion('type', [
     .object({ type: z.literal('gif'), id: z.string().regex(GIPHY_ID, 'GIF inválido'), url: z.string().max(600), w: z.number().int(), h: z.number().int() })
     .strict()
     .transform((g, ctx) => {
+      // As regras da API do GIPHY proíbem guardar cópias dos GIFs: desligado até haver autorização escrita (COMPOSE_GIFS=1 liga).
+      if (process.env.COMPOSE_GIFS !== '1') {
+        ctx.addIssue({ code: 'custom', path: ['type'], message: 'Os GIFs ainda não estão disponíveis nas tchekas' });
+        return z.NEVER;
+      }
       // Só do GIPHY, por https (o mesmo que /api/v1/gifs, o chat e os comentários aceitam: gifs/gif.ts).
       const url = giphyMediaUrl(g.url, g.id);
       if (!url) ctx.addIssue({ code: 'custom', path: ['url'], message: 'O GIF tem de vir do GIPHY' });

@@ -13,9 +13,14 @@ import { fx as ui, FxAction, FxChip, FxRow, FxSegment, FxSlider, fxc } from './F
 
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 type Sub = 'emoji' | 'txill' | 'gif' | 'mention' | 'location' | 'time';
-const SUBS: { id: Sub; label: string }[] = [
+/**
+ * GIFs do GIPHY nas tchekas: desligados. As regras da API do GIPHY proíbem guardar cópias dos GIFs, e a tcheka grava o GIF
+ * dentro do vídeo. Ficam desligados até haver autorização escrita do GIPHY (no chat continuam, mostrados pelo URL deles).
+ */
+export const STUDIO_GIFS = false;
+const SUBS = ([
   { id: 'emoji', label: 'Emoji' }, { id: 'txill', label: 'Txill' }, { id: 'gif', label: 'GIF' }, { id: 'mention', label: '@' }, { id: 'location', label: 'Local' }, { id: 'time', label: 'Hora' },
-];
+] as { id: Sub; label: string }[]).filter((s) => STUDIO_GIFS || s.id !== 'gif');
 const EMOJIS = ['🔥', '😂', '❤️', '😍', '🥳', '🇲🇿', '🌴', '🌊', '☀️', '🎉', '💃', '🕺', '🎶', '✨', '💯', '👏', '🙌', '😎', '🤩', '😭', '🥰', '👀', '💥', '⚡', '🌶️', '🍻', '🥥', '🥭', '🏖️', '⚽', '🏆', '📍', '🎤', '🎧', '🫶', '💪', '🙏', '😜', '🤣', '😱', '👑', '🌅', '🦐', '🐠', '🛶', '🚀', '💐', '🎂'];
 const PLACES = ['Maputo', 'Matola', 'Costa do Sol', 'Beira', 'Nampula', 'Inhambane', 'Tofo', 'Vilankulo', 'Ponta do Ouro', 'Bilene', 'Xai-Xai', 'Ilha de Moçambique', 'Pemba', 'Quelimane', 'Tete', 'Chimoio', 'Lichinga'];
 

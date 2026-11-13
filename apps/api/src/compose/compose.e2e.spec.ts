@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+process.env.COMPOSE_GIFS = '1'; // os GIFs estão desligados em produção (regras do GIPHY); aqui testa-se o caminho todo
 import { INestApplication } from '@nestjs/common';
 import { execFileSync } from 'child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'fs';
