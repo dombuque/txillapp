@@ -1,4 +1,4 @@
-import { OnModuleInit } from '@nestjs/common';
+import { Logger, OnModuleInit } from '@nestjs/common';
 import {
   BadRequestException, HttpException, HttpStatus, Inject, Injectable, NotFoundException, PayloadTooLargeException,
   UnsupportedMediaTypeException, ForbiddenException, UnprocessableEntityException, ConflictException, GoneException,
@@ -111,6 +111,7 @@ export class MediaService implements OnModuleInit {
   private readonly secret: string;
   private readonly s3: S3Storage | null;
   private readonly making = new Map<string, Promise<void>>();
+  private readonly log = new Logger('Media');
   /** Em que bucket vive cada tipo de ficheiro: conversas ficam no privado. */
   private scopeOf = (purpose: string): Scope => (purpose === 'chat' || purpose === 'music' ? 'private' : 'public');
 
@@ -161,6 +162,34 @@ export class MediaService implements OnModuleInit {
     await this.pool.query(`UPDATE content.media_assets SET status = 'rejected', rejected_at = now(), size_bytes = $2 WHERE id = $1`, [id, size]);
   }
 
+  /**
+   * Na nuvem, guarda a foto recusada (já sem metadados) só no bucket privado e tira-a do público. Devolve false se não a
+   * conseguiu guardar no privado. Se só a remoção do público falhar, tenta de novo; a foto fica guardada na mesma (o
+   * endereço público só o dono o conhece e a API nunca o serve: não está 'ready'), e sai na limpeza (purgeFiles).
+   */
+  private async stashRejected(id: string, bytes: Buffer, mime: string, scope: Scope, size: number, cleaned: boolean): Promise<boolean> {
+    const s3 = this.s3!;
+    try {
+      if (scope === 'public') await s3.put(id, bytes, mime, 'private', size);
+      else if (cleaned) await s3.put(id, bytes, mime, scope, size);
+    } catch (e) {
+      if (scope === 'private') return true; // o original já está no privado (com metadados, mas ninguém o vê)
+      this.log.error(`foto recusada ${id}: não consegui guardá-la no bucket privado: ${(e as Error).message}`);
+      return false;
+    }
+    if (scope === 'public') {
+      for (let i = 0; i < 3; i++) {
+        try {
+          await s3.remove(id, 'public');
+          break;
+        } catch (e) {
+          if (i === 2) this.log.error(`foto recusada ${id}: não consegui tirá-la do bucket público: ${(e as Error).message}`);
+        }
+      }
+    }
+    return true;
+  }
+
   /** O erro de uma foto recusada: a app mostra «Pedir revisão» (code + assetId). */
   private rejectedError(id: string) {
     return new UnprocessableEntityException({ statusCode: 422, error: 'Unprocessable Entity', message: REJECTED_PHOTO, code: 'nudity_rejected', assetId: id });
@@ -207,14 +236,28 @@ export class MediaService implements OnModuleInit {
    * privado para o público, com as larguras leves. No disco não há nada a fazer.
    */
   async releaseApproved(id: string) {
-    if (!this.s3) return;
-    const { rows } = await this.pool.query(`SELECT purpose FROM content.media_assets WHERE id = $1 AND status = 'ready'`, [id]);
-    if (rows[0]?.purpose !== 'public') return;
-    const bytes = await this.s3.read(id, 'private');
-    const { mime } = (await this.pool.query('SELECT mime FROM content.media_assets WHERE id = $1', [id])).rows[0];
-    await this.s3.put(id, bytes, mime, 'public', bytes.length);
-    await this.publishVariants(id, bytes);
-    await this.s3.remove(id, 'private');
+    // rejected_at fica até a foto estar de volta ao sítio: se falhar, a limpeza periódica (sweepDeleted) tenta de novo.
+    const done = () => this.pool.query(`UPDATE content.media_assets SET rejected_at = NULL WHERE id = $1 AND status = 'ready'`, [id]);
+    const { rows } = await this.pool.query(`SELECT purpose, mime FROM content.media_assets WHERE id = $1 AND status = 'ready'`, [id]);
+    if (!this.s3 || rows[0]?.purpose !== 'public') {
+      if (rows[0]) await done();
+      return;
+    }
+    let last: unknown = null;
+    for (let i = 0; i < 3; i++) {
+      try {
+        const bytes = await this.s3.read(id, 'private');
+        await this.s3.put(id, bytes, rows[0].mime as string, 'public', bytes.length);
+        await this.publishVariants(id, bytes);
+        await this.s3.remove(id, 'private').catch(() => undefined); // fica no privado: sai na limpeza (purgeFiles)
+        await done();
+        return;
+      } catch (e) {
+        last = e;
+        await new Promise((r) => setTimeout(r, 500 * (i + 1)));
+      }
+    }
+    throw last;
   }
 
   /** Apaga do armazenamento os ficheiros de contas eliminadas. Corre ao arrancar e de tempos a tempos. */
@@ -290,6 +333,9 @@ export class MediaService implements OnModuleInit {
           AND NOT EXISTS (SELECT 1 FROM social.reports r WHERE r.target_type = 'media' AND r.target_id = a.id AND r.status = 'open')`,
       [REJECTED_KEEP_DAYS],
     );
+    // Fotos aprovadas num pedido de revisão que ainda não voltaram ao bucket público (a cópia falhou): tenta de novo.
+    const stuck = await this.pool.query(`SELECT id FROM content.media_assets WHERE status = 'ready' AND rejected_at IS NOT NULL AND appeal_decided_at IS NOT NULL LIMIT 20`);
+    for (const r of stuck.rows) await this.releaseApproved(r.id as string).catch((e) => this.log.warn(`foto aprovada ${r.id} ainda não voltou ao bucket público: ${(e as Error).message}`));
     const { rows } = await this.pool.query(`SELECT id, purpose FROM content.media_assets WHERE status = 'deleted' AND purged_at IS NULL LIMIT $1`, [limit]);
     for (const r of rows) {
       await this.purgeFiles(r.id as string, r.purpose as string);
@@ -493,12 +539,15 @@ export class MediaService implements OnModuleInit {
       }
       // Recusada: guarda-se sem metadados no bucket privado (nunca no público, onde o endereço se abre sem sessão).
       if (rejected) {
-        if (scope === 'public') {
-          await this.s3.put(id, await read(), a.mime, 'private', size);
-          await this.s3.remove(id, 'public');
-        } else if (clean) await this.s3.put(id, clean, a.mime, scope, clean.length);
-        await this.keepRejected(id, size);
-        throw this.rejectedError(id);
+        // A pessoa recebe sempre a mensagem da recusa (nunca um 500), mesmo que o armazenamento falhe aqui.
+        if (await this.stashRejected(id, await read(), a.mime, scope, size, !!clean)) {
+          await this.keepRejected(id, size);
+          throw this.rejectedError(id);
+        }
+        // Não deu para a guardar no privado: apaga-se já (dos dois buckets) e não há pedido de revisão.
+        await this.pool.query(`UPDATE content.media_assets SET status = 'deleted' WHERE id = $1`, [id]);
+        void this.sweepDeleted();
+        throw new UnprocessableEntityException('Esta foto parece mostrar nudez e não pode ser publicada.');
       }
       if (clean) await this.s3.put(id, clean, a.mime, scope, clean.length);
     }

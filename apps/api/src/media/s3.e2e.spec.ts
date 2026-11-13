@@ -14,6 +14,9 @@ import { loadConfig } from '../config';
 import { migrate } from '../db/migrate';
 import { createApp } from '../main';
 import { MediaService } from './media.service';
+import type { BodyPartDetector, ImageClassifier } from '../moderation/image-moderation.service';
+import type { Detection } from '../moderation/nudenet';
+import { staffLogin } from '../staff/staff-test';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
@@ -23,10 +26,16 @@ const PASSWORD = 'password-bem-longa-1';
 /** Um S3 mínimo em memória (PUT, GET com Range, HEAD, DELETE): chega para testar o fluxo do servidor sem a nuvem. */
 function fakeS3() {
   const objects = new Map<string, { body: Buffer; type: string }>();
+  /** Para simular falhas: os PUT cujas chaves batem com isto respondem 500. */
+  const failing: { put: RegExp | null } = { put: null };
   const server = http.createServer((req, res) => {
     // A chave inclui o bucket ("test/<id>" público, "private/<id>" privado): assim vê-se em qual ficou cada ficheiro.
     const key = decodeURIComponent((req.url ?? '').split('?')[0]).replace(/^\//, '');
     if (req.method === 'PUT') {
+      if (failing.put?.test(key)) {
+        req.resume();
+        return void req.on('end', () => res.writeHead(500, { 'Content-Type': 'application/xml' }).end('<Error><Code>InternalError</Code></Error>'));
+      }
       const chunks: Buffer[] = [];
       req.on('data', (c) => chunks.push(c));
       req.on('end', () => {
@@ -46,7 +55,7 @@ function fakeS3() {
     const part = m ? o.body.subarray(Number(m[1]), Number(m[2]) + 1) : o.body;
     res.writeHead(m ? 206 : 200, { 'Content-Length': part.length, 'Content-Type': o.type }).end(part);
   });
-  return { server, objects };
+  return { server, objects, failing };
 }
 
 describe('armazenamento S3 (servidor S3 simulado)', () => {
@@ -211,4 +220,151 @@ describe('armazenamento S3 (servidor S3 simulado)', () => {
   it('sem credenciais o servidor nem arranca com STORAGE_DRIVER=s3', () => {
     expect(() => loadConfig({ DATABASE_URL: DB, JWT_ACCESS_SECRET: 'x'.repeat(40), STORAGE_DRIVER: 's3' })).toThrow(/S3_BUCKET/);
   });
+});
+
+describe('S3: foto recusada pela verificação automática, pedido de revisão e decisão (classificador e detetor falsos)', () => {
+  let app: INestApplication;
+  let pool: Pool;
+  const s3 = fakeS3();
+  const run = Date.now().toString(36);
+  const api = () => request(app.getHttpServer());
+  let token = '';
+  let staff = '';
+  // O que os modelos de mentira devolvem para qualquer imagem.
+  let score = 0.05;
+  let parts: Detection[] = [];
+  const classifier: ImageClassifier = { nsfwScore: async () => score };
+  const detector: BodyPartDetector = { detect: async () => parts };
+  const nude = () => {
+    score = 0.9;
+    parts = [{ label: 'FEMALE_GENITALIA_EXPOSED', score: 0.9, box: [1, 1, 5, 5] }];
+  };
+  const clean = () => {
+    score = 0.05;
+    parts = [];
+  };
+
+  beforeAll(async () => {
+    await new Promise<void>((r) => s3.server.listen(0, '127.0.0.1', r));
+    const port = (s3.server.address() as AddressInfo).port;
+    await migrate(DB);
+    pool = new Pool({ connectionString: DB });
+    app = await createApp(
+      loadConfig({
+        DATABASE_URL: DB, JWT_ACCESS_SECRET: 'r'.repeat(40), NODE_ENV: 'test', IMAGE_MODERATION: 'local',
+        STORAGE_DRIVER: 's3', S3_BUCKET: 'test', S3_PRIVATE_BUCKET: 'private', S3_ENDPOINT: `http://127.0.0.1:${port}`, S3_FORCE_PATH_STYLE: 'true',
+        S3_ACCESS_KEY_ID: 'chave-de-teste', S3_SECRET_ACCESS_KEY: 'segredo-de-teste',
+      }),
+      { imageClassifier: classifier, bodyDetector: detector },
+    );
+    await app.init();
+    const username = `s3r${run}`.slice(0, 28);
+    const r = await api().post('/api/v1/auth/register').send({ email: `${username}@example.com`, username, displayName: 'S3R', password: PASSWORD, birthDate: '1990-06-15', acceptTerms: true }).expect(201);
+    token = r.body.accessToken;
+    staff = (await staffLogin(app, 's3mod')).token;
+  }, 60_000);
+
+  afterAll(async () => {
+    await app.close();
+    await pool.end();
+    await new Promise((r) => s3.server.close(r));
+  });
+
+  const auth = () => ({ Authorization: `Bearer ${token}` });
+  const sauth = () => ({ Authorization: `Bearer ${staff}` });
+  // Uma foto a sério (as larguras leves precisam de a descodificar), diferente de cada vez.
+  let n = 0;
+  const photo = () => sharp({ create: { width: 64, height: 48, channels: 3, background: { r: 200, g: 120 + (++n % 100), b: 90 } } }).png().toBuffer();
+  const send = async (bytes: Buffer) => {
+    const r = await api().post('/api/v1/media/uploads').set(auth()).send({ mime: 'image/png', size: bytes.length }).expect(201);
+    expect(r.body.uploadUrl).toMatch(/\/test\//); // as fotos públicas sobem direto para o bucket público
+    expect((await fetch(r.body.uploadUrl, { method: 'PUT', body: bytes, headers: { 'Content-Type': 'image/png' } })).ok).toBe(true);
+    return r.body.assetId as string;
+  };
+  const inPublic = (key: string) => s3.objects.has(`test/${key}`);
+  const inPrivate = (key: string) => s3.objects.has(`private/${key}`);
+  const statusOf = async (id: string) => (await pool.query('SELECT status FROM content.media_assets WHERE id = $1', [id])).rows[0].status as string;
+  const until = async (ok: () => boolean) => {
+    for (let i = 0; i < 50 && !ok(); i++) await new Promise((r) => setTimeout(r, 100));
+  };
+
+  it('recusada: só no bucket privado; com pedido de revisão aprovado volta ao público com as larguras e o URL responde', async () => {
+    nude();
+    const id = await send(await photo());
+    expect(inPublic(id)).toBe(true); // antes da verificação está no público (o envio direto)
+    const res = await api().post(`/api/v1/media/${id}/complete`).set(auth()).expect(422);
+    expect(res.body).toMatchObject({ code: 'nudity_rejected', assetId: id });
+    expect(res.body.message).toMatch(/^Esta foto parece mostrar nudez e não pode ser publicada\. Se achas que nos enganámos/);
+    expect(inPublic(id)).toBe(false);
+    expect(inPrivate(id)).toBe(true);
+    expect(inPublic(`${id}.480.webp`)).toBe(false);
+    expect(await statusOf(id)).toBe('rejected');
+    await api().get(`/api/v1/media/${id}`).expect(404);
+    await api().post(`/api/v1/media/${id}/complete`).set(auth()).expect(422); // de novo: a mesma resposta
+
+    await api().post(`/api/v1/media/${id}/appeal`).set(auth()).expect(200);
+    // A equipa vê a foto (lida do bucket privado).
+    const seen = await api().get(`/api/v1/media/review/${id}`).set(sauth()).expect(200);
+    expect(seen.headers['content-type']).toMatch(/image\/png/);
+
+    clean();
+    await api().post('/api/v1/admin/mod/queue/decide').set(sauth()).send({ items: [{ type: 'media', id }], action: 'dismiss' }).expect(200);
+    // A cópia de volta para o público corre depois da decisão.
+    await until(() => inPublic(id) && inPublic(`${id}.480.webp`) && !inPrivate(id));
+    expect(await statusOf(id)).toBe('ready');
+    expect(inPublic(id)).toBe(true);
+    expect(inPublic(`${id}.480.webp`)).toBe(true);
+    expect(inPrivate(id)).toBe(false);
+    await new Promise((r) => setTimeout(r, 200)); // o fim da cópia marca a foto como reposta (rejected_at = NULL)
+    expect((await pool.query('SELECT rejected_at FROM content.media_assets WHERE id = $1', [id])).rows[0].rejected_at).toBeNull();
+    const loc = await api().get(`/api/v1/media/${id}`).expect(302);
+    expect((await fetch(loc.headers.location)).status).toBe(200);
+    const w = await api().get(`/api/v1/media/${id}?w=480`).expect(302);
+    expect((await fetch(w.headers.location)).status).toBe(200);
+  });
+
+  it('pedido de revisão recusado (remover): a foto sai dos dois buckets', async () => {
+    nude();
+    const id = await send(await photo());
+    await api().post(`/api/v1/media/${id}/complete`).set(auth()).expect(422);
+    await api().post(`/api/v1/media/${id}/appeal`).set(auth()).expect(200);
+    await api().post('/api/v1/admin/mod/queue/decide').set(sauth()).send({ items: [{ type: 'media', id }], action: 'remove', note: 'Mostra nudez' }).expect(200);
+    await app.get(MediaService).sweepDeleted();
+    expect(await statusOf(id)).toBe('deleted');
+    expect([...s3.objects.keys()].filter((k) => k.includes(id))).toEqual([]);
+  });
+
+  it('se a cópia para o bucket privado falhar: a resposta é a da nudez (422, nunca 500) e a foto sai do público', async () => {
+    nude();
+    const id = await send(await photo());
+    s3.failing.put = new RegExp(`^private/${id}$`);
+    try {
+      const res = await api().post(`/api/v1/media/${id}/complete`).set(auth()).expect(422);
+      expect(res.body.message).toBe('Esta foto parece mostrar nudez e não pode ser publicada.');
+    } finally {
+      s3.failing.put = null;
+    }
+    await app.get(MediaService).sweepDeleted();
+    expect(await statusOf(id)).toBe('deleted');
+    expect([...s3.objects.keys()].filter((k) => k.includes(id))).toEqual([]);
+  });
+
+  it('se a cópia de volta ao público falhar na aprovação: a foto fica aprovada e a limpeza periódica repõe-na', async () => {
+    nude();
+    const id = await send(await photo());
+    await api().post(`/api/v1/media/${id}/complete`).set(auth()).expect(422);
+    await api().post(`/api/v1/media/${id}/appeal`).set(auth()).expect(200);
+    s3.failing.put = new RegExp(`^test/${id}`);
+    await api().post('/api/v1/admin/mod/queue/decide').set(sauth()).send({ items: [{ type: 'media', id }], action: 'dismiss' }).expect(200);
+    await new Promise((r) => setTimeout(r, 3800)); // as 3 tentativas
+    expect(await statusOf(id)).toBe('ready');
+    expect(inPrivate(id)).toBe(true);
+    expect(inPublic(id)).toBe(false);
+    s3.failing.put = null;
+    await app.get(MediaService).sweepDeleted();
+    expect(inPublic(id)).toBe(true);
+    expect(inPublic(`${id}.480.webp`)).toBe(true);
+    expect(inPrivate(id)).toBe(false);
+    expect((await pool.query('SELECT rejected_at FROM content.media_assets WHERE id = $1', [id])).rows[0].rejected_at).toBeNull();
+  }, 30_000);
 });
