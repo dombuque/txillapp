@@ -200,11 +200,12 @@ export function AudioVoice({ ctl, take, onTake, onVolume, onDelete, locked }: {
       const lat = (g.ac.outputLatency || 0) + (g.ac.baseLatency || 0) + (settings?.latency || 0);
       const recFrom = started && recAt && started.from === from ? from + (recAt - started.perf) / 1000 : from + delay;
       let at = recFrom - lat;
+      const skip = at < 0 ? -at : 0;
       if (at < 0) { buf = sliceBuffer(g.ac, buf, -at); at = 0; }
       if (buf.duration < 0.4) throw new Error('curta');
       const mono = monoOf(buf);
       const id = `v${Date.now().toString(36)}`;
-      if (take) g.voiceBufs.delete(take.id);
+      // A gravação anterior fica em memória: desfazer pode trazê-la de volta.
       g.voiceBufs.set(id, buf);
       onTake({
         id,
@@ -214,6 +215,10 @@ export function AudioVoice({ ctl, take, onTake, onVolume, onDelete, locked }: {
         fx: take?.fx ?? 'normal',
         regions: voiceActivity(mono, buf.sampleRate),
         peaks: peaks(mono, Math.min(900, Math.max(40, Math.round(buf.duration * 50)))),
+        // O ficheiro fica para o rascunho (ao abri-lo volta a ler-se e a cortar-se igual).
+        uri: URL.createObjectURL(blob),
+        mime: blob.type || 'audio/webm',
+        ...(skip > 0 ? { skip: Math.round(skip * 1000) / 1000 } : {}),
       });
       setPhase('idle');
     } catch {
@@ -315,19 +320,19 @@ const st = StyleSheet.create({
   empty: { flexDirection: 'row', alignItems: 'center', gap: 14, marginHorizontal: 16, marginTop: 10, borderRadius: 18, padding: 14, backgroundColor: 'rgba(214,51,79,0.10)', borderWidth: 1, borderColor: 'rgba(214,51,79,0.35)' },
   micBig: { width: 64, height: 64, borderRadius: 32, backgroundColor: CORAL, alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 6px rgba(214,51,79,0.22), 0 0 28px rgba(214,51,79,0.6)' },
   title: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  sub: { color: 'rgba(255,255,255,0.65)', fontSize: 12, marginTop: 2 },
+  sub: { color: 'rgba(255,255,255,0.65)', fontSize: 14, marginTop: 2 },
   takeCard: { marginHorizontal: 16, marginTop: 8, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingVertical: 10 },
   takeHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14 },
   badge: { width: 28, height: 28, borderRadius: 14, backgroundColor: CORAL, alignItems: 'center', justifyContent: 'center' },
-  iconBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
   volRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, marginTop: 4 },
-  volLabel: { color: '#fff', fontSize: 13, fontWeight: '700', width: 58 },
-  volVal: { color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '700', width: 40, textAlign: 'right' },
-  info: { color: 'rgba(255,255,255,0.7)', fontSize: 12, textAlign: 'center', marginTop: 6 },
-  err: { color: '#fecaca', fontSize: 13, textAlign: 'center', marginTop: 6, paddingHorizontal: 16 },
+  volLabel: { color: '#fff', fontSize: 14, fontWeight: '700', width: 58 },
+  volVal: { color: 'rgba(255,255,255,0.75)', fontSize: 14, fontWeight: '700', width: 40, textAlign: 'right' },
+  info: { color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center', marginTop: 6 },
+  err: { color: '#fecaca', fontSize: 14, textAlign: 'center', marginTop: 6, paddingHorizontal: 16 },
   hudTop: { alignItems: 'center', paddingTop: 22, paddingHorizontal: 16, gap: 6 },
   hudHint: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  hudSub: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
+  hudSub: { color: 'rgba(255,255,255,0.7)', fontSize: 14 },
   recPill: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: '#14060a', borderWidth: 1, borderColor: 'rgba(214,51,79,0.7)', paddingHorizontal: 14, paddingVertical: 7 },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: CORAL, boxShadow: '0 0 10px rgba(255,80,100,0.9)' },
   recText: { color: '#fff', fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums'] },

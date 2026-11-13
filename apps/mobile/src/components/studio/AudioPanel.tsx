@@ -30,9 +30,15 @@ export interface StudioAudioCtl extends VoiceCtl {
 /**
  * O estado do som do estúdio: o trecho (com a sugestão automática enquanto ninguém mexer), os fades, o ducking, a voz-off,
  * os efeitos e a análise da música. `onTiming` corre antes de cada mudança que obriga a recomeçar a pré-visualização.
+ * Com `mix` e `setMix`, o estado é do estúdio (o projeto, com desfazer/refazer): `auto` diz que a mudança é do próprio
+ * estúdio (o trecho sugerido, outra música) e não conta como um passo.
  */
-export function useStudioAudio(o: { music: Track | null; total: number; load: () => Promise<AudioBuffer | null>; onTiming: () => void }) {
-  const [mix, setMix] = useState<StudioMix>(defaultMix);
+export function useStudioAudio(o: { music: Track | null; total: number; load: () => Promise<AudioBuffer | null>; onTiming: () => void; mix?: StudioMix; setMix?: (fn: (m: StudioMix) => StudioMix, auto: boolean) => void }) {
+  const [own, setOwn] = useState<StudioMix>(defaultMix);
+  const mix = o.mix ?? own;
+  const external = useRef(o.setMix);
+  external.current = o.setMix;
+  const setMix = (fn: (m: StudioMix) => StudioMix, auto = false) => { if (external.current) external.current(fn, auto); else setOwn(fn); };
   const mixRef = useRef(mix);
   mixRef.current = mix;
   const totalRef = useRef(o.total);
@@ -46,19 +52,21 @@ export function useStudioAudio(o: { music: Track | null; total: number; load: ()
   autoRef.current = auto;
   /** Muda o som; com `restart`, a pré-visualização recomeça do ponto onde está. */
   const update = (fn: (m: StudioMix) => StudioMix, restart = false) => { if (restart) timing.current(); setMix((m) => fn(m)); };
+  /** O que o estúdio acerta sozinho (não é um passo para desfazer). */
+  const autoUpdate = (fn: (m: StudioMix) => StudioMix) => { timing.current(); setMix(fn, true); };
   const suggestFor = (a: MusicAnalysis, w: number) => (a.duration >= w + 4 ? a.suggest(w) : null);
   const applySuggestion = (a: MusicAnalysis) => {
     if (!autoRef.current || !mixRef.current.musicStartAuto) return;
     const s = suggestFor(a, Math.max(3, totalRef.current));
     const ms = s ? Math.round(s.start * 1000) : 0;
-    if (ms !== mixRef.current.musicStartMs) update((m) => ({ ...m, musicStartMs: ms }), true);
+    if (ms !== mixRef.current.musicStartMs) autoUpdate((m) => ({ ...m, musicStartMs: ms }));
   };
   // Outra música: o trecho volta ao início (e à sugestão quando a análise chegar).
   const prevUrl = useRef(url);
   useEffect(() => {
     if (prevUrl.current === url) return;
     prevUrl.current = url;
-    setMix((m) => ({ ...m, musicStartMs: 0, musicStartAuto: true }));
+    setMix((m) => ({ ...m, musicStartMs: 0, musicStartAuto: true }), true);
   }, [url]);
   const analysis = useMusicAnalysis(url, o.load, applySuggestion);
   // Enquanto o trecho é o sugerido, acompanha a duração da tcheka (com folga, para não saltar a cada toque).
@@ -101,6 +109,9 @@ export function AudioPanel(p: {
   origNote: string | null;
   origVol: number;
   setOrigVol: (v: number) => void;
+  /** Os vídeos da sequência, cada um com o som dele (ligado ou calado) e o volume. */
+  clipSounds?: { key: string; label: string; on: boolean; volume: number; hasAudio?: boolean }[];
+  onClipSound?: (key: string, v: { on?: boolean; volume?: number }) => void;
   musicVol: number;
   setMusicVol: (v: number) => void;
   canFit: boolean;
@@ -139,7 +150,15 @@ export function AudioPanel(p: {
 
   const voice = mix.voice;
   const channels: MixChannel[] = [];
-  if (p.hasVideo) channels.push({ id: 'orig', label: 'Som original', icon: 'video', value: p.origVol, onChange: p.setOrigVol, meter: () => graph()?.meters.orig ?? null, note: p.origNote });
+  if (p.hasVideo) channels.push({ id: 'orig', label: 'Som dos vídeos', icon: 'video', value: p.origVol, onChange: p.setOrigVol, meter: () => graph()?.meters.orig ?? null, note: p.origNote });
+  for (const c of p.clipSounds ?? []) {
+    channels.push({
+      id: `clip:${c.key}`, label: c.label, icon: 'video', value: c.volume, on: c.on, sub: true,
+      onChange: (v) => p.onClipSound?.(c.key, { volume: v, ...(v > 0 && !c.on ? { on: true } : {}) }),
+      onToggle: () => p.onClipSound?.(c.key, { on: !c.on }),
+      meter: () => null, note: c.hasAudio === false ? 'sem som' : null,
+    });
+  }
   if (music || p.duet) channels.push({ id: 'music', label: music ? 'Música' : 'Som do dueto', icon: 'music', value: p.musicVol, onChange: p.setMusicVol, meter: () => graph()?.meters.music ?? null, note: music ? music.title : null });
   if (voice) channels.push({ id: 'voice', label: 'Voz-off', icon: 'mic', value: voice.volume, onChange: (v) => update((m) => (m.voice ? { ...m, voice: { ...m.voice, volume: v } } : m)), meter: () => graph()?.meters.voice ?? null });
   if (mix.sfx.length) channels.push({ id: 'sfx', label: 'Efeitos sonoros', icon: 'sparkles', value: mix.sfxVolume, onChange: (v) => update((m) => ({ ...m, sfxVolume: v })), meter: () => graph()?.meters.sfx ?? null, note: `${mix.sfx.length}` });
@@ -271,19 +290,19 @@ const st = StyleSheet.create({
   // No computador o painel não estica a toda a largura (a onda e as barras ficam do tamanho de um telemóvel grande).
   root: { width: '100%', maxWidth: 760, alignSelf: 'center' },
   subs: { gap: 6, paddingHorizontal: 16, paddingTop: 8 },
-  sub: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, borderRadius: 12, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  sub: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, borderRadius: 12, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   subOn: { backgroundColor: 'rgba(214,51,79,0.22)', borderColor: CORAL },
-  subText: { color: 'rgba(255,255,255,0.72)', fontSize: 13, fontWeight: '800' },
+  subText: { color: 'rgba(255,255,255,0.72)', fontSize: 14, fontWeight: '800' },
   subBadge: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ffd60a', marginLeft: -2 },
-  empty: { color: 'rgba(255,255,255,0.65)', fontSize: 13, paddingHorizontal: 16, marginTop: 12 },
+  empty: { color: 'rgba(255,255,255,0.65)', fontSize: 14, paddingHorizontal: 16, marginTop: 12 },
   loading: { marginHorizontal: 16, marginTop: 10, gap: 8 },
   loadBar: { height: 70, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.06)' },
-  loadText: { color: 'rgba(255,255,255,0.6)', fontSize: 12 },
+  loadText: { color: 'rgba(255,255,255,0.6)', fontSize: 14 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, marginTop: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, borderRadius: 999, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'transparent' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, borderRadius: 999, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'transparent' },
   chipOn: { borderColor: '#ffd60a', backgroundColor: 'rgba(255,214,10,0.12)' },
   chipCoral: { backgroundColor: CORAL, boxShadow: '0 0 16px rgba(214,51,79,0.5)' },
-  chipText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  chipText: { color: '#fff', fontSize: 14, fontWeight: '800' },
   star: { width: 8, height: 8, borderRadius: 2, transform: [{ rotate: '45deg' }], backgroundColor: '#ffd60a' },
   voiceBar: { position: 'absolute', top: -1, height: 6, borderRadius: 3, backgroundColor: 'rgba(214,51,79,0.85)' },
   sfxMark: { position: 'absolute', top: -5, width: 9, height: 9, marginLeft: -4.5, borderRadius: 2, transform: [{ rotate: '45deg' }], backgroundColor: '#ffd60a', borderWidth: 1, borderColor: 'rgba(0,0,0,0.5)' },

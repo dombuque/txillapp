@@ -29,6 +29,12 @@ export interface VoiceTake {
   regions: Region[];
   /** A onda, de 0 a 1 (uns 60 valores por segundo no máximo). */
   peaks: number[];
+  /** O ficheiro da gravação (um `blob:` desta sessão): é o que o rascunho guarda e o que se volta a ler ao abri-lo. */
+  uri?: string;
+  /** O tipo do ficheiro da gravação. */
+  mime?: string;
+  /** Segundos cortados no início do ficheiro (a gravação começou antes do 0 da tcheka). */
+  skip?: number;
 }
 export interface PlacedSfx { key: string; id: SfxId; at: number }
 

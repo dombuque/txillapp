@@ -19,6 +19,8 @@ import { probe } from './ffmpeg';
 import { voiceFxGraph } from './plan';
 import { createCanvas } from '@napi-rs/canvas';
 import { applyFxPixel, fxSeconds, resolveFx, sanitizeOverlay, type Overlay } from './effects';
+import { drawCapulanaFrame, drawCapulanaTransition } from './capulanaRender';
+import { frameLayout } from './capulanaShapes';
 import { drawOverlays } from './renderOverlays';
 import { drawTransition, type Scratch } from './renderTransitions';
 import { ensureStudioFonts } from './studio-canvas';
@@ -768,6 +770,116 @@ describe('montagem das tchekas no servidor (POST /tchekas/compose)', () => {
     expect(r.status).toBe(422);
     const r2 = await calm(() => compose(a, { ...ok, overlays: [s({ type: 'location', name: 'preto de merda' })] }));
     expect(r2.status).toBe(422);
+  }, 300_000);
+
+  // ------------------------------------------------------------------ capulana, enquadramento e som por clipe
+
+  const PANO = { pattern: 'ziguezague', palette: 'indico', seed: 7 } as const;
+  const nodeScratch: Scratch = (() => { const m = new Map<string, { c: HTMLCanvasElement; g: CanvasRenderingContext2D }>(); return (n: string, w: number, h: number) => { let s = m.get(n); if (!s || s.c.width !== w || s.c.height !== h) { const c = createCanvas(w, h) as unknown as HTMLCanvasElement; s = { c, g: (c as unknown as { getContext: (k: '2d') => CanvasRenderingContext2D }).getContext('2d') }; m.set(n, s); } return s; }; })();
+
+  it('capulana: um pano a meio da transição, igual ao desenho do site, com o pano do clipe ou o da tcheka', async () => {
+    const u = await register('fxpano');
+    const ids: string[] = [];
+    for (const c of ['red', 'blue', 'lime']) ids.push(await calmVideo(u, video(`pano-${c}`, 2, c)));
+    const trs = [{ type: 'capulana-deslizar', dur: 1, pano: PANO }, { type: 'capulana-losango', dur: 1 }] as const;
+    const f = await done(u, { pano: { pattern: 'sol', palette: 'neon', seed: 3 }, clips: ids.map((id, i) => ({ mediaId: id, kind: 'video', trimEndMs: 2000, ...(i ? { fx: { transition: trs[i - 1] } } : {}) })) });
+    expect(Math.abs((await probe(f)).seconds - 6)).toBeLessThan(0.05);
+    const solid = (rgb: number[]) => { const c = createCanvas(FW, FH); const g = c.getContext('2d'); g.fillStyle = `rgb(${rgb.map(Math.round).join(',')})`; g.fillRect(0, 0, FW, FH); return c as unknown as CanvasImageSource; };
+    const report: string[] = [];
+    for (let i = 1; i < 3; i++) {
+      const start = 60 * i;
+      const prev = solid(meanAt(frameAt(f, start - 1), 500, 500)), cur = solid(meanAt(frameAt(f, start + 40), 500, 500));
+      const pano = i === 1 ? PANO : { pattern: 'sol', palette: 'neon', seed: 3 } as const; // o 2.º não traz pano: é o da tcheka
+      for (const k of [start + 8, start + 15, start + 23]) {
+        const got = frameAt(f, k);
+        const want = canvasRgb((g) => drawCapulanaTransition(g, prev, cur, trs[i - 1].type, (k - start) / 30, FW, FH, pano));
+        const c = compare(got, want, { x: 0, y: 0, w: FW, h: 1500 });
+        report.push(`${trs[i - 1].type} p=${((k - start) / 30).toFixed(2)}: ${c.diff.toFixed(2)}`);
+        expect(c.diff).toBeLessThan(8); // o pano tem muito detalhe fino (4:2:0 e H.264): com outro pano ou noutro ponto daria dezenas
+      }
+      // A meio há mesmo pano no ecrã: muitas cores que não são nenhuma das duas dos clipes.
+      const mid = frameAt(f, start + 15);
+      const [pr, cr] = [meanAt(frameAt(f, start - 1), 500, 500), meanAt(frameAt(f, start + 40), 500, 500)];
+      let cloth = 0;
+      for (let y = 100; y < 1500; y += 20) for (let x = 20; x < FW; x += 20) { const px = meanAt(mid, x, y, 2); if (deltaE(px, pr) > 25 && deltaE(px, cr) > 25) cloth++; }
+      expect(cloth).toBeGreaterThan(300);
+    }
+    console.log(`Panos de capulana (diferença média 0–255 ao desenho do site):\n  ${report.join('\n  ')}`);
+  }, 300_000);
+
+  it('capulana: a moldura de uma foto, o texto com letras de pano, a faixa e o sticker, iguais ao site; e o enquadramento (focus)', async () => {
+    // Uma foto deitada (4:3) com 4 quadrantes de cor: na moldura vê-se inteira; com o enquadramento, o canto escolhido.
+    const quad = make('quad.png', ['-f', 'lavfi', '-i', 'color=c=red:size=1200x900,drawbox=x=600:y=0:w=600:h=450:c=blue:t=fill,drawbox=x=0:y=450:w=600:h=450:c=lime:t=fill,drawbox=x=600:y=450:w=600:h=450:c=yellow:t=fill', '-frames:v', '1']);
+    const q = await upload(a, quad, 'image/png');
+    const letters = { id: 't1', kind: 'text', start: 0, end: 6, x: 0.5, y: 0.2, text: 'CAPULANA', font: 'grito', size: 150, pano: PANO, anim: { in: 'nenhuma', out: 'nenhuma', loop: 'nenhuma' } };
+    const band = { id: 't2', kind: 'text', start: 0, end: 6, x: 0.5, y: 0.82, text: 'Bom dia, Maputo!', font: 'classica', size: 70, bg: 'pano', pano: PANO, anim: { in: 'nenhuma', out: 'nenhuma', loop: 'nenhuma' } };
+    const stick = { id: 's1', kind: 'sticker', start: 0, end: 6, x: 0.25, y: 0.68, scale: 0.6, rot: 0, sticker: { type: 'capulana', shape: 'estrela', pano: PANO }, anim: { in: 'nenhuma', out: 'nenhuma', loop: 'nenhuma' } };
+    const f = await done(a, {
+      clips: [
+        { mediaId: q, kind: 'photo', durationMs: 2000, fx: { moldura: PANO } },
+        { mediaId: q, kind: 'photo', durationMs: 2000, fx: { transition: { type: 'corte', dur: 0.5 }, focus: { x: 1, y: 1, from: 1, to: 1 } } },
+        { mediaId: black[0], kind: 'photo', durationMs: 2000, fx: { transition: { type: 'corte', dur: 0.5 } } },
+      ],
+      sound: { kind: 'music', music },
+      overlays: [letters, band, stick],
+    });
+    // A moldura: a foto como o servidor a prepara (PNG, até 1440 px), desenhada pelo drawCapulanaFrame do site no mesmo instante.
+    const { loadImage } = await import('@napi-rs/canvas');
+    const img = await loadImage(quad);
+    const k = 30; // 1 s: u = 0,5 → zoom 1,02
+    const wantFrame = canvasRgb((g) => drawCapulanaFrame(g, img as unknown as CanvasImageSource, img.width, img.height, FW, FH, PANO, 1 + 0.04 * (k / 60)));
+    const got = frameAt(f, k);
+    const mid = compare(got, wantFrame, { x: 0, y: 560, w: FW, h: 590 }); // a foto na moldura e o pano à volta, longe das camadas
+    console.log(`Moldura de capulana: diferença média ${mid.diff.toFixed(2)}`);
+    expect(mid.diff).toBeLessThan(8);
+    // A foto vai inteira (os 4 quadrantes dentro da moldura) e há pano por cima e por baixo dela.
+    const lay = frameLayout(img.width, img.height, FW, FH).photo;
+    const at = (fx: number, fy: number) => meanAt(got, Math.round(lay.x + lay.w * fx), Math.round(lay.y + lay.h * fy), 8);
+    expect(at(0.25, 0.25)[0]).toBeGreaterThan(180);
+    expect(at(0.75, 0.25)[2]).toBeGreaterThan(180);
+    expect(at(0.25, 0.75)[1]).toBeGreaterThan(180);
+    expect(at(0.75, 0.75)[0] + at(0.75, 0.75)[1]).toBeGreaterThan(380);
+    // O enquadramento: apontado ao canto de baixo à direita, o quadro 9:16 mostra o lado direito da foto (azul em cima, amarelo em baixo).
+    const fo = frameAt(f, 90);
+    expect(meanAt(fo, 200, 500)[2]).toBeGreaterThan(180);
+    expect(meanAt(fo, 200, 500)[0]).toBeLessThan(80);
+    expect(meanAt(fo, 800, 1250)[0] + meanAt(fo, 800, 1250)[1]).toBeGreaterThan(380); // (fora do sticker)
+    // As camadas de pano por cima da foto preta: as letras, a faixa e o sticker contra o drawOverlays do site.
+    const ovs = [letters, band, stick].map((o) => sanitizeOverlay(o) as Overlay);
+    expect(ovs.every(Boolean)).toBe(true);
+    const want = canvasRgb((g) => drawOverlays(g, ovs, 5, { W: FW, H: FH, image: () => null, scratch: nodeScratch as never }));
+    const g3 = frameAt(f, 150);
+    const boxes = { letras: { x: 100, y: 260, w: 880, h: 260 }, faixa: { x: 0, y: 1470, w: 1080, h: 200 }, sticker: { x: 130, y: 1160, w: 280, h: 280 } };
+    for (const [name, box] of Object.entries(boxes)) {
+      const c = compare(g3, want, box);
+      console.log(`Capulana, ${name}: diferença média ${c.diff.toFixed(2)}, píxeis claros ${c.bright} (site ${c.brightRef})`);
+      expect(c.brightRef).toBeGreaterThan(200);
+      expect(c.diff).toBeLessThan(10);
+    }
+    expect(await bad({ clips: three(), sound: { kind: 'music', music }, overlays: [{ ...band, pano: undefined }] })).toBe('A faixa de pano precisa do pano');
+    expect(await bad({ clips: three().map((c) => ({ ...c, fx: { moldura: { pattern: 'xadrez', palette: 'coral', seed: 1 } } })), sound: { kind: 'music', music } })).toBe('Pano desconhecido');
+  }, 300_000);
+
+  it('som por clipe: um vídeo calado não se ouve nem conta como som, o volume do clipe baixa-o, e a música fica a 70 % por omissão', async () => {
+    const u = await register('fxsom');
+    const v1 = await calmVideo(u, video('som-a', 3)), v2 = await calmVideo(u, video('som-b', 3)); // os dois com um apito de 440 Hz
+    const badU = async (body: unknown) => { const r = await calm(() => compose(u, body)); expect(r.status).toBe(400); return r.body.message as string; };
+    const clip = (id: string, o: object = {}) => ({ mediaId: id, kind: 'video', trimEndMs: 3000, ...o });
+    // Todos calados e sem música: falta o som (a mesma dica do estúdio).
+    expect(await badU({ clips: [clip(v1, { sound: false }), clip(v2, { volume: 0 })] })).toBe('Os vídeos não têm som: escolhe uma música ou um som');
+    expect(await bad({ clips: three().map((c) => ({ ...c, sound: false })), sound: { kind: 'music', music } })).toBe('O som e o volume são só para vídeos');
+    // O 1.º a metade, o 2.º calado.
+    const x = pcm(await done(u, { clips: [clip(v1, { volume: 0.5 }), clip(v2, { sound: false })] }));
+    const full = pcm(await done(u, { clips: [clip(v1), clip(v2)] }));
+    expect(tone(x, 440, 0.5, 2.5) / tone(full, 440, 0.5, 2.5)).toBeGreaterThan(0.42);
+    expect(tone(x, 440, 0.5, 2.5) / tone(full, 440, 0.5, 2.5)).toBeLessThan(0.58);
+    expect(rms(x, 3.3, 5.7)).toBeLessThan(0.003);
+    expect(tone(full, 440, 3.5, 5.5)).toBeGreaterThan(0.02);
+    // Com música e sem volumes no pedido: o som dos vídeos a 100 % e a música a 70 % (como o estúdio integrado).
+    const job = (await calm(() => compose(u, { clips: [clip(v1), clip(v2)], sound: { kind: 'music', music } }))).body.jobId as string;
+    await waitCalm(u, job);
+    const spec = (await pool.query('SELECT spec FROM content.compose_jobs WHERE id = $1', [job])).rows[0].spec as { originalVolume: number; musicVolume: number };
+    expect([spec.originalVolume, spec.musicVolume]).toEqual([1, 0.7]);
   }, 300_000);
 
   it('os temporários e os ficheiros: nada fica para trás', () => {

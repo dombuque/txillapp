@@ -11,5 +11,8 @@ declare global {
   type CanvasImageSource = Canvas | Image;
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface HTMLCanvasElement extends Canvas {}
+  // O que capulanaRender.ts (cópia do site) procura no browser e aqui não há: a fábrica de canvas vem de setCapulanaCanvasFactory.
+  const OffscreenCanvas: undefined | (new (w: number, h: number) => unknown);
+  const document: undefined | { createElement(kind: string): { width: number; height: number } };
 }
 export {};

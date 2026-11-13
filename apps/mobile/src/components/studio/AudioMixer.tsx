@@ -10,7 +10,8 @@ import { colors } from '@/lib/theme';
 const dom = createElement as (tag: string, props?: Record<string, unknown>, ...kids: unknown[]) => ReactNode;
 
 export interface MixChannel {
-  id: 'orig' | 'music' | 'voice' | 'sfx';
+  /** 'orig', 'music', 'voice', 'sfx' ou `clip:<chave>` (o som de um vídeo). */
+  id: string;
   label: string;
   icon: IconName;
   value: number;
@@ -18,6 +19,11 @@ export interface MixChannel {
   /** O medidor deste canal (o AnalyserNode, depois do volume). */
   meter: () => AnalyserNode | null;
   note?: string | null;
+  /** Ligado ou calado à parte do volume (o som de um vídeo): o botão alterna isto em vez de pôr o volume a 0. */
+  on?: boolean;
+  onToggle?: () => void;
+  /** Uma linha por baixo de outra (os vídeos, por baixo do som dos vídeos): sem medidor. */
+  sub?: boolean;
 }
 
 /** O medidor de nível: uma barra fina a mexer com o som (sem estado React: o desenho é direto, a 30 por segundo). */
@@ -65,23 +71,26 @@ export function AudioMixer({ channels, fadeIn, fadeOut, onFade, ducking, onDucki
   return (
     <View style={{ paddingBottom: 4 }}>
       <View style={st.card}>
-        {channels.map((c) => (
-          <View key={c.id} style={st.strip}>
-            <View style={st.stripHead}>
-              <View style={[st.dot, { backgroundColor: c.value > 0 ? colors.brand : 'rgba(255,255,255,0.25)' }]}><Icon name={c.icon} size={13} color="#fff" strokeWidth={2.2} /></View>
-              <Text style={st.name} numberOfLines={1}>{c.label}</Text>
-              {c.note ? <Text style={st.note} numberOfLines={1}>{c.note}</Text> : null}
-              <Text style={st.val}>{Math.round(c.value * 100)}%</Text>
-              <Pressable onPress={() => c.onChange(c.value > 0 ? 0 : 1)} hitSlop={6} style={st.mute} accessibilityRole="button" accessibilityLabel={c.value > 0 ? `Calar: ${c.label}` : `Ligar: ${c.label}`}>
-                <Icon name={c.value > 0 ? 'volume' : 'volume-off'} size={16} color={c.value > 0 ? '#fff' : 'rgba(255,255,255,0.5)'} />
-              </Pressable>
+        {channels.map((c) => {
+          const on = c.on ?? c.value > 0;
+          return (
+            <View key={c.id} style={[st.strip, c.sub && st.stripSub]}>
+              <View style={st.stripHead}>
+                <View style={[st.dot, { backgroundColor: on && c.value > 0 ? colors.brand : 'rgba(255,255,255,0.25)' }]}><Icon name={c.icon} size={13} color="#fff" strokeWidth={2.2} /></View>
+                <Text style={st.name} numberOfLines={1}>{c.label}</Text>
+                {c.note ? <Text style={st.note} numberOfLines={1}>{c.note}</Text> : null}
+                <Text style={st.val}>{on ? `${Math.round(c.value * 100)}%` : 'calado'}</Text>
+                <Pressable onPress={() => (c.onToggle ? c.onToggle() : c.onChange(c.value > 0 ? 0 : 1))} style={st.mute} accessibilityRole="switch" accessibilityState={{ checked: on }} accessibilityLabel={on ? `Calar: ${c.label}` : `Ligar: ${c.label}`}>
+                  <Icon name={on ? 'volume' : 'volume-off'} size={18} color={on ? '#fff' : 'rgba(255,255,255,0.5)'} />
+                </Pressable>
+              </View>
+              <View style={[st.fader, !on && { opacity: 0.45 }]}>
+                <RangeSlider label={`Volume: ${c.label}`} value={Math.round(c.value * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => c.onChange(v / 100)} />
+              </View>
+              {c.sub ? null : <Meter get={c.meter} />}
             </View>
-            <View style={st.fader}>
-              <RangeSlider label={`Volume: ${c.label}`} value={Math.round(c.value * 100)} min={0} max={100} step={5} format={(v) => `${v}%`} onChange={(v) => c.onChange(v / 100)} />
-            </View>
-            <Meter get={c.meter} />
-          </View>
-        ))}
+          );
+        })}
         {!channels.length ? <Text style={st.empty}>Ainda não há som: escolhe uma música, grava uma voz-off ou junta um vídeo com som.</Text> : null}
       </View>
 
@@ -119,24 +128,25 @@ export function AudioMixer({ channels, fadeIn, fadeOut, onFade, ducking, onDucki
 
 const st = StyleSheet.create({
   card: { marginHorizontal: 16, marginTop: 8, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingVertical: 8 },
-  cardTitle: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase', paddingHorizontal: 14, paddingBottom: 2 },
+  cardTitle: { color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase', paddingHorizontal: 14, paddingBottom: 2 },
   strip: { paddingTop: 4, paddingBottom: 8 },
+  stripSub: { marginLeft: 18, borderLeftWidth: 2, borderLeftColor: 'rgba(255,255,255,0.1)' },
   // A barra tem 48 de zona de toque; o desenho fica mais junto ao nome e ao medidor.
   fader: { marginTop: -6, marginBottom: -10 },
   stripHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14 },
   dot: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  name: { color: '#fff', fontSize: 13, fontWeight: '800', flexShrink: 1 },
-  note: { color: 'rgba(255,255,255,0.5)', fontSize: 11, flexShrink: 1 },
-  val: { marginLeft: 'auto', color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  mute: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
-  empty: { color: 'rgba(255,255,255,0.6)', fontSize: 13, paddingHorizontal: 14, paddingVertical: 6 },
+  name: { color: '#fff', fontSize: 14, fontWeight: '800', flexShrink: 1 },
+  note: { color: 'rgba(255,255,255,0.55)', fontSize: 14, flexShrink: 1 },
+  val: { marginLeft: 'auto', color: 'rgba(255,255,255,0.75)', fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  mute: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
+  empty: { color: 'rgba(255,255,255,0.6)', fontSize: 14, paddingHorizontal: 14, paddingVertical: 6 },
   fadeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
-  fadeLabel: { color: '#fff', fontSize: 13, fontWeight: '700', width: 58 },
-  fadeVal: { color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '700', width: 40, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  fadeLabel: { color: '#fff', fontSize: 14, fontWeight: '700', width: 58 },
+  fadeVal: { color: 'rgba(255,255,255,0.75)', fontSize: 14, fontWeight: '700', width: 40, textAlign: 'right', fontVariant: ['tabular-nums'] },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 10, marginTop: 4, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
   toggleOn: { backgroundColor: 'rgba(214,51,79,0.12)' },
   knobTrack: { width: 38, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.2)', padding: 3 },
   knob: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#fff' },
-  toggleText: { color: '#fff', fontSize: 13, fontWeight: '800' },
-  toggleSub: { color: 'rgba(255,255,255,0.55)', fontSize: 11 },
+  toggleText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  toggleSub: { color: 'rgba(255,255,255,0.55)', fontSize: 14 },
 });

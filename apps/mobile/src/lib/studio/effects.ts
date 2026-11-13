@@ -186,8 +186,33 @@ export function adjustOps(a: Partial<Adjust>): ColorOp[] {
 
 export type TransitionId =
   | 'corte' | 'fundido' | 'deslizar-esquerda' | 'deslizar-direita' | 'deslizar-cima' | 'deslizar-baixo'
-  | 'zoom' | 'desfoque' | 'girar' | 'flash' | 'brilho' | 'glitch';
-export interface ClipTransition { type: TransitionId; /** segundos */ dur: number }
+  | 'zoom' | 'desfoque' | 'girar' | 'flash' | 'brilho' | 'glitch'
+  | 'capulana-deslizar' | 'capulana-desenrolar' | 'capulana-rasgar' | 'capulana-losango' | 'capulana-vento';
+
+// ---------------------------------------------------------------- capulana (os panos: lib/studio/capulana.ts)
+// Uma cópia dos ids e da validação de lib/studio/capulana.ts (este ficheiro não importa código em tempo de execução);
+// tests/studioIntegra.test.mjs confirma que são iguais.
+export type CapulanaPatternId = 'losangos' | 'ziguezague' | 'circulos' | 'flores' | 'faixas' | 'escamas' | 'sol' | 'degraus';
+export type CapulanaPaletteId = 'marginal' | 'indico' | 'machamba' | 'mafalala' | 'neon' | 'coral';
+/** Um pano: o padrão, a paleta e a semente (o `CapulanaSpec` de lib/studio/capulana.ts). */
+export interface CapulanaSpec { pattern: CapulanaPatternId; palette: CapulanaPaletteId; seed: number }
+export const CAPULANA_PATTERN_IDS: CapulanaPatternId[] = ['losangos', 'ziguezague', 'circulos', 'flores', 'faixas', 'escamas', 'sol', 'degraus'];
+export const CAPULANA_PALETTE_IDS: CapulanaPaletteId[] = ['marginal', 'indico', 'machamba', 'mafalala', 'neon', 'coral'];
+export type CapulanaShapeId = 'circulo' | 'losango' | 'estrela' | 'coracao' | 'selo';
+export const CAPULANA_SHAPE_IDS: CapulanaShapeId[] = ['circulo', 'losango', 'estrela', 'coracao', 'selo'];
+/** Um pano limpo (o mesmo que `sanitizeCapulana` de lib/studio/capulana.ts). */
+export function sanitizePano(x: unknown): CapulanaSpec | undefined {
+  if (!x || typeof x !== 'object') return undefined;
+  const o = x as Record<string, unknown>;
+  if (!CAPULANA_PATTERN_IDS.includes(o.pattern as CapulanaPatternId) || !CAPULANA_PALETTE_IDS.includes(o.palette as CapulanaPaletteId)) return undefined;
+  const seed = typeof o.seed === 'number' && Number.isFinite(o.seed) ? Math.abs(Math.floor(o.seed)) % 1000000 : 0;
+  return { pattern: o.pattern as CapulanaPatternId, palette: o.palette as CapulanaPaletteId, seed };
+}
+export const isCapulanaTransitionId = (v: unknown): boolean => typeof v === 'string' && v.startsWith('capulana-') && TRANSITION_IDS.has(v);
+
+export interface ClipTransition { type: TransitionId; /** segundos */ dur: number; /** Nas transições de capulana: o pano (sem ele, o da tcheka). */ pano?: CapulanaSpec }
+/** O enquadramento de uma foto (Montagem mágica): o ponto de interesse, o zoom lento de `from` a `to` e a caixa da cara. */
+export interface ClipFocus { x: number; y: number; from: number; to: number; keep?: { x0: number; y0: number; x1: number; y1: number } }
 export type RampId = 'montaria' | 'heroi' | 'bala' | 'flash';
 
 /**
@@ -205,6 +230,10 @@ export interface ClipFx {
   reverse?: boolean;
   /** Só fotos: a foto é um frame congelado do clipe `from` (a chave) no segundo `at` do ficheiro; fica parada (sem zoom). */
   freeze?: { from: string; at: number };
+  /** Só fotos: o enquadramento (o zoom lento aponta para aqui e nunca corta a caixa `keep`). */
+  focus?: ClipFocus;
+  /** Só fotos: a foto vai inteira, numa moldura deste pano de capulana. */
+  moldura?: CapulanaSpec;
 }
 
 /** A transição quando o clipe não tem nenhuma escolhida (a de sempre: fundido de 0,5 s). */
@@ -233,6 +262,12 @@ export const TRANSITIONS: TransitionDef[] = [
   { id: 'flash', name: 'Flash', ffmpeg: 'fadewhite', exact: false },
   { id: 'brilho', name: 'Brilho', ffmpeg: 'fadefast', exact: false },
   { id: 'glitch', name: 'Glitch', ffmpeg: 'pixelize', exact: false },
+  // Os panos de capulana (desenhados por lib/studio/capulanaRender.ts; os nomes e o xfade de CAPULANA_TRANSITIONS).
+  { id: 'capulana-deslizar', name: 'Pano', ffmpeg: 'wipeleft', exact: false },
+  { id: 'capulana-desenrolar', name: 'Desenrolar', ffmpeg: 'wipedown', exact: false },
+  { id: 'capulana-rasgar', name: 'Rasgar', ffmpeg: 'horzopen', exact: false },
+  { id: 'capulana-losango', name: 'Losango', ffmpeg: 'diagtl', exact: false },
+  { id: 'capulana-vento', name: 'Ao vento', ffmpeg: 'wipetl', exact: false },
 ];
 const TRANSITION_IDS = new Set<string>(TRANSITIONS.map((t) => t.id));
 
@@ -242,7 +277,7 @@ export function transitionFor(fx: ClipFx | undefined, index: number, clipDur: nu
   const t = fx?.transition ?? DEFAULT_TRANSITION;
   if (t.type === 'corte') return null;
   const dur = Math.min(clamp(t.dur, TRANSITION_MIN_S, TRANSITION_MAX_S), Math.max(0, clipDur * 0.8));
-  return dur >= 0.05 ? { type: t.type, dur } : null;
+  return dur >= 0.05 ? { type: t.type, dur, ...(t.pano ? { pano: t.pano } : {}) } : null;
 }
 
 // ---------------------------------------------------------------- velocidade
@@ -420,11 +455,13 @@ export interface TextOverlay extends OverlayBase {
   size: number;
   color: string;
   align: 'left' | 'center' | 'right';
-  /** Fundo atrás de cada linha: cheio (na cor, com a letra a contrastar) ou suave (vidro escuro). */
-  bg: 'nenhum' | 'cheio' | 'suave';
+  /** Fundo atrás de cada linha: cheio (na cor, com a letra a contrastar), suave (vidro escuro) ou pano (uma faixa de capulana de lado a lado). */
+  bg: 'nenhum' | 'cheio' | 'suave' | 'pano';
   outline: boolean;
   shadow: boolean;
   neon: boolean;
+  /** As letras cheias com este pano de capulana (com `bg: 'pano'`, é o pano da faixa). */
+  pano?: CapulanaSpec;
 }
 export type StickerContent =
   | { type: 'emoji'; emoji: string }
@@ -432,7 +469,8 @@ export type StickerContent =
   | { type: 'gif'; id: string; url: string; w: number; h: number }
   | { type: 'mention'; username: string }
   | { type: 'location'; name: string }
-  | { type: 'time'; format: 'hora' | 'data' | 'hora-data'; /** quando foi posto (ms desde 1970): é a hora que aparece */ at: number };
+  | { type: 'time'; format: 'hora' | 'data' | 'hora-data'; /** quando foi posto (ms desde 1970): é a hora que aparece */ at: number }
+  | { type: 'capulana'; shape: CapulanaShapeId; pano: CapulanaSpec };
 export interface StickerOverlay extends OverlayBase {
   kind: 'sticker';
   sticker: StickerContent;
@@ -614,11 +652,23 @@ export function sanitizeFx(x: unknown): ClipFx | undefined {
     if (Object.keys(adj).length) out.adjust = adj;
   }
   const t = o.transition as Record<string, unknown> | undefined;
-  if (t && isStr(t.type, 30) && TRANSITION_IDS.has(t.type)) out.transition = { type: t.type as TransitionId, dur: r3(num(t.dur, DEFAULT_TRANSITION.dur, TRANSITION_MIN_S, TRANSITION_MAX_S)) };
+  if (t && isStr(t.type, 30) && TRANSITION_IDS.has(t.type)) {
+    out.transition = { type: t.type as TransitionId, dur: r3(num(t.dur, DEFAULT_TRANSITION.dur, TRANSITION_MIN_S, TRANSITION_MAX_S)) };
+    const pano = isCapulanaTransitionId(t.type) ? sanitizePano(t.pano) : undefined;
+    if (pano) out.transition.pano = pano;
+  }
   if (isStr(o.ramp, 20) && RAMP_IDS.has(o.ramp)) out.ramp = o.ramp as RampId;
   if (o.reverse === true) out.reverse = true;
   const z = o.freeze as Record<string, unknown> | undefined;
   if (z && isStr(z.from, 300)) out.freeze = { from: z.from, at: r3(num(z.at, 0, 0, 3600)) };
+  const fo = o.focus as Record<string, unknown> | undefined;
+  if (fo && typeof fo === 'object') {
+    const k = fo.keep as Record<string, unknown> | undefined;
+    const keep = k && typeof k === 'object' ? { x0: r4(num(k.x0, 0, 0, 1)), y0: r4(num(k.y0, 0, 0, 1)), x1: r4(num(k.x1, 1, 0, 1)), y1: r4(num(k.y1, 1, 0, 1)) } : null;
+    out.focus = { x: r4(num(fo.x, 0.5, 0, 1)), y: r4(num(fo.y, 0.5, 0, 1)), from: r3(num(fo.from, 1, 1, 1.5)), to: r3(num(fo.to, 1.07, 1, 1.5)), ...(keep && keep.x1 > keep.x0 && keep.y1 > keep.y0 ? { keep } : {}) };
+  }
+  const mo = sanitizePano(o.moldura);
+  if (mo) out.moldura = mo;
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -646,6 +696,7 @@ function sanitizeSticker(x: unknown): StickerContent | null {
     case 'mention': { const u = isStr(s.username, 40) ? s.username.replace(/^@/, '') : ''; return /^[A-Za-z0-9_.]{1,30}$/.test(u) ? { type: 'mention', username: u } : null; }
     case 'location': return isStr(s.name, 80) && s.name.trim() ? { type: 'location', name: s.name.trim() } : null;
     case 'time': return { type: 'time', format: s.format === 'data' || s.format === 'hora-data' ? s.format : 'hora', at: Math.round(num(s.at, 0, 0, 8.64e15)) };
+    case 'capulana': { const pano = sanitizePano(s.pano); return pano && CAPULANA_SHAPE_IDS.includes(s.shape as CapulanaShapeId) ? { type: 'capulana', shape: s.shape as CapulanaShapeId, pano } : null; }
     default: return null;
   }
 }
@@ -664,7 +715,8 @@ export function sanitizeOverlay(x: unknown): Overlay | null {
     return {
       ...base, kind: 'text', text, font: isStr(o.font, 20) && FONT_IDS.has(o.font) ? (o.font as FontId) : 'classica', size: Math.round(num(o.size, 84, 24, 300)),
       color: isStr(o.color, 7) && COLOR.test(o.color) ? o.color.toLowerCase() : '#ffffff', align: o.align === 'left' || o.align === 'right' ? o.align : 'center',
-      bg: o.bg === 'cheio' || o.bg === 'suave' ? o.bg : 'nenhum', outline: o.outline === true, shadow: o.shadow === true, neon: o.neon === true,
+      bg: o.bg === 'cheio' || o.bg === 'suave' || (o.bg === 'pano' && sanitizePano(o.pano)) ? (o.bg as TextOverlay['bg']) : 'nenhum', outline: o.outline === true, shadow: o.shadow === true, neon: o.neon === true,
+      ...(sanitizePano(o.pano) ? { pano: sanitizePano(o.pano) } : {}),
     };
   }
   if (o.kind === 'sticker') {
@@ -726,8 +778,8 @@ export function cubeLut(m: ColorMatrix, n = 33): string {
 }
 /**
  * A cadeia de filtros ffmpeg de um clipe (depois de o pôr no quadro 1080×1920): nitidez (`convolution` 3×3, igual ao
- * shader), cor (`lut3d` com o ficheiro de `cubeLut`), vinheta (`vignette` em RGB, a mesma fórmula) e grão (`noise` só na
- * luminância; aleatório, por isso só parecido). Vazio quando o clipe não tem efeitos.
+ * shader), cor (`lut3d` com o ficheiro de `cubeLut`), vinheta (`vignette` em RGB, a mesma fórmula, com um `format=gbrp` a seguir
+ * para ficar mesmo em RGB) e grão (`noise` só na luminância; aleatório, por isso só parecido). Vazio quando o clipe não tem efeitos.
  */
 export function ffmpegFxChain(fx: ClipFx | undefined, lutFile = 'clip.cube'): string {
   const p = resolveFx(fx);
@@ -740,6 +792,9 @@ export function ffmpegFxChain(fx: ClipFx | undefined, lutFile = 'clip.cube'): st
   }
   if (!isIdentity(p.matrix)) parts.push(`lut3d=file='${lutFile}':interp=tetrahedral`);
   if (p.vignette > 1e-3) parts.push(`vignette=angle=${f4(p.vignette * VIGNETTE_ANGLE)}:dither=0`);
+  // Prende a cadeia a RGB até ao fim: sem isto, o `format=yuv420p` que vem a seguir (o do grão ou o do resto do clipe) puxa a
+  // `vignette` para YUV na negociação dos formatos do ffmpeg, e aí ela escurece muito mais (nos cantos, 7 em vez de 24).
+  parts.push('format=gbrp');
   if (p.grain > 1e-3) parts.push(`format=yuv420p,noise=c0s=${Math.max(1, Math.round(p.grain * GRAIN_AMP * 0.5 * 255))}:c0f=t+u`);
   return parts.join(',');
 }

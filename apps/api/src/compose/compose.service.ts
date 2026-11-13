@@ -29,10 +29,10 @@ import { STICKER_ART } from '../stories/sticker-art';
 import { stickersSvg } from '../stories/stickers';
 import { encodeWav, renderSfxTrack, reverbImpulse, type SfxCue, type VoiceFxId } from './audio';
 import { composeSchema, firstProblem, PHOTO_DEFAULT_MS, type ComposeInput } from './compose.schema';
-import { cubeLut, fxSeconds, REVERSE_MAX_S, resolveFx, sanitizeFx, sanitizeOverlay, transitionFor, type ClipFx, type Overlay, type TransitionId } from './effects';
-import { needsLut, rampMaxSpeed, reverseChunks, reverseTooLong } from './fx';
-import { gifReader, renderLayers, renderTransitionHead, stillFramesOf, type StickerImages } from './studio-canvas';
-import { decodeMono, ffmpeg, FfmpegError, probe, SAFE_AUDIO, SAFE_VIDEO } from './ffmpeg';
+import { cubeLut, fxSeconds, REVERSE_MAX_S, resolveFx, sanitizeFx, sanitizeOverlay, sanitizePano, transitionFor, type CapulanaSpec, type ClipFx, type Overlay, type TransitionId } from './effects';
+import { needsLut, photoOnCanvas, rampMaxSpeed, reverseChunks, reverseTooLong, serverFxChain } from './fx';
+import { gifReader, renderLayers, renderPhotoFrames, renderTransitionHead, stillFramesOf, type StickerImages } from './studio-canvas';
+import { decodeMono, ffmpeg, FfmpegError, ffmpegSink, probe, SAFE_AUDIO, SAFE_VIDEO } from './ffmpeg';
 import { clipArgs, reverseChunkArgs, cleanText, finalArgs, FPS, frameSlots, OUT_H, OUT_W, PHOTO_OVERSCAN, DUET, RATE, textFilters, type OverlayImage, type TextItem, type Transition } from './plan';
 import { beatGrid, checkTcheka, clampTrim, clipSeconds, detectBeats, MIN_VOICE_S, rhythmDurations, TCHEKA_MAX_S } from './rules';
 
@@ -45,6 +45,8 @@ export const MAX_MUSIC_DOWNLOAD = 25 * 1024 * 1024;
  * estúdio pesa nele; dois ffmpeg em paralelo usam melhor os núcleos, com ~0,3–0,5 GB cada um).
  */
 export const STUDIO_CLIPS_AT_ONCE = 2;
+/** O pano de capulana de uma tcheka que não diga o dela (o `DEFAULT_PANO` do estúdio do site). */
+export const DEFAULT_PANO: CapulanaSpec = { pattern: 'losangos', palette: 'coral', seed: 1 };
 /** Um GIF do GIPHY descarrega-se só até este tamanho. */
 export const MAX_GIF_DOWNLOAD = 8 * 1024 * 1024;
 /** Montagens por pessoa e por hora (cada uma ocupa o servidor uns segundos). */
@@ -66,7 +68,7 @@ export interface ComposeSpec {
   v: 1;
   username: string;
   seal: SealTier | null;
-  clips: { mediaId: string; kind: 'video' | 'photo'; trimStart: number; trimEnd: number; speed: number; seconds: number; beats: number; fx?: ClipFx }[];
+  clips: { mediaId: string; kind: 'video' | 'photo'; trimStart: number; trimEnd: number; speed: number; seconds: number; beats: number; fx?: ClipFx; /** o volume do som deste vídeo (0 = calado; sem o campo, 1) */ vol?: number }[];
   audio: { kind: 'music' | 'sound'; src: AudioSrc } | null;
   rhythm: { auto: boolean; bpm: number | null } | null;
   duet: { postId: string; mediaId: string; seconds: number } | null;
@@ -85,6 +87,8 @@ export interface ComposeSpec {
    */
   studio?: boolean;
   overlays?: Overlay[];
+  /** O pano de capulana da tcheka (o das transições de pano sem pano próprio). */
+  pano?: CapulanaSpec;
 }
 
 /** O trecho, os fades, o ducking, a voz-off, os efeitos de voz e os efeitos sonoros (tempos em segundos). */
@@ -224,6 +228,11 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
       const fx = sanitizeFx(c.fx);
       if (c.kind === 'photo' && (fx?.ramp || fx?.reverse)) throw new BadRequestException('A rampa e o inverter são só para vídeos');
       if (c.kind === 'video' && fx?.freeze) throw new BadRequestException('Um frame congelado vai como uma foto');
+      if (c.kind === 'video' && (fx?.focus || fx?.moldura)) throw new BadRequestException('O enquadramento e a moldura são só para fotos');
+      if (c.kind === 'photo' && (c.sound !== undefined || c.volume !== undefined)) throw new BadRequestException('O som e o volume são só para vídeos');
+      // «Som do vídeo»: calado ou com o volume do clipe (como `soundOn` no estúdio).
+      const vol = c.sound === false ? 0 : c.volume ?? 1;
+      const snd = vol < 1 ? { vol } : {};
       if (fx?.freeze && keys.size && !keys.has(fx.freeze.from)) throw new BadRequestException('O frame congelado tem de vir de um clipe desta tcheka');
       const video = String(a.mime).startsWith('video/');
       if (video !== (c.kind === 'video') || (!video && !String(a.mime).startsWith('image/'))) throw new BadRequestException(`O clipe ${i + 1} não é ${c.kind === 'video' ? 'um vídeo' : 'uma foto'}`);
@@ -234,7 +243,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
         if (fx?.reverse && reverseTooLong(trim.end - trim.start)) throw new BadRequestException(`Para inverter, o clipe pode ter até ${REVERSE_MAX_S} s`);
         // Com rampa, a duração muda (fxSeconds, como no estúdio); sem ela é o corte à velocidade.
         const seconds = fx?.ramp ? fxSeconds(trim.end - trim.start, speed, fx) : clipSeconds(trim, speed);
-        return { mediaId: c.mediaId, kind: 'video' as const, trimStart: trim.start, trimEnd: trim.end, speed, seconds, beats: perPhoto, ...(fx ? { fx } : {}) };
+        return { mediaId: c.mediaId, kind: 'video' as const, trimStart: trim.start, trimEnd: trim.end, speed, seconds, beats: perPhoto, ...(fx ? { fx } : {}), ...snd };
       }
       return { mediaId: c.mediaId, kind: 'photo' as const, trimStart: 0, trimEnd: 0, speed: 1, seconds: (c.durationMs ?? PHOTO_DEFAULT_MS) / 1000, beats: c.beats ?? perPhoto, ...(fx ? { fx } : {}) };
     });
@@ -247,14 +256,16 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     // As durações para as regras: ao ritmo, com o BPM dado (ou 120); no trabalho usam-se as batidas lidas da música.
     const durations = rhythm ? rhythmDurations(clips.map((c) => ({ video: c.kind === 'video', seconds: c.seconds, beats: c.beats })), beatGrid(rhythm.bpm, 0, TCHEKA_MAX_S + 30)) : clips.map((c) => c.seconds);
     // Os volumes por omissão do estúdio: com um som de outra tcheka o original começa calado; com música, mais baixo.
-    const originalVolume = b.originalVolume ?? (audio ? (audio.kind === 'sound' ? 0 : 0.4) : 1);
+    // (Como o estúdio integrado: o som dos vídeos a 100 %; a música a 70 % quando há vídeos, para se ouvirem por cima.)
+    const originalVolume = b.originalVolume ?? (audio?.kind === 'sound' ? 0 : 1);
+    const musicVolume = b.musicVolume ?? (audio?.kind === 'music' && clips.some((c) => c.kind === 'video') ? 0.7 : 1);
     // A voz-off: um áudio meu, enviado e pronto, do armazenamento privado. Conta como o som com 3 s ou mais dentro da tcheka
     // (se ainda não se souber quanto dura, conta; no trabalho volta a contar-se com a duração verdadeira).
     const voice = b.voiceOver ? await this.checkVoice(userId, b.voiceOver.mediaId) : null;
     const sum = durations.reduce((x, d) => x + d, 0);
     const voiceSeconds = voice && b.voiceOver ? (voice.seconds !== null ? Math.max(0, Math.min(b.voiceOver.startMs / 1000 + voice.seconds, sum) - b.voiceOver.startMs / 1000) : MIN_VOICE_S) : 0;
     // Um vídeo ao contrário fica com o som calado (não conta para o som obrigatório, como no estúdio).
-    const rules = checkTcheka({ clips: clips.map((c, i) => ({ video: c.kind === 'video', seconds: durations[i], ...(c.fx?.reverse ? { hasAudio: false } : {}) })), music: !!audio || !!duet, originalVolume, voiceSeconds });
+    const rules = checkTcheka({ clips: clips.map((c, i) => ({ video: c.kind === 'video', seconds: durations[i], ...(c.fx?.reverse || (c as { vol?: number }).vol === 0 ? { hasAudio: false } : {}) })), music: !!audio || !!duet, originalVolume, voiceSeconds });
     if (!rules.ok) throw new BadRequestException({ message: rules.hint, problem: rules.problem });
     const total = Math.min(rules.total, TCHEKA_MAX_S, duet ? duet.seconds : Infinity);
 
@@ -280,7 +291,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
       rhythm,
       duet,
       originalVolume,
-      musicVolume: b.musicVolume ?? 1,
+      musicVolume,
       transition: b.transition ?? 'cut',
       filter: b.filter ?? null,
       texts: texts.map((t) => ({ text: t.text, color: t.color, bg: t.bg ?? null, x: t.x, y: t.y, size: t.size, start: t.startMs / 1000, end: t.endMs !== undefined ? t.endMs / 1000 : null })),
@@ -296,7 +307,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
         sfx: (b.soundEffects ?? []).map((s) => ({ id: s.id, at: s.atMs / 1000 })),
         sfxVolume: b.soundEffectsVolume ?? 1,
       },
-      ...(studio ? { studio: true, overlays } : {}),
+      ...(studio ? { studio: true, overlays, pano: sanitizePano(b.pano) ?? DEFAULT_PANO } : {}),
     };
   }
 
@@ -728,7 +739,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     const limit = Math.min(TCHEKA_MAX_S, duet ? duet.seconds : Infinity);
     const until = Math.min(limit, durations.reduce((x, d) => x + d, 0));
     const voiceSeconds = voice && mix?.voice ? Math.max(0, Math.min(mix.voice.start + voice.seconds, until) - mix.voice.start) : 0;
-    const rules = checkTcheka({ clips: spec.clips.map((c, i) => ({ video: c.kind === 'video', seconds: durations[i], hasAudio: c.kind === 'video' ? inputs.get(c.mediaId)!.hasAudio && !(spec.studio && c.fx?.reverse) : undefined })), music: !!music || !!duet, originalVolume: spec.originalVolume, voiceSeconds });
+    const rules = checkTcheka({ clips: spec.clips.map((c, i) => ({ video: c.kind === 'video', seconds: durations[i], hasAudio: c.kind === 'video' ? inputs.get(c.mediaId)!.hasAudio && !(spec.studio && c.fx?.reverse) && c.vol !== 0 : undefined })), music: !!music || !!duet, originalVolume: spec.originalVolume, voiceSeconds });
     if (!rules.ok && rules.problem !== 'longo') throw new ComposeRejected(rules.hint ?? 'Não dá para montar esta tcheka');
     const slots = frameSlots(durations, limit);
     const frames = slots.reduce((n, s) => n + s.frames, 0);
@@ -768,7 +779,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
     const tick = () => onProgress(0.08 + 0.37 * Math.min(1, (doneFrames + [...live.values()].reduce((x, y) => x + y, 0) * FPS) / frames));
     const order = spec.clips.map((_, i) => i).filter((i) => slots[i].frames > 0);
     const prevOf = new Map(order.map((i, k) => [i, k > 0 ? order[k - 1] : -1]));
-    const heads = new Map<number, { frames: number; file: string; type: TransitionId; dur: number }>();
+    const heads = new Map<number, { frames: number; file: string; type: TransitionId; dur: number; pano: CapulanaSpec }>();
     const finished = new Set<number>(), drawn = new Set<number>(), claimed = new Set<number>();
     const clipJob = async (i: number, prevStill: string | null) => {
       const c = spec.clips[i];
@@ -793,18 +804,40 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
       const tr = studio && prevOf.get(i)! >= 0 ? transitionFor(c.fx, i, N / FPS) : null;
       const headFrames = tr ? Math.min(N - 1, Math.ceil(tr.dur * FPS - 1e-6)) : 0;
       const head = headFrames > 0 ? { frames: headFrames, file: `head_${i}.rgba` } : undefined;
-      await run(
-        clipArgs({
-          kind: c.kind, input, trimStart, trimLen: Math.max(0.1, c.trimEnd - c.trimStart), speed: c.speed, hasAudio, frames: N, w: W, h: H,
-          look: studio ? null : spec.filter, prevStill, transition: spec.transition, out, threads,
-          ...(studio ? { fx: c.fx ?? {}, lut, head } : {}),
-        }),
-        (sec) => { live.set(i, sec); tick(); },
-      );
+      const job = {
+        kind: c.kind, input, trimStart, trimLen: Math.max(0.1, c.trimEnd - c.trimStart), speed: c.speed, hasAudio, frames: N, w: W, h: H,
+        look: studio ? null : spec.filter, prevStill, transition: spec.transition, out, threads, volume: c.vol ?? 1,
+        ...(studio ? { fx: c.fx ?? {}, lut, head } : {}),
+      };
+      if (studio && c.kind === 'photo' && photoOnCanvas(c.fx)) {
+        // A moldura de capulana e o enquadramento: os frames desenham-se no canvas (como o drawBase do site) e o ffmpeg
+        // recebe-os pelo stdin. Na moldura, o filtro e os ajustes vão só na foto (até 1440 px de lado, como no site).
+        const fx = c.fx!;
+        const raw = await this.media.rawBytes(c.mediaId, 'public');
+        const base = sharp(raw, { limitInputPixels: 80_000_000 }).rotate();
+        let image: Buffer;
+        if (fx.moldura) {
+          image = await base.resize(1440, 1440, { fit: 'inside', withoutEnlargement: true }).png().toBuffer();
+          const chain = serverFxChain(fx, lut ?? 'clip.cube').split(',format=yuv420p,noise=')[0];
+          if (chain) {
+            await writeFile(join(tmp, `mold_${i}.png`), image);
+            await run(['-y', '-i', `mold_${i}.png`, '-vf', `${chain},format=rgb24`, '-frames:v', '1', '-update', '1', `moldfx_${i}.png`]);
+            image = await readFile(join(tmp, `moldfx_${i}.png`));
+          }
+        } else image = await base.resize(Math.round(W * PHOTO_OVERSCAN), Math.round(H * PHOTO_OVERSCAN), { fit: 'outside' }).jpeg({ quality: 92 }).toBuffer();
+        const sink = ffmpegSink(clipArgs({ ...job, kind: 'canvas', noColor: !!fx.moldura }), { cwd: tmp, signal });
+        try {
+          await renderPhotoFrames({ image, frames: N, W, H, fx, write: (f) => sink.write(f) });
+        } catch (e) {
+          await sink.end().catch(() => undefined);
+          throw e;
+        }
+        await sink.end();
+      } else await run(clipArgs(job), (sec) => { live.set(i, sec); tick(); });
       live.delete(i);
       doneFrames += N;
       tick();
-      if (head && tr) heads.set(i, { ...head, type: tr.type, dur: tr.dur });
+      if (head && tr) heads.set(i, { ...head, type: tr.type, dur: tr.dur, pano: tr.pano ?? spec.pano ?? DEFAULT_PANO });
       finished.add(i);
     };
     /** As transições cujos dois clipes já estão prontos. */
@@ -815,7 +848,7 @@ export class ComposeService implements OnModuleInit, OnModuleDestroy {
         claimed.add(i);
         const h0 = Date.now();
         const prev = existsSync(join(tmp, `last_${p}.png`)) ? `last_${p}.png` : null;
-        await renderTransitionHead({ prev, head: h.file, frames: h.frames, type: prev ? h.type : 'corte', dur: h.dur, W, H, out: `segh_${i}.mp4`, cwd: tmp, signal, threads });
+        await renderTransitionHead({ prev, head: h.file, frames: h.frames, type: prev ? h.type : 'corte', dur: h.dur, W, H, out: `segh_${i}.mp4`, cwd: tmp, signal, threads, pano: h.pano });
         timings.transitions += Date.now() - h0;
         await rm(join(tmp, h.file), { force: true });
         drawn.add(i);

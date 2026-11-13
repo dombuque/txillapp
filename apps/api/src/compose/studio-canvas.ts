@@ -2,9 +2,11 @@ import { createCanvas, GlobalFonts, ImageData, loadImage, type Canvas, type Imag
 import { existsSync, readFileSync } from 'fs';
 import { open, writeFile } from 'fs/promises';
 import { basename, join, resolve } from 'path';
-import { FONTS, FRAME, restingTime, type Overlay, type StickerOverlay, type TransitionId } from './effects';
+import { drawCapulanaFrame, drawCapulanaTransition, setCapulanaCanvasFactory } from './capulanaRender';
+import { isCapulanaTransition } from './capulanaShapes';
+import { FONTS, FRAME, restingTime, type CapulanaSpec, type ClipFx, type Overlay, type StickerOverlay, type TransitionId } from './effects';
 import { ffmpegFrames, ffmpegSink } from './ffmpeg';
-import { overlayBox, overlayRuns } from './fx';
+import { coverRect, overlayBox, overlayRuns } from './fx';
 import { FPS } from './plan';
 import { drawOverlays, overlaySize, type OverlayEnv } from './renderOverlays';
 import { drawTransition, type Scratch } from './renderTransitions';
@@ -26,6 +28,8 @@ let fontsReady: boolean | null = null;
 /** Regista as fontes uma vez (true se todas as do estúdio ficaram registadas). */
 export function ensureStudioFonts(): boolean {
   if (fontsReady !== null) return fontsReady;
+  // Os panos de capulana (capulanaRender.ts) criam os canvas de trabalho deles por aqui.
+  setCapulanaCanvasFactory((w, h) => createCanvas(w, h));
   const dir = FONT_DIRS.find((d) => existsSync(join(d, 'inter.woff2')));
   let ok = !!dir;
   for (const f of FONTS) {
@@ -72,8 +76,11 @@ const ENCODE_X264 = (threads?: number) => ['-c:v', 'libx264', '-preset', 'ultraf
  */
 export async function renderTransitionHead(o: {
   prev: string | null; head: string; frames: number; type: TransitionId; dur: number; W: number; H: number; out: string; cwd: string; signal?: AbortSignal; threads?: number;
+  /** O pano das transições de capulana. */
+  pano: CapulanaSpec;
 }): Promise<void> {
   const { W, H } = o;
+  ensureStudioFonts();
   // Sem o frame do anterior (não devia acontecer), um quadro preto: com `corte` só se desenha o clipe.
   const prev = o.prev ? await loadImage(join(o.cwd, o.prev)) : createCanvas(W, H);
   const cur = createCanvas(W, H), cg = cur.getContext('2d');
@@ -88,7 +95,9 @@ export async function renderTransitionHead(o: {
       const { bytesRead } = await fh.read(buf, 0, bytes, k * bytes);
       if (bytesRead < bytes) break; // o clipe tinha menos frames: fica o que houver
       cg.putImageData(new ImageData(new Uint8ClampedArray(buf.buffer, buf.byteOffset, bytes), W, H), 0, 0);
-      drawTransition(asCtx(g), prev as unknown as CanvasImageSource, cur as unknown as CanvasImageSource, o.type, k / FPS / o.dur, W, H, scratch);
+      // Os panos de capulana têm o desenho deles (capulanaRender.ts); as outras, o de renderTransitions.ts (como no site).
+      if (isCapulanaTransition(o.type)) drawCapulanaTransition(asCtx(g), prev as unknown as CanvasImageSource, cur as unknown as CanvasImageSource, o.type, k / FPS / o.dur, W, H, o.pano);
+      else drawTransition(asCtx(g), prev as unknown as CanvasImageSource, cur as unknown as CanvasImageSource, o.type, k / FPS / o.dur, W, H, scratch);
       { const d = g.getImageData(0, 0, W, H).data; await sink.write(new Uint8Array(d.buffer, d.byteOffset, d.byteLength)); }
     }
   } catch (e) {
@@ -98,6 +107,38 @@ export async function renderTransitionHead(o: {
     await fh.close();
   }
   await sink.end();
+}
+
+// ------------------------------------------------------------------ fotos no canvas
+
+/**
+ * Os frames de uma foto com moldura de capulana (a foto inteira por cima do pano, com o zoom lento dentro da moldura) ou com
+ * enquadramento (`focus`: o retângulo de `coverRect` a encher o quadro), como o `drawBase` do estúdio do site. `write`
+ * recebe cada frame em RGBA (W×H).
+ */
+export async function renderPhotoFrames(o: { image: Buffer; frames: number; W: number; H: number; fx: ClipFx; write: (frame: Uint8Array) => Promise<void> }): Promise<void> {
+  ensureStudioFonts();
+  const { W, H, fx } = o;
+  const img = await loadImage(o.image);
+  const c = createCanvas(W, H), g = c.getContext('2d');
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = 'high';
+  const dur = o.frames / FPS;
+  for (let k = 0; k < o.frames; k++) {
+    const u = Math.min(1, k / FPS / Math.max(0.1, dur));
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, W, H);
+    if (fx.moldura) {
+      const zoom = fx.focus ? fx.focus.from + (fx.focus.to - fx.focus.from) * u : 1 + 0.04 * u;
+      drawCapulanaFrame(asCtx(g), img as unknown as CanvasImageSource, img.width, img.height, W, H, fx.moldura, zoom, fx.focus);
+    } else if (fx.focus) {
+      const r = coverRect(img.width, img.height, fx.focus, u, W, H);
+      g.drawImage(img, r.sx, r.sy, r.sw, r.sh, 0, 0, W, H);
+    } else g.drawImage(img, 0, 0, W, H);
+    const d = g.getImageData(0, 0, W, H).data;
+    await o.write(new Uint8Array(d.buffer, d.byteOffset, d.byteLength));
+  }
 }
 
 // ------------------------------------------------------------------ camadas
@@ -123,13 +164,14 @@ export async function renderLayers(overlays: Overlay[], F: number, images: Stick
   ensureStudioFonts();
   const W = FRAME.w, H = FRAME.h;
   const measure = createCanvas(4, 4).getContext('2d');
+  const scratch = scratchPool(); // as letras com pano de capulana
   const out: LayerFile[] = [];
   let n = 0;
   for (const ov of overlays) {
     const runs = overlayRuns(ov, F);
     if (!runs.length) continue;
     let current: { img: Canvas | Image; w: number; h: number } | null = ov.kind === 'sticker' ? images.still(ov) : null;
-    const env: OverlayEnv = { W, H, image: () => current as unknown as { img: CanvasImageSource; w: number; h: number } | null };
+    const env: OverlayEnv = { W, H, image: () => current as unknown as { img: CanvasImageSource; w: number; h: number } | null, scratch: scratch as unknown as OverlayEnv['scratch'] };
     const isGif = ov.kind === 'sticker' && ov.sticker.type === 'gif';
     if (isGif && images.gifFrame) current = await images.gifFrame(ov as StickerOverlay, runs[0].k0);
     // Um sticker do Txillapp ou um GIF sem imagem não se desenha (como no site enquanto não chega).

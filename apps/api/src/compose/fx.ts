@@ -1,5 +1,5 @@
 import {
-  animDurations, ffmpegFxChain, FRAME, rampById, rampPieces, REVERSE_MAX_S, resolveFx, type ClipFx, type Overlay,
+  animDurations, ffmpegFxChain, FRAME, isIdentity, rampById, rampPieces, REVERSE_MAX_S, resolveFx, type ClipFocus, type ClipFx, type Overlay,
 } from './effects';
 import { atempo, FPS } from './plan';
 
@@ -79,27 +79,39 @@ export function reverseChunks(trimLen: number, chunk: number): { from: number; l
 // ------------------------------------------------------------------ cor
 
 /**
- * A cadeia de cor de effects.ts (`ffmpegFxChain`), presa a RGB até ao fim. Sem isto, o `format=yuv420p` que vem a seguir
- * (o do grão, ou o do resto do clipe) puxa a `vignette` para yuv420p: a negociação dos formatos do ffmpeg passa a conversão
- * para antes dela (a entrada e a saída da `vignette` partilham a lista de formatos) e, em YUV, a vinheta multiplica o Y sem
- * tirar os 16 do preto, por isso escurece muito mais (nos cantos, 7 em vez de 24). Com um `format=gbrp` depois da cadeia
- * (ou antes do grão), a vinheta e a nitidez ficam em RGB, como no shader.
+ * A cadeia de cor de effects.ts (`ffmpegFxChain`, que já prende a vinheta a RGB com um `format=gbrp` no fim), com a LUT
+ * trilinear: a LUT tem uma matriz afim (com o corte a 0..1), por isso dá o mesmo que a tetraédrica dentro de cada célula
+ * (só muda nas que cortam o 0 ou o 1) e, no ffmpeg, gasta menos de metade do CPU (o lut3d de 8 bits não tem SIMD): o mesmo
+ * ΔE no fx-pixels.spec.ts.
  */
-export function serverFxChain(fx: ClipFx | undefined, lutFile: string): string {
-  // A LUT tem uma matriz afim (com o corte a 0..1): a interpolação trilinear dá o mesmo que a tetraédrica dentro de cada
-  // célula (só muda nas células que cortam o 0 ou o 1) e, no ffmpeg 6, gasta menos de metade do CPU (o lut3d em 8 bits
-  // não tem SIMD): o mesmo ΔE no fx-pixels.spec.ts.
-  const c = ffmpegFxChain(fx, lutFile).replace(':interp=tetrahedral', ':interp=trilinear');
-  if (!c) return '';
-  const grain = ',format=yuv420p,noise=';
-  return c.includes(grain) ? c.replace(grain, `,format=gbrp${grain}`) : `${c},format=gbrp`;
-}
+export const serverFxChain = (fx: ClipFx | undefined, lutFile: string): string => ffmpegFxChain(fx, lutFile).replace(':interp=tetrahedral', ':interp=trilinear');
 
 /** A cadeia do clipe tem LUT? (só se a matriz não for a identidade.) */
-export const needsLut = (fx: ClipFx | undefined) => {
-  const m = resolveFx(fx).matrix;
-  return m.some((v, i) => Math.abs(v - [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0][i]) >= 1e-4);
-};
+export const needsLut = (fx: ClipFx | undefined) => !isIdentity(resolveFx(fx).matrix);
+
+// ------------------------------------------------------------------ fotos (enquadramento e moldura)
+
+const clampN = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
+const r3 = (v: number) => Math.round(v * 1000) / 1000;
+const easeIO = (x: number) => { const t = clampN(x, 0, 1); return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; };
+/**
+ * O retângulo da foto (px da fonte sw×sh) que enche o quadro W×H no instante `u` (0 a 1) com o enquadramento `focus`: a
+ * mesma conta de `coverRect` em apps/mobile/src/lib/studio/magic.ts (o zoom lento de `from` a `to`, apontado ao ponto de
+ * interesse, sem cortar a caixa `keep` quando ela cabe).
+ */
+export function coverRect(sw: number, sh: number, fr: Pick<ClipFocus, 'x' | 'y' | 'from' | 'to' | 'keep'>, u: number, W: number = FRAME.w, H: number = FRAME.h): { sx: number; sy: number; sw: number; sh: number } {
+  const z = Math.max(1, fr.from + (fr.to - fr.from) * easeIO(u));
+  const fa = W / H, ar = sw / sh;
+  const w = (ar > fa ? sh * fa : sw) / z, h = (ar > fa ? sh : sw / fa) / z;
+  const place = (c: number, size: number, full: number, k0?: number, k1?: number) => {
+    let p = c * full - size / 2;
+    if (k0 != null && k1 != null && (k1 - k0) * full <= size) p = clampN(p, k1 * full - size, k0 * full);
+    return clampN(p, 0, Math.max(0, full - size));
+  };
+  return { sx: r3(place(fr.x, w, sw, fr.keep?.x0, fr.keep?.x1)), sy: r3(place(fr.y, h, sh, fr.keep?.y0, fr.keep?.y1)), sw: r3(w), sh: r3(h) };
+}
+/** A foto desenha-se no canvas (frame a frame)? Com moldura de capulana ou com enquadramento (um frame congelado fica parado). */
+export const photoOnCanvas = (fx: ClipFx | undefined) => !!fx && (!!fx.moldura || (!!fx.focus && !fx.freeze));
 
 // ------------------------------------------------------------------ camadas
 
@@ -151,6 +163,13 @@ export function overlayRuns(o: Overlay, F: number): OverlayRun[] {
  */
 export function overlayBox(o: Overlay, size: { w: number; h: number }, W: number = FRAME.w, H: number = FRAME.h): { x: number; y: number; w: number; h: number } | null {
   const ins = [o.anim.in, o.anim.out];
+  if (o.kind === 'text' && o.bg === 'pano' && o.pano) {
+    // A faixa de capulana: de lado a lado, à altura do texto (não roda nem escala com a animação), com a sombra por baixo.
+    const h = o.size * 2.6 * o.scale;
+    const y0 = Math.max(0, Math.floor(o.y * H - h / 2 - 4 - (o.anim.out === 'subir' ? 140 : 0)));
+    const y1 = Math.min(H, Math.ceil(o.y * H + h / 2 + h * 0.06 + 4 + (o.anim.in === 'subir' ? 140 : 0)));
+    return y1 - y0 < 2 ? null : { x: 0, y: y0, w: W, h: y1 - y0 };
+  }
   const S = o.scale * (ins.includes('pop') ? 1.1 : 1) * (o.anim.loop === 'pulsar' ? 1.07 : 1);
   let m: number;
   if (o.kind === 'text') {

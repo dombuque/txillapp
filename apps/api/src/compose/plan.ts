@@ -63,7 +63,12 @@ export function atempo(speed: number): string {
 const n = (x: number, d = 3) => (Math.round(x * 10 ** d) / 10 ** d).toString();
 
 export interface ClipJob {
-  kind: 'video' | 'photo';
+  /** `canvas`: os frames (RGBA, w×h, 30 fps) chegam pelo stdin, já desenhados (a foto com moldura ou enquadramento). */
+  kind: 'video' | 'photo' | 'canvas';
+  /** Vídeos: o volume do som deste clipe (por omissão 1; 0 = calado). */
+  volume?: number;
+  /** `canvas`: a cor já vai nos frames (a moldura leva o filtro só na foto). */
+  noColor?: boolean;
   /** O ficheiro de entrada (no diretório do trabalho). */
   input: string;
   /** Vídeos: o bocado que entra (segundos no ficheiro) e a velocidade. */
@@ -99,7 +104,7 @@ export const transitionSeconds = (frames: number) => Math.min(TR, Math.max(0, (f
 export function clipArgs(c: ClipJob): string[] {
   const N = c.frames;
   const W = c.w, H = c.h;
-  const look = c.fx ? serverFxChain(c.fx, c.lut ?? 'clip.cube') : lookFilter(c.look);
+  const look = c.noColor ? '' : c.fx ? serverFxChain(c.fx, c.lut ?? 'clip.cube') : lookFilter(c.look);
   const lk = look ? `,${look}` : '';
   // A rampa (só vídeos): os frames da fonte vão para o instante de saída de cada bocado (rampPieces, a 0,1 s).
   const pieces = c.kind === 'video' && c.fx?.ramp ? mergedPieces(c.trimLen, c.speed, c.fx) : null;
@@ -113,6 +118,9 @@ export function clipArgs(c: ClipJob): string[] {
       `[0:v]${pieces ? 'setpts=PTS-STARTPTS,' : ''}${timing},fps=${FPS},scale=${W}:${H}:force_original_aspect_ratio=increase:flags=bicubic,crop=${W}:${H},setsar=1${lk},format=yuv420p,` +
         `tpad=stop_mode=clone:stop_duration=2,trim=end_frame=${N},setpts=N/(${FPS}*TB)[c]`,
     );
+  } else if (c.kind === 'canvas') {
+    args.push('-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${W}x${H}`, '-framerate', String(FPS), '-i', 'pipe:0');
+    graph.push(`[0:v]setsar=1${lk},format=yuv420p,trim=end_frame=${N},setpts=N/(${FPS}*TB)[c]`);
   } else {
     args.push('-i', c.input);
     // Ken Burns: de 1 a 1,07 ao longo da foto, sempre ao centro (um frame congelado fica parado).
@@ -136,12 +144,15 @@ export function clipArgs(c: ClipJob): string[] {
   graph.push(`[l]select='eq(n,${N - 1})'[last]`);
   // O som: o do vídeo (à mesma velocidade) ou silêncio; sempre com o número certo de amostras.
   const audioIdx = td > 0 ? 2 : 1;
-  if (c.kind === 'video' && c.hasAudio && pieces) {
+  const vol = c.volume ?? 1;
+  const gain = vol < 1 ? `,volume=${n(vol)}` : '';
+  const sounds = c.kind === 'video' && c.hasAudio && vol > 0;
+  if (sounds && pieces) {
     graph.push(`[0:a]asetpts=PTS-STARTPTS,aresample=${RATE}[ar]`, ...rampAudio(pieces, '[ar]', '[arr]'));
-    graph.push(`[arr]aformat=sample_fmts=s16:channel_layouts=stereo,apad,atrim=end_sample=${N * SPF}[a]`);
-  } else if (c.kind === 'video' && c.hasAudio) {
+    graph.push(`[arr]aformat=sample_fmts=s16:channel_layouts=stereo${gain},apad,atrim=end_sample=${N * SPF}[a]`);
+  } else if (sounds) {
     const t = atempo(c.speed);
-    graph.push(`[0:a]asetpts=PTS-STARTPTS${t ? `,${t}` : ''},aresample=${RATE},aformat=sample_fmts=s16:channel_layouts=stereo,apad,atrim=end_sample=${N * SPF}[a]`);
+    graph.push(`[0:a]asetpts=PTS-STARTPTS${t ? `,${t}` : ''},aresample=${RATE},aformat=sample_fmts=s16:channel_layouts=stereo${gain},apad,atrim=end_sample=${N * SPF}[a]`);
   } else {
     args.push('-f', 'lavfi', '-i', `anullsrc=r=${RATE}:cl=stereo`);
     graph.push(`[${audioIdx}:a]aformat=sample_fmts=s16:channel_layouts=stereo,atrim=end_sample=${N * SPF}[a]`);

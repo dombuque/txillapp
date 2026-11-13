@@ -68,7 +68,7 @@ const st = StyleSheet.create({
   fit: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginTop: 8, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: 'rgba(214,51,79,0.14)', borderWidth: 1, borderColor: 'rgba(214,51,79,0.5)' },
   fitIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: CORAL, alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(214,51,79,0.6)' },
   fitText: { color: '#fff', fontSize: 14, fontWeight: '800' },
-  fitSub: { color: 'rgba(255,255,255,0.65)', fontSize: 12 },
+  fitSub: { color: 'rgba(255,255,255,0.65)', fontSize: 14 },
   row: { gap: 10, paddingHorizontal: 16, marginTop: 10 },
   card: { width: 150, borderRadius: 16, padding: 12, gap: 8, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   cardOn: { borderColor: CORAL, backgroundColor: 'rgba(214,51,79,0.16)', boxShadow: '0 0 22px rgba(214,51,79,0.4)' },
@@ -76,6 +76,6 @@ const st = StyleSheet.create({
   name: { color: '#fff', fontSize: 15, fontWeight: '900' },
   pattern: { flexDirection: 'row', gap: 3, height: 14 },
   cut: { height: 14, borderRadius: 3 },
-  desc: { color: 'rgba(255,255,255,0.72)', fontSize: 12, minHeight: 32 },
-  meta: { color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '700' },
+  desc: { color: 'rgba(255,255,255,0.72)', fontSize: 14, minHeight: 32 },
+  meta: { color: 'rgba(255,255,255,0.5)', fontSize: 14, fontWeight: '700' },
 });

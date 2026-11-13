@@ -113,7 +113,7 @@ function make(name: string, args: string[]) {
   /**
    * Os efeitos do estúdio todos de uma vez (docs/estudio-efeitos.md): filtros e ajustes (nitidez, vinheta, grão) em todos os
    * clipes, uma rampa, um vídeo invertido, uma transição diferente em cada junção (as do canvas: girar, brilho, glitch,
-   * desfoque, zoom), 3 textos animados (néon, máquina de escrever, ondulação a balançar), emoji a pulsar, local, hora,
+   * o pano de capulana a desenrolar, zoom), uma foto em moldura de capulana, 3 textos animados e uma faixa de pano, um sticker de pano (néon, máquina de escrever, ondulação a balançar), emoji a pulsar, local, hora,
    * sticker do Txillapp e um GIF: ~30 s.
    */
   it('30 s com os efeitos do estúdio todos', () => bench('fx30s', 4, 6, 2, (clips) => {
@@ -121,8 +121,8 @@ function make(name: string, args: string[]) {
       { filter: { id: 'costa-do-sol', amount: 0.8 }, adjust: { contrast: 0.2, sharpen: 0.3 }, ramp: 'heroi' },
       { filter: { id: 'noite-de-maputo', amount: 1 }, transition: { type: 'girar', dur: 0.6 } },
       { filter: { id: 'vintage', amount: 1 }, adjust: { vignette: 0.4 }, transition: { type: 'brilho', dur: 0.8 }, reverse: true },
-      { filter: { id: 'capulana', amount: 0.7 }, transition: { type: 'glitch', dur: 0.6 } },
-      { filter: { id: 'pb', amount: 1 }, transition: { type: 'desfoque', dur: 0.8 } },
+      { filter: { id: 'capulana', amount: 0.7 }, transition: { type: 'glitch', dur: 0.6 }, moldura: { pattern: 'sol', palette: 'marginal', seed: 2 } },
+      { filter: { id: 'pb', amount: 1 }, transition: { type: 'capulana-desenrolar', dur: 0.8, pano: { pattern: 'ziguezague', palette: 'indico', seed: 7 } } },
       { filter: { id: 'limpopo', amount: 1 }, adjust: { grain: 0.3 }, transition: { type: 'zoom', dur: 0.6 } },
     ];
     const anim = (inA: string, loop = 'nenhuma') => ({ in: inA, out: 'aparecer', loop, inDur: 0.6, outDur: 0.35 });
@@ -132,6 +132,8 @@ function make(name: string, args: string[]) {
         { id: 't1', kind: 'text', start: 0.5, end: 6, x: 0.5, y: 0.3, text: 'Bom dia, Maputo!', font: 'futuro', size: 96, color: '#ff4fd8', neon: true, anim: anim('pop') },
         { id: 't2', kind: 'text', start: 8, end: 16, x: 0.5, y: 0.45, text: 'Máquina de escrever\nem duas linhas', font: 'maquina', size: 70, color: '#ffd60a', bg: 'cheio', anim: { ...anim('maquina'), inDur: 1.5 } },
         { id: 't3', kind: 'text', start: 18, end: 28, x: 0.5, y: 0.35, rot: -6, text: 'Ondas no mar', font: 'praia', size: 110, color: '#ffffff', outline: true, shadow: true, anim: anim('ondulacao', 'balancar') },
+        { id: 't4', kind: 'text', start: 20, end: 29, x: 0.5, y: 0.8, text: 'Capulana', font: 'classica', size: 70, bg: 'pano', pano: { pattern: 'losangos', palette: 'coral', seed: 1 }, anim: anim('aparecer') },
+        { id: 's6', kind: 'sticker', start: 6, end: 18, x: 0.75, y: 0.4, scale: 0.6, sticker: { type: 'capulana', shape: 'estrela', pano: { pattern: 'flores', palette: 'neon', seed: 4 } }, anim: anim('pop', 'pulsar') },
         { id: 's1', kind: 'sticker', start: 0, end: 30, x: 0.25, y: 0.7, sticker: { type: 'emoji', emoji: '🔥' }, anim: anim('pop', 'pulsar') },
         { id: 's2', kind: 'sticker', start: 2, end: 30, x: 0.5, y: 0.66, rot: -4, sticker: { type: 'location', name: 'Costa do Sol' }, variant: 'coral', anim: anim('subir') },
         { id: 's3', kind: 'sticker', start: 4, end: 20, x: 0.7, y: 0.2, sticker: { type: 'time', format: 'hora-data', at: Date.UTC(2026, 10, 12, 20, 41) }, variant: 'escuro', anim: anim('pop') },

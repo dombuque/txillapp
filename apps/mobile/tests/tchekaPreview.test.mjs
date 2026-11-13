@@ -28,7 +28,7 @@ test('o tempo por baixo do botão: «0:07 / 0:20»', () => {
 });
 
 test('o botão tocar/pausar está sempre na pré-visualização (fora dos separadores) e o toque no vídeo também pausa', () => {
-  const preview = studio.indexOf('<Pressable style={st.preview} onPress={togglePlay}');
+  const preview = studio.indexOf('<Pressable style={[st.preview, !wide && st.previewPhone]} onPress={togglePlay}');
   const tabs = studio.indexOf('<View style={st.tabs}');
   assert.ok(preview > 0 && tabs > preview, 'a pré-visualização vem antes dos separadores e é comum a todos');
   const btn = studio.indexOf("accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'}");
@@ -39,8 +39,10 @@ test('o botão tocar/pausar está sempre na pré-visualização (fora dos separa
 });
 
 test('cada mudança vê-se logo, sem voltar ao início', () => {
-  // Filtro, transição, texto, cor e sticker: lidos a cada frame (cfg.current) e, em pausa, redesenhados no frame parado.
-  assert.match(studio, /cfg\.current\.transition/);
+  // Filtro, ajustes, transição, textos e stickers: lidos a cada frame (cfg.current) e, em pausa, redesenhados no frame parado.
+  assert.match(studio, /s\.key in cfg\.current\.fxs \? cfg\.current\.fxs\[s\.key\]/, 'os efeitos de cada clipe lidos a cada frame');
+  assert.match(studio, /drawOverlays\(g, cfg\.current\.overlays, t,/, 'os textos e stickers lidos a cada frame');
+  assert.match(studio, /const tr = transitionFor\(fxOf\(s\), i, s\.dur\);/, 'a transição de cada junção também');
   assert.match(studio, /Em pausa, o que se muda .* vê-se logo no frame parado/);
   // O volume muda sem recomeçar.
   assert.match(studio, /e\.musicGain!\.gain\.value = musicVol; e\.origGain!\.gain\.value = origVol;/);
@@ -58,8 +60,9 @@ test('cada mudança vê-se logo, sem voltar ao início', () => {
   assert.match(studio, /musicNode\.start\(0, \(musicStart \+ from\) % e\.music\.buf\.duration\)/);
 });
 
-test('escolher um clipe na fila salta para o início dele', () => {
-  assert.match(studio, /onPress=\{\(\) => \{ setSel\(i\); seekTo\(segs\[i\]\?\.start \?\? 0\); \}\}/);
+test('escolher um clipe na linha do tempo salta para o início dele (se o cursor não estiver já nele)', () => {
+  assert.match(studio, /onSelect=\{onSelectClip\}/);
+  assert.match(studio, /if \(s && \(t < s\.start \|\| t >= s\.start \+ s\.dur\)\) seekTo\(s\.start\);/);
 });
 
 test('sair do estúdio ou abrir o seletor de música pára a pré-visualização', () => {
@@ -83,7 +86,7 @@ test('com a montagem em curso, os controlos de edição estão desativados', () 
   const tabs = studio.indexOf('<View style={st.tabs}');
   const end = studio.indexOf('{pickMusic ? <MusicPicker');
   assert.ok(box > 0 && box < tabs, 'a caixa bloqueada começa antes dos separadores');
-  for (const ctl of ["setTransition('fade')", 'setLook(i)', 'setTitleStyle(', 'setCast(c.id)', 'onPress={openPicker}', 'remove(i)', 'cycle(i)', 'Início do clipe', 'Momento da capa']) {
+  for (const ctl of ['<FxPanel', '<TextPanel', '<StickerTray', 'onPress={openPicker}', '<TimelineActions', 'onDelete=', 'onPhoto=', 'onReplace=', 'Início do clipe', 'Momento da capa']) {
     const at = studio.indexOf(ctl, tabs);
     assert.ok(at > box && at < end, `${ctl} está dentro da caixa bloqueada`);
   }
@@ -91,7 +94,18 @@ test('com a montagem em curso, os controlos de edição estão desativados', () 
   assert.match(studio, /locked: \{ opacity: 0\.35 \}/);
   assert.match(studio, /accessibilityState=\{\{ disabled: locked \}\}/);
   assert.match(studio, /el\.setAttribute\('inert', ''\)/, 'no browser, inert tira o foco e o teclado');
-  assert.match(studio, /<TextInput value=\{title\} editable=\{!locked\}/);
+  // Os painéis dos efeitos, do texto e dos stickers (components/studio) também: as mudanças não passam e o teclado sai.
+  assert.match(studio, /<TextPanel [^>]*locked=\{locked\}/);
+  assert.match(studio, /<StickerTray [^>]*locked=\{locked\}/);
+  assert.match(studio, /const setFx = [^\n]*\n\s+if \(locked\) return;/, 'os efeitos não mudam a meio da montagem');
+  assert.match(studio, /<FxStage [^>]*locked=\{locked\}/, 'nem se arrastam os textos na pré-visualização');
+  // A linha do tempo (com as faixas das camadas) fica fora dos painéis mas bloqueia-se igual.
+  assert.match(studio, /for \(const box of \[editBox\.current, timelineBox\.current\]\)/);
+  assert.match(studio, /<Timeline\n\s+clips=\{items\}[\s\S]*?locked=\{locked\}[\s\S]*?layers=\{layers\}/);
+  assert.match(studio, /const onLayer = [^\n]*\n\s+if \(locked\) return;/, 'as faixas não mexem a meio da montagem');
+  const tp = readFileSync(path.join(ROOT, 'src', 'components', 'studio', 'TextPanel.tsx'), 'utf8');
+  assert.match(tp, /editable=\{!locked\}/);
+  assert.match(tp, /if \(cur && !locked\) onChange/);
   assert.match(studio, /disabled=\{locked\} style=\{st\.hint\}/);
 });
 

@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { feedApi } from '@/lib/api.feed';
 import { useAuth } from '@/lib/auth';
 import { useDesktopSizes } from '@/lib/desktop';
+import { useStudioFull } from '@/lib/studio/immersive';
 import { emitTabPress, sameTabPress } from '@/lib/tabPress';
 import { colors } from '@/lib/theme';
 import { Avatar } from './Avatar';
@@ -35,13 +36,15 @@ export function DesktopShell({ children }: { children: ReactNode }) {
   const home = path === '/';
   // À tua volta: o mapa ocupa a área toda (com a lista numa coluna à direita).
   const full = msgs || path.startsWith('/reels') || path.startsWith('/r/') || path.startsWith('/stories/') || path === '/perto';
+  // O estúdio das tchekas aberto (em /new): usa a janela toda, sem a barra lateral (lib/studio/immersive).
+  const studio = useStudioFull() && path === '/new';
   const wide = /^\/(profile|u\/|search|t\/|tag\/|place\/|v\/|saved|locais|geleira|insights|evento|settings)/.test(path); // Definições: duas colunas
-  const main = full ? st.mainFull : { ...st.main, maxWidth: wide ? 935 : 630 };
+  const main = full || studio ? st.mainFull : { ...st.main, maxWidth: wide ? 935 : 630 };
   return (
     <View style={st.shell}>
       <DesktopShortcuts />
-      <Sidebar labels={labels} path={path} />
-      <View style={[st.area, !full && st.areaPad]}>
+      <View style={studio ? st.hidden : st.sideWrap}><Sidebar labels={labels} path={path} /></View>
+      <View style={[st.area, !full && !studio && st.areaPad]}>
         {msgs ? <View style={st.msgList}><MessagesScreen /></View> : null}
         <View style={main} nativeID="tx-main">
           {msgsHome ? <MessagesEmpty /> : null}
@@ -200,6 +203,8 @@ const st = StyleSheet.create({
   areaPad: { paddingHorizontal: 24, gap: 48 },
   main: { flex: 1, minWidth: 0, width: '100%' },
   mainFull: { flex: 1, minWidth: 0 },
+  sideWrap: { flexDirection: 'row' },
+  hidden: { display: 'none' },
   msgList: { width: 380, borderRightWidth: 1, borderRightColor: colors.zinc100 },
   rail: { width: 320, flexGrow: 0, flexShrink: 0 },
   rowHover: { backgroundColor: '#fafafa', borderRadius: 12 },
