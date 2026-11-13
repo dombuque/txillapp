@@ -91,6 +91,12 @@ Todas as fotos (e 3 imagens de cada vídeo) passam por dois modelos locais antes
 - `IMAGE_MODERATION=local` liga; `off` desliga (só desenvolvimento). `NUDE_DETECTOR=320n` usa o modelo pequeno (mais rápido,
   mas com muito mais falsos alarmes); `off` tira o detetor (nada é recusado).
 - Se o classificador falhar, a foto é recusada (falha fechada). Se só o detetor falhar, nunca se recusa.
+- **Pedir revisão**: uma foto recusada fica `rejected` (ninguém a vê; na nuvem, no bucket privado) durante 7 dias. O dono
+  pode pedir revisão uma vez (`POST /media/:id/appeal`, até 10 por dia): a foto vai para a fila da moderação, marcada como
+  «pedido de revisão». Dispensar aprova-a (fica `ready`, publicável, e o dono é avisado; a mesma foto do mesmo dono deixa
+  de ser recusada); remover apaga-a. Sem pedido, apaga-se ao fim dos 7 dias. A limpeza das 48 h ignora as `rejected` e,
+  numa foto aprovada, conta a partir da aprovação. Na app, a faixa de publicação mostra «Pedir revisão» e continua a
+  publicação sozinha quando a foto é aprovada (enquanto a app estiver aberta). Os vídeos recusados não têm revisão.
 - No máximo 2 análises ao mesmo tempo. Tempos em `image_moderation_seconds` (Prometheus).
 - Teste de justiça com fotos reais vestidas (fora do git; nunca fotos com nudez):
   `cd apps/api && npx ts-node --transpile-only scripts/bench-nudez.ts pasta-com-subpastas 640m > resultados.tsv`.

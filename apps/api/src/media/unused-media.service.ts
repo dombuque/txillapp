@@ -21,7 +21,9 @@ const START = '00000000-0000-0000-0000-000000000000';
  * publicou, o envio de uma mensagem falhou, os clipes e a voz-off da montagem no servidor, o vídeo montado que não foi
  * publicado…). Nunca aparecem a ninguém; ao fim de UNUSED_MEDIA_HOURS sem uso são apagados, do armazenamento e da base
  * de dados. «Em uso» é a lista de media-refs.ts (também os pedidos de montagem ainda ativos e as fotos com uma denúncia por
- * decidir). Não há rascunhos no servidor: os do estúdio ficam só no aparelho.
+ * decidir). Não há rascunhos no servidor: os do estúdio ficam só no aparelho. As fotos recusadas pela verificação
+ * automática ('rejected') não entram aqui: têm o prazo próprio de 7 dias (MediaService.sweepDeleted). Uma foto aprovada
+ * num pedido de revisão conta as 48 horas a partir da aprovação (appeal_decided_at).
  *
  * Cada lote: bloqueia as linhas (FOR UPDATE SKIP LOCKED: quem esteja nesse instante a pôr o ficheiro numa publicação tem
  * a linha bloqueada pela chave estrangeira e o ficheiro fica para a próxima), volta a ver os usos já com o bloqueio, e só
@@ -69,7 +71,7 @@ export class UnusedMediaService implements OnModuleInit, OnModuleDestroy {
     for (let w = 0; w < MAX_WINDOWS; w++) {
       const { rows } = await this.pool.query(
         `SELECT id FROM content.media_assets
-          WHERE id > $1 AND status <> 'deleted' AND created_at < now() - make_interval(hours => $2)
+          WHERE id > $1 AND status NOT IN ('deleted', 'rejected') AND COALESCE(appeal_decided_at, created_at) < now() - make_interval(hours => $2)
           ORDER BY id LIMIT $3`,
         [this.cursor, UNUSED_MEDIA_HOURS, WINDOW],
       );
@@ -99,7 +101,7 @@ export class UnusedMediaService implements OnModuleInit, OnModuleDestroy {
       await client.query('BEGIN');
       const locked = (await client.query(
         `SELECT id FROM content.media_assets
-          WHERE id = ANY($1::uuid[]) AND status <> 'deleted' AND created_at < now() - make_interval(hours => $2)
+          WHERE id = ANY($1::uuid[]) AND status NOT IN ('deleted', 'rejected') AND COALESCE(appeal_decided_at, created_at) < now() - make_interval(hours => $2)
           FOR UPDATE SKIP LOCKED`,
         [ids, UNUSED_MEDIA_HOURS],
       )).rows.map((r) => r.id as string);

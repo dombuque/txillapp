@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { Pool, type PoolClient } from 'pg';
 import { AppConfig, CONFIG } from '../config';
 import { uuidv7 } from '../common/uuid7';
@@ -9,6 +10,8 @@ import { instantVisible } from '../instants/instants.service';
 import { canView } from '../social/visibility';
 import { wipeMessage } from '../chat/chat.service';
 import { purgeRemovalCopies, removeContent } from './content-removal';
+import { MediaService } from '../media/media.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export const REPORT_TYPES = ['post', 'comment', 'story', 'user', 'message', 'media', 'venue', 'story_comment', 'instant'] as const;
 /**
@@ -70,6 +73,8 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly indexer: SearchIndexer,
     @Inject(CONFIG) private readonly config: AppConfig,
+    private readonly moduleRef: ModuleRef,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** No arranque e de 24 em 24 horas (fora dos testes): apaga as provas das denúncias decididas há mais de REPORT_EVIDENCE_DAYS. */
@@ -229,9 +234,11 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
     if (!open.rows[0]) throw new NotFoundException('Sem denúncias abertas para este conteúdo');
     const owner = open.rows[0].target_user_id as string | null;
     const client = await this.pool.connect();
+    let approved = false;
     try {
       await client.query('BEGIN');
       if (action === 'remove') await removeReported(client, type, id, admin, note);
+      approved = await settleRejectedMedia(client, type, id, action);
       if (action === 'suspend') {
         if (!owner) throw new BadRequestException('Conta desconhecida');
         const isAdminTarget = await client.query('SELECT is_admin FROM identity.users WHERE id = $1', [owner]);
@@ -250,6 +257,7 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
       await client.query('COMMIT');
       if (action === 'remove' && type === 'post') this.indexer.postRemoved(id);
       if (action === 'suspend' && owner) this.indexer.userRemoved(owner);
+      if (approved) void releaseAppealedPhoto(this.moduleRef, this.notifications, id, owner, admin, this.log);
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw e;
@@ -266,6 +274,39 @@ export class ModerationService implements OnModuleInit, OnModuleDestroy {
  * moderação). Fotos assinaladas pela verificação automática: apagam-se. Comentários de mimos e Zás: ver abaixo. Contas e
  * locais não se removem aqui.
  */
+/**
+ * Uma foto recusada pela verificação automática com pedido de revisão (POST /media/:id/appeal), numa transação já aberta:
+ * dispensar a queixa (ou só avisar) aprova a foto — volta a 'ready', pode ser publicada, e a mesma foto do mesmo dono já não
+ * volta a ser recusada (appeal_approved_photos); remover apaga-a (removeReported); suspender a conta também a apaga.
+ * Devolve true se a foto foi aprovada (quem chama, depois do COMMIT, chama releaseAppealedPhoto).
+ */
+export async function settleRejectedMedia(client: PoolClient, type: ReportType, id: string, action: string): Promise<boolean> {
+  if (type !== 'media') return false;
+  if (action === 'dismiss' || action === 'warn') {
+    const r = await client.query(
+      `UPDATE content.media_assets SET status = 'ready', appeal_decided_at = now() WHERE id = $1 AND status = 'rejected' RETURNING owner_id, content_sha256`,
+      [id],
+    );
+    const row = r.rows[0];
+    if (!row) return false;
+    if (row.content_sha256) await client.query('INSERT INTO content.appeal_approved_photos (owner_id, sha256) VALUES ($1, $2) ON CONFLICT DO NOTHING', [row.owner_id, row.content_sha256]);
+    return true;
+  }
+  await client.query(`UPDATE content.media_assets SET appeal_decided_at = now() WHERE id = $1 AND appealed_at IS NOT NULL AND appeal_decided_at IS NULL`, [id]);
+  if (action === 'suspend') await client.query(`UPDATE content.media_assets SET status = 'deleted' WHERE id = $1 AND status = 'rejected'`, [id]);
+  return false;
+}
+
+/** Depois de aprovada no pedido de revisão: a foto volta ao sítio público (na nuvem) e o dono recebe o aviso. */
+export async function releaseAppealedPhoto(moduleRef: ModuleRef, notifications: NotificationsService, id: string, owner: string | null, actor: string, log: Logger) {
+  try {
+    await moduleRef.get(MediaService, { strict: false }).releaseApproved(id);
+  } catch (e) {
+    log.error(`não consegui repor a foto aprovada ${id}: ${(e as Error).message}`);
+  }
+  if (owner) void notifications.notify({ userId: owner, actorId: actor, kind: 'content_restored', data: { type: 'media', reason: 'Revimos a tua foto: não tem nudez. Já a podes publicar.' } });
+}
+
 export async function removeReported(client: PoolClient, type: ReportType, id: string, actor: string, note?: string) {
   if (type === 'message') {
     const m = await client.query('SELECT 1 FROM social.messages WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [id]);

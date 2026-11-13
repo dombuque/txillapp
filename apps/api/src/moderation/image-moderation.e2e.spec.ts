@@ -8,6 +8,8 @@ import { createApp } from '../main';
 import { staffLogin } from '../staff/staff-test';
 import type { BodyPartDetector, ImageClassifier } from './image-moderation.service';
 import type { NudeLabel } from './nudenet';
+import { MediaService } from '../media/media.service';
+import { UnusedMediaService } from '../media/unused-media.service';
 
 const DB = process.env.TEST_DATABASE_URL ?? 'postgres://txill:txill_dev@localhost:5433/txillapp_test';
 const PASSWORD = 'password-bem-longa-1';
@@ -36,8 +38,10 @@ const detector: BodyPartDetector = {
     return [{ label: 'FACE_FEMALE', score: 0.9, box: [0, 0, 5, 5] }, ...(label ? [{ label, score: image[image.length - 2] / 254, box: [1, 1, 3, 3] as [number, number, number, number] }] : [])];
   },
 };
+// Cada foto com bytes diferentes (uma foto aprovada num pedido de revisão já não volta a ser recusada).
+let nonce = 0;
 const img = (score: number, part: NudeLabel | null = null, conf = 0) =>
-  Buffer.concat([PNG, Buffer.from([PARTS.indexOf(part), Math.round(conf * 254), Math.round(score * 254)])]);
+  Buffer.concat([PNG, Buffer.from(`#${++nonce}#`), Buffer.from([PARTS.indexOf(part), Math.round(conf * 254), Math.round(score * 254)])]);
 
 interface U { token: string; id: string; username: string }
 
@@ -119,13 +123,85 @@ describe('verificação automática de fotos (nudez / conteúdo sexual)', () => 
     const bad = img(0.6, 'FEMALE_BREAST_EXPOSED', 0.78);
     const b = await prepare(ia, bad);
     const res = await put(b.uploadUrl, bad).expect(422);
-    expect(res.body.message).toMatch(/^Esta foto parece mostrar nudez e não pode ser publicada\./);
+    expect(res.body).toMatchObject({ message: 'Esta foto parece mostrar nudez e não pode ser publicada. Se achas que nos enganámos, toca em "Pedir revisão".', code: 'nudity_rejected', assetId: b.assetId });
     await api().get(`/api/v1/media/${b.assetId}`).expect(404);
     // e não dá para a usar numa publicação
     await api().post('/api/v1/posts').set(auth(ia)).send({ body: 'tentativa', mediaIds: [b.assetId] }).expect(400);
+    // Fica guardada como 'rejected' (para o pedido de revisão), com o motivo; ninguém a vê, nem a equipa sem pedido de revisão.
     const row = (await pool.query('SELECT status, processing_error FROM content.media_assets WHERE id = $1', [b.assetId])).rows[0];
-    expect(row.processing_error).toBe('Detetado: mamilos femininos expostos (78%)');
-    expect(row.status).not.toBe('ready');
+    expect(row).toMatchObject({ status: 'rejected', processing_error: 'Detetado: mamilos femininos expostos (78%)' });
+    expect((await api().get(`/api/v1/media/${b.assetId}/status`).set(auth(ia)).expect(200)).body).toMatchObject({ status: 'rejected', appeal: 'available' });
+    await api().get(`/api/v1/media/review/${b.assetId}`).set(sauth()).expect(404);
+  });
+
+  it('«Pedir revisão»: só o dono, uma vez; a foto vai para a fila e escapa às limpezas; aprovada, fica publicável e o dono é avisado', async () => {
+    const { ia, ib } = u;
+    const bad = img(0.7, 'FEMALE_BREAST_EXPOSED', 0.8);
+    const a = await prepare(ia, bad);
+    await put(a.uploadUrl, bad).expect(422);
+
+    await api().post(`/api/v1/media/${a.assetId}/appeal`).set(auth(ib)).expect(404); // não é dono
+    await api().post(`/api/v1/media/${a.assetId}/appeal`).expect(401);
+    expect((await api().post(`/api/v1/media/${a.assetId}/appeal`).set(auth(ia)).expect(200)).body).toEqual({ status: 'rejected', appeal: 'pending' });
+    await api().post(`/api/v1/media/${a.assetId}/appeal`).set(auth(ia)).expect(409); // só uma vez
+    expect((await api().get(`/api/v1/media/${a.assetId}/status`).set(auth(ia)).expect(200)).body).toMatchObject({ status: 'rejected', appeal: 'pending' });
+
+    // Na fila da moderação, com o motivo e marcada como pedido de revisão; a equipa vê a foto.
+    expect((await reportOf(a.assetId))?.preview).toBe('Pedido de revisão do dono (foto recusada; aprovar = dispensar) · Detetado: mamilos femininos expostos (80%)');
+    const desk = (await api().get('/api/v1/admin/mod/queue').set(sauth()).expect(200)).body.items as { id: string; appeal: boolean }[];
+    expect(desk.find((x) => x.id === a.assetId)?.appeal).toBe(true);
+    await api().get(`/api/v1/media/review/${a.assetId}`).set(sauth()).expect(200);
+
+    // Nem a limpeza das 48 h nem a dos 7 dias a apagam enquanto o pedido estiver por decidir.
+    await pool.query(`UPDATE content.media_assets SET created_at = now() - interval '9 days', rejected_at = now() - interval '9 days' WHERE id = $1`, [a.assetId]);
+    await app.get(UnusedMediaService).run();
+    await app.get(MediaService).sweepDeleted();
+    expect((await pool.query('SELECT status FROM content.media_assets WHERE id = $1', [a.assetId])).rows[0].status).toBe('rejected');
+
+    // Aprovada (dispensar a queixa): fica pronta, publicável, e o dono recebe o aviso.
+    await api().post('/api/v1/admin/reports/resolve').set(sauth()).send({ type: 'media', id: a.assetId, action: 'dismiss' }).expect(204);
+    expect((await api().get(`/api/v1/media/${a.assetId}/status`).set(auth(ia)).expect(200)).body.status).toBe('ready');
+    await api().get(`/api/v1/media/${a.assetId}`).expect(200);
+    await api().post('/api/v1/posts').set(auth(ia)).send({ body: 'afinal estava tudo bem', mediaIds: [a.assetId] }).expect(201);
+    await new Promise((r) => setTimeout(r, 300));
+    const note = (await pool.query(`SELECT data FROM social.notifications WHERE user_id = $1 AND kind = 'content_restored' ORDER BY created_at DESC LIMIT 1`, [ia.id])).rows[0];
+    expect(note?.data).toMatchObject({ type: 'media' });
+    // A mesma foto (os mesmos bytes, o mesmo dono) já não volta a ser recusada: um mimo ou um Zás podem tentar de novo.
+    const again = await prepare(ia, bad);
+    await put(again.uploadUrl, bad).expect(200);
+    // As 48 h da limpeza dos envios por publicar contam a partir da aprovação (a foto aprovada já está numa publicação, aqui).
+  });
+
+  it('pedido de revisão recusado pela moderação, prazo de 7 dias e limite por dia', async () => {
+    const { ia } = u;
+    const one = img(0.9, 'FEMALE_GENITALIA_EXPOSED', 0.9);
+    const a = await prepare(ia, one);
+    await put(a.uploadUrl, one).expect(422);
+    await api().post(`/api/v1/media/${a.assetId}/appeal`).set(auth(ia)).expect(200);
+    await api().post('/api/v1/admin/reports/resolve').set(sauth()).send({ type: 'media', id: a.assetId, action: 'remove' }).expect(204);
+    expect((await api().get(`/api/v1/media/${a.assetId}/status`).set(auth(ia)).expect(200)).body).toEqual({ status: 'deleted', error: 'A moderação reviu esta foto e manteve a recusa.' });
+    await api().get(`/api/v1/media/review/${a.assetId}`).set(sauth()).expect(404);
+
+    // Sem pedido, ao fim de 7 dias: já não se pode pedir revisão, e a limpeza apaga-a.
+    const two = img(0.9, 'FEMALE_GENITALIA_EXPOSED', 0.9);
+    const b = await prepare(ia, two);
+    await put(b.uploadUrl, two).expect(422);
+    await pool.query(`UPDATE content.media_assets SET rejected_at = now() - interval '8 days' WHERE id = $1`, [b.assetId]);
+    expect((await api().get(`/api/v1/media/${b.assetId}/status`).set(auth(ia)).expect(200)).body.appeal).toBe('expired');
+    await api().post(`/api/v1/media/${b.assetId}/appeal`).set(auth(ia)).expect(410);
+    await app.get(MediaService).sweepDeleted();
+    expect((await pool.query('SELECT status, purged_at FROM content.media_assets WHERE id = $1', [b.assetId])).rows[0]).toMatchObject({ status: 'deleted', purged_at: expect.any(Date) });
+
+    // No máximo 10 pedidos por dia.
+    await pool.query(
+      `INSERT INTO content.media_assets (id, owner_id, mime, size_bytes, storage_key, purpose, status, appealed_at)
+       SELECT gen_random_uuid(), $1, 'image/png', 10, 'x', 'public', 'deleted', now() FROM generate_series(1, 10)`,
+      [ia.id],
+    );
+    const three = img(0.9, 'FEMALE_GENITALIA_EXPOSED', 0.9);
+    const c = await prepare(ia, three);
+    await put(c.uploadUrl, three).expect(422);
+    await api().post(`/api/v1/media/${c.assetId}/appeal`).set(auth(ia)).expect(429);
   });
 
   it('zona duvidosa (nádegas expostas, ou uma parte exposta com pouca confiança): passa, vai para a moderação com o motivo, e a moderação pode remover', async () => {

@@ -5,6 +5,7 @@ import { POST_MAX_SIDE, shrinkPhoto } from './cropToRatio';
 import { composeApi } from './api.compose';
 import { SITE_URL } from './config';
 import { uploadRequest } from './signedMedia';
+import { appealOutcome, type AppealState, rejectedPhotoId } from './photoAppeal';
 
 /**
  * Publicar em segundo plano (como no Instagram): o cartão fecha logo e o envio continua aqui, com uma faixa no Início a
@@ -36,6 +37,8 @@ export interface PublishTask {
   job: PublishJob;
   /** Ficheiros já enviados (por posição): ao tentar outra vez não se enviam de novo. */
   sent: (string | undefined)[];
+  /** Uma foto recusada pela verificação automática: o pedido de revisão (ver lib/photoAppeal). */
+  appeal?: { assetId: string; state: AppealState };
 }
 
 const listeners = new Set<() => void>();
@@ -77,7 +80,8 @@ async function run(id: string, qc: QueryClient) {
       patch(id, { status: 'done', progress: 1 });
       setTimeout(() => { tasks = tasks.filter((x) => x.id !== id); emit(); }, 2500);
     } catch (e) {
-      patch(id, { status: 'error', error: (e as Error).message || 'Não consegui enviar' });
+      const rid = rejectedPhotoId(e);
+      patch(id, { status: 'error', error: (e as Error).message || 'Não consegui enviar', appeal: rid ? { assetId: rid, state: 'available' } : undefined });
     }
     return;
   }
@@ -92,11 +96,22 @@ async function run(id: string, qc: QueryClient) {
         // Já foi enviado numa tentativa anterior: se o servidor o recusou ou perdeu, envia-se de novo.
         let state: MediaState | null = null;
         try { state = (await raw(`/media/${known}/status`)) as MediaState; } catch (e) { if ((e as ApiError).status !== 404) throw e; }
+        // Recusada pela verificação automática (à espera da revisão): não se volta a enviar.
+        if (state?.status === 'rejected') throw new ApiError(422, state.error ?? 'Esta foto parece mostrar nudez e não pode ser publicada.', 'nudity_rejected', { assetId: known });
         if (state && state.status !== 'deleted') { pending.push({ i, state }); continue; }
         sent[i] = undefined;
       }
       patch(id, { stage: 'upload' });
-      const { assetId, state } = await uploadWithProgress(t.job.assets[i], (p) => patch(id, { progress: (i + p) / n }));
+      let up: { assetId: string; state: MediaState };
+      try {
+        up = await uploadWithProgress(t.job.assets[i], (p) => patch(id, { progress: (i + p) / n }));
+      } catch (e) {
+        // Foto recusada: fica no servidor (7 dias) para o pedido de revisão; aprovada, a publicação usa-a.
+        const rid = rejectedPhotoId(e);
+        if (rid) sent[i] = rid;
+        throw e;
+      }
+      const { assetId, state } = up;
       sent[i] = assetId;
       patch(id, { sent: [...sent], progress: (i + 1) / n });
       pending.push({ i, state });
@@ -116,7 +131,10 @@ async function run(id: string, qc: QueryClient) {
     void Promise.all([qc.invalidateQueries({ queryKey: ['feed'] }), qc.invalidateQueries({ queryKey: ['profile-posts'] })]);
     setTimeout(() => { tasks = tasks.filter((x) => x.id !== id); emit(); }, 3500);
   } catch (e) {
-    patch(id, { status: 'error', sent: [...sent], error: (e as Error).message || 'Não consegui publicar' });
+    const rid = rejectedPhotoId(e);
+    const prev = tasks.find((x) => x.id === id)?.appeal;
+    const appeal = rid ? (prev?.assetId === rid ? prev : { assetId: rid, state: 'available' as const }) : undefined;
+    patch(id, { status: 'error', sent: [...sent], error: (e as Error).message || 'Não consegui publicar', appeal });
   }
 }
 
@@ -143,5 +161,53 @@ export function enqueueTask(kind: 'mimo' | 'zas', asset: PublishAsset, runner: N
 export const retryPublish = (id: string, qc: QueryClient) => void run(id, qc);
 export function dropPublish(id: string) {
   tasks = tasks.filter((x) => x.id !== id);
+  stopWatching(id);
   emit();
+}
+
+/** Pedidos de revisão à espera da moderação: de quanto em quanto tempo se pergunta (enquanto a app estiver aberta). */
+const APPEAL_POLL_MS = 30_000;
+const watching = new Map<string, ReturnType<typeof setInterval>>();
+function stopWatching(id: string) {
+  const w = watching.get(id);
+  if (w) clearInterval(w);
+  watching.delete(id);
+}
+const setAppeal = (id: string, state: AppealState, error?: string) => {
+  const t = tasks.find((x) => x.id === id);
+  if (t?.appeal) patch(id, { appeal: { ...t.appeal, state }, ...(error ? { error } : {}) });
+};
+
+/** Espera pela decisão: aprovada, a publicação (ou o mimo, ou o Zás) segue sozinha; recusada, a faixa diz e fica «Descartar». */
+function watchAppeal(id: string, qc: QueryClient) {
+  stopWatching(id);
+  const tick = async () => {
+    const t = tasks.find((x) => x.id === id);
+    if (!t?.appeal || t.appeal.state !== 'pending') return stopWatching(id);
+    let st: MediaState;
+    try { st = (await raw(`/media/${t.appeal.assetId}/status`)) as MediaState; } catch { return; /* sem rede: tenta no próximo */ }
+    const out = appealOutcome(st.status);
+    if (out === 'waiting') return;
+    stopWatching(id);
+    if (out === 'refused') return setAppeal(id, 'refused', st.error ?? 'A moderação reviu a foto e manteve a recusa.');
+    patch(id, { appeal: undefined });
+    void run(id, qc);
+  };
+  watching.set(id, setInterval(() => void tick(), APPEAL_POLL_MS));
+}
+
+/** «Pedir revisão»: a foto recusada vai para a fila da moderação (POST /media/:id/appeal; só o dono, uma vez, até 7 dias). */
+export async function appealPublish(id: string, qc: QueryClient) {
+  const t = tasks.find((x) => x.id === id);
+  if (!t?.appeal || t.appeal.state === 'sending' || t.appeal.state === 'pending') return;
+  setAppeal(id, 'sending');
+  try {
+    await raw(`/media/${t.appeal.assetId}/appeal`, { method: 'POST' });
+  } catch (e) {
+    const err = e as ApiError;
+    // Já tinha sido pedido (noutro aparelho, ou a resposta perdeu-se): fica à espera na mesma.
+    if (err.status !== 409) return setAppeal(id, 'failed', err.message || 'Não consegui pedir a revisão. Tenta outra vez.');
+  }
+  setAppeal(id, 'pending');
+  watchAppeal(id, qc);
 }

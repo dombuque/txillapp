@@ -1,9 +1,9 @@
 import { OnModuleInit } from '@nestjs/common';
 import {
   BadRequestException, HttpException, HttpStatus, Inject, Injectable, NotFoundException, PayloadTooLargeException,
-  UnsupportedMediaTypeException, ForbiddenException, UnprocessableEntityException,
+  UnsupportedMediaTypeException, ForbiddenException, UnprocessableEntityException, ConflictException, GoneException,
 } from '@nestjs/common';
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import { createReadStream, createWriteStream, existsSync, mkdirSync } from 'fs';
 import { open, readFile, rename, rm, stat, writeFile } from 'fs/promises';
 import { join, resolve } from 'path';
@@ -23,6 +23,12 @@ import { stripJpegLossless } from './jpegClean';
 export type Served = { path: string; mime: string } | { url: string };
 
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+/** O que a pessoa lê quando uma foto é recusada (a app junta o botão «Pedir revisão»). */
+export const REJECTED_PHOTO = 'Esta foto parece mostrar nudez e não pode ser publicada. Se achas que nos enganámos, toca em "Pedir revisão".';
+/** Uma foto recusada fica guardada este tempo (para o pedido de revisão), ou até a moderação decidir o pedido. */
+export const REJECTED_KEEP_DAYS = 7;
+/** Pedidos de revisão por pessoa e por dia. */
+export const APPEALS_PER_DAY = 10;
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 /**
@@ -121,17 +127,24 @@ export class MediaService implements OnModuleInit {
   }
 
   /**
-   * Analisa a imagem antes de ficar disponível. Recusa nudez/conteúdo sexual (a foto é apagada e o envio falha);
-   * se estiver na zona duvidosa, passa mas fica na fila da moderação.
+   * Analisa a imagem antes de ficar disponível. Devolve `true` se a foto deve ser recusada (nudez com prova: ver
+   * image-moderation.service.ts); quem chama guarda-a como 'rejected' (keepRejected) e responde com rejectedError().
+   * Na zona duvidosa passa, mas fica na fila da moderação. Uma foto que a moderação já aprovou num pedido de revisão
+   * (a mesma, byte a byte, do mesmo dono) já não é recusada.
    */
-  private async screen(id: string, owner: string, mime: string, bytes: () => Promise<Buffer>) {
-    if (!mime.startsWith('image/') || !this.imageModeration.enabled) return;
-    const { verdict, score, reason } = await this.imageModeration.check(await bytes(), mime);
+  private async screen(id: string, owner: string, mime: string, bytes: () => Promise<Buffer>): Promise<boolean> {
+    if (!mime.startsWith('image/') || !this.imageModeration.enabled) return false;
+    const data = await bytes();
+    const { verdict, score, reason } = await this.imageModeration.check(data, mime);
     await this.pool.query('UPDATE content.media_assets SET nsfw_score = $2 WHERE id = $1', [id, score]);
     if (verdict === 'reject') {
-      await this.pool.query(`UPDATE content.media_assets SET status = 'deleted', processing_error = $2 WHERE id = $1`, [id, reason]);
-      void this.sweepDeleted();
-      throw new UnprocessableEntityException('Esta foto parece mostrar nudez e não pode ser publicada.');
+      const sha = createHash('sha256').update(data).digest();
+      const approved = await this.pool.query('SELECT 1 FROM content.appeal_approved_photos WHERE owner_id = $1 AND sha256 = $2', [owner, sha]);
+      if (!approved.rowCount) {
+        await this.pool.query('UPDATE content.media_assets SET processing_error = $2, content_sha256 = $3 WHERE id = $1', [id, reason, sha]);
+        return true;
+      }
+      return false;
     }
     if (verdict === 'review') {
       await this.pool.query(
@@ -140,6 +153,68 @@ export class MediaService implements OnModuleInit {
         [uuidv7(), id, owner, `Verificação automática: ${reason ?? `classificador ${Math.round(score! * 100)}%`}`],
       );
     }
+    return false;
+  }
+
+  /** A foto recusada fica guardada (ninguém a vê nem a pode usar) até 7 dias, ou até a moderação decidir o pedido de revisão. */
+  private async keepRejected(id: string, size: number) {
+    await this.pool.query(`UPDATE content.media_assets SET status = 'rejected', rejected_at = now(), size_bytes = $2 WHERE id = $1`, [id, size]);
+  }
+
+  /** O erro de uma foto recusada: a app mostra «Pedir revisão» (code + assetId). */
+  private rejectedError(id: string) {
+    return new UnprocessableEntityException({ statusCode: 422, error: 'Unprocessable Entity', message: REJECTED_PHOTO, code: 'nudity_rejected', assetId: id });
+  }
+
+  /**
+   * «Pedir revisão» de uma foto recusada: só o dono, uma vez por foto, dentro de REJECTED_KEEP_DAYS dias, e no máximo
+   * APPEALS_PER_DAY por dia. A foto vai para a fila da moderação (com o motivo da recusa) e fica guardada até à decisão.
+   */
+  async appeal(userId: string, id: string) {
+    const { rows } = await this.pool.query(
+      `SELECT status, processing_error, appealed_at, rejected_at < now() - make_interval(days => $3) AS expired
+         FROM content.media_assets WHERE id = $1 AND owner_id = $2`,
+      [id, userId, REJECTED_KEEP_DAYS],
+    );
+    const a = rows[0];
+    if (!a || a.status !== 'rejected') throw new NotFoundException('Esta foto já não está à espera de revisão');
+    if (a.appealed_at) throw new ConflictException('Já pediste a revisão desta foto. A moderação vai vê-la.');
+    if (a.expired) throw new GoneException('Já passaram os 7 dias para pedir a revisão desta foto.');
+    const today = (await this.pool.query(`SELECT count(*)::int AS n FROM content.media_assets WHERE owner_id = $1 AND appealed_at > now() - interval '1 day'`, [userId])).rows[0].n as number;
+    if (today >= APPEALS_PER_DAY) throw new HttpException('Já pediste muitas revisões hoje. Tenta amanhã.', HttpStatus.TOO_MANY_REQUESTS);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const upd = await client.query(`UPDATE content.media_assets SET appealed_at = now() WHERE id = $1 AND status = 'rejected' AND appealed_at IS NULL`, [id]);
+      if (!upd.rowCount) throw new ConflictException('Já pediste a revisão desta foto. A moderação vai vê-la.');
+      await client.query(
+        `INSERT INTO social.reports (id, reporter_id, target_type, target_id, target_user_id, reason, note)
+         VALUES ($1, NULL, 'media', $2, $3, 'nudity', $4) ON CONFLICT DO NOTHING`,
+        [uuidv7(), id, userId, `Pedido de revisão do dono (foto recusada; aprovar = dispensar) · ${a.processing_error ?? 'verificação automática'}`],
+      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw e;
+    } finally {
+      client.release();
+    }
+    return { status: 'rejected', appeal: 'pending' as const };
+  }
+
+  /**
+   * A moderação aprovou uma foto recusada (já está 'ready' na base de dados): na nuvem, uma foto pública volta do bucket
+   * privado para o público, com as larguras leves. No disco não há nada a fazer.
+   */
+  async releaseApproved(id: string) {
+    if (!this.s3) return;
+    const { rows } = await this.pool.query(`SELECT purpose FROM content.media_assets WHERE id = $1 AND status = 'ready'`, [id]);
+    if (rows[0]?.purpose !== 'public') return;
+    const bytes = await this.s3.read(id, 'private');
+    const { mime } = (await this.pool.query('SELECT mime FROM content.media_assets WHERE id = $1', [id])).rows[0];
+    await this.s3.put(id, bytes, mime, 'public', bytes.length);
+    await this.publishVariants(id, bytes);
+    await this.s3.remove(id, 'private');
   }
 
   /** Apaga do armazenamento os ficheiros de contas eliminadas. Corre ao arrancar e de tempos a tempos. */
@@ -208,6 +283,13 @@ export class MediaService implements OnModuleInit {
   async sweepDeleted(limit = 200) {
     // O prazo passou: o ficheiro passa a "apagado" e é removido logo a seguir.
     await this.pool.query(`UPDATE content.media_assets SET status = 'deleted' WHERE expires_at IS NOT NULL AND expires_at < now() AND status <> 'deleted'`);
+    // Fotos recusadas: ao fim de REJECTED_KEEP_DAYS dias apagam-se, menos as que têm um pedido de revisão por decidir.
+    await this.pool.query(
+      `UPDATE content.media_assets a SET status = 'deleted'
+        WHERE a.status = 'rejected' AND a.rejected_at < now() - make_interval(days => $1)
+          AND NOT EXISTS (SELECT 1 FROM social.reports r WHERE r.target_type = 'media' AND r.target_id = a.id AND r.status = 'open')`,
+      [REJECTED_KEEP_DAYS],
+    );
     const { rows } = await this.pool.query(`SELECT id, purpose FROM content.media_assets WHERE status = 'deleted' AND purged_at IS NULL LIMIT $1`, [limit]);
     for (const r of rows) {
       await this.purgeFiles(r.id as string, r.purpose as string);
@@ -221,7 +303,8 @@ export class MediaService implements OnModuleInit {
     if (this.s3) {
       const scope = this.scopeOf(purpose);
       // Em ambos os buckets (variantes, capa, original por converter).
-      const jobs = [this.s3.remove(id, scope), this.s3.remove(`${id}.src`, 'private'), this.s3.remove(`${id}${SOUND_COPY}`, 'private'), this.s3.remove(`${id}.poster.jpg`, 'public'), this.s3.remove(`${id}.poster.jpg`, 'private'), ...WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'public'))];
+      // Uma foto pública recusada (ou à espera de revisão) está no bucket privado.
+      const jobs = [this.s3.remove(id, scope), ...(scope === 'public' ? [this.s3.remove(id, 'private')] : []), this.s3.remove(`${id}.src`, 'private'), this.s3.remove(`${id}${SOUND_COPY}`, 'private'), this.s3.remove(`${id}.poster.jpg`, 'public'), this.s3.remove(`${id}.poster.jpg`, 'private'), ...WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'public'))];
       // As larguras leves das fotos do chat (as do Zás) ficam no privado, ao lado do original.
       if (scope === 'private') jobs.push(...CHAT_WIDTHS.map((w) => this.s3!.remove(`${id}.${w}.webp`, 'private')));
       await Promise.allSettled(jobs);
@@ -375,6 +458,7 @@ export class MediaService implements OnModuleInit {
     const a = rows[0];
     if (!a) throw new NotFoundException();
     if (a.status === 'deleted') return { status: 'deleted', error: a.processing_error ?? undefined };
+    if (a.status === 'rejected') throw this.rejectedError(id);
     if (VIDEO.has(a.mime) && a.status === 'uploaded') {
       // O vídeo foi recebido: converte-se em segundo plano; a app pergunta pelo estado.
       await this.pool.query(`UPDATE content.media_assets SET status = 'processing' WHERE id = $1 AND status = 'uploaded'`, [id]);
@@ -399,15 +483,24 @@ export class MediaService implements OnModuleInit {
       await this.s3.remove(id, scope);
       throw new UnsupportedMediaTypeException('Conteúdo não corresponde ao tipo declarado');
     }
-    await this.screen(id, userId, a.mime, read);
+    const rejected = await this.screen(id, userId, a.mime, read);
     let size = head.size;
     if (a.mime.startsWith('image/')) {
       const clean = await stripImageMeta(await read(), a.mime, { fast: a.purpose === 'chat' });
       if (clean) {
-        await this.s3.put(id, clean, a.mime, scope, clean.length);
         bytes = clean;
         size = clean.length;
       }
+      // Recusada: guarda-se sem metadados no bucket privado (nunca no público, onde o endereço se abre sem sessão).
+      if (rejected) {
+        if (scope === 'public') {
+          await this.s3.put(id, await read(), a.mime, 'private', size);
+          await this.s3.remove(id, 'public');
+        } else if (clean) await this.s3.put(id, clean, a.mime, scope, clean.length);
+        await this.keepRejected(id, size);
+        throw this.rejectedError(id);
+      }
+      if (clean) await this.s3.put(id, clean, a.mime, scope, clean.length);
     }
     // Fotos públicas: gera já as versões leves (o telemóvel descarrega dezenas de KB, não vários MB).
     if (a.mime.startsWith('image/') && a.purpose === 'public') await this.publishVariants(id, await read());
@@ -463,10 +556,21 @@ export class MediaService implements OnModuleInit {
   }
 
   /** Estado de um ficheiro (para a app esperar pela conversão do vídeo). */
+  /**
+   * Estado do ficheiro. Numa foto recusada, `appeal` diz se ainda se pode pedir revisão ('available'), se está à espera
+   * da moderação ('pending') ou se o prazo passou ('expired'). Aprovada no pedido de revisão, a foto fica 'ready'.
+   */
   async status(userId: string, id: string) {
-    const { rows } = await this.pool.query('SELECT status, processing_error, duration_ms FROM content.media_assets WHERE id = $1 AND owner_id = $2', [id, userId]);
-    if (!rows[0]) throw new NotFoundException();
-    return { status: rows[0].status as string, error: (rows[0].processing_error as string | null) ?? undefined, durationMs: (rows[0].duration_ms as number | null) ?? undefined };
+    const { rows } = await this.pool.query(
+      `SELECT status, processing_error, duration_ms, appealed_at, appeal_decided_at, rejected_at < now() - make_interval(days => $3) AS expired
+         FROM content.media_assets WHERE id = $1 AND owner_id = $2`,
+      [id, userId, REJECTED_KEEP_DAYS],
+    );
+    const r = rows[0];
+    if (!r) throw new NotFoundException();
+    if (r.status === 'rejected') return { status: 'rejected', error: REJECTED_PHOTO, appeal: r.appealed_at ? 'pending' : r.expired ? 'expired' : 'available' };
+    if (r.status === 'deleted' && r.appeal_decided_at) return { status: 'deleted', error: 'A moderação reviu esta foto e manteve a recusa.' };
+    return { status: r.status as string, error: (r.processing_error as string | null) ?? undefined, durationMs: (r.duration_ms as number | null) ?? undefined };
   }
 
   async receive(id: string, exp: number, sig: string, body: Readable) {
@@ -484,6 +588,7 @@ export class MediaService implements OnModuleInit {
     // Vídeos ficam primeiro como original (.src) e só passam a 'ready' depois de convertidos.
     const path = isVideo ? this.video.paths(id).src : join(this.dir, id);
     let received = 0;
+    let rejected = false;
     const limit = Math.min(Number(asset.size_bytes), isVideo ? MAX_VIDEO_BYTES : asset.purpose === 'music' ? MAX_MUSIC_BYTES : AUDIO.has(asset.mime) ? MAX_AUDIO_BYTES : MAX_IMAGE_BYTES);
     const guard = new Transform({
       transform(chunk, _enc, cb) {
@@ -503,13 +608,13 @@ export class MediaService implements OnModuleInit {
         if (!sniffVideo(head)) throw new UnsupportedMediaTypeException('Conteúdo não corresponde a um vídeo');
       } else {
         if (sniff(head) !== asset.mime) throw new UnsupportedMediaTypeException('Conteúdo não corresponde ao tipo declarado');
-        await this.screen(id, asset.owner_id, asset.mime, () => readFile(path));
+        rejected = await this.screen(id, asset.owner_id, asset.mime, () => readFile(path));
         if (asset.mime.startsWith('image/')) {
           const clean = await stripImageMeta(await readFile(path), asset.mime, { fast: asset.purpose === 'chat' });
           if (clean) {
             await writeFile(path, clean);
             received = clean.length;
-            if (asset.purpose === 'chat') this.keepFresh(id, clean);
+            if (asset.purpose === 'chat' && !rejected) this.keepFresh(id, clean);
           }
         }
       }
@@ -520,6 +625,11 @@ export class MediaService implements OnModuleInit {
     if (isVideo) {
       await this.pool.query(`UPDATE content.media_assets SET status = 'uploaded', size_bytes = $2 WHERE id = $1`, [id, received]);
       return { assetId: id };
+    }
+    // Recusada: o ficheiro (já sem metadados) fica no disco, mas só a moderação o vê (reviewImage), e só se houver pedido de revisão.
+    if (rejected) {
+      await this.keepRejected(id, received);
+      throw this.rejectedError(id);
     }
     await this.pool.query(`UPDATE content.media_assets SET status = 'ready', size_bytes = $2 WHERE id = $1`, [id, received]);
     return { assetId: id };
@@ -613,15 +723,16 @@ export class MediaService implements OnModuleInit {
    */
   async reviewImage(id: string, actorUserId: string): Promise<{ bytes: Buffer; mime: string }> {
     const { rows } = await this.pool.query(
-      `SELECT a.mime, a.purpose FROM content.media_assets a
-        WHERE a.id = $1 AND a.status = 'ready' AND a.mime LIKE 'image/%'
+      `SELECT a.mime, a.purpose, a.status FROM content.media_assets a
+        WHERE a.id = $1 AND a.status IN ('ready', 'rejected') AND a.mime LIKE 'image/%'
           AND (EXISTS (SELECT 1 FROM social.reports r WHERE r.target_type = 'media' AND r.target_id = a.id AND r.status = 'open')
                OR EXISTS (SELECT 1 FROM social.instants i JOIN social.reports r ON r.target_type = 'instant' AND r.target_id = i.id AND r.status = 'open'
                            WHERE i.media_id = a.id))`,
       [id],
     );
     if (!rows[0]) throw new NotFoundException();
-    const bytes = this.s3 ? await this.s3.read(id, this.scopeOf(rows[0].purpose as string)) : await readFile(join(this.dir, id));
+    // Uma foto recusada (à espera da revisão) está sempre no bucket privado.
+    const bytes = this.s3 ? await this.s3.read(id, rows[0].status === 'rejected' ? 'private' : this.scopeOf(rows[0].purpose as string)) : await readFile(join(this.dir, id));
     await this.pool.query('INSERT INTO audit.audit_log (id, actor_id, action, target, metadata) VALUES ($1, $2, $3, $4, $5)', [uuidv7(), actorUserId, 'moderation.view_media', `media:${id}`, { purpose: rows[0].purpose }]);
     return { bytes, mime: rows[0].mime as string };
   }

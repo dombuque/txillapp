@@ -707,6 +707,7 @@ export class AuthService {
       // A impressão da rede de quem entrou com um convite (antifraude) já não é precisa.
       await client.query('UPDATE social.referrals SET ip_hash = NULL WHERE invitee_id = $1', [userId]);
       await client.query(`UPDATE content.media_assets SET status = 'deleted' WHERE owner_id = $1 AND status <> 'deleted'`, [userId]);
+      await client.query('DELETE FROM content.appeal_approved_photos WHERE owner_id = $1', [userId]);
       await this.audit(client, userId, auditAction);
       await client.query('COMMIT');
       this.indexer.userRemoved(userId);

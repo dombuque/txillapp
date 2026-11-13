@@ -83,7 +83,10 @@ export const JSON_WITHOUT_MEDIA: Record<string, string> = {
 export const ACTIVE_COMPOSE_SPEC = `SELECT x.id FROM unnest($1::uuid[]) AS x(id)
    WHERE EXISTS (SELECT 1 FROM content.compose_jobs j WHERE j.status IN ('queued', 'working') AND strpos(j.spec::text, x.id::text) > 0)`;
 
-/** Uma foto assinalada pela verificação automática, com a denúncia por decidir: a moderação ainda a tem de ver. */
+/**
+ * Uma foto assinalada pela verificação automática, ou uma foto recusada com pedido de revisão do dono, com a denúncia por
+ * decidir: a moderação ainda a tem de ver. (As recusadas, 'rejected', nem entram na limpeza das 48 horas.)
+ */
 export const OPEN_MEDIA_REPORTS = `SELECT r.target_id AS id FROM social.reports r WHERE r.target_type = 'media' AND r.status = 'open' AND r.target_id = ANY($1::uuid[])`;
 
 /** O SQL que devolve, dos ids em $1 (uuid[]), os que estão a ser usados em algum lado. */
