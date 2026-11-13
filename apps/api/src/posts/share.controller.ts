@@ -3,6 +3,8 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { Pool } from 'pg';
 import { PG_POOL } from '../db/db.module';
+import { geleiraCardPng } from '../geleira/geleira-card';
+import { publicItems, readSnapshot } from '../geleira/geleira-post';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
@@ -14,6 +16,25 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 @Controller('share')
 export class ShareController {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+
+  /**
+   * A imagem do cartão de um post da geleira (og:image): só de publicações públicas e ativas, e nunca com bebidas alcoólicas.
+   * Qualquer outra coisa dá 404.
+   */
+  @Get('card/geleira/:code')
+  @SkipThrottle()
+  async geleiraCard(@Param('code') code: string, @Res() res: Response) {
+    if (!/^[A-Za-z0-9-]{6,36}$/.test(code)) throw new NotFoundException();
+    const { rows } = await this.pool.query(
+      `SELECT p.geleira, u.display_name FROM content.posts p JOIN identity.users u ON u.id = p.author_id
+        WHERE (p.short_code = $1 OR p.id::text = $1) AND p.removed_at IS NULL AND u.status = 'active' AND u.is_private = false AND p.geleira IS NOT NULL`,
+      [code],
+    );
+    const snap = readSnapshot(rows[0]?.geleira);
+    if (!snap) throw new NotFoundException();
+    const png = await geleiraCardPng({ name: rows[0].display_name as string, total: snap.totalSoft, level: snap.level, items: publicItems(snap) });
+    res.set('Cache-Control', 'public, max-age=600').type('png').send(png);
+  }
 
   @Get(':kind/:code')
   @SkipThrottle()
@@ -28,7 +49,7 @@ export class ShareController {
 
     if (/^[A-Za-z0-9-]{6,36}$/.test(code)) {
       const { rows } = await this.pool.query(
-        `SELECT p.body, p.kind, u.display_name,
+        `SELECT p.body, p.kind, p.geleira, u.display_name,
                 (SELECT json_build_object('id', a.id, 'video', a.mime LIKE 'video/%')
                    FROM content.post_media pm JOIN content.media_assets a ON a.id = pm.media_id
                   WHERE pm.post_id = p.id ORDER BY pm.position LIMIT 1) AS media
@@ -41,7 +62,15 @@ export class ShareController {
         const snippet = String(r.body ?? '').replace(/\s+/g, ' ').trim();
         title = `${r.display_name} no Txillapp`;
         description = snippet ? (snippet.length > 160 ? `${snippet.slice(0, 160).trimEnd()}…` : snippet) : 'Vê esta publicação no Txillapp.';
-        if (r.media) {
+        // Post da geleira (0143): o cartão do frigorífico com os gostos (sem álcool: o cartão é público).
+        const snap = readSnapshot(r.geleira);
+        if (snap && !r.media) {
+          const items = publicItems(snap);
+          title = `A geleira de ${r.display_name} no Txillapp`;
+          if (!snippet) description = items.length ? `${items.slice(0, 5).map((i) => i.name).join(', ')}${snap.totalSoft > 5 ? ` e mais ${snap.totalSoft - 5}` : ''}. Vem brindar!` : 'Vem ver e brindar a esta geleira.';
+          image = `${origin}/api/v1/share/card/geleira/${encodeURIComponent(code)}`;
+          type = 'article';
+        } else if (r.media) {
           image = `${origin}/api/v1/media/${r.media.id}${r.media.video ? '?poster=1' : '?w=1080'}`;
           type = r.media.video ? 'video.other' : 'article';
         } else type = 'article';
@@ -81,7 +110,7 @@ export class PublicPostController {
     const find = async (key: string) =>
       (
         await this.pool.query(
-          `SELECT p.id, p.short_code, p.body, p.kind, p.repost_of, p.location_label, p.created_at, u.username, u.display_name, u.verified, u.verified_tier,
+          `SELECT p.id, p.short_code, p.body, p.kind, p.repost_of, p.geleira, p.location_label, p.created_at, u.username, u.display_name, u.verified, u.verified_tier,
                   (u.avatar_media_id IS NOT NULL) AS has_avatar,
                   (SELECT count(*) FROM content.cheers c WHERE c.post_id = p.id)::int AS cheers,
                   (SELECT count(*) FROM content.comments cm WHERE cm.post_id = p.id)::int AS comments,
@@ -119,6 +148,8 @@ export class PublicPostController {
       createdAt: r.created_at as string,
       repostedBy,
       media,
+      // Post da geleira: os gostos sem álcool (quem abre o link sem entrar não tem idade confirmada).
+      geleira: (() => { const s = readSnapshot(r.geleira); return s ? { level: s.level, total: s.totalSoft, items: publicItems(s).map(({ alcoholic: _a, ...i }) => i) } : null; })(),
       counts: { cheers: r.cheers as number, comments: r.comments as number },
     };
   }

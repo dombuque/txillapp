@@ -93,6 +93,37 @@ export class GeleiraController {
     return this.geleira.cheer(req.userId!, username, false);
   }
 
+  /**
+   * Brindar um gosto da geleira de alguém, no perfil (PUT; DELETE tira o brinde). É o mesmo brinde que no cartão do post da
+   * geleira: uma vez por pessoa e item. Devolve { itemId, cheered, cheers }.
+   */
+  @Put('users/:username/geleira/items/:itemId/cheer')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  cheerItem(@Req() req: AuthedReq, @Param('username') username: string, @Param('itemId', ParseUUIDPipe) itemId: string) {
+    return this.geleira.cheerItem(req.userId!, { username }, itemId, true);
+  }
+
+  @Delete('users/:username/geleira/items/:itemId/cheer')
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  uncheerItem(@Req() req: AuthedReq, @Param('username') username: string, @Param('itemId', ParseUUIDPipe) itemId: string) {
+    return this.geleira.cheerItem(req.userId!, { username }, itemId, false);
+  }
+
+  /** Brindar um gosto no cartão de um post da geleira (tocar num item). Conta no perfil como os brindes feitos lá. */
+  @Put('posts/:postId/geleira/items/:itemId/cheer')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  cheerPostItem(@Req() req: AuthedReq, @Param('postId', ParseUUIDPipe) postId: string, @Param('itemId', ParseUUIDPipe) itemId: string) {
+    return this.geleira.cheerItem(req.userId!, { postId }, itemId, true);
+  }
+
+  @Delete('posts/:postId/geleira/items/:itemId/cheer')
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  uncheerPostItem(@Req() req: AuthedReq, @Param('postId', ParseUUIDPipe) postId: string, @Param('itemId', ParseUUIDPipe) itemId: string) {
+    return this.geleira.cheerItem(req.userId!, { postId }, itemId, false);
+  }
+
   /** Quem brindou a geleira: o dono sempre; os outros se o dono mostra a lista e podem ver a geleira (senão 403/404). */
   @Get('users/:username/geleira/cheers')
   cheers(@Req() req: AuthedReq, @Param('username') username: string) {
