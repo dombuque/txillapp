@@ -50,9 +50,9 @@ describe('nível da geleira: as contas sem base de dados', () => {
     expect(tipFor({ points: 94, level: 2, breakdown: bd({ people: 6, weeks: 9, raw: 2 }) }, 'Paulada garantida')).toBe('Paga 2 geladas ou recebe brindes de 6 amigos para chegares a Paulada garantida.');
     expect(tipFor({ points: 90, level: 2, breakdown: bd({ people: 6, weeks: 9, raw: 2 }) }, 'Paulada garantida')).toBe('Paga 4 geladas ou faz 5 check-ins em sítios diferentes para chegares a Paulada garantida.');
     expect(tipFor({ points: 70, level: 2, breakdown: bd({ people: 3, weeks: 9, raw: 2 }) }, 'Paulada garantida')).toBe(
-      'Paga 2 geladas e faz 2 check-ins por semana durante umas 3 semanas e txila com mais 2 pessoas diferentes para chegares a Paulada garantida.',
+      'Sai com a malta durante umas 3 semanas (2 geladas pagas e 2 check-ins por semana) e txila com mais 2 pessoas diferentes para chegares a Paulada garantida.',
     );
-    expect(tipFor({ points: 120, level: 2, breakdown: bd({ people: 5, weeks: 5, raw: 2 }) }, 'Paulada garantida')).toBe('Sai com a malta em mais 1 semana para chegares a Paulada garantida.');
+    expect(tipFor({ points: 120, level: 2, breakdown: bd({ people: 5, weeks: 5, raw: 2 }) }, 'Paulada garantida')).toBe('Continua a sair com a malta mais 1 semana para chegares a Paulada garantida.');
     expect(tipFor({ points: 0, level: 0, breakdown: bd() }, 'A txilar')).toMatch(/começares a txilar/);
     expect(tipFor({ points: 300, level: 4, breakdown: bd({ raw: 4 }) }, null)).toMatch(/^Estás no topo/);
     expect(tipFor({ points: 10, level: 3, breakdown: bd({ raw: 1 }) }, 'Lenda da paulada')).toMatch(/desce um degrau por semana/);

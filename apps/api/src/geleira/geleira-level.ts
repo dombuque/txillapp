@@ -121,15 +121,21 @@ export function tipFor(row: { points: number; level: number; breakdown: LevelBre
   if (!n || !nextTitle) return 'Estás no topo! Só contam os últimos 90 dias: continua a sair com a malta para não desceres.';
   if (row.level === 0) return 'Paga uma gelada, recebe um brinde de um amigo ou dá nota aos teus gostos para começares a txilar.';
   const parts: string[] = [];
+  // As semanas que faltam (semanas com atividade) já cabem no ritmo «durante N semanas»: não se dizem duas vezes.
+  let weeksSaid = false;
   if (n.points > 0) {
     const g = Math.ceil(n.points / POINTS.paid);
     // Pouco: uma ou duas coisas. Muito: o ritmo de quem sai (2 geladas pagas e 2 check-ins por semana, ~10 pontos).
     if (n.points <= PERSON_WEEK_MAX) parts.push(`paga ${plural(g, 'gelada', 'geladas')} ou recebe brindes de ${plural(n.points, 'amigo', 'amigos')}`);
     else if (n.points <= 2 * PERSON_WEEK_MAX) parts.push(`paga ${plural(g, 'gelada', 'geladas')} ou faz ${plural(Math.ceil(n.points / POINTS.checkin), 'check-in', 'check-ins')} em sítios diferentes`);
-    else parts.push(`paga 2 geladas e faz 2 check-ins por semana durante umas ${Math.ceil(n.points / (2 * POINTS.paid + 2 * POINTS.checkin))} semanas`);
+    else {
+      const w = Math.max(n.weeks, Math.ceil(n.points / (2 * POINTS.paid + 2 * POINTS.checkin)));
+      parts.push(`sai com a malta durante umas ${w} semanas (2 geladas pagas e 2 check-ins por semana)`);
+      weeksSaid = true;
+    }
   }
   if (n.people > 0) parts.push(`txila com mais ${plural(n.people, 'pessoa diferente', 'pessoas diferentes')}`);
-  if (n.weeks > 0) parts.push(`sai com a malta em mais ${plural(n.weeks, 'semana', 'semanas')}`);
+  if (n.weeks > 0 && !weeksSaid) parts.push(`continua a sair com a malta mais ${plural(n.weeks, 'semana', 'semanas')}`);
   if (!parts.length) parts.push('continua assim');
   const text = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} e ${parts[parts.length - 1]}`;
   return `${text[0].toUpperCase()}${text.slice(1)} para chegares a ${nextTitle}.`;
