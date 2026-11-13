@@ -22,7 +22,8 @@ RUN npm ci
 COPY apps/mobile/ ./
 RUN CI=1 npx expo export --platform web --output-dir dist && node scripts/post-export-web.mjs dist ""
 
-FROM nginx:1.27-alpine
+# 1.27.5 (fixo): o `resolve` no upstream da API (as réplicas entram e saem sem reiniciar o nginx) só existe desde o 1.27.3.
+FROM nginx:1.27.5-alpine
 COPY infra/prod/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY infra/prod/nginx/conf.d /etc/nginx/conf.d
 COPY infra/prod/nginx/cloudflare-ips.conf /etc/nginx/cloudflare-ips.conf

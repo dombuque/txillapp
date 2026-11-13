@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Scheduler } from '../realtime/scheduler';
 import { Pool } from 'pg';
 import { AuthService } from '../auth/auth.service';
 import { AppConfig, CONFIG } from '../config';
@@ -14,9 +15,8 @@ export const REMIND_AFTER_DAYS = [1, 3, 7] as const;
  * com notificações, um aviso no telemóvel. No máximo três vezes. Corre de hora a hora; os testes chamam `run()` à mão.
  */
 @Injectable()
-export class VerifyReminderService implements OnModuleInit, OnModuleDestroy {
+export class VerifyReminderService implements OnModuleInit {
   private readonly log = new Logger('VerifyReminder');
-  private timer?: NodeJS.Timeout;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -24,16 +24,11 @@ export class VerifyReminderService implements OnModuleInit, OnModuleDestroy {
     private readonly auth: AuthService,
     private readonly mail: MailService,
     private readonly push: PushService,
+    private readonly scheduler: Scheduler,
   ) {}
 
   onModuleInit() {
-    if (this.config.NODE_ENV === 'test') return;
-    this.timer = setInterval(() => void this.run().catch((e) => this.log.warn(`falha nos lembretes: ${(e as Error).message}`)), 3_600_000);
-    this.timer.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
+    this.scheduler.every('reminders.verify', 3_600_000, () => this.run());
   }
 
   async run(limit = 200): Promise<number> {

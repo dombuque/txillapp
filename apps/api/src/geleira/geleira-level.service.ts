@@ -1,5 +1,6 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
+import { Scheduler } from '../realtime/scheduler';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
 import { refreshDue } from './geleira-level';
@@ -13,25 +14,18 @@ export const LEVEL_EVERY_MS = 3_600_000;
  * um temporizador; nos testes chama-se `run()`.
  */
 @Injectable()
-export class GeleiraLevelService implements OnModuleInit, OnModuleDestroy {
+export class GeleiraLevelService implements OnModuleInit {
   private readonly log = new Logger('NivelDaGeleira');
-  private timer?: NodeJS.Timeout;
   private running = false;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(CONFIG) private readonly config: AppConfig,
+    private readonly scheduler: Scheduler,
   ) {}
 
   onModuleInit() {
-    if (this.config.NODE_ENV === 'test') return;
-    const tick = () => void this.run().catch((e) => this.log.warn(`falha no nível da geleira: ${(e as Error).message}`));
-    this.timer = setInterval(tick, LEVEL_EVERY_MS);
-    this.timer.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
+    this.scheduler.every('geleira.level', LEVEL_EVERY_MS, () => this.run());
   }
 
   /** Refaz em lotes até não haver mais nada para refazer (no máximo 20 lotes por volta). */

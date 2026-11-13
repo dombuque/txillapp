@@ -1,10 +1,11 @@
 import {
-  BadGatewayException, BadRequestException, ConflictException, ForbiddenException, HttpException, Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit,
+  BadGatewayException, BadRequestException, ConflictException, ForbiddenException, HttpException, Inject, Injectable, Logger, OnModuleInit,
   ServiceUnavailableException, UnauthorizedException, UnprocessableEntityException,
 } from '@nestjs/common';
 import { X509Certificate, timingSafeEqual } from 'crypto';
 import { Pool, PoolClient } from 'pg';
 import { BoostsService } from '../boosts/boosts.service';
+import { Scheduler } from '../realtime/scheduler';
 import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
@@ -60,17 +61,17 @@ const ms = (v: unknown) => (v === undefined || v === null || v === '' ? null : n
  * - IAP_ENABLED=false (por omissão): catálogo desligado, verify/restore com 503, avisos das lojas só registados.
  */
 @Injectable()
-export class IapService implements OnModuleInit, OnModuleDestroy {
+export class IapService implements OnModuleInit {
   private readonly log = new Logger('IAP');
   readonly products: IapProducts;
   private readonly apple: { api: AppleStoreApi; roots: X509Certificate[]; bundleId: string } | null = null;
   private readonly google: { api: GooglePlayApi; packageName: string } | null = null;
-  private sweeper?: NodeJS.Timeout;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(CONFIG) private readonly cfg: AppConfig,
     private readonly boosts: BoostsService,
+    private readonly scheduler: Scheduler,
   ) {
     this.products = iapProducts(cfg);
     if (cfg.IAP_APPLE_ISSUER_ID && cfg.IAP_APPLE_KEY_ID && cfg.IAP_APPLE_KEY_P8 && cfg.IAP_APPLE_BUNDLE_ID) {
@@ -90,14 +91,9 @@ export class IapService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
-    if (this.cfg.NODE_ENV === 'test' || !this.cfg.IAP_ENABLED) return;
+    if (!this.cfg.IAP_ENABLED) return;
     // De meia em meia hora: as subscrições que já passaram da data são confirmadas na loja (renovou? expirou?).
-    this.sweeper = setInterval(() => void this.sweep().catch((e) => this.log.warn(`falha na varredura: ${(e as Error).message}`)), 30 * 60_000);
-    this.sweeper.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.sweeper) clearInterval(this.sweeper);
+    this.scheduler.every('iap.sweep', 30 * 60_000, () => this.sweep());
   }
 
   /** A loja desta plataforma está ligada (interruptor geral E credenciais)? */

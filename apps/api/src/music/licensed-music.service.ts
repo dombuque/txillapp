@@ -1,4 +1,5 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Scheduler } from '../realtime/scheduler';
 import { Pool } from 'pg';
 import { z } from 'zod';
 import { uuidv7 } from '../common/uuid7';
@@ -25,16 +26,16 @@ const day = (d: Date) => d.toISOString().slice(0, 10);
  * por dia fechado e remoções aplicadas em todo o lado. Desligada (MUSIC_LICENSED_ENABLED=false), fica invisível.
  */
 @Injectable()
-export class LicensedMusicService implements OnModuleInit, OnModuleDestroy {
+export class LicensedMusicService implements OnModuleInit {
   private readonly log = new Logger('LicensedMusic');
   private readonly providers = new Map<string, MusicProvider>();
   private readonly territories: Set<string>;
   readonly clipSeconds: number;
-  private timer?: NodeJS.Timeout;
 
   constructor(
     @Inject(CONFIG) private readonly config: AppConfig,
     @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly scheduler: Scheduler,
   ) {
     this.territories = new Set(config.MUSIC_LICENSED_TERRITORIES.split(',').map((c) => c.trim().toUpperCase()));
     this.clipSeconds = config.MUSIC_LICENSED_CLIP_SECONDS;
@@ -56,14 +57,9 @@ export class LicensedMusicService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
-    if (this.config.NODE_ENV === 'test' || !this.providers.size) return;
+    if (!this.providers.size) return;
     // De 6 em 6 horas: ler as remoções do fornecedor e entregar os dias fechados que faltam.
-    this.timer = setInterval(() => void this.housekeeping(), 6 * 3600_000);
-    this.timer.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
+    this.scheduler.every('music.licensed', 6 * 3600_000, () => this.housekeeping());
   }
 
   private async housekeeping() {

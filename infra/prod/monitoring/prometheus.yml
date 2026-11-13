@@ -2,14 +2,29 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
+  # As réplicas da API (API_REPLICAS): o nome "api" no DNS do Docker dá um endereço por réplica, e cada uma é um alvo com
+  # a sua label `instance` (IP:3000). Cada série traz também `role` (web/worker), posta pela própria API. Juntar as
+  # réplicas: sum without (instance) (...) ou sum by (role) (...). Ver docs/escala.md, «Observabilidade».
   - job_name: txillapp-api
     metrics_path: /api/v1/metrics
     authorization:
       credentials_file: /etc/prometheus/metrics_token # criado no deploy a partir de METRICS_TOKEN
-    static_configs: [{ targets: ['api:3000'] }]
+    dns_sd_configs:
+      - names: ['api']
+        type: A
+        port: 3000
+        refresh_interval: 15s
+  # O worker (tarefas periódicas, montagem das tchekas, vídeos): um alvo só.
+  - job_name: txillapp-worker
+    metrics_path: /api/v1/metrics
+    authorization:
+      credentials_file: /etc/prometheus/metrics_token
+    static_configs: [{ targets: ['worker:3000'] }]
   - job_name: node
     static_configs: [{ targets: ['node-exporter:9100'] }]
   - job_name: containers
     static_configs: [{ targets: ['cadvisor:8080'] }]
   - job_name: postgres
     static_configs: [{ targets: ['postgres-exporter:9187'] }]
+  - job_name: redis
+    static_configs: [{ targets: ['redis-exporter:9121'] }]

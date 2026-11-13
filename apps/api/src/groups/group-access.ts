@@ -103,7 +103,7 @@ export class GroupAccess {
     this.events.echo(senderId, { type: 'message', group: groupId });
     for (const u of others) {
       this.events.emit(u, { type: 'message', group: groupId });
-      if (!this.events.isActive(u, `g:${groupId}`)) void this.push.send(u, { title: meta.name as string, body: `${(meta.display_name as string).split(' ')[0]}: ${what}`, url: `/messages/g/${groupId}`, tag: `group:${groupId}`, category: 'messages' });
+      if (!(await this.events.isActive(u, `g:${groupId}`))) void this.push.send(u, { title: meta.name as string, body: `${(meta.display_name as string).split(' ')[0]}: ${what}`, url: `/messages/g/${groupId}`, tag: `group:${groupId}`, category: 'messages' });
     }
   }
 

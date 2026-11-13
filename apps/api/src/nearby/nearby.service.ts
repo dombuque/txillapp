@@ -1,4 +1,5 @@
-import { BadRequestException, Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Scheduler } from '../realtime/scheduler';
 import { Pool } from 'pg';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
@@ -53,25 +54,19 @@ const VENUE_COUNTRY = `(v.review_status = 'approved' AND v.show_on_map AND (v.co
  * num raio de 5 a 30 km. A posição de quem pede chega já arredondada e só vive dentro do pedido.
  */
 @Injectable()
-export class NearbyService implements OnModuleInit, OnModuleDestroy {
+export class NearbyService implements OnModuleInit {
   private readonly log = new Logger('Nearby');
-  private sweeper?: NodeJS.Timeout;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(CONFIG) private readonly config: AppConfig,
     private readonly probe: SchemaProbe,
     private readonly boosts: BoostsService,
+    private readonly scheduler: Scheduler,
   ) {}
 
   onModuleInit() {
-    if (this.config.NODE_ENV === 'test') return;
-    this.sweeper = setInterval(() => void this.sweep().catch((e) => this.log.warn(`falha na varredura da presença: ${(e as Error).message}`)), 10 * 60_000);
-    this.sweeper.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.sweeper) clearInterval(this.sweeper);
+    this.scheduler.every('nearby.presence', 10 * 60_000, () => this.sweep());
   }
 
   /** Apaga as presenças com mais de 3 horas. */

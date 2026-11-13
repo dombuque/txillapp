@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Scheduler } from '../realtime/scheduler';
 import { Pool } from 'pg';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
@@ -32,10 +33,8 @@ const START = '00000000-0000-0000-0000-000000000000';
  * Corre de hora a hora; nos testes não arranca sozinha (chama-se `run()`).
  */
 @Injectable()
-export class UnusedMediaService implements OnModuleInit, OnModuleDestroy {
+export class UnusedMediaService implements OnModuleInit {
   private readonly log = new Logger('EnviosPorPublicar');
-  private timer?: NodeJS.Timeout;
-  private first?: NodeJS.Timeout;
   private cursor = START;
   private running: Promise<number> | null = null;
 
@@ -43,20 +42,11 @@ export class UnusedMediaService implements OnModuleInit, OnModuleDestroy {
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(CONFIG) private readonly config: AppConfig,
     private readonly media: MediaService,
+    private readonly scheduler: Scheduler,
   ) {}
 
   onModuleInit() {
-    if (this.config.NODE_ENV === 'test') return;
-    const tick = () => void this.run().catch((e) => this.log.warn(`falha na limpeza: ${(e as Error).message}`));
-    this.first = setTimeout(tick, 5 * 60_000);
-    this.first.unref();
-    this.timer = setInterval(tick, UNUSED_EVERY_MS);
-    this.timer.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.first) clearTimeout(this.first);
-    if (this.timer) clearInterval(this.timer);
+    this.scheduler.every('media.unused', UNUSED_EVERY_MS, () => this.run(), { firstAfterMs: 5 * 60_000 });
   }
 
   /** Uma passagem (até MAX_WINDOWS janelas, a continuar de onde a anterior parou). Devolve quantos ficheiros apagou. */

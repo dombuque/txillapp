@@ -1,4 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Scheduler } from '../realtime/scheduler';
+import { RealtimeBus } from '../realtime/realtime-bus';
+import { runsBackground } from '../common/role';
 import { execFile } from 'child_process';
 import ffmpegPath from 'ffmpeg-static';
 import ffprobe from 'ffprobe-static';
@@ -29,6 +32,10 @@ export const SILENT_DB = -50;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const CATALOG_SOURCES = new Set<string>(MUSIC_SOURCES.filter((s) => s !== 'local'));
+/** Os sinais para o worker silenciar (ou repor) os vídeos de um som tirado (realtime/realtime-bus.ts). */
+const SILENCE = 'sounds.silence';
+const UNSILENCE = 'sounds.unsilence';
+const ORIGINAL = 'sounds.original';
 
 export type SoundKind = 'original' | 'catalog' | 'local';
 export type SoundRef = { kind: 'original'; id: string } | { kind: 'catalog' | 'local'; id: string; trackId: string };
@@ -143,9 +150,10 @@ export type SoundRemovedBy = 'author' | 'staff' | 'account';
 export class SoundsService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger('Sounds');
   private chain: Promise<void> = Promise.resolve();
-  private backfillTimer: NodeJS.Timeout | null = null;
-  private silenceTimer: NodeJS.Timeout | null = null;
   private stopped = false;
+  /** Silenciar e repor vídeos (ffmpeg) é trabalho de fundo: nas instâncias ROLE=web pede-se ao worker por um sinal. */
+  private readonly background: boolean;
+  private readonly offSignals: (() => void)[] = [];
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -153,22 +161,28 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
     private readonly media: MediaService,
     private readonly catalog: MusicCatalogService,
     private readonly notifications: NotificationsService,
-  ) {}
+    private readonly scheduler: Scheduler,
+    private readonly bus: RealtimeBus,
+  ) {
+    this.background = runsBackground(config);
+  }
 
   onModuleInit() {
-    // As tchekas publicadas antes dos sons: tira-se o som aos poucos, um minuto depois do arranque (nunca nos testes).
-    if (this.config.NODE_ENV === 'test') return;
-    this.backfillTimer = setTimeout(() => void this.backfill().catch((e) => this.log.warn(`sons antigos: ${(e as Error).message}`)), 60_000);
-    this.backfillTimer.unref?.();
+    if (this.background) {
+      this.offSignals.push(this.bus.onSignal(SILENCE, () => void this.queueSilence()));
+      this.offSignals.push(this.bus.onSignal(ORIGINAL, (id) => void (id && this.queueOriginal(id))));
+      this.offSignals.push(this.bus.onSignal(UNSILENCE, (id) => void (id && this.queueUnsilence(id))));
+    }
+    // As tchekas sem som visto (as de antes dos sons, ou um pedido ao worker que se perdeu): um minuto depois do arranque e
+    // de meia em meia hora, aos poucos (nunca nos testes).
+    this.scheduler.every('sounds.backfill', 30 * 60_000, () => this.backfill(), { firstAfterMs: 60_000 });
     // Os sons tirados com tchekas ainda por silenciar (contas eliminadas, ou o servidor reiniciou a meio): de 10 em 10 minutos.
-    this.silenceTimer = setInterval(() => void this.queueSilence(), 10 * 60_000);
-    this.silenceTimer.unref?.();
+    this.scheduler.every('sounds.silence', 10 * 60_000, () => this.queueSilence());
   }
 
   onModuleDestroy() {
     this.stopped = true;
-    if (this.backfillTimer) clearTimeout(this.backfillTimer);
-    if (this.silenceTimer) clearInterval(this.silenceTimer);
+    for (const off of this.offSignals) off();
   }
 
   // ------------------------------------------------------------------ publicar
@@ -260,6 +274,11 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
    * como um local não dão som original (o som diria quem é o gestor que publicou).
    */
   queueOriginal(postId: string): Promise<void> {
+    // Numa instância só web, o worker é que tira o som (ffmpeg); se o sinal se perder, a volta dos sons antigos apanha-a.
+    if (!this.background) {
+      this.bus.signal(ORIGINAL, postId);
+      return Promise.resolve();
+    }
     this.chain = this.chain.then(() => this.extract(postId)).catch((e) => this.log.warn(`som da tcheka ${postId}: ${(e as Error).message}`));
     return this.chain;
   }
@@ -613,8 +632,12 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
     return !!r;
   }
 
-  /** Silenciar, em segundo plano e um de cada vez, as tchekas que usam sons já tirados. */
+  /** Silenciar, em segundo plano e um de cada vez, as tchekas que usam sons já tirados (no worker, se este processo for só web). */
   queueSilence(): Promise<void> {
+    if (!this.background) {
+      this.bus.signal(SILENCE);
+      return Promise.resolve();
+    }
     this.chain = this.chain.then(() => this.silencePending()).then(() => undefined).catch((e) => this.log.warn(`silenciar sons: ${(e as Error).message}`));
     return this.chain;
   }
@@ -683,6 +706,10 @@ export class SoundsService implements OnModuleInit, OnModuleDestroy {
 
   /** A equipa repôs o som: os vídeos voltam a ter o som (das cópias privadas). */
   private queueUnsilence(soundId: string): Promise<void> {
+    if (!this.background) {
+      this.bus.signal(UNSILENCE, soundId);
+      return Promise.resolve();
+    }
     this.chain = this.chain
       .then(async () => {
         const { rows } = await this.pool.query('SELECT media_id, backup FROM content.sound_silenced WHERE sound_id = $1', [soundId]);

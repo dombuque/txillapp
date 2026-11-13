@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Observable, Subject, filter, map } from 'rxjs';
+import { Observable } from 'rxjs';
+import { RealtimeBus } from '../realtime/realtime-bus';
 
 export interface ChatEvent {
   type: 'message' | 'typing' | 'read' | 'deleted' | 'edited';
@@ -52,45 +53,51 @@ export interface ZasEvent {
 
 export type StreamEvent = ChatEvent | CallEvent | GroupEvent | ZasEvent;
 
+/** O sinal «estou a ver esta conversa» vale 45 s (a app repete-o enquanto a conversa está à vista). */
+const ACTIVE_MS = 45_000;
+const activeKey = (userId: string) => `rt:act:${userId}`;
+
 /**
- * Canal em tempo real do chat (Server-Sent Events). Em memória: serve uma instância só.
- * TODO(fase 3): trocar por Redis pub/sub para várias instâncias.
+ * Canal em tempo real do chat (Server-Sent Events), por cima do RealtimeBus (realtime/realtime-bus.ts): com REDIS_URL,
+ * um evento publicado numa instância chega às ligações SSE de todas, e quem está ligado e a conversa à vista ficam no
+ * Redis (com validade); sem ele, tudo na memória, como numa instância só.
  */
 @Injectable()
 export class ChatEvents {
-  private readonly bus = new Subject<{ to: string; event: StreamEvent }>();
-  /** Quantas ligações em tempo real cada pessoa tem abertas (a app aberta = online). */
-  private readonly open = new Map<string, number>();
+  constructor(private readonly bus: RealtimeBus) {}
 
+  /** Uma ligação em tempo real abriu (a app aberta = online). */
   connect(userId: string) {
-    this.open.set(userId, (this.open.get(userId) ?? 0) + 1);
+    this.bus.connect(userId);
   }
-  /** Devolve true se foi a última ligação (a pessoa ficou offline). */
+  /** Uma ligação fechou. Devolve true se foi a última desta instância (com uma instância só: a pessoa ficou offline). */
   disconnect(userId: string) {
-    const n = (this.open.get(userId) ?? 1) - 1;
-    if (n <= 0) this.open.delete(userId);
-    else this.open.set(userId, n);
-    return n <= 0;
+    return this.bus.disconnect(userId);
   }
-  isOnline(userId: string) {
-    return (this.open.get(userId) ?? 0) > 0;
+  /** A pessoa tem a app aberta (o canal ligado a alguma instância)? */
+  isOnline(userId: string): Promise<boolean> {
+    return this.bus.isOnline(userId);
+  }
+  /** Dos ids pedidos, os que têm a app aberta. */
+  onlineAmong(userIds: string[]): Promise<Set<string>> {
+    return this.bus.onlineAmong(userIds);
   }
 
   /** Conversa que cada pessoa tem aberta e à vista (a app avisa de tempos a tempos). Quem está a ver não recebe aviso no telemóvel. */
-  private readonly active = new Map<string, { key: string; at: number }>();
-
-  setActive(userId: string, key: string | null) {
-    if (key) this.active.set(userId, { key: key.toLowerCase(), at: Date.now() });
-    else this.active.delete(userId);
+  async setActive(userId: string, key: string | null) {
+    if (key) await this.bus.setFlag(activeKey(userId), `${Date.now()}|${key.toLowerCase()}`, ACTIVE_MS);
+    else await this.bus.delFlag(activeKey(userId));
   }
   /** A pessoa está a ver esta conversa agora? ("u:<utilizador>" ou "g:<grupo>"; o sinal vale 45 s.) */
-  isActive(userId: string, key: string, now = Date.now()) {
-    const a = this.active.get(userId);
-    return !!a && a.key === key.toLowerCase() && now - a.at < 45_000;
+  async isActive(userId: string, key: string, now = Date.now()) {
+    const v = await this.bus.getFlag(activeKey(userId));
+    if (!v) return false;
+    const i = v.indexOf('|');
+    return v.slice(i + 1) === key.toLowerCase() && now - Number(v.slice(0, i)) < ACTIVE_MS;
   }
 
   emit(to: string, event: StreamEvent) {
-    this.bus.next({ to, event });
+    this.bus.publish(to, event);
   }
 
   /**
@@ -103,9 +110,6 @@ export class ChatEvents {
   }
 
   forUser(userId: string): Observable<StreamEvent> {
-    return this.bus.pipe(
-      filter((e) => e.to === userId),
-      map((e) => e.event),
-    );
+    return new Observable<StreamEvent>((sub) => this.bus.subscribe(userId, (e) => sub.next(e as StreamEvent)));
   }
 }

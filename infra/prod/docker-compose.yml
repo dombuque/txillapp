@@ -24,6 +24,8 @@ services:
     depends_on:
       api: { condition: service_healthy }
     networks: [edge, backend]
+    # As ligações longas do tempo real (SSE): ver worker_connections no nginx.conf.
+    ulimits: { nofile: { soft: 65535, hard: 65535 } }
     logging: *logging
 
   # Certificados Let's Encrypt (desafio DNS no Cloudflare: não precisa da porta 80 nem de o servidor estar visível).
@@ -38,22 +40,64 @@ services:
     networks: [backend]
     logging: *logging
 
+  # A API: API_REPLICAS processos iguais (3 por omissão, um por núcleo e meio), atrás do nginx (least_conn). Só servem
+  # pedidos (ROLE=web): o tempo real (SSE), quem está ligado e os limites de pedidos passam pelo Redis, e as tarefas
+  # periódicas e as filas ficam no `worker`. Guia: docs/escala.md.
+  #   Mudar o número:  API_REPLICAS=4 docker compose up -d api   (ver a conta das ligações ao PostgreSQL em docs/escala.md)
   api:
     build: { context: ../.., dockerfile: apps/api/Dockerfile }
     image: txillapp-api:latest
     restart: unless-stopped
     env_file: .env
-    environment:
+    environment: &api-env
       DATABASE_URL: postgres://txill:${POSTGRES_PASSWORD}@postgres:5432/txillapp
       NODE_ENV: production
       ADMIN_URL: https://admin.txillapp.com
-    volumes:
+      # A senha vai à parte (sem codificar caracteres no URL); vale mais do que um REDIS_URL antigo no .env.
+      REDIS_URL: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      ROLE: web
+      # 20 ligações por processo; uma consulta pode durar até 30 s (docs/escala.md, «Ligações ao PostgreSQL»).
+      PG_POOL_MAX: ${API_PG_POOL_MAX:-20}
+      PG_STATEMENT_TIMEOUT_MS: ${API_STATEMENT_TIMEOUT_MS:-30000}
+    volumes: &api-volumes
       - uploads:/data/uploads # só usado com STORAGE_DRIVER=local (e como pasta temporária dos vídeos)
       - models:/data/models # modelo de verificação de fotos (descarrega uma vez)
     depends_on:
       migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
     networks: [backend]
-    deploy: { resources: { limits: { memory: 4g } } }
+    # Cada processo: o Node, os modelos da verificação de fotos (ONNX) e o sharp. Os vídeos e as montagens vão para o worker.
+    deploy:
+      replicas: ${API_REPLICAS:-3}
+      resources: { limits: { memory: 1536m } }
+    ulimits: { nofile: { soft: 65535, hard: 65535 } }
+    stop_grace_period: 20s
+    logging: *logging
+
+  # O trabalho de fundo, num processo à parte (a mesma imagem, ROLE=worker): as tarefas periódicas (limpezas, lembretes,
+  # sexta da gelada, nível da geleira, catálogo de música…), a fila da montagem das tchekas, a conversão dos vídeos e o
+  # silenciar dos sons. Um só (as tarefas periódicas não podem correr duas vezes; as filas aguentam mais, ver docs/escala.md).
+  # O nginx não lhe manda pedidos: escuta na 3000 só para o healthcheck e para o Prometheus.
+  worker:
+    image: txillapp-api:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *api-env
+      ROLE: worker
+      PG_POOL_MAX: ${WORKER_PG_POOL_MAX:-10}
+      # A vista das análises e as limpezas grandes podem passar dos 30 s.
+      PG_STATEMENT_TIMEOUT_MS: ${WORKER_STATEMENT_TIMEOUT_MS:-300000}
+    volumes: *api-volumes
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    networks: [backend]
+    # O Node, os modelos (vídeos verificados aqui) e os ffmpeg da montagem (até 2 × ~0,5 GB) e dos vídeos.
+    deploy: { resources: { limits: { memory: 3g } } }
+    # Ao parar: a montagem a meio fica «Tenta outra vez» e o vídeo a meio volta para a fila.
+    stop_grace_period: 30s
     logging: *logging
 
   # Servidor TURN para as chamadas de voz e vídeo (opcional: docker compose --profile calls up -d coturn).
@@ -109,6 +153,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: txillapp
     # Afinado para ~11 GB de RAM partilhada com a API; ajusta se o servidor for diferente.
+    # Ligações: 3 api × 20 + worker 10 + migrate 1 + backup 1 + exportador 2 + psql 3 + 3 reservadas ≈ 81 de 100.
+    # Com API_REPLICAS=4 (ou PG_POOL_MAX maior) passa de 100: subir max_connections (docs/escala.md, «Ligações ao PostgreSQL»).
     command: >
       postgres -c shared_buffers=2GB -c effective_cache_size=5GB -c work_mem=16MB -c maintenance_work_mem=512MB
       -c max_connections=100 -c wal_compression=on -c log_min_duration_statement=500
@@ -205,6 +251,18 @@ services:
       DATA_SOURCE_NAME: postgresql://txill:${POSTGRES_PASSWORD}@postgres:5432/txillapp?sslmode=disable
     depends_on:
       postgres: { condition: service_healthy }
+    networks: [backend]
+
+  # O Redis do tempo real e dos limites (memória usada, chaves, ligações, mensagens do pub/sub).
+  redis-exporter:
+    profiles: ['monitoring']
+    image: oliver006/redis_exporter:v1.62.0
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    depends_on:
+      redis: { condition: service_healthy }
     networks: [backend]
 
   elasticsearch:

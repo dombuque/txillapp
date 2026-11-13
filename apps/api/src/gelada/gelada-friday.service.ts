@@ -1,5 +1,6 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
+import { Scheduler } from '../realtime/scheduler';
 import { AppConfig, CONFIG } from '../config';
 import { PG_POOL } from '../db/db.module';
 import { PushService } from '../push/push.service';
@@ -55,25 +56,18 @@ export interface FridayRunResult { sent: number; outside: boolean }
  * Usa o mesmo mecanismo dos lembretes de regresso (um temporizador de hora a hora; nos testes chama-se `run()`).
  */
 @Injectable()
-export class GeladaFridayService implements OnModuleInit, OnModuleDestroy {
+export class GeladaFridayService implements OnModuleInit {
   private readonly log = new Logger('SextaDaGelada');
-  private timer?: NodeJS.Timeout;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(CONFIG) private readonly config: AppConfig,
     private readonly push: PushService,
+    private readonly scheduler: Scheduler,
   ) {}
 
   onModuleInit() {
-    if (this.config.NODE_ENV === 'test') return;
-    const tick = () => void this.run().catch((e) => this.log.warn(`falha na sexta da gelada: ${(e as Error).message}`));
-    this.timer = setInterval(tick, FRIDAY_EVERY_MS);
-    this.timer.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
+    this.scheduler.every('gelada.friday', FRIDAY_EVERY_MS, () => this.run());
   }
 
   async run(opts: { now?: Date; onlyUsers?: string[]; limit?: number } = {}): Promise<FridayRunResult> {

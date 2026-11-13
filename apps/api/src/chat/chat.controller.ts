@@ -90,7 +90,8 @@ export class ChatController {
     const events = this.events.forUser(uid).pipe(map((e): MessageEvent => ({ data: e })));
     // Batimento: mantém a ligação viva através de proxies.
     const ping = interval(25_000).pipe(map((): MessageEvent => ({ data: { type: 'ping' } })));
-    // Ao fechar a ligação, guarda a hora a que a pessoa esteve online pela última vez.
+    // Ao fechar a ligação, guarda a hora a que a pessoa esteve online pela última vez (com várias instâncias: a última
+    // ligação desta instância; se a pessoa continuar ligada noutra, a hora volta a ser guardada quando essa fechar).
     return merge(events, ping).pipe(finalize(() => { if (this.events.disconnect(uid)) void this.chat.touchSeen(uid); }));
   }
 
@@ -99,8 +100,8 @@ export class ChatController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(204)
   @SkipThrottle()
-  active(@Req() req: AuthedReq, @Body(new ZodPipe(activeSchema)) b: z.infer<typeof activeSchema>) {
-    this.events.setActive(req.userId!, b.key);
+  async active(@Req() req: AuthedReq, @Body(new ZodPipe(activeSchema)) b: z.infer<typeof activeSchema>) {
+    await this.events.setActive(req.userId!, b.key);
   }
 
   /** Fotos e voz do chat: URL assinado e temporário (não público). */

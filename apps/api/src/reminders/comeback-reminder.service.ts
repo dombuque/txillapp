@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Scheduler } from '../realtime/scheduler';
 import { Pool } from 'pg';
 import { ChatService } from '../chat/chat.service';
 import { uuidv7 } from '../common/uuid7';
@@ -79,9 +80,8 @@ interface Candidate {
  * Nos testes não arranca sozinha (chama-se `run()`).
  */
 @Injectable()
-export class ComebackReminderService implements OnModuleInit, OnModuleDestroy {
+export class ComebackReminderService implements OnModuleInit {
   private readonly log = new Logger('LembretesRegresso');
-  private timer?: NodeJS.Timeout;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -89,17 +89,11 @@ export class ComebackReminderService implements OnModuleInit, OnModuleDestroy {
     private readonly mail: MailService,
     private readonly push: PushService,
     private readonly chat: ChatService,
+    private readonly scheduler: Scheduler,
   ) {}
 
   onModuleInit() {
-    if (this.config.NODE_ENV === 'test') return;
-    const tick = () => void this.run().catch((e) => this.log.warn(`falha nos lembretes de regresso: ${(e as Error).message}`));
-    this.timer = setInterval(tick, COMEBACK_EVERY_MS);
-    this.timer.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
+    this.scheduler.every('reminders.comeback', COMEBACK_EVERY_MS, () => this.run());
   }
 
   /** Uma volta: marca quem voltou, apaga o registo antigo e, dentro das horas, envia os lembretes que estão prontos. */

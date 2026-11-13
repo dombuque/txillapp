@@ -303,14 +303,17 @@ overlays?: Overlay[]   // texto (fonte, estilo, animação, posição, rotação
 
 ## 5. Fila e limites
 
-- Fila em memória, **1 trabalho de cada vez** (`COMPOSE_CONCURRENCY`, 1 ou 2), o ffmpeg com **prioridade baixa** (nice 10).
+- A fila é a tabela `content.compose_jobs` e corre no **worker** (ROLE=worker; sem ROLE, no próprio processo): cada trabalho é
+  apanhado por um só processo (`FOR UPDATE SKIP LOCKED`), **1 de cada vez** por worker (`COMPOSE_CONCURRENCY`, 1 ou 2), o ffmpeg
+  com **prioridade baixa** (nice 10). As réplicas web só guardam o pedido e dão um toque ao worker (docs/escala.md).
 - **Prazo** por trabalho: `COMPOSE_TIMEOUT_S` (480 s) → «A montagem demorou demais. Tenta com menos clipes ou uma tcheka mais curta.»
 - `COMPOSE_THREADS` (0 = todos os núcleos): limita os fios do x264 e dos filtros num servidor partilhado (menos memória também).
 - **Uma montagem por pessoa** de cada vez (índice único em `content.compose_jobs`), 20 por hora.
 - Os temporários (`txcompose-*` no diretório temporário) apagam-se no fim de cada trabalho e, ao arrancar, os que um processo
   anterior deixou.
-- O estado vive em `content.compose_jobs` (0136): depois de um reinício, os que estavam `working` passam a `failed` com
-  «O servidor reiniciou a meio da montagem. Tenta outra vez.»; os `queued` voltam à fila.
+- O estado vive em `content.compose_jobs` (0136, 0148): quem monta guarda o `worker_id` e renova `heartbeat_at`; depois de um
+  reinício (ou de um worker que deixou de dar sinal de vida há 2 minutos), os que estavam `working` passam a `failed` com
+  «O servidor reiniciou a meio da montagem. Tenta outra vez.»; os `queued` correm a seguir.
 
 ## 6. Tempos medidos (para dimensionar o servidor)
 
@@ -332,13 +335,11 @@ e som, fotos, `fade`, filtro `quente`, 2 textos, 1 sticker e música (`src/compo
 - Ou seja, cerca de **0,7 a 0,9 s de trabalho por segundo de tcheka** com 12 núcleos; o ffmpeg chegou a ~0,7 GB de memória (com
   todos os fios). Numa máquina de 4 vCPU contar com 2 a 3 vezes mais (uma tcheka de 60 s em ~2 a 2,5 min).
 - Com `COMPOSE_CONCURRENCY=1`, um servidor dá umas 60 a 80 tchekas de 60 s por hora (12 núcleos); as de 15 s, 4 vezes mais.
-  Para mais, um servidor só para a montagem (a fila passa então a Redis: ver «O que não faz»).
+  Para mais, um worker noutra máquina: a fila já é partilhada (docs/escala.md).
 
 ## 7. O que não faz (ainda)
 
 - **Música licenciada** (`kind: 'licensed'`): recusada com uma mensagem.
-- **Várias instâncias da API**: a fila é em memória e o arranque falha os `working` de todas. Com mais de uma instância é preciso
-  uma fila partilhada (Redis, como o TODO da fase 3 no `ThrottlerModule`).
 - **Cancelar** uma montagem a meio (não há `DELETE`); o vídeo final que não chegue a ser publicado fica como os outros envios por
   publicar (não há limpeza dos órfãos).
 - Os `texts`, `stickers`, `transition` e `filter` de antes (sem `fx` nem `overlays`): o texto parte-se em linhas por uma
