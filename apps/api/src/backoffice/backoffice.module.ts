@@ -6,10 +6,12 @@ import { BackofficeController } from './backoffice.controller';
 import { BackofficeService } from './backoffice.service';
 import { ContasController } from './contas.controller';
 import { ContasService } from './contas.service';
+import { RiskDeskController } from './risk-desk.controller';
+import { RiskDeskService } from './risk-desk.service';
 
 @Module({
   imports: [AuthModule],
-  controllers: [BackofficeController, ContasController, AuditDeskController],
-  providers: [BackofficeService, ContasService, AuditDeskService],
+  controllers: [BackofficeController, ContasController, AuditDeskController, RiskDeskController],
+  providers: [BackofficeService, ContasService, AuditDeskService, RiskDeskService],
 })
 export class BackofficeModule {}

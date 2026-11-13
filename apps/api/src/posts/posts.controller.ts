@@ -1,4 +1,5 @@
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
+import { RiskCheck } from '../security/risk.guard';
 import { musicSchema } from '../music/music.service';
 import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
@@ -276,6 +277,7 @@ export class PostsController {
     return this.posts.unrepost(req.userId!, id);
   }
 
+  @RiskCheck('gift')
   @NeedsVerifiedEmail()
   @Post(':id/gifts')
   @HttpCode(201)

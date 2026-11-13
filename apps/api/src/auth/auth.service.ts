@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'crypto';
@@ -10,11 +10,16 @@ import { tierOf, type VerifiedTier } from '../common/badge';
 import { describeDevice } from '../common/device';
 import { uuidv7 } from '../common/uuid7';
 import { AppConfig, CONFIG } from '../config';
-import { hashNet, isDisposable } from '../invites/rules';
+import { hashNet } from '../invites/rules';
 import { SearchIndexer } from '../search/search-index';
 import { PG_POOL } from '../db/db.module';
 import { MailService } from '../mail/mail.service';
-import { deleteAccountMail, resetPasswordMail, verifyEmailMail } from '../mail/templates';
+import { deleteAccountMail, loginLockedMail, newLoginMail, resetPasswordMail, sessionReuseMail, verifyEmailMail } from '../mail/templates';
+import { isDisposableEmail } from '../security/disposable';
+import { loginResults, registerResults } from '../security/metrics';
+import { RiskService } from '../security/risk.service';
+import { LOGIN } from '../security/rules';
+import { ReqContext, SecurityService } from '../security/security.service';
 import { AppleService } from './apple.service';
 import { GoogleService } from './google.service';
 import { isReservedUsername } from './reserved-usernames';
@@ -42,8 +47,11 @@ const sessionUser = (r: UserRow): SessionUser => {
 };
 
 
+/** Um pedido sem contexto (scripts, chamadas internas): sem impressões nem prova de humano. */
+const NO_CTX: ReqContext = { ip: null, net: null, device: null, deviceLabel: 'Aparelho desconhecido', client: 'other', humanRequired: false };
+
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
   private readonly secret: Uint8Array;
   private readonly netSalt: string;
   // Hash falso para igualar o tempo de resposta quando o utilizador não existe.
@@ -57,9 +65,24 @@ export class AuthService {
     private readonly indexer: SearchIndexer,
     private readonly mail: MailService,
     private readonly moduleRef: ModuleRef,
+    private readonly security: SecurityService,
+    private readonly risk: RiskService,
   ) {
     this.secret = new TextEncoder().encode(config.JWT_ACCESS_SECRET);
     this.netSalt = config.JWT_ACCESS_SECRET.slice(0, 16);
+  }
+
+  /** O hash falso fica pronto logo no arranque: o primeiro login de uma conta que não existe não demora o dobro. */
+  onModuleInit() {
+    void this.getDummyHash().catch(() => undefined);
+  }
+
+  /** Os hashes de senha passam todos pelo semáforo (ver security/hash-gate.ts). */
+  private hashPassword(p: string) {
+    return this.security.hashGate.run(() => argon2.hash(p, ARGON_OPTS));
+  }
+  private verifyPassword(hash: string, p: string) {
+    return this.security.hashGate.run(() => argon2.verify(hash, p));
   }
 
   /** Disponibilidade de um @ (insensível a maiúsculas), incluindo nomes reservados. */
@@ -92,10 +115,24 @@ export class AuthService {
     return r.rowCount ? { available: false, reason: 'taken' } : { available: true };
   }
 
-  async register(input: RegisterInput, userAgent?: string, ip?: string) {
+  async register(input: RegisterInput, userAgent?: string, ip?: string, ctx: ReqContext = NO_CTX) {
     if (isReservedUsername(input.username)) throw new ConflictException('Esse nome está reservado');
+    // Antes de gastar CPU com o hash: limites de contas novas por rede, email temporário e prova de humano.
+    await this.security.registerGate(ctx).catch((e) => {
+      registerResults.inc({ result: 'limited' });
+      throw e;
+    });
+    if (isDisposableEmail(input.email)) {
+      registerResults.inc({ result: 'disposable' });
+      void this.security.event('register_disposable', ctx, null, { domain: input.email.split('@')[1]?.toLowerCase() });
+      throw new BadRequestException({ code: 'disposable_email', message: 'Usa um e-mail a sério (os temporários não dão).' });
+    }
+    const human = await this.security.requireHuman(ctx, 'register').catch((e) => {
+      registerResults.inc({ result: 'human_check' });
+      throw e;
+    });
     const id = uuidv7();
-    const hash = await argon2.hash(input.password, ARGON_OPTS);
+    const hash = await this.hashPassword(input.password);
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -106,10 +143,14 @@ export class AuthService {
       );
       await client.query('INSERT INTO identity.credentials (user_id, password_hash) VALUES ($1, $2)', [id, hash]);
       await this.audit(client, id, 'auth.register');
+      await this.risk.seed(client, id);
       const tokens = await this.issueSession(client, id, uuidv7(), userAgent);
       await client.query('COMMIT');
+      registerResults.inc({ result: 'ok' });
       this.indexer.userChanged(id);
       void this.sendVerification(id).catch(() => undefined);
+      // A pontuação de risco primeiro: os convites usam-na (mesmo aparelho, mesmo email, conta suspeita).
+      await this.risk.onRegister(id, ctx, { username: input.username, displayName: input.displayName, email: input.email, human: human === 'passed' });
       void this.attachReferral(id, input.inviteCode, input.email, ip);
       return { tokens, user: { id, username: input.username, displayName: input.displayName } };
     } catch (e) {
@@ -141,7 +182,13 @@ export class AuthService {
     }
   }
 
-  async login(input: LoginInput, userAgent?: string) {
+  /**
+   * Login com senha. A mesma resposta e o mesmo trabalho para uma conta que não existe e para uma senha errada (o hash
+   * corre sempre, com um hash falso quando a conta não existe). Antes do hash: o IP ou a conta estão bloqueados? (429, sem
+   * gastar CPU) e, depois de algumas falhas, a prova de humano. Depois de N falhas a conta fica bloqueada um bocado, com
+   * espera progressiva, e o dono recebe um email.
+   */
+  async login(input: LoginInput, userAgent?: string, ctx: ReqContext = NO_CTX) {
     const { rows } = await this.pool.query(
       `SELECT u.id, u.username, u.display_name, u.verified, u.verified_tier, u.status, c.password_hash
          FROM identity.users u JOIN identity.credentials c ON c.user_id = u.id
@@ -149,16 +196,35 @@ export class AuthService {
       [input.identifier],
     );
     const row = rows[0];
-    const ok = await argon2.verify(row?.password_hash ?? (await this.getDummyHash()), input.password);
+    try {
+      await this.security.beforeLogin(ctx, input.identifier, row?.id ?? null);
+    } catch (e) {
+      loginResults.inc({ result: (e as { getStatus?: () => number }).getStatus?.() === 429 ? 'locked' : 'human_check' });
+      throw e;
+    }
+    const ok = await this.verifyPassword(row?.password_hash ?? (await this.getDummyHash()), input.password).catch((e) => {
+      loginResults.inc({ result: 'busy' });
+      void this.security.event('hash_busy', ctx, null);
+      throw e;
+    });
     if (!row || !ok || row.status !== 'active') {
+      loginResults.inc({ result: 'bad_credentials' });
+      // Só conta como falha da conta quando ela existe e a senha está errada (a conta suspensa com a senha certa não).
+      const userId = row && !ok ? (row.id as string) : null;
+      const { locked } = await this.security.loginFailed(ctx, input.identifier, userId);
+      if (locked && userId) void this.warnLocked(userId, locked, ctx);
       throw new UnauthorizedException('Credenciais inválidas');
     }
+    loginResults.inc({ result: 'ok' });
+    await this.security.loginSucceeded(input.identifier, row.id);
+    const known = await this.knownDevice(row.id, userAgent);
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       const tokens = await this.issueSession(client, row.id, uuidv7(), userAgent);
       await this.audit(client, row.id, 'auth.login');
       await client.query('COMMIT');
+      if (!known) void this.noticeNewLogin(row.id, userAgent, 'com a senha', ctx);
       return { tokens, user: sessionUser(row) };
     } catch (e) {
       await client.query('ROLLBACK');
@@ -169,7 +235,7 @@ export class AuthService {
   }
 
   /** Rotação: cada refresh token só é usado uma vez; reutilização revoga toda a família. */
-  async refresh(refreshToken: string, userAgent?: string) {
+  async refresh(refreshToken: string, userAgent?: string, ctx: ReqContext = NO_CTX) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -188,6 +254,8 @@ export class AuthService {
         await client.query('UPDATE identity.sessions SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL', [s.family_id]);
         await this.audit(client, s.user_id, 'auth.refresh_reuse_detected', s.family_id);
         await client.query('COMMIT');
+        // Só na primeira vez (a família ainda não estava terminada): o resto são repetições do mesmo aparelho.
+        if (!s.revoked_at) void this.warnReuse(s.user_id as string, s.family_id as string, userAgent, ctx);
         throw new UnauthorizedException();
       }
       if (new Date(s.expires_at) < new Date() || s.status !== 'active') throw new UnauthorizedException();
@@ -213,7 +281,7 @@ export class AuthService {
   }
 
   /** Login com Google: sessão directa se a conta já existe; caso contrário pede o @ (registo em 2 passos). */
-  async googleLogin(idToken: string, userAgent?: string) {
+  async googleLogin(idToken: string, userAgent?: string, ctx: ReqContext = NO_CTX) {
     const p = await this.google.verify(idToken);
     const found = await this.pool.query(
       `SELECT id, username, display_name, verified, verified_tier, status FROM identity.users WHERE google_sub = $1`,
@@ -222,7 +290,9 @@ export class AuthService {
     const u = found.rows[0];
     if (u) {
       if (u.status !== 'active') throw new UnauthorizedException('Conta indisponível');
+      const known = await this.knownDevice(u.id, userAgent);
       const tokens = await this.sessionFor(u.id, 'auth.google_login', userAgent);
+      if (!known) void this.noticeNewLogin(u.id, userAgent, 'com a Google', ctx);
       return { kind: 'session' as const, tokens, user: sessionUser(u) };
     }
     // Não se liga automaticamente a uma conta existente com o mesmo email (evita tomadas de conta por email não verificado).
@@ -240,7 +310,8 @@ export class AuthService {
     return { kind: 'signup' as const, signupToken, displayName: p.name.slice(0, 60), suggestedUsername: await this.suggestUsername(p.email) };
   }
 
-  async googleComplete(signupToken: string, rawUsername: string, userAgent?: string, gender?: string, birthDate?: string) {
+  async googleComplete(signupToken: string, rawUsername: string, userAgent?: string, gender?: string, birthDate?: string, ctx: ReqContext = NO_CTX) {
+    await this.security.registerGate(ctx);
     let claims;
     try {
       claims = (await jwtVerify(signupToken, this.secret, { algorithms: ['HS256'], issuer: 'txillapp', audience: 'google-signup' })).payload;
@@ -263,9 +334,13 @@ export class AuthService {
         [id, claims.email, username, displayName, claims.sub, gender ?? null, birthDate ?? null, TERMS_VERSION],
       );
       await this.audit(client, id, 'auth.google_register');
+      await this.risk.seed(client, id);
       const tokens = await this.issueSession(client, id, uuidv7(), userAgent);
       await client.query('COMMIT');
+      registerResults.inc({ result: 'ok' });
       this.indexer.userChanged(id);
+      // A Google já fez as contas dela à prova de humano.
+      await this.risk.onRegister(id, ctx, { username, displayName, email: String(claims.email ?? ''), human: true });
       return { tokens, user: { id, username, displayName } };
     } catch (e) {
       await client.query('ROLLBACK');
@@ -285,13 +360,15 @@ export class AuthService {
    * Conta já ligada: entra. Conta nova: devolve um pedido para escolher o @ (como na Google). Nunca se liga sozinha a uma conta
    * existente só por ter o mesmo email.
    */
-  async appleLogin(identityToken: string, nonce: string | undefined, fullName: string | undefined, userAgent?: string) {
+  async appleLogin(identityToken: string, nonce: string | undefined, fullName: string | undefined, userAgent?: string, ctx: ReqContext = NO_CTX) {
     const p = await this.apple.verify(identityToken, nonce);
     const found = await this.pool.query(`SELECT id, username, display_name, verified, verified_tier, status FROM identity.users WHERE apple_sub = $1`, [p.sub]);
     const u = found.rows[0];
     if (u) {
       if (u.status !== 'active') throw new UnauthorizedException('Conta indisponível');
+      const known = await this.knownDevice(u.id, userAgent);
       const tokens = await this.sessionFor(u.id, 'auth.apple_login', userAgent);
+      if (!known) void this.noticeNewLogin(u.id, userAgent, 'com a Apple', ctx);
       return { kind: 'session' as const, tokens, user: sessionUser(u) };
     }
     // Sem email (a pessoa escondeu-o e a Apple não o confirmou) a conta fica sem email até ele ser confirmado mais tarde.
@@ -311,7 +388,8 @@ export class AuthService {
     return { kind: 'signup' as const, signupToken, displayName: name, suggestedUsername: await this.suggestUsername(p.email ?? name) };
   }
 
-  async appleComplete(signupToken: string, rawUsername: string, userAgent?: string, gender?: string, birthDate?: string) {
+  async appleComplete(signupToken: string, rawUsername: string, userAgent?: string, gender?: string, birthDate?: string, ctx: ReqContext = NO_CTX) {
+    await this.security.registerGate(ctx);
     let claims;
     try {
       claims = (await jwtVerify(signupToken, this.secret, { algorithms: ['HS256'], issuer: 'txillapp', audience: 'apple-signup' })).payload;
@@ -336,9 +414,12 @@ export class AuthService {
         [id, claims.email, username, displayName, claims.sub, gender ?? null, birthDate ?? null, TERMS_VERSION],
       );
       await this.audit(client, id, 'auth.apple_register');
+      await this.risk.seed(client, id);
       const tokens = await this.issueSession(client, id, uuidv7(), userAgent);
       await client.query('COMMIT');
+      registerResults.inc({ result: 'ok' });
       this.indexer.userChanged(id);
+      await this.risk.onRegister(id, ctx, { username, displayName, email: String(claims.email ?? ''), human: true });
       return { tokens, user: { id, username, displayName } };
     } catch (e) {
       await client.query('ROLLBACK');
@@ -383,9 +464,9 @@ export class AuthService {
   async changePassword(userId: string, current: string, next: string, userAgent?: string) {
     const { rows } = await this.pool.query('SELECT password_hash FROM identity.credentials WHERE user_id = $1', [userId]);
     if (!rows[0]) throw new BadRequestException('Esta conta entra com a Google e não tem senha');
-    if (!(await argon2.verify(rows[0].password_hash, current))) throw new UnauthorizedException('A senha atual não está certa');
+    if (!(await this.verifyPassword(rows[0].password_hash, current))) throw new UnauthorizedException('A senha atual não está certa');
     if (current === next) throw new BadRequestException('A nova senha tem de ser diferente da atual');
-    const hash = await argon2.hash(next, ARGON_OPTS);
+    const hash = await this.hashPassword(next);
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -460,7 +541,7 @@ export class AuthService {
     if (confirmUsername.trim().replace(/^@/, '').toLowerCase() !== String(u.username).toLowerCase()) {
       throw new BadRequestException('Escreve o teu @ exactamente para confirmar');
     }
-    if (u.password_hash && !(password && (await argon2.verify(u.password_hash, password)))) {
+    if (u.password_hash && !(password && (await this.verifyPassword(u.password_hash, password)))) {
       throw new UnauthorizedException('A senha não está certa');
     }
     await this.eraseAccount(userId, String(u.username), 'account.deleted');
@@ -477,9 +558,10 @@ export class AuthService {
    * "Quero apagar a minha conta" sem sessão: manda para o email da conta uma ligação que vale 1 hora. Nunca apaga nada aqui
    * (escrever um email não chega) e responde sempre igual, exista ou não a conta, para não revelar quem está registado.
    */
-  async requestAccountDeletion(rawEmail: string) {
+  async requestAccountDeletion(rawEmail: string, ctx: ReqContext = NO_CTX) {
     const email = rawEmail.trim().toLowerCase();
-    if (this.mail.enabled && z.string().email().max(254).safeParse(email).success) {
+    // No máximo 3 emails por hora para o mesmo endereço (a resposta é igual: não diz se travou).
+    if (this.mail.enabled && z.string().email().max(254).safeParse(email).success && (await this.security.mailAllowed('delete', email, ctx))) {
       const { rows } = await this.pool.query("SELECT id, email, display_name FROM identity.users WHERE lower(email) = $1 AND status = 'active'", [email]);
       const u = rows[0];
       if (u) {
@@ -722,6 +804,9 @@ export class AuthService {
       await client.query(`UPDATE content.media_assets SET status = 'deleted' WHERE owner_id = $1 AND status <> 'deleted'`, [userId]);
       await client.query('DELETE FROM content.appeal_approved_photos WHERE owner_id = $1', [userId]);
       await client.query('DELETE FROM content.held_publications WHERE owner_id = $1', [userId]);
+      // Segurança: as impressões (IP, rede, aparelho, email) saem já; os eventos ficam até ao prazo (90 dias), sem a conta.
+      await client.query('UPDATE security.account_risk SET ip_hash = NULL, net_hash = NULL, device_hash = NULL, email_hash = NULL WHERE user_id = $1', [userId]);
+      await client.query('UPDATE security.events SET user_id = NULL WHERE user_id = $1', [userId]);
       await this.audit(client, userId, auditAction);
       await client.query('COMMIT');
       this.indexer.userRemoved(userId);
@@ -783,7 +868,7 @@ export class AuthService {
     const cur = (await this.pool.query("SELECT email, email_verified_at FROM identity.users WHERE id = $1 AND status = 'active'", [userId])).rows[0];
     if (!cur) throw new UnauthorizedException();
     if (cur.email_verified_at) throw new BadRequestException('A tua conta já está ativada');
-    if (isDisposable(email)) throw new BadRequestException('Usa um e-mail a sério (os temporários não dão)');
+    if (isDisposableEmail(email)) throw new BadRequestException('Usa um e-mail a sério (os temporários não dão)');
     if (email !== cur.email) {
       const taken = await this.pool.query('SELECT 1 FROM identity.users WHERE lower(email) = $1 AND id <> $2', [email, userId]);
       if (taken.rowCount) throw new ConflictException('Esse e-mail já está noutra conta');
@@ -812,9 +897,11 @@ export class AuthService {
   }
 
   /** "Esqueci a senha": responde sempre igual, exista ou não a conta (não revela quem está registado). */
-  async forgotPassword(rawEmail: string) {
+  async forgotPassword(rawEmail: string, ctx: ReqContext = NO_CTX) {
     const email = rawEmail.trim().toLowerCase();
-    if (this.mail.enabled && z.string().email().max(254).safeParse(email).success) {
+    await this.security.requireHuman(ctx, 'forgot');
+    // No máximo 3 emails por hora para o mesmo endereço (a resposta é igual: não diz se travou nem se a conta existe).
+    if (this.mail.enabled && z.string().email().max(254).safeParse(email).success && (await this.security.mailAllowed('reset', email, ctx))) {
       const { rows } = await this.pool.query("SELECT id, display_name FROM identity.users WHERE lower(email) = $1 AND status = 'active'", [email]);
       if (rows[0]) {
         const token = await this.issueEmailToken(rows[0].id, 'reset', 3600_000);
@@ -836,7 +923,7 @@ export class AuthService {
       );
       if (!rows[0]) throw new BadRequestException('Este link já não vale. Pede um novo em "Esqueci a senha".');
       const userId = rows[0].user_id as string;
-      const hash = await argon2.hash(newPassword, ARGON_OPTS);
+      const hash = await this.hashPassword(newPassword);
       await client.query(
         `INSERT INTO identity.credentials (user_id, password_hash) VALUES ($1, $2)
          ON CONFLICT (user_id) DO UPDATE SET password_hash = EXCLUDED.password_hash, updated_at = now()`,
@@ -847,6 +934,9 @@ export class AuthService {
       await client.query('UPDATE identity.sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [userId]);
       await this.audit(client, userId, 'auth.password_reset');
       await client.query('COMMIT');
+      // Quem provou que o email é seu sai do bloqueio (é a saída para quem foi bloqueado por um ataque).
+      const who = (await this.pool.query('SELECT email, username FROM identity.users WHERE id = $1', [userId])).rows[0];
+      await this.security.unlockAccount(userId, [who?.email, who?.username]).catch(() => undefined);
       return { ok: true };
     } catch (e) {
       await client.query('ROLLBACK');
@@ -873,6 +963,61 @@ export class AuthService {
     );
     if (!rows[0]) throw new UnauthorizedException();
     return sessionUser(rows[0]);
+  }
+
+  /* ───── avisos de segurança ───── */
+
+  /** Já houve uma sessão nesta conta num aparelho com o mesmo nome? (sem sessões nenhumas, conta como conhecido: é o registo) */
+  private async knownDevice(userId: string, userAgent?: string): Promise<boolean> {
+    const label = describeDevice(userAgent).label;
+    const { rows } = await this.pool.query(
+      `SELECT DISTINCT user_agent FROM identity.sessions WHERE user_id = $1 AND created_at > now() - interval '180 days' LIMIT 100`,
+      [userId],
+    );
+    return !rows.length || rows.some((r) => describeDevice(r.user_agent).label === label);
+  }
+
+  /** Para onde mandar um aviso: só emails confirmados (nunca para um email que alguém inventou no registo). */
+  private async mailTarget(userId: string) {
+    const u = (await this.pool.query("SELECT email, display_name, email_verified_at FROM identity.users WHERE id = $1 AND status = 'active'", [userId])).rows[0];
+    return u && u.email_verified_at && !String(u.email).endsWith('.invalid') ? { email: u.email as string, name: String(u.display_name).split(' ')[0] } : null;
+  }
+
+  /** «Novo início de sessão»: um email (no máximo um em cada 10 minutos). Nunca falha o login. */
+  private async noticeNewLogin(userId: string, userAgent: string | undefined, how: string, ctx: ReqContext) {
+    try {
+      const device = describeDevice(userAgent).label;
+      void this.security.event('new_login', ctx, userId, { how });
+      if (!this.mail.enabled || !(await this.security.once(`newlogin:${userId}`, LOGIN.NEW_LOGIN_EVERY_MS))) return;
+      const t = await this.mailTarget(userId);
+      if (t) await this.mail.send({ to: t.email, ...newLoginMail(this.mail.publicUrl, t.name, { at: new Date(), device, how }) });
+    } catch {
+      /* o aviso não pode estragar o login */
+    }
+  }
+
+  /** «Alguém tentou entrar na tua conta»: um email quando a conta fica bloqueada (no máximo um em cada 6 horas). */
+  private async warnLocked(userId: string, until: Date, ctx: ReqContext) {
+    try {
+      if (!this.mail.enabled || !(await this.security.once(`locked:${userId}`, LOGIN.WARN_EVERY_MS))) return;
+      const t = await this.mailTarget(userId);
+      if (t) await this.mail.send({ to: t.email, ...loginLockedMail(this.mail.publicUrl, t.name, { until, device: ctx.deviceLabel }) });
+    } catch {
+      /* nunca falha */
+    }
+  }
+
+  /** Reutilização de um token de sessão já trocado: evento, métrica e um email ao dono (no máximo um por dia). */
+  private async warnReuse(userId: string, familyId: string, userAgent: string | undefined, ctx: ReqContext) {
+    try {
+      const first = (await this.pool.query('SELECT user_agent FROM identity.sessions WHERE family_id = $1 ORDER BY created_at LIMIT 1', [familyId])).rows[0]?.user_agent as string | undefined;
+      void this.security.event('refresh_reuse', ctx, userId, { family: familyId, from: describeDevice(userAgent).label });
+      if (!this.mail.enabled || !(await this.security.once(`reuse:${userId}`, 24 * 3600_000))) return;
+      const t = await this.mailTarget(userId);
+      if (t) await this.mail.send({ to: t.email, ...sessionReuseMail(this.mail.publicUrl, t.name, { at: new Date(), device: describeDevice(first).label }) });
+    } catch {
+      /* nunca falha */
+    }
   }
 
   private getDummyHash() {

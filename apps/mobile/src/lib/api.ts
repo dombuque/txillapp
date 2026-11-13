@@ -5,6 +5,7 @@ import { kvGet, kvSet } from './kv';
 import { Platform } from 'react-native';
 import { SITE_URL } from './config';
 import { friendlyFetchError } from './netError';
+import { installId } from './installId';
 import { uploadRequest } from './signedMedia';
 import { track, trackOk, trackThrottled } from './analytics';
 import type { SponsoredSlot } from './api.boosts';
@@ -438,12 +439,17 @@ function deviceHeaders(): Record<string, string> {
 
 const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'X-Requested-With': 'txillapp', 'X-Client': isWeb ? 'txillapp-web' : 'txillapp-mobile', ...deviceHeaders() };
 
+/** Cabeçalho da prova de humano (só no login, no registo e no «Esqueci-me da senha», quando há código). */
+const humanHeader = (token?: string): Record<string, string> => (token ? { 'X-Turnstile-Token': token } : {});
+
 async function call(path: string, init: RequestInit = {}, auth = true): Promise<Response> {
+  // A instalação (ver lib/installId): vai em todos os pedidos; sem armazenamento, simplesmente não vai.
+  const iid = await installId();
   try {
     return await fetch(`${SITE_URL}/api/v1${path}`, {
       ...(isWeb ? { credentials: 'include' as const } : {}),
       ...init,
-      headers: { ...baseHeaders, ...(isWeb && webAccountId ? { 'X-Account': webAccountId } : {}), ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(init.headers as Record<string, string> | undefined) },
+      headers: { ...baseHeaders, ...(iid ? { 'X-Install-Id': iid } : {}), ...(isWeb && webAccountId ? { 'X-Account': webAccountId } : {}), ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(init.headers as Record<string, string> | undefined) },
     });
   } catch (e) {
     // Sem rede o fetch lança "Failed to fetch" / "Load failed" (em inglês), que ia parar ao ecrã (ex.: no login): passa a português.
@@ -658,20 +664,21 @@ export function threadQuery(cursor: string | undefined, read: boolean): string {
 }
 
 export const api = {
-  async login(identifier: string, password: string): Promise<AuthResult> {
-    const r = (await parse(await call('/auth/login', post({ identifier, password }), false))) as AuthResult;
+  /** `turnstileToken`: a prova de humano, quando o servidor a pediu (403 human_check) depois de várias falhas. */
+  async login(identifier: string, password: string, turnstileToken?: string): Promise<AuthResult> {
+    const r = (await parse(await call('/auth/login', { ...post({ identifier, password }), headers: humanHeader(turnstileToken) }, false))) as AuthResult;
     accessToken = r.accessToken;
     await refreshStore.save(r);
     return r;
   },
-  async register(b: { email: string; username: string; displayName: string; password: string; birthDate: string; acceptTerms: true; gender?: string; inviteCode?: string }): Promise<AuthResult> {
-    const r = (await parse(await call('/auth/register', post(b), false))) as AuthResult;
+  async register(b: { email: string; username: string; displayName: string; password: string; birthDate: string; acceptTerms: true; gender?: string; inviteCode?: string }, turnstileToken?: string): Promise<AuthResult> {
+    const r = (await parse(await call('/auth/register', { ...post(b), headers: humanHeader(turnstileToken) }, false))) as AuthResult;
     accessToken = r.accessToken;
     await refreshStore.save(r);
     return r;
   },
   /** `appleEnabled`: o servidor tem o Iniciar sessão com a Apple configurado (APPLE_CLIENT_ID). Servidores antigos não mandam. */
-  authConfig: (): Promise<{ googleClientId: string | null; appleEnabled?: boolean }> => raw('/auth/config'),
+  authConfig: (): Promise<{ googleClientId: string | null; appleEnabled?: boolean; humanCheck?: boolean; turnstileSiteKey?: string | null }> => raw('/auth/config'),
   /** Devolve a sessão, ou `needsUsername` para contas novas (a pessoa escolhe o @ a seguir). */
   async googleLogin(idToken: string): Promise<AuthResult | GoogleNeedsUsername> {
     const r = (await parse(await call('/auth/google', post({ idToken }), false))) as AuthResult | GoogleNeedsUsername;
@@ -706,7 +713,7 @@ export const api = {
   },
   usernameAvailable: (u: string): Promise<{ available: boolean; reason?: 'invalid' | 'reserved' | 'taken'; suggestions?: string[] }> => raw(`/auth/username-available?username=${encodeURIComponent(u)}`),
   emailAvailable: (e: string): Promise<{ available: boolean; reason?: 'invalid' | 'taken' }> => raw(`/auth/email-available?email=${encodeURIComponent(e)}`),
-  forgotPassword: (email: string): Promise<{ ok: boolean }> => raw('/auth/password/forgot', post({ email })),
+  forgotPassword: (email: string, turnstileToken?: string): Promise<{ ok: boolean }> => raw('/auth/password/forgot', { ...post({ email }), headers: humanHeader(turnstileToken) }),
   invitePreview: (code: string): Promise<InvitePreview> => raw(`/invites/preview/${encodeURIComponent(code)}`),
   async logout(): Promise<void> {
     const headers = await refreshStore.get();

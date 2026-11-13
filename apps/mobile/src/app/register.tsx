@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { GoogleButton } from '@/components/GoogleButton';
+import { useHumanCheck } from '@/components/HumanCheck';
 import { Icon } from '@/components/Icon';
 import { InlineBadge } from '@/components/NameWithBadge';
 import { ApiError, api, inviteStore, type Badged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SITE_URL } from '@/lib/config';
+import { needsHumanCheck, registerStepFor, securityErrorText } from '@/lib/humanCheck';
 import { colors } from '@/lib/theme';
 import { goBack } from '@/lib/nav';
 import { Field, Screen, authStyles } from './login';
@@ -112,6 +114,7 @@ export default function Register() {
   const blocked = termsMissing || !value.trim() || !!local || (kind !== null && (check.state === 'checking' || check.state === 'bad'));
   const gen = useRef(0);
   void gen;
+  const human = useHumanCheck();
   // Convite: vem na ligação (?convite=CÓDIGO) e fica guardado até o registo acabar.
   const { convite } = useLocalSearchParams<{ convite?: string }>();
   useEffect(() => {
@@ -138,16 +141,23 @@ export default function Register() {
     if (i < steps.length - 1) return setI(i + 1);
     setBusy(true);
     try {
-      await signUp({
+      const body = {
         email: String(data.email).trim(),
         username: String(data.username).trim().replace(/^@/, ''),
         displayName: String(data.displayName).trim(),
         password: String(data.password),
         birthDate: String(data.birthDate).trim(),
         gender: data.gender,
-        acceptTerms: true,
+        acceptTerms: true as const,
         inviteCode: invite?.code,
-      });
+      };
+      // Prova de humano (invisível; sem a chave do site não faz nada). Se o código falhar no servidor, tenta-se outro uma vez.
+      try {
+        await signUp(body, await human.getToken());
+      } catch (x) {
+        if (!(x instanceof ApiError) || !needsHumanCheck(x)) throw x;
+        await signUp(body, await human.getToken());
+      }
       void inviteStore.clear();
       // Daqui para a frente é o _layout (Gate) que leva ao Início (ou à página que se pediu antes de entrar): um só
       // `replace`, sem dois saltos seguidos. O botão fica em "a criar" até a página mudar (sem segundo registo com dois toques).
@@ -156,6 +166,10 @@ export default function Register() {
       if (x instanceof ApiError && x.status === 409) {
         setI(/email/i.test(msg) ? 2 : 1);
         setError(/email/i.test(msg) ? 'Esse email já tem conta' : 'Esse @ acabou de ser escolhido por outra pessoa');
+      } else if (x instanceof ApiError) {
+        // Email temporário: volta ao passo do email. Limites, prova de humano e servidor ocupado: o texto certo.
+        if (registerStepFor(x) === 'email') setI(steps.findIndex((s) => s.key === 'email'));
+        setError(securityErrorText(x, 'register'));
       } else setError(msg);
       setBusy(false);
     }
@@ -175,6 +189,7 @@ export default function Register() {
   void styles2;
 
   return (
+    <>
     <Screen>
       <View style={st.topRow}>
         <Pressable onPress={back} style={st.back} accessibilityRole="button" accessibilityLabel="Voltar"><Icon name="back" size={30} strokeWidth={2} color={colors.brand} /></Pressable>
@@ -272,6 +287,8 @@ export default function Register() {
         </Pressable>
       </View>
     </Screen>
+    {human.node}
+    </>
   );
 }
 

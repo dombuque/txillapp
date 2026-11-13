@@ -7,6 +7,7 @@ import { birthDateSchema, genderSchema } from '@txillapp/shared';
 import { ZodPipe } from '../common/zod.pipe';
 import { PROFILE_TABS, PostsService, type ProfileTab } from '../posts/posts.service';
 import { SocialService } from './social.service';
+import { RiskCheck } from '../security/risk.guard';
 import { MentionSuggestService } from './mention-suggest.service';
 
 type AuthedReq = Request & { userId?: string };
@@ -153,6 +154,7 @@ export class SocialController {
     return this.posts.byAuthor(req.userId!, username, cursor, n, (PROFILE_TABS as readonly string[]).includes(tab ?? '') ? (tab as ProfileTab) : 'all');
   }
 
+  @RiskCheck('follow')
   @Post('users/:username/follow')
   @HttpCode(200)
   follow(@Req() req: AuthedReq, @Param('username') username: string) {

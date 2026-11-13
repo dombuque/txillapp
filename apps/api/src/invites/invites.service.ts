@@ -11,6 +11,9 @@ import { PushService } from '../push/push.service';
 import { WalletService } from '../wallet/wallet.service';
 import { ogCardPng, phraseIndexOf, PHRASES } from './card';
 import { INVITE, isDisposable, newCode } from './rules';
+import { canonicalEmail } from '../security/net';
+import { RiskService } from '../security/risk.service';
+import { RISK } from '../security/rules';
 import { badge } from '../common/badge';
 
 /** Idade a partir da qual há bebidas alcoólicas (a mesma da geleira). */
@@ -45,9 +48,15 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 /** Um código com o feitio certo (as ligações antigas e as novas). */
 export const cleanCode = (raw: string) => raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20);
 
+/** Contas em revisão pela segurança (ver security/risk.service.ts): o convite espera até a equipa decidir. */
+const UNDER_REVIEW = `EXISTS (SELECT 1 FROM security.account_risk a WHERE a.user_id = %s AND a.state IN ('flagged', 'limited', 'suspended'))`;
+const underReview = (col: string) => UNDER_REVIEW.replace('%s', col);
+
 /**
- * Convites. O código é da pessoa; quem entra com ele fica «registada». Quando fica ativa (email confirmado e publicou algo ou segue 3 pessoas),
- * ganha Txills na hora e o prémio de quem convidou fica em espera uns dias. Tudo passa pelo livro de movimentos, de forma idempotente.
+ * Convites. O código é da pessoa; quem entra com ele fica «registada». Quando passa a ser uma conta real (email confirmado,
+ * publicou algo ou segue 3 pessoas, voltou ao Txillapp pelo menos 12 horas depois do registo e não está marcada como
+ * suspeita), ganha Txills e o prémio de quem convidou fica em espera uns dias. Ninguém ganha nada só por se registar.
+ * Tudo passa pelo livro de movimentos, de forma idempotente.
  */
 @Injectable()
 export class InvitesService implements OnModuleInit {
@@ -61,6 +70,7 @@ export class InvitesService implements OnModuleInit {
     private readonly notifications: NotificationsService,
     private readonly media: MediaService,
     private readonly scheduler: Scheduler,
+    private readonly risk: RiskService,
   ) {}
 
   /** Cartões já desenhados para a pré-visualização (pouco tempo, para uma foto ou uma geleira nova aparecerem depressa). */
@@ -101,6 +111,7 @@ export class InvitesService implements OnModuleInit {
       )
     ).rows[0];
     if (!u || u.status !== 'active') return { ok: false, reason: 'conta inativa' };
+    if ((await this.pool.query(`SELECT ${underReview('$1::uuid')} AS r`, [userId])).rows[0].r) return { ok: false, reason: 'A tua conta está em revisão: os convites dão Txills quando a revisão acabar.' };
     if (!u.verified) return { ok: false, reason: 'Confirma o teu email para os convites darem Txills.' };
     if (!u.old) return { ok: false, reason: `Os convites dão Txills a partir de ${INVITE.MIN_AGE_DAYS} dias de conta.` };
     return { ok: true };
@@ -251,8 +262,9 @@ export class InvitesService implements OnModuleInit {
   /**
    * Regista que esta pessoa entrou com o convite de alguém (chamado a seguir ao registo; nunca falha o registo).
    * `net`: a impressão da rede (nunca o IP). Se o convite conta, quem convidou é avisado logo («{nome} entrou com o teu
-   * convite») e quem entrou recebe já os Txills de boas-vindas do convite; o prémio de quem convidou continua à espera
-   * de a pessoa ficar ativa e dos dias de espera.
+   * convite»). Os Txills (para quem entra e para quem convidou) só chegam quando a pessoa passar a ser uma conta real.
+   * Sem prémio: email temporário, a mesma rede repetida, o mesmo aparelho (de quem convida ou de outro convidado) e o
+   * mesmo email disfarçado (nome+1@, pontos no Gmail). Muitas contas novas com o mesmo código numa hora levam pontos de risco.
    */
   async attach(inviteeId: string, rawCode: string | undefined, email: string, net: string | null) {
     if (!rawCode) return;
@@ -262,9 +274,29 @@ export class InvitesService implements OnModuleInit {
       const inviterId = inviter.user_id as string;
       let status = 'registered';
       let reason: string | null = null;
+      const same = (
+        await this.pool.query(
+          `SELECT (SELECT email FROM identity.users WHERE id = $1) AS inviter_email,
+                  EXISTS (SELECT 1 FROM security.account_risk me
+                           WHERE me.user_id = $2 AND me.device_hash IS NOT NULL
+                             AND (me.device_hash = (SELECT device_hash FROM security.account_risk WHERE user_id = $1)
+                                  OR EXISTS (SELECT 1 FROM social.referrals r JOIN security.account_risk o ON o.user_id = r.invitee_id
+                                              WHERE r.inviter_id = $1 AND r.invitee_id <> $2 AND o.device_hash = me.device_hash))) AS device,
+                  EXISTS (SELECT 1 FROM security.account_risk me JOIN security.account_risk o ON o.email_hash = me.email_hash AND o.user_id <> me.user_id
+                           WHERE me.user_id = $2 AND me.email_hash IS NOT NULL) AS email_twin,
+                  (SELECT count(*)::int FROM social.referrals WHERE inviter_id = $1 AND created_at > now() - interval '1 hour') AS last_hour`,
+          [inviterId, inviteeId],
+        )
+      ).rows[0];
       if (isDisposable(email)) {
         status = 'blocked';
         reason = 'email temporário';
+      } else if (same.device) {
+        status = 'blocked';
+        reason = 'mesmo aparelho';
+      } else if (same.email_twin || (same.inviter_email && canonicalEmail(String(same.inviter_email)) === canonicalEmail(email))) {
+        status = 'blocked';
+        reason = 'mesmo email';
       } else if (net) {
         const n = (await this.pool.query("SELECT count(*)::int AS n FROM social.referrals WHERE inviter_id = $1 AND ip_hash = $2 AND created_at > now() - interval '24 hours'", [inviterId, net])).rows[0].n as number;
         if (n >= INVITE.SAME_NET_MAX) {
@@ -276,31 +308,12 @@ export class InvitesService implements OnModuleInit {
         'INSERT INTO social.referrals (invitee_id, inviter_id, status, reason, ip_hash) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING',
         [inviteeId, inviterId, status, reason, net],
       );
+      if (same.last_hour + 1 >= INVITE.BURST_PER_HOUR) await this.risk.addSignals(inviteeId, { rajada_convites: RISK.POINTS.rajada_convites });
       if (!ins.rowCount || status !== 'registered') return;
       await this.notifications.notify({ userId: inviterId, actorId: inviteeId, kind: 'invite_joined' });
-      await this.welcome(inviteeId, inviterId);
     } catch (e) {
       this.log.warn(`convite no registo: ${(e as Error).message}`);
     }
-  }
-
-  /**
-   * Os Txills de boas-vindas do convite, logo no registo. As mesmas condições do prémio (quem convida pode convidar com prémio,
-   * não passou do teto total, e há orçamento no mês). A chave é a mesma da altura em que a pessoa fica ativa: nunca paga duas vezes.
-   */
-  private async welcome(inviteeId: string, inviterId: string): Promise<boolean> {
-    if (!(await this.eligible(inviterId)).ok) return false; // fica para quando ficar ativa (como antes)
-    const c = (
-      await this.pool.query(
-        `SELECT count(*) FILTER (WHERE r.status IN ('qualified', 'paid'))::int AS total, max(u.username) AS username
-           FROM identity.users u LEFT JOIN social.referrals r ON r.inviter_id = u.id WHERE u.id = $1`,
-        [inviterId],
-      )
-    ).rows[0];
-    if (c.total >= INVITE.MAX_PAID) return false;
-    if (INVITE.MONTHLY_BUDGET - (await this.issuedThisMonth()) < INVITE.REWARD * 2) return false;
-    await this.wallet.credit(inviteeId, INVITE.REWARD, `invite:in:${inviteeId}`, { invite: 'in', from: c.username, at: 'signup' }, undefined, 'invite');
-    return true;
   }
 
   /** Txills emitidos este mês em convites (para o teto mensal). */
@@ -318,7 +331,7 @@ export class InvitesService implements OnModuleInit {
     let paid = 0;
     let budget = INVITE.MONTHLY_BUDGET - (await this.issuedThisMonth());
 
-    // A) quem ficou ativa
+    // A) quem passou a ser uma conta real: email confirmado, alguma atividade, voltou ao Txillapp e não está em revisão
     const cands = (
       await this.pool.query(
         `SELECT r.invitee_id, r.inviter_id, ui.username AS inviter_username
@@ -328,8 +341,10 @@ export class InvitesService implements OnModuleInit {
           WHERE r.status = 'registered'
             AND (EXISTS (SELECT 1 FROM content.posts p WHERE p.author_id = u.id AND p.removed_at IS NULL)
                  OR (SELECT count(*) FROM social.follows f WHERE f.follower_id = u.id) >= $1)
+            AND EXISTS (SELECT 1 FROM identity.sessions s WHERE s.user_id = u.id AND s.created_at > u.created_at + make_interval(hours => $2))
+            AND NOT ${underReview('u.id')}
           ORDER BY r.created_at LIMIT 200`,
-        [INVITE.ACTIVE_FOLLOWS],
+        [INVITE.ACTIVE_FOLLOWS, INVITE.RETURN_HOURS],
       )
     ).rows;
     for (const c of cands) {
@@ -368,7 +383,7 @@ export class InvitesService implements OnModuleInit {
            FROM social.referrals r
            JOIN identity.users u ON u.id = r.invitee_id AND u.status = 'active'
            JOIN identity.users ui ON ui.id = r.inviter_id AND ui.status = 'active'
-          WHERE r.status = 'qualified' AND r.release_at <= now() LIMIT 200`,
+          WHERE r.status = 'qualified' AND r.release_at <= now() AND NOT ${underReview('u.id')} LIMIT 200`,
       )
     ).rows;
     for (const d of due) {

@@ -290,13 +290,14 @@ describe('Backoffice: Finanças, Bombar, Crescimento e Resumo (integração)', (
     const invited = [
       await signup('fgi', { inviteCode: code }),
       await signup('fgj', { inviteCode: code }),
-      await signup('fgk', { inviteCode: code, email: `fgk${run}@mailinator.com` }), // email temporário: bloqueado pela antifraude
+      // O email de quem convida, disfarçado com +: bloqueado pela antifraude (os emails temporários já nem registam).
+      await signup('fgk', { inviteCode: code, email: `${host.username}+convite@example.com` }),
     ];
     await referralsOf(invited.map((x) => x.id));
     const after = await get('/admin/growth?days=7', growth);
     expect(after.invites.joined - before.invites.joined).toBe(3);
     expect(after.invites.blocked - before.invites.blocked).toBe(1);
-    expect(after.invites.blockedBy.find((x: Body) => x.reason === 'email temporário').count).toBeGreaterThanOrEqual(1);
+    expect(after.invites.blockedBy.find((x: Body) => x.reason === 'mesmo email').count).toBeGreaterThanOrEqual(1);
     // Quem mais convida: só os 15 primeiros. Se este não cabe, os 15 convidaram pelo menos tantos como ele.
     const top = after.top as Body[];
     const mineTop = top.find((x) => x.username === host.username);
@@ -306,7 +307,7 @@ describe('Backoffice: Finanças, Bombar, Crescimento e Resumo (integração)', (
       for (const x of top) expect(x.joined).toBeGreaterThanOrEqual(3);
     }
     expect((await pool.query('SELECT status, reason FROM social.referrals WHERE inviter_id = $1 ORDER BY status, invitee_id', [host.id])).rows).toEqual([
-      { status: 'blocked', reason: 'email temporário' }, { status: 'registered', reason: null }, { status: 'registered', reason: null },
+      { status: 'blocked', reason: 'mesmo email' }, { status: 'registered', reason: null }, { status: 'registered', reason: null },
     ]);
     expect(after.sources.invite - before.sources.invite).toBe(3);
     expect(after.sources.total - before.sources.total).toBe(4);

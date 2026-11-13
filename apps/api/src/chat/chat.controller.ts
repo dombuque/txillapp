@@ -1,4 +1,5 @@
 import { NeedsVerifiedEmail } from '../mail/verified-email.guard';
+import { RiskCheck } from '../security/risk.guard';
 import { Body, Controller, Delete, Get, HttpCode, MessageEvent, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, Res, Sse, UseGuards } from '@nestjs/common';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
@@ -218,6 +219,8 @@ export class ChatController {
     return { ...t, peerNote, peerBio };
   }
 
+  // A segurança por cima de tudo (corre depois da sessão): rajadas das contas novas e «sem mensagens a desconhecidos» nas suspeitas.
+  @RiskCheck('dm')
   @NeedsVerifiedEmail()
   @Post('with/:username')
   @UseGuards(JwtAuthGuard)

@@ -4,8 +4,10 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ActivityIndicator } from '@/components/PontoLoader';
 import { Icon } from '@/components/Icon';
+import { useHumanCheck } from '@/components/HumanCheck';
 import { Wordmark } from '@/components/Wordmark';
 import { ApiError, api } from '@/lib/api';
+import { needsHumanCheck, securityErrorText } from '@/lib/humanCheck';
 import { colors } from '@/lib/theme';
 import { Field, Screen } from './login';
 
@@ -17,6 +19,7 @@ export default function ForgotPassword() {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
+  const human = useHumanCheck();
 
   async function submit() {
     if (busy) return;
@@ -24,10 +27,16 @@ export default function ForgotPassword() {
     setBusy(true);
     setError('');
     try {
-      await api.forgotPassword(email.trim());
+      // Prova de humano (invisível; sem a chave do site não faz nada). Se o código falhar no servidor, tenta-se outro uma vez.
+      try {
+        await api.forgotPassword(email.trim(), await human.getToken());
+      } catch (x) {
+        if (!(x instanceof ApiError) || !needsHumanCheck(x)) throw x;
+        await api.forgotPassword(email.trim(), await human.getToken());
+      }
       setSent(true);
     } catch (x) {
-      setError(x instanceof ApiError ? x.message : 'Não consegui enviar agora. Tenta outra vez.');
+      setError(x instanceof ApiError ? securityErrorText(x, 'forgot') : 'Não consegui enviar agora. Tenta outra vez.');
     } finally {
       setBusy(false);
     }
@@ -35,6 +44,7 @@ export default function ForgotPassword() {
 
   const footer = <Text style={st.footerText} onPress={() => router.replace('/login?entrar=1' as never)} accessibilityRole="link"><Text style={{ color: colors.brand, fontWeight: '600' }}>Voltar a entrar</Text></Text>;
   return (
+    <>
     <Screen footer={footer}>
       {wide ? null : <View style={{ paddingTop: 40 }} accessibilityRole="header"><Wordmark height={44} /></View>}
       {sent ? (
@@ -63,6 +73,8 @@ export default function ForgotPassword() {
         </>
       )}
     </Screen>
+    {human.node}
+    </>
   );
 }
 
