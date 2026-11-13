@@ -26,3 +26,14 @@ export function startIndex(stories: { mediaUrl: string }[], wanted: string | nul
 export function freshEnough(dataUpdatedAt: number, openedAt: number, fetching: boolean): boolean {
   return dataUpdatedAt >= openedAt || !fetching;
 }
+
+/**
+ * Como a foto de um mimo enche o ecrã. Uma foto quase com a forma do ecrã (um 9:16 num iPhone de 19,5:9, um 3:4 num ecrã
+ * mais largo) fica a encher, como no Instagram: corta-se um pouco dos lados e não sobram margens com o fundo desfocado.
+ * Uma foto muito diferente (deitada, quadrada) aparece inteira, com o fundo desfocado à volta.
+ */
+export function storyFit(photoRatio: number | null | undefined, boxRatio: number): 'cover' | 'contain' {
+  if (!photoRatio || !boxRatio || !Number.isFinite(photoRatio) || !Number.isFinite(boxRatio)) return 'contain';
+  const r = photoRatio / boxRatio;
+  return r >= 0.72 && r <= 1.38 ? 'cover' : 'contain';
+}

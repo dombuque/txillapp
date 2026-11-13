@@ -29,7 +29,7 @@ import { saveToGallery } from '@/lib/saveToGallery';
 import { StickerLayer } from '@/components/Stickers';
 import { isGone } from '@/lib/postCache';
 import { storyPaused } from '@/lib/storyPlayback';
-import { freshEnough, startIndex } from '@/lib/storyLink';
+import { freshEnough, startIndex, storyFit } from '@/lib/storyLink';
 import { artistHref } from '@/lib/artists';
 import { MusicPill } from '@/components/PostMusic';
 import { SoundWaves } from '@/components/SoundWaves';
@@ -156,6 +156,7 @@ export default function StoryViewer() {
   const [panel, setPanel] = useState<null | 'menu' | 'viewers' | 'comments' | 'more' | 'report'>(null);
   const [away, setAway] = useState(false); // outro ecrã por cima (ex.: a publicação)
   const [seePost, setSeePost] = useState(false);
+  const [photoRatio, setPhotoRatio] = useState<{ id: string; r: number } | null>(null); // a forma da foto (para encher o ecrã quando é parecida)
   const [box, setBox] = useState({ w: 0, h: 0 }); // o tamanho do ecrã do mimo (para pousar os stickers)
   const [saving, setSaving] = useState(false); // a guardar o mimo na galeria (antes do primeiro `return`, como todos os hooks)
   const [videoMs, setVideoMs] = useState<number | null>(null);
@@ -414,7 +415,7 @@ export default function StoryViewer() {
           ) : (
             <>
               <Image source={{ uri: sized(cur.mediaUrl, 160) }} style={[StyleSheet.absoluteFill, { opacity: 0.7, transform: [{ scale: 1.25 }] }]} contentFit="cover" blurRadius={40} />
-              <Image source={{ uri: sized(cur.mediaUrl, servedWidth(width, PixelRatio.get())) }} style={StyleSheet.absoluteFill} contentFit="contain" accessibilityLabel={cur.caption ?? `Mimo de ${cur.author.displayName}`} />
+              <Image source={{ uri: sized(cur.mediaUrl, servedWidth(width, PixelRatio.get())) }} style={StyleSheet.absoluteFill} contentFit={storyFit(photoRatio?.id === cur.id ? photoRatio.r : null, box.h ? box.w / box.h : 0)} onLoad={(e) => { const w = e.source?.width, h = e.source?.height; if (w && h) setPhotoRatio({ id: cur.id, r: w / h }); }} accessibilityLabel={cur.caption ?? `Mimo de ${cur.author.displayName}`} />
             </>
           )}
         </View>
