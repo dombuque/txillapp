@@ -1,12 +1,13 @@
 import type React from 'react';
 import { Image } from 'expo-image';
 import { createVideoPlayer, type VideoThumbnail } from 'expo-video';
-import { Minus, Plus } from 'lucide-react-native';
+import { Minus, Pause, Play, Plus } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { GestureDetector, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import type { ProjectClip, TrimEdge } from '@/lib/studio/project';
+import { previewClock } from '@/lib/tchekaRules';
 import { clampPps, PPS_DEFAULT, preciseClock, reorderIndex, rulerTicks, snapTime, cutPoints } from '@/lib/studio/timeline';
 import type { TimelineLayer } from '../Timeline';
 import type { ClockStore } from './clockStore';
@@ -18,6 +19,11 @@ const LANE_H = 30;
 const RULER_H = 22;
 const HANDLE_W = 18;
 const SLOT = 62;
+/** As medidas da faixa: a normal (folha fechada) e a densa (folha aberta: régua de 16, clipes de 48, camadas finas). */
+export interface Dims { ruler: number; clip: number; lane: number }
+const NORMAL: Dims = { ruler: RULER_H, clip: CLIP_H, lane: LANE_H };
+const DENSE: Dims = { ruler: 16, clip: 48, lane: 20 };
+const LEAD_W = 64;
 const tick = () => void Haptics.selectionAsync().catch(() => undefined);
 
 // ---------------------------------------------------------------- miniaturas dos vídeos
@@ -97,10 +103,16 @@ interface Props {
   onSelectLayer: (id: string | null) => void;
   onLayer: (id: string, start: number, end: number, phase: 'start' | 'move' | 'end') => void;
   onAdd: () => void;
+  /** Folha aberta: a faixa densa, com o tocar/pausar e o tempo à esquerda. */
+  dense?: boolean;
+  playing?: boolean;
+  onTogglePlay?: () => void;
+  /** A altura da faixa mudou (para quem a põe no ecrã). */
+  onHeight?: (h: number) => void;
 }
 
 /** Uma pega de cortar (início ou fim do clipe escolhido). */
-function TrimHandle({ edge, left, pps, onTrim, k }: { edge: TrimEdge; left: number; pps: number; k: string; onTrim: Props['onTrim'] }) {
+function TrimHandle({ edge, left, pps, onTrim, k, h }: { edge: TrimEdge; left: number; pps: number; k: string; onTrim: Props['onTrim']; h: number }) {
   const hit = useRef<'min' | 'max' | null>(null);
   const dx = useRef(0);
   const pan = usePanGesture({
@@ -111,7 +123,7 @@ function TrimHandle({ edge, left, pps, onTrim, k }: { edge: TrimEdge; left: numb
   });
   return (
     <GestureDetector gesture={pan}>
-      <View style={[st.handle, { left: left - (edge === 'start' ? 0 : HANDLE_W) }]} hitSlop={{ left: 12, right: 12, top: 6, bottom: 6 }} accessibilityRole="adjustable" accessibilityLabel={edge === 'start' ? 'Cortar o início do clipe' : 'Cortar o fim do clipe'}>
+      <View style={[st.handle, { left: left - (edge === 'start' ? 0 : HANDLE_W), height: h }]} hitSlop={{ left: 12, right: 12, top: 6, bottom: 6 }} accessibilityRole="adjustable" accessibilityLabel={edge === 'start' ? 'Cortar o início do clipe' : 'Cortar o fim do clipe'}>
         <View style={st.grip} />
       </View>
     </GestureDetector>
@@ -119,8 +131,8 @@ function TrimHandle({ edge, left, pps, onTrim, k }: { edge: TrimEdge; left: numb
 }
 
 /** Um clipe na faixa: tocar escolhe; manter e arrastar muda a ordem. */
-function ClipBlock({ c, i, x, w, dur, selected, locked, onSelect, onReorder }: {
-  c: ProjectClip; i: number; x: number; w: number; dur: number; selected: boolean; locked: boolean;
+function ClipBlock({ c, i, x, w, dur, selected, locked, onSelect, onReorder, h }: {
+  c: ProjectClip; i: number; x: number; w: number; dur: number; selected: boolean; locked: boolean; h: number;
   onSelect: (key: string) => void; onReorder: (phase: 'start' | 'move' | 'end', i: number, absX: number) => void;
 }) {
   const tap = useTapGesture({ runOnJS: true, onActivate: () => onSelect(c.key) });
@@ -132,7 +144,7 @@ function ClipBlock({ c, i, x, w, dur, selected, locked, onSelect, onReorder }: {
   });
   const g = useSimultaneousGestures(tap, drag);
   const body = (
-    <View style={[st.clip, { left: x, width: Math.max(4, w - 2) }, selected && st.clipOn]} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`Clipe ${i + 1}, ${c.video ? 'vídeo' : 'foto'}, ${dur.toFixed(1).replace('.', ',')} segundos`} accessibilityHint="Toque longo e arrasta para mudar a ordem">
+    <View style={[st.clip, { left: x, width: Math.max(4, w - 2), height: h }, selected && st.clipOn]} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`Clipe ${i + 1}, ${c.video ? 'vídeo' : 'foto'}, ${dur.toFixed(1).replace('.', ',')} segundos`} accessibilityHint="Toque longo e arrasta para mudar a ordem">
       <ClipStrip c={c} w={w} dur={dur} />
     </View>
   );
@@ -140,8 +152,8 @@ function ClipBlock({ c, i, x, w, dur, selected, locked, onSelect, onReorder }: {
 }
 
 /** Uma faixa de camada (texto, sticker, voz-off ou efeito sonoro): tocar escolhe; arrastar muda de sítio; as pontas, o tempo. */
-function LayerBar({ l, pps, top, total, selected, locked, onSelect, onLayer }: {
-  l: TimelineLayer; pps: number; top: number; total: number; selected: boolean; locked: boolean;
+function LayerBar({ l, pps, top, total, selected, locked, onSelect, onLayer, lane }: {
+  l: TimelineLayer; pps: number; top: number; total: number; selected: boolean; locked: boolean; lane: number;
   onSelect: (id: string) => void; onLayer: Props['onLayer'];
 }) {
   const span = Math.max(0, l.end - l.start);
@@ -176,12 +188,12 @@ function LayerBar({ l, pps, top, total, selected, locked, onSelect, onLayer }: {
   const g = useSimultaneousGestures(tap, move);
   const color = l.kind === 'text' ? '#7a5cff' : l.kind === 'sticker' ? '#0fa3b1' : l.kind === 'voice' ? CORAL : '#ffd60a';
   if (l.point) {
-    const body = <View style={[st.diamondHit, { left: l.start * pps - 13, top }]} accessibilityRole="button" accessibilityLabel={`${l.label} aos ${l.start.toFixed(1).replace('.', ',')} s`}><View style={[st.diamond, selected && { borderColor: '#fff', borderWidth: 2 }]} /></View>;
+    const body = <View style={[st.diamondHit, { left: l.start * pps - 13, top, height: lane - 2 }]} accessibilityRole="button" accessibilityLabel={`${l.label} aos ${l.start.toFixed(1).replace('.', ',')} s`}><View style={[st.diamond, selected && { borderColor: '#fff', borderWidth: 2 }]} /></View>;
     return locked ? body : <GestureDetector gesture={g}>{body}</GestureDetector>;
   }
   const body = (
-    <View style={[st.layer, { left: l.start * pps, width: Math.max(14, span * pps), top, backgroundColor: color }, selected && st.layerOn]} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${l.label}, dos ${l.start.toFixed(1).replace('.', ',')} aos ${l.end.toFixed(1).replace('.', ',')} s`}>
-      <Text style={[st.layerText, l.kind === 'sfx' && { color: '#111' }]} numberOfLines={1}>{l.label}</Text>
+    <View style={[st.layer, { left: l.start * pps, width: Math.max(14, span * pps), top, height: lane - 2, backgroundColor: color }, selected && st.layerOn]} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${l.label}, dos ${l.start.toFixed(1).replace('.', ',')} aos ${l.end.toFixed(1).replace('.', ',')} s`}>
+      <Text style={[st.layerText, lane < 24 && { lineHeight: 16 }, l.kind === 'sfx' && { color: '#111' }]} numberOfLines={1}>{l.label}</Text>
     </View>
   );
   return (
@@ -189,8 +201,8 @@ function LayerBar({ l, pps, top, total, selected, locked, onSelect, onLayer }: {
       {locked ? body : <GestureDetector gesture={g}>{body}</GestureDetector>}
       {selected && l.trim && !locked ? (
         <>
-          <GestureDetector gesture={left}><View style={[st.layerHandle, { left: l.start * pps - 14, top }]} accessibilityLabel="Mudar quando entra" accessibilityRole="adjustable"><View style={st.layerGrip} /></View></GestureDetector>
-          <GestureDetector gesture={right}><View style={[st.layerHandle, { left: l.end * pps - 10, top }]} accessibilityLabel="Mudar quando sai" accessibilityRole="adjustable"><View style={st.layerGrip} /></View></GestureDetector>
+          <GestureDetector gesture={left}><View style={[st.layerHandle, { left: l.start * pps - 14, top, height: lane - 2 }]} accessibilityLabel="Mudar quando entra" accessibilityRole="adjustable"><View style={st.layerGrip} /></View></GestureDetector>
+          <GestureDetector gesture={right}><View style={[st.layerHandle, { left: l.end * pps - 10, top, height: lane - 2 }]} accessibilityLabel="Mudar quando sai" accessibilityRole="adjustable"><View style={st.layerGrip} /></View></GestureDetector>
         </>
       ) : null}
     </>
@@ -204,7 +216,10 @@ function LayerBar({ l, pps, top, total, selected, locked, onSelect, onLayer }: {
  * e stickers (com as pontas), a voz-off e os efeitos sonoros.
  */
 export function NativeTimeline(p: Props) {
-  const { clips, durations, total, clock, width } = p;
+  const { clips, durations, total, clock } = p;
+  const d = p.dense ? DENSE : NORMAL;
+  const lead = p.dense ? LEAD_W : 0;
+  const width = Math.max(120, p.width - lead);
   const [pps, setPps] = useState(() => clampPps(Math.max(PPS_DEFAULT, (width * 0.8) / Math.max(1, total))));
   const ppsRef = useRef(pps);
   ppsRef.current = pps;
@@ -284,10 +299,21 @@ export function NativeTimeline(p: Props) {
   }, [p.layers]);
   const contentW = total * pps;
   const ticks = useMemo(() => rulerTicks(pps, total, { minGap: 14, labelGap: 60 }), [pps, total]);
-  const tracksTop = RULER_H + CLIP_H + 6;
+  const tracksTop = d.ruler + d.clip + (p.dense ? 4 : 6);
+  const height = tracksTop + lanes.count * d.lane + (p.dense ? 4 : 6);
+  useEffect(() => { p.onHeight?.(height); }, [height]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <View style={{ height: tracksTop + lanes.count * LANE_H + 6 }}>
+    <View style={{ height, flexDirection: 'row' }}>
+      {p.dense ? (
+        <View style={st.lead}>
+          <Pressable onPress={p.onTogglePlay} style={st.leadBtn} accessibilityRole="button" accessibilityLabel={p.playing ? 'Pausar' : 'Tocar'}>
+            {p.playing ? <Pause size={20} color="#fff" fill="#fff" /> : <Play size={20} color="#fff" fill="#fff" />}
+          </Pressable>
+          <Text style={st.leadTime} numberOfLines={1}>{previewClock(now, total).split(' / ')[0]}</Text>
+        </View>
+      ) : null}
+      <View style={{ flex: 1 }}>
       <GestureDetector gesture={pinch}>
         <View style={StyleSheet.absoluteFill}>
           <ScrollView
@@ -304,34 +330,34 @@ export function NativeTimeline(p: Props) {
           >
             <View style={{ width: contentW, height: '100%' }}>
               {/* A régua (com as batidas, ao ritmo). */}
-              <View style={{ height: RULER_H }} pointerEvents="none">
+              <View style={{ height: d.ruler }} pointerEvents="none">
                 {ticks.ticks.map((tk) => (
-                  <View key={tk.t} style={[st.tick, { left: tk.t * pps, height: tk.major ? 8 : 4 }]}>
-                    {tk.label ? <Text style={st.tickText} numberOfLines={1}>{tk.label}</Text> : null}
+                  <View key={tk.t} style={[st.tick, { left: tk.t * pps, height: tk.major ? (p.dense ? 5 : 8) : 3 }]}>
+                    {tk.label ? <Text style={[st.tickText, p.dense && { top: 0, left: 4, lineHeight: 16 }]} numberOfLines={1}>{tk.label}</Text> : null}
                   </View>
                 ))}
                 {(p.beats ?? []).filter((b) => b <= total).map((b) => <View key={`b${b}`} style={[st.beat, { left: b * pps }]} />)}
               </View>
               {/* Os clipes. */}
-              <View style={{ height: CLIP_H }}>
+              <View style={{ height: d.clip }}>
                 {clips.map((c, i) => (
-                  <ClipBlock key={c.key} c={c} i={i} x={(starts[i] ?? 0) * pps} w={(durations[i] ?? 0) * pps} dur={durations[i] ?? 0} selected={c.key === p.selected} locked={p.locked} onSelect={(k) => p.onSelect(k === p.selected ? null : k)} onReorder={onReorder} />
+                  <ClipBlock key={c.key} c={c} i={i} x={(starts[i] ?? 0) * pps} w={(durations[i] ?? 0) * pps} dur={durations[i] ?? 0} selected={c.key === p.selected} locked={p.locked} onSelect={(k) => p.onSelect(k === p.selected ? null : k)} onReorder={onReorder} h={d.clip} />
                 ))}
                 {sel >= 0 && !p.locked ? (
                   <>
-                    <TrimHandle k={clips[sel].key} edge="start" left={(starts[sel] ?? 0) * pps} pps={pps} onTrim={p.onTrim} />
-                    <TrimHandle k={clips[sel].key} edge="end" left={((starts[sel] ?? 0) + (durations[sel] ?? 0)) * pps} pps={pps} onTrim={p.onTrim} />
+                    <TrimHandle k={clips[sel].key} edge="start" left={(starts[sel] ?? 0) * pps} pps={pps} onTrim={p.onTrim} h={d.clip} />
+                    <TrimHandle k={clips[sel].key} edge="end" left={((starts[sel] ?? 0) + (durations[sel] ?? 0)) * pps} pps={pps} onTrim={p.onTrim} h={d.clip} />
                   </>
                 ) : null}
               </View>
               {/* As camadas. */}
-              <View style={{ marginTop: 6, height: lanes.count * LANE_H }}>
-                {lanes.placed.map(({ l, lane }) => <LayerBar key={l.id} l={l} pps={pps} top={lane * LANE_H} total={total} selected={p.selectedLayer === l.id} locked={p.locked} onSelect={(id) => p.onSelectLayer(id === p.selectedLayer ? null : id)} onLayer={p.onLayer} />)}
-                {lanes.sound.map((l) => <LayerBar key={l.id} l={l} pps={pps} top={lanes.ovLanes * LANE_H} total={total} selected={p.selectedLayer === l.id} locked={p.locked} onSelect={(id) => p.onSelectLayer(id === p.selectedLayer ? null : id)} onLayer={p.onLayer} />)}
+              <View style={{ marginTop: p.dense ? 4 : 6, height: lanes.count * d.lane }}>
+                {lanes.placed.map(({ l, lane }) => <LayerBar key={l.id} l={l} pps={pps} top={lane * d.lane} lane={d.lane} total={total} selected={p.selectedLayer === l.id} locked={p.locked} onSelect={(id) => p.onSelectLayer(id === p.selectedLayer ? null : id)} onLayer={p.onLayer} />)}
+                {lanes.sound.map((l) => <LayerBar key={l.id} l={l} pps={pps} top={lanes.ovLanes * d.lane} lane={d.lane} total={total} selected={p.selectedLayer === l.id} locked={p.locked} onSelect={(id) => p.onSelectLayer(id === p.selectedLayer ? null : id)} onLayer={p.onLayer} />)}
               </View>
             </View>
             {!p.locked ? (
-              <Pressable onPress={p.onAdd} style={[st.add, { left: contentW + pad + 8, top: RULER_H + 4 }]} accessibilityRole="button" accessibilityLabel="Juntar fotos ou vídeos">
+              <Pressable onPress={p.onAdd} style={[st.add, { left: contentW + pad + 8, top: d.ruler + Math.max(0, (d.clip - 44) / 2) }]} accessibilityRole="button" accessibilityLabel="Juntar fotos ou vídeos">
                 <Plus size={22} color="#fff" strokeWidth={2.6} />
               </Pressable>
             ) : null}
@@ -340,13 +366,13 @@ export function NativeTimeline(p: Props) {
       </GestureDetector>
       {/* O cursor, parado ao meio, e o tempo dele. */}
       <View pointerEvents="none" style={[st.playhead, { left: pad - 1 }]} />
-      <View pointerEvents="none" style={[st.nowTag, { left: pad - 34 }]}><Text style={st.nowText}>{preciseClock(now)}</Text></View>
-      <View style={st.zoom} pointerEvents="box-none">
+      {p.dense ? null : <View pointerEvents="none" style={[st.nowTag, { left: pad - 34 }]}><Text style={st.nowText}>{preciseClock(now)}</Text></View>}
+      {p.dense ? null : <View style={st.zoom} pointerEvents="box-none">
         <Pressable onPress={() => zoom(1 / 1.5)} hitSlop={8} style={st.zoomBtn} accessibilityRole="button" accessibilityLabel="Afastar a linha do tempo"><Minus size={16} color="#fff" strokeWidth={2.6} /></Pressable>
         <Pressable onPress={() => zoom(1.5)} hitSlop={8} style={st.zoomBtn} accessibilityRole="button" accessibilityLabel="Aproximar a linha do tempo"><Plus size={16} color="#fff" strokeWidth={2.6} /></Pressable>
-      </View>
+      </View>}
       {reorder ? (
-        <View ref={rowRef} style={[st.reorderRow, { top: RULER_H - 6 }]} pointerEvents="none">
+        <View ref={rowRef} style={[st.reorderRow, { top: Math.max(0, d.ruler - 6), height: d.clip + 16 }]} pointerEvents="none">
           <View style={{ flexDirection: 'row', alignSelf: 'center' }}>
             {clips.map((c, i) => {
               const dragging = i === reorder.from;
@@ -362,6 +388,7 @@ export function NativeTimeline(p: Props) {
           </View>
         </View>
       ) : null}
+      </View>
     </View>
   );
 }
@@ -387,6 +414,9 @@ const st = StyleSheet.create({
   playhead: { position: 'absolute', top: 0, bottom: 0, width: 2, borderRadius: 1, backgroundColor: '#fff', boxShadow: '0 0 6px rgba(0,0,0,0.6)' } as object,
   nowTag: { position: 'absolute', top: -4, width: 68, alignItems: 'center' },
   nowText: { color: '#fff', fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums'], backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 6, paddingHorizontal: 4, overflow: 'hidden' },
+  lead: { width: LEAD_W, alignItems: 'center', justifyContent: 'center', gap: 2, borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,0.08)' },
+  leadBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  leadTime: { color: '#fff', fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums'] },
   zoom: { position: 'absolute', right: 6, top: -2, flexDirection: 'row', gap: 6 },
   zoomBtn: { width: 44, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   reorderRow: { position: 'absolute', left: 0, right: 0, height: CLIP_H + 16, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center' },
