@@ -135,6 +135,16 @@ export interface Outgoing {
   replyTo?: string;
 }
 
+/** Porque não posso escrever a alguém numa conversa a dois (ver ChatService.messageBlock). */
+export type MessageBlock = 'self' | 'gone' | 'blocked' | 'closed' | 'waiting';
+const MESSAGE_BLOCK_TEXT: Record<MessageBlock, string> = {
+  self: 'Não podes enviar mensagens a ti próprio',
+  gone: 'Pessoa não encontrada',
+  blocked: 'Não podes enviar mensagens a esta pessoa',
+  closed: 'Esta pessoa não aceita mensagens novas',
+  waiting: 'Esta pessoa não te segue e ainda não respondeu. Podes escrever outra vez quando ela responder, aceitar ou te seguir.',
+};
+
 @Injectable()
 export class ChatService {
   constructor(
@@ -709,7 +719,17 @@ export class ChatService {
    * (para mostrar) ou null.
    */
   async cannotMessage(me: string, otherId: string): Promise<string | null> {
-    if (otherId === me) return 'Não podes enviar mensagens a ti próprio';
+    const why = await this.messageBlock(me, otherId);
+    return why ? MESSAGE_BLOCK_TEXT[why] : null;
+  }
+
+  /**
+   * O mesmo que `cannotMessage`, mas com o motivo em código, para quem quer o seu próprio texto (o «Paga-me uma» põe o @ da
+   * pessoa na frase): 'self', 'gone' (não existe), 'blocked', 'closed' (não aceita mensagens novas) ou 'waiting' (não me
+   * segue e ainda não respondeu).
+   */
+  async messageBlock(me: string, otherId: string): Promise<MessageBlock | null> {
+    if (otherId === me) return 'self';
     const r = (
       await this.pool.query(
         `SELECT u.status, ${blockedBetween('u.id', '$1')} AS blocked, ${allowedBy('u', 'dms_allowed')} AS allowed,
@@ -718,11 +738,11 @@ export class ChatService {
         [me, otherId],
       )
     ).rows[0];
-    if (!r || r.status !== 'active') return 'Pessoa não encontrada';
-    if (r.blocked) return 'Não podes enviar mensagens a esta pessoa';
-    if (!r.allowed && !r.spoke) return 'Esta pessoa não aceita mensagens novas';
+    if (!r || r.status !== 'active') return 'gone';
+    if (r.blocked) return 'blocked';
+    if (!r.allowed && !r.spoke) return 'closed';
     const rel = await this.relationOf(me, otherId, await this.conversation(me, otherId, false));
-    if (rel.left === 0) return 'Esta pessoa não te segue e ainda não respondeu. Podes escrever outra vez quando ela responder, aceitar ou te seguir.';
+    if (rel.left === 0) return 'waiting';
     return null;
   }
 

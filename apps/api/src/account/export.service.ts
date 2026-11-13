@@ -135,7 +135,7 @@ export class ExportService {
       ).catch(() => []),
       geladaBook: await q(
         `SELECT d.id, (d.debtor_id = $1) AS "iOwe", o.username AS "with", d.drink_name AS drink, d.alcoholic, d.source, d.status,
-                d.paid_claimed_at AS "paidClaimedAt", d.paid_media_id AS "proofPhotoId", v.slug AS "proofVenue", d.created_at AS "createdAt", d.closed_at AS "closedAt"
+                d.paid_claimed_at AS "paidClaimedAt", d.paid_media_id AS "proofPhotoId", v.slug AS "proofVenue", d.paid_venue_near AS "proofVenueNear", d.created_at AS "createdAt", d.closed_at AS "closedAt"
            FROM taste.gelada_debts d JOIN identity.users o ON o.id = CASE WHEN d.debtor_id = $1 THEN d.creditor_id ELSE d.debtor_id END
            LEFT JOIN content.venues v ON v.id = d.paid_venue_id
           WHERE d.debtor_id = $1 OR d.creditor_id = $1 ORDER BY d.created_at`,

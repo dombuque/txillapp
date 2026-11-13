@@ -22,7 +22,15 @@ const askSchema = z.object({
 });
 const answerSchema = z.object({ answer: z.enum(['accept', 'decline', 'owe']) });
 const oweSchema = z.object({ to: handle, itemId });
-const paidSchema = z.object({ mediaId: z.string().uuid().optional(), venueSlug: z.string().trim().min(1).max(80).optional() });
+const paidSchema = z
+  .object({
+    mediaId: z.string().uuid().optional(),
+    venueSlug: z.string().trim().min(1).max(80).optional(),
+    /** A posição do telemóvel agora (só com o local): para o selo «✓ estiveram lá». Não se guarda. */
+    lat: z.number().min(-90).max(90).optional(),
+    lng: z.number().min(-180).max(180).optional(),
+  })
+  .refine((b) => (b.lat === undefined) === (b.lng === undefined), { message: 'Manda a latitude e a longitude juntas' });
 const entrySchema = z.object({ itemId });
 const closeSchema = z.object({ bill: z.boolean().optional() });
 const drinksSchema = z.object({ to: z.string().max(440).optional() });
@@ -38,7 +46,8 @@ const drinksSchema = z.object({ to: z.string().max(440).optional() });
  * GET  /gelada/book -> { scope: 'all', public, owe, owed, items: [Debt] }   (o meu livro)
  * GET  /users/:username/gelada/book -> { scope: 'all' | 'between', owe, owed, items }
  * POST /gelada/debts { to, itemId } -> Debt (201)   «Fico a dever-te uma»
- * POST /gelada/debts/:id/paid { mediaId?, venueSlug? } -> Debt   «Já paguei» (o devedor)
+ * POST /gelada/debts/:id/paid { mediaId?, venueSlug?, lat?, lng? } -> Debt   «Já paguei» (o devedor). Com o local e a posição:
+ *      `venue.there` (dentro de 150 m, ou check-in com QR na mesma hora). A posição não se guarda.
  * POST /gelada/debts/:id/confirm | /reject | /forgive -> Debt   (quem recebe)
  * POST /chat/groups/:id/rodadas -> Round (201)   «Abrir rodada» (409 se já há uma aberta)
  * GET  /gelada/rounds/:id -> Round
@@ -100,7 +109,8 @@ export class GeladaController {
   @Post('gelada/debts/:id/paid')
   @HttpCode(200)
   paid(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(paidSchema)) b: z.infer<typeof paidSchema>) {
-    return this.gelada.claimPaid(req.userId!, id, b);
+    const at = b.venueSlug && b.lat !== undefined && b.lng !== undefined ? { lat: b.lat, lng: b.lng } : undefined;
+    return this.gelada.claimPaid(req.userId!, id, { mediaId: b.mediaId, venueSlug: b.venueSlug, at });
   }
 
   @Post('gelada/debts/:id/confirm')
