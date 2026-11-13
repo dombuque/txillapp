@@ -370,6 +370,125 @@ export function videoItem(key: string, aspect: number, track: MomentTrack, look:
   };
 }
 
+// ================================================================ 4b. os frames de um vídeo (as mesmas contas no site e no telemóvel)
+
+/** Um frame de um vídeo já medido: o instante (s), os cinzentos (para o movimento) e a luz, a cor e a nitidez. */
+export interface VideoFrame { t: number; gray: Float32Array; st: FrameStats }
+/** Mede um frame reduzido a 32×56 (`rgba`, cortado ao 9:16 como vai aparecer). */
+export function videoFrame(t: number, rgba: ArrayLike<number>, w: number = ANALYSIS.w, h: number = ANALYSIS.h): VideoFrame {
+  const gray = grayOf(rgba, w, h);
+  return { t, gray, st: frameStats(rgba, w, h, gray) };
+}
+
+/**
+ * A energia do som de um vídeo: um valor (0 a 1) por bloco de 1/`rate` segundos. No site mede-se a 10 Hz (Web Audio);
+ * na app vem do servidor (POST /tchekas/compose/analyze) a 4 Hz.
+ */
+export interface SoundEnergy { energy: number[]; rate: number }
+
+/** A energia do som à volta do instante `t` (s): o máximo do bloco de `t` e dos dois vizinhos (como o site sempre fez). */
+export function audioAt(sound: SoundEnergy, t: number): number {
+  const e = sound.energy;
+  const k = Math.floor(t * sound.rate);
+  return Math.max(e[k] ?? 0, e[k + 1] ?? 0, e[Math.max(0, k - 1)] ?? 0);
+}
+
+/**
+ * As amostras de um vídeo a partir dos frames medidos (por ordem do tempo): o movimento de cada um é em relação ao anterior
+ * (o primeiro compara-se com o segundo) e, com som, a energia à volta dele.
+ */
+export function videoSamples(frames: readonly VideoFrame[], sound?: SoundEnergy | null, w: number = ANALYSIS.w, h: number = ANALYSIS.h): VideoSample[] {
+  return frames.map((x, i) => {
+    const m = i > 0 ? frameMotion(frames[i - 1].gray, x.gray, w, h) : frames.length > 1 ? frameMotion(x.gray, frames[1].gray, w, h) : { motion: 0, spread: 0 };
+    return { t: r3(x.t), luma: x.st.luma, sharp: x.st.sharp, motion: m.motion, spread: m.spread, ...(sound ? { audio: audioAt(sound, x.t) } : {}) };
+  });
+}
+
+/** A luz e a cor de um vídeo: as médias dos frames medidos. */
+export function videoLook(frames: readonly VideoFrame[]): { luma: number; sat: number; rgb: [number, number, number] } {
+  const n = Math.max(1, frames.length);
+  const avg = (f: (s: FrameStats) => number) => frames.reduce((s, x) => s + f(x.st), 0) / n;
+  return { luma: avg((x) => x.luma), sat: avg((x) => x.sat), rgb: [avg((x) => x.rgb[0]), avg((x) => x.rgb[1]), avg((x) => x.rgb[2])] };
+}
+
+/** Um vídeo já medido com o som que chegou depois (do servidor): as notas passam a contar com ele; `null` tira-o. */
+export function withVideoSound(item: MagicItem, sound: SoundEnergy | null, hasAudio: boolean | undefined): MagicItem {
+  if (!item.video || !item.track || !item.track.samples.length) return hasAudio === undefined ? item : { ...item, hasAudio };
+  const samples = item.track.samples.map((s) => {
+    const rest: VideoSample = { t: s.t, luma: s.luma, sharp: s.sharp, motion: s.motion, spread: s.spread };
+    return sound && hasAudio !== false ? { ...rest, audio: audioAt(sound, s.t) } : rest;
+  });
+  return videoItem(item.key, item.aspect, { duration: item.track.duration, samples }, { luma: item.luma, sat: item.sat, rgb: item.rgb }, hasAudio ?? item.hasAudio, item.focus);
+}
+
+const median = (v: number[]) => { const s = [...v].sort((a, b) => a - b); const k = s.length >> 1; return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2; };
+/**
+ * O ponto de interesse de um vídeo: a mediana dos pontos dos frames (a caixa da cara só conta se a maioria dos frames tiver
+ * cara). `undefined` sem frames.
+ */
+export function videoFocus(list: readonly Focus[]): Focus | undefined {
+  if (!list.length) return undefined;
+  const faces = list.filter((x) => x.face);
+  const face = faces.length * 2 > list.length;
+  const from = face ? faces : list;
+  const at = (src: readonly Focus[], f: (x: Focus) => number) => r4(median(src.map(f)));
+  return {
+    x: at(from, (x) => x.x), y: at(from, (x) => x.y),
+    box: { x0: at(from, (x) => x.box.x0), y0: at(from, (x) => x.box.y0), x1: at(from, (x) => x.box.x1), y1: at(from, (x) => x.box.y1) },
+    face, strength: at(list, (x) => x.strength),
+  };
+}
+
+/** A ordem do geral para o pormenor: 1/2, 1/4, 3/4, 1/8, 3/8… (frações de 0 a 1). */
+export function coarseToFine(n: number): number[] {
+  const out: number[] = [];
+  for (let den = 2; out.length < n; den *= 2) for (let k = 1; k < den && out.length < n; k += 2) out.push(k / den);
+  return out;
+}
+
+/** Quantos frames se tiram de um vídeo no telemóvel: cerca de 2 por segundo, no máximo 40 (e pelo menos 4). */
+export const VIDEO_SAMPLING = { perSecond: 2, max: 40, min: 4 } as const;
+
+/**
+ * Os instantes (s) a ver num vídeo de `duration` segundos: uma grelha regular de ~2 por segundo (no máximo 40), pela ordem do
+ * geral para o pormenor (o meio, os quartos, os oitavos…). Quem tem pouco tempo fica com os primeiros e já cobre o vídeo todo.
+ */
+export function videoSampleTimes(duration: number, count?: number): number[] {
+  const dur = Math.max(0, duration);
+  if (!(dur > 0)) return [];
+  const lo = Math.min(VIDEO_SAMPLING.min, Math.max(1, Math.floor(dur * 10)));
+  const n = Math.round(clamp(count ?? Math.round(dur * VIDEO_SAMPLING.perSecond), lo, VIDEO_SAMPLING.max));
+  const grid = Array.from({ length: n }, (_, i) => r3(clamp(((i + 0.5) / n) * dur, 0, Math.max(0, dur - 0.05))));
+  // A ordem de van der Corput (1/2, 1/4, 3/4, 1/8…) levada à grelha: cada lote novo cai entre os que já se viram.
+  let m = 1;
+  while (m < n) m *= 2;
+  const out: number[] = [];
+  const used = new Set<number>();
+  for (let j = 0; j < m && out.length < n; j++) {
+    const k = (j + 1) % m;
+    let r = 0;
+    for (let b = k, f = 0.5; b > 0; b >>= 1, f /= 2) if (b & 1) r += f;
+    const i = Math.min(n - 1, Math.floor((r + 0.5 / m) * n));
+    if (!used.has(i)) { used.add(i); out.push(grid[i]); }
+  }
+  for (let i = 0; i < n && out.length < n; i++) if (!used.has(i)) { used.add(i); out.push(grid[i]); }
+  return out;
+}
+
+/** Junta os frames medidos (em qualquer ordem) e o som num `MagicItem` de vídeo (como o site faz). */
+export function videoItemFromFrames(key: string, aspect: number, duration: number, frames: readonly VideoFrame[], sound?: SoundEnergy | null, hasAudio?: boolean, focus?: Focus): MagicItem {
+  const got = [...frames].sort((a, b) => a.t - b.t);
+  if (!got.length) return videoItem(key, aspect, { duration, samples: [] }, { luma: 0.5, sat: 0.3, rgb: [0.5, 0.5, 0.5] }, hasAudio, focus);
+  return videoItem(key, aspect, { duration, samples: videoSamples(got, hasAudio === false ? null : sound) }, videoLook(got), hasAudio, focus);
+}
+
+const FLAT_LOOK = { luma: 0.5, sharp: 0.05, sat: 0.3, rgb: [0.5, 0.5, 0.5] as [number, number, number] };
+const FLAT_FOCUS: Focus = { x: 0.5, y: 0.45, box: { x0: 0.3, y0: 0.25, x1: 0.7, y1: 0.65 }, face: false, strength: 0.3 };
+/** Um ficheiro que não se conseguiu ver: valores neutros (entra na montagem pela ordem em que veio, do início). */
+export function neutralItem(s: MagicSource): MagicItem {
+  return s.video ? videoItem(s.key, FRAME_ASPECT, { duration: Math.max(0.5, (s.durationMs ?? 5000) / 1000), samples: [] }, FLAT_LOOK) : photoItem(s.key, FRAME_ASPECT, FLAT_LOOK, FLAT_FOCUS);
+}
+
 // ================================================================ 5. a ordem com história
 
 /** Quão diferentes são dois planos na cor e na luz (0 = iguais, perto de 1 = nada a ver). */
@@ -609,7 +728,14 @@ export const MAGIC_PHASES = [
   { id: 'historia', label: 'A contar a história…', done: 'História em ordem' },
   { id: 'onda', label: 'A dar-lhe a onda…', done: 'Onda aplicada' },
 ] as const;
-export type MagicPhase = (typeof MAGIC_PHASES)[number]['id'];
+/** A fase do som dos vídeos (na app a energia vem do servidor; no site faz parte de «A ver os teus vídeos…»). */
+export const MAGIC_SOUND_PHASE = { id: 'som', label: 'A ouvir o som…', done: 'Som dos vídeos ouvido' } as const;
+export type MagicPhase = (typeof MAGIC_PHASES)[number]['id'] | typeof MAGIC_SOUND_PHASE.id;
+export interface MagicPhaseInfo { id: MagicPhase; label: string; done: string }
+/** As fases que se mostram, pela ordem: com `sound`, a do som entra a seguir às fotos (os envios têm mais tempo). */
+export function magicPhases(sound = false): MagicPhaseInfo[] {
+  return sound ? [MAGIC_PHASES[0], MAGIC_PHASES[1], MAGIC_SOUND_PHASE, ...MAGIC_PHASES.slice(2)] : [...MAGIC_PHASES];
+}
 
 // ================================================================ 8. a montagem
 
@@ -650,6 +776,11 @@ export interface MagicInput {
   seed: number;
   /** O estúdio já tem as transições, as molduras e as letras de capulana ligadas (por omissão não: só ids do effects.ts). */
   capulana?: boolean;
+  /**
+   * Quem desenha e monta já sabe enquadrar os vídeos pelo ponto de interesse (`fx.focus` nos vídeos). Por omissão não: o
+   * servidor só aceita o enquadramento nas fotos, e o ponto de interesse dos vídeos serve para o texto fugir da cara.
+   */
+  videoFocus?: boolean;
   /** O texto de abertura (em vez do sugerido); '' para não pôr texto. */
   title?: string;
   /** «Outra versão»: a montagem anterior e as chaves dos clipes trancados (ficam no lugar e como estavam). */
@@ -852,7 +983,7 @@ export function buildMontage(input: MagicInput): MagicResult {
           start = clamp(clamp(wantStart, m.start - len * 0.3, m.start + len * 0.3), 0, it.duration - len);
         }
         const fr = framingFor(it.focus, it.aspect, { zoom: 0, frames: false });
-        if (it.focus && Math.abs(it.aspect - FRAME_ASPECT) > 0.05) fx.focus = { x: fr.x, y: fr.y, from: 1, to: 1 };
+        if (input.videoFocus && it.focus && Math.abs(it.aspect - FRAME_ASPECT) > 0.05) fx.focus = { x: fr.x, y: fr.y, from: 1, to: 1 };
         clip = { key: so.key, media: so.media ?? so.key, uri: so.uri, video: true, mime: so.mime, durationMs: so.durationMs ?? Math.round(it.duration * 1000), seconds: 3, beats: s.beats, speed, length: it.duration, trim: { start: r3(start), end: r3(start + len) }, ...(it.hasAudio != null ? { hasAudio: it.hasAudio } : {}), fx };
         if (s.ramp && wave.sfx.ramp) sfx.push({ id: wave.sfx.ramp, at: r3(t + s.out * (RAMP_MOMENT[s.ramp] ?? 0.5) * 0.7) });
       } else {

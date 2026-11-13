@@ -7,9 +7,9 @@ import { MagicBackdrop, MagicCta, MagicRound, MagicTag, mg } from './MagicUi';
 
 /**
  * O primeiro ecrã da «Montagem mágica»: as 6 ondas em cartões (cada uma com o pano e as cores dela), o que a onda escolhida
- * faz e o botão para montar.
+ * faz e o botão para montar. `privacy`: a frase de privacidade por baixo do botão (por omissão, tudo no telemóvel).
  */
-export function MagicWaves({ value, onChange, onStart, onClose, photos, videos, musicTitle, bottomInset = 0, topInset = 0 }: {
+export function MagicWaves({ value, onChange, onStart, onClose, photos, videos, musicTitle, bottomInset = 0, topInset = 0, privacy }: {
   value: WaveId;
   onChange: (id: WaveId) => void;
   onStart: () => void;
@@ -20,6 +20,7 @@ export function MagicWaves({ value, onChange, onStart, onClose, photos, videos, 
   musicTitle?: string | null;
   bottomInset?: number;
   topInset?: number;
+  privacy?: string;
 }) {
   const wave = waveById(value);
   const count = [photos ? `${photos} ${photos === 1 ? 'foto' : 'fotos'}` : '', videos ? `${videos} ${videos === 1 ? 'vídeo' : 'vídeos'}` : ''].filter(Boolean).join(' e ');
@@ -81,7 +82,7 @@ export function MagicWaves({ value, onChange, onStart, onClose, photos, videos, 
         <MagicCta label="Montar a tcheka" onPress={onStart} icon={<Sparkles size={22} color="#fff" strokeWidth={2.4} />} testID="montar" a11y={`Montar a tcheka na onda ${wave.name}`} />
         <View style={st.private}>
           <ShieldCheck size={16} color={mg.muted} />
-          <Text style={st.privateText}>Tudo acontece no teu telemóvel. Nada é enviado.</Text>
+          <Text style={st.privateText}>{privacy ?? 'Tudo acontece no teu telemóvel. Nada é enviado.'}</Text>
         </View>
       </View>
     </View>
@@ -107,5 +108,5 @@ const st = StyleSheet.create({
   recipeText: { color: '#fff', fontSize: 15, lineHeight: 21 },
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 34, gap: 10 },
   private: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  privateText: { color: mg.muted, fontSize: 14 },
+  privateText: { color: mg.muted, fontSize: 14, flexShrink: 1, textAlign: 'center' },
 });

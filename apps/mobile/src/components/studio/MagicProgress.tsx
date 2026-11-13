@@ -2,15 +2,16 @@ import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Check, Sparkles, X } from 'lucide-react-native';
-import { MAGIC_PHASES, waveById, type MagicPhase, type WaveId } from '@/lib/studio/magic';
+import { MAGIC_PHASES, waveById, type MagicPhase, type MagicPhaseInfo, type WaveId } from '@/lib/studio/magic';
 import { CapulanaSwatch } from './CapulanaSwatch';
 import { CORAL_GRADIENT, MagicBackdrop, MagicRound, MagicTag, mg } from './MagicUi';
 
 /**
  * O ecrã «a montar»: o pano da onda a rodar e as fases a aparecer uma a uma («A ver os teus vídeos…», «A apanhar o
  * ritmo…»). `done` são as fases acabadas e `active` a que está a decorrer; as que ainda não começaram não aparecem.
+ * `phases`: as fases desta montagem, pela ordem (por omissão as do site; na app entra a do som). `sub`: a frase por baixo.
  */
-export function MagicProgress({ wave, active, done, onCancel, topInset = 0 }: { wave: WaveId; active: MagicPhase | null; done: MagicPhase[]; onCancel: () => void; topInset?: number }) {
+export function MagicProgress({ wave, active, done, onCancel, topInset = 0, phases = MAGIC_PHASES as readonly MagicPhaseInfo[], sub }: { wave: WaveId; active: MagicPhase | null; done: MagicPhase[]; onCancel: () => void; topInset?: number; phases?: readonly MagicPhaseInfo[]; sub?: string }) {
   const w = waveById(wave);
   const spin = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
@@ -23,8 +24,8 @@ export function MagicProgress({ wave, active, done, onCancel, topInset = 0 }: { 
     a.start(); b.start();
     return () => { a.stop(); b.stop(); };
   }, [spin, pulse]);
-  const shown = MAGIC_PHASES.filter((p) => done.includes(p.id) || p.id === active);
-  const progress = Math.min(1, (done.length + (active ? 0.5 : 0)) / MAGIC_PHASES.length);
+  const shown = phases.filter((p) => done.includes(p.id) || p.id === active);
+  const progress = Math.min(1, (done.length + (active ? 0.5 : 0)) / Math.max(1, phases.length));
   return (
     <View style={st.root} accessibilityLiveRegion="polite">
       <MagicBackdrop />
@@ -47,7 +48,7 @@ export function MagicProgress({ wave, active, done, onCancel, topInset = 0 }: { 
         </View>
 
         <Text style={st.title} accessibilityRole="header">A montar a tua tcheka</Text>
-        <Text style={st.sub}>Só uns segundos. Fica tudo no teu telemóvel.</Text>
+        <Text style={st.sub}>{sub ?? 'Só uns segundos. Fica tudo no teu telemóvel.'}</Text>
 
         <View style={st.list}>
           {shown.map((p) => {

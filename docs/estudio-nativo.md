@@ -29,10 +29,14 @@ de fotos). As 10 fontes do texto entram como TTF em `assets/fonts/estudio` (OFL,
 | `lib/studio/nativeDraftFiles.ts`, `studioStore(.native).ts` | Os rascunhos em ficheiros e o registo da montagem (`job.json`) |
 | `lib/studio/mp3Envelope.ts`, `nativeAudio.ts` | A onda e o ritmo da música lidos do MP3; os efeitos sonoros em WAV |
 | `lib/studio/nativeLook.ts` | A aproximação dos filtros nos vídeos (pura, testada) |
-| `lib/studio/magicAnalyzeNative.ts` | A análise da Montagem mágica no telemóvel |
+| `lib/studio/magicAnalyzeNative.ts`, `magicAnalyze.native.ts` | A análise da Montagem mágica no telemóvel (e a API do site sem browser, para o código do site não entrar na app) |
+| `components/studio/native/NativeMagic.tsx`, `useMagicFrames.tsx` | A Montagem mágica no estúdio nativo e a grelha escondida que lê os frames dos vídeos |
+| `lib/studio/magicFrames.ts` | As contas dos frames dos vídeos: grelha, corte 9:16, lotes no tempo, a resposta do som (puro, testado) |
+| `lib/studio/magicUploads.ts`, `magicSound.ts`, `nativeVideoAudio.ts` | Os vídeos enviados ao abrir a Montagem mágica, o som pedido ao servidor e o «tem pista de áudio?» do leitor |
 | `lib/studio/nativeFonts.ts` | As 10 fontes (expo-font) |
 
-Testes: `tests/studioCompose`, `studioComposeJob`, `studioPreviewClock`, `studioNativeDrafts`, `studioMp3`, `studioNativeLook`.
+Testes: `tests/studioCompose`, `studioComposeJob`, `studioPreviewClock`, `studioNativeDrafts`, `studioMp3`, `studioNativeLook`,
+`studioMagicFrames`; no servidor, `apps/api/src/compose/analyze.spec.ts` e `analyze.e2e.spec.ts`.
 
 ## 2. Como funciona
 
@@ -69,9 +73,38 @@ Testes: `tests/studioCompose`, `studioComposeJob`, `studioPreviewClock`, `studio
 - Efeitos de voz (robô, eco…) e o efeito no som original: só no vídeo montado.
 - Ritmo: o andamento sai da curva do MP3 (os ganhos dos frames); noutros formatos fica 120 BPM. O servidor lê as batidas a sério
   na montagem (`beats: { mode: 'auto' }`), por isso as fotos ao ritmo podem mudar um pouco.
-- Montagem mágica: olha para as **fotos** (Skia: luz, cor, nitidez, a cara); os **vídeos** entram com a duração, do início, sem
-  «olhar» para os frames; a música pela curva do MP3.
+- Montagem mágica: as contas são as do site (`magic.ts`); o que muda é como se chega aos píxeis e ao som (ver 3.1). A música pela
+  curva do MP3.
 - O medidor de nível do misturador não existe (só no site).
+
+### 3.1 A Montagem mágica no telemóvel
+
+- **Fotos**: a Skia lê a foto e reduz a 32×56 (luz, cor, nitidez, a cara), como no site.
+- **Frames dos vídeos**: sem módulos novos. Escolheu-se o `generateThumbnailsAsync` do expo-video e não o `useVideo` da Skia:
+  no Android o `seek` da Skia vai para o keyframe anterior (`SEEK_TO_CLOSEST_SYNC`) e descodifica um só frame, por isso devolve
+  frames repetidos ou o frame antigo enquanto o descodificador não responde; e só avança a tocar em tempo real (um vídeo de 30 s
+  levava 30 s). O expo-video dá o frame exato pedido (`OPTION_CLOSEST` no Android, tolerância zero no iPhone), já rodado, vários
+  de uma vez e fora do ecrã. As miniaturas (até 160 px) são uma imagem nativa que só o expo-image desenha: vão para uma grelha
+  escondida (`useMagicFrames`), a Skia fotografa-a de uma vez (`makeImageFromView`, como o «Congelar este frame») e reduz cada
+  célula a 32×56 duas vezes, numa superfície pequena lida com `readPixels`: cortada ao 9:16 (luz, nitidez, movimento entre frames)
+  e inteira (o ponto de interesse). As contas são as mesmas do site (`videoFrame`, `videoSamples`, `videoItemFromFrames`).
+- **Quantos frames**: ~2 por segundo, no máximo 40, numa grelha pela ordem do geral para o pormenor (`videoSampleTimes`).
+  O tempo é o do site: ~5 s para os vídeos todos, um de cada vez, cada um com a parte dele (entre 0,7 e 3 s). O primeiro lote
+  (8 frames) vai sempre; os outros só se couberem no tempo que sobra, por isso com pouco tempo as amostras ficam mais espaçadas.
+  O que se mediu fica em cache por ficheiro (mudar de onda e «Outra versão» não voltam a ver nada).
+- **«Tem som?»**: o leitor do expo-video diz que pistas de áudio o vídeo tem. No Android é de confiança (o estúdio pergunta-o
+  logo a cada vídeo, como o site); no iPhone só um «sim» conta. O servidor diz a última palavra (uma pista só com silêncio conta
+  como sem som). Um vídeo sem som não conta para o som obrigatório e o «Som do vídeo» fica desligado.
+- **Energia do som**: o telemóvel não descodifica áudio sem um módulo novo. Ao abrir a Montagem mágica, os **vídeos** começam
+  logo a ir para o servidor (`magicUploads.ts`; iam na mesma no «Seguinte», que já não os volta a enviar: espera por eles e
+  mostra o progresso). Logo que os bytes chegam (antes de convertidos), a fase «A ouvir o som…» pede
+  `POST /tchekas/compose/analyze { mediaId }` → `{ hasAudio, energy (4 Hz, 0 a 1), rate, loudestMs, durationMs }`. O servidor
+  ouve o original (ou o convertido, se já estiver pronto) com o ffmpeg a 8 kHz e mede a energia (RMS) em blocos de 0,25 s. Só
+  vídeos do próprio, públicos, a converter ou prontos; cache em memória por ficheiro, 2 de cada vez (fila de 12, depois 503),
+  20 s de prazo, 60 pedidos por minuto. A fase espera no máximo 6 s: sem rede ou sem resposta a tempo, fica só a imagem
+  («Sem som a tempo: fica a imagem») e a resposta que chegar depois fica para a montagem seguinte e para o estúdio.
+- **Ponto de interesse dos vídeos**: mede-se (a mediana dos frames) e serve para o texto de abertura fugir da cara. Não vai para
+  o `fx.focus` dos vídeos (`videoFocus` no `buildMontage`, desligado por omissão): o servidor só enquadra fotos.
 
 ## 4. Lista para o teste no emulador
 
@@ -97,7 +130,9 @@ Testes: `tests/studioCompose`, `studioComposeJob`, `studioPreviewClock`, `studio
 11. **Efeitos**: numa foto, os filtros têm a miniatura com a cor certa e a imagem muda logo; num vídeo, muda aproximado e aparece o
     aviso; transição «Zoom» entre dois clipes → «Ver»; rampa «Herói»; «Inverter»; «Congelar este frame» junta uma foto parada.
 12. **Capulana**: Efeitos → Capulana → escolher um pano → «Transição de pano» no clipe 2 → uma faixa de pano passa na junção.
-13. **Montagem mágica**: Clipes → «Montagem mágica» → uma onda → «Afinar»: os clipes mudam, o texto de abertura aparece.
+13. **Montagem mágica**: Clipes → «Montagem mágica» → uma onda → «Afinar»: os clipes mudam, o texto de abertura aparece. Com
+    vídeos: aparecem «A ver os teus vídeos…» e «A ouvir o som…»; os cortes dos vídeos não começam todos do início. Em modo de
+    avião: «Sem som a tempo: fica a imagem». Depois, «Seguinte» não volta a enviar os vídeos (só as fotos).
 14. **Seguinte**: com a regra cumprida → «A enviar os clipes… 1 de 3» → «Na fila» / «A montar os clipes…» com a barra a subir →
     o vídeo montado a tocar (com o logótipo, o filtro completo e as transições do site) → «Seguinte» → o ecrã de publicar →
     Publicar (sem voltar a enviar o vídeo). A tcheka aparece no perfil com a música.
@@ -114,6 +149,7 @@ Testes: `tests/studioCompose`, `studioComposeJob`, `studioPreviewClock`, `studio
 
 - Pré-visualização dos efeitos de voz e da matriz de cor nos vídeos (precisava de um módulo de vídeo com shaders, por exemplo o
   `useVideo` da Skia, que não se quis arriscar sem testar).
-- «Olhar» para dentro dos vídeos na Montagem mágica (frames em píxeis) e saber se um vídeo tem som antes de montar.
+- Enquadrar os vídeos pelo ponto de interesse (o servidor e a pré-visualização só enquadram fotos): ligar `videoFocus`.
+- O «tem som?» dos vídeos no iPhone sem a Montagem mágica (o leitor não diz «não»).
 - A onda das músicas que não são MP3 (m4a, ogg): pedir ao servidor os picos.
 - Cancelar a montagem no servidor (não há `DELETE`): «Parar» só deixa de esperar.
