@@ -23,7 +23,7 @@ export function nextLevelHint(points: number): string {
   if (l === 4) return tr('Nível máximo: madala da paulada!');
   if (l === 0) return tr('Põe o primeiro gosto para começar a txilar.');
   const falta = STEPS[l] - points;
-  return tr(falta === 1 ? 'Falta {n} ponto para {next}. Variedade e gostos avaliados valem mais.' : 'Faltam {n} pontos para {next}. Variedade e gostos avaliados valem mais.', { n: falta, next: LEVEL_LABEL[l + 1] });
+  return tr(falta === 1 ? 'Falta {n} ponto para {next}. Contam as geladas, os brindes, os sítios e as rodadas.' : 'Faltam {n} pontos para {next}. Contam as geladas, os brindes, os sítios e as rodadas.', { n: falta, next: LEVEL_LABEL[l + 1] });
 }
 
 const ITEM_COLORS = ['#fb7185', '#fbbf24', '#34d399', '#60a5fa', '#c084fc', '#fb923c', '#f472b6', '#2dd4bf'];

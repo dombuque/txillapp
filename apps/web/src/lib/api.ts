@@ -432,7 +432,7 @@ export interface StorySettings {
   hidden: { username: string; displayName: string }[];
 }
 export type GiftVisibility = 'silent' | 'private' | 'public';
-export interface GeleiraLevel { points: number; level: number; title: string; toNext: number | null; nextTitle: string | null }
+export interface GeleiraLevel { points: number; level: number; title: string; toNext: number | null; nextTitle: string | null; /** Só para o dono (0146): o que falta, em coisas concretas. */ tip?: string }
 export interface PaymentPackage { id: string; name: string; txills: number; priceMinor: number; currency: string }
 export interface PaymentsConfig { providers: { id: 'sandbox' | 'mpesa' | 'emola' | 'card'; label: string; needsPhone: boolean }[]; packages: PaymentPackage[] }
 export interface PaymentOrder { id: string; packageId: string; txills: number; amountMinor: number; currency: string; provider: string; status: 'pending' | 'paid' | 'failed' | 'cancelled' | 'expired'; phoneTail: string | null; createdAt: string; paidAt: string | null }

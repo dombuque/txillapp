@@ -98,9 +98,11 @@ export default function GeleiraShelf({ username, isMe, flush = false, compact = 
   // O título e a frase de progresso vêm do servidor em português: traduzem-se aqui.
   const title = lv.data ? tr(lv.data.title) : LEVEL_LABEL[level];
   const hint = lv.data
-    ? lv.data.toNext === null
+    ? lv.data.tip
+      ? lv.data.tip
+      : lv.data.toNext === null
       ? tr('Nível máximo: {t}!', { t: lv.data.title.toLowerCase() })
-      : tr(lv.data.toNext === 1 ? 'Falta {n} ponto para {next}. Bebidas com álcool e vibes de festa valem mais.' : 'Faltam {n} pontos para {next}. Bebidas com álcool e vibes de festa valem mais.', { n: lv.data.toNext, next: tr(lv.data.nextTitle ?? '').toLowerCase() })
+      : tr(lv.data.toNext === 1 ? 'Falta {n} ponto para {next}. Contam as geladas, os brindes, os sítios e as rodadas.' : 'Faltam {n} pontos para {next}. Contam as geladas, os brindes, os sítios e as rodadas.', { n: lv.data.toNext, next: tr(lv.data.nextTitle ?? '').toLowerCase() })
     : nextLevelHint(points);
 
   const folded = compact && !open;
