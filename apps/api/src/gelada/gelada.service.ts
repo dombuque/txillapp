@@ -85,7 +85,7 @@ export interface DebtDto {
    * Onde foi a gelada («no Bar X»), só para as duas pessoas. Não é um check-in oficial. `there`: «✓ estiveram lá» (quem pagou
    * estava dentro do raio do local no «Já paguei», ou um dos dois fez check-in com o QR do local na mesma hora).
    */
-  venue: { slug: string; name: string; there: boolean } | null;
+  venue: { slug: string; name: string; kind: string; there: boolean } | null;
   /** Eu devo / devem-me. */
   iOwe: boolean;
   owedToMe: boolean;
@@ -366,7 +366,7 @@ export class GeladaService {
   private async debts(viewer: string, where: string, params: unknown[]): Promise<DebtDto[]> {
     const { rows } = await this.pool.query(
       `SELECT d.*, ${personCols('db', 'db')}, ${personCols('cr', 'cr')}, ${adultSql('vw')} AS viewer_adult,
-              v.slug AS venue_slug, v.name AS venue_name,
+              v.slug AS venue_slug, v.name AS venue_name, v.kind AS venue_kind,
               (d.paid_venue_near OR EXISTS (
                  SELECT 1 FROM content.checkins c
                   WHERE c.venue_id = d.paid_venue_id AND c.user_id IN (d.debtor_id, d.creditor_id)
@@ -397,7 +397,7 @@ export class GeladaService {
         claimed: open && claimed,
         claimedAt: r.paid_claimed_at ? new Date(r.paid_claimed_at as string).toISOString() : null,
         photoUrl: party && r.paid_media_id ? `/api/v1/media/${r.paid_media_id as string}` : null,
-        venue: party && r.venue_slug ? { slug: r.venue_slug as string, name: r.venue_name as string, there: !!r.venue_there } : null,
+        venue: party && r.venue_slug ? { slug: r.venue_slug as string, name: r.venue_name as string, kind: r.venue_kind as string, there: !!r.venue_there } : null,
         iOwe,
         owedToMe,
         canClaim: iOwe && open && !claimed,
@@ -492,16 +492,16 @@ export class GeladaService {
    * vê-se se quem pagou está dentro do raio do local (`paid_venue_near`, o selo «✓ estiveram lá»); a posição não se guarda.
    */
   async claimPaid(me: string, id: string, proof: { mediaId?: string; venueSlug?: string; at?: { lat: number; lng: number } }) {
-    let venue: { id: string; name: string; near: boolean } | null = null;
+    let venue: { id: string; name: string; kind: string; near: boolean } | null = null;
     if (proof.mediaId) {
       const ok = await this.pool.query(`SELECT 1 FROM content.media_assets WHERE id = $1 AND owner_id = $2 AND status = 'ready' AND mime LIKE 'image/%'`, [proof.mediaId, me]);
       if (!ok.rowCount) throw new BadRequestException('Foto inválida ou ainda não carregada');
     }
     if (proof.venueSlug) {
-      const v = (await this.pool.query(`SELECT id, name, lat, lng FROM content.venues WHERE slug = $1 AND review_status = 'approved'`, [proof.venueSlug.toLowerCase()])).rows[0];
+      const v = (await this.pool.query(`SELECT id, name, kind, lat, lng FROM content.venues WHERE slug = $1 AND review_status = 'approved'`, [proof.venueSlug.toLowerCase()])).rows[0];
       if (!v) throw new NotFoundException('Esse local não existe');
       const near = !!proof.at && v.lat != null && v.lng != null && metersBetween(proof.at, { lat: Number(v.lat), lng: Number(v.lng) }) <= GELADA_NEAR_M;
-      venue = { id: v.id as string, name: v.name as string, near };
+      venue = { id: v.id as string, name: v.name as string, kind: v.kind as string, near };
     }
     const r = await this.pool.query(
       `UPDATE taste.gelada_debts SET paid_claimed_at = now(), paid_media_id = $3, paid_venue_id = $4, paid_venue_near = $5
@@ -512,7 +512,7 @@ export class GeladaService {
     // O aviso a quem recebe leva o nome do local (só essa pessoa o vê): «diz que já te pagou no Bar X».
     await this.notifications.notify({
       userId: r.rows[0].creditor_id as string, actorId: me, kind: 'gelada_paid',
-      data: { debtId: id, step: 'claimed', soft: !r.rows[0].alcoholic, ...(venue ? { venue: venue.name } : {}) },
+      data: { debtId: id, step: 'claimed', soft: !r.rows[0].alcoholic, ...(venue ? { venue: venue.name, venueKind: venue.kind } : {}) },
     });
     return this.debt(me, id);
   }

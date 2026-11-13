@@ -271,7 +271,7 @@ describe('«Paga-me uma»: pedidos, livro das geladas, rodadas e sexta (integra�
     // Quem recebe vê o local antes de confirmar, no livro e no aviso.
     expect(await mine(p2, d1)).toMatchObject({ canConfirm: true, venue: { slug: bar, there: true } });
     const note = (await pool.query(`SELECT data FROM social.notifications WHERE user_id = $1 AND kind = 'gelada_paid' ORDER BY created_at DESC LIMIT 1`, [p2.id])).rows[0].data;
-    expect(note).toMatchObject({ debtId: d1, step: 'claimed', venue: `Bar Costa ${run}` });
+    expect(note).toMatchObject({ debtId: d1, step: 'claimed', venue: `Bar Costa ${run}`, venueKind: 'bar' });
     expect((await api().post(`/api/v1/gelada/debts/${d1}/confirm`).set(auth(p2)).expect(200)).body).toMatchObject({ status: 'paid', venue: { slug: bar, there: true } });
     // Um terceiro que vê o livro (público) vê a dívida paga, mas não o local nem a foto.
     await api().put('/api/v1/geleira/me/settings').set(auth(p2)).send({ bookPublic: true }).expect(200);
@@ -281,7 +281,7 @@ describe('«Paga-me uma»: pedidos, livro das geladas, rodadas e sexta (integra�
 
     // Longe do local (5 km): fica a etiqueta, sem o selo…
     const d2 = await owe();
-    expect((await paid(d2, { venueSlug: longe, lat: AT.lat, lng: AT.lng }).expect(200)).body.venue).toEqual({ slug: longe, name: `Bar Longe ${run}`, there: false });
+    expect((await paid(d2, { venueSlug: longe, lat: AT.lat, lng: AT.lng }).expect(200)).body.venue).toEqual({ slug: longe, name: `Bar Longe ${run}`, kind: 'bar', there: false });
     // …até um dos dois fazer check-in com o QR do local na mesma hora (aqui, quem recebe).
     await api().post(`/api/v1/venues/${longe}/checkin`).set(auth(p2)).send({ token: token(longe) }).expect(201);
     expect((await mine(p1, d2)).venue).toMatchObject({ slug: longe, there: true });
