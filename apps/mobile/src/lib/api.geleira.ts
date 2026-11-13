@@ -5,15 +5,23 @@ export type TasteKind = 'vibe' | 'bebida' | 'comida' | 'sitio';
 export type TasteVisibility = 'everyone' | 'followers' | 'close_friends' | 'me';
 export interface TasteItem { id: string; slug: string; name: string; kind: TasteKind; category: string; alcoholic: boolean; pending: boolean }
 export interface CatalogItem extends TasteItem { mine: boolean; rating: number | null; favorite: boolean; fans: number; region: 'local' | 'global' | 'foreign' }
-export interface MyTaste extends TasteItem { rating: number | null; favorite: boolean }
-export interface TheirTaste extends TasteItem { rating: number | null; favorite: boolean }
+/** `cheers`: brindes a este gosto (no perfil e nos posts da geleira; servidor antigo não manda). `cheered`: eu já brindei. */
+export interface MyTaste extends TasteItem { rating: number | null; favorite: boolean; cheers?: number }
+export interface TheirTaste extends TasteItem { rating: number | null; favorite: boolean; cheers?: number; cheered?: boolean }
 /**
  * `cheers`/`cheered`: os brindes à geleira (servidor antigo não manda → sem botão de brindar). `cheersListable`: posso ver
  * quem brindou (o dono sempre; os outros se o dono mostra a lista nas definições).
  */
 export interface GeleiraLevel { points: number; level: number; title: string; toNext: number | null; nextTitle: string | null; cheers?: number; cheered?: boolean; cheersListable?: boolean }
 export interface GeleiraCheer { cheered: boolean; cheers: number }
-export interface GeleiraCheerer extends Badged { username: string; displayName: string; hasAvatar: boolean; at: string }
+/** `post`: o brinde veio do post da geleira (só o dono vê; sem post quando foi apagado). */
+export interface GeleiraCheerer extends Badged { username: string; displayName: string; hasAvatar: boolean; at: string; post?: { code: string } }
+/** Um gosto no cartão de um post da geleira: o retrato do momento da partilha e os brindes de agora. */
+export interface PostGeleiraItem { id: string; slug: string; name: string; kind: TasteKind; category: string; alcoholic: boolean; favorite: boolean; rating: number | null; cheers: number; cheered: boolean }
+/** A geleira partilhada num post (`post.geleira`): sem bebidas alcoólicas para quem tem menos de 18 anos. */
+export interface PostGeleira { level: number; total: number; items: PostGeleiraItem[] }
+export interface ItemCheer { itemId: string; cheered: boolean; cheers: number }
+export interface GeleiraSettings { matching: boolean; visibility: TasteVisibility; cheersPublic: boolean }
 
 export interface InstantItem { id: string; url: string; caption: string; at: string; expiresAt: string; views?: number; reactions?: { reaction: string; count: number }[] }
 export interface InstantTray {
@@ -40,6 +48,10 @@ export const geleiraApi = {
   /** Quem brindou a geleira: o dono sempre; os outros se o dono mostra a lista (403 se não, 404 se não vê a geleira). */
   cheers: (username: string): Promise<{ items: GeleiraCheerer[] }> => raw(`/users/${encodeURIComponent(username)}/geleira/cheers`),
   geo: (): Promise<{ country: string | null }> => raw('/health/geo'),
+  settings: (): Promise<GeleiraSettings> => raw('/geleira/me/settings'),
+  /** Brindar um gosto (no perfil, ou no cartão de um post da geleira): é o mesmo brinde, uma vez por pessoa e gosto. */
+  cheerItem: (username: string, itemId: string, on: boolean): Promise<ItemCheer> => raw(`/users/${encodeURIComponent(username)}/geleira/items/${itemId}/cheer`, on ? { method: 'PUT', body: '{}' } : { method: 'DELETE' }),
+  cheerPostItem: (postId: string, itemId: string, on: boolean): Promise<ItemCheer> => raw(`/posts/${postId}/geleira/items/${itemId}/cheer`, on ? { method: 'PUT', body: '{}' } : { method: 'DELETE' }),
 };
 
 export const instantsApi = {

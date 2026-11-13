@@ -33,6 +33,7 @@ import { colors } from '@/lib/theme';
 import { chatSegments, type ChatSeg } from '@/lib/chatLinks';
 import { storyHref } from '@/lib/storyLink';
 import { anchorOf, useDeskChat } from '@/lib/deskChat';
+import { GeleiraMini } from './GeleiraPostCard';
 
 /** Onde abrir o menu de contexto (coordenadas da janela) e, com 'react', só as reações. */
 export type MenuAt = { x: number; y: number };
@@ -247,10 +248,12 @@ function SharedPost({ post, radius, tone, ink }: { post: ChatMessage['post']; ra
   return (
     <Pressable {...hold} onPress={go} style={[st.shared, tone, radius, { overflow: 'hidden' }]} accessibilityRole="link">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingTop: 10 }}>
-        <Icon name={tcheka ? 'film' : 'image'} size={14} color={ink} />
-        <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: ink, opacity: 0.9 }} numberOfLines={1}>{tcheka ? 'TCHEKA' : 'Publicação'} de {shown.author.displayName}</Text>
+        <Icon name={tcheka ? 'film' : shown.geleira ? 'snowflake' : 'image'} size={14} color={ink} />
+        <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: ink, opacity: 0.9 }} numberOfLines={1}>{tcheka ? 'TCHEKA' : shown.geleira ? 'Geleira' : 'Publicação'} de {shown.author.displayName}</Text>
       </View>
-      {thumb ? (
+      {!thumb && shown.geleira ? (
+        <View style={{ marginTop: 8 }}><GeleiraMini geleira={shown.geleira} name={shown.author.displayName} /></View>
+      ) : thumb ? (
         <View style={{ marginTop: 8, height: 170, width: '100%', backgroundColor: colors.zinc200 }}>
           <Image source={{ uri: thumb }} style={StyleSheet.absoluteFill} contentFit="cover" />
           {video && (

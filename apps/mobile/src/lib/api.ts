@@ -62,6 +62,8 @@ export interface Post {
   canRemix?: boolean;
   /** Quantos duetos e respostas com tcheka tem. */
   remixes?: number;
+  /** A geleira partilhada (0143): o retrato dos gostos com os brindes de cada um. Servidores antigos não mandam. */
+  geleira?: import('./api.geleira').PostGeleira | null;
 }
 export interface Comment {
   id: string;
@@ -102,7 +104,7 @@ export interface AppNotification {
   /** TxillGroups: o grupo vem em `data.groupId/groupName`; aceita-se também ao nível de cima, se o servidor o mandar aí. */
   groupId?: string;
   groupName?: string;
-  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected'; type?: string; reason?: string };
+  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected'; type?: string; reason?: string; /** Brinde a um gosto da geleira (0143). */ itemId?: string; itemName?: string };
   createdAt: string;
   read: boolean;
   /** `staff`: aviso da equipa do Txillapp (o servidor mostra-o como «txillapp»; não há perfil para abrir). */
