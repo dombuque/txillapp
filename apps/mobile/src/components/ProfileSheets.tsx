@@ -33,11 +33,14 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
   const gSettings = useQuery({ queryKey: ['geleira', 'settings'], queryFn: settingsApi.geleiraSettings, staleTime: 30_000 });
   const [gVis, setGVis] = useState<TasteVisibility | null>(null);
   const [gPub, setGPub] = useState<boolean | null>(null);
+  // O livro das geladas (0145): mostrar a quem vê a geleira (desligado por omissão).
+  const [gBook, setGBook] = useState<boolean | null>(null);
   useEffect(() => {
+    if (gSettings.data && gBook === null && typeof gSettings.data.bookPublic === 'boolean') setGBook(gSettings.data.bookPublic);
     if (gSettings.data && gVis === null) setGVis(gSettings.data.visibility);
     // Servidor antigo não manda cheersPublic: sem interruptor.
     if (gSettings.data && gPub === null && typeof gSettings.data.cheersPublic === 'boolean') setGPub(gSettings.data.cheersPublic);
-  }, [gSettings.data, gVis, gPub]);
+  }, [gSettings.data, gVis, gPub, gBook]);
 
   /** Preenche "Cidade ou bairro" com o sítio onde estás agora (só o nome fica guardado, nunca as coordenadas). */
   async function useMyLocation() {
@@ -99,8 +102,10 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
       await api.updateMe({ displayName: displayName.trim(), bio: bio.trim(), isPrivate, city: city.trim(), website: website.trim() });
       const vis = gVis && gSettings.data && gVis !== gSettings.data.visibility ? gVis : undefined;
       const pub = gPub !== null && gSettings.data && gPub !== gSettings.data.cheersPublic ? gPub : undefined;
-      if (vis !== undefined || pub !== undefined) {
-        await settingsApi.setGeleiraSettings({ visibility: vis, cheersPublic: pub });
+      const book = gBook !== null && gSettings.data && gBook !== gSettings.data.bookPublic ? gBook : undefined;
+      if (vis !== undefined || pub !== undefined || book !== undefined) {
+        await settingsApi.setGeleiraSettings({ visibility: vis, cheersPublic: pub, bookPublic: book });
+        void qc.invalidateQueries({ queryKey: ['gelada-book'] });
         void qc.invalidateQueries({ queryKey: ['geleira'] });
         void qc.invalidateQueries({ queryKey: ['geleira-level'] });
       }
@@ -186,6 +191,16 @@ export function EditProfileSheet({ profile, onClose }: { profile: Profile; onClo
                 <Text style={{ marginTop: 2, fontSize: 12, lineHeight: 16, color: colors.zinc600 }}>Quem pode ver a tua geleira passa a ver quem a brindou.</Text>
               </View>
               <Switch value={gPub} onValueChange={setGPub} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Mostrar quem brindou a minha geleira" />
+            </View>
+          )}
+          {gBook !== null && (
+            <View style={st.gswitch}>
+              <Icon name="beer" size={20} color={colors.amber600} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.zinc900 }}>Mostrar o livro das geladas a quem vê a geleira</Text>
+                <Text style={{ marginTop: 2, fontSize: 12, lineHeight: 16, color: colors.zinc600 }}>Desligado, cada pessoa só vê o que há entre vocês os dois.</Text>
+              </View>
+              <Switch value={gBook} onValueChange={setGBook} trackColor={{ true: colors.brand, false: colors.zinc300 }} thumbColor="#fff" {...({ activeThumbColor: '#fff' } as object)} accessibilityLabel="Mostrar o livro das geladas a quem vê a geleira" />
             </View>
           )}
           <Pressable onPress={() => { onClose(); router.push('/geleira' as never); }} style={({ pressed }) => [st.gshort, pressed && { backgroundColor: '#fafafa' }]} accessibilityRole="button">

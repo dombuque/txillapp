@@ -64,6 +64,8 @@ export interface Post {
   remixes?: number;
   /** A geleira partilhada (0143): o retrato dos gostos com os brindes de cada um. Servidores antigos não mandam. */
   geleira?: import('./api.geleira').PostGeleira | null;
+  /** «Paga-me uma» publicado (0145): a bebida e o estado de cada pessoa identificada. Servidores antigos não mandam. */
+  gelada?: import('./api.gelada').PostGelada | null;
 }
 export interface Comment {
   id: string;
@@ -93,6 +95,9 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   | 'content_removed' | 'content_restored' | 'moderation_warning'
   // Programa de artistas (0131): a equipa decidiu o pedido de artista ou uma faixa (data.what, data.decision, data.title, data.reason).
   | 'music_review'
+  // «Paga-me uma» (0145): pediram-me numa publicação (data.requestId, data.postId, data.soft), responderam ao meu pedido
+  // publicado (data.answer) e «Já paguei» / confirmação (data.debtId, data.step).
+  | 'gelada_tag' | 'gelada_answer' | 'gelada_paid'
   // Remix das tchekas (0134): dueto com a minha tcheka ou resposta com tcheka (data.remixKind, data.role, data.postId = o remix).
   | 'remix'
   // Direitos (0140): um som meu suspenso, retirado ou reposto (data.soundId, data.decision, data.reason, data.note); o autor
@@ -104,7 +109,7 @@ export interface AppNotification {
   /** TxillGroups: o grupo vem em `data.groupId/groupName`; aceita-se também ao nível de cima, se o servidor o mandar aí. */
   groupId?: string;
   groupName?: string;
-  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected'; type?: string; reason?: string; /** Brinde a um gosto da geleira (0143). */ itemId?: string; itemName?: string };
+  data: { amount?: number; note?: string; snippet?: string; postId?: string; commentId?: string; storyId?: string; target?: 'post' | 'comment'; tcheka?: boolean; replyKind?: 'reply' | 'reaction' | 'comment'; venueSlug?: string; venueName?: string; role?: 'admin' | 'editor'; groupId?: string; groupName?: string; video?: boolean; callId?: string; decision?: 'approved' | 'rejected'; type?: string; reason?: string; /** Brinde a um gosto da geleira (0143). */ itemId?: string; itemName?: string; /** «Paga-me uma» (0145). */ requestId?: string; debtId?: string; soft?: boolean; answer?: 'accept' | 'decline' | 'owe'; step?: 'claimed' | 'confirmed' };
   createdAt: string;
   read: boolean;
   /** `staff`: aviso da equipa do Txillapp (o servidor mostra-o como «txillapp»; não há perfil para abrir). */
@@ -234,7 +239,7 @@ export interface SearchResults {
   venues?: import('./api.locais').Venue[];
 }
 export interface TrendingTag { tag: string; posts: number; rising?: boolean }
-export type MsgKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply' | 'call' | 'gif' | 'system';
+export type MsgKind = 'text' | 'story_reply' | 'story_reaction' | 'image' | 'voice' | 'video' | 'sticker' | 'location' | 'post' | 'gift' | 'zas_reply' | 'call' | 'gif' | 'system' | 'gelada' | 'rodada';
 export interface ChatMessage {
   id: string;
   fromMe: boolean;
@@ -265,6 +270,10 @@ export interface ChatMessage {
   expiresAt?: string | null;
   /** Aviso de sistema (kind 'system'): o que mudou. O texto, já para quem o vê, vem em `body`. */
   system?: { type: 'ttl'; ttl: number | null } | null;
+  /** «Paga-me uma» (kind 'gelada'): o pedido como eu o vejo; null = a conta de uma das partes foi eliminada. */
+  gelada?: import('./api.gelada').GeladaRequest | null;
+  /** Rodada no TxillGroup (kind 'rodada'); null = já não existe. */
+  rodada?: import('./api.gelada').GeladaRound | null;
   at: string;
 }
 export interface Presence { online: boolean; lastSeen: string | null }

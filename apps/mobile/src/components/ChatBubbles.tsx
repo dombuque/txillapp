@@ -34,6 +34,8 @@ import { chatSegments, type ChatSeg } from '@/lib/chatLinks';
 import { storyHref } from '@/lib/storyLink';
 import { anchorOf, useDeskChat } from '@/lib/deskChat';
 import { GeleiraMini } from './GeleiraPostCard';
+import { GeladaCard } from './gelada/GeladaCard';
+import { RoundCard } from './gelada/RoundCard';
 
 /** Onde abrir o menu de contexto (coordenadas da janela) e, com 'react', só as reações. */
 export type MenuAt = { x: number; y: number };
@@ -68,7 +70,7 @@ export function senderColor(username: string): string {
   return PALETTE[h % PALETTE.length];
 }
 
-const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voice: 'Mensagem de voz', sticker: 'Sticker', gif: 'GIF', post: 'Publicação', location: 'Localização', gift: 'Presente', poll: 'Sondagem' };
+const KIND_LABEL: Record<string, string> = { image: 'Foto', video: 'Vídeo', voice: 'Mensagem de voz', sticker: 'Sticker', gif: 'GIF', post: 'Publicação', location: 'Localização', gift: 'Presente', poll: 'Sondagem', gelada: 'Paga-me uma 🍻', rodada: 'Rodada 🙌' };
 /** Excerto de uma mensagem para citar (na bolha e na barra de resposta). */
 export const quoteText = (kind: ChatMessage['kind'], body: string) => (kind === 'text' || kind === 'story_reply' || kind === 'zas_reply' ? body : KIND_LABEL[kind] ?? 'Mensagem');
 export const clock = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
@@ -586,6 +588,12 @@ export function Bubble({
   } else if (m.kind === 'location' && m.lat != null && m.lng != null) {
     // Nome e morada do sítio por cima do mapa (components/LocationBubble); o toque longo abre o menu da mensagem.
     content = <LocationBubble m={{ ...m, lat: m.lat, lng: m.lng }} ink={ink} style={[st.shared, tone, radius, dimStyle]} map={<TileMap lat={m.lat} lng={m.lng} width={240} height={132} />} onLongPress={real && !desk ? () => onMenu(m) : undefined} />;
+  } else if (m.kind === 'gelada') {
+    // «Paga-me uma» (0145): a bebida, o pedido e os três botões para quem recebe (null: a conta foi eliminada).
+    content = <GeladaCard r={m.gelada} />;
+  } else if (m.kind === 'rodada') {
+    // Rodada no TxillGroup (0145): quem paga, quem bebe, «Eu entro» e «Esta pago eu».
+    content = <RoundCard r={m.rodada} />;
   } else if ((m.kind as string) === 'poll') {
     content = <PollBubble pollId={m.body} initial={(m as { poll?: import('@/lib/api.groups').Poll | null }).poll} />;
   } else if (m.kind === 'call') {

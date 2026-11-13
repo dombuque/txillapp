@@ -15,8 +15,10 @@ const GAP = 8;
  * fica sempre logo acima dela, também com o teclado aberto; se não couber, a lista rola.
  */
 export function ChatAttachMenu({
-  anchor, firstName, canGift, once, onClose, onCamera, onLibrary, onPlace, onGift, onToggleOnce,
+  anchor, firstName, canGift, once, onClose, onCamera, onLibrary, onPlace, onGift, onToggleOnce, onGelada,
 }: {
+  /** «Pede uma gelada» (0145): abre o «Paga-me uma» já com a outra pessoa escolhida. */
+  onGelada?: () => void;
   /** A pílula da barra de escrever: o menu alinha-se à direita dela e abre por cima. */
   anchor: RefObject<React.ComponentRef<typeof View> | null>;
   firstName?: string;
@@ -93,6 +95,7 @@ export function ChatAttachMenu({
               {item('image', 'Foto e vídeo', onLibrary, 'Enviar foto ou vídeo da galeria')}
               {item('map-pin', 'Localização', onPlace, 'Localização: escolher o que enviar')}
               {canGift ? item('gift', 'Presente', onGift, `Oferecer Txills${firstName ? ` a ${firstName}` : ''}`) : null}
+              {onGelada ? item('cheers', 'Pede uma gelada', onGelada, `Pede uma gelada${firstName ? ` a ${firstName}` : ''}: «Paga-me uma»`) : null}
               {item('once', 'Ver uma vez', onToggleOnce, undefined, once)}
             </ScrollView>
           </Animated.View>

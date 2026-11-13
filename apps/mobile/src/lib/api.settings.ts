@@ -5,10 +5,11 @@ import type { TasteVisibility } from '@/lib/api.geleira';
  * Definições da geleira (quem a vê; `cheersPublic`: quem a vê vê também quem a brindou, que um servidor antigo não manda)
  * e notificações push: iguais às funções do `api` do site.
  */
-export interface GeleiraSettings { matching: boolean; visibility: TasteVisibility; cheersPublic?: boolean }
+/** `bookPublic`: quem vê a geleira vê também o livro das geladas (0145; desligado por omissão; servidor antigo não manda). */
+export interface GeleiraSettings { matching: boolean; visibility: TasteVisibility; cheersPublic?: boolean; bookPublic?: boolean }
 export const settingsApi = {
   geleiraSettings: (): Promise<GeleiraSettings> => raw('/geleira/me/settings'),
-  setGeleiraSettings: (b: { matching?: boolean; visibility?: TasteVisibility; cheersPublic?: boolean }): Promise<GeleiraSettings> => raw('/geleira/me/settings', { method: 'PUT', body: JSON.stringify(b) }),
+  setGeleiraSettings: (b: { matching?: boolean; visibility?: TasteVisibility; cheersPublic?: boolean; bookPublic?: boolean }): Promise<GeleiraSettings> => raw('/geleira/me/settings', { method: 'PUT', body: JSON.stringify(b) }),
 };
 
 export interface ContactMatch extends Badged { username: string; displayName: string; isPrivate: boolean; requested: boolean; followsYou: boolean; mutual: number; reason: string }
