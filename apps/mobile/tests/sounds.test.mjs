@@ -101,3 +101,54 @@ test('«Sons em alta» no Explorar e a definição em Conteúdo', () => {
   assert.match(settings, /Deixar usar o meu som/);
   assert.match(read('lib', 'settingsIndex.ts'), /id: 'soundReuse', group: 'conteudo'/);
 });
+
+test('direitos (0140): «Retirar o som», a linha da tcheka sem som e o estado de cada som meu', () => {
+  assert.equal(s.RETIRE_SOUND_TEXT, 'As tchekas que usam este som ficam sem som. Não dá para desfazer.');
+  assert.equal(s.soundRemovedText('author'), 'Som retirado pelo autor');
+  assert.equal(s.soundRemovedText('rights'), 'Som retirado por direitos de autor');
+  assert.equal(s.soundRemovedText(null), null);
+  assert.deepEqual(s.mySoundStatus({ status: 'active' }), { text: 'Ativo', canRetire: true });
+  assert.equal(s.mySoundStatus({ status: 'held' }).canRetire, true);
+  assert.equal(s.mySoundStatus({ status: 'source_removed' }).canRetire, true);
+  assert.deepEqual(s.mySoundStatus({ status: 'removed', removedBy: 'author' }), { text: 'Retiraste este som', canRetire: false });
+  assert.match(s.mySoundStatus({ status: 'removed', removedBy: 'staff' }).text, /equipa/);
+});
+
+test('o aviso do Txillapp sobre um som meu: o motivo, a nota e como contestar; para onde leva', () => {
+  const held = s.soundReviewVerb({ decision: 'held', reason: 'Música protegida denunciada', soundId: UUID });
+  assert.match(held.text, /suspendeu o teu som/);
+  assert.match(held.sub, /Motivo: Música protegida denunciada\./);
+  assert.match(held.sub, /suporte@txillapp\.com/);
+  assert.match(held.sub, /«Contestar som»/);
+  const removed = s.soundReviewVerb({ decision: 'removed', reason: 'Música protegida denunciada', note: 'Da rádio' });
+  assert.match(removed.text, /retirou o teu som/);
+  assert.match(removed.sub, /Nota da equipa: Da rádio\./);
+  assert.equal(s.soundReviewVerb({ decision: 'restored' }).sub, undefined);
+  assert.match(s.soundReviewVerb({ decision: 'cleared' }).text, /voltou a poder ser usado/);
+  assert.equal(s.soundReviewTarget({ decision: 'held', soundId: UUID }), `/som/${UUID}`);
+  assert.equal(s.soundReviewTarget({ decision: 'removed', soundId: UUID }), '/settings/sons');
+  assert.equal(s.soundReviewTarget({ decision: 'held', soundId: '../x' }), '/settings/sons');
+});
+
+test('ecrãs: «Retirar o som» na página do som (só o autor) e em «Os meus sons»; a tcheka sem som cala o vídeo', () => {
+  const page = read('app', 'som', '[id].tsx');
+  assert.match(page, /s\.kind === 'original' && s\.mine \? \(/);
+  assert.match(page, /soundsApi\.retire\(s\.id\)/);
+  assert.match(page, /RETIRE_SOUND_TEXT/);
+  const mine = read('app', 'settings', 'sons.tsx');
+  assert.match(mine, /soundsApi\.mine/);
+  assert.match(mine, /soundsApi\s*\.retire\(x\.id\)/);
+  assert.match(read('app', 'settings', 'conteudo.tsx'), /anchor="mySounds"[^\n]*to="\/settings\/sons"/);
+  assert.match(read('lib', 'api.sounds.ts'), /\/retire`, post\(\{\}\)\)/);
+  assert.match(read('components', 'PostCard.tsx'), /\|\| !!post\.soundRemoved/);
+  assert.match(read('app', '(tabs)', 'reels.tsx'), /const silent = soundOff \|\| !!post\.soundRemoved;/);
+  const notes = read('app', 'notifications.tsx');
+  assert.match(notes, /case 'sound_review': return soundReviewVerb/);
+  assert.match(notes, /case 'remix_takedown': return takedownVerb\(\)/);
+});
+
+test('a definição «Deixar usar o meu som» numa conta sem data de nascimento (conta como menor): a frase diz porquê', () => {
+  const minor = s.reuseSetting({ reuse: true, effective: false, private: false, minor: true });
+  assert.equal(minor.disabled, true);
+  assert.match(minor.description, /com a data de nascimento indicada/);
+});

@@ -56,6 +56,8 @@ export interface Post {
   gift: { amount: number; recipient: { username: string; displayName: string } & Badged } | null;
   /** Remix (0134): de que tcheka é dueto, ou a que comentário responde. Servidores antigos não mandam. */
   remixOf?: import('./remix').RemixOf | null;
+  /** A tcheka usava um som que foi tirado: 'author' («Som retirado pelo autor») ou 'rights' (por direitos de autor). O vídeo fica sem som. */
+  soundRemoved?: 'author' | 'rights' | null;
   /** O dono deixa fazer dueto (tchekas) e responder com tcheka aos comentários. */
   canRemix?: boolean;
   /** Quantos duetos e respostas com tcheka tem. */
@@ -90,7 +92,10 @@ export type NotificationKind = 'blocked' | 'follow' | 'follow_request' | 'reques
   // Programa de artistas (0131): a equipa decidiu o pedido de artista ou uma faixa (data.what, data.decision, data.title, data.reason).
   | 'music_review'
   // Remix das tchekas (0134): dueto com a minha tcheka ou resposta com tcheka (data.remixKind, data.role, data.postId = o remix).
-  | 'remix';
+  | 'remix'
+  // Direitos (0140): um som meu suspenso, retirado ou reposto (data.soundId, data.decision, data.reason, data.note); o autor
+  // da tcheka original retirou o meu dueto (data.postId = o dueto).
+  | 'sound_review' | 'remix_takedown';
 export interface AppNotification {
   id: string;
   kind: NotificationKind;
@@ -836,6 +841,8 @@ export const api = {
   deleteComment: (id: string): Promise<void> => raw(`/comments/${id}`, { method: 'DELETE' }),
   report: (type: ReportType, id: string, reason: ReportReason, note?: string): Promise<void> => raw('/reports', post({ type, id, reason, note })),
   removePost: (id: string): Promise<void> => raw(`/posts/${id}`, { method: 'DELETE' }),
+  /** O autor da tcheka original retira um dueto feito com ela (fica escondido para todos; o dono é avisado). */
+  takeDownDuet: (id: string): Promise<void> => raw(`/posts/${id}/duet-takedown`, post({})),
   hideFromFeed: (postId: string): Promise<void> => raw('/feed/hide', post({ postId })),
   updatePost: (id: string, b: { body?: string; clearLocation?: boolean; commentsOff?: boolean }): Promise<Post> => raw(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
   unreadCount: (): Promise<{ count: number }> => raw('/notifications/unread-count'),

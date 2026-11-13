@@ -136,6 +136,7 @@ format=gbrp,
 convolution='0 -A 0 -A B -A 0 -A 0:(igual nos 4 planos):0rdiv=0.01:1rdiv=0.01:2rdiv=0.01:3rdiv=0.01',  (A = round(nitidez·0,6·100), B = 100+4A)
 lut3d=file='clip.cube':interp=tetrahedral,                     (a matriz: cubeLut(matrix, 33))
 vignette=angle=V·π/2,6:dither=0,                               (em gbrp a vinheta multiplica R, G e B, como o shader)
+format=gbrp,                                                   (prende a vinheta a RGB: ver a nota abaixo)
 format=yuv420p,noise=c0s=round(grão·0,08·255):c0f=t+u          (grão só na luminância)
 ```
 
@@ -143,6 +144,10 @@ format=yuv420p,noise=c0s=round(grão·0,08·255):c0f=t+u          (grão só na 
   `colorchannelmixer` faria) e a vinheta.
 - **Parecido:** o grão, porque é aleatório.
 - Um clipe sem efeitos dá a cadeia vazia. A cadeia foi testada com o ffmpeg 9 (`testsrc2`).
+- O `format=gbrp` no fim (antes do grão) é preciso: seguida de um `format=yuv420p`, a negociação dos formatos do ffmpeg passava a
+  `vignette` para YUV, onde escurece muito mais (visto na montagem do servidor, ffmpeg 6.1 e 7.0).
+- O servidor troca `interp=tetrahedral` por `trilinear` (`serverFxChain`, `apps/api/src/compose/fx.ts`): para uma matriz afim dá
+  o mesmo ΔE e gasta menos de metade do CPU.
 
 ## 3. Transições
 
@@ -255,7 +260,8 @@ contado desde `start`.
 - `bg`: `cheio` põe um retângulo arredondado na cor por trás de cada linha, com a letra a preto ou branco (o que contrastar mais); `suave` põe vidro escuro (8,8,12 a 55 %).
 - `outline`: contorno com 0,16× o tamanho, a preto ou branco (o que contrastar com a cor).
 - `shadow`: sombra rgba(0,0,0,.55), com desfoque de 0,22× e 0,05× para baixo.
-- `neon`: três passagens de brilho na cor (desfoque de 0,9×, 0,32× e 0,08×) e o miolo a 70 % de branco. Não leva contorno.
+- `neon`: dois halos na cor (`shadowBlur` de 1,6× e 0,7× o tamanho), o tubo (um contorno fino de 0,06× na cor, com brilho de
+  0,25×) e o miolo a 78 % de branco (brilho de 0,1×). Não leva contorno nem sombra.
 - `pano`: as letras cheias com um pano de capulana (`drawCapulanaText`), com três contornos para se lerem.
 - `bg: 'pano'` (com `pano`): uma faixa de capulana de lado a lado do quadro, à altura do texto (`drawCapulanaBand`), com o
   texto na placa do meio. A faixa não roda nem escala com a camada.
@@ -313,3 +319,26 @@ DOM: as imagens dos stickers chegam pela função `image` do ambiente.
 Com um vídeo de referência, ele fica na metade esquerda (540×1920), sem efeitos, e a tcheka fica na direita. Os efeitos de
 cor e a vinheta são calculados no retângulo da direita (`d` normalizado a 540×1920). As transições mexem no quadro todo e
 a metade do dueto volta a ser desenhada por cima.
+## 7. Na montagem do servidor (o que ficou igual e o que ficou aproximado)
+
+A montagem no servidor (docs/montagem.md, secção 4-B) lê este JSON (`fx` por clipe e `overlays`) e usa as **cópias inteiras**
+de `effects.ts`, `renderOverlays.ts`, `renderTransitions.ts` e dos panos de capulana (em `apps/api/src/compose/`, comparadas com as do site por
+`effects-sync.spec.ts`), com as mesmas fontes, num canvas do Node (`@napi-rs/canvas`).
+
+| Efeito | No servidor | Resultado |
+| --- | --- | --- |
+| Cor (filtro, intensidade, brilho, contraste, saturação, temperatura, matiz) | `lut3d` com `cubeLut(resolveFx(fx).matrix, 33)` (trilinear em vez de tetraédrica: para a matriz afim dá o mesmo e gasta menos de metade) | **Igual**: ΔE76 médio 0,2 a 0,7 por filtro contra `applyFxPixel` (percentil 99 até 1,9); 1,1 no vídeo final, depois do H.264 e do 4:2:0 |
+| Nitidez e vinheta | `convolution` e `vignette` da secção 2 | **Igual** (no mesmo teste) |
+| Grão | `noise` na luminância | **Aproximado**: aleatório nos dois lados (no site soma o mesmo valor a R, G e B; no servidor só à luminância) |
+| Transições (as 11) | o próprio `drawTransition` no canvas do Node, com o último frame do anterior e os frames do novo | **Igual** (diferença média de 0,7 a 2 níveis em 255 no teste). A coluna `xfade` da secção 3 fica só como referência: o `xfade` tem a curva linear e não tem girar, brilho, glitch nem o desfoque do site |
+| Rampas | `rampPieces` a 0,1 s, num `setpts` só (e `atempo` por bocado no som) | **Igual** na duração; a curva vai em degraus de 0,1 s |
+| Inverter | `reverse` aos bocados, já no quadro, a 30 fps (60 com velocidade acima de 1×) | **Igual** (com mais frames do que os 24/s do site); o som fica calado |
+| Congelar | a foto (o frame) com os efeitos, sem zoom | **Igual** |
+| Texto (fontes, estilos, néon, as 7 animações e os ciclos) | o próprio `drawOverlays`; parado num PNG só, a mexer-se num vídeo com alfa | **Igual** (diferença média ~2 níveis no néon a entrar e parado) |
+| Etiquetas (menção, local, hora) e stickers do Txillapp | idem (a arte do Txillapp é a mesma, `STICKER_ART`) | **Igual** |
+| Emoji | idem, com a fonte de emojis da máquina (Noto Color Emoji no servidor) | **Aproximado**: o desenho de cada emoji é o da fonte (no site, o do sistema de quem edita: Apple, Segoe, Noto) |
+| GIF | o ffmpeg lê-o em ciclo (`-ignore_loop 0`) e cada frame entra no `drawOverlays`; o WebP animado pelo sharp | **Igual** no desenho, na escala e na rotação; o ciclo começa no 1.º frame quando a camada entra (no site depende de quando a imagem acabou de carregar) |
+| Capulana: as 5 transições de pano, a moldura, as letras e a faixa de pano, o sticker de pano | as cópias de `capulana.ts`, `capulanaShapes.ts` e `capulanaRender.ts` no mesmo canvas (os azulejos dão as impressões digitais de `tests/fixtures/capulana-hashes.json`) | **Igual** (1 a 6 níveis em 255: o detalhe fino do pano sofre com o 4:2:0 e o H.264); na moldura o grão da foto fica parado |
+| Enquadramento das fotos (`focus`) | o `coverRect` da Montagem mágica, frame a frame no canvas | **Igual** |
+| Som por clipe (ligado/calado e volume) | `sound` e `volume` em cada clipe do pedido; um vídeo calado não conta como som | **Igual** |
+| Dueto | os efeitos e as transições no quadro da pessoa (540×960, o `duetLayout` do servidor) | **Aproximado**: o site faz a transição no quadro inteiro e volta a pôr o original por cima |

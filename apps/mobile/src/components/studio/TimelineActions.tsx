@@ -61,15 +61,15 @@ export function TimelineActions({ clip, duration, rhythm, locked, onSplit, onDup
       disabled={off}
       onClick={onClick ?? undefined}
       style={{
-        position: 'relative', flex: '1 0 auto', minWidth: 58, maxWidth: 96, height: 58, border: 'none', borderRadius: 14, padding: '0 6px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, cursor: off ? 'default' : 'pointer',
-        background: opts.active ? 'rgba(255,79,109,0.16)' : 'transparent', color: off ? 'rgba(255,255,255,0.3)' : opts.danger ? '#ff8095' : opts.active ? hot : '#f4f4f5',
+        position: 'relative', minWidth: 0, height: 58, border: 'none', borderRadius: 14, padding: '0 4px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, cursor: off ? 'default' : 'pointer',
+        background: opts.active ? 'rgba(255,79,109,0.16)' : 'rgba(255,255,255,0.06)', color: off ? 'rgba(255,255,255,0.3)' : opts.danger ? '#ff8095' : opts.active ? hot : '#f4f4f5',
         fontFamily: font, fontSize: 14, fontWeight: 700, overflow: 'hidden',
         boxShadow: opts.active ? `inset 0 0 0 1px ${hot}` : 'none',
       }}
     >
       {ICONS[icon]}
-      <span style={{ whiteSpace: 'nowrap' }}>{opts.short ?? label}</span>
+      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{opts.short ?? label}</span>
       {opts.children}
     </button>
   );
@@ -91,7 +91,8 @@ export function TimelineActions({ clip, duration, rhythm, locked, onSplit, onDup
 
   return (
     <div style={{ fontFamily: font }}>
-      <div role="toolbar" aria-label="Ações do clipe" style={{ display: 'flex', justifyContent: 'flex-start', gap: 2, padding: '6px 10px 0', overflowX: 'auto', scrollbarWidth: 'none' } as CSSProperties}>
+      {/* Duas linhas de três: as seis ações cabem a 360 px sem cortar nenhuma. */}
+      <div role="toolbar" aria-label="Ações do clipe" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, padding: '8px 12px 0' }}>
         {btn('split', 'Dividir', 'split', onSplit)}
         {btn('dup', 'Duplicar', 'dup', onDuplicate)}
         {btn('speed', isVideo || !clip ? 'Velocidade' : 'Duração', isVideo || !clip ? 'speed' : 'time', () => setPanelOf((v) => (v === 'time' ? null : 'time')), { active: panel && !off })}

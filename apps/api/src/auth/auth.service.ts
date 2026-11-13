@@ -573,6 +573,7 @@ export class AuthService {
       // Tudo o resto que é da pessoa: chamadas, músicas favoritas, aparelhos, check-ins, locais que seguia e páginas que geria.
       await client.query('DELETE FROM social.calls WHERE caller_id = $1 OR callee_id = $1', [userId]);
       await client.query('DELETE FROM content.music_favorites WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM content.compose_jobs WHERE owner_id = $1', [userId]); // os pedidos de montagem guardam os textos do projeto
       // «Não gosto desta» (0128): as marcas são da pessoa (as contagens para o limiar descem com elas).
       await client.query('DELETE FROM content.music_dislikes WHERE user_id = $1', [userId]);
       await client.query('DELETE FROM social.push_devices WHERE user_id = $1', [userId]);
@@ -660,8 +661,9 @@ export class AuthService {
         `UPDATE content.artist_tracks t SET hold_at = NULL WHERE $1::uuid IS NOT NULL AND t.hold_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM content.artist_track_claims c WHERE c.track_id = t.id AND c.status = 'open')`,
         // Sons das tchekas (0133): os meus sons originais deixam de existir e de tocar (também nas tchekas de outros que os
         // usavam; o áudio sai do armazenamento com os outros ficheiros); as minhas tchekas deixam de estar ligadas a um som; as
-        // denúncias de sons que fiz saem (e o som volta a poder ser usado se não houver outra por analisar).
-        "UPDATE content.sounds SET removed_at = coalesce(removed_at, now()), removed_reason = coalesce(removed_reason, 'Conta eliminada'), hold_at = NULL, audio_media_id = NULL WHERE owner_id = $1 AND kind = 'original'",
+        // denúncias de sons que fiz saem (e o som volta a poder ser usado se não houver outra por analisar). As tchekas de outros
+        // que usavam os meus sons ficam sem som pouco depois (SoundsService.silencePending, de 10 em 10 minutos; 0140).
+        "UPDATE content.sounds SET removed_at = coalesce(removed_at, now()), removed_reason = coalesce(removed_reason, 'Conta eliminada'), removed_by = coalesce(removed_by, 'account'), silenced_at = NULL, hold_at = NULL, audio_media_id = NULL WHERE owner_id = $1 AND kind = 'original'",
         'UPDATE content.posts SET sound_id = NULL WHERE author_id = $1 AND sound_id IS NOT NULL',
         'DELETE FROM content.sound_reports WHERE reporter_id = $1',
         `UPDATE content.sounds s SET hold_at = NULL WHERE $1::uuid IS NOT NULL AND s.hold_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM content.sound_reports r WHERE r.sound_id = s.id AND r.status = 'open')`,
@@ -678,6 +680,15 @@ export class AuthService {
            UPDATE content.venues v SET owner_id = heir.user_id FROM heir WHERE v.id = heir.venue_id RETURNING v.id, v.owner_id
          )
          DELETE FROM content.venue_managers m USING moved WHERE m.venue_id = moved.id AND m.user_id = moved.owner_id`,
+        [userId],
+      );
+      // Os duetos que outras pessoas fizeram com as minhas tchekas levam o meu vídeo e o meu som gravados: ficam escondidos para
+      // todos, como quando o autor do original os retira (0140). As respostas com tcheka só mostram o comentário e ficam.
+      const duets = await client.query(
+        `UPDATE content.posts d SET removed_at = now(), removed_by = 'original'
+           FROM content.post_remixes rx JOIN content.posts o ON o.id = rx.original_id
+          WHERE rx.post_id = d.id AND rx.kind = 'duet' AND o.author_id = $1 AND d.author_id <> $1 AND d.removed_at IS NULL
+          RETURNING d.id`,
         [userId],
       );
       // Publicações deixam de existir para todos; as fotos passam a 'deleted' e são apagadas do armazenamento.
@@ -699,6 +710,7 @@ export class AuthService {
       await this.audit(client, userId, auditAction);
       await client.query('COMMIT');
       this.indexer.userRemoved(userId);
+      for (const d of duets.rows) this.indexer.postRemoved(d.id as string);
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw e;

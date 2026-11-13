@@ -778,8 +778,8 @@ export function cubeLut(m: ColorMatrix, n = 33): string {
 }
 /**
  * A cadeia de filtros ffmpeg de um clipe (depois de o pôr no quadro 1080×1920): nitidez (`convolution` 3×3, igual ao
- * shader), cor (`lut3d` com o ficheiro de `cubeLut`), vinheta (`vignette` em RGB, a mesma fórmula) e grão (`noise` só na
- * luminância; aleatório, por isso só parecido). Vazio quando o clipe não tem efeitos.
+ * shader), cor (`lut3d` com o ficheiro de `cubeLut`), vinheta (`vignette` em RGB, a mesma fórmula, com um `format=gbrp` a seguir
+ * para ficar mesmo em RGB) e grão (`noise` só na luminância; aleatório, por isso só parecido). Vazio quando o clipe não tem efeitos.
  */
 export function ffmpegFxChain(fx: ClipFx | undefined, lutFile = 'clip.cube'): string {
   const p = resolveFx(fx);
@@ -792,6 +792,9 @@ export function ffmpegFxChain(fx: ClipFx | undefined, lutFile = 'clip.cube'): st
   }
   if (!isIdentity(p.matrix)) parts.push(`lut3d=file='${lutFile}':interp=tetrahedral`);
   if (p.vignette > 1e-3) parts.push(`vignette=angle=${f4(p.vignette * VIGNETTE_ANGLE)}:dither=0`);
+  // Prende a cadeia a RGB até ao fim: sem isto, o `format=yuv420p` que vem a seguir (o do grão ou o do resto do clipe) puxa a
+  // `vignette` para YUV na negociação dos formatos do ffmpeg, e aí ela escurece muito mais (nos cantos, 7 em vez de 24).
+  parts.push('format=gbrp');
   if (p.grain > 1e-3) parts.push(`format=yuv420p,noise=c0s=${Math.max(1, Math.round(p.grain * GRAIN_AMP * 0.5 * 255))}:c0f=t+u`);
   return parts.join(',');
 }

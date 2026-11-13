@@ -235,3 +235,17 @@ export function studioDrafts(): DraftStore {
   });
   return shared;
 }
+
+/**
+ * Sair da conta apaga os rascunhos do estúdio deste browser: ficam no aparelho, sem ligação à conta, e a pessoa seguinte
+ * que entrar no mesmo browser não os pode ver. Nunca falha a saída (sem IndexedDB ou com erro, segue).
+ */
+export async function clearStudioDrafts(): Promise<void> {
+  try {
+    const s = studioDrafts();
+    await s.idle();
+    for (const d of await s.list()) await s.remove(d.id);
+  } catch {
+    /* sem rascunhos ou sem IndexedDB: nada a apagar */
+  }
+}

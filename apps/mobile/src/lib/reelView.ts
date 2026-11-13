@@ -33,6 +33,8 @@ export interface ReelSoundSource {
   sound?: ReelSound | null;
   music?: ReelMusic | null;
   author: { username: string };
+  /** O som que a tcheka usava foi tirado (docs/sons.md): 'author' ou 'rights'. */
+  soundRemoved?: string | null;
 }
 
 /** O que o ecrã mostra do som: o letreiro, a capa do disco e para onde vai o toque. */
@@ -97,6 +99,9 @@ export function reelSound(p: ReelSoundSource): SoundView | null {
     const artist = clean(m.artist);
     return { label: artist ? `${title} · ${artist}` : title, cover: m.cover ?? null, originalBy: null, href: id ? soundHref(id) : null };
   }
+  // O som foi tirado (pelo autor ou por direitos de autor): o letreiro diz porquê, sem página.
+  if (p.soundRemoved === 'author') return { label: 'Som retirado pelo autor', cover: null, originalBy: null, href: null };
+  if (p.soundRemoved === 'rights') return { label: 'Som retirado por direitos de autor', cover: null, originalBy: null, href: null };
   return null;
 }
 

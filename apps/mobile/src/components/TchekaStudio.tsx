@@ -1622,16 +1622,50 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const previewW = Math.max(220, Math.min(stage.w - PANEL_W - 24, (stage.h - BAR_H) * (9 / 16) + 32));
   /** O tamanho da pré-visualização (medido) e onde fica a imagem 9:16 dentro dela (a barra do tempo tem a largura dela). */
   const [pv, setPv] = useState({ w: 0, h: 0 });
-  const imgW = Math.max(0, Math.min(pv.w, (pv.h - BAR_H) * (9 / 16)));
-  // A barra do tempo tem a largura da imagem, mas nunca menos de 260 px (no telemóvel o tempo não parte em duas linhas).
-  const barW = Math.min(pv.w, Math.max(imgW || pv.w, 260));
-  const imgBox = { w: barW, left: (pv.w - barW) / 2 };
   // No telemóvel os painéis ficam numa folha em baixo, com altura fixa (rola por dentro); tocar outra vez no separador
   // escolhido fecha-a e a pré-visualização fica com o espaço todo.
   const win = useWindowDimensions();
-  const [sheetOpen, setSheetOpen] = useState(true);
-  const sheetH = Math.round(Math.max(150, Math.min(240, win.height * 0.19)));
-  const pickTab = (id: Tab) => { if (wide) { setTab(id); return; } if (id === tab) setSheetOpen((o) => !o); else { setTab(id); setSheetOpen(true); } };
+  // Três alturas: fechada (só os separadores), média (cerca de 42% do ecrã, com a pega e os separadores) e alta (cerca de
+  // 72%, mas a deixar sempre a linha do tempo e um bocado da imagem à vista). Arrasta-se pela pega.
+  const [sheet, setSheet] = useState<'closed' | 'mid' | 'high'>('mid');
+  const sheetOpen = sheet !== 'closed';
+  const SHEET_HEAD = 68; // a pega (22) e os separadores (46)
+  const room = win.height - Math.max(insets.top, 6) - Math.max(insets.bottom, 4);
+  // 38% do ecrã, mas nunca menos do que o primeiro controlo de cada painel precisa para ficar inteiro (250 px).
+  const midH = Math.max(250, Math.round(win.height * 0.38) - SHEET_HEAD);
+  // Na alta, a imagem recolhe (fica só a barra do tempo, com o tocar/pausar) e a linha do tempo continua à vista: a folha
+  // vai até 72% do ecrã ou até onde couber por baixo delas.
+  const [tlH, setTlH] = useState(150);
+  const highH = Math.max(midH + 40, Math.round(Math.min(win.height * 0.72, win.height - (stage.y || 60) - Math.max(insets.bottom, 4) - tlH)) - SHEET_HEAD);
+  void room;
+  /** A altura do conteúdo da folha enquanto se arrasta a pega (null: a da posição escolhida). */
+  const [dragH, setDragH] = useState<number | null>(null);
+  const sheetH = dragH ?? (sheet === 'closed' ? 0 : sheet === 'mid' ? midH : highH);
+  /** Com a folha aberta no telemóvel: a linha do tempo densa, com o tocar/pausar e o tempo à esquerda da régua, e a
+   *  imagem sem a barra do tempo por baixo (a pré-visualização fica com esse espaço). */
+  const dense = !wide && sheetH > 0;
+  const barH = dense ? 0 : BAR_H;
+  const imgW = Math.max(0, Math.min(pv.w, (pv.h - barH) * (9 / 16)));
+  // A barra do tempo tem a largura da imagem, mas nunca menos de 260 px (no telemóvel o tempo não parte em duas linhas).
+  const barW = Math.min(pv.w, Math.max(imgW || pv.w, 260));
+  const imgBox = { w: barW, left: (pv.w - barW) / 2 };
+  const grab = useRef<{ y: number; h: number; moved: boolean } | null>(null);
+  const onGrab = (e: { clientY: number; pointerId: number; currentTarget: Element }) => { grab.current = { y: e.clientY, h: sheetH, moved: false }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* sem captura */ } };
+  const onGrabMove = (e: { clientY: number }) => { const g = grab.current; if (!g) return; if (Math.abs(e.clientY - g.y) > 4) g.moved = true; if (g.moved) setDragH(Math.max(0, Math.min(highH, g.h + (g.y - e.clientY)))); };
+  const onGrabEnd = () => {
+    const g = grab.current;
+    grab.current = null;
+    if (!g) return;
+    // Larga na posição mais próxima; um toque na pega passa à seguinte (fechada → média → alta → média).
+    if (!g.moved) setSheet((s) => (s === 'closed' ? 'mid' : s === 'mid' ? 'high' : 'mid'));
+    else { const h = dragH ?? g.h; setSheet(h < midH / 2 ? 'closed' : h < (midH + highH) / 2 ? 'mid' : 'high'); }
+    setDragH(null);
+  };
+  const pickTab = (id: Tab) => { if (wide) { setTab(id); return; } if (id === tab) setSheet((s) => (s === 'closed' ? 'mid' : 'closed')); else { setTab(id); setSheet((s) => (s === 'closed' ? 'mid' : s)); } };
+  /** Há mais para rolar dentro da folha (um degradê no fundo avisa). */
+  const [more, setMore] = useState(false);
+  const scrollBox = useRef({ y: 0, view: 0, content: 0 });
+  const checkMore = () => { const b = scrollBox.current; const m = b.content - b.y - b.view > 10; setMore((x) => (x === m ? x : m)); };
   /** No site do telemóvel o estúdio cobre o ecrã todo (100dvh: sem a barra das abas nem a página a rolar por baixo). */
   const fullScreen = Platform.OS === 'web' && !wide ? ({ position: 'fixed', left: 0, top: 0, right: 0, height: '100dvh', zIndex: 50 } as unknown as object) : null;
   /** Tocar ou pausar (o botão e o toque no vídeo): no fim recomeça do princípio. */
@@ -1672,17 +1706,18 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
           A barra do tempo fica logo por baixo da imagem, com a largura dela: não tapa o texto nem a assinatura. Um só play
           à vista: o grande ao centro só em pausa; a tocar, o pequeno da barra é a pausa. */}
       <Pressable style={[st.preview, !wide && st.previewPhone]} onPress={togglePlay} onLayout={(e) => { const l = e.nativeEvent.layout; setPv((p) => (p.w === l.width && p.h === l.height ? p : { w: l.width, h: l.height })); }} accessibilityRole="button" accessibilityLabel={playing ? 'Pausa' : 'Tocar'}>
-        {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { canvasRef.current = el; }, width: W, height: H, 'aria-label': 'Pré-visualização da tcheka', style: { position: 'absolute', left: 0, top: 0, width: '100%', height: `calc(100% - ${BAR_H}px)`, objectFit: 'contain', display: 'block', backgroundColor: '#000' } })}
+        {dom('canvas', { ref: (el: HTMLCanvasElement | null) => { canvasRef.current = el; }, width: W, height: H, 'aria-label': 'Pré-visualização da tcheka', style: { position: 'absolute', left: 0, top: 0, width: '100%', height: `calc(100% - ${barH}px)`, objectFit: 'contain', display: 'block', backgroundColor: '#000' } })}
         {/* Os GIFs dos stickers ficam aqui (quase invisíveis) para o browser os animar; o canvas desenha o frame de agora. */}
         {dom('div', { ref: (el: HTMLDivElement | null) => { gifBox.current = el; }, 'aria-hidden': true, style: { position: 'absolute', left: 0, top: 0, width: 2, height: 2, overflow: 'hidden', opacity: 0.01, pointerEvents: 'none' } })}
         {/* Mexer nos textos e stickers (mover, rodar, escalar), com a zona segura e as guias; fora deles, tocar pausa. */}
-        <View style={[st.center, { bottom: BAR_H }]} pointerEvents={locked ? 'none' : 'box-none'}>
+        <View style={[st.center, { bottom: barH }]} pointerEvents={locked ? 'none' : 'box-none'}>
           <FxStage locked={locked} overlays={overlays} selId={selOv} boxes={() => engine.current.boxes} onSelect={selectOverlay} onChange={changeOverlay} onDelete={deleteOverlay}
             onGesture={(ph) => { ovGesture.current = ph === 'start' ? { on: true, pushed: false } : { on: false, pushed: false }; }}
             onEdit={(id) => { selectOverlay(id); setEditTick((n) => n + 1); }} showSafe={tab === 'texto' || tab === 'stickers'} tick={stageTick} />
         </View>
-        {loading && items.length ? <View style={[st.center, { bottom: BAR_H }]} pointerEvents="none"><Text style={st.loadText}>A preparar…</Text></View> : null}
-        {!playing && !busy && !selOv ? <View style={[st.center, { bottom: BAR_H }]} pointerEvents="none"><View style={st.playBig}><Icon name="play" size={34} color="#fff" solid /></View></View> : null}
+        {loading && items.length ? <View style={[st.center, { bottom: barH }]} pointerEvents="none"><Text style={st.loadText}>A preparar…</Text></View> : null}
+        {!playing && !busy && !selOv ? <View style={[st.center, { bottom: barH }]} pointerEvents="none"><View style={st.playBig}><Icon name="play" size={34} color="#fff" solid /></View></View> : null}
+        {dense ? null : (
         <View style={[st.controls, { left: imgBox.left, width: imgBox.w }]} pointerEvents="box-none">
           {!busy && playing ? (
             <Pressable onPress={togglePlay} style={({ pressed }) => [st.playBtn, pressed && { transform: [{ scale: 0.92 }] }]} hitSlop={8} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'}>
@@ -1696,6 +1731,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
             <AudioMarks mix={mix} total={playTotal} />
           </View>
         </View>
+        )}
         {busy && (
           <View style={st.building} pointerEvents="none">
             <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>A montar a tcheka…</Text>
@@ -1716,6 +1752,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         pointerEvents={locked ? 'none' : 'auto'}
         accessibilityState={{ disabled: locked }}
         aria-disabled={locked}
+        onLayout={(e) => { const h = Math.round(e.nativeEvent.layout.height); setTlH((x) => (x === h ? x : h)); }}
       >
       <Timeline
         clips={items}
@@ -1727,6 +1764,15 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         beats={useRhythm ? grid : undefined}
         note={note}
         compact={!wide}
+        dense={dense}
+        lead={dense ? (
+          <>
+            <Pressable onPress={togglePlay} disabled={busy} style={st.leadPlay} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar' : 'Tocar'}>
+              <Icon name={playing ? 'pause' : 'play'} size={18} color="#fff" solid />
+            </Pressable>
+            <Text style={st.leadClock} numberOfLines={1}>{previewClock(playT, playTotal).split(' / ')[0]}</Text>
+          </>
+        ) : undefined}
         addButton={<GalleryPick onFiles={(f) => void addFiles(f)} style={st.addClip}><Icon name="plus" size={22} color="#fff" strokeWidth={2.4} /></GalleryPick>}
         onSelect={onSelectClip}
         onSeek={onSeek}
@@ -1748,7 +1794,13 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         accessibilityState={{ disabled: locked }}
         aria-disabled={locked}
       >
-      <View style={st.tabs} accessibilityRole="tablist">
+      {wide ? null : dom('div', {
+        role: 'slider', 'aria-label': 'Altura dos painéis (arrasta)', 'aria-valuetext': sheet === 'closed' ? 'fechada' : sheet === 'mid' ? 'média' : 'alta',
+        onPointerDown: onGrab, onPointerMove: onGrabMove, onPointerUp: onGrabEnd, onPointerCancel: onGrabEnd,
+        // cursor: pointer: o browser trata a pega como alvo de toque (senão o dedo «escorrega» para o separador por baixo).
+        style: { height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'none', cursor: 'pointer', borderTop: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px 16px 0 0', background: '#0b0b11' },
+      }, dom('div', { style: { width: 44, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.35)' } }))}
+      <View style={[st.tabs, !wide && { backgroundColor: '#0b0b11', marginTop: 0 }]} accessibilityRole="tablist">
         {TABS.map((t) => (
           <Pressable key={t.id} onPress={() => pickTab(t.id)} style={[st.tabBtn, !wide && st.tabBtnPhone]} accessibilityRole="tab" accessibilityState={{ selected: tab === t.id, expanded: wide || sheetOpen }} accessibilityLabel={t.label}>
             <Text style={[st.tabText, tab === t.id && st.tabOn]}>{t.label}</Text>
@@ -1757,7 +1809,12 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         ))}
       </View>
 
-      <ScrollView style={wide ? { maxHeight: Math.max(160, stage.h - 56) } : { height: sheetOpen ? sheetH : 0 }} contentContainerStyle={{ paddingBottom: 12 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <View style={!wide && { backgroundColor: '#0b0b11' }}>
+      <ScrollView style={wide ? { maxHeight: Math.max(160, stage.h - 56) } : { height: sheetH }} contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
+        scrollEventThrottle={48}
+        onScroll={(e) => { scrollBox.current.y = e.nativeEvent.contentOffset.y; checkMore(); }}
+        onLayout={(e) => { scrollBox.current.view = e.nativeEvent.layout.height; checkMore(); }}
+        onContentSizeChange={(_w, h) => { scrollBox.current.content = h; checkMore(); }}>
         {tab === 'clipes' ? (
           <>
             {/* A Montagem mágica: a tcheka feita a partir dos ficheiros (depois afina-se aqui). */}
@@ -1877,6 +1934,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
             onFreeze={() => void freezeFrame()}
             freezing={freezing}
             reverseOf={(k) => revState[k] ?? { status: null, progress: 0 }}
+            hideClips={!wide}
           />
         ) : null}
 
@@ -1890,6 +1948,9 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         ) : null}
         {err ? <Text style={st.err} accessibilityRole="alert">{err}</Text> : null}
       </ScrollView>
+      {/* Há mais para baixo: um degradê discreto no fundo, em vez de um controlo cortado a seco. */}
+      {!wide && more && sheetH > 0 ? <View pointerEvents="none" style={[st.moreFade, { backgroundImage: 'linear-gradient(180deg, rgba(11,11,17,0), rgba(11,11,17,0.96))' } as object]} /> : null}
+      </View>
       </View>
       </View>
       {pickMusic ? <MusicPicker allowLocal onClose={closePicker} onPick={pickedMusic} /> : null}
@@ -1916,7 +1977,10 @@ const st = StyleSheet.create({
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, minWidth: 0, color: '#fff', fontSize: 17, fontWeight: '800', marginLeft: 12 },
   topPhone: { paddingHorizontal: 8, paddingBottom: 4 },
-  previewPhone: { marginHorizontal: 8, borderRadius: 16, minHeight: 160 },
+  previewPhone: { marginHorizontal: 8, borderRadius: 16, minHeight: 0 },
+  leadPlay: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  leadClock: { color: '#fff', fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  moreFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 30 },
   tabBtnPhone: { flex: 1, paddingHorizontal: 2 },
   history: { flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 10, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.08)', padding: 3 },
   histBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
@@ -1946,7 +2010,7 @@ const st = StyleSheet.create({
   building: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 32 },
   track: { width: '100%', height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3, backgroundColor: colors.brand },
-  tabs: { flexDirection: 'row', justifyContent: 'center', gap: 2, marginTop: 2 },
+  tabs: { flexDirection: 'row', justifyContent: 'center', gap: 2, marginTop: 2, paddingBottom: 2 },
   tabBtn: { paddingHorizontal: 8, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   tabText: { color: 'rgba(255,255,255,0.62)', fontSize: 14, fontWeight: '800' },
   tabOn: { color: '#fff' },

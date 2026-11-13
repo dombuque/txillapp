@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { clearStudioDrafts } from '@/lib/studio/drafts';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ApiError, api, migrateWebAccounts, refreshSession, refreshStore, setSessionExpiredHandler, type AuthResult, type PublicUser } from './api';
 import { accounts } from './accounts';
@@ -101,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await unregisterNativePush(); // este telemóvel deixa de receber as notificações desta conta
     await api.logout();
     qc.clear(); // a próxima pessoa não vê dados da anterior
+    await clearStudioDrafts(); // e também não vê os rascunhos das tchekas (ficam no browser, sem conta)
     // Com mais contas no aparelho, sair desta passa para a seguinte.
     const rest = await accounts.list();
     if (rest[0]) {

@@ -15,7 +15,7 @@ import { coarse, notHiddenVenuePost, postGeo } from '../nearby/geo-sql';
 const TOPIC_IDS = new Set(TOPICS.map((t) => t.id));
 import { RANKED_SQL, decodeCursor, encodeCursor, tchekaPost } from './feed';
 import { WalletService } from '../wallet/wallet.service';
-import { MUSIC_SOUND_OK, POST_SOUND_SQL, SoundsService, type PostSound } from '../sounds/sounds.service';
+import { MUSIC_SOUND_OK, POST_SOUND_REMOVED_SQL, POST_SOUND_SQL, SoundsService, type PostSound } from '../sounds/sounds.service';
 import { checkRemix, remixAllowed, remixLinks, saveRemix, type CheckedRemix, type RemixInput, type RemixKind } from './remix';
 
 export const MAX_PHOTOS = 10;
@@ -61,9 +61,11 @@ const FEED_SQL = `
          (SELECT count(*) FROM content.gifts g WHERE g.post_id = p.id)::int AS gifts,
          EXISTS (SELECT 1 FROM content.cheers c WHERE c.post_id = p.id AND c.user_id = $1) AS cheered,
          EXISTS (SELECT 1 FROM content.saved_posts sv WHERE sv.post_id = p.id AND sv.user_id = $1) AS saved,
-         ${POST_SOUND_SQL('p')} AS sound, ${MUSIC_SOUND_OK('p')} AS music_ok,
+         ${POST_SOUND_SQL('p')} AS sound, ${MUSIC_SOUND_OK('p')} AS music_ok, ${POST_SOUND_REMOVED_SQL('p')} AS sound_removed,
          -- Remix (0134): de que é dueto ou resposta, se o dono deixa fazer remix e quantos duetos e respostas tem.
          rx.original_id AS rx_original, rx.kind AS rx_kind, rx.comment_id AS rx_comment, rx.sticker_x AS rx_x, rx.sticker_y AS rx_y,
+         -- Quem está a ver é o autor do original deste dueto (e não o dono do dueto): pode retirá-lo (0140).
+         (rx.kind = 'duet' AND p.author_id <> $1 AND EXISTS (SELECT 1 FROM content.posts ro WHERE ro.id = rx.original_id AND ro.author_id = $1)) AS rx_takedown,
          (p.kind = 'post' AND p.venue_id IS NULL AND ${remixAllowed()}) AS remix_ok,
          (SELECT count(*) FROM content.post_remixes rr JOIN content.posts rrp ON rrp.id = rr.post_id AND rrp.removed_at IS NULL WHERE rr.original_id = p.id)::int AS remixes
     FROM content.posts p JOIN identity.users u ON u.id = p.author_id AND p.removed_at IS NULL
@@ -300,6 +302,31 @@ export class PostsService implements OnModuleInit {
     }
     if (c.commentAuthorId) await this.notifications.notify({ userId: c.commentAuthorId, actorId: userId, kind: 'remix', data: { ...base, role: 'comment', commentId: c.input.commentId } });
     if (c.originalAuthorId !== c.commentAuthorId) await this.notifications.notify({ userId: c.originalAuthorId, actorId: userId, kind: 'remix', data: { ...base, role: 'post', commentId: c.input.commentId } });
+  }
+
+  /**
+   * «Retirar o dueto» (0140): o vídeo e o som de quem foi usado num dueto ficam gravados no vídeo do outro, por isso o autor da
+   * tcheka original pode tirar o dueto sem passar pela equipa. O dueto fica escondido para todos, como uma publicação apagada
+   * (removed_by = 'original'), e o dono recebe o aviso «@x pediu para retirar o teu dueto», que não se desliga. Só duetos (lado a
+   * lado): as respostas com tcheka só mostram o texto do comentário. Vale mesmo que o original já tenha sido apagado e com um
+   * bloqueio entre os dois. Não se desfaz.
+   */
+  async takeDownDuet(userId: string, postId: string) {
+    const r = (
+      await this.pool.query(
+        `SELECT d.author_id, rx.original_id FROM content.post_remixes rx
+           JOIN content.posts d ON d.id = rx.post_id AND d.removed_at IS NULL
+           JOIN content.posts o ON o.id = rx.original_id
+          WHERE rx.post_id = $1 AND rx.kind = 'duet' AND o.author_id = $2`,
+        [postId, userId],
+      )
+    ).rows[0];
+    if (!r) throw new NotFoundException('Dueto não encontrado');
+    if (r.author_id === userId) throw new BadRequestException('Este dueto é teu: apaga-o no menu da publicação');
+    const done = await this.pool.query(`UPDATE content.posts SET removed_at = now(), removed_by = 'original' WHERE id = $1 AND removed_at IS NULL`, [postId]);
+    if (!done.rowCount) throw new NotFoundException('Dueto não encontrado');
+    this.indexer.postRemoved(postId);
+    await this.notifications.notify({ userId: r.author_id as string, actorId: userId, kind: 'remix_takedown', data: { postId, originalId: r.original_id, tcheka: true } });
   }
 
   /** Apagar a própria publicação: fica escondida para todos (reposts dela também deixam de aparecer). */
@@ -1042,6 +1069,11 @@ export class PostsService implements OnModuleInit {
     music: r.music_ok === false ? null : this.musicSvc.resolve(this.withSoundTitle((r.music as Record<string, unknown> | null) ?? null, r.sound as PostSound | null)),
     /** O som da tcheka (docs/sons.md): abre /som/:id. Só quando o som existe para quem está a ver. */
     sound: (r.sound as PostSound | null) ?? null,
+    /**
+     * A tcheka usava um som original que foi tirado: 'author' («Som retirado pelo autor») ou 'rights' («Som retirado por direitos
+     * de autor»). O vídeo fica sem som (o servidor tira-lhe a pista de áudio; a app não o toca com som entretanto).
+     */
+    soundRemoved: (r.sound_removed as 'author' | 'rights' | null) ?? null,
     media: (r.media as { id: string; video: boolean; durationMs: number | null; w: number | null; h: number | null; tags: PhotoTag[] }[]).map((m) => ({
       url: `/api/v1/media/${m.id}`,
       tags: m.tags,

@@ -1,4 +1,6 @@
 import { echoTaps, FX, type VoiceFxId } from './audio';
+import { type ClipFx } from './effects';
+import { mergedPieces, rampAudio, rampSetpts, serverFxChain } from './fx';
 import { lookFilter } from './looks';
 
 /**
@@ -61,7 +63,12 @@ export function atempo(speed: number): string {
 const n = (x: number, d = 3) => (Math.round(x * 10 ** d) / 10 ** d).toString();
 
 export interface ClipJob {
-  kind: 'video' | 'photo';
+  /** `canvas`: os frames (RGBA, w×h, 30 fps) chegam pelo stdin, já desenhados (a foto com moldura ou enquadramento). */
+  kind: 'video' | 'photo' | 'canvas';
+  /** Vídeos: o volume do som deste clipe (por omissão 1; 0 = calado). */
+  volume?: number;
+  /** `canvas`: a cor já vai nos frames (a moldura leva o filtro só na foto). */
+  noColor?: boolean;
   /** O ficheiro de entrada (no diretório do trabalho). */
   input: string;
   /** Vídeos: o bocado que entra (segundos no ficheiro) e a velocidade. */
@@ -80,6 +87,14 @@ export interface ClipJob {
   /** Onde ficam o vídeo, o som e o último frame deste clipe. */
   out: { video: string; audio: string; last: string };
   threads?: number;
+  /**
+   * Os efeitos do estúdio (docs/estudio-efeitos.md): cor (`lut`: o ficheiro .cube desta matriz), rampa e congelar. Com `fx`, o
+   * `look` e a `transition` de sempre não contam (a transição do estúdio desenha-se no canvas: `head`).
+   */
+  fx?: ClipFx;
+  lut?: string;
+  /** Os primeiros `frames` frames saem à parte em RGBA (`file`), para a transição no canvas; o vídeo leva só o resto. */
+  head?: { frames: number; file: string };
 }
 
 /** Quanto dura a transição para um clipe com `frames` frames (nunca mais do que o próprio clipe). */
@@ -89,38 +104,55 @@ export const transitionSeconds = (frames: number) => Math.min(TR, Math.max(0, (f
 export function clipArgs(c: ClipJob): string[] {
   const N = c.frames;
   const W = c.w, H = c.h;
-  const look = lookFilter(c.look);
+  const look = c.noColor ? '' : c.fx ? serverFxChain(c.fx, c.lut ?? 'clip.cube') : lookFilter(c.look);
   const lk = look ? `,${look}` : '';
+  // A rampa (só vídeos): os frames da fonte vão para o instante de saída de cada bocado (rampPieces, a 0,1 s).
+  const pieces = c.kind === 'video' && c.fx?.ramp ? mergedPieces(c.trimLen, c.speed, c.fx) : null;
+  const timing = pieces ? rampSetpts(pieces) : `setpts=(PTS-STARTPTS)/${c.speed}`;
   const args: string[] = ['-y'];
   const graph: string[] = [];
   if (c.kind === 'video') {
     args.push('-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,matroska,webm', '-ss', n(c.trimStart), '-t', n(c.trimLen), '-i', c.input);
     // Velocidade, 30 fps, a cobrir o quadro (corta o que sobra, ao centro), o filtro; se faltar um frame no fim, repete o último.
     graph.push(
-      `[0:v]setpts=(PTS-STARTPTS)/${c.speed},fps=${FPS},scale=${W}:${H}:force_original_aspect_ratio=increase:flags=bicubic,crop=${W}:${H},setsar=1${lk},format=yuv420p,` +
+      `[0:v]${pieces ? 'setpts=PTS-STARTPTS,' : ''}${timing},fps=${FPS},scale=${W}:${H}:force_original_aspect_ratio=increase:flags=bicubic,crop=${W}:${H},setsar=1${lk},format=yuv420p,` +
         `tpad=stop_mode=clone:stop_duration=2,trim=end_frame=${N},setpts=N/(${FPS}*TB)[c]`,
     );
+  } else if (c.kind === 'canvas') {
+    args.push('-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${W}x${H}`, '-framerate', String(FPS), '-i', 'pipe:0');
+    graph.push(`[0:v]setsar=1${lk},format=yuv420p,trim=end_frame=${N},setpts=N/(${FPS}*TB)[c]`);
   } else {
     args.push('-i', c.input);
-    // Ken Burns: de 1 a 1,07 ao longo da foto, sempre ao centro.
+    // Ken Burns: de 1 a 1,07 ao longo da foto, sempre ao centro (um frame congelado fica parado).
     graph.push(
-      `[0:v]zoompan=z='1+${KEN_BURNS}*on/${N}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=${N}:s=${W}x${H}:fps=${FPS},setsar=1${lk},format=yuv420p,trim=end_frame=${N},setpts=N/(${FPS}*TB)[c]`,
+      `[0:v]zoompan=z='${c.fx?.freeze ? '1' : `1+${KEN_BURNS}*on/${N}`}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=${N}:s=${W}x${H}:fps=${FPS},setsar=1${lk},format=yuv420p,trim=end_frame=${N},setpts=N/(${FPS}*TB)[c]`,
     );
   }
   let v = '[c]';
-  const td = c.prevStill && c.transition !== 'cut' ? transitionSeconds(N) : 0;
+  const td = !c.fx && c.prevStill && c.transition !== 'cut' ? transitionSeconds(N) : 0;
   if (td > 0) {
     args.push('-loop', '1', '-framerate', String(FPS), '-t', n(td + 0.2), '-i', c.prevStill!);
     graph.push(`[1:v]scale=${W}:${H},setsar=1,format=yuv420p,fps=${FPS},setpts=N/(${FPS}*TB)[p]`);
     graph.push(`[p][c]xfade=transition=${c.transition === 'slide' ? 'slideleft' : 'fade'}:duration=${n(td)}:offset=0,trim=end_frame=${N}[x]`);
     v = '[x]';
   }
-  graph.push(`${v}split[o][l]`, `[l]select='eq(n,${N - 1})'[last]`);
+  const H0 = c.head && c.head.frames > 0 && c.head.frames < N ? c.head.frames : 0;
+  if (H0) {
+    // A cabeça (a transição, no canvas) sai em RGBA; o vídeo deste passo começa a seguir a ela.
+    graph.push(`${v}split=3[o0][l][h0]`, `[o0]trim=start_frame=${H0},setpts=PTS-STARTPTS[o]`, `[h0]trim=end_frame=${H0},format=rgba[head]`);
+  } else graph.push(`${v}split[o][l]`);
+  graph.push(`[l]select='eq(n,${N - 1})'[last]`);
   // O som: o do vídeo (à mesma velocidade) ou silêncio; sempre com o número certo de amostras.
   const audioIdx = td > 0 ? 2 : 1;
-  if (c.kind === 'video' && c.hasAudio) {
+  const vol = c.volume ?? 1;
+  const gain = vol < 1 ? `,volume=${n(vol)}` : '';
+  const sounds = c.kind === 'video' && c.hasAudio && vol > 0;
+  if (sounds && pieces) {
+    graph.push(`[0:a]asetpts=PTS-STARTPTS,aresample=${RATE}[ar]`, ...rampAudio(pieces, '[ar]', '[arr]'));
+    graph.push(`[arr]aformat=sample_fmts=s16:channel_layouts=stereo${gain},apad,atrim=end_sample=${N * SPF}[a]`);
+  } else if (sounds) {
     const t = atempo(c.speed);
-    graph.push(`[0:a]asetpts=PTS-STARTPTS${t ? `,${t}` : ''},aresample=${RATE},aformat=sample_fmts=s16:channel_layouts=stereo,apad,atrim=end_sample=${N * SPF}[a]`);
+    graph.push(`[0:a]asetpts=PTS-STARTPTS${t ? `,${t}` : ''},aresample=${RATE},aformat=sample_fmts=s16:channel_layouts=stereo${gain},apad,atrim=end_sample=${N * SPF}[a]`);
   } else {
     args.push('-f', 'lavfi', '-i', `anullsrc=r=${RATE}:cl=stereo`);
     graph.push(`[${audioIdx}:a]aformat=sample_fmts=s16:channel_layouts=stereo,atrim=end_sample=${N * SPF}[a]`);
@@ -130,9 +162,22 @@ export function clipArgs(c: ClipJob): string[] {
     '-filter_complex', graph.join(';'),
     '-map', '[o]', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '17', '-g', String(FPS * 2), '-pix_fmt', 'yuv420p', '-r', String(FPS), ...threads, '-an', c.out.video,
     '-map', '[last]', '-frames:v', '1', '-update', '1', c.out.last,
+    ...(H0 ? ['-map', '[head]', '-f', 'rawvideo', '-pix_fmt', 'rgba', c.head!.file] : []),
     '-map', '[a]', '-c:a', 'pcm_s16le', '-ar', String(RATE), '-ac', '2', c.out.audio,
   );
   return args;
+}
+
+/**
+ * Inverter (docs/estudio-efeitos.md, 4): um bocado do corte, já no quadro e a `fps`, ao contrário (o filtro `reverse` guarda
+ * o bocado todo em memória: por isso vai aos bocados, do fim para o início, e junta-se com o concat). Sem som (fica calado).
+ */
+export function reverseChunkArgs(o: { input: string; from: number; len: number; fps: number; w: number; h: number; out: string; threads?: number }): string[] {
+  return [
+    '-y', '-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,matroska,webm', '-ss', n(o.from), '-t', n(o.len), '-i', o.input,
+    '-vf', `setpts=PTS-STARTPTS,fps=${o.fps},scale=${o.w}:${o.h}:force_original_aspect_ratio=increase:flags=bicubic,crop=${o.w}:${o.h},setsar=1,format=yuv420p,reverse`,
+    '-an', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '12', '-g', String(o.fps), '-pix_fmt', 'yuv420p', ...(o.threads ? ['-threads', String(o.threads)] : []), o.out,
+  ];
 }
 
 // ------------------------------------------------------------------ texto
@@ -269,7 +314,11 @@ export function voiceFxGraph(id: VoiceFxId, inp: string, out: string, tag: strin
 
 // ------------------------------------------------------------------ grafo final
 
-export interface OverlayImage { file: string; x: number; y: number; start: number | null; end: number | null }
+export interface OverlayImage {
+  file: string; x: number; y: number; start: number | null; end: number | null;
+  /** As camadas do estúdio: entre os frames k0 e k1 (inclusive) do vídeo final; `anim`: um vídeo com alfa (.mov) que começa em k0. */
+  frames?: { k0: number; k1: number; anim: boolean; cycle?: boolean };
+}
 
 export interface FinalJob {
   /** Duração final (segundos). */
@@ -311,7 +360,10 @@ export function finalArgs(j: FinalJob, graphFile: string): { args: string[]; gra
   if (j.sfx) { inputs.push(...AUDIO_IN, '-i', j.sfx.file); sfxIdx = idx++; }
   if ((j.originalFx ?? 'normal') === 'estadio') { if (!j.irFile) throw new Error('falta a resposta ao impulso'); inputs.push(...AUDIO_IN, '-i', j.irFile); origIrIdx = idx++; }
   if (j.voice?.fx === 'estadio') { if (!j.irFile) throw new Error('falta a resposta ao impulso'); inputs.push(...AUDIO_IN, '-i', j.irFile); voiceIrIdx = idx++; }
-  const ovIdx = j.overlays.map((o) => { inputs.push('-i', o.file); return idx++; });
+  const ovIdx = j.overlays.map((o) => {
+    inputs.push(...(o.frames?.anim ? ['-protocol_whitelist', 'file', '-format_whitelist', 'mov'] : []), ...(o.frames?.cycle ? ['-stream_loop', '-1'] : []), '-i', o.file);
+    return idx++;
+  });
 
   const g: string[] = [];
   let v: string;
@@ -331,8 +383,20 @@ export function finalArgs(j: FinalJob, graphFile: string): { args: string[]; gra
     v = '[tx]';
   }
   j.overlays.forEach((o, i) => {
-    const when = o.start !== null && o.end !== null ? `:enable='between(t,${n(o.start)},${n(o.end)})'` : '';
-    g.push(`${v}[${ovIdx[i]}:v]overlay=${Math.round(o.x)}:${Math.round(o.y)}:format=auto${when}[o${i}]`);
+    if (o.frames) {
+      // Uma camada do estúdio: a imagem parada, ou o vídeo com alfa posto a começar no frame k0; só entre k0 e k1.
+      const { k0, k1, anim } = o.frames;
+      let src = `[${ovIdx[i]}:v]`;
+      // Um ciclo (um período repetido pelo -stream_loop) corta-se no número de frames da camada.
+      const cut = o.frames.cycle ? `trim=end_frame=${k1 - k0 + 1},` : '';
+      if (anim) { g.push(`${src}${cut}setpts=PTS-STARTPTS+${k0}/(${FPS}*TB)[ly${i}]`); src = `[ly${i}]`; }
+      // A imagem parada repete-se (eof_action=repeat); o vídeo com alfa, quando acaba, deixa passar. O `enable` vai pelo tempo
+      // (meio frame de folga), não pelo `n`: o overlay avalia-o também nos frames da camada, que contam desde 0.
+      g.push(`${v}${src}overlay=${Math.round(o.x)}:${Math.round(o.y)}:format=auto:eof_action=${anim ? 'pass' : 'repeat'}:enable='between(t,${n((k0 - 0.5) / FPS, 4)},${n((k1 + 0.5) / FPS, 4)})'[o${i}]`);
+    } else {
+      const when = o.start !== null && o.end !== null ? `:enable='between(t,${n(o.start)},${n(o.end)})'` : '';
+      g.push(`${v}[${ovIdx[i]}:v]overlay=${Math.round(o.x)}:${Math.round(o.y)}:format=auto${when}[o${i}]`);
+    }
     v = `[o${i}]`;
   });
   g.push(`${v}format=yuv420p[vout]`);

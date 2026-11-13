@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -11,9 +11,10 @@ import { ActivityIndicator } from '@/components/PontoLoader';
 import { StackPage } from '@/components/StackPage';
 import { ApiError, type Post } from '@/lib/api';
 import { soundsApi, type SoundSort } from '@/lib/api.sounds';
+import { goBack } from '@/lib/nav';
 import { sized } from '@/lib/config';
 import { playTrack, stopTrack } from '@/lib/musicPlayer';
-import { isSoundId, mergePages, soundMeta, unavailableText, usesLine, studioHref } from '@/lib/sounds';
+import { isSoundId, mergePages, RETIRE_SOUND_TEXT, RETIRE_SOUND_TITLE, soundMeta, unavailableText, usesLine, studioHref } from '@/lib/sounds';
 import { colors } from '@/lib/theme';
 
 /**
@@ -29,6 +30,7 @@ export default function SoundScreen() {
   const [viewing, setViewing] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const me = useRef(Symbol('som'));
+  const qc = useQueryClient();
   const valid = isSoundId(id);
 
   const sound = useQuery({ queryKey: ['sound', id], queryFn: () => soundsApi.get(id), enabled: valid, retry: false });
@@ -73,6 +75,22 @@ export default function SoundScreen() {
     ]);
   }
 
+  // «Retirar o som» (só o autor): deixa de tocar em todo o lado e o áudio é apagado. Não se desfaz.
+  function retire() {
+    if (!s) return;
+    Alert.alert(RETIRE_SOUND_TITLE, RETIRE_SOUND_TEXT, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Retirar', style: 'destructive', onPress: () => void soundsApi.retire(s.id)
+        .then(() => {
+          stopTrack(me.current);
+          void qc.invalidateQueries({ queryKey: ['sounds'] });
+          Alert.alert('Som retirado', 'Deixou de tocar em todo o lado.');
+          goBack(router, '/settings/sons');
+        })
+        .catch((e) => Alert.alert('Não deu', e instanceof ApiError && e.message ? e.message : 'Tenta outra vez daqui a pouco.')) },
+    ]);
+  }
+
   const cols = 3;
   const cell = Math.floor((Math.min(width, 640) - (cols - 1) * 2) / cols);
   const why = s && !s.canUse ? unavailableText(s.unavailable) : null;
@@ -103,6 +121,11 @@ export default function SoundScreen() {
         <Text style={st.useText}>Usar este som</Text>
       </Pressable>
       {why ? <Text style={st.why}>{why}</Text> : null}
+      {s.kind === 'original' && s.mine ? (
+        <Pressable onPress={retire} hitSlop={8} style={{ alignSelf: 'center', paddingVertical: 6 }} accessibilityRole="button">
+          <Text style={{ color: colors.red600, fontSize: 13, fontWeight: '700' }}>Retirar o som</Text>
+        </Pressable>
+      ) : null}
       {s.kind === 'original' && !s.mine ? (
         <Pressable onPress={report} hitSlop={8} style={{ alignSelf: 'center', paddingVertical: 6 }} accessibilityRole="button">
           <Text style={{ color: colors.zinc500, fontSize: 13, fontWeight: '600' }}>Denunciar este som</Text>

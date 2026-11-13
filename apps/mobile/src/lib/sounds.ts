@@ -90,3 +90,44 @@ export function reuseSetting(s: { reuse: boolean; effective: boolean; private: b
   if (s.minor) return { on: false, disabled: true, description: 'Só contas de maiores de 18 anos (com a data de nascimento indicada) podem deixar usar o seu som.' };
   return { on: s.reuse, disabled: false, description: 'Outras pessoas podem usar o som das tuas tchekas nas delas, com o teu nome no som. Desligado, as que já o usam continuam.' };
 }
+
+/** O contacto para contestar uma decisão sobre um som (ainda não há formulário na Ajuda). */
+export const SOUND_SUPPORT = 'suporte@txillapp.com';
+
+/** «Retirar o som»: o aviso antes de confirmar. */
+export const RETIRE_SOUND_TITLE = 'Retirar o som?';
+export const RETIRE_SOUND_TEXT = 'As tchekas que usam este som ficam sem som. Não dá para desfazer.';
+
+/** Uma tcheka que usava um som que foi tirado (`post.soundRemoved`): a linha no lugar do som. */
+export function soundRemovedText(why: string | null | undefined): string | null {
+  if (why === 'author') return 'Som retirado pelo autor';
+  if (why === 'rights') return 'Som retirado por direitos de autor';
+  return null;
+}
+
+/** O estado de um som meu (GET /sounds/me), numa frase, e se ainda o posso retirar. */
+export function mySoundStatus(s: { status: 'active' | 'held' | 'source_removed' | 'removed'; removedBy?: string | null }): { text: string; canRetire: boolean } {
+  switch (s.status) {
+    case 'held': return { text: 'Em análise: ninguém o pode usar em tchekas novas', canRetire: true };
+    case 'source_removed': return { text: 'Apagaste a tcheka de onde saiu: continua a tocar nas que já o usam', canRetire: true };
+    case 'removed': return { text: s.removedBy === 'author' ? 'Retiraste este som' : 'Retirado pela equipa por direitos de autor', canRetire: false };
+    default: return { text: 'Ativo', canRetire: true };
+  }
+}
+
+/** O aviso do Txillapp sobre um som meu (kind 'sound_review'): o texto, o motivo e o que posso fazer. */
+export interface SoundReviewData { soundId?: string; decision?: string; reason?: string; note?: string; postId?: string }
+export function soundReviewVerb(d: SoundReviewData): { text: string; sub?: string } {
+  const why = [d.reason?.trim() ? `Motivo: ${d.reason.trim()}.` : '', d.note?.trim() ? `Nota da equipa: ${d.note.trim()}.` : ''].filter(Boolean).join(' ');
+  const contest = `Se o som é teu ou tens autorização, escreve para ${SOUND_SUPPORT} com o assunto «Contestar som».`;
+  switch (d.decision) {
+    case 'held': return { text: 'suspendeu o teu som enquanto analisa uma denúncia: ninguém o pode usar em tchekas novas', sub: [why, contest].filter(Boolean).join(' ') };
+    case 'removed': return { text: 'retirou o teu som: deixou de tocar em todas as tchekas', sub: [why, contest].filter(Boolean).join(' ') };
+    case 'restored': return { text: 'repôs o teu som: voltou a tocar e a poder ser usado' };
+    case 'cleared': return { text: 'analisou a denúncia do teu som: voltou a poder ser usado' };
+    default: return { text: 'tem novidades sobre o teu som' };
+  }
+}
+/** Para onde leva: a página do som (se ainda existe) ou «Os meus sons». */
+export const soundReviewTarget = (d: SoundReviewData) =>
+  d.decision === 'removed' || !d.soundId || !isSoundId(d.soundId) ? '/settings/sons' : soundHref(d.soundId);

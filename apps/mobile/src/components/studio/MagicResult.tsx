@@ -53,7 +53,8 @@ export function MagicResult({ result, musicUrl, locked, onToggleLock, onAnother,
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 150 + bottomInset }} showsVerticalScrollIndicator={false}>
+      {/* A barra dos botões fica por baixo da lista (não por cima): as legendas dos planos nunca ficam tapadas. */}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
         <View style={st.stage}>
           <View style={st.frame}>
             <MagicPreview result={result} playing={playing && !busy} musicUrl={musicUrl} onClip={setNow} style={{ width: '100%' }} />
@@ -106,7 +107,8 @@ export function MagicResult({ result, musicUrl, locked, onToggleLock, onAnother,
       </ScrollView>
 
       <View style={[st.bar, { paddingBottom: 16 + bottomInset }]}>
-        <LinearGradient pointerEvents="none" colors={['rgba(8,8,12,0)', 'rgba(8,8,12,0.96)', mg.bg]} locations={[0, 0.2, 1]} style={StyleSheet.absoluteFill} />
+        {/* A lista esbate-se antes da barra (nada cortado a seco). */}
+        <LinearGradient pointerEvents="none" colors={['rgba(8,8,12,0)', mg.bg]} style={{ position: 'absolute', left: 0, right: 0, top: -32, height: 32 }} />
         <MagicCta kind="glass" label="Outra versão" onPress={onAnother} disabled={busy} icon={<Shuffle size={20} color="#fff" strokeWidth={2.4} />} style={{ flex: 1.3 }} testID="outra-versao" a11y="Outra versão da montagem" />
         <MagicCta label="Afinar" onPress={onTune} disabled={busy} icon={<SlidersHorizontal size={20} color="#fff" strokeWidth={2.4} />} style={{ flex: 1 }} testID="afinar" a11y="Afinar na linha do tempo" />
       </View>
@@ -120,7 +122,7 @@ const st = StyleSheet.create({
   title: { color: '#fff', fontSize: 22, fontWeight: '900', letterSpacing: -0.3 },
   sub: { color: mg.coralHot, fontSize: 15, fontWeight: '700', marginTop: 1 },
   stage: { flexDirection: 'row', gap: 14, paddingHorizontal: 16, alignItems: 'stretch' },
-  frame: { width: '62%', borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: mg.line, backgroundColor: '#000', boxShadow: '0 18px 50px rgba(0,0,0,0.6), 0 0 44px rgba(255,92,108,0.2)' },
+  frame: { width: '54%', borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: mg.line, backgroundColor: '#000', boxShadow: '0 18px 50px rgba(0,0,0,0.6), 0 0 44px rgba(255,92,108,0.2)' },
   playBig: { position: 'absolute', alignSelf: 'center', top: '42%', width: 76, height: 76, borderRadius: 38, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: mg.line },
   playSmall: { position: 'absolute', left: 10, bottom: 10 },
   side: { flex: 1, gap: 8, alignItems: 'flex-start', paddingTop: 4 },
@@ -137,5 +139,5 @@ const st = StyleSheet.create({
   lockOn: { backgroundColor: mg.coral, borderColor: '#fff' },
   why: { color: mg.muted, fontSize: 14, lineHeight: 18, marginTop: 6 },
   hint: { color: mg.muted, fontSize: 14, lineHeight: 19, paddingHorizontal: 16, marginTop: 14 },
-  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingTop: 34 },
+  bar: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingTop: 12 },
 });

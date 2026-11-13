@@ -31,11 +31,15 @@ Código: `apps/api/src/compose/` (módulo `ComposeModule`). Migração: `0136_mo
     speed?: 0.5 | 1 | 2 | 3,      // vídeos: a 2× fica com metade da duração (o som acompanha, com atempo)
     durationMs?: number,          // fotos sem ritmo: 300 a 10 000 (por omissão 3000)
     beats?: 1 | 2 | 4,            // fotos ao ritmo: batidas no ecrã (por omissão beats.perPhoto)
+    id?: string,                  // a chave do clipe no estúdio (para o `freeze.from`)
+    fx?: ClipFx,                  // os efeitos do estúdio: filtro, ajustes, transição, rampa, inverter, congelar, enquadramento, moldura (4-B)
+    sound?: boolean,              // vídeos: «Som do vídeo» ligado (por omissão) ou calado
+    volume?: 0..1,                // vídeos: o volume deste clipe, por cima do originalVolume (por omissão 1)
   }],
   sound?: { kind: 'music', music: Faixa }   // a faixa da interface comum (docs/musica.md): catálogo, `local` ou `clip`
         | { kind: 'sound', soundId: string }, // «Usar este som» (docs/sons.md): som original (uuid), 'cat:<faixa>' ou 'local:<uuid>'
-  originalVolume?: 0..1,          // o som dos vídeos; por omissão 1, 0,4 com música e 0 com um som (como o estúdio)
-  musicVolume?: 0..1,             // a música/o som (e, no dueto, o som do original); por omissão 1
+  originalVolume?: 0..1,          // o som dos vídeos; por omissão 1, e 0 com um som de outra tcheka (como o estúdio)
+  musicVolume?: 0..1,             // a música/o som (e, no dueto, o som do original); por omissão 1, e 0,7 com música e vídeos
   musicStartMs?: number,          // onde começa o trecho da música (ms na faixa, escolhido pela onda); por omissão 0
   musicFadeInMs?: 0..3000,        // fade-in da música (afade, a direito); por omissão 0
   musicFadeOutMs?: 0..3000,       // fade-out da música, até ao fim da tcheka; por omissão 0
@@ -61,6 +65,8 @@ Código: `apps/api/src/compose/` (módulo `ComposeModule`). Migração: `0136_mo
     startMs?: number, endMs?: number,  // por omissão de 0 a 4 s; entra em 0,45 s a subir e sai em 0,4 s (textAlpha)
   }],
   stickers?: [{ id, x, y, s, r, startMs?, endMs? }],  // até 12; o mesmo formato dos mimos (stories/stickers.ts), com tempo opcional
+  overlays?: Overlay[],           // os textos e stickers do estúdio, até 20 (secção 4-B e docs/estudio-efeitos.md)
+  pano?: { pattern, palette, seed },  // o pano de capulana da tcheka (o das transições de pano sem pano próprio); por omissão losangos/coral/1
   coverMs?: number,               // a capa (por omissão 500 ms, como o estúdio)
   duet?: { postId: string, layout: 'side' },
 }
@@ -178,6 +184,96 @@ só, sem dependências: `apps/mobile/src/lib/studio/audioDsp.ts`, com a **cópia
   pelo `atempo` (mais limpo); o ducking no browser segue as falas detetadas, no servidor o compressor segue o nível da voz
   (numa voz muito alta desce um pouco mais, numa muito baixa um pouco menos).
 
+### 4-A2. O som por clipe
+
+Como o «Som do vídeo» do estúdio integrado: cada vídeo pode ir calado (`sound: false`) ou com o volume dele (`volume`, por cima
+do `originalVolume`); aplica-se no som de cada clipe (`volume` no 1.º passo; calado, silêncio). Um vídeo calado **não conta como
+som** nas regras (como no `tchekaRules.ts`, `hasAudio: false`): todos calados e sem música dá «Os vídeos não têm som: escolhe
+uma música ou um som». Em fotos, `sound`/`volume` dão 400. Os volumes por omissão são os do estúdio: o som dos vídeos a 100 % (0
+com um som de outra tcheka) e a música a 70 % quando há vídeos (antes era 40 %/100 %).
+
+### 4-B. Os efeitos do estúdio (filtros, transições, rampas, texto e stickers)
+
+O estúdio do site desenha os efeitos num canvas (docs/estudio-efeitos.md). O servidor recebe **o mesmo JSON** (o `fx` de
+cada clipe e as `overlays`, v1) e dá o mesmo vídeo. As contas não se copiam à mão: `compose/effects.ts`,
+`compose/renderOverlays.ts`, `compose/renderTransitions.ts` e os panos de capulana (`capulana.ts`, `capulanaShapes.ts`,
+`capulanaRender.ts`) são **cópias inteiras** de `apps/mobile/src/lib/studio/`, e as
+fontes de `apps/api/assets/fonts/estudio` são os mesmos woff2 do site. `effects-sync.spec.ts` compara os ficheiros e as fontes,
+como o `rules-sync.spec.ts`. O desenho corre num **canvas do Node** (`@napi-rs/canvas`, o Skia, com binários prontos para
+linux-x64 glibc/musl e Windows), em `compose/studio-canvas.ts`.
+
+**O pedido.** Cada clipe pode levar `id` (a chave, para o `freeze.from`) e `fx`; no topo vão as `overlays` (até 20). Com `fx`
+em algum clipe, ou com `overlays`, a tcheka fica no **modo estúdio**: cada clipe leva a transição dele (sem `transition`, o
+fundido de 0,5 s, como no site) e o `transition`/`filter` de sempre dão 400 («Com os efeitos do estúdio (fx), a transição e o
+filtro vão em cada clipe»). Os `texts` e `stickers` de antes continuam a funcionar.
+
+```ts
+clips[i].fx?: {
+  filter?: { id: 'matapa' | 'costa-do-sol' | … (os 16), amount?: 0..1 },          // amount por omissão 1
+  adjust?: { brightness?, contrast?, saturation?, temperature?, hue?: -1..1, sharpen?, vignette?, grain?: 0..1 },
+  transition?: { type: 'corte' | 'fundido' | 'deslizar-esquerda' | 'deslizar-direita' | 'deslizar-cima' | 'deslizar-baixo'
+                     | 'zoom' | 'desfoque' | 'girar' | 'flash' | 'brilho' | 'glitch', dur?: 0.15..1.5 },  // a que entra neste clipe
+  ramp?: 'montaria' | 'heroi' | 'bala' | 'flash',   // só vídeos
+                     | 'capulana-deslizar' | 'capulana-desenrolar' | 'capulana-rasgar' | 'capulana-losango' | 'capulana-vento',
+                 pano?: Pano },                      // nas de capulana: o pano (sem ele, o `pano` da tcheka)
+  reverse?: boolean,                                 // só vídeos, corte até 15 s (REVERSE_MAX_S)
+  freeze?: { from: string, at: number },             // só fotos: a foto enviada é o frame congelado (fica parada, sem zoom)
+  focus?: { x, y, from, to, keep? },                 // só fotos: o enquadramento (o zoom lento de `from` a `to` apontado a x, y)
+  moldura?: Pano,                                    // só fotos: a foto inteira numa moldura deste pano de capulana
+}
+overlays?: Overlay[]   // texto (fonte, estilo, animação, posição, rotação, escala, início e fim) ou sticker
+                       // (emoji, txill, gif, mention, location, time, capulana), com os campos de docs/estudio-efeitos.md, 5;
+                       // o texto pode levar `pano` (as letras cheias de pano) e `bg: 'pano'` (a faixa de capulana)
+```
+
+- Validado com zod (`compose.schema.ts`): ids conhecidos, limites do contrato (transição 0,15 a 1,5 s, animações 0,05 a 3 s,
+  escala 0,1 a 8, rotação ±360°, tempos 0 a 61 s, texto até 200 letras, fonte de 24 a 300 px, `end > start`); depois passa
+  pelo `sanitizeOverlay`/`sanitizeFx` do estúdio (os mesmos arredondamentos do site). O sticker de emoji só leva emojis; o
+  do Txillapp tem de existir (`STICKER_ART`); os **GIFs só do GIPHY** (`giphyMediaUrl`, o mesmo de `/api/v1/gifs`, do chat e
+  dos comentários: https, `media*.giphy.com`, o id no caminho, medidas razoáveis), e descarregam-se só de lá (também nos
+  redireccionamentos), até 8 MB. Os textos, os locais e as menções passam pelo `TextFilter` (422).
+- Erros novos: «A rampa e o inverter são só para vídeos», «Um frame congelado vai como uma foto», «O frame congelado tem de
+  vir de um clipe desta tcheka» (quando os clipes têm `id`), «Para inverter, o clipe pode ter até 15 s», «Transição
+  desconhecida», «A transição dura de 0,15 a 1,5 s», «Filtro desconhecido», «O ajuste Contraste vai de -1 a 1», «Fonte
+  desconhecida», «A camada tem de sair depois de entrar», «No máximo 20 textos e stickers», «O GIF tem de vir do GIPHY», «O
+  sticker de emoji só leva emojis», «Sticker desconhecido».
+- Durações e regras como no estúdio: um vídeo com rampa dura `fxSeconds` (o corte ÷ velocidade ÷ média da rampa); um vídeo
+  ao contrário fica calado e não conta para o som obrigatório.
+
+**Como se faz cada efeito** (no 1.º passo, clipe a clipe, salvo as camadas):
+
+| Efeito | No servidor | Igual ao site? |
+|---|---|---|
+| Filtro e ajustes de cor | `cubeLut(matriz, 33)` (gerada de `resolveFx`, effects.ts) num `.cube` e `lut3d` (trilinear: para uma matriz afim dá o mesmo que a tetraédrica do contrato, com o mesmo ΔE, e gasta menos de metade do CPU, porque o `lut3d` de 8 bits do ffmpeg 6 não tem SIMD) | **igual**: ΔE76 médio 0,2 a 0,7 por filtro contra a fórmula do site (`fx-pixels.spec.ts`, percentil 99 até 1,9), 1,1 no vídeo final (máximo 1,4) depois de duas codificações H.264 e do 4:2:0 |
+| Nitidez | `convolution` 3×3 com o núcleo do shader | **igual** (no mesmo teste de ΔE) |
+| Vinheta | `vignette` em RGB (gbrp), a mesma fórmula cos⁴, com um `format=gbrp` a seguir (`serverFxChain`: sem ele, o `format=yuv420p` seguinte puxa a vinheta para YUV, onde escurece muito mais) | **igual** (idem) |
+| Grão | `noise` na luminância | parecido (aleatório nos dois lados) |
+| Rampa | os bocados de `rampPieces` (0,1 s), com os vizinhos à mesma velocidade juntos, num `setpts` só (cada frame da fonte vai para o instante do estúdio) e, no som, `atrim` + `atempo` por bocado e `concat` | **igual** na duração e no tempo (até 0,1 s de degrau na curva, como diz o contrato) |
+| Inverter | o corte, já no quadro, ao contrário aos bocados de 2 s (1 s com velocidade acima de 1×, tirado a 60 fps), do fim para o início (`reverse`; ~190 MB por bocado em vez do clipe todo em memória), junto com o concat; depois monta-se como um vídeo normal (com rampa e velocidade). Sem som | igual (melhor: o site tira 24 frames/s a 960 px) |
+| Congelar | uma foto (o frame que a app tirou), com o filtro e os ajustes, sem zoom | igual |
+| Transições (as 11) | **o mesmo `drawTransition` do site no canvas do Node**: o último frame do clipe anterior (já com os efeitos) e os primeiros frames deste (o ffmpeg dá-os em RGBA, só esses), `p = t/dur` com o `easeInOutCubic` do site; os frames desenhados codificam-se num bocado H.264 que entra no concat antes do resto do clipe. Como os clipes já não dependem uns dos outros, no modo estúdio montam-se **2 de cada vez** (`STUDIO_CLIPS_AT_ONCE`: o grafo de filtros de cada ffmpeg corre num fio) e cada transição desenha-se logo que os dois lados estão prontos | **igual**: diferença média de 0,7 a 2 níveis (0–255) contra o desenho do site no teste. O `xfade` não serve para nenhuma: tem a curva linear (o deslizar a ¼ fica 200 px ao lado) e não tem desenho para girar, brilho, glitch nem desfoque. ~25 ms por frame de 1080×1920 (15 frames numa transição de 0,5 s) |
+| Texto e stickers | **o mesmo `drawOverlays` do site no canvas do Node**, cada camada na caixa dela (o círculo que a contém em qualquer rotação, com a escala máxima das animações e a margem do néon e das sombras): onde está parada, **um PNG só** (`overlay` com `enable` no tempo dela); onde se mexe (entrada e saída), os frames a 30 fps num **vídeo com alfa** (qtrle em .mov) posto no frame em que começa; em ciclo (pulsar, balançar), **um período só** (25 e 100 frames: o desenho repete-se igual) que o ffmpeg repete com `-stream_loop`. As camadas desenham-se ao mesmo tempo que o ffmpeg monta os clipes | **igual** (diferença média ~2 níveis no texto néon a entrar e parado) |
+| Transições de pano (as 5 `capulana-*`) | o `drawCapulanaTransition` do site (`capulanaRender.ts`) no mesmo sítio das outras, com o pano da transição ou o da tcheka | **igual**: 0,8 a 1,6 níveis nas pontas e ~5 a meio, quando o pano enche o ecrã (o detalhe fino dele sofre com o 4:2:0 e o H.264) |
+| Moldura de capulana | os frames da foto desenham-se no canvas com o `drawCapulanaFrame` do site (a foto inteira até 1440 px, com o filtro e os ajustes só nela, e o zoom lento dentro da moldura) e entram no ffmpeg pelo stdin | **igual** (diferença média 2 níveis); o grão da foto fica parado |
+| Enquadramento (`focus`) | o retângulo de `coverRect` (cópia da conta de `lib/studio/magic.ts`, em `fx.ts`) a encher o quadro, frame a frame no canvas; a cor depois, no ffmpeg | **igual** |
+| Letras de pano, faixa de pano e sticker de pano | o `drawOverlays` do site (com o canvas de trabalho para as letras) | **igual** (2,5 a 6,6 níveis: o pano tem detalhe fino) |
+| Emoji | a fonte de emojis do sistema: Noto Color Emoji na imagem Docker (`fonts-noto-color-emoji`), Segoe UI Emoji no Windows | o desenho de cada emoji é o da fonte (no iPhone/Mac o site usa a da Apple) |
+| Sticker do Txillapp | a arte (`STICKER_ART`, a mesma de `lib/stickers.ts`) em PNG pelo sharp, à escala máxima da camada | igual |
+| GIF | descarregado do GIPHY; o GIF lê-se com o ffmpeg em ciclo (`-ignore_loop 0`), a 30 fps e já à largura da camada, e cada frame entra no `drawOverlays` (escalado e rodado pelo desenho, como no site); o WebP animado lê-se pelo sharp (o ffmpeg 6 não o lê) | igual no desenho; o GIF começa no 1.º frame quando a camada entra (no site depende de quando a imagem carregou) |
+
+- O que fica por cima, pela ordem: os textos e stickers de antes, as camadas do estúdio (pela ordem da lista) e a assinatura.
+- **Na imagem Docker** (`docker build -f apps/api/Dockerfile .`): o `@napi-rs/canvas` entra com o binário de linux-x64-gnu, as fontes
+  em `apps/api/assets/fonts/estudio` e os emojis pelo pacote `fonts-noto-color-emoji`. Lá o ffmpeg do `ffmpeg-static` é o 7.0.2
+  (no Windows de desenvolvimento, o 6.1): a cadeia de cor dá o mesmo que a fórmula do site nos dois, e uma montagem com
+  transições, camadas, GIF, rampa e inverter corre dentro do contentor. O aviso «Fontconfig error: Cannot load default config
+  file» desse ffmpeg não tem efeito (as fontes vão sempre por ficheiro).
+- Uma camada que só aparece depois do fim não se desenha; as que passam do fim cortam-se.
+- O `enable` das camadas vai pelo tempo (com meio frame de folga) e não pelo `n`: no `overlay`, o `enable` também se avalia nos
+  frames da camada, que contam desde 0.
+- **Dueto**: os efeitos de cor e as transições fazem-se no quadro da pessoa (540×960); as camadas por cima do vídeo inteiro.
+  O site desenha a transição no quadro inteiro e volta a pôr o original por cima: aqui a transição fica dentro do quadro da
+  pessoa (parecido, não igual).
+
 ## 5. Fila e limites
 
 - Fila em memória, **1 trabalho de cada vez** (`COMPOSE_CONCURRENCY`, 1 ou 2), o ffmpeg com **prioridade baixa** (nice 10).
@@ -193,13 +289,19 @@ só, sem dependências: `apps/mobile/src/lib/studio/audioDsp.ts`, com a **cópia
 
 Numa máquina de desenvolvimento (Windows 11, 12 CPUs, 16 GB), com conteúdo realista: vídeos 1080×1920 a 30 fps com movimento
 e som, fotos, `fade`, filtro `quente`, 2 textos, 1 sticker e música (`src/compose/compose.bench.spec.ts`,
-`COMPOSE_BENCH=1 npx jest --runInBand src/compose/compose.bench`):
+`COMPOSE_BENCH=1 [COMPOSE_THREADS=6] npx jest --runInBand src/compose/compose.bench`):
 
 | Tcheka | Total | Ficheiros | Clipes | Final |
 |---|---|---|---|---|
 | 15 s (2 vídeos de 6 s + 1 foto) | **10 a 14 s** | 0,4 s | 5,0 a 8,4 s | 4,4 a 4,8 s |
 | 60 s (8 vídeos de 6 s + 4 fotos) | **43 s** (56 s com outra carga na máquina) | 1,0 s | 23 a 31 s | 18 a 23 s |
+| 30 s **com os efeitos do estúdio todos** (secção 4-B: 4 vídeos + 2 fotos, filtro e ajustes em todos, uma rampa, um invertido, 5 transições do canvas, 3 textos animados, emoji a pulsar, local, hora, sticker do Txillapp e um GIF), com `COMPOSE_THREADS=6` | **35 a 41 s** (51 a 60 s com outra carga na máquina); com um pano a desenrolar, uma moldura, uma faixa e um sticker de pano, **36 a 43 s** | 0,5 s | 24 a 28 s (com as camadas, 8 a 12 s, ao mesmo tempo; transições 3,5 a 5 s; inverter 1,4 a 4 s) | 11 a 13 s |
 
+- Com os efeitos do estúdio, **1,2 a 1,35 s de trabalho por segundo de tcheka** nesta máquina (contra 0,82 s/s da tcheka de 15
+  s de sempre na mesma medição, a 12,2 s). O que pesa é a cor no ffmpeg (o `lut3d` e a `vignette` correm a 8 bits sem SIMD: ~25
+  ms por frame de 1080×1920) e as camadas em vídeo. Num servidor de 6 núcleos contar com 1,5 a 2 vezes mais (uma tcheka de 30 s
+  com tudo em ~1 a 1,5 min, de 60 s em ~2 a 3 min, dentro do prazo de 480 s). Memória: os ffmpeg juntos até ~0,9 GB (dois clipes
+  ao mesmo tempo e o codificador das camadas).
 - Ou seja, cerca de **0,7 a 0,9 s de trabalho por segundo de tcheka** com 12 núcleos; o ffmpeg chegou a ~0,7 GB de memória (com
   todos os fios). Numa máquina de 4 vCPU contar com 2 a 3 vezes mais (uma tcheka de 60 s em ~2 a 2,5 min).
 - Com `COMPOSE_CONCURRENCY=1`, um servidor dá umas 60 a 80 tchekas de 60 s por hora (12 núcleos); as de 15 s, 4 vezes mais.
@@ -212,9 +314,10 @@ e som, fotos, `fade`, filtro `quente`, 2 textos, 1 sticker e música (`src/compo
   uma fila partilhada (Redis, como o TODO da fase 3 no `ThrottlerModule`).
 - **Cancelar** uma montagem a meio (não há `DELETE`); o vídeo final que não chegue a ser publicado fica como os outros envios por
   publicar (não há limpeza dos órfãos).
-- O texto parte-se em linhas por uma largura média da letra (não mede); a caixa do texto não tem cantos redondos; emojis saem.
-- O sticker «personagem» do estúdio (a saltitar no canto) não existe aqui: os stickers são os dos mimos, parados, com tempo.
-- `slide` desliza a direito (o estúdio faz com abrandamento no fim).
+- Os `texts`, `stickers`, `transition` e `filter` de antes (sem `fx` nem `overlays`): o texto parte-se em linhas por uma
+  largura média da letra (não mede), a caixa não tem cantos redondos, os emojis saem, os stickers ficam parados e o `slide`
+  desliza a direito. Com os efeitos do estúdio (secção 4-B) tudo isto é o desenho do site.
+- O sticker «personagem» do estúdio (a saltitar no canto) não existe aqui.
 - A verificação de nudez não volta a correr no vídeo final: as fotos e os vídeos já foram verificados no envio, e o resto (texto,
   stickers, assinatura) é nosso.
 - A exportação de dados da conta não inclui os jobs (são temporários e apagam-se aos 7 dias).
@@ -223,6 +326,17 @@ e som, fotos, `fade`, filtro `quente`, 2 textos, 1 sticker e música (`src/compo
 - O estúdio nativo (`TchekaStudio.native.tsx`) manda o pedido completo, com o som, os efeitos e as camadas: ver docs/estudio-nativo.md.
 
 ## 8. Testes
+
+- Os efeitos do estúdio (secção 4-B): `effects-sync.spec.ts` (as cópias, os panos de capulana com as impressões digitais de
+  `apps/mobile/tests/fixtures/capulana-hashes.json` e as fontes iguais às do site); os e2e «capulana: …» (um pano a meio da
+  transição, a moldura, as letras, a faixa e o sticker de pano contra o desenho do site, e o enquadramento) e «som por clipe»; `fx.spec.ts` (a rampa
+  num `setpts`, os bocados do inverter, as partes paradas e animadas de cada camada, a caixa de cada camada tem tudo o que ela
+  desenha, os argumentos do ffmpeg); `fx-pixels.spec.ts` (o ΔE de cada filtro, píxel a píxel, contra a fórmula do site);
+  e no `compose.e2e.spec.ts` os testes «efeitos: …», verificados com o ffprobe e com amostras de píxeis: um filtro (ΔE no
+  vídeo final) e um ajuste (brilho e vinheta), a rampa (duração), inverter (as cores ao contrário e o som calado), 3
+  transições (fundido, deslizar e glitch) contra o desenho do site e sem mudar a duração, um texto néon a entrar (antes, a
+  entrar e parado, contra o desenho do site), um emoji e um GIF a mexer-se (servido por um `fetcher` falso como se viesse do
+  GIPHY), e as validações e o filtro de texto nas camadas.
 
 - `compose.e2e.spec.ts`: 3 fotos com música (ffprobe: duração, 1080×1920, H.264/AAC a 30 fps, faststart, capa, `signed`, publicar
   com `POST /posts`); ao ritmo (deteção das batidas); vídeo cortado a 2× com P&B; texto com tempo (píxeis antes, durante e

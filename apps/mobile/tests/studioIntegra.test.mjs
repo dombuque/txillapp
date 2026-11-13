@@ -85,8 +85,18 @@ test('o som de cada vídeo: ligado por omissão, desligado não conta para o som
 
 test('telemóvel: o estúdio cobre o ecrã (100dvh), a folha dos painéis tem altura fixa e fecha no separador escolhido', () => {
   assert.match(studio, /position: 'fixed', left: 0, top: 0, right: 0, height: '100dvh'/);
-  assert.match(studio, /\{ height: sheetOpen \? sheetH : 0 \}/);
-  assert.match(studio, /if \(id === tab\) setSheetOpen\(\(o\) => !o\)/);
+  // A folha: fechada, média (38%) e alta (72%, com a linha do tempo sempre à vista), com a pega para arrastar.
+  assert.match(studio, /useState<'closed' \| 'mid' \| 'high'>\('mid'\)/);
+  assert.match(studio, /Math\.max\(250, Math\.round\(win\.height \* 0\.38\) - SHEET_HEAD\)/);
+  assert.match(studio, /const dense = !wide && sheetH > 0;/, 'com a folha aberta: linha do tempo densa e sem a barra do tempo duplicada');
+  assert.match(studio, /\{dense \? null : \(\n\s+<View style=\{\[st\.controls,/);
+  assert.match(read('components', 'studio', 'Timeline.tsx'), /const TRACK_H = dense \? 48 : TRACK_H0;/);
+  assert.match(studio, /win\.height \* 0\.72/);
+  assert.match(studio, /if \(id === tab\) setSheet\(\(s\) => \(s === 'closed' \? 'mid' : 'closed'\)\)/);
+  assert.match(studio, /onPointerDown: onGrab/);
+  assert.match(studio, /st\.moreFade/, 'um degradê quando há mais para rolar');
+  assert.match(read('components', 'studio', 'TimelineActions.tsx'), /gridTemplateColumns: 'repeat\(3, minmax\(0, 1fr\)\)'/, 'as seis ações em duas linhas de três');
+  assert.doesNotMatch(read('components', 'studio', 'MagicResult.tsx'), /bar: \{ position: 'absolute'/, 'a barra do resultado não tapa as legendas');
   assert.match(studio, /compact=\{!wide\}/, 'a linha do tempo compacta no telemóvel');
   assert.match(studio, /tabBtn: \{ paddingHorizontal: 8, minHeight: 44,/);
 });

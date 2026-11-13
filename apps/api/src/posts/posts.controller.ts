@@ -242,6 +242,14 @@ export class PostsController {
     return this.posts.removeOwn(req.userId!, id);
   }
 
+  /** O autor da tcheka original retira um dueto feito com ela (o dueto fica escondido para todos e o dono é avisado). */
+  @Post(':id/duet-takedown')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 30, ttl: 3_600_000 } })
+  async takeDownDuet(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
+    await this.posts.takeDownDuet(req.userId!, id);
+  }
+
   @Delete(':id/tags/me')
   untagMe(@Req() req: AuthedReq, @Param('id', ParseUUIDPipe) id: string) {
     return this.posts.untagMe(req.userId!, id);

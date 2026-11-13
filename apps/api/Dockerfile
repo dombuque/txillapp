@@ -22,8 +22,9 @@ ENV NODE_ENV=production \
     MEDIA_DIR=/data/uploads \
     MODEL_CACHE_DIR=/data/models
 WORKDIR /app
-# Letras para a assinatura (@) gravada nas fotos e vídeos que as pessoas guardam.
-RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
+# Letras para a assinatura (@) gravada nas fotos e vídeos que as pessoas guardam, e os emojis dos stickers das tchekas
+# montadas no servidor (o canvas do Node, @napi-rs/canvas, desenha-os com a Noto Color Emoji: docs/montagem.md).
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core fonts-noto-color-emoji && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/node_modules node_modules
 # Versões que só uma workspace usa ficam em apps/api/node_modules (o Elasticsearch 8, por exemplo).
 COPY --from=build /app/apps/api/node_modules apps/api/node_modules
@@ -33,7 +34,8 @@ COPY --from=build /app/packages/shared/dist packages/shared/dist
 COPY --from=build /app/apps/api/package.json apps/api/package.json
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/migrations apps/api/migrations
-# A letra do texto das tchekas montadas no servidor (docs/montagem.md).
+# As letras do texto das tchekas montadas no servidor (DejaVu e as fontes do estúdio em assets/fonts/estudio: docs/montagem.md).
+# O canvas do Node (@napi-rs/canvas) vem em node_modules com o binário de linux-x64-gnu (glibc, como esta imagem).
 COPY --from=build /app/apps/api/assets apps/api/assets
 # Pastas de dados (montadas como volumes): ficheiros enviados e modelo de verificação de fotos.
 RUN mkdir -p /data/uploads /data/models && chown -R node:node /data

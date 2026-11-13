@@ -17,7 +17,7 @@ export type FxTarget = number | 'all';
 export interface ReverseState { status: 'ready' | 'working' | 'too-long' | 'error' | null; progress: number }
 
 type Sub = 'filtros' | 'ajustes' | 'transicoes' | 'tempo';
-const SUBS: { id: Sub; label: string }[] = [{ id: 'filtros', label: 'Filtros' }, { id: 'ajustes', label: 'Ajustes' }, { id: 'transicoes', label: 'Transições' }, { id: 'tempo', label: 'Tempo' }];
+const SUBS: { id: Sub; label: string }[] = [{ id: 'filtros', label: 'Filtros' }, { id: 'ajustes', label: 'Ajustes' }, { id: 'transicoes', label: 'Transição' }, { id: 'tempo', label: 'Tempo' }];
 const ADJ_ICON: Record<AdjustKey, IconName> = { brightness: 'sun', contrast: 'moon', saturation: 'water', temperature: 'flame', hue: 'sparkles', sharpen: 'bolt', vignette: 'eye', grain: 'grid' };
 const TR_GLYPH: Partial<Record<TransitionId, string>> = {
   corte: '✂', fundido: '◐', 'deslizar-esquerda': '←', 'deslizar-direita': '→', 'deslizar-cima': '↑', 'deslizar-baixo': '↓',
@@ -26,7 +26,7 @@ const TR_GLYPH: Partial<Record<TransitionId, string>> = {
 const pct = (v: number) => `${v > 0 ? '+' : ''}${Math.round(v * 100)}`;
 
 /** O separador «Efeitos»: filtros com miniaturas ao vivo, ajustes, transições por junção e o tempo (rampas, inverter, congelar). */
-export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, onPreviewJunction, onFreeze, freezing, reverseOf }: {
+export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, onPreviewJunction, onFreeze, freezing, reverseOf, hideClips }: {
   clips: FxClip[];
   sel: number;
   onSelect: (i: number) => void;
@@ -40,6 +40,8 @@ export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, 
   onFreeze: () => void;
   freezing: boolean;
   reverseOf: (key: string) => ReverseState;
+  /** No telemóvel: sem a fila dos clipes (escolhe-se o clipe na linha do tempo, que está sempre à vista). */
+  hideClips?: boolean;
 }) {
   const [sub, setSub] = useState<Sub>('filtros');
   const [adj, setAdj] = useState<AdjustKey>('brightness');
@@ -72,7 +74,7 @@ export function FxPanel({ clips, sel, onSelect, setFx, grab, playing, frameKey, 
   return (
     <View>
       <FxSegment items={SUBS} value={sub} onChange={setSub} />
-      {clips.length > 1 ? clipBar : null}
+      {clips.length > 1 && !hideClips ? clipBar : null}
 
       {sub === 'filtros' ? (
         <>
