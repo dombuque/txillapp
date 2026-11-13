@@ -74,7 +74,7 @@ export interface ClipSound { key: string; label: string; on: boolean; volume: nu
 /**
  * O separador «Som» no telemóvel: a música e o trecho pela onda (a onda lê-se do MP3; sem ela, escolhe-se pelo tempo), a
  * mistura (o som dos vídeos e de cada vídeo, a música, os fades, o ducking e os efeitos sonoros), a voz-off, os efeitos de voz
- * e sonoros, e os moldes de ritmo. Os efeitos de voz ouvem-se no vídeo montado; os sonoros já se ouvem aqui.
+ * e sonoros, e os moldes de ritmo. Os efeitos de voz preparam-se no servidor e ouvem-se aqui (useVoicePreview); os sonoros já se ouvem logo.
  */
 export function NativeSoundPanel(p: {
   music: Track | null;
@@ -107,6 +107,10 @@ export function NativeSoundPanel(p: {
   voiceCtl: VoiceCtl;
   onVoice: (t: VoiceTake | null) => void;
   locked: boolean;
+  /** Os efeitos de voz a preparar: a carregar (o botão diz «A preparar o efeito…») e a nota quando não deu. */
+  fxState?: { voice: { loading: boolean; note: string | null }; orig: { loading: boolean; note: string | null } };
+  /** Escolher outra vez um efeito volta a tentar os que falharam. */
+  onFxRetry?: () => void;
 }) {
   const [sub, setSub] = useState<Sub>('musica');
   const { mix, locked } = p;
@@ -118,12 +122,13 @@ export function NativeSoundPanel(p: {
     p.setMix((m) => ({ ...m, sfx: [...m.sfx, { key: `${id}-${Date.now().toString(36)}-${Math.round(Math.random() * 1e5)}`, id, at }] }));
     playSfx(id, mix.sfxVolume);
   };
-  const fxRow = (label: string, value: VoiceFxId, on: (id: VoiceFxId) => void) => (
+  const fxRow = (label: string, value: VoiceFxId, on: (id: VoiceFxId) => void, state?: { loading: boolean; note: string | null }) => (
     <View style={{ marginTop: 8 }}>
       <Text style={[st.label, { paddingHorizontal: 16 }]}>{label}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.rowScroll}>
-        {VOICE_FX.map((f) => <Chip key={f.id} label={f.name} on={value === f.id} onPress={() => on(f.id)} disabled={locked} />)}
+        {VOICE_FX.map((f) => <Chip key={f.id} label={value === f.id && f.id !== 'normal' && state?.loading ? 'A preparar o efeito…' : f.name} on={value === f.id} onPress={() => { if (value === f.id) p.onFxRetry?.(); on(f.id); }} disabled={locked} />)}
       </ScrollView>
+      {value !== 'normal' && state?.note ? <Text style={[st.note, { marginTop: 4 }]} accessibilityLiveRegion="polite">{state.note}</Text> : null}
     </View>
   );
   return (
@@ -210,9 +215,9 @@ export function NativeSoundPanel(p: {
 
       {sub === 'efeitos' ? (
         <>
-          {voice ? fxRow('Efeito na voz-off', voice.fx, (id) => p.setMix((m) => (m.voice ? { ...m, voice: { ...m.voice, fx: id } } : m))) : null}
-          {p.hasVideo ? fxRow('Efeito no som original', mix.origFx, (id) => p.setMix((m) => ({ ...m, origFx: id }))) : null}
-          {voice || p.hasVideo ? <Text style={st.note}>Os efeitos de voz ouvem-se no vídeo montado (aqui ouve-se a voz normal).</Text> : null}
+          {voice ? fxRow('Efeito na voz-off', voice.fx, (id) => p.setMix((m) => (m.voice ? { ...m, voice: { ...m.voice, fx: id } } : m)), p.fxState?.voice) : null}
+          {p.hasVideo ? fxRow('Efeito no som original', mix.origFx, (id) => p.setMix((m) => ({ ...m, origFx: id })), p.fxState?.orig) : null}
+          {voice || p.hasVideo ? <Text style={st.note}>O efeito prepara-se no servidor e ouve-se aqui ao tocar (a primeira vez demora uns segundos).</Text> : null}
           <View style={[st.sliderHead, { paddingHorizontal: 16, marginTop: 10 }]}>
             <Text style={st.label}>Efeitos sonoros</Text>
             <Text style={st.note2}>Toca para pôr aos {fmtS(Math.min(p.total, Math.max(0, p.playT)))} s</Text>

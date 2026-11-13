@@ -28,7 +28,9 @@ de fotos). As 10 fontes do texto entram como TTF em `assets/fonts/estudio` (OFL,
 | `lib/studio/composeJob.ts`, `composeRunner.ts` | «Seguinte»: o que enviar, fases, erros, retoma (puro, testado) e a rede |
 | `lib/studio/nativeDraftFiles.ts`, `studioStore(.native).ts` | Os rascunhos em ficheiros e o registo da montagem (`job.json`) |
 | `lib/studio/mp3Envelope.ts`, `nativeAudio.ts` | A onda e o ritmo da música lidos do MP3; os efeitos sonoros em WAV |
-| `lib/studio/nativeLook.ts` | A aproximação dos filtros nos vídeos (pura, testada) |
+| `components/studio/native/SkiaVideo.tsx`, `lib/studio/nativeVideoFx.ts` | O filtro completo nas fotos e nos vídeos (Skia: o shader do site e o vídeo ao ritmo do relógio; as contas puras e testadas) |
+| `lib/studio/nativeLook.ts` | A aproximação dos filtros nos vídeos que não vão pela Skia (pura, testada) |
+| `components/studio/native/useVoicePreview.ts`, `lib/studio/voicePreview.ts` | Os efeitos de voz a ouvir: o servidor prepara o som com o efeito (`POST /tchekas/compose/voice-preview`) |
 | `lib/studio/magicAnalyzeNative.ts`, `magicAnalyze.native.ts` | A análise da Montagem mágica no telemóvel (e a API do site sem browser, para o código do site não entrar na app) |
 | `components/studio/native/NativeMagic.tsx`, `useMagicFrames.tsx` | A Montagem mágica no estúdio nativo e a grelha escondida que lê os frames dos vídeos |
 | `lib/studio/magicFrames.ts` | As contas dos frames dos vídeos: grelha, corte 9:16, lotes no tempo, a resposta do som (puro, testado) |
@@ -36,7 +38,8 @@ de fotos). As 10 fontes do texto entram como TTF em `assets/fonts/estudio` (OFL,
 | `lib/studio/nativeFonts.ts` | As 10 fontes (expo-font) |
 
 Testes: `tests/studioCompose`, `studioComposeJob`, `studioPreviewClock`, `studioNativeDrafts`, `studioMp3`, `studioNativeLook`,
-`studioMagicFrames`; no servidor, `apps/api/src/compose/analyze.spec.ts` e `analyze.e2e.spec.ts`.
+`studioMagicFrames`, `studioNativeVideoFx`, `studioVoicePreview`; no servidor, `apps/api/src/compose/analyze.spec.ts`,
+`analyze.e2e.spec.ts` e `voice-preview.e2e.spec.ts`.
 
 ## 2. Como funciona
 
@@ -49,8 +52,37 @@ Testes: `tests/studioCompose`, `studioComposeJob`, `studioPreviewClock`, `studio
 - **Relógio**: um só (`clockStore`). Cada leitor segue-o sozinho: os vídeos (corte, velocidade, rampa com `playbackRateAt`, som
   do clipe × som dos vídeos; corrige-se quando se afasta mais de 0,3 s), a música (do trecho, em ciclo, com os fades e o ducking
   por baixo da voz-off), a voz-off e os efeitos sonoros (o mesmo `synthSfx`, em WAV).
-- **Filtros**: nas fotos, a matriz de cor verdadeira (`resolveFx` → `ColorMatrix` da Skia) e a vinheta; nos vídeos, uma
-  aproximação com camadas (saturação, tinta, brilho e vinheta) e o aviso «a imagem final fica com o filtro completo».
+- **Filtros**: nas fotos e nos vídeos, o filtro completo pela Skia, com o mesmo shader do site (`renderGL.ts` → `FX_SKSL` em
+  `nativeVideoFx.ts`): nitidez 3×3, a matriz de `resolveFx`, a vinheta cos⁴ (a do ffmpeg) e o grão (semente por frame nos
+  vídeos). O Canvas tem o tamanho da imagem no ecrã. Os vídeos abrem-se com o `Skia.Video` (o objeto do `useVideo` da Skia
+  2.14), mas o ritmo é do estúdio, porque o `useVideo` não serve tal como está (lido em `node_modules/@shopify/react-native-skia`):
+  - no **Android** (`RNSkVideo.java`) cada `nextImage()` descodifica o frame seguinte sem olhar para o tempo (o `useVideo`
+    chama-o a cada frame do ecrã: um vídeo de 30 fps num ecrã de 60/120 Hz andava 2 a 4× mais depressa); o `seek` (em **ms**)
+    cai no keyframe anterior (`SEEK_TO_CLOSEST_SYNC`); não há velocidade; o som é um `MediaPlayer` à parte, a 1×; só dá frames
+    novos enquanto «toca»; e o objeto não liberta o descodificador quando se larga (fica para o recolhedor do Java);
+  - no **iPhone** (`RNSkAppleVideo.mm`) o AVPlayer toca a 1× sozinho; o `seek` é exato; não há velocidade.
+
+  Por isso, em cada frame do ecrã (no fio da interface, `useFrameCallback`), vê-se onde o relógio quer o vídeo e pede-se só o
+  que falta (`androidPace`: até 4 frames por frame do ecrã; para trás, ou mais de 2,5 s à frente, salta e descodifica para a
+  frente até ao frame certo, por isso o início de cada corte fica exato: o clipe seguinte prepara-se escondido); no iPhone toca a
+  1× e corrige-se com saltos exatos (`applePace`). O vídeo da Skia vai **calado**: o som do clipe toca num leitor do expo-video
+  sem imagem (`ClipAudio`), com a velocidade, a rampa, o volume e o efeito de voz (o caminho que já estava provado).
+  Só o clipe de agora e o seguinte (e o anterior durante a transição) estão vivos; os vídeos da Skia guardam-se e reutilizam-se
+  (4 parados no máximo) e há um teto de 12 por estúdio. Enquanto o primeiro frame não chega, vê-se a miniatura do corte.
+  Ficam no **caminho antigo** (expo-video com camadas que aproximam o filtro, e o aviso «a imagem final fica com o filtro
+  completo»): os clipes ao contrário; no iPhone, os clipes com outra velocidade ou rampa; Android antes da API 26; um ficheiro que
+  a Skia não abra ou que não dê um frame em 5 s (fica registado: `console.warn` «vídeo da Skia: …»); depois de 2 falhas, a
+  sessão toda. `SKIA_VIDEO = false` em `NativeStage.tsx` desliga tudo.
+- **Efeitos de voz** (Robô, Esquilo, Grave, Eco, Rádio, Estádio): ao escolher um, a app envia o ficheiro (a voz-off como
+  `purpose: 'chat'`, o clipe de vídeo como na montagem; o envio fica em `job.json` e o «Seguinte» já não o repete) e pede
+  `POST /tchekas/compose/voice-preview { mediaId, effect }`: o servidor aplica a mesma cadeia do ffmpeg da montagem
+  (`voiceFxGraph`) ao primeiro minuto e devolve um M4A com exatamente as mesmas amostras (os tempos batem 1:1), guardado como
+  ficheiro privado da pessoa (apaga-se com os envios por publicar, ao fim de 48 horas); cache por (ficheiro, efeito); 30 por
+  hora. A app guarda-o na cache do telemóvel (`txill-vfx-…m4a`) e toca-o no lugar da voz-off ou do som do vídeo. Enquanto
+  prepara, o botão do efeito diz «A preparar o efeito…»; sem rede (ou no limite), toca o original e aparece uma nota curta («Sem
+  rede: ouve-se sem o efeito.»); tocar outra vez no efeito volta a tentar. Um corte para lá do primeiro minuto ouve-se sem efeito.
+  Não há caminho só no aparelho que soe igual sem um módulo nativo novo (o expo-audio não tem filtros; o eco e o estádio precisam
+  de atrasos com realimentação e de convolução), por isso o som vem do servidor.
 - **Seguinte**: bloqueia a edição, envia cada ficheiro uma vez (um por `media`, com progresso; uma falha de rede tenta outra vez
   sozinha até 4 vezes), pede a montagem e pergunta de 1 em 1 s (em segundo plano não pergunta; ao voltar continua). Cada passo
   fica em `job.json` na pasta do rascunho: ao abrir o rascunho com uma montagem a meio, retoma-se. «Parar» pede confirmação. No
@@ -65,12 +97,14 @@ Testes: `tests/studioCompose`, `studioComposeJob`, `studioPreviewClock`, `studio
 
 ## 3. O que fica aproximado na pré-visualização (o vídeo montado sai completo)
 
-- Filtros nos **vídeos** (camadas, não a matriz); nitidez e grão não se veem.
+- Filtros nos vídeos que não vão pela Skia (ver 2: ao contrário, iPhone com outra velocidade, ficheiro que não abre): camadas.
+- Vídeo da Skia no Android depois de um salto para trás: uns frames a andar depressa até chegar ao frame certo.
+- O grão das fotos fica parado (nos vídeos mexe-se a cada frame, como no site).
 - Transições: as 11 aproximam-se com opacidade, deslocamento, escala e rotação; as 5 de pano com uma faixa de pano a passar.
 - Inverter: salta de frame em frame para trás (8 por segundo), sem som.
 - Texto: a quebra das linhas é a do telemóvel; o contorno é uma sombra fina; a ondulação mexe o texto todo (não letra a letra);
   as letras de pano usam a cor forte do pano com um traço por baixo (a faixa de pano vê-se).
-- Efeitos de voz (robô, eco…) e o efeito no som original: só no vídeo montado.
+- Efeitos de voz: precisam de rede (a primeira vez de cada ficheiro e efeito) e só valem para o primeiro minuto de cada ficheiro.
 - Ritmo: o andamento sai da curva do MP3 (os ganhos dos frames); noutros formatos fica 120 BPM. O servidor lê as batidas a sério
   na montagem (`beats: { mode: 'auto' }`), por isso as fotos ao ritmo podem mudar um pouco.
 - Montagem mágica: as contas são as do site (`magic.ts`); o que muda é como se chega aos píxeis e ao som (ver 3.1). A música pela
@@ -127,8 +161,8 @@ Testes: `tests/studioCompose`, `studioComposeJob`, `studioPreviewClock`, `studio
    ser diferentes) → arrastar o texto na imagem, rodar e escalar com dois dedos (cola às guias amarelas). A faixa do texto
    aparece na linha do tempo e as pontas mudam quando entra e sai.
 10. **Stickers**: emoji, Txill, @, local, hora. **Não** há separador GIF (as regras do GIPHY proíbem gravar o GIF no vídeo: `STUDIO_GIFS = false` em `StickerTray.tsx`, o mesmo do site).
-11. **Efeitos**: numa foto, os filtros têm a miniatura com a cor certa e a imagem muda logo; num vídeo, muda aproximado e aparece o
-    aviso; transição «Zoom» entre dois clipes → «Ver»; rampa «Herói»; «Inverter»; «Congelar este frame» junta uma foto parada.
+11. **Efeitos**: numa foto, os filtros têm a miniatura com a cor certa e a imagem muda logo (com «Vintage» vê-se o grão); num vídeo
+    o filtro é o completo, **sem** o aviso «a imagem final…»; transição «Zoom» entre dois clipes → «Ver»; rampa «Herói»; «Inverter»; «Congelar este frame» junta uma foto parada.
 12. **Capulana**: Efeitos → Capulana → escolher um pano → «Transição de pano» no clipe 2 → uma faixa de pano passa na junção.
 13. **Montagem mágica**: Clipes → «Montagem mágica» → uma onda → «Afinar»: os clipes mudam, o texto de abertura aparece. Com
     vídeos: aparecem «A ver os teus vídeos…» e «A ouvir o som…»; os cortes dos vídeos não começam todos do início. Em modo de
@@ -143,12 +177,27 @@ Testes: `tests/studioCompose`, `studioComposeJob`, `studioPreviewClock`, `studio
 18. **Rascunho**: editar, sair com o X, entrar outra vez em Tcheka → «Continuar» → tudo como estava (cortes, texto, voz-off).
 19. **Erros**: 3 fotos sem música → o botão fica desligado com a dica; 2 montagens seguidas noutro aparelho → «Já tens uma tcheka
     a montar».
-20. **iPhone** (se houver): o modo silencioso não cala a pré-visualização; o teclado não tapa o campo do texto.
+20. **Filtro nos vídeos (Skia)**: num vídeo gravado ao alto, «Noite de Maputo»: a imagem fica ao alto (não deitada), com a cor e a
+    vinheta iguais às da miniatura e às do vídeo montado; Ajustes → Nitidez 1 e Grão 1: a nitidez vê-se e o grão mexe-se a tocar.
+    Tocar: o vídeo anda à velocidade certa (comparar com «0:03 / 0:20»), a 2×, a 0,5× e com a rampa «Herói». Pausar e arrastar a
+    linha do tempo para trás e para a frente: a imagem segue (para trás pode andar depressa uns instantes). Na junção de dois
+    vídeos cortados a meio, o segundo começa no frame do corte. Num clipe «Inverter» aparece o aviso e o filtro aproximado. Ver no
+    logcat (`adb logcat | findstr /i skia`) se aparece «vídeo da Skia: …» (o clipe passou para o leitor antigo).
+21. **Memória (Skia)**: um projeto com 8 vídeos; tocar do princípio ao fim 3 vezes; sair e entrar no estúdio 3 vezes: nenhum
+    vídeo fica preto ou parado e a app não fecha. No Android Studio → Profiler, a memória nativa não sobe sem parar.
+22. **Efeitos de voz**: gravar uma voz-off → Som → Efeitos → «Robô»: o botão diz «A preparar o efeito…» e, uns segundos depois,
+    ao tocar ouve-se a voz de robô no sítio certo (a música baixa quando se fala, como antes). Mudar para «Esquilo», «Grave»,
+    «Eco», «Rádio», «Estádio»: cada um soa como no vídeo montado. «Efeito no som original» → «Eco»: os vídeos com som ouvem-se
+    com eco (um vídeo calado na mistura não). Voltar a «Robô»: é logo (vem da cache). Em modo de avião, um efeito novo: «Sem
+    rede: ouve-se sem o efeito.» e ouve-se a voz normal; ligar a rede e tocar outra vez no efeito: prepara. Depois, «Seguinte»
+    não volta a enviar a voz-off nem os vídeos que já foram.
+23. **iPhone** (se houver): o modo silencioso não cala a pré-visualização; o teclado não tapa o campo do texto.
 
 ## 5. Por fazer
 
-- Pré-visualização dos efeitos de voz e da matriz de cor nos vídeos (precisava de um módulo de vídeo com shaders, por exemplo o
-  `useVideo` da Skia, que não se quis arriscar sem testar).
+- O filtro completo nos clipes ao contrário e, no iPhone, nos clipes com outra velocidade (a Skia não muda a velocidade do
+  AVPlayer); o som dos vídeos da Skia sem um segundo descodificador (o leitor do som, expo-video, também descodifica a imagem).
+- Os efeitos de voz sem rede (precisava de um módulo de áudio nativo com filtros).
 - Enquadrar os vídeos pelo ponto de interesse (o servidor e a pré-visualização só enquadram fotos): ligar `videoFocus`.
 - O «tem som?» dos vídeos no iPhone sem a Montagem mágica (o leitor não diz «não»).
 - A onda das músicas que não são MP3 (m4a, ogg): pedir ao servidor os picos.

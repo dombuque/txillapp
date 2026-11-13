@@ -7,13 +7,25 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import type { CapulanaSpec } from '@/lib/studio/capulana';
 import { easeInOutCubic, isIdentity, playbackRateAt, resolveFx, sourceOffset, transitionFor, VIGNETTE_ANGLE, type ClipFx } from '@/lib/studio/effects';
 import { videoLook, type VideoLook } from '@/lib/studio/nativeLook';
+import { skiaVideoOk } from '@/lib/studio/nativeVideoFx';
 import { drift, photoZoom, reverseStep, segAt, transitionAt } from '@/lib/studio/previewClock';
 import { limitBuffer } from '@/lib/videoMemory';
 import { CapulanaSwatch } from '../CapulanaSwatch';
 import type { ClockStore } from './clockStore';
+import { cachedVideoThumb } from './NativeTimeline';
+import { canOpenSkia, fxEffect, onSkiaFail, resetSkiaVideos, skiaFailed, SkiaPhoto, SkiaVideoLayer } from './SkiaVideo';
+
+/** Os vídeos com o filtro completo pela Skia (false: todos pelo caminho antigo, o expo-video com as camadas). */
+const SKIA_VIDEO = true;
 
 /** Um bocado da sequência como a pré-visualização o toca. `volume`: o som do próprio vídeo (0 se calado ou ao contrário). */
-export interface StageSeg { key: string; uri: string; video: boolean; start: number; dur: number; from: number; len: number; speed: number; fx?: ClipFx; volume: number }
+export interface StageSeg {
+  key: string; uri: string; video: boolean; start: number; dur: number; from: number; len: number; speed: number; fx?: ClipFx; volume: number;
+  /** O som original com o efeito de voz (preparado no servidor; os mesmos tempos do ficheiro). */
+  soundUri?: string | null;
+  /** A duração do ficheiro do vídeo (s), para a miniatura enquanto o primeiro frame não chega. */
+  length?: number;
+}
 type Role = 'cur' | 'prev' | 'next';
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const nowMs = () => Date.now();
@@ -91,7 +103,10 @@ function PhotoLayer({ seg, clock, w, h, pano }: { seg: StageSeg; clock: ClockSto
   }), [clock, seg.start, seg.dur, seg.fx]);
   const look = useMemo(() => videoLook(p.matrix, p.vignette), [p]);
   const frame = !!seg.fx?.moldura;
-  const content = img && img !== 'erro' && !frame ? (
+  const shader = !!fxEffect();
+  const content = img && img !== 'erro' && !frame && shader ? (
+    <SkiaPhoto image={img} p={p} w={w} h={h} />
+  ) : img && img !== 'erro' && !frame ? (
     <Canvas style={{ width: w, height: h }}>
       <SkImageNode image={img} x={0} y={0} width={w} height={h} fit="cover">
         {isIdentity(p.matrix) ? null : <ColorMatrix matrix={p.matrix} />}
@@ -106,25 +121,21 @@ function PhotoLayer({ seg, clock, w, h, pano }: { seg: StageSeg; clock: ClockSto
       <View style={{ width: w, height: h, transform: [{ scale: z.scale }], transformOrigin: `${Math.round(z.x * 100)}% ${Math.round(z.y * 100)}%` } as object}>
         {content}
       </View>
-      {/* Na Skia já vai a cor; a vinheta vai por cima. Sem Skia (ou na moldura), a aproximação toda. */}
-      {img && img !== 'erro' && !frame ? (p.vignette > 0.01 ? <Vignette strength={1 - Math.pow(Math.cos(p.vignette * VIGNETTE_ANGLE), 4)} /> : null) : <LookLayer look={look} />}
+      {/* Na Skia já vai a cor (e, com o shader, a vinheta, a nitidez e o grão); sem o shader, a vinheta vai por cima. Sem Skia (ou na moldura), a aproximação toda. */}
+      {img && img !== 'erro' && !frame ? (!shader && p.vignette > 0.01 ? <Vignette strength={1 - Math.pow(Math.cos(p.vignette * VIGNETTE_ANGLE), 4)} /> : null) : <LookLayer look={look} />}
     </View>
   );
 }
 
-/** Um vídeo: um leitor (expo-video) que segue o relógio, com o corte, a velocidade, a rampa, o inverso e o som do clipe. */
-function VideoLayer({ seg, role, clock, origVol }: { seg: StageSeg; role: Role; clock: ClockStore; origVol: number }) {
-  const player = useVideoPlayer({ uri: seg.uri }, (p) => {
-    p.loop = false;
-    p.preservesPitch = true;
-    p.timeUpdateEventInterval = 0;
-    limitBuffer(p, 'full');
-  });
+/**
+ * Põe um leitor do expo-video a seguir o relógio: o corte, a velocidade, a rampa e o inverso. `volume`: o som que o leitor
+ * deve ter (0 = calado). Serve ao vídeo do caminho antigo e ao som dos clipes (o leitor sem imagem, `ClipAudio`).
+ */
+function useClockPlayer(player: VideoPlayer, seg: StageSeg, role: Role, clock: ClockStore, volume: number) {
   const roleRef = useRef(role);
   roleRef.current = role;
-  const volRef = useRef(origVol * seg.volume);
-  volRef.current = seg.fx?.reverse ? 0 : origVol * seg.volume;
-  const look = useMemo(() => { const p = resolveFx(seg.fx); return videoLook(p.matrix, p.vignette); }, [seg.fx]);
+  const volRef = useRef(volume);
+  volRef.current = seg.fx?.reverse ? 0 : volume;
   const drive = useRef<(t: number, playing: boolean, force?: boolean) => void>(() => undefined);
   const mem = useRef({ lastSeek: 0, lastCheck: 0, lastRev: -1, parked: '' });
   drive.current = (t: number, playing: boolean, force = false) => {
@@ -168,13 +179,75 @@ function VideoLayer({ seg, role, clock, origVol }: { seg: StageSeg; role: Role; 
       } catch { /* leitor ainda a carregar ou já libertado */ }
   };
   useEffect(() => clock.subscribe((t, playing) => drive.current(t, playing)), [clock, player]);
-  useEffect(() => { drive.current(clock.time(), clock.playing(), true); }, [role, seg.from, seg.len, seg.start, seg.dur, seg.speed, seg.fx, clock]);
+  useEffect(() => { drive.current(clock.time(), clock.playing(), true); }, [role, seg.from, seg.len, seg.start, seg.dur, seg.speed, seg.fx, volume, clock]);
   useEffect(() => () => { try { player.pause(); } catch { /* já libertado */ } }, [player]);
+}
+
+const setupPlayer = (p: VideoPlayer) => {
+  p.loop = false;
+  p.preservesPitch = true;
+  p.timeUpdateEventInterval = 0;
+};
+
+/** O vídeo pelo caminho antigo (expo-video), com as camadas que aproximam o filtro. `volume` 0 quando o som vai à parte. */
+function LegacyVideoLayer({ seg, role, clock, volume }: { seg: StageSeg; role: Role; clock: ClockStore; volume: number }) {
+  const player = useVideoPlayer({ uri: seg.uri }, (p) => { setupPlayer(p); limitBuffer(p, 'full'); });
+  useClockPlayer(player, seg, role, clock, volume);
+  const look = useMemo(() => { const p = resolveFx(seg.fx); return videoLook(p.matrix, p.vignette); }, [seg.fx]);
   return (
     <View style={StyleSheet.absoluteFill}>
       <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} surfaceType={Platform.OS === 'android' ? 'textureView' : undefined} allowsPictureInPicture={false} />
       <LookLayer look={look} />
     </View>
+  );
+}
+
+/**
+ * O som de um clipe sem imagem: o ficheiro do vídeo, ou o som com o efeito de voz que o servidor preparou (`seg.soundUri`,
+ * com os mesmos tempos do original). Segue o relógio como o vídeo (corte, velocidade, rampa).
+ */
+function ClipAudio({ seg, uri, role, clock, volume }: { seg: StageSeg; uri: string; role: Role; clock: ClockStore; volume: number }) {
+  const player = useVideoPlayer({ uri }, (p) => { setupPlayer(p); limitBuffer(p, 'full'); });
+  useClockPlayer(player, seg, role, clock, volume);
+  return null;
+}
+
+/** Os vídeos que estão no caminho antigo por ter falhado na Skia mudam (para o aviso do filtro aproximado). */
+export function useSkiaFailures(): number {
+  const [n, setN] = useState(0);
+  useEffect(() => onSkiaFail(() => setN((x) => x + 1)), []);
+  return n;
+}
+/** Este clipe vai pela Skia (com o filtro completo)? */
+export function skiaClip(seg: Pick<StageSeg, 'uri' | 'speed' | 'fx'>): boolean {
+  return SKIA_VIDEO && !!fxEffect() && skiaVideoOk({ os: Platform.OS, version: Platform.Version, reverse: seg.fx?.reverse, speed: seg.speed, ramp: seg.fx?.ramp }) && !skiaFailed(seg.uri);
+}
+
+/**
+ * Um vídeo: a imagem pela Skia (o filtro completo, `SkiaVideoLayer`) e o som num leitor à parte (`ClipAudio`); se a Skia
+ * não servir para este clipe (ao contrário, iPhone com outra velocidade, um ficheiro que não abre), o caminho antigo.
+ */
+function VideoLayer({ seg, role, clock, origVol, w, h }: { seg: StageSeg; role: Role; clock: ClockStore; origVol: number; w: number; h: number }) {
+  const [legacy, setLegacy] = useState(() => !skiaClip(seg) || !canOpenSkia(seg.uri));
+  useEffect(() => { if (!legacy && !skiaClip(seg)) setLegacy(true); }, [seg.speed, seg.fx]); // eslint-disable-line react-hooks/exhaustive-deps
+  const volume = seg.fx?.reverse ? 0 : origVol * seg.volume;
+  // Com efeito no som original, o som vem do ficheiro que o servidor preparou e o vídeo fica calado.
+  const sound = seg.soundUri && volume > 0.001 ? seg.soundUri : null;
+  const poster = useMemo(() => (seg.length ? cachedVideoThumb(seg.uri, seg.length, seg.from) : null), [seg.uri, seg.length, seg.from]);
+  if (legacy) {
+    return (
+      <>
+        <LegacyVideoLayer seg={seg} role={role} clock={clock} volume={sound ? 0 : volume} />
+        {sound && role !== 'prev' ? <ClipAudio key={sound} seg={seg} uri={sound} role={role} clock={clock} volume={volume} /> : null}
+      </>
+    );
+  }
+  const audio = sound ?? (volume > 0.001 ? seg.uri : null);
+  return (
+    <>
+      <SkiaVideoLayer seg={seg} role={role} clock={clock} w={w} h={h} poster={poster} onFail={() => setLegacy(true)} />
+      {audio && role !== 'prev' ? <ClipAudio key={audio} seg={seg} uri={audio} role={role} clock={clock} volume={volume} /> : null}
+    </>
   );
 }
 
@@ -214,8 +287,8 @@ function transitionStyles(type: string, p: number, W: number, H: number): { prev
 
 /**
  * A pré-visualização nativa: os clipes tocam cada um no seu leitor (o de agora, o anterior durante a transição e o seguinte à
- * espera, já carregado), todos a seguir o relógio do projeto. As fotos levam a matriz de cor verdadeira; os vídeos uma
- * aproximação do filtro (o vídeo montado leva-o completo). As transições aproximam o desenho do site.
+ * espera, já carregado), todos a seguir o relógio do projeto. As fotos e os vídeos levam o filtro completo pela Skia (o shader
+ * do site: SkiaVideo.tsx); os vídeos que não vão pela Skia, uma aproximação. As transições aproximam o desenho do site.
  */
 export function NativeStage({ segs, clock, W, H, origVol, pano, reference, refVolume }: {
   segs: StageSeg[];
@@ -230,6 +303,8 @@ export function NativeStage({ segs, clock, W, H, origVol, pano, reference, refVo
   const [state, setState] = useState<{ i: number; tr: { type: string; p: number } | null }>({ i: 0, tr: null });
   const segsRef = useRef(segs);
   segsRef.current = segs;
+  // Ao fechar o estúdio, os vídeos da Skia parados largam-se.
+  useEffect(() => () => resetSkiaVideos(), []);
   useEffect(() => {
     const look = (t: number) => {
       const list = segsRef.current;
@@ -252,7 +327,7 @@ export function NativeStage({ segs, clock, W, H, origVol, pano, reference, refVo
     if (!s) return null;
     return (
       <View key={`${s.key}|${s.uri}`} style={[StyleSheet.absoluteFill, { overflow: 'hidden' }, role === 'next' && { opacity: 0 }, style]} pointerEvents="none">
-        {s.video ? <VideoLayer seg={s} role={role} clock={clock} origVol={origVol} /> : <PhotoLayer seg={s} clock={clock} w={bw} h={bh} pano={pano} />}
+        {s.video ? <VideoLayer seg={s} role={role} clock={clock} origVol={origVol} w={bw} h={bh} /> : <PhotoLayer seg={s} clock={clock} w={bw} h={bh} pano={pano} />}
       </View>
     );
   };
@@ -279,7 +354,7 @@ export function NativeStage({ segs, clock, W, H, origVol, pano, reference, refVo
   );
 }
 
-/** «A imagem final fica com o filtro completo»: o aviso honesto por baixo da pré-visualização, quando um vídeo tem filtro. */
+/** «A imagem final fica com o filtro completo»: o aviso honesto por baixo da pré-visualização, quando um vídeo com filtro não vai pela Skia. */
 export function LookNote({ show }: { show: boolean }) {
   if (!show) return null;
   return <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center', paddingHorizontal: 16 }} numberOfLines={2}>Nos vídeos o filtro aqui é aproximado: a imagem final fica com o filtro completo.</Text>;

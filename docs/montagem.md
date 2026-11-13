@@ -131,6 +131,20 @@ Uma pista só com silêncio (RMS abaixo de 0,002) dá `hasAudio: false`. `404` d
 `409` antes de `complete`, `503` com a fila cheia ou se o ffmpeg falhar. Cache em memória por ficheiro, 2 de cada vez, 20 s de
 prazo, 60 por minuto. Código: `compose/analyze.ts` (as contas) e `compose/analyze.service.ts`.
 
+### 3-B. `POST /tchekas/compose/voice-preview` (com sessão, só o dono): ouvir um efeito de voz antes de montar
+
+Para a pré-visualização da app nativa (docs/estudio-nativo.md, 2). Corpo `{ mediaId, effect }`: um áudio meu já enviado (a
+voz-off, `purpose: 'chat'`) ou um clipe de vídeo meu (o som original); `effect` um de `robo|esquilo|grave|eco|radio|estadio`
+(`normal` ou outro → 400). Resposta 200 `{ mediaId, url, durationMs, cached }`: um M4A (AAC 128k, 48 kHz estéreo, `+faststart`)
+com o efeito pela mesma cadeia da montagem (`voiceFxGraph`, a resposta ao impulso do Estádio), do **primeiro minuto** do som e
+com exatamente as mesmas amostras da entrada (sem a cauda do eco: os tempos batem 1:1). `url` é relativo e assinado (o
+`chatUrl` dos áudios do chat, vale de 1 a 2 horas, sem cabeçalhos). Fica guardado como ficheiro privado da pessoa
+(`purpose: 'chat'`, id UUIDv8 tirado de `(pessoa, ficheiro, efeito)`: é a chave da cache, sem colunas novas) e não conta como
+usado: apaga-se com os envios por publicar, ao fim de 48 horas, e não segura o original. Ficheiro de outra pessoa, apagado,
+por converter ou de música → 404; sem som → 422 «Este vídeo não tem som.»; 30 por hora e por pessoa (os da cache não contam)
+→ 429. Fila própria (1 de cada vez, 8 à espera, `nice` 10, 30 s no máximo). Código: `compose/voice-preview.service.ts`;
+testes em `voice-preview.e2e.spec.ts`. Se a cadeia dos efeitos mudar, sobe-se `CACHE_VERSION`.
+
 ## 4. O vídeo final
 
 - **1080×1920 (9:16), H.264 (high 4.1, CRF 21, até 6 Mbit/s) + AAC 160 kbit/s, 30 fps, `faststart`**, sem metadados.

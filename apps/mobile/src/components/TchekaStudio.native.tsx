@@ -11,6 +11,7 @@ import { abs } from '@/lib/config';
 import { shotsFromPicker } from '@/lib/mediaAccess';
 import { clampFade, isSfx, SFX, type SfxId } from '@/lib/studio/audioDsp';
 import { defaultMix, voiceSecondsIn, type StudioMix, type Template, type VoiceTake } from '@/lib/studio/audioMix';
+import { groupState, previewTargets, targetId } from '@/lib/studio/voicePreview';
 import { planRhythm, type BeatState } from '@/lib/studio/audioRhythm';
 import type { CapulanaSpec } from '@/lib/studio/capulana';
 import { isCapulanaTransition, type CapulanaShapeId, type CapulanaTransitionId } from '@/lib/studio/capulanaShapes';
@@ -53,10 +54,11 @@ import { NativeFxPanel } from './studio/native/NativeFxPanel';
 import { NativeMagic } from './studio/native/NativeMagic';
 import { NativeOverlays } from './studio/native/NativeOverlays';
 import { NativeSoundPanel, type ClipSound } from './studio/native/NativeSoundPanel';
-import { LookNote, NativeStage, type StageSeg } from './studio/native/NativeStage';
+import { LookNote, NativeStage, skiaClip, useSkiaFailures, type StageSeg } from './studio/native/NativeStage';
 import { cachedVideoThumb, NativeTimeline } from './studio/native/NativeTimeline';
 import { useFrameGrab } from './studio/native/useFrameGrab';
 import { usePreviewAudio } from './studio/native/usePreviewAudio';
+import { useVoicePreview } from './studio/native/useVoicePreview';
 import type { Shot } from './TxCamera';
 
 type Tab = 'clipes' | 'som' | 'texto' | 'stickers' | 'efeitos' | 'capa';
@@ -268,7 +270,6 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   }, [clock]);
   const nowT = () => clock.time();
   const [voiceRec, setVoiceRec] = useState(false);
-  usePreviewAudio({ clock, musicUrl: music?.kind === 'sound' || music ? musicUrl : null, mix, musicVol, total: playTotal, muteVoice: voiceRec, muted: !!result });
   useEffect(() => { void loadNativeStudioFonts(); return () => clearNativeMagicCache(); }, []);
   // Começa a tocar quando abre (como no site).
   useEffect(() => { if (items.length && !startMagic) setTimeout(() => clock.play(0), 400); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -580,6 +581,28 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const saver = useMemo(() => debounce((snap: { clips: Item[]; extra: { key: string; uri: string; mime: string }[]; settings: StudioSettings; seconds: number; context?: Record<string, unknown> }) => {
     void studioStore().save({ id: draftKey.current, ...snap, settings: { ...snap.settings } }).catch(() => undefined);
   }, DRAFT_DEBOUNCE_MS), []);
+
+  // ---------------------------------------------------------------- os efeitos de voz a ouvir (preparados no servidor)
+  const fxTargets = useMemo(() => previewTargets({
+    voice: mix.voice ? { id: mix.voice.id, uri: mix.voice.uri, mime: mix.voice.mime, fx: mix.voice.fx, duration: mix.voice.duration } : null,
+    origFx: origVol > 0 ? mix.origFx : 'normal',
+    clips: items.map((it) => ({ media: it.media, uri: it.uri, mime: it.mime, video: it.video, from: it.trim.start, len: Math.max(0, it.trim.end - it.trim.start), audible: it.video && soundOn(it) && !it.fx?.reverse && it.hasAudio !== false })),
+  }), [mix.voice, mix.origFx, origVol, items]);
+  const vfx = useVoicePreview({ draftId: draftKey.current, targets: fxTargets, enabled: !run && !result });
+  const voiceFxUri = mix.voice && mix.voice.fx !== 'normal' ? vfx.fileFor({ key: `voz:${mix.voice.id}`, uri: mix.voice.uri ?? '', effect: mix.voice.fx }) : null;
+  const fxState = {
+    voice: groupState(fxTargets.filter((t) => t.kind === 'voice').map((t) => vfx.status[targetId(t)])),
+    orig: groupState(fxTargets.filter((t) => t.kind === 'video').map((t) => vfx.status[targetId(t)])),
+  };
+  usePreviewAudio({ clock, musicUrl: music?.kind === 'sound' || music ? musicUrl : null, mix, musicVol, total: playTotal, muteVoice: voiceRec, muted: !!result, voiceUri: voiceFxUri });
+  // O que a imagem toca: o som original com o efeito (quando já está pronto) e a duração do ficheiro (para a miniatura).
+  const stageSegs = useMemo(() => segs.map((s, i) => {
+    const it = items[i];
+    if (!it?.video) return s;
+    const soundUri = mix.origFx !== 'normal' ? vfx.fileFor({ key: it.media, uri: it.uri, effect: mix.origFx }) : null;
+    return { ...s, soundUri, length: it.length };
+  }), [segs, items, mix.origFx, vfx.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  const skiaFails = useSkiaFailures();
   const settingsNow: StudioSettings = { music, rhythm, origVol, musicVol, coverAt, overlays: hist.present.overlays, mix: mix.voice ? { ...mix, voice: { ...mix.voice, uri: undefined } } : mix, applied, pano };
   const voiceFile = mix.voice?.uri ? [{ key: mix.voice.id, uri: mix.voice.uri, mime: mix.voice.mime ?? 'audio/mp4' }] : [];
   const settingsSig = JSON.stringify(settingsNow).length + ':' + JSON.stringify(settingsNow).slice(-200);
@@ -778,7 +801,8 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
   const stageW = fit.shown ? fit.w : lastFit.current.w || 1;
   const realH = fit.shown ? fit.h : lastFit.current.h || 1;
   const timelineW = win.width;
-  const videoFiltered = items.some((it) => it.video && (it.fx?.filter || it.fx?.adjust));
+  // O aviso do filtro aproximado só para os vídeos que não vão pela Skia (ao contrário, iPhone com outra velocidade, um ficheiro que não abriu).
+  const videoFiltered = useMemo(() => segs.some((s) => s.video && (s.fx?.filter || s.fx?.adjust) && !skiaClip(s)), [segs, skiaFails]); // eslint-disable-line react-hooks/exhaustive-deps
   const thumbOf = (key: string) => { const it = items.find((x) => x.key === key); return !it ? null : it.video ? cachedVideoThumb(it.uri, it.length, it.trim.start) : it.uri; };
   const reverseOf = (): ReverseState => ({ status: 'ready', progress: 1 });
   const selFx = cur?.fx;
@@ -824,7 +848,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
         {/* Recolhida (folha alta), a imagem fica montada mas sem altura: os vídeos e o som continuam no sítio. */}
         <View style={fit.shown ? null : { height: 0, overflow: 'hidden', opacity: 0 }}>
           <Pressable onPress={() => { if (busy || Date.now() - ovTouch.current < 400) return; if (selOv) setSelOv(null); else clock.toggle(); }} style={[st.stage, { width: stageW, height: realH }]} accessibilityRole="button" accessibilityLabel={playing ? 'Pausar a pré-visualização' : 'Tocar a pré-visualização'}>
-            <NativeStage segs={segs} clock={clock} W={stageW} H={realH} origVol={origVol} pano={pano} reference={reference} refVolume={musicVol} />
+            <NativeStage segs={stageSegs} clock={clock} W={stageW} H={realH} origVol={origVol} pano={pano} reference={reference} refVolume={musicVol} />
             <NativeOverlays overlays={overlays} clock={clock} W={stageW} H={realH} selId={selOv} locked={locked} showSafe={tab === 'texto' || tab === 'stickers'} onSelect={(id) => { ovTouch.current = Date.now(); selectOverlay(id); }} onEdit={(id) => { ovTouch.current = Date.now(); selectOverlay(id); setEditTick((n) => n + 1); setSheet('alta'); }} onChange={(o) => { ovTouch.current = Date.now(); changeOverlay(o); }} />
             {!playing && !busy && !selOv ? <View style={st.center} pointerEvents="none"><View style={[st.playBig, stageW < 170 && { width: 48, height: 48 }]}><Play size={stageW < 170 ? 22 : 32} color="#fff" fill="#fff" /></View></View> : null}
           </Pressable>
@@ -925,7 +949,7 @@ export function TchekaStudio({ clips, initialMusic, reference, onDone, onClose, 
                 clipSounds={clipSounds} onClipSound={setClipSound} onPickMusic={() => { clock.pause(); setPickMusic(true); }}
                 onRemoveMusic={() => { setMusic(null); if (origVol === 0) setOrigVol(1); }}
                 canFit={!!music && items.length > 0} fitNote={fitNote} onFit={() => rhythmFit()} onTemplate={(t) => rhythmFit(t)} applied={applied}
-                voiceCtl={voiceCtl} onVoice={onVoice} locked={locked}
+                voiceCtl={voiceCtl} onVoice={onVoice} locked={locked} fxState={fxState} onFxRetry={vfx.retry}
               />
             ) : null}
             {tab === 'texto' ? <TextPanel texts={texts} selId={selOv} onSelect={selectOverlay} onAdd={addText} onChange={changeOverlay} onDelete={deleteOverlay} total={playTotal} locked={locked} focusKey={editTick} /> : null}

@@ -24,15 +24,16 @@ export function playSfx(id: SfxId, volume = 1) {
 
 /**
  * O som da pré-visualização nativa, todo pelo relógio do projeto: a música (do trecho, em ciclo, com os fades e o ducking por
- * baixo da voz-off), a voz-off no sítio dela e os efeitos sonoros no instante deles. Os efeitos de voz (robô, eco…) não se
- * ouvem aqui: ouvem-se no vídeo montado.
+ * baixo da voz-off), a voz-off no sítio dela e os efeitos sonoros no instante deles. Com um efeito de voz (robô, eco…),
+ * `voiceUri` é o som da voz-off já com o efeito (preparado no servidor, useVoicePreview.ts; os mesmos tempos da gravação);
+ * enquanto não chega, ouve-se a voz normal.
  */
-export function usePreviewAudio(o: { clock: ClockStore; musicUrl: string | null; mix: StudioMix; musicVol: number; total: number; muteVoice: boolean; muted: boolean }) {
+export function usePreviewAudio(o: { clock: ClockStore; musicUrl: string | null; mix: StudioMix; musicVol: number; total: number; muteVoice: boolean; muted: boolean; voiceUri?: string | null }) {
   const cfg = useRef(o);
   cfg.current = o;
   const music = useRef<AudioPlayer | null>(null);
   const voice = useRef<AudioPlayer | null>(null);
-  const voiceUri = o.mix.voice?.uri ?? null;
+  const voiceUri = o.mix.voice ? o.voiceUri || o.mix.voice.uri || null : null;
 
   useEffect(() => {
     if (!o.musicUrl) return;
